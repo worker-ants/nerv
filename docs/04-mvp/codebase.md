@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.68 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.69 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.69 변경(2026-09-24 — MinIO 이미지를 당길 수 없게 됐다, **사람 결정**): **REQ-CB-031 수단 정정 · §3 compose 전문 · §6.5 표·복구 ③.** MinIO 는 2025-10 부터 소스로만 배포하고, 도커허브의 `minio/minio`·`minio/mc` 를 2026-09-11 에, 그 대신 쓰던 `quay.io/minio/minio`·`quay.io/minio/mc` 를 2026-09-24 에 거뒀다(익명 pull 401) — 그날 e2e 가 스택을 띄우지 못했고, 운영 백업 CronJob 의 initContainer 도 노드 캐시가 없으면 당길 이미지가 없다. 공식 후속 `quay.io/minio/aistor/minio` 는 받아지지만 **라이선스 없이는 S3 요청을 전부 거절한다**("All S3 operations are denied" — 실측). ① 개발 compose·e2e 서버는 커뮤니티 포크 `pgsty/minio` 의 릴리스 태그로 옮긴다 — 운영 자격증명을 받지 않는 자리이고, 옛 이미지가 쓴 볼륨을 그대로 읽는다(실측). ② 백업·복원 클라이언트는 `mc` 대신 **rclone 공식 이미지**(`rclone/rclone:1.75.1`)다 — 이 바이너리가 운영 S3 자격증명을 다루므로 스토리지 업체의 후속 이미지나 포크에 맡기지 않는다. 원격은 설정 파일 없이 env 로만 정의하고 주소 모양·리전은 앱(`storage.service.ts`)과 같은 값을 따른다. 스택은 그대로다 — [4.1](scope.md) §2 의 인프라 서비스는 여전히 MinIO 이고, 바뀐 것은 그 빌드를 누가 내는가와 백업 도구다.
 >
 > v1.68 변경(2026-09-24 — 스키마가 뒤처진 채 api 가 떠 있었다, **사람 보고**): **REQ-CB-056 신설 · §3 트리 한 줄 · §5.1 개발 루프 한 문단.** 화면 곳곳에서 500 이 났는데 원인은 하나였다 — 개발 DB 에 마이그레이션이 **31건 중 27건**만 적용돼 있었다(0027~0030 누락). `pnpm dev` 는 마이그레이션을 돌리지 않고, api 는 스키마를 보지 않고 떴으며, 없는 칸을 읽는 질의마다 500 이 됐다(받은 초대 `invitation.last_sent_at` · 처리됨 탭 `approval.decided_by_user_id` · 플러그인 표시 `plugin_version`). 증상은 흩어져 있고 어느 것도 원인을 가리키지 않는다. 이제 api·워커가 기동할 때 적용 이력을 동봉된 순서표와 대조해 **뒤처졌으면 이름과 명령을 말하고 뜨지 않는다**(`common/schema-guard.ts` · 판정은 `@nerv/schema/migrate` 의 `schemaStatus` 한 곳 — drizzle 적용기와 같은 규칙). **앞선 DB 는 막지 않는다** — 롤링 배포 중 옛 파드가 새 스키마 위에서 잠시 도는 것은 expand-contract 가 허용하는 순간이고(§6.3), 개발 DB 를 함께 쓰는 다른 워크트리가 먼저 올린 경우도 같다. DB 에 닿지 못하는 것은 이 검사의 일이 아니라 경고만 남긴다. compose(`migrate` 서비스 선행)·k8s(`nerv-migrate` Job 완료 대기)·E2E(`--wait`)는 이미 마이그레이션이 먼저라 달라지는 것이 없다.
 >
@@ -1170,7 +1172,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
 | **REQ-CB-051** | WHEN check 잡이 돌면 THE SYSTEM SHALL md 와 html 의 표에서 **첫 칸이 고정 ID 인 행**을 번호로 짝지어 나머지 칸의 문장을 견주고, 닮은 정도가 **0.7 미만**이면 실패한다 — 파생본은 근거를 담은 괄호를 줄여 실을 수 있지만 **같은 번호가 다른 것을 약속해서는 안 된다**. 규약 1 의 검사는 그때까지 번호가 **있는지**만 셌고, 그 눈먼 자리에서 `REQ-CB-015` 는 파생본에서 배포 산출물을 아직 `codebase/` 에 두라 말했고(2026-08-22 개정 전 문장 — 같은 파일 §1.1 트리는 `deploy/` 라 적어 **문서가 자기와 모순했다**) `REQ-CB-021` 은 "(2026-09-22 개정)" 이라 써 놓고 개정 전 규칙을 실었다(2026-09-24 전수 대조). **게이트 수는 그대로다** — 규약 1 의 검사가 세는 것이 넷에서 다섯으로 는다 | 두 요구의 파생본 문장을 개정 전으로 되돌린 트리에서 `check-md-html.mjs` 가 0.52·0.58 로 실패한다 · 근거 괄호를 줄여 실은 행들(실측 최저 0.75)은 통과한다 |
 | **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
-| **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `mc` 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
+| **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`rclone` — 2026-09-24 까지 `mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `rclone` 이 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
 | **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |
 | **REQ-CB-033** | WHEN 임베딩 요청을 만들면 THE SYSTEM SHALL `dimensions` 를 실을지를 **`NERV_EMBED_SEND_DIMENSIONS` 에서만** 읽고 제공자 주소로 추정하지 않는다 — 게이트웨이 뒤의 같은 모델은 주소가 다르고, 절단이 빠지면 오류 없이 다른 차원이 돌아와 **검색이 조용히 렉시컬로 degrade** 한다. WHILE 차원을 검사하는 동안 THE SYSTEM SHALL 그 값을 `@nerv/schema` 의 `EMBEDDING_DIMENSIONS`(DDL 이 쓰는 그 상수)에서 읽고 재선언하지 않는다(REQ-CB-006) |
 | **REQ-CB-034** | WHILE `NERV_S3_PUBLIC_ENDPOINT` 가 설정된 동안 THE SYSTEM SHALL 그 주소에 경로가 있으면 기동 로그로 경고한다 — presigned 서명은 경로를 포함하므로 접두 프록시(`https://…/s3`) 뒤의 S3 는 `SignatureDoesNotMatch` 로 끝나고, 배포 산출물은 그 자리에 **별도 호스트**를 적는다. WHERE 앞문(nginx·Ingress)에 S3 경로를 여는 것은 금지다 — 기술적으로 막힌 길이라 다음 사람이 그것을 고치는 길로 믿지 않게 주석으로 남긴다 |
@@ -1361,13 +1363,16 @@ services:
     # api·worker 는 embed 를 기다리지 않는다 — 무응답이면 렉시컬 degrade (REQ-API-026)
 
   minio:
-    # 도커허브의 minio/minio 는 2026-09-11 부터 당길 수 없다("pull access denied …
-    # repository does not exist") — 저장소는 그대로인데 레지스트리가 바뀌어 09-10 초록이던
-    # 커밋이 09-11 야간부터 빨갛다. quay.io 로 옮긴다: 같은 저장소의 백업 CronJob 이
-    # 이미 quay.io/minio/mc 를 쓰고 있었고, 여기만 도커허브에 남아 있었다.
+    # MinIO 는 공개 이미지를 더 내지 않는다 — 2025-10 부터 소스로만 배포하고, 도커허브의
+    # minio/minio 는 2026-09-11 에, 그 대신 쓰던 quay.io/minio/minio 는 2026-09-24 에 당길
+    # 수 없게 됐다(익명 pull 이 401). 공식 후속인 quay.io/minio/aistor/minio 는 라이선스
+    # 없이는 뜨기만 하고 S3 요청을 전부 거절한다("All S3 operations are denied" — 실측).
+    # 그래서 커뮤니티 포크 pgsty/minio(Pigsty)의 릴리스 태그를 쓴다(2026-09-24 사람 결정) —
+    # 개발·e2e 전용이라 운영 자격증명을 받지 않는다. 안에 mc 가 있어 헬스체크는 그대로다.
     # **`latest` 로 되돌리지 않는다** — 남의 레지스트리의 움직이는 태그는 우리 저장소를
-    # 건드리지 않고도 과거 커밋의 빌드까지 소급해 깨뜨린다. 그것이 이번에 일어난 일이다.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # 건드리지 않고도 과거 커밋의 빌드까지 소급해 깨뜨린다. 고정 태그도 저장소 자체가
+    # 거둬지면 소용없다는 것을 두 번 겪었다 — 그래서 출처를 바꾼 이유를 여기 남긴다.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -2286,7 +2291,7 @@ patches:
 | 대상 | 방법 | 주기(시작값) | 근거 |
 | --- | --- | --- | --- |
 | **Postgres** | `pg_dump -Fc`(custom format) → 오브젝트 스토리지 업로드. cron Job(`nerv-backup`) | 일 1회 · 보존 14일 | 유일한 SoT — 스펙·Task·이벤트 전부. RPO = 24h 시작값(파일럿 규모 NFR-04에서 수용, 실측 후 조정) |
-| **MinIO**(첨부 오브젝트) | 버킷 미러(`mc mirror`) — 같은 CronJob 이 Postgres 덤프 뒤에 이어서 한다 | **일 1회**(Postgres 와 같은 판) | **재생성되지 않는다**(2026-09-07 정정 · REQ-CB-031). 2026-09-01 부터 이 버킷에는 스펙 첨부(디자인 시안·PDF)의 실체가 있고 DB 에는 `storage_key` 만 남는다 — 복원하면 행은 살아나고 파일은 전부 404 인데 검증은 행 수만 세므로 "손실 0" 이라 말한다. 리뷰 프롬프트 blob(TTL 30일)은 그 버킷의 일부일 뿐이다. `NERV_S3_ENDPOINT` 가 설정됐는데 `mc` 가 없으면 백업은 **실패한다** |
+| **MinIO**(첨부 오브젝트) | 버킷 동기화(`rclone sync` — 2026-09-24 까지 `mc mirror`) — 같은 CronJob 이 Postgres 덤프 뒤에 이어서 한다 | **일 1회**(Postgres 와 같은 판) | **재생성되지 않는다**(2026-09-07 정정 · REQ-CB-031). 2026-09-01 부터 이 버킷에는 스펙 첨부(디자인 시안·PDF)의 실체가 있고 DB 에는 `storage_key` 만 남는다 — 복원하면 행은 살아나고 파일은 전부 404 인데 검증은 행 수만 세므로 "손실 0" 이라 말한다. 리뷰 프롬프트 blob(TTL 30일)은 그 버킷의 일부일 뿐이다. `NERV_S3_ENDPOINT` 가 설정됐는데 `rclone` 이 없으면 백업은 **실패한다**. 자격증명이 틀려 버킷을 읽지 못하면 역시 실패하고, 그때 rclone 은 받아 둔 사본을 지우지 않는다(실측 2026-09-24) |
 | **Valkey** | 백업하지 않는다 | — | 무영속 방송 버스 — 유실 시 클라이언트 재조회로 복구(D-14, [4.4](api.md) §3.4) |
 | **md 미러**(`nerv-mirror` PVC) | 백업하지 않는다 | — | DB 의 승인 문서에서 다시 만드는 **파생물**이다(export 잡) — 잃으면 다음 판이 채운다. 첨부와 다른 성질이라 볼륨을 따로 둔다 |
 | **embed 모델 캐시**(로컬 프로필 시) | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성([4.3](database.md) §2.15). 외부 제공자 프로필은 해당 없음 |
@@ -2301,7 +2306,10 @@ pg_restore -d "$DATABASE_URL" --clean --if-exists nerv-<date>.dump
 # ② 마이그레이션 정합 — 백업 이후 릴리스가 있었으면 여기서 따라잡는다 (멱등)
 kubectl -n nerv delete job nerv-migrate --ignore-not-found && kustomize build deploy/k8s/overlays/prod | kubectl apply -f -
 kubectl -n nerv wait --for=condition=complete --timeout=300s job/nerv-migrate
-# ③ (선택) MinIO 버킷 복원 — mc mirror 역방향
+# ③ (선택) 첨부 버킷 복원 — 백업의 blobs/ 를 버킷으로 되올린다(nerv-backup.sh 의 역방향).
+#    원격 NERVDST 는 nerv-restore.sh 와 같은 RCLONE_CONFIG_NERVDST_* env 로 정의한다. copy 는 버킷에
+#    이미 있는 것을 지우지 않는다 — 복원에 sync 를 쓰지 않는 이유다
+rclone --config "" copy /backups/blobs "NERVDST:${NERV_S3_BUCKET:-nerv-blobs}"
 # ④ api·worker 롤아웃 재시작 — Valkey는 빈 채로 시작해도 무방
 kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
 # ⑤ 정합 검증 — 테이블별 행 수 대조 + 최신 event.occurred_at이 백업 시각 이내인지 확인
