@@ -7,7 +7,13 @@
 // 프로덕션 번들은 tree-shaking 이 지워 줘서 증상이 안 보였다. 빌드가 살려 주는 실수는
 // 개발 루프에서만 터지고, 그 종류가 가장 찾기 어렵다 — 그래서 경계를 패키지 표면에 박는다.
 
-export { runMigrations, migrationsFolder } from './migrate.js';
+export {
+  runMigrations,
+  migrationsFolder,
+  journalEntries,
+  pendingMigrations,
+  schemaStatus,
+} from './migrate.js';
 export { runSeed, seedSqlPath } from './seed.js';
-export type { MigrateResult } from './migrate.js';
+export type { JournalEntry, MigrateResult, SchemaStatus } from './migrate.js';
 export type { SeedResult } from './seed.js';

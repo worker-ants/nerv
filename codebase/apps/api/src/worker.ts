@@ -10,6 +10,7 @@ import { NestFactory } from '@nestjs/core';
 import { nervLoggerFromEnv } from './common/nerv-logger.js';
 import { assertCookieDomain, assertRetiredNames } from './common/origins.js';
 import { assertMailConfig } from './modules/mail/mail.config.js';
+import { assertSchemaCurrent } from './common/schema-guard.js';
 import type { INestApplicationContext } from '@nestjs/common';
 import { WorkerAppModule } from './app.module.js';
 import { JobRunner } from './worker/job-runner.js';
@@ -49,6 +50,8 @@ async function bootstrap(): Promise<void> {
   // **메일을 실제로 보내는 것은 여기다.** 2026-09-22~24 동안 이 검사는 api 에만 있어서
   // 보내는 사람이 없는 배치는 api 가 거부하고 워커는 그대로 떴다 — 절반만 거부하는 배포다.
   assertMailConfig();
+  // api 와 **같은 검사**다 — 잡은 api 보다 더 많은 표를 만진다(REQ-CB-056)
+  await assertSchemaCurrent();
   const worker = await createWorker();
   worker.enableShutdownHooks();
 

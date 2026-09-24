@@ -12,7 +12,12 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PARTITION_MONTHS_AHEAD } from '@nerv/schema';
-import { migrationsFolder, runMigrations } from '@nerv/schema/migrate';
+import {
+  journalEntries,
+  migrationsFolder,
+  runMigrations,
+  schemaStatus,
+} from '@nerv/schema/migrate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createScratchDb, withClient } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -368,6 +373,49 @@ describe('0025 — 임포트가 만든 고아 진행 중을 backlog 로 (사람 
       expect(statusOf(result.orphan)).toBe('backlog');
       // 사람이 쓴 것은 건드리지 않는다 — 이 마이그레이션의 대상은 placeholder 뿐이다
       expect(statusOf(result.authored)).toBe('in_progress');
+    } finally {
+      await fresh.drop();
+    }
+  });
+});
+
+/**
+ * **뒤처진 스키마를 이름으로 말한다**(REQ-CB-056 · 2026-09-24 실측).
+ *
+ * 개발 DB 가 31건 중 27건에서 멈춘 채 api 가 떠 있었고, 없는 칸을 읽는 질의마다 500 이
+ * 흩어졌다. 기동 검사는 이 함수 하나를 본다 — 그래서 실제 적용 이력으로 잰다.
+ */
+describe('schemaStatus — 기동 검사가 보는 값', () => {
+  it('빈 DB 는 전부가 남은 것이다', async () => {
+    const fresh = await createScratchDb('nerv_schema_empty');
+    try {
+      const status = await schemaStatus(fresh.url);
+      expect(status.applied).toBe(0);
+      expect(status.pending).toEqual(journalEntries().map((e) => e.tag));
+    } finally {
+      await fresh.drop();
+    }
+  });
+
+  it('다 적용하면 남은 것이 없고, 마지막 하나를 지우면 그 이름을 말한다', async () => {
+    const fresh = await createScratchDb('nerv_schema_behind');
+    try {
+      await runMigrations(fresh.url);
+      const current = await schemaStatus(fresh.url);
+      expect(current.pending).toEqual([]);
+      expect(current.applied).toBe(current.expected);
+
+      // 이력에서 가장 늦은 한 줄을 뺀다 — 그 파일이 적용되지 않은 DB 와 같은 판정이다
+      await withClient(fresh.url, (client) =>
+        client.query(
+          `DELETE FROM drizzle.__drizzle_migrations
+            WHERE created_at = (SELECT max(created_at) FROM drizzle.__drizzle_migrations)`,
+        ),
+      );
+      const behind = await schemaStatus(fresh.url);
+      const last = journalEntries().at(-1)?.tag;
+      expect(behind.pending).toEqual([last]);
+      expect(behind.applied).toBe(behind.expected - 1);
     } finally {
       await fresh.drop();
     }

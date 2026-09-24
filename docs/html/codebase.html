@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.67 (2026-09-24)</span>
+      <span>버전 v1.68 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -375,6 +375,7 @@ onlyBuiltDependencies:
     rate-limit.guard.ts           # 분당 상한 (NFR-04)
     rate-limit.service.ts         # 상한 계수기 — Valkey
     route-permission.ts           # 라우트 권한 선언 — 선언 없는 라우트는 거절이다 (REQ-API-075)
+    schema-guard.ts               # 기동 검사 — DB 스키마가 이 코드보다 뒤처졌으면 뜨지 않는다 (§5.1 · REQ-CB-056)
     scope-check.ts                # 권한 판정 정본 — 표면은 위임만 한다 (D-05)
     sql-array.ts                  # 배열 바인딩 — 문자열 이어붙이기를 막는다
     storage.service.ts            # S3 클라이언트 · presigned URL — 공개 주소 경고 (REQ-CB-034)
@@ -923,12 +924,14 @@ open http://localhost:8080      # 로그인 화면 — 첫 조직·프로젝트 
 
 <pre><code class="language-bash">pnpm compose:infra              # postgres · minio · valkey · embed 만 기동
 pnpm build                      # 첫 실행에서만 — db:migrate·db:seed 는 빌드 산출물을 실행한다(아래)
-pnpm db:migrate                 # drizzle 마이그레이션 적용
+pnpm db:migrate                 # drizzle 마이그레이션 적용 — 코드를 당겨 온 뒤에도 다시(아래)
 pnpm db:seed                    # 개발 시드 — 로그인 자격증명도 함께 심는다(아래 명령 표)
 pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(vite :5173) — 워커까지면 pnpm dev:all
 </code></pre>
 
   <p><b><code>pnpm build</code> 가 왜 여기 있나</b>(2026-08-27 — 실행 중 발견). <code>db:migrate</code>·<code>db:seed</code> 는 <code>apps/api/dist/{migrate,seed}.js</code> 를 실행한다. 그 엔트리를 소스가 아니라 산출물로 두는 것은 의도다 — compose 의 <code>migrate</code> 서비스와 k8s 의 <code>nerv-migrate</code> Job 이 이미지 안에서 <b>같은 파일</b>을 돌리기 때문이고, 그래서 마이그레이션 경로가 개발·로컬·운영에서 갈라지지 않는다(REQ-CB-008). 대신 <code>dist/</code> 는 git 에 없고 <code>pnpm install</code> 에 빌드 훅도 없어서, <b>새로 클론한 장비의 첫 실행에서는 그 파일이 아직 없다.</b> <code>pnpm dev</code> 는 스스로 빌드 감시를 띄우므로 이 줄이 필요 없지만, 그 앞의 두 명령은 자기 힘으로 산출물을 만들지 않는다. 두 번째 실행부터는 건너뛰어도 된다.</p>
+
+  <p><b>코드를 당겨 온 뒤에는 <code>pnpm db:migrate</code> 를 다시 돌린다</b>(2026-09-24 — 사람 보고 · REQ-CB-056). <code>pnpm dev</code> 는 마이그레이션을 돌리지 않는다 — 개발 DB 는 워크트리들이 함께 쓰는 것이라(AGENTS.md 구현 규약 8) 어느 브랜치의 루프가 그것을 조용히 올리면 다른 워크트리가 모르는 사이 스키마가 바뀐다. 대신 <b>api·워커는 스키마가 이 코드보다 뒤처졌으면 뜨지 않는다</b> — 무엇이 남았는지와 이 명령을 적고 멈춘다. 그 검사가 없던 동안 개발 DB 가 31건 중 27건에서 멈춘 채 api 가 떠 있었고, 화면 여기저기의 500 이 원인을 가리키지 않았다.</p>
 
   <p><b>compose 경로(위 블록 6개)는 이 줄이 필요 없다</b> — 이미지 빌드가 <code>dist</code> 를 만들고 <code>migrate</code> 서비스가 그것을 실행한다. REQ-CB-009 의 수용 기준은 그대로다.</p>
 
@@ -1201,6 +1204,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
       <tr><td><b>REQ-CB-053</b></td><td>WHERE <code>NERV_LOG_FORMAT=json</code> 인 배치에서 THE SYSTEM SHALL api·worker 의 로그를 <b>한 줄에 JSON 하나</b>로 찍고 — 색 코드 없이, 요청 안의 줄에는 <code>req_id</code> 를, 접근 로그에는 문장과 함께 필드(<code>route</code>·<code>status</code>·<code>duration_ms</code>·<code>surface</code>·<code>code</code>·주체 id)를 줄의 최상위에 싣는다 — 값이 비면 <code>text</code> 로, 모르는 값이면 한 줄 경고 뒤 <code>text</code> 로 선다. 어느 형식이든 §5.5 의 "싣지 않는 것" 은 줄에 없다. 운영 로그를 필드로 거를 수 없었다(2026-09-24 사람 결정)</td><td>가드가 거절한 요청이 <code>JSON.parse</code> 되는 한 줄로 남고 <code>req_id</code>·<code>code</code>·<code>route</code> 가 필드다(L2 <code>access-log.spec.ts</code>) · 두 형식의 실제 로거 출력에 Bearer·쿠키·멱등 키·쿼리·본문의 이메일·비밀번호·표시 이름이 없다(L1)</td></tr>
       <tr><td><b>REQ-CB-054</b></td><td>WHEN MCP <code>tools/call</code> 이 끝나거나, 워커 잡 한 판이 끝나거나, WebSocket 연결이 받아들여지거나 거절되거나 끊기면 THE SYSTEM SHALL 그마다 로그 한 줄을 남긴다 — 도구 호출은 도구 · 결과 코드와 <code>kind</code> · 소요 · 세션을(인자 값·결과 본문·에러 문장은 싣지 않는다), 잡은 이름 · 소요 · 결과 수치를(할 일이 없던 판은 <code>debug</code>), WebSocket 은 소켓 · 사용자 · 거절 코드 · 연결 시간을 싣고, 앞문이 준 <code>X-Request-Id</code> 로 연결과 해제를 잇는다. 셋 다 접근 로그(REQ-CB-052)가 닿지 않는 자리다 — MCP 실패는 200 에 실리고, 잡은 요청이 아니며, WebSocket 은 Fastify 훅을 거치지 않는다(2026-09-24)</td><td>권한 부족 도구 호출이 <code>tools/call &lt;도구&gt; NERV_FORBIDDEN kind=missing_scope</code> 로 같은 요청의 접근 로그와 같은 <code>req_id</code> 를 달고 남는다 · 모르는 도구 이름은 줄에 없다(L2 <code>mcp.spec.ts</code>) · 받아들인 연결과 그 해제가 같은 <code>req_id</code> 로 남는다(L2 <code>realtime.spec.ts</code>) · 일을 한 판·빈 판·실패한 판이 각각 <code>log</code>·<code>debug</code>·<code>warn</code> 이다(L1 <code>job-log.spec.ts</code>)</td></tr>
       <tr><td><b>REQ-CB-055</b></td><td>WHEN api 가 접근 로그의 클라이언트 주소를 정하면 THE SYSTEM SHALL 신뢰하는 프록시(<code>NERV_TRUSTED_PROXIES</code> — 비면 loopback·사설 대역)를 기준으로 가린다 — api 에 직접 붙은 소켓이 신뢰 목록 밖이면 그 소켓이고 헤더는 무시한다, 안이면 <code>NERV_CLIENT_IP_HEADER</code> 가 설정됐고 값이 IP 일 때 그 값, 아니면 <code>X-Forwarded-For</code> 를 오른쪽부터 읽어 신뢰 hop 을 건너뛴 첫 주소다 — 그리고 어느 경로로 정했는지(<code>ip_source</code>)와 <code>CF-Ray</code> 를 함께 싣는다. WHEN <code>X-Request-Id</code> 가 없거나 모양이 틀리면 THE SYSTEM SHALL 모양이 맞는 <code>CF-Ray</code> 를 요청 ID 로 쓴다. 틀린 CIDR·헤더 이름이면 기동을 거부한다. 운영(Cloudflare Tunnel)의 모든 줄이 cloudflared 의 사설 주소였다(2026-09-24 사람 보고)</td><td>Tunnel 모양(ingress 가 XFF 를 cloudflared 로 덮어씀)에서 <code>CF-Connecting-IP</code> 가 <code>ip</code>·<code>ip_source=header</code> 이고 <code>CF-Ray</code> 가 <code>req_id</code> 다(L2 <code>access-log.spec.ts</code>) · 신뢰 밖 소켓이 보낸 헤더는 무시되고, XFF 맨 앞의 위조 값은 쓰이지 않으며, 틀린 CIDR 은 기동을 거부한다(L1 <code>client-ip.spec.ts</code>)</td></tr>
+      <tr><td><b>REQ-CB-056</b></td><td>WHEN api 또는 워커가 기동하면 THE SYSTEM SHALL DB 의 마이그레이션 적용 이력을 이 코드에 동봉된 순서표와 대조하고 — 판정은 drizzle 적용기와 같은 규칙(이력의 가장 늦은 시각보다 나중인 파일이 남은 것)이다 — <b>남은 파일이 있으면</b> 그 이름과 적용 수 · 코드 수, 그리고 <code>pnpm db:migrate</code> 를 적어 기동을 거부한다. WHERE DB 가 코드보다 앞서 있으면(롤링 배포의 옛 파드 · 먼저 올린 다른 워크트리) THE SYSTEM SHALL 막지 않는다. WHERE DB 에 닿지 못하면 THE SYSTEM SHALL 경고만 남기고 지금처럼 뜬다. 개발 DB 가 31건 중 27건에서 멈춘 채 api 가 떠, 없는 칸을 읽는 질의마다 500 이 흩어졌다(2026-09-24 실측)</td><td>빈 DB 는 전부가, 마지막 이력 한 줄을 지운 DB 는 그 파일 하나가 남은 것으로 잡힌다(L2 <code>migrate.spec.ts</code>) · 남은 것이 있으면 이름과 명령을 말하고 멈추며, 앞선 DB 와 닿지 못하는 DB 는 막지 않는다(L1 <code>schema-guard.spec.ts</code> · <code>packages/schema</code> <code>migrate.spec.ts</code>)</td></tr>
     </tbody>
   </table></div>
 
