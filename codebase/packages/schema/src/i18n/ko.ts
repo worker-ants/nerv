@@ -803,7 +803,12 @@ export const ko = {
   'theme.system': '시스템',
   'shell.sign_out': '로그아웃',
   'shell.spec_tree': '스펙 트리',
-  'shell.toast.undo': '되돌리기',
+  // 토스트 스택(REQ-WEB-197). 결재 처리 트레일의 '되돌리기' 는 서버에 결정 철회 경로가 없어
+  // 링크가 된 적이 없다 — 링크가 없는 약속을 단추 글자로 남겨 두지 않는다.
+  'shell.toast.region': '화면 메시지',
+  'shell.toast.open': '열기',
+  'shell.toast.more': '외 {n}건',
+  'shell.toast.dismiss_all': '모두 닫기',
   // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
   // 장 **제목**만 여기 있다 — 사이드바·도움말 메뉴·문서 머리 세 곳이 같은 이름을 불러야
   // 하기 때문이다. 본문은 apps/web/src/content/manual/<로케일>/<장>.md 가 정본이다.
@@ -958,7 +963,7 @@ export const ko = {
   'inbox.card.approve': '승인',
   'inbox.card.comment': '코멘트',
   'inbox.card.comment_placeholder': '코멘트 — 거절에는 필수',
-  'inbox.card.decided': '{decision} 처리됐습니다.',
+  'inbox.card.decided': '{subject} — {decision} 처리됐습니다.',
   'inbox.card.delivered': '요청 세션 {host}/{agent} 에 전달됨',
   'inbox.card.handle_in_inbox': '받은 요청에서 처리 ▸',
   'question.escalate.spec': '스펙 공백',
@@ -967,7 +972,6 @@ export const ko = {
   'question.escalate.e2e-fail-3x': 'E2E 3회 실패',
   'question.escalate.sensitive-fix': '민감한 수정',
   'inbox.card.question': '질문',
-  'inbox.card.reason_missing': '거절 사유를 적어주세요.',
   'inbox.card.reason_required': '거절에는 사유가 필요합니다 — 요청자 알림과 감사 로그에 남습니다.',
   'inbox.card.reject': '거절',
   'inbox.card.show_body': '본문 보기',

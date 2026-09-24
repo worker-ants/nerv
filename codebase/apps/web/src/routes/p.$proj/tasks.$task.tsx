@@ -27,7 +27,8 @@ import { rolesInProject } from '../../lib/session.js';
 import { secondsUntil, useNow } from '../../lib/clock.js';
 import { leaseRemaining } from '../../features/session-monitor/format.js';
 import { useScope } from '../../lib/scope.js';
-import { useApiError } from '../../lib/api-errors.js';
+import { describeApiError, useApiError } from '../../lib/api-errors.js';
+import { usePressKey } from '../../lib/press-key.js';
 import {
   Button,
   Card,
@@ -121,6 +122,9 @@ function TaskDetail(): React.JSX.Element {
   ).every((field) => isDelegationFilled(typeof data[field] === 'string' ? data[field] : null));
   const revertTarget: 'ready' | 'backlog' = delegationFilled ? 'ready' : 'backlog';
 
+  // **누름마다 새 키다**(REQ-WEB-195). `claim-<작업 id>` 로 고정하던 동안, 잡았다 놓고 하루 안에
+  // 다시 누르면 서버가 첫 응답을 재생해 새 클레임 없이 "잡았습니다" 가 떴다.
+  const claimPress = usePressKey('claim');
   const claim = useMutation({
     // **웹에서도 잡을 수 있어야 한다**(screens.md:903 화면 요소 "사람 클레임").
     // 이 문이 없는 동안 MCP·CLI 를 쓰지 않는 역할에게 보드는 읽기 전용이었다 — 서버는
@@ -136,8 +140,9 @@ function TaskDetail(): React.JSX.Element {
             file_globs: [],
           },
         },
-        idempotencyKey: `claim-${String(data['id'])}`,
+        idempotencyKey: claimPress.take(),
       }),
+    onSettled: claimPress.release,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.task(task) });
       pushToast({ tone: 'ok', message: t('task.claim_ok') });
@@ -221,8 +226,10 @@ function TaskDetail(): React.JSX.Element {
         : Array.isArray(details['pending'])
           ? (details['pending'] as string[])
           : [];
-      setRejection({ message: error.message, missing });
-      pushToast({ tone: 'warn', message: error.message });
+      // **한 번만 말한다**(§1.5 · REQ-WEB-196) — 거부는 단추 옆에 남으므로 같은 문장을 토스트로
+      // 다시 띄우지 않는다. 문장은 표(§1.5)를 거친다: `error.message` 는 서버 문장뿐이라
+      // 부류·재시도 시각·갈 곳이 빠진다.
+      setRejection({ message: describeApiError(t, error).message, missing });
     },
   });
 

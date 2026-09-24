@@ -11,6 +11,7 @@ import type { MessageKey } from '@nerv/schema';
 import { useMe } from '../lib/queries.js';
 import { fetchMe, landingFor, primaryMembership, rolesInProject } from '../lib/session.js';
 import { apiFetch } from '../lib/api.js';
+import { describeApiError } from '../lib/api-errors.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { Button, Card, Field, Input, PageBody, PageHeader } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
@@ -131,7 +132,8 @@ function CreateOrgCard({ email }: { email: string }): React.JSX.Element {
       queryClient.setQueryData(queryKeys.me(), await fetchMe());
       void navigate({ to: '/' });
     },
-    onError: (e: Error) => setError(e.message),
+    // 폼 아래에서 말한다 — 문장은 표(§1.5)를 거친다(REQ-WEB-196)
+    onError: (e: Error) => setError(describeApiError(t, e).message),
   });
 
   return (

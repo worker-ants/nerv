@@ -143,9 +143,11 @@ function InboxScreen(): React.JSX.Element {
       setReason('');
       pushToast(
         result.failed === 0
-          ? { tone: 'ok', message: t('inbox.bulk.done', { n: result.decided }) }
+          ? // 결재 처리 트레일 — 한 건씩 결정할 때와 같은 3분이다(REQ-WEB-197)
+            { tone: 'ok', kind: 'trail', message: t('inbox.bulk.done', { n: result.decided }) }
           : {
               tone: 'warn',
+              kind: 'trail',
               message: t('inbox.bulk.partial', { n: result.decided, failed: result.failed }),
             },
       );

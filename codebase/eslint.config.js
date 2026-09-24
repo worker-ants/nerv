@@ -196,6 +196,14 @@ export default tseslint.config(
           message:
             'REQ-WEB-032: 임의 hex 색 금지. src/styles/tokens.css 의 상태 토큰(§4.1·§4.2)을 쓴다.',
         },
+        {
+          // 실패의 **서버 문장만** 토스트에 찍으면 부류·재시도 시각·갈 곳이 사라진다 — 그 판정은
+          // describeApiError 한 곳이다(screens.md §1.5). 2026-09-24 까지 여섯 자리가 이렇게 샜다.
+          selector:
+            "CallExpression[callee.name='pushToast'] > ObjectExpression > Property[key.name='message'] > MemberExpression[object.name=/^(e|err|error)$/][property.name='message']",
+          message:
+            'REQ-WEB-196: 실패를 알릴 때는 useApiError() 의 onApiError 를 쓴다 — error.message 를 토스트에 그대로 넣지 않는다.',
+        },
       ],
     },
   },

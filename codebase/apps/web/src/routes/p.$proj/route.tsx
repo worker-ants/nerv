@@ -18,8 +18,9 @@ function ProjectShell(): React.JSX.Element {
 
   useEffect(() => {
     if (typeof projectId !== 'string') return;
-    return joinProject(projectId);
-  }, [joinProject, projectId]);
+    // slug 는 토스트가 문서 링크를 만들 때 쓴다 — 봉투는 id 만 싣는다(REQ-WEB-197)
+    return joinProject(projectId, proj);
+  }, [joinProject, projectId, proj]);
 
   return <Outlet />;
 }

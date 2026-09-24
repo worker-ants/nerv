@@ -102,3 +102,37 @@ describe('개입 뒤 무효화의 축', () => {
     vi.unstubAllGlobals();
   });
 });
+
+/**
+ * **같은 지시를 두 번 보내면 두 번 간다**(REQ-WEB-195 · api.md §1.5).
+ *
+ * 키가 `steer-<세션>-<종류>-<지시 앞 16자>` 였던 동안, "계속 진행해" 를 하루 안에 다시 보내면
+ * 서버가 첫 응답을 재생해 "보냈습니다" 만 뜨고 에이전트에게는 가지 않았다. 앞 16자만 같은
+ * 두 지시는 서로의 재생으로 막혔다(`idempotency_mismatch`). 키는 누름을 따라가야 한다.
+ */
+describe('지시의 멱등 키는 누름마다 새로 난다', () => {
+  it('같은 지시를 두 번 보내면 키가 둘이다', async () => {
+    const keys: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init?: { headers?: Record<string, string> }) => {
+        const key = init?.headers?.['Idempotency-Key'];
+        if (key !== undefined) keys.push(key);
+        return { ok: true, status: 200, json: async () => ({ reclaimed: 0 }) };
+      }),
+    );
+    panel({ canIntervene: true });
+
+    for (let i = 0; i < 2; i++) {
+      fireEvent.change(screen.getByLabelText('지시'), { target: { value: '계속 진행해' } });
+      fireEvent.click(screen.getByText('지시 보내기'));
+      await waitFor(() => expect(keys).toHaveLength(i + 1));
+      // 보내고 나면 입력이 비워진다 — 그것을 기다려야 다음 누름이 새 누름이다
+      await waitFor(() =>
+        expect((screen.getByLabelText('지시') as HTMLInputElement).value).toBe(''),
+      );
+    }
+    expect(keys[0]).not.toBe(keys[1]);
+    vi.unstubAllGlobals();
+  });
+});

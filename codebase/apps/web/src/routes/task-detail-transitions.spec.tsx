@@ -9,7 +9,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ko } from '@nerv/schema';
+import { NERV_ERROR, ko } from '@nerv/schema';
 import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
@@ -31,7 +31,7 @@ const PLACEHOLDER = ko['import.delegation_missing'];
 let detail: Record<string, unknown> = {};
 let roles: string[] = ['developer'];
 /** 화면이 실제로 보낸 전이 본문 */
-let posted: { url: string; body: unknown }[] = [];
+let posted: { url: string; body: unknown; key?: string | undefined }[] = [];
 
 function taskDetail(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -58,43 +58,58 @@ beforeEach(() => {
   detail = taskDetail();
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
-      const u = String(url);
-      if (init?.method === 'POST') {
-        posted.push({ url: u, body: JSON.parse(init.body ?? '{}') });
-        return { ok: true, status: 200, json: async () => ({ status: 'ready' }) };
-      }
-      if (u.includes('/me')) {
+    vi.fn(
+      async (
+        url: string,
+        init?: { method?: string; body?: string; headers?: Record<string, string> },
+      ) => {
+        const u = String(url);
+        if (init?.method === 'POST') {
+          posted.push({
+            url: u,
+            body: JSON.parse(init.body ?? '{}'),
+            key: init.headers?.['Idempotency-Key'],
+          });
+          return { ok: true, status: 200, json: async () => ({ status: 'ready' }) };
+        }
+        if (u.includes('/me')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              id: ME,
+              email: 'me@example.com',
+              display_name: '나',
+              avatar_url: null,
+              memberships: [
+                {
+                  id: 'm1',
+                  roles,
+                  org_id: 'o1',
+                  org_slug: 'default',
+                  org_name: 'NERV',
+                  project_id: 'p1',
+                  project_slug: 'clemvion',
+                  project_name: 'clemvion',
+                },
+              ],
+            }),
+          };
+        }
+        if (u.includes('/tasks/')) return { ok: true, status: 200, json: async () => detail };
         return {
           ok: true,
           status: 200,
           json: async () => ({
-            id: ME,
-            email: 'me@example.com',
-            display_name: '나',
-            avatar_url: null,
-            memberships: [
-              {
-                id: 'm1',
-                roles,
-                org_id: 'o1',
-                org_slug: 'default',
-                org_name: 'NERV',
-                project_id: 'p1',
-                project_slug: 'clemvion',
-                project_name: 'clemvion',
-              },
-            ],
+            id: 'p1',
+            slug: 'clemvion',
+            items: [],
+            memberships: [],
+            summary: {},
           }),
         };
-      }
-      if (u.includes('/tasks/')) return { ok: true, status: 200, json: async () => detail };
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ id: 'p1', slug: 'clemvion', items: [], memberships: [], summary: {} }),
-      };
-    }),
+      },
+    ),
   );
 });
 
@@ -233,5 +248,103 @@ describe('REQ-WEB-148 — 근거·클레임·리뷰 카드', () => {
     await renderDetail();
     expect((await screen.findByTestId('claim-lease')).textContent).toMatch(/0[45]:/);
     expect(screen.getByTestId('claim-scope').textContent).toContain('apps/web/**');
+  });
+});
+
+/**
+ * **놓고 다시 잡으면 새 클레임이다**(REQ-WEB-195 · api.md §1.5).
+ *
+ * 키가 `claim-<작업 id>` 로 고정이던 동안 서버는 같은 사람의 두 번째 클레임을 24시간 동안
+ * **첫 응답의 재생**으로 돌려줬다 — 새 클레임은 없는데 "작업을 잡았습니다" 가 떴고, 화면을
+ * 다시 읽으면 여전히 [클레임] 단추였다. 키는 작업이 아니라 누름을 따라가야 한다.
+ */
+describe('클레임의 멱등 키는 누름마다 새로 난다 (REQ-WEB-195)', () => {
+  it('두 번 누르면 키가 둘이다 — 대상 id 로 만들지 않는다', async () => {
+    await renderDetail();
+    const claim = await screen.findByTestId('claim-task');
+
+    fireEvent.click(claim);
+    await waitFor(() => expect(posted.filter((p) => p.url.endsWith('/claim'))).toHaveLength(1));
+    await waitFor(() => expect((claim as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(claim);
+    await waitFor(() => expect(posted.filter((p) => p.url.endsWith('/claim'))).toHaveLength(2));
+
+    const [first, second] = posted.filter((p) => p.url.endsWith('/claim')).map((p) => p.key);
+    expect(first).toBeDefined();
+    expect(first).not.toBe(second);
+    expect(first).not.toContain(String(detail['id']));
+  });
+});
+
+/**
+ * **거부는 한 번만 말한다**(§1.5 · REQ-WEB-196). 전이가 막히면 단추 옆에 사유가 남는데,
+ * 같은 문장이 토스트로 한 번 더 떴다.
+ */
+describe('전이 거부는 인라인 한 곳에서 말한다 (REQ-WEB-196)', () => {
+  it('막힌 전이는 토스트를 띄우지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: { method?: string }) => {
+        const u = String(url);
+        if (init?.method === 'POST' && u.endsWith('/transition')) {
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({
+              ok: false,
+              code: NERV_ERROR.PRECONDITION,
+              message: '선행 작업이 끝나지 않았습니다',
+              details: { pending: ['CLV-T-BBBBBB'] },
+              retry_after_s: null,
+              next_actions: [],
+            }),
+          };
+        }
+        if (u.includes('/me')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              id: ME,
+              email: 'me@example.com',
+              display_name: '나',
+              avatar_url: null,
+              memberships: [
+                {
+                  id: 'm1',
+                  roles: ['developer'],
+                  org_id: 'o1',
+                  org_slug: 'default',
+                  org_name: 'NERV',
+                  project_id: 'p1',
+                  project_slug: 'clemvion',
+                  project_name: 'clemvion',
+                },
+              ],
+            }),
+          };
+        }
+        if (u.includes('/tasks/')) return { ok: true, status: 200, json: async () => detail };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'p1',
+            slug: 'clemvion',
+            items: [],
+            memberships: [],
+            summary: {},
+          }),
+        };
+      }),
+    );
+    await renderDetail();
+    fireEvent.change(screen.getByLabelText(ko['task.blocked_reason']), {
+      target: { value: 'awaiting_answer' },
+    });
+    fireEvent.click(screen.getByText(ko['task.to_blocked']));
+
+    await screen.findByText(/선행 작업이 끝나지 않았습니다/);
+    expect(screen.queryAllByTestId('toast')).toHaveLength(0);
   });
 });

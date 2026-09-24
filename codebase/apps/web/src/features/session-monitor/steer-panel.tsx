@@ -10,6 +10,7 @@ import { useApiError } from '../../lib/api-errors.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
+import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { Button, Input } from '../../components/ui/primitives.js';
@@ -56,13 +57,18 @@ export function SteerPanel({
   // "기다리면 되나" 와 "나는 못 하나" 를 구별할 수 없다. 문구가 그것을 가른다.
   const blocked = finished || !canIntervene;
 
+  // **누름마다 새 키다**(REQ-WEB-195). 예전 키는 `steer-<세션>-<종류>-<지시 앞 16자>` 라서,
+  // 같은 지시("계속 진행해")를 하루 안에 다시 보내면 서버가 첫 응답을 재생해 "보냈습니다" 만
+  // 뜨고 에이전트에게는 가지 않았다. 앞 16자만 같은 두 지시는 서로의 재생으로 막혔다.
+  const press = usePressKey('steer');
   const send = useMutation({
     mutationFn: (kind: 'steer' | 'stop') =>
       apiFetch<{ reclaimed: number }>(`/projects/${projectSlug}/sessions/${sessionId}/steer`, {
         method: 'POST',
         body: { kind, message },
-        idempotencyKey: `steer-${sessionId}-${kind}-${message.slice(0, 16)}`,
+        idempotencyKey: press.take(),
       }),
+    onSettled: press.release,
     onSuccess: (result, kind) => {
       setMessage('');
       setConfirming(false);

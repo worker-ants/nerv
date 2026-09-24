@@ -14,6 +14,7 @@ import { useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { NervApiError } from './api.js';
 import { useT } from './i18n.js';
+import { isRepeatedPress } from './press-key.js';
 import { useRealtime } from './realtime.js';
 
 export interface ApiErrorAction {
@@ -111,6 +112,8 @@ export function useApiError(): (error: unknown) => void {
 
   return useCallback(
     (error: unknown) => {
+      // 같은 누름의 거듭 요청이다 — 결과는 첫 요청이 말한다(REQ-WEB-195)
+      if (isRepeatedPress(error)) return;
       const action = describeApiError(t, error);
       if (action.escalateBanner) setOffline(true);
       if (action.redirectToLogin) {

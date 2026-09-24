@@ -128,3 +128,35 @@ describe('배율과 전체화면', () => {
     expect(screen.queryByTestId('mermaid-zoom-in')).toBeNull();
   });
 });
+
+/**
+ * **그리는 동안 문서가 자라지 않는다**(2026-09-24 실측 · REQ-WEB-156).
+ *
+ * 담을 곳을 주지 않으면 mermaid 는 `<body>` 끝에 임시 요소를 붙여 재고, 그 사이 문서가
+ * 150px 자라 페이지 스크롤바가 깜빡였다(스펙 상세 L3 가 15회 중 1회 빨갰던 원인). 이 검사는
+ * 재는 자리가 **문서 흐름 밖의 칸**인지, 다 그린 뒤 그 칸을 걷는지를 본다.
+ */
+describe('mermaid 가 재는 자리', () => {
+  it('화면 밖 고정 상자 안의 자기 칸에서 재고, 끝나면 칸을 걷는다', async () => {
+    const { default: mermaid } = await import('mermaid');
+    let slot: HTMLElement | undefined;
+    let host: HTMLElement | null = null;
+    // 부르는 순간의 자리를 잡는다 — 다 그린 뒤에는 칸이 이미 걷혀 부모를 물을 수 없다
+    vi.mocked(mermaid.render).mockImplementationOnce(async (_id, _code, container) => {
+      slot = container as HTMLElement;
+      host = slot.parentElement;
+      return { svg: '<svg data-testid="drawn"><title>도형</title></svg>' } as never;
+    });
+
+    draw(DIAGRAM);
+    await waitFor(() => expect(screen.getByTestId('mermaid-figure')).toBeTruthy());
+
+    expect(slot).toBeInstanceOf(HTMLElement);
+    const measuredIn = host as HTMLElement | null;
+    expect(measuredIn?.hasAttribute('data-mermaid-host')).toBe(true);
+    expect(measuredIn?.style.position).toBe('fixed');
+    expect(measuredIn?.parentElement).toBe(document.body);
+    // 다 그린 뒤에는 칸이 남지 않는다 — 문서에 흔적이 쌓이지 않게
+    expect(slot?.isConnected).toBe(false);
+  });
+});

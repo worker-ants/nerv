@@ -818,7 +818,10 @@ export const en = {
   'theme.system': 'System',
   'shell.sign_out': 'Sign out',
   'shell.spec_tree': 'Spec tree',
-  'shell.toast.undo': 'Undo',
+  'shell.toast.region': 'Messages',
+  'shell.toast.open': 'Open',
+  'shell.toast.more': '{n} more',
+  'shell.toast.dismiss_all': 'Dismiss all',
   // ── 제품 매뉴얼 (screens.md §2.10) ─────────────────────────────────────────
   'help.ch.agents': 'Agents',
   'help.ch.inbox': 'Inbox and notifications',
@@ -973,7 +976,7 @@ export const en = {
   'inbox.card.approve': 'Approve',
   'inbox.card.comment': 'Comment',
   'inbox.card.comment_placeholder': 'Comment — required to reject',
-  'inbox.card.decided': '{decision} recorded.',
+  'inbox.card.decided': '{subject} — {decision} recorded.',
   'inbox.card.delivered': 'Delivered to {host}/{agent}',
   'inbox.card.handle_in_inbox': 'Handle it in the inbox ▸',
   'question.escalate.spec': 'Spec gap',
@@ -982,7 +985,6 @@ export const en = {
   'question.escalate.e2e-fail-3x': 'E2E failed 3×',
   'question.escalate.sensitive-fix': 'Sensitive change',
   'inbox.card.question': 'Question',
-  'inbox.card.reason_missing': 'Please write a reason for rejecting.',
   'inbox.card.reason_required':
     'Rejecting needs a reason — it goes to the requester and into the audit log.',
   'inbox.card.reject': 'Reject',

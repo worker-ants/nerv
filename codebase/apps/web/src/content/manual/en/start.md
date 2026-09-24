@@ -91,3 +91,17 @@ Fill in a name, an email and a password on the sign-up screen and the account is
 3. Open **Tasks** and look at the `ready` lane — that is what can be picked up right now.
 4. If you are connecting an agent, issue a token under **Settings → Tokens** and install the plugin — the procedure is in [Installing the plugin](/help/install), what fits together with what is in [Agents](/help/agents).
 5. To find a document, press **⌘K**. It finds **specs and requirements** by name, and pasting a stable ID jumps straight to it — not screens or settings — and it only works **inside a project**.
+
+## Messages in the lower right
+
+The short messages in the lower-right corner come in three shapes.
+
+- **⚠ Failure or warning** — a request was refused, or another session already holds the same scope. It says what was blocked and what to do, with a link when there is somewhere to go. It stays for 20 seconds.
+- **✓ Something you did** — what you just pressed went through. A decision made in the inbox names **what you decided** (key and title) and stays for 3 minutes, because the card itself leaves the list right away. Everything else stays for 8 seconds.
+- **ℹ Something someone else did** — another person or an agent changed a spec in the project you are looking at. Repeated changes to the same document fold into one message, and **Open** takes you to it. It stays for 8 seconds.
+
+Up to three show at a time. When there are more, "N more" and **Dismiss all** appear above them.
+
+**A failure is always reported, once.** Actions that explain the reason in place (a blocked task transition, rejecting without a reason) say it there only; everything else says it here. No action fails silently.
+
+**Pressing the same action again runs it again.** Releasing a task and claiming it again, or sending the same instruction twice, goes out as a new request. Only a double press made before the button locks counts as one.
