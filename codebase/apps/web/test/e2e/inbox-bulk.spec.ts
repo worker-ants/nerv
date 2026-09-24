@@ -60,6 +60,12 @@ test('받은 요청에 섞인 카드가 선다 — 저위험 셋 · T3 하나 ·
   await expect(card(page, T3).getByTestId('quorum')).toHaveText('0/2 승인');
   await expect(card(page, BULK_A).getByTestId('quorum')).toHaveCount(0);
 
+  // **머리의 수는 전체 수다**(REQ-WEB-185). 한 쪽에 다 들어오는 크기라 지금은 같지만,
+  // 그 둘이 다른 값에서 온다는 것이 요점이다 — 쪽이 나뉘면 배지가 첫 쪽에서 멈춘다.
+  await expect(page.getByText('대기 5건')).toBeVisible();
+  // 다음 쪽이 없으니 단추도 없다 — 누를 것 없는 단추는 거짓말이다
+  await expect(page.getByTestId('inbox-more')).toHaveCount(0);
+
   // 질문에는 체크박스가 없다 — 답은 건마다 다르고 일괄의 대상이 아니다
   await expect(page.getByTestId('bulk-select')).toHaveCount(4);
   await expect(

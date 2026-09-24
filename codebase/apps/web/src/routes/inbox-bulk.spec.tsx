@@ -100,11 +100,20 @@ beforeEach(() => {
         });
         return { ok: true, status: 200, json: async () => bulkResponse };
       }
+      // **봉투다**(2026-09-24 · REQ-API-166) — 목록이 커서로 나뉜 뒤로 맨 배열이 아니다
       if (u.includes('/approvals?state=pending')) {
-        return { ok: true, status: 200, json: async () => CARDS };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: CARDS, next_cursor: null, total: CARDS.length }),
+        };
       }
       if (u.includes('/approvals?state=decided')) {
-        return { ok: true, status: 200, json: async () => [] };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_cursor: null, total: 0 }),
+        };
       }
       return {
         ok: true,

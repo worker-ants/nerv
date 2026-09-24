@@ -1137,10 +1137,13 @@ describe('받은 요청·알림·커버리지 표면', () => {
 
     const { ApprovalService: Service } =
       await import('../../src/modules/approval/approval.service.js');
-    const items = await app
+    // **봉투다**(§1.6 · REQ-API-166) — 전표가 처음부터 `Page<ApprovalCard>` 라 적던 그 모양
+    const page = await app
       .get(Service)
       .inboxGlobal({ userId: adminId, actor: { userId: adminId, isAgent: false } });
+    const items = page.items;
     expect(items).toHaveLength(1);
+    expect(page).toMatchObject({ next_cursor: null, total: 1 });
     expect(items[0]?.['project_slug']).toBe('clemvion');
     expect(items[0]).toHaveProperty('waiting_seconds');
     expect(items[0]?.['self_requested']).toBe(false);

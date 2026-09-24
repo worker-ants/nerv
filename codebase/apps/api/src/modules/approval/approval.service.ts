@@ -35,6 +35,13 @@ import {
   selfKindOf,
 } from './approval-policy.js';
 import { InjectDb } from '../../common/database.module.js';
+import {
+  cursorId,
+  cursorTimestamp,
+  decodeCursor,
+  encodeCursor,
+  pageLimit,
+} from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -53,6 +60,19 @@ export type ApprovalDecision = 'approve' | 'reject' | 'comment';
  * 여기도 함께 늘어야 하고, 손으로 적은 목록은 그때 조용히 옛 어휘로 남는다.
  */
 const BULK_DECISIONS = approvalDecision.enumValues.filter((d) => d !== 'comment');
+
+/**
+ * 대기 목록의 두 소스(결재 · 질문)를 **같은 키로** 세운다 — `(시각 ASC, id ASC)`.
+ *
+ * `cursor_at` 은 DB 가 준 텍스트라 사전순 비교가 곧 시각순이다(같은 타임존·같은 형식).
+ * 시각이 같으면 `id` 가 가른다 — uuidv7 이라 그 순서가 삽입 순서다.
+ */
+function compareByCursor(a: Record<string, unknown>, b: Record<string, unknown>): number {
+  const at = String(a['cursor_at'] ?? '');
+  const bt = String(b['cursor_at'] ?? '');
+  if (at !== bt) return at < bt ? -1 : 1;
+  return String(a['id']) < String(b['id']) ? -1 : 1;
+}
 
 /** 일괄 결정의 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(REQ-API-164) */
 export interface BulkDecisionResult {
@@ -265,10 +285,14 @@ export class ApprovalService {
     /** 어휘는 `APPROVAL_INBOX_STATES` — 판정은 아래에서 한다(REQ-API-126) */
     state?: string | null;
     projectSlug?: string | null;
-  }): Promise<Record<string, unknown>[]> {
+    /** 불투명 커서(§1.6) — 해독되지 않으면 처음부터다 */
+    cursor?: string | null;
+    limit?: string | number | null;
+  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null; total: number }> {
     assertHuman(input.actor, 'inbox', '/inbox');
     const decided =
       assertVocab([input.state ?? 'pending'], APPROVAL_INBOX_STATES, 'state')[0] === 'decided';
+    const limit = pageLimit(input.limit ?? undefined);
     const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
     /**
      * **두 탭은 다른 질문에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
@@ -292,9 +316,41 @@ export class ApprovalService {
          -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
          -- 사람이 계속 결재하게 된다.
          AND (sv.id IS NULL OR sv.status = 'in_review')`;
-    // 처리됨은 **언제 결정했는가**로 줄 세운다 — 요청 시각으로 세우면 오늘 결정한 9일 된
-    // 요청이 어제 요청 밑에 묻힌다. 대기는 그 반대다(오래 기다린 것이 위로 와야 한다).
-    const orderBy = decided ? sql`a.decided_at DESC` : sql`a.requested_at DESC`;
+    /**
+     * **정렬 방향이 탭마다 다르다** — 그리고 그 방향이 상한과 맞물려 결함이었다.
+     *
+     * 대기는 **오래 기다린 것이 위**다(REQ-WEB-024 — 그러지 않으면 오래된 요청이 새 요청
+     * 밑에 묻힌다). 그런데 질의는 `requested_at DESC LIMIT 100` 으로 **가장 최근 100건**을
+     * 집고 화면이 그것을 다시 오래된 순으로 세웠다. 실측 2026-09-24(120건 · 0~119시간 전):
+     * **가장 오래 기다린 20건이 목록에서 통째로 빠졌다.** 화면이 존재하는 이유를 상한이
+     * 정확히 뒤집고 있었고, 카드가 없으니 배지도 그것을 세지 않았다 — 나흘 묵은 결재가
+     * 존재 자체로 안 보였다. 여기서 방향을 바로잡고 커서로 잇는다.
+     *
+     * 처리됨은 반대다 — **방금 결정한 것이 위**여야 한다(그 목록은 기록이고, 기록은 최근
+     * 것부터 읽는다).
+     */
+    const orderBy = decided ? sql`a.decided_at DESC, a.id DESC` : sql`a.requested_at ASC, a.id ASC`;
+    /**
+     * **커서는 (정렬 키, id) 다**(§1.6 · REQ-API-124). 시각 하나로 seek 하면 같은 시각의
+     * 행이 쪽 경계에 걸릴 때 남은 것이 어느 쪽에도 나오지 않는다 — 한 트랜잭션이 슬롯을
+     * 여럿 세우는 T3 제출이 정확히 그 모양이라(같은 `requested_at`) 여기서는 드문 일이
+     * 아니다. `id` 는 uuidv7 이라 같은 순간 안에서도 삽입 순서다.
+     *
+     * 시각은 **DB 가 준 텍스트 그대로** 싣는다(§1.6 · 2026-09-10). `Date` 로 왕복시키면
+     * µs 가 ms 로 잘려 동률 판정(`=`)이 조용히 깨진다.
+     */
+    const cursor = decodeCursor(input.cursor ?? undefined);
+    const cursorAt = cursorTimestamp(cursor?.[0]);
+    const cursorRowId = cursorId(cursor?.[1]);
+    const seekable = cursorAt !== null && cursorRowId !== null;
+    const approvalSeek = !seekable
+      ? sql``
+      : decided
+        ? sql` AND (a.decided_at, a.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
+        : sql` AND (a.requested_at, a.id) > (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`;
+    const questionSeek = !seekable
+      ? sql``
+      : sql` AND (q.asked_at, q.id) > (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`;
     /**
      * **결정된 카드에는 판정을 싣지 않는다**(2026-09-24).
      *
@@ -323,10 +379,44 @@ export class ApprovalService {
              encode(sv.content_hash, 'hex') AS content_hash,`;
     const projectFilter =
       input.projectSlug == null ? sql`` : sql` AND p.slug = ${input.projectSlug}`;
+    /**
+     * FROM 과 WHERE 를 조각으로 뽑는다 — 목록과 **총계가 같은 조건을 봐야** 하기 때문이다.
+     *
+     * 배지와 목록이 어긋나면 지울 수 없는 숫자가 남는다(알림 배지에서 이미 겪은 자리 ·
+     * REQ-WEB-035). 손으로 두 번 적으면 언젠가 한쪽만 고쳐진다.
+     */
+    const approvalFrom = sql`FROM approval a
+        JOIN project p ON p.id = a.project_id
+   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id`;
+    const memberOfProject = sql`EXISTS (
+           SELECT 1 FROM membership m
+            WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
+              AND (m.project_id IS NULL OR m.project_id = p.id)
+         )`;
+    const approvalWhere = sql`WHERE ${stateFilter}${projectFilter}
+         -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
+         -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
+         -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
+         AND p.archived_at IS NULL
+         -- 대기는 **내 큐**(지정·역할 슬롯·기본 큐 · REQ-API-137) · 처리됨은 **내가 결정한 것**
+         AND ${scopeFilter}
+         AND ${memberOfProject}`;
+    const questionFrom = sql`FROM question q
+        JOIN project p ON p.id = q.project_id`;
+    const questionWhere = sql`WHERE q.status = 'open'${projectFilter}
+         -- 승인 카드와 **같은 조건**이다. 한쪽만 걸렀더니 보관한 프로젝트의 질문
+         -- 카드가 받은 요청에 그대로 남았다(실측 2026-08-27) — 받은 요청은 한 목록이므로
+         -- 두 갈래가 같은 규칙을 써야 그 목록이 한 가지 뜻을 갖는다.
+         AND p.archived_at IS NULL
+         AND ${memberOfProject}`;
 
     const { rows: approvals } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
              a.decision::text AS decision, a.requested_at, a.decided_at, a.is_bypass,
+             -- 커서가 이 값을 그대로 싣는다 — 표시용 열과 **따로 뽑는다**: 드라이버가 주는
+             -- 표시 값의 정밀도에 커서를 매달면, 그 정밀도가 바뀌는 날 동률 판정이 깨진다
+             ${decided ? sql`a.decided_at` : sql`a.requested_at`}::text AS cursor_at,
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
              u.display_name AS requested_by,
              (a.requested_by_user_id = ${input.userId}) AS self_requested,
@@ -339,35 +429,27 @@ export class ApprovalService {
              ${quorumColumnsSql()},
              s.key AS spec_key, s.title AS spec_title, sv.version_no,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
-        FROM approval a
-        JOIN project p ON p.id = a.project_id
+        ${approvalFrom}
         JOIN "user" u ON u.id = a.requested_by_user_id
-   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = sv.spec_id
-   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
-       WHERE ${stateFilter}${projectFilter}
-         -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
-         -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
-         -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
-         AND p.archived_at IS NULL
-         -- 대기는 **내 큐**(지정·역할 슬롯·기본 큐 · REQ-API-137) · 처리됨은 **내가 결정한 것**
-         AND ${scopeFilter}
-         AND EXISTS (
-           SELECT 1 FROM membership m
-            WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
-              AND (m.project_id IS NULL OR m.project_id = p.id)
-         )
+       ${approvalWhere}${approvalSeek}
        ORDER BY ${orderBy}
-       LIMIT 100
+       LIMIT ${limit + 1}
     `);
 
-    if (decided) return approvals;
+    if (decided) {
+      const { rows: counted } = await this.db.execute<{ total: number }>(sql`
+        SELECT count(*)::int AS total ${approvalFrom} ${approvalWhere}
+      `);
+      return this.page(approvals, limit, counted[0]?.total ?? 0);
+    }
 
     // 질문 카드 — 승인과 같은 줄에 선다. 에이전트가 답을 기다리며 멈춰 있고(awaiting_input),
     // 세션 신원 3요소와 경과 시간이 카드의 필수 표기다(REQ-WEB-008).
     const { rows: questions } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT q.id, 'question' AS subject_type, q.id AS subject_id, NULL::text AS decision,
-             q.asked_at AS requested_at, q.title, q.body_md, q.options, q.urgency::text AS urgency,
+             q.asked_at AS requested_at, q.asked_at::text AS cursor_at,
+             q.title, q.body_md, q.options, q.urgency::text AS urgency,
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
              u.display_name AS requested_by,
              se.hostname, se.agent_type::text AS agent_type, se.external_session_id,
@@ -375,29 +457,54 @@ export class ApprovalService {
              -- 판단하므로, 어느 문서·작업·발견에서 온 질문인지가 카드에 있어야 한다
              t.key AS task_key, s.key AS spec_key, q.finding_id, q.escalate::text AS escalate,
              extract(epoch FROM (now() - q.asked_at))::int AS waiting_seconds
-        FROM question q
-        JOIN project p ON p.id = q.project_id
+        ${questionFrom}
         JOIN agent_session se ON se.id = q.agent_session_id
         JOIN "user" u ON u.id = se.user_id
    LEFT JOIN task t ON t.id = q.task_id
    LEFT JOIN spec s ON s.id = q.spec_id
-       WHERE q.status = 'open'${projectFilter}
-         -- 승인 카드와 **같은 조건**이다. 한쪽만 걸렀더니 보관한 프로젝트의 질문
-         -- 카드가 받은 요청에 그대로 남았다(실측 2026-08-27) — 받은 요청은 한 목록이므로
-         -- 두 갈래가 같은 규칙을 써야 그 목록이 한 가지 뜻을 갖는다.
-         AND p.archived_at IS NULL
-         AND EXISTS (
-           SELECT 1 FROM membership m
-            WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
-              AND (m.project_id IS NULL OR m.project_id = p.id)
-         )
-       ORDER BY q.asked_at DESC
-       LIMIT 100
+       ${questionWhere}${questionSeek}
+       ORDER BY q.asked_at ASC, q.id ASC
+       LIMIT ${limit + 1}
     `);
 
-    return [...approvals, ...questions].sort(
-      (a, b) => Number(b['waiting_seconds'] ?? 0) - Number(a['waiting_seconds'] ?? 0),
-    );
+    const { rows: counted } = await this.db.execute<{ total: number }>(sql`
+      SELECT (SELECT count(*) ${approvalFrom} ${approvalWhere})::int
+           + (SELECT count(*) ${questionFrom} ${questionWhere})::int AS total
+    `);
+
+    /**
+     * 두 소스를 **같은 키로** 병합한다 — 둘 다 `(시각 ASC, id ASC)` 로 뽑혔으므로 합쳐
+     * 다시 세우면 한 목록이 된다. 각각 `limit + 1` 을 가져왔으니 합친 것이 `limit` 보다
+     * 많으면 다음 쪽이 있고, 아니면 양쪽이 다 바닥난 것이다.
+     */
+    const merged = [...approvals, ...questions].sort(compareByCursor);
+    return this.page(merged, limit, counted[0]?.total ?? 0);
+  }
+
+  /**
+   * 목록을 §1.6 봉투로 접는다 — **총계를 함께 주는 이유**가 있다.
+   *
+   * 쪽을 나누는 순간 "목록 길이 = 전체 수" 가 깨지는데, 받은 요청은 그 수를 세 자리에서
+   * 쓴다(헤더 배지 · 홈의 인사 · "받은 요청 전체 N건"). 별도 엔드포인트로 세면 출처가
+   * 둘이 되고, 배지와 목록이 어긋나면 지울 수 없는 숫자가 남는다(REQ-WEB-035 가 알림에서
+   * 적어 둔 그 교훈이다). 같은 질의에서 같은 조건으로 센다.
+   *
+   * `cursor_at` 은 **응답에서 걷는다**: 커서는 불투명해야 하고(§1.6), 조각을 내보이면
+   * 클라이언트가 그것을 읽기 시작하면서 구조가 사실상 계약이 된다.
+   */
+  private page(
+    rows: Record<string, unknown>[],
+    limit: number,
+    total: number,
+  ): { items: Record<string, unknown>[]; next_cursor: string | null; total: number } {
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    const next =
+      rows.length > limit && last !== undefined
+        ? encodeCursor([String(last['cursor_at']), String(last['id'])])
+        : null;
+    for (const row of items) delete row['cursor_at'];
+    return { items, next_cursor: next, total };
   }
 
   /** EP-APR-02 — 카드 하나의 전량(대상 원문 포함). 결정 화면이 이걸로 렌더한다. */
