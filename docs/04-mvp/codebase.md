@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.68 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.69 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.69 변경(2026-09-24 — MinIO 이미지를 당길 수 없게 됐다, **사람 결정**): **§3 compose 전문 · 백업 CronJob 의 `mc` 출처.** MinIO 는 2025-10 부터 소스로만 배포하고, 도커허브의 `minio/minio`·`minio/mc` 를 2026-09-11 에, 그 대신 쓰던 `quay.io/minio/minio`·`quay.io/minio/mc` 를 2026-09-24 에 거뒀다(익명 pull 401) — 그날 e2e 가 스택을 띄우지 못했고, 운영 백업 CronJob 의 initContainer 도 노드 캐시가 없으면 당길 이미지가 없다. 공식 후속 `quay.io/minio/aistor/minio` 는 받아지지만 **라이선스 없이는 S3 요청을 전부 거절한다**("All S3 operations are denied" — 실측). 개발 compose·e2e 서버와 백업 CronJob 의 `mc` 를 **MinIO 포크 `pgsty/silo`**(PGSTY 유지 · AGPL-3.0)의 한 릴리스 태그로 옮긴다 — 서버 바이너리 이름만 `silo` 이고 `server …` 인자·`MINIO_*` env·`mc` 는 그대로라 스크립트와 설정은 바뀌지 않는다. 옛 이미지가 쓴 볼륨을 그대로 읽고, 그 `mc` 가 CronJob 과 같은 조건(`postgres:18-alpine` · 읽기 전용 루트)에서 미러·삭제 반영·실패 종료를 해낸다(실측). 스택은 그대로다 — [4.1](scope.md) §2 의 인프라 서비스는 여전히 MinIO(호환 포크)이고, 바뀐 것은 그 빌드를 누가 내는가다.
 >
 > v1.68 변경(2026-09-24 — 스키마가 뒤처진 채 api 가 떠 있었다, **사람 보고**): **REQ-CB-056 신설 · §3 트리 한 줄 · §5.1 개발 루프 한 문단.** 화면 곳곳에서 500 이 났는데 원인은 하나였다 — 개발 DB 에 마이그레이션이 **31건 중 27건**만 적용돼 있었다(0027~0030 누락). `pnpm dev` 는 마이그레이션을 돌리지 않고, api 는 스키마를 보지 않고 떴으며, 없는 칸을 읽는 질의마다 500 이 됐다(받은 초대 `invitation.last_sent_at` · 처리됨 탭 `approval.decided_by_user_id` · 플러그인 표시 `plugin_version`). 증상은 흩어져 있고 어느 것도 원인을 가리키지 않는다. 이제 api·워커가 기동할 때 적용 이력을 동봉된 순서표와 대조해 **뒤처졌으면 이름과 명령을 말하고 뜨지 않는다**(`common/schema-guard.ts` · 판정은 `@nerv/schema/migrate` 의 `schemaStatus` 한 곳 — drizzle 적용기와 같은 규칙). **앞선 DB 는 막지 않는다** — 롤링 배포 중 옛 파드가 새 스키마 위에서 잠시 도는 것은 expand-contract 가 허용하는 순간이고(§6.3), 개발 DB 를 함께 쓰는 다른 워크트리가 먼저 올린 경우도 같다. DB 에 닿지 못하는 것은 이 검사의 일이 아니라 경고만 남긴다. compose(`migrate` 서비스 선행)·k8s(`nerv-migrate` Job 완료 대기)·E2E(`--wait`)는 이미 마이그레이션이 먼저라 달라지는 것이 없다.
 >
@@ -1361,13 +1363,18 @@ services:
     # api·worker 는 embed 를 기다리지 않는다 — 무응답이면 렉시컬 degrade (REQ-API-026)
 
   minio:
-    # 도커허브의 minio/minio 는 2026-09-11 부터 당길 수 없다("pull access denied …
-    # repository does not exist") — 저장소는 그대로인데 레지스트리가 바뀌어 09-10 초록이던
-    # 커밋이 09-11 야간부터 빨갛다. quay.io 로 옮긴다: 같은 저장소의 백업 CronJob 이
-    # 이미 quay.io/minio/mc 를 쓰고 있었고, 여기만 도커허브에 남아 있었다.
+    # MinIO 는 공개 이미지를 더 내지 않는다 — 2025-10 부터 소스로만 배포하고, 도커허브의
+    # minio/minio 는 2026-09-11 에, 그 대신 쓰던 quay.io/minio/minio 는 2026-09-24 에 당길
+    # 수 없게 됐다(익명 pull 이 401). 공식 후속인 quay.io/minio/aistor/minio 는 라이선스
+    # 없이는 뜨기만 하고 S3 요청을 전부 거절한다("All S3 operations are denied" — 실측).
+    # 그래서 MinIO 포크 pgsty/silo(PGSTY 유지 · AGPL-3.0)의 릴리스 태그를 쓴다(2026-09-24
+    # 사람 결정). 서버 바이너리 이름만 silo 이고 `server …` 인자와 MINIO_* env 는 그대로
+    # 받으며, 옛 이미지가 쓴 볼륨을 그대로 읽는다(실측). 안에 mc 가 있어 헬스체크도 그대로다.
+    # 운영 백업 CronJob 도 같은 이미지의 mc 를 심는다.
     # **`latest` 로 되돌리지 않는다** — 남의 레지스트리의 움직이는 태그는 우리 저장소를
-    # 건드리지 않고도 과거 커밋의 빌드까지 소급해 깨뜨린다. 그것이 이번에 일어난 일이다.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # 건드리지 않고도 과거 커밋의 빌드까지 소급해 깨뜨린다. 고정 태그도 저장소 자체가
+    # 거둬지면 소용없다는 것을 두 번 겪었다 — 그래서 출처를 바꾼 이유를 여기 남긴다.
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:

@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v3.89 · 2026-09-24 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v3.90 · 2026-09-24 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v3.90 변경(2026-09-24 — MinIO 이미지를 당길 수 없게 됐습니다, **사람 결정**): MinIO 가 quay.io 의 공개 이미지까지 거둬 e2e 가 스택을 띄우지 못했고, 운영 백업 CronJob 도 `mc` 를 심을 이미지를 잃었습니다. 공식 후속(`aistor/minio`)은 라이선스 없이 S3 를 거절합니다. 개발·e2e 서버와 백업의 `mc` 를 MinIO 포크 `pgsty/silo` 의 릴리스 태그로 옮깁니다 — 인자·env·`mc` 가 그대로라 스크립트는 바뀌지 않고, 스택도 그대로 MinIO 입니다([4.2](04-mvp/codebase.md) v1.69 · [4.8](04-mvp/backlog.md) v1.31).
 >
 > v3.89 변경(2026-09-24 — 작업이 다음 상태로 가는 문이 없었습니다): **REQ-WEB-202·203 · REQ-API-175 신설 · REQ-WEB-016 개정.** UI/UX 전반 검토의 넷째 묶음입니다. 웹에서 4요소를 다 채워 만든 작업이 backlog 를 나갈 문이 없었습니다 — 4요소가 찬 backlog 카드와 상세에 [준비됨으로 올리기]를 두고 서버가 판정합니다. 작업 상세의 전이 단추가 상태를 보지 않아 막힘을 풀 단추도, 클레임한 작업을 진행·검토로 옮길 단추도 없었습니다 — 상태 → 다음 행동 표 한 곳이 머리의 단추를 정합니다. 완료 게이트의 스펙 영향은 고르지 않음에서 시작하고, 위임 명세는 그 자리에서 고치며, 단추는 서버 가드와 같은 역할 목록으로 잠깁니다. 같은 상태를 화면마다 사람 말로 부르고, 보드 목록은 임포트 자리표시자를 빈 것으로 셉니다([4.4](04-mvp/api.md) v1.54 · [4.5](04-mvp/screens.md) v1.38 · [4.8](04-mvp/backlog.md) v1.30).
 >
@@ -590,13 +592,13 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.34` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 22종 · 카탈로그 24종)·스킬(6종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.68` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.69` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.49` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v1.54` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v1.38` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.72` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.22` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v1.30` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v1.31` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 
