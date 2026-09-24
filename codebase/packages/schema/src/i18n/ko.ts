@@ -754,6 +754,7 @@ export const ko = {
   'shell.nav.tasks': '작업',
   'shell.no_other_org': '다른 조직 없음',
   'shell.org': '조직',
+  'shell.org_switched': '{org}(으)로 전환했습니다.',
   'shell.notifications': '알림',
   'shell.theme': '테마',
   'shell.settings': '설정',

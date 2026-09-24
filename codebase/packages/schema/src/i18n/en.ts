@@ -767,6 +767,7 @@ export const en = {
   'shell.nav.tasks': 'Tasks',
   'shell.no_other_org': 'No other organizations',
   'shell.org': 'Organization',
+  'shell.org_switched': 'Switched to {org}.',
   'shell.notifications': 'Notifications',
   'shell.theme': 'Theme',
   'shell.settings': 'Settings',

@@ -229,7 +229,10 @@ describe('헤더 권한 — 조직 → 프로젝트 (2026-08-24 · 사람 지시
     // "바깥"으로 읽혔다. mousedown 에서 팝오버가 사라지면 뒤이은 click 은 이미 없는
     // 요소로 가므로, 그 안의 링크는 **보이지만 눌리지 않는** 상태가 된다.
     renderAt('/p/clemvion/tasks');
-    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+    // 목록이 오기 전의 선택기는 비활성이다 — 비활성 단추를 누르는 검사는 아무것도 보지 않는다
+    await waitFor(() =>
+      expect((screen.getByTestId('project-switcher') as HTMLButtonElement).disabled).toBe(false),
+    );
 
     fireEvent.click(screen.getByTestId('project-switcher'));
     const link = screen.getByTestId('project-new-link');
@@ -245,11 +248,12 @@ describe('헤더 권한 — 조직 → 프로젝트 (2026-08-24 · 사람 지시
     // 프로젝트 라우트를 지나면 기억되고, 전역 라우트에서 그것이 헤더에 남는다.
     // 기억이 없으면 빈 칸이 되고, **빈 칸은 "선택할 수 없다"로 읽힌다**.
     const first = renderAt('/p/clemvion/tasks');
-    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
+    // 라우트의 프로젝트가 **이 조직의 것인지** 목록으로 확인한 뒤에 기억한다(REQ-WEB-190)
+    await waitFor(() => expect(localStorage.getItem('nerv.last-project.nerv')).toBe('clemvion'));
     first.unmount();
 
     renderAt('/inbox');
     await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
-    expect(localStorage.getItem('nerv.last-project')).toBe('clemvion');
+    expect((await screen.findByTestId('project-switcher')).textContent).toContain('clemvion');
   });
 });
