@@ -119,6 +119,7 @@ function NotificationScreen(): React.JSX.Element {
     <PageBody>
       <PageHeader
         title={t('notif.title')}
+        description={t('notif.scope_all')}
         meta={
           unread > 0 ? (
             <span className="flex items-center gap-2">

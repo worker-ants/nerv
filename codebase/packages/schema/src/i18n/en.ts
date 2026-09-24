@@ -227,8 +227,11 @@ export const en = {
     'Declaring a relation needs the target document base_hash — read it with nerv_spec_get and send its content_hash.',
   'error.relation.stale_target':
     'The target document changed in the meantime — read it again and confirm the relation still holds.',
+  'home.recent_activity_in': 'Recent activity — {project}',
   'inbox.card.decided_at': '{decision} · {when}',
   'inbox.card.decision_note': 'Note left with the decision',
+  'inbox.scope_all':
+    'Requests from every organization you belong to — each row says which organization and project it belongs to.',
   'inbox.subject.change_request': 'Change request',
   'inbox.subject.finding': 'Review finding resolution request',
   'inbox.subject.gate_bypass': 'Gate bypass request',
@@ -250,6 +253,8 @@ export const en = {
     'Lease length in seconds — 1800 max. Longer values are rejected: stretching the time to automatic reclaim changes the coordination rule.',
   'mcp.arg.takeover':
     'seize an edit lease held by someone else — the way out when a dead session still holds it',
+  'notif.scope_all':
+    'Notifications from every organization you belong to — each row says which organization and project it belongs to.',
   'scope.elsewhere': 'This belongs to {org}, not the organization selected in the header',
   'scope.org_wide': 'Whole organization',
   'session.detail': 'Details',
@@ -262,6 +267,13 @@ export const en = {
   'settings.members.scope_rule':
     'Organization-wide rows can be changed by organization admins only; project rows also by that project’s admins. Rows you cannot change are read-only.',
   'settings.members.title_org': '{org} members & roles',
+  'shell.inbox_all_orgs': 'Inbox — every organization',
+  'shell.notifications_all_orgs': 'Notifications — every organization',
+  'shell.org_label': 'Organization: {name}',
+  'shell.pick_project': 'Pick a project',
+  'shell.project_label': 'Project: {name}',
+  'shell.project_none_label': 'Project: none picked — organization-wide screen',
+  'shell.recent': 'Recent',
   'spec.derived_tasks': 'Derived tasks',
   'spec.derived_tasks.all': 'See all on the board',
   'spec.derived_tasks.empty': 'No tasks have come out of this document yet',
@@ -499,6 +511,10 @@ export const en = {
   'status.finding.fixed': 'Fixed',
   'status.finding.open': 'Open',
   'status.finding.wont_fix': "Won't fix",
+  'switcher.no_project': 'Pick a project first — search runs inside one project.',
+  'switcher.placeholder_in': 'Search specs and tasks in {project}, or paste a fixed ID',
+  'switcher.placeholder_no_project':
+    'Specs and tasks are searched inside a project — pick one in the header',
   'task.basis': 'Basis — why this task',
   'task.basis.dependencies': 'Depends on',
   'task.basis.rebrief': 'Rebrief',
@@ -1376,7 +1392,6 @@ export const en = {
   'switcher.key_open': '↵ open',
   'switcher.label': 'Quick switcher',
   'switcher.no_results': 'No results — try different words.',
-  'switcher.placeholder': 'Search specs and tasks, or paste a stable ID',
   'switcher.pin': 'Pin to the top',
   'switcher.unpin': 'Unpin',
   'switcher.recent': 'Recently visited documents collect here.',

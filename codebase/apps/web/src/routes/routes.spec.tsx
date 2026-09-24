@@ -246,16 +246,23 @@ describe('헤더 권한 — 조직 → 프로젝트 (2026-08-24 · 사람 지시
     await waitFor(() => expect(screen.queryByTestId('project-new-link')).toBeNull());
   });
 
-  it('전역 화면에서도 프로젝트 칸이 비지 않는다 — 마지막으로 본 것을 기억한다', async () => {
-    // 프로젝트 라우트를 지나면 기억되고, 전역 라우트에서 그것이 헤더에 남는다.
-    // 기억이 없으면 빈 칸이 되고, **빈 칸은 "선택할 수 없다"로 읽힌다**.
+  it('조직 범위 화면에서는 프로젝트를 빌려 보이지 않는다 — 기억은 드롭다운의 "최근" 이다', async () => {
+    // 2026-09-24 사람 결정(REQ-WEB-193). 예전에는 홈·받은 요청·알림·설정에서도 마지막으로 본
+    // 프로젝트가 헤더에 떠, 그 화면 전체가 그 프로젝트의 것처럼 읽혔다(받은 요청은 모든 조직에
+    // 걸친다). 돌아가는 길은 드롭다운 맨 위의 "최근" 이 한 번으로 남긴다.
     const first = renderAt('/p/clemvion/tasks');
-    // 라우트의 프로젝트가 **이 조직의 것인지** 목록으로 확인한 뒤에 기억한다(REQ-WEB-190)
     await waitFor(() => expect(localStorage.getItem('nerv.last-project.nerv')).toBe('clemvion'));
+    expect(screen.getByTestId('project-switcher').textContent).toContain('clemvion');
     first.unmount();
 
     renderAt('/inbox');
-    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
-    expect((await screen.findByTestId('project-switcher')).textContent).toContain('clemvion');
+    const button = (await screen.findByTestId('project-switcher')) as HTMLButtonElement;
+    await waitFor(() => expect(button.disabled).toBe(false));
+    expect(button.textContent).toContain('프로젝트 선택');
+    expect(button.getAttribute('data-borrowed')).toBe('true');
+    fireEvent.click(button);
+    const recent = await screen.findByTestId('project-recent');
+    expect(recent.textContent).toContain('clemvion');
+    expect(recent.getAttribute('href')).toBe('/p/clemvion');
   });
 });

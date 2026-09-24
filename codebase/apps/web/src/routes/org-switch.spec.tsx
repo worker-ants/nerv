@@ -8,7 +8,7 @@
 // 본 프로젝트도 조직과 무관한 키 하나라, 두 조직에 같은 slug 가 있으면 옛 것이 그대로 골라졌다.
 // 이 파일은 셸을 **다시 마운트하지 않고** 라우터만 움직여 그 상황을 그대로 만든다.
 
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -90,6 +90,19 @@ function mount(path: string) {
 const orgButton = () => screen.getByTestId('org-switcher');
 const projectButton = () => screen.getByTestId('project-switcher');
 
+/**
+ * 조직 범위 화면(`/`)에서 기억된 프로젝트 — **헤더 칸이 아니라 드롭다운의 "최근"** 이다
+ * (2026-09-24 사람 결정 · REQ-WEB-193: 조직 범위 화면에서는 프로젝트를 빌려 보이지 않는다).
+ */
+async function recentProject(): Promise<string> {
+  await waitFor(() => expect((projectButton() as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(projectButton());
+  const recent = (await screen.findByTestId('project-recent')).textContent ?? '';
+  fireEvent.mouseDown(document.body);
+  await waitFor(() => expect(screen.queryByTestId('project-recent')).toBeNull());
+  return recent;
+}
+
 describe('조직을 바꾸면 헤더가 따라온다 (REQ-WEB-190)', () => {
   it('셸을 다시 그리지 않아도 조직과 프로젝트가 새 조직의 것이 된다', async () => {
     localStorage.setItem('nerv.last-org', 'nerv');
@@ -100,7 +113,7 @@ describe('조직을 바꾸면 헤더가 따라온다 (REQ-WEB-190)', () => {
 
     await waitFor(() => expect(orgButton().textContent).toContain('Acme'));
     // 옛 조직에서 보던 `shared` 는 Acme 에도 있지만 **Acme 의 기억이 없으니** 첫 프로젝트다
-    await waitFor(() => expect(projectButton().textContent).toContain('Acme 웹'));
+    await waitFor(async () => expect(await recentProject()).toContain('Acme 웹'));
     expect(router.state.location.pathname).toBe('/');
   });
 
@@ -117,20 +130,20 @@ describe('조직을 바꾸면 헤더가 따라온다 (REQ-WEB-190)', () => {
     localStorage.setItem('nerv.last-project.nerv', 'clemvion');
     localStorage.setItem('nerv.last-project.acme', 'shared');
     const router = mount('/');
-    await waitFor(() => expect(projectButton().textContent).toContain('clemvion'));
+    expect(await recentProject()).toContain('clemvion');
 
     await act(() => router.navigate({ to: '/o/$org', params: { org: 'acme' } }));
-    await waitFor(() => expect(projectButton().textContent).toContain('Acme 공용'));
+    await waitFor(async () => expect(await recentProject()).toContain('Acme 공용'));
 
     await act(() => router.navigate({ to: '/o/$org', params: { org: 'nerv' } }));
-    await waitFor(() => expect(projectButton().textContent).toContain('clemvion'));
+    await waitFor(async () => expect(await recentProject()).toContain('clemvion'));
   });
 
   it('조직을 모르는 옛 키는 읽지 않는다 — 다른 조직의 같은 slug 를 되살리지 않게', async () => {
     localStorage.setItem('nerv.last-org', 'acme');
     localStorage.setItem('nerv.last-project', 'shared');
     mount('/');
-    await waitFor(() => expect(projectButton().textContent).toContain('Acme 웹'));
+    await waitFor(async () => expect(await recentProject()).toContain('Acme 웹'));
   });
 
   it('속하지 않은 조직으로는 바꾸지 않는다 — "바꿨다" 고 말하지도 않는다', async () => {

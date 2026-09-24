@@ -225,9 +225,12 @@ export const ko = {
     '관계를 선언하려면 상대 문서의 base_hash 가 필요합니다 — nerv_spec_get 으로 읽고 그 content_hash 를 실으세요.',
   'error.relation.stale_target':
     '상대 문서가 그 사이 바뀌었습니다 — 다시 읽고 관계가 여전히 맞는지 확인하세요.',
+  'home.recent_activity_in': '최근 활동 — {project}',
   'inbox.card.decided_at': '{decision} · {when}',
   /** 처리됨 카드에 남는 한 줄 — 거절 사유가 여기 든다(REQ-WEB-133) */
   'inbox.card.decision_note': '결정에 남긴 말',
+  'inbox.scope_all':
+    '내가 속한 모든 조직의 받은 요청입니다 — 줄마다 어느 조직·프로젝트의 일인지 적혀 있습니다.',
   'inbox.subject.change_request': '변경 요청',
   'inbox.subject.finding': '리뷰 발견 처분 요청',
   'inbox.subject.gate_bypass': '게이트 우회 요청',
@@ -247,6 +250,8 @@ export const ko = {
   'mcp.arg.lease_seconds':
     '리스 길이(초) — 최대 1800. 더 긴 값은 거절한다: 자동 회수까지의 시간을 늘리는 것은 조정 규칙을 바꾸는 일이다.',
   'mcp.arg.takeover': '남이 쥔 편집 리스를 뺏는다 — 죽은 세션이 쥔 리스에서 빠져나오는 탈출구다',
+  'notif.scope_all':
+    '내가 속한 모든 조직의 알림입니다 — 줄마다 어느 조직·프로젝트의 것인지 적혀 있습니다.',
   'scope.elsewhere': '지금 헤더의 조직이 아닌 {org} 의 일입니다',
   'scope.org_wide': '조직 전체',
   'session.detail': '상세',
@@ -258,6 +263,13 @@ export const ko = {
   'settings.members.scope_rule':
     '조직 전체 줄은 조직 admin 만, 프로젝트 줄은 그 프로젝트의 admin 도 바꿀 수 있습니다 — 바꿀 수 없는 줄은 읽기 전용입니다.',
   'settings.members.title_org': '{org} 멤버·역할',
+  'shell.inbox_all_orgs': '받은 요청 — 모든 조직',
+  'shell.notifications_all_orgs': '알림 — 모든 조직',
+  'shell.org_label': '조직: {name}',
+  'shell.pick_project': '프로젝트 선택',
+  'shell.project_label': '프로젝트: {name}',
+  'shell.project_none_label': '프로젝트: 고르지 않음 — 조직 범위 화면',
+  'shell.recent': '최근',
   'spec.derived_tasks': '파생 Task',
   'spec.derived_tasks.all': '보드에서 전체 보기',
   'spec.derived_tasks.empty': '이 문서에서 나온 작업이 아직 없습니다',
@@ -492,6 +504,10 @@ export const ko = {
   'status.finding.fixed': '수정됨',
   'status.finding.open': '열림',
   'status.finding.wont_fix': '유예',
+  'switcher.no_project': '프로젝트를 먼저 고르세요 — 검색은 한 프로젝트 안에서 합니다.',
+  'switcher.placeholder_in': '{project}에서 스펙·작업 검색 또는 고정 ID 붙여넣기',
+  'switcher.placeholder_no_project':
+    '스펙·작업은 프로젝트 안에서 찾습니다 — 헤더에서 프로젝트를 고르세요',
   'task.basis': '근거 — 왜 이 작업인가',
   'task.basis.dependencies': '의존',
   'task.basis.rebrief': '재브리핑',
@@ -1346,7 +1362,6 @@ export const ko = {
   'switcher.key_open': '↵ 열기',
   'switcher.label': '빠른 이동',
   'switcher.no_results': '결과가 없습니다 — 다른 표현으로 찾아보세요.',
-  'switcher.placeholder': '스펙·작업 검색 또는 고정 ID 붙여넣기',
   'switcher.pin': '목록 위에 고정',
   'switcher.unpin': '고정 해제',
   'switcher.recent': '최근 방문한 문서가 여기 쌓입니다.',

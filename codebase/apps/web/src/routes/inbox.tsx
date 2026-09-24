@@ -186,6 +186,8 @@ function InboxScreen(): React.JSX.Element {
     <PageBody>
       <PageHeader
         title={t('inbox.title')}
+        // 모든 조직에서 모인다 — 줄마다 어느 조직·프로젝트의 일인지 적혀 있다(REQ-WEB-192·193)
+        description={t('inbox.scope_all')}
         actions={
           // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
           <nav className="flex rounded-nerv-sm border border-border p-0.5 text-xs">

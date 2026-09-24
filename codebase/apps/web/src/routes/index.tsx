@@ -125,8 +125,12 @@ function HomeScreen(): React.JSX.Element {
       <div className="mt-[38px] flex flex-col gap-10 md:flex-row md:gap-11">
         {/* 최근 활동 — 결정을 끝낸 사람이 흐름을 따라잡는 곳 */}
         <section className="min-w-0 flex-1">
+          {/* **어느 프로젝트의 활동인지** 말한다(REQ-WEB-193) — 한 프로젝트의 흐름인데 제목만 보면
+              조직 전체의 것처럼 읽혔다 */}
           <div className="mb-2.5 text-lg font-[650] tracking-[-0.012em]">
-            {t('home.recent_activity')}
+            {primary === undefined
+              ? t('home.recent_activity')
+              : t('home.recent_activity_in', { project: String(primary['name']) })}
           </div>
           {events.isLoading && <Skeleton rows={4} />}
           <ul>
