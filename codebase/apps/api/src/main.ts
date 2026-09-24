@@ -19,6 +19,7 @@ import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
 import { nervLoggerFromEnv } from './common/nerv-logger.js';
 import { registerAccessLog } from './common/access-log.js';
+import { assertClientIpConfig, clientIpResolverFromEnv } from './common/client-ip.js';
 import { REQUEST_ID_HEADER, requestIdFrom } from './common/request-context.js';
 import { REPLAYED_HEADER } from './common/idempotency.service.js';
 import {
@@ -38,9 +39,10 @@ export async function createApp(): Promise<NestFastifyApplication> {
     AppModule,
     new FastifyAdapter({
       bodyLimit: MAX_REQUEST_BODY_BYTES,
-      // 요청 ID — 앞문이 넘긴 `X-Request-Id` 를 쓰고, 없거나 모양이 틀리면 만든다(REQ-CB-052)
+      // 요청 ID — 앞문이 넘긴 `X-Request-Id`, 없으면 Cloudflare 의 `CF-Ray`, 둘 다 없거나
+      // 모양이 틀리면 만든다(REQ-CB-052 · 055)
       genReqId: (req: { headers: IncomingHttpHeaders }) =>
-        requestIdFrom(req.headers['x-request-id']),
+        requestIdFrom(req.headers['x-request-id'], req.headers['cf-ray']),
     }),
     {
       rawBody: true,
@@ -53,7 +55,8 @@ export async function createApp(): Promise<NestFastifyApplication> {
 
   // 접근 로그 — 요청마다 한 줄(§5.5 · REQ-CB-052). 라우트가 서기(`init`) 전에 달아야
   // better-auth 경로까지 전부 탄다. 운영 로그에 호출된 API 가 한 줄도 없던 자리다.
-  registerAccessLog(app.getHttpAdapter().getInstance());
+  // 클라이언트 주소는 신뢰하는 프록시를 기준으로 가린다(REQ-CB-055) — 설정은 기동 때 한 번 읽는다
+  registerAccessLog(app.getHttpAdapter().getInstance(), { clientIp: clientIpResolverFromEnv() });
 
   app.useGlobalFilters(new NervExceptionFilter());
   // 멱등은 **응답을 만드는 일**이라 인터셉터다(§1.5) — 재생은 핸들러를 건너뛴다.
@@ -168,6 +171,9 @@ async function bootstrap(): Promise<void> {
   // 메일도 같은 자리에서 본다 — SMTP 를 켜 놓고 보내는 사람을 비우면 "보냈다고 믿는데 닿지
   // 않는" 배치가 되고, 그것은 뜨지 않는 것보다 나쁘다(2026-09-22 · codebase.md §5.2).
   assertMailConfig();
+  // 신뢰 프록시·클라이언트 IP 헤더도 — 틀린 CIDR 을 버리고 뜨면 IP 가 이상하다는 증상만 남고
+  // 설정을 가리키지 않는다(REQ-CB-055)
+  assertClientIpConfig();
   const app = await createApp();
   const port = Number(process.env['NERV_API_PORT'] ?? 8080);
   await app.listen({ port, host: '0.0.0.0' });

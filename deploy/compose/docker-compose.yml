@@ -163,6 +163,10 @@ services:
       # 아무 배치에서도 듣지 않던 자리와 같은 부류다(REQ-CB-038).
       NERV_TRUSTED_ORIGINS: ${NERV_TRUSTED_ORIGINS:-}
       NERV_COOKIE_DOMAIN: ${NERV_COOKIE_DOMAIN:-}
+      # 클라이언트 주소(REQ-CB-055) — 신뢰 프록시는 비면 loopback·사설 대역이다. 헤더는 비면
+      # 믿지 않는다. Cloudflare Tunnel 뒤라면 cf-connecting-ip 를 적는다(§5.5 배치 요건).
+      NERV_TRUSTED_PROXIES: ${NERV_TRUSTED_PROXIES:-}
+      NERV_CLIENT_IP_HEADER: ${NERV_CLIENT_IP_HEADER:-}
       NERV_AUTH_SECRET: ${NERV_AUTH_SECRET:?set NERV_AUTH_SECRET in .env}
       NERV_LOG_LEVEL: ${NERV_LOG_LEVEL:-info}
       NERV_LOG_FORMAT: ${NERV_LOG_FORMAT:-json}   # 컨테이너는 수집기가 읽는다 — 한 줄에 JSON 하나 (§5.5)

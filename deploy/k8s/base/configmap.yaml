@@ -26,6 +26,10 @@ data:
   NERV_LOG_LEVEL: 'info'
   # 한 줄에 JSON 하나 — 수집기가 필드(req_id · status · route …)로 거른다(§5.5 · REQ-CB-053)
   NERV_LOG_FORMAT: 'json'
+  # 클라이언트 주소(§5.5 · REQ-CB-055). 신뢰 프록시는 비면 loopback·사설 대역이다 — 파드
+  # CIDR 이 그 밖(예: 100.64.0.0/10)이면 적는다. 헤더는 비면 믿지 않는다.
+  NERV_TRUSTED_PROXIES: ''
+  NERV_CLIENT_IP_HEADER: ''
   NERV_VALKEY_URL: 'redis://nerv-valkey:6379'
   # **비워 두는 것이 기본이다**(2026-09-14 · REQ-CB-040). 전에는 `http://nerv-minio:9000`
   # 이 적혀 있었는데 **그 Service 를 만드는 매니페스트가 base·오버레이 어디에도 없다** —

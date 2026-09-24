@@ -3,13 +3,7 @@ import type { Logger } from '@nestjs/common';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { IncomingHttpHeaders } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  accessLevel,
-  clientIp,
-  formatAccessLine,
-  registerAccessLog,
-  surfaceOf,
-} from './access-log.js';
+import { accessLevel, formatAccessLine, registerAccessLog, surfaceOf } from './access-log.js';
 import type { AccessRecord } from './access-log.js';
 import { nervLoggerFromEnv } from './nerv-logger.js';
 import { currentRequestId, requestIdFrom } from './request-context.js';
@@ -47,9 +41,10 @@ function capture(): { logger: Logger; lines: Line[] } {
 /** main.ts 와 같은 배선 — 요청 ID 생성기와 훅 */
 async function boot(logger: Logger) {
   const fastify = new FastifyAdapter({
-    genReqId: (req: { headers: IncomingHttpHeaders }) => requestIdFrom(req.headers['x-request-id']),
+    genReqId: (req: { headers: IncomingHttpHeaders }) =>
+      requestIdFrom(req.headers['x-request-id'], req.headers['cf-ray']),
   }).getInstance();
-  registerAccessLog(fastify, logger);
+  registerAccessLog(fastify, { logger });
   fastify.get('/api/projects/:proj/tasks', async (request) => {
     // 가드가 하는 일을 흉내 낸다 — 접근 로그는 요청 객체에 달린 주체를 읽는다
     Object.assign(request, {
@@ -121,6 +116,7 @@ describe('접근 로그 — 요청마다 한 줄 (REQ-CB-052)', () => {
       token_id: 't-1',
       project_id: 'p-1',
       ip: '203.0.113.9',
+      ip_source: 'xff', // 127.0.0.1(주입) 은 신뢰하는 hop 이라 건너뛴다(client-ip.ts)
     });
     expect(line?.fields).not.toHaveProperty('code'); // 값이 없는 필드는 싣지 않는다
     expect(line?.fields).not.toHaveProperty('aborted');
@@ -139,6 +135,29 @@ describe('접근 로그 — 요청마다 한 줄 (REQ-CB-052)', () => {
     await settle();
     expect(res.headers['x-request-id']).toBe(id);
     expect(lines[0]?.requestId).toBe(id);
+    await fastify.close();
+  });
+
+  it('요청 ID — X-Request-Id 가 없으면 CF-Ray 다, 줄에는 cf_ray 로도 실린다 (REQ-CB-055)', async () => {
+    const { logger, lines } = capture();
+    const fastify = await boot(logger);
+    const ray = '8c1b2e3f4a5b6c7d-ICN';
+    const res = await fastify.inject({
+      method: 'GET',
+      url: '/api/projects/NERV/tasks',
+      headers: { 'cf-ray': ray },
+    });
+    const both = await fastify.inject({
+      method: 'GET',
+      url: '/api/projects/NERV/tasks',
+      headers: { 'cf-ray': ray, 'x-request-id': 'front-door-id-0001' },
+    });
+    await settle();
+    expect(res.headers['x-request-id']).toBe(ray);
+    expect(lines[0]?.requestId).toBe(ray);
+    // X-Request-Id 가 있으면 그것이 이긴다 — Ray ID 는 필드로 남아 여전히 찾을 수 있다
+    expect(both.headers['x-request-id']).toBe('front-door-id-0001');
+    expect(lines[1]?.fields).toMatchObject({ cf_ray: ray });
     await fastify.close();
   });
 
@@ -238,12 +257,6 @@ describe('접근 로그 — 조각', () => {
     expect(accessLevel('OPTIONS', 204)).toBe('verbose');
   });
 
-  it('클라이언트 주소는 X-Forwarded-For 의 마지막 항목 — 맨 앞은 클라이언트가 적은 값이다', () => {
-    expect(clientIp('1.1.1.1, 10.0.0.5', '10.0.0.9')).toBe('10.0.0.5');
-    expect(clientIp(undefined, '10.0.0.9')).toBe('10.0.0.9');
-    expect(clientIp('', undefined)).toBeNull();
-  });
-
   it('값이 없는 키는 싣지 않고, 끊긴 응답은 표시한다', () => {
     const record: AccessRecord = {
       method: 'GET',
@@ -258,6 +271,8 @@ describe('접근 로그 — 조각', () => {
       tokenId: null,
       projectId: null,
       ip: null,
+      ipSource: 'socket',
+      cfRay: null,
       bytes: null,
     };
     expect(formatAccessLine(record)).toBe(
@@ -295,7 +310,7 @@ describe('접근 로그 — 싣지 않는 것', () => {
           genReqId: (req: { headers: IncomingHttpHeaders }) =>
             requestIdFrom(req.headers['x-request-id']),
         }).getInstance();
-        registerAccessLog(fastify, logger as unknown as Logger);
+        registerAccessLog(fastify, { logger: logger as unknown as Logger });
         fastify.post('/api/v1/projects/:proj/tasks', async (request) => {
           Object.assign(request, {
             nervPrincipal: {

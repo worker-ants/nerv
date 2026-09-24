@@ -37,6 +37,13 @@ data:
   # 공통 상위를 적고, 그러면 그 아래 모든 호스트가 세션 쿠키를 받는다.
   # NERV_COOKIE_DOMAIN: 'nerv.example.com'
 
+  # 클라이언트 주소(4.2 §5.5 · REQ-CB-055). **Cloudflare Tunnel 뒤라면** 헤더를 켠다 — 엣지가
+  # 클라이언트 주소를 CF-Connecting-IP 에 싣고, ingress 가 X-Forwarded-For 를 덮어써도 이
+  # 헤더는 지나간다. **켜기 전에** Ingress(와 api Service)에 인터넷이 직접 닿지 않는지 본다 —
+  # 닿으면 누구나 이 헤더를 적어 보낼 수 있다. 파드 CIDR 이 사설 대역 밖이면 신뢰 프록시도 적는다.
+  # NERV_CLIENT_IP_HEADER: 'cf-connecting-ip'
+  # NERV_TRUSTED_PROXIES: '10.0.0.0/8, 100.64.0.0/10'
+
   # 서버가 S3 에 붙는 주소. 조직 S3 를 쓰면 그 엔드포인트로 바꾼다.
   # base 는 이 값을 **비워 둔다**(REQ-CB-040) — `nerv-minio` Service 를 만드는 매니페스트가
   # 없어서 그 주소를 기본값으로 두면 없는 서비스를 가리킨다. 비면 첨부가 꺼지고 기동

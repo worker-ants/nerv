@@ -17,7 +17,19 @@ import type { LogLevel } from '@nestjs/common';
 import type { IncomingHttpHeaders, ServerResponse } from 'node:http';
 import type { Principal } from '../modules/auth/auth.service.js';
 import type { StructuredMessage } from './nerv-logger.js';
-import { REQUEST_ID_HEADER, requestContext } from './request-context.js';
+import { acceptedId, REQUEST_ID_HEADER, requestContext } from './request-context.js';
+import {
+  createClientIpResolver,
+  DEFAULT_TRUSTED_PROXIES,
+  trustedProxiesFromEnv,
+} from './client-ip.js';
+import type { ClientIpResolver, ClientIpSource } from './client-ip.js';
+
+/** 설정을 넘기지 않은 배선(테스트)의 판정기 — 기본 신뢰 목록, 헤더는 믿지 않는다 */
+const DEFAULT_CLIENT_IP = createClientIpResolver({
+  trusted: trustedProxiesFromEnv({ NERV_TRUSTED_PROXIES: DEFAULT_TRUSTED_PROXIES.join(',') }),
+  header: null,
+});
 
 /** 훅이 읽는 요청의 모양 — 가드·필터가 요청 객체에 달아 둔 것까지 */
 export interface AccessRequest {
@@ -62,6 +74,10 @@ export interface AccessRecord {
   tokenId: string | null;
   projectId: string | null;
   ip: string | null;
+  /** 주소를 어디서 가렸는가 — 소켓 · 설정한 헤더 · X-Forwarded-For (client-ip.ts) */
+  ipSource: ClientIpSource;
+  /** Cloudflare 의 Ray ID — 오류 화면이 보여 주는 값이다. 요청 ID 가 따로 있을 때도 싣는다 */
+  cfRay: string | null;
   bytes: number | null;
 }
 
@@ -91,26 +107,6 @@ export function accessLevel(method: string, status: number): LogLevel {
   return 'log';
 }
 
-/**
- * 클라이언트 주소 — `X-Forwarded-For` 의 **마지막** 항목.
- *
- * 앞문(nginx·ingress-nginx)은 받은 값 뒤에 자기가 본 주소를 **덧붙인다**
- * (`$proxy_add_x_forwarded_for`). 맨 앞은 클라이언트가 적어 보낸 값이라 믿을 수 없고,
- * 맨 뒤가 우리 앞문이 직접 본 주소다. 앞문이 하나인 배치(§5.4 · §6)를 전제한다.
- */
-export function clientIp(
-  forwarded: string | string[] | undefined,
-  remote: string | undefined,
-): string | null {
-  const raw = Array.isArray(forwarded) ? forwarded.join(',') : forwarded;
-  const last = raw
-    ?.split(',')
-    .map((part) => part.trim())
-    .filter((part) => part !== '')
-    .at(-1);
-  return last ?? remote ?? null;
-}
-
 /** 라우트 템플릿. 매칭되지 않은 요청(404)은 쿼리를 뗀 경로를 싣는다 */
 function routeOf(request: AccessRequest): string {
   const template = request.routeOptions?.url;
@@ -123,8 +119,10 @@ export function accessRecordOf(
   raw: ServerResponse,
   durationMs: number,
   aborted: boolean,
+  resolveIp: ClientIpResolver = DEFAULT_CLIENT_IP,
 ): AccessRecord {
   const principal = request.nervPrincipal;
+  const client = resolveIp(request.headers, request.socket?.remoteAddress);
   const length = Number(raw.getHeader('content-length'));
   return {
     method: request.method,
@@ -138,7 +136,9 @@ export function accessRecordOf(
     isAgent: principal?.isAgent ?? null,
     tokenId: principal?.tokenId ?? null,
     projectId: principal?.projectId ?? request.nervProjectId ?? request.nervSseProjectId ?? null,
-    ip: clientIp(request.headers['x-forwarded-for'], request.socket?.remoteAddress),
+    ip: client.ip,
+    ipSource: client.source,
+    cfRay: acceptedId(request.headers['cf-ray']),
     bytes: Number.isFinite(length) ? length : null,
   };
 }
@@ -156,6 +156,8 @@ export function formatAccessLine(record: AccessRecord): string {
     ['token', record.tokenId],
     ['project', record.projectId],
     ['ip', record.ip],
+    ['ip_source', record.ip === null ? null : record.ipSource],
+    ['cf_ray', record.cfRay],
     ['bytes', record.bytes],
   ];
   const tail = fields
@@ -189,6 +191,8 @@ export function accessMessage(record: AccessRecord): StructuredMessage {
     token_id: record.tokenId,
     project_id: record.projectId,
     ip: record.ip,
+    ip_source: record.ip === null ? null : record.ipSource,
+    cf_ray: record.cfRay,
     bytes: record.bytes,
     aborted: record.aborted ? true : null,
   };
@@ -208,7 +212,12 @@ export function accessMessage(record: AccessRecord): StructuredMessage {
  * `onResponse` 가 아니라 raw 의 `close` 를 듣는 이유: SSE 처럼 `reply.send` 를 거치지 않는
  * 응답에서는 `onResponse` 가 오지 않는다. `close` 는 끝났든 끊겼든 한 번 온다.
  */
-export function registerAccessLog(host: AccessHookHost, logger = new Logger('Access')): void {
+export function registerAccessLog(
+  host: AccessHookHost,
+  options: { logger?: Logger; clientIp?: ClientIpResolver } = {},
+): void {
+  const logger = options.logger ?? new Logger('Access');
+  const resolveIp = options.clientIp ?? DEFAULT_CLIENT_IP;
   host.addHook('onRequest', ((request: AccessRequest, reply: AccessReply, done: Done) => {
     reply.raw.setHeader(REQUEST_ID_HEADER, request.id);
     const path = request.url.split('?')[0] ?? '';
@@ -222,7 +231,7 @@ export function registerAccessLog(host: AccessHookHost, logger = new Logger('Acc
       });
       reply.raw.once('close', () => {
         const durationMs = Number((process.hrtime.bigint() - startedAt) / 1_000_000n);
-        const record = accessRecordOf(request, reply.raw, durationMs, !finished);
+        const record = accessRecordOf(request, reply.raw, durationMs, !finished, resolveIp);
         const level = accessLevel(record.method, record.status);
         requestContext.run({ requestId: request.id }, () => {
           logger[level](accessMessage(record));
