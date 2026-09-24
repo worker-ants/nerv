@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.33 (2026-09-24)</span>
+      <span>버전 v1.34 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1705,6 +1705,7 @@ export const ApprovalDecisionInput = z
     <li><b>저장소 주소와 기준 갈래는 프로젝트 줄에서 고친다</b>(2026-09-10 — 사람 지시 · REQ-WEB-160). 두 열은 처음부터 있었고 EP-PRJ-04 도 처음부터 받는데 <b>채울 문이 API 뿐이었다</b> — 그래서 작업 상세의 증적 링크(§2.5 · REQ-WEB-159)가 "저장소 주소가 비어 있습니다" 라고 말해 놓고 <b>고칠 곳을 알려 주지 못했다.</b> 문제를 알리고 문을 주지 않는 것이 §1.5 가 금지하는 막다른 길이다. [고치기]가 이름 옆에서 둘을 함께 받고, 채우는 이유(증적의 커밋·코드 경로가 이 주소 위에서 열린다)를 칸 옆에 적는다. <b>잘못 적은 주소는 지울 수 있어야 한다</b> — 빈 칸으로 저장하면 서버가 그것을 "비운다" 로 읽는다(<a href="api.html">4.4</a> REQ-API-157. 안 보낸 필드는 건드리지 않는다). 권한이 없으면 [고치기]는 숨기지 않고 <b>비활성 + 사유</b>다(REQ-WEB-003).
       <ul><li><b>이것은 연동 탭이 아니다.</b> 로드맵이 Phase 2 로 미룬 것은 GitHub·Slack <b>연동</b>(웹훅·OAuth·저장소 clone)이고, 여기서 하는 것은 이미 있는 두 칸을 사람이 채우는 일이다 — 서버는 이 값으로 아무 데도 접속하지 않는다.</li></ul></li>
     <li><b>설정이 쓰는 범위를 화면이 고르고 말한다</b>(2026-09-24 — 조직·프로젝트 경계 점검 · REQ-WEB-191). 설정의 세 자리가 대상 범위를 헤더가 <b>기억한</b> 프로젝트에서 빌려 왔다 — 조직 전체 줄의 역할 칩을 켜면 마지막으로 본 프로젝트에 새 멤버십이 생겼고, 게이트 정책은 어느 프로젝트의 것인지 말하지 않은 채 저장됐고, 초대 소속은 "조직 전체" 와 기억된 프로젝트 <b>하나</b>뿐이었다. 지금은 역할 칩이 <b>그 줄의 범위</b>로 쓰고, 게이트 정책은 화면 안의 선택기로 고른 프로젝트에 저장하며 제목이 그 이름을 말하고, 초대 폼은 조직 이름과 그 조직의 프로젝트 <b>전부</b>를 이름으로 보인다. 멤버 표의 제목은 조직을, "적용 범위" 칸은 프로젝트 <b>이름</b>을 말한다. 편집 가능 여부는 줄마다 서버와 같은 규칙이다 — 조직 전체 줄은 조직 admin 만(<a href="api.html">4.4</a> §2.1b · REQ-API-169).</li>
+    <li><b>멤버 표는 사람마다 한 묶음이다</b>(2026-09-24 — 사람 결정 · REQ-WEB-194). 범위마다 한 줄이던 동안 같은 사람이 표 여기저기 흩어졌고(실측: 지민·관리자 각 두 줄), 프로젝트 줄은 그 사람이 <b>조직 전체에서 가진 역할</b>을 숨겼다 — 프로젝트 줄에 viewer 만 보이면 조직 전체 planner 인 사실이 가려진다(권한은 합집합이다). 이름·이메일은 묶음의 첫 줄에만, 조직 전체 줄이 먼저, 프로젝트 줄은 조직 역할을 <b>"상속"</b>(점선 칩 · 누를 수 없음)으로 보인다. 와이어프레임의 사람 × 프로젝트 매트릭스는 프로젝트가 늘면 가로로 넓어져 택하지 않았다(<a href="ui-wireframes.html">3.6</a> §2.8 주석 정정). 곁들여 <b>탭 제목</b>이 "화면 · 프로젝트 · 조직 — NERV" 가 된다 — 탭을 여럿 열어 두면 어느 것이 어디인지 제목뿐이다. 조직 범위 화면은 프로젝트를 싣지 않는다(REQ-WEB-193).</li>
     <li><b>빈 상태</b>: 토큰 0개 — 플러그인 온보딩 절차 링크(<a href="plugin.html">plugin.md</a> §4).</li>
   </ul>
 
@@ -1719,6 +1720,7 @@ export const ApprovalDecisionInput = z
       <tr><td>REQ-WEB-167</td><td>WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL <b>대상 프로젝트를 그 폼에서 고르게</b> 하고 고른 값이 권한 칸의 잠금과 기본 이름을 정한다 — 헤더가 고른 값에 기대지 않는다. WHERE 고를 프로젝트가 없으면 THE SYSTEM SHALL [발급]을 비활성으로 두고 <b>그 이유를 같은 자리에서</b> 말한다(§1.5). WHEN 발급에 성공하면 THE SYSTEM SHALL 원문과 함께 <b>프로젝트·권한·만료</b>와 그대로 붙여넣을 설정 한 줄을 보인다(<a href="api.html">4.4</a> REQ-API-160). WHEN 토큰 목록을 그리면 THE SYSTEM SHALL <b>프로젝트를 첫 열로</b> 두고 만료를 함께 보이며, 폐기·만료된 토큰은 기본으로 접고 토글로 편다</td></tr>
       <tr><td>REQ-WEB-168</td><td>WHERE 보는 사람이 그 조직의 admin 이면 THE SYSTEM SHALL 토큰 탭에 <b>조직 전체 토큰 표</b>(EP-TOK-04)를 두고 소유자·프로젝트·권한·만료·마지막 사용·상태를 보인다. WHERE admin 이 아니면 THE SYSTEM SHALL 그 표를 <b>그리지도 부르지도 않는다</b>. WHEN 그 표를 거르면 THE SYSTEM SHALL 받아 둔 목록 위에서 거른다 — 서버에 없는 질의 인자를 보내지 않는다(조용히 무시되면 목록이 거른 것처럼 보인다). WHEN 상태를 그리면 THE SYSTEM SHALL 폐기·만료·활성을 <b>구별해</b> 적는다</td></tr>
       <tr><td>REQ-WEB-191</td><td>WHEN 설정 화면이 멤버십·초대·게이트 정책을 쓰면 THE SYSTEM SHALL 대상 범위를 <b>그 줄이나 그 화면의 선택기</b>에서 정하고(헤더가 기억한 프로젝트를 빌리지 않는다) 그 범위를 이름으로 보인다 — 멤버 표 제목은 조직, 적용 범위 칸은 프로젝트 이름, 게이트 정책 제목은 프로젝트 이름. WHEN 초대 폼을 열면 THE SYSTEM SHALL 조직 이름과, 보는 사람이 다룰 수 있는 범위(조직 admin 이면 조직 전체와 모든 프로젝트, 아니면 자기가 admin 인 프로젝트)를 보이고, 만든 뒤에는 누구를 어느 범위에 어떤 역할로 불렀는지 요약한다. WHILE 멤버 표를 그리는 동안 THE SYSTEM SHALL 줄마다 REQ-API-169 와 같은 규칙으로 편집을 잠근다</td></tr>
+      <tr><td>REQ-WEB-194</td><td>WHEN 멤버 표를 그리면 THE SYSTEM SHALL 한 사람의 멤버십을 <b>한 묶음</b>으로 모아 이름·이메일을 첫 줄에만 적고 조직 전체 줄을 먼저 두며, 프로젝트 줄에는 그 사람이 조직 전체에서 가진 역할을 누를 수 없는 <b>"상속"</b> 표식으로 보인다. WHILE 화면을 보이는 동안 THE SYSTEM SHALL 브라우저 탭 제목을 "화면 · 프로젝트 · 조직 — NERV" 로 두되 프로젝트는 프로젝트 화면에서만 싣는다</td></tr>
     </tbody>
   </table></div>
 

@@ -70,6 +70,49 @@ function groupByMember(raw: Record<string, unknown>[]): MemberRow[] {
   return [...out.values()];
 }
 
+/**
+ * 한 사람의 소속 전부 — **사람마다 한 묶음**(2026-09-24 사람 결정 · REQ-WEB-194).
+ *
+ * 범위마다 한 줄이던 동안 같은 사람이 표 여기저기 흩어졌고(실측: 지민·관리자가 각 두 줄),
+ * 프로젝트 줄은 그 사람이 **조직 전체에서 가진 역할**을 숨겼다 — 프로젝트 줄에 viewer 만 보이면
+ * 조직 전체 planner 인 사실이 가려진다(권한은 합집합이다 · 0003_multi_role). 와이어프레임의
+ * 사람 × 프로젝트 매트릭스는 프로젝트가 늘면 가로로 넓어져서, 묶음 안에 범위 줄을 두는 모양을
+ * 택했다(열이 늘지 않는다).
+ */
+interface MemberGroup {
+  email: string;
+  display_name: string;
+  /** 조직 전체 줄이 먼저, 프로젝트 줄은 이름순 */
+  scopes: MemberRow[];
+  /** 조직 전체에서 가진 역할 — 프로젝트 줄에 "상속" 으로 보인다 */
+  orgRoles: string[];
+}
+
+export function groupByPerson(members: MemberRow[]): MemberGroup[] {
+  const out = new Map<string, MemberGroup>();
+  for (const m of members) {
+    const g = out.get(m.email) ?? {
+      email: m.email,
+      display_name: m.display_name,
+      scopes: [],
+      orgRoles: [],
+    };
+    g.scopes.push(m);
+    if (m.project_slug === null) g.orgRoles.push(...m.roles);
+    out.set(m.email, g);
+  }
+  for (const g of out.values()) {
+    g.scopes.sort((a, b) =>
+      a.project_slug === null
+        ? -1
+        : b.project_slug === null
+          ? 1
+          : (a.project_name ?? a.project_slug).localeCompare(b.project_name ?? b.project_slug),
+    );
+  }
+  return [...out.values()];
+}
+
 export const Route = createFileRoute('/settings/members')({ component: MembersTab });
 
 const ROLES = ['admin', 'planner', 'designer', 'developer', 'qa', 'viewer'] as const;
@@ -157,64 +200,84 @@ function MembersTab(): React.JSX.Element {
             </>
           }
         >
-          {groupByMember(rows(members.data)).map((m) => (
-            <Tr key={m.key}>
-              <Td className="font-medium">{m.display_name}</Td>
-              <Td className="text-text-mute">{m.email}</Td>
-              <Td className="text-text-mute">
-                <span data-testid="member-scope">
-                  <ScopeText slug={m.project_slug} name={m.project_name} />
-                </span>
-              </Td>
-              <Td>
-                {/* **체크박스다.** 하나를 고르는 자리가 아니다 — 겸직이 흔한 형태라는 것이
-                    clemvion 실측(복합 라벨 20건)이고, 데이터도 이제 그것을 담는다.
-                    켜기는 멤버십 행 추가, 끄기는 그 행 삭제다 — 부여마다 행이라 이력이 남는다. */}
-                <div className="flex flex-wrap gap-1">
-                  {ROLES.map((role) => {
-                    const on = m.roles.includes(role);
-                    const last = on && m.roles.length === 1;
-                    const editable = canEdit(m.project_slug);
-                    return (
-                      <button
-                        key={role}
-                        type="button"
-                        data-testid={`role-${role}`}
-                        aria-pressed={on}
-                        disabled={!editable || last || toggleRole.isPending}
-                        title={t(
-                          last
-                            ? 'settings.members.last_role'
-                            : m.project_slug === null
-                              ? 'settings.members.role_org_admin_only'
-                              : 'settings.members.role_admin_only',
-                        )}
-                        onClick={() =>
-                          toggleRole.mutate({
-                            userEmail: m.email,
-                            role,
-                            on,
-                            id: m.idByRole[role],
-                            projectSlug: m.project_slug,
-                          })
-                        }
-                        className={cn(
-                          'rounded-nerv-sm border px-1.5 py-0.5 text-2xs transition-colors',
-                          on
-                            ? 'border-border-strong bg-bg-elev font-medium text-text'
-                            : 'border-border text-text-faint hover:text-text',
-                          !editable || last ? 'cursor-not-allowed opacity-60' : '',
-                        )}
-                      >
-                        {on ? '✓ ' : ''}
-                        {role}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Td>
-            </Tr>
-          ))}
+          {groupByPerson(groupByMember(rows(members.data))).flatMap((person) =>
+            person.scopes.map((m, index) => (
+              <Tr
+                key={m.key}
+                // 묶음의 경계를 선으로 — 한 사람의 줄들이 한눈에 한 덩어리로 읽힌다
+                className={index === 0 ? 'border-t-2 border-t-border-strong' : ''}
+              >
+                {/* 이름·이메일은 묶음의 첫 줄에만 — 같은 사람을 줄마다 다시 적으면 다른 사람처럼 읽힌다 */}
+                <Td className="font-medium">
+                  {index === 0 && <span data-testid="member-person">{person.display_name}</span>}
+                </Td>
+                <Td className="text-text-mute">{index === 0 ? person.email : ''}</Td>
+                <Td className="text-text-mute">
+                  <span data-testid="member-scope">
+                    <ScopeText slug={m.project_slug} name={m.project_name} />
+                  </span>
+                </Td>
+                <Td>
+                  {/* **체크박스다.** 하나를 고르는 자리가 아니다 — 겸직이 흔한 형태라는 것이
+                      clemvion 실측(복합 라벨 20건)이고, 데이터도 이제 그것을 담는다.
+                      켜기는 멤버십 행 추가, 끄기는 그 행 삭제다 — 부여마다 행이라 이력이 남는다. */}
+                  <div className="flex flex-wrap gap-1">
+                    {ROLES.map((role) => {
+                      const on = m.roles.includes(role);
+                      // 조직 전체에서 이미 가진 역할 — 이 프로젝트 줄에 켜지 않아도 **이미 있다**.
+                      // 꺼진 칩으로 그리면 그 권한이 없는 것처럼 읽힌다(REQ-WEB-194)
+                      const inherited =
+                        !on && m.project_slug !== null && person.orgRoles.includes(role);
+                      const last = on && m.roles.length === 1;
+                      const editable = canEdit(m.project_slug);
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          data-testid={`role-${role}`}
+                          data-inherited={inherited || undefined}
+                          aria-pressed={on}
+                          disabled={inherited || !editable || last || toggleRole.isPending}
+                          title={t(
+                            inherited
+                              ? 'settings.members.role_inherited'
+                              : last
+                                ? 'settings.members.last_role'
+                                : m.project_slug === null
+                                  ? 'settings.members.role_org_admin_only'
+                                  : 'settings.members.role_admin_only',
+                          )}
+                          onClick={() =>
+                            toggleRole.mutate({
+                              userEmail: m.email,
+                              role,
+                              on,
+                              id: m.idByRole[role],
+                              projectSlug: m.project_slug,
+                            })
+                          }
+                          className={cn(
+                            'rounded-nerv-sm border px-1.5 py-0.5 text-2xs transition-colors',
+                            on
+                              ? 'border-border-strong bg-bg-elev font-medium text-text'
+                              : inherited
+                                ? 'cursor-default border-dashed border-border-strong text-text-mute'
+                                : 'border-border text-text-faint hover:text-text',
+                            !inherited && (!editable || last)
+                              ? 'cursor-not-allowed opacity-60'
+                              : '',
+                          )}
+                        >
+                          {on ? '✓ ' : inherited ? '↳ ' : ''}
+                          {role}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Td>
+              </Tr>
+            )),
+          )}
         </Table>
       )}
     </section>

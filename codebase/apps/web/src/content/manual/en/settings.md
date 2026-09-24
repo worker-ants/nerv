@@ -39,6 +39,8 @@ Who is here and in what role. A role can be granted across the whole organizatio
 
 The table's title names **whose members these are**, and the **Applies to** column says, by project **name**, whether a role is organization-wide or for one project. Turning a role chip on adds the role **in that row's scope**.
 
+**Each person is one group.** Name and email appear on the group's first row only; the organization-wide row comes first, then the project rows. On a project row, a **dashed chip marked ↳** is a role the person **already holds organization-wide** — they have that permission in this project too, so it needs no separate grant and cannot be pressed. Change it on the organization-wide row.
+
 Editing members and roles is `admin` only — **organization-wide rows by organization admins only**; project rows also by that project's admins. Rows you cannot change have their chips locked. **A member's last role cannot be removed** — a member with no role can reach nothing while still sitting in the list. To remove someone, remove the member.
 
 ## Tokens

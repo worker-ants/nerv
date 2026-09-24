@@ -29,6 +29,7 @@ import { cn } from '../lib/utils.js';
 import { chapterForRoute } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
+import { documentTitle } from '../lib/document-title.js';
 import { SpecTree } from './spec-tree.js';
 import { MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
@@ -210,6 +211,14 @@ export function AppShell({
   // 도움말의 "이 화면" 항목 — 짚어 줄 장이 없으면 그 항목을 아예 안 보인다(manual.ts)
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const contextChapter = chapterForRoute(pathname);
+
+  // 탭 제목이 범위를 말한다(REQ-WEB-194) — 탭을 여럿 열어 두면 어느 것이 어디인지 제목뿐이다
+  useEffect(() => {
+    document.title = documentTitle(t, pathname, {
+      orgName: scope.orgName,
+      projectName: currentProject === undefined ? null : String(currentProject['name']),
+    });
+  }, [t, pathname, scope.orgName, currentProject]);
 
   // ── 좁은 화면의 서랍 ────────────────────────────────────────────────────
   //
