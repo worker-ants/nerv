@@ -175,12 +175,13 @@ describe('일괄 읽음 (REQ-WEB-137)', () => {
  * **등급으로 나눠 본다**(2026-09-07 · REQ-WEB-149 · FR-12). 배지가 전체 unread 를 세면
  * 결정이 필요한 것이 배경 활동에 묻힌다 — 실측 767건 중 99건이 결정이었다.
  */
-describe('REQ-WEB-149 — 결정이 필요한 것만 세고, 나눠 본다', () => {
-  it('결정 대기 수를 따로 보이고 필터가 서버에 그 축을 싣는다', async () => {
+describe('REQ-WEB-149 — 중요한 것만 세고, 나눠 본다', () => {
+  // 등급 이름은 2026-09-24 "결정 대기" 에서 "중요" 로 바뀌었다(사람 결정 D3 · REQ-WEB-218)
+  it('중요 수를 따로 보이고 필터가 서버에 그 축을 싣는다', async () => {
     renderAt('/notifications');
-    await screen.findByText(/결정 대기 12건/);
+    await screen.findByText(/중요 12건/);
 
-    fireEvent.click(screen.getByTestId('filter-immediate'));
+    fireEvent.click(screen.getByTestId('notif-filter-important'));
     await waitFor(() => expect(asked.some((u) => u.includes('importance=immediate'))).toBe(true));
   });
 });

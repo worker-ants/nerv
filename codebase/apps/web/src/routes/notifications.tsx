@@ -13,6 +13,7 @@ import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { rows, useNotifications, useUnreadCount } from '../lib/queries.js';
+import { useRealtime } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
 import {
   collapseRepeats,
@@ -30,12 +31,24 @@ import {
   Mono,
   PageBody,
   PageHeader,
+  Segmented,
   Skeleton,
 } from '../components/ui/primitives.js';
 import { ScopeBadge } from '../components/scope-badge.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
-export const Route = createFileRoute('/notifications')({ component: NotificationScreen });
+/** 알림 센터의 주소 — 거르는 칸이 여기 산다(REQ-WEB-218) */
+export interface NotificationSearch {
+  filter?: 'important' | 'unread';
+}
+
+export const Route = createFileRoute('/notifications')({
+  validateSearch: (search: Record<string, unknown>): NotificationSearch =>
+    search['filter'] === 'important' || search['filter'] === 'unread'
+      ? { filter: search['filter'] }
+      : {},
+  component: NotificationScreen,
+});
 
 /** 알림이 데려갈 곳 — 경로와 **뷰 상태**(피드와 같은 모양이다 · lib/event-subject.ts) */
 export type NotificationTarget = EventTarget;
@@ -71,11 +84,16 @@ function NotificationScreen(): React.JSX.Element {
   /**
    * **등급으로 나눠 본다**(2026-09-07 · REQ-WEB-149 · FR-12). 실측 unread 767건 중 결정이
    * 필요한 것은 99건이다 — 한 줄에 섞으면 그 99건은 배경 활동에 묻힌다.
+   *
+   * **거르는 칸은 늘 보이고 주소에 산다**(2026-09-25 · REQ-WEB-218). 토글이 "안 읽은 것이 있을
+   * 때만" 서는 머리 안에 있던 동안, 거른 채 [모두 읽음]을 누르면 토글째 사라지고 목록은 걸러진
+   * 채 갇혔다 — 돌아갈 단추도, 걸려 있다는 표시도 없었다(HUB-X3).
    */
-  const [onlyImmediate, setOnlyImmediate] = useState(false);
-  const notifications = useNotifications(onlyImmediate ? 'immediate' : undefined);
+  const { filter } = Route.useSearch();
+  const notifications = useNotifications(filter);
   const unreadCount = useUnreadCount();
   const navigate = useNavigate();
+  const { pushToast } = useRealtime();
   const router = useRouter();
   const { orgSlug } = useScope();
   const queryClient = useQueryClient();
@@ -90,9 +108,18 @@ function NotificationScreen(): React.JSX.Element {
    * 되고, 지울 수 없는 배지는 곧 읽지 않는 배지가 된다 — 실측 2026-09-04: 695건.
    */
   const markAllRead = useMutation({
-    mutationFn: () => apiFetch('/me/notifications/read-all', { method: 'POST' }),
-    // 배지 키가 알림 키의 하위라(`[...myNotifications(), 'unread']`) 상위 하나면 둘 다 간다
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.myNotifications() }),
+    mutationFn: () =>
+      apiFetch<{ ok: true; marked: number }>('/me/notifications/read-all', { method: 'POST' }),
+    onSuccess: (result) => {
+      // 배지 키가 알림 키의 하위라(`[...myNotifications(), 'unread']`) 상위 하나면 둘 다 간다
+      void queryClient.invalidateQueries({ queryKey: queryKeys.myNotifications() });
+      // **몇 건을 지웠는지 말한다**(HUB-09) — 서버는 처음부터 `marked` 를 줬고 매뉴얼도 그렇게
+      // 약속했는데, 화면은 목록만 조용히 흐려졌다
+      pushToast({
+        tone: 'ok',
+        message: t('notif.read_all_done', { count: Number(result.marked ?? 0) }),
+      });
+    },
   });
 
   // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 목록은 50 에서 끝나지 않는다
@@ -240,25 +267,38 @@ function NotificationScreen(): React.JSX.Element {
       <PageHeader
         title={t('notif.title')}
         description={t('notif.scope_all')}
+        actions={
+          <Segmented
+            label={t('notif.filter.label')}
+            value={filter ?? 'all'}
+            options={[
+              { value: 'all', label: t('notif.filter.all') },
+              { value: 'important', label: t('notif.filter.immediate') },
+              { value: 'unread', label: t('notif.filter.unread') },
+            ]}
+            onChange={(value) =>
+              void navigate({
+                to: '/notifications',
+                search: value === 'all' ? {} : { filter: value },
+                replace: true,
+              })
+            }
+            testIdPrefix="notif-filter"
+          />
+        }
         meta={
           unread > 0 ? (
             <span className="flex items-center gap-2">
               <StatusBadge token="waiting" label={t('notif.unread_badge', { count: unread })} />
-              {/* 결정이 필요한 수는 따로 센다 — 그것이 배지가 세는 값이다 */}
+              {/* **중요**한 수는 따로 센다 — 그것이 헤더 배지가 세는 값이다(REQ-WEB-149). 이름은
+                  '결정 대기' 였는데, 그 등급에는 스펙 승인됨·세션 무응답처럼 결정이 아닌 것이 대부분이라
+                  바로 아래의 한 줄("결정은 받은 요청에")과 부딪쳤다(2026-09-24 사람 결정 D3) */}
               {immediate > 0 && (
                 <StatusBadge
                   token="danger"
                   label={t('notif.immediate_badge', { count: immediate })}
                 />
               )}
-              <Button
-                size="sm"
-                variant={onlyImmediate ? 'primary' : 'ghost'}
-                data-testid="filter-immediate"
-                onClick={() => setOnlyImmediate((v) => !v)}
-              >
-                {onlyImmediate ? t('notif.filter.all') : t('notif.filter.immediate')}
-              </Button>
               {/* 수 바로 옆이다 — 그 수를 보고 누르는 단추라 목록 밖에 두면 찾지 못한다 */}
               <Button
                 size="sm"
@@ -288,7 +328,13 @@ function NotificationScreen(): React.JSX.Element {
       {notifications.data !== undefined && items.length === 0 && (
         <EmptyState
           icon="○"
-          title={t('notif.empty')}
+          title={t(
+            filter === 'important'
+              ? 'notif.empty_important'
+              : filter === 'unread'
+                ? 'notif.empty_unread'
+                : 'notif.empty',
+          )}
           hint={t('notif.empty_hint')}
           action={
             <Link to="/inbox" className="text-sm text-link hover:underline">

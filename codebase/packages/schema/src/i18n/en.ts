@@ -1266,17 +1266,29 @@ export const en = {
   'inbox.waited.minutes': 'waiting {n}m',
   // ── 알림 센터 (screens.md §2.9) ─────────────────────────────────────────────
   'notif.empty': 'No notifications.',
-  'notif.empty_hint': 'Spec approvals, finished tasks and agent questions collect here.',
+  'notif.empty_hint':
+    'Approval results, blocked tasks, unresponsive sessions and comments land here.',
   'notif.lead': 'These already happened — what waits on your decision is in the inbox.',
   'notif.mark_read': 'Mark read',
   'notif.read': 'Read',
   'notif.title': 'Notifications',
   'notif.unread': 'Unread',
   'notif.filter.all': 'All',
-  'notif.filter.immediate': 'Needs a decision',
-  'notif.immediate_badge': '{count} awaiting your decision',
+  'notif.filter.immediate': 'Important',
+  'notif.immediate_badge': '{count} important',
   'notif.read_all': 'Mark all read',
   'notif.unread_badge': '{count} unread',
+  'notif.filter.unread': 'Unread',
+  'notif.filter.label': 'Filter notifications',
+  'notif.empty_important': 'No important notifications.',
+  'notif.empty_unread': 'No unread notifications.',
+  'notif.read_all_done': 'Marked {count} as read.',
+  'shell.notifications_counts':
+    'Notifications — every organization · {important} important · {unread} unread',
+  'inbox.locked_group': '{count} waiting on someone else',
+  'inbox.locked_hint':
+    'You requested, wrote or already approved these — someone else approves them. To withdraw a request, reject it here.',
+  'home.others_waiting': '{count} waiting on someone else ▸',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '{count} active sessions',
   'project.actor.agent': 'Agent',

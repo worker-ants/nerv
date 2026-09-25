@@ -24,7 +24,7 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { canManageScope, signOut } from '../lib/session.js';
-import { inboxTotal, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
+import { inboxActionable, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { chapterForRoute } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
@@ -261,16 +261,25 @@ export function AppShell({
   }, [drawerOpen]);
 
   const banner = connectionBanner(t, state, offline);
-  // **쪽 길이가 아니라 전체 수다**(2026-09-24 · REQ-API-166). 목록이 커서로 나뉜 뒤로
+  // **쪽 길이가 아니라 서버가 센 수다**(2026-09-24 · REQ-API-166). 목록이 커서로 나뉜 뒤로
   // 첫 쪽 길이를 세면 배지가 30 에서 멈춘다 — 배지와 목록이 어긋나면 지울 수 없는
-  // 숫자가 남는다(알림 배지에서 이미 겪은 자리 · REQ-WEB-035).
-  const pending = inboxTotal(inbox.data);
+  // 숫자가 남는다(알림 배지에서 이미 겪은 자리 · REQ-WEB-035). 그리고 **내가 누를 수 있는 것만**
+  // 센다(2026-09-24 사람 결정 D2 · REQ-WEB-217) — 내가 요청한 것까지 세면 할 일을 다 해도 0 이
+  // 되지 않아, 배지가 "내가 막고 있는 것" 을 뜻하지 않게 됐다.
+  const pending = inboxActionable(inbox.data);
   /**
    * **배지는 결정이 필요한 것만 센다**(2026-09-07 · REQ-WEB-149 · FR-12). 전체 unread 를
    * 세던 동안 실측 767건 중 99건만 결정이고, 나머지는 배경 활동이었다 — 배지가 그것을
    * 함께 세면 "내가 막고 있는 것" 이 아니라 "무슨 일이 있었나" 가 된다.
    */
   const unreadCount = unread.data?.immediate ?? 0;
+  // 알림 화면은 "읽지 않음 126" 인데 헤더 배지는 없을 수 있다(중요 0) — 두 수가 설명 없이
+  // 다르지 않게, 안 읽은 것이 있으면 이름이 둘 다 말한다(HUB-09 · REQ-WEB-218)
+  const unreadTotal = unread.data?.count ?? 0;
+  const notificationsTitle =
+    unreadTotal === 0
+      ? t('shell.notifications_all_orgs')
+      : t('shell.notifications_counts', { important: unreadCount, unread: unreadTotal });
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -507,8 +516,8 @@ export function AppShell({
           </Link>
           <Link
             to="/notifications"
-            aria-label={t('shell.notifications_all_orgs')}
-            title={t('shell.notifications_all_orgs')}
+            aria-label={notificationsTitle}
+            title={notificationsTitle}
             className={cn(HEADER_LINK, 'relative flex shrink-0 items-center', ICON_BUTTON)}
             activeProps={{ className: 'bg-bg-active text-text' }}
           >

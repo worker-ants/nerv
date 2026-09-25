@@ -76,6 +76,12 @@ export interface InboxPage {
    * 요청은 그 수를 세 자리에서 쓴다(헤더 배지 · 홈의 인사 · "받은 요청 전체 N건").
    */
   total: number;
+  /**
+   * 그중 **내가 누를 수 있는 것**(질문 + 승인할 수 있는 결재 · REQ-API-184). 대기 탭에만 온다.
+   * 세 자리는 이제 이 수를 쓴다(2026-09-24 사람 결정 D2 · REQ-WEB-217) — `total` 에는 내가
+   * 요청했거나 쓴 것처럼 **승인할 수 없는 카드**가 섞여, 할 일을 다 해도 배지가 0 이 되지 않았다.
+   */
+  actionable_total?: number;
 }
 
 /**
@@ -120,6 +126,23 @@ export function inboxTotal(data: InfiniteData<InboxPage> | undefined): number {
 }
 
 /**
+ * **내가 누를 수 있는 수** — 헤더 배지 · 홈의 인사 · 받은 요청 머리가 쓴다(REQ-WEB-217).
+ * 서버가 그 수를 싣지 않으면(처리됨 탭 · 옛 서버) 전체 수로 버틴다 — 지어낸 0 보다 낫다.
+ */
+export function inboxActionable(data: InfiniteData<InboxPage> | undefined): number {
+  const actionable = data?.pages[0]?.actionable_total;
+  return typeof actionable === 'number' ? actionable : inboxTotal(data);
+}
+
+/**
+ * **이 카드를 내가 누를 수 없는가** — 서버 판정(`can_approve`)이 거짓인 결재. 질문은 멤버 누구나
+ * 답하므로 잠기지 않는다. 판정을 다시 하지 않는다 — 서버가 준 값을 읽기만 한다(REQ-WEB-118).
+ */
+export function lockedCard(card: Row): boolean {
+  return card['subject_type'] !== 'question' && card['can_approve'] === false;
+}
+
+/**
  * 알림 목록 — **커서로 이어 받는다**(2026-09-03 · REQ-API-083).
  *
  * 예전에는 한 번 부르고 끝이라 서버 기본 상한 50 건에서 목록이 벽이 됐다. 실측(2026-09-03):
@@ -127,17 +150,23 @@ export function inboxTotal(data: InfiniteData<InboxPage> | undefined): number {
  * 목록은 50 에서 끝나므로 화면이 자기 배지와 어긋났다.
  */
 export function useNotifications(
-  /** 등급 축 — `immediate` 만 보면 결정이 필요한 것만 남는다(REQ-WEB-149) */
-  importance?: 'immediate' | 'digest',
+  /**
+   * 거르는 축 — **중요**(`importance=immediate` · REQ-WEB-149) 또는 **안 읽음**(`state=unread` ·
+   * §2.9 의 둘째 필터). 한 세그먼트에서 셋(전체·중요·안 읽음) 중 하나를 고른다(REQ-WEB-218).
+   */
+  filter?: 'important' | 'unread',
 ): UseInfiniteQueryResult<InfiniteData<{ items: Row[]; next_cursor: string | null }>> {
   const refetchInterval = useLivePolling();
   return useInfiniteQuery({
-    // 등급이 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다
-    queryKey: [...queryKeys.myNotifications(), importance ?? 'all'],
+    // 거르는 축이 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다. `'list'` 를 끼우는 이유 —
+    // 안 읽은 **수**의 키가 `[...myNotifications(), 'unread']` 라, 목록 키가 같은 모양이면
+    // 목록과 수가 한 캐시 칸을 다투게 된다
+    queryKey: [...queryKeys.myNotifications(), 'list', filter ?? 'all'],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       if (pageParam !== null) params.set('before', String(pageParam));
-      if (importance !== undefined) params.set('importance', importance);
+      if (filter === 'important') params.set('importance', 'immediate');
+      if (filter === 'unread') params.set('state', 'unread');
       const query = params.toString();
       return apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/me/notifications${query === '' ? '' : `?${query}`}`,

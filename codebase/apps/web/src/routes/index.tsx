@@ -8,8 +8,10 @@
 import { useLocale, useT } from '../lib/i18n.js';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
 import {
+  inboxActionable,
   inboxCards,
   inboxTotal,
+  lockedCard,
   rows,
   useCoverage,
   useInbox,
@@ -45,10 +47,14 @@ function HomeScreen(): React.JSX.Element {
   const primaryId = asProjectId(primary?.['id']);
   const coverage = useCoverage(primarySlug, primaryId);
 
-  const cards = inboxCards(inbox.data);
+  // **내가 누를 수 있는 것만**(2026-09-24 사람 결정 D2 · REQ-WEB-217). 인사말의 "결정 N건" 과
+  // 오늘 할 일에 내가 요청했거나 쓴 카드가 섞이면, 그 줄을 눌러도 승인 단추는 잠겨 있고
+  // 할 수 있는 것을 다 해도 수가 0 이 되지 않는다. 그런 카드는 수와 줄에서 빼고 아래에 따로 센다
+  const cards = inboxCards(inbox.data).filter((card) => !lockedCard(card));
   // 홈은 **다섯 줄만** 그리고 나머지는 받은 요청으로 보낸다 — 그 "나머지" 의 수는
-  // 받아 온 쪽이 아니라 전체 수다(REQ-API-166)
-  const waiting = inboxTotal(inbox.data);
+  // 받아 온 쪽이 아니라 서버가 센 수다(REQ-API-166)
+  const waiting = inboxActionable(inbox.data);
+  const othersWaiting = Math.max(0, inboxTotal(inbox.data) - waiting);
   const today = new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', {
     dateStyle: 'full',
   }).format(new Date());
@@ -149,10 +155,20 @@ function HomeScreen(): React.JSX.Element {
             <TodoRow key={String(card['id'])} card={card} />
           ))}
         </ul>
-        {waiting > 5 && (
-          <Link to="/inbox" className="mt-2 inline-block text-sm text-text-faint hover:text-link">
-            {t('home.inbox_all', { count: waiting })}
-          </Link>
+        {(waiting > 5 || othersWaiting > 0) && (
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-faint">
+            {waiting > 5 && (
+              <Link to="/inbox" className="hover:text-link">
+                {t('home.inbox_all', { count: waiting })}
+              </Link>
+            )}
+            {/* 내가 올린 것이 남의 결정을 기다린다 — 수에서는 뺐지만 사라지지는 않는다 */}
+            {othersWaiting > 0 && (
+              <Link to="/inbox" data-testid="home-others-waiting" className="hover:text-link">
+                {t('home.others_waiting', { count: othersWaiting })}
+              </Link>
+            )}
+          </div>
         )}
       </section>
 
