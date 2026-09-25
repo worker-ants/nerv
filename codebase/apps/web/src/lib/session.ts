@@ -157,9 +157,22 @@ export function landingFor(roles: readonly string[], projectSlug: string | null)
   }
 }
 
-/** 첫 화면 계산에 쓸 멤버십 하나를 고른다 — 프로젝트 소속이 있는 것을 우선한다. */
-export function primaryMembership(me: Me): Membership | null {
-  return me.memberships.find((m) => m.project_slug !== null) ?? me.memberships[0] ?? null;
+/**
+ * 첫 화면 계산에 쓸 멤버십 하나를 고른다 — 프로젝트 소속이 있는 것을 우선한다.
+ *
+ * **기억된 조직이 먼저다**(2026-09-24 · NAV-09 · REQ-WEB-212). 조직과 무관하게 첫 프로젝트 멤버십을
+ * 고르면, 지난번에 B 조직을 보던 사람이 로그인하자마자 A 조직의 작업 보드에 섰다 — 헤더는 B 를,
+ * 본문은 A 를 말했다. 그 조직에 소속이 없을 때만 전체에서 고른다.
+ */
+export function primaryMembership(me: Me, preferOrg: string | null = null): Membership | null {
+  const inOrg = preferOrg === null ? [] : me.memberships.filter((m) => m.org_slug === preferOrg);
+  return (
+    inOrg.find((m) => m.project_slug !== null) ??
+    inOrg[0] ??
+    me.memberships.find((m) => m.project_slug !== null) ??
+    me.memberships[0] ??
+    null
+  );
 }
 
 /**

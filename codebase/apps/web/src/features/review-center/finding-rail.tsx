@@ -17,6 +17,7 @@ import { rows, useFindingComments } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { EntityLink } from '../../components/entity-link.js';
+import { CopyButton } from '../../components/copy-button.js';
 import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
 import { relativeTime } from '../../lib/format.js';
@@ -103,6 +104,15 @@ export function FindingRail({
           label={t(`severity.${severity}` as 'severity.info')}
         />
         <StatusBadge token="idle" label={t(statusLabelKey('finding', status))} />
+        {/* **이 지적을 건넬 링크**(2026-09-24 · WORK-11 · REQ-WEB-212). 주소에 고른 발견이 없어서
+            카드가 "짧은 id" 를 옮겨 적으라고 내보였다 — 받은 요청이 쓰는 그 딥링크를 여기서 준다 */}
+        <span className="ml-auto">
+          <CopyButton
+            value={`${window.location.origin}/p/${projectSlug}/reviews?finding=${encodeURIComponent(String(finding['id']))}`}
+            label={t('reviews.rail.copy_link')}
+            testId="finding-copy-link"
+          />
+        </span>
       </div>
       <h2 className="text-sm font-medium text-text">{String(finding['title'])}</h2>
 

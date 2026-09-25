@@ -89,6 +89,8 @@ Fill in a name, an email and a password on the sign-up screen and the account is
 
 **Accounts that were already in use are not asked again.** Accounts that existed before this rule reached the server were treated as confirmed — making a new rule retroactive charges people who did nothing wrong. The rule applies to sign-ups after it.
 
+**Signing in takes you back to where you were going.** If you opened a link a colleague sent before signing in, you land on **that exact address** afterwards — filters, the selected item and any comparison included. If you just came in at the app address, you land on the first screen for your role: **Inbox** for planners, designers and admins, the **task board** for developers and QA, the project overview otherwise. With several organizations, it goes by your role in **the organization you were last looking at**.
+
 ## Your first five minutes
 
 0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organization yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.

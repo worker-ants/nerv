@@ -130,6 +130,15 @@ export function inOrgHref(itemOrg: unknown, href: string, currentOrg: string | n
   return `/o/${encodeURIComponent(itemOrg)}?next=${encodeURIComponent(href)}`;
 }
 
+/**
+ * 앱 안의 경로만 — `//evil.example` 은 프로토콜 상대 주소라 밖으로 나간다. 브라우저는 `\` 를
+ * `/` 로 읽으므로 `/\evil.example` 도 같다(착지를 히스토리에 그대로 넘기므로 여기서 막는다).
+ * 조직 전환의 `?next=` 와 로그인의 `?redirect=` 가 같이 쓴다(2026-09-24 · NAV-09 — `routes/o.$org.tsx` 에서 옮겨 왔다).
+ */
+export function safeNext(value: unknown): string | undefined {
+  return typeof value === 'string' && /^\/(?![/\\])/.test(value) ? value : undefined;
+}
+
 export function rememberOrg(slug: string): void {
   writeLastOrg(slug);
 }

@@ -33,20 +33,44 @@ import {
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
+/** 주소의 필터 — 쉼표 목록이다(서버 질의 `?severity=critical,warning` 과 같은 모양) */
+export interface ReviewSearch {
+  finding?: string;
+  branch?: string;
+  severity?: string;
+  /** 없으면 `open`(기본은 적지 않는다) · `all` 이면 거르지 않는다 */
+  status?: string;
+  area?: string;
+  tag?: string;
+}
+
+const text = (value: unknown): string | undefined =>
+  typeof value === 'string' && value !== '' ? value : undefined;
+
 export const Route = createFileRoute('/p/$proj/reviews/')({
   // **발견 하나를 가리킬 주소가 필요하다**(2026-08-31 — 사람 요청). 받은 요청의 질문 카드가
   // finding 을 짧은 id 로만 적고 있어서, 그 지적을 보려면 큐에서 손으로 찾아야 했다.
-  validateSearch: (search: Record<string, unknown>): { finding?: string; branch?: string } => ({
-    ...(typeof search['finding'] === 'string' && search['finding'] !== ''
-      ? { finding: search['finding'] }
-      : {}),
-    // 한 브랜치의 발견으로 들어온다(2026-09-24 · REQ-WEB-209) — 작업 상세의 리뷰 줄과 게이트 표가 여기로 온다
-    ...(typeof search['branch'] === 'string' && search['branch'] !== ''
-      ? { branch: search['branch'] }
-      : {}),
-  }),
+  //
+  // **필터도 주소다**(2026-09-24 — UI/UX 검토 WORK-11 · REQ-WEB-212). "spec 영역 critical 열린
+  // 것" 으로 좁혀 링크를 건네면 받은 사람은 기본 큐를 봤고, 새로고침·뒤로가기에도 필터가 풀렸다.
+  // 보드는 같은 문제를 2026-09-06 에 주소로 고쳤다 — 시안의 규약도 "뷰 상태는 쿼리로" 다.
+  validateSearch: (search: Record<string, unknown>): ReviewSearch => {
+    const out: ReviewSearch = {};
+    for (const key of ['finding', 'branch', 'severity', 'status', 'area', 'tag'] as const) {
+      const value = text(search[key]);
+      if (value !== undefined) out[key] = value;
+    }
+    return out;
+  },
   component: ReviewCenter,
 });
+
+/** 쉼표 목록을 어휘 안의 값으로 — 모르는 값은 버린다(부모 라우트는 검사하지 않은 인자를 흘린다) */
+function listOf(value: unknown, vocab?: readonly string[]): string[] {
+  if (typeof value !== 'string' || value === '') return [];
+  const items = value.split(',').filter((v) => v !== '');
+  return vocab === undefined ? items : items.filter((v) => vocab.includes(v));
+}
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const;
 const STATUSES = ['open', 'fixed', 'dismissed', 'wont_fix'] as const;
@@ -68,17 +92,50 @@ function ReviewCenter(): React.JSX.Element {
   const projectId = project.data?.['id'];
   const id = asProjectId(projectId);
 
-  // 큐는 **열린 것으로 시작한다** — 처분한 것까지 함께 보이면 큐가 큐이기를 그만둔다
-  const [severity, setSeverity] = useState<string[]>([]);
-  const [status, setStatus] = useState<string[]>(['open']);
-  const [tag, setTag] = useState<string[]>([]);
-  const [area, setArea] = useState<string[]>([]);
-  const [resolving, setResolving] = useState<{ id: string; action: ResolveAction } | null>(null);
-  // 레일이 펴는 하나 — 고르지 않았으면 레일을 세우지 않는다(빈 패널을 만들지 않는다)
-  // 주소로 지목된 발견이 초기 선택이다 — 링크를 눌러 온 사람은 그것을 보러 온 것이다
-  const { finding: linked, branch } = Route.useSearch();
+  const search = Route.useSearch();
   const navigate = useNavigate();
-  const [selectedId, setSelectedId] = useState<string | null>(linked ?? null);
+  // 큐는 **열린 것으로 시작한다** — 처분한 것까지 함께 보이면 큐가 큐이기를 그만둔다.
+  // 필터는 **주소가 든다**(REQ-WEB-212) — 기본(`open`)은 적지 않고, 다 풀면 `status=all` 이다
+  const severity = listOf(search.severity, SEVERITIES);
+  const status =
+    search.status === 'all'
+      ? []
+      : search.status === undefined
+        ? ['open']
+        : listOf(search.status, STATUSES);
+  const tag = listOf(search.tag);
+  const area = listOf(search.area, AREAS);
+  const branch = text(search.branch);
+  const [resolving, setResolving] = useState<{ id: string; action: ResolveAction } | null>(null);
+  // 레일이 펴는 하나 — 고르지 않았으면 레일을 세우지 않는다(빈 패널을 만들지 않는다).
+  // **고른 것도 주소다**(WORK-11) — 발견을 고르면 `?finding=` 이 바뀌어, 지금 보는 그 지적을
+  // 주소창에서 그대로 건넬 수 있다. 예전에는 링크로 들어온 첫 값으로만 읽었다
+  const selectedId = text(search.finding) ?? null;
+  /** 필터를 바꾼다 — 이력에 쌓는다(뒤로가기가 앞 필터로 돌아간다 · 보드와 같은 규칙) */
+  const setFilter = (key: 'severity' | 'status' | 'area' | 'tag', next: string[]): void =>
+    void navigate({
+      to: '/p/$proj/reviews',
+      params: { proj },
+      // 필터를 바꾸면 **고른 것을 푼다** — 걸러진 뒤에도 앞서 고른 발견이 레일에 남으면 화면 둘이
+      // 다른 말을 한다(세션 모니터와 같은 규칙)
+      search: (prev: ReviewSearch) => {
+        const { [key]: _drop, finding: _finding, ...rest } = prev;
+        if (key === 'status') {
+          // 기본(open 하나)은 적지 않는다 — 뜻 없는 인자를 주소에 남기지 않는다
+          if (next.length === 1 && next[0] === 'open') return rest;
+          return { ...rest, status: next.length === 0 ? 'all' : next.join(',') };
+        }
+        return next.length === 0 ? rest : { ...rest, [key]: next.join(',') };
+      },
+    });
+  /** 고르기는 이력에 쌓지 않는다 — 카드를 훑을 때마다 뒤로가기가 한 칸씩 늘면 그 단추를 쓸 수 없다 */
+  const select = (findingId: string): void =>
+    void navigate({
+      to: '/p/$proj/reviews',
+      params: { proj },
+      search: (prev: ReviewSearch) => ({ ...prev, finding: findingId }),
+      replace: true,
+    });
   // **더 보기는 배수로 늘린다.** clemvion 실측 18,650건 — 전량을 한 번에 그리면
   // 화면이 3만 픽셀이 된다(실측 2026-08-24). 답은 무한 스크롤이 아니라 **필터**이고,
   // 그래서 "몇 건 중 몇 건인지"를 먼저 말한다(REQ-WEB-067).
@@ -113,12 +170,21 @@ function ReviewCenter(): React.JSX.Element {
   // 경우다. 그때 빈 화면을 주지 않고 상태 필터를 푼다(한 번만).
   const [widened, setWidened] = useState(false);
   useEffect(() => {
-    if (linked === undefined || widened) return;
+    if (selectedId === null || widened) return;
     if (queue.isPending) return;
-    if (items.some((f) => String(f['id']) === linked)) return;
+    // **한 번만 본다** — 주소로 들어온 그 발견을 처음 찾을 때다. 고른 뒤 필터를 바꿔 큐에서
+    // 빠진 것까지 필터를 풀어 찾으면, 사람이 방금 건 필터가 제멋대로 풀린다
     setWidened(true);
-    setStatus([]);
-  }, [items, linked, queue.isPending, widened]);
+    if (items.some((f) => String(f['id']) === selectedId)) return;
+    if (status.length > 0) {
+      void navigate({
+        to: '/p/$proj/reviews',
+        params: { proj },
+        search: (prev: ReviewSearch) => ({ ...prev, status: 'all' }),
+        replace: true,
+      });
+    }
+  }, [items, selectedId, queue.isPending, widened, status.length, navigate, proj]);
   const gateRows = rows(gate.data?.items);
   // 지금 필터로 잡히는 전체 — facet 은 "이것을 켜면 몇 건인가"라 status facet 의 합이다
   const matched = status.reduce((sum, key) => sum + (facets?.status[key] ?? 0), 0);
@@ -134,8 +200,12 @@ function ReviewCenter(): React.JSX.Element {
     { label: t('reviews.summary.branches'), value: gate.data?.total ?? 0 },
   ];
 
-  const toggle = (list: string[], set: (v: string[]) => void, value: string): void =>
-    set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  const toggle = (
+    key: 'severity' | 'status' | 'area' | 'tag',
+    list: string[],
+    value: string,
+  ): void =>
+    setFilter(key, list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
   return (
     // **세 칸이 각자 자기 안에서 흐른다**(2026-09-10 — 사람 지시 · REQ-WEB-158). 여태
@@ -172,7 +242,7 @@ function ReviewCenter(): React.JSX.Element {
             selected={severity}
             counts={facets?.severity ?? {}}
             labelOf={(v) => t(`severity.${v}` as 'severity.info')}
-            onToggle={(v) => toggle(severity, setSeverity, v)}
+            onToggle={(v) => toggle('severity', severity, v)}
           />
           <FacetGroup
             label={t('reviews.filter.area')}
@@ -180,7 +250,7 @@ function ReviewCenter(): React.JSX.Element {
             selected={area}
             counts={facets?.area ?? {}}
             labelOf={(v) => t(`area.${v}` as 'area.codebase')}
-            onToggle={(v) => toggle(area, setArea, v)}
+            onToggle={(v) => toggle('area', area, v)}
           />
           <FacetGroup
             label={t('reviews.filter.status')}
@@ -188,7 +258,7 @@ function ReviewCenter(): React.JSX.Element {
             selected={status}
             counts={facets?.status ?? {}}
             labelOf={(v) => t(`status.finding.${v}` as 'status.finding.open')}
-            onToggle={(v) => toggle(status, setStatus, v)}
+            onToggle={(v) => toggle('status', status, v)}
           />
           {Object.keys(facets?.tag ?? {}).length > 0 && (
             <FacetGroup
@@ -197,7 +267,7 @@ function ReviewCenter(): React.JSX.Element {
               selected={tag}
               counts={facets?.tag ?? {}}
               labelOf={(v) => v}
-              onToggle={(v) => toggle(tag, setTag, v)}
+              onToggle={(v) => toggle('tag', tag, v)}
             />
           )}
           {(severity.length > 0 ||
@@ -208,12 +278,20 @@ function ReviewCenter(): React.JSX.Element {
               type="button"
               data-testid="filter-reset"
               className="mt-2 text-2xs text-text-faint hover:text-text"
-              onClick={() => {
-                setSeverity([]);
-                setStatus(['open']);
-                setTag([]);
-                setArea([]);
-              }}
+              // 필터만 푼다 — 들어온 브랜치와 고른 발견은 필터가 아니다
+              onClick={() =>
+                void navigate({
+                  to: '/p/$proj/reviews',
+                  params: { proj },
+                  search: ({
+                    severity: _s,
+                    status: _st,
+                    area: _a,
+                    tag: _t,
+                    ...rest
+                  }: ReviewSearch) => rest,
+                })
+              }
             >
               {t('reviews.filter.reset')}
             </button>
@@ -248,8 +326,13 @@ function ReviewCenter(): React.JSX.Element {
                 type="button"
                 data-testid="branch-filter-clear"
                 className="text-link hover:underline"
+                // 브랜치만 푼다 — 걸어 둔 다른 필터와 고른 발견은 그대로다
                 onClick={() =>
-                  void navigate({ to: '/p/$proj/reviews', params: { proj }, search: {} })
+                  void navigate({
+                    to: '/p/$proj/reviews',
+                    params: { proj },
+                    search: ({ branch: _branch, ...rest }: ReviewSearch) => rest,
+                  })
                 }
               >
                 {t('reviews.branch_clear')}
@@ -293,7 +376,7 @@ function ReviewCenter(): React.JSX.Element {
                     projectSlug={proj}
                     canResolve={canResolve}
                     selected={selectedId === String(finding['id'])}
-                    onSelect={(f) => setSelectedId(String(f['id']))}
+                    onSelect={(f) => select(String(f['id']))}
                     onResolve={(f, action) => setResolving({ id: String(f['id']), action })}
                   />
                   {resolving?.id === String(finding['id']) && (

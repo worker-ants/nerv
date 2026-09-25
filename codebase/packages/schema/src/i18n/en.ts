@@ -364,6 +364,7 @@ export const en = {
   'feed.repeat_label': '{count} in a row — expand or collapse',
   'specs.view_label': 'View as',
   'spec.rail.graph_link': 'View in graph',
+  'reviews.rail.copy_link': 'Copy link',
   'reviews.expand': 'Expand',
   'reviews.action.spec_change': 'Spec fix',
   'reviews.resolve.spec': 'Corrected spec',
