@@ -334,6 +334,16 @@ export const ko = {
   'reviews.action.dismissed': '기각',
   'reviews.action.fixed': '수정됨',
   'reviews.action.wont_fix': '유예',
+  // 처분 단추가 무엇을 요구하는지 — 권한이 있을 때도 말한다(2026-09-25 · WORK-12 · REQ-WEB-222)
+  'reviews.action.fixed_hint': '수정됨 — 고친 커밋 SHA 와 근거를 적습니다',
+  'reviews.action.spec_change_hint':
+    '스펙 정정 — 코드가 맞고 스펙이 틀렸습니다. 고친 스펙 문서를 고릅니다',
+  'reviews.action.dismissed_hint': '기각 — 잘못 짚은 지적입니다. 왜 아닌지 근거를 남깁니다',
+  'reviews.action.wont_fix_hint':
+    '유예 — 근거를 남기고 큐에서 뺍니다. 나중에 고칠 일이면 Task 로 올립니다',
+  'reviews.rail.resolve': '처분',
+  'reviews.resolve.wont_fix_promote':
+    '나중에 고칠 일이면 유예 대신 아래의 [Task 로 올리기]로 백로그에 넘깁니다.',
   'reviews.bypass': '면제',
   'reviews.filter.reset': '필터 지우기',
   'reviews.rail.comments': '코멘트',

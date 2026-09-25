@@ -104,11 +104,18 @@ export function ResolveDialog({
       <Field label={t('reviews.resolve.rationale')} hint={t('reviews.resolve.rationale_hint')}>
         <Textarea
           data-testid="resolve-rationale"
+          // 폼이 열리면 **거기로 간다** — 카드에서 눌러 레일에 열렸을 때 눈과 커서가 따라가야 한다(REQ-WEB-222)
+          autoFocus
           rows={2}
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
         />
       </Field>
+      {action === 'wont_fix' && (
+        <p data-testid="resolve-wont-fix-hint" className="mb-2 text-2xs text-text-faint">
+          {t('reviews.resolve.wont_fix_promote')}
+        </p>
+      )}
       {action === 'fixed' && (
         <Field label={t('reviews.resolve.commit')} hint={t('reviews.resolve.commit_hint')}>
           <Input

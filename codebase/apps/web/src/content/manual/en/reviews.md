@@ -22,13 +22,17 @@ A session goes `running` → `complete`. The input it looked at — branch and c
 Findings carry one of three severities: `critical` · `warning` · `info`. `open` is the **state** nobody has touched yet; the **resolutions** are four.
 
 - **Fixed** (`fixed`) — the code was changed. Record the commit hash with it.
-- **Fixed by changing the spec** (`spec_change`) — the **document** was wrong, not the code. Pick which spec version resolved it (no need to memorise version numbers — choose from the list).
+- **Spec fix** (`spec_change`) — the **document** was wrong, not the code. Pick which spec version resolved it (no need to memorise version numbers — choose from the list).
 - **Dismissed** (`dismissed`) — the finding was wrong, or is not a problem in this context.
-- **Won't fix** (`wont_fix`) — a real problem, but not one being fixed now.
+- **Won't fix** (`wont_fix`) — a real problem, but not one being fixed now. Leave the reason and it leaves the queue — **if it should be fixed later, promote it to a task instead** (below).
 
 `spec_change` exists for honesty. Recording a documentation fix as `fixed` claims the code was changed; recording it as `dismissed` claims it was a false positive. Neither is true. When someone later asks "what resolved these findings", this distinction is the answer.
 
 **Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens. **On a narrow screen it opens under that card instead of on a rail** — the place changes, what you see does not. Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the resolution**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog. Once promoted, that button becomes **a link to the task it created**, and the toast carries [Open] as well. Promoting a finding again does not create another task; it tells you **which task** it already is. Cards in the queue also name the task a finding **came from** (Task {key}) and the task it **was promoted to** (→ {key}); both take you to that task.
+
+**Resolve where you read.** The four resolutions sit at the top of the rail; pressing one opens the form for the reason **inside the rail** and puts the cursor in the reason box. Pressing a resolution on a queue card opens the rail on that finding with the form there too — so you write it looking at the full text and the comments. Hover over a button to see what that resolution asks for (a commit hash · the corrected spec · a reason).
+
+**You can pick with the keyboard too.** A card's title is a button — `Tab` to it and press `Enter` — and outside a text box `j`/`k` move through the queue one card at a time. Rows on the sessions screen have the name as a button as well.
 
 Resolutions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.**
 

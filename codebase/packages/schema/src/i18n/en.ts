@@ -339,6 +339,15 @@ export const en = {
   'reviews.action.dismissed': 'Dismiss',
   'reviews.action.fixed': 'Fixed',
   'reviews.action.wont_fix': "Won't fix",
+  'reviews.action.fixed_hint': 'Fixed — give the commit SHA that fixed it, and why',
+  'reviews.action.spec_change_hint':
+    'Spec fix — the code is right and the spec was wrong. Pick the corrected spec',
+  'reviews.action.dismissed_hint': 'Dismiss — the finding is mistaken. Leave the reason',
+  'reviews.action.wont_fix_hint':
+    "Won't fix — leave the reason and take it off the queue. If it should be done later, promote it to a task",
+  'reviews.rail.resolve': 'Resolve',
+  'reviews.resolve.wont_fix_promote':
+    "If this should be fixed later, use [Promote to task] below instead of won't fix.",
   'reviews.bypass': 'Waiver',
   'reviews.filter.reset': 'Clear filters',
   'reviews.rail.comments': 'Comments',

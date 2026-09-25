@@ -55,6 +55,7 @@ export function FindingCard({
     <article
       data-testid="finding-card"
       data-severity={severity}
+      data-finding-id={String(finding['id'])}
       className={cn(
         // 주의가 필요한 것만 좌측 룰로 튄다(§2.4d) — 전부 튀면 아무것도 튀지 않는다
         'border-b border-border px-4 py-3 last:border-b-0',
@@ -65,7 +66,26 @@ export function FindingCard({
     >
       <div className="flex flex-wrap items-start gap-2">
         <StatusBadge token={token} label={t(`severity.${severity}` as 'severity.info')} />
-        <h3 className="min-w-0 flex-1 text-sm font-medium text-text">{String(finding['title'])}</h3>
+        <h3 className="min-w-0 flex-1 text-sm font-medium text-text">
+          {/* **키보드로도 고른다**(2026-09-25 — UI/UX 검토 WORK-12 · REQ-WEB-222). 카드는 `article` 의 클릭으로만
+              골라져 포커스가 닿지 않았고, 레일에만 있는 코멘트·Task 승격에 키보드로는 닿을 길이 없었다 */}
+          {onSelect === undefined ? (
+            String(finding['title'])
+          ) : (
+            <button
+              type="button"
+              data-testid="finding-select"
+              aria-current={selected ? 'true' : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(finding);
+              }}
+              className="text-left hover:underline"
+            >
+              {String(finding['title'])}
+            </button>
+          )}
+        </h3>
         {/* **어느 작업에서 나왔고, 어느 작업으로 올렸나**(REQ-WEB-209) — 발견에서 작업으로 갈 길이 없었다 */}
         {typeof finding['task_key'] === 'string' && (
           <EntityLink
@@ -217,7 +237,12 @@ export function FindingCard({
               type="button"
               data-testid={`resolve-${action}`}
               disabled={!canResolve}
-              title={canResolve ? undefined : t('reviews.no_permission')}
+              // 무엇을 요구하는지 늘 말한다 — 기각과 유예가 어떻게 다른지는 권한과 상관없는 물음이다
+              title={
+                canResolve
+                  ? t(`reviews.action.${action}_hint` as 'reviews.action.fixed_hint')
+                  : t('reviews.no_permission')
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 onResolve(finding, action);
