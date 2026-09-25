@@ -22,7 +22,7 @@ import { StatusBadge } from './status-badge.js';
 import { cn } from '../lib/utils.js';
 import { relativeTime } from '../lib/format.js';
 import { Input } from './ui/primitives.js';
-import { SPEC_VERSION_TOKEN } from './status-token.js';
+import { SPEC_VERSION_TOKEN, statusDot } from './status-token.js';
 import { SpecStartCard } from './spec-start-card.js';
 import type { StatusToken } from './status-badge.js';
 import type { ProjectId } from '../lib/query-keys.js';
@@ -674,13 +674,12 @@ export function SpecTree({
                 <span
                   aria-label={t(statusLabelKey('spec', node.doc_status))}
                   title={t(statusLabelKey('spec', node.doc_status))}
+                  // 점은 **문서 → 토큰 → 점** 한 길이다(SYS-07) — 따로 든 색이 표 변형의 배지와 어긋났다
+                  // (초안 노랑 vs 회색 · 검토 중 파랑 vs 호박 · 폐기 회색 vs 빨강)
+                  data-dot={node.doc_status}
                   className={cn(
                     'size-1.5 shrink-0 rounded-full',
-                    node.doc_status === 'draft'
-                      ? 'bg-status-waiting'
-                      : node.doc_status === 'in_review'
-                        ? 'bg-status-progress'
-                        : 'bg-status-idle-text',
+                    statusDot(SPEC_VERSION_TOKEN, node.doc_status),
                   )}
                 />
               )

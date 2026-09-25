@@ -13,22 +13,13 @@ import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
 import { cn } from '../../lib/utils.js';
 import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
+import { SESSION_TOKEN, statusDot } from '../../components/status-token.js';
 import { ErrorState } from '../../components/query-state.js';
 import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
 /** 어휘와 **순서**의 정본은 `@nerv/schema` 다 — 화면이 목록을 새로 만들지 않는다 */
 const SESSION_STATES = sessionState.enumValues;
-
-/** 상태 점 — §4.2 매핑의 진한 쪽을 그대로 쓴다(새 색을 만들지 않는다) */
-const SUMMARY_DOT: Record<string, string> = {
-  pending: 'bg-status-idle-text',
-  active: 'bg-status-ok',
-  awaiting_input: 'bg-status-waiting',
-  complete: 'bg-status-done',
-  error: 'bg-status-danger',
-  stale: 'bg-status-idle-text',
-};
 
 export interface SessionBoardProps {
   projectSlug: string;
@@ -249,7 +240,8 @@ export function SessionSummaryStrip({
                 aria-hidden="true"
                 className={cn(
                   'size-[7px] shrink-0 rounded-full',
-                  SUMMARY_DOT[state] ?? 'bg-status-idle-text',
+                  // 점은 **세션 → 토큰 → 점** 한 길이다 — 따로 든 표에서 stale 이 회색이었다(배지는 빨강 · SYS-07)
+                  statusDot(SESSION_TOKEN, state),
                 )}
               />
               <span className="text-[20px] leading-none font-[650] tracking-[-0.02em] tabular-nums">

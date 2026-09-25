@@ -10,6 +10,7 @@
 import { createContext, useContext, useId, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useWriteLock } from '../../lib/realtime.js';
+import { TOKEN_CLASS } from '../status-badge.js';
 import { cn } from '../../lib/utils.js';
 
 // ── 페이지 골격 ────────────────────────────────────────────────────────────
@@ -306,6 +307,38 @@ export function Button({
         </span>
       )}
     </>
+  );
+}
+
+/**
+ * **숫자 배지** — 사이드바의 받은 요청·알림·세션·리뷰 수(2026-09-25 · SYS-07 — 셸 안에 따로 있던 것을 공용으로).
+ * 색은 상태 배지와 같은 표(`TOKEN_CLASS`)에서 온다 — 숫자 배지와 상태 배지가 다른 색표를 들면 같은 "대기" 가
+ * 두 색이 된다. **차오른 색이 아니라 물든 색이다**(시안) — 진한 배경 + 흰 글자는 화면에서 가장 시끄러운 물건이
+ * 되는데 배지는 어디에나 있다. 0 이면 서지 않는다.
+ */
+export function CountBadge({
+  count,
+  tone,
+  testId,
+  className,
+}: {
+  count: number;
+  tone: 'action' | 'waiting' | 'agent' | 'danger';
+  testId?: string;
+  className?: string;
+}): React.JSX.Element | null {
+  if (count === 0) return null;
+  return (
+    <span
+      {...(testId === undefined ? {} : { 'data-testid': testId })}
+      className={cn(
+        'ml-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-[5px] text-2xs font-semibold',
+        TOKEN_CLASS[tone],
+        className,
+      )}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
   );
 }
 

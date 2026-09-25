@@ -10,7 +10,7 @@ import { cn } from '../lib/utils.js';
 export type StatusToken =
   'idle' | 'action' | 'waiting' | 'agent' | 'progress' | 'ok' | 'done' | 'danger';
 
-const TOKEN_CLASS: Record<StatusToken, string> = {
+export const TOKEN_CLASS: Record<StatusToken, string> = {
   idle: 'bg-status-idle text-status-idle-text',
   action: 'bg-status-action-soft text-status-action',
   waiting: 'bg-status-waiting-soft text-status-waiting',
@@ -21,29 +21,51 @@ const TOKEN_CLASS: Record<StatusToken, string> = {
   danger: 'bg-status-danger-soft text-status-danger',
 };
 
-export interface StatusBadgeProps {
+export interface StatusBadgeProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
   token: StatusToken;
   /** 필수다 — 색만으로 상태를 구분하지 않는다(REQ-WEB-033) */
   label: string;
   className?: string;
+  /**
+   * 앞의 표지 — 상태는 점(●)이 기본이다. **상태가 아닌 표지**(막는 중 · 정족수 · 우선순위)는 점 없이(`null`)
+   * 또는 뜻을 가진 기호(`↑` 기준이 지나감)로 선다(2026-09-25 · SYS-07). 손으로 같은 알약을 다시 짜던 자리가 다섯이었다
+   */
+  mark?: string | null;
+  /** 촘촘한 카드 메타 줄 안에서는 `sm` — 여백만 줄고 글자·색은 같다 */
+  size?: 'md' | 'sm';
 }
 
-export function StatusBadge({ token, label, className }: StatusBadgeProps): React.JSX.Element {
+export function StatusBadge({
+  token,
+  label,
+  className,
+  mark = '●',
+  size = 'md',
+  ...rest
+}: StatusBadgeProps): React.JSX.Element {
   return (
     <span
+      data-badge={token}
+      {...rest}
       className={cn(
         // 평평하게: 채도 낮은 배경 + 같은 계열의 글자. 테두리도 그림자도 없다.
         // 점(●)은 작게 — 배지 안에서 점이 글자만큼 크면 색이 먼저 읽히고,
         // 이 화면들은 색이 아니라 **글자**가 먼저 읽혀야 한다(REQ-WEB-033)
         // 시안의 상태 칩: 2.5px 8px · radius 5px · 11px/500 · 점은 8px
-        'inline-flex shrink-0 items-center gap-[5px] rounded-[5px] px-2 py-[2.5px] text-[11px] leading-normal font-medium whitespace-nowrap',
+        'inline-flex shrink-0 items-center gap-[5px] rounded-[5px] text-2xs leading-normal font-medium whitespace-nowrap',
+        size === 'md' ? 'px-2 py-[2.5px]' : 'px-1.5 py-0',
         TOKEN_CLASS[token],
         className,
       )}
     >
-      <span aria-hidden="true" className="text-[8px] leading-none">
-        ●
-      </span>
+      {mark !== null && (
+        <span
+          aria-hidden="true"
+          className={mark === '●' ? 'text-[8px] leading-none' : 'leading-none'}
+        >
+          {mark}
+        </span>
+      )}
       {label}
     </span>
   );
