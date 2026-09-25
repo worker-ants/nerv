@@ -218,6 +218,14 @@ export function AppShell({
 
   // 도움말의 "이 화면" 항목 — 짚어 줄 장이 없으면 그 항목을 아예 안 보인다(manual.ts)
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // 지금 보는 **기준선** — 사이드바 트리도 같은 세트를 읽고 그것을 물고 상세로 간다(REQ-WEB-135 · SPEC-06).
+  // 넘기지 않으면 기준선으로 읽던 사람이 사이드바에서 옆 문서를 누르는 순간 최신 승인본으로 떨어졌다
+  const viewBaseline = useRouterState({
+    select: (s) => {
+      const value = (s.location.search as Record<string, unknown>)['baseline'];
+      return typeof value === 'string' && value !== '' ? value : undefined;
+    },
+  });
   const contextChapter = chapterForRoute(pathname);
 
   // 탭 제목이 범위를 말한다(REQ-WEB-194) — 탭을 여럿 열어 두면 어느 것이 어디인지 제목뿐이다
@@ -890,6 +898,7 @@ export function AppShell({
                   variant="rail"
                   activeKey={activeSpecKey}
                   heading={t('shell.spec_tree')}
+                  baseline={viewBaseline}
                 />
               </div>
             </>

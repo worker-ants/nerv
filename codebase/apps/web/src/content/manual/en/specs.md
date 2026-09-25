@@ -69,6 +69,7 @@ A **baseline** names that set and freezes it.
 - While a baseline is chosen the **status and type filters are gone** — everything in the set is approved, so there is nothing to filter by.
 - With nothing chosen the selector reads **No baseline**. Then each document reads at its latest approved version — or, if it has **never been approved, at its current one (the draft)**.
 - A badge at the top of the document says which set you are reading. If that set does not contain this document (one created later), you get the latest version instead, marked **"not in set"** — you are never quietly handed a different version.
+- **You can change or drop the baseline from the document too.** While reading by a baseline, a baseline selector sits in the document header; pick **No baseline** to go back to the latest. Moving to a neighbouring document — from the tree, the table, the graph, a relation row in the rail or the left sidebar — keeps the same set.
 
 Tasks can carry a baseline too, so the agent working on one reads the surrounding documents from that same set.
 
@@ -81,7 +82,7 @@ The **Versions** tab in the rail holds the **eight most recent** versions (the c
 
 While comparing you see the **difference**, not the editor. Requirements added or removed come first, body line changes below — that is the order review actually asks about.
 
-**The address is the state.** `?v=3` shows version 3 in full (read-only), `?diff=v2..v3` shows the difference between two. Copy the URL and the other person sees the same screen — no need to say "look at the third paragraph".
+**The address is the state.** `?v=3` shows version 3 in full (read-only), `?diff=v2..v3` shows the difference between two. Copy the URL and the other person sees the same screen — no need to say "look at the third paragraph". Opening a comparison, switching to another pair or closing it **keeps the rail tab and the baseline** as they were.
 
 ## Attachments
 
@@ -205,7 +206,7 @@ The **Relations** tab in the right rail shows both, and its sub-tabs split them 
 
 The number beside each tab name is how many that direction holds. You can see the count before clicking, so there is never a reason to open an empty tab.
 
-The **relations graph** shows the same thing as a picture — the `Relations` tab on the spec list screen. Clicking a node does **not** open that document: it highlights the node and everything linked to it, and opens a panel on the right with its name and its neighbors (backlinks / references). To go to a document, **click its name in the panel.** Click the background or press `Esc` to let go.
+The **relations graph** shows the same thing as a picture — the `Relations` tab on the spec list screen. Clicking a node does **not** open that document: it highlights the node and everything linked to it, and opens a panel on the right with its name and its neighbors (backlinks / references). To go to a document, **click its name in the panel.** Click the background or press `Esc` to let go. **The view you are on (tree, table, graph) and the graph's centre document stay in the address** — go into a document and come back, and it is as you left it; send the link and the other person sees the same picture. **[View in graph →]** at the head of the **Relations** tab in a document's rail opens the graph centred on that document.
 
 **Color is the document type, size is the backlink count.** The **legend at the bottom-left** of the canvas spells both out — vision, feature, design, convention and decision each have their own color, and an area is drawn as a pale rectangle rather than a circle, so the legend shows it as a rectangle too. Only the types actually drawn appear in the legend.
 

@@ -356,6 +356,8 @@ export const ko = {
   'reviews.promoted_already': '이미 {key} 로 올린 발견입니다.',
   'feed.repeat': '×{count}',
   'feed.repeat_label': '잇달아 같은 일 {count}건 — 펼치기·접기',
+  'specs.view_label': '보기 방식',
+  'spec.rail.graph_link': '그래프에서 보기',
   'reviews.expand': '펼치기',
   'reviews.action.spec_change': '스펙 정정',
   'reviews.resolve.spec': '고친 스펙',

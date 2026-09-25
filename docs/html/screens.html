@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.43 (2026-09-24)</span>
+      <span>버전 v1.44 (2026-09-24)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -117,8 +117,8 @@
       <tr><td><code>/settings/tokens</code></td><td>S8 에이전트 토큰</td><td>인증 필요</td><td>본인 토큰 + admin은 전체</td></tr>
       <tr><td><code>/settings/gates</code></td><td>S8 게이트 정책</td><td><b>사람 전용</b>(<code>HUMAN_ONLY</code> — 토큰으로는 못 바꾼다) + <b>admin 역할</b>. <code>policy:edit</code> 이라는 권한은 <b>존재한 적 없다</b>(2026-09-05 정정)</td><td></td></tr>
       <tr><td><code>/p/:proj</code></td><td>S2 프로젝트 개요</td><td>프로젝트 멤버십</td><td></td></tr>
-      <tr><td><code>/p/:proj/specs</code></td><td>스펙 트리(목록)</td><td>멤버십</td><td>스펙 0건이면 <b>시작 카드</b>(<code>/nerv:spec new</code> · 에이전트 연결 · 임포터 — REQ-WEB-208). [+ 새 스펙]은 2026-09-22 에 걷었다(REQ-WEB-173)</td></tr>
-      <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td>멤버십</td><td>쿼리: <code>?v=&lt;version_no&gt;</code> <code>?diff=v3..v4</code> <code>?rail=&lt;탭&gt;</code>(REQ-WEB-163 — 어휘 밖 값은 버리고 기본 탭으로)</td></tr>
+      <tr><td><code>/p/:proj/specs</code></td><td>스펙 트리(목록)</td><td>멤버십</td><td>스펙 0건이면 <b>시작 카드</b>(<code>/nerv:spec new</code> · 에이전트 연결 · 임포터 — REQ-WEB-208). [+ 새 스펙]은 2026-09-22 에 걷었다(REQ-WEB-173). 쿼리: <code>?view=table|graph</code>(기본 트리는 적지 않는다) <code>?focus=&lt;KEY&gt;</code>(그래프 중심) <code>?baseline=</code> <code>?status=</code> <code>?type=</code> <code>?q=</code> <code>?archived=1</code>(REQ-WEB-211)</td></tr>
+      <tr><td><code>/p/:proj/specs/:spec</code></td><td>S3 스펙 상세</td><td>멤버십</td><td>쿼리: <code>?v=&lt;version_no&gt;</code> <code>?diff=v3..v4</code> <code>?rail=&lt;탭&gt;</code>(REQ-WEB-163 — 어휘 밖 값은 버리고 기본 탭으로) <code>?body=source</code> <code>?baseline=</code> — 한 축을 바꿀 때 나머지는 물고 간다(REQ-WEB-211)</td></tr>
       <tr><td><code>/p/:proj/tasks</code></td><td>S4 작업 보드</td><td>멤버십</td><td>쿼리: <code>?spec=</code> <code>?assignee=</code> <code>?ai=1</code>(<b>에이전트 세션이 쥔 것</b> — <code>delegate_session_id</code> 이지 사람 담당이 아니다 · 4.4 REQ-API-122) <code>?backlog=0</code>(백로그 보기는 <b>기본이 켜짐</b>이라 끈 상태만 주소에 남는다 · REQ-WEB-155) <code>?archived=1</code></td></tr>
       <tr><td><code>/p/:proj/tasks/:task</code></td><td>작업 상세(오버레이 패널)</td><td>멤버십</td><td>보드 위 패널 — URL 공유 가능</td></tr>
       <tr><td><code>/p/:proj/sessions</code></td><td>S5 세션 모니터</td><td>멤버십</td><td></td></tr>
@@ -1627,6 +1627,7 @@ export const TaskCreateInput = z
       <tr><td><b>REQ-WEB-138</b></td><td>WHEN 스펙 목록에서 상태·종류 필터를 고르면 THE SYSTEM SHALL 그 값을 <code>?status=</code>·<code>?type=</code> 으로 주소에 남기고(다른 뷰 상태를 지우지 않는다), 목록에 <b>그 성질의 문서와 그 조상만</b> 남긴다(둘을 함께 걸면 AND) — 조상은 자리를 지키러 온 것이라 아래에 걸린 것이 하나도 없는 가지는 남기지 않는다. WHILE 상태 필터가 걸린 동안 THE SYSTEM SHALL 걸린 노드를 접힌 가지에 숨기지 않고, <code>전체 M</code> 은 필터와 무관한 프로젝트의 문서 수로 유지한다 — 총계가 필터를 따라 움직이면 두 수를 함께 적는 뜻이 없어진다</td></tr>
       <tr><td><b>REQ-WEB-136</b></td><td>WHEN planner·admin 이 스펙 목록에서 [현재 세트로 동결…]을 누르면 THE SYSTEM SHALL 이름을 받아 EP-SPEC-12 로 기준선을 만들고, 이름이 비면 누를 수 없게 한다. WHILE 다이얼로그가 열려 있는 동안 THE SYSTEM SHALL 무엇이 담기는지와 <b>되돌릴 수 없다는 사실</b>을 누르기 전에 보인다</td></tr>
       <tr><td><b>REQ-WEB-135</b></td><td>WHEN 스펙 목록에서 기준선을 고르면 THE SYSTEM SHALL 그 이름을 <code>?baseline=</code> 로 주소에 남기고 상세까지 물고 간다 — 링크로 건네면 상대도 같은 세트를 본다. WHILE 기준선으로 읽는 동안 THE SYSTEM SHALL 어느 세트인지와 <b>그 세트가 이 문서를 담고 있는지</b>를 배지로 보인다</td></tr>
+      <tr><td><b>REQ-WEB-211</b></td><td>WHEN 스펙 상세가 <code>?rail=</code> 로 열리면 THE SYSTEM SHALL 그 레일 탭을 마운트 뒤에도 유지하고, WHEN 버전 탭에서 비교·전문 보기를 열거나 바꾸거나 닫으면 THE SYSTEM SHALL 레일·기준선·본문 보기 축을 그대로 둔다. WHILE 기준선으로 목록이나 상세를 보는 동안 THE SYSTEM SHALL 트리·표·그래프·검색 결과·레일 관계 줄·사이드바 트리의 문서 링크에 그 기준선을 싣고, 상세에서 기준선을 바꾸거나 풀 수 있게 한다. WHEN 스펙 목록의 보기(트리·표·그래프)나 그래프의 중심 문서를 바꾸면 THE SYSTEM SHALL 그것을 <code>?view=</code>·<code>?focus=</code> 로 주소에 남기고, 상세의 관계 탭에서 그 문서를 중심에 둔 그래프로 가는 링크를 준다. WHEN 같은 화면 안의 보기를 고르는 세그먼트를 그리면 THE SYSTEM SHALL 고른 것을 보조기기가 읽는 상태(<code>aria-pressed</code>)로 싣고, 주소가 바뀌는 탭은 지금 탭을 <code>aria-current</code> 로 싣는다</td></tr>
       <tr><td><b>REQ-WEB-134</b></td><td>WHEN 토큰을 발급하면 THE SYSTEM SHALL 화면에서 <b>체크된 것으로 보이는 권한만</b> 요청 본문에 싣는다 — 역할이 허용하지 않아 잠긴 칸은 초기 선택값이더라도 제외한다</td></tr>
       <tr><td><b>REQ-WEB-124</b></td><td>WHEN 세션 레일을 그리면 THE SYSTEM SHALL <b>한 일</b>(그 세션이 낸 이벤트)을 위에, 도구 로그를 아래에 둔다</td></tr>
       <tr><td><b>REQ-WEB-121</b></td><td>WHEN 버전 목록에서 한 버전을 고르면 THE SYSTEM SHALL 그 버전과 직전의 차이를 <code>?diff=vN-1..vN</code> 주소로 열고, 요구사항 델타를 본문 diff보다 <b>먼저</b> 보인다. WHILE 변경분만 보기이면 THE SYSTEM SHALL 안 바뀐 구간을 앞뒤 3줄만 남기고 접으며 <b>몇 줄을 접었는지</b> 적는다</td></tr>

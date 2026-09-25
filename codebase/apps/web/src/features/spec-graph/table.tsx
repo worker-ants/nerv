@@ -1,8 +1,9 @@
 // 스펙 표 — 정본: docs/04-mvp/screens.md §2.4b
 //
 // **트리는 "어디 있나"에 답하고 표는 "어디가 비었나"에 답한다.** 130편을 계층으로 훑으면
-// 요구사항 0건인 문서나 아무도 참조하지 않는 문서가 가지 속에 묻힌다 — 정렬 가능한 열이
-// 그것을 한 번에 드러낸다. 같은 데이터의 다른 질문이라 탭으로 나란히 둔다.
+// 아무도 참조하지 않는 문서가 가지 속에 묻힌다 — 정렬 가능한 열(역참조 수)이 그것을 한 번에
+// 드러낸다. 같은 데이터의 다른 질문이라 탭으로 나란히 둔다. (요구사항 수 열은 없다 — §2.4c 의
+// 열 목록에 없고, 그래프 응답이 그 수를 싣지 않는다. 예전 주석이 있는 것처럼 적고 있었다.)
 
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -21,6 +22,8 @@ export interface SpecTableProps {
   nodes: readonly GraphNode[];
   edges: readonly GraphEdge[];
   projectSlug: string;
+  /** 목록이 고른 기준선 — 상세로 물고 간다(REQ-WEB-135) */
+  baseline?: string | undefined;
 }
 
 /** 뿌리까지의 제목 경로 — 표에는 계층이 없으니 경로가 그 자리를 대신한다 */
@@ -36,7 +39,12 @@ function pathOf(node: GraphNode, byId: Map<string, GraphNode>): string {
   return parts.join(' / ');
 }
 
-export function SpecTable({ nodes, edges, projectSlug }: SpecTableProps): React.JSX.Element {
+export function SpecTable({
+  nodes,
+  edges,
+  projectSlug,
+  baseline,
+}: SpecTableProps): React.JSX.Element {
   const t = useT();
   const [sort, setSort] = useState<SortKey>('title');
   const [descending, setDescending] = useState(false);
@@ -112,6 +120,7 @@ export function SpecTable({ nodes, edges, projectSlug }: SpecTableProps): React.
               <Link
                 to="/p/$proj/specs/$spec"
                 params={{ proj: projectSlug, spec: node.key }}
+                search={baseline === undefined ? {} : { baseline }}
                 className={cn(
                   'font-medium hover:text-link',
                   node.archived_at != null ? 'text-text-faint' : undefined,
