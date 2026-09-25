@@ -54,7 +54,8 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     type?: string;
     view?: SpecView;
   } => ({
-    ...(search['archived'] === true || search['archived'] === '1'
+    // 주소는 JSON 으로 읽힌다 — `?archived=1` 은 숫자 1 로 온다(board-search.ts 의 같은 결함)
+    ...(search['archived'] === true || search['archived'] === 1 || search['archived'] === '1'
       ? { archived: true as const }
       : {}),
     // **검색어도 뷰 상태다**(§2.4 (3) · screens.md:583 — "검색·타입·상태 필터는 URL 쿼리로

@@ -60,6 +60,7 @@ import {
   Avatar,
 } from '../../components/ui/primitives.js';
 import { EntityLink } from '../../components/entity-link.js';
+import { TaskSheet } from '../../features/task-board/task-sheet.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
@@ -303,699 +304,705 @@ function TaskDetail(): React.JSX.Element {
         ? t('task.spec_impact_note_required')
         : null;
 
-  const backToBoard = (
-    <Link
-      to="/p/$proj/tasks"
-      params={{ proj }}
-      className="mb-2 inline-block text-xs text-text-mute hover:text-text"
-    >
-      {t('task.back_to_board')}
-    </Link>
-  );
-
   // **받아 오기 전에는 작업을 그리지 않는다**(REQ-WEB-198 · 199). 예전에는 `detail.data ?? {}`
   // 로 그려서, 불러오는 동안 키가 제목 자리에 서고 상태 배지에 카탈로그 키 원문
   // `status.task` 가 떴으며, 없는 키로 들어오면 그 빈 머리가 그대로 남았다.
   if (detail.data === undefined) {
     return (
-      <PageBody>
-        {backToBoard}
-        {detail.isError ? (
-          isNotFound(detail.error) ? (
-            <NotFoundState
-              title={t('state.task_not_found', { key: task })}
-              hint={t('state.not_found_item_hint')}
-              action={
-                <Link to="/p/$proj/tasks" params={{ proj }} className="text-sm text-link">
-                  {t('state.back_to_list')}
-                </Link>
-              }
-            />
+      <TaskSheet taskKey={task} status={null}>
+        <PageBody>
+          {detail.isError ? (
+            isNotFound(detail.error) ? (
+              <NotFoundState
+                title={t('state.task_not_found', { key: task })}
+                hint={t('state.not_found_item_hint')}
+                action={
+                  <Link to="/p/$proj/tasks" params={{ proj }} className="text-sm text-link">
+                    {t('state.back_to_list')}
+                  </Link>
+                }
+              />
+            ) : (
+              <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
+            )
           ) : (
-            <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
-          )
-        ) : (
-          <Skeleton rows={4} />
-        )}
-      </PageBody>
+            <Skeleton rows={4} />
+          )}
+        </PageBody>
+      </TaskSheet>
     );
   }
 
+  // **보드 위 시트다**(2026-09-24 사람 결정 · REQ-WEB-213) — "← 보드로" 가 걸어 둔 필터를 버렸다.
+  // 닫기는 시트 머리의 ✕ 와 Esc 이고, 보드의 필터는 주소에 그대로 남는다
   return (
-    <PageBody>
-      {backToBoard}
-      <PageHeader
-        title={String(data['title'] ?? task)}
-        meta={
-          <>
-            <Mono>{task}</Mono>
-            <StatusBadge
-              token={(TASK_TOKEN[status as keyof typeof TASK_TOKEN] ?? 'idle') as StatusToken}
-              label={t(statusLabelKey('task', status))}
-            />
-            {/* **누구의 일이고 누가 돌리는가**(D-08 · REQ-WEB-209) — 담당(책임)과 실행(에이전트 세션)을
+    <TaskSheet taskKey={task} status={status}>
+      <PageBody>
+        <PageHeader
+          title={String(data['title'] ?? task)}
+          meta={
+            <>
+              <Mono>{task}</Mono>
+              <StatusBadge
+                token={(TASK_TOKEN[status as keyof typeof TASK_TOKEN] ?? 'idle') as StatusToken}
+                label={t(statusLabelKey('task', status))}
+              />
+              {/* **누구의 일이고 누가 돌리는가**(D-08 · REQ-WEB-209) — 담당(책임)과 실행(에이전트 세션)을
                 따로 적는다. 머리는 키·상태뿐이라 둘 다 없었다 */}
-            {typeof data['assignee_name'] === 'string' && (
-              <span
-                data-testid="task-assignee"
-                className="flex items-center gap-1 text-xs text-text-mute"
-              >
-                <Avatar name={data['assignee_name']} size="sm" />
-                {t('task.meta.assignee', { name: data['assignee_name'] })}
-              </span>
-            )}
-            {runner !== undefined && typeof runner['agent_session_id'] === 'string' && (
-              <EntityLink
-                projectSlug={proj}
-                entity={{ kind: 'session', id: runner['agent_session_id'] }}
-                testId="task-runner"
-                className="text-xs"
-              >
-                {t('task.meta.runner', { host: String(runner['hostname'] ?? '') })}
-              </EntityLink>
-            )}
-          </>
-        }
-        actions={
-          actions.length === 0 ? undefined : (
-            <div data-testid="next-actions" className="flex flex-wrap items-center gap-2">
-              {actions.map((action) => (
-                <Button
-                  key={action.kind}
-                  data-testid={
-                    action.kind === 'claim'
-                      ? 'claim-task'
-                      : action.kind === 'revert'
-                        ? 'revert-task'
-                        : `next-${action.kind}`
-                  }
-                  variant={action.primary ? 'primary' : 'default'}
-                  disabled={action.disabled !== null || transition.isPending || claim.isPending}
-                  title={action.disabled ?? action.hint}
-                  onClick={() => run(action)}
+              {typeof data['assignee_name'] === 'string' && (
+                <span
+                  data-testid="task-assignee"
+                  className="flex items-center gap-1 text-xs text-text-mute"
                 >
-                  {action.label}
-                </Button>
-              ))}
-            </div>
-          )
-        }
-      />
-      {/* 머리의 단추가 거절되면 **그 아래에 남는다**(REQ-WEB-018) — 완료 폼이 닫혀 있어도 */}
-      {rejection !== null && !showGate && (
-        <p
-          role="alert"
-          data-testid="transition-rejected"
-          className="-mt-3 mb-4 rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
-        >
-          {t('task.transition_rejected', { message: rejection.message })}
-          {rejection.missing.length > 0 &&
-            t('task.transition_missing', { missing: rejection.missing.join(', ') })}
-        </p>
-      )}
+                  <Avatar name={data['assignee_name']} size="sm" />
+                  {t('task.meta.assignee', { name: data['assignee_name'] })}
+                </span>
+              )}
+              {runner !== undefined && typeof runner['agent_session_id'] === 'string' && (
+                <EntityLink
+                  projectSlug={proj}
+                  entity={{ kind: 'session', id: runner['agent_session_id'] }}
+                  testId="task-runner"
+                  className="text-xs"
+                >
+                  {t('task.meta.runner', { host: String(runner['hostname'] ?? '') })}
+                </EntityLink>
+              )}
+            </>
+          }
+          actions={
+            actions.length === 0 ? undefined : (
+              <div data-testid="next-actions" className="flex flex-wrap items-center gap-2">
+                {actions.map((action) => (
+                  <Button
+                    key={action.kind}
+                    data-testid={
+                      action.kind === 'claim'
+                        ? 'claim-task'
+                        : action.kind === 'revert'
+                          ? 'revert-task'
+                          : `next-${action.kind}`
+                    }
+                    variant={action.primary ? 'primary' : 'default'}
+                    disabled={action.disabled !== null || transition.isPending || claim.isPending}
+                    title={action.disabled ?? action.hint}
+                    onClick={() => run(action)}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            )
+          }
+        />
+        {/* 머리의 단추가 거절되면 **그 아래에 남는다**(REQ-WEB-018) — 완료 폼이 닫혀 있어도 */}
+        {rejection !== null && !showGate && (
+          <p
+            role="alert"
+            data-testid="transition-rejected"
+            className="-mt-3 mb-4 rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
+          >
+            {t('task.transition_rejected', { message: rejection.message })}
+            {rejection.missing.length > 0 &&
+              t('task.transition_missing', { missing: rejection.missing.join(', ') })}
+          </p>
+        )}
 
-      <div className="flex flex-col gap-4">
-        {/* **"왜 이 작업인가" 가 화면에 있어야 한다**(FR-05 · D-03 · screens.md:900,912,931,934).
+        <div className="flex flex-col gap-4">
+          {/* **"왜 이 작업인가" 가 화면에 있어야 한다**(FR-05 · D-03 · screens.md:900,912,931,934).
             서버는 출처 스펙·기준 버전·의존·재브리핑을 처음부터 실어 보냈고 화면이 그리지
             않았다 — 그 사이 이 화면은 "무엇을 하라" 만 말하고 "무엇에 근거해" 는 말하지
             않았다. 근거 없는 지시가 P1(맥락 유실)의 다른 이름이다. */}
-        <Card>
-          <SectionTitle>{t('task.basis')}</SectionTitle>
-          <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
-            <Element label={t('task.basis.spec')}>
-              {typeof data['spec_key'] === 'string' ? (
-                <Link
-                  to="/p/$proj/specs/$spec"
-                  params={{ proj, spec: String(data['source_spec_id'] ?? data['spec_key']) }}
-                  className="text-link hover:underline"
-                >
-                  <Mono>{String(data['spec_key'])}</Mono>
-                  {data['basis_version_no'] != null && ` v${String(data['basis_version_no'])}`}
-                </Link>
-              ) : (
-                '—'
-              )}
-              {/* 기준 버전이 밀려났다는 사실은 **링크 옆에** 붙는다 — 별도 카드로 두면
+          <Card>
+            <SectionTitle>{t('task.basis')}</SectionTitle>
+            <div className="grid gap-x-6 gap-y-3 text-sm @2xl:grid-cols-2">
+              <Element label={t('task.basis.spec')}>
+                {typeof data['spec_key'] === 'string' ? (
+                  <Link
+                    to="/p/$proj/specs/$spec"
+                    params={{ proj, spec: String(data['source_spec_id'] ?? data['spec_key']) }}
+                    className="text-link hover:underline"
+                  >
+                    <Mono>{String(data['spec_key'])}</Mono>
+                    {data['basis_version_no'] != null && ` v${String(data['basis_version_no'])}`}
+                  </Link>
+                ) : (
+                  '—'
+                )}
+                {/* 기준 버전이 밀려났다는 사실은 **링크 옆에** 붙는다 — 별도 카드로 두면
                   근거를 보는 사람과 경고를 보는 사람이 갈린다 */}
-              {data['basis_superseded'] === true && (
-                <span data-testid="basis-superseded" className="ml-2 text-xs text-status-danger">
-                  {t('task.basis.superseded')}
-                </span>
-              )}
-            </Element>
-            {/* **UUID 는 사람이 아는 이름이 아니다**(2026-09-07 · REQ-WEB-148). 서버가
+                {data['basis_superseded'] === true && (
+                  <span data-testid="basis-superseded" className="ml-2 text-xs text-status-danger">
+                    {t('task.basis.superseded')}
+                  </span>
+                )}
+              </Element>
+              {/* **UUID 는 사람이 아는 이름이 아니다**(2026-09-07 · REQ-WEB-148). 서버가
                 고정 ID(REQ-…)와 문장을 함께 실어 준다 — 원문을 그리면 사람은 그것이 무엇을
                 가리키는지 알 수 없고, 그래서 근거 칸이 있어도 근거가 되지 않았다. */}
-            <Element label={t('task.basis.requirement')}>
-              {typeof data['source_requirement_ref'] === 'string' ? (
-                <span data-testid="requirement-ref" className="flex flex-col gap-0.5">
-                  {/* 그 요구사항이 적힌 **스펙의 요구사항 탭**으로 간다(REQ-WEB-209) */}
-                  {typeof data['spec_key'] === 'string' ? (
-                    <EntityLink
-                      projectSlug={proj}
-                      entity={{ kind: 'spec', key: data['spec_key'], rail: 'requirements' }}
-                      testId="requirement-link"
-                    >
+              <Element label={t('task.basis.requirement')}>
+                {typeof data['source_requirement_ref'] === 'string' ? (
+                  <span data-testid="requirement-ref" className="flex flex-col gap-0.5">
+                    {/* 그 요구사항이 적힌 **스펙의 요구사항 탭**으로 간다(REQ-WEB-209) */}
+                    {typeof data['spec_key'] === 'string' ? (
+                      <EntityLink
+                        projectSlug={proj}
+                        entity={{ kind: 'spec', key: data['spec_key'], rail: 'requirements' }}
+                        testId="requirement-link"
+                      >
+                        <Mono>{String(data['source_requirement_ref'])}</Mono>
+                      </EntityLink>
+                    ) : (
                       <Mono>{String(data['source_requirement_ref'])}</Mono>
-                    </EntityLink>
-                  ) : (
-                    <Mono>{String(data['source_requirement_ref'])}</Mono>
-                  )}
-                  {typeof data['source_requirement_statement'] === 'string' && (
-                    <span className="line-clamp-2 text-xs text-text-mute">
-                      {String(data['source_requirement_statement'])}
-                    </span>
-                  )}
-                </span>
-              ) : typeof data['source_requirement_id'] === 'string' ? (
-                <Mono>{data['source_requirement_id']}</Mono>
-              ) : (
-                '—'
-              )}
-            </Element>
-            <Element label={t('task.basis.dependencies')}>
-              {rows(data['dependencies']).length === 0
-                ? t('common.none')
-                : rows(data['dependencies']).map((dep) => (
-                    <Link
-                      key={String(dep['key'])}
-                      to="/p/$proj/tasks/$task"
-                      params={{ proj, task: String(dep['key']) }}
-                      className="mr-2 text-link hover:underline"
-                    >
-                      <Mono>{String(dep['key'])}</Mono>
-                      <span className="ml-1 text-xs text-text-mute">
-                        {taskStatusText(t, dep['status'])}
+                    )}
+                    {typeof data['source_requirement_statement'] === 'string' && (
+                      <span className="line-clamp-2 text-xs text-text-mute">
+                        {String(data['source_requirement_statement'])}
                       </span>
-                    </Link>
-                  ))}
-            </Element>
-            <Element label={t('task.basis.rebrief')}>
-              {data['rebrief_required_at'] == null ? (
-                t('common.none')
-              ) : (
-                <span className="flex flex-wrap items-center gap-2">
-                  <span data-testid="rebrief-required" className="text-status-waiting">
-                    {t('task.basis.rebrief_required')}
+                    )}
                   </span>
-                  {/* **배지를 해소하는 문**(2026-09-06 · REQ-API-121). 오래 배지만 있고
+                ) : typeof data['source_requirement_id'] === 'string' ? (
+                  <Mono>{data['source_requirement_id']}</Mono>
+                ) : (
+                  '—'
+                )}
+              </Element>
+              <Element label={t('task.basis.dependencies')}>
+                {rows(data['dependencies']).length === 0
+                  ? t('common.none')
+                  : rows(data['dependencies']).map((dep) => (
+                      <Link
+                        key={String(dep['key'])}
+                        to="/p/$proj/tasks/$task"
+                        params={{ proj, task: String(dep['key']) }}
+                        className="mr-2 text-link hover:underline"
+                      >
+                        <Mono>{String(dep['key'])}</Mono>
+                        <span className="ml-1 text-xs text-text-mute">
+                          {taskStatusText(t, dep['status'])}
+                        </span>
+                      </Link>
+                    ))}
+              </Element>
+              <Element label={t('task.basis.rebrief')}>
+                {data['rebrief_required_at'] == null ? (
+                  t('common.none')
+                ) : (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span data-testid="rebrief-required" className="text-status-waiting">
+                      {t('task.basis.rebrief_required')}
+                    </span>
+                    {/* **배지를 해소하는 문**(2026-09-06 · REQ-API-121). 오래 배지만 있고
                       그것을 끄는 길이 없었다 — 기준을 최신 승인본으로 옮기고 플래그를
                       지운다. "봤다" 표시가 아니라 **기준을 옮기는 것**이 재브리핑의 뜻이다. */}
-                  <Button
-                    size="sm"
-                    data-testid="rebrief"
-                    disabled={rebrief.isPending || !canEditBrief}
-                    onClick={() => rebrief.mutate()}
-                    title={
-                      canEditBrief
-                        ? t('task.basis.rebrief_title')
-                        : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
-                    }
-                  >
-                    {t('task.basis.rebrief_action')}
-                  </Button>
-                  {/* 기준이 옮겨 가면 지시도 다시 읽어야 한다 — 고칠 곳이 **같은 화면에** 있다 */}
-                  {canEditBrief && (
                     <Button
                       size="sm"
-                      variant="ghost"
-                      data-testid="rebrief-edit"
-                      onClick={() => {
-                        setEditingBrief(true);
-                        briefRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
-                      }}
+                      data-testid="rebrief"
+                      disabled={rebrief.isPending || !canEditBrief}
+                      onClick={() => rebrief.mutate()}
+                      title={
+                        canEditBrief
+                          ? t('task.basis.rebrief_title')
+                          : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
+                      }
                     >
-                      {t('task.brief.edit')}
+                      {t('task.basis.rebrief_action')}
                     </Button>
-                  )}
-                </span>
-              )}
-            </Element>
-          </div>
-        </Card>
+                    {/* 기준이 옮겨 가면 지시도 다시 읽어야 한다 — 고칠 곳이 **같은 화면에** 있다 */}
+                    {canEditBrief && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        data-testid="rebrief-edit"
+                        onClick={() => {
+                          setEditingBrief(true);
+                          briefRef.current?.scrollIntoView?.({
+                            block: 'start',
+                            behavior: 'smooth',
+                          });
+                        }}
+                      >
+                        {t('task.brief.edit')}
+                      </Button>
+                    )}
+                  </span>
+                )}
+              </Element>
+            </div>
+          </Card>
 
-        {/* **막힘은 사유만으로 끝나지 않는다.** 정본(3.5 §2)이 "사유 코드와 **해소 조건**을
+          {/* **막힘은 사유만으로 끝나지 않는다.** 정본(3.5 §2)이 "사유 코드와 **해소 조건**을
             필수로 받는다" 고 적는데 해소 조건을 담을 열이 없었다 — 서버가 그것을 **파생**해
             보낸다(REQ-API-118). 화면이 할 일은 "무엇이 되면 풀리는가" 를 그대로 보이는 것과,
             **이미 풀렸다는 사실을 말해 주는 것**이다: `blocked_reason` 은 아무도 자동으로
             지우지 않아서, 의존이 끝나도 사람이 다시 눌러야 풀린다. */}
-        {blocked !== null && (
-          <Card>
-            <SectionTitle>{t('task.blocked.title')}</SectionTitle>
-            <div className="flex flex-col gap-2 text-sm">
-              <p>
-                {/* **어휘 밖이면 원문 그대로**(2026-09-07 · REQ-WEB-143). 무조건 문구 키를
+          {blocked !== null && (
+            <Card>
+              <SectionTitle>{t('task.blocked.title')}</SectionTitle>
+              <div className="flex flex-col gap-2 text-sm">
+                <p>
+                  {/* **어휘 밖이면 원문 그대로**(2026-09-07 · REQ-WEB-143). 무조건 문구 키를
                     만들어 붙였더니, 어휘가 생기기 전에 저장된 자유 텍스트 사유에서
                     카탈로그에 없는 키가 만들어져 화면에 `blocked.…` 가 그대로 떴다 —
                     사람이 적어 둔 사유가 있는데 그것을 못 보게 하는 모양이다 */}
-                <span data-testid="blocked-reason" className="font-medium">
-                  {blockedReasonText(t, blocked['reason'])}
-                </span>
-                {blocked['satisfied'] === true && (
-                  <span
-                    data-testid="blocked-satisfied"
-                    className="ml-2 rounded-nerv-sm bg-status-ok-soft px-1.5 py-0.5 text-xs text-status-ok"
-                  >
-                    {t('task.blocked.satisfied')}
+                  <span data-testid="blocked-reason" className="font-medium">
+                    {blockedReasonText(t, blocked['reason'])}
                   </span>
-                )}
-              </p>
-              {/* **`null` 은 "아니다" 가 아니라 "서버가 모른다" 다.** 그 둘을 같은 회색으로
-                  그리면 사람은 판정이 있었다고 읽는다 */}
-              {blocked['satisfied'] === null ? (
-                <p className="text-xs text-text-mute">{t('task.blocked.human_only')}</p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {rows(blocked['pending']).map((item, i) => (
-                    <li key={`${String(item['kind'])}-${i}`} className="flex items-center gap-1.5">
-                      {item['kind'] === 'task' ? (
-                        <Link
-                          to="/p/$proj/tasks/$task"
-                          params={{ proj, task: String(item['key']) }}
-                          className="text-link hover:underline"
-                        >
-                          <Mono>{String(item['key'])}</Mono>
-                        </Link>
-                      ) : item['kind'] === 'question' && typeof item['id'] === 'string' ? (
-                        // 질문은 **받은 요청의 그 카드로** 간다(REQ-WEB-208) — id 를 글자로만 적던 자리다
-                        <Link
-                          to="/inbox"
-                          search={{ focus: item['id'] }}
-                          data-testid="blocked-question-link"
-                          className="text-xs text-link hover:underline"
-                        >
-                          {t('session.open_in_inbox')}
-                        </Link>
-                      ) : (
-                        <Mono>{String(item['key'] ?? item['id'] ?? '')}</Mono>
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-xs text-text-mute">
-                        {String(item['title'] ?? '')}
-                      </span>
-                      <span className="text-2xs text-text-ghost">
-                        {taskStatusText(t, item['status'])}
-                      </span>
-                    </li>
-                  ))}
-                  {rows(blocked['pending']).length === 0 && (
-                    <li className="text-xs text-text-faint">{t('task.blocked.nothing_pending')}</li>
+                  {blocked['satisfied'] === true && (
+                    <span
+                      data-testid="blocked-satisfied"
+                      className="ml-2 rounded-nerv-sm bg-status-ok-soft px-1.5 py-0.5 text-xs text-status-ok"
+                    >
+                      {t('task.blocked.satisfied')}
+                    </span>
                   )}
-                </ul>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* **위임 명세는 여기서 고친다**(2026-09-24 — UI/UX 검토 · REQ-WEB-202). 명세는 "같은
-            화면에 고칠 폼이 열려 있다" 고 적었는데 이 카드는 읽기 전용이었다 — 재브리핑 배지가
-            "지시를 다시 확인하세요" 라고 해도, ready 작업의 경계를 고치고 싶어도 고칠 곳이 없었다.
-            빈 요소와 임포트 자리표시자는 ❌ 로 그린다(§2.5 ③). */}
-        <div ref={briefRef}>
-          {editingBrief ? (
-            <DelegationForm
-              projectSlug={proj}
-              projectId={projectId}
-              taskKey={task}
-              onDone={() => setEditingBrief(false)}
-            />
-          ) : (
-            <Card>
-              <SectionTitle
-                action={
-                  <Button
-                    size="sm"
-                    data-testid="brief-edit"
-                    disabled={!canEditBrief || status === 'done'}
-                    title={
-                      canEditBrief
-                        ? undefined
-                        : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
-                    }
-                    onClick={() => setEditingBrief(true)}
-                  >
-                    {t('task.brief.edit')}
-                  </Button>
-                }
-              >
-                {t('task.brief')}
-              </SectionTitle>
-              <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
-                {(
-                  [
-                    ['goal_md', 'task.brief.goal'],
-                    ['output_format_md', 'task.brief.output'],
-                    ['tools_sources_md', 'task.brief.tools'],
-                    ['boundaries_md', 'task.brief.boundaries'],
-                  ] as const
-                ).map(([field, label]) => {
-                  const value = typeof data[field] === 'string' ? data[field] : null;
-                  return (
-                    <Element key={field} label={t(label)}>
-                      {isDelegationFilled(value) ? (
-                        value
-                      ) : (
-                        <span data-testid="brief-missing" className="text-status-danger">
-                          ❌{' '}
-                          {value === null || value.trim() === ''
-                            ? t('task.brief.empty')
-                            : t('task.brief.placeholder')}
+                </p>
+                {/* **`null` 은 "아니다" 가 아니라 "서버가 모른다" 다.** 그 둘을 같은 회색으로
+                  그리면 사람은 판정이 있었다고 읽는다 */}
+                {blocked['satisfied'] === null ? (
+                  <p className="text-xs text-text-mute">{t('task.blocked.human_only')}</p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {rows(blocked['pending']).map((item, i) => (
+                      <li
+                        key={`${String(item['kind'])}-${i}`}
+                        className="flex items-center gap-1.5"
+                      >
+                        {item['kind'] === 'task' ? (
+                          <Link
+                            to="/p/$proj/tasks/$task"
+                            params={{ proj, task: String(item['key']) }}
+                            className="text-link hover:underline"
+                          >
+                            <Mono>{String(item['key'])}</Mono>
+                          </Link>
+                        ) : item['kind'] === 'question' && typeof item['id'] === 'string' ? (
+                          // 질문은 **받은 요청의 그 카드로** 간다(REQ-WEB-208) — id 를 글자로만 적던 자리다
+                          <Link
+                            to="/inbox"
+                            search={{ focus: item['id'] }}
+                            data-testid="blocked-question-link"
+                            className="text-xs text-link hover:underline"
+                          >
+                            {t('session.open_in_inbox')}
+                          </Link>
+                        ) : (
+                          <Mono>{String(item['key'] ?? item['id'] ?? '')}</Mono>
+                        )}
+                        <span className="min-w-0 flex-1 truncate text-xs text-text-mute">
+                          {String(item['title'] ?? '')}
                         </span>
-                      )}
-                    </Element>
-                  );
-                })}
+                        <span className="text-2xs text-text-ghost">
+                          {taskStatusText(t, item['status'])}
+                        </span>
+                      </li>
+                    ))}
+                    {rows(blocked['pending']).length === 0 && (
+                      <li className="text-xs text-text-faint">
+                        {t('task.blocked.nothing_pending')}
+                      </li>
+                    )}
+                  </ul>
+                )}
               </div>
             </Card>
           )}
-        </div>
 
-        <Card>
-          <SectionTitle>{t('task.claims')}</SectionTitle>
-          {/* **웹에서도 잡고 놓을 수 있다**(screens.md:903·926). 이 두 버튼이 없는 동안
-              MCP·CLI 를 쓰지 않는 역할에게 보드는 읽기 전용이었다 — 서버는 세션 쿠키로도
-              `task:claim` 을 내주고 있었으므로 빠져 있던 것은 문뿐이다. */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {myClaim === undefined ? (
-              // [클레임]은 머리에 있다 — 잡을 수 있는 상태일 때만(다음 행동 표)
-              heldByOther && <span className="text-xs text-text-faint">{t('task.claim_held')}</span>
+          {/* **위임 명세는 여기서 고친다**(2026-09-24 — UI/UX 검토 · REQ-WEB-202). 명세는 "같은
+            화면에 고칠 폼이 열려 있다" 고 적었는데 이 카드는 읽기 전용이었다 — 재브리핑 배지가
+            "지시를 다시 확인하세요" 라고 해도, ready 작업의 경계를 고치고 싶어도 고칠 곳이 없었다.
+            빈 요소와 임포트 자리표시자는 ❌ 로 그린다(§2.5 ③). */}
+          <div ref={briefRef}>
+            {editingBrief ? (
+              <DelegationForm
+                projectSlug={proj}
+                projectId={projectId}
+                taskKey={task}
+                onDone={() => setEditingBrief(false)}
+              />
             ) : (
-              <>
-                {/* 인계와 포기는 **저장에서도 다른 값**이다(마이그레이션 0019) —
-                    화면이 하나로 뭉치면 "왜 내려놨나" 가 다시 사라진다 */}
-                <Button
-                  data-testid="release-handoff"
-                  disabled={release.isPending}
-                  onClick={() => release.mutate('handoff')}
+              <Card>
+                <SectionTitle
+                  action={
+                    <Button
+                      size="sm"
+                      data-testid="brief-edit"
+                      disabled={!canEditBrief || status === 'done'}
+                      title={
+                        canEditBrief
+                          ? undefined
+                          : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
+                      }
+                      onClick={() => setEditingBrief(true)}
+                    >
+                      {t('task.brief.edit')}
+                    </Button>
+                  }
                 >
-                  {t('task.release_handoff')}
-                </Button>
-                {/* **포기는 한 번 묻는다**(REQ-WEB-200) — danger 색이면서 한 번에 클레임을 놓았다.
-                    세션 중단과 같은 성질(일을 내려놓고 ready 로 돌린다)인데 그쪽만 물었다 */}
-                <ConfirmAction
-                  label={t('task.release_abandon')}
-                  testId="release-abandon"
-                  message={t('task.release_abandon_confirm')}
-                  detail={t('task.release_abandon_detail')}
-                  confirmLabel={t('task.release_abandon')}
-                  pending={release.isPending}
-                  onConfirm={() => release.mutate('abandon')}
-                />
-              </>
+                  {t('task.brief')}
+                </SectionTitle>
+                <div className="grid gap-x-6 gap-y-3 text-sm @2xl:grid-cols-2">
+                  {(
+                    [
+                      ['goal_md', 'task.brief.goal'],
+                      ['output_format_md', 'task.brief.output'],
+                      ['tools_sources_md', 'task.brief.tools'],
+                      ['boundaries_md', 'task.brief.boundaries'],
+                    ] as const
+                  ).map(([field, label]) => {
+                    const value = typeof data[field] === 'string' ? data[field] : null;
+                    return (
+                      <Element key={field} label={t(label)}>
+                        {isDelegationFilled(value) ? (
+                          value
+                        ) : (
+                          <span data-testid="brief-missing" className="text-status-danger">
+                            ❌{' '}
+                            {value === null || value.trim() === ''
+                              ? t('task.brief.empty')
+                              : t('task.brief.placeholder')}
+                          </span>
+                        )}
+                      </Element>
+                    );
+                  })}
+                </div>
+              </Card>
             )}
           </div>
-          <ul className="flex flex-col gap-1">
-            {rows(data['claims']).map((claim) => {
-              const remaining =
-                claim['status'] === 'active' ? secondsUntil(claim['lease_expires_at'], now) : null;
-              const scope = [
-                ...(Array.isArray(claim['scope_spec_ids'])
-                  ? (claim['scope_spec_ids'] as string[])
-                  : []),
-                ...(Array.isArray(claim['scope_file_globs'])
-                  ? (claim['scope_file_globs'] as string[])
-                  : []),
-              ];
-              return (
-                <li key={String(claim['id'])} className="flex flex-col gap-0.5 text-xs">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{claimStatusText(t, claim['status'])}</span>
-                    <span className="font-mono">
-                      {String(claim['hostname'] ?? t('task.claim_human'))}
+
+          <Card>
+            <SectionTitle>{t('task.claims')}</SectionTitle>
+            {/* **웹에서도 잡고 놓을 수 있다**(screens.md:903·926). 이 두 버튼이 없는 동안
+              MCP·CLI 를 쓰지 않는 역할에게 보드는 읽기 전용이었다 — 서버는 세션 쿠키로도
+              `task:claim` 을 내주고 있었으므로 빠져 있던 것은 문뿐이다. */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {myClaim === undefined ? (
+                // [클레임]은 머리에 있다 — 잡을 수 있는 상태일 때만(다음 행동 표)
+                heldByOther && (
+                  <span className="text-xs text-text-faint">{t('task.claim_held')}</span>
+                )
+              ) : (
+                <>
+                  {/* 인계와 포기는 **저장에서도 다른 값**이다(마이그레이션 0019) —
+                    화면이 하나로 뭉치면 "왜 내려놨나" 가 다시 사라진다 */}
+                  <Button
+                    data-testid="release-handoff"
+                    disabled={release.isPending}
+                    onClick={() => release.mutate('handoff')}
+                  >
+                    {t('task.release_handoff')}
+                  </Button>
+                  {/* **포기는 한 번 묻는다**(REQ-WEB-200) — danger 색이면서 한 번에 클레임을 놓았다.
+                    세션 중단과 같은 성질(일을 내려놓고 ready 로 돌린다)인데 그쪽만 물었다 */}
+                  <ConfirmAction
+                    label={t('task.release_abandon')}
+                    testId="release-abandon"
+                    message={t('task.release_abandon_confirm')}
+                    detail={t('task.release_abandon_detail')}
+                    confirmLabel={t('task.release_abandon')}
+                    pending={release.isPending}
+                    onConfirm={() => release.mutate('abandon')}
+                  />
+                </>
+              )}
+            </div>
+            <ul className="flex flex-col gap-1">
+              {rows(data['claims']).map((claim) => {
+                const remaining =
+                  claim['status'] === 'active'
+                    ? secondsUntil(claim['lease_expires_at'], now)
+                    : null;
+                const scope = [
+                  ...(Array.isArray(claim['scope_spec_ids'])
+                    ? (claim['scope_spec_ids'] as string[])
+                    : []),
+                  ...(Array.isArray(claim['scope_file_globs'])
+                    ? (claim['scope_file_globs'] as string[])
+                    : []),
+                ];
+                return (
+                  <li key={String(claim['id'])} className="flex flex-col gap-0.5 text-xs">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{claimStatusText(t, claim['status'])}</span>
+                      <span className="font-mono">
+                        {String(claim['hostname'] ?? t('task.claim_human'))}
+                      </span>
+                      <span className="text-text-mute">{String(claim['agent_type'] ?? '')}</span>
+                      <Mono>{String(claim['external_session_id'] ?? '')}</Mono>
+                      {/* 이 작업을 쥔 세션이 **지금 무엇을 하는지** 보러 간다(명세 그림의 [세션 보기 ▸]) */}
+                      {typeof claim['agent_session_id'] === 'string' && (
+                        <EntityLink
+                          projectSlug={proj}
+                          entity={{ kind: 'session', id: claim['agent_session_id'] }}
+                          testId="claim-session-link"
+                        >
+                          {t('task.claim_session_link')}
+                        </EntityLink>
+                      )}
+                      {/* **리스는 흐른다**(SCR-06) — 만료 시각에서 매초 다시 센다 */}
+                      {remaining !== null && (
+                        <span data-testid="claim-lease" className="text-text-faint">
+                          {t('task.claim_lease', { remaining: leaseRemaining(t, remaining) })}
+                        </span>
+                      )}
                     </span>
-                    <span className="text-text-mute">{String(claim['agent_type'] ?? '')}</span>
-                    <Mono>{String(claim['external_session_id'] ?? '')}</Mono>
-                    {/* 이 작업을 쥔 세션이 **지금 무엇을 하는지** 보러 간다(명세 그림의 [세션 보기 ▸]) */}
-                    {typeof claim['agent_session_id'] === 'string' && (
-                      <EntityLink
-                        projectSlug={proj}
-                        entity={{ kind: 'session', id: claim['agent_session_id'] }}
-                        testId="claim-session-link"
-                      >
-                        {t('task.claim_session_link')}
-                      </EntityLink>
-                    )}
-                    {/* **리스는 흐른다**(SCR-06) — 만료 시각에서 매초 다시 센다 */}
-                    {remaining !== null && (
-                      <span data-testid="claim-lease" className="text-text-faint">
-                        {t('task.claim_lease', { remaining: leaseRemaining(t, remaining) })}
+                    {/* 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다 */}
+                    {scope.length > 0 && (
+                      <span data-testid="claim-scope" className="text-2xs text-text-ghost">
+                        {t('task.claim_scope')}: {scope.join(' · ')}
                       </span>
                     )}
-                  </span>
-                  {/* 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다 */}
-                  {scope.length > 0 && (
-                    <span data-testid="claim-scope" className="text-2xs text-text-ghost">
-                      {t('task.claim_scope')}: {scope.join(' · ')}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-            {rows(data['claims']).length === 0 && (
-              <li className="text-sm text-text-faint">{t('common.none')}</li>
-            )}
-          </ul>
-        </Card>
+                  </li>
+                );
+              })}
+              {rows(data['claims']).length === 0 && (
+                <li className="text-sm text-text-faint">{t('common.none')}</li>
+              )}
+            </ul>
+          </Card>
 
-        {showGate && (
-          <div ref={gateRef}>
-            <Card data-testid="done-gate">
-              <SectionTitle>{t('task.done_gate')}</SectionTitle>
-              <div className="flex flex-col gap-3">
-                <fieldset className="flex flex-col gap-1.5 text-sm">
-                  <legend className="mb-1 text-xs font-medium text-text-mute">
-                    {t('task.spec_impact')}
-                    <span className="ml-1 font-normal text-text-faint">
-                      — {t('task.spec_impact_note')}
-                    </span>
-                  </legend>
-                  {(['none', 'some'] as const).map((choice) => (
-                    <label key={choice} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="spec-impact"
-                        data-testid={`spec-impact-${choice}`}
-                        checked={specImpact === choice}
-                        onChange={() => setSpecImpact(choice)}
-                      />
-                      {t(choice === 'none' ? 'task.spec_impact_none' : 'task.spec_impact_some')}
-                    </label>
-                  ))}
-                </fieldset>
-                {specImpact === 'some' && (
-                  <Textarea
-                    data-testid="spec-impact-note"
-                    value={specImpactNote}
-                    onChange={(e) => setSpecImpactNote(e.target.value)}
-                    placeholder={t('task.spec_impact_placeholder')}
-                    rows={2}
-                  />
-                )}
-                <div className="flex gap-2">
-                  {/* **어휘는 `@nerv/schema` 가 정본이다**(2026-09-10 · REQ-WEB-160 · REQ-CB-006).
+          {showGate && (
+            <div ref={gateRef}>
+              <Card data-testid="done-gate">
+                <SectionTitle>{t('task.done_gate')}</SectionTitle>
+                <div className="flex flex-col gap-3">
+                  <fieldset className="flex flex-col gap-1.5 text-sm">
+                    <legend className="mb-1 text-xs font-medium text-text-mute">
+                      {t('task.spec_impact')}
+                      <span className="ml-1 font-normal text-text-faint">
+                        — {t('task.spec_impact_note')}
+                      </span>
+                    </legend>
+                    {(['none', 'some'] as const).map((choice) => (
+                      <label key={choice} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="spec-impact"
+                          data-testid={`spec-impact-${choice}`}
+                          checked={specImpact === choice}
+                          onChange={() => setSpecImpact(choice)}
+                        />
+                        {t(choice === 'none' ? 'task.spec_impact_none' : 'task.spec_impact_some')}
+                      </label>
+                    ))}
+                  </fieldset>
+                  {specImpact === 'some' && (
+                    <Textarea
+                      data-testid="spec-impact-note"
+                      value={specImpactNote}
+                      onChange={(e) => setSpecImpactNote(e.target.value)}
+                      placeholder={t('task.spec_impact_placeholder')}
+                      rows={2}
+                    />
+                  )}
+                  <div className="flex gap-2">
+                    {/* **어휘는 `@nerv/schema` 가 정본이다**(2026-09-10 · REQ-WEB-160 · REQ-CB-006).
                   여섯 중 넷을 여기 손으로 적어 두어 `review`·`user_guide` 증적은 웹에서
                   붙일 길이 없었다 — 서버는 처음부터 여섯을 받는데. 손으로 적은 목록은
                   어휘가 늘어도 함께 늘지 않는다. */}
-                  <Select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}>
-                    {EVIDENCE_KINDS.map((k) => (
-                      <option key={k} value={k}>
-                        {evidenceKindText(t, k)}
-                      </option>
-                    ))}
-                  </Select>
-                  <Input
-                    value={evidenceLocator}
-                    onChange={(e) => setEvidenceLocator(e.target.value)}
-                    placeholder={t('task.evidence_placeholder')}
-                    className="min-w-0 flex-1"
-                  />
+                    <Select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}>
+                      {EVIDENCE_KINDS.map((k) => (
+                        <option key={k} value={k}>
+                          {evidenceKindText(t, k)}
+                        </option>
+                      ))}
+                    </Select>
+                    <Input
+                      value={evidenceLocator}
+                      onChange={(e) => setEvidenceLocator(e.target.value)}
+                      placeholder={t('task.evidence_placeholder')}
+                      className="min-w-0 flex-1"
+                    />
+                  </div>
+                  {/* 붙은 증적이 없으면 **누르기 전에** 말한다 — 게이트가 거절한 뒤에 알면 늦다 */}
+                  {evidence.length === 0 && evidenceLocator.trim() === '' && (
+                    <p data-testid="evidence-none-yet" className="text-xs text-status-waiting">
+                      {t('task.evidence_none_yet')}
+                    </p>
+                  )}
+                  {rejection !== null && (
+                    <p
+                      role="alert"
+                      data-testid="transition-rejected"
+                      className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
+                    >
+                      {t('task.transition_rejected', { message: rejection.message })}
+                      {rejection.missing.length > 0 &&
+                        t('task.transition_missing', { missing: rejection.missing.join(', ') })}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                    <Button
+                      variant="primary"
+                      data-testid="to-done"
+                      disabled={
+                        status === 'done' ||
+                        transition.isPending ||
+                        !canFinish ||
+                        finishBlock !== null
+                      }
+                      onClick={() => transition.mutate('done')}
+                      title={
+                        !canFinish
+                          ? t('task.done_needs_claim')
+                          : finishBlock !== null
+                            ? finishBlock
+                            : rejection === null
+                              ? undefined
+                              : t('task.last_rejection', { message: rejection.message })
+                      }
+                    >
+                      {t('task.to_done')}
+                    </Button>
+                  </div>
                 </div>
-                {/* 붙은 증적이 없으면 **누르기 전에** 말한다 — 게이트가 거절한 뒤에 알면 늦다 */}
-                {evidence.length === 0 && evidenceLocator.trim() === '' && (
-                  <p data-testid="evidence-none-yet" className="text-xs text-status-waiting">
-                    {t('task.evidence_none_yet')}
-                  </p>
-                )}
-                {rejection !== null && (
-                  <p
-                    role="alert"
-                    data-testid="transition-rejected"
-                    className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
-                  >
-                    {t('task.transition_rejected', { message: rejection.message })}
-                    {rejection.missing.length > 0 &&
-                      t('task.transition_missing', { missing: rejection.missing.join(', ') })}
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                  <Button
-                    variant="primary"
-                    data-testid="to-done"
-                    disabled={
-                      status === 'done' ||
-                      transition.isPending ||
-                      !canFinish ||
-                      finishBlock !== null
-                    }
-                    onClick={() => transition.mutate('done')}
-                    title={
-                      !canFinish
-                        ? t('task.done_needs_claim')
-                        : finishBlock !== null
-                          ? finishBlock
-                          : rejection === null
-                            ? undefined
-                            : t('task.last_rejection', { message: rejection.message })
-                    }
-                  >
-                    {t('task.to_done')}
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
+              </Card>
+            </div>
+          )}
 
-        {/* 막힘 표시 — 끝나지도 막히지도 않은 작업에만. 완료 폼과 섞어 두면 backlog·ready 에서도
+          {/* 막힘 표시 — 끝나지도 막히지도 않은 작업에만. 완료 폼과 섞어 두면 backlog·ready 에서도
             완료 폼이 통째로 펼쳐져 있어야 했다 */}
-        {status !== 'done' && status !== 'blocked' && (
-          <Card>
-            <SectionTitle>{t('task.mark_blocked')}</SectionTitle>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* **자유 텍스트가 아니라 어휘 4종이다**(2026-09-06 · REQ-API-117). 예전에는
+          {status !== 'done' && status !== 'blocked' && (
+            <Card>
+              <SectionTitle>{t('task.mark_blocked')}</SectionTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* **자유 텍스트가 아니라 어휘 4종이다**(2026-09-06 · REQ-API-117). 예전에는
                   아무 문장이나 받아 서버에 그대로 실었고, 그러면 막힘 필터가 그 순간부터
                   사실을 못 센다 — 같은 뜻을 사람마다 다른 문자열로 적기 때문이다.
                   고르는 것으로 바꾸면 화면이 서버가 받을 것만 보인다(§1.8). */}
-              <Select
-                value={blockedReason}
-                onChange={(e) => setBlockedReason(e.target.value)}
-                aria-label={t('task.blocked_reason')}
-                className="w-56"
-              >
-                <option value="">{t('task.blocked_reason')}</option>
-                {BLOCKED_REASONS.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {t(blockedReasonLabelKey(reason))}
-                  </option>
-                ))}
-              </Select>
-              <Button
-                variant="danger"
-                data-testid="to-blocked"
-                disabled={blockedReason.trim() === '' || transition.isPending || !canMove}
-                onClick={() => transition.mutate('blocked')}
-                title={
-                  canMove
-                    ? t('task.blocked_reason_title')
-                    : t('task.next.roles_only', {
-                        roles: rolesWithScope('task:update').join(' · '),
-                      })
-                }
-              >
-                {t('task.to_blocked')}
-              </Button>
-            </div>
-          </Card>
-        )}
+                <Select
+                  value={blockedReason}
+                  onChange={(e) => setBlockedReason(e.target.value)}
+                  aria-label={t('task.blocked_reason')}
+                  className="w-56"
+                >
+                  <option value="">{t('task.blocked_reason')}</option>
+                  {BLOCKED_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {t(blockedReasonLabelKey(reason))}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  variant="danger"
+                  data-testid="to-blocked"
+                  disabled={blockedReason.trim() === '' || transition.isPending || !canMove}
+                  onClick={() => transition.mutate('blocked')}
+                  title={
+                    canMove
+                      ? t('task.blocked_reason_title')
+                      : t('task.next.roles_only', {
+                          roles: rolesWithScope('task:update').join(' · '),
+                        })
+                  }
+                >
+                  {t('task.to_blocked')}
+                </Button>
+              </div>
+            </Card>
+          )}
 
-        {/* **증적은 보러 갈 수 있어야 한다**(2026-09-10 — 사람 지시 · REQ-WEB-159). 명세
+          {/* **증적은 보러 갈 수 있어야 한다**(2026-09-10 — 사람 지시 · REQ-WEB-159). 명세
             §2.5 (6) 은 처음부터 "PR·커밋 링크" 라고 적었는데 화면은 종류와 위치를 글자로만
             그렸다 — 증적은 "보일 것을 붙였다" 는 약속이고, 그것을 확인하는 길이 없으면
             약속이 절반만 지켜진다. **새 탭으로 연다**: 여기서 done 전이를 하는 중이라
             같은 탭에서 나가면 채워 둔 폼(스펙 영향·증적)이 사라진다. */}
-        <Card>
-          <SectionTitle>{t('task.evidence')}</SectionTitle>
-          <ul className="flex flex-col">
-            {evidence.map((e) => {
-              const target = evidenceTarget({
-                kind: String(e['kind']),
-                locator: String(e['locator']),
-                repoUrl,
-                defaultBranch,
-                repoHost,
-                // 이 증적이 선 저장소가 따로 있으면 그것이 이긴다(REQ-API-157)
-                repo: typeof e['repo'] === 'string' ? e['repo'] : null,
-                projectSlug: proj,
-              });
-              return (
-                <li
-                  key={String(e['id'])}
-                  data-testid="task-evidence"
-                  className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
-                >
-                  <span className="w-24 shrink-0 text-text-faint">
-                    {evidenceKindText(t, e['kind'])}
-                  </span>
-                  {target === null ? (
-                    <span className="truncate">{String(e['locator'])}</span>
-                  ) : (
-                    <a
-                      href={target.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      data-testid="evidence-link"
-                      title={t('task.evidence_open')}
-                      className="truncate text-link hover:underline"
-                    >
-                      {String(e['locator'])}
-                    </a>
-                  )}
-                </li>
-              );
-            })}
-            {evidence.length === 0 && (
-              <li className="text-sm text-text-faint">{t('common.not_yet')}</li>
-            )}
-          </ul>
-          {/* 링크가 아닌 이유 중 사람이 고칠 수 있는 것 하나는 화면이 말한다 — 빈칸은
+          <Card>
+            <SectionTitle>{t('task.evidence')}</SectionTitle>
+            <ul className="flex flex-col">
+              {evidence.map((e) => {
+                const target = evidenceTarget({
+                  kind: String(e['kind']),
+                  locator: String(e['locator']),
+                  repoUrl,
+                  defaultBranch,
+                  repoHost,
+                  // 이 증적이 선 저장소가 따로 있으면 그것이 이긴다(REQ-API-157)
+                  repo: typeof e['repo'] === 'string' ? e['repo'] : null,
+                  projectSlug: proj,
+                });
+                return (
+                  <li
+                    key={String(e['id'])}
+                    data-testid="task-evidence"
+                    className="flex gap-2 border-b border-border py-1.5 text-xs last:border-0"
+                  >
+                    <span className="w-24 shrink-0 text-text-faint">
+                      {evidenceKindText(t, e['kind'])}
+                    </span>
+                    {target === null ? (
+                      <span className="truncate">{String(e['locator'])}</span>
+                    ) : (
+                      <a
+                        href={target.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        data-testid="evidence-link"
+                        title={t('task.evidence_open')}
+                        className="truncate text-link hover:underline"
+                      >
+                        {String(e['locator'])}
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+              {evidence.length === 0 && (
+                <li className="text-sm text-text-faint">{t('common.not_yet')}</li>
+              )}
+            </ul>
+            {/* 링크가 아닌 이유 중 사람이 고칠 수 있는 것 하나는 화면이 말한다 — 빈칸은
               "링크 없는 증적" 으로 읽히지 "설정이 비었다" 로 읽히지 않는다(§1.5) */}
-          {needsRepoUrl(
-            evidence.map((e) => ({ kind: String(e['kind']) })),
-            repoUrl,
-          ) && (
-            <p data-testid="evidence-no-repo" className="mt-2 text-2xs text-text-faint">
-              {t('task.evidence_no_repo')}
-            </p>
-          )}
-        </Card>
+            {needsRepoUrl(
+              evidence.map((e) => ({ kind: String(e['kind']) })),
+              repoUrl,
+            ) && (
+              <p data-testid="evidence-no-repo" className="mt-2 text-2xs text-text-faint">
+                {t('task.evidence_no_repo')}
+              </p>
+            )}
+          </Card>
 
-        {/* **리뷰는 Task 에서도 보인다**(2026-09-07 · REQ-WEB-148 · FR-13 양방향 드릴다운).
+          {/* **리뷰는 Task 에서도 보인다**(2026-09-07 · REQ-WEB-148 · FR-13 양방향 드릴다운).
             리뷰 → Task 방향만 있어서, 작업 상세에서 "이 작업이 리뷰를 지났는가" 를 알 길이
             없었다 — done 게이트가 그것을 조건으로 삼는데도 그랬다. */}
-        <Card>
-          <SectionTitle>{t('task.reviews')}</SectionTitle>
-          <ul className="flex flex-col">
-            {rows(data['reviews']).map((r) => (
-              <li
-                key={String(r['id'])}
-                data-testid="task-review"
-                className="flex flex-wrap items-center gap-2 border-b border-border py-1.5 text-xs last:border-0"
-              >
-                {/* 그 브랜치의 **발견으로** 간다 — "열린 critical 2건" 을 붉게 적고 그 발견들로 가는 길이 없었다 */}
-                <EntityLink
-                  projectSlug={proj}
-                  entity={{ kind: 'findings', branch: String(r['branch']) }}
-                  testId="review-branch-link"
+          <Card>
+            <SectionTitle>{t('task.reviews')}</SectionTitle>
+            <ul className="flex flex-col">
+              {rows(data['reviews']).map((r) => (
+                <li
+                  key={String(r['id'])}
+                  data-testid="task-review"
+                  className="flex flex-wrap items-center gap-2 border-b border-border py-1.5 text-xs last:border-0"
                 >
-                  <Mono>{String(r['branch'])}</Mono>
-                </EntityLink>
-                <span className="text-text-faint">
-                  {reviewKindText(t, r['kind'])} · R{String(r['round_no'])} ·{' '}
-                  {reviewStateText(t, r['state'])}
-                </span>
-                {Number(r['open_critical'] ?? 0) > 0 && (
-                  <span data-testid="review-open-critical" className="text-status-danger">
-                    {t('task.reviews.open_critical', { n: Number(r['open_critical']) })}
+                  {/* 그 브랜치의 **발견으로** 간다 — "열린 critical 2건" 을 붉게 적고 그 발견들로 가는 길이 없었다 */}
+                  <EntityLink
+                    projectSlug={proj}
+                    entity={{ kind: 'findings', branch: String(r['branch']) }}
+                    testId="review-branch-link"
+                  >
+                    <Mono>{String(r['branch'])}</Mono>
+                  </EntityLink>
+                  <span className="text-text-faint">
+                    {reviewKindText(t, r['kind'])} · R{String(r['round_no'])} ·{' '}
+                    {reviewStateText(t, r['state'])}
                   </span>
-                )}
-              </li>
-            ))}
-            {rows(data['reviews']).length === 0 && (
-              <li className="text-sm text-text-faint">{t('task.reviews.none')}</li>
-            )}
-          </ul>
-        </Card>
-      </div>
-    </PageBody>
+                  {Number(r['open_critical'] ?? 0) > 0 && (
+                    <span data-testid="review-open-critical" className="text-status-danger">
+                      {t('task.reviews.open_critical', { n: Number(r['open_critical']) })}
+                    </span>
+                  )}
+                </li>
+              ))}
+              {rows(data['reviews']).length === 0 && (
+                <li className="text-sm text-text-faint">{t('task.reviews.none')}</li>
+              )}
+            </ul>
+          </Card>
+        </div>
+      </PageBody>
+    </TaskSheet>
   );
 }
 

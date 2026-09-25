@@ -1365,7 +1365,10 @@ export const ko = {
   'spec.meta.title': '스펙 메타 — {key}',
   'spec.meta.title_field': '제목',
   // ── S4 작업 보드·상세 (screens.md §2.5) ───────────────────────────────────────
-  'task.back_to_board': '← 보드',
+  'task.sheet.label': '작업 {key} 상세',
+  'task.sheet.close': '닫기',
+  'task.sheet.close_hint': '닫기 (Esc) — j · k 로 같은 레인의 다음·앞 작업',
+  'task.sheet.position': '레인에서 {n} / {total}',
   'task.blocked_reason': '막힌 사유',
   'task.blocked_reason_title': '사유 없는 blocked 는 백로그 부패의 씨앗입니다',
   'task.brief': '위임 명세 4요소',
