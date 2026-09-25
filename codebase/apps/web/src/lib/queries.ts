@@ -413,7 +413,7 @@ export function useTaskLane(
   projectId: ProjectId | undefined,
   lane: string,
   options?: { includeArchived?: boolean; assignee?: string; spec?: string; ai?: boolean },
-): UseQueryResult<{ items: Row[]; next_cursor: string | null }> {
+): UseInfiniteQueryResult<{ items: Row[]; next_cursor: string | null }> {
   const refetchInterval = useLivePolling();
   const archived = options?.includeArchived === true;
   const assignee = options?.assignee ?? '';
@@ -422,7 +422,7 @@ export function useTaskLane(
   const spec = options?.spec ?? '';
   /** `?ai=1` — 에이전트 세션이 쥔 것만(REQ-API-122). 서버가 판정한다 */
   const ai = options?.ai === true;
-  return useQuery({
+  return useInfiniteQuery({
     // **slug 로 대신 잡지 않는다.** projectId 는 프로젝트 조회가 끝나야 오는데, 그때
     // 키가 slug → id 로 바뀌면 새 쿼리가 되어 레인이 빈 채로 한 번 더 그려진다 —
     // 화면에서는 목록이 나타났다 사라졌다 다시 나타나는 깜빡임이다(실측 2026-08-23).
@@ -436,14 +436,27 @@ export function useTaskLane(
       spec,
       ai,
     ],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/projects/${slug}/tasks?status=${lane}` +
           (archived ? '&include_archived=true' : '') +
           (assignee === '' ? '' : `&assignee=${encodeURIComponent(assignee)}`) +
           (spec === '' ? '' : `&spec=${encodeURIComponent(spec)}`) +
-          (ai ? '&ai=1' : ''),
+          (ai ? '&ai=1' : '') +
+          (pageParam === null ? '' : `&cursor=${encodeURIComponent(pageParam)}`),
       ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
+    /**
+     * **레인은 한 쪽에서 끝나지 않는다**(2026-09-25 — UI/UX 검토 WORK-10 · REQ-WEB-221). 서버의
+     * 한 쪽(30건)을 채운 레인은 "30+" 를 달았는데 [+N개 더]는 받아 둔 카드만 펼쳐, 보관 보기를 켠
+     * done 레인(실측 419건)이나 큰 backlog 에서 31번째부터는 보드로 닿을 길이 없었다. 부르는 쪽
+     * (보드·요약·스펙 레일·시트)은 `items` 를 그대로 읽으므로 평탄화는 여기서 한다.
+     */
+    select: (data: InfiniteData<{ items: Row[]; next_cursor: string | null }>) => ({
+      items: data.pages.flatMap((page) => page.items),
+      next_cursor: data.pages[data.pages.length - 1]?.next_cursor ?? null,
+    }),
     enabled: projectId !== undefined,
     refetchInterval,
   });

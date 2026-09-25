@@ -603,6 +603,8 @@ export interface SummaryMetric {
   tone?: 'default' | 'progress' | 'waiting' | 'danger' | 'done';
   /** 숫자를 보고 **갈 데가 있어야 한다**(§1.5) — 없으면 그냥 표시다 */
   href?: string;
+  /** 그 자리의 뷰 상태 — 보드의 "내 담당" 은 `?assignee=<나>` 로 간다(REQ-WEB-221) */
+  search?: Record<string, unknown>;
 }
 
 /**
@@ -658,7 +660,12 @@ export function SummaryStrip({
             {body}
           </div>
         ) : (
-          <Link key={m.label} to={m.href} className={cn(shell, 'group')}>
+          <Link
+            key={m.label}
+            to={m.href}
+            {...(m.search === undefined ? {} : { search: m.search })}
+            className={cn(shell, 'group')}
+          >
             <span className="contents group-hover:[&>span:last-child]:text-link">{body}</span>
           </Link>
         );
