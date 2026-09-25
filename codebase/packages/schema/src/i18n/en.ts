@@ -573,10 +573,10 @@ export const en = {
   'status.finding.fixed': 'Fixed',
   'status.finding.open': 'Open',
   'status.finding.wont_fix': "Won't fix",
-  'switcher.no_project': 'Pick a project first — search runs inside one project.',
-  'switcher.placeholder_in': 'Search specs and tasks in {project}, or paste a fixed ID',
+  'switcher.placeholder_in':
+    'Go to a screen or project, search specs and tasks in {project}, or paste a fixed ID',
   'switcher.placeholder_no_project':
-    'Specs and tasks are searched inside a project — pick one in the header',
+    'Go to a screen or project — specs and tasks are searched inside a project',
   'task.basis': 'Basis — why this task',
   'task.basis.dependencies': 'Depends on',
   'task.basis.rebrief': 'Rebrief',
@@ -1703,6 +1703,15 @@ export const en = {
   'settings.tokens.scopes': 'Scopes',
   'settings.tokens.unused': 'never',
   // ── 퀵 스위처 ⌘K (screens.md §1.3a) ─────────────────────────────────────────
+  'switcher.help_here': 'Help for this screen',
+  'switcher.group.pinned': 'Pinned',
+  'switcher.group.recent': 'Recent',
+  'switcher.group.docs': 'Documents',
+  'switcher.group.here': 'This project — {project}',
+  'switcher.group.go': 'Go to',
+  'switcher.group.projects': 'Projects',
+  'switcher.no_results_outside':
+    'No matching screen or project — specs and tasks are searched inside a project.',
   'switcher.key_close': 'esc close',
   'switcher.key_move': '↑↓ move',
   'switcher.key_open': '↵ open',
@@ -1710,7 +1719,6 @@ export const en = {
   'switcher.no_results': 'No results — try different words.',
   'switcher.pin': 'Pin to the top',
   'switcher.unpin': 'Unpin',
-  'switcher.recent': 'Recently visited documents collect here.',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
   'realtime.offline': 'Offline — read-only from cache. It syncs again once the connection returns.',
   'realtime.ws_down': 'Live updates paused — polling instead.',

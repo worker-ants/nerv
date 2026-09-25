@@ -108,6 +108,8 @@ describe('⌘K 로 열리고 Esc 로 닫힌다 — 전 라우트 공통', () => 
       type: 'feature',
       doc_status: 'draft',
       anchor: null,
+      // 기록은 **어느 프로젝트의 것인지** 안다(REQ-WEB-223) — 모르는 옛 기록은 읽지 않는다
+      project_slug: 'clemvion',
     });
     renderApp();
     await screen.findByText('NERV');
@@ -148,6 +150,7 @@ describe('핀 — 자주 가는 곳은 밀려나지 않는다 (05)', () => {
     type: 'feature',
     doc_status: 'approved',
     anchor: null,
+    project_slug: 'clemvion',
   };
   const daily = {
     key: 'SPC-DAILY',
@@ -155,6 +158,7 @@ describe('핀 — 자주 가는 곳은 밀려나지 않는다 (05)', () => {
     type: 'feature',
     doc_status: 'approved',
     anchor: null,
+    project_slug: 'clemvion',
   };
 
   it('줄마다 고정 단추가 있고, 누르면 눌린 상태가 화면에 남는다', async () => {
@@ -188,7 +192,7 @@ describe('핀 — 자주 가는 곳은 밀려나지 않는다 (05)', () => {
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     const dialog = await screen.findByTestId('quick-switcher');
 
-    const titles = [...dialog.querySelectorAll('li')].map((li) => li.textContent ?? '');
+    const titles = [...dialog.querySelectorAll('[role="option"]')].map((o) => o.textContent ?? '');
     expect(titles[0]).toContain('매일 여는 것');
     expect(titles[1]).toContain('오래된 것');
   });

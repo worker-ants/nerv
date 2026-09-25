@@ -128,14 +128,18 @@ describe('⌘K 는 어디서 찾는지 말한다', () => {
     await projectButton();
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     const input = (await screen.findByPlaceholderText(
-      /Clemvion 본편에서 스펙·작업 검색/,
+      /Clemvion 본편의 스펙·작업 검색/,
     )) as HTMLInputElement;
     expect(input).toBeDefined();
     cleanup();
 
+    // 프로젝트 밖에서도 화면·프로젝트로는 간다 — 문서 검색이 프로젝트 안의 일이라는 것만 말한다
+    // (2026-09-25 개정 · REQ-WEB-193 · REQ-WEB-223)
     renderAt('/inbox');
     await projectButton();
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
-    expect(await screen.findByPlaceholderText(/헤더에서 프로젝트를 고르세요/)).toBeDefined();
+    expect(
+      await screen.findByPlaceholderText(/스펙·작업은 프로젝트 안에서 찾습니다/),
+    ).toBeDefined();
   });
 });

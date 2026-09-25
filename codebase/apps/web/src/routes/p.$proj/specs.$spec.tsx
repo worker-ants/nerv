@@ -58,6 +58,7 @@ import {
 import { relativeTime } from '../../lib/format.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
+import { useRememberVisit } from '../../components/quick-switcher.js';
 import { cn } from '../../lib/utils.js';
 import { Avatar, Button, Mono, PageBody, Skeleton } from '../../components/ui/primitives.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
@@ -178,8 +179,25 @@ function SpecDetail(): React.JSX.Element {
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
   const me = useMe();
-  const { orgSlug } = useScope(proj);
+  const { orgSlug, project: scopeProject } = useScope(proj);
   const detail = useSpec(proj, spec, Route.useSearch().baseline);
+  // **연 문서를 최근에 남긴다**(REQ-WEB-223) — ⌘K 에서 고른 것만 쌓이던 "최근 방문" 이 진짜 방문이 된다
+  useRememberVisit(
+    detail.data === undefined
+      ? null
+      : {
+          key: spec,
+          title: String(detail.data['title'] ?? spec),
+          type: String(detail.data['type'] ?? ''),
+          doc_status:
+            typeof detail.data['doc_status'] === 'string' ? detail.data['doc_status'] : null,
+          anchor: null,
+          kind: 'spec',
+          project_slug: proj,
+          ...(scopeProject === undefined ? {} : { project_name: String(scopeProject['name']) }),
+          ...(orgSlug === null ? {} : { org_slug: orgSlug }),
+        },
+  );
   const versions = useSpecVersions(proj, spec);
   const requirements = useRequirements(proj, spec);
   const comments = useSpecComments(proj, spec);

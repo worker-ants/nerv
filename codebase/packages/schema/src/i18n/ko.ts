@@ -564,10 +564,8 @@ export const ko = {
   'status.finding.fixed': '수정됨',
   'status.finding.open': '열림',
   'status.finding.wont_fix': '유예',
-  'switcher.no_project': '프로젝트를 먼저 고르세요 — 검색은 한 프로젝트 안에서 합니다.',
-  'switcher.placeholder_in': '{project}에서 스펙·작업 검색 또는 고정 ID 붙여넣기',
-  'switcher.placeholder_no_project':
-    '스펙·작업은 프로젝트 안에서 찾습니다 — 헤더에서 프로젝트를 고르세요',
+  'switcher.placeholder_in': '화면·프로젝트로 이동, {project}의 스펙·작업 검색 · 고정 ID 붙여넣기',
+  'switcher.placeholder_no_project': '화면·프로젝트로 이동 — 스펙·작업은 프로젝트 안에서 찾습니다',
   'task.basis': '근거 — 왜 이 작업인가',
   'task.basis.dependencies': '의존',
   'task.basis.rebrief': '재브리핑',
@@ -1667,6 +1665,15 @@ export const ko = {
   'settings.tokens.scopes': '권한',
   'settings.tokens.unused': '미사용',
   // ── 퀵 스위처 ⌘K (screens.md §1.3a) ─────────────────────────────────────────
+  'switcher.help_here': '이 화면 도움말',
+  'switcher.group.pinned': '고정',
+  'switcher.group.recent': '최근',
+  'switcher.group.docs': '문서',
+  'switcher.group.here': '이 프로젝트 — {project}',
+  'switcher.group.go': '이동',
+  'switcher.group.projects': '프로젝트',
+  'switcher.no_results_outside':
+    '맞는 화면·프로젝트가 없습니다 — 스펙·작업은 프로젝트 안에서 찾습니다.',
   'switcher.key_close': 'esc 닫기',
   'switcher.key_move': '↑↓ 이동',
   'switcher.key_open': '↵ 열기',
@@ -1674,7 +1681,6 @@ export const ko = {
   'switcher.no_results': '결과가 없습니다 — 다른 표현으로 찾아보세요.',
   'switcher.pin': '목록 위에 고정',
   'switcher.unpin': '고정 해제',
-  'switcher.recent': '최근 방문한 문서가 여기 쌓입니다.',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
   'realtime.offline': '오프라인 — 캐시된 읽기 전용입니다. 복구되면 자동으로 동기화합니다.',
   'realtime.ws_down': '실시간 갱신 중단 — 폴링으로 갱신 중입니다.',
