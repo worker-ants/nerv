@@ -6,12 +6,13 @@
 // 이미 같은 것을 겪었다(4.5 v0.63: 웹에서 `POST …/specs` 를 부르는 코드가 0건이었다).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { describeApiError } from '../../lib/api-errors.js';
 import { rows as asRows } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
 import { Button, Input } from '../../components/ui/primitives.js';
+import { Modal } from '../../components/ui/modal.js';
 
 export interface Baseline {
   id: string;
@@ -97,14 +98,8 @@ export function FreezeDialog({
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
 
-  // Esc 로 닫힌다 — 다이얼로그의 기본 기대다(새 스펙 다이얼로그와 같은 규율)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Esc·Tab 가둠·포커스 복귀는 공용 모달이 한다(REQ-WEB-224) — 여기서 따로 창 전체의 Esc 를 듣던
+  // 동안 aria-modal 이 없어 보조기기에는 모달이 아니었다
 
   const freeze = useMutation({
     mutationFn: () =>
@@ -121,57 +116,46 @@ export function FreezeDialog({
   });
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-text/20 p-4 backdrop-blur-[2px]"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-label={t('specs.freeze')}
-        data-testid="freeze-dialog"
-        className="w-full max-w-md rounded-nerv-lg border border-border bg-bg-elev p-5 shadow-modal"
-        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-sm font-semibold">{t('specs.freeze')}</h2>
-        {/* 무엇이 담기는지 **누르기 전에** 말한다 — 불변이라 되돌릴 수 없다 */}
-        <p className="mb-3 text-xs text-text-mute">{t('specs.freeze_hint')}</p>
+    <Modal label={t('specs.freeze')} onClose={onClose} testId="freeze-dialog">
+      <h2 className="mb-1 text-sm font-semibold">{t('specs.freeze')}</h2>
+      {/* 무엇이 담기는지 **누르기 전에** 말한다 — 불변이라 되돌릴 수 없다 */}
+      <p className="mb-3 text-xs text-text-mute">{t('specs.freeze_hint')}</p>
 
-        <Input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t('specs.baseline_name_placeholder')}
-          aria-label={t('specs.baseline_name')}
-          className="mb-2 w-full"
-        />
-        <Input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder={t('specs.baseline_note_placeholder')}
-          aria-label={t('specs.baseline_note')}
-          className="mb-3 w-full"
-        />
+      <Input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={t('specs.baseline_name_placeholder')}
+        aria-label={t('specs.baseline_name')}
+        className="mb-2 w-full"
+      />
+      <Input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder={t('specs.baseline_note_placeholder')}
+        aria-label={t('specs.baseline_note')}
+        className="mb-3 w-full"
+      />
 
-        {freeze.isError && (
-          <p role="alert" className="mb-2 text-xs text-status-danger">
-            {describeApiError(t, freeze.error).message}
-          </p>
-        )}
+      {freeze.isError && (
+        <p role="alert" className="mb-2 text-xs text-status-danger">
+          {describeApiError(t, freeze.error).message}
+        </p>
+      )}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            data-testid="freeze-submit"
-            disabled={name.trim() === '' || freeze.isPending}
-            onClick={() => freeze.mutate()}
-          >
-            {t('specs.freeze_submit')}
-          </Button>
-        </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          variant="primary"
+          data-testid="freeze-submit"
+          disabled={name.trim() === '' || freeze.isPending}
+          onClick={() => freeze.mutate()}
+        >
+          {t('specs.freeze_submit')}
+        </Button>
       </div>
-    </div>
+    </Modal>
   );
 }

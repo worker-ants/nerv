@@ -216,6 +216,40 @@ export function AppShell({
     return () => document.removeEventListener('mousedown', onClick);
   }, [menuOpen]);
 
+  /**
+   * **키보드로도 열고 닫는다**(2026-09-25 — UI/UX 검토 NAV-12 · REQ-WEB-224). 메뉴 넷은 바깥 클릭으로만
+   * 닫혀, 키보드로 연 사람은 Esc 로도 닫지 못했고 Tab 으로 메뉴 밖에 나가도 팝오버가 열린 채 남았다.
+   * 단추는 열림을 말하지 않았다(aria-expanded). 열면 첫 항목으로 가고, Esc 면 닫고 연 단추로 돌아가며,
+   * 포커스가 메뉴 밖으로 나가면 닫는다.
+   */
+  useEffect(() => {
+    if (menuOpen === null) return;
+    const root = document.querySelector(`[data-menu-root="${menuOpen}"]`);
+    root
+      ?.querySelector<HTMLElement>(
+        `#shell-menu-${menuOpen} a[href], #shell-menu-${menuOpen} button`,
+      )
+      ?.focus();
+    const trigger = (): HTMLElement | null =>
+      document.querySelector<HTMLElement>(`[data-menu-trigger="${menuOpen}"]`);
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return;
+      setMenuOpen(null);
+      trigger()?.focus();
+    };
+    const onFocusIn = (e: FocusEvent): void => {
+      const target = e.target as HTMLElement | null;
+      if (target !== null && target.closest(`[data-menu-root="${menuOpen}"]`) === null)
+        setMenuOpen(null);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('focusin', onFocusIn);
+    };
+  }, [menuOpen]);
+
   // 도움말의 "이 화면" 항목 — 짚어 줄 장이 없으면 그 항목을 아예 안 보인다(manual.ts)
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // 지금 보는 **기준선** — 사이드바 트리도 같은 세트를 읽고 그것을 물고 상세로 간다(REQ-WEB-135 · SPEC-06).
@@ -283,6 +317,20 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-bg text-text">
+      {/* **본문으로 건너뛴다**(2026-09-25 — UI/UX 검토 SYS-X2 · REQ-WEB-224). 키보드는 매 화면 헤더 여덟 자리와
+          사이드바 탭 다섯, 펼친 스펙 트리 전체를 지나야 본문에 닿았다. 첫 Tab 에만 보인다 */}
+      <a
+        href="#main"
+        data-testid="skip-to-main"
+        onClick={(e) => {
+          // 해시를 바꾸지 않는다 — 스펙 상세는 해시를 헤딩 앵커로 읽는다(REQ-WEB-215)
+          e.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:rounded-nerv focus:bg-bg-elev focus:px-3 focus:py-2 focus:text-sm focus:shadow-popover"
+      >
+        {t('shell.skip_to_main')}
+      </a>
       <header className="sticky top-0 z-30 flex h-header items-center justify-between gap-4 border-b border-border bg-bg px-2 max-md:gap-1 md:px-3">
         <nav className="flex min-w-0 items-center gap-1">
           {/* 좁은 화면의 내비게이션은 **서랍**이다(REQ-WEB-164). 헤더에 탭 다섯과 트리를
@@ -314,10 +362,14 @@ export function AppShell({
             <span className="max-md:hidden">NERV</span>
           </Link>
           {currentOrg !== null && (
-            <div className="relative" data-menu-root>
+            <div className="relative" data-menu-root="org">
               <button
                 type="button"
                 data-testid="org-switcher"
+                data-menu-trigger="org"
+                aria-haspopup="true"
+                aria-expanded={menuOpen === 'org'}
+                aria-controls="shell-menu-org"
                 // **무엇을 고르는 칸인지 이름표를 단다**(2026-09-24 · REQ-WEB-193). 두 선택기가 같은
                 // 모양이라 이름만 보고는 어느 쪽이 조직인지 알 수 없었다
                 aria-label={t('shell.org_label', { name: currentOrg.name ?? currentOrg.slug })}
@@ -333,7 +385,7 @@ export function AppShell({
                 </span>
               </button>
               {menuOpen === 'org' && (
-                <Popover>
+                <Popover id="shell-menu-org">
                   {orgs.map((org) => (
                     <Link
                       key={org.slug}
@@ -371,10 +423,14 @@ export function AppShell({
             </span>
           )}
           {currentOrg !== null && (
-            <div className="relative" data-menu-root>
+            <div className="relative" data-menu-root="project">
               <button
                 type="button"
                 data-testid="project-switcher"
+                data-menu-trigger="project"
+                aria-haspopup="true"
+                aria-expanded={menuOpen === 'project'}
+                aria-controls="shell-menu-project"
                 data-borrowed={onProjectRoute ? undefined : 'true'}
                 aria-label={
                   onProjectRoute && currentProject !== undefined
@@ -413,7 +469,7 @@ export function AppShell({
                 </span>
               </button>
               {menuOpen === 'project' && (
-                <Popover>
+                <Popover id="shell-menu-project">
                   {!onProjectRoute && currentProject !== undefined && (
                     <Link
                       to="/p/$proj"
@@ -567,10 +623,14 @@ export function AppShell({
               헤더는 여섯 자리뿐이고(§2.1) 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를
               먹으면 헤더는 금세 도구모음이 된다. `?` 는 그 규율을 지키면서도 사람들이
               도움을 찾을 때 실제로 먼저 보는 자리다 — 이름은 title·aria-label 이 준다. */}
-          <div className="relative" data-menu-root>
+          <div className="relative" data-menu-root="help">
             <button
               type="button"
               data-testid="help-menu"
+              data-menu-trigger="help"
+              aria-haspopup="true"
+              aria-expanded={menuOpen === 'help'}
+              aria-controls="shell-menu-help"
               aria-label={t('shell.help')}
               title={t('shell.help')}
               onClick={() => setMenuOpen((open) => (open === 'help' ? null : 'help'))}
@@ -582,7 +642,7 @@ export function AppShell({
               <span aria-hidden="true">?</span>
             </button>
             {menuOpen === 'help' && (
-              <Popover align="right">
+              <Popover align="right" id="shell-menu-help">
                 {/* 지금 화면을 설명하는 장이 먼저다 — 도움말을 여는 사람은 대개 지금
                     보고 있는 것 때문에 연다 */}
                 {contextChapter !== null && (
@@ -619,10 +679,14 @@ export function AppShell({
               `⬢ NERV 홈 받은 요청 알림 🔍검색 [지민 ▾]` 여섯 자리뿐이고, 자주 쓰지 않는 항목이
               자주 쓰는 항목의 자리를 먹으면 헤더는 금세 도구모음이 된다. */}
           {me.data !== undefined && (
-            <div className="relative" data-menu-root>
+            <div className="relative" data-menu-root="user">
               <button
                 type="button"
                 data-testid="user-menu"
+                data-menu-trigger="user"
+                aria-haspopup="true"
+                aria-expanded={menuOpen === 'user'}
+                aria-controls="shell-menu-user"
                 // 좁은 화면에서는 이름이 접히고 머리글자만 남는다 — 이름은 여기가 든다
                 aria-label={me.data.display_name ?? '?'}
                 onClick={() => setMenuOpen((open) => (open === 'user' ? null : 'user'))}
@@ -640,7 +704,7 @@ export function AppShell({
                 </span>
               </button>
               {menuOpen === 'user' && (
-                <Popover align="right">
+                <Popover align="right" id="shell-menu-user">
                   <p className="border-b border-border px-3 pb-1.5 text-xs text-text-faint">
                     {me.data.email}
                   </p>
@@ -942,7 +1006,9 @@ export function AppShell({
             </div>
           )}
         </aside>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
+          {children}
+        </main>
       </div>
 
       <ToastStack />

@@ -36,6 +36,7 @@ import type { NodeViewProps } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { useTheme } from '../../lib/theme.js';
+import { useModal } from '../../components/ui/modal.js';
 
 /** 같은 페이지에 여럿이 있어도 id 가 겹치지 않게 — mermaid 는 id 로 DOM 을 잡는다 */
 let seq = 0;
@@ -308,14 +309,7 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
           {/* **전체화면은 문서를 떠나지 않는 길이다**(REQ-WEB-172). 2열 본문 칸은 큰 그림을
               담을 틀이 아니고, 그렇다고 새 탭으로 내보내면 읽던 자리를 잃는다. */}
           {full && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label={t('spec.mermaid_fullscreen')}
-              data-testid="mermaid-fullscreen"
-              className="fixed inset-0 z-50 flex flex-col bg-bg"
-              onKeyDown={(e) => e.key === 'Escape' && setFull(false)}
-            >
+            <FullscreenDialog label={t('spec.mermaid_fullscreen')} onClose={() => setFull(false)}>
               <div className="flex shrink-0 items-center justify-end gap-1 border-b border-border px-3 py-2">
                 <MermaidControls
                   scale={fullScale}
@@ -327,7 +321,7 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
               <div className="min-h-0 flex-1 overflow-auto p-4">
                 <Figure svg={svg} scale={fullScale} bare />
               </div>
-            </div>
+            </FullscreenDialog>
           )}
         </>
       ) : (
@@ -338,5 +332,36 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
         </pre>
       )}
     </NodeViewWrapper>
+  );
+}
+
+/**
+ * 다이어그램 전체화면 — 공용 모달 규칙을 쓴다(REQ-WEB-224). Esc 가 안쪽에서만 먹었고 포커스를 가두거나
+ * 돌려주지 않았다 — 닫으면 [전체화면] 단추로 돌아간다.
+ */
+function FullscreenDialog({
+  label,
+  onClose,
+  children,
+}: {
+  label: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { onKeyDown } = useModal(true, panelRef, onClose);
+  return (
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      data-testid="mermaid-fullscreen"
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex flex-col bg-bg focus:outline-none"
+      onKeyDown={onKeyDown}
+    >
+      {children}
+    </div>
   );
 }

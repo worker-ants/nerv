@@ -872,6 +872,7 @@ export const en = {
   'shell.notifications': 'Notifications',
   'shell.theme': 'Theme',
   'shell.settings': 'Settings',
+  'shell.skip_to_main': 'Skip to main content',
   'theme.dark': 'Dark',
   'theme.light': 'Light',
   'theme.system': 'System',
@@ -1341,6 +1342,7 @@ export const en = {
   'specs.search_placeholder': 'Search (words or stable IDs)',
   'specs.title': 'Specs',
   'specs.tree_filter': 'Filter tree',
+  'specs.tree_label': 'Spec tree',
   // ── S3 스펙 상세 (screens.md §2.4·§3) ───────────────────────────────────────
   'spec.backlinks': '{count} references',
   'spec.backlinks_hint': 'Documents that shake when you change this',

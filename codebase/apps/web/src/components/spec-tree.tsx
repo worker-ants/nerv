@@ -381,6 +381,23 @@ export function SpecTree({
    */
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const activeIndexRef = useRef(-1);
+  /**
+   * **트리는 Tab 한 칸이다**(2026-09-25 — UI/UX 검토 NAV-12 · SYS-X2 · REQ-WEB-224). 줄마다 [펼침] 단추와 링크가
+   * Tab 을 두 칸씩 받아, 141편을 펼친 사이드바를 지나야 본문에 닿았다. 줄 하나만 Tab 을 받고(로빙) ↑↓ 로
+   * 옮기며 ←→ 로 접고 편다. 이 값이 그 한 줄이다 — 없거나 보이지 않으면 보는 문서, 그것도 없으면 첫 줄.
+   */
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const treeRef = useRef<HTMLDivElement | null>(null);
+  /** 키로 옮긴 뒤 그 줄이 그려지면 포커스를 준다 — 가상 목록에서는 창을 민 다음 렌더에 그려진다 */
+  const pendingFocus = useRef<string | null>(null);
+  useEffect(() => {
+    const key = pendingFocus.current;
+    if (key === null) return;
+    const el = treeRef.current?.querySelector<HTMLElement>(`[data-tree-key="${CSS.escape(key)}"]`);
+    if (el === null || el === undefined) return;
+    pendingFocus.current = null;
+    el.focus();
+  });
   useEffect(() => {
     if (scrollRequest === 0) return undefined;
     const frame = requestAnimationFrame(() => {
@@ -482,7 +499,66 @@ export function SpecTree({
 
   const shown = visible.length;
   const total = nodes.length;
+  const virtualizedNow = shown > VIRTUAL_THRESHOLD;
   activeIndexRef.current = visible.findIndex(({ node }) => node.key === activeKey);
+  const rovingKey =
+    focusKey !== null && visible.some(({ node }) => node.key === focusKey)
+      ? focusKey
+      : activeIndexRef.current >= 0
+        ? (activeKey ?? null)
+        : (visible[0]?.node.key ?? null);
+  /** i 번째 보이는 줄로 포커스를 옮긴다 — 가상 목록이면 창을 먼저 민다 */
+  const moveTo = (index: number): void => {
+    const target = visible[index];
+    if (target === undefined) return;
+    setFocusKey(target.node.key);
+    pendingFocus.current = target.node.key;
+    const viewport = viewportRef.current;
+    if (virtualizedNow && viewport !== null) {
+      const top = index * ROW_HEIGHT;
+      if (top < viewport.scrollTop) viewport.scrollTop = top;
+      else if (top + ROW_HEIGHT > viewport.scrollTop + viewport.clientHeight)
+        viewport.scrollTop = top + ROW_HEIGHT - viewport.clientHeight;
+      setScrollTop(viewport.scrollTop);
+    }
+  };
+  const onRowKey = (e: React.KeyboardEvent, node: TreeNode): void => {
+    const index = visible.findIndex((v) => v.node.id === node.id);
+    const branch = byParent.has(node.id);
+    const isOpen = isOpenOf(node);
+    switch (e.key) {
+      case 'ArrowDown':
+        moveTo(index + 1);
+        break;
+      case 'ArrowUp':
+        moveTo(index - 1);
+        break;
+      case 'Home':
+        moveTo(0);
+        break;
+      case 'End':
+        moveTo(visible.length - 1);
+        break;
+      case 'ArrowRight':
+        if (!branch) return;
+        if (!isOpen) toggle(node.id);
+        else moveTo(index + 1);
+        break;
+      case 'ArrowLeft': {
+        if (branch && isOpen && open.has(node.id)) {
+          toggle(node.id);
+          break;
+        }
+        const parentIndex = visible.findIndex((v) => v.node.id === node.parent_id);
+        if (parentIndex < 0) return;
+        moveTo(parentIndex);
+        break;
+      }
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
   /** 가지 — 접고 펼 수 있는 노드. 없으면 전체 조작이 서지 않는다 */
   const branchIds = nodes.filter((node) => byParent.has(node.id)).map((node) => node.id);
   const hasBranches = branchIds.length > 0;
@@ -520,6 +596,8 @@ export function SpecTree({
             // 상태를 **이름이 아니라 상태로** 말한다 — aria-label 만으로는 스크린 리더가
             // "지금 펴져 있는가" 를 읽지 못한다(라벨은 다음에 일어날 일이다)
             aria-expanded={isOpen}
+            // 키보드는 줄에서 ←→ 로 접고 편다 — 단추가 Tab 을 한 칸 더 받으면 트리가 두 배로 길어진다
+            tabIndex={-1}
             className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute hover:bg-bg-active hover:text-text"
             onClick={() => toggle(node.id)}
           >
@@ -533,6 +611,12 @@ export function SpecTree({
           // 상세는 최신 승인본을 열었고 머리의 기준선 배지도 사라졌다(2026-09-24 · SPEC-06)
           search={baseline === undefined ? {} : { baseline }}
           {...(node.key === activeKey ? { ref: activeRef } : {})}
+          data-tree-key={node.key}
+          tabIndex={node.key === rovingKey ? 0 : -1}
+          onFocus={() => {
+            if (focusKey !== node.key) setFocusKey(node.key);
+          }}
+          onKeyDown={(e) => onRowKey(e, node)}
           data-active={node.key === activeKey}
           data-holds-active={holdsActive}
           {...(holdsActive ? { title: t('specs.holds_active') } : {})}
@@ -619,13 +703,23 @@ export function SpecTree({
     );
   };
 
+  /** 줄의 트리 의미 — 수준·펼침·보는 문서(보조기기가 "몇 단계의 어디" 인지 읽는다) */
+  const itemProps = (node: TreeNode, depth: number): React.LiHTMLAttributes<HTMLLIElement> => ({
+    role: 'treeitem',
+    'aria-level': depth + 1,
+    'aria-selected': node.key === activeKey,
+    ...(byParent.has(node.id) ? { 'aria-expanded': isOpenOf(node) } : {}),
+  });
+
   const renderLevel = (parentId: string | null, depth: number): React.JSX.Element[] =>
     childrenToShow(parentId).map((node) => {
       const children = byParent.get(node.id) ?? [];
       return (
-        <li key={node.id} style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
+        <li key={node.id} style={{ paddingLeft: depth === 0 ? 0 : 12 }} {...itemProps(node, depth)}>
           {row(node)}
-          {isOpenOf(node) && children.length > 0 && <ul>{renderLevel(node.id, depth + 1)}</ul>}
+          {isOpenOf(node) && children.length > 0 && (
+            <ul role="group">{renderLevel(node.id, depth + 1)}</ul>
+          )}
         </li>
       );
     });
@@ -634,6 +728,7 @@ export function SpecTree({
     // 레일은 **제 상자 안에서 흐른다** — 머리(구역 이름과 수)는 붙어 있고 목록만 스크롤한다.
     // 수는 트리가 전부라는 증거이므로 스크롤과 함께 사라지면 안 된다.
     <div
+      ref={treeRef}
       data-testid="spec-tree"
       data-virtualized={virtualized}
       className={cn(variant === 'rail' ? 'flex min-h-0 flex-1 flex-col' : undefined)}
@@ -751,9 +846,17 @@ export function SpecTree({
         >
           {/* 스크롤 높이는 전체 노드 수로 잡고 내용만 창 크기로 그린다 */}
           <div style={{ height: shown * ROW_HEIGHT, position: 'relative' }}>
-            <ul style={{ position: 'absolute', top: startIndex * ROW_HEIGHT, left: 0, right: 0 }}>
+            <ul
+              role="tree"
+              aria-label={heading ?? t('specs.tree_label')}
+              style={{ position: 'absolute', top: startIndex * ROW_HEIGHT, left: 0, right: 0 }}
+            >
               {visible.slice(startIndex, endIndex).map(({ node, depth }) => (
-                <li key={node.id} style={{ paddingLeft: depth * 12, height: ROW_HEIGHT }}>
+                <li
+                  key={node.id}
+                  style={{ paddingLeft: depth * 12, height: ROW_HEIGHT }}
+                  {...itemProps(node, depth)}
+                >
                   {row(node)}
                 </li>
               ))}
@@ -764,7 +867,9 @@ export function SpecTree({
         // 레일에서만 목록이 스크롤한다. 전수 목록 화면은 반대로 **문서가 스크롤한다** —
         // 141줄짜리 목록을 화면에 가두면 스크롤이 두 겹이 되기 때문이다(§2.4a)
         <div className={cn(variant === 'rail' ? 'min-h-0 flex-1 overflow-y-auto' : undefined)}>
-          <ul>{renderLevel(null, 0)}</ul>
+          <ul role="tree" aria-label={heading ?? t('specs.tree_label')}>
+            {renderLevel(null, 0)}
+          </ul>
         </div>
       )}
     </div>
