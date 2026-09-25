@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.63 (2026-09-25)</span>
+      <span>버전 v1.64 (2026-09-25)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -2235,12 +2235,16 @@ export const ApprovalDecisionInput = z
       <tr><td><code>bg-sunken</code></td><td><code>#f7f7f5</code></td><td><code>#1e1e1e</code></td><td>가라앉은 면(보드 칸·사이드바·코드)</td></tr>
       <tr><td><code>bg-hover</code></td><td><code>#f1f1ef</code></td><td><code>#2a2a2a</code></td><td>스치는 면</td></tr>
       <tr><td><code>bg-active</code></td><td><code>#eaeae8</code></td><td><code>#313131</code></td><td>선택된 항목(내비 활성)</td></tr>
-      <tr><td><code>text</code> / <code>text-mute</code> / <code>text-faint</code></td><td><code>#37352f</code> / <code>#787774</code> / <code>#9b9a97</code></td><td><code>#e9e9e7</code> / <code>#9b9a97</code> / <code>#6f6f6c</code></td><td>본문 / 보조 / 배경 정보</td></tr>
+      <tr><td><code>text</code> / <code>text-mute</code> / <code>text-faint</code></td><td><code>#37352f</code> / <code>#5f5e5a</code> / <code>#6f6e6a</code></td><td><code>#e9e9e7</code> / <code>#9b9a97</code> / <code>#8a8986</code></td><td>본문 / 보조 / 배경 정보 — <b>셋 다 읽는 글자다</b>(AA · 2026-09-25 개정)</td></tr>
+      <tr><td><code>text-ghost</code></td><td><code>#b8b7b4</code></td><td><code>#5d5d5a</code></td><td><b>장식과 비활성에만</b>(구분점 <code>·</code> · aria-hidden 기호 · 비활성 항목) — 대비를 세지 않는다</td></tr>
+      <tr><td><code>link</code> / <code>code-text</code></td><td><code>#1c6fc0</code> / <code>#c53b3b</code></td><td><code>#529cca</code> / <code>#ff7369</code></td><td>링크 / 본문의 인라인 코드(<code>code-bg</code> 위)</td></tr>
+      <tr><td><code>on-status</code></td><td><code>#ffffff</code></td><td><code>#191919</code></td><td>상태색으로 칠한 면 위의 글자(주 단추 · 파괴 확정 · 프로젝트 머리글자) — 다크의 상태색은 밝아 어두운 글자다</td></tr>
       <tr><td><code>border</code> / <code>border-strong</code></td><td><code>#ebebea</code> / <code>#dcdcda</code></td><td><code>#2c2c2c</code> / <code>#3d3d3d</code></td><td>구분선 / 강조 구분선</td></tr>
     </tbody>
   </table></div>
 
   <p><b>왜 바꿨나</b> — v0.5의 중립은 푸른 회색(<code>#f7f8fa</code>·<code>#1c2333</code>)이었다. 화면 대부분이 텍스트인데 중립이 차가우면 글이 파랗게 뜨고, 상태색 8종이 그 위에서 흐려진다. 따뜻한 회색으로 옮기면 같은 상태색이 더 또렷해진다. <b>상태 토큰 8종의 색값은 손대지 않았다</b> — §4.1·§4.2가 그대로 정본이다.</p>
+  <p><b>읽는 글자는 어느 단이든 AA(4.5:1) 이상이다</b>(2026-09-25 — 사람 결정 D4 · UI/UX 검토 SYS-04·SYS-X1 · REQ-WEB-234). 2026-08-24 에 시안의 값으로 맞춘 램프는 흰 바탕에서 mute 4.48 · faint 2.81 이었다 — 폼 힌트 · 빈 상태의 "다음 할 일" · 상대 시각 · 작업 키가 그 색이었고, 가장 자주 읽는 사이드바 글자(mute)는 hover 바탕에서 3.96 이었다. 값을 올리되 <b>단의 순서(text &gt; mute &gt; faint)는 지킨다</b> — faint 를 올리다 mute 보다 진해지면 "흐린" 단이 "보조" 단보다 진해진다. 글자 × 면의 표(두 테마 · 상태 배지 · 링크 · 인라인 코드 · 상태색 칠 위의 글자)와 단의 순서, <code>ghost</code> 가 장식·비활성에만 쓰였는지를 <code>apps/web/src/styles/contrast.spec.ts</code> 가 센다 — 눈으로 대조한 값은 다음 손이 한 단 흐리게 되돌린다.</p>
 
   <h4>라운드·그림자·타이포·레이아웃</h4>
 
@@ -2249,8 +2253,9 @@ export const ApprovalDecisionInput = z
     <tbody>
       <tr><td><code>radius-nerv-sm</code> / <code>radius-nerv</code> / <code>radius-nerv-lg</code></td><td>4px / 6px / 10px</td><td>작게. 큰 라운드는 요소를 카드처럼 띄우는데 이 화면들은 문서에 가깝다</td></tr>
       <tr><td><code>shadow-popover</code> / <code>shadow-modal</code></td><td>2단 소프트 섀도</td><td><b>떠 있는 것에만.</b> 카드·배지·버튼에는 쓰지 않는다</td></tr>
-      <tr><td>본문 <code>text-base</code></td><td>14px / line-height 1.55</td><td>목록·표 위주라 16px는 한 줄의 정보를 줄인다</td></tr>
-      <tr><td>제목</td><td><code>text-xl</code>(20px) 페이지 · <code>text-xs uppercase</code> 구역</td><td>크기보다 <b>굵기와 여백</b>으로 구분한다</td></tr>
+      <tr><td>본문 <code>text-base</code></td><td>14px / line-height 1.55</td><td>목록·표 위주라 16px는 한 줄의 정보를 줄인다. 코드가 13.5px 이던 것을 2026-09-25 에 이 값으로 맞췄다(D4)</td></tr>
+      <tr><td>램프 <code>text-2xs</code> / <code>xs</code> / <code>sm</code> / <code>base</code></td><td>11 / 12 / 13 / 14px</td><td><b>문장은 12px(<code>xs</code>) 아래로 내리지 않는다</b> — <code>2xs</code> 는 키·숫자·배지·짧은 라벨에만. 한글은 같은 px 에서 획이 촘촘해 10.5px 에서 받침이 뭉개졌다(2026-09-25 — D4 · SYS-11). 9px 이하의 글자는 두지 않는다(장식 점 제외)</td></tr>
+      <tr><td>제목</td><td><code>text-2xl</code>(27px) 페이지 · <code>text-sm</code> 굵게 구역(<code>SectionTitle</code>)</td><td>크기보다 <b>굵기와 여백</b>으로 구분한다. 구역 제목은 대문자·자간이 아니라 굵기다 — 한글에는 대문자가 없어 <code>text-xs uppercase</code> 는 본문보다 작은 회색 글자였다(2026-09-25 개정 · D4)</td></tr>
       <tr><td><code>spacing-content</code></td><td>60rem</td><td>읽는 화면의 본문 폭. 보드처럼 가로가 필요한 화면만 푼다</td></tr>
       <tr><td><code>spacing-header</code> / <code>spacing-sidebar</code></td><td>2.75rem / 15rem</td><td>헤더·사이드바는 <code>sticky</code> — 트리가 길어도 내비게이션은 제자리에 있다</td></tr>
     </tbody>
@@ -2292,6 +2297,7 @@ export const ApprovalDecisionInput = z
       <tr><td>REQ-WEB-045</td><td>WHEN 컴포넌트가 표면·라운드·간격·타이포를 지정하면 THE SYSTEM SHALL §4.4 토큰과 공유 프리미티브만 사용한다(화면별 임의 값 금지)</td></tr>
       <tr><td>REQ-WEB-046</td><td>WHILE 사용자가 테마를 고르지 않았고 <code>prefers-color-scheme</code>가 light이면 THE SYSTEM SHALL 라이트 팔레트를 적용한다. WHERE 사용자가 테마를 골랐으면 THE SYSTEM SHALL 그 선택을 적용한다(§1.7a — 2026-08-28 개정)</td></tr>
       <tr><td>REQ-WEB-047</td><td>WHEN 스펙 본문(markdown)을 렌더링하면 THE SYSTEM SHALL <code>prose-nerv</code> 규약에 따라 제목·목록·표·코드 블록을 구분해 표시한다</td></tr>
+      <tr><td>REQ-WEB-234</td><td>WHEN 읽어야 하는 글자를 그리면 THE SYSTEM SHALL 라이트·다크 어느 테마에서나 그 글자와 놓인 면의 대비를 4.5:1 이상으로 두고(본문·보조·흐린 글자 · 링크 · 인라인 코드 · 상태 배지 · 상태색 칠 위의 글자), 본문 &gt; 보조 &gt; 흐린 글자의 대비 순서를 지킨다. THE SYSTEM SHALL 가장 흐린 단(<code>ghost</code>)을 장식과 비활성에만 쓴다. WHEN 문장을 그리면 THE SYSTEM SHALL 12px 아래로 내리지 않고, 구역 제목은 대문자가 아니라 굵기로 가른다. WHILE 폭이 좁은 동안 THE SYSTEM SHALL 요약 줄을 줄바꿈해 문서를 가로로 밀지 않는다</td></tr>
     </tbody>
   </table></div>
 

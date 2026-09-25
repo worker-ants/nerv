@@ -49,7 +49,7 @@ export function RelationTabs({
           )}
         >
           {label}
-          <span className="text-text-ghost tabular-nums">{counts[key]}</span>
+          <span className="text-text-faint tabular-nums">{counts[key]}</span>
         </button>
       ))}
     </div>

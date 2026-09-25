@@ -745,7 +745,7 @@ export function SpecGraph({
           </div>
 
           {shownLinks.length > 0 && (
-            <p className="mt-auto border-t border-border px-3 py-2 text-2xs text-text-ghost">
+            <p className="mt-auto border-t border-border px-3 py-2 text-xs text-text-faint">
               {t('graph.panel.hint')}
             </p>
           )}
@@ -842,7 +842,7 @@ function ConnectionRow({
       <span
         aria-hidden="true"
         className={cn(
-          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9.5px] font-semibold',
+          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] font-semibold',
           incoming === true
             ? 'bg-bg-sunken text-text-mute'
             : 'bg-status-action-soft text-status-action',

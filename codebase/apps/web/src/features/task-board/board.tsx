@@ -359,7 +359,11 @@ export function TaskBoard(): React.JSX.Element {
 
       {/* 레인을 화면 폭에 욱여넣지 않는다 — 좁으면 가로로 민다. 억지로 접으면 순서
           (ready → … → done)가 깨지고, 그 순서가 이 보드의 의미 전부다 */}
-      <div ref={lanesRef} className="-mx-6 flex gap-[22px] overflow-x-auto px-6 pb-2">
+      {/* **`relative` 가 없으면 잘리지 않는 것이 있다**(2026-09-25 실측 · REQ-WEB-234). 카드의 보조기기용 글자
+          (`sr-only` — `position: absolute`)는 가장 가까운 위치 잡힌 조상을 기준으로 서는데, 이 상자가 그것이
+          아니면 기준은 `body` 가 되고 `overflow-x-auto` 가 그 글자를 자르지 못한다 — 폰 폭에서 화면 밖 레인의
+          글자가 문서를 가로로 806px 밀었다 */}
+      <div ref={lanesRef} className="relative -mx-6 flex gap-[22px] overflow-x-auto px-6 pb-2">
         {lanes.map((lane) => (
           <Lane
             key={lane}
@@ -609,7 +613,7 @@ function Lane({
           ))}
           {all.length === 0 && query.data !== undefined && readyEmpty === undefined && (
             // 시안의 빈 레인: 점선 상자 — "없는 것"과 "아직 안 온 것"을 가른다
-            <li className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-ghost">
+            <li className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-faint">
               {t('tasks.empty_column')}
             </li>
           )}
@@ -785,14 +789,14 @@ function TaskCard({
             {String(task['priority'])}
           </span>
         )}
-        <span className="font-mono tracking-[-0.02em] text-text-ghost">{String(task['key'])}</span>
+        <span className="font-mono tracking-[-0.02em] text-text-faint">{String(task['key'])}</span>
         {/* 어느 스펙에서 나온 일인가 — 흐리게, 누르면 그 스펙으로 */}
         {typeof task['spec_key'] === 'string' && (
           <EntityLink
             projectSlug={proj}
             entity={{ kind: 'spec', key: task['spec_key'] }}
             testId="task-card-spec"
-            className="font-mono text-text-ghost hover:text-link"
+            className="font-mono text-text-faint hover:text-link"
           />
         )}
         {/* **경과 시간은 오른쪽 끝에 붙는다**(시안 대조 2026-08-23). 카드가 스무 장

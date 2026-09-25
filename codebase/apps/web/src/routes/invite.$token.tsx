@@ -193,7 +193,7 @@ function InviteScreen(): React.JSX.Element {
                     to="/signup"
                     search={{ redirect: `/invite/${token}` }}
                     data-testid="invite-signup"
-                    className="rounded-nerv border border-transparent bg-status-action px-3 py-2 text-center text-sm font-medium text-white"
+                    className="rounded-nerv border border-transparent bg-status-action px-3 py-2 text-center text-sm font-medium text-on-status"
                   >
                     {t('signup.submit')}
                   </Link>

@@ -266,4 +266,21 @@ test.describe('시드 세션', () => {
     // 열이 흘러도 페이지는 흐르지 않는다 — 바퀴가 본문을 움직이지 않게
     expect(await page.evaluate(() => Math.round(document.documentElement.scrollTop))).toBe(0);
   });
+
+  // **요약 줄이 좁은 폭에서 줄을 바꾼다**(2026-09-25 — D4 · UI/UX 검토 SYS-13 · REQ-WEB-234). 줄바꿈 없는 한 줄이던
+  // 동안 폰 폭의 작업 보드가 문서를 가로로 17px 밀었고 필터 단추가 잘렸다(실측) — 모바일 폭 검사는 개요만 쟀다.
+  // 홈은 자기 여백(40px)을 좁은 폭에서도 그대로 써서 본문이 295px 였다
+  test('폰 폭에서 작업 보드·리뷰·홈이 문서를 가로로 밀지 않는다', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const path of ['/p/clemvion/tasks', '/p/clemvion/reviews', '/']) {
+      await page.goto(path);
+      await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 15000 });
+      // 요약 줄은 받은 뒤에 선다 — 숫자가 들어온 모양으로 잰다(실시간 연결이 있어 networkidle 은 오지 않는다)
+      await page.waitForTimeout(1000);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, path).toBeLessThanOrEqual(0);
+    }
+  });
 });

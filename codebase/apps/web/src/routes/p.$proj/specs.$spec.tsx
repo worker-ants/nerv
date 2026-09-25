@@ -1256,7 +1256,7 @@ function SpecDetail(): React.JSX.Element {
                   것을 잘못 읽게 된다. */}
               {relTab !== 'out' && backlinks.length > 0 && (
                 <>
-                  <p className="px-2 pb-1 text-2xs text-text-ghost">{t('spec.backlinks_hint')}</p>
+                  <p className="px-2 pb-1 text-xs text-text-faint">{t('spec.backlinks_hint')}</p>
                   {backlinks.map((r) => (
                     <RelationRow
                       key={relationKey(r)}
@@ -1519,7 +1519,7 @@ function RelationRow({
       <span
         aria-hidden="true"
         className={cn(
-          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9.5px] font-semibold',
+          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] font-semibold',
           incoming ? 'bg-bg-sunken text-text-mute' : 'bg-status-action-soft text-status-action',
         )}
       >

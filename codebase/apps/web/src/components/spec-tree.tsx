@@ -753,7 +753,7 @@ export function SpecTree({
     >
       {heading !== undefined && (
         <div className="mb-1 flex items-center gap-1 px-2">
-          <span className="flex-1 truncate text-2xs font-semibold tracking-[0.07em] text-text-ghost uppercase">
+          <span className="flex-1 truncate text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase">
             {heading}
           </span>
           {/* **전체 펴기/접기는 레일에도 있다**(2026-09-21 — 사람 요청 · REQ-WEB-171).
@@ -809,7 +809,7 @@ export function SpecTree({
             data-testid="tree-count"
             aria-label={t('specs.count.shown_total', { shown, total })}
             title={t('specs.count.shown_total', { shown, total })}
-            className="shrink-0 text-2xs text-text-ghost tabular-nums"
+            className="shrink-0 text-2xs text-text-faint tabular-nums"
           >
             {t('specs.count.short', { shown, total })}
           </span>

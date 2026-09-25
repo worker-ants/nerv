@@ -69,7 +69,7 @@ function ResetPasswordScreen(): React.JSX.Element {
           <Link
             to="/login"
             data-testid="reset-to-login"
-            className={`${NEXT_STEP} border-transparent bg-status-action text-white hover:opacity-90`}
+            className={`${NEXT_STEP} border-transparent bg-status-action text-on-status hover:opacity-90`}
           >
             {t('reset.to_login')}
           </Link>

@@ -80,7 +80,9 @@ export function SectionTitle({
 }): React.JSX.Element {
   return (
     <div className={cn('mb-2 flex items-center justify-between gap-2', className)}>
-      <h2 className="text-xs font-semibold tracking-wide text-text-mute uppercase">{children}</h2>
+      {/* 구역 제목은 **굵기로** 가른다(2026-09-25 — D4 · SYS-11). 대문자·자간으로 가르던 동안 한글에는 대문자가
+          없어 그냥 작은 회색 글자였고, 구역 제목이 그 아래 본문보다 작았다 */}
+      <h2 className="text-sm font-semibold text-text-mute">{children}</h2>
       {action}
     </div>
   );
@@ -178,13 +180,13 @@ export type ButtonSize = 'sm' | 'md';
 
 const VARIANT: Record<ButtonVariant, string> = {
   // 화면당 하나면 충분하다 — 여러 개면 무엇이 주 행동인지 사라진다
-  primary: 'bg-status-action text-white hover:opacity-90 border border-transparent',
+  primary: 'bg-status-action text-on-status hover:opacity-90 border border-transparent',
   default: 'border border-border bg-bg-elev text-text hover:bg-bg-hover',
   ghost: 'border border-transparent text-text-mute hover:bg-bg-hover hover:text-text',
   danger: 'border border-border text-status-danger hover:bg-status-danger-soft',
   // **확인의 실행 단추다** — 되돌리기 어려운 일을 한 번 더 물은 뒤에만 선다(confirm-action.tsx).
   // 이 칠이 없던 동안 세션 중단은 클래스를 덮어써 빨갛게 칠했다
-  'danger-solid': 'border border-transparent bg-status-danger text-white hover:opacity-90',
+  'danger-solid': 'border border-transparent bg-status-danger text-on-status hover:opacity-90',
 };
 
 const SIZE: Record<ButtonSize, string> = {
@@ -386,10 +388,10 @@ export function Field({
       <span className="text-xs font-medium text-text-mute">{label}</span>
       {children}
       {hint !== undefined && error === undefined && (
-        <span className="text-2xs text-text-faint">{hint}</span>
+        <span className="text-xs text-text-faint">{hint}</span>
       )}
       {error !== undefined && (
-        <span role="alert" className="text-2xs text-status-danger">
+        <span role="alert" className="text-xs text-status-danger">
           {error}
         </span>
       )}
@@ -642,7 +644,12 @@ export function SummaryStrip({
   };
   return (
     <div
-      className={cn('flex items-center gap-0 border-y border-border py-[13px]', className)}
+      // **좁으면 접힌다**(2026-09-25 — UI/UX 검토 SYS-13). 줄바꿈 없는 한 줄이던 동안 폰 폭의 작업 보드에서 지표 넷과
+      // 필터 셋이 문서를 가로로 17px 밀었고 필터가 잘렸다. 칸 사이 여백도 좁은 폭에서 줄인다
+      className={cn(
+        'flex flex-wrap items-center gap-y-3 border-y border-border py-[13px]',
+        className,
+      )}
       {...rest}
     >
       {metrics.map((m, i) => {
@@ -662,8 +669,8 @@ export function SummaryStrip({
           </>
         );
         const shell = cn(
-          'flex flex-col gap-[3px] pr-[34px]',
-          i < metrics.length - 1 && 'mr-[34px] border-r border-border',
+          'flex flex-col gap-[3px] pr-8 max-md:pr-4',
+          i < metrics.length - 1 && 'mr-8 border-r border-border max-md:mr-4',
         );
         return m.href === undefined ? (
           <div key={m.label} className={shell}>
@@ -683,7 +690,7 @@ export function SummaryStrip({
       {actions !== undefined && (
         <>
           <div className="flex-1" />
-          {actions}
+          <div className="flex flex-wrap items-center gap-2 max-md:basis-full">{actions}</div>
         </>
       )}
     </div>
