@@ -44,6 +44,7 @@ import { rolesInProject } from '../../lib/session.js';
 import { secondsUntil, useNow } from '../../lib/clock.js';
 import { leaseRemaining } from '../../features/session-monitor/format.js';
 import { useScope } from '../../lib/scope.js';
+import { useRememberVisit } from '../../components/quick-switcher.js';
 import { describeApiError, useApiError } from '../../lib/api-errors.js';
 import { usePressKey } from '../../lib/press-key.js';
 import {
@@ -75,6 +76,24 @@ function TaskDetail(): React.JSX.Element {
   const project = useProject(proj);
   const me = useMe();
   const { orgSlug } = useScope(proj);
+  // **연 작업을 최근에 남긴다**(REQ-WEB-223)
+  useRememberVisit(
+    detail.data === undefined
+      ? null
+      : {
+          key: String(detail.data['key'] ?? task),
+          title: String(detail.data['title'] ?? task),
+          type: 'task',
+          doc_status: null,
+          anchor: null,
+          kind: 'task',
+          project_slug: proj,
+          ...(typeof project.data?.['name'] === 'string'
+            ? { project_name: project.data['name'] }
+            : {}),
+          ...(orgSlug === null ? {} : { org_slug: orgSlug }),
+        },
+  );
   const now = useNow();
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();

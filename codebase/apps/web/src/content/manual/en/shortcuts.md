@@ -1,8 +1,18 @@
-## ⌘K — finding a document
+## ⌘K — go anywhere
 
-`⌘K` (`Ctrl+K` on Windows and Linux) opens the quick switcher. It finds **specs and requirements** by name, and **pasting a stable ID** jumps straight to that document, requirement, or task (tasks are found by key only). It does not find screens or settings.
+`⌘K` (`Ctrl+K` on Windows and Linux) opens the quick switcher. The list comes in groups.
 
-**It only works inside a project.** On screens whose address carries no project — home, the inbox, notifications, settings — the panel opens but neither search nor navigation does anything.
+| Group                   | What is in it                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| **Pinned** · **Recent** | Pinned documents and specs and tasks you opened recently — only while the input is empty |
+| **This project**        | Overview · Specs · Tasks · Sessions · Reviews — when you are inside a project            |
+| **Go to**               | Home · Inbox · Notifications · the four settings tabs · Help · help for this screen      |
+| **Projects**            | The projects in the current organization                                                 |
+| **Documents**           | Specs, requirements and tasks matching what you type — searched inside a project only    |
+
+Typing filters every group by name — type "tokens" for the tokens tab in settings, or a project's name for that project. The English path words (`inbox` · `settings` · `tokens`) match whatever the interface language. **Pasting a stable ID** jumps straight to that document, requirement or task (tasks are found by key only). Picking a requirement opens that spec's requirements tab; picking a heading match opens that section.
+
+**Document search happens inside a project.** On home, the inbox, notifications and settings the panel still takes you to screens and projects, but does not search specs or tasks — the placeholder says so.
 
 | Key             | Action               |
 | --------------- | -------------------- |
@@ -11,9 +21,11 @@
 | `Enter`         | Open                 |
 | `Esc`           | Close                |
 
-With the input empty, **what you pinned and what you opened recently** is listed — pinned first.
+With the input empty, **what you pinned and what you opened recently** comes first — pinned on top. **Recent means what you actually opened** — specs and tasks opened from the tree, a link or a notification count too. Each row says which project it belongs to, and pressing it takes you to the document **in that project** (even from another project, or from home). Only the current organization's are shown.
 
 Press the **☆** at the right of a row to pin that document (★); press it again to unpin. The recent list pushes yesterday's document out today, and **the five or six you open every day should not go that way.** Pins are kept **in this browser**, like the theme and the language.
+
+Inside the panel `Tab` cycles between the input and the ☆ buttons and does not escape to the screen behind. `Esc` closes it from anywhere, and closing returns you to **where you were before opening it**. Screen readers hear the input as a combo box owning the list, and the highlighted row as the chosen one.
 
 ## Dialogs and panels
 
