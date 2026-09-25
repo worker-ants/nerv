@@ -19,6 +19,7 @@ import {
   statusLabelKey,
 } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
+import { useTitleDetail } from '../../lib/title-detail.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -74,6 +75,11 @@ function TaskDetail(): React.JSX.Element {
   const { proj, task } = Route.useParams();
   const detail = useTask(proj, task);
   const project = useProject(proj);
+  // 탭 제목과 헤더 끝이 **이 작업**을 말한다(REQ-WEB-228)
+  useTitleDetail({
+    key: typeof detail.data?.['key'] === 'string' ? detail.data['key'] : task,
+    title: typeof detail.data?.['title'] === 'string' ? detail.data['title'] : null,
+  });
   const me = useMe();
   const { orgSlug } = useScope(proj);
   // **연 작업을 최근에 남긴다**(REQ-WEB-223)

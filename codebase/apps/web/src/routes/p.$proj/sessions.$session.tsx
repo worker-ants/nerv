@@ -11,6 +11,7 @@
 
 import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
+import { useTitleDetail } from '../../lib/title-detail.js';
 import { claimStatusText } from '../../lib/format.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
@@ -40,6 +41,17 @@ function SessionDetail(): React.JSX.Element {
   const t = useT();
   const { proj, session } = Route.useParams();
   const detail = useSessionDetail(proj, session);
+  // 탭 제목과 헤더 끝이 **이 세션**을 말한다(REQ-WEB-228) — 세션의 짧은 이름은 기계다(id 는 사람이 읽지 않는다)
+  useTitleDetail({
+    key:
+      typeof detail.data?.['hostname'] === 'string' && detail.data['hostname'] !== ''
+        ? detail.data['hostname']
+        : session.slice(0, 8),
+    title:
+      typeof detail.data?.['user_display_name'] === 'string'
+        ? detail.data['user_display_name']
+        : null,
+  });
   // 개입 뒤 세션 목록 무효화가 id 축이라 필요하다(4.5 §1.4). 셸이 이미 같은 키로 받아 둔
   // 값이라 요청이 늘지 않는다 — `useProject` 는 slug 로 잡히는 **해소용** 쿼리다.
   const project = useProject(proj);

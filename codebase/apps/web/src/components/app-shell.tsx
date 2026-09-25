@@ -30,7 +30,8 @@ import { chapterForRoute, MANUAL_CHAPTERS } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { ToastStack } from './toast-stack.js';
-import { documentTitle, screenKeyFor } from '../lib/document-title.js';
+import { documentTitle, onDetailRoute, screenKeyFor } from '../lib/document-title.js';
+import { useTitleDetailValue } from '../lib/title-detail.js';
 import { SpecTreeColumn } from './spec-tree-column.js';
 import { SettingsNav } from '../features/settings/settings-nav.js';
 import { MenuItem, Popover } from './ui/primitives.js';
@@ -263,13 +264,21 @@ export function AppShell({
   });
   const contextChapter = chapterForRoute(pathname);
 
-  // 탭 제목이 범위를 말한다(REQ-WEB-194) — 탭을 여럿 열어 두면 어느 것이 어디인지 제목뿐이다
+  // 탭 제목이 범위를 말한다(REQ-WEB-194) — 탭을 여럿 열어 두면 어느 것이 어디인지 제목뿐이다.
+  // 상세 화면이면 **무엇을 보는지**까지(2026-09-25 — NAV-13 · REQ-WEB-228): 스펙 세 편을 열어 두면 셋 다 "스펙" 이었다
+  const titleDetail = useTitleDetailValue();
+  const detail = onDetailRoute(pathname) ? titleDetail : null;
   useEffect(() => {
-    document.title = documentTitle(t, pathname, {
-      orgName: scope.orgName,
-      projectName: currentProject === undefined ? null : String(currentProject['name']),
-    });
-  }, [t, pathname, scope.orgName, currentProject]);
+    document.title = documentTitle(
+      t,
+      pathname,
+      {
+        orgName: scope.orgName,
+        projectName: currentProject === undefined ? null : String(currentProject['name']),
+      },
+      detail,
+    );
+  }, [t, pathname, scope.orgName, currentProject, detail]);
 
   // ── 좁은 화면의 서랍 ────────────────────────────────────────────────────
   //
@@ -410,7 +419,11 @@ export function AppShell({
                   to="/p/$proj"
                   params={{ proj: sidebarProject }}
                   data-testid="crumb-project"
-                  className="max-w-44 truncate rounded-nerv-sm px-1 text-text-mute hover:text-text"
+                  className={cn(
+                    'max-w-44 truncate rounded-nerv-sm px-1 text-text-mute hover:text-text',
+                    // 좁은 폭에서 상세까지 서면 넘친다 — 프로젝트는 사이드바(서랍)가 말한다
+                    detail !== null && 'max-md:hidden',
+                  )}
                 >
                   {String(currentProject?.['name'] ?? sidebarProject)}
                 </Link>
@@ -420,16 +433,55 @@ export function AppShell({
               <>
                 <span
                   aria-hidden="true"
-                  className={cn('text-text-ghost', sidebarProject === undefined && 'max-md:hidden')}
+                  className={cn(
+                    'text-text-ghost',
+                    (sidebarProject === undefined || detail !== null) && 'max-md:hidden',
+                  )}
                 >
+                  /
+                </span>
+                {detail !== null && sidebarProject !== undefined ? (
+                  // **상세에서는 화면 이름이 그 목록으로 가는 길이다**(2026-09-25 — NAV-13 · REQ-WEB-228) — 지금 자리는
+                  // 끝의 키가 말한다. 목록으로 돌아가는 링크를 화면마다 따로 두던 것을 헤더가 한 모양으로 든다
+                  <Link
+                    to={
+                      screenKey === 'shell.nav.tasks'
+                        ? '/p/$proj/tasks'
+                        : screenKey === 'shell.nav.sessions'
+                          ? '/p/$proj/sessions'
+                          : '/p/$proj/specs'
+                    }
+                    params={{ proj: sidebarProject }}
+                    // 목록은 지금 자리가 아니다 — 접두 일치로 켜지면 aria-current 가 둘이 된다(끝의 키가 지금 자리)
+                    activeOptions={{ exact: true }}
+                    data-testid="crumb-screen"
+                    className="shrink-0 rounded-nerv-sm px-1 text-text-mute hover:text-text"
+                  >
+                    {t(screenKey)}
+                  </Link>
+                ) : (
+                  <span
+                    aria-current="page"
+                    data-testid="crumb-screen"
+                    className="truncate px-1 font-medium text-text"
+                  >
+                    {t(screenKey)}
+                  </span>
+                )}
+              </>
+            )}
+            {detail !== null && (
+              <>
+                <span aria-hidden="true" className="text-text-ghost">
                   /
                 </span>
                 <span
                   aria-current="page"
-                  data-testid="crumb-screen"
-                  className="truncate px-1 font-medium text-text"
+                  data-testid="crumb-detail"
+                  title={detail.title ?? detail.key}
+                  className="min-w-0 truncate px-1 font-mono text-xs font-medium text-text"
                 >
-                  {t(screenKey)}
+                  {detail.key}
                 </span>
               </>
             )}

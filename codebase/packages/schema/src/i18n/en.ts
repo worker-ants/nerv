@@ -1623,6 +1623,7 @@ export const en = {
   'settings.tab.gates': 'Gate policy',
   'settings.tab.members': 'Members and roles',
   'settings.tab.tokens': 'Agent tokens',
+  'spec.ancestors': 'Parent documents',
   'settings.title': 'Settings',
   'settings.heading': 'Settings — {org}',
   'settings.nav_label': 'Settings menu',

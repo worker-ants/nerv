@@ -2,7 +2,7 @@ Specs are the central documents of this product. **The spec is the baseline**, n
 
 ## The tree and the types
 
-The tree on the left is the structure of your specs. There are six types, and the type says what kind of document it is.
+The tree on the left is the structure of your specs. There are six types, and the type says what kind of document it is. An open document shows **the path of its parent documents** (`Channels › Web chat`) at the very top of its header, so you can see where it sits even on a narrow screen with the tree folded away — press one to go there.
 
 | Type         | What it holds                                          |
 | ------------ | ------------------------------------------------------ |
