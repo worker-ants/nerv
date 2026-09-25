@@ -39,6 +39,18 @@ export async function createScratchDb(prefix = 'nerv_test'): Promise<ScratchDb> 
     drop: async () => {
       const cleanup = new pg.Client({ connectionString: adminUrl });
       await cleanup.connect();
+      // **남은 연결이 스스로 닫히기를 잠깐 기다린다**(2026-09-25 — CI 에서만 드러난 경쟁). `pool.end()` 는 소켓이
+      // 실제로 닫히기 **전에** 끝날 수 있다(끊기를 보내 놓고 기다리지 않는다). 그 틈에 `WITH (FORCE)` 가 연결을
+      // 끊으면 닫히던 클라이언트가 57P01 을 받고, 이미 풀에서 빠져 듣는 이가 없어 잡히지 않은 예외가 된다 —
+      // 검사 969건이 다 통과해도 러너가 빨갛다(ingest.spec 정리 단계 실측). 강제는 그래도 남은 것만 맡는다.
+      for (let i = 0; i < 40; i += 1) {
+        const { rows } = await cleanup.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1`,
+          [name],
+        );
+        if ((rows[0]?.n ?? 0) === 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
       await cleanup.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
       await cleanup.end();
     },
