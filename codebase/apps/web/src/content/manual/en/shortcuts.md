@@ -53,17 +53,18 @@ When resolving a review finding, in the field that picks a spec, `↓` moves dow
 
 ## Inbox
 
-| Key       | Action                    |
-| --------- | ------------------------- |
-| `j` · `k` | Move between cards        |
-| `a`       | Approve                   |
-| `r`       | Reject                    |
-| `c`       | Write a comment           |
-| `x`       | Add to the selection      |
-| `⇧X`      | Select everything visible |
-| `⇧A`      | Approve the selection     |
-| `⇧R`      | Reject the selection      |
-| `Esc`     | Clear the selection       |
+| Key       | Action                              |
+| --------- | ----------------------------------- |
+| `j` · `k` | Move between cards                  |
+| `a`       | Approve                             |
+| `r`       | Reject                              |
+| `c`       | Write a comment                     |
+| `z`       | Undo before it is sent (within 5 s) |
+| `x`       | Add to the selection                |
+| `⇧X`      | Select everything visible           |
+| `⇧A`      | Approve the selection               |
+| `⇧R`      | Reject the selection                |
+| `Esc`     | Clear the selection                 |
 
 They do nothing while the cursor is in a text field. The bulk keys are **uppercase** so they cannot collide with the single-card ones — the difference between one card and twenty should cost at least a `Shift`. While the confirmation list is open, `a`, `r` and `c` are inert.
 

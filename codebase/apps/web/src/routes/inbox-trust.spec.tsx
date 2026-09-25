@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NERV_ERROR, NERV_EVENT } from '@nerv/schema';
 import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
+import { setDecisionGraceForTesting } from '../features/inbox/decision-grace.js';
 import { routeTree } from '../routeTree.gen';
 
 vi.mock('socket.io-client', () => ({
@@ -49,7 +50,9 @@ let detail: Record<string, unknown> | null = null;
 let notifications: Record<string, unknown>[] = [];
 let posted: { url: string; body: Record<string, unknown> }[] = [];
 
+// 결정의 **내용**을 본다 — 보내기 전 5초(REQ-WEB-237)는 decision-grace.spec.tsx 가 센다
 beforeEach(() => {
+  setDecisionGraceForTesting(0);
   pages = [{ items: [spec(1), spec(2), spec(3)], next_cursor: null, total: 3 }];
   detail = null;
   notifications = [];
@@ -104,6 +107,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setDecisionGraceForTesting();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   cleanup();

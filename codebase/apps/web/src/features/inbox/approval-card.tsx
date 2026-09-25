@@ -21,10 +21,16 @@ import { useRealtime } from '../../lib/realtime.js';
 import { inOrgHref, useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
-import { Button, Mono, Textarea } from '../../components/ui/primitives.js';
+import { Button, Kbd, Mono, Textarea } from '../../components/ui/primitives.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
+import { DECISION_GRACE_MS, useGrace } from './decision-grace.js';
 
 export type Decision = 'approve' | 'reject' | 'comment';
+
+/** 카드가 5초 들고 있는 것 — 누른 순간의 코멘트까지 함께 든다(그 사이 고친 글이 실리지 않게) */
+type Held =
+  | { kind: 'decision'; decision: Decision; comment: string }
+  | { kind: 'answer'; choice: string; comment: string };
 
 /**
  * 제목 재료가 없는 대상의 이름(REQ-WEB-133 — "제목이 없으면 그 종류의 이름").
@@ -346,7 +352,7 @@ export function ApprovalCard({
   const decidePress = usePressKey('decision');
 
   const answerWith = useMutation({
-    mutationFn: (choice: string) =>
+    mutationFn: ({ choice, comment }: { choice: string; comment: string }) =>
       apiFetch(`/projects/${projectSlug}/questions/${id}/answer`, {
         method: 'POST',
         body: { answer_key: choice, answer_md: comment },
@@ -367,7 +373,7 @@ export function ApprovalCard({
   });
 
   const decide = useMutation({
-    mutationFn: async (decision: Decision) => {
+    mutationFn: async ({ decision, comment }: { decision: Decision; comment: string }) => {
       if (isQuestion) {
         return apiFetch(`/projects/${projectSlug}/questions/${id}/answer`, {
           method: 'POST',
@@ -388,7 +394,7 @@ export function ApprovalCard({
       });
     },
     onSettled: decidePress.release,
-    onSuccess: (result, decision) => {
+    onSuccess: (result, { decision }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
       // **아직 확정이 아니면 그렇게 말한다**(2026-09-07 · REQ-WEB-146). T3 는 서로 다른
       // 두 사람이 승인해야 문서가 움직이는데, "승인했습니다" 만 뜨면 승인자는 자기가
@@ -433,6 +439,40 @@ export function ApprovalCard({
   });
 
   /**
+   * **보내기 전 5초**(2026-09-25 · 사람 결정 D7 · REQ-WEB-237). 누른 결정은 카드가 들고 있다가
+   * 보낸다 — 그 사이 [취소]·`z` 로 무른다. 서버에 철회 경로가 없어 트레일의 "되돌리기" 는 문구만
+   * 있는 약속이었고, 철회 API 는 감사·게이트의 뜻이 무거워 따로 정한다.
+   */
+  const grace = useGrace<Held>((held) => {
+    if (held.kind === 'answer') answerWith.mutate(held);
+    else decide.mutate(held);
+  });
+  const sending = decide.isPending || answerWith.isPending;
+  const busy = grace.pending !== null || sending;
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
+  const hold = (held: Held): void => {
+    // 단추를 눌러 들었으면 [취소]로 포커스를 옮긴다 — 누른 단추가 사라져 포커스가 body 로 떨어지지
+    // 않게. 키(a·r)로 들었으면 카드에 둔다 — j/k 로 다음 카드로 가는 흐름을 끊지 않는다
+    const fromButton =
+      footerRef.current?.contains(document.activeElement) === true ||
+      (document.activeElement instanceof HTMLElement &&
+        document.activeElement.closest('[data-testid="question-options"]') !== null);
+    grace.hold(held);
+    if (fromButton) window.setTimeout(() => cancelRef.current?.focus(), 0);
+  };
+  const cancelHeld = (): void => {
+    grace.cancel();
+    articleRef.current?.focus();
+  };
+  const heldLabel = ((): string | null => {
+    const held = grace.pending;
+    if (held === null) return null;
+    if (held.kind === 'answer') return t('inbox.grace.answer_option', { option: held.choice });
+    return isQuestion ? t('inbox.grace.answer') : decisionLabel(t, held.decision);
+  })();
+
+  /**
    * **거절에는 사유가 필수다**(REQ-WEB-022). 사유 없는 거절은 요청자에게 "다시 해보라" 는 말만
    * 남기고, 그 왕복이 승인 병목(P4)을 만든다.
    *
@@ -447,7 +487,7 @@ export function ApprovalCard({
       return;
     }
     setReasonRequired(false);
-    decide.mutate(decision);
+    hold({ kind: 'decision', decision, comment });
   };
 
   useEffect(() => {
@@ -460,6 +500,13 @@ export function ApprovalCard({
       // 아래에서 "누를 수 있는 것은 할 수 있다는 뜻이어야 한다" 고 적어 두고 키에는
       // 적용하지 않은 자리다(2026-09-05 감사).
       if (decided !== null) return;
+      // 들고 있는 결정을 무른다 — 들고 있거나 보내는 동안에는 다른 결정 키를 받지 않는다
+      if (e.key === 'z' && grace.pending !== null) {
+        e.preventDefault();
+        cancelHeld();
+        return;
+      }
+      if (busy) return;
       if ((e.key === 'a' || e.key === 'r') && !isQuestion && !inView(articleRef.current)) {
         // **보이지 않는 카드는 결정하지 않는다**(REQ-WEB-204) — 데려와 보여 줄 뿐이다
         articleRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
@@ -476,7 +523,7 @@ export function ApprovalCard({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, keysOff, card, decide, isQuestion, decided, requestDecision]);
+  }, [active, keysOff, card, isQuestion, decided, requestDecision, busy, grace.pending]);
 
   return (
     <article
@@ -736,8 +783,8 @@ export function ApprovalCard({
                   key={option}
                   size="sm"
                   variant="ghost"
-                  disabled={answerWith.isPending}
-                  onClick={() => answerWith.mutate(option)}
+                  disabled={busy}
+                  onClick={() => hold({ kind: 'answer', choice: option, comment })}
                   className="border border-border"
                 >
                   {option}
@@ -770,6 +817,8 @@ export function ApprovalCard({
               ref={commentRef}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
+              // 들고 있는 동안 고친 글은 실리지 않는다 — 그러니 고치지 못하게 한다
+              readOnly={busy}
               placeholder={
                 isQuestion
                   ? t('inbox.card.answer_placeholder')
@@ -781,6 +830,7 @@ export function ApprovalCard({
                 const mod = e.metaKey || e.ctrlKey;
                 if (e.key === 'Enter' && mod) {
                   e.preventDefault();
+                  if (busy) return;
                   if (isQuestion) {
                     if (comment.trim() !== '') requestDecision('approve');
                   } else requestDecision(e.shiftKey ? 'reject' : 'comment');
@@ -846,12 +896,19 @@ export function ApprovalCard({
       )}
 
       {!(compact ?? false) && decided === null && (
-        <footer className="mt-2.5 flex items-center gap-2">
-          {isQuestion ? (
+        <footer ref={footerRef} className="mt-2.5 flex items-center gap-2">
+          {heldLabel !== null || sending ? (
+            <GraceStrip
+              label={heldLabel}
+              active={active === true}
+              cancelRef={cancelRef}
+              onCancel={cancelHeld}
+            />
+          ) : isQuestion ? (
             <Button
               variant="primary"
               size="sm"
-              disabled={decide.isPending || comment.trim() === ''}
+              disabled={comment.trim() === ''}
               onClick={() => requestDecision('approve')}
             >
               {t('inbox.card.send_answer')}
@@ -862,7 +919,7 @@ export function ApprovalCard({
                 variant="primary"
                 size="sm"
                 data-testid="approve"
-                disabled={decide.isPending || !canApprove}
+                disabled={!canApprove}
                 onClick={() => requestDecision('approve')}
                 disabledReason={canApprove ? undefined : (lockReason ?? undefined)}
               >
@@ -875,18 +932,12 @@ export function ApprovalCard({
                 variant="danger"
                 size="sm"
                 data-testid="reject"
-                disabled={decide.isPending}
                 onClick={() => requestDecision('reject')}
                 requiresOnline
               >
                 {t('inbox.key.reject')}
               </Button>
-              <Button
-                size="sm"
-                disabled={decide.isPending}
-                onClick={() => requestDecision('comment')}
-                requiresOnline
-              >
+              <Button size="sm" onClick={() => requestDecision('comment')} requiresOnline>
                 {t('inbox.key.comment')}
               </Button>
               {active === true && (
@@ -897,6 +948,55 @@ export function ApprovalCard({
         </footer>
       )}
     </article>
+  );
+}
+
+/**
+ * 들고 있는 결정의 줄 — 무엇을 보내려는지 · [취소] · 줄어드는 막대(REQ-WEB-237).
+ * 남은 초를 세지 않는다: 매초 바뀌는 글자는 보조기기가 매초 읽는다. 문장은 한 번, 시간은 막대가 말한다.
+ * `label` 이 null 이면 이미 보내는 중이다 — 무를 수 없으니 [취소]도 없다.
+ */
+function GraceStrip({
+  label,
+  active,
+  cancelRef,
+  onCancel,
+}: {
+  label: string | null;
+  active: boolean;
+  cancelRef: React.RefObject<HTMLButtonElement | null>;
+  onCancel: () => void;
+}): React.JSX.Element {
+  const t = useT();
+  return (
+    <div
+      role="status"
+      data-testid="decision-grace"
+      data-state={label === null ? 'sending' : 'held'}
+      className="relative flex min-h-8 flex-1 items-center gap-2 overflow-hidden rounded-nerv-sm bg-bg-sunken px-2.5 py-1 text-sm text-text-mute"
+    >
+      <span className="min-w-0 flex-1">
+        {label === null
+          ? t('inbox.grace.sending')
+          : t('inbox.grace.held', { what: label, s: DECISION_GRACE_MS / 1000 })}
+      </span>
+      {label !== null && (
+        <>
+          {active && (
+            <span className="text-2xs text-text-faint">
+              <Kbd>z</Kbd>
+            </span>
+          )}
+          <Button ref={cancelRef} size="sm" data-testid="decision-cancel" onClick={onCancel}>
+            {t('inbox.grace.cancel')}
+          </Button>
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 h-0.5 origin-left animate-grace bg-status-action motion-reduce:hidden"
+          />
+        </>
+      )}
+    </div>
   );
 }
 

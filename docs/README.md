@@ -11,8 +11,10 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v4.18 · 2026-09-25 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v4.19 · 2026-09-25 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
 >
+> v4.19 변경(2026-09-25 — 누른 결정을 무를 길이 없었습니다, **사람 결정 D7 · D9**): **REQ-WEB-237 신설.** 받은 요청에서 승인·거절·코멘트·답변을 누르면 카드가 5초 들고 있다가 보냅니다 — 그 사이 [취소]나 `z` 로 무릅니다. 처리됨 트레일이 약속하던 되돌리기 링크는 서버에 철회 경로가 없어 걷었고, 철회 API 는 따로 정합니다. 주소에 조직을 싣는 안은 보류합니다(조직 전환 링크와 조직 찾기로 먼저 막습니다).
+
 > v4.18 변경(2026-09-25 — 같은 상태가 자리마다 다른 색이었습니다): **REQ-WEB-236 신설.** 상태 점이 배지와 같은 색을 씁니다(세션 요약 줄의 "무응답" 이 이제 카드처럼 빨강입니다 · 스펙 트리의 좁은 열도 표와 같은 색). 막는 중 · 정족수 · 우선순위 같은 표지가 한 모양입니다. UI/UX 검토(2026-09-24)의 권장 묶음이 이것으로 모두 끝납니다([4.5](04-mvp/screens.md) v1.66 · [4.8](04-mvp/backlog.md) v1.59).
 
 > v4.17 변경(2026-09-25 — 못 누르는 까닭이 키보드에 닿지 않았고 오프라인에도 쓰기 단추가 살아 있었습니다): **REQ-WEB-235 신설 · REQ-WEB-003 개정.** 잠긴 단추의 까닭이 마우스를 올릴 때뿐 아니라 `Tab` 으로 가도 뜨고 화면 낭독기가 읽습니다. 서버에 닿지 않으면 배너가 회색 ⚠ 로 바뀌어 받은 시각을 말하고, 쓰는 단추는 복구될 때까지 스스로 잠깁니다([4.5](04-mvp/screens.md) v1.65 · [4.8](04-mvp/backlog.md) v1.58).
@@ -640,7 +642,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [3.3 데이터 모델](03-proposal/data-model.md) | `v0.15` | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
 | [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.32` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
 | [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.14` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
-| [3.6 화면 설계](03-proposal/ui-wireframes.md) | `v0.9` | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 파생본은 실제 렌더링 목업 |
+| [3.6 화면 설계](03-proposal/ui-wireframes.md) | `v0.10` | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 파생본은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | `v0.9` | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
 
 ### 4부 · MVP 구체화 (구현 착수 가능한 명세)
@@ -651,10 +653,10 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v1.73` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.52` | 테이블 37개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v1.65` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 24종 ↔ REST 대응 표 |
-| [4.5 화면 명세](04-mvp/screens.md) | `v1.66` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
+| [4.5 화면 명세](04-mvp/screens.md) | `v1.67` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.73` | 스킬 5종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review` — `/nerv:import` 는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계 |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.22` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 걷음), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v1.59` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v1.60` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

@@ -25,6 +25,7 @@ import { cn } from '../lib/utils.js';
 import {
   Button,
   EmptyState,
+  Kbd,
   PageBody,
   PageHeader,
   Skeleton,
@@ -338,27 +339,30 @@ function InboxScreen(): React.JSX.Element {
       <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-text-faint">
         {/* 키 이름은 번역하지 않는다 — 키보드에 새겨진 글자다. 그 옆의 말만 번역한다 */}
         <span>
-          <Key>j</Key> <Key>k</Key> {t('inbox.key.move')}
+          <Kbd>j</Kbd> <Kbd>k</Kbd> {t('inbox.key.move')}
         </span>
         <span>
-          <Key>a</Key> {t('inbox.key.approve')}
+          <Kbd>a</Kbd> {t('inbox.key.approve')}
         </span>
         <span>
-          <Key>r</Key> {t('inbox.key.reject')}
+          <Kbd>r</Kbd> {t('inbox.key.reject')}
         </span>
         <span>
-          <Key>c</Key> {t('inbox.key.comment')}
+          <Kbd>c</Kbd> {t('inbox.key.comment')}
         </span>
         <span>
-          <Key>⌘↵</Key> {t('inbox.key.send')}
+          <Kbd>⌘↵</Kbd> {t('inbox.key.send')}
+        </span>
+        <span>
+          <Kbd>z</Kbd> {t('inbox.key.undo')}
         </span>
         {state === 'pending' && (
           <>
             <span>
-              <Key>x</Key> {t('inbox.key.select')}
+              <Kbd>x</Kbd> {t('inbox.key.select')}
             </span>
             <span>
-              <Key>⇧A</Key> <Key>⇧R</Key> {t('inbox.key.bulk')}
+              <Kbd>⇧A</Kbd> <Kbd>⇧R</Kbd> {t('inbox.key.bulk')}
             </span>
           </>
         )}
@@ -617,15 +621,6 @@ function FocusMissing({ id }: { id: string }): React.JSX.Element {
     >
       {detail.isPending ? t('common.loading') : text}
     </p>
-  );
-}
-
-/** 단축키 표기 — 본문 글자와 구분되게, 그러나 조용하게 */
-function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <kbd className="rounded-nerv-sm border border-border bg-bg-sunken px-1 font-mono text-text-mute">
-      {children}
-    </kbd>
   );
 }
 

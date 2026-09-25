@@ -10,8 +10,9 @@ import {
   createRootRoute,
   createRouter,
 } from '@tanstack/react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCard, subjectFallback, waitedLabel } from './approval-card.js';
+import { setDecisionGraceForTesting } from './decision-grace.js';
 import { RealtimeProvider } from '../../lib/realtime.js';
 
 /** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
@@ -30,7 +31,12 @@ vi.mock('socket.io-client', () => ({
   }),
 }));
 
-afterEach(cleanup);
+// 결정의 **내용**을 본다 — 보내기 전 5초(REQ-WEB-237)는 decision-grace.spec.tsx 가 센다
+beforeEach(() => setDecisionGraceForTesting(0));
+afterEach(() => {
+  setDecisionGraceForTesting();
+  cleanup();
+});
 
 /**
  * 카드에 `<Link>` 가 들어왔으므로(2026-08-31) 라우터 안에서 그린다 — 밖에서 그리면
