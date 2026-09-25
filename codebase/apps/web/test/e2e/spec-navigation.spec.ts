@@ -26,7 +26,10 @@ test('다른 스펙으로 옮기면 본문이 그 문서 것으로 바뀐다', a
 
   // 제목만 바뀌고 본문이 앞 문서로 남는 것이 이 결함이었다
   await expect(body).not.toHaveText(first, { timeout: 15000 });
-  await expect(body).toContainText('세션 복원');
+  // 본문 첫 줄의 `# 세션 복원 API` 는 머리의 제목과 같아 뷰어가 그리지 않는다(REQ-WEB-215 · OBS-04) —
+  // 본문은 그 아래의 제 내용을, 제목은 머리가 말한다
+  await expect(body).toContainText('(v1 본문)');
+  await expect(page.getByTestId('spec-title')).toContainText('세션 복원');
 });
 
 // 레일 탭 다섯(관계·요구사항·버전·첨부·코멘트)은 17rem 레일보다 넓다 — 그 자체는 정상이고,

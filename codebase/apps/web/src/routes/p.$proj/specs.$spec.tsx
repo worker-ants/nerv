@@ -7,7 +7,13 @@
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { scrollEdges, type ScrollEdges } from '../../lib/scroll-edges.js';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+  useRouter,
+  useRouterState,
+} from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { BaselineSelect } from '../../features/spec-editor/baseline-controls.js';
@@ -21,6 +27,9 @@ import { SourceView } from '../../features/spec-editor/source-view.js';
 import { TerminalHandoffCard } from '../../features/spec-editor/terminal-handoff.js';
 import { VersionDiff } from '../../features/spec-editor/version-diff.js';
 import { NextStep } from '../../features/spec-editor/next-step.js';
+import { SpecToc } from '../../features/spec-editor/spec-toc.js';
+import { dropLeadingTitle, headingElement, markdownHeadings } from '../../lib/spec-anchors.js';
+import { useMediaQuery } from '../../lib/use-media-query.js';
 import { AttachmentPanel } from '../../features/spec-editor/attachment-panel.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
@@ -227,6 +236,23 @@ function SpecDetail(): React.JSX.Element {
     void navigate({ to: '.', search: (prev) => ({ ...prev, rail: key }), replace: true });
   };
   /**
+   * **1열이면 레일은 본문 뒤에 있다**(2026-09-24 · SPEC-X1 · REQ-WEB-215). `lg` 미만에서 레일은 본문
+   * 전체 다음에 쌓여, 머리의 칩을 누르거나 `?rail=comments` 로 들어와도 펴진 탭은 수십 화면 아래였다.
+   * 그때는 탭을 펴면서 레일로 내려 준다. 2열에서는 옆에 있으니 움직이지 않는다.
+   */
+  const asideRef = useRef<HTMLElement>(null);
+  const twoColumns = useMediaQuery('(min-width: 64rem)');
+  const openRail = (key: RailTab): void => {
+    setRailTab(key);
+    if (!twoColumns) asideRef.current?.scrollIntoView?.({ block: 'start' });
+  };
+  const railLanded = useRef(false);
+  useEffect(() => {
+    if (railLanded.current || search.rail === undefined || twoColumns) return;
+    railLanded.current = true;
+    asideRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [search.rail, twoColumns]);
+  /**
    * 탭 줄의 양 끝 — 잘린 쪽을 흐려 "더 있다" 를 말한다(2026-09-08 · REQ-WEB-154).
    * 줄이 스크롤 상자가 된 뒤에도(REQ-WEB-151) 잘렸다는 **표시**가 없었다: macOS 는
    * 쉬는 동안 스크롤 막대를 숨기므로, 사람은 잘린 탭을 목록의 끝으로 읽는다.
@@ -269,6 +295,68 @@ function SpecDetail(): React.JSX.Element {
   }, [spec]);
 
   const body = String(detail.data?.['body_md'] ?? '');
+  const title = String(detail.data?.['title'] ?? spec);
+  // 뷰어만 본문 첫 줄의 같은 제목을 뺀다(OBS-04) — 소스 탭은 바이트 그대로다
+  const viewerBody = dropLeadingTitle(body, title);
+  const pastBody = dropLeadingTitle(String(pastVersion.data?.['body_md'] ?? ''), title);
+  /** 뷰어가 그리는 헤딩 — 앵커를 "몇 번째 헤딩인가" 로 푸는 기준이다(lib/spec-anchors.ts) */
+  const headings = markdownHeadings(viewing === null ? viewerBody : pastBody);
+  const router = useRouter();
+  const hash = useRouterState({ select: (s) => s.location.hash });
+  /**
+   * **앵커로 간다**(2026-09-24 · SPEC-05 · REQ-WEB-215). 목차·사전 검토 지적·코멘트 앵커·본문의
+   * `#…` 링크·들어오는 주소의 해시가 모두 이 한 길을 쓴다. 해시가 주소에 남아 그 자리를 건넬 수
+   * 있다. 본문은 나중에 그려지므로 잠깐 기다렸다가 찾는다.
+   */
+  const scrollToAnchor = (anchor: string): boolean => {
+    if (/^L\d+$/.test(anchor)) {
+      const line = document.getElementById(anchor);
+      line?.scrollIntoView({ block: 'center' });
+      return line !== null;
+    }
+    const target = headingElement(
+      document.querySelector('[data-testid="editor-content"]'),
+      headings,
+      anchor,
+    );
+    target?.scrollIntoView({ block: 'start' });
+    return target !== null;
+  };
+  const goAnchor = (anchor: string): void => {
+    void navigate({ to: '.', search: (prev) => prev, hash: anchor, replace: true });
+    scrollToAnchor(anchor);
+  };
+  useEffect(() => {
+    if (hash === '') return;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = (): void => {
+      if (scrollToAnchor(hash) || tries >= 20) return;
+      tries += 1;
+      timer = setTimeout(attempt, 100);
+    };
+    attempt();
+    return () => clearTimeout(timer);
+    // 본문이 바뀌면(다른 버전·늦게 온 본문) 다시 찾는다 — `scrollToAnchor` 가 읽는 헤딩은 이 둘에서 온다
+  }, [hash, viewerBody, pastBody, bodyTab]);
+  /**
+   * **본문 안의 앱 링크는 앱 안에서 옮긴다**(SPEC-05). 읽기 전용 본문에서는 브라우저 기본 동작이
+   * 링크를 열어 누를 때마다 앱 전체가 다시 적재됐고, 사이드바 트리의 스크롤 자리를 잃었다.
+   * 밖으로 가는 링크는 편집기가 새 탭으로 연다(editor.tsx). 수정 키를 누른 클릭은 브라우저의 것이다.
+   */
+  const onDocClick = (e: React.MouseEvent): void => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+      return;
+    const link = (e.target as HTMLElement).closest('a');
+    const href = link?.getAttribute('href') ?? '';
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      goAnchor(href.slice(1));
+    } else if (href.startsWith('/') && !href.startsWith('//') && !href.startsWith('/api/')) {
+      e.preventDefault();
+      router.history.push(href);
+    }
+  };
   // area 는 임포터가 디렉터리에서 만든 **묶음 노드**다 — 본문이 없는 것이 정상일 수 있다
   const isArea = String(detail.data?.['type'] ?? '') === 'area';
   const docStatus = String(viewed?.['doc_status'] ?? '');
@@ -528,15 +616,18 @@ function SpecDetail(): React.JSX.Element {
               <StatusBadge token="waiting" label={t('spec.recheck')} />
             </span>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            data-testid="meta-open"
-            onClick={() => setMetaOpen(true)}
-            className="ml-auto"
-          >
-            {t('spec.meta_button')}
-          </Button>
+          <span className="ml-auto flex items-center gap-1">
+            {/* 목차 — 긴 문서의 절 사이를 오간다(SPEC-05 · REQ-WEB-215) */}
+            <SpecToc headings={headings} onPick={goAnchor} />
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="meta-open"
+              onClick={() => setMetaOpen(true)}
+            >
+              {t('spec.meta_button')}
+            </Button>
+          </span>
         </div>
         {/* **이름은 화면을 떠나지 않는다**(2026-08-27 — 사람 요청). 스펙 본문은 길다
             (clemvion 실측: `data-model` 50,685px = 화면 56장). 몇 장만 내려가도 지금
@@ -581,7 +672,7 @@ function SpecDetail(): React.JSX.Element {
           canCreateTask={canCreateTask}
           submitting={submit.isPending}
           onSubmit={() => setShowImpact(true)}
-          onRail={setRailTab}
+          onRail={openRail}
         />
         {showImpact && (
           <div
@@ -713,8 +804,21 @@ function SpecDetail(): React.JSX.Element {
                     {checkLevel(t, f['severity'])}
                   </span>
                   {/* 앵커가 없는 지적은 지적이 아니다 — 어디를 고칠지 못 가리키기 때문이다 */}
+                  {/* **앵커는 그 자리로 데려간다**(SPEC-05) — 글자로만 적혀 있어 고칠 곳을 눈으로 찾았다.
+                      요구사항 ref 면 레일의 요구사항 탭이 그 자리다 */}
                   {f['anchor'] !== null && (
-                    <span className="font-mono text-text-mute">{String(f['anchor'])}</span>
+                    <button
+                      type="button"
+                      data-testid="check-anchor"
+                      onClick={() => {
+                        const anchor = String(f['anchor']);
+                        if (/^REQ-/.test(anchor)) openRail('requirements');
+                        else goAnchor(anchor);
+                      }}
+                      className="font-mono text-link hover:underline"
+                    >
+                      {String(f['anchor'])}
+                    </button>
                   )}
                   <span className="min-w-0 flex-1">{String(f['message'])}</span>
                 </li>
@@ -789,10 +893,9 @@ function SpecDetail(): React.JSX.Element {
                 {t('spec.version_current')}
               </button>
             </div>
-            <SpecEditor
-              key={`v${String(viewing)}`}
-              value={String(pastVersion.data?.['body_md'] ?? '')}
-            />
+            <div onClick={onDocClick}>
+              <SpecEditor key={`v${String(viewing)}`} value={pastBody} />
+            </div>
           </>
         )}
 
@@ -846,7 +949,9 @@ function SpecDetail(): React.JSX.Element {
         {compare === null && viewing === null && bodyTab === 'source' && <SourceView body={body} />}
 
         {compare === null && viewing === null && bodyTab === 'viewer' && (
-          <SpecEditor key={spec} value={body} />
+          <div onClick={onDocClick}>
+            <SpecEditor key={spec} value={viewerBody} />
+          </div>
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
@@ -892,7 +997,10 @@ function SpecDetail(): React.JSX.Element {
           옆으로 밀렸다(고정된 탭 줄 없이 목록만 어긋난다). 레일의 가로는 잠그고 탭 줄과
           본문이 각자 자기 안에서 민다 — 스크롤 상자가 되면 `min-height:auto` 가 0 이
           되므로 둘 다 `shrink-0` 이어야 세로로 찌그러지지 않는다. */}
-      <aside className="flex min-w-0 flex-col text-sm lg:h-full lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1">
+      <aside
+        ref={asideRef}
+        className="flex min-w-0 scroll-mt-16 flex-col text-sm lg:h-full lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
+      >
         {/* **탭이다**(시안). 버전·역참조·코멘트를 세로로 쌓으면 레일이 세 화면 길이가
             되고, 그때 코멘트는 스크롤 끝의 소문이 된다. 한 번에 하나를 보이되 수는
             탭 이름 옆에 미리 적는다 — 눌러 보기 전에 "있는지"는 알아야 한다. */}
@@ -908,10 +1016,33 @@ function SpecDetail(): React.JSX.Element {
               덮는다: 줄 자신에 마스크를 씌우면 밑줄(`border-b`)까지 흐려진다.
               그래서 `bottom-px` 로 그 1px 을 비켜 준다. */}
           <div className="relative">
+            {/* **탭 묶음이라고 말한다**(2026-09-24 · SPEC-X3 · REQ-WEB-215). 굵기와 밑줄 색으로만 지금
+                탭을 알려, 보조기기에는 이것이 탭이라는 것도 어느 것이 열렸는지도 없었다. 같은 화면의
+                본문 탭은 이미 `tablist` 였다 — 좌우 화살표로 옮긴다 */}
             <div
               ref={railTabsRef}
               data-testid="rail-tabs"
               data-edges={tabEdges}
+              role="tablist"
+              aria-label={t('spec.rail.label')}
+              onKeyDown={(e) => {
+                const order = RAIL_TABS;
+                const at = order.indexOf(railTab);
+                const next =
+                  e.key === 'ArrowRight'
+                    ? order[(at + 1) % order.length]
+                    : e.key === 'ArrowLeft'
+                      ? order[(at - 1 + order.length) % order.length]
+                      : e.key === 'Home'
+                        ? order[0]
+                        : e.key === 'End'
+                          ? order[order.length - 1]
+                          : undefined;
+                if (next === undefined) return;
+                e.preventDefault();
+                setRailTab(next);
+                document.getElementById(`spec-rail-tab-${next}`)?.focus();
+              }}
               className="flex overflow-x-auto border-b border-border"
             >
               {(
@@ -928,6 +1059,12 @@ function SpecDetail(): React.JSX.Element {
                 <button
                   key={key}
                   type="button"
+                  role="tab"
+                  id={`spec-rail-tab-${key}`}
+                  aria-selected={railTab === key}
+                  aria-controls="spec-rail-panel"
+                  aria-label={t('spec.rail.tab_label', { label, count })}
+                  tabIndex={railTab === key ? 0 : -1}
                   data-testid={`rail-tab-${key}`}
                   onClick={() => setRailTab(key)}
                   className={cn(
@@ -938,7 +1075,9 @@ function SpecDetail(): React.JSX.Element {
                   )}
                 >
                   {label}
-                  <span className="text-2xs text-text-ghost tabular-nums">{count}</span>
+                  <span aria-hidden="true" className="text-2xs text-text-ghost tabular-nums">
+                    {count}
+                  </span>
                 </button>
               ))}
             </div>
@@ -999,6 +1138,9 @@ function SpecDetail(): React.JSX.Element {
 
         <div
           data-testid="rail-body"
+          role="tabpanel"
+          id="spec-rail-panel"
+          aria-labelledby={`spec-rail-tab-${railTab}`}
           className="flex shrink-0 flex-col gap-1 overflow-x-auto pt-2.5"
         >
           {railTab === 'relations' && (
@@ -1184,6 +1326,7 @@ function SpecDetail(): React.JSX.Element {
                 specKey={spec}
                 versionId={versionId}
                 comments={rows(comments.data)}
+                onAnchor={goAnchor}
               />
             </div>
           )}
@@ -1206,7 +1349,10 @@ function CommentList({
   specKey,
   versionId,
   comments,
+  onAnchor,
 }: {
+  /** 앵커가 가리키는 본문 자리로 간다(SPEC-05 · REQ-WEB-215) */
+  onAnchor: (anchor: string) => void;
   projectSlug: string;
   specKey: string;
   versionId: string;
@@ -1243,7 +1389,14 @@ function CommentList({
         {open.map((c) => (
           <li key={String(c['id'])} className="rounded-nerv border border-border p-2">
             {/* 앵커가 코멘트의 전부다 — 위치 없는 지적은 고칠 수 없다(D-09) */}
-            <Mono>{String(c['anchor'])}</Mono>
+            <button
+              type="button"
+              data-testid="comment-anchor"
+              onClick={() => onAnchor(String(c['anchor']))}
+              className="font-mono text-2xs text-link hover:underline"
+            >
+              {String(c['anchor'])}
+            </button>
             <div className="mt-0.5 text-sm">{String(c['body_md'])}</div>
             <button
               type="button"

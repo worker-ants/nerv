@@ -37,11 +37,22 @@ export function SourceView({ body }: { body: string }): React.JSX.Element {
       >
         {copied ? t('spec.source_copied') : t('spec.source_copy')}
       </Button>
+      {/* **줄 번호가 있다**(2026-09-24 · SPEC-05 · REQ-WEB-215). 이 탭은 "거기 원문 몇 번째 줄" 을
+          주고받으려고 만든 자리인데 번호가 없었다. 번호는 CSS 카운터라 **글자가 아니다** — 복사와
+          `textContent` 에 섞이지 않는다. 줄마다 `L<n>` 이 있어 `?body=source#L120` 이 그 줄로 간다 */}
       <pre
         data-testid="source-view"
-        className="overflow-x-auto rounded-nerv border border-border bg-bg-elev p-3 pr-20 font-mono text-xs whitespace-pre-wrap"
+        className="overflow-x-auto rounded-nerv border border-border bg-bg-elev p-3 pr-20 font-mono text-xs whitespace-pre-wrap [counter-reset:line]"
       >
-        {body}
+        {body.split('\n').map((line, i) => (
+          <span
+            key={i}
+            id={`L${String(i + 1)}`}
+            className="block min-h-[1lh] scroll-mt-24 pl-12 -indent-12 [counter-increment:line] before:inline-block before:w-10 before:pr-3 before:text-right before:text-text-ghost before:content-[counter(line)] target:bg-status-waiting-soft"
+          >
+            {line}
+          </span>
+        ))}
       </pre>
     </div>
   );

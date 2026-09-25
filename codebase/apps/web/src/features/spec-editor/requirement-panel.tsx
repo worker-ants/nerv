@@ -38,14 +38,29 @@ export function RequirementPanel({
 
   if (query.isLoading) return <Skeleton className="h-16" />;
   if (items.length === 0) {
-    // 빈 상태는 **막다른 길이 아니다**(§1.5) — 무엇을 쓰면 되는지로 데려간다
+    // 빈 상태는 **막다른 길이 아니다**(§1.5) — 무엇을 쓰면 되는지로 데려간다.
+    //
+    // **왜 비었는지를 가른다**(2026-09-24 · SPEC-14 · REQ-WEB-215). 요구사항 행은 **승인될 때** 본문의
+    // EARS 줄에서 만들어진다 — 한 번도 승인된 적 없는 초안은 본문에 줄이 열 개 있어도 "이 버전에는
+    // 요구사항 블록이 없습니다" 를 받았다. 그리고 줄의 형식은 에이전트용 스킬에만 있었다: 여기서 한 줄로
+    // 보이고, 예 셋은 매뉴얼의 요구사항 절에 있다
+    const neverApproved = version !== undefined && version.status !== 'approved';
     return (
-      <p className="px-2 py-3 text-sm text-text-faint">
-        {t('spec.requirements.empty')}{' '}
-        <Link to="/help/$chapter" params={{ chapter: 'specs' }} className="text-link underline">
-          {t('spec.requirements.ears_help')}
+      <div data-testid="requirements-empty" className="flex flex-col gap-1.5 px-2 py-3 text-sm">
+        <p className="text-text-faint">
+          {neverApproved ? t('spec.requirements.empty_draft') : t('spec.requirements.empty')}
+        </p>
+        <code className="rounded-nerv-sm bg-bg-sunken px-1.5 py-1 font-mono text-2xs text-text-mute">
+          {t('spec.requirements.format')}
+        </code>
+        <Link
+          to="/help/$chapter"
+          params={{ chapter: 'specs' }}
+          className="text-2xs text-link hover:underline"
+        >
+          {t('spec.requirements.ears_help')} ▸
         </Link>
-      </p>
+      </div>
     );
   }
 
