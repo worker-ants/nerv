@@ -387,6 +387,9 @@ export const en = {
   'spec.check.level.warning': 'Warning',
   'spec.check.level.info': 'Note',
   'spec.handoff.install': 'If the plugin is not installed yet',
+  'spec.toc': 'Contents',
+  'spec.rail.label': 'Document rail',
+  'spec.rail.tab_label': '{label}, {count}',
   'reviews.expand': 'Expand',
   'reviews.action.spec_change': 'Spec fix',
   'reviews.resolve.spec': 'Corrected spec',
@@ -519,7 +522,11 @@ export const en = {
   'spec.requirements.ears_help': 'EARS pattern guide',
   'spec.requirements.derive_task': 'Create a task from this requirement',
   'spec.requirements.derive_disabled': 'Not an approved version — cannot derive',
-  'spec.requirements.empty': 'This version has no requirement block.',
+  'spec.requirements.empty': 'The approved version of this document has no requirement lines.',
+  'spec.requirements.empty_draft':
+    'Requirements are created from the requirement lines in the body when it is approved — this document has never been approved.',
+  'spec.requirements.format':
+    '- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>',
   'spec.requirements.no_priority': 'no priority',
   'specs.baseline': 'Baseline',
   'specs.baseline_current': 'No baseline',

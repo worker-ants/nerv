@@ -10,7 +10,7 @@
 //      전 버전 임베딩은 비용 대비 무가치다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { newId } from '@nerv/schema';
+import { headingSlug, newId } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
@@ -282,18 +282,8 @@ export class EmbeddingService {
   }
 }
 
-/** 헤딩 → slug. 코멘트 앵커와 같은 규약이다(D-09 · screens.md §3.3). */
-export function slugify(heading: string): string {
-  return (
-    heading
-      .toLowerCase()
-      // `_` 는 지우지 않는다 — 이 저장소의 헤딩에는 `nerv_spec_get` 같은 식별자가 흔하고,
-      // 밑줄을 지우면 앵커가 원문에 없는 문자열이 된다(강조 표기보다 식별자가 우선이다).
-      .replace(/[`*~[\]()]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/[^\p{L}\p{N}_-]/gu, '')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  );
-}
+/**
+ * 헤딩 → slug. 코멘트 앵커와 같은 규약이다(D-09 · screens.md §3.3). 정본은 `@nerv/schema` 의
+ * `headingSlug` 다 — 화면이 본문의 앵커로 데려가려면 같은 함수를 써야 한다(REQ-WEB-215).
+ */
+export const slugify = headingSlug;

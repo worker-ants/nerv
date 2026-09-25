@@ -129,6 +129,16 @@ What stays on the web is **what a person does**: requesting review, approving, m
 
 **In a project with no specs at all**, the spec list shows how to start — `claude "/nerv:spec new"` to run in a terminal (with a copy button), **the install guide and issuing a token** if no agent is connected yet, and the CLI importer if you already have documents ("Importing documents" in the [Agents](/help/agents) chapter). The tree in the sidebar sends you there in one line. A role that cannot draft specs (viewer) sees who writes them instead of the command.
 
+## Getting around a long document
+
+- **[Contents ▾]** in the meta row takes you to a section (`##`·`###`). It appears only when a document has two sections or more.
+- **Anchors take you to their section when pressed** — the anchor on a pre-review finding, on a comment, and `#…` links inside the body alike. A finding that points at a requirement number (`REQ-…`) opens the Requirements tab in the rail.
+- Where you went stays in **the address's `#…`**, so you can pass it on. Both a heading slug (`#3-gameplay`) and a section number (`#3`) work — a section link like `…/specs/SUD-AREA-PLAY#3` that an agent puts in the body lands on that section.
+- Links to other specs inside the body move **within the app** (the page does not reload). Links that leave the app open in a new tab.
+- If the body's first line is a `# Title` identical to the document title, the reader does not draw it — so the title does not appear twice. It is still there in the Source tab and the original.
+- Lines in the Source tab have **numbers**. The numbers are not copied, and `#L120` at the end of the address takes you to that line.
+- When the window is narrow and the rail sits below the body, pressing a chip at the top or arriving with a `?rail=…` address **scrolls you down to the rail.** The rail tabs move with the left and right arrow keys.
+
 ## Two ways to look at the body
 
 The **Reader / Source** tabs above the body choose how you look at it.
@@ -163,6 +173,16 @@ What the confirmation dialog counts before you submit is not comments but **how 
 ## Requirements
 
 Requirements in a spec body are extracted and carry their own implementation status: `unimplemented` → `in_progress` → `implemented` → `verified`. Priorities are `must` · `should` · `could`.
+
+**A requirement is one line in the body.** There is a single format — `- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>`. The sentence starts with one of WHEN · WHILE · IF.
+
+```text
+- REQ-CWC-031 WHEN a visitor opens the widget for the first time THE SYSTEM SHALL restore the previous conversation
+- REQ-CWC-032 WHILE the connection is down THE SYSTEM SHALL queue outgoing messages
+- REQ-CWC-033 IF the conversation to restore is older than 30 days THE SYSTEM SHALL start a new one
+```
+
+The agent takes the number from the server, so nobody counts them by hand. **Requirement rows are created from these lines when the document is approved** — which is why the Requirements tab of a draft that was never approved is empty. Lines that break the format show up as warnings in the pre-review.
 
 **Progress** on the project screen counts these statuses. Of its five numbers, the last two are the point of the screen.
 

@@ -55,7 +55,17 @@ export const EDITOR_EXTENSIONS = [
   StarterKit.configure({ link: false, codeBlock: false }),
   Link.extend({
     renderHTML(props) {
-      const patched = { ...props, HTMLAttributes: withApiOrigin(props.HTMLAttributes, 'href') };
+      const attrs = withApiOrigin(props.HTMLAttributes, 'href');
+      // **밖으로 가는 링크는 새 탭이다**(2026-09-24 · SPEC-05 · REQ-WEB-215). 앱 안 링크(`/p/…`·`#…`)는
+      // 라우트가 가로채 앱을 다시 적재하지 않고 옮긴다 — 그 판정은 화면 쪽에 있다(specs.$spec.tsx)
+      const href = typeof attrs['href'] === 'string' ? attrs['href'] : '';
+      const external = /^https?:\/\//.test(href);
+      const patched = {
+        ...props,
+        HTMLAttributes: external
+          ? { ...attrs, target: '_blank', rel: 'noopener noreferrer' }
+          : attrs,
+      };
       return this.parent?.(patched) ?? ['a', patched.HTMLAttributes, 0];
     },
   }).configure({
@@ -129,7 +139,8 @@ export function SpecEditor({ value }: SpecEditorProps): React.JSX.Element {
     <EditorContent
       editor={editor}
       data-testid="editor-content"
-      className="prose-nerv min-h-[40vh] px-0 py-1 [&_.ProseMirror]:outline-none"
+      // 앵커로 스크롤한 헤딩이 **고정 제목 뒤에 숨지 않게** 위 여백을 둔다(REQ-WEB-215)
+      className="prose-nerv min-h-[40vh] px-0 py-1 [&_.ProseMirror]:outline-none [&_:is(h1,h2,h3,h4,h5,h6)]:scroll-mt-28"
     />
   );
 }
