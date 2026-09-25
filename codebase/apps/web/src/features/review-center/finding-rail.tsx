@@ -23,6 +23,10 @@ import { useT } from '../../lib/i18n.js';
 import { relativeTime } from '../../lib/format.js';
 import type { Row } from '../../lib/queries.js';
 import type { ProjectId } from '../../lib/query-keys.js';
+import { ResolveDialog } from './resolve-dialog.js';
+import type { ResolveAction } from './resolve-dialog.js';
+
+const ACTIONS = ['fixed', 'spec_change', 'dismissed', 'wont_fix'] as const;
 
 export function FindingRail({
   finding,
@@ -30,6 +34,9 @@ export function FindingRail({
   projectId,
   canResolve,
   canPromote,
+  resolveAction = null,
+  onResolve,
+  onResolveDone,
 }: {
   finding: Row;
   projectSlug: string;
@@ -38,6 +45,14 @@ export function FindingRail({
   canResolve: boolean;
   /** 승격은 작업을 만드는 일이라 `task:update` 가 기준이다(처분과 다른 축) */
   canPromote: boolean;
+  /**
+   * 열린 처분 폼 — **읽은 자리에서 처분한다**(2026-09-25 — UI/UX 검토 WORK-12 · REQ-WEB-222). 레일에서
+   * 전문과 코멘트를 읽은 QA 가 처분하려면 가운데 큐로 눈을 옮겨 같은 카드를 다시 찾아야 했고, 폼도
+   * 그 카드 아래에 열렸다. 카드의 단추를 눌러도 폼은 여기 열린다(화면이 상태를 쥔다).
+   */
+  resolveAction?: ResolveAction | null;
+  onResolve?: (action: ResolveAction) => void;
+  onResolveDone?: () => void;
 }): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
@@ -115,6 +130,41 @@ export function FindingRail({
         </span>
       </div>
       <h2 className="text-sm font-medium text-text">{String(finding['title'])}</h2>
+
+      {status === 'open' && onResolve !== undefined && (
+        <section data-testid="rail-resolve" aria-label={t('reviews.rail.resolve')}>
+          <div className="flex flex-wrap gap-1.5">
+            {ACTIONS.map((action) => (
+              <button
+                key={action}
+                type="button"
+                data-testid={`rail-resolve-${action}`}
+                aria-pressed={resolveAction === action}
+                disabled={!canResolve}
+                title={
+                  canResolve
+                    ? t(`reviews.action.${action}_hint` as 'reviews.action.fixed_hint')
+                    : t('reviews.no_permission')
+                }
+                onClick={() => onResolve(action)}
+                className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute transition-colors hover:border-border-strong hover:text-text disabled:cursor-not-allowed disabled:opacity-60 aria-pressed:border-border-strong aria-pressed:bg-bg-active aria-pressed:text-text"
+              >
+                {t(`reviews.action.${action}` as 'reviews.action.fixed')}
+              </button>
+            ))}
+          </div>
+          {resolveAction !== null && (
+            <ResolveDialog
+              key={resolveAction}
+              projectSlug={projectSlug}
+              projectId={projectId}
+              finding={finding}
+              action={resolveAction}
+              onDone={() => onResolveDone?.()}
+            />
+          )}
+        </section>
+      )}
 
       {/* 카드가 자르는 것들 — 여기서는 자르지 않는다 */}
       <dl className="flex flex-col gap-1.5 text-2xs">

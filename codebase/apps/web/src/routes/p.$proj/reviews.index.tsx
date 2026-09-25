@@ -13,10 +13,10 @@ import { useEffect, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
 import { FindingRail } from '../../features/review-center/finding-rail.js';
 import { GateCoverage } from '../../features/review-center/gate-coverage.js';
-import { ResolveDialog } from '../../features/review-center/resolve-dialog.js';
 import type { ResolveAction } from '../../features/review-center/resolve-dialog.js';
 import { useT } from '../../lib/i18n.js';
 import { rows, useFindings, useGateCoverage, useMe, useProject } from '../../lib/queries.js';
+import type { Row } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useMediaQuery } from '../../lib/use-media-query.js';
@@ -166,6 +166,52 @@ function ReviewCenter(): React.JSX.Element {
   // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 200 에서 끝나지 않는다(REQ-API-083)
   const items = (queue.data?.pages ?? []).flatMap((page) => page.items);
   const selected = items.find((f) => String(f['id']) === selectedId) ?? null;
+  /** 레일의 처분 폼 — 고른 발견의 것만 연다(다른 발견을 고르면 닫힌다) */
+  const railResolve = (
+    finding: Row,
+  ): {
+    resolveAction: ResolveAction | null;
+    onResolve: (action: ResolveAction) => void;
+    onResolveDone: () => void;
+  } => ({
+    resolveAction: resolving?.id === String(finding['id']) ? resolving.action : null,
+    onResolve: (action) => setResolving({ id: String(finding['id']), action }),
+    onResolveDone: () => setResolving(null),
+  });
+  /**
+   * **j/k 로 큐를 훑는다**(2026-09-25 — UI/UX 검토 WORK-12 · REQ-WEB-222). 받은 요청·보드 시트와 같은
+   * 키다. 입력 칸 안에서는 듣지 않는다 — 코멘트에 `j` 를 쓰다가 다른 발견으로 넘어가면 안 된다.
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'j' && e.key !== 'k') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target !== null &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
+      )
+        return;
+      if (items.length === 0) return;
+      const at = items.findIndex((f) => String(f['id']) === selectedId);
+      const next =
+        at < 0 ? 0 : Math.min(items.length - 1, Math.max(0, at + (e.key === 'j' ? 1 : -1)));
+      const nextId = String(items[next]!['id']);
+      if (nextId === selectedId) return;
+      e.preventDefault();
+      select(nextId);
+      // 고른 카드로 눈과 포커스가 간다 — 다음 Enter·Tab 이 그 카드에서 시작한다
+      const card = document.querySelector(`[data-finding-id="${CSS.escape(nextId)}"]`);
+      if (card instanceof HTMLElement) {
+        card.scrollIntoView?.({ block: 'nearest' });
+        card.querySelector<HTMLElement>('[data-testid="finding-select"]')?.focus({
+          preventScroll: true,
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [items, selectedId]);
   // **주소가 가리키는데 큐에 없을 수 있다** — 이미 처분돼서 기본 필터(열림)에서 빠진
   // 경우다. 그때 빈 화면을 주지 않고 상태 필터를 푼다(한 번만).
   const [widened, setWidened] = useState(false);
@@ -377,19 +423,12 @@ function ReviewCenter(): React.JSX.Element {
                     canResolve={canResolve}
                     selected={selectedId === String(finding['id'])}
                     onSelect={(f) => select(String(f['id']))}
-                    onResolve={(f, action) => setResolving({ id: String(f['id']), action })}
+                    // **카드의 단추는 레일을 연다**(REQ-WEB-222) — 폼은 전문과 코멘트가 있는 레일에 선다
+                    onResolve={(f, action) => {
+                      select(String(f['id']));
+                      setResolving({ id: String(f['id']), action });
+                    }}
                   />
-                  {resolving?.id === String(finding['id']) && (
-                    <div className="px-4 pb-3">
-                      <ResolveDialog
-                        projectSlug={proj}
-                        projectId={id}
-                        finding={finding}
-                        action={resolving.action}
-                        onDone={() => setResolving(null)}
-                      />
-                    </div>
-                  )}
                   {/* 곁레일이 서지 않는 폭에서는 고른 하나를 **그 카드 아래에서** 편다 —
                       좁은 화면으로 옮겨 갔다는 이유로 볼 수 있는 것이 줄면 그 접힘은
                       향상이 아니라 손실이다(§2.6 REQ-WEB-142 가 세션에서 적은 그 문장이다) */}
@@ -404,6 +443,7 @@ function ReviewCenter(): React.JSX.Element {
                         projectId={id}
                         canResolve={canResolve}
                         canPromote={canPromote}
+                        {...railResolve(finding)}
                       />
                     </div>
                   )}
@@ -447,6 +487,7 @@ function ReviewCenter(): React.JSX.Element {
                 projectId={id}
                 canResolve={canResolve}
                 canPromote={canPromote}
+                {...railResolve(selected)}
               />
             </div>
           </aside>

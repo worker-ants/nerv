@@ -69,7 +69,24 @@ export function SessionCard({
       {/* 신원 3요소는 **한 덩어리**다 — 흩어 놓으면 매번 다시 모아 읽어야 한다(REQ-WEB-019) */}
       <div className="min-w-32 flex-1 @2xl:w-40 @2xl:flex-none">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{card.user_name}</span>
+          {/* **키보드로도 고른다**(2026-09-25 — UI/UX 검토 WORK-12 · REQ-WEB-222). 줄은 `article` 의 클릭으로만
+              골라져 포커스가 닿지 않았다 — 좁은 폭의 길(상세 링크 · REQ-WEB-142)은 그대로 둔다 */}
+          {onSelect === undefined ? (
+            <span className="truncate text-sm font-medium">{card.user_name}</span>
+          ) : (
+            <button
+              type="button"
+              data-testid="session-select"
+              aria-current={selected === true ? 'true' : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect();
+              }}
+              className="truncate text-left text-sm font-medium hover:underline"
+            >
+              {card.user_name}
+            </button>
+          )}
           <span className="truncate font-mono text-2xs text-text-mute">{card.hostname}</span>
         </div>
         <div className="mt-0.5 text-2xs text-text-faint">{card.agent_type}</div>

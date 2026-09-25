@@ -272,7 +272,8 @@ describe('S6 처분 — 근거 없는 처분은 없다 (REQ-WEB-064)', () => {
   it('근거가 비면 보낼 수 없고, 채우면 보낼 수 있다', async () => {
     await renderCenter();
     fireEvent.click(screen.getAllByTestId('resolve-dismissed')[0]!);
-    const dialog = within(screen.getByTestId('resolve-dialog'));
+    // 폼은 카드 아래가 아니라 **레일에** 열린다 — 발견을 고른 뒤라 한 박자 늦다(REQ-WEB-222)
+    const dialog = within(await screen.findByTestId('resolve-dialog'));
     const submit = dialog.getByText('처분').closest('button') as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
 
@@ -286,7 +287,7 @@ describe('S6 처분 — 근거 없는 처분은 없다 (REQ-WEB-064)', () => {
   it('fixed 는 커밋까지 있어야 한다 — 검증 가능한 사실만 통과한다', async () => {
     await renderCenter();
     fireEvent.click(screen.getAllByTestId('resolve-fixed')[0]!);
-    const dialog = within(screen.getByTestId('resolve-dialog'));
+    const dialog = within(await screen.findByTestId('resolve-dialog'));
     fireEvent.change(dialog.getByTestId('resolve-rationale'), { target: { value: '고쳤다' } });
     const submit = dialog.getByText('처분').closest('button') as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
@@ -298,7 +299,9 @@ describe('S6 처분 — 근거 없는 처분은 없다 (REQ-WEB-064)', () => {
   it('dismissed 에는 커밋 칸이 없다 — 요구하지 않는 것을 묻지 않는다', async () => {
     await renderCenter();
     fireEvent.click(screen.getAllByTestId('resolve-dismissed')[0]!);
-    expect(within(screen.getByTestId('resolve-dialog')).queryByTestId('resolve-commit')).toBeNull();
+    expect(
+      within(await screen.findByTestId('resolve-dialog')).queryByTestId('resolve-commit'),
+    ).toBeNull();
   });
 });
 
