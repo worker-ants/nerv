@@ -13,14 +13,13 @@ import {
   inboxTotal,
   lockedCard,
   rows,
-  useCoverage,
   useInbox,
   useMe,
   useMembers,
 } from '../lib/queries.js';
 import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
-import { EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
+import { EmptyState, Skeleton } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
 import { EventFeed } from '../components/event-feed.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
@@ -45,7 +44,6 @@ function HomeScreen(): React.JSX.Element {
   const primary = scope.project;
   const primarySlug = scope.projectSlug ?? '';
   const primaryId = asProjectId(primary?.['id']);
-  const coverage = useCoverage(primarySlug, primaryId);
 
   // **내가 누를 수 있는 것만**(2026-09-24 사람 결정 D2 · REQ-WEB-217). 인사말의 "결정 N건" 과
   // 오늘 할 일에 내가 요청했거나 쓴 카드가 섞이면, 그 줄을 눌러도 승인 단추는 잠겨 있고
@@ -67,8 +65,6 @@ function HomeScreen(): React.JSX.Element {
   const isOrgAdmin = canManageScope(me.data, scope.orgSlug, null);
   const noProjects = scope.projectsLoaded && scope.projects.length === 0;
   const members = useMembers(noProjects && !isOrgAdmin ? scope.orgSlug : null);
-  const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
-  const reqTotal = Number(totals['total'] ?? 0);
 
   /**
    * **소속이 없으면 여기는 빈 방이다** — 온보딩으로 보낸다(REQ-WEB-006 · REQ-WEB-188).
@@ -195,66 +191,24 @@ function HomeScreen(): React.JSX.Element {
             />
           </section>
 
-          {/* 프로젝트 상태 — 시안의 오른쪽 292px 열 */}
-          {primary !== undefined && (
-            <section className="w-full shrink-0 md:w-[292px]">
-              <Link
-                to="/p/$proj"
-                params={{ proj: primarySlug }}
-                className="mb-2.5 block text-lg font-[650] tracking-[-0.012em] hover:text-link"
-              >
-                {String(primary['name'])}
-              </Link>
-
-              <div className="overflow-hidden rounded-[9px] border border-border">
-                {/* **숫자를 누르면 그 숫자를 만든 레코드로 간다**(ui-wireframes §1 · REQ-WEB-210) —
-                    셋 다 눌리지 않는 글자였다 */}
-                <StatRow
-                  label={t('home.stat.requirements')}
-                  value={reqTotal}
-                  link={{ to: '/p/$proj/specs', params: { proj: primarySlug } }}
-                  testId="stat-requirements"
+          {/* **내 프로젝트** — 시안의 오른쪽 292px 열(2026-09-25 — UI/UX 검토 HUB-06 · REQ-WEB-220).
+              헤더가 고른 **한 프로젝트**의 상태만 비추던 자리다 — 프로젝트 셋에 속한 사람은 나머지 둘에서
+              세션이 멈췄는지 무엇이 위험한지를 프로젝트를 바꿔 가며 열어 봐야 알았다. 명세(§2.2 "내 프로젝트
+              카드")와 시안(ui-wireframes §2.1)은 처음부터 목록이었다. 커버리지는 개요(S2)가 갖는다 */}
+          <section data-testid="home-projects" className="w-full shrink-0 md:w-[292px]">
+            <div className="mb-2.5 text-lg font-[650] tracking-[-0.012em]">
+              {t('home.my_projects')}
+            </div>
+            <ul className="overflow-hidden rounded-[9px] border border-border">
+              {scope.projects.map((project) => (
+                <ProjectRow
+                  key={String(project['id'])}
+                  project={project}
+                  current={project['slug'] === primarySlug}
                 />
-                <StatRow
-                  label={t('home.active_sessions')}
-                  value={Number(primary['active_sessions'] ?? 0)}
-                  tone={Number(primary['active_sessions'] ?? 0) > 0 ? 'progress' : undefined}
-                  link={{ to: '/p/$proj/sessions', params: { proj: primarySlug } }}
-                  testId="stat-sessions"
-                />
-                <StatRow
-                  label={t('home.pending_approvals')}
-                  value={Number(primary['pending_approvals'] ?? 0)}
-                  tone={Number(primary['pending_approvals'] ?? 0) > 0 ? 'waiting' : undefined}
-                  link={{ to: '/inbox' }}
-                  testId="stat-approvals"
-                  last
-                />
-              </div>
-
-              {/* 커버리지 — 원자료가 있을 때만 그린다(EP-COV-01 은 MVP 에서 원자료다).
-                0/0 짜리 막대는 "0%" 라는 거짓 신호를 만든다 */}
-              {reqTotal > 0 && (
-                <>
-                  <SectionLabel className="mt-6 mb-2.5">{t('home.coverage')}</SectionLabel>
-                  <div className="flex flex-col gap-[11px]">
-                    <CoverageBar
-                      label={t('home.coverage.implemented')}
-                      part={Number(totals['implemented'] ?? 0)}
-                      whole={reqTotal}
-                      barClass="bg-status-done"
-                    />
-                    <CoverageBar
-                      label={t('home.coverage.verified')}
-                      part={Number(totals['verified'] ?? 0)}
-                      whole={reqTotal}
-                      barClass="bg-status-ok"
-                    />
-                  </div>
-                </>
-              )}
-            </section>
-          )}
+              ))}
+            </ul>
+          </section>
         </div>
       )}
     </div>
@@ -362,70 +316,69 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
   );
 }
 
-/** 상태 표의 한 줄 — 시안의 라벨 12.5 / 값 13.5·600 */
-function StatRow({
-  label,
-  value,
-  tone,
-  last,
-  link,
-  testId,
+/**
+ * 내 프로젝트 한 줄 — 이름(개요로) 과 숫자 셋. **숫자를 누르면 그 숫자를 만든 레코드로 간다**
+ * (ui-wireframes §1 · REQ-WEB-210). 0 은 흐리게 둔다 — 0 이 눈에 띄면 매번 "뭐가 문제지" 를 본다.
+ */
+function ProjectRow({
+  project,
+  current,
 }: {
-  label: string;
-  value: number;
-  tone?: 'progress' | 'waiting' | undefined;
-  last?: boolean;
-  /** 이 숫자를 만든 레코드가 있는 곳 */
-  link: { to: '/p/$proj/specs' | '/p/$proj/sessions'; params: { proj: string } } | { to: '/inbox' };
-  testId: string;
+  project: Record<string, unknown>;
+  /** 헤더가 고른 프로젝트 — 왼쪽 최근 활동이 비추는 그것이다 */
+  current: boolean;
 }): React.JSX.Element {
+  const t = useT();
+  const slug = String(project['slug']);
+  const sessions = Number(project['active_sessions'] ?? 0);
+  const approvals = Number(project['pending_approvals'] ?? 0);
+  const critical = Number(project['open_critical_findings'] ?? 0);
+  const num = (value: number, tone: string): string =>
+    cn('font-semibold tabular-nums', value === 0 ? 'text-text-faint' : tone);
   return (
-    <Link
-      {...link}
-      data-testid={testId}
-      className={cn(
-        'flex items-center justify-between px-3.5 py-[11px] hover:bg-bg-hover',
-        last !== true && 'border-b border-border',
-      )}
+    <li
+      data-testid="home-project"
+      data-current={current || undefined}
+      className="border-b border-border px-3.5 py-[11px] last:border-b-0 data-[current=true]:bg-bg-sunken"
     >
-      <span className="text-sm text-text-mute">{label}</span>
-      <span
-        className={cn(
-          'text-base font-semibold tracking-[-0.01em] tabular-nums',
-          tone === 'progress' && 'text-status-progress',
-          tone === 'waiting' && 'text-status-waiting',
-        )}
+      <Link
+        to="/p/$proj"
+        params={{ proj: slug }}
+        className="block truncate text-sm font-medium hover:text-link"
       >
-        {value}
-      </span>
-    </Link>
-  );
-}
-
-/** 진행 막대 — 시안 5px. 수치는 막대 위에 텍스트로도 적는다(색만으로 말하지 않는다) */
-function CoverageBar({
-  label,
-  part,
-  whole,
-  barClass,
-}: {
-  label: string;
-  part: number;
-  whole: number;
-  barClass: string;
-}): React.JSX.Element {
-  const pct = whole <= 0 ? 0 : Math.round((part / whole) * 100);
-  return (
-    <div>
-      <div className="mb-[5px] flex items-baseline justify-between">
-        <span className="text-sm text-text">{label}</span>
-        <span className="text-xs text-text-faint tabular-nums">
-          {part} / {whole}
-        </span>
+        {String(project['name'] ?? slug)}
+      </Link>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-text-mute">
+        <Link
+          to="/p/$proj/sessions"
+          params={{ proj: slug }}
+          data-testid="home-project-sessions"
+          className="hover:text-link"
+        >
+          {t('home.project.sessions')}{' '}
+          <span className={num(sessions, 'text-status-progress')}>{sessions}</span>
+        </Link>
+        {/* 이 프로젝트의 **결정되지 않은 결재 전체**다 — 남의 큐까지. 내 차례는 위의 오늘 할 일이 센다 */}
+        <Link
+          to="/inbox"
+          data-testid="home-project-approvals"
+          title={t('home.project.approvals_hint')}
+          className="hover:text-link"
+        >
+          {t('home.project.approvals')}{' '}
+          <span className={num(approvals, 'text-status-waiting')}>{approvals}</span>
+        </Link>
+        <Link
+          to="/p/$proj/reviews"
+          params={{ proj: slug }}
+          search={{ severity: 'critical' }}
+          data-testid="home-project-critical"
+          className="hover:text-link"
+        >
+          {t('home.project.critical')}{' '}
+          <span className={num(critical, 'text-status-danger')}>{critical}</span>
+        </Link>
       </div>
-      <div className="h-[5px] overflow-hidden rounded-[3px] bg-status-idle">
-        <div className={cn('h-full rounded-[3px]', barClass)} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
+    </li>
   );
 }

@@ -113,7 +113,9 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   // **그 요청의 알림도 함께 닫힌다**(REQ-API-176) — 알림 목록과 배지도 되읽는다. 빠뜨리면 받은
   // 요청 배지만 줄고 알림 배지는 새로고침 전까지 그대로다
   [E.APPROVAL_DECIDED]: () => [queryKeys.inbox(), queryKeys.myNotifications()],
-  [E.QUESTION_CREATED]: inboxAxis,
+  // **질문은 그 세션을 멈춘다**(awaiting_input) — 세션 보드·개요의 "사람을 기다림" 이 함께 바뀐다.
+  // 답변·취소는 세션을 되읽는데 묻는 쪽만 빠져 있었다(2026-09-25 · REQ-WEB-219)
+  [E.QUESTION_CREATED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
   [E.QUESTION_ANSWERED]: (e) => [
     queryKeys.inbox(),
     queryKeys.myNotifications(),
@@ -187,6 +189,79 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
  * 남은 것은 `cr.opened` 뿐이고, CR 델타 화면(FR-04)은 Phase 2 의 다른 조각이다.
  */
 export const NO_SCREEN_YET: readonly NervEventName[] = [P2.CR_OPENED];
+
+/**
+ * **프로젝트의 머리가 세는 수를 바꾸는 이벤트**(2026-09-25 — UI/UX 검토 HUB-X2 · REQ-WEB-219).
+ *
+ * 사이드바의 세션·리뷰 배지는 프로젝트 조회(`useProject(slug)`)의 `active_sessions`·
+ * `open_critical_findings` 를 읽는데, 그 키는 **slug 축**(`projectBySlug`)이라 아래 매핑(전부 id
+ * 축)이 한 번도 닿지 않았다 — 셸은 화면을 옮겨도 마운트된 채라 세션이 끝나도 배지가 그대로였고,
+ * 같은 순간 세션 화면과 개요는 이벤트로 갱신돼 두 자리가 다른 수를 말했다. 홈과 헤더 선택기가
+ * 읽는 조직의 프로젝트 목록(`['org', slug, 'projects', …]`)도 같은 수를 든다.
+ */
+const HEAD_EVENTS: ReadonlySet<NervEventName> = new Set<NervEventName>([
+  E.SESSION_STARTED,
+  E.SESSION_STALE,
+  E.SESSION_COMPLETE,
+  E.APPROVAL_REQUESTED,
+  E.APPROVAL_DECIDED,
+  E.PROJECT_UPDATED,
+  E.PROJECT_ARCHIVED,
+  E.PROJECT_RESTORED,
+  // 홈은 프로젝트 룸에 붙지 않는다(§2.2) — 개인 룸으로 오는 이 방송이 홈의 수를 되읽는 길이다
+  E.NOTIFICATION_CREATED,
+  P2.REVIEW_SUBMITTED as unknown as NervEventName,
+  P2.FINDING_OPENED as unknown as NervEventName,
+  P2.FINDING_RESOLVED as unknown as NervEventName,
+]);
+
+/** 쿼리 하나 — 판정에 쓰는 것은 키와 받아 둔 값뿐이다 */
+export interface QueryLike {
+  queryKey: readonly unknown[];
+  state: { data?: unknown };
+}
+
+/**
+ * 이 이벤트가 되읽게 하는 **머리** — 키로는 닿지 않아 술어로 고른다.
+ *
+ * slug 축 프로젝트 조회는 받아 둔 값의 `id` 가 봉투의 `project_id` 와 같을 때만 고른다(다른
+ * 프로젝트의 머리를 흔들지 않는다). 조직의 프로젝트 목록은 프로젝트마다 수를 들고 있어 통째로
+ * 되읽는다. 머리를 바꾸지 않는 이벤트면 `null` 이다.
+ */
+export function headPredicateFor(event: NervEventEnvelope): ((query: QueryLike) => boolean) | null {
+  if (!HEAD_EVENTS.has(event.type)) return null;
+  return (query) => {
+    const [root, second, third] = query.queryKey;
+    if (root === 'org') return third === 'projects';
+    if (root !== 'project' || query.queryKey.length !== 2 || typeof second !== 'string')
+      return false;
+    const data = query.state.data;
+    return (
+      typeof data === 'object' &&
+      data !== null &&
+      (data as Record<string, unknown>)['id'] === event.project_id
+    );
+  };
+}
+
+/**
+ * **어느 이벤트든 그 프로젝트의 피드를 되읽는다**(2026-09-25 — UI/UX 검토 HUB-12 · REQ-WEB-219).
+ *
+ * 명세는 "이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회" 라 적는데(§2.3), 피드 키를 건드리는
+ * 것은 감사 축 이벤트뿐이었다 — 개요를 띄워 둔 사이 에이전트가 작업을 클레임하고 스펙을 제출해도
+ * 최근 활동은 그대로였다(연결 중에는 폴링도 꺼져 있다). 표를 줄마다 고치지 않고 **규칙 한 줄**로
+ * 둔다: 매핑이 있는 이벤트면 피드도 낡았다. 커버리지는 요구사항의 상태를 바꾸는 둘에도 건다 —
+ * 증적(`evidence.added`)에만 걸려 있었다.
+ */
+export function sharedKeysFor(event: NervEventEnvelope): NervQueryKey[] {
+  if (MAP[event.type] === undefined || event.project_id === '') return [];
+  const projectId = event.project_id as ProjectId;
+  const keys: NervQueryKey[] = [queryKeys.projectEvents(projectId)];
+  if (event.type === E.SPEC_APPROVED || event.type === E.TASK_DONE) {
+    keys.push([...queryKeys.project(projectId), 'coverage']);
+  }
+  return keys;
+}
 
 /** 이 이벤트를 받으면 어떤 쿼리를 다시 읽어야 하는가. 모르는 이벤트면 빈 배열이다. */
 export function invalidationKeysFor(event: NervEventEnvelope): NervQueryKey[] {

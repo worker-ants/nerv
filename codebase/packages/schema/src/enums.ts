@@ -199,6 +199,17 @@ export const sessionState = pgEnum('session_state', [
   'error',
   'stale',
 ]);
+/**
+ * **"활성 세션" 의 정의는 하나다**(2026-09-25 — UI/UX 검토 HUB-10 · REQ-WEB-219) — 끝나지 않은 세
+ * 상태. 홈·사이드바는 이 셋을 셌는데 프로젝트 개요는 상태 없이 세어, 모든 세션이 끝난 프로젝트를
+ * "활성 세션 40개" 라 부르면서 사이드바는 0 이라 말했다. 세는 자리는 모두 이 목록을 쓴다.
+ */
+export const ACTIVE_SESSION_STATES = [
+  'pending',
+  'active',
+  'awaiting_input',
+] as const satisfies readonly (typeof sessionState.enumValues)[number][];
+export type ActiveSessionState = (typeof ACTIVE_SESSION_STATES)[number];
 export const sessionEndReason = pgEnum('session_end_reason', [
   'complete',
   'error',

@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.62 · 2026-09-25 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.63 · 2026-09-25 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.63 변경(2026-09-25 — 홈이 한 프로젝트만 비췄고 "활성" 의 정의가 화면마다 달랐다, UI/UX 검토 P10b): **REQ-API-185 신설 · EP-PRJ-01 응답 칸.** 조직의 프로젝트 목록은 활성 세션과 미결 결재를 이미 실었지만 critical 발견은 단건(EP-PRJ-03)에만 있어, 홈은 헤더가 고른 한 프로젝트밖에 비출 수 없었다 — 목록도 `open_critical_findings` 를 싣는다. 두 표면의 활성 세션 수는 `@nerv/schema` 의 `ACTIVE_SESSION_STATES`(끝나지 않은 셋) 한 벌로 센다 — 개요는 상태 없이 세어 끝난 세션을 "활성" 이라 불렀다([4.5](screens.md) REQ-WEB-219·220).
 >
 > v1.62 변경(2026-09-25 — 배지가 내가 누를 수 없는 카드까지 셌다, UI/UX 검토 P10a · **사람 결정 D2**): **REQ-API-184 신설 · REQ-API-166 개정 · EP-APR-01 응답 칸 · §1.6 한 줄.** 받은 요청의 `total` 은 대기 탭의 전체라 **내가 승인할 수 없는 카드** — 내가 요청한 것 · 내가 쓴 초안 · 내 세션이 쓴 초안 · T3 에서 이미 승인하고 남은 칸 — 가 섞였고, 헤더 배지와 홈의 인사가 그 수를 써서 할 수 있는 것을 다 해도 0 이 되지 않았다. 대기 봉투에 `actionable_total`(열린 질문 + `can_approve` 가 참인 결재 — 카드와 같은 식)을 더한다. 그리고 대기의 **첫째 정렬 키를 누를 수 있는가**로 둔다 — 잠긴 카드가 요청 시각 순으로 한가운데 끼어, 누를 수 있는 카드를 뒤 쪽으로 밀어냈다(머리는 10건이라 적는데 첫 쪽에는 다섯). 커서는 셋째 칸(잠긴 구역에 들어섰는가)을 싣는다. 잠긴 카드를 목록에서 빼지는 않는다 — 요청자가 스스로 거두는(거절) 길이다(REQ-API-137)([4.5](screens.md) REQ-WEB-217).
 >
@@ -917,7 +919,7 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | EP-AUTH-01 | `GET /api/v1/me` | 로그인 사용자 | — | `MeResult`(프로필 + 멤버십·역할 목록) | — |
 | EP-ORG-01 | `GET /api/v1/orgs` | 로그인 사용자 | — | `Page<OrgSummary>` | — |
 | EP-ORG-02 | `GET /api/v1/orgs/{org}` | 조직 멤버 | — | `OrgResult` | — |
-| EP-PRJ-01 | `GET /api/v1/orgs/{org}/projects` | 조직 멤버 | — | `Page<ProjectSummary>` | — |
+| EP-PRJ-01 | `GET /api/v1/orgs/{org}/projects` | 조직 멤버 | — | `Page<ProjectSummary>` — 줄마다 `active_sessions`(끝나지 않은 셋 · `ACTIVE_SESSION_STATES`) · `pending_approvals`(결정되지 않은 결재 전체) · `open_critical_findings`(열린 critical — REQ-API-185) | — |
 | EP-ORG-03 | `POST /api/v1/orgs` | 로그인 사용자 | `OrgCreateInput`(slug, name) | `OrgResult` — 만든 사람이 그 조직의 **admin** 이 된다 | — |
 | EP-ORG-04 | `PATCH /api/v1/orgs/{org}` | **조직 admin**(§2.1b · REQ-API-171) | `OrgUpdateInput`(name) | `OrgResult` — **slug 는 바꾸지 않는다**(링크의 축 · D-09) | — |
 | EP-ORG-05 | `DELETE /api/v1/orgs/{org}` | **조직 admin**(§2.1b · REQ-API-171) | — | `{deleted:true}` — **프로젝트가 하나라도 있으면 409**. 되돌릴 수 없는 일 앞에 되돌릴 수 있는 단계(프로젝트 보관)를 세운다 | — |
@@ -1597,6 +1599,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-182 | WHEN 초안 저장(EP-SPEC-07·08 · `nerv_spec_draft_upsert`)의 응답을 돌려주면 THE SYSTEM SHALL 그 스펙에 승인본이 있고 방금 쓴 버전과 다르면 `web_url` 에 그 버전(`?v=`)을 싣고, 기본이 곧 그 초안이면 싣지 않는다. WHEN 문서를 돌려주면(EP-SPEC-03) THE SYSTEM SHALL 그 버전을 기다리는 결정되지 않은 결재가 있으면 그 식별자를 싣는다 |
 | REQ-API-183 | WHEN 스펙 트리(EP-SPEC-01)나 그래프(EP-SPEC-19)의 노드를 돌려주면 THE SYSTEM SHALL 노드마다 그 버전이 마지막으로 바뀐 시각과 열린 코멘트 수를 싣는다. WHEN 코멘트 목록(EP-CMT-01)을 돌려주면 THE SYSTEM SHALL 줄마다 작성자의 이름을, 에이전트 세션이 단 것이면 그 세션의 기계·에이전트 종류를, 해소됐으면 해소한 사람의 이름을 싣는다 |
 | REQ-API-184 | WHEN 받은 요청 대기 목록(EP-APR-01 · EP-APR-05)을 조회하면 THE SYSTEM SHALL 봉투에 `actionable_total`(열린 질문과 `can_approve` 가 참인 결재의 수 — 카드의 `can_approve` 와 같은 식이다)을 싣고, 누를 수 있는 카드(질문 · 승인할 수 있는 결재)를 잠긴 카드보다 먼저 두고 각 구역 안에서는 요청이 오래된 순으로 세우며, 커서는 두 구역의 경계를 넘어서도 전량을 한 번씩 훑는다. WHEN 처리됨 목록을 조회하면 THE SYSTEM SHALL `actionable_total` 을 싣지 않는다 — 누를 것이 없는 목록이다 |
+| REQ-API-185 | WHEN 조직의 프로젝트 목록(EP-PRJ-01)이나 프로젝트 단건(EP-PRJ-03)을 돌려주면 THE SYSTEM SHALL 프로젝트마다 활성 세션 수(`ACTIVE_SESSION_STATES` — 끝나지 않은 세 상태만)·결정되지 않은 결재 수·열린 critical 발견 수를 같은 정의로 싣는다 |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |

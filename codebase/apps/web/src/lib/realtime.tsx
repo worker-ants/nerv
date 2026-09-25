@@ -22,7 +22,7 @@ import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
 import { onReachabilityChange } from './api.js';
 import { useMe } from './queries.js';
 import { connectNervSocket, forgetRooms, joinProjectRoom, leaveProjectRoom } from './ws.js';
-import { invalidationKeysFor } from './event-invalidation.js';
+import { headPredicateFor, invalidationKeysFor, sharedKeysFor } from './event-invalidation.js';
 import type { ConnectionState } from './ws.js';
 
 export interface Toast {
@@ -168,9 +168,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
 
   const onEvent = useCallback(
     (event: NervEventEnvelope) => {
-      for (const key of invalidationKeysFor(event)) {
+      for (const key of [...invalidationKeysFor(event), ...sharedKeysFor(event)]) {
         void queryClient.invalidateQueries({ queryKey: key });
       }
+      // 키로 닿지 않는 머리(slug 축 프로젝트 · 조직의 프로젝트 목록) — REQ-WEB-219
+      const head = headPredicateFor(event);
+      if (head !== null) void queryClient.invalidateQueries({ predicate: head });
       // 겹침 경고는 무효화만으로 충분하지 않다 — 사람이 **지금** 알아야 하는 사실이다.
       if (event.type === NERV_EVENT.CLAIM_CONFLICT_WARN) {
         pushToast({ tone: 'warn', message: translate.current('realtime.conflict_warn') });

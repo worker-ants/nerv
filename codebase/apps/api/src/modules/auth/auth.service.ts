@@ -16,6 +16,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  ACTIVE_SESSION_STATES,
   GatePolicySchema,
   isAgentScope,
   isHumanOnlyScope,
@@ -585,10 +586,14 @@ export class AuthService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT p.id, p.slug, p.key, p.name, p.description, p.archived_at,
              (SELECT count(*) FROM agent_session se
-               WHERE se.project_id = p.id AND se.state IN ('pending','active','awaiting_input'))::int
-               AS active_sessions,
+               WHERE se.project_id = p.id AND se.state = ANY(${sqlArray(ACTIVE_SESSION_STATES, 'session_state')}))::int AS active_sessions,
              (SELECT count(*) FROM approval a
-               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals
+               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals,
+             -- **홈이 프로젝트마다 무엇이 위험한지를 말한다**(2026-09-25 · REQ-API-185). 단건
+             -- 조회(EP-PRJ-03)만 싣던 값이라, 홈은 헤더가 고른 한 프로젝트밖에 비출 수 없었다
+             (SELECT count(*) FROM finding f
+               WHERE f.project_id = p.id AND f.status = 'open'
+                 AND f.severity = 'critical')::int AS open_critical_findings
         FROM project p
         JOIN organization o ON o.id = p.org_id
        WHERE o.slug = ${input.orgSlug}
@@ -612,8 +617,7 @@ export class AuthService {
              p.repo_host::text AS repo_host,
              p.gate_policy, p.retention, p.archived_at, o.slug AS org_slug, o.name AS org_name,
              (SELECT count(*) FROM agent_session se
-               WHERE se.project_id = p.id AND se.state IN ('pending','active','awaiting_input'))::int
-               AS active_sessions,
+               WHERE se.project_id = p.id AND se.state = ANY(${sqlArray(ACTIVE_SESSION_STATES, 'session_state')}))::int AS active_sessions,
              (SELECT count(*) FROM approval a
                WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals,
              -- 사이드바가 **무엇이 위험한지**를 화면에 들어가기 전에 말한다(S6 배지).
