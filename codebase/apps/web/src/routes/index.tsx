@@ -5,24 +5,22 @@
 // 셋 다 같은 무게로 읽히고, 정작 "지금 나를 기다리는 게 몇 건인가"는 상자를 다 본 뒤에야
 // 답이 나온다. 그 아래는 최근 활동과 프로젝트 상태 — 결정이 끝난 사람이 훑는 것들이다.
 
-import { eventLabelKey } from '@nerv/schema';
 import { useLocale, useT } from '../lib/i18n.js';
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router';
-import { relativeTime } from '../lib/format.js';
 import {
   inboxCards,
   inboxTotal,
   rows,
   useCoverage,
-  useEvents,
   useInbox,
   useMe,
   useMembers,
 } from '../lib/queries.js';
 import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
-import { Avatar, EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
+import { EmptyState, SectionLabel, Skeleton } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
+import { EventFeed } from '../components/event-feed.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
 import { subjectFallback, waitedLabel } from '../features/inbox/approval-card.js';
 import { asProjectId } from '../lib/query-keys.js';
@@ -45,7 +43,6 @@ function HomeScreen(): React.JSX.Element {
   const primary = scope.project;
   const primarySlug = scope.projectSlug ?? '';
   const primaryId = asProjectId(primary?.['id']);
-  const events = useEvents(primarySlug, primaryId);
   const coverage = useCoverage(primarySlug, primaryId);
 
   const cards = inboxCards(inbox.data);
@@ -172,43 +169,14 @@ function HomeScreen(): React.JSX.Element {
                 ? t('home.recent_activity')
                 : t('home.recent_activity_in', { project: String(primary['name']) })}
             </div>
-            {events.isLoading && <Skeleton rows={4} />}
-            <ul>
-              {rows(events.data)
-                .slice(0, 8)
-                .map((e) => (
-                  <li
-                    key={String(e['id'])}
-                    className="flex items-start gap-2.5 rounded-nerv px-2 py-[9px]"
-                  >
-                    {typeof e['actor_name'] === 'string' && e['actor_name'] !== '' ? (
-                      <Avatar name={e['actor_name']} size="md" className="mt-px" />
-                    ) : (
-                      <span
-                        aria-hidden="true"
-                        className="mt-px inline-flex size-6 shrink-0 items-center justify-center rounded-[5px] bg-bg-sunken text-2xs text-text-mute"
-                      >
-                        ·
-                      </span>
-                    )}
-                    <span className="min-w-0 flex-1 text-sm leading-normal text-text">
-                      {t(eventLabelKey(String(e['type'])))}
-                      {typeof e['actor_name'] === 'string' && e['actor_name'] !== '' && (
-                        <span className="text-text-faint"> · {String(e['actor_name'])}</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-text-ghost">
-                      {relativeTime(
-                        t,
-                        typeof e['occurred_at'] === 'string' ? e['occurred_at'] : null,
-                      )}
-                    </span>
-                  </li>
-                ))}
-            </ul>
-            {!events.isLoading && rows(events.data).length === 0 && (
-              <p className="px-2 text-sm text-text-faint">{t('home.no_activity')}</p>
-            )}
+            {/* 무엇에 일어났는지 적고 그리로 간다 · 잇달아 같은 일은 접는다 — 개요와 같은 피드다(REQ-WEB-210) */}
+            <EventFeed
+              projectSlug={primarySlug}
+              projectId={primaryId}
+              max={8}
+              emptyText={t('home.no_activity')}
+              variant="airy"
+            />
           </section>
 
           {/* 프로젝트 상태 — 시안의 오른쪽 292px 열 */}
@@ -223,16 +191,27 @@ function HomeScreen(): React.JSX.Element {
               </Link>
 
               <div className="overflow-hidden rounded-[9px] border border-border">
-                <StatRow label={t('home.stat.requirements')} value={reqTotal} />
+                {/* **숫자를 누르면 그 숫자를 만든 레코드로 간다**(ui-wireframes §1 · REQ-WEB-210) —
+                    셋 다 눌리지 않는 글자였다 */}
+                <StatRow
+                  label={t('home.stat.requirements')}
+                  value={reqTotal}
+                  link={{ to: '/p/$proj/specs', params: { proj: primarySlug } }}
+                  testId="stat-requirements"
+                />
                 <StatRow
                   label={t('home.active_sessions')}
                   value={Number(primary['active_sessions'] ?? 0)}
                   tone={Number(primary['active_sessions'] ?? 0) > 0 ? 'progress' : undefined}
+                  link={{ to: '/p/$proj/sessions', params: { proj: primarySlug } }}
+                  testId="stat-sessions"
                 />
                 <StatRow
                   label={t('home.pending_approvals')}
                   value={Number(primary['pending_approvals'] ?? 0)}
                   tone={Number(primary['pending_approvals'] ?? 0) > 0 ? 'waiting' : undefined}
+                  link={{ to: '/inbox' }}
+                  testId="stat-approvals"
                   last
                 />
               </div>
@@ -373,16 +352,23 @@ function StatRow({
   value,
   tone,
   last,
+  link,
+  testId,
 }: {
   label: string;
   value: number;
   tone?: 'progress' | 'waiting' | undefined;
   last?: boolean;
+  /** 이 숫자를 만든 레코드가 있는 곳 */
+  link: { to: '/p/$proj/specs' | '/p/$proj/sessions'; params: { proj: string } } | { to: '/inbox' };
+  testId: string;
 }): React.JSX.Element {
   return (
-    <div
+    <Link
+      {...link}
+      data-testid={testId}
       className={cn(
-        'flex items-center justify-between px-3.5 py-[11px]',
+        'flex items-center justify-between px-3.5 py-[11px] hover:bg-bg-hover',
         last !== true && 'border-b border-border',
       )}
     >
@@ -396,7 +382,7 @@ function StatRow({
       >
         {value}
       </span>
-    </div>
+    </Link>
   );
 }
 

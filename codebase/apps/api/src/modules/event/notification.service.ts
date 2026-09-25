@@ -24,6 +24,7 @@ import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../com
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { requestAlreadyClosed } from './request-notifications.js';
+import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
 import { ValkeyService } from './valkey.service.js';
 
 /** 중요도 티어 — 채널·배칭 규칙을 이것이 결정한다(§6.2) */
@@ -428,13 +429,12 @@ export class NotificationService {
              -- 조직을 싣지 않아, 두 조직에 같은 slug 가 있으면 화면이 둘을 가를 수 없었다
              (SELECT o.slug FROM organization o WHERE o.id = p.org_id) AS org_slug,
              (SELECT o.name FROM organization o WHERE o.id = p.org_id) AS org_name,
-             s.key AS spec_key, s.title AS spec_title, t.key AS task_key, t.title AS task_title,
-             -- **알림이 diff 주소를 만들 수 있게 버전 번호를 싣는다**(REQ-API-159 · REQ-WEB-163).
-             -- 이 조인은 이미 있었다 — 없던 것은 이 한 칸이고, 그래서 화면은 "v4 가 승인됐다" 를
-             -- 알면서 "v3 과 무엇이 다른가" 로는 데려갈 수 없었다(본문 전체를 열 뿐이다).
-             -- 대상이 스펙 버전이 아닌 알림(재검토 요청은 subject 가 spec 이다)은 NULL 이고,
-             -- 그때 화면은 본문으로 간다 — **없는 것과 1 은 다르다.**
-             sv.version_no AS version_no,
+             -- **무엇에 대한 알림인가**(2026-09-24 · REQ-API-181). 스펙·작업 주체만 조인해서 가장 무거운
+             -- 알림(결재 요청 · 에이전트 질문)이 키도 제목도 없이 "승인 요청" 만 반복했다 — 대상 조각은
+             -- 이벤트 피드와 같다(event-subject.ts). version_no 는 알림이 diff 주소를 만드는 칸이다
+             -- (REQ-API-159 · REQ-WEB-163): 대상이 스펙 버전이 아닌 알림(재검토 요청은 subject 가 spec
+             -- 이다)은 NULL 이고, 그때 화면은 본문으로 간다 — **없는 것과 1 은 다르다.**
+             ${EVENT_SUBJECT_COLUMNS},
              -- **그 요청이 닫혔는가**(2026-09-24 · REQ-API-176). 승인 요청·질문 알림은 받은 요청의
              -- 그림자인데, 누가 먼저 처리해도 행은 여전히 "승인 요청" 이라고 말했다 — 누르면 이미
              -- 없는 카드를 찾아갔다. 결정(승인·거절·코멘트) 또는 답변·취소와 그것을 한 사람을 싣는다
@@ -445,9 +445,7 @@ export class NotificationService {
         JOIN project p ON p.id = n.project_id
    LEFT JOIN event e ON e.id = n.event_id
    LEFT JOIN "user" u ON u.id = e.actor_user_id
-   LEFT JOIN spec_version sv ON sv.id = e.subject_id AND e.subject_type = 'spec_version'
-   LEFT JOIN spec s ON s.id = coalesce(sv.spec_id, CASE WHEN e.subject_type = 'spec' THEN e.subject_id END)
-   LEFT JOIN task t ON t.id = e.subject_id AND e.subject_type = 'task'
+   ${EVENT_SUBJECT_JOINS}
    LEFT JOIN approval ap ON ap.id = e.subject_id AND e.subject_type = 'approval'
    LEFT JOIN "user" adu ON adu.id = ap.decided_by_user_id
    LEFT JOIN question qq ON qq.id = e.subject_id AND e.subject_type = 'question'

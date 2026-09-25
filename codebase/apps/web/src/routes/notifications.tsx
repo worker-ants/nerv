@@ -3,7 +3,7 @@
 // 알림은 event 참조다 — 문구를 행에 굳혀 저장하지 않고 조회 시점에 만든다(D-10).
 // 여기서는 "무엇이 · 어디서 · 언제"만 보이면 되고, 자세한 것은 딥링크가 데려간다.
 
-import { eventLabelKey, NERV_EVENT } from '@nerv/schema';
+import { eventLabelKey } from '@nerv/schema';
 import { useState } from 'react';
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link, useNavigate, useRouter } from '@tanstack/react-router';
@@ -14,6 +14,14 @@ import { relativeTime } from '../lib/format.js';
 import { queryKeys } from '../lib/query-keys.js';
 import { rows, useNotifications, useUnreadCount } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
+import {
+  collapseRepeats,
+  eventSubject,
+  eventTarget,
+  eventType,
+  hrefOf,
+} from '../lib/event-subject.js';
+import type { EventRow, EventTarget } from '../lib/event-subject.js';
 import { StatusBadge } from '../components/status-badge.js';
 import { InvitationCards } from '../components/invitation-cards.js';
 import {
@@ -29,67 +37,17 @@ import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
 export const Route = createFileRoute('/notifications')({ component: NotificationScreen });
 
-/** 알림이 데려갈 곳 — 경로와 **뷰 상태**(ui-wireframes §1.4: "승인 요청 알림에 그대로 붙는다") */
-export interface NotificationTarget {
-  to: string;
-  search?: Record<string, string>;
-}
+/** 알림이 데려갈 곳 — 경로와 **뷰 상태**(피드와 같은 모양이다 · lib/event-subject.ts) */
+export type NotificationTarget = EventTarget;
 
 /**
- * 알림 → 대상. 알림은 event 참조라 **여기서 링크를 만든다**(행에 굳혀 저장하지 않는다).
- * 대상이 사라졌거나 모르는 종류면 프로젝트 개요로 보낸다 — 막다른 길을 만들지 않는다(§1.5).
- *
- * **뷰 상태까지 싣는다**(REQ-WEB-163). ui-wireframes §4.5 는 "무슨 일이 있었다" 만 알리고
- * 끝나는 알림은 만들지 않는다고 적는데, 스펙 알림이 정확히 그랬다 — "v4 가 승인됐다" 를
- * 전하고 1,000줄짜리 본문을 열어, 바뀐 자리는 사람이 눈으로 찾아야 했다. 바뀐 자리를
- * 아는 화면(EP-SPEC-06 · `?diff=`)은 처음부터 있었고 알림만 그 길을 몰랐다.
+ * 알림 → 대상. 알림은 event 참조라 **여기서 링크를 만든다**(행에 굳혀 저장하지 않는다). 규칙은
+ * 활동 피드와 한 곳에 있다(`eventTarget`) — 다른 점은 하나, 알림은 **내게 온 요청**이라 결재·질문이
+ * 그 카드로 간다는 것이다(REQ-WEB-204). 이제 결재 알림도 스펙 키를 싣기 때문에(REQ-API-181) 그
+ * 규칙이 스펙보다 먼저 선다 — 순서를 바꾸면 "승인 요청" 이 결재할 카드가 아니라 문서로 간다.
  */
-export function deepLinkFor(n: Record<string, unknown>): NotificationTarget {
-  const project = String(n['project_slug'] ?? '');
-  if (project === '') return { to: '/' };
-  const type = String(n['event_type'] ?? '');
-  if (typeof n['spec_key'] === 'string' && n['spec_key'] !== '') {
-    return { to: `/p/${project}/specs/${n['spec_key']}`, ...specView(n, type) };
-  }
-  if (typeof n['task_key'] === 'string' && n['task_key'] !== '') {
-    return { to: `/p/${project}/tasks/${n['task_key']}` };
-  }
-  // **그 카드로 간다**(REQ-WEB-204). 맨 `/inbox` 는 첫 카드에 서서, 사람은 방금 누른 요청을
-  // 목록에서 다시 찾아야 했다. 이미 처리된 요청이면 받은 요청이 그렇다고 말한다
-  if (type.startsWith('approval.') || type.startsWith('question.')) {
-    const subject = n['subject_id'];
-    return typeof subject === 'string' && subject !== ''
-      ? { to: '/inbox', search: { focus: subject } }
-      : { to: '/inbox' };
-  }
-  if (type.startsWith('session.') || type.startsWith('claim.')) {
-    return { to: `/p/${project}/sessions` };
-  }
-  // 초대를 거절했다 — 부른 사람이 보는 초대 목록으로(REQ-API-178). 다시 부를지 거기서 정한다
-  if (type === NERV_EVENT.INVITATION_DECLINED) return { to: '/settings/members' };
-  return { to: `/p/${project}` };
-}
-
-/**
- * 스펙 알림이 열어야 하는 **자리**.
- *
- * `spec.comment_added` 는 **두 곳에서 난다**. 갈라 주는 것은 `subject_type` 이다:
- *   - `spec`         — 본문에 달린 코멘트(`spec_comment` 행이 있다) → 코멘트 레일
- *   - `spec_version` — 리뷰 결정 "코멘트"(문서를 draft 로 되돌린다). **행이 없다** —
- *                      코멘트는 이벤트 payload 에만 있으므로 레일을 열면 **빈 목록**이다.
- *                      그 알림이 데려가야 하는 곳은 되돌아온 문서 자신이다.
- *
- * 그 밖의 스펙 버전 알림(승인·반려)은 직전 버전과의 diff 로 간다. v1 은 이전이 없으니
- * 본문이 곧 그 버전이라 아무것도 붙이지 않는다 — 뜻 없는 인자를 주소에 남기지 않는다.
- * 버전이 없는 알림(재검토 요청은 subject 가 `spec` 이다)도 본문이다.
- */
-function specView(n: Record<string, unknown>, type: string): { search?: Record<string, string> } {
-  if (type === NERV_EVENT.SPEC_COMMENT_ADDED) {
-    return n['subject_type'] === 'spec' ? { search: { rail: 'comments' } } : {};
-  }
-  const version = Number(n['version_no']);
-  if (!Number.isInteger(version) || version < 2) return {};
-  return { search: { diff: `v${String(version - 1)}..v${String(version)}` } };
+export function deepLinkFor(n: EventRow): NotificationTarget {
+  return eventTarget(n, 'inbox');
 }
 
 /** 요청이 닫힌 방식 — 결재 결정 셋과 질문의 답변·취소 */
@@ -139,6 +97,139 @@ function NotificationScreen(): React.JSX.Element {
 
   // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 목록은 50 에서 끝나지 않는다
   const items = (notifications.data?.pages ?? []).flatMap((page) => rows(page.items));
+  /**
+   * **잇달아 같은 알림은 한 줄로 접는다**(2026-09-24 · HUB-08 · REQ-WEB-210). 같은 문서의 재확인
+   * 요청이나 코멘트가 연달아 오면 똑같은 줄이 여러 번 쌓였다 — "×N" 을 누르면 펼쳐진다.
+   */
+  const groups = collapseRepeats(items, (n) => `${eventType(n)}|${String(n['subject_id'] ?? '')}`);
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (id: string): void =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const renderRow = (
+    n: EventRow,
+    members: EventRow[],
+    expanded: boolean,
+    nested = false,
+  ): React.JSX.Element => {
+    const type = eventType(n);
+    const subject = eventSubject(n);
+    const unreadIds = members.filter((m) => m['state'] === 'unread').map((m) => String(m['id']));
+    const state = unreadIds.length > 0 ? 'unread' : 'read';
+    return (
+      <li
+        key={String(n['id'])}
+        data-state={state}
+        data-testid="notification-row"
+        // 행 전체가 클릭 대상이다 — 읽음 처리와 이동이 한 동작이어야 한다(REQ-WEB-034).
+        // 따로 두면 사람은 링크만 누르고 배지는 영원히 줄지 않는다.
+        onClick={() => {
+          for (const id of unreadIds) markRead.mutate(id);
+          const target = deepLinkFor(n);
+          const href = hrefOf(target);
+          const routed = inOrgHref(n['org_slug'], href, orgSlug);
+          // 다른 조직의 알림이면 조직을 바꾸고 그 자리로 간다(REQ-WEB-199)
+          if (routed !== href) router.history.push(routed);
+          else void navigate(target);
+        }}
+        className={cn(
+          'group flex cursor-pointer items-center gap-3 border-b border-border px-2 py-2.5 text-sm last:border-0 hover:bg-bg-hover data-[state=read]:text-text-mute',
+          nested && 'pl-7',
+        )}
+      >
+        {/* 읽지 않음은 점 하나로 — 행 전체를 굵게 하면 목록이 소란스러워진다.
+            점만으로 구분하지 않도록 aria-label 을 붙인다(REQ-WEB-033) */}
+        <span
+          aria-label={state === 'unread' ? t('notif.unread') : t('notif.read')}
+          className={cn(
+            'h-1.5 w-1.5 shrink-0 rounded-full',
+            state === 'unread' ? 'bg-status-action' : 'bg-transparent',
+          )}
+        />
+        <span className="min-w-0 flex-1 truncate">
+          <span className="font-medium text-text">{t(eventLabelKey(type))}</span>
+          {/* **무엇에 대한 알림인가**(REQ-WEB-210 · REQ-API-181) — 키와 버전, 그리고 제목. 결재·질문
+              알림은 키도 제목도 없이 "승인 요청" 만 반복했다 */}
+          {subject.key !== null && (
+            <Mono className="ml-2">
+              {subject.key}
+              {subject.version !== null && ` v${String(subject.version)}`}
+            </Mono>
+          )}
+          {subject.title !== null && (
+            <span data-testid="notification-title" className="ml-2 text-text-mute">
+              {subject.title}
+            </span>
+          )}
+          {/* **처리된 요청은 그렇다고 말한다**(REQ-WEB-204 · REQ-API-176). 누가 먼저 처리해도
+              행은 여전히 "승인 요청" 이라, 누르면 이미 없는 카드를 찾아갔다 */}
+          {typeof n['resolution'] === 'string' && (
+            <span data-testid="notification-resolved" className="ml-2 text-xs text-text-faint">
+              {t('notif.resolved', {
+                what: resolutionLabel(t, n['resolution']),
+                who: String(n['resolved_by'] ?? '—'),
+              })}
+            </span>
+          )}
+        </span>
+        {members.length > 1 && (
+          <button
+            type="button"
+            data-testid="notification-repeat"
+            aria-expanded={expanded}
+            aria-label={t('feed.repeat_label', { count: members.length })}
+            title={t('feed.repeat_label', { count: members.length })}
+            onClick={(e) => {
+              e.stopPropagation(); // 펼치기는 이동이 아니다
+              toggle(String(n['id']));
+            }}
+            className="shrink-0 rounded-nerv-sm px-1 text-xs text-text-faint tabular-nums hover:bg-bg-active hover:text-text"
+          >
+            {t('feed.repeat', { count: members.length })}
+          </button>
+        )}
+        {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192) */}
+        <ScopeBadge
+          className="max-w-[40%] shrink-0"
+          orgSlug={n['org_slug']}
+          orgName={n['org_name']}
+          projectSlug={n['project_slug']}
+          projectName={n['project_name']}
+        />
+        <span className="hidden w-28 shrink-0 truncate text-right text-xs text-text-faint md:inline">
+          {String(n['actor_name'] ?? '')}
+          {n['is_agent'] === true ? ' 🤖' : ''}
+        </span>
+        <span className="w-16 shrink-0 text-right text-xs text-text-faint">
+          {relativeTime(t, typeof n['occurred_at'] === 'string' ? n['occurred_at'] : null)}
+        </span>
+        {/* **동작 칸은 모든 행에 있다**(2026-09-04 · 사람 보고). 예전에는 안 읽은
+            행에만 단추를 그렸는데, `opacity-0` 이어도 **자리는 차지한다** — 그래서
+            읽은 행과 안 읽은 행의 열이 어긋나 목록이 두 벌처럼 보였다. 보이지
+            않는 것과 자리를 차지하지 않는 것은 다르다. */}
+        <span className="flex w-14 shrink-0 justify-end">
+          {state === 'unread' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="opacity-0 group-hover:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation(); // 이동 없이 읽음만 처리하는 경로도 남긴다
+                for (const id of unreadIds) markRead.mutate(id);
+              }}
+            >
+              {t('notif.read')}
+            </Button>
+          )}
+        </span>
+      </li>
+    );
+  };
   // **배지는 받아 온 것이 아니라 진짜 수를 센다**(2026-09-03). 예전에는 로드된 50건 안에서
   // 세어 "읽지 않음 50" 을 보이면서 헤더는 479 를 보였다 — 같은 화면이 두 수를 말했다.
   const unread = unreadCount.data?.count ?? 0;
@@ -207,89 +298,15 @@ function NotificationScreen(): React.JSX.Element {
         />
       )}
       <ul className="flex flex-col">
-        {items.map((n) => {
-          const type = String(n['event_type'] ?? '');
-          const key = String(n['spec_key'] ?? n['task_key'] ?? '');
-          return (
-            <li
-              key={String(n['id'])}
-              data-state={String(n['state'])}
-              data-testid="notification-row"
-              // 행 전체가 클릭 대상이다 — 읽음 처리와 이동이 한 동작이어야 한다(REQ-WEB-034).
-              // 따로 두면 사람은 링크만 누르고 배지는 영원히 줄지 않는다.
-              onClick={() => {
-                if (n['state'] === 'unread') markRead.mutate(String(n['id']));
-                const target = deepLinkFor(n);
-                const href = `${target.to}${target.search === undefined ? '' : `?${new URLSearchParams(target.search).toString()}`}`;
-                const routed = inOrgHref(n['org_slug'], href, orgSlug);
-                // 다른 조직의 알림이면 조직을 바꾸고 그 자리로 간다(REQ-WEB-199)
-                if (routed !== href) router.history.push(routed);
-                else void navigate(target);
-              }}
-              className="group flex cursor-pointer items-center gap-3 border-b border-border px-2 py-2.5 text-sm last:border-0 hover:bg-bg-hover data-[state=read]:text-text-mute"
-            >
-              {/* 읽지 않음은 점 하나로 — 행 전체를 굵게 하면 목록이 소란스러워진다.
-                  점만으로 구분하지 않도록 aria-label 을 붙인다(REQ-WEB-033) */}
-              <span
-                aria-label={n['state'] === 'unread' ? t('notif.unread') : t('notif.read')}
-                className={cn(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
-                  n['state'] === 'unread' ? 'bg-status-action' : 'bg-transparent',
-                )}
-              />
-              <span className="min-w-0 flex-1 truncate">
-                <span className="font-medium text-text">{t(eventLabelKey(type))}</span>
-                {key !== '' && <Mono className="ml-2">{key}</Mono>}
-                {/* **처리된 요청은 그렇다고 말한다**(REQ-WEB-204 · REQ-API-176). 누가 먼저 처리해도
-                    행은 여전히 "승인 요청" 이라, 누르면 이미 없는 카드를 찾아갔다 */}
-                {typeof n['resolution'] === 'string' && (
-                  <span
-                    data-testid="notification-resolved"
-                    className="ml-2 text-xs text-text-faint"
-                  >
-                    {t('notif.resolved', {
-                      what: resolutionLabel(t, n['resolution']),
-                      who: String(n['resolved_by'] ?? '—'),
-                    })}
-                  </span>
-                )}
-              </span>
-              {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192) */}
-              <ScopeBadge
-                className="max-w-[40%] shrink-0"
-                orgSlug={n['org_slug']}
-                orgName={n['org_name']}
-                projectSlug={n['project_slug']}
-                projectName={n['project_name']}
-              />
-              <span className="hidden w-28 shrink-0 truncate text-right text-xs text-text-faint md:inline">
-                {String(n['actor_name'] ?? '')}
-                {n['is_agent'] === true ? ' 🤖' : ''}
-              </span>
-              <span className="w-16 shrink-0 text-right text-xs text-text-faint">
-                {relativeTime(t, typeof n['occurred_at'] === 'string' ? n['occurred_at'] : null)}
-              </span>
-              {/* **동작 칸은 모든 행에 있다**(2026-09-04 · 사람 보고). 예전에는 안 읽은
-                  행에만 단추를 그렸는데, `opacity-0` 이어도 **자리는 차지한다** — 그래서
-                  읽은 행과 안 읽은 행의 열이 어긋나 목록이 두 벌처럼 보였다. 보이지
-                  않는 것과 자리를 차지하지 않는 것은 다르다. */}
-              <span className="flex w-14 shrink-0 justify-end">
-                {n['state'] === 'unread' && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation(); // 이동 없이 읽음만 처리하는 경로도 남긴다
-                      markRead.mutate(String(n['id']));
-                    }}
-                  >
-                    {t('notif.read')}
-                  </Button>
-                )}
-              </span>
-            </li>
-          );
+        {groups.map((group) => {
+          const headId = String(group.head['id']);
+          const expanded = open.has(headId);
+          // 머리 줄은 **무리 전체**를 대표한다 — 읽음도 이동도 묶음 단위다(HUB-08).
+          // 펼친 뒤의 나머지 줄은 저마다 한 건이다
+          return [
+            renderRow(group.head, group.rows, expanded),
+            ...(expanded ? group.rows.slice(1).map((n) => renderRow(n, [n], false, true)) : []),
+          ];
         })}
       </ul>
       {notifications.hasNextPage === true && (

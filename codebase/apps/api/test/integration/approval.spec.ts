@@ -2486,6 +2486,132 @@ describe('받은 요청 카드의 대상과 요청 줄 (REQ-API-177)', () => {
   });
 });
 
+/**
+ * **무엇에 일어났나**(2026-09-24 — UI/UX 검토 · REQ-API-181). 이벤트 피드는 대상을 싣지 않아
+ * "초안 수정 · 관리자 · 16일 전" 만 늘어놓았고, 알림 목록은 스펙·작업 주체만 조인해서 결재 요청과
+ * 질문 — 가장 무거운 두 알림 — 이 키도 제목도 없이 "승인 요청" 만 반복했다. 한 단계 건너(결재 →
+ * 스펙 버전 · 플랜 → 작업 · 질문 → 작업)의 대상까지 따라가 두 목록이 같은 칸으로 싣는다.
+ */
+describe('알림과 피드가 무엇에 일어났는지 싣는다 (REQ-API-181)', () => {
+  const feedOf = async (): Promise<Record<string, unknown>[]> => {
+    const silent = {
+      publish: async () => false,
+      subscribe: async () => undefined,
+    } as unknown as ValkeyService;
+    return (await new EventService(drizzle(pool), silent).feed({ projectId })).items;
+  };
+
+  it('결재 요청은 그 스펙 버전의 키·제목·버전을 — 알림과 피드가 같게 — 싣는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const versionId = await makeSpecVersion('# 결재\n\n본문', 'in_review');
+    await pool.query(
+      `UPDATE spec_version SET author_user_id = $2, submitted_at = now() WHERE id = $1`,
+      [versionId, designer],
+    );
+    const { rows } = await pool.query<{ key: string }>(
+      `SELECT s.key FROM spec s JOIN spec_version sv ON sv.spec_id = s.id WHERE sv.id = $1`,
+      [versionId],
+    );
+    const specKey = rows[0]!.key;
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: designer,
+    });
+    await notifications.route();
+
+    const row = (await notifications.list({ userId: planner })).items.find(
+      (i) => i['event_type'] === NERV_EVENT.APPROVAL_REQUESTED && i['subject_id'] === approval_id,
+    );
+    expect(row).toMatchObject({ spec_key: specKey, spec_title: specKey, version_no: 1 });
+
+    const fed = (await feedOf()).find(
+      (e) => e['type'] === NERV_EVENT.APPROVAL_REQUESTED && e['subject_id'] === approval_id,
+    );
+    expect(fed).toMatchObject({ spec_key: specKey, version_no: 1, actor_user_id: designer });
+  });
+
+  it('질문은 제목과 그 질문이 붙은 작업을 싣는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status) VALUES ($1,$2,'CLV-T-ASK001','물어볼 작업','backlog')`,
+      [taskId, projectId],
+    );
+    const made = await questions.create({ projectId, sessionId, taskId, title: '어느 쪽으로?' });
+    const questionId = String(
+      (made as Record<string, unknown>)['question_id'] ?? (made as Record<string, unknown>)['id'],
+    );
+    await notifications.route();
+
+    const row = (await notifications.list({ userId: planner })).items.find(
+      (i) => i['event_type'] === NERV_EVENT.QUESTION_CREATED && i['subject_id'] === questionId,
+    );
+    expect(row).toMatchObject({
+      question_title: '어느 쪽으로?',
+      task_key: 'CLV-T-ASK001',
+      task_title: '물어볼 작업',
+    });
+    const fed = (await feedOf()).find(
+      (e) => e['type'] === NERV_EVENT.QUESTION_CREATED && e['subject_id'] === questionId,
+    );
+    expect(fed).toMatchObject({ question_title: '어느 쪽으로?', task_key: 'CLV-T-ASK001' });
+  });
+
+  it('플랜 결재는 그 작업을, 발견 결재는 그 발견을 가리킨다', async () => {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status) VALUES ($1,$2,'CLV-T-PLAN02','플랜 작업','backlog')`,
+      [taskId, projectId],
+    );
+    const plan = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: taskId,
+      requestedByUserId: designer,
+    });
+    const reviewSessionId = newId();
+    const findingId = newId();
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, branch, base_sha, head_sha, changeset_hash,
+                                   kind, trigger)
+       VALUES ($1,$2,'feat/z','base','head',decode($3,'hex'),'code','manual')`,
+      [reviewSessionId, projectId, findingId.replaceAll('-', '').slice(0, 32)],
+    );
+    await pool.query(
+      `INSERT INTO finding (id, project_id, fingerprint, category, severity, status, title,
+                            first_session_id, last_session_id)
+       VALUES ($1,$2,decode($3,'hex'),'correctness','critical','open','내릴 지적',$4,$4)`,
+      [findingId, projectId, findingId.replaceAll('-', '').slice(0, 32), reviewSessionId],
+    );
+    // critical 하향 결재는 리뷰 처분이 만든다 — 여기서는 그 결과(결재 행과 요청 이벤트)만 둔다
+    const lowerId = newId();
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+       VALUES ($1,$2,'finding',$3,$4)`,
+      [lowerId, projectId, findingId, designer],
+    );
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),$3,$4,true,'approval',$5)`,
+      [newId(), projectId, NERV_EVENT.APPROVAL_REQUESTED, designer, lowerId],
+    );
+
+    const feed = await feedOf();
+    const byApproval = (id: string) =>
+      feed.find((e) => e['type'] === NERV_EVENT.APPROVAL_REQUESTED && e['subject_id'] === id);
+    expect(byApproval(plan.approval_id)).toMatchObject({
+      task_key: 'CLV-T-PLAN02',
+      task_title: '플랜 작업',
+    });
+    expect(byApproval(lowerId)).toMatchObject({
+      finding_id: findingId,
+      finding_title: '내릴 지적',
+    });
+  });
+});
+
 async function makeSpecVersion(body: string, status = 'draft'): Promise<string> {
   const specId = newId();
   const versionId = newId();

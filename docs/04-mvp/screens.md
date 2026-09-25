@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.42 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.43 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.43 변경(2026-09-24 — 활동과 알림이 무엇에 일어났는지 말하지 않았다, UI/UX 검토의 일곱째 묶음 후반): **REQ-WEB-210 신설 · §1 대응표 한 줄 · §2.2·§2.3 표 한 줄씩 · §2.9 한 항목.** 홈과 개요의 활동 줄은 대상이 없어 "초안 수정 · 관리자 · 16일 전" 이 여덟 줄이었고 눌리지도 않았다 — 명세가 두 화면 모두에 적은 `EventFeed` 는 실물이 없었고, 두 화면은 같은 데이터를 다른 이름(최근 활동 · 최근 이벤트)과 다른 모양으로 그렸다. 이제 **한 컴포넌트**(`components/event-feed.tsx`)가 대상 키·버전·제목을 적고 그리로 가며, 잇달아 같은 일은 ×N 으로 접고, 개요는 [더 보기]로 잇는다. 홈의 숫자 셋은 그 레코드로 간다. 알림 행도 같은 규칙으로 대상을 적고 잇달아 같은 알림을 접는다([4.4](api.md) REQ-API-181). 개요의 구현 현황 숫자는 그대로 둔다 — 요구사항 단위 드릴다운은 §2.3 이 Phase 2 로 미뤄 둔 것이다.
 >
 > v1.42 변경(2026-09-24 — 화면이 서로를 글자로만 가리켰다, UI/UX 검토의 일곱째 묶음 전반): **REQ-WEB-209 신설 · §2.5 한 문단.** 작업·세션·리뷰가 서로를 Mono 글자로만 가리켜 사람은 키를 옮겨 적어 ⌘K 에 붙였다(⌘K 는 세션을 찾지도 못한다). 키 → 경로를 **한 곳**(`EntityLink`)에서 정하고 이 영역의 키 자리를 링크로 바꾼다 — 세션 카드·레일·상세의 작업, 작업 상세의 실행 세션·출처 요구사항(스펙의 요구사항 탭)·리뷰 줄(그 브랜치의 발견 — 리뷰 센터 `?branch=`), 발견의 나온 작업·올린 작업, 게이트 표의 브랜치. 보드 카드의 담당은 이름을 툴팁·스크린리더로 읽히고(§2.4d 대로 글자로 늘어놓지 않는다), 에이전트가 돌리면 세션으로 가는 **AI** 표식이 선다([4.4](api.md) REQ-API-180).
 >
@@ -672,7 +674,8 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | `NotificationFeed` · `NotificationRow` | 라우트 `routes/notifications.tsx`(전용 컴포넌트 없음) |
 | `MemberMatrix` · `MemberAddDialog` · `TokenTable` · `TokenIssueDialog` · `TokenRevealOnce` · `GatePolicyForm` | 라우트 `routes/settings/{members,tokens,gates}.tsx`(전용 컴포넌트 없음) |
 | `LoginForm` · `OrgCreateForm` · `InviteAcceptCard` | 라우트 `routes/{login,onboarding,invite.$token}.tsx` + `InvitationCards` |
-| `TodayStrip` · `EventFeed` · `ProjectCard` | 라우트 `routes/index.tsx`(전용 컴포넌트 없음) |
+| `TodayStrip` · `ProjectCard` | 라우트 `routes/index.tsx`(전용 컴포넌트 없음) |
+| `EventFeed` | `components/event-feed.tsx`(2026-09-24 — 홈·개요 공용 · REQ-WEB-210) |
 
 **② 우리 컴포넌트가 아니다** — TipTap 노드 이름이다(§3): `Heading` · `Paragraph` · `BulletList` · `OrderedList` · `ListItem` · `Blockquote` · `HorizontalRule`.
 
@@ -842,7 +845,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 내 승인 대기 카드 | 위와 동일 목록의 상위 N건 | 카드 위 승인/거절/코멘트 — S7과 같은 `ApprovalCard` 재사용 |
 | 내 질문 큐 | 받은 요청 목록 중 `subject_type = question` | 세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기 |
 | 내 프로젝트 카드 | EP-PRJ-01 `GET /api/v1/orgs/{org}/projects` + EP-PRJ-03 `GET /api/v1/projects/{proj}`(활성 세션/승인 대기 카운트 포함) | 승인률·커버리지 게이지 고도화는 Phase 2 — MVP는 상태별 카운트 표시 |
-| 최근 알림 | EP-NTF-01 `GET /api/v1/me/notifications` · 읽음 처리 EP-NTF-02 | 인앱 피드. `notification` 파생·읽음 상태는 [data-model](../03-proposal/data-model.md) §2.9 |
+| 최근 활동 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` — 헤더가 고른 프로젝트(REQ-WEB-193) | 개요와 **같은** `EventFeed` 를 접은 여덟 줄로 그린다 — 대상 키·제목 링크, 잇달아 같은 일은 ×N(REQ-WEB-210). 옛 행은 "최근 알림" 이었지만 홈은 알림이 아니라 활동을 그린다(알림은 §2.9) |
 
 - **실시간**: `user:{id}` 룸 — `approval.requested` · `question.created` → `['inbox']` + 배지, `notification.created` → 알림 피드. 프로젝트 카드는 화면 재진입 시 재조회(홈에서 `project:{id}` 룸은 join하지 않는다).
 - **컴포넌트**: `TodayStrip` · `ApprovalCard` · `QuestionCard` · `ProjectCard` · `EventFeed`.
@@ -860,7 +863,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 스펙 트리 + 상태 배지 | EP-SPEC-01 `GET /api/v1/projects/{proj}/specs/tree` | 노드: id·title·type(6종)·현재 버전 문서 상태 — `nerv_spec_tree`와 같은 서비스(D-05) |
 | 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 다섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`**. 영역별 분해는 아직 없다. Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
 | 활성 세션 스트립 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터) | 미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)) |
-| 최근 이벤트 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` (커서 페이지네이션) | 항목마다 `is_agent` 아이콘 구분(D-08) |
+| 최근 활동 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` (커서 페이지네이션 — [더 보기]) | 항목마다 사람 아바타 / 에이전트 **AI** 표식(D-08 · 기계·에이전트 종류는 툴팁) · 대상 키(버전)·제목 링크 · 잇달아 같은 일 ×N(REQ-WEB-210) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → 트리, `session.*` → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회.
 - **컴포넌트**: `SpecTree`(사이드바와 공유) · `ImplStatusCard` · `SessionStrip` · `EventFeed` · `NewSpecButton`(권한: 역할 매트릭스 — spec-workflow §1.6).
@@ -870,6 +873,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | --- | --- |
 | REQ-WEB-009 | WHEN 스펙 트리를 렌더링하면 THE SYSTEM SHALL 각 노드에 타입과 문서 상태 배지를 표기하고, `spec.approved` 등 문서 축 이벤트 수신 시 5초 이내 배지를 갱신한다 |
 | REQ-WEB-010 | WHEN 이벤트 피드 항목을 렌더링하면 THE SYSTEM SHALL `event.is_agent` 값에 따라 사람/에이전트 아이콘을 구분 표기한다(FR-16 · D-08) |
+| REQ-WEB-210 | WHEN 활동 피드(홈·개요)의 항목을 그리면 THE SYSTEM SHALL 그 이벤트의 대상의 키(스펙이면 버전)와 제목을 적고 그 대상으로 가는 링크를 주며, 행위자가 에이전트면 어느 기계의 무엇인지를 함께 보인다. WHEN 같은 종류·대상·행위자의 이벤트가 잇달아 오면 THE SYSTEM SHALL 한 줄로 접어 그 수를 보이고 펼칠 수 있게 한다. WHEN 개요의 피드에 다음 쪽이 있으면 THE SYSTEM SHALL 이어 받는 길을 준다. WHEN 홈이 프로젝트 상태의 숫자(요구사항·활성 세션·승인 대기)를 그리면 THE SYSTEM SHALL 각 숫자를 그 레코드가 있는 화면으로 가는 링크로 그린다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 대상의 키·버전·제목을 적고, 같은 종류·대상의 알림이 잇달아 오면 한 줄로 접어 그 줄을 누르면 묶음을 함께 읽음 처리한다 |
 
 ### 2.4 S3 스펙 상세 — [ui-wireframes §2.3](../03-proposal/ui-wireframes.md)
 
@@ -1727,6 +1731,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 1. **필터 2종만** — 전체/안읽음. 헤더 배지 수 = 안읽음 수(정합 — REQ-WEB-035).
 2. **행 = 이벤트 요약 + 딥링크** — 클릭 시 읽음 처리 후 대상으로 이동(뷰 상태 쿼리 포함 — ui-wireframes §1.4). ●/○는 읽음 여부. **뷰 상태를 싣는 것이 이 줄의 핵심이다**(2026-09-10 · REQ-WEB-163): 스펙 승인·반려는 `?diff=vN-1..vN`, 본문 코멘트는 `?rail=comments` 로 간다 — 도착한 화면이 **왜 불렀는지를 이미 펴 놓고** 있어야 알림이 한 번의 동작으로 끝난다.
 3. **받은 요청 항목의 그림자** — 승인 요청 알림은 여기에도 남지만 행동은 받은 요청에서 한다(카드 중복 금지).
+4. **무엇에 대한 알림인가**(2026-09-24 · REQ-WEB-210) — 행은 [라벨] [키 v버전] [제목] … 으로 대상을 말한다. 결재 요청·질문 알림은 키도 제목도 없이 "승인 요청" 만 반복했다([4.4](api.md) REQ-API-181). 같은 종류·대상의 알림이 잇달아 오면 **한 줄로 접어 ×N** 을 붙이고, ×N 을 누르면 펼친다 — 머리 줄을 누르면 묶음을 함께 읽는다. 결재·질문 알림은 스펙 키를 실어도 **그 카드**로 간다(REQ-WEB-204).
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |

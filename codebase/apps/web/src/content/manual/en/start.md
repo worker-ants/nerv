@@ -26,6 +26,10 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 | **Notifications** | What I missed                                         |
 | **Settings**      | Organizations, projects, members, tokens, gate policy |
 
+**Recent activity says what it happened to.** Home and the project screen share one activity list. Each line reads what happened · **to what** (spec key and version, task key, review branch — and the title) · by whom · when, and the key takes you there — a line saying a spec was approved opens the difference from the previous version. Work done by an agent shows an **AI** mark instead of a face; hover it to see which machine and which agent. When the same person does the same thing to the same subject several times in a row (an agent saving a draft over and over, say), the lines **fold into one with ×N** — press it to unfold. Home shows eight lines; the project screen carries on with **[Load more]** at the bottom.
+
+**The numbers on home take you to their list** — requirements to the spec list, active sessions to the session monitor, pending approvals to the inbox.
+
 ## Two axes of membership scope — organization and project
 
 The two selects at the left of the header are the membership scope you are looking at: **organization / project**, in that order, each with a small "Organization" or "Project" label in front. The only organizations you can pick are the ones you belong to.
