@@ -32,6 +32,15 @@ The screen for a blocked task also shows **what would unblock it**: whatever is 
 
 **Show backlog is on by default.** A task is always created in `backlog` and only moves to `ready` once the four parts of the delegation brief are filled in, so a task you just created lives in that lane. **If you filled in all four when creating it, press [Move to ready] on its card** — creating alone does not queue it; pressing it has the server check the four parts and the dependencies, then queue it. A card with parts missing shows **[Fill it in]** instead. Turn **Show backlog** off to see only what is flowing; that choice stays in the address (`?backlog=0`). The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
 
+## The task screen opens over the board
+
+Clicking a card opens the task **as a sheet on the right of the board** — the board stays behind it. Your filters, collapsed lanes and expanded "+N more" stay as they were, and clicking another card behind switches the sheet to that task. On a narrow screen the sheet covers the whole screen.
+
+- **Close** with the **✕** at the top of the sheet or `Esc`. The board's filters live in the address, so closing does not drop them.
+- `j` · `k` move to the **next and previous task in the same lane**. The top of the sheet shows where you are, like "2 of 5 in the lane" — handy for going through blocked cards one after another.
+- `Esc`, `j` and `k` do nothing while the cursor is in an input.
+- The task's address (`/p/…/tasks/CLV-T-…`) is unchanged, so you can pass it on as a link. Opening it shows the sheet with the board behind.
+
 ## The next step is at the top of the task screen
 
 The buttons to the right of the task title are **the door from the current status to the next one**.

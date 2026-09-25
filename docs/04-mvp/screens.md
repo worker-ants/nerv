@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.45 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.46 · 2026-09-24 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.46 변경(2026-09-24 — 작업 상세가 보드를 갈아 끼웠다, **사람 결정**, UI/UX 검토의 여덟째 묶음 후반): **REQ-WEB-213 신설 · §1 대응표 한 줄 · §2.5 하위 뷰 한 문단.** 이 절은 처음부터 작업 상세를 "보드 위 오버레이 + [닫기 ✕]" 로 그렸는데 구현은 보드를 통째로 대체하는 페이지였다 — "← 보드로" 한 번에 걸어 둔 필터(`?spec=`·`?backlog=0`)가 풀렸고, 접은 레인과 펼친 "+N개 더" 도 초기화됐으며, 막힌 카드를 훑는 트리아지는 카드마다 왕복 두 번이었다. 페이지로 명세를 고칠지 명세대로 갈지를 사람에게 물었고 **명세대로**로 정했다(2026-09-24). 보드를 레이아웃 라우트가 그리고 상세는 그 위 시트로 연다 — 닫기 ✕·Esc, j·k 로 같은 레인, 좁은 화면은 전체 시트. 곁들여 보드의 `?backlog=0`·`?ai=1`·`?archived=1` 이 **읽히지 않던 것**을 고쳤다: 라우터는 주소 값을 JSON 으로 읽어 숫자로 주는데 검사가 문자열만 받았다.
 >
 > v1.45 변경(2026-09-24 — 목록의 주소가 보던 것을 잃었다, UI/UX 검토의 여덟째 묶음 중반): **REQ-WEB-212 신설 · §1.2 라우트 표 세 줄.** ① 리뷰 센터의 필터(심각도·상태·대상·태그)와 고른 발견, 세션 모니터의 상태 필터와 편 세션이 컴포넌트 state 라 "spec 영역 critical 열린 것" 을 링크로 건넬 수 없었고 새로고침·뒤로가기에 풀렸다 — 보드가 2026-09-06 에 고친 것과 같은 문제다. 주소로 올리고(기본 `open` 은 적지 않고 다 풀면 `status=all`), 필터를 바꾸면 고른 것을 푼다. 발견 레일 머리에 [링크 복사]. ② 로그인 가드가 경로만 실어 보내서 공유받은 `…?finding=` 이 로그인 한 번에 사라졌다 — 주소 전체(쿼리·해시)를 싣는다. `/` 로 튕겨 온 것은 "특정한 목적지 없음" 으로 보고 역할별 첫 화면을 쓰며, 첫 화면의 멤버십은 **기억된 조직의 것**을 먼저 고른다(헤더와 본문이 같은 조직을 말하게). 확인 메일로 들어온 홈 착지(REQ-WEB-188)는 그대로 둔다.
 >
@@ -670,7 +672,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | `FindingQueue` · `FindingFilters` | `FindingCard` + `FindingRail`(`features/review-center/`) |
 | `GateCoverageTable` | `GateCoverage` |
 | `SessionStrip` · `SessionSteerInput` · `SteerDialog` · `StopDialog` | `SessionSummaryStrip` · `SteerPanel`(`features/session-monitor/`) |
-| `TaskDetailPanel` · `TaskCreateDialog` | `DelegationForm`(`features/task-board/`) + 라우트 `p.$proj/tasks.$task.tsx` |
+| `TaskDetailPanel` · `TaskCreateDialog` | `TaskSheet`(`features/task-board/task-sheet.tsx` — 2026-09-24 · REQ-WEB-213) + `DelegationForm`(`features/task-board/`) + 라우트 `p.$proj/tasks.$task.tsx`. 보드는 `features/task-board/board.tsx` 이고 레이아웃 라우트 `p.$proj/tasks.tsx` 가 그린다 |
 | `SpecMetaDialog` | `MetaDialog` |
 | `NewSpecButton` | `NewSpecDialog` |
 | `RelationPanel` | `RelationTabs` |
@@ -1358,6 +1360,8 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
 **하위 뷰: 작업 상세 패널** (`/p/:proj/tasks/:task`) — 보드 위 오버레이. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 
+**보드 위 시트로 연다**(2026-09-24 사람 결정 · REQ-WEB-213). 이 그림은 처음부터 오버레이였는데 구현이 보드를 대체하는 페이지로 가 있었다 — 사람에게 "페이지로 명세를 고칠까, 명세대로 갈까" 를 물었고 명세대로로 정했다. 보드는 레이아웃 라우트(`/p/:proj/tasks`)가 그리고 상세는 그 `<Outlet>` 자리의 시트다: 보드가 언마운트되지 않으므로 필터·접은 레인·펼친 카드가 남고, 보드의 뷰 상태는 레이아웃이 검사해 **상세 주소도 같은 필터를 든다**(카드가 필터를 물고 간다 — 파생 폼 인자는 빼고). 닫기는 머리의 ✕ 와 `Esc`(입력 중에는 듣지 않는다), `j`·`k` 는 같은 레인의 다음·앞 작업이고 머리에 레인 안의 자리를 적는다. `lg` 이상에서는 오른쪽에 `min(46rem, 64vw)` 폭으로 서고 뒤의 보드를 누를 수 있다(모달이 아니다). 그보다 좁으면 화면 전체를 덮는다. 상세의 두 칸 격자는 창 폭이 아니라 **시트 폭**으로 가른다(컨테이너 질의).
+
 ```text
 작업 상세 패널 — app.nerv.example.com/p/clemvion/tasks/CLV-T-1KTDCK (보드 위 오버레이)
 ┌──────────────────────────────────────────────── [닫기 ✕] ──┐
@@ -1573,6 +1577,7 @@ export const TaskCreateInput = z
 | REQ-WEB-135 | WHEN 스펙 목록에서 기준선을 고르면 THE SYSTEM SHALL 그 이름을 `?baseline=` 로 주소에 남기고 상세까지 물고 간다 — 링크로 건네면 상대도 같은 세트를 본다. WHILE 기준선으로 읽는 동안 THE SYSTEM SHALL 어느 세트인지와 **그 세트가 이 문서를 담고 있는지**(`baseline_pinned`)를 배지로 보인다 |
 | REQ-WEB-211 | WHEN 스펙 상세가 `?rail=` 로 열리면 THE SYSTEM SHALL 그 레일 탭을 마운트 뒤에도 유지하고, WHEN 버전 탭에서 비교·전문 보기를 열거나 바꾸거나 닫으면 THE SYSTEM SHALL 레일·기준선·본문 보기 축을 그대로 둔다. WHILE 기준선으로 목록이나 상세를 보는 동안 THE SYSTEM SHALL 트리·표·그래프·검색 결과·레일 관계 줄·사이드바 트리의 문서 링크에 그 기준선을 싣고, 상세에서 기준선을 바꾸거나 풀 수 있게 한다. WHEN 스펙 목록의 보기(트리·표·그래프)나 그래프의 중심 문서를 바꾸면 THE SYSTEM SHALL 그것을 `?view=`·`?focus=` 로 주소에 남기고, 상세의 관계 탭에서 그 문서를 중심에 둔 그래프로 가는 링크를 준다. WHEN 같은 화면 안의 보기를 고르는 세그먼트를 그리면 THE SYSTEM SHALL 고른 것을 보조기기가 읽는 상태(`aria-pressed`)로 싣고, 주소가 바뀌는 탭은 지금 탭을 `aria-current` 로 싣는다 |
 | REQ-WEB-212 | WHEN 리뷰 센터에서 필터(심각도·상태·대상·태그)를 바꾸거나 발견을 고르면 THE SYSTEM SHALL 그것을 주소에 남기고 — 기본 상태(`open`)는 적지 않는다 — 필터를 바꾸면 고른 것을 풀며, 고른 발견의 레일에 그 발견을 가리키는 링크를 복사하는 길을 둔다. WHEN 세션 모니터에서 상태로 거르거나 세션을 고르면 THE SYSTEM SHALL 그것을 주소에 남긴다. WHEN 비인증 사용자를 로그인으로 보내면 THE SYSTEM SHALL 경로·쿼리·해시를 모두 실어 보내고, 로그인 뒤 앱 안의 그 주소로 되돌리며, 되돌릴 곳이 없거나 `/` 이면 기억된 조직의 멤버십으로 역할별 첫 화면을 고른다 |
+| REQ-WEB-213 | WHEN 작업 보드의 카드나 작업 상세 주소를 열면 THE SYSTEM SHALL 작업 상세를 보드 위의 시트로 열고 보드를 뒤에 그대로 둔다 — 걸어 둔 필터·접은 레인·펼친 카드가 남고, 상세 주소도 보드의 필터를 싣는다. WHEN 시트를 닫으면(✕ · Esc) THE SYSTEM SHALL 보드의 필터를 그대로 둔 보드 주소로 돌아간다. WHILE 시트가 열려 있는 동안 THE SYSTEM SHALL j·k 로 같은 레인의 다음·앞 작업으로 넘기고 레인 안의 자리를 보이며, 입력 중에는 이 키들을 듣지 않는다. WHERE 화면이 좁으면 THE SYSTEM SHALL 시트가 화면 전체를 덮는다 |
 | REQ-WEB-134 | WHEN 토큰을 발급하면 THE SYSTEM SHALL 화면에서 **체크된 것으로 보이는 권한만** 요청 본문에 싣는다 — 역할이 허용하지 않아 잠긴 칸은 초기 선택값이더라도 제외한다 |
 | REQ-WEB-124 | WHEN 세션 레일을 그리면 THE SYSTEM SHALL **한 일**(그 세션이 낸 이벤트)을 위에, 도구 로그를 아래에 둔다 |
 | REQ-WEB-121 | WHEN 버전 목록에서 한 버전을 고르면 THE SYSTEM SHALL 그 버전과 직전의 차이를 `?diff=vN-1..vN` 주소로 열고, 요구사항 델타를 본문 diff보다 **먼저** 보인다. WHILE 변경분만 보기이면 THE SYSTEM SHALL 안 바뀐 구간을 앞뒤 3줄만 남기고 접으며 **몇 줄을 접었는지** 적는다 |

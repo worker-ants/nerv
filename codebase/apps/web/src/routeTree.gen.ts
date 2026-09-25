@@ -28,6 +28,7 @@ import { Route as SettingsMembersRouteImport } from './routes/settings/members'
 import { Route as SettingsTokensRouteImport } from './routes/settings/tokens'
 import { Route as SettingsWorkspaceRouteImport } from './routes/settings/workspace'
 import { Route as PProjIndexRouteImport } from './routes/p.$proj/index'
+import { Route as PProjTasksRouteImport } from './routes/p.$proj/tasks'
 import { Route as PProjReviewsIndexRouteImport } from './routes/p.$proj/reviews.index'
 import { Route as PProjSessionsIndexRouteImport } from './routes/p.$proj/sessions.index'
 import { Route as PProjSessionsSessionRouteImport } from './routes/p.$proj/sessions.$session'
@@ -131,6 +132,11 @@ const PProjIndexRoute = PProjIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PProjRouteRoute,
 } as any)
+const PProjTasksRoute = PProjTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => PProjRouteRoute,
+} as any)
 const PProjReviewsIndexRoute = PProjReviewsIndexRouteImport.update({
   id: '/reviews/',
   path: '/reviews/',
@@ -157,14 +163,14 @@ const PProjSpecsSpecRoute = PProjSpecsSpecRouteImport.update({
   getParentRoute: () => PProjRouteRoute,
 } as any)
 const PProjTasksIndexRoute = PProjTasksIndexRouteImport.update({
-  id: '/tasks/',
-  path: '/tasks/',
-  getParentRoute: () => PProjRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => PProjTasksRoute,
 } as any)
 const PProjTasksTaskRoute = PProjTasksTaskRouteImport.update({
-  id: '/tasks/$task',
-  path: '/tasks/$task',
-  getParentRoute: () => PProjRouteRoute,
+  id: '/$task',
+  path: '/$task',
+  getParentRoute: () => PProjTasksRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -186,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
   '/p/$proj/': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
   '/p/$proj/specs/$spec': typeof PProjSpecsSpecRoute
@@ -240,6 +247,7 @@ export interface FileRoutesById {
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
   '/p/$proj/': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
   '/p/$proj/specs/$spec': typeof PProjSpecsSpecRoute
@@ -270,6 +278,7 @@ export interface FileRouteTypes {
     | '/settings/workspace'
     | '/help/'
     | '/settings/'
+    | '/p/$proj/tasks'
     | '/p/$proj/'
     | '/p/$proj/sessions/$session'
     | '/p/$proj/specs/$spec'
@@ -323,6 +332,7 @@ export interface FileRouteTypes {
     | '/settings/workspace'
     | '/help/'
     | '/settings/'
+    | '/p/$proj/tasks'
     | '/p/$proj/'
     | '/p/$proj/sessions/$session'
     | '/p/$proj/specs/$spec'
@@ -482,6 +492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PProjIndexRouteImport
       parentRoute: typeof PProjRouteRoute
     }
+    '/p/$proj/tasks': {
+      id: '/p/$proj/tasks'
+      path: '/tasks'
+      fullPath: '/p/$proj/tasks'
+      preLoaderRoute: typeof PProjTasksRouteImport
+      parentRoute: typeof PProjRouteRoute
+    }
     '/p/$proj/reviews/': {
       id: '/p/$proj/reviews/'
       path: '/reviews'
@@ -519,17 +536,17 @@ declare module '@tanstack/react-router' {
     }
     '/p/$proj/tasks/': {
       id: '/p/$proj/tasks/'
-      path: '/tasks'
+      path: '/'
       fullPath: '/p/$proj/tasks/'
       preLoaderRoute: typeof PProjTasksIndexRouteImport
-      parentRoute: typeof PProjRouteRoute
+      parentRoute: typeof PProjTasksRoute
     }
     '/p/$proj/tasks/$task': {
       id: '/p/$proj/tasks/$task'
-      path: '/tasks/$task'
+      path: '/$task'
       fullPath: '/p/$proj/tasks/$task'
       preLoaderRoute: typeof PProjTasksTaskRouteImport
-      parentRoute: typeof PProjRouteRoute
+      parentRoute: typeof PProjTasksRoute
     }
   }
 }
@@ -568,26 +585,38 @@ const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
   SettingsRouteRouteChildren,
 )
 
-interface PProjRouteRouteChildren {
-  PProjIndexRoute: typeof PProjIndexRoute
-  PProjSessionsSessionRoute: typeof PProjSessionsSessionRoute
-  PProjSpecsSpecRoute: typeof PProjSpecsSpecRoute
+interface PProjTasksRouteChildren {
   PProjTasksTaskRoute: typeof PProjTasksTaskRoute
-  PProjReviewsIndexRoute: typeof PProjReviewsIndexRoute
-  PProjSessionsIndexRoute: typeof PProjSessionsIndexRoute
-  PProjSpecsIndexRoute: typeof PProjSpecsIndexRoute
   PProjTasksIndexRoute: typeof PProjTasksIndexRoute
 }
 
+const PProjTasksRouteChildren: PProjTasksRouteChildren = {
+  PProjTasksTaskRoute: PProjTasksTaskRoute,
+  PProjTasksIndexRoute: PProjTasksIndexRoute,
+}
+
+const PProjTasksRouteWithChildren = PProjTasksRoute._addFileChildren(
+  PProjTasksRouteChildren,
+)
+
+interface PProjRouteRouteChildren {
+  PProjTasksRoute: typeof PProjTasksRouteWithChildren
+  PProjIndexRoute: typeof PProjIndexRoute
+  PProjSessionsSessionRoute: typeof PProjSessionsSessionRoute
+  PProjSpecsSpecRoute: typeof PProjSpecsSpecRoute
+  PProjReviewsIndexRoute: typeof PProjReviewsIndexRoute
+  PProjSessionsIndexRoute: typeof PProjSessionsIndexRoute
+  PProjSpecsIndexRoute: typeof PProjSpecsIndexRoute
+}
+
 const PProjRouteRouteChildren: PProjRouteRouteChildren = {
+  PProjTasksRoute: PProjTasksRouteWithChildren,
   PProjIndexRoute: PProjIndexRoute,
   PProjSessionsSessionRoute: PProjSessionsSessionRoute,
   PProjSpecsSpecRoute: PProjSpecsSpecRoute,
-  PProjTasksTaskRoute: PProjTasksTaskRoute,
   PProjReviewsIndexRoute: PProjReviewsIndexRoute,
   PProjSessionsIndexRoute: PProjSessionsIndexRoute,
   PProjSpecsIndexRoute: PProjSpecsIndexRoute,
-  PProjTasksIndexRoute: PProjTasksIndexRoute,
 }
 
 const PProjRouteRouteWithChildren = PProjRouteRoute._addFileChildren(

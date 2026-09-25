@@ -1393,7 +1393,10 @@ export const en = {
   'spec.meta.title': 'Spec metadata — {key}',
   'spec.meta.title_field': 'Title',
   // ── S4 작업 보드·상세 (screens.md §2.5) ───────────────────────────────────────
-  'task.back_to_board': '← Board',
+  'task.sheet.label': 'Task {key} detail',
+  'task.sheet.close': 'Close',
+  'task.sheet.close_hint': 'Close (Esc) — j · k for the next and previous task in the lane',
+  'task.sheet.position': '{n} of {total} in the lane',
   'task.blocked_reason': 'Why it is blocked',
   'task.blocked_reason_title': 'A blocked task with no reason is how a backlog rots',
   'task.brief': 'Delegation brief',

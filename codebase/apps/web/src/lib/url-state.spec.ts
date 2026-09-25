@@ -7,7 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { Route as SpecList } from '../routes/p.$proj/specs.index.js';
-import { Route as TaskBoard } from '../routes/p.$proj/tasks.index.js';
+// 보드의 뷰 상태는 레이아웃 라우트가 검사한다 — 작업 상세 시트가 같은 필터를 든다(REQ-WEB-213)
+import { Route as TaskBoard } from '../routes/p.$proj/tasks.js';
 
 const parseSpecs = SpecList.options.validateSearch as (
   s: Record<string, unknown>,
@@ -63,5 +64,18 @@ describe('작업 보드의 주소', () => {
 
   it('빈 값은 무시한다 — 서버에 빈 필터를 보내 아무것도 없다고 말하지 않는다', () => {
     expect(parseBoard({ spec: '', assignee: '' })).toEqual({});
+  });
+
+  /**
+   * **주소는 JSON 으로 읽힌다**(2026-09-24 · P08c 에서 발견). 라우터는 `?backlog=0` 을 문자열이
+   * 아니라 숫자 0 으로 준다 — 문자열만 받던 동안 손으로 적은 `?backlog=0`·`?ai=1` 은 조용히 무시됐다.
+   */
+  it('숫자로 온 표식도 읽는다 — `?backlog=0` · `?ai=1` · `?archived=1`', () => {
+    expect(parseBoard({ backlog: 0, ai: 1, archived: 1 })).toMatchObject({
+      backlog: false,
+      ai: true,
+      archived: true,
+    });
+    expect(parseSpecs({ archived: 1 })).toMatchObject({ archived: true });
   });
 });

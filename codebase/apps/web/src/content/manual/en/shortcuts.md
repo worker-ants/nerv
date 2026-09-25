@@ -43,6 +43,15 @@ They do nothing while the cursor is in a text field. The bulk keys are **upperca
 
 Otherwise, pressing `a` without the permission to decide does not pass quietly — **the server refuses it.** **On cards in the Decided tab neither the buttons nor the keys do anything** — a card that has already been decided ignores `a`, `r` and `c` (what you can press should be what you can do).
 
+## Task screen (sheet over the board)
+
+| Key       | Action                                        |
+| --------- | --------------------------------------------- |
+| `j` · `k` | Next and previous task in the same lane       |
+| `Esc`     | Close — the board's filters stay as they were |
+
+They do nothing while the cursor is in an input ([Tasks](/help/tasks)).
+
 ## Language
 
 Pick **한국어 / English** from the user menu (your name ▾ at the right of the header). The screens and the error messages the server returns switch together.

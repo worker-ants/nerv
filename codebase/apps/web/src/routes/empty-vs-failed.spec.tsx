@@ -222,7 +222,10 @@ describe('다른 조직의 것은 조직을 바꿔 연다 (REQ-WEB-199)', () => 
     // 전환이 말하고, 뷰 상태까지 싣고 그 자리로 **한 번** 돌아온다 — 옮겨 가는 동안 지금 주소를
     // 다시 읽으면 전환 주소가 전환 주소를 싣는 고리가 끝없이 돌았다(구현 중 실측)
     await screen.findByText(/Acme\(으\)로 전환했습니다/);
-    await waitFor(() => expect(history.location.href).toBe('/p/sudoku/tasks?backlog=0'));
+    await waitFor(() => expect(history.location.pathname).toBe('/p/sudoku/tasks'));
+    // 뷰 상태가 살아 왔다 — 보드가 `?backlog=0` 을 읽게 된 뒤로(P08c) 라우터는 그것을 자기 표기
+    // (`false`)로 다시 적는다. 예전에는 읽지 못한 값이 날것으로 남아 있어 모양만 같았다
+    expect(new URLSearchParams(history.location.search).get('backlog')).toBe('false');
     expect(screen.queryByTestId('not-found')).toBeNull();
   });
 
