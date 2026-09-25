@@ -140,6 +140,8 @@ describe('왼쪽 열은 모든 화면에서 같다 (NAV-06)', () => {
       '/p/sudoku/tasks',
       '/p/sudoku/sessions',
       '/p/sudoku/reviews',
+      // 그 프로젝트의 설정 — 게이트 정책에 프로젝트를 실어 간다(REQ-WEB-227)
+      '/settings/gates?project=sudoku',
     ]);
     expect(within(nav).getByTestId('rail-project-clemvion').getAttribute('href')).toBe(
       '/p/clemvion',

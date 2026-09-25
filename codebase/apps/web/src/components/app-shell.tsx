@@ -32,6 +32,7 @@ import { QuickSwitcher } from './quick-switcher.js';
 import { ToastStack } from './toast-stack.js';
 import { documentTitle, screenKeyFor } from '../lib/document-title.js';
 import { SpecTreeColumn } from './spec-tree-column.js';
+import { SettingsNav } from '../features/settings/settings-nav.js';
 import { MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
@@ -317,6 +318,17 @@ export function AppShell({
 
   const screenKey = screenKeyFor(pathname);
   const onHelp = pathname.startsWith('/help');
+  const onSettings = pathname.startsWith('/settings');
+  /**
+   * 조직을 바꾼 뒤 **돌아올 자리**(2026-09-25 — 사람 결정 D1 · SET-07 · REQ-WEB-227). 조직 범위 화면(설정·받은 요청·
+   * 알림·도움말)에서 바꾸면 같은 화면의 새 조직 판으로 돌아온다 — 예전에는 늘 홈으로 튕겨, 두 조직의 멤버를 차례로
+   * 보던 admin 이 매번 설정을 다시 찾아 들어왔다. 프로젝트 화면은 싣지 않는다: 새 조직에는 그 프로젝트가 없다.
+   * 경로만 싣는다 — 쿼리(`?project=` 같은)는 옛 조직의 것이다.
+   */
+  const orgSwitchNext =
+    onSettings || onHelp || pathname.startsWith('/inbox') || pathname.startsWith('/notifications')
+      ? pathname
+      : undefined;
   /**
    * 사이드바의 프로젝트 목록 — 지금 조직의 것 전부. 라우트의 프로젝트가 목록에 아직 없으면(목록을 받기 전 ·
    * 다른 경로로 들어왔을 때) 그 하나를 앞에 세운다 — 펼칠 자리가 사라지면 탭과 트리가 함께 사라진다
@@ -762,6 +774,7 @@ export function AppShell({
                       key={org.slug}
                       to="/o/$org"
                       params={{ org: org.slug }}
+                      search={orgSwitchNext === undefined ? {} : { next: orgSwitchNext }}
                       onClick={() => setMenuOpen(null)}
                       className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg-hover"
                     >
@@ -949,6 +962,21 @@ export function AppShell({
                           <span className="flex-1">{t('shell.nav.review')}</span>
                           <CountBadge count={openCritical} tone="danger" />
                         </Link>
+                        {/* **그 프로젝트의 설정으로 가는 길**(2026-09-25 — 사람 결정 D1 · NAV-10 · REQ-WEB-227). clemvion 을
+                            보던 admin 이 그 게이트 정책을 고치려면 사용자 메뉴 → 설정 → 게이트 탭 → 프로젝트 고르기를
+                            밟아야 했다 — 프로젝트를 주소에 실어 보낸다(와이어프레임 S2 의 프로젝트 메뉴에도 [설정]이 있다) */}
+                        <Link
+                          to="/settings/gates"
+                          search={{ project: sidebarProject }}
+                          data-testid="rail-project-settings"
+                          title={t('shell.nav.project_settings_title')}
+                          className={NAV_ITEM}
+                        >
+                          <span aria-hidden="true" className={NAV_GLYPH}>
+                            ⚙
+                          </span>
+                          <span className="flex-1">{t('shell.nav.project_settings')}</span>
+                        </Link>
                       </nav>
                       {/* **스펙 트리는 여기 없다**(2026-09-25 — 사람 결정 D1 · OBS-01 · REQ-WEB-226). 사이드바의 마지막
                           블록이던 동안 작업·세션·리뷰에서도 그 화면과 상관없는 문서 목록이 열의 대부분을 차지했다 —
@@ -990,6 +1018,8 @@ export function AppShell({
               </span>
               <span className="flex-1">{t('shell.settings')}</span>
             </Link>
+            {/* 설정에 있으면 **항목이 여기 펼쳐진다** — 도움말의 차례와 같은 규칙이다(범위로 묶인 목록 · REQ-WEB-227) */}
+            {onSettings && <SettingsNav variant="rail" />}
             <Link
               to="/help"
               data-testid="rail-help"

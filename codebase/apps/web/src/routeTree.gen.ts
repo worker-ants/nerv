@@ -25,6 +25,7 @@ import { Route as PProjRouteRouteImport } from './routes/p.$proj/route'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsGatesRouteImport } from './routes/settings/gates'
 import { Route as SettingsMembersRouteImport } from './routes/settings/members'
+import { Route as SettingsOrgTokensRouteImport } from './routes/settings/org-tokens'
 import { Route as SettingsTokensRouteImport } from './routes/settings/tokens'
 import { Route as SettingsWorkspaceRouteImport } from './routes/settings/workspace'
 import { Route as PProjIndexRouteImport } from './routes/p.$proj/index'
@@ -117,6 +118,11 @@ const SettingsMembersRoute = SettingsMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsOrgTokensRoute = SettingsOrgTokensRouteImport.update({
+  id: '/org-tokens',
+  path: '/org-tokens',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsTokensRoute = SettingsTokensRouteImport.update({
   id: '/tokens',
   path: '/tokens',
@@ -188,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
+  '/settings/org-tokens': typeof SettingsOrgTokensRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help/': typeof HelpIndexRoute
@@ -214,6 +221,7 @@ export interface FileRoutesByTo {
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
+  '/settings/org-tokens': typeof SettingsOrgTokensRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help': typeof HelpIndexRoute
@@ -243,6 +251,7 @@ export interface FileRoutesById {
   '/o/$org': typeof OOrgRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
+  '/settings/org-tokens': typeof SettingsOrgTokensRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help/': typeof HelpIndexRoute
@@ -274,6 +283,7 @@ export interface FileRouteTypes {
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
+    | '/settings/org-tokens'
     | '/settings/tokens'
     | '/settings/workspace'
     | '/help/'
@@ -300,6 +310,7 @@ export interface FileRouteTypes {
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
+    | '/settings/org-tokens'
     | '/settings/tokens'
     | '/settings/workspace'
     | '/help'
@@ -328,6 +339,7 @@ export interface FileRouteTypes {
     | '/o/$org'
     | '/settings/gates'
     | '/settings/members'
+    | '/settings/org-tokens'
     | '/settings/tokens'
     | '/settings/workspace'
     | '/help/'
@@ -471,6 +483,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMembersRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/org-tokens': {
+      id: '/settings/org-tokens'
+      path: '/org-tokens'
+      fullPath: '/settings/org-tokens'
+      preLoaderRoute: typeof SettingsOrgTokensRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/tokens': {
       id: '/settings/tokens'
       path: '/tokens'
@@ -568,6 +587,7 @@ const HelpRouteRouteWithChildren = HelpRouteRoute._addFileChildren(
 interface SettingsRouteRouteChildren {
   SettingsGatesRoute: typeof SettingsGatesRoute
   SettingsMembersRoute: typeof SettingsMembersRoute
+  SettingsOrgTokensRoute: typeof SettingsOrgTokensRoute
   SettingsTokensRoute: typeof SettingsTokensRoute
   SettingsWorkspaceRoute: typeof SettingsWorkspaceRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -576,6 +596,7 @@ interface SettingsRouteRouteChildren {
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsGatesRoute: SettingsGatesRoute,
   SettingsMembersRoute: SettingsMembersRoute,
+  SettingsOrgTokensRoute: SettingsOrgTokensRoute,
   SettingsTokensRoute: SettingsTokensRoute,
   SettingsWorkspaceRoute: SettingsWorkspaceRoute,
   SettingsIndexRoute: SettingsIndexRoute,

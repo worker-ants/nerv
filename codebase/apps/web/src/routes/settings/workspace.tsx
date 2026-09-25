@@ -32,6 +32,7 @@ import {
   FieldRowAction,
   Input,
   Mono,
+  PageHeader,
   SectionTitle,
   Select,
 } from '../../components/ui/primitives.js';
@@ -77,6 +78,9 @@ function WorkspaceTab(): React.JSX.Element {
 
   return (
     <section className="flex flex-col gap-8">
+      {/* **제목이 조직을 말한다**(2026-09-25 — SET-06 · REQ-WEB-227). 이 탭에만 제목이 없어 조직 이름은 입력칸의 값으로만
+          보였다 — 멤버 탭은 이미 "{조직} 멤버·역할" 이다 */}
+      <PageHeader title={t('settings.workspace.title_org', { org: orgName ?? orgSlug ?? '' })} />
       {!isOrgAdmin && (
         <ReadOnlyNotice
           admins={members.data === undefined ? undefined : scopeAdmins(rows(members.data), null)}

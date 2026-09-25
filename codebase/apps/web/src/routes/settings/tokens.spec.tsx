@@ -149,11 +149,11 @@ function stub(me: unknown): void {
   );
 }
 
-async function renderTab(me: unknown = ADMIN): Promise<void> {
+async function renderTab(me: unknown = ADMIN, path = '/settings/tokens'): Promise<void> {
   stub(me);
   const router = createRouter({
     routeTree,
-    history: createMemoryHistory({ initialEntries: ['/settings/tokens'] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
   });
   render(
     <LocaleProvider locale="ko">
@@ -166,6 +166,8 @@ async function renderTab(me: unknown = ADMIN): Promise<void> {
       </QueryClientProvider>
     </LocaleProvider>,
   );
+  // 조직 전체 토큰 화면에는 발급 폼이 없다 — 그 화면의 검사는 제 조건을 기다린다
+  if (path !== '/settings/tokens') return;
   // 프로젝트 목록은 `me` 보다 늦게 온다 — 기다리지 않으면 [발급]이 아직 비활성이라
   // 누르는 검사가 **아무 일도 일어나지 않은 것을** 성공으로 읽는다.
   await waitFor(() =>
@@ -249,8 +251,9 @@ describe('③ 나중에 — 목록이 프로젝트를 말한다', () => {
 });
 
 describe('조직 전체 토큰 — admin 만', () => {
+  // 조직 전체 표는 조직 묶음의 자기 화면이다(2026-09-25 · REQ-WEB-227) — 토큰 탭(나)은 그리로 가는 길만 남긴다
   it('admin 은 조직의 토큰을 프로젝트·소유자로 거른다', async () => {
-    await renderTab(ADMIN);
+    await renderTab(ADMIN, '/settings/org-tokens');
     await waitFor(() => expect(screen.getByTestId('org-token-project')).toBeDefined());
     expect(screen.getByText('mac-02')).toBeDefined();
     expect(screen.getByText('linux-ci')).toBeDefined();

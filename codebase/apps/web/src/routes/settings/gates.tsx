@@ -12,7 +12,7 @@
 
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { GatePolicySchema } from '@nerv/schema';
@@ -36,7 +36,17 @@ import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ReadOnlyNotice, scopeAdmins } from '../../components/read-only-notice.js';
 import type { Translator } from '@nerv/schema';
 
-export const Route = createFileRoute('/settings/gates')({ component: GatesTab });
+export const Route = createFileRoute('/settings/gates')({
+  /**
+   * **고치는 프로젝트는 주소에 산다**(2026-09-25 — 사람 결정 D1 · NAV-10 · REQ-WEB-227). 컴포넌트 상태였을 때는
+   * "clemvion 의 게이트 정책을 봐 달라" 를 링크로 건넬 수 없었고, 프로젝트 사이드바에서 곧장 올 길도 없었다
+   */
+  validateSearch: (search: Record<string, unknown>): { project?: string } =>
+    typeof search['project'] === 'string' && search['project'] !== ''
+      ? { project: search['project'] }
+      : {},
+  component: GatesTab,
+});
 
 const TIERS = ['T1', 'T2', 'T3'] as const;
 
@@ -88,13 +98,19 @@ function GatesTab(): React.JSX.Element {
   // 소속은 헤더의 select 와 같은 규칙으로 정한다(scope.ts) — 예전에는 멤버십 한 행의
   // `project_slug` 를 썼고, 조직 단위 멤버십만 가진 admin 은 그 값이 `null` 이라
   // **자기 조직의 게이트 정책을 아예 열지 못했다**(실측 2026-08-24).
-  const { orgSlug, projectSlug, projects } = useScope();
+  const { orgSlug, projectSlug, projects, projectsLoaded } = useScope();
+  const navigate = useNavigate();
+  const { project: fromUrl } = Route.useSearch();
   /**
    * **고치는 프로젝트를 이 화면이 고른다**(2026-09-24 · REQ-WEB-191). 게이트 정책은 프로젝트의
    * 것인데, 예전에는 대상이 헤더가 **기억한** 프로젝트였고 제목 어디에도 이름이 없었다 —
    * admin 이 마지막으로 들렀던 프로젝트의 정책을 모르고 바꿀 수 있었다. 기억은 초깃값일 뿐이다.
    */
-  const [picked, setPicked] = useState<string | null>(null);
+  // 주소의 프로젝트가 **이 조직의 것일 때만** 쓴다 — 다른 조직에서 건너온 주소면 기억한 프로젝트로 떨어진다
+  const picked =
+    fromUrl !== undefined && (!projectsLoaded || projects.some((p) => p['slug'] === fromUrl))
+      ? fromUrl
+      : null;
   // 프로젝트가 없으면 편집할 정책도 없다 — 빈 slug 로 서버를 부르지 않는다(조용한 500 의 원인)
   const slug = picked ?? projectSlug ?? '';
   const project = useProject(slug);
@@ -138,7 +154,8 @@ function GatesTab(): React.JSX.Element {
     (dynamicChanged && !dynamic);
 
   const switchTo = (target: string): void => {
-    setPicked(target);
+    // 고르면 주소가 바뀐다 — 이력은 쌓지 않는다(고를 때마다 뒤로가기가 한 칸씩 늘지 않게)
+    void navigate({ to: '/settings/gates', search: { project: target }, replace: true });
     // 다른 프로젝트의 값을 들고 가면 그 프로젝트에 **옛 프로젝트의 경계**가 저장된다
     setDraft(null);
     setDynamicEscalation(null);

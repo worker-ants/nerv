@@ -268,6 +268,7 @@ export const ko = {
   'settings.members.scope_rule':
     '조직 전체 줄은 조직 admin 만, 프로젝트 줄은 그 프로젝트의 admin 도 바꿀 수 있습니다 — 바꿀 수 없는 줄은 읽기 전용입니다.',
   'settings.members.title_org': '{org} 멤버·역할',
+  'settings.workspace.title_org': '{org} 조직·프로젝트',
   'settings.workspace.org_admin_only':
     '조직 이름·삭제와 새 프로젝트는 조직 admin 만 바꿀 수 있습니다 — 프로젝트 줄은 그 프로젝트의 admin 도 고칠 수 있습니다.',
   'shell.inbox_all_orgs': '받은 요청 — 모든 조직',
@@ -1589,6 +1590,19 @@ export const ko = {
   'settings.tab.members': '멤버·역할',
   'settings.tab.tokens': '에이전트 토큰',
   'settings.title': '설정',
+  'settings.heading': '설정 — {org}',
+  'settings.nav_label': '설정 메뉴',
+  'settings.group.org': '조직',
+  'settings.group.project': '프로젝트',
+  'settings.group.me': '나 · 모든 조직',
+  'settings.tab.org_tokens': '조직 전체 토큰',
+  'settings.tab.integrations': '연동',
+  'settings.org_tokens.title': '{org} 조직 전체 토큰',
+  'settings.org_tokens.admin_only':
+    '조직 전체 토큰은 조직 admin 만 봅니다. 내 토큰은 [에이전트 토큰]에 있습니다.',
+  'settings.tokens.org_moved': '조직 전체의 토큰은 조직 묶음에 따로 있습니다 —',
+  'shell.nav.project_settings': '설정',
+  'shell.nav.project_settings_title': '이 프로젝트의 설정 — 게이트 정책',
   'settings.tokens.active': '활성',
   'settings.tokens.all_owners': '소유자 전체',
   'settings.tokens.all_projects': '프로젝트 전체',
