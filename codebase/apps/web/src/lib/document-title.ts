@@ -1,9 +1,10 @@
-// 브라우저 탭 제목 — "화면 · 프로젝트 · 조직 — NERV" (2026-09-24 · REQ-WEB-194)
+// 브라우저 탭 제목 — "(상세 ·) 화면 · 프로젝트 · 조직 — NERV" (2026-09-24 · REQ-WEB-194 · 2026-09-25 상세 조각 — REQ-WEB-228)
 //
 // 제목이 언제나 "NERV" 였다(`index.html` 고정). 탭을 여럿 열어 두는 사람에게는 어느 탭이 어느
 // 조직·프로젝트의 무엇인지 가를 길이 없었다 — 조직·프로젝트 경계 점검에서 드러난 자리다.
 // 판정은 경로로 하는 순수 함수다: 셸이 부르고, 검사가 그대로 부른다.
 import type { Translator } from '@nerv/schema';
+import type { TitleDetail } from './title-detail.js';
 
 type ScreenKey =
   | 'shell.nav.overview'
@@ -47,6 +48,20 @@ export function screenKeyFor(pathname: string): ScreenKey | null {
 }
 
 /**
+ * 상세 화면인가 — 스펙·작업·세션 하나를 연 주소. **상세 조각은 이 주소에서만 싣는다** — 상세가 떠나며 비우지
+ * 못했어도(비우는 효과가 늦게 돌아도) 목록 화면의 제목이 그 문서를 말하지 않게 한다.
+ */
+export function onDetailRoute(pathname: string): boolean {
+  return /^\/p\/[^/]+\/(specs|tasks|sessions)\/[^/]+/.test(pathname);
+}
+
+/** 상세 조각의 글자 — 키 뒤에 제목(같으면 한 번). 탭에 선다 */
+export function detailText(detail: TitleDetail): string {
+  const title = detail.title ?? '';
+  return title === '' || title === detail.key ? detail.key : `${detail.key} ${title}`;
+}
+
+/**
  * 제목을 조립한다. **프로젝트는 프로젝트 화면에서만** 싣는다 — 조직 범위 화면에서 기억된
  * 프로젝트를 싣으면 헤더에서 걷어 낸 그 혼동이 탭에서 되살아난다(REQ-WEB-193).
  */
@@ -54,10 +69,14 @@ export function documentTitle(
   t: Translator,
   pathname: string,
   scope: { orgName: string | null; projectName: string | null },
+  detail: TitleDetail | null = null,
 ): string {
   const key = screenKeyFor(pathname);
   const onProject = pathname.startsWith('/p/');
   const parts = [
+    // **상세가 맨 앞이다**(2026-09-25 — NAV-13 · REQ-WEB-228). 좁은 탭에서 잘리는 것은 뒤쪽이다 — 탭 세 개를 가르는
+    // 글자가 앞에 있어야 한다. 조직은 그대로 끝에 남는다(REQ-WEB-194 가 정한 순서를 깨지 않는다)
+    detail !== null && onDetailRoute(pathname) ? detailText(detail) : null,
     key === null ? null : t(key),
     onProject ? scope.projectName : null,
     scope.orgName,

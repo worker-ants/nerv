@@ -75,16 +75,20 @@ beforeEach(() => {
                 },
               ],
             }
-          : path.includes('/projects/clemvion')
-            ? {
-                id: 'p-1',
-                slug: 'clemvion',
-                key: 'CLV',
-                name: 'clemvion',
-                org_slug: 'nerv',
-                ...repo,
-              }
-            : { items: [], memberships: [], count: 0, summary: {} };
+          : // 보드 레인 목록 — 시트가 같은 레인을 읽는다(task-sheet.tsx). 프로젝트 줄로 떨어뜨리면 `items` 가 없는
+            // 목록이 되어 시트가 그린 순간 무너진다(렌더 순서가 바뀌면 드러나는 틈이었다 — 2026-09-25)
+            /\/projects\/clemvion\/tasks\?/.test(path)
+            ? { items: [], next_cursor: null }
+            : path.includes('/projects/clemvion')
+              ? {
+                  id: 'p-1',
+                  slug: 'clemvion',
+                  key: 'CLV',
+                  name: 'clemvion',
+                  org_slug: 'nerv',
+                  ...repo,
+                }
+              : { items: [], memberships: [], count: 0, summary: {} };
       return { ok: true, status: 200, json: async () => json };
     }),
   );

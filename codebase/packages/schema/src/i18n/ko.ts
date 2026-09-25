@@ -1589,6 +1589,7 @@ export const ko = {
   'settings.tab.gates': '게이트 정책',
   'settings.tab.members': '멤버·역할',
   'settings.tab.tokens': '에이전트 토큰',
+  'spec.ancestors': '상위 문서',
   'settings.title': '설정',
   'settings.heading': '설정 — {org}',
   'settings.nav_label': '설정 메뉴',

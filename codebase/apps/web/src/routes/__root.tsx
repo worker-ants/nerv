@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { AppShell } from '../components/app-shell.js';
+import { TitleDetailProvider } from '../lib/title-detail.js';
 import { NotFoundPage } from '../components/route-states.js';
 import { NervApiError } from '../lib/api.js';
 import { useApiError } from '../lib/api-errors.js';
@@ -68,9 +69,12 @@ function RootComponent(): React.JSX.Element {
   if (BARE_ROUTES.has(pathname) || BARE_PREFIXES.some((p) => pathname.startsWith(p)))
     return <Outlet />;
 
+  // 상세 화면이 "무엇을 보는가" 를 셸에 알리는 통로(REQ-WEB-228) — 셸이 읽으므로 셸 **바깥**에서 연다
   return (
-    <AppShell projectSlug={projectSlug} activeSpecKey={activeSpecKey}>
-      <Outlet />
-    </AppShell>
+    <TitleDetailProvider>
+      <AppShell projectSlug={projectSlug} activeSpecKey={activeSpecKey}>
+        <Outlet />
+      </AppShell>
+    </TitleDetailProvider>
   );
 }

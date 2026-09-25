@@ -5,6 +5,7 @@
 // 답하지 못하는 편집기는 문서를 고치게 만들지 말아야 한다.
 
 import { useT } from '../../lib/i18n.js';
+import { useTitleDetail } from '../../lib/title-detail.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { scrollEdges, type ScrollEdges } from '../../lib/scroll-edges.js';
 import {
@@ -15,7 +16,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { BaselineSelect } from '../../features/spec-editor/baseline-controls.js';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
@@ -53,8 +54,12 @@ import {
   useSpecVersion,
   useSpecAttachments,
   useRequirements,
+  useProject,
+  useSpecTree,
   useSpecVersions,
 } from '../../lib/queries.js';
+import { ancestorsOf } from '../../components/spec-tree.js';
+import type { TreeNode } from '../../components/spec-tree.js';
 import { relativeTime } from '../../lib/format.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
@@ -145,6 +150,11 @@ function SpecDetailGate(): React.JSX.Element {
   const t = useT();
   const { proj, spec } = Route.useParams();
   const detail = useSpec(proj, spec, Route.useSearch().baseline);
+  // 탭 제목과 헤더 끝이 **이 문서**를 말한다(REQ-WEB-228) — 받아 오는 동안·없는 문서여도 키는 안다
+  useTitleDetail({
+    key: spec,
+    title: typeof detail.data?.['title'] === 'string' ? detail.data['title'] : null,
+  });
   if (detail.data !== undefined) return <SpecDetail />;
   return (
     <PageBody>
@@ -450,7 +460,24 @@ function SpecDetail(): React.JSX.Element {
   // **slug 로 떨어뜨리지 않는다**(2026-09-10 · 브랜드 타입이 짚은 자리). 예전에는 문서가
   // 도착하기 전 `proj`(slug)를 대신 담았고, 그동안의 무효화는 아무 캐시에도 닿지 않았다 —
   // 조용히 아무 일도 하지 않는 그 부류다(4.5 §1.4). 없으면 없는 채로 둔다.
-  const projectUuid = asProjectId(detail.data?.['project_id']);
+  //
+  // **문서 응답에서 읽지 않는다**(2026-09-25 실측 — REQ-WEB-228 을 붙이다 드러났다). EP-SPEC-03 은 `project_id` 를
+  // 싣지 않아서 이 값은 실제 서버에서 **늘 비어 있었고**, 그래서 파생 작업 목록은 한 번도 불리지 않았으며(늘 "없음")
+  // 복구 뒤 무효화도 건너뛰었다. 검사의 가짜 서버만 `project_id` 를 줘서 가려져 있었다. 셸이 이미 받아 둔
+  // 프로젝트 조회(같은 slug 키)의 id 를 쓴다 — 새 요청이 없다.
+  const projectOfRoute = useProject(proj);
+  const projectUuid = asProjectId(projectOfRoute.data?.['id']);
+  /**
+   * **이 문서가 트리의 어디인가**(2026-09-25 — NAV-13 · REQ-WEB-228). 넓은 화면에서는 옆의 트리 열이 짚어 주지만,
+   * 좁은 화면에서는 그 열이 띠 뒤에 접혀 있어 위치를 알 길이 없었다. 트리 열과 **같은 캐시**를 읽는다 — 새 요청이
+   * 없다(프로젝트 축 · 같은 기준선).
+   */
+  const specTree = useSpecTree(proj, projectUuid, false, search.baseline);
+  const treeNodes = rows(specTree.data) as unknown as TreeNode[];
+  const ancestors = ancestorsOf(treeNodes, spec)
+    .map((id) => treeNodes.find((node) => node.id === id))
+    .filter((node): node is TreeNode => node !== undefined)
+    .reverse();
   const restore = useMutation({
     mutationFn: () =>
       apiFetch<Record<string, unknown>>(`/projects/${proj}/specs/${spec}/restore`, {
@@ -597,6 +624,27 @@ function SpecDetail(): React.JSX.Element {
             붙어 있으므로, 150px 짜리 머리 안에 제목을 두면 머리가 화면을 떠날 때 제목도
             같이 떠난다(실측 2026-08-27 — 그래서 처음 시도가 동작하지 않았다). 제목이
             본문 끝까지 붙어 있으려면 본문만큼 긴 상자의 자식이어야 한다. */}
+        {ancestors.length > 0 && (
+          <nav
+            aria-label={t('spec.ancestors')}
+            data-testid="spec-ancestors"
+            className="mb-1 flex flex-wrap items-center gap-x-1 text-xs text-text-faint"
+          >
+            {ancestors.map((node, index) => (
+              <Fragment key={node.id}>
+                {index > 0 && <span aria-hidden="true">›</span>}
+                <Link
+                  to="/p/$proj/specs/$spec"
+                  params={{ proj, spec: node.key }}
+                  search={search.baseline === undefined ? {} : { baseline: search.baseline }}
+                  className="rounded-nerv-sm hover:text-text hover:underline"
+                >
+                  {node.title}
+                </Link>
+              </Fragment>
+            ))}
+          </nav>
+        )}
         <div className="mb-[7px] flex flex-wrap items-center gap-[7px]">
           <StatusBadge
             token={
