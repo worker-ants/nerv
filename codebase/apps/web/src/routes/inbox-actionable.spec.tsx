@@ -195,11 +195,13 @@ describe('홈 — 인사와 오늘 할 일도 같은 수다 (REQ-WEB-217)', () =
     expect(screen.getByTestId('home-others-waiting').textContent).toContain('2건');
   });
 
-  it('누를 것이 없으면 "밀린 결정이 없어요" 다 — 내가 올린 것만 남아 있어도', async () => {
+  it('누를 것이 없으면 "밀린 결정이 없습니다" 다 — 내가 올린 것만 남아 있어도', async () => {
     pending = { items: LOCKED, next_cursor: null, total: 2, actionable_total: 0 };
     renderAt('/');
     await waitFor(() =>
-      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('밀린 결정이 없어요'),
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
+        '밀린 결정이 없습니다',
+      ),
     );
     expect(screen.getByTestId('home-others-waiting').textContent).toContain('2건');
   });

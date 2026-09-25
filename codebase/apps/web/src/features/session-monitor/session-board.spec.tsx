@@ -109,7 +109,7 @@ describe('SessionCard — REQ-WEB-019 필수 표기', () => {
     expect(screen.getByText('+218 −34')).toBeDefined();
   });
 
-  it('클레임한 Task 와 선언 scope 를 보여준다 — 겹침 경고를 읽으려면 필요하다', async () => {
+  it('클레임한 Task 와 작업 범위를 보여준다 — 겹침 경고를 읽으려면 필요하다', async () => {
     render(<SessionCard card={base} now={NOW} />);
     expect(screen.getByText('CLV-T-1KTDCK')).toBeDefined();
     expect(screen.getByText('codebase/frontend/src/widget/**')).toBeDefined();

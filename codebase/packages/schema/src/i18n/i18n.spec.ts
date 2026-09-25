@@ -147,3 +147,55 @@ describe('키 이름 규약', () => {
     expect(eventShaped).toEqual([]);
   });
 });
+
+// ── 말투 (docs/glossary.md §3.1 · 2026-09-25 사람 결정 D5 · UI/UX 검토 SYS-10) ─────────────
+//
+// 화면은 합쇼체다. 규칙은 적혀 있었지만(§3.1) 세는 곳이 없어서, 홈에서 가장 큰 글자가 "밀린 결정이 없어요" 였고
+// 바로 아래 문장은 "기다리는 항목이 없습니다." 였다 — 한 카드 안에서 말투가 바뀌었다. 해요체 여덟 · 해라체 둘이
+// 새 화면이 들어올 때마다 조용히 늘었다(그중 하나는 전날 들어온 로그인 화면이다). **요청형 "-세요" 는 허용한다**
+// (D5 — "다시 시도하십시오" 는 화면에서 딱딱하다). 설계 문서의 말(결정 번호 · "MVP")도 화면에 새지 않는다.
+describe('말투 — 사람이 보는 화면은 합쇼체다', () => {
+  /** 에이전트·CLI 가 받는 것과 생성 문서 — 해라체다(§3.1). 여기서는 세지 않는다 */
+  const AGENT_PREFIXES = ['mcp.', 'agent.', 'cli.', 'import.', 'export.'];
+  /**
+   * 해라체가 맞는 화면 문구 — **문구 자체가 해라체로 쓰는 형식의 견본**이다. 요구사항 문장의 모양
+   * (`… THE SYSTEM SHALL <동작>한다`)을 보여 주는 자리라, 합쇼체로 바꾸면 틀린 견본이 된다.
+   */
+  const HAERA_SAMPLES = new Set(['spec.requirements.format']);
+  const screen = Object.entries(ko).filter(
+    ([key]) => !AGENT_PREFIXES.some((prefix) => key.startsWith(prefix)),
+  );
+
+  it('해요체로 끝나는 문장이 없다 — "-세요" 는 허용이다', () => {
+    const haeyo = /(?:어요|아요|해요|예요|에요|네요|나요|까요|려고요|죠)(?=[.?!,)\s]|$)/;
+    expect(screen.filter(([, value]) => haeyo.test(value)).map(([key]) => key)).toEqual([]);
+    // 허용한 요청형이 검사에 걸리지 않는다
+    expect(haeyo.test('다시 시도하세요')).toBe(false);
+    expect(haeyo.test('목표를 적어 주세요.')).toBe(false);
+  });
+
+  it('해라체로 끝나는 문장이 없다 — 문장 끝의 "다" 는 "니다" 다', () => {
+    // 문장 끝: 마침표·물음표·괄호 앞 · 줄 끝 · 줄표 앞. 문장 중간의 "마다 " · "그리다 " 는 세지 않는다
+    const haera = /(?<!니)다(?=[.!?(]|$|\s—|\n)/;
+    expect(
+      screen
+        .filter(([key, value]) => !HAERA_SAMPLES.has(key) && haera.test(value))
+        .map(([key]) => key),
+    ).toEqual([]);
+    expect(haera.test('먼저 클레임한다.')).toBe(true);
+    expect(haera.test('반복되면 올린다(D-14).')).toBe(true);
+    expect(haera.test('프로젝트마다 따로입니다')).toBe(false);
+  });
+
+  it('설계 문서의 말이 화면에 새지 않는다 — 결정 번호 · "MVP"', () => {
+    // "(D-08)" 을 읽은 사람은 그 뜻을 찾을 곳이 없다 — 이유는 문장으로 말한다
+    const leak = /\bD-\d{2}\b|\bMVP\b/;
+    expect(screen.filter(([, value]) => leak.test(value)).map(([key]) => key)).toEqual([]);
+  });
+
+  it('예외로 둔 견본은 실제로 해라체다 — 고쳐지면 예외도 걷는다', () => {
+    for (const key of HAERA_SAMPLES) {
+      expect(ko[key as keyof typeof ko]).toMatch(/다$/);
+    }
+  });
+});

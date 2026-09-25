@@ -230,6 +230,38 @@ describe('② 받을 때 — 원문 카드가 자기를 설명한다', () => {
   });
 });
 
+describe('권한은 무엇을 허락하는지 말한다 (2026-09-25 · UI/UX 검토 SET-14)', () => {
+  it('권한마다 코드 아래에 한 줄 설명이 선다 — 사람 전용 권한도', async () => {
+    await renderTab(ADMIN);
+    const scopes = await screen.findAllByTestId('token-scope');
+    const read = scopes.find((label) => label.querySelector('code')?.textContent === 'spec:read');
+    expect(read?.textContent).toContain('스펙·요구사항을 읽습니다');
+    const launch = scopes.find(
+      (label) => label.querySelector('code')?.textContent === 'agent-session:launch',
+    );
+    expect(launch?.textContent).toContain('연결하려면 필요합니다');
+    const human = screen.getAllByTestId('human-only-scope');
+    expect(human.map((label) => label.textContent)).toEqual([
+      expect.stringContaining('스펙을 승인합니다'),
+      expect.stringContaining('받은 요청을 결정합니다'),
+    ]);
+    // 설계 문서의 결정 번호가 아니라 까닭을 말한다
+    expect(human[0]?.getAttribute('title')).not.toContain('D-08');
+    expect(human[0]?.getAttribute('title')).toContain('사람만 할 수 있어');
+  });
+
+  it('토큰 표의 머리가 카탈로그를 읽는다 — "prefix" 가 박혀 있지 않다', async () => {
+    await renderTab(DEVELOPER);
+    await waitFor(() => expect(screen.getByText('clemvion/내 에이전트')).toBeDefined());
+    const table = screen.getByText('clemvion/내 에이전트').closest('table') as HTMLElement;
+    const heads = within(table)
+      .getAllByRole('columnheader')
+      .map((th) => th.textContent);
+    expect(heads).toContain('앞자리');
+    expect(heads).not.toContain('prefix');
+  });
+});
+
 describe('③ 나중에 — 목록이 프로젝트를 말한다', () => {
   it('내 토큰 표에 프로젝트 열이 있다', async () => {
     await renderTab(DEVELOPER);

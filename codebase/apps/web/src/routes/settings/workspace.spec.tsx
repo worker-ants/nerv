@@ -206,6 +206,26 @@ describe('새 프로젝트 — 이름에서 slug·key 를 만들어 준다', () 
     expect((screen.getByTestId('project-slug') as HTMLInputElement).value).toBe('acme-console');
     expect((screen.getByTestId('project-key') as HTMLInputElement).value).toBe('ACM');
   });
+
+  it('이름이 한글뿐이면 주소 칸이 까닭을 말한다 — 사유 없이 잠기지 않는다 (SET-14)', async () => {
+    stub([]);
+    await renderTab(false);
+    fireEvent.click(screen.getByTestId('project-new'));
+    fireEvent.change(screen.getByTestId('project-name'), { target: { value: '고객 콘솔' } });
+    const slug = screen.getByTestId('project-slug');
+    expect((slug as HTMLInputElement).value).toBe('');
+    expect(slug.getAttribute('aria-invalid')).toBe('true');
+    expect(
+      screen.getByText('이름에서 주소를 만들지 못했습니다 — 영문 소문자·숫자로 적어 주세요.'),
+    ).toBeDefined();
+    expect((screen.getByTestId('project-create') as HTMLButtonElement).disabled).toBe(true);
+    // 적으면 사유가 걷힌다
+    fireEvent.change(slug, { target: { value: 'console' } });
+    expect(slug.getAttribute('aria-invalid')).toBe('false');
+    expect(
+      screen.queryByText('이름에서 주소를 만들지 못했습니다 — 영문 소문자·숫자로 적어 주세요.'),
+    ).toBeNull();
+  });
 });
 
 // 설정 탭 줄도 S3 곁레일과 같은 모양이다 — 좁은 칸에서 넘칠 수 있고, 그때 밀려야 하는

@@ -86,7 +86,7 @@ function mount(path: string, locale: 'ko' | 'en' = 'ko') {
 }
 
 describe('로그인에서 가는 길', () => {
-  it('비밀번호 칸 아래의 [비밀번호를 잊었나요?] — 친 이메일을 들고 가되 주소에는 싣지 않는다', async () => {
+  it('비밀번호 칸 아래의 [비밀번호를 잊었을 때] — 친 이메일을 들고 가되 주소에는 싣지 않는다', async () => {
     const router = mount('/login');
     fireEvent.change(await screen.findByLabelText('이메일'), {
       target: { value: 'jimin@example.com' },

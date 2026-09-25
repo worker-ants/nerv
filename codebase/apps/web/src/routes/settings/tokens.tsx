@@ -287,7 +287,9 @@ function TokensTab(): React.JSX.Element {
           </label>
           <span className="text-text-faint">{t('settings.tokens.preset_hint')}</span>
         </div>
-        <fieldset className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+        {/* 권한마다 **무엇을 허락하는지** 한 줄을 붙인다(2026-09-25 · UI/UX 검토 SET-14) — `spec:read` 같은 코드만
+            늘어놓으면 고르는 사람은 설계 문서를 열어 봐야 한다. 코드는 그대로 둔다: 스킬·매뉴얼이 그 이름으로 부른다 */}
+        <fieldset className="mt-2 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
           <legend className="sr-only">{t('settings.tokens.scopes')}</legend>
           {AGENT_SCOPES.map((scope) => {
             // 내 역할에 없는 권한은 **보이되 잠긴다**. 사람 전용 권한과 같은 규율이다 —
@@ -296,15 +298,17 @@ function TokensTab(): React.JSX.Element {
             return (
               <label
                 key={scope}
+                data-testid="token-scope"
                 className={
                   mineScope
-                    ? 'flex cursor-pointer items-center gap-1.5'
-                    : 'flex items-center gap-1.5 opacity-45'
+                    ? 'flex cursor-pointer items-start gap-1.5'
+                    : 'flex items-start gap-1.5 opacity-45'
                 }
                 title={mineScope ? undefined : t('settings.tokens.out_of_role')}
               >
                 <input
                   type="checkbox"
+                  className="mt-0.5"
                   checked={granted.includes(scope)}
                   // 권장일 때는 묶음을 **보여 주기만** 한다 — 고치려면 [직접 고르기]
                   disabled={!mineScope || !customScopes}
@@ -314,7 +318,10 @@ function TokensTab(): React.JSX.Element {
                     )
                   }
                 />
-                <code className="font-mono">{scope}</code>
+                <span className="flex flex-col">
+                  <code className="font-mono">{scope}</code>
+                  <span className="text-text-faint">{t(`scope.desc.${scope}`)}</span>
+                </span>
               </label>
             );
           })}
@@ -326,11 +333,16 @@ function TokensTab(): React.JSX.Element {
               key={scope}
               data-testid="human-only-scope"
               title={t('settings.tokens.human_only_title')}
-              className="flex cursor-not-allowed items-center gap-1.5 opacity-50"
+              className="flex cursor-not-allowed items-start gap-1.5 opacity-50"
             >
-              <input type="checkbox" disabled checked={false} readOnly />
-              <code className="font-mono">{scope}</code>
-              <span className="text-text-faint">{t('settings.tokens.human_only')}</span>
+              <input type="checkbox" className="mt-0.5" disabled checked={false} readOnly />
+              <span className="flex flex-col">
+                <span>
+                  <code className="font-mono">{scope}</code>{' '}
+                  <span className="text-text-faint">{t('settings.tokens.human_only')}</span>
+                </span>
+                <span className="text-text-faint">{t(`scope.desc.${scope}`)}</span>
+              </span>
             </label>
           ))}
         </fieldset>
@@ -380,7 +392,7 @@ function TokensTab(): React.JSX.Element {
                     것인가" 이고, 와이어프레임(§2.8)도 그 열을 그리고 있었다 */}
                 <Th>{t('settings.tokens.project')}</Th>
                 <Th>{t('settings.members.name')}</Th>
-                <Th>prefix</Th>
+                <Th>{t('settings.tokens.prefix')}</Th>
                 <Th>{t('settings.tokens.scopes')}</Th>
                 <Th>{t('settings.tokens.expires')}</Th>
                 <Th>{t('settings.tokens.last_used')}</Th>
