@@ -8,6 +8,8 @@
 // 로그인과 같은 규율: 실패 사유는 **폼 안**에 있고 비밀번호만 초기화한다.
 
 import { useT } from '../lib/i18n.js';
+import { PASSWORD_MIN_LENGTH } from '@nerv/schema';
+import { LocaleSwitch } from '../components/locale-switch.js';
 import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -133,7 +135,7 @@ function SignupScreen(): React.JSX.Element {
               <Input
                 type="password"
                 required
-                minLength={8}
+                minLength={PASSWORD_MIN_LENGTH}
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -159,6 +161,7 @@ function SignupScreen(): React.JSX.Element {
             {t('signup.have_account')}
           </Link>
         </p>
+        <LocaleSwitch labelled={false} className="mt-6 flex justify-center" />
       </div>
     </div>
   );

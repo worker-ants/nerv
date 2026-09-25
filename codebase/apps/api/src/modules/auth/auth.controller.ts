@@ -18,6 +18,7 @@ import {
 import {
   MemberAddInput,
   MemberUpdateInput,
+  MeUpdateInput,
   msg,
   NERV_ERROR,
   OrgCreateInput,
@@ -43,6 +44,24 @@ export class AuthController {
   @Get('me')
   me(@Req() req: ProjectRequest): Promise<unknown> {
     return this.auth.me(principalOf(req).userId);
+  }
+
+  /**
+   * EP-AUTH-02 — 내 표시 이름(2026-09-25 · REQ-API-186). 가입 때 적은 이름이 멤버 표·카드·활동에 그대로
+   * 박히는데 고칠 길이 없었다. **사람만** 바꾼다 — 에이전트 토큰이 그것을 맡긴 사람의 이름을 바꾸지 않는다(D-08).
+   * 비밀번호는 여기가 아니라 인증 스택의 `/api/auth/change-password` 다(api.md §1.3).
+   */
+  @Patch('me')
+  updateMe(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    const principal = principalOf(req);
+    if (principal.isAgent) {
+      throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.account'), {
+        kind: 'human_only',
+        web_url: '/settings/account',
+      });
+    }
+    const input = parseBody(MeUpdateInput, body);
+    return this.auth.updateMe(principal.userId, input.display_name);
   }
 
   /** EP-ORG-01 */

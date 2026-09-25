@@ -186,6 +186,20 @@ export const RATE_LIMIT_AUTH_PER_MIN = 30;
 export const RATE_LIMIT_SIGN_IN_PER_MIN = 10;
 
 /**
+ * 표시 이름의 길이 상한 — 멤버 표·카드·활동 줄에 그대로 박힌다(2026-09-25 · REQ-API-186).
+ *
+ * 가입 때는 인증 스택이 받는 대로 들어왔고 상한이 어디에도 없었다. 사람이 이름을 바꾸는 문(EP-AUTH-02)을
+ * 열면서 값을 한 곳에 둔다 — 화면의 입력 칸도 이 값을 읽는다.
+ */
+export const DISPLAY_NAME_MAX = 60;
+
+/**
+ * 비밀번호의 최소 길이 — 인증 스택(`minPasswordLength`)과 화면의 입력 칸이 같은 값을 읽는다(2026-09-25).
+ * 세 자리(로그인·가입·내 계정)에 `8` 이 글자로 박혀 있었다 — 한쪽만 바꾸면 화면이 서버와 다른 약속을 한다.
+ */
+export const PASSWORD_MIN_LENGTH = 8;
+
+/**
  * WS 연결 거절을 알리는 이벤트 이름.
  *
  * socket.io 의 `connect_error` 를 **서버가 emit 할 수 없다** — 예약된 이름이라 예외를 던지고,

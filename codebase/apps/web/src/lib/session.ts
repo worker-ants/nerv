@@ -105,6 +105,38 @@ export async function resendVerification(email: string, returnPath: string): Pro
   await authFetch('/send-verification-email', { email, callbackURL: returnUrl(returnPath) });
 }
 
+/**
+ * 비밀번호를 바꾼다 — 인증 스택의 `/change-password`(2026-09-25 · REQ-API-186 · REQ-WEB-229). 지금 비밀번호를
+ * 맞혀야 하고, `revokeOthers` 면 다른 기기의 세션을 모두 끊는다(이 브라우저는 새 쿠키를 받아 남는다).
+ * 실패는 폼 인라인으로 돌려준다 — 사유마다 사람이 할 일이 다르다.
+ */
+export async function changePassword(input: {
+  current: string;
+  next: string;
+  revokeOthers: boolean;
+}): Promise<AuthFailure | null> {
+  const res = await authFetch('/change-password', {
+    currentPassword: input.current,
+    newPassword: input.next,
+    revokeOtherSessions: input.revokeOthers,
+  });
+  if (res.ok) return null;
+  if (res.status === 429) return { key: 'auth.too_many' };
+  try {
+    const body = (await res.json()) as { code?: string; message?: string };
+    if (body.code === 'INVALID_PASSWORD') return { key: 'auth.password_wrong' };
+    if (body.code === 'PASSWORD_TOO_SHORT') return { key: 'auth.password_too_short' };
+    return body.message === undefined ? { key: 'auth.sign_in_failed' } : { message: body.message };
+  } catch {
+    return { key: 'auth.sign_in_failed' };
+  }
+}
+
+/** 표시 이름을 바꾼다 — EP-AUTH-02(REQ-API-186). 바뀐 `me` 를 돌려받는다 */
+export async function updateDisplayName(displayName: string): Promise<Me> {
+  return apiFetch<Me>('/me', { method: 'PATCH', body: { display_name: displayName } });
+}
+
 export async function signOut(): Promise<void> {
   await authFetch('/sign-out', {});
 }

@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.63 · 2026-09-25 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.64 · 2026-09-25 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.64 변경(2026-09-25 — 사람이 자기 이름과 비밀번호를 바꿀 길이 없었다, **사람 결정 D10** · UI/UX 검토 SET-13): **EP-AUTH-02 · REQ-API-186 신설 · §1.3 한 항목 · §1.8 한 줄.** 가입 때 적은 이름이 멤버 표·카드·활동에 박히는데 고칠 문이 없었다 — `PATCH /api/v1/me`(`MeUpdateInput` — 앞뒤 공백을 자르고 1~60자 · **사람만**). 인증 스택의 `/update-user` 는 같은 열을 **검사 없이** 받는 두 번째 문이라 닫는다(`disabledPaths` → 404). 비밀번호는 인증 스택의 `/change-password`(지금 비밀번호를 맞혀야 하고 `revokeOtherSessions` 로 다른 세션을 끊는다) — 로그인과 같은 한도(10/분)를 건다. 메일로 재설정하는 길은 다음 묶음이다.
 >
 > v1.63 변경(2026-09-25 — 홈이 한 프로젝트만 비췄고 "활성" 의 정의가 화면마다 달랐다, UI/UX 검토 P10b): **REQ-API-185 신설 · EP-PRJ-01 응답 칸.** 조직의 프로젝트 목록은 활성 세션과 미결 결재를 이미 실었지만 critical 발견은 단건(EP-PRJ-03)에만 있어, 홈은 헤더가 고른 한 프로젝트밖에 비출 수 없었다 — 목록도 `open_critical_findings` 를 싣는다. 두 표면의 활성 세션 수는 `@nerv/schema` 의 `ACTIVE_SESSION_STATES`(끝나지 않은 셋) 한 벌로 센다 — 개요는 상태 없이 세어 끝난 세션을 "활성" 이라 불렀다([4.5](screens.md) REQ-WEB-219·220).
 >
@@ -345,6 +347,7 @@ flowchart LR
 | **PAT** | `Authorization: Bearer <token>` | 에이전트(MCP)·CI·외부 연동·md 미러 | **자체 `api_token` 테이블**(해시·prefix·scopes — [4.3](database.md) §2.2). better-auth api-key 플러그인이 아니다: 그 테이블을 함께 쓰면 토큰이 두 곳에 산다(2026-09-24 문서 정정). 토큰은 **(사용자, 프로젝트, 역할, 소속)** 튜플에 바인딩되고 권한은 소유 사용자의 부분집합을 넘지 못한다([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1, D-08). Bearer 헤더 필수, **쿼리스트링 전달 금지**(MCP Authorization 규약 재인용) |
 
 - **가입은 이메일 확인까지다**(2026-09-22 · 사람 결정). 가입하면 better-auth 가 확인 메일을 줄 세우고(`emailVerification.sendOnSignUp` → [4.3](database.md) §2.17 아웃박스), **확인 전에는 `POST /api/auth/sign-in/email` 이 403 `EMAIL_NOT_VERIFIED` 로 막는다.** 확인 링크는 `GET /api/auth/verify-email?token=…&callbackURL=…` 이고 — 토큰을 확인하는 것은 API 이고 사람이 되돌아가는 곳은 화면이라 **주소 둘이 한 링크에 들어간다** — 확인이 끝나면 곧바로 세션이 선다(`autoSignInAfterVerification`). **돌아갈 화면은 요청이 정한다**(2026-09-24 — 사람 보고) — 가입·재발송이 싣는 `callbackURL` 을 better-auth 가 넘겨주고 서버가 그것을 링크에 담되, **화면 오리진(`NERV_WEB_URL`) 안일 때만**이다. 밖이면 화면의 첫 주소로 떨어진다: 그 값은 메일에 박혀 남의 손에 들릴 수 있어, 다른 호스트를 허락하면 우리 도메인의 링크가 열린 리다이렉트가 된다(better-auth 의 신뢰 오리진은 API 자신까지 담으므로 그것만으로는 좁혀지지 않는다). 전에는 그 값을 버리고 늘 `/` 를 넣어, 초대로 가입한 사람이 초대 화면으로 돌아가지 못했다([4.5](screens.md) REQ-WEB-089 · REQ-WEB-188). 다시 받는 길은 `POST /api/auth/send-verification-email` 이고 로그인과 **같은 한도**를 쓴다(남의 주소를 골라 두드리면 그 사람의 메일함이 시끄러워진다). **강제 여부는 SMTP 에서 유도한다** — 메일이 없는 배치는 확인 메일을 보낼 수 없으므로 강제하지 않고, `NERV_REQUIRE_EMAIL_VERIFICATION=true` 인데 SMTP 가 비면 **기동을 거부한다**([4.2](codebase.md) §5.2).
+- **내 계정 — 이름과 비밀번호**(2026-09-25 — 사람 결정 D10 · REQ-API-186). 이름은 EP-AUTH-02(`PATCH /api/v1/me` · `MeUpdateInput` — 앞뒤 공백을 자르고 1~60자 · 이메일 같은 다른 칸은 거절)가 **하나뿐인 문**이다 — 인증 스택의 `/update-user` 는 같은 열(`display_name` ← `name` 매핑)을 **검사 없이** 받아 빈 이름·끝없는 이름이 멤버 표에 박히므로 닫는다(`disabledPaths` · 404). 에이전트 토큰은 이름을 바꾸지 않는다(`HUMAN_ONLY` — D-08). 비밀번호는 인증 스택의 `POST /api/auth/change-password`(`currentPassword`·`newPassword`·`revokeOtherSessions`)다 — 지금 비밀번호를 맞혀야 하고(틀리면 400 `INVALID_PASSWORD`), 다른 세션을 끊으면 이 브라우저는 새 쿠키를 받아 남는다. 최소 길이는 `PASSWORD_MIN_LENGTH`(8) 하나를 인증 스택과 화면이 같이 읽는다. **이메일은 바꾸지 않는다**(로그인 아이디 — 인증 스택의 이메일 변경은 꺼진 채다).
 - PAT 원문 형식: `nerv_` 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(`api_token.token_hash`), 식별·감사용으로 앞 8자를 `api_token.prefix`에 남긴다([데이터 모델](../03-proposal/data-model.md) §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 **한 번만** 반환된다.
 - 권한 어휘는 `resource:action` 표기이고 **10종**이다: `spec:read` `spec:draft` `spec:meta` `spec:evidence` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` `import:write`. `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 권한**다 — 정책이 아니라 시스템 불변식([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1 ④). 정본은 `@nerv/schema` 의 `AGENT_SCOPES`·`HUMAN_ONLY_SCOPES` 이며, 어느 문서도 이 목록을 다시 적지 않는다.
 - **MCP 도구 대응이 없는 권한이 셋 있다**(2026-09-04 정정 — 실측). 도구 24종이 쓰는 권한은 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
@@ -902,7 +905,7 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | PAT 토큰당 | **300 req/min** | `/api/v1` + `/mcp`(같은 풀 — 토큰이 주체이므로 표면을 나누지 않는다) | 하트비트 60초 주기·조회 포함 여유값. 초과 시 `retry_after_s` 준수는 스킬 규약([4.6](plugin.md) §2) |
 | 웹 세션 사용자당 | **600 req/min** | `/api/v1` | 쿼리 무효화 재조회 버스트([4.5 화면 명세](screens.md) §1.4) 흡수 |
 | 세션당 ingest | **120 req/min** | `/ingest/hooks/*` | 훅 폭주(도구 호출 다발) 상한. 초과분은 429 — 훅 수집은 손실 허용(진실은 서버 산출물, D-14) |
-| **IP당 인증** | **30 req/min** (로그인·가입은 **10 req/min**) | `/api/auth/*` | 주체가 다르다 — 로그인 전에는 토큰도 세션도 없으므로 IP로 센다. 목적도 다르다: 위 셋은 과부하 방어이고 이것은 **무차별 대입 방어**다. 사람의 로그인 속도로는 닿지 않고 자동화된 시도에는 금세 걸리는 값이다. 로그인·가입은 무차별 대입의 표적이라 더 좁다 — 다만 사람이 오타 몇 번에 잠기지 않을 만큼은 남긴다(인증 스택 기본값 10초당 3회는 그 선을 넘는다). 초과 응답 문구는 화면이 우리 말로 옮기고, 재시도 시각은 `Retry-After`·`x-retry-after` 중 있는 것을 쓴다(§1.5 · REQ-WEB-005) |
+| **IP당 인증** | **30 req/min** (로그인·가입·확인 메일 재발송·비밀번호 바꾸기는 **10 req/min** — 비밀번호 바꾸기는 2026-09-25) | `/api/auth/*` | 주체가 다르다 — 로그인 전에는 토큰도 세션도 없으므로 IP로 센다. 목적도 다르다: 위 셋은 과부하 방어이고 이것은 **무차별 대입 방어**다. 사람의 로그인 속도로는 닿지 않고 자동화된 시도에는 금세 걸리는 값이다. 로그인·가입은 무차별 대입의 표적이라 더 좁다 — 다만 사람이 오타 몇 번에 잠기지 않을 만큼은 남긴다(인증 스택 기본값 10초당 3회는 그 선을 넘는다). 초과 응답 문구는 화면이 우리 말로 옮기고, 재시도 시각은 `Retry-After`·`x-retry-after` 중 있는 것을 쓴다(§1.5 · REQ-WEB-005) |
 
 - 한도 계산은 고정 창(1분) 기준이며, 응답 헤더 `Retry-After`(초)와 봉투 `details.retry_after_s`를 함께 싣는다(§1.4).
 - **세는 곳은 Valkey다**(2026-09-02 · 구현 기록). api 파드가 여럿이라(§6.3 replicas 2) 프로세스 메모리로 세면 실효 한도가 파드 수만큼 늘어난다 — 300 이라 적어 두고 600 을 허용하는 것은 한도가 아니라 장식이다. Valkey 가 닿지 않으면 파드별 카운터로 낮춰 센다: 과부하 방어에 필요한 것은 정확한 숫자가 아니라 상한의 존재이고, 아예 안 세는 것보다 파드별로라도 세는 편이 낫다(D-14 의 degrade 규율과 같은 축).
@@ -917,6 +920,7 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
 | EP-AUTH-01 | `GET /api/v1/me` | 로그인 사용자 | — | `MeResult`(프로필 + 멤버십·역할 목록) | — |
+| EP-AUTH-02 | `PATCH /api/v1/me` | 본인 — **사람만**(토큰은 `HUMAN_ONLY` · D-08) | `MeUpdateInput`(display_name — 앞뒤 공백을 자르고 1~60자) | `MeResult` — 바뀐 뒤의 나(2026-09-25 신설 · REQ-API-186) | — |
 | EP-ORG-01 | `GET /api/v1/orgs` | 로그인 사용자 | — | `Page<OrgSummary>` | — |
 | EP-ORG-02 | `GET /api/v1/orgs/{org}` | 조직 멤버 | — | `OrgResult` | — |
 | EP-PRJ-01 | `GET /api/v1/orgs/{org}/projects` | 조직 멤버 | — | `Page<ProjectSummary>` — 줄마다 `active_sessions`(끝나지 않은 셋 · `ACTIVE_SESSION_STATES`) · `pending_approvals`(결정되지 않은 결재 전체) · `open_critical_findings`(열린 critical — REQ-API-185) | — |
@@ -986,6 +990,7 @@ S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 3키다([4.5 화�
 | REQ-API-172 | WHEN 조직 전체 토큰 표(EP-TOK-04)를 조회하면 THE SYSTEM SHALL 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 403 으로 거절한다 — 판정은 REQ-API-169 와 같은 한 곳이다 |
 | REQ-API-173 | WHEN 남의 API 토큰을 폐기(EP-TOK-03)하면 THE SYSTEM SHALL 그 토큰의 조직에 조직 단위 admin 멤버십을 가진 사람만 허용하고 아니면 없는 토큰과 같이 거절한다. WHEN 초대 목록(EP-INV-02)을 조회하면 THE SYSTEM SHALL 조직 단위 admin 에게는 조직의 모든 초대를, 프로젝트 admin 에게는 자기가 admin 인 프로젝트의 초대만 돌려준다 |
 | REQ-API-174 | WHEN 멤버십 삭제(EP-MBR-04)나 역할 변경(EP-MBR-03)이 그 조직의 **마지막** 조직 단위 admin 멤버십을 없애게 되면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`details.kind: "last_org_admin"`)으로 거절하고 아무것도 바꾸지 않는다 — 같은 조직에 그런 요청이 동시에 와도 조직 단위 admin 이 한 명은 남는다. WHEN 조직 전체 토큰 표(EP-TOK-04)를 돌려주면 THE SYSTEM SHALL 줄마다 소유자의 `owner_id`·`owner_email` 을 싣는다 |
+| REQ-API-186 | WHEN 사람이 자기 표시 이름을 바꾸면(EP-AUTH-02) THE SYSTEM SHALL 앞뒤 공백을 잘라 1~60자인지 보고 저장하며 바뀐 뒤의 나를 돌려주고, WHERE 요청이 에이전트 토큰이면 THE SYSTEM SHALL `HUMAN_ONLY` 로 거절한다. THE SYSTEM SHALL 이름을 바꾸는 문을 이것 하나로 두고 인증 스택의 `/update-user` 를 닫는다(404). WHEN 비밀번호 바꾸기(`/api/auth/change-password`)가 오면 THE SYSTEM SHALL 지금 비밀번호가 맞을 때만 바꾸고, `revokeOtherSessions` 면 다른 세션을 모두 끊되 요청한 브라우저에 새 세션을 준다. THE SYSTEM SHALL 비밀번호 바꾸기에 로그인과 같은 IP당 한도를 건다 |
 
 #### 2.1c 조직을 가로지르는 목록은 범위를 이름으로 싣는다 (2026-09-24 신설 — 조직·프로젝트 경계 점검)
 

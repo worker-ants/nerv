@@ -56,6 +56,16 @@ Editing members and roles is `admin` only — **organization-wide rows by organi
 
 **The organization's last admin cannot be removed.** When only one person holds the organization-wide admin role, that person's admin chip and [Remove…] are locked — an organization with no admin left has nobody who can manage memberships, so there is no way back (the server refuses too). Make someone else an organization admin first. **Turning off your own admin chip asks once more** — editing on this screen locks the moment you do, and getting it back takes another admin.
 
+## My account
+
+It is the first item in the **You** group, and the first line of the menu under your name at the top right.
+
+- **Display name** — the name shown in member lists, cards and activity. Change it and press **[Save]**; every screen picks it up at once. Leading and trailing spaces are trimmed, and it cannot be empty.
+- **Email** — shown only. It is your sign-in ID, so it is not changed here.
+- **Password** — enter your current password and the new one (twice), then press **[Change password]**. The new password needs at least 8 characters, and you are told before sending if the two do not match. **"Sign out every other device"** is on by default — other browsers and devices are signed out, and the browser you are using stays signed in. A wrong current password is reported right in the form.
+
+An agent token cannot change your name — a person's account is changed by that person. There is no way yet to reset a forgotten password by email.
+
 ## Tokens
 
 Issue and revoke **your own** tokens for agents — the list holds yours from every organization you belong to. **The steps from issuing to connecting are in the [Plugin install](/help/install) chapter**, and help opened from this tab goes there. After issuing, a card gives you **three connection steps** (token · plugin install · one setup line) and turns into **"Connected"** the first time the token is used. Scopes start as the **[Recommended]** set. Tokens are **bound to a project**, so none can be issued while the organization has no projects — organization admins see **[Create a project]** in that spot.

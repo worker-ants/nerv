@@ -162,6 +162,17 @@ export class AuthService {
     return { ...user, memberships };
   }
 
+  /**
+   * EP-AUTH-02 — 표시 이름만 바꾼다(REQ-API-186). 인증 스택의 `name` 이 이 열에 매핑돼 있어(better-auth.ts)
+   * 세션이 읽는 이름도 같은 것이다 — 두 벌이 없다. 바뀐 뒤의 `me` 를 돌려준다(화면이 한 번에 새로 그린다).
+   */
+  async updateMe(userId: string, displayName: string): Promise<Record<string, unknown>> {
+    await this.db.execute(sql`
+      UPDATE "user" SET display_name = ${displayName}, updated_at = now() WHERE id = ${userId}
+    `);
+    return this.me(userId);
+  }
+
   /** EP-ORG-01 */
   async orgs(userId: string): Promise<Record<string, unknown>[]> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`

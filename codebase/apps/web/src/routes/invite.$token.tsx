@@ -10,6 +10,7 @@
 // 셸 밖이다 — 아직 이 조직의 멤버가 아니라서 헤더의 두 select 가 가리킬 것이 없다.
 
 import { acceptedLanding, invitationSentence } from '../components/invitation-cards.js';
+import { LocaleSwitch } from '../components/locale-switch.js';
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -221,6 +222,7 @@ function InviteScreen(): React.JSX.Element {
             </>
           )}
         </div>
+        <LocaleSwitch labelled={false} className="mt-6 flex justify-center" />
       </div>
     </div>
   );
