@@ -873,7 +873,9 @@ function SpecDetail(): React.JSX.Element {
               이 줄도 머리에 있다 — 방향을 바꾸는 손잡이가 목록과 함께 떠나면
               목록을 다 내려간 사람은 되감아야 방향을 바꾼다. */}
           {railTab === 'relations' && (
-            <div className="flex items-center gap-2 px-1 pt-2 pb-2">
+            // **좁으면 줄을 바꾼다** — 방향 탭 셋 옆에 링크 하나가 더 서면 좁은 레일에서 줄이 레일보다
+            // 넓어져 레일 전체가 옆으로 밀렸다(CI 의 리눅스 글꼴 폭에서 18px · spec-navigation L3)
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pt-2 pb-2">
               <RelationTabs
                 value={relTab}
                 onChange={setRelTab}
