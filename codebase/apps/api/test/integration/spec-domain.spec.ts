@@ -982,6 +982,51 @@ describe('E10-S03 코멘트는 앵커를 가진다', () => {
   });
 });
 
+/**
+ * **누가 지적했고, 목록의 행이 무엇을 손봐야 하는지 말한다**(2026-09-24 — UI/UX 검토 SPEC-04·13 ·
+ * REQ-API-183). 코멘트 줄에는 앵커와 본문뿐이었고, 목록의 행에는 최근 갱신과 열린 코멘트 수가 없었다.
+ */
+describe('코멘트의 작성자 · 목록 행의 갱신 시각과 열린 코멘트 (REQ-API-183)', () => {
+  it('코멘트 목록이 작성자 이름과 해소한 사람을 싣는다', async () => {
+    const s = await draft('SPC-CM-WHO', '# 문서');
+    const made = await comments.add({
+      projectId,
+      specVersionId: s.versionId,
+      anchor: '문서',
+      bodyMd: '누가 썼나',
+      userId: planner,
+    });
+    await comments.resolve({ projectId, commentId: made.comment_id, userId: planner });
+    const [row] = await comments.list({ projectId, specKey: 'SPC-CM-WHO' });
+    const { rows } = await pool.query<{ name: string }>(
+      `SELECT display_name AS name FROM "user" WHERE id = $1`,
+      [planner],
+    );
+    expect(row).toMatchObject({
+      author_name: rows[0]?.name,
+      resolved_by_name: rows[0]?.name,
+      version_no: 1,
+    });
+  });
+
+  it('트리의 행이 최근 갱신 시각과 열린 코멘트 수를 싣는다', async () => {
+    const s = await draft('SPC-CM-ROW', '# 문서');
+    for (const body of ['하나', '둘']) {
+      await comments.add({
+        projectId,
+        specVersionId: s.versionId,
+        anchor: '문서',
+        bodyMd: body,
+        userId: planner,
+      });
+    }
+    const nodes = await specs.tree({ projectId });
+    const row = nodes.find((n) => n.key === 'SPC-CM-ROW');
+    expect(row?.open_comments).toBe(2);
+    expect(row?.updated_at).not.toBeNull();
+  });
+});
+
 // ── E09-S10 검색 ─────────────────────────────────────────────────────────────
 
 describe('E09-S10 하이브리드 검색', () => {

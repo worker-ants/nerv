@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { rows, useSpecTree } from '../lib/queries.js';
 import { StatusBadge } from './status-badge.js';
 import { cn } from '../lib/utils.js';
+import { relativeTime } from '../lib/format.js';
 import { Input } from './ui/primitives.js';
 import { SPEC_VERSION_TOKEN } from './status-token.js';
 import { SpecStartCard } from './spec-start-card.js';
@@ -36,6 +37,10 @@ export interface TreeNode {
   version_no: number | null;
   /** 보관 시각 — 보관 보기를 켰을 때만 null 이 아닌 것이 섞인다 */
   archived_at?: string | null;
+  /** 그 버전이 마지막으로 바뀐 시각(REQ-API-183) */
+  updated_at?: string | null;
+  /** 열린 코멘트 수(REQ-API-183) */
+  open_comments?: number;
 }
 
 /** 트리가 서는 자리 — 화면 밀도가 아니라 **역할**이다(전수인가 동반자인가). */
@@ -586,6 +591,29 @@ export function SpecTree({
                 label={t(statusLabelKey('spec', node.doc_status))}
               />
             ))}
+          {/* **행이 무엇을 손봐야 하는지 말한다**(2026-09-24 · SPEC-13 · REQ-WEB-216). 명세의 행(§2.4 — 현재
+              버전·최근 갱신·열린 코멘트 수)이 제목과 배지뿐이라 "손볼 문서" 를 고를 수 없었다. 전수
+              목록에만 단다 — 좁은 사이드바는 평소와 다른 것만 말한다 */}
+          {variant === 'full' && (
+            <span
+              data-testid="tree-row-meta"
+              className="ml-auto flex shrink-0 items-center gap-2 pl-2 text-2xs text-text-faint tabular-nums"
+            >
+              {node.version_no !== null && <span>v{node.version_no}</span>}
+              {typeof node.updated_at === 'string' && (
+                <span>{relativeTime(t, node.updated_at)}</span>
+              )}
+              {(node.open_comments ?? 0) > 0 && (
+                <span
+                  data-testid="tree-row-comments"
+                  title={t('spec.next.comments', { count: node.open_comments ?? 0 })}
+                  className="text-status-waiting"
+                >
+                  💬 {node.open_comments}
+                </span>
+              )}
+            </span>
+          )}
         </Link>
       </div>
     );

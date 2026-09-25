@@ -19,6 +19,8 @@ An `area` may hold a place in the tree with no body of its own. For the rest, th
 
 The tree in the left sidebar holds **every document, expanded**. A place that lists things and lists only some of them leaves you unable to tell a missing document from a collapsed one. The `141 / 141` in its header is **how many are showing / how many there are**; collapse a branch and that number drops, telling you what is now hidden.
 
+**The top of the spec list shows how many documents are in each status** (draft · in review · approved …). Pressing one opens the tree filtered to that status; pressing it again clears it. The end of each row in the full tree shows **the current version · last updated · 💬 open comments**, so you can pick what needs work from the rows alone. **[Create baseline]** is for planners and admins; other roles see it locked with the reason.
+
 The **chevron** in front of a branch folds and unfolds that branch. Branches above the document you are viewing fold too — a folded branch that holds it gets a **blue dot** before its title, so you can tell where you are. Moving to another document unfolds the path to it again.
 
 The header has three buttons.
@@ -164,7 +166,9 @@ To start the next version from an approved document, press **New draft** in the 
 
 ## Comments
 
-Comments belong to **a place, not to the document as a whole**. You do not drag over the text to leave one, though: you type the **anchor** into the comment box — a heading slug (say `3-input`) or a requirement number (`REQ-…`). Close a comment as `resolved` once it has been addressed.
+Comments belong to **a place, not to the document as a whole**. You do not drag over the text to leave one: you **pick an anchor** in the comment box — the headings of the version you are looking at and the requirement numbers (`REQ-…`) are the choices (you type one in only for a document that has nothing to pick). Close a comment as `resolved` once it has been addressed.
+
+Each comment shows **who (for an agent, which machine and which agent) · when · on which version** it was left. The count beside the tab name and the chip at the top count **open comments only**. Resolved ones sit behind **[Show N resolved]** under the list, together with who resolved them. Comments whose heading has gone from the body are gathered at the top as **lost anchors** — pressing them leads nowhere, so check first whether the point still stands. If leaving or resolving a comment fails (say, no permission to resolve), the reason is shown.
 
 Leaving a comment needs only **`spec:read`** — a viewer can raise one. Closing it is for the roles that can write drafts.
 

@@ -25,7 +25,9 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
-import { useProject, useSpecGraph } from '../../lib/queries.js';
+import { useMe, useProject, useSpecGraph } from '../../lib/queries.js';
+import { rolesInProject } from '../../lib/session.js';
+import { useScope } from '../../lib/scope.js';
 import {
   Button,
   Card,
@@ -182,6 +184,16 @@ function SpecListScreen(): React.JSX.Element {
 
   const projectId = project.data?.['id'];
   const graph = useSpecGraph(proj, asProjectId(projectId), archived, baseline);
+  const me = useMe();
+  const { orgSlug } = useScope(proj);
+  const canFreeze = rolesInProject(me.data, orgSlug, proj).some(
+    (r) => r === 'planner' || r === 'admin',
+  );
+  /** 상태별 수 — 이미 받은 그래프 노드로 센다(따로 묻지 않는다). 어휘 순서는 정본(enum)을 따른다 */
+  const statusCounts: [string, number][] = SPEC_STATUSES.map((value): [string, number] => [
+    value,
+    (graph.data?.nodes ?? []).filter((n) => n.doc_status === value).length,
+  ]).filter(([, count]) => count > 0);
 
   // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
   // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
@@ -328,7 +340,17 @@ function SpecListScreen(): React.JSX.Element {
                 })
               }
             />
-            <Button type="button" data-testid="freeze-baseline" onClick={() => setFreezing(true)}>
+            {/* **동결은 planner·admin 의 거버넌스 행위다**(SPEC-13 · REQ-WEB-003). 모두에게 같게 서 있어서
+                누르고 나서야 서버 거절로 알았다 — 할 수 없는 사람에게는 잠긴 채 이유를 보인다 */}
+            <Button
+              type="button"
+              data-testid="freeze-baseline"
+              disabled={!canFreeze}
+              title={
+                canFreeze ? undefined : t('task.next.roles_only', { roles: 'planner · admin' })
+              }
+              onClick={() => setFreezing(true)}
+            >
               {t('specs.freeze')}
             </Button>
             {/* **전수의 경계를 화면이 말한다**(REQ-WEB-105). 보관한 문서는 어느 목록에도
@@ -376,6 +398,45 @@ function SpecListScreen(): React.JSX.Element {
           </form>
         }
       />
+
+      {/* **지금 무엇이 몇 건인가**(2026-09-24 · SPEC-13 · REQ-WEB-216 · REQ-WEB-056). "초안이 몇 건, 검토 중이
+          몇 건인가" 는 트리를 훑어야 답이 나왔다. 누르면 그 상태로 거른 트리다(상태 필터는 트리의 것이다 —
+          REQ-WEB-140). 기준선으로 보는 동안은 전부 승인본이라 말할 것이 없다 */}
+      {submitted.trim() === '' && baseline === undefined && statusCounts.length > 0 && (
+        <div
+          data-testid="spec-status-summary"
+          role="group"
+          aria-label={t('specs.status_summary')}
+          className="mb-3 flex flex-wrap items-center gap-1.5 text-xs"
+        >
+          {statusCounts.map(([value, count]) => {
+            const on = status === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                data-testid={`spec-status-${value}`}
+                aria-pressed={on}
+                onClick={() =>
+                  void navigate({
+                    to: '/p/$proj/specs',
+                    params: { proj },
+                    search: searchWith({ status: on ? null : value, view: 'tree' }),
+                  })
+                }
+                className={cn(
+                  'rounded-nerv-sm border px-2 py-0.5 tabular-nums',
+                  on
+                    ? 'border-border-strong bg-bg-active font-medium text-text'
+                    : 'border-border text-text-mute hover:text-text',
+                )}
+              >
+                {t(statusLabelKey('spec', value))} {count}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {search.data?.degraded !== null && search.data?.degraded !== undefined && (
         // degrade 를 숨기지 않는다 — 결과가 왜 얕은지 모르면 사람은 검색을 탓한다(REQ-API-026)
