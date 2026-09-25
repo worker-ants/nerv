@@ -4,7 +4,13 @@
 import { describe, expect, it } from 'vitest';
 import { NERV_EVENT, NERV_EVENT_NAMES, NERV_EVENT_PHASE2 } from '@nerv/schema';
 import type { NervEventEnvelope, NervEventName } from '@nerv/schema';
-import { invalidationKeysFor, mappedEventNames, NO_SCREEN_YET } from './event-invalidation.js';
+import {
+  headPredicateFor,
+  invalidationKeysFor,
+  mappedEventNames,
+  NO_SCREEN_YET,
+  sharedKeysFor,
+} from './event-invalidation.js';
 import { queryKeys } from './query-keys.js';
 import { asProjectId } from './query-keys.js';
 
@@ -91,7 +97,11 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     expect(invalidationKeysFor(envelope(NERV_EVENT.APPROVAL_REQUESTED))).toEqual([
       queryKeys.inbox(),
     ]);
-    expect(invalidationKeysFor(envelope(NERV_EVENT.QUESTION_CREATED))).toEqual([queryKeys.inbox()]);
+    // 질문은 그 세션을 멈춘다 — 세션 보드와 개요의 "응답 대기" 도 함께 바뀐다(REQ-WEB-219)
+    expect(invalidationKeysFor(envelope(NERV_EVENT.QUESTION_CREATED))).toEqual([
+      queryKeys.inbox(),
+      queryKeys.projectSessions(PRJ),
+    ]);
   });
 
   it('알림 생성은 종과 받은 요청을 함께 되읽는다 — 개인 룸으로 오는 유일한 방송이다', () => {
@@ -146,5 +156,58 @@ describe('§1.4 표가 MAP 전수를 안다 (screens.md)', () => {
     const declared = new Set(table.match(/[a-z_]+\.[a-z_]+/g) ?? []);
     const missing = mappedEventNames().filter((name) => !declared.has(name));
     expect(missing).toEqual([]);
+  });
+});
+
+/**
+ * **피드와 머리는 규칙 한 줄로 되읽는다**(2026-09-25 — UI/UX 검토 HUB-12 · HUB-X2 · REQ-WEB-219).
+ *
+ * 피드 키를 건드리는 것은 감사 축 이벤트뿐이라, 개요를 띄워 둔 사이 에이전트가 클레임하고 제출해도
+ * 최근 활동이 그대로였다. 사이드바 배지는 slug 축 프로젝트 조회를 읽는데 매핑은 전부 id 축이라
+ * 세션이 끝나도 배지가 그대로였다.
+ */
+describe('공통 규칙 — 피드 · 커버리지 · 머리 (REQ-WEB-219)', () => {
+  it('매핑이 있는 프로젝트 이벤트는 모두 그 프로젝트의 피드를 되읽는다', () => {
+    for (const name of mappedEventNames()) {
+      expect(sharedKeysFor(envelope(name)), name).toContainEqual(queryKeys.projectEvents(PRJ));
+    }
+    // 화면 없는 이벤트로는 흔들지 않는다
+    const p2 = NERV_EVENT_PHASE2.CR_OPENED as unknown as NervEventName;
+    expect(sharedKeysFor(envelope(p2))).toEqual([]);
+  });
+
+  it('스펙 승인·작업 완료는 커버리지도 되읽는다 — 증적에만 걸려 있었다', () => {
+    const coverage = [...queryKeys.project(PRJ), 'coverage'];
+    expect(sharedKeysFor(envelope(NERV_EVENT.SPEC_APPROVED))).toContainEqual(coverage);
+    expect(sharedKeysFor(envelope(NERV_EVENT.TASK_DONE))).toContainEqual(coverage);
+    expect(sharedKeysFor(envelope(NERV_EVENT.TASK_CLAIMED))).not.toContainEqual(coverage);
+  });
+
+  it('세션이 시작되면 사이드바가 읽는 slug 축 머리를 되읽는다 — 그 프로젝트의 것만', () => {
+    const head = headPredicateFor(envelope(NERV_EVENT.SESSION_STARTED))!;
+    expect(head).not.toBeNull();
+    const mine = {
+      queryKey: queryKeys.projectBySlug('clemvion'),
+      state: { data: { id: 'prj-1' } },
+    };
+    const other = { queryKey: queryKeys.projectBySlug('sudoku'), state: { data: { id: 'prj-2' } } };
+    // id 축의 하위 키는 이미 매핑이 맡는다 — 머리 술어는 두 칸짜리 slug 축만 고른다
+    const tasks = { queryKey: queryKeys.projectTasks(PRJ), state: { data: [] } };
+    const orgList = { queryKey: ['org', 'default', 'projects', false], state: { data: [] } };
+    const members = { queryKey: queryKeys.orgMembers('default'), state: { data: [] } };
+    expect(head(mine)).toBe(true);
+    expect(head(other)).toBe(false);
+    expect(head(tasks)).toBe(false);
+    // 홈과 헤더 선택기가 읽는 조직의 프로젝트 목록도 같은 수를 든다
+    expect(head(orgList)).toBe(true);
+    expect(head(members)).toBe(false);
+  });
+
+  it('critical 발견·결재·알림도 머리를 되읽고, 머리를 바꾸지 않는 이벤트는 건드리지 않는다', () => {
+    const opened = NERV_EVENT_PHASE2.FINDING_OPENED as unknown as NervEventName;
+    expect(headPredicateFor(envelope(opened))).not.toBeNull();
+    expect(headPredicateFor(envelope(NERV_EVENT.APPROVAL_REQUESTED))).not.toBeNull();
+    expect(headPredicateFor(envelope(NERV_EVENT.NOTIFICATION_CREATED))).not.toBeNull();
+    expect(headPredicateFor(envelope(NERV_EVENT.SPEC_DRAFT_UPDATED))).toBeNull();
   });
 });

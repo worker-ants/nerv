@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.50 · 2026-09-25 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.51 · 2026-09-25 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.51 변경(2026-09-25 — 허브의 숫자가 화면마다 달랐고 이벤트가 와도 그대로였다, UI/UX 검토의 열째 묶음 가운데): **REQ-WEB-219·220 신설 · REQ-WEB-210 개정 · §1.4 표 한 칸과 공통 규칙 · §2.2 · §2.3 표.** ① 개요(S2)가 세션을 상태 없이 불러, 모든 세션이 끝난 프로젝트에 "활성 세션 40개" 를 달고 끝난 세션을 늘어놓았다 — 같은 순간 홈과 사이드바는 0 이라 말했다. 활성은 끝나지 않은 셋(`ACTIVE_SESSION_STATES`)이고 머리의 수는 요약의 합이며, 응답 대기가 먼저 선다. ② 사이드바의 세션·리뷰 배지는 slug 축 프로젝트 조회를 읽는데 무효화 매핑은 전부 id 축이라 **어떤 이벤트도 닿지 않았고**, 개요의 피드는 감사 축 이벤트에만 되읽혀 에이전트가 클레임하고 제출해도 그대로였다 — §2.3 이 적은 "모든 수신 이벤트를 prepend 후 재조회" 와 REQ-WEB-004 를 어겼다. 공통 규칙 둘을 §1.4 에 둔다. ③ 홈은 헤더가 고른 한 프로젝트의 상태만 비췄다 — 명세의 "내 프로젝트 카드"(§2.2)와 시안(ui-wireframes §2.1)대로 **프로젝트마다 한 줄**(활성 세션 · 미결 결재 · 열린 critical — 수는 링크)로 되돌린다. 커버리지 막대는 개요가 갖는다. 개요 머리에는 "여기서 나를 기다리는 것" 한 줄이 선다([4.4](api.md) REQ-API-185). 홈이 프로젝트 룸에 붙지 않는 설계(§2.2)는 그대로다 — 홈의 수는 개인 룸으로 오는 방송(결재·알림)에 되읽힌다.
 >
 > v1.50 변경(2026-09-25 — 받은 요청과 알림의 수가 같은 말을 하지 않았다, UI/UX 검토의 열째 묶음 앞 · **사람 결정 D2·D3**): **REQ-WEB-217·218 신설 · REQ-WEB-185·149 개정 · §1.3 표 한 칸 · §2.7 한 단락 · §2.9 필터와 빈 상태.** ① 헤더 배지·홈의 인사("결정 N건이 밀려 있어요")·받은 요청 머리가 `total` 을 써서, **내가 승인할 수 없는 카드** — 내가 요청한 것 · 내가 쓴 초안 · 내 세션이 쓴 초안 · T3 에서 이미 승인하고 남은 칸 — 까지 셌다. 할 수 있는 것을 다 해도 배지는 0 이 되지 않았고, 그 카드는 요청 시각 순으로 목록 한가운데 끼어 승인 단추가 잠긴 채 서 있었다. 세 자리는 **누를 수 있는 수**(`actionable_total` — [4.4](api.md) REQ-API-184)를 보고(REQ-WEB-185 개정), 잠긴 카드는 목록 끝의 **접힌 묶음**으로 모인다 — 목록에서 빼지는 않는다(요청을 거두는 길이고, 이유는 카드마다 그대로 선다 · REQ-WEB-145). ② 알림 센터의 등급 이름이 "결정 대기"·"결정이 필요한 것" 이었는데, 그 등급에는 스펙 승인됨·세션 무응답·작업 막힘처럼 결정이 아닌 것이 대부분이라 머리의 한 줄("결정은 받은 요청에")과 부딪쳤다 — 이름을 **중요**로 바꾼다(REQ-WEB-149 개정). 그 토글은 안 읽은 것이 있을 때만 서는 머리 안에 있어, 거른 채 [모두 읽음]을 누르면 토글째 사라지고 목록이 걸러진 채 갇혔다 — 거르는 칸 [전체 · 중요 · 안 읽음]을 늘 보이게 하고 주소(`?filter=`)에 둔다. [모두 읽음]은 몇 건을 읽었는지 말하고, 빈 상태는 알림을 만들지 않는 "작업 완료" 를 약속하지 않는다.
 >
@@ -447,7 +449,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `claim.conflict_warn` `claim.conflict_blocked` | `['project', projId, 'sessions']` + 경고 토스트 | `project:{id}` + 양쪽 세션 소유자 `user:{id}` |
 | ★`claim.released` | `['project', projId, 'tasks']` · `['project', projId, 'sessions']` | `project:{id}` |
 | `session.started` `session.stale` `session.complete` · ★`session.steered` | `['project', projId, 'sessions']` · `['session', sessionId]` | `project:{id}` |
-| `approval.requested` `question.created` | `['inbox']` + 헤더 배지 | `user:{id}` + `project:{id}` |
+| `approval.requested` `question.created` | `['inbox']` + 헤더 배지 · `question.created` 는 `['project', projId, 'sessions']` 도(질문이 세션을 응답 대기로 세운다 — 2026-09-25) | `user:{id}` + `project:{id}` |
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` | `['project', projId, 'events']` + 게이트 배너/카운터 | `project:{id}`(bypassed는 admin `user:{id}`에도) |
@@ -462,6 +464,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`token.created` ★`token.revoked` | `['me', 'tokens']` · `['project', projId, 'events']` | `project:{id}` |
 | `review.submitted` `finding.opened` `finding.resolved` `finding.commented` | `['project', projId, 'findings']` · `['project', projId, 'gate-coverage']` · `['finding', findingId, 'comments']` — **Phase 2 인데 배선은 들어와 있다**(2026-08-23~24 · §2.6a · REQ-WEB-066) | `project:{id}` |
 | `cr.opened` | — 화면 없음(CR 은 Phase 2 이고 아직 소비자가 없다) | — |
+
+**공통 규칙 둘**(2026-09-25 — UI/UX 검토 · REQ-WEB-219). 표를 줄마다 고치지 않고 규칙으로 둔다. ① **피드** — 위 표에 줄이 있는 프로젝트 이벤트는 모두 `['project', projId, 'events']` 도 되읽는다(§2.3 의 "모든 수신 이벤트를 prepend 후 재조회"). `spec.approved`·`task.done` 은 `['project', projId, 'coverage']` 도 되읽는다 — 증적에만 걸려 있었다. ② **머리** — 사이드바 배지는 slug 축 프로젝트 조회(`projectBySlug`)를, 홈과 헤더 선택기는 조직의 프로젝트 목록(`['org', org, 'projects', …]`)을 읽어 위 표의 키(id 축)가 닿지 않는다. 그 수를 바꾸는 이벤트 — `session.started`·`session.stale`·`session.complete` · `approval.requested`·`approval.decided` · `project.updated`·`project.archived`·`project.restored` · `notification.created` · `review.submitted`·`finding.opened`·`finding.resolved` — 는 키 대신 **술어**로 그 머리를 고른다(slug 축은 받아 둔 `id` 가 봉투의 `project_id` 와 같을 때만).
 
 세션 상세의 Activity 스트림과 하트비트·diff 갱신은 알림을 만들지 않고 `project:{id}` 룸으로만 흐른다(spec-workflow §6.3 말미). 리스 잔여·경과 시간 카운트다운은 서버 push가 아니라 응답의 `lease_expires_at`·`started_at`을 기준으로 한 클라이언트 시계 렌더링이다.
 
@@ -859,10 +863,10 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 오늘 할 일 숫자 | EP-APR-01 `GET /api/v1/approvals` (state=pending — 받은 요청 목록) | MVP는 승인 대기·답변 대기 질문 2숫자. 와이어프레임의 "내가 만든 CR" 칩은 Phase 2(CR) |
 | 내 승인 대기 카드 | 위와 동일 목록의 상위 N건 | 카드 위 승인/거절/코멘트 — S7과 같은 `ApprovalCard` 재사용 |
 | 내 질문 큐 | 받은 요청 목록 중 `subject_type = question` | 세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기 |
-| 내 프로젝트 카드 | EP-PRJ-01 `GET /api/v1/orgs/{org}/projects` + EP-PRJ-03 `GET /api/v1/projects/{proj}`(활성 세션/승인 대기 카운트 포함) | 승인률·커버리지 게이지 고도화는 Phase 2 — MVP는 상태별 카운트 표시 |
+| 내 프로젝트 카드 | EP-PRJ-01 `GET /api/v1/orgs/{org}/projects`(프로젝트마다 활성 세션 · 미결 결재 · 열린 critical — REQ-API-185) | **프로젝트마다 한 줄**(2026-09-25 · REQ-WEB-220) — 이름은 개요로, 세 수는 그 레코드로(세션 모니터 · 받은 요청 · 리뷰 센터 `?severity=critical`). 헤더가 고른 한 프로젝트만 비추던 동안 나머지 프로젝트는 바꿔 가며 열어 봐야 알았다. 커버리지는 개요(S2)가 갖는다. 승인률·커버리지 게이지 고도화는 Phase 2 |
 | 최근 활동 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` — 헤더가 고른 프로젝트(REQ-WEB-193) | 개요와 **같은** `EventFeed` 를 접은 여덟 줄로 그린다 — 대상 키·제목 링크, 잇달아 같은 일은 ×N(REQ-WEB-210). 옛 행은 "최근 알림" 이었지만 홈은 알림이 아니라 활동을 그린다(알림은 §2.9) |
 
-- **실시간**: `user:{id}` 룸 — `approval.requested` · `question.created` → `['inbox']` + 배지, `notification.created` → 알림 피드. 프로젝트 카드는 화면 재진입 시 재조회(홈에서 `project:{id}` 룸은 join하지 않는다).
+- **실시간**: `user:{id}` 룸 — `approval.requested` · `question.created` → `['inbox']` + 배지, `notification.created` → 알림 피드. 프로젝트 카드는 화면 재진입 시 재조회(홈에서 `project:{id}` 룸은 join하지 않는다) — 개인 룸으로 오는 결재·알림 방송은 조직의 프로젝트 목록을 되읽는다(§1.4 공통 규칙 ② · 2026-09-25).
 - **컴포넌트**: `TodayStrip` · `ApprovalCard` · `QuestionCard` · `ProjectCard` · `EventFeed`.
 - **빈 상태**: 승인 대기 0건 — "지금 당신을 기다리는 항목이 없습니다" + 최근 처리 3건(ui-wireframes §3.4).
 
@@ -870,6 +874,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | --- | --- |
 | REQ-WEB-007 | WHEN `approval.requested` 또는 `question.created` 이벤트를 수신하면 THE SYSTEM SHALL 5초 이내에 헤더 배지와 오늘 할 일 숫자를 갱신한다(NFR-02) |
 | REQ-WEB-008 | WHEN 질문 카드를 렌더링하면 THE SYSTEM SHALL 요청 세션의 사용자·hostname·에이전트 종류와 대기 경과 시간을 함께 표기한다(FR-07 · D-13) |
+| REQ-WEB-220 | WHEN 홈을 그리면 THE SYSTEM SHALL 오른쪽 열에 지금 조직의 내 프로젝트를 한 줄씩 두고 줄마다 활성 세션 · 미결 결재 · 열린 critical 발견 수를 적으며, 이름은 개요로 · 각 수는 그 레코드가 있는 화면으로 가는 링크로 그린다(REQ-API-185). WHEN 프로젝트 개요를 그리면 THE SYSTEM SHALL 머리 아래에 그 프로젝트에서 나를 기다리는 것 — 내가 누를 수 있는 받은 요청 · 응답 대기 세션 · 열린 critical 발견 — 을 링크로 적고, 셋 다 없으면 그렇다고 말하며, 받아 오기 전에는 아무것도 말하지 않는다 |
 
 ### 2.3 S2 프로젝트 개요 — [ui-wireframes §2.2](../03-proposal/ui-wireframes.md)
 
@@ -877,10 +882,11 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | --- | --- | --- |
 | 스펙 트리 + 상태 배지 | EP-SPEC-01 `GET /api/v1/projects/{proj}/specs/tree` | 노드: id·title·type(6종)·현재 버전 문서 상태 — `nerv_spec_tree`와 같은 서비스(D-05) |
 | 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 다섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`**. 영역별 분해는 아직 없다. Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
-| 활성 세션 스트립 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (state 필터) | 미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)) |
+| 활성 세션 스트립 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (`state=pending,active,awaiting_input` — `ACTIVE_SESSION_STATES`) | 미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)). **머리의 수는 요약(`summary`)의 세 상태 합**이고 응답 대기가 먼저 선다. 도는 것이 없으면 그렇다고 말하고, 세션이 있었던 프로젝트면 세션 화면으로 보낸다(2026-09-25 · REQ-WEB-219) |
+| 기다리는 것 한 줄 | EP-APR-05 `GET /api/v1/projects/{proj}/inbox`(`actionable_total`) · EP-SES-01 요약의 `awaiting_input` · EP-PRJ-03 `open_critical_findings` | 머리 아래 한 줄 — 내 결정 · 응답 대기 세션 · 열린 critical, 수는 링크. 0 인 것은 그리지 않는다(2026-09-25 · REQ-WEB-220) |
 | 최근 활동 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` (커서 페이지네이션 — [더 보기]) | 항목마다 사람 아바타 / 에이전트 **AI** 표식(D-08 · 기계·에이전트 종류는 툴팁) · 대상 키(버전)·제목 링크 · 잇달아 같은 일 ×N(REQ-WEB-210) |
 
-- **실시간**: `project:{id}` 룸 — `spec.*` → 트리, `session.*` → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회.
+- **실시간**: `project:{id}` 룸 — `spec.*` → 트리, `session.*` → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회(§1.4 공통 규칙 ① — 2026-09-25 까지 감사 축에만 걸려 있었다). 사이드바의 세션·리뷰 배지도 머리를 바꾸는 이벤트에 되읽힌다(공통 규칙 ②).
 - **컴포넌트**: `SpecTree`(사이드바와 공유) · `ImplStatusCard` · `SessionStrip` · `EventFeed` · `NewSpecButton`(권한: 역할 매트릭스 — spec-workflow §1.6).
 - **빈 상태**: 스펙 0건 — 스펙 목록의 **시작 카드**가 말한다(`claude "/nerv:spec new"` 복사 · 에이전트 연결 · CLI 임포터 — 2026-09-24 · REQ-WEB-208). 사이드바 트리는 한 줄로 그리로 보낸다. [+ 새 스펙]은 2026-09-22 에 걷었다(REQ-WEB-173) — 옛 빈 문구 "첫 스펙 만들기" 는 만드는 문이 없는 그 목록으로 되돌아왔다. 세션 0 은 에이전트를 붙이는 길(설치 안내 · 토큰 발급)을 준다.
 
@@ -888,7 +894,8 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | --- | --- |
 | REQ-WEB-009 | WHEN 스펙 트리를 렌더링하면 THE SYSTEM SHALL 각 노드에 타입과 문서 상태 배지를 표기하고, `spec.approved` 등 문서 축 이벤트 수신 시 5초 이내 배지를 갱신한다 |
 | REQ-WEB-010 | WHEN 이벤트 피드 항목을 렌더링하면 THE SYSTEM SHALL `event.is_agent` 값에 따라 사람/에이전트 아이콘을 구분 표기한다(FR-16 · D-08) |
-| REQ-WEB-210 | WHEN 활동 피드(홈·개요)의 항목을 그리면 THE SYSTEM SHALL 그 이벤트의 대상의 키(스펙이면 버전)와 제목을 적고 그 대상으로 가는 링크를 주며, 행위자가 에이전트면 어느 기계의 무엇인지를 함께 보인다. WHEN 같은 종류·대상·행위자의 이벤트가 잇달아 오면 THE SYSTEM SHALL 한 줄로 접어 그 수를 보이고 펼칠 수 있게 한다. WHEN 개요의 피드에 다음 쪽이 있으면 THE SYSTEM SHALL 이어 받는 길을 준다. WHEN 홈이 프로젝트 상태의 숫자(요구사항·활성 세션·승인 대기)를 그리면 THE SYSTEM SHALL 각 숫자를 그 레코드가 있는 화면으로 가는 링크로 그린다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 대상의 키·버전·제목을 적고, 같은 종류·대상의 알림이 잇달아 오면 한 줄로 접어 그 줄을 누르면 묶음을 함께 읽음 처리한다 |
+| REQ-WEB-210 | WHEN 활동 피드(홈·개요)의 항목을 그리면 THE SYSTEM SHALL 그 이벤트의 대상의 키(스펙이면 버전)와 제목을 적고 그 대상으로 가는 링크를 주며, 행위자가 에이전트면 어느 기계의 무엇인지를 함께 보인다. WHEN 같은 종류·대상·행위자의 이벤트가 잇달아 오면 THE SYSTEM SHALL 한 줄로 접어 그 수를 보이고 펼칠 수 있게 한다. WHEN 개요의 피드에 다음 쪽이 있으면 THE SYSTEM SHALL 이어 받는 길을 준다. WHEN 홈이 내 프로젝트의 숫자(활성 세션·미결 결재·열린 critical — 2026-09-25 개정 · REQ-WEB-220, 처음에는 한 프로젝트의 요구사항·활성 세션·승인 대기였다)를 그리면 THE SYSTEM SHALL 각 숫자를 그 레코드가 있는 화면으로 가는 링크로 그린다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 대상의 키·버전·제목을 적고, 같은 종류·대상의 알림이 잇달아 오면 한 줄로 접어 그 줄을 누르면 묶음을 함께 읽음 처리한다 |
+| REQ-WEB-219 | WHEN 활성 세션을 세거나 나열하면(개요 · 홈 · 사이드바) THE SYSTEM SHALL 끝나지 않은 세 상태(`ACTIVE_SESSION_STATES`)만 쓰고, 개요의 머리 수는 받아 온 쪽이 아니라 요약의 합이며, 응답 대기 세션을 먼저 세운다. WHEN 매핑이 있는 프로젝트 이벤트를 받으면 THE SYSTEM SHALL 그 프로젝트의 활동 피드를 되읽고(`spec.approved`·`task.done` 은 커버리지도), WHEN 세션·결재·발견·프로젝트·알림 이벤트가 오면 THE SYSTEM SHALL 사이드바 배지와 조직의 프로젝트 목록이 읽는 머리를 5초 안에 되읽는다(REQ-WEB-004) |
 
 ### 2.4 S3 스펙 상세 — [ui-wireframes §2.3](../03-proposal/ui-wireframes.md)
 

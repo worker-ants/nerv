@@ -270,13 +270,16 @@ describe('활동 피드가 무엇에 일어났는지 말한다', () => {
 });
 
 describe('홈의 숫자를 누르면 그 숫자를 만든 레코드로 간다', () => {
-  it('요구사항 → 스펙 · 활성 세션 → 세션 모니터 · 승인 대기 → 받은 요청', async () => {
+  // 2026-09-25 부터 숫자는 **내 프로젝트** 줄마다 선다(REQ-WEB-220) — 요구사항 수는 개요가 갖는다
+  it('활성 세션 → 세션 모니터 · 미결 결재 → 받은 요청 · 열린 critical → 리뷰 센터', async () => {
     renderAt('/');
-    expect((await screen.findByTestId('stat-sessions')).getAttribute('href')).toBe(
+    expect((await screen.findByTestId('home-project-sessions')).getAttribute('href')).toBe(
       '/p/clemvion/sessions',
     );
-    expect(screen.getByTestId('stat-approvals').getAttribute('href')).toBe('/inbox');
-    expect(screen.getByTestId('stat-requirements').getAttribute('href')).toBe('/p/clemvion/specs');
+    expect(screen.getByTestId('home-project-approvals').getAttribute('href')).toBe('/inbox');
+    expect(screen.getByTestId('home-project-critical').getAttribute('href')).toBe(
+      '/p/clemvion/reviews?severity=critical',
+    );
   });
 });
 

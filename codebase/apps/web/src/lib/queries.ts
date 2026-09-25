@@ -126,6 +126,25 @@ export function inboxTotal(data: InfiniteData<InboxPage> | undefined): number {
 }
 
 /**
+ * 이 프로젝트에서 **내가 누를 수 있는 받은 요청의 수**(EP-APR-05 · REQ-WEB-220). 개요 머리의
+ * "기다리는 것" 한 줄이 쓴다 — 전역 목록은 쪽으로 나뉘어 받아 온 카드로는 셀 수 없고, 서버가
+ * 같은 판정으로 센 `actionable_total` 이 정본이다. 카드는 한 장만 받는다(수만 필요하다).
+ */
+export function useProjectInboxCount(slug: string, projectId?: ProjectId): UseQueryResult<number> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    // `['inbox', …]` 접두 — 결재·질문 이벤트가 받은 요청을 되읽을 때 이것도 함께 간다
+    queryKey: [...queryKeys.inbox(), 'project', projectId ?? PENDING_PROJECT],
+    queryFn: async () => {
+      const page = await apiFetch<InboxPage>(`/projects/${slug}/inbox?limit=1`);
+      return typeof page.actionable_total === 'number' ? page.actionable_total : page.total;
+    },
+    refetchInterval,
+    enabled: projectId !== undefined,
+  });
+}
+
+/**
  * **내가 누를 수 있는 수** — 헤더 배지 · 홈의 인사 · 받은 요청 머리가 쓴다(REQ-WEB-217).
  * 서버가 그 수를 싣지 않으면(처리됨 탭 · 옛 서버) 전체 수로 버틴다 — 지어낸 0 보다 낫다.
  */

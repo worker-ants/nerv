@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.50 (2026-09-25)</span>
+      <span>버전 v1.51 (2026-09-25)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -283,7 +283,7 @@
       <tr><td><code>claim.conflict_warn</code> <code>claim.conflict_blocked</code></td><td><code>['project', projId, 'sessions']</code> + 경고 토스트</td><td><code>project:{id}</code> + 양쪽 세션 소유자 <code>user:{id}</code></td></tr>
       <tr><td>★<code>claim.released</code></td><td><code>['project', projId, 'tasks']</code> · <code>['project', projId, 'sessions']</code></td><td><code>project:{id}</code></td></tr>
       <tr><td><code>session.started</code> <code>session.stale</code> <code>session.complete</code> · ★<code>session.steered</code></td><td><code>['project', projId, 'sessions']</code> · <code>['session', sessionId]</code></td><td><code>project:{id}</code></td></tr>
-      <tr><td><code>approval.requested</code> <code>question.created</code></td><td><code>['inbox']</code> + 헤더 배지</td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
+      <tr><td><code>approval.requested</code> <code>question.created</code></td><td><code>['inbox']</code> + 헤더 배지 · <code>question.created</code> 는 <code>['project', projId, 'sessions']</code> 도(질문이 세션을 응답 대기로 세운다 — 2026-09-25)</td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
       <tr><td>★<code>question.answered</code></td><td><code>['inbox']</code> · <code>['project', projId, 'sessions']</code>(세션 재개 반영)</td><td><code>user:{id}</code> + <code>project:{id}</code></td></tr>
       <tr><td>★<code>notification.created</code></td><td><code>['me', 'notifications']</code> + 헤더 알림 배지</td><td><code>user:{id}</code></td></tr>
       <tr><td><code>gate.bypassed</code> · <code>gate.failopen</code></td><td><code>['project', projId, 'events']</code> + 게이트 배너/카운터</td><td><code>project:{id}</code>(bypassed는 admin <code>user:{id}</code>에도)</td></tr>
@@ -301,6 +301,7 @@
     </tbody>
   </table></div>
 
+  <p><b>공통 규칙 둘</b>(2026-09-25 — UI/UX 검토 · REQ-WEB-219). 표를 줄마다 고치지 않고 규칙으로 둔다. ① <b>피드</b> — 위 표에 줄이 있는 프로젝트 이벤트는 모두 <code>['project', projId, 'events']</code> 도 되읽는다(§2.3 의 "모든 수신 이벤트를 prepend 후 재조회"). <code>spec.approved</code>·<code>task.done</code> 은 <code>['project', projId, 'coverage']</code> 도 되읽는다 — 증적에만 걸려 있었다. ② <b>머리</b> — 사이드바 배지는 slug 축 프로젝트 조회(<code>projectBySlug</code>)를, 홈과 헤더 선택기는 조직의 프로젝트 목록(<code>['org', org, 'projects', …]</code>)을 읽어 위 표의 키(id 축)가 닿지 않는다. 그 수를 바꾸는 이벤트 — <code>session.started</code>·<code>session.stale</code>·<code>session.complete</code> · <code>approval.requested</code>·<code>approval.decided</code> · <code>project.updated</code>·<code>project.archived</code>·<code>project.restored</code> · <code>notification.created</code> · <code>review.submitted</code>·<code>finding.opened</code>·<code>finding.resolved</code> — 는 키 대신 <b>술어</b>로 그 머리를 고른다(slug 축은 받아 둔 <code>id</code> 가 봉투의 <code>project_id</code> 와 같을 때만).</p>
   <p>세션 상세의 Activity 스트림과 하트비트·diff 갱신은 알림을 만들지 않고 <code>project:{id}</code> 룸으로만 흐른다(spec-workflow §6.3 말미). 리스 잔여·경과 시간 카운트다운은 서버 push가 아니라 응답의 <code>lease_expires_at</code>·<code>started_at</code>을 기준으로 한 클라이언트 시계 렌더링이다.</p>
 
     <h4>축이 맞아야 무효화가 닿는다 (2026-08-29 정정 — 사람 보고)</h4>
@@ -769,13 +770,13 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>오늘 할 일 숫자</td><td>EP-APR-01 <code>GET /api/v1/approvals</code> (state=pending — 받은 요청 목록)</td><td>MVP는 승인 대기·답변 대기 질문 2숫자. 와이어프레임의 "내가 만든 CR" 칩은 Phase 2(CR)</td></tr>
       <tr><td>내 승인 대기 카드</td><td>위와 동일 목록의 상위 N건</td><td>카드 위 승인/거절/코멘트 — S7과 같은 <code>ApprovalCard</code> 재사용</td></tr>
       <tr><td>내 질문 큐</td><td>받은 요청 목록 중 <code>subject_type = question</code></td><td>세션 신원 3요소(사용자·hostname·에이전트 종류)와 대기 시간 필수 표기</td></tr>
-      <tr><td>내 프로젝트 카드</td><td>EP-PRJ-01 <code>GET /api/v1/orgs/{org}/projects</code> + EP-PRJ-03 <code>GET /api/v1/projects/{proj}</code>(활성 세션/승인 대기 카운트 포함)</td><td>승인률·커버리지 게이지 고도화는 Phase 2 — MVP는 상태별 카운트 표시</td></tr>
+      <tr><td>내 프로젝트 카드</td><td>EP-PRJ-01 <code>GET /api/v1/orgs/{org}/projects</code>(프로젝트마다 활성 세션 · 미결 결재 · 열린 critical — REQ-API-185)</td><td><b>프로젝트마다 한 줄</b>(2026-09-25 · REQ-WEB-220) — 이름은 개요로, 세 수는 그 레코드로(세션 모니터 · 받은 요청 · 리뷰 센터 <code>?severity=critical</code>). 헤더가 고른 한 프로젝트만 비추던 동안 나머지 프로젝트는 바꿔 가며 열어 봐야 알았다. 커버리지는 개요(S2)가 갖는다. 승인률·커버리지 게이지 고도화는 Phase 2</td></tr>
       <tr><td>최근 활동</td><td>EP-EVT-01 <code>GET /api/v1/projects/{proj}/events</code> — 헤더가 고른 프로젝트(REQ-WEB-193)</td><td>개요와 <b>같은</b> <code>EventFeed</code> 를 접은 여덟 줄로 그린다 — 대상 키·제목 링크, 잇달아 같은 일은 ×N(REQ-WEB-210). 옛 행은 "최근 알림" 이었지만 홈은 알림이 아니라 활동을 그린다(알림은 §2.9)</td></tr>
     </tbody>
   </table></div>
 
   <ul>
-    <li><b>실시간</b>: <code>user:{id}</code> 룸 — <code>approval.requested</code> · <code>question.created</code> → <code>['inbox']</code> + 배지, <code>notification.created</code> → 알림 피드. 프로젝트 카드는 화면 재진입 시 재조회(홈에서 <code>project:{id}</code> 룸은 join하지 않는다).</li>
+    <li><b>실시간</b>: <code>user:{id}</code> 룸 — <code>approval.requested</code> · <code>question.created</code> → <code>['inbox']</code> + 배지, <code>notification.created</code> → 알림 피드. 프로젝트 카드는 화면 재진입 시 재조회(홈에서 <code>project:{id}</code> 룸은 join하지 않는다) — 개인 룸으로 오는 결재·알림 방송은 조직의 프로젝트 목록을 되읽는다(§1.4 공통 규칙 ② · 2026-09-25).</li>
     <li><b>컴포넌트</b>: <code>TodayStrip</code> · <code>ApprovalCard</code> · <code>QuestionCard</code> · <code>ProjectCard</code> · <code>EventFeed</code>.</li>
     <li><b>빈 상태</b>: 승인 대기 0건 — "지금 당신을 기다리는 항목이 없습니다" + 최근 처리 3건(ui-wireframes §3.4).</li>
   </ul>
@@ -785,6 +786,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <tbody>
       <tr><td>REQ-WEB-007</td><td>WHEN <code>approval.requested</code> 또는 <code>question.created</code> 이벤트를 수신하면 THE SYSTEM SHALL 5초 이내에 헤더 배지와 오늘 할 일 숫자를 갱신한다(NFR-02)</td></tr>
       <tr><td>REQ-WEB-008</td><td>WHEN 질문 카드를 렌더링하면 THE SYSTEM SHALL 요청 세션의 사용자·hostname·에이전트 종류와 대기 경과 시간을 함께 표기한다(FR-07 · D-13)</td></tr>
+      <tr><td>REQ-WEB-220</td><td>WHEN 홈을 그리면 THE SYSTEM SHALL 오른쪽 열에 지금 조직의 내 프로젝트를 한 줄씩 두고 줄마다 활성 세션 · 미결 결재 · 열린 critical 발견 수를 적으며, 이름은 개요로 · 각 수는 그 레코드가 있는 화면으로 가는 링크로 그린다(REQ-API-185). WHEN 프로젝트 개요를 그리면 THE SYSTEM SHALL 머리 아래에 그 프로젝트에서 나를 기다리는 것 — 내가 누를 수 있는 받은 요청 · 응답 대기 세션 · 열린 critical 발견 — 을 링크로 적고, 셋 다 없으면 그렇다고 말하며, 받아 오기 전에는 아무것도 말하지 않는다</td></tr>
     </tbody>
   </table></div>
 
@@ -795,13 +797,14 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <tbody>
       <tr><td>스펙 트리 + 상태 배지</td><td>EP-SPEC-01 <code>GET /api/v1/projects/{proj}/specs/tree</code></td><td>노드: id·title·type(6종)·현재 버전 문서 상태 — <code>nerv_spec_tree</code>와 같은 서비스(D-05)</td></tr>
       <tr><td>구현 현황 카드</td><td>EP-COV-01 <code>GET /api/v1/projects/{proj}/coverage</code> (requirement <code>impl_status</code> 집계)</td><td>MVP는 다섯 칸이다(2026-09-06 현황 — <a href="api.html">4.4</a> §2.9 와 매뉴얼이 이미 그렇게 적는다): <code>total</code> · <code>implemented</code> · <code>verified</code> · <b><code>evidence_missing</code></b> · <b><code>empty_promises</code></b>. 영역별 분해는 아직 없다. Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위)</td></tr>
-      <tr><td>활성 세션 스트립</td><td>EP-SES-01 <code>GET /api/v1/projects/{proj}/sessions</code> (state 필터)</td><td>미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3))</td></tr>
+      <tr><td>활성 세션 스트립</td><td>EP-SES-01 <code>GET /api/v1/projects/{proj}/sessions</code> (<code>state=pending,active,awaiting_input</code> — <code>ACTIVE_SESSION_STATES</code>)</td><td>미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)). <b>머리의 수는 요약(<code>summary</code>)의 세 상태 합</b>이고 응답 대기가 먼저 선다. 도는 것이 없으면 그렇다고 말하고, 세션이 있었던 프로젝트면 세션 화면으로 보낸다(2026-09-25 · REQ-WEB-219)</td></tr>
+      <tr><td>기다리는 것 한 줄</td><td>EP-APR-05 <code>GET /api/v1/projects/{proj}/inbox</code>(<code>actionable_total</code>) · EP-SES-01 요약의 <code>awaiting_input</code> · EP-PRJ-03 <code>open_critical_findings</code></td><td>머리 아래 한 줄 — 내 결정 · 응답 대기 세션 · 열린 critical, 수는 링크. 0 인 것은 그리지 않는다(2026-09-25 · REQ-WEB-220)</td></tr>
       <tr><td>최근 활동</td><td>EP-EVT-01 <code>GET /api/v1/projects/{proj}/events</code> (커서 페이지네이션 — [더 보기])</td><td>항목마다 사람 아바타 / 에이전트 <b>AI</b> 표식(D-08 · 기계·에이전트 종류는 툴팁) · 대상 키(버전)·제목 링크 · 잇달아 같은 일 ×N(REQ-WEB-210)</td></tr>
     </tbody>
   </table></div>
 
   <ul>
-    <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → 트리, <code>session.*</code> → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회.</li>
+    <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → 트리, <code>session.*</code> → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회(§1.4 공통 규칙 ① — 2026-09-25 까지 감사 축에만 걸려 있었다). 사이드바의 세션·리뷰 배지도 머리를 바꾸는 이벤트에 되읽힌다(공통 규칙 ②).</li>
     <li><b>컴포넌트</b>: <code>SpecTree</code>(사이드바와 공유) · <code>ImplStatusCard</code> · <code>SessionStrip</code> · <code>EventFeed</code> · <code>NewSpecButton</code>(권한: 역할 매트릭스 — spec-workflow §1.6).</li>
     <li><b>빈 상태</b>: 스펙 0건 — 스펙 목록의 <b>시작 카드</b>가 말한다(<code>claude "/nerv:spec new"</code> 복사 · 에이전트 연결 · CLI 임포터 — 2026-09-24 · REQ-WEB-208). 사이드바 트리는 한 줄로 그리로 보낸다. [+ 새 스펙]은 2026-09-22 에 걷었다(REQ-WEB-173) — 옛 빈 문구 "첫 스펙 만들기" 는 만드는 문이 없는 그 목록으로 되돌아왔다. 세션 0 은 에이전트를 붙이는 길(설치 안내 · 토큰 발급)을 준다.</li>
   </ul>
@@ -811,7 +814,8 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <tbody>
       <tr><td>REQ-WEB-009</td><td>WHEN 스펙 트리를 렌더링하면 THE SYSTEM SHALL 각 노드에 타입과 문서 상태 배지를 표기하고, <code>spec.approved</code> 등 문서 축 이벤트 수신 시 5초 이내 배지를 갱신한다</td></tr>
       <tr><td>REQ-WEB-010</td><td>WHEN 이벤트 피드 항목을 렌더링하면 THE SYSTEM SHALL <code>event.is_agent</code> 값에 따라 사람/에이전트 아이콘을 구분 표기한다(FR-16 · D-08)</td></tr>
-      <tr><td>REQ-WEB-210</td><td>WHEN 활동 피드(홈·개요)의 항목을 그리면 THE SYSTEM SHALL 그 이벤트의 대상의 키(스펙이면 버전)와 제목을 적고 그 대상으로 가는 링크를 주며, 행위자가 에이전트면 어느 기계의 무엇인지를 함께 보인다. WHEN 같은 종류·대상·행위자의 이벤트가 잇달아 오면 THE SYSTEM SHALL 한 줄로 접어 그 수를 보이고 펼칠 수 있게 한다. WHEN 개요의 피드에 다음 쪽이 있으면 THE SYSTEM SHALL 이어 받는 길을 준다. WHEN 홈이 프로젝트 상태의 숫자(요구사항·활성 세션·승인 대기)를 그리면 THE SYSTEM SHALL 각 숫자를 그 레코드가 있는 화면으로 가는 링크로 그린다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 대상의 키·버전·제목을 적고, 같은 종류·대상의 알림이 잇달아 오면 한 줄로 접어 그 줄을 누르면 묶음을 함께 읽음 처리한다</td></tr>
+      <tr><td>REQ-WEB-210</td><td>WHEN 활동 피드(홈·개요)의 항목을 그리면 THE SYSTEM SHALL 그 이벤트의 대상의 키(스펙이면 버전)와 제목을 적고 그 대상으로 가는 링크를 주며, 행위자가 에이전트면 어느 기계의 무엇인지를 함께 보인다. WHEN 같은 종류·대상·행위자의 이벤트가 잇달아 오면 THE SYSTEM SHALL 한 줄로 접어 그 수를 보이고 펼칠 수 있게 한다. WHEN 개요의 피드에 다음 쪽이 있으면 THE SYSTEM SHALL 이어 받는 길을 준다. WHEN 홈이 내 프로젝트의 숫자(활성 세션·미결 결재·열린 critical — 2026-09-25 개정 · REQ-WEB-220, 처음에는 한 프로젝트의 요구사항·활성 세션·승인 대기였다)를 그리면 THE SYSTEM SHALL 각 숫자를 그 레코드가 있는 화면으로 가는 링크로 그린다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 대상의 키·버전·제목을 적고, 같은 종류·대상의 알림이 잇달아 오면 한 줄로 접어 그 줄을 누르면 묶음을 함께 읽음 처리한다</td></tr>
+      <tr><td>REQ-WEB-219</td><td>WHEN 활성 세션을 세거나 나열하면(개요 · 홈 · 사이드바) THE SYSTEM SHALL 끝나지 않은 세 상태(<code>ACTIVE_SESSION_STATES</code>)만 쓰고, 개요의 머리 수는 받아 온 쪽이 아니라 요약의 합이며, 응답 대기 세션을 먼저 세운다. WHEN 매핑이 있는 프로젝트 이벤트를 받으면 THE SYSTEM SHALL 그 프로젝트의 활동 피드를 되읽고(<code>spec.approved</code>·<code>task.done</code> 은 커버리지도), WHEN 세션·결재·발견·프로젝트·알림 이벤트가 오면 THE SYSTEM SHALL 사이드바 배지와 조직의 프로젝트 목록이 읽는 머리를 5초 안에 되읽는다(REQ-WEB-004)</td></tr>
     </tbody>
   </table></div>
 

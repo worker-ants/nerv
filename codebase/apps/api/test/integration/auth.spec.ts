@@ -894,3 +894,66 @@ describe('slug 해소의 조직 경계 (REQ-API-152)', () => {
     });
   });
 });
+
+/**
+ * **홈이 프로젝트마다 숫자를 싣는다**(2026-09-25 — UI/UX 검토 HUB-06·HUB-10 · REQ-API-185).
+ *
+ * 홈은 헤더가 고른 **한 프로젝트**만 비췄다 — 프로젝트 셋에 속한 사람은 나머지 둘에서 세션이
+ * 멈췄는지 무엇이 위험한지를 프로젝트를 바꿔 가며 열어 봐야 알았다. 목록(EP-PRJ-01)은 활성 세션과
+ * 미결 결재를 이미 실었지만 critical 발견은 단건(EP-PRJ-03)에만 있었다. 그리고 "활성" 의 정의는
+ * `ACTIVE_SESSION_STATES` 하나다 — 끝난 세션을 세는 화면이 있었다.
+ */
+describe('프로젝트 목록이 홈의 숫자를 싣는다 (REQ-API-185)', () => {
+  it('활성 세션은 끝나지 않은 셋만, critical 은 열린 것만 센다 — 목록과 단건이 같다', async () => {
+    await auth.createOrg({ userId, slug: 'counts', name: 'Counts' });
+    const project = await auth.createProject({
+      userId,
+      orgSlug: 'counts',
+      slug: 'counted',
+      key: 'CNT',
+      name: '세는 프로젝트',
+    });
+    const id = String(project['id']);
+    for (const state of ['pending', 'active', 'awaiting_input', 'complete', 'stale', 'error']) {
+      await pool.query(
+        `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+         VALUES ($1,$2,$3,'claude-code','mac-01',$4::session_state)`,
+        [newId(), id, userId, state],
+      );
+    }
+    const reviewSessionId = newId();
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, branch, base_sha, head_sha, changeset_hash,
+                                   kind, trigger)
+       VALUES ($1,$2,'feat/x','base','head',decode($3,'hex'),'code','manual')`,
+      [reviewSessionId, id, reviewSessionId.replaceAll('-', '').slice(0, 32)],
+    );
+    for (const [severity, status] of [
+      ['critical', 'open'],
+      ['critical', 'fixed'],
+      ['warning', 'open'],
+    ] as const) {
+      const findingId = newId();
+      await pool.query(
+        `INSERT INTO finding (id, project_id, fingerprint, category, severity, status, title,
+                              first_session_id, last_session_id)
+         VALUES ($1,$2,decode($3,'hex'),'correctness',$4,$5,'발견',$6,$6)`,
+        [
+          findingId,
+          id,
+          findingId.replaceAll('-', '').slice(0, 32),
+          severity,
+          status,
+          reviewSessionId,
+        ],
+      );
+    }
+
+    const listed = (await auth.projects({ userId, orgSlug: 'counts' })).find(
+      (p) => p['slug'] === 'counted',
+    );
+    expect(listed).toMatchObject({ active_sessions: 3, open_critical_findings: 1 });
+    // 사이드바가 읽는 단건도 같은 정의다 — 두 자리가 다른 수를 말하지 않는다
+    expect(await auth.project(id)).toMatchObject({ active_sessions: 3, open_critical_findings: 1 });
+  });
+});
