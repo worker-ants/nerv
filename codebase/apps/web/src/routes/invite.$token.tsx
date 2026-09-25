@@ -10,7 +10,7 @@
 // 셸 밖이다 — 아직 이 조직의 멤버가 아니라서 헤더의 두 select 가 가리킬 것이 없다.
 
 import { acceptedLanding, invitationSentence } from '../components/invitation-cards.js';
-import { LocaleSwitch } from '../components/locale-switch.js';
+import { AuthFrame } from '../components/auth-frame.js';
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -93,137 +93,122 @@ function InviteScreen(): React.JSX.Element {
   );
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg-sunken px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <div className="text-2xl font-semibold tracking-tight">
-            <span aria-hidden="true" className="text-status-action">
-              ⬢
-            </span>{' '}
-            NERV
-          </div>
-          <p className="mt-1 text-sm text-text-mute">{t('invite.page_title')}</p>
-        </div>
+    <AuthFrame lead={t('invite.page_title')}>
+      <div className="rounded-nerv-lg border border-border bg-bg-elev p-6">
+        {preview.isLoading && <Skeleton rows={3} />}
 
-        <div className="rounded-nerv-lg border border-border bg-bg-elev p-6">
-          {preview.isLoading && <Skeleton rows={3} />}
+        {preview.isError && (
+          <p role="alert" data-testid="invite-error" className="text-sm text-status-danger">
+            ⚠{' '}
+            {preview.error instanceof NervApiError ? preview.error.message : String(preview.error)}
+          </p>
+        )}
+        {preview.isError && nextStep}
 
-          {preview.isError && (
-            <p role="alert" data-testid="invite-error" className="text-sm text-status-danger">
-              ⚠{' '}
-              {preview.error instanceof NervApiError
-                ? preview.error.message
-                : String(preview.error)}
+        {invite !== undefined && (
+          <>
+            {/* 카드와 **같은 문장**이다 — 어디로 부르는지가 문장 안에 있다(REQ-WEB-192) */}
+            <p className="text-base leading-[1.45] font-medium tracking-[-0.008em]">
+              {invitationSentence(t, invite)}
             </p>
-          )}
-          {preview.isError && nextStep}
+            {/* 이메일은 서버가 가려서 준다 — 토큰을 주운 사람에게 초대받은 사람이
+                누구인지 알려 줄 이유가 없다(EP-INV-04) */}
+            <p className="mt-3 text-xs text-text-mute">
+              {t('invite.for_email', { email: invite.email_hint })}
+            </p>
+            {/* **지금 누구로 들어와 있는지** 말한다 — 초대받은 주소는 가려도 내 주소는 가릴 까닭이 없다 */}
+            {signedIn && (
+              <p data-testid="invite-signed-in-as" className="mt-1 text-xs text-text-mute">
+                {t('invite.signed_in_as', { email: me.data.email })}
+              </p>
+            )}
 
-          {invite !== undefined && (
-            <>
-              {/* 카드와 **같은 문장**이다 — 어디로 부르는지가 문장 안에 있다(REQ-WEB-192) */}
-              <p className="text-base leading-[1.45] font-medium tracking-[-0.008em]">
-                {invitationSentence(t, invite)}
-              </p>
-              {/* 이메일은 서버가 가려서 준다 — 토큰을 주운 사람에게 초대받은 사람이
-                  누구인지 알려 줄 이유가 없다(EP-INV-04) */}
-              <p className="mt-3 text-xs text-text-mute">
-                {t('invite.for_email', { email: invite.email_hint })}
-              </p>
-              {/* **지금 누구로 들어와 있는지** 말한다 — 초대받은 주소는 가려도 내 주소는 가릴 까닭이 없다 */}
-              {signedIn && (
-                <p data-testid="invite-signed-in-as" className="mt-1 text-xs text-text-mute">
-                  {t('invite.signed_in_as', { email: me.data.email })}
+            {invite.state !== 'pending' && (
+              <>
+                <p data-testid="invite-state" className="mt-3 text-sm text-status-waiting">
+                  {t(`invite.${invite.state}` as never)}
                 </p>
-              )}
+                {invite.state !== 'accepted' && nextStep}
+              </>
+            )}
 
-              {invite.state !== 'pending' && (
+            {invite.state === 'pending' && wrongAccount && (
+              <div className="mt-4 flex flex-col gap-2" data-testid="invite-wrong-account">
+                <p className="text-sm text-status-waiting">{t('invite.wrong_account')}</p>
+                <Button
+                  data-testid="invite-switch-account"
+                  className="h-9 w-full"
+                  onClick={() => {
+                    // 로그아웃한 뒤 **이 링크로 돌아오는** 로그인으로 — 메일에서 링크를 다시 찾지 않게
+                    void signOut().then(() => {
+                      queryClient.removeQueries({ queryKey: queryKeys.me() });
+                      void navigate({ to: '/login', search: { redirect: `/invite/${token}` } });
+                    });
+                  }}
+                >
+                  {t('invite.switch_account')}
+                </Button>
+              </div>
+            )}
+
+            {invite.state === 'pending' &&
+              !wrongAccount &&
+              (signedIn ? (
                 <>
-                  <p data-testid="invite-state" className="mt-3 text-sm text-status-waiting">
-                    {t(`invite.${invite.state}` as never)}
-                  </p>
-                  {invite.state !== 'accepted' && nextStep}
-                </>
-              )}
-
-              {invite.state === 'pending' && wrongAccount && (
-                <div className="mt-4 flex flex-col gap-2" data-testid="invite-wrong-account">
-                  <p className="text-sm text-status-waiting">{t('invite.wrong_account')}</p>
                   <Button
-                    data-testid="invite-switch-account"
-                    className="h-9 w-full"
-                    onClick={() => {
-                      // 로그아웃한 뒤 **이 링크로 돌아오는** 로그인으로 — 메일에서 링크를 다시 찾지 않게
-                      void signOut().then(() => {
-                        queryClient.removeQueries({ queryKey: queryKeys.me() });
-                        void navigate({ to: '/login', search: { redirect: `/invite/${token}` } });
-                      });
-                    }}
+                    variant="primary"
+                    data-testid="invite-accept"
+                    disabled={accept.isPending}
+                    onClick={() => accept.mutate()}
+                    className="mt-4 h-9 w-full"
                   >
-                    {t('invite.switch_account')}
+                    {accept.isPending ? t('invite.accepting') : t('invite.accept')}
                   </Button>
+                  {accept.isError && (
+                    <p role="alert" className="mt-2 text-sm text-status-danger">
+                      ⚠ {describeApiError(t, accept.error).message}
+                    </p>
+                  )}
+                  <ConfirmAction
+                    label={t('invite.decline')}
+                    variant="ghost"
+                    testId="invite-decline"
+                    className="mt-2"
+                    message={t('invite.decline_confirm')}
+                    confirmLabel={t('invite.decline')}
+                    pending={decline.isPending}
+                    onConfirm={() => decline.mutate()}
+                  />
+                  {decline.isError && (
+                    <p role="alert" className="mt-2 text-sm text-status-danger">
+                      ⚠ {describeApiError(t, decline.error).message}
+                    </p>
+                  )}
+                </>
+              ) : (
+                // **돌아올 자리를 들려 보낸다.** 가입·로그인이 끝나면 이 주소로 돌아온다
+                <div className="mt-4 flex flex-col gap-2">
+                  <p className="text-sm text-text-mute">{t('invite.page_signin')}</p>
+                  <Link
+                    to="/signup"
+                    search={{ redirect: `/invite/${token}` }}
+                    data-testid="invite-signup"
+                    className="rounded-nerv border border-transparent bg-status-action px-3 py-2 text-center text-sm font-medium text-white"
+                  >
+                    {t('signup.submit')}
+                  </Link>
+                  <Link
+                    to="/login"
+                    search={{ redirect: `/invite/${token}` }}
+                    className="rounded-nerv border border-border px-3 py-2 text-center text-sm"
+                  >
+                    {t('login.submit')}
+                  </Link>
                 </div>
-              )}
-
-              {invite.state === 'pending' &&
-                !wrongAccount &&
-                (signedIn ? (
-                  <>
-                    <Button
-                      variant="primary"
-                      data-testid="invite-accept"
-                      disabled={accept.isPending}
-                      onClick={() => accept.mutate()}
-                      className="mt-4 h-9 w-full"
-                    >
-                      {accept.isPending ? t('invite.accepting') : t('invite.accept')}
-                    </Button>
-                    {accept.isError && (
-                      <p role="alert" className="mt-2 text-sm text-status-danger">
-                        ⚠ {describeApiError(t, accept.error).message}
-                      </p>
-                    )}
-                    <ConfirmAction
-                      label={t('invite.decline')}
-                      variant="ghost"
-                      testId="invite-decline"
-                      className="mt-2"
-                      message={t('invite.decline_confirm')}
-                      confirmLabel={t('invite.decline')}
-                      pending={decline.isPending}
-                      onConfirm={() => decline.mutate()}
-                    />
-                    {decline.isError && (
-                      <p role="alert" className="mt-2 text-sm text-status-danger">
-                        ⚠ {describeApiError(t, decline.error).message}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  // **돌아올 자리를 들려 보낸다.** 가입·로그인이 끝나면 이 주소로 돌아온다
-                  <div className="mt-4 flex flex-col gap-2">
-                    <p className="text-sm text-text-mute">{t('invite.page_signin')}</p>
-                    <Link
-                      to="/signup"
-                      search={{ redirect: `/invite/${token}` }}
-                      data-testid="invite-signup"
-                      className="rounded-nerv border border-transparent bg-status-action px-3 py-2 text-center text-sm font-medium text-white"
-                    >
-                      {t('signup.submit')}
-                    </Link>
-                    <Link
-                      to="/login"
-                      search={{ redirect: `/invite/${token}` }}
-                      className="rounded-nerv border border-border px-3 py-2 text-center text-sm"
-                    >
-                      {t('login.submit')}
-                    </Link>
-                  </div>
-                ))}
-            </>
-          )}
-        </div>
-        <LocaleSwitch labelled={false} className="mt-6 flex justify-center" />
+              ))}
+          </>
+        )}
       </div>
-    </div>
+    </AuthFrame>
   );
 }

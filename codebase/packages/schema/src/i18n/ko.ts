@@ -1613,6 +1613,27 @@ export const ko = {
   'auth.password_wrong': '지금 비밀번호가 맞지 않습니다.',
   'auth.password_too_short': '새 비밀번호가 너무 짧습니다.',
   'auth.too_many': '시도가 너무 잦습니다 — 잠시 뒤에 다시 하세요.',
+  // ── 비밀번호를 잊었을 때 (2026-09-25 — 사람 결정 D10 · screens.md §2.1 · REQ-WEB-231) ──────────
+  'auth.request_failed': '요청을 처리하지 못했습니다 — 잠시 뒤에 다시 하세요.',
+  'login.forgot': '비밀번호를 잊었나요?',
+  'forgot.lead': '가입한 이메일로 비밀번호를 새로 정하는 링크를 보냅니다.',
+  'forgot.submit': '재설정 링크 보내기',
+  'forgot.submitting': '보내는 중…',
+  'forgot.sent': '메일을 확인해 주세요',
+  'forgot.sent_body':
+    '{email} 로 가입한 계정이 있으면 비밀번호를 새로 정하는 링크를 보냈습니다. 링크는 {minutes}분 동안 쓸 수 있습니다. 메일이 보이지 않으면 스팸함을 확인해 주세요.',
+  'forgot.disabled':
+    '이 서버는 메일을 보내지 않아 여기서 비밀번호를 다시 정할 수 없습니다 — 서버 운영자에게 문의해 주세요.',
+  'forgot.back': '◂ 로그인으로',
+  'reset.lead': '새 비밀번호를 정합니다.',
+  'reset.submit': '비밀번호 정하기',
+  'reset.submitting': '정하는 중…',
+  'reset.done': '새 비밀번호를 정했습니다',
+  'reset.done_body': '모든 기기의 로그인을 끊었습니다 — 새 비밀번호로 로그인하세요.',
+  'reset.to_login': '로그인하기',
+  'reset.invalid': '쓸 수 없는 링크입니다',
+  'reset.invalid_body': '만료됐거나({minutes}분) 이미 쓴 링크입니다. 새 링크를 받으세요.',
+  'reset.request_again': '재설정 링크 다시 받기',
   'settings.title': '설정',
   'settings.heading': '설정 — {org}',
   'settings.nav_label': '설정 메뉴',
@@ -1765,6 +1786,9 @@ export const ko = {
   'mail.invite.subject': '[NERV] {org} 에서 함께 일하자고 초대했습니다',
   'mail.invite.body':
     '{inviter} 님이 {org} 에 초대했습니다 — 역할은 {role} 입니다.\n\n아래 주소를 열어 수락하세요.\n{url}\n\n이 링크는 {days}일 뒤 만료되고, 초대받은 주소({email})로 로그인했을 때만 수락됩니다.\n계정이 아직 없으면 먼저 가입한 뒤 같은 주소로 돌아오면 됩니다.\n\n모르는 초대라면 이 메일을 지우면 됩니다 — 아무 일도 일어나지 않습니다.',
+  'mail.reset.subject': '[NERV] 비밀번호를 새로 정하는 링크입니다',
+  'mail.reset.body':
+    '{name} 님,\n\n비밀번호를 새로 정하는 요청을 받았습니다. 아래 주소를 열어 새 비밀번호를 정하세요.\n{url}\n\n이 링크는 {minutes}분 동안, 한 번만 쓸 수 있습니다. 새 비밀번호를 정하면 모든 기기의 로그인이 끊깁니다.\n\n요청한 적이 없다면 이 메일을 지우면 됩니다 — 링크로 새 비밀번호를 정하지 않는 한 비밀번호는 그대로입니다.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '노드 {nodes} · 간선 {edges}',
   'graph.empty': '관계가 아직 없습니다.',

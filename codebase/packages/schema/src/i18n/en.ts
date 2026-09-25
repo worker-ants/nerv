@@ -1647,6 +1647,26 @@ export const en = {
   'auth.password_wrong': 'The current password is not right.',
   'auth.password_too_short': 'The new password is too short.',
   'auth.too_many': 'Too many attempts — try again in a moment.',
+  'auth.request_failed': 'The request could not be completed — try again in a moment.',
+  'login.forgot': 'Forgot your password?',
+  'forgot.lead': 'We send a link to set a new password to the email you signed up with.',
+  'forgot.submit': 'Send reset link',
+  'forgot.submitting': 'Sending…',
+  'forgot.sent': 'Check your mail',
+  'forgot.sent_body':
+    'If an account is registered to {email}, we sent it a link to set a new password. The link works for {minutes} minutes. If you do not see it, check the spam folder.',
+  'forgot.disabled':
+    'This server does not send mail, so the password cannot be reset here — ask the server operator.',
+  'forgot.back': '◂ Back to sign in',
+  'reset.lead': 'Set a new password.',
+  'reset.submit': 'Set password',
+  'reset.submitting': 'Setting…',
+  'reset.done': 'New password set',
+  'reset.done_body': 'Every device was signed out — sign in with the new password.',
+  'reset.to_login': 'Sign in',
+  'reset.invalid': 'This link cannot be used',
+  'reset.invalid_body': 'It expired ({minutes} minutes) or was already used. Get a new link.',
+  'reset.request_again': 'Get a new reset link',
   'settings.title': 'Settings',
   'settings.heading': 'Settings — {org}',
   'settings.nav_label': 'Settings menu',
@@ -1798,6 +1818,9 @@ export const en = {
   'mail.invite.subject': '[NERV] {org} invited you to work together',
   'mail.invite.body':
     '{inviter} invited you to {org} as {role}.\n\nOpen this link to accept:\n{url}\n\nThe link expires in {days} days, and it only works while you are signed in as {email}.\nNo account yet? Sign up first, then come back to the same link.\n\nIf you were not expecting this, just delete this mail — nothing happens.',
+  'mail.reset.subject': '[NERV] Link to set a new password',
+  'mail.reset.body':
+    'Hi {name},\n\nWe received a request to set a new password. Open this link to choose one:\n{url}\n\nThe link works once, for {minutes} minutes. Setting a new password signs out every device.\n\nIf you did not ask for this, just delete this mail — your password stays the same unless someone sets a new one through the link.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '{nodes} nodes · {edges} edges',
   'graph.empty': 'No relations yet.',

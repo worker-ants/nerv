@@ -28,6 +28,13 @@ declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router;
   }
+  /**
+   * 주소에 싣지 않고 다음 화면에 넘기는 것 — 로그인에서 친 이메일을 비밀번호 찾기로(2026-09-25 · REQ-WEB-231).
+   * `?email=` 로 실으면 방문 기록·접근 로그·공유한 주소에 남는다.
+   */
+  interface HistoryState {
+    email?: string;
+  }
 }
 
 // 테마를 **그리기 전에** 문서에 적는다 — 첫 페인트가 옳아야 다크 사용자에게 흰 화면이

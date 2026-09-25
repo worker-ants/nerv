@@ -10,14 +10,16 @@
 
 import {
   PASSWORD_MIN_LENGTH,
+  PASSWORD_RESET_TTL_MINUTES,
   RATE_LIMIT_AUTH_PER_MIN,
   RATE_LIMIT_SIGN_IN_PER_MIN,
+  negotiateLocale,
   newId,
 } from '@nerv/schema';
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
 import { allowedOriginsFromEnv, apiUrlFromEnv, cookieDomainFromEnv } from '../../common/origins.js';
-import { requireEmailVerificationFromEnv } from '../mail/mail.config.js';
+import { mailEnabled, requireEmailVerificationFromEnv } from '../mail/mail.config.js';
 import { returnToOf } from '../mail/verify-link.js';
 
 /**
@@ -46,7 +48,7 @@ function trustedOrigins(): string[] {
 export type NervAuth = ReturnType<typeof createBetterAuth>;
 
 /**
- * 인증 메일을 줄 세우는 쪽 — `MailOutbox` 의 두 메서드만 쓴다.
+ * 인증 메일을 줄 세우는 쪽 — `MailOutbox` 의 두 메서드(가입 확인 · 비밀번호 재설정)만 쓴다.
  *
  * 인터페이스로 받는 이유는 이 파일이 **Nest 밖**이기 때문이다(순수 함수다). 서비스를 그대로
  * import 하면 이 모듈이 DI 그래프에 끌려 들어가고, 그러면 테스트가 better-auth 를 만들 때마다
@@ -60,6 +62,21 @@ export interface VerificationMail {
     locale?: string | null;
     returnTo?: string | null;
   }): Promise<boolean>;
+  enqueueResetPassword(input: {
+    email: string;
+    name: string;
+    token: string;
+    locale?: string | null;
+  }): Promise<boolean>;
+}
+
+/**
+ * 메일의 언어 — **요청한 화면의 것**이다(2026-09-25). 화면은 인증 요청에도 지금 언어를 `accept-language` 로
+ * 싣는다(`apps/web/src/lib/session.ts`). 전에는 가입 확인 메일이 언제나 기본 언어(한국어)로 나갔다 — 영어 화면에서
+ * 가입한 사람이 읽을 수 없는 첫 메일을 받았다.
+ */
+function localeOf(request: Request | undefined): string {
+  return negotiateLocale(request?.headers.get('accept-language') ?? null);
 }
 
 export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
@@ -115,6 +132,10 @@ export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
         '/send-verification-email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
         // 비밀번호 바꾸기도 지금 비밀번호를 맞히는 자리라 로그인과 같은 한도다(2026-09-25 · REQ-API-186)
         '/change-password': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
+        // 재설정 요청은 재발송과 같은 까닭이고(남의 메일함), 재설정 자체는 토큰을 맞히는 자리다(2026-09-25 ·
+        // REQ-API-187). 인증 스택의 기본값(요청 분당 3회)에 맡기지 않는 이유는 위의 로그인과 같다
+        '/request-password-reset': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
+        '/reset-password': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
       },
     },
     /**
@@ -130,13 +151,49 @@ export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
       // 배치는 기동 단계에서 이미 거부됐다(`assertMailConfig`).
       requireEmailVerification: requireEmailVerificationFromEnv(),
       minPasswordLength: PASSWORD_MIN_LENGTH,
+      /*
+       * **비밀번호를 잊었을 때**(2026-09-25 — 사람 결정 D10 · REQ-API-187). 메일을 보낼 수 있을 때만 켠다 — 켜지
+       * 않으면 인증 스택이 `/request-password-reset` 에 400 `RESET_PASSWORD_DISABLED` 로 답하고, 화면은 그 코드를
+       * 보고 "운영자에게 문의" 를 말한다. 켜 놓고 메일만 조용히 버리면 사람은 오지 않을 메일을 기다린다.
+       *
+       * 응답은 **계정이 있든 없든 같다** — 인증 스택이 없는 주소에도 토큰을 만드는 척하고 같은 문장을 돌려준다.
+       * 우리 쪽 콜백은 아웃박스에 INSERT 하나라 응답 시간도 갈리지 않는다(가입 확인과 같은 까닭 — 4.3 §2.17).
+       */
+      ...(mail !== undefined && mailEnabled()
+        ? {
+            sendResetPassword: async ({ user, token }, request): Promise<void> => {
+              await mail.enqueueResetPassword({
+                email: user.email,
+                name: user.name,
+                token,
+                locale: localeOf(request),
+              });
+            },
+          }
+        : {}),
+      resetPasswordTokenExpiresIn: PASSWORD_RESET_TTL_MINUTES * 60,
+      // 재설정은 "누가 내 비밀번호를 안다" 의 답이기도 하다 — 이 브라우저를 포함해 **모든** 세션을 끊는다.
+      // 바꾸기(`/change-password`)와 달리 여기는 로그인한 브라우저가 없다: 새 비밀번호로 다시 들어온다.
+      revokeSessionsOnPasswordReset: true,
+      /*
+       * 메일의 링크로 비밀번호를 정했다는 것은 **그 메일함이 이 사람의 것**이라는 증명이다 — 확인 링크를 연 것과
+       * 같다. 확인하지 않은 채 비밀번호를 잊은 사람이 재설정을 마치고도 "이메일을 아직 확인하지 않았습니다" 에
+       * 막혀 메일을 한 통 더 기다리지 않게 한다.
+       */
+      onPasswordReset: async ({ user }): Promise<void> => {
+        await pool.query(
+          `UPDATE "user" SET email_verified = true, updated_at = now()
+            WHERE id = $1 AND email_verified = false`,
+          [user.id],
+        );
+      },
     },
     emailVerification: {
       // 가입하면 바로 나간다 — 따로 누를 것을 두지 않는다
       sendOnSignUp: true,
       // 확인한 사람을 다시 로그인시키지 않는다. 링크를 연 브라우저가 곧 그 사람이다.
       autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, url, token }): Promise<void> => {
+      sendVerificationEmail: async ({ user, url, token }, request): Promise<void> => {
         // **기다리지 않는다.** better-auth 문서 자신이 그렇게 적는다 — 발송을 await 하면
         // 응답 시간이 "그 이메일이 존재하는가" 를 흘린다. 우리는 애초에 보내지 않고
         // 줄만 세우므로(§2.17) 이 호출은 INSERT 하나다.
@@ -144,6 +201,7 @@ export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
           email: user.email,
           name: user.name,
           token,
+          locale: localeOf(request),
           // 요청이 정한 돌아갈 자리 — 가입·재발송이 싣는다(REQ-WEB-089 · REQ-WEB-188)
           returnTo: returnToOf(url),
         });

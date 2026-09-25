@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.60 (2026-09-25)</span>
+      <span>버전 v1.61 (2026-09-25)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -100,9 +100,12 @@
     <tbody>
       <tr><td><code>/login</code></td><td>로그인</td><td>비인증 전용</td><td>인증 상태면 <code>/</code>로. 쿼리: <code>?redirect=&lt;앱 안 주소&gt;</code>(경로·쿼리·해시 — 밖으로 나가는 주소는 버린다 · <code>/</code> 는 역할별 첫 화면 · REQ-WEB-212)</td></tr>
       <tr><td><code>/signup</code></td><td>가입</td><td>비인증 전용(셸 밖)</td><td>가입 직후 온보딩으로 — 2026-08-27 신설</td></tr>
+      <tr><td><code>/forgot-password</code></td><td>비밀번호 찾기</td><td><b>공개</b>(셸 밖)</td><td>2026-09-25 신설 — 재설정 메일을 부탁한다. 로그인에서 친 이메일은 히스토리 상태로 온다(주소에 싣지 않는다 · REQ-WEB-231)</td></tr>
+      <tr><td><code>/reset-password</code></td><td>새 비밀번호</td><td><b>공개</b>(셸 밖)</td><td>2026-09-25 신설 — 메일의 링크가 API 를 거쳐 여기로 온다. 쿼리: <code>?token=</code> 또는 <code>?error=INVALID_TOKEN</code>(REQ-WEB-231)</td></tr>
       <tr><td><code>/invite/:token</code></td><td>초대 링크</td><td><b>공개</b>(셸 밖)</td><td>로그인 전에도 열린다 — 2026-08-27 신설(§2.1b)</td></tr>
       <tr><td><code>/onboarding</code></td><td>온보딩</td><td>인증 필요</td><td>소속 조직 0개일 때만 진입</td></tr>
       <tr><td><code>/signup</code></td><td>가입(셸 밖)</td><td><b>이 문서 §2.1</b> (로그인과 같은 그림 계열 — 2026-09-05 추가)</td></tr>
+      <tr><td><code>/forgot-password</code> · <code>/reset-password</code></td><td>비밀번호 찾기 · 새 비밀번호(셸 밖·공개)</td><td><b>이 문서 §2.1</b> (2026-09-25 추가 — 로그인과 같은 틀)</td></tr>
       <tr><td><code>/invite/:token</code></td><td>초대 링크 수락(셸 밖·공개)</td><td><b>이 문서 §2.1</b> (2026-09-05 추가)</td></tr>
       <tr><td><code>/help</code> · <code>/help/:chapter</code></td><td>제품 매뉴얼(10장 · ko·en)</td><td><b>이 문서 §2.10</b> (2026-09-05 추가 — 이 표에 "없음"이 생기면 결함이라 적어 두고 넷이 비어 있었다)</td></tr>
       <tr><td><code>/</code></td><td>S1 홈 대시보드</td><td>인증 필요</td><td>활성 조직 컨텍스트</td></tr>
@@ -498,7 +501,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
   <ul>
     <li><b>고르는 순서</b>: 사용자가 고른 값(<code>localStorage</code>) → <code>navigator.languages</code> → 기본값 <code>ko</code>. <b>고른 값이 브라우저 언어를 이긴다</b> — 브라우저 설정이 바뀌었다고 화면 언어가 저 혼자 바뀌면, 고른 적 있다는 사실이 배신당한다.</li>
     <li><b>바꾸는 자리</b>: 사용자 메뉴(§1.3 <code>[지민 ▾]</code>) 안. 자주 바꾸는 것이 아니고 계정에 붙은 설정이라 헤더에 자리를 내주지 않는다. 언어 이름은 <b>그 언어로</b> 적는다(<code>한국어</code> · <code>English</code>) — 읽을 수 없는 말로 적힌 선택지는 고를 수 없다. <b>로그인 전 화면에도 같은 단추 줄이 선다</b>(2026-09-25 — REQ-WEB-230): 로그인·가입·초대는 셸 밖이라 사용자 메뉴가 없고, 브라우저 언어가 다르게 잡힌 사람은 로그인하기 전까지 읽을 수 없는 화면을 봤다. 모양은 하나다(<code>components/locale-switch.tsx</code>).</li>
-    <li><b>서버에도 같은 언어를 알린다</b>: 모든 API 호출에 <code>Accept-Language</code> 를 싣는다(<a href="api.html">4.4</a> §1.4). 버튼은 영어인데 에러 토스트만 한국어인 상태가 절반만 된 i18n 이다.</li>
+    <li><b>서버에도 같은 언어를 알린다</b>: 모든 API 호출에 <code>Accept-Language</code> 를 싣는다(<a href="api.html">4.4</a> §1.4). 버튼은 영어인데 에러 토스트만 한국어인 상태가 절반만 된 i18n 이다. **인증 요청(<code>/api/auth/*</code>)도 싣는다**(2026-09-25) — 빠져 있어서 가입 확인 메일이 가입한 화면과 상관없이 기본 언어로 왔다. 가입 확인·재설정 메일은 이 값으로 쓰인다.</li>
     <li><b><code>&lt;html lang&gt;</code> 을 맞춘다</b>: 스크린리더의 발음과 브라우저의 줄바꿈 규칙이 이 속성을 읽는다.</li>
   </ul>
 
@@ -507,7 +510,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <tbody>
       <tr><td>REQ-WEB-048</td><td>WHEN 사용자가 언어를 고르면 THE SYSTEM SHALL 그 선택을 브라우저에 남기고, 이후 방문에서 브라우저 언어보다 우선 적용한다</td></tr>
       <tr><td>REQ-WEB-049</td><td>WHILE 화면이 특정 로케일로 그려지는 동안 THE SYSTEM SHALL 모든 API 요청에 같은 로케일의 <code>Accept-Language</code> 를 실어 화면과 응답의 언어를 일치시킨다</td></tr>
-      <tr><td>REQ-WEB-230</td><td>WHILE 셸 밖의 화면(로그인 · 가입 · 초대)을 보이는 동안 THE SYSTEM SHALL 사용자 메뉴와 같은 언어 단추 줄을 두어 로그인하기 전에도 언어를 바꿀 수 있게 한다</td></tr>
+      <tr><td>REQ-WEB-230</td><td>WHILE 셸 밖의 화면(로그인 · 가입 · 초대 · 비밀번호 찾기 · 새 비밀번호)을 보이는 동안 THE SYSTEM SHALL 사용자 메뉴와 같은 언어 단추 줄을 두어 로그인하기 전에도 언어를 바꿀 수 있게 한다</td></tr>
     </tbody>
   </table></div>
 
@@ -625,6 +628,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
         <div class="wf-input" style="display:block;margin-bottom:10px;color:var(--text)">jimin@example.com</div>
         <div class="sub" style="font-size:11.5px;color:var(--text-mute);margin-bottom:3px">비밀번호</div>
         <div class="wf-input" style="display:block;border-color:var(--danger)">••••••••</div>
+        <div style="font-size:11.5px;color:var(--link);text-align:right;margin-top:4px">비밀번호를 잊었나요? ▸ <span class="marker">4</span></div>
         <div style="font-size:11.5px;color:var(--danger);margin:5px 0 12px">⚠ 이메일 또는 비밀번호가 올바르지 않습니다 <span class="marker">1</span></div>
         <div class="wf-btn primary" style="display:block;text-align:center;padding:8px">로그인 <span class="marker">2</span></div>
         <div class="sub" style="font-size:11.5px;color:var(--text-faint);margin-top:12px;text-align:center">초대 링크로 오셨나요? 로그인한 뒤 초대 카드에서 [수락]을 누르세요. <span class="marker">3</span></div>
@@ -636,6 +640,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <li><span class="marker">1</span><span><b>인라인 실패 사유</b> — 전역 토스트가 아니라 폼 안. 비밀번호 필드만 초기화한다. <code>REQ-WEB-005</code></span></li>
     <li><span class="marker">2</span><span><b>로그인</b> — better-auth 세션 쿠키 발급 후 역할별 첫 화면으로 착지(§1.2 가드). <code>REQ-WEB-006</code></span></li>
     <li><span class="marker">3</span><span><b>초대 수락 경로</b> — 초대 링크 진입 시 로그인 후 <code>InviteAcceptCard</code>로 이어진다(온보딩 ① 대체).</span></li>
+    <li><span class="marker">4</span><span><b>비밀번호를 잊었나요?</b> — <code>/forgot-password</code> 로. 친 이메일을 들고 간다(아래 "비밀번호를 잊었을 때" · 2026-09-25). <code>REQ-WEB-231</code></span></li>
   </ul>
 
   <div class="wf">
@@ -703,6 +708,23 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td>REQ-WEB-188</td><td>WHEN 소속 조직이 0개인 사용자가 로그인 폼을 거치지 않고 홈(<code>/</code>)에 도착하면 — 확인 메일의 링크가 세운 세션·즐겨찾기·로고 — THE SYSTEM SHALL <code>/onboarding</code>으로 보낸다. WHEN 가입하거나 확인 메일을 다시 보내면 THE SYSTEM SHALL 확인을 마치고 돌아올 화면(초대에서 왔으면 그 초대, 아니면 <code>/onboarding</code>)을 요청에 싣고, 서버는 그 주소가 화면 오리진 안일 때만 링크에 담는다</td></tr>
+    </tbody>
+  </table></div>
+
+    <h4>비밀번호를 잊었을 때 (2026-09-25 — 사람 결정 D10 · UI/UX 검토 SET-13)</h4>
+
+  <p><b>내 계정의 [비밀번호 바꾸기]는 지금 비밀번호를 아는 사람의 문이다</b>(§2.8 · REQ-WEB-229). 잊은 사람에게는 길이 없었다 — 로그인 화면에 그 말이 없었고, 같은 주소로 다시 가입할 수도 없어 누군가 DB 를 고쳐 줘야 했다. 인증 스택은 재설정 문을 열어 두고 있었지만 보낼 곳이 없었다(<a href="api.html">4.4</a> REQ-API-187).</p>
+  <ul>
+    <li><b>길은 비밀번호 칸 바로 아래다</b> — "비밀번호를 잊었나요?"(로그인 그림 ④). 틀린 뒤 눈이 머무는 자리다. 친 이메일은 <b>주소가 아니라 히스토리 상태로</b> 들고 간다 — <code>?email=</code> 은 방문 기록·접근 로그·공유한 주소에 남는다.</li>
+    <li><b><code>/forgot-password</code></b> — 이메일 한 칸. 보내면 폼을 치우고 "그 주소로 가입한 계정이 있으면 링크를 보냈습니다 · 60분 동안 쓸 수 있습니다" 를 말한다. <b>있다와 없다를 가르지 않는다</b> — 서버가 같은 답을 하고 화면도 같은 문장이다. 가르는 것은 사람이 할 일이 달라지는 둘뿐이다: 메일을 보내지 않는 서버(기다려도 오지 않는다 — "서버 운영자에게 문의") · 한도(폼 안에서).</li>
+    <li><b>메일의 링크는 API 를 거쳐 <code>/reset-password</code> 로 온다</b> — 살아 있으면 <code>?token=</code>, 만료됐거나 이미 썼으면 <code>?error=INVALID_TOKEN</code>. 뒤의 경우 폼 대신 "쓸 수 없는 링크입니다" 와 [재설정 링크 다시 받기]가 선다 — 비밀번호를 두 번 치기 <b>전에</b> 안다. 토큰 없이 와도 같다.</li>
+    <li><b><code>/reset-password</code></b> — 새 비밀번호 두 칸(내 계정과 같은 규칙: 8자 이상 · 두 칸이 다르면 보내기 전에 말한다). 정하면 "모든 기기의 로그인을 끊었습니다" 와 [로그인하기] — 여기서 로그인시키지 않는다(서버가 이 사람의 세션을 모두 끊는다). 그 사이 링크가 닳았으면(다른 탭에서 먼저 썼다) 폼을 치우고 새 링크로.</li>
+    <li>두 화면 모두 <b>셸 밖이고 공개</b>다 — 로그인하지 않은 사람의 화면이라 가드가 로그인으로 되돌려 보내면 안 된다. 로그인·가입·초대와 <b>같은 틀</b>(<code>components/auth-frame.tsx</code> — 표지 · 한 줄 · 카드 · 언어 단추)이다: 같은 틀이 세 벌 복사돼 있었고, 두 화면을 더하면 다섯 벌이 된다.</li>
+  </ul>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
+    <tbody>
+      <tr><td>REQ-WEB-231</td><td>WHEN 로그인 화면을 렌더하면 THE SYSTEM SHALL 비밀번호 칸 아래에 비밀번호 찾기로 가는 길을 두고, 친 이메일을 주소에 싣지 않고 넘긴다. WHEN 재설정 메일을 부탁하면 THE SYSTEM SHALL 폼을 치우고 계정이 있든 없든 같은 문장으로 링크의 수명을 말하되, WHERE 서버가 메일을 보내지 않으면 운영자에게 문의하라고 말한다. WHEN 메일의 링크로 들어오면 THE SYSTEM SHALL 링크가 살아 있을 때만 새 비밀번호 폼을 보이고, 만료됐거나 이미 쓴 링크면 폼 대신 새 링크를 받는 길을 보인다. WHEN 새 비밀번호를 정하면 THE SYSTEM SHALL 모든 기기의 로그인이 끊겼다고 말하고 로그인으로 보낸다. WHILE 두 화면을 보이는 동안 THE SYSTEM SHALL 셸을 두르지 않고 로그인으로 되돌려 보내지 않는다</td></tr>
     </tbody>
   </table></div>
 

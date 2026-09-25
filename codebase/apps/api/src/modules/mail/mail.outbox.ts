@@ -12,6 +12,7 @@ import {
   INVITATION_TTL_DAYS,
   MAIL_BATCH_SIZE,
   MAIL_MAX_ATTEMPTS,
+  PASSWORD_RESET_TTL_MINUTES,
   isLocale,
   msg,
   renderMessage,
@@ -23,7 +24,7 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { apiUrlFromEnv, webUrlFromEnv } from '../../common/origins.js';
 import { mailEnabled } from './mail.config.js';
-import { verifyEmailLink } from './verify-link.js';
+import { resetPasswordLink, verifyEmailLink } from './verify-link.js';
 
 /** 워커가 집어 가는 한 줄 */
 export interface DueMail extends Record<string, unknown> {
@@ -120,6 +121,40 @@ export class MailOutbox {
       VALUES (${newId()}, 'verify_email', ${input.email}, ${locale},
               ${renderMessage(msg('mail.verify.subject'), locale)},
               ${renderMessage(msg('mail.verify.body', values), locale)},
+              'user')
+    `);
+    return true;
+  }
+
+  /**
+   * 비밀번호 재설정 메일을 줄 세운다(2026-09-25 · REQ-API-187). 인증 스택의 `sendResetPassword` 가 부른다 —
+   * 가입 확인과 같은 까닭으로 트랜잭션을 받지 않고, **기다리지 않는 쪽**이다(INSERT 하나).
+   *
+   * 로케일은 **요청한 화면의 것**이다 — 받는 사람이 바로 그 화면에서 요청했다. 링크의 모양은 `resetPasswordLink`.
+   */
+  async enqueueResetPassword(input: {
+    email: string;
+    name: string;
+    token: string;
+    locale?: string | null;
+  }): Promise<boolean> {
+    if (!mailEnabled()) return false;
+    const locale: Locale = isLocale(input.locale) ? input.locale : DEFAULT_LOCALE;
+    const url = resetPasswordLink({
+      api: apiUrlFromEnv(),
+      web: webUrlFromEnv(),
+      token: input.token,
+    });
+    const values = {
+      name: input.name === '' ? input.email : input.name,
+      url,
+      minutes: PASSWORD_RESET_TTL_MINUTES,
+    };
+    await this.db.execute(sql`
+      INSERT INTO email_outbox (id, kind, to_email, locale, subject, body_text, ref_type)
+      VALUES (${newId()}, 'reset_password', ${input.email}, ${locale},
+              ${renderMessage(msg('mail.reset.subject'), locale)},
+              ${renderMessage(msg('mail.reset.body', values), locale)},
               'user')
     `);
     return true;

@@ -84,7 +84,7 @@ They do nothing while the cursor is in an input ([Tasks](/help/tasks)).
 
 ## Language
 
-Pick **한국어 / English** from the user menu (your name ▾ at the right of the header). The screens and the error messages the server returns switch together. **The sign-in, sign-up and invitation screens** have no user menu, so the same buttons sit at the bottom of the screen — you can switch before signing in.
+Pick **한국어 / English** from the user menu (your name ▾ at the right of the header). The screens and the error messages the server returns switch together. **The sign-in, sign-up, invitation and password reset screens** have no user menu, so the same buttons sit at the bottom of the screen — you can switch before signing in. The confirmation and password reset mails come in the language you picked there.
 
 **The CLI is separate.** It draws on the same catalogue of phrases, but its language comes from the environment (`NERV_LANG`, else `LC_ALL` or `LANG`), not from what you picked on the web.
 

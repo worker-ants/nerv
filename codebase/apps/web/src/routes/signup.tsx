@@ -9,7 +9,7 @@
 
 import { useT } from '../lib/i18n.js';
 import { PASSWORD_MIN_LENGTH } from '@nerv/schema';
-import { LocaleSwitch } from '../components/locale-switch.js';
+import { AUTH_CARD, AuthFrame } from '../components/auth-frame.js';
 import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -73,96 +73,78 @@ function SignupScreen(): React.JSX.Element {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg-sunken px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <div className="text-2xl font-semibold tracking-tight">
-            <span aria-hidden="true" className="text-status-action">
-              ⬢
-            </span>{' '}
-            NERV
-          </div>
-          <p className="mt-1 text-sm text-text-mute">{t('signup.lead')}</p>
+    <AuthFrame lead={t('signup.lead')}>
+      {/* 확인 메일을 기다리는 동안에는 **폼을 치운다** — 같은 값을 다시 칠 일이 없고,
+          남겨 두면 사람은 무엇을 더 해야 하는 줄 안다(2026-09-22 · REQ-WEB-180) */}
+      {pending ? (
+        <div data-testid="signup-check-mail" className={AUTH_CARD}>
+          <p className="text-base font-semibold">✉ {t('signup.check_mail')}</p>
+          <p className="text-sm leading-relaxed text-text-mute">
+            {t('signup.check_mail_body', { email })}
+          </p>
+          <Button
+            data-testid="signup-resend"
+            disabled={resent}
+            className="h-9 w-full"
+            onClick={() => {
+              setResent(true);
+              void resendVerification(email, returnPath);
+            }}
+          >
+            {resent ? t('auth.resent') : t('auth.resend')}
+          </Button>
         </div>
-        {/* 확인 메일을 기다리는 동안에는 **폼을 치운다** — 같은 값을 다시 칠 일이 없고,
-            남겨 두면 사람은 무엇을 더 해야 하는 줄 안다(2026-09-22 · REQ-WEB-180) */}
-        {pending ? (
-          <div
-            data-testid="signup-check-mail"
-            className="flex flex-col gap-3 rounded-nerv-lg border border-border bg-bg-elev p-6"
-          >
-            <p className="text-base font-semibold">✉ {t('signup.check_mail')}</p>
-            <p className="text-sm leading-relaxed text-text-mute">
-              {t('signup.check_mail_body', { email })}
-            </p>
-            <Button
-              data-testid="signup-resend"
-              disabled={resent}
-              className="h-9 w-full"
-              onClick={() => {
-                setResent(true);
-                void resendVerification(email, returnPath);
-              }}
+      ) : (
+        <form onSubmit={(e) => void submit(e)} className={AUTH_CARD}>
+          <Field label={t('signup.name')}>
+            <Input
+              required
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-9"
+            />
+          </Field>
+          <Field label={t('login.email')}>
+            <Input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="h-9"
+            />
+          </Field>
+          <Field label={t('login.password')}>
+            <Input
+              type="password"
+              required
+              minLength={PASSWORD_MIN_LENGTH}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-9"
+            />
+          </Field>
+          {error !== null && (
+            <p
+              data-testid="signup-error"
+              role="alert"
+              className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
             >
-              {resent ? t('auth.resent') : t('auth.resend')}
-            </Button>
-          </div>
-        ) : (
-          <form
-            onSubmit={(e) => void submit(e)}
-            className="flex flex-col gap-3 rounded-nerv-lg border border-border bg-bg-elev p-6"
-          >
-            <Field label={t('signup.name')}>
-              <Input
-                required
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-9"
-              />
-            </Field>
-            <Field label={t('login.email')}>
-              <Input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-9"
-              />
-            </Field>
-            <Field label={t('login.password')}>
-              <Input
-                type="password"
-                required
-                minLength={PASSWORD_MIN_LENGTH}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-9"
-              />
-            </Field>
-            {error !== null && (
-              <p
-                data-testid="signup-error"
-                role="alert"
-                className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
-              >
-                ⚠ {error}
-              </p>
-            )}
-            <Button type="submit" variant="primary" disabled={busy} className="mt-1 h-9 w-full">
-              {busy ? t('signup.submitting') : t('signup.submit')}
-            </Button>
-          </form>
-        )}
-        <p className="mt-4 text-center text-xs">
-          <Link to="/login" className="text-link hover:underline">
-            {t('signup.have_account')}
-          </Link>
-        </p>
-        <LocaleSwitch labelled={false} className="mt-6 flex justify-center" />
-      </div>
-    </div>
+              ⚠ {error}
+            </p>
+          )}
+          <Button type="submit" variant="primary" disabled={busy} className="mt-1 h-9 w-full">
+            {busy ? t('signup.submitting') : t('signup.submit')}
+          </Button>
+        </form>
+      )}
+      <p className="mt-4 text-center text-xs">
+        <Link to="/login" className="text-link hover:underline">
+          {t('signup.have_account')}
+        </Link>
+      </p>
+    </AuthFrame>
   );
 }
