@@ -346,7 +346,7 @@ function SpecListScreen(): React.JSX.Element {
               type="button"
               data-testid="freeze-baseline"
               disabled={!canFreeze}
-              title={
+              disabledReason={
                 canFreeze ? undefined : t('task.next.roles_only', { roles: 'planner · admin' })
               }
               onClick={() => setFreezing(true)}

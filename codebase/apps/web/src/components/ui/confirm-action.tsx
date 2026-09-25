@@ -228,7 +228,8 @@ export function ConfirmAction({
       variant={variant}
       data-testid={testId}
       disabled={isDisabled}
-      title={disabled === true ? title : tooltip}
+      disabledReason={disabled === true ? title : undefined}
+      title={disabled === true ? undefined : tooltip}
       onClick={() => setOpen(true)}
     >
       {label}

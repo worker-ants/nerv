@@ -961,6 +961,7 @@ export const ko = {
   'task.next.unblock_manual': '확인하고 풀기',
   'task.next.unblock_pending': '아직 끝나지 않은 것이 있습니다 — 아래 목록이 끝나면 풀 수 있습니다',
   'task.brief.edit': '고치기',
+  'task.brief.done_locked': '끝난 작업의 위임 명세는 고치지 않습니다.',
   'task.brief.empty': '비어 있음 — 채워야 합니다',
   'task.brief.placeholder': '원본에 없음 — 채워야 합니다',
   'task.spec_impact': '스펙 영향',
@@ -1423,6 +1424,7 @@ export const ko = {
   'spec.meta.archive': '보관',
   'spec.meta.archive_blocked': '보관할 수 없습니다 — 먼저 정리하세요',
   'spec.meta.archive_title': '삭제가 아닙니다 — 기본 조회에서만 빠지고 링크·이력은 남습니다',
+  'spec.meta.edit_role': 'planner·admin 만 바꿀 수 있습니다.',
   'spec.meta.archived': '보관했습니다 — 삭제가 아니라 기본 조회에서만 빠집니다.',
   'spec.meta.blocker.child': '하위 스펙',
   'spec.meta.blocker.claim': '활성 클레임 Task',
@@ -1761,11 +1763,11 @@ export const ko = {
   'switcher.pin': '목록 위에 고정',
   'switcher.unpin': '고정 해제',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
-  'realtime.offline': '오프라인 — 캐시된 읽기 전용입니다. 복구되면 자동으로 동기화합니다.',
+  'realtime.offline':
+    '오프라인 — 서버에 닿지 않습니다. 보이는 내용은 {time} 에 받은 것이고, 쓰기는 복구될 때까지 잠깁니다. 복구되면 자동으로 동기화합니다.',
+  'realtime.offline_write': '오프라인입니다 — 서버에 닿으면 다시 누를 수 있습니다.',
   'realtime.ws_down': '실시간 갱신 중단 — 폴링으로 갱신 중입니다.',
   // ── 자리표시자 화면 ────────────────────────────────────────────────────────────
-  'placeholder.pending': '{story} 대기',
-  'placeholder.spec': '명세: {spec}',
   // ── 나머지 — 여러 곳에서 조각으로 쓰이던 문장 ────────────────────────────────────────────
   'auth.bad_credentials': '이메일 또는 비밀번호가 올바르지 않습니다.',
   'auth.sign_in_failed': '로그인에 실패했습니다.',

@@ -13,6 +13,13 @@ import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
 
+/** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
+const isLocked = (b: Element | null | undefined): boolean =>
+  b != null && ((b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true');
+/** 잠긴 단추의 사유 — hover·포커스의 말풍선과 aria-describedby 가 같은 값을 읽는다 */
+const reasonOf = (b: Element | null | undefined): string | null =>
+  b?.getAttribute('data-reason') ?? null;
+
 vi.mock('socket.io-client', () => ({
   io: () => ({
     on: () => undefined,
@@ -261,8 +268,8 @@ describe('스펙 목록 — 머리의 상태별 수 · 동결 역할 · 행의 �
     roles = ['developer'];
     renderAt('/p/clemvion/specs');
     const freeze = (await screen.findByTestId('freeze-baseline')) as HTMLButtonElement;
-    await waitFor(() => expect(freeze.disabled).toBe(true));
-    expect(freeze.getAttribute('title')).toContain('planner');
+    await waitFor(() => expect(isLocked(freeze)).toBe(true));
+    expect(reasonOf(freeze)).toContain('planner');
   });
 
   it('전수 트리의 행이 버전·최근 갱신·열린 코멘트를 적는다', async () => {

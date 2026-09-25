@@ -14,6 +14,13 @@ import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
 
+/** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
+const isLocked = (b: Element | null | undefined): boolean =>
+  b != null && ((b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true');
+/** 잠긴 단추의 사유 — hover·포커스의 말풍선과 aria-describedby 가 같은 값을 읽는다 */
+const reasonOf = (b: Element | null | undefined): string | null =>
+  b?.getAttribute('data-reason') ?? null;
+
 vi.mock('socket.io-client', () => ({
   io: () => ({
     on: () => undefined,
@@ -173,8 +180,8 @@ describe('작업 상세 — 상태가 머리의 단추를 정한다 (REQ-WEB-202
     detail = task({ status: 'ready' });
     await renderDetail();
     const claim = screen.getByTestId('claim-task') as HTMLButtonElement;
-    expect(claim.disabled).toBe(true);
-    expect(claim.title).toMatch(/^이 조작은 .*developer.* 만 할 수 있습니다$/);
+    expect(isLocked(claim)).toBe(true);
+    expect(reasonOf(claim)).toMatch(/^이 조작은 .*developer.* 만 할 수 있습니다$/);
   });
 });
 
@@ -184,10 +191,10 @@ describe('완료 게이트 — 스펙 영향은 고르지 않은 채 시작한�
     detail = task({ status: 'in_progress' });
     await renderDetail();
     const done = screen.getByTestId('to-done') as HTMLButtonElement;
-    expect(done.disabled).toBe(true);
-    expect(done.title).toBe(ko['task.spec_impact_choose']);
+    expect(isLocked(done)).toBe(true);
+    expect(reasonOf(done)).toBe(ko['task.spec_impact_choose']);
     fireEvent.click(screen.getByTestId('spec-impact-some'));
-    expect(done.disabled).toBe(true);
+    expect(isLocked(done)).toBe(true);
     fireEvent.change(screen.getByTestId('spec-impact-note'), {
       target: { value: 'SPC-A 의 경계 절' },
     });
@@ -211,8 +218,8 @@ describe('위임 명세는 그 자리에서 고친다 (REQ-WEB-202)', () => {
     roles = ['designer'];
     await renderDetail();
     const edit = screen.getByTestId('brief-edit') as HTMLButtonElement;
-    expect(edit.disabled).toBe(true);
-    expect(edit.title).toBe('이 조작은 planner · developer · admin 만 할 수 있습니다');
+    expect(isLocked(edit)).toBe(true);
+    expect(reasonOf(edit)).toBe('이 조작은 planner · developer · admin 만 할 수 있습니다');
   });
 });
 
@@ -259,8 +266,8 @@ describe('작업 보드 — 문과 역할 (REQ-WEB-202 · 203)', () => {
     roles = ['designer'];
     renderAt('/p/clemvion/tasks');
     const create = (await screen.findByTestId('task-new')) as HTMLButtonElement;
-    await waitFor(() => expect(create.title).not.toBe(''));
-    expect(create.disabled).toBe(true);
+    await waitFor(() => expect(reasonOf(create)).not.toBeNull());
+    expect(isLocked(create)).toBe(true);
     cleanup();
 
     roles = ['qa'];
@@ -269,7 +276,7 @@ describe('작업 보드 — 문과 역할 (REQ-WEB-202 · 203)', () => {
     const fill = (await screen.findByTestId('card-fill')) as HTMLButtonElement;
     await waitFor(() => expect(fill.disabled).toBe(true));
     // qa 는 작업을 만들 수는 있다(발견을 올린다) — 위임 명세는 쓰지 않는다
-    expect((screen.getByTestId('task-new') as HTMLButtonElement).disabled).toBe(false);
+    expect(isLocked(screen.getByTestId('task-new'))).toBe(false);
   });
 });
 

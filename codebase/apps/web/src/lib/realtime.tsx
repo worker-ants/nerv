@@ -60,6 +60,15 @@ export interface RealtimeValue {
   /** REST 자체가 죽었나 — 배너 2단계(오프라인)로 격상한다(NFR-05) */
   offline: boolean;
   setOffline: (offline: boolean) => void;
+  /** 오프라인이 된 시각(ms) — 배너가 "몇 시에 받은 내용인가" 를 말한다. 온라인이면 null */
+  offlineSince: number | null;
+  /**
+   * **쓰기를 잠그는 사유**(2026-09-25 · UI/UX 검토 SYS-09 · REQ-WEB-235) — 오프라인이면 그 문장, 아니면 null.
+   * 배너가 "읽기 전용" 이라 말하는 동안 [승인]·[저장]이 살아 있었다 — 누르면 실패 토스트가 하나 더 뜰 뿐이었다.
+   * 버튼(`primitives.tsx`)이 이 값을 읽어 스스로 잠근다. 문장을 여기서 만드는 까닭은 버튼이 로케일 문맥 밖에서도
+   * 그려지기 때문이다.
+   */
+  writeLock: string | null;
   /** 프로젝트 룸에 붙는다. slug 를 주면 그 프로젝트의 알림 토스트가 문서 링크를 단다 */
   joinProject: (projectId: string, projectSlug?: string) => () => void;
   toasts: Toast[];
@@ -115,7 +124,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
   translate.current = t;
   const queryClient = useQueryClient();
   const [state, setState] = useState<ConnectionState>('connecting');
-  const [offline, setOffline] = useState(false);
+  const [offlineSince, setOfflineSince] = useState<number | null>(null);
+  const offline = offlineSince !== null;
+  // 켜질 때의 시각만 남긴다 — 오프라인인 동안 실패가 거듭돼도 "받은 시각" 은 처음 끊긴 때다
+  const setOffline = useCallback((next: boolean) => {
+    setOfflineSince((since) => (next ? (since ?? Date.now()) : null));
+  }, []);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const socketRef = useRef<Socket | null>(null);
   const me = useMe();
@@ -263,34 +277,61 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
     };
   }, []);
 
+  const writeLock = offline ? t('realtime.offline_write') : null;
   const value = useMemo<RealtimeValue>(
     () => ({
       state,
       offline,
       setOffline,
+      offlineSince,
+      writeLock,
       joinProject,
       toasts,
       pushToast,
       dismissToast,
       dismissAllToasts,
     }),
-    [state, offline, joinProject, toasts, pushToast, dismissToast, dismissAllToasts],
+    [
+      state,
+      offline,
+      setOffline,
+      offlineSince,
+      writeLock,
+      joinProject,
+      toasts,
+      pushToast,
+      dismissToast,
+      dismissAllToasts,
+    ],
   );
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }
 
 /**
+ * 쓰기를 잠그는 사유 — 실시간 문맥 밖(단위 검사의 단독 렌더)에서는 늘 null 이다. 버튼이 부른다.
+ */
+export function useWriteLock(): string | null {
+  return useContext(RealtimeContext)?.writeLock ?? null;
+}
+
+/**
  * 배너 문구 — 2단계다(§1.3).
  *   ① WS 끊김(REST 정상): 폴백 폴링으로 계속 돈다
- *   ② 플랫폼 끊김(REST 실패): 캐시된 읽기 전용으로 격상 — 쓰기를 막는 것은 화면의 몫이다
+ *   ② 플랫폼 끊김(REST 실패): 캐시된 읽기 전용으로 격상 — 쓰기는 버튼이 스스로 잠근다(`writeLock` · REQ-WEB-235).
+ *      언제 받은 내용인지를 말한다 — "캐시된" 만으로는 그 캐시가 1분 전인지 한 시간 전인지 모른다
  */
 export function connectionBanner(
   t: Translator,
   state: ConnectionState,
   offline: boolean,
+  offlineSince: number | null = null,
 ): string | null {
-  if (offline) return t('realtime.offline');
+  if (offline) {
+    const since = new Date(offlineSince ?? Date.now());
+    const time = `${String(since.getHours()).padStart(2, '0')}:${String(since.getMinutes()).padStart(2, '0')}`;
+    return t('realtime.offline', { time });
+  }
   if (state === 'disconnected') return t('realtime.ws_down');
   return null;
 }

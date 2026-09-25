@@ -283,7 +283,7 @@ export function TaskBoard(): React.JSX.Element {
             variant="primary"
             data-testid="task-new"
             disabled={!canCreate}
-            title={canCreate ? undefined : rolesOnly(TASK_CREATE_ROLES)}
+            disabledReason={canCreate ? undefined : rolesOnly(TASK_CREATE_ROLES)}
             onClick={() => setEditing('new')}
           >
             {t('tasks.new')}

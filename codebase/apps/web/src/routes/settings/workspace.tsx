@@ -176,6 +176,7 @@ function OrgSection({
             variant="primary"
             data-testid="org-rename"
             disabled={!canEdit || draft.trim() === '' || draft === name || rename.isPending}
+            disabledReason={canEdit ? undefined : t('settings.workspace.admin_only')}
             onClick={() => rename.mutate()}
           >
             {t('common.save')}
@@ -287,7 +288,7 @@ function ProjectSection({
               size="sm"
               data-testid="project-new"
               disabled={!canCreate}
-              title={canCreate ? undefined : t('settings.workspace.project_new_locked')}
+              disabledReason={canCreate ? undefined : t('settings.workspace.project_new_locked')}
               onClick={() => setCreating(!creating)}
             >
               {creating ? t('common.cancel') : t('settings.workspace.project_new')}
@@ -638,7 +639,7 @@ function ProjectRow({
             size="sm"
             data-testid="project-edit"
             disabled={!canEdit}
-            title={canEdit ? undefined : t('settings.workspace.admin_only')}
+            disabledReason={canEdit ? undefined : t('settings.workspace.admin_only')}
             onClick={() => setEditing(true)}
           >
             {t('common.edit')}
@@ -649,7 +650,7 @@ function ProjectRow({
               size="sm"
               data-testid="project-archive"
               disabled={!canEdit || archive.isPending}
-              title={canEdit ? undefined : t('settings.workspace.admin_only')}
+              disabledReason={canEdit ? undefined : t('settings.workspace.admin_only')}
               onClick={() => archive.mutate()}
             >
               {t('settings.workspace.restore')}

@@ -58,7 +58,7 @@ The buttons to the right of the task title are **the door from the current statu
 | In review   | **[Finish…]**                                                                         |
 | Blocked     | **[Unblock]** ([Check and unblock] when the server cannot judge the reason)           |
 
-**Buttons you cannot press still show** — locked, with the reason on hover (which roles can · someone else holds it · the block is not cleared yet). [Claim] appears only on **Ready** tasks — except a task held only by an expired lease, where pressing it reclaims that claim. On a backlog or blocked task it used to be a button that got refused.
+**Buttons you cannot press still show** — locked, with the reason on hover or when you `Tab` to them (which roles can · someone else holds it · the block is not cleared yet). [Claim] appears only on **Ready** tasks — except a task held only by an expired lease, where pressing it reclaims that claim. On a backlog or blocked task it used to be a button that got refused.
 
 **The header shows the assignee and the runner together.** **Assignee {name}** is the person responsible for the work; **Running on {host} ▸** is the agent session holding the task right now — press it to go to that session. They can be different: people set the assignee, while the runner is whoever holds the claim.
 

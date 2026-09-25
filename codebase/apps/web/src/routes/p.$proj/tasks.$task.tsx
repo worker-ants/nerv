@@ -410,7 +410,10 @@ function TaskDetail(): React.JSX.Element {
                     }
                     variant={action.primary ? 'primary' : 'default'}
                     disabled={action.disabled !== null || transition.isPending || claim.isPending}
-                    title={action.disabled ?? action.hint}
+                    // 못 누르는 까닭은 키보드·터치에도 닿아야 한다(REQ-WEB-003 · SYS-08) — `title` 은 hover 뿐이었다
+                    disabledReason={action.disabled ?? undefined}
+                    title={action.disabled === null ? action.hint : undefined}
+                    requiresOnline
                     onClick={() => run(action)}
                   >
                     {action.label}
@@ -532,11 +535,13 @@ function TaskDetail(): React.JSX.Element {
                       data-testid="rebrief"
                       disabled={rebrief.isPending || !canEditBrief}
                       onClick={() => rebrief.mutate()}
-                      title={
+                      disabledReason={
                         canEditBrief
-                          ? t('task.basis.rebrief_title')
+                          ? undefined
                           : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
                       }
+                      title={canEditBrief ? t('task.basis.rebrief_title') : undefined}
+                      requiresOnline
                     >
                       {t('task.basis.rebrief_action')}
                     </Button>
@@ -660,9 +665,9 @@ function TaskDetail(): React.JSX.Element {
                       size="sm"
                       data-testid="brief-edit"
                       disabled={!canEditBrief || status === 'done'}
-                      title={
+                      disabledReason={
                         canEditBrief
-                          ? undefined
+                          ? t('task.brief.done_locked')
                           : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
                       }
                       onClick={() => setEditingBrief(true)}
@@ -875,14 +880,13 @@ function TaskDetail(): React.JSX.Element {
                         finishBlock !== null
                       }
                       onClick={() => transition.mutate('done')}
+                      disabledReason={
+                        !canFinish ? t('task.done_needs_claim') : (finishBlock ?? undefined)
+                      }
                       title={
-                        !canFinish
-                          ? t('task.done_needs_claim')
-                          : finishBlock !== null
-                            ? finishBlock
-                            : rejection === null
-                              ? undefined
-                              : t('task.last_rejection', { message: rejection.message })
+                        canFinish && finishBlock === null && rejection !== null
+                          ? t('task.last_rejection', { message: rejection.message })
+                          : undefined
                       }
                     >
                       {t('task.to_done')}
@@ -921,13 +925,15 @@ function TaskDetail(): React.JSX.Element {
                   data-testid="to-blocked"
                   disabled={blockedReason.trim() === '' || transition.isPending || !canMove}
                   onClick={() => transition.mutate('blocked')}
-                  title={
+                  disabledReason={
                     canMove
-                      ? t('task.blocked_reason_title')
+                      ? undefined
                       : t('task.next.roles_only', {
                           roles: rolesWithScope('task:update').join(' · '),
                         })
                   }
+                  title={canMove ? t('task.blocked_reason_title') : undefined}
+                  requiresOnline
                 >
                   {t('task.to_blocked')}
                 </Button>

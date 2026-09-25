@@ -210,6 +210,7 @@ export function MetaDialog({
           variant="primary"
           data-testid="meta-save"
           disabled={!canEdit || save.isPending}
+          disabledReason={canEdit ? undefined : t('spec.meta.edit_role')}
           onClick={() => save.mutate()}
         >
           {t('common.save')}
@@ -223,7 +224,9 @@ export function MetaDialog({
           size="md"
           testId="meta-archive"
           disabled={!canEdit}
-          title={t('spec.meta.archive_title')}
+          // `title` 은 **잠긴 단추의 사유**다(confirm-action.tsx) — 설명("삭제가 아닙니다")을 여기 두면 잠긴 까닭으로 읽힌다
+          title={t('spec.meta.edit_role')}
+          tooltip={t('spec.meta.archive_title')}
           message={t('spec.meta.archive_confirm')}
           detail={t('spec.meta.archive_confirm_detail')}
           confirmLabel={t('spec.meta.archive')}

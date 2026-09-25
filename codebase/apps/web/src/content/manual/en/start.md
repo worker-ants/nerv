@@ -157,6 +157,13 @@ Screens tell these three cases apart.
 
 **Settings that failed to load cannot be saved.** Saving a gate policy that was never read would overwrite the server's policy with defaults, so **Save** stays locked until it loads.
 
+**The line under the header is the connection state.** There are two, and they look different.
+
+- **Amber ●** "Live updates paused" — only the live connection dropped. The screen refreshes every 15 seconds, so you can keep working.
+- **Grey ⚠** "Offline" — the server cannot be reached. What you see was received at the time on that line, and **buttons that write (approve · save · reject · change status and the like) are locked** — so that nothing you press quietly vanishes. Once the server is reachable the line goes away and the buttons unlock on their own.
+
+**A locked button says why.** Hover it, or `Tab` to it, and the reason appears (which roles can · offline and so on). Screen readers read it as the button's description.
+
 **A spec's version list shows the latest 8 first.** If there are more, **Show N older versions** at the end of the list opens the rest.
 
 ## Buttons that ask once more

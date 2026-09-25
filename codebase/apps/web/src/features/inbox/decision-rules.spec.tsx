@@ -10,6 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCard } from './approval-card.js';
 import { RealtimeProvider, useRealtime } from '../../lib/realtime.js';
 
+/** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
+const isLocked = (b: Element | null | undefined): boolean =>
+  b != null && ((b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true');
+/** 잠긴 단추의 사유 — hover·포커스의 말풍선과 aria-describedby 가 같은 값을 읽는다 */
+const reasonOf = (b: Element | null | undefined): string | null =>
+  b?.getAttribute('data-reason') ?? null;
+
 /**
  * 토스트 출구는 앱 셸이 갖는다 — 카드만 렌더하는 테스트에는 그릴 곳이 없다.
  * 셸 전체를 띄우는 대신 같은 컨텍스트를 읽는 최소 출구를 둔다.
@@ -216,8 +223,8 @@ describe('REQ-WEB-145 — 못 누르는 이유를 말한다', () => {
     renderCard(locked('author'));
     expect(screen.getByTestId('self-requested-note').textContent).toContain('내가 쓴 초안');
     const approve = screen.getByTestId('approve') as HTMLButtonElement;
-    expect(approve.disabled).toBe(true);
-    expect(approve.title).toContain('내가 쓴 초안');
+    expect(isLocked(approve)).toBe(true);
+    expect(reasonOf(approve)).toContain('내가 쓴 초안');
   });
 
   it('내 세션이 쓴 초안이면 그렇게 말한다', () => {

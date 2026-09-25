@@ -14,6 +14,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCard, subjectFallback, waitedLabel } from './approval-card.js';
 import { RealtimeProvider } from '../../lib/realtime.js';
 
+/** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
+const isLocked = (b: Element | null | undefined): boolean =>
+  b != null && ((b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true');
+/** 잠긴 단추의 사유 — hover·포커스의 말풍선과 aria-describedby 가 같은 값을 읽는다 */
+const reasonOf = (b: Element | null | undefined): string | null =>
+  b?.getAttribute('data-reason') ?? null;
+
 vi.mock('socket.io-client', () => ({
   io: () => ({
     on: () => undefined,
@@ -130,8 +137,14 @@ describe('카드 3유형', () => {
       self_requested: true,
       waiting_seconds: 60,
     });
-    expect(screen.getByText(/다른 승인자가 처리해야 합니다/)).toBeDefined();
-    expect(screen.getByRole('button', { name: '승인' }).hasAttribute('disabled')).toBe(true);
+    // 안내 문단이 말한다 — 같은 사유가 잠긴 단추의 설명(aria-describedby)에도 실린다
+    expect(screen.getByTestId('self-requested-note').textContent).toMatch(
+      /다른 승인자가 처리해야 합니다/,
+    );
+    const approve = screen.getByRole('button', { name: '승인' });
+    expect(isLocked(approve)).toBe(true);
+    // 잠긴 [승인]도 같은 까닭을 스스로 말한다 — 안내 문단을 못 본 채 단추로 온 사람에게도(REQ-WEB-003)
+    expect(reasonOf(approve)).toMatch(/다른 승인자/);
   });
 
   it('남이 요청한 승인은 승인·거절이 열린다', async () => {
