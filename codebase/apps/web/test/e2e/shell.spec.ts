@@ -138,7 +138,8 @@ test.describe('시드 세션', () => {
     await rail.getByTestId('rail-project-clemvion').click();
     await page.waitForURL(/\/p\/clemvion$/);
     await expect(rail.getByTestId('rail-project-current')).toBeVisible();
-    await expect(page.getByTestId('spec-tree')).toHaveCount(1);
+    // 스펙 트리는 사이드바에 없다 — 스펙 상세에서만 서는 둘째 열이다(REQ-WEB-226)
+    await expect(page.getByTestId('spec-tree')).toHaveCount(0);
     await expect(rail).toHaveAttribute('data-probe', 'kept');
     const mainOnProject = await page.locator('main#main').boundingBox();
     expect(mainOnProject?.x).toBe(mainOnInbox?.x);
@@ -148,14 +149,40 @@ test.describe('시드 세션', () => {
     await expect(page.getByTestId('crumb-screen')).toHaveText('개요');
     await expect(page.locator('header').getByTestId('org-switcher')).toHaveCount(0);
 
-    // S3 도 마찬가지다 — 좌측 트리는 셸이 소유하므로 중복 렌더가 없어야 한다(대조에서 발견)
+    // S3 — 좌측 트리는 셸이 세우는 둘째 열 하나다(중복 렌더가 없어야 한다 — 대조에서 발견).
+    // 이 폭(xl)에서는 제자리에 선다
     await page.goto('/p/clemvion/specs/SPC-CWC-007');
     await expect(page.getByTestId('spec-tree')).toHaveCount(1);
+    await expect(page.getByTestId('spec-column-panel')).toBeVisible();
 
-    // 예외는 스펙 목록 하나다 — 그 화면은 "사이드바 트리의 전체 화면 판"이라고
-    // 문서가 규정한다(§2.4). 그래서 여기서만 둘이고, 그건 의도다.
+    // 스펙 목록도 하나다 — 본문의 전수 트리가 그 열의 전체 화면 판이라 열이 서지 않는다(§2.4 · REQ-WEB-226).
+    // 2026-09-25 까지 여기서 둘이었다(사이드바 + 본문) — 같은 트리가 한 화면에 두 번이었다(OBS-01)
     await page.goto('/p/clemvion/specs');
-    await expect(page.getByTestId('spec-tree')).toHaveCount(2);
+    await expect(page.getByTestId('spec-tree')).toHaveCount(1);
+    await expect(page.getByTestId('spec-column')).toHaveCount(0);
+  });
+
+  test('스펙 트리의 둘째 열 — 접은 것은 남고 본문이 그 폭을 받는다 (REQ-WEB-226)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/p/clemvion/specs/SPC-CWC-007');
+    const panel = page.getByTestId('spec-column-panel');
+    await expect(panel).toBeVisible({ timeout: 15000 });
+    const bodyOpen = await page.getByTestId('spec-body').boundingBox();
+
+    await panel.getByTestId('spec-column-toggle').click();
+    await expect(panel).toBeHidden();
+    const bodyClosed = await page.getByTestId('spec-body').boundingBox();
+    // 접으면 본문이 열의 폭(16rem)에서 띠(2rem)를 뺀 만큼 넓어진다
+    expect((bodyClosed?.width ?? 0) - (bodyOpen?.width ?? 0)).toBeGreaterThan(180);
+
+    // 다시 열어도 접은 채다 — 사람이 정한 것은 이 브라우저가 기억한다
+    await page.reload();
+    await expect(page.getByTestId('spec-body')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('spec-column-panel')).toBeHidden();
+    await page.getByTestId('spec-column-toggle').click();
+    await expect(page.getByTestId('spec-column-panel')).toBeVisible();
   });
 
   // **폭의 판정은 여기서만 성립한다** — jsdom 은 폭을 재지 않으므로 "헤더가 겹쳤다"도
@@ -184,15 +211,32 @@ test.describe('시드 세션', () => {
     expect(overflow.header).toBeLessThanOrEqual(0);
     expect(overflow.page).toBeLessThanOrEqual(0);
 
-    // ③ 서랍이 프로젝트 탭과 스펙 트리를 연다 — 그 폭에서 갈 길이 사라지지 않는다
+    // ③ 서랍이 프로젝트 탭을 연다 — 그 폭에서 갈 길이 사라지지 않는다
     await toggle.click();
     const rail = page.getByTestId('nav-rail');
     await expect(rail).toBeVisible();
-    await expect(page.getByTestId('spec-tree')).toHaveCount(1);
     await rail.getByRole('link', { name: /리뷰/ }).click();
     await page.waitForURL(/\/p\/clemvion\/reviews/);
 
     // ④ 떠났으면 닫힌다 — 열린 채로 남으면 그 아래 화면에 손이 닿지 않는다
     await expect(rail).toBeHidden();
+
+    // ⑤ 스펙 트리는 서랍이 아니라 문서 옆의 띠에 있다(REQ-WEB-226) — 누르면 본문 위에 열리고,
+    //    문서를 고르면 닫힌다. 그 폭에서도 페이지가 옆으로 밀리지 않는다
+    await page.goto('/p/clemvion/specs/SPC-CWC-007');
+    const strip = page.getByTestId('spec-column-toggle');
+    await expect(strip).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('spec-column-panel')).toBeHidden();
+    await strip.click();
+    const panel = page.getByTestId('spec-column-panel');
+    await expect(panel).toBeVisible();
+    await panel.getByText('세션 복원 API').first().click();
+    await page.waitForURL(/SPC-CWC-012/);
+    await expect(panel).toBeHidden();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
   });
 });

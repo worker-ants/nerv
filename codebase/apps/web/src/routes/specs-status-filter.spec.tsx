@@ -115,10 +115,12 @@ async function renderList(path: string) {
       </QueryClientProvider>
     </LocaleProvider>,
   );
-  await screen.findAllByText('뿌리');
-  // 이 라우트는 트리를 둘 그린다 — 사이드바(rail)가 앞, 전수 목록(full)이 뒤다
+  // 트리가 선 것을 기다린다 — 걸러진 트리에는 '뿌리' 가 없을 수 있다(예전에는 거르지 않은 사이드바 트리의
+  // '뿌리' 를 기다렸다)
+  await screen.findByTestId('tree-count');
+  // 트리는 본문의 전수 목록 하나다 — 스펙 트리의 둘째 열은 목록에 서지 않는다(2026-09-25 · REQ-WEB-226)
   const trees = screen.getAllByTestId('spec-tree');
-  return { full: within(trees[1]!), router };
+  return { full: within(trees[0]!), router };
 }
 
 describe('REQ-WEB-138 상태 필터 — 걸린 것과 그 조상', () => {

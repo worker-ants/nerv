@@ -47,7 +47,7 @@ Inside the panel `Tab` cycles between the input and the ☆ buttons and does not
 
 ## Dialogs and panels
 
-`Esc` closes — the **Spec metadata** dialog ([⋯ Metadata]), the **Create baseline** dialog, a diagram's **full screen**, the panel for a selected node in the **relationship graph**, and any **ask-once-more confirmation** (same as cancelling it). In a dialog showing a confirmation, `Esc` closes only the confirmation. While a dialog is open `Tab` cycles inside it, and closing it returns you to **the button that opened it**.
+`Esc` closes — the **Spec metadata** dialog ([⋯ Metadata]), the **Create baseline** dialog, a diagram's **full screen**, the panel for a selected node in the **relationship graph**, the **spec tree** opened from the strip on a narrow screen (closing returns you to the strip's button), and any **ask-once-more confirmation** (same as cancelling it). In a dialog showing a confirmation, `Esc` closes only the confirmation. While a dialog is open `Tab` cycles inside it, and closing it returns you to **the button that opened it**.
 
 When resolving a review finding, in the field that picks a spec, `↓` moves down into the results and `Enter` takes the first one.
 

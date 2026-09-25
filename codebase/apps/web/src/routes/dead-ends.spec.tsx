@@ -143,8 +143,9 @@ describe('스펙이 없는 프로젝트 — 시작하는 길을 말한다', () =
     expect(within(card).getByTestId('spec-start-import').getAttribute('href')).toBe('/help/agents');
   });
 
-  it('사이드바는 한 줄로 목록의 시작 카드로 보낸다', async () => {
-    renderAt('/p/clemvion/sessions');
+  it('스펙 상세의 트리 열은 한 줄로 목록의 시작 카드로 보낸다', async () => {
+    // 트리는 스펙 상세에서만 서는 둘째 열이다(2026-09-25 · REQ-WEB-226) — 없는 문서의 주소로 들어와도 선다
+    renderAt('/p/clemvion/specs/SPC-GONE-001');
     const link = await screen.findByTestId('spec-tree-start');
     expect(link.getAttribute('href')).toBe('/p/clemvion/specs');
   });

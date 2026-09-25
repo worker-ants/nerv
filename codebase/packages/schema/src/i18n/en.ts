@@ -1336,9 +1336,11 @@ export const en = {
   'specs.show_archived': 'Show archived',
   'specs.show_archived_hint':
     'Also lists archived documents — restore one from the document itself',
-  'specs.search_placeholder': 'Search (words or stable IDs)',
+  'specs.search_placeholder': 'Search contents or stable IDs',
   'specs.title': 'Specs',
-  'specs.tree_filter': 'Filter tree',
+  'specs.tree_filter': 'Filter by title or key',
+  'specs.column.show': 'Show spec tree',
+  'specs.column.hide': 'Hide spec tree',
   'specs.tree_label': 'Spec tree',
   // ── S3 스펙 상세 (screens.md §2.4·§3) ───────────────────────────────────────
   'spec.backlinks': '{count} references',

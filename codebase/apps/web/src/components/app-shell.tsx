@@ -31,7 +31,7 @@ import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { ToastStack } from './toast-stack.js';
 import { documentTitle, screenKeyFor } from '../lib/document-title.js';
-import { SpecTree } from './spec-tree.js';
+import { SpecTreeColumn } from './spec-tree-column.js';
 import { MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
@@ -45,7 +45,7 @@ const SIDEBAR_QUERY = '(min-width: 48rem)';
 export interface AppShellProps {
   children: React.ReactNode;
   projectSlug?: string | undefined;
-  /** 지금 보는 스펙 — 사이드바 트리가 그 자리를 펼치고 표시한다 */
+  /** 지금 보는 스펙 — 있으면 스펙 트리의 둘째 열이 서고, 그 자리를 펼치고 표시한다(REQ-WEB-226) */
   activeSpecKey?: string | undefined;
 }
 
@@ -832,18 +832,11 @@ export function AppShell({
 
           {/* 프로젝트 — 지금 조직의 것이 다 서고, **라우트의 프로젝트만 펼친다**. 조직 범위 화면에서는 아무것도
               펼치지 않는다 — 기억한 프로젝트는 "최근" 표식일 뿐 선택이 아니다(REQ-WEB-193 의 목적을 구조가 지킨다) */}
-          {/* 조직을 몰라도(목록을 받기 전) **라우트의 프로젝트는 선다** — 탭과 트리가 그 조회를 기다리면 안 된다 */}
+          {/* 조직을 몰라도(목록을 받기 전) **라우트의 프로젝트는 선다** — 탭이 그 조회를 기다리면 안 된다 */}
           {(currentOrg !== null || sidebarProject !== undefined) && (
             <div className="mt-4 flex min-h-0 flex-1 flex-col">
               <p className={cn(RAIL_LABEL, 'px-2 pb-1')}>{t('common.project')}</p>
-              {/* 늘어나는 것은 **펼친 프로젝트가 있을 때만**이다 — 트리가 남은 높이를 받아 제 안에서 흐른다. 펼친 것이
-                  없는데 늘어나면 [프로젝트 관리]가 목록에서 떨어져 열 바닥에 붙는다 */}
-              <ul
-                className={cn(
-                  'flex min-h-0 flex-col gap-0.5',
-                  sidebarProject !== undefined && 'flex-1',
-                )}
-              >
+              <ul className="flex flex-col gap-0.5">
                 {railProjects.map((project) => {
                   const slug = String(project['slug']);
                   const name = String(project['name'] ?? slug);
@@ -872,7 +865,7 @@ export function AppShell({
                       </li>
                     );
                   return (
-                    <li key={slug} className="flex min-h-0 flex-1 flex-col">
+                    <li key={slug} className="flex flex-col">
                       {/* 프로젝트 이름이 **그 프로젝트로 가는 링크**다(NAV-05) — 활성 표시는 아래의 [개요] 하나다 */}
                       <Link
                         to="/p/$proj"
@@ -957,17 +950,9 @@ export function AppShell({
                           <CountBadge count={openCritical} tone="danger" />
                         </Link>
                       </nav>
-                      {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3). 쿼리 키는 UUID 축이다 */}
-                      <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-border pt-3">
-                        <SpecTree
-                          projectSlug={sidebarProject}
-                          projectId={asProjectId(shellProject.data?.['id'])}
-                          variant="rail"
-                          activeKey={activeSpecKey}
-                          heading={t('shell.spec_tree')}
-                          baseline={viewBaseline}
-                        />
-                      </div>
+                      {/* **스펙 트리는 여기 없다**(2026-09-25 — 사람 결정 D1 · OBS-01 · REQ-WEB-226). 사이드바의 마지막
+                          블록이던 동안 작업·세션·리뷰에서도 그 화면과 상관없는 문서 목록이 열의 대부분을 차지했다 —
+                          트리는 스펙 상세에서만 서는 둘째 열(`SpecTreeColumn`)이다 */}
                     </li>
                   );
                 })}
@@ -1048,6 +1033,16 @@ export function AppShell({
             )}
           </div>
         </aside>
+        {/* 스펙 상세의 둘째 열 — 셸이 세운다: 문서를 옮겨도(라우트 컴포넌트가 불러오는 동안에도) 열은 그대로라
+            펼침과 스크롤이 남는다. 쿼리 키는 UUID 축이다 */}
+        {sidebarProject !== undefined && activeSpecKey !== undefined && (
+          <SpecTreeColumn
+            projectSlug={sidebarProject}
+            projectId={asProjectId(shellProject.data?.['id'])}
+            activeKey={activeSpecKey}
+            baseline={viewBaseline}
+          />
+        )}
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
           {children}
         </main>

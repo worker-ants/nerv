@@ -53,7 +53,7 @@
     <h1>화면 설계 (와이어프레임)</h1>
     <p class="lead">NERV 웹 화면 8종의 정보 구조 · 고충실도 와이어프레임 · 상태 표현 규칙 · 인터랙션 규약. 설계의 축은 하나다 — <b>화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.</b></p>
     <div class="meta-line">
-      <span>버전 v0.7 (2026-09-24)</span>
+      <span>버전 v0.8 (2026-09-25)</span>
       <span>원본: <code>docs/03-proposal/ui-wireframes.md</code></span>
       <span>주로 다루는 결정: D-02 · D-06 · D-08 · D-13 · D-14</span>
       <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -479,7 +479,7 @@
   </div>
 
   <ul class="wf-legend">
-    <li><span class="marker">1</span><span><b>스펙 트리 + 상태 배지</b> — 타입(vision/area/feature/design/convention/adr)과 문서 상태를 한 줄에. 디자이너의 <code>design</code> 타입 스펙이 개발 스펙과 같은 트리에 산다. <code>FR-01 · FR-02 · P7</code></span></li>
+    <li><span class="marker">1</span><span><b>스펙 트리 + 상태 배지</b> — 타입(vision/area/feature/design/convention/adr)과 문서 상태를 한 줄에. 디자이너의 <code>design</code> 타입 스펙이 개발 스펙과 같은 트리에 산다. <code>FR-01 · FR-02 · P7</code> (2026-09-25 정정 — 사람 결정 D1: 이 트리는 개요에 서지 않는다. 스펙 상세의 둘째 열로만 서고, 개요는 그 폭을 본문이 갖는다 — <a href="screens.html">4.5</a> REQ-WEB-226)</span></li>
     <li><span class="marker">2</span><span><b>커버리지 게이지</b> — 문서 안 체크박스가 아니라 Requirement↔Task↔PR↔Review 관계에서 계산된 값. 숫자를 클릭하면 Requirement 목록으로 드릴다운한다. <code>FR-13 · D-03 · D-02</code></span></li>
     <li><span class="marker">3</span><span><b>활성 세션 스트립</b> — 미니 세션 카드. 이 화면에서도 hostname · 에이전트 종류 · 하트비트 · diff는 생략하지 않는다. <code>FR-07 · FR-08</code></span></li>
     <li><span class="marker">4</span><span><b>이벤트 피드</b> — 사람과 에이전트를 아바타로 구분(<span class="badge agent">AI</span> 배지). append-only Event 테이블이 원천이다. <code>FR-16 · D-10 · D-08</code></span></li>
@@ -606,7 +606,7 @@
   </div>
 
   <ul class="wf-legend">
-    <li><span class="marker">1</span><span><b>좌측 트리</b> — 현재 위치가 항상 보인다. 이동해도 트리는 스크롤 위치를 유지한다. <code>FR-01</code></span></li>
+    <li><span class="marker">1</span><span><b>좌측 트리</b> — 현재 위치가 항상 보인다. 이동해도 트리는 스크롤 위치를 유지한다. <code>FR-01</code> (2026-09-25 — 셸 사이드바가 아니라 사이드바와 본문 사이의 <b>둘째 열</b>이다. 넓으면 제자리에 서고 접을 수 있으며, 좁으면 띠의 단추로 여는 패널이다 — <a href="screens.html">4.5</a> REQ-WEB-226)</span></li>
     <li><span class="marker">2</span><span><b>버전 선택 + diff 토글</b> — 기본값은 최신 <b>approved</b>. draft를 보려면 명시적으로 선택해야 한다. 승인된 본문이 불변 스냅샷이라는 사실이 화면의 기본 상태로 드러난다. <code>FR-02 · D-02</code></span></li>
     <li><span class="marker">3</span><span><b>markdown 본문</b> — 저장 포맷이 markdown이고 메타는 DB 컬럼이다. MVP는 에디터 + 프리뷰 + 헤딩 앵커 코멘트까지. 실시간 공동 편집은 범위 밖(Phase 3). <code>D-09</code></span></li>
     <li><span class="marker">4</span><span><b>헤딩 앵커 코멘트 스레드</b> — 문단이 아니라 헤딩에 붙는다. 본문이 새 버전으로 바뀌어도 앵커가 살아남기 때문이다. 해결 표시는 스레드를 접는다. <code>D-09 · FR-11</code></span></li>
