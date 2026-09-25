@@ -24,7 +24,7 @@ import {
 } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { useApiError } from '../../lib/api-errors.js';
@@ -36,13 +36,21 @@ import { DelegationForm } from './delegation-form.js';
 import { leaseRemaining, relativeTime } from '../session-monitor/format.js';
 import { blockedReasonText } from '../../lib/format.js';
 import { TASK_TOKEN } from '../../components/status-token.js';
-import { useMe, useProject, useTaskLane } from '../../lib/queries.js';
+import {
+  rows,
+  useMe,
+  useMembers,
+  useProject,
+  useSpecTree,
+  useTaskLane,
+} from '../../lib/queries.js';
 import { cn } from '../../lib/utils.js';
 import {
   Avatar,
   Button,
   PageBody,
   PageHeader,
+  Select,
   Skeleton,
   SummaryStrip,
 } from '../../components/ui/primitives.js';
@@ -148,22 +156,35 @@ export function TaskBoard(): React.JSX.Element {
           ...(fromRequirement === undefined ? {} : { requirementId: fromRequirement }),
         };
   const id = asProjectId(projectId);
+  /**
+   * **레인과 요약이 같은 조건을 본다**(2026-09-25 — UI/UX 검토 WORK-04 · REQ-WEB-221). `?assignee=` 는
+   * 레인에만 실려, 담당으로 거른 주소에서 레인은 걸러졌는데 머리의 숫자는 프로젝트 전체였다 — 두 줄이
+   * 서로 다른 말을 했다.
+   */
   const filters = {
     ...(spec === undefined ? {} : { spec }),
+    ...(assignee === undefined ? {} : { assignee }),
     ...(agentOnly ? { ai: true } : {}),
   };
-  /** 뷰 상태는 서로를 지우지 않는다 — 하나를 바꿀 때 나머지를 그대로 싣는다 */
+  const filtered = spec !== undefined || assignee !== undefined || agentOnly;
+  /** 뷰 상태는 서로를 지우지 않는다 — 하나를 바꿀 때 나머지를 그대로 싣는다(`null` 은 푼다) */
   const searchWith = (patch: {
     backlog?: boolean;
     archived?: boolean;
     ai?: boolean;
-  }): { spec?: string; assignee?: string; ai?: true; backlog?: false; archived?: true } => ({
-    ...(spec === undefined ? {} : { spec }),
-    ...(assignee === undefined ? {} : { assignee }),
-    ...((patch.ai ?? agentOnly) ? { ai: true as const } : {}),
-    ...((patch.backlog ?? showBacklog) ? {} : { backlog: false as const }),
-    ...((patch.archived ?? showArchived) ? { archived: true as const } : {}),
-  });
+    spec?: string | null;
+    assignee?: string | null;
+  }): { spec?: string; assignee?: string; ai?: true; backlog?: false; archived?: true } => {
+    const nextSpec = patch.spec === undefined ? spec : (patch.spec ?? undefined);
+    const nextAssignee = patch.assignee === undefined ? assignee : (patch.assignee ?? undefined);
+    return {
+      ...(nextSpec === undefined ? {} : { spec: nextSpec }),
+      ...(nextAssignee === undefined ? {} : { assignee: nextAssignee }),
+      ...((patch.ai ?? agentOnly) ? { ai: true as const } : {}),
+      ...((patch.backlog ?? showBacklog) ? {} : { backlog: false as const }),
+      ...((patch.archived ?? showArchived) ? { archived: true as const } : {}),
+    };
+  };
   const toBoard = (search: ReturnType<typeof searchWith>): void =>
     void navigate({ to: '/p/$proj/tasks', params: { proj }, search });
 
@@ -175,6 +196,8 @@ export function TaskBoard(): React.JSX.Element {
   const inProgress = useTaskLane(proj, id, 'in_progress', filters);
   const ready = useTaskLane(proj, id, 'ready', filters);
   const blocked = useTaskLane(proj, id, 'blocked', filters);
+  // 빈 ready 레인이 "백로그 N건 채우기" 로 이끈다 — 백로그 레인을 끈 동안에도 수는 안다(같은 키)
+  const backlog = useTaskLane(proj, id, 'backlog', filters);
   // **"내 담당"이 없으면 이 줄은 절반만 답한다** — 조직 전체가 몇 개를 돌리는지는
   // 알려 주는데 "그중 내가 쥔 것"은 카드를 뒤져야 나온다(시안 대조 2026-08-23).
   const meId = typeof me.data?.id === 'string' ? me.data.id : undefined;
@@ -194,8 +217,33 @@ export function TaskBoard(): React.JSX.Element {
     { label: t('tasks.summary.in_progress'), value: count(inProgress), tone: 'progress' },
     { label: t('tasks.summary.ready'), value: count(ready) },
     { label: t('tasks.summary.blocked'), value: count(blocked), tone: 'danger' },
-    { label: t('tasks.summary.mine'), value: count(mine) },
+    // **"내 담당" 을 누르면 내 작업만 남는다**(WORK-04) — 숫자는 있는데 그 목록으로 갈 길이 없었다
+    {
+      label: t('tasks.summary.mine'),
+      value: count(mine),
+      ...(meId === undefined
+        ? {}
+        : { href: `/p/${proj}/tasks`, search: searchWith({ assignee: meId }) }),
+    },
   ];
+  /** 빈 ready 레인의 다음 걸음 — 막힌 것을 풀거나 백로그를 채운다(screens.md §2.5 빈 상태) */
+  const lanesRef = useRef<HTMLDivElement>(null);
+  const scrollToLane = (lane: string): void => {
+    const el = lanesRef.current?.querySelector(`[data-testid="column-${lane}"]`);
+    if (el instanceof HTMLElement) el.scrollIntoView?.({ block: 'nearest', inline: 'start' });
+  };
+  const readyEmpty: ReadyEmpty = {
+    blocked: blocked.data?.items.length ?? 0,
+    blockedLabel: count(blocked),
+    backlog: backlog.data?.items.length ?? 0,
+    backlogLabel: count(backlog),
+    onBlocked: () => scrollToLane('blocked'),
+    onBacklog: () => {
+      if (!showBacklog) toBoard(searchWith({ backlog: true }));
+      // 백로그 레인은 줄의 맨 앞이다 — 켠 뒤 한 박자 늦게 민다
+      window.setTimeout(() => scrollToLane('backlog'), 0);
+    },
+  };
 
   /**
    * **[준비됨으로 올리기]** — 4요소가 다 찬 backlog 카드의 문(REQ-WEB-202). 서버가 4요소·선행
@@ -265,6 +313,21 @@ export function TaskBoard(): React.JSX.Element {
           오른쪽에 붙는다 — 보드 위에 두는 이유는 레인 머리에 붙이면 어느 레인의
           설정인지 헷갈리기 때문이고, `보관 보기`는 done 만 바꾸지만 `백로그 보기`는
           레인 자체를 늘린다 */}
+      {/* **걸린 필터는 보인다**(2026-09-25 — UI/UX 검토 WORK-04 · REQ-WEB-221). 스펙 상세의 "파생 작업 →
+          전체 보기" 로 온 사람은 `?spec=` 으로 걸러진 보드를 보면서도 그 사실을 알 길이 없었다 — 필터 줄에는
+          토글 셋뿐이었고, 요약 숫자는 걸러진 값인데 프로젝트 전체처럼 읽혔으며, 푸는 길은 사이드바를 다시
+          누르는 것뿐이었다. `?assignee=` 는 주소로만 있었다 */}
+      <BoardFilters
+        proj={proj}
+        projectId={id}
+        spec={spec}
+        assignee={assignee}
+        meId={meId}
+        filtered={filtered}
+        onChange={(patch) => toBoard(searchWith(patch))}
+        onClear={() => toBoard(searchWith({ spec: null, assignee: null, ai: false }))}
+      />
+
       <SummaryStrip
         className="mb-5"
         metrics={summary}
@@ -296,7 +359,7 @@ export function TaskBoard(): React.JSX.Element {
 
       {/* 레인을 화면 폭에 욱여넣지 않는다 — 좁으면 가로로 민다. 억지로 접으면 순서
           (ready → … → done)가 깨지고, 그 순서가 이 보드의 의미 전부다 */}
-      <div className="-mx-6 flex gap-[22px] overflow-x-auto px-6 pb-2">
+      <div ref={lanesRef} className="-mx-6 flex gap-[22px] overflow-x-auto px-6 pb-2">
         {lanes.map((lane) => (
           <Lane
             key={lane}
@@ -305,12 +368,102 @@ export function TaskBoard(): React.JSX.Element {
             lane={lane}
             includeArchived={showArchived}
             filters={filters}
-            assignee={assignee}
             controls={controls}
+            {...(lane === 'ready' ? { readyEmpty } : {})}
           />
         ))}
       </div>
     </PageBody>
+  );
+}
+
+/**
+ * 스펙·담당 고르개와 [필터 지우기] — 걸린 값은 고르개 자체가 보인다(칩을 따로 세우지 않는다).
+ * 스펙 목록은 파생 폼과 같은 트리(`useSpecTree`), 담당은 이 프로젝트의 멤버다.
+ */
+function BoardFilters({
+  proj,
+  projectId,
+  spec,
+  assignee,
+  meId,
+  filtered,
+  onChange,
+  onClear,
+}: {
+  proj: string;
+  projectId: ProjectId | undefined;
+  spec: string | undefined;
+  assignee: string | undefined;
+  meId: string | undefined;
+  filtered: boolean;
+  onChange: (patch: { spec?: string | null; assignee?: string | null }) => void;
+  onClear: () => void;
+}): React.JSX.Element {
+  const t = useT();
+  const { orgSlug } = useScope(proj);
+  const specs = rows(useSpecTree(proj, projectId).data);
+  const members = rows(useMembers(orgSlug).data);
+  // 한 사람이 조직·프로젝트 멤버십을 둘 다 가질 수 있다 — 사람으로 한 번씩만
+  const people = new Map<string, string>();
+  for (const m of members) {
+    const slug = m['project_slug'];
+    if (slug !== null && slug !== undefined && slug !== proj) continue;
+    const userId = String(m['user_id']);
+    if (userId !== meId && !people.has(userId)) people.set(userId, String(m['display_name'] ?? ''));
+  }
+  const specKnown = spec === undefined || specs.some((sp) => sp['key'] === spec);
+  const assigneeKnown = assignee === undefined || assignee === meId || people.has(assignee);
+  return (
+    <div data-testid="board-filters" className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+      <Select
+        data-testid="filter-spec"
+        aria-label={t('tasks.filter.spec')}
+        value={spec ?? ''}
+        onChange={(e) => onChange({ spec: e.target.value === '' ? null : e.target.value })}
+        className="h-7 w-56 text-xs"
+      >
+        <option value="">{t('tasks.filter.spec_all')}</option>
+        {!specKnown && <option value={spec}>{spec}</option>}
+        {specs.map((sp) => (
+          <option key={String(sp['key'])} value={String(sp['key'])}>
+            {`${String(sp['key'])} · ${String(sp['title'] ?? '')}`}
+          </option>
+        ))}
+      </Select>
+      <Select
+        data-testid="filter-assignee"
+        aria-label={t('tasks.filter.assignee')}
+        value={assignee ?? ''}
+        onChange={(e) => onChange({ assignee: e.target.value === '' ? null : e.target.value })}
+        className="h-7 w-44 text-xs"
+      >
+        <option value="">{t('tasks.filter.assignee_all')}</option>
+        {meId !== undefined && <option value={meId}>{t('tasks.filter.assignee_me')}</option>}
+        {!assigneeKnown && <option value={assignee}>{t('tasks.filter.assignee_unknown')}</option>}
+        {[...people].map(([userId, name]) => (
+          <option key={userId} value={userId}>
+            {name}
+          </option>
+        ))}
+      </Select>
+      {/* 숫자가 **조각**임을 밝힌다 — 거른 값을 프로젝트 전체처럼 읽지 않게 */}
+      {filtered && (
+        <>
+          <span data-testid="board-filtered" className="text-text-faint">
+            {t('tasks.filter.applied')}
+          </span>
+          <button
+            type="button"
+            data-testid="filter-clear"
+            onClick={onClear}
+            className="text-link hover:underline"
+          >
+            {t('tasks.filter.clear')}
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -349,28 +502,38 @@ function FilterToggle({
 }
 
 /** 레인 하나 — **자기 질의를 자기가 갖는다**(queries.ts `useTaskLane` 주석) */
+/** 빈 ready 레인이 가리키는 곳 — 수는 요약과 같은 쿼리에서 온다 */
+interface ReadyEmpty {
+  blocked: number;
+  blockedLabel: string;
+  backlog: number;
+  backlogLabel: string;
+  onBlocked: () => void;
+  onBacklog: () => void;
+}
+
 function Lane({
   proj,
   projectId,
   lane,
   includeArchived,
   filters,
-  assignee,
   controls,
+  readyEmpty,
 }: {
   proj: string;
   projectId: ProjectId | undefined;
   lane: Lane;
   includeArchived: boolean;
-  filters: { spec?: string; ai?: boolean };
-  assignee: string | undefined;
+  filters: { spec?: string; assignee?: string; ai?: boolean };
   controls: CardControls;
+  /** ready 레인만 — 비었을 때 막다른 길이 아니게 한다 */
+  readyEmpty?: ReadyEmpty;
 }): React.JSX.Element {
   const t = useT();
   // 창은 done 에만 의미가 있다 — 다른 레인에 실어 보내면 쿼리 키만 둘로 갈라진다
   const query = useTaskLane(proj, projectId, lane, {
     ...filters,
-    ...(assignee === undefined ? {} : { assignee }),
     includeArchived: lane === 'done' && includeArchived,
   });
   // 막힘은 **흐르지 않는 일**이다 — 같은 가로줄에 있되 레인 자체가 그렇게 보여야 한다
@@ -444,22 +607,66 @@ function Lane({
               <TaskCard proj={proj} task={task} lane={lane} controls={controls} />
             </li>
           ))}
-          {all.length === 0 && query.data !== undefined && (
+          {all.length === 0 && query.data !== undefined && readyEmpty === undefined && (
             // 시안의 빈 레인: 점선 상자 — "없는 것"과 "아직 안 온 것"을 가른다
             <li className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-ghost">
               {t('tasks.empty_column')}
             </li>
           )}
+          {/* **빈 ready 는 막다른 길이 아니다**(2026-09-25 — UI/UX 검토 WORK-10 · REQ-WEB-221). 에이전트가
+              집을 일이 없다는 뜻이라 다음 걸음이 둘이다 — 막힌 것을 풀거나 백로그를 채운다(§2.5 빈 상태) */}
+          {all.length === 0 && query.data !== undefined && readyEmpty !== undefined && (
+            <li
+              data-testid="ready-empty"
+              className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-faint"
+            >
+              <p>{t('tasks.ready_empty')}</p>
+              {(readyEmpty.blocked > 0 || readyEmpty.backlog > 0) && (
+                <p className="mt-1.5 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs">
+                  {readyEmpty.blocked > 0 && (
+                    <button
+                      type="button"
+                      data-testid="ready-empty-blocked"
+                      onClick={readyEmpty.onBlocked}
+                      className="text-link hover:underline"
+                    >
+                      {t('tasks.ready_empty.blocked', { count: readyEmpty.blockedLabel })}
+                    </button>
+                  )}
+                  {readyEmpty.backlog > 0 && (
+                    <button
+                      type="button"
+                      data-testid="ready-empty-backlog"
+                      onClick={readyEmpty.onBacklog}
+                      className="text-link hover:underline"
+                    >
+                      {t('tasks.ready_empty.backlog', { count: readyEmpty.backlogLabel })}
+                    </button>
+                  )}
+                </p>
+              )}
+            </li>
+          )}
         </ul>
       )}
-      {!collapsed && hidden > 0 && (
+      {/* 받아 둔 카드를 다 펼치면 **다음 쪽을 부른다**(REQ-WEB-221) — 예전 단추는 받아 둔 것만 펼쳐
+          "30+" 레인의 31번째부터는 보드로 닿을 길이 없었다 */}
+      {!collapsed && (hidden > 0 || query.hasNextPage === true) && (
         <button
           type="button"
           data-testid={`lane-more-${lane}`}
-          onClick={() => setCap(cap + LANE_CAP)}
-          className="px-3 py-2 text-left text-sm text-text-faint hover:text-text"
+          disabled={hidden === 0 && query.isFetchingNextPage}
+          onClick={() => {
+            if (hidden === 0) void query.fetchNextPage();
+            setCap(cap + LANE_CAP);
+          }}
+          className="px-3 py-2 text-left text-sm text-text-faint hover:text-text disabled:opacity-60"
         >
-          {t('tasks.lane_more', { count: hidden })}
+          {hidden > 0
+            ? t('tasks.lane_more', { count: hidden })
+            : query.isFetchingNextPage
+              ? t('common.loading')
+              : t('tasks.lane_fetch_more')}
         </button>
       )}
     </section>
