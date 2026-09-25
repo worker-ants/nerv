@@ -203,7 +203,7 @@ export function FindingCard({
         <span data-testid="finding-area" className="rounded-nerv-sm bg-bg-sunken px-1.5 py-0.5">
           {t(`area.${String(finding['area'] ?? 'codebase')}` as 'area.codebase')}
           {finding['area_inferred'] === true && (
-            <span className="ml-1 text-text-ghost">· {t('reviews.area_inferred')}</span>
+            <span className="ml-1 text-text-faint">· {t('reviews.area_inferred')}</span>
           )}
         </span>
         {tags.map((tag) => (

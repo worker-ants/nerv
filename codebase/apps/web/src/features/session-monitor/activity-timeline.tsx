@@ -219,7 +219,7 @@ function ActivityRow({
         <span
           aria-hidden="true"
           className={cn(
-            'inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-[9px] font-semibold',
+            'inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
             failed ? MARK['error']!.tone : mark.tone,
           )}
         >

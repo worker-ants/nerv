@@ -104,7 +104,7 @@ export function NextStep({
         to="/inbox"
         search={pending === null ? {} : { focus: pending }}
         data-testid="spec-next-inbox"
-        className="rounded-nerv-sm bg-status-action px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
+        className="rounded-nerv-sm bg-status-action px-2.5 py-1 text-xs font-medium text-on-status hover:opacity-90"
       >
         {t('spec.next.open_inbox')} ↗
       </Link>
@@ -121,7 +121,7 @@ export function NextStep({
           from_version_no: String(versionNo),
         }}
         data-testid="spec-next-derive"
-        className="rounded-nerv-sm bg-status-action px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
+        className="rounded-nerv-sm bg-status-action px-2.5 py-1 text-xs font-medium text-on-status hover:opacity-90"
       >
         {t('spec.next.derive')}
       </Link>

@@ -26,23 +26,28 @@
   --color-bg-hover: #f1f1ef;
   --color-bg-active: #eaeae8;
 
+  /* **읽는 글자는 어느 단이든 WCAG AA(4.5:1) 이상이다**(2026-09-25 — 사람 결정 D4 · UI/UX 검토 SYS-04·SYS-X1).
+   * 시안(2026-08-24)의 값은 mute 가 흰 바탕 4.48, faint 2.81 이었다 — 폼 힌트·빈 상태의 "다음 할 일"·시각·키가
+   * 그 색이었고, 사이드바의 mute 글자는 hover 바탕에서 3.96 이었다. 값을 올리되 **단의 순서는 지킨다**
+   * (text > mute > faint — `contrast.spec.ts` 가 표와 순서를 함께 센다). */
   --color-text: #37352f;
-  --color-text-mute: #787774;
-  --color-text-faint: #9b9a97;
-  /* 시안의 네 번째 단 — 키·경과 시간처럼 "있어야 하지만 먼저 읽히면 안 되는" 값 */
+  --color-text-mute: #5f5e5a;
+  --color-text-faint: #6f6e6a;
+  /* 네 번째 단 — **장식과 비활성에만** 쓴다(구분점 `·` · aria-hidden 기호 · 비활성 항목). 읽어야 하는 글자에
+   * 쓰면 대비가 2:1 이다 — 키·시각·빈 레인 문구가 이 색이던 것을 faint 로 옮겼다(2026-09-25 · `contrast.spec.ts`) */
   --color-text-ghost: #b8b7b4;
 
   /* 경계선은 **거의 안 보여야 한다.** 보이는 선이 많으면 화면이 표처럼 딱딱해진다 */
   --color-border: #ebebea;
   --color-border-strong: #dcdcda;
 
-  --color-link: #2383e2;
+  --color-link: #1c6fc0;
   --color-code-bg: #f7f6f3;
-  --color-code-text: #eb5757;
+  --color-code-text: #c53b3b;
 
   /* ── 상태 토큰 8종 (screens.md §4.1·§4.2 — 의미·매핑 불변) ──────────────── */
   --color-status-idle: #f1f1ef;
-  --color-status-idle-text: #787774;
+  --color-status-idle-text: #5f5e5a;
   --color-status-action: #4f46e5;
   --color-status-action-soft: #eef2ff;
   --color-status-waiting: #b45309;
@@ -51,7 +56,7 @@
   --color-status-agent-soft: #f1eafd;
   --color-status-progress: #1d4ed8;
   --color-status-progress-soft: #e8effd;
-  --color-status-ok: #16803c;
+  --color-status-ok: #147438;
   --color-status-ok-soft: #e6f4ea;
   --color-status-done: #0f766e;
   --color-status-done-soft: #e2f5f3;
@@ -60,7 +65,10 @@
 
   /* ── shadcn/ui 시맨틱 토큰은 위 표에서 파생한다 (screens.md §4.1 말미) ─── */
   --color-primary: var(--color-status-action);
-  --color-primary-foreground: #ffffff;
+  /* **상태색으로 칠한 면 위의 글자**(주 단추 · 파괴 확정 · 프로젝트 머리글자). 흰색으로 박혀 있던 동안 다크의 밝은
+   * 상태색(#818cf8) 위에서 2.98:1 이었다 — 다크에서는 어두운 글자로 뒤집는다(2026-09-25 · SYS-04) */
+  --color-on-status: #ffffff;
+  --color-primary-foreground: var(--color-on-status);
   --color-destructive: var(--color-status-danger);
   --color-muted: var(--color-status-idle);
   --color-muted-foreground: var(--color-status-idle-text);
@@ -72,19 +80,20 @@
   --radius-nerv: 6px;
   --radius-nerv-lg: 10px;
 
-  /* ── 타이포 — **시안의 램프 그대로**(2026-08-24 정정) ─────────────────────
-   * 시안(NERV UI 재구성)은 반 픽셀 단계를 쓴다: 10.5 / 11.5 / 12.5 / 13.5 / 15px.
-   * 이전 램프(11/12/13/14)와 반 픽셀 차이인데 그 반 픽셀이 밀도의 전부였다 —
-   * 네 화면을 나란히 놓으면 구현 쪽이 한 뼘 굵고 성글게 읽혔다(실측 대조).
+  /* ── 타이포 — **반 단 올렸다**(2026-09-25 — 사람 결정 D4 · UI/UX 검토 SYS-11) ───────────────
+   * 2026-08-24 에 시안의 반 픽셀 램프(10.5 / 11.5 / 12.5 / 13.5px)로 맞췄다 — "그 반 픽셀이 밀도의 전부였다".
+   * 그런데 한글은 같은 px 에서 획이 촘촘해 10.5px 에서 받침이 뭉개졌고, 폼 힌트·요약 라벨·구역 라벨이 그 크기에
+   * 흐린 색이라 읽히지 않았다. 밀도보다 읽히는 것이 먼저다(D4). 규칙: **문장은 12px(xs) 아래로 내리지 않는다** —
+   * 2xs 는 키·숫자·배지·짧은 라벨에만. 문서 본문(15px)은 그대로다.
    * 제목은 크기보다 **굵기와 여백**으로 구분한다 — 크기만 키우면 화면이 소란스러워진다.
    */
-  --text-2xs: 0.65625rem; /* 10.5px — 메타·키·라벨 */
+  --text-2xs: 0.6875rem; /* 11px — 키·숫자·배지·짧은 라벨 */
   --text-2xs--line-height: 1.45;
-  --text-xs: 0.71875rem; /* 11.5px — 부가 정보 */
+  --text-xs: 0.75rem; /* 12px — 부가 정보 · 문장의 바닥 */
   --text-xs--line-height: 1.5;
-  --text-sm: 0.78125rem; /* 12.5px — 보조 텍스트·버튼 */
+  --text-sm: 0.8125rem; /* 13px — 보조 텍스트·버튼 */
   --text-sm--line-height: 1.55;
-  --text-base: 0.84375rem; /* 13.5px — UI 본문 */
+  --text-base: 0.875rem; /* 14px — UI 본문 */
   --text-base--line-height: 1.5;
   --text-lg: 0.9375rem; /* 15px — 문서 본문·구역 제목 */
   --text-lg--line-height: 1.55;
@@ -101,7 +110,7 @@
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 
   /* ── 레이아웃 상수 ───────────────────────────────────────────────────────── */
-  --spacing-sidebar: 14.5rem; /* 232px — 시안 */
+  --spacing-sidebar: 15rem; /* 240px — 글자가 반 단 커진 만큼(2026-09-25 · §4.4 표의 값) */
   --spacing-header: 2.75rem;
   --spacing-content: 60rem;
 }
@@ -145,7 +154,7 @@
 
   --color-text: #e9e9e7;
   --color-text-mute: #9b9a97;
-  --color-text-faint: #6f6f6c;
+  --color-text-faint: #8a8986;
   --color-text-ghost: #5d5d5a;
 
   --color-border: #2c2c2c;
@@ -171,6 +180,9 @@
   --color-status-done-soft: #0e2724;
   --color-status-danger: #f87171;
   --color-status-danger-soft: #321616;
+
+  /* 다크의 상태색은 밝다 — 그 위의 글자는 어둡게(#818cf8 위 5.89:1) */
+  --color-on-status: #191919;
 
   --shadow-popover: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 40%);
   --shadow-modal: 0 2px 4px rgb(0 0 0 / 50%), 0 16px 48px rgb(0 0 0 / 50%);

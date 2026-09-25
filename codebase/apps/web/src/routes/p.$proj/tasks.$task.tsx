@@ -624,7 +624,7 @@ function TaskDetail(): React.JSX.Element {
                         <span className="min-w-0 flex-1 truncate text-xs text-text-mute">
                           {String(item['title'] ?? '')}
                         </span>
-                        <span className="text-2xs text-text-ghost">
+                        <span className="text-2xs text-text-faint">
                           {taskStatusText(t, item['status'])}
                         </span>
                       </li>
@@ -781,7 +781,7 @@ function TaskDetail(): React.JSX.Element {
                     </span>
                     {/* 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다 */}
                     {scope.length > 0 && (
-                      <span data-testid="claim-scope" className="text-2xs text-text-ghost">
+                      <span data-testid="claim-scope" className="text-2xs text-text-faint">
                         {t('task.claim_scope')}: {scope.join(' · ')}
                       </span>
                     )}

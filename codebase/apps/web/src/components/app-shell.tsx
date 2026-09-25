@@ -379,7 +379,7 @@ export function AppShell({
           >
             <span
               aria-hidden="true"
-              className="inline-flex size-[15px] items-center justify-center rounded-[4px] bg-status-action text-[9px] font-bold text-white"
+              className="inline-flex size-[15px] items-center justify-center rounded-[4px] bg-status-action text-[10px] font-bold text-on-status"
             >
               N
             </span>
@@ -504,7 +504,7 @@ export function AppShell({
                   count={pending}
                   tone="action"
                   testId="inbox-badge"
-                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[9px]"
+                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[10px]"
                 />
               </Link>
               <Link
@@ -522,7 +522,7 @@ export function AppShell({
                   count={unreadCount}
                   tone="waiting"
                   testId="notification-badge"
-                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[9px]"
+                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[10px]"
                 />
               </Link>
             </>
@@ -554,7 +554,7 @@ export function AppShell({
               <path d="m20 20-3.5-3.5" />
             </svg>
             <span className="flex-1 text-left max-md:hidden">{t('common.search')}</span>
-            <kbd className="text-[10px] text-text-ghost max-md:hidden">⌘K</kbd>
+            <kbd className="text-2xs text-text-faint max-md:hidden">⌘K</kbd>
           </button>
           {/* 도움말 — **글자가 아니라 한 칸짜리 글리프다**(2026-08-24 신설). 와이어프레임의
               헤더는 여섯 자리뿐이고(§2.1) 자주 쓰지 않는 항목이 자주 쓰는 항목의 자리를
@@ -927,7 +927,7 @@ export function AppShell({
                       >
                         <span
                           aria-hidden="true"
-                          className="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-status-done text-[9px] font-bold text-white uppercase"
+                          className="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-status-done text-[10px] font-bold text-on-status uppercase"
                         >
                           {slug.slice(0, 1)}
                         </span>

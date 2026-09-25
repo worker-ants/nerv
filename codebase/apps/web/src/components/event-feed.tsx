@@ -223,7 +223,7 @@ function FeedRow({
           {t('feed.repeat', { count })}
         </button>
       )}
-      <span className="w-16 shrink-0 text-right text-xs text-text-ghost">
+      <span className="w-16 shrink-0 text-right text-xs text-text-faint">
         {relativeTime(t, typeof e['occurred_at'] === 'string' ? e['occurred_at'] : null)}
       </span>
     </li>

@@ -82,7 +82,7 @@ export function RequirementPanel({
               />
               {/* **우선순위가 없으면 없다고 적는다** — `must` 로 채워 보이면 원본이
                   그렇게 선언한 것처럼 읽힌다(4.7 §2.5 규칙 4) */}
-              <span className="text-2xs text-text-ghost">
+              <span className="text-2xs text-text-faint">
                 {r['priority'] == null ? t('spec.requirements.no_priority') : String(r['priority'])}
               </span>
             </div>
@@ -90,7 +90,7 @@ export function RequirementPanel({
             {/* **빈 약속은 눈에 띄어야 한다**(FR-13) — 0 을 회색으로 숨기면 세는 뜻이 없다 */}
             <p
               data-testid={tasks === 0 && evidence === 0 ? 'empty-promise' : undefined}
-              className={`text-2xs ${tasks === 0 && evidence === 0 ? 'text-status-danger' : 'text-text-ghost'}`}
+              className={`text-2xs ${tasks === 0 && evidence === 0 ? 'text-status-danger' : 'text-text-faint'}`}
             >
               {t('spec.requirements.counts', { tasks, evidence })}
             </p>
@@ -113,7 +113,7 @@ export function RequirementPanel({
               </Link>
             ) : (
               version !== undefined && (
-                <span className="text-2xs text-text-ghost">
+                <span className="text-2xs text-text-faint">
                   {t('spec.requirements.derive_disabled')}
                 </span>
               )
@@ -161,7 +161,7 @@ export function DerivedTaskPanel({
           >
             <Mono>{String(task['key'])}</Mono>
             <span className="min-w-0 flex-1 truncate text-xs">{String(task['title'] ?? '')}</span>
-            <span className="text-2xs text-text-ghost">{taskStatusText(t, task['status'])}</span>
+            <span className="text-2xs text-text-faint">{taskStatusText(t, task['status'])}</span>
           </Link>
         ))
       )}

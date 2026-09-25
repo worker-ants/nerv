@@ -83,7 +83,7 @@ function HomeScreen(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1000px] px-10 pt-11 pb-10">
+    <div className="mx-auto w-full max-w-[1000px] px-6 pt-11 pb-10 md:px-10">
       {/* 날짜 → 인사말. 인사말이 곧 요약이다 — 결정이 없으면 그렇게 말한다 */}
       <div className="text-sm text-text-faint">{today}</div>
       <h1 className="mt-2 text-[1.9375rem] leading-[1.18] font-bold tracking-[-0.026em]">
@@ -306,7 +306,7 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
             'w-[64px] shrink-0 text-right text-xs',
             Number(card['waiting_seconds'] ?? 0) >= 3600
               ? 'font-medium text-status-waiting'
-              : 'text-text-ghost',
+              : 'text-text-faint',
           )}
         >
           {waitedLabel(t, Number(card['waiting_seconds'] ?? 0))}

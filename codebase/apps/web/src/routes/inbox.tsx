@@ -363,7 +363,7 @@ function InboxScreen(): React.JSX.Element {
           </>
         )}
         {/* 키가 **어느 카드에** 꽂히는지 — 강조된(왼쪽 띠) 카드다. 누르거나 칸에 들어가면 그 카드가 된다 */}
-        <span className="text-text-ghost">{t('inbox.key.applies')}</span>
+        <span className="text-text-faint">{t('inbox.key.applies')}</span>
       </p>
 
       {missing !== null && <FocusMissing id={missing} />}
