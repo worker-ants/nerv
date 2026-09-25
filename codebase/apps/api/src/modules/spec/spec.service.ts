@@ -465,7 +465,13 @@ export class SpecService {
              encode(sv.content_hash, 'hex') AS content_hash,
              sv.superseded_by_version_id,
              -- 곁줄(시안) — 누가 언제 승인했는가. 이 문서의 무게를 한 줄로 말한다
-             sv.approved_at, sv.updated_at, u.display_name AS approved_by_name
+             sv.approved_at, sv.updated_at, u.display_name AS approved_by_name,
+             -- **이 버전을 기다리는 결재**(2026-09-24 — UI/UX 검토 SPEC-02 · REQ-API-182). 검토 중인 문서를
+             -- 연 사람에게 화면이 "결재는 받은 요청의 그 카드에서" 라고 말하고 그리로 데려가려면 카드가
+             -- 무엇인지 알아야 한다. 결정되지 않은 가장 최근 것 하나다
+             (SELECT a.id FROM approval a
+               WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id AND a.decision IS NULL
+               ORDER BY a.requested_at DESC LIMIT 1) AS pending_approval_id
         FROM spec s
    LEFT JOIN spec_version sv ON ${pick}
    LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
@@ -842,7 +848,8 @@ export class SpecService {
           content_hash: hash,
           delta,
           relations: { ...relations, declared },
-          web_url: await this.webUrl(tx, input.projectId, specId),
+          // 방금 쓴 **그 초안**을 연다 — 승인본 위의 초안이면 기본 주소는 승인본에 선다
+          web_url: await this.webUrl(tx, input.projectId, specId, Number(draft.version_no)),
         };
       }
 
@@ -906,7 +913,7 @@ export class SpecService {
         content_hash: hash,
         delta: specDelta(prior[0]?.body_md ?? null, input.bodyMd),
         relations: { ...relations, declared },
-        web_url: await this.webUrl(tx, input.projectId, specId),
+        web_url: await this.webUrl(tx, input.projectId, specId, Number(versionNo)),
       };
     });
   }
@@ -1826,13 +1833,34 @@ export class SpecService {
     return base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`;
   }
 
-  private async webUrl(tx: Tx, projectId: string, specId: string): Promise<string> {
+  /**
+   * 문서 주소. `versionNo` 를 주면 **그 버전을 연다**(`?v=` · 2026-09-24 SPEC-01 · REQ-API-182) — 승인본
+   * 위에 초안을 쓴 에이전트가 건넨 주소를 누른 사람은 승인본에 섰고, 새 초안이 있다는 말은 화면
+   * 어디에도 없었다. 기본(버전 없음)은 여전히 최신 승인본이다(REQ-WEB-011).
+   */
+  private async webUrl(
+    tx: Tx,
+    projectId: string,
+    specId: string,
+    versionNo?: number,
+  ): Promise<string> {
     const { rows } = await tx.execute<{ slug: string; key: string }>(sql`
       SELECT p.slug, s.key FROM spec s JOIN project p ON p.id = s.project_id
        WHERE s.id = ${specId} AND p.id = ${projectId}
     `);
     const row = rows[0];
-    const path = row === undefined ? '/' : `/p/${row.slug}/specs/${row.key}`;
+    // **기본이 그 버전을 열지 않을 때만** 버전을 싣는다 — 승인본이 없으면 기본이 곧 그 초안이고,
+    // 뜻 없는 인자를 주소에 남기지 않는다(REQ-WEB-163 의 규칙)
+    let pin = '';
+    if (versionNo !== undefined) {
+      const { rows: approved } = await tx.execute<{ n: number | null }>(sql`
+        SELECT max(version_no) FILTER (WHERE status = 'approved')::int AS n
+          FROM spec_version WHERE spec_id = ${specId}
+      `);
+      const approvedNo = approved[0]?.n ?? null;
+      if (approvedNo !== null && approvedNo !== versionNo) pin = `?v=${String(versionNo)}`;
+    }
+    const path = row === undefined ? '/' : `/p/${row.slug}/specs/${row.key}${pin}`;
     const base = process.env['NERV_WEB_URL'];
     return base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`;
   }

@@ -55,7 +55,9 @@ Specs are **not edited in place — versions accumulate.** Each version is in on
 2. **A document that has never been approved** opens on its draft.
 3. A document with a newer draft above an approved version opens on the approved one. Then pick the draft in the **Versions** tab on the rail — the list is there regardless of status, and choosing one puts `?v=4` in the address for you to pass on.
 
-The badge at the top is the status of the version you are looking at. If you are reading a `superseded` version, the screen says so first — reading an outdated document as if it were current is the most common accident here.
+The badge at the top is the status of the version you are looking at. If you are reading a `superseded` version, the screen says so first — reading an outdated document as if it were current is the most common accident here. Open another version with `?v=` and the badge, version, pre-review, [Request review] and comments **all belong to that version**. If you are reading the approved version and a newer draft exists, a banner above the body says so and offers **[Open vN]·[changes]**. Links an agent hands you, approval cards in the Inbox and a task's source-spec link open **that version**.
+
+**The line under the title is the next step.** A draft shows **[Request review]**, a document in review shows **[Open in the Inbox]** (the decision happens on that card), an approved version shows **[Create a task]** — the form for deriving a task from that version (documents without requirements work too). Beside it, chips show the **open comment count** and the **requirement count**; pressing one opens that tab in the right rail. **[Hand off to an agent]** takes you to the [Continue in the terminal] card at the bottom of the rail.
 
 ## Baselines — reading the set as it was
 
@@ -140,7 +142,7 @@ The tab you pick **stays in the address** (`?body=source`), so the link you send
 
 The checks are not something you press — they run **automatically** when you open the document, and the result sits **above** the body as a `Pre-review` panel. The checkers look for contradictions between documents, broken chains of rationale, and empty promises.
 
-If the result holds even one **block**, [Request review] is locked. The server refuses it too, so fix what is blocking first.
+If the result holds even one **block**, [Request review] is locked. The server refuses it too, so fix what is blocking first. When it is locked, **"N blocking pre-review findings"** appears beside the button and takes you to the results.
 
 **Requesting review does not always reach a person.** A gate grades the document, and at the low grades (T0, T1) it goes **straight to `approved`** with no approval step — the screen says the gate passed. A card appears in the inbox at T2 and T3 (grades are in the [settings](/help/settings) chapter).
 

@@ -163,10 +163,11 @@ describe('문서로 가는 길 (REQ-WEB-119)', () => {
     can_approve: true,
   };
 
-  it('키가 문서로 가는 링크다', async () => {
+  it('키가 문서로 가는 링크다 — **결재할 그 버전**을 연다(REQ-WEB-214)', async () => {
     await renderCard(SPEC_CARD);
     const link = screen.getByText('SUD-CONV-DOCS').closest('a');
-    expect(link?.getAttribute('href')).toBe('/p/sudoku/specs/SUD-CONV-DOCS');
+    // 버전을 싣지 않으면 리뷰어는 판단해야 할 초안이 아니라 승인본을 읽는다(SPEC-01)
+    expect(link?.getAttribute('href')).toBe('/p/sudoku/specs/SUD-CONV-DOCS?v=1');
   });
 
   it('본문을 카드에서 편다 — 펼칠 때 받아 온다(목록을 무겁게 하지 않는다)', async () => {

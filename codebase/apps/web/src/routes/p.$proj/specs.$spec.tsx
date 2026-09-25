@@ -20,12 +20,13 @@ import {
 import { SourceView } from '../../features/spec-editor/source-view.js';
 import { TerminalHandoffCard } from '../../features/spec-editor/terminal-handoff.js';
 import { VersionDiff } from '../../features/spec-editor/version-diff.js';
+import { NextStep } from '../../features/spec-editor/next-step.js';
 import { AttachmentPanel } from '../../features/spec-editor/attachment-panel.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
-import { statusLabelKey } from '@nerv/schema';
+import { statusLabelKey, TASK_CREATE_ROLES } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -181,16 +182,30 @@ function SpecDetail(): React.JSX.Element {
   const comments = useSpecComments(proj, spec);
   const relations = useSpecRelations(proj, spec);
   const attachments = useSpecAttachments(proj, spec);
-  const check = useSpecCheck(proj, String(detail.data?.['version_id'] ?? ''));
 
   const search = Route.useSearch();
   const navigate = useNavigate();
   const compare = parseDiff(search.diff);
-  const viewing = typeof search.v === 'number' && Number.isFinite(search.v) ? search.v : null;
+  // `?v=` 가 **기본 버전**을 가리키면 그것은 "다른 버전 보기" 가 아니라 기본 화면이다 — 에이전트가
+  // 건넨 주소가 늘 버전을 싣게 되어도(REQ-API-182) 그 버전이 기본이면 평소 화면이 선다
+  const askedVersion = typeof search.v === 'number' && Number.isFinite(search.v) ? search.v : null;
+  const viewing =
+    askedVersion !== null && askedVersion !== Number(detail.data?.['version_no'])
+      ? askedVersion
+      : null;
   const [diffFull, setDiffFull] = useState(false);
   const diff = useSpecDiff(proj, spec, compare?.from ?? null, compare?.to ?? null);
   // 옛 버전 전문 — 지금 버전이 아닌 것을 볼 때만 부른다
   const pastVersion = useSpecVersion(proj, spec, viewing, viewing !== null);
+  /**
+   * **보는 버전은 하나다**(2026-09-24 — UI/UX 검토 SPEC-01 · REQ-WEB-214). `?v=4` 로 초안을 열어도
+   * 바뀌는 것은 본문뿐이었다 — 머리의 배지와 버전·사전 검토·[검토 요청]·코멘트가 달리는 버전은
+   * 계속 승인본(v3)이라, [검토 요청]은 이유 없이 잠겼고 승인본 위의 초안은 웹에서 앞으로 보낼
+   * 길이 없었다. 이제 그것들이 전부 여기서 읽는다.
+   */
+  const viewed: Record<string, unknown> | undefined =
+    viewing === null ? detail.data : pastVersion.data;
+  const check = useSpecCheck(proj, String(viewed?.['version_id'] ?? ''));
 
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
@@ -256,8 +271,9 @@ function SpecDetail(): React.JSX.Element {
   const body = String(detail.data?.['body_md'] ?? '');
   // area 는 임포터가 디렉터리에서 만든 **묶음 노드**다 — 본문이 없는 것이 정상일 수 있다
   const isArea = String(detail.data?.['type'] ?? '') === 'area';
-  const docStatus = String(detail.data?.['doc_status'] ?? 'draft');
-  const versionId = String(detail.data?.['version_id'] ?? '');
+  const docStatus = String(viewed?.['doc_status'] ?? '');
+  const versionId = String(viewed?.['version_id'] ?? '');
+  const versionNo = Number(viewed?.['version_no'] ?? detail.data?.['version_no']);
   // 누름마다 새 키다(REQ-WEB-195) — 버전 id 로 만들면 그 버전의 두 번째 제출이 첫 응답의 재생이 된다
   const submitPress = usePressKey('submit');
   const submit = useMutation({
@@ -271,12 +287,21 @@ function SpecDetail(): React.JSX.Element {
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
       const gate = result['gate'] as { tier?: string } | undefined;
+      const approvalId = typeof result['approval_id'] === 'string' ? result['approval_id'] : null;
       pushToast({
         tone: 'ok',
         message:
           result['status'] === 'approved'
             ? t('spec.gate_passed', { tier: gate?.tier ?? 'T0' })
             : t('spec.submit_done'),
+        // **결재가 어디서 누구를 기다리는지**로 데려간다(SPEC-02) — 한 줄 토스트로 끝나면 사람은
+        // 그 요청이 어디에 섰는지 모른다
+        ...(approvalId === null
+          ? {}
+          : {
+              href: `/inbox?focus=${encodeURIComponent(approvalId)}`,
+              hrefLabel: t('spec.next.open_inbox'),
+            }),
       });
     },
     onError: onApiError,
@@ -369,6 +394,25 @@ function SpecDetail(): React.JSX.Element {
   const canEditMeta = rolesInProject(me.data, orgSlug, proj).some(
     (r) => r === 'planner' || r === 'admin',
   );
+  // 작업을 만드는 역할 — 정본은 `@nerv/schema` 다(보드의 [+ 새 작업]과 같은 목록)
+  const canCreateTask = rolesInProject(me.data, orgSlug, proj).some((r) =>
+    (TASK_CREATE_ROLES as readonly string[]).includes(r),
+  );
+  /**
+   * **보는 것보다 새 초안이 있다**(SPEC-01). 승인본을 보는 사람은 v4 초안이 검토를 기다린다는
+   * 사실을 화면 어디에서도 들을 수 없었다 — 버전 탭을 열어야 알았다.
+   */
+  const newest = versionRows.reduce<Record<string, unknown> | undefined>(
+    (top, v) =>
+      top === undefined || Number(v['version_no']) > Number(top['version_no']) ? v : top,
+    undefined,
+  );
+  const newerVersion =
+    newest !== undefined &&
+    Number(newest['version_no']) > versionNo &&
+    (newest['status'] === 'draft' || newest['status'] === 'in_review')
+      ? newest
+      : null;
 
   return (
     // 3열 중 **좌측 트리는 셸 사이드바가 소유한다**(§1.3 — "S3 좌측 트리와 같은 컴포넌트").
@@ -435,8 +479,8 @@ function SpecDetail(): React.JSX.Element {
           <span aria-hidden="true" className="text-text-ghost">
             ·
           </span>
-          <span className="text-sm text-text-faint">
-            v{String(detail.data?.['version_no'] ?? '')}
+          <span data-testid="spec-version" className="text-sm text-text-faint">
+            v{Number.isFinite(versionNo) ? String(versionNo) : ''}
           </span>
           {/* **어느 세트로 읽고 있는지 화면이 말한다**(REQ-WEB-135). 말하지 않으면 사람은
               최신 버전을 본다고 믿는다 — 기준선의 값어치가 거기서 사라진다.
@@ -515,8 +559,110 @@ function SpecDetail(): React.JSX.Element {
         </h1>
         {/* 곁줄 — 이 문서의 이력·무게가 한 줄로 요약된다(시안: 승인자 · 파생 · 역참조) */}
         <div className="mt-2 mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-[22px] text-sm text-text-mute">
-          <Byline detail={detail.data} backlinks={backlinks.length} t={t} />
+          <Byline detail={viewed ?? detail.data} backlinks={backlinks.length} t={t} />
         </div>
+
+        {/* **다음 할 일**(2026-09-24 — UI/UX 검토 SPEC-02 · SPEC-08 · SPEC-10 · REQ-WEB-214). 이 화면의 거의
+            유일한 결정 단추 [검토 요청]이 본문 칸의 **맨 끝**에 있었다 — 56화면짜리 문서라면 56화면
+            아래다. 잠긴 이유도, 검토 중이면 결재가 어디서 기다리는지도, 승인본이면 무엇을 하면 되는지도
+            말하지 않았다. 보는 버전의 상태가 이 줄을 정한다 */}
+        <NextStep
+          proj={proj}
+          spec={spec}
+          viewed={viewed}
+          viewingPast={viewing !== null}
+          checkBlocks={
+            check.data?.['verdict'] === 'block'
+              ? rows(check.data['findings']).filter((f) => f['severity'] === 'block').length
+              : 0
+          }
+          openComments={rows(comments.data).filter((c) => c['status'] === 'open').length}
+          requirementCount={rows(requirements.data).length}
+          canCreateTask={canCreateTask}
+          submitting={submit.isPending}
+          onSubmit={() => setShowImpact(true)}
+          onRail={setRailTab}
+        />
+        {showImpact && (
+          <div
+            role="dialog"
+            aria-label={t('spec.impact_dialog')}
+            data-testid="impact-preview"
+            className="mb-3 w-full rounded-nerv border border-border bg-bg-elev p-3 text-sm"
+          >
+            <p className="font-medium">{t('spec.impact_title')}</p>
+            <ul className="mt-1 flex flex-col gap-0.5 text-text-mute">
+              {/* 승인 전에 "무엇이 흔들리나"를 보이는 것이 이 화면의 요점이다 —
+                  승인하고 나서 알게 되면 되돌리는 비용이 훨씬 크다 */}
+              <li>{t('spec.impact_backlinks', { count: backlinks.length })}</li>
+              <li>{t('spec.impact_tasks', { count: rows(detail.data?.['tasks']).length })}</li>
+            </ul>
+            <div className="mt-2 flex gap-2">
+              <Button
+                size="sm"
+                variant="primary"
+                data-testid="impact-confirm"
+                disabled={submit.isPending}
+                onClick={() => {
+                  setShowImpact(false);
+                  submit.mutate();
+                }}
+              >
+                {t('spec.impact_send')}
+              </Button>
+              <Button size="sm" onClick={() => setShowImpact(false)}>
+                {t('common.cancel')}
+              </Button>
+            </div>
+          </div>
+        )}
+        {newerVersion !== null && (
+          <div
+            data-testid="spec-newer-version"
+            className="mb-3 flex flex-wrap items-center gap-2 rounded-nerv border border-status-waiting/40 bg-status-waiting-soft px-3 py-1.5 text-sm text-status-waiting"
+          >
+            <span className="min-w-0 flex-1">
+              {t('spec.newer_version', {
+                n: Number(newerVersion['version_no']),
+                status: t(statusLabelKey('spec', String(newerVersion['status']))),
+              })}
+            </span>
+            <button
+              type="button"
+              data-testid="spec-newer-open"
+              onClick={() =>
+                void navigate({
+                  to: '.',
+                  search: ({ diff: _diff, ...rest }) => ({
+                    ...rest,
+                    v: Number(newerVersion['version_no']),
+                  }),
+                })
+              }
+              className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 text-2xs text-text"
+            >
+              {t('spec.newer_open', { n: Number(newerVersion['version_no']) })}
+            </button>
+            {Number.isFinite(versionNo) && (
+              <button
+                type="button"
+                data-testid="spec-newer-diff"
+                onClick={() =>
+                  void navigate({
+                    to: '.',
+                    search: ({ v: _v, ...rest }) => ({
+                      ...rest,
+                      diff: `v${String(versionNo)}..v${String(newerVersion['version_no'])}`,
+                    }),
+                  })
+                }
+                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 text-2xs text-text"
+              >
+                {t('spec.newer_diff', { from: versionNo, to: Number(newerVersion['version_no']) })}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 보관 배너 — 목록에 없는 문서를 주소로 열었을 때, 화면이 그 사실을 **먼저** 말한다.
             이게 없으면 보관된 문서가 평소와 똑같이 열려 살아 있는 기준으로 읽힌다 */}
@@ -552,7 +698,7 @@ function SpecDetail(): React.JSX.Element {
                   check.data['verdict'] === 'block' ? 'text-status-danger' : 'text-status-waiting'
                 }
               >
-                {String(check.data['verdict'])}
+                {checkLevel(t, check.data['verdict'])}
               </span>
             </h2>
             <ul className="flex flex-col gap-1">
@@ -564,7 +710,7 @@ function SpecDetail(): React.JSX.Element {
                       f['severity'] === 'block' ? 'text-status-danger' : 'text-status-waiting'
                     }
                   >
-                    {String(f['severity'])}
+                    {checkLevel(t, f['severity'])}
                   </span>
                   {/* 앵커가 없는 지적은 지적이 아니다 — 어디를 고칠지 못 가리키기 때문이다 */}
                   {f['anchor'] !== null && (
@@ -711,59 +857,8 @@ function SpecDetail(): React.JSX.Element {
           <span data-testid="body-read-only" className="text-xs text-text-mute">
             {t('spec.body_agent_only')}
           </span>
-          <Button
-            data-testid="submit-review"
-            disabled={
-              // 버전 행이 아직 없는 골격 노드(임포터가 디렉터리에서 만든 area)에서는 제출할
-              // 것이 없다 — 예전에는 눌리고 `/spec-versions//submit` 로 나갔다(§1.4i)
-              versionId === '' ||
-              docStatus !== 'draft' ||
-              submit.isPending ||
-              check.data?.['verdict'] === 'block'
-            }
-            title={check.data?.['verdict'] === 'block' ? t('spec.submit_blocked') : undefined}
-            onClick={() => setShowImpact(true)}
-          >
-            {t('spec.submit_review')}
-          </Button>
-          {showImpact && (
-            <div
-              role="dialog"
-              aria-label={t('spec.impact_dialog')}
-              data-testid="impact-preview"
-              className="w-full rounded-nerv border border-border bg-bg-elev p-3 text-sm"
-            >
-              <p className="font-medium">{t('spec.impact_title')}</p>
-              <ul className="mt-1 flex flex-col gap-0.5 text-text-mute">
-                {/* 승인 전에 "무엇이 흔들리나"를 보이는 것이 이 화면의 요점이다 —
-                    승인하고 나서 알게 되면 되돌리는 비용이 훨씬 크다 */}
-                <li>{t('spec.impact_backlinks', { count: backlinks.length })}</li>
-                <li>{t('spec.impact_tasks', { count: rows(detail.data?.['tasks']).length })}</li>
-              </ul>
-              <div className="mt-2 flex gap-2">
-                <Button
-                  size="sm"
-                  variant="primary"
-                  data-testid="impact-confirm"
-                  disabled={submit.isPending}
-                  onClick={() => {
-                    setShowImpact(false);
-                    submit.mutate();
-                  }}
-                >
-                  {t('spec.impact_send')}
-                </Button>
-                <Button size="sm" onClick={() => setShowImpact(false)}>
-                  {t('common.cancel')}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* 터미널 이어쓰기 — 복사용 명령 한 줄(§3.4) */}
-          <code className="ml-auto rounded-nerv-sm bg-code-bg px-2 py-1 font-mono text-xs text-code-text">
-            claude &quot;/nerv:spec edit {spec}&quot;
-          </code>
+          {/* [검토 요청]과 영향 미리보기는 **머리의 다음 할 일 줄**로 올라갔다(SPEC-02). 명령 줄의
+              복사 없는 사본도 걷었다(SPEC-09) — 복사 단추가 있는 [터미널에서 이어쓰기] 카드 하나다 */}
         </div>
       </div>
 
@@ -1283,6 +1378,23 @@ function RelationRow({
       </span>
     </Link>
   );
+}
+
+/**
+ * 사전 검토의 판정·심각도 — 영어 원문(`block`·`warning`)을 그대로 적었다(2026-09-24 · SPEC-02).
+ * 모르는 값은 원문으로 둔다: 없는 말을 지어 붙이는 것보다 낫다.
+ */
+function checkLevel(t: ReturnType<typeof useT>, value: unknown): string {
+  switch (value) {
+    case 'block':
+      return t('spec.check.level.block');
+    case 'warning':
+      return t('spec.check.level.warning');
+    case 'info':
+      return t('spec.check.level.info');
+    default:
+      return String(value);
+  }
 }
 
 /** 버전이 마지막으로 바뀐 시각 — 옛 행에는 `updated_at` 이 없으니 만든 시각으로 떨어진다 */

@@ -227,6 +227,16 @@ describe('작업 → 세션 · 요구사항 · 리뷰', () => {
   });
 });
 
+describe('작업의 출처 스펙은 적힌 그 버전을 연다 (REQ-WEB-214)', () => {
+  it('"SPEC v3" 이라 적으면 링크도 v3 이다 — 최신 승인본으로 가지 않는다', async () => {
+    taskDetail = { ...taskDetail, basis_version_no: 3 };
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    const sheet = await screen.findByTestId('task-sheet');
+    const link = (await within(sheet).findByText('SPC-CWC-007')).closest('a');
+    expect(link?.getAttribute('href')).toBe('/p/clemvion/specs/SPC-CWC-007?v=3');
+  });
+});
+
 describe('리뷰 센터 — 브랜치로 들어오고, 발견이 작업을 가리킨다', () => {
   it('?branch= 로 들어오면 그 브랜치로 거른 것을 말하고 서버에도 그렇게 묻는다', async () => {
     renderAt('/p/clemvion/reviews?branch=feat%2Fx');

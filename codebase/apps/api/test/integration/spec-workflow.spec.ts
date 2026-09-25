@@ -1054,6 +1054,78 @@ describe('E10-S04 왕복 완성 — 멱등 제출과 딥링크', () => {
 });
 
 /**
+ * **보는 버전**(2026-09-24 — UI/UX 검토 SPEC-01·02 · REQ-API-182). 승인본 위에 초안을 쓴 에이전트가
+ * 건넨 주소를 누른 사람은 승인본에 섰고, 검토 중인 문서를 연 사람은 결재가 어디서 기다리는지 몰랐다.
+ */
+describe('보는 버전 — 딥링크가 그 초안을 열고, 문서가 기다리는 결재를 말한다 (REQ-API-182)', () => {
+  async function approvedV1(key: string): Promise<string> {
+    const { specId, versionId } = await newDraft(key, '# 보기\n\n첫 본문');
+    await raiseTier(specId);
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+    await decideOn(versionId, reviewer, 'approve');
+    return specId;
+  }
+  async function draftOn(
+    specId: string,
+    bodyMd = '# 보기\n\n고친 본문',
+  ): Promise<Record<string, unknown>> {
+    return specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      baseHash: await hashOf(specId),
+      bodyMd,
+      userId: planner,
+    });
+  }
+
+  it('승인본 위에 쓴 초안의 딥링크는 그 버전을 싣는다 — 기본이 그 초안이면 싣지 않는다', async () => {
+    const before = process.env['NERV_WEB_URL'];
+    delete process.env['NERV_WEB_URL'];
+    try {
+      // 첫 초안 — 승인본이 없으니 기본이 곧 그 초안이다
+      const first = await newDraft('SPC-VIEW-LINK0');
+      const firstLink = await specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId: first.specId,
+        baseHash: await hashOf(first.specId),
+        bodyMd: '# 다시\n\n본문',
+        userId: planner,
+      });
+      expect(firstLink['web_url']).toBe('/p/clemvion/specs/SPC-VIEW-LINK0');
+
+      const specId = await approvedV1('SPC-VIEW-LINK');
+      const second = await draftOn(specId);
+      expect(second['web_url']).toBe('/p/clemvion/specs/SPC-VIEW-LINK?v=2');
+    } finally {
+      if (before !== undefined) process.env['NERV_WEB_URL'] = before;
+    }
+  });
+
+  it('검토 중인 버전은 기다리는 결재를 싣는다 — 기본(승인본)에는 없다', async () => {
+    const specId = await approvedV1('SPC-VIEW-WAIT');
+    // 요구사항을 더해야 사람의 결재로 간다 — 문구만 고친 둘째 버전은 T0 로 바로 승인된다
+    const second = await draftOn(
+      specId,
+      '# 보기\n\n- REQ-VWT-001 WHEN 사용자가 열면 THE SYSTEM SHALL 보던 버전을 연다',
+    );
+    const submitted = await specs.submitReview({
+      projectId,
+      specVersionId: second['spec_version_id'] as string,
+      userId: planner,
+    });
+    expect(submitted.status).toBe('in_review');
+    const viewed = await specs.get({ projectId, specKey: 'SPC-VIEW-WAIT', versionNo: 2 });
+    expect(viewed['doc_status']).toBe('in_review');
+    expect(viewed['pending_approval_id']).toBe((submitted as { approval_id?: string }).approval_id);
+    const approvedView = await specs.get({ projectId, specKey: 'SPC-VIEW-WAIT' });
+    expect(approvedView['version_no']).toBe(1);
+    expect(approvedView['pending_approval_id']).toBeNull();
+  });
+});
+
+/**
  * **본문의 요구사항이 행이 된다**(REQ-API-096 · 2026-09-05 사람 결정).
  *
  * 감사 전까지 `requirement` 를 만드는 코드는 임포터 하나뿐이었다. 그래서 웹·에이전트로 쓴

@@ -7,6 +7,7 @@
 // 카드가 명령을 **만들지 않는다** — 스킬 이름과 인자 모양은 플러그인의 계약이고
 // (`plugin/skills/spec/SKILL.md`), 여기서는 그것을 그대로 조립해 보여 줄 뿐이다.
 
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { Button } from '../../components/ui/primitives.js';
@@ -17,7 +18,8 @@ export function TerminalHandoffCard({ specKey }: { specKey: string }): React.JSX
   const command = `claude "/nerv:spec edit ${specKey}"`;
 
   return (
-    <section className="mt-4 border-t border-border px-2 pt-3">
+    // 머리의 [에이전트에게 넘기기]가 이 카드로 데려온다(REQ-WEB-214) — 그 단추가 찾는 이름이다
+    <section id="spec-handoff" className="mt-4 border-t border-border px-2 pt-3">
       <p className="text-2xs text-text-faint">{t('spec.handoff.title')}</p>
       <div className="mt-1.5 flex items-center gap-1.5">
         <code
@@ -43,6 +45,15 @@ export function TerminalHandoffCard({ specKey }: { specKey: string }): React.JSX
           {copied ? t('common.copied') : t('common.copy')}
         </Button>
       </div>
+      {/* 플러그인을 아직 깔지 않은 사람은 이 명령을 받아도 쓸 수 없다 — 설치 장으로 가는 길(SPEC-09) */}
+      <Link
+        to="/help/$chapter"
+        params={{ chapter: 'install' }}
+        data-testid="handoff-install"
+        className="mt-1 inline-block text-2xs text-link hover:underline"
+      >
+        {t('spec.handoff.install')} ▸
+      </Link>
     </section>
   );
 }
