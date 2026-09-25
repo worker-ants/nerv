@@ -73,6 +73,10 @@ export interface SpecTreeNode extends Record<string, unknown> {
   version_no: number | null;
   /** 보관 시각 — `include_archived` 로 받아 온 목록에서 **어느 것이 보관된 것인지** 화면이 갈라야 한다 */
   archived_at: string | null;
+  /** 그 버전이 마지막으로 바뀐 시각 — 목록에서 "손볼 문서" 를 고르는 재료다(REQ-API-183) */
+  updated_at: string | null;
+  /** 열린 코멘트 수 — 리뷰어가 먼저 볼 문서를 고르는 재료다(REQ-API-183) */
+  open_comments: number;
 }
 
 export interface DraftUpsertInput {
@@ -280,7 +284,12 @@ export class SpecService {
 
     const { rows } = await this.db.execute<SpecTreeNode>(sql`
       SELECT s.id, s.key, s.title, s.type::text AS type, s.parent_id, s.sort_key,
-             s.archived_at, sv.status::text AS doc_status, sv.version_no
+             s.archived_at, sv.status::text AS doc_status, sv.version_no,
+             -- **행이 무엇을 손봐야 하는지 말한다**(2026-09-24 — UI/UX 검토 SPEC-13 · REQ-API-183). 명세의
+             -- 행(§2.4 — 타입·상태·현재 버전·최근 갱신·열린 코멘트 수) 중 뒤의 둘이 응답에 없었다
+             coalesce(sv.updated_at, sv.created_at) AS updated_at,
+             (SELECT count(*)::int FROM spec_comment c
+               WHERE c.spec_id = s.id AND c.status = 'open') AS open_comments
         FROM spec s
    LEFT JOIN spec_version sv ON ${version}
        WHERE s.project_id = ${input.projectId}${archived}${pinned}

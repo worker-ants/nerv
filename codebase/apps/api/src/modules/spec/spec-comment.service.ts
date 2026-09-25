@@ -111,10 +111,17 @@ export class SpecCommentService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT c.id, c.anchor, c.body_md, c.status::text AS status, c.author_user_id,
              c.author_session_id, c.resolved_by_user_id, c.created_at, c.resolved_at,
-             sv.version_no
+             sv.version_no,
+             -- **누가 지적했나**(2026-09-24 — UI/UX 검토 SPEC-04 · REQ-API-183). 코멘트 줄에는 앵커와 본문뿐이라
+             -- 누가 무엇을 지적했는지 몰랐다. 에이전트가 단 것이면 어느 기계의 무엇인지도 싣는다
+             au.display_name AS author_name, cs.hostname AS author_hostname,
+             cs.agent_type::text AS author_agent_type, ru.display_name AS resolved_by_name
         FROM spec_comment c
         JOIN spec s ON s.id = c.spec_id
         JOIN spec_version sv ON sv.id = c.spec_version_id
+   LEFT JOIN "user" au ON au.id = c.author_user_id
+   LEFT JOIN agent_session cs ON cs.id = c.author_session_id
+   LEFT JOIN "user" ru ON ru.id = c.resolved_by_user_id
        WHERE s.project_id = ${input.projectId} AND s.key = ${input.specKey}${statusFilter}
        ORDER BY c.created_at
     `);

@@ -28,6 +28,8 @@ import { TerminalHandoffCard } from '../../features/spec-editor/terminal-handoff
 import { VersionDiff } from '../../features/spec-editor/version-diff.js';
 import { NextStep } from '../../features/spec-editor/next-step.js';
 import { SpecToc } from '../../features/spec-editor/spec-toc.js';
+import { CommentList } from '../../features/spec-editor/comment-list.js';
+import type { AnchorChoice } from '../../features/spec-editor/comment-list.js';
 import { dropLeadingTitle, headingElement, markdownHeadings } from '../../lib/spec-anchors.js';
 import { useMediaQuery } from '../../lib/use-media-query.js';
 import { AttachmentPanel } from '../../features/spec-editor/attachment-panel.js';
@@ -57,15 +59,7 @@ import { relativeTime } from '../../lib/format.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
-import {
-  Avatar,
-  Button,
-  Input,
-  Mono,
-  PageBody,
-  Skeleton,
-  Textarea,
-} from '../../components/ui/primitives.js';
+import { Avatar, Button, Mono, PageBody, Skeleton } from '../../components/ui/primitives.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
@@ -258,6 +252,20 @@ function SpecDetail(): React.JSX.Element {
    * 쉬는 동안 스크롤 막대를 숨기므로, 사람은 잘린 탭을 목록의 끝으로 읽는다.
    */
   const railTabsRef = useRef<HTMLDivElement>(null);
+  /**
+   * **지금 탭은 탭 줄 안에 보인다**(2026-09-24 · REQ-WEB-216). 다섯 탭은 17rem 레일보다 넓어(REQ-WEB-151)
+   * 마지막의 코멘트 탭은 줄 밖에 있다 — `?rail=comments` 로 들어오면 열린 탭이 페이드 뒤에 잘려 있었다.
+   * 줄만 옆으로 민다(페이지는 움직이지 않는다 — `scrollIntoView` 를 쓰지 않는 이유다).
+   */
+  useEffect(() => {
+    const list = railTabsRef.current;
+    const tab = document.getElementById(`spec-rail-tab-${railTab}`);
+    if (list === null || tab === null) return;
+    const left = tab.offsetLeft - list.offsetLeft;
+    const right = left + tab.offsetWidth;
+    if (left < list.scrollLeft) list.scrollLeft = left;
+    else if (right > list.scrollLeft + list.clientWidth) list.scrollLeft = right - list.clientWidth;
+  }, [railTab]);
   const [tabEdges, setTabEdges] = useState<ScrollEdges>('none');
   /**
    * 본문을 보는 방식 — **주소가 진실이다**(REQ-WEB-173 · §1.4 뷰 상태 규약).
@@ -301,6 +309,30 @@ function SpecDetail(): React.JSX.Element {
   const pastBody = dropLeadingTitle(String(pastVersion.data?.['body_md'] ?? ''), title);
   /** 뷰어가 그리는 헤딩 — 앵커를 "몇 번째 헤딩인가" 로 푸는 기준이다(lib/spec-anchors.ts) */
   const headings = markdownHeadings(viewing === null ? viewerBody : pastBody);
+  /**
+   * 코멘트를 달 수 있는 자리 — **보는 버전**의 헤딩(제목 줄 포함)과 요구사항(SPEC-04). 같은 slug 의
+   * 헤딩이 둘이면 하나만 싣는다 — 앵커는 slug 라서 둘을 가를 수 없다.
+   */
+  const commentAnchors: AnchorChoice[] = [];
+  const seenAnchors = new Set<string>();
+  for (const h of markdownHeadings(
+    viewing === null ? body : String(pastVersion.data?.['body_md'] ?? ''),
+  )) {
+    if (h.slug === '' || seenAnchors.has(h.slug)) continue;
+    seenAnchors.add(h.slug);
+    commentAnchors.push({
+      value: h.slug,
+      label: `${'\u00a0\u00a0'.repeat(Math.max(0, h.level - 1))}${h.text.replace(/[`*]/g, '')}`,
+      kind: 'heading',
+    });
+  }
+  for (const r of rows(requirements.data)) {
+    const ref = String(r['ref'] ?? '');
+    if (ref === '' || seenAnchors.has(ref)) continue;
+    seenAnchors.add(ref);
+    commentAnchors.push({ value: ref, label: ref, kind: 'requirement' });
+  }
+  const openCommentCount = rows(comments.data).filter((c) => c['status'] === 'open').length;
   const router = useRouter();
   const hash = useRouterState({ select: (s) => s.location.hash });
   /**
@@ -667,7 +699,7 @@ function SpecDetail(): React.JSX.Element {
               ? rows(check.data['findings']).filter((f) => f['severity'] === 'block').length
               : 0
           }
-          openComments={rows(comments.data).filter((c) => c['status'] === 'open').length}
+          openComments={openCommentCount}
           requirementCount={rows(requirements.data).length}
           canCreateTask={canCreateTask}
           submitting={submit.isPending}
@@ -1053,7 +1085,9 @@ function SpecDetail(): React.JSX.Element {
                   ['requirements', t('spec.requirements'), rows(requirements.data).length],
                   ['versions', t('spec.versions'), rows(versions.data).length],
                   ['attachments', t('spec.attachments'), rows(attachments.data).length],
-                  ['comments', t('spec.comments'), rows(comments.data).length],
+                  // **열린 것만 센다**(SPEC-04) — 해결된 것까지 세어 "코멘트 5" 를 눌렀는데 "열린 코멘트가
+                  // 없습니다" 가 떴다. 머리의 칩과 같은 수다
+                  ['comments', t('spec.comments'), openCommentCount],
                 ] as const
               ).map(([key, label, count]) => (
                 <button
@@ -1326,6 +1360,7 @@ function SpecDetail(): React.JSX.Element {
                 specKey={spec}
                 versionId={versionId}
                 comments={rows(comments.data)}
+                anchors={commentAnchors}
                 onAnchor={goAnchor}
               />
             </div>
@@ -1340,102 +1375,6 @@ function SpecDetail(): React.JSX.Element {
           {me.data !== undefined && t('spec.viewer', { name: me.data.display_name })}
         </section>
       </aside>
-    </div>
-  );
-}
-
-function CommentList({
-  projectSlug,
-  specKey,
-  versionId,
-  comments,
-  onAnchor,
-}: {
-  /** 앵커가 가리키는 본문 자리로 간다(SPEC-05 · REQ-WEB-215) */
-  onAnchor: (anchor: string) => void;
-  projectSlug: string;
-  specKey: string;
-  versionId: string;
-  comments: Record<string, unknown>[];
-}): React.JSX.Element {
-  const t = useT();
-  const queryClient = useQueryClient();
-  const [anchor, setAnchor] = useState('');
-  const [body, setBody] = useState('');
-
-  const add = useMutation({
-    mutationFn: () =>
-      apiFetch(`/projects/${projectSlug}/spec-versions/${versionId}/comments`, {
-        method: 'POST',
-        body: { anchor, body_md: body },
-      }),
-    onSuccess: () => {
-      setBody('');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.specComments(specKey) });
-    },
-  });
-
-  const resolve = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/projects/${projectSlug}/comments/${id}/resolve`, { method: 'POST', body: {} }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.specComments(specKey) }),
-  });
-
-  const open = comments.filter((c) => c['status'] === 'open');
-
-  return (
-    <div className="flex flex-col gap-2">
-      <ul className="flex flex-col gap-1">
-        {open.map((c) => (
-          <li key={String(c['id'])} className="rounded-nerv border border-border p-2">
-            {/* 앵커가 코멘트의 전부다 — 위치 없는 지적은 고칠 수 없다(D-09) */}
-            <button
-              type="button"
-              data-testid="comment-anchor"
-              onClick={() => onAnchor(String(c['anchor']))}
-              className="font-mono text-2xs text-link hover:underline"
-            >
-              {String(c['anchor'])}
-            </button>
-            <div className="mt-0.5 text-sm">{String(c['body_md'])}</div>
-            <button
-              type="button"
-              className="mt-1 text-xs text-link hover:underline"
-              onClick={() => resolve.mutate(String(c['id']))}
-            >
-              {t('spec.comment_resolve')}
-            </button>
-          </li>
-        ))}
-        {open.length === 0 && (
-          <li className="text-xs text-text-faint">{t('spec.no_open_comments')}</li>
-        )}
-      </ul>
-      <div className="mt-1 flex flex-col gap-1.5 border-t border-border pt-2">
-        <Input
-          value={anchor}
-          onChange={(e) => setAnchor(e.target.value)}
-          placeholder={t('spec.comment_anchor')}
-          aria-label={t('spec.comment_anchor_label')}
-          className="h-7 text-xs"
-        />
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={t('spec.comments')}
-          aria-label={t('spec.comments')}
-          rows={2}
-          className="text-xs"
-        />
-        <Button
-          size="sm"
-          disabled={versionId === '' || anchor.trim() === '' || body.trim() === '' || add.isPending}
-          onClick={() => add.mutate()}
-          className="self-start"
-        >
-          {t('spec.comment_add')}
-        </Button>
-      </div>
     </div>
   );
 }
