@@ -7,8 +7,9 @@
 // 디자인 방향은 평평함이다: 층은 그림자가 아니라 선과 여백으로 만든다. 그림자는 떠 있는 것
 // (드롭다운·모달)에만 쓴다.
 
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useId, useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { useWriteLock } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 
 // ── 페이지 골격 ────────────────────────────────────────────────────────────
@@ -195,29 +196,116 @@ const SIZE: Record<ButtonSize, string> = {
   md: 'h-[30px] px-[13px] text-[13px] gap-1.5',
 };
 
+/**
+ * 단추 — **못 누르는 까닭을 말한다**(2026-09-25 · UI/UX 검토 SYS-08·SYS-09 · REQ-WEB-003 · REQ-WEB-235).
+ *
+ * 비활성 단추는 사유를 `title` 로 달거나 잊었다. `title` 은 마우스를 올려야만 뜨고 `disabled` 단추는 포커스를 받지
+ * 않아, 키보드·터치로는 사유에 닿을 길이 없었다. 사유가 있으면 `disabled` 대신 **`aria-disabled`** 로 잠근다 —
+ * 포커스는 남고 누름은 무시하며, 사유는 `aria-describedby` 로 읽히고 hover·포커스에서 말풍선으로 보인다.
+ * 사유 없는 비활성(보내는 중 등 잠깐의 것)은 전처럼 `disabled` 다.
+ *
+ * **오프라인이면 쓰기 단추는 스스로 잠긴다** — 주 단추(`primary`)와 파괴 확정(`danger-solid`)이 기본이고,
+ * 다른 단추는 `requiresOnline` 으로 켠다. 배너가 "읽기 전용" 이라 말하는 동안 [승인]·[저장]이 살아 있었다.
+ */
+/** 말풍선의 가장 넓은 폭(`max-w-64`)과 화면 끝에서 띄울 여백 */
+const BUBBLE_MAX_PX = 256;
+const EDGE_PX = 8;
+
 export function Button({
   variant = 'default',
   size = 'md',
   className,
   type = 'button',
+  disabled,
+  disabledReason,
+  requiresOnline,
+  onClick,
+  onMouseEnter,
+  onFocus,
+  children,
   ...rest
 }: React.ComponentProps<'button'> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** 비활성의 사유 — `disabled` 일 때만 쓰인다. 주면 포커스가 남는 잠금(`aria-disabled`)이 된다 */
+  disabledReason?: string | undefined;
+  /** 오프라인이면 잠근다 — 기본은 `primary`·`danger-solid` 만 */
+  requiresOnline?: boolean;
 }): React.JSX.Element {
+  const writeLock = useWriteLock();
+  const reasonId = useId();
+  // 말풍선을 어디에 맞출까 — 가운데가 기본이고, 화면 끝 가까이면 단추의 그쪽 끝에 맞춘다(오른쪽 끝의 [+ 새 작업]
+  // 말풍선이 화면 밖으로 잘렸다 — 2026-09-25 캡처). CSS 만으로는 화면 끝을 알 수 없어 올리는 순간 잰다
+  const [align, setAlign] = useState<'center' | 'start' | 'end'>('center');
+  const measure = (el: HTMLElement): void => {
+    const rect = el.getBoundingClientRect();
+    const half = BUBBLE_MAX_PX / 2;
+    const middle = rect.left + rect.width / 2;
+    setAlign(
+      middle - half >= EDGE_PX && middle + half <= window.innerWidth - EDGE_PX
+        ? 'center'
+        : rect.left + BUBBLE_MAX_PX > window.innerWidth - EDGE_PX
+          ? 'end'
+          : 'start',
+    );
+  };
+  const online = requiresOnline ?? (variant === 'primary' || variant === 'danger-solid');
+  const reason = (disabled === true ? disabledReason : undefined) ?? (online ? writeLock : null);
+  const classes = cn(
+    'inline-flex items-center justify-center rounded-nerv font-medium transition-colors',
+    // 비활성은 **숨기지 않는다**(REQ-WEB-003) — 흐리게 두고 사유를 말한다
+    'disabled:cursor-not-allowed disabled:opacity-45',
+    // 잠금(`aria-disabled`)은 `opacity` 로 흐리지 않는다 — 가상 요소인 말풍선까지 함께 흐려진다. 바탕색 막(`::before`)을
+    // 덮어 같은 만큼 흐리게 하고 말풍선(`::after`)은 그 위에 온전히 선다
+    'aria-disabled:cursor-not-allowed',
+    VARIANT[variant],
+    SIZE[size],
+    className,
+  );
+  const locked = typeof reason === 'string' && reason !== '';
+  // **잠김과 풀림이 같은 모양이다** — 한쪽만 조각(Fragment)이면 React 가 단추를 새로 만들어, 풀리는 순간 키보드
+  // 포커스가 사라진다. 단추는 늘 첫 자식이고 설명만 붙었다 떨어진다
   return (
-    <button
-      type={type}
-      className={cn(
-        'inline-flex items-center justify-center rounded-nerv font-medium transition-colors',
-        // 비활성은 **숨기지 않는다**(REQ-WEB-003) — 흐리게 두고 사유는 title 로 준다
-        'disabled:cursor-not-allowed disabled:opacity-45',
-        VARIANT[variant],
-        SIZE[size],
-        className,
+    <>
+      <button
+        type={type}
+        disabled={locked ? undefined : disabled}
+        aria-disabled={locked ? 'true' : undefined}
+        aria-describedby={locked ? reasonId : undefined}
+        data-reason={locked ? reason : undefined}
+        // 잠겼으면 누름은 무시한다 — 폼의 제출 단추면 제출도 막는다(Enter 의 암묵 제출도 이 클릭으로 온다)
+        onClick={locked ? (e) => e.preventDefault() : onClick}
+        onMouseEnter={(e) => {
+          if (locked) measure(e.currentTarget);
+          onMouseEnter?.(e);
+        }}
+        onFocus={(e) => {
+          if (locked) measure(e.currentTarget);
+          onFocus?.(e);
+        }}
+        className={cn(
+          classes,
+          // 말풍선은 **가상 요소**다 — 단추 안에 글자를 넣으면 단추의 이름·글자(`textContent`)가 사유로 오염된다
+          locked &&
+            'relative before:pointer-events-none before:absolute before:-inset-px before:rounded-[inherit] before:bg-bg/55 after:pointer-events-none after:absolute after:bottom-full after:z-40 after:mb-1.5 after:hidden after:w-max after:max-w-64 after:rounded-nerv-sm after:bg-text after:px-2 after:py-1 after:text-left after:text-xs after:font-normal after:whitespace-normal after:text-bg after:content-[attr(data-reason)] hover:after:block focus-visible:after:block',
+          locked &&
+            (align === 'center'
+              ? 'after:left-1/2 after:-translate-x-1/2'
+              : align === 'end'
+                ? 'after:right-0'
+                : 'after:left-0'),
+        )}
+        {...rest}
+      >
+        {children}
+      </button>
+      {/* 설명으로만 읽힌다(aria-describedby) — 화면에는 서지 않는다 */}
+      {locked && (
+        <span id={reasonId} hidden>
+          {reason}
+        </span>
       )}
-      {...rest}
-    />
+    </>
   );
 }
 

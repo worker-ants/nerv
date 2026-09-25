@@ -22,6 +22,10 @@ describe('연결 상태 배너', () => {
   it('플랫폼이 끊기면 오프라인으로 격상한다 — WS 상태와 무관하게', () => {
     expect(connectionBanner(ko, 'connected', true)).toContain('오프라인');
     expect(connectionBanner(ko, 'disconnected', true)).toContain('오프라인');
+    // 언제 받은 내용인지를 말한다 — "캐시된" 만으로는 1분 전인지 한 시간 전인지 모른다(2026-09-25 · REQ-WEB-235)
+    expect(
+      connectionBanner(ko, 'connected', true, new Date(2026, 8, 25, 9, 5).getTime()),
+    ).toContain('09:05 에 받은 것');
   });
 
   it('폴백 폴링 간격은 하트비트보다 짧다 — 끊긴 동안에도 화면이 늙지 않게', () => {

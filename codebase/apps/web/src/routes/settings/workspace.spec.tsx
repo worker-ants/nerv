@@ -13,6 +13,13 @@ import { REPO_HOSTS } from '@nerv/schema';
 import { rolesInOrg } from '../../lib/session.js';
 import { routeTree } from '../../routeTree.gen';
 
+/** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
+const isLocked = (b: Element | null | undefined): boolean =>
+  b != null && ((b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true');
+/** 잠긴 단추의 사유 — hover·포커스의 말풍선과 aria-describedby 가 같은 값을 읽는다 */
+const reasonOf = (b: Element | null | undefined): string | null =>
+  b?.getAttribute('data-reason') ?? null;
+
 vi.mock('socket.io-client', () => ({
   io: () => ({
     on: () => undefined,
@@ -344,8 +351,8 @@ describe('프로젝트의 저장소 주소 (REQ-WEB-160)', () => {
     );
     await renderTab();
     const edit = screen.getByTestId('project-edit');
-    expect(edit.hasAttribute('disabled')).toBe(true);
-    expect(edit.getAttribute('title')).not.toBeNull();
+    expect(isLocked(edit)).toBe(true);
+    expect(reasonOf(edit)).not.toBeNull();
   });
 });
 
@@ -414,11 +421,11 @@ describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () =
     await renderTab(false);
     await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
     expect((screen.getByTestId('org-name') as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(true);
+    expect(isLocked(screen.getByTestId('org-delete'))).toBe(true);
     // **숨기지 않는다**(REQ-WEB-003) — 비활성 + 사유
     const create = screen.getByTestId('project-new') as HTMLButtonElement;
-    expect(create.disabled).toBe(true);
-    expect(create.title).toBe('새 프로젝트는 조직 admin 이 만듭니다.');
+    expect(isLocked(create)).toBe(true);
+    expect(reasonOf(create)).toBe('새 프로젝트는 조직 admin 이 만듭니다.');
     expect(screen.getByText(/조직 이름·삭제와 새 프로젝트는 조직 admin 만/)).toBeDefined();
   });
 
@@ -428,7 +435,7 @@ describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () =
     const rows = screen.getAllByTestId('project-row');
     const edit = (row: HTMLElement) => within(row).getByTestId('project-edit') as HTMLButtonElement;
     const byName = (name: string) => rows.find((r) => r.textContent?.includes(name))!;
-    expect(edit(byName('sudoku')).disabled).toBe(false);
-    expect(edit(byName('clemvion')).disabled).toBe(true);
+    expect(isLocked(edit(byName('sudoku')))).toBe(false);
+    expect(isLocked(edit(byName('clemvion')))).toBe(true);
   });
 });

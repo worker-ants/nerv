@@ -150,7 +150,7 @@ export function AppShell({
   // 본문은 무엇이 틀렸는지 말하고(ProjectShell), 사이드바는 비킨다.
   const projectBroken = shellProject.isError && shellProject.data === undefined;
   const sidebarProject = projectBroken ? undefined : projectSlug;
-  const { state, offline } = useRealtime();
+  const { state, offline, offlineSince } = useRealtime();
   const me = useMe();
   const inbox = useInbox();
   const unread = useUnreadCount();
@@ -296,7 +296,7 @@ export function AppShell({
     return () => window.removeEventListener('keydown', onKey);
   }, [drawerOpen]);
 
-  const banner = connectionBanner(t, state, offline);
+  const banner = connectionBanner(t, state, offline, offlineSince);
   // **쪽 길이가 아니라 서버가 센 수다**(2026-09-24 · REQ-API-166). 목록이 커서로 나뉜 뒤로
   // 첫 쪽 길이를 세면 배지가 30 에서 멈춘다 — 배지와 목록이 어긋나면 지울 수 없는
   // 숫자가 남는다(알림 배지에서 이미 겪은 자리 · REQ-WEB-035). 그리고 **내가 누를 수 있는 것만**
@@ -712,9 +712,17 @@ export function AppShell({
           aria-live="polite"
           data-testid="connection-banner"
           data-level={offline ? 'offline' : 'ws'}
-          className="flex items-center gap-2 border-b border-border bg-status-waiting-soft px-4 py-1.5 text-xs text-status-waiting"
+          // **두 단계가 모양으로 갈린다**(2026-09-25 · UI/UX 검토 SYS-09 · D8 · REQ-WEB-235). 같은 호박색 한 줄이던
+          // 동안 "폴링으로 계속 도는 중" 과 "아무것도 저장되지 않음" 을 모양으로 가를 수 없었다 — ① 실시간만 끊김은
+          // 호박색 ● (일은 계속된다), ② 서버에 닿지 않음은 회색 ⚠ 와 쓰기 잠금(명세 §1.3 의 회색 배너)
+          className={cn(
+            'flex items-center gap-2 border-b border-border px-4 py-1.5 text-xs',
+            offline
+              ? 'bg-status-idle font-medium text-text'
+              : 'bg-status-waiting-soft text-status-waiting',
+          )}
         >
-          <span aria-hidden="true">●</span>
+          <span aria-hidden="true">{offline ? '⚠' : '●'}</span>
           {banner}
         </div>
       )}

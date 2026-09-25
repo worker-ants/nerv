@@ -980,6 +980,7 @@ export const en = {
   'task.next.unblock_pending':
     'Something is still pending — you can unblock once the list below is done',
   'task.brief.edit': 'Edit',
+  'task.brief.done_locked': 'A finished task keeps its brief.',
   'task.brief.empty': 'Empty — needs filling in',
   'task.brief.placeholder': 'Missing from the source — needs filling in',
   'task.spec_impact': 'Spec impact',
@@ -1452,6 +1453,7 @@ export const en = {
   'spec.meta.archive_blocked': 'Cannot archive yet — clear these first',
   'spec.meta.archive_title':
     'Not a delete — it drops out of default listings, links and history stay',
+  'spec.meta.edit_role': 'Only planner and admin can change this.',
   'spec.meta.archived': 'Archived — not deleted, just out of the default listings.',
   'spec.meta.blocker.child': 'Child spec',
   'spec.meta.blocker.claim': 'Task with an active claim',
@@ -1798,11 +1800,11 @@ export const en = {
   'switcher.pin': 'Pin to the top',
   'switcher.unpin': 'Unpin',
   // ── 실시간 연결 배너 (screens.md §1.4) ─────────────────────────────────────────
-  'realtime.offline': 'Offline — read-only from cache. It syncs again once the connection returns.',
+  'realtime.offline':
+    'Offline — the server cannot be reached. What you see was received at {time}; writing is locked until it recovers, then it syncs on its own.',
+  'realtime.offline_write': 'Offline — you can press this once the server is reachable again.',
   'realtime.ws_down': 'Live updates paused — polling instead.',
   // ── 자리표시자 화면 ────────────────────────────────────────────────────────────
-  'placeholder.pending': 'Waiting on {story}',
-  'placeholder.spec': 'Spec: {spec}',
   // ── 나머지 — 여러 곳에서 조각으로 쓰이던 문장 ────────────────────────────────────────────
   'auth.bad_credentials': 'That email and password do not match.',
   'auth.sign_in_failed': 'Sign-in failed.',

@@ -14,6 +14,13 @@ import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
 
+/** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
+const isLocked = (b: Element | null | undefined): boolean =>
+  b != null && ((b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true');
+/** 잠긴 단추의 사유 — hover·포커스의 말풍선과 aria-describedby 가 같은 값을 읽는다 */
+const reasonOf = (b: Element | null | undefined): string | null =>
+  b?.getAttribute('data-reason') ?? null;
+
 vi.mock('socket.io-client', () => ({
   io: () => ({
     on: () => undefined,
@@ -172,8 +179,8 @@ describe('되돌리기와 완료 잠금 (REQ-WEB-141)', () => {
   it('클레임 없는 developer 의 완료 단추는 비활성이고 사유를 말한다', async () => {
     await renderDetail();
     const done = screen.getByText(ko['task.to_done']).closest('button');
-    expect(done?.disabled).toBe(true);
-    expect(done?.title).toBe(ko['task.done_needs_claim']);
+    expect(isLocked(done)).toBe(true);
+    expect(reasonOf(done)).toBe(ko['task.done_needs_claim']);
   });
 
   it('planner 는 누를 수 있다 — 담당자·클레임 보유자도 같다', async () => {

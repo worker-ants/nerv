@@ -864,7 +864,7 @@ export function ApprovalCard({
                 data-testid="approve"
                 disabled={decide.isPending || !canApprove}
                 onClick={() => requestDecision('approve')}
-                title={canApprove ? undefined : (lockReason ?? undefined)}
+                disabledReason={canApprove ? undefined : (lockReason ?? undefined)}
               >
                 {t('inbox.key.approve')}
               </Button>
@@ -877,6 +877,7 @@ export function ApprovalCard({
                 data-testid="reject"
                 disabled={decide.isPending}
                 onClick={() => requestDecision('reject')}
+                requiresOnline
               >
                 {t('inbox.key.reject')}
               </Button>
@@ -884,6 +885,7 @@ export function ApprovalCard({
                 size="sm"
                 disabled={decide.isPending}
                 onClick={() => requestDecision('comment')}
+                requiresOnline
               >
                 {t('inbox.key.comment')}
               </Button>
