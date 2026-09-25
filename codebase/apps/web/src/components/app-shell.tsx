@@ -26,11 +26,11 @@ import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { canManageScope, signOut } from '../lib/session.js';
 import { inboxActionable, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
-import { chapterForRoute } from '../lib/manual.js';
+import { chapterForRoute, MANUAL_CHAPTERS } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { ToastStack } from './toast-stack.js';
-import { documentTitle } from '../lib/document-title.js';
+import { documentTitle, screenKeyFor } from '../lib/document-title.js';
 import { SpecTree } from './spec-tree.js';
 import { MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
@@ -161,7 +161,7 @@ export function AppShell({
   const inbox = useInbox();
   const unread = useUnreadCount();
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState<'org' | 'project' | 'user' | 'help' | null>(null);
+  const [menuOpen, setMenuOpen] = useState<'org' | 'user' | 'help' | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const sidebarStands = useMediaQuery(SIDEBAR_QUERY);
 
@@ -315,6 +315,17 @@ export function AppShell({
       ? t('shell.notifications_all_orgs')
       : t('shell.notifications_counts', { important: unreadCount, unread: unreadTotal });
 
+  const screenKey = screenKeyFor(pathname);
+  const onHelp = pathname.startsWith('/help');
+  /**
+   * 사이드바의 프로젝트 목록 — 지금 조직의 것 전부. 라우트의 프로젝트가 목록에 아직 없으면(목록을 받기 전 ·
+   * 다른 경로로 들어왔을 때) 그 하나를 앞에 세운다 — 펼칠 자리가 사라지면 탭과 트리가 함께 사라진다
+   */
+  const railProjects =
+    sidebarProject !== undefined && !projectRows.some((p) => p['slug'] === sidebarProject)
+      ? [{ slug: sidebarProject, name: currentProject?.['name'] ?? sidebarProject }, ...projectRows]
+      : projectRows;
+
   return (
     <div className="min-h-screen bg-bg text-text">
       {/* **본문으로 건너뛴다**(2026-09-25 — UI/UX 검토 SYS-X2 · REQ-WEB-224). 키보드는 매 화면 헤더 여덟 자리와
@@ -332,7 +343,7 @@ export function AppShell({
         {t('shell.skip_to_main')}
       </a>
       <header className="sticky top-0 z-30 flex h-header items-center justify-between gap-4 border-b border-border bg-bg px-2 max-md:gap-1 md:px-3">
-        <nav className="flex min-w-0 items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           {/* 좁은 화면의 내비게이션은 **서랍**이다(REQ-WEB-164). 헤더에 탭 다섯과 트리를
               둘 폭은 없고, 그렇다고 없애면 갈 길이 사라진다 — 접는 것이지 지우는 것이 아니다. */}
           <button
@@ -361,235 +372,105 @@ export function AppShell({
             </span>
             <span className="max-md:hidden">NERV</span>
           </Link>
-          {currentOrg !== null && (
-            <div className="relative" data-menu-root="org">
-              <button
-                type="button"
-                data-testid="org-switcher"
-                data-menu-trigger="org"
-                aria-haspopup="true"
-                aria-expanded={menuOpen === 'org'}
-                aria-controls="shell-menu-org"
-                // **무엇을 고르는 칸인지 이름표를 단다**(2026-09-24 · REQ-WEB-193). 두 선택기가 같은
-                // 모양이라 이름만 보고는 어느 쪽이 조직인지 알 수 없었다
-                aria-label={t('shell.org_label', { name: currentOrg.name ?? currentOrg.slug })}
-                onClick={() => setMenuOpen((open) => (open === 'org' ? null : 'org'))}
-                className={cn(HEADER_LINK, 'flex max-w-44 items-center gap-1 max-md:hidden')}
-              >
-                <span aria-hidden="true" className="text-2xs text-text-faint max-lg:hidden">
-                  {t('common.org')}
-                </span>
-                <span className="truncate">{currentOrg.name}</span>
-                <span aria-hidden="true" className="text-text-faint">
-                  ▾
-                </span>
-              </button>
-              {menuOpen === 'org' && (
-                <Popover id="shell-menu-org">
-                  {orgs.map((org) => (
-                    <Link
-                      key={org.slug}
-                      to="/o/$org"
-                      params={{ org: org.slug }}
-                      onClick={() => setMenuOpen(null)}
-                      className="block px-3 py-1.5 text-sm hover:bg-bg-hover"
-                    >
-                      {org.name}
-                    </Link>
-                  ))}
-                  {orgs.length === 1 && (
-                    <p className="px-3 py-1.5 text-xs text-text-faint">{t('shell.no_other_org')}</p>
-                  )}
-                  {/* **고르는 자리에서 만들 수도 있어야 한다.** 설정 어딘가로 찾아가게
-                      하면 "새로 만들기"는 아는 사람만 쓰는 기능이 된다 */}
-                  <Link
-                    to="/settings/workspace"
-                    onClick={() => setMenuOpen(null)}
-                    className="mt-1 block border-t border-border px-3 pt-2 pb-1.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
-                  >
-                    {t('shell.manage_workspace')}
-                  </Link>
-                </Popover>
-              )}
-            </div>
-          )}
-
-          {/* 프로젝트 select — 조직 오른쪽. **조직 → 프로젝트**가 권한의 순서이고
-              헤더가 그 순서를 그대로 보인다. 하나뿐일 때도 select 로 둔다: 예외 케이스가
-              없는 쪽이 직관적이라는 것이 사람 판단이다(2026-08-24). */}
-          {currentOrg !== null && (
-            <span aria-hidden="true" className="text-text-faint max-md:hidden">
-              /
-            </span>
-          )}
-          {currentOrg !== null && (
-            <div className="relative" data-menu-root="project">
-              <button
-                type="button"
-                data-testid="project-switcher"
-                data-menu-trigger="project"
-                aria-haspopup="true"
-                aria-expanded={menuOpen === 'project'}
-                aria-controls="shell-menu-project"
-                data-borrowed={onProjectRoute ? undefined : 'true'}
-                aria-label={
-                  onProjectRoute && currentProject !== undefined
-                    ? t('shell.project_label', { name: String(currentProject['name']) })
-                    : t('shell.project_none_label')
-                }
-                // **0개여도 연다**(2026-09-24 · REQ-WEB-205). 비활성이던 동안 "새 프로젝트" 링크가 이 드롭다운
-                // 안에만 있어서, 하필 프로젝트가 0개일 때 만들러 가는 길이 닫혀 있었다
-                onClick={() => setMenuOpen((open) => (open === 'project' ? null : 'project'))}
-                className={cn(
-                  HEADER_LINK,
-                  'flex max-w-44 items-center gap-1',
-                  // 좁은 화면에서는 조직이 서랍으로 내려가고 이 칸만 남는다 — 폭도 함께 줄인다
-                  'max-md:max-w-28',
-                )}
-              >
-                {/* 비어 있을 때는 이름표를 빼다 — "프로젝트 프로젝트 선택" 으로 같은 낱말이 두 번 읽혔다 */}
-                {onProjectRoute && (
-                  <span aria-hidden="true" className="text-2xs text-text-faint max-lg:hidden">
-                    {t('common.project')}
-                  </span>
-                )}
-                {/* **조직 범위 화면에서는 프로젝트를 빌려 보이지 않는다**(2026-09-24 사람 결정 ·
-                    REQ-WEB-193). 홈·받은 요청·알림·설정에서 마지막으로 본 프로젝트가 떠 있으면 그
-                    화면 전체가 그 프로젝트의 것처럼 읽혔다 — 받은 요청은 실제로 모든 조직에 걸친다.
-                    돌아가는 길은 드롭다운 맨 위의 "최근" 이 한 번으로 남긴다 */}
-                <span className={cn('truncate', !onProjectRoute && 'text-text-faint')}>
-                  {currentProject === undefined
-                    ? t('shell.no_project')
-                    : onProjectRoute
-                      ? String(currentProject['name'])
-                      : t('shell.pick_project')}
-                </span>
-                <span aria-hidden="true" className="text-text-faint">
-                  ▾
-                </span>
-              </button>
-              {menuOpen === 'project' && (
-                <Popover id="shell-menu-project">
-                  {!onProjectRoute && currentProject !== undefined && (
-                    <Link
-                      to="/p/$proj"
-                      params={{ proj: String(currentProject['slug']) }}
-                      data-testid="project-recent"
-                      onClick={() => setMenuOpen(null)}
-                      className="mb-1 flex items-center gap-2 border-b border-border px-3 pt-1.5 pb-2 text-sm hover:bg-bg-hover"
-                    >
-                      <span className="text-2xs text-text-faint">{t('shell.recent')}</span>
-                      <span className="truncate font-medium">{String(currentProject['name'])}</span>
-                    </Link>
-                  )}
-                  {projectRows.map((project) => (
-                    <Link
-                      key={String(project['id'])}
-                      to="/p/$proj"
-                      params={{ proj: String(project['slug']) }}
-                      onClick={() => setMenuOpen(null)}
-                      className={cn(
-                        'flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg-hover',
-                        onProjectRoute && project['slug'] === currentProjectSlug && 'font-medium',
-                      )}
-                    >
-                      {/* 고른 것에 표식을 준다 — 이름만 늘어놓으면 지금 어디인지 다시 읽어야 한다.
-                          조직 범위 화면에서는 고른 것이 없다 — 기억은 "최근" 이지 선택이 아니다 */}
-                      <span aria-hidden="true" className="w-3 text-text-faint">
-                        {onProjectRoute && project['slug'] === currentProjectSlug ? '✓' : ''}
-                      </span>
-                      <span className="truncate">{String(project['name'])}</span>
-                    </Link>
-                  ))}
-                  {projectRows.length === 1 && (
-                    <p className="px-3 py-1.5 text-xs text-text-faint">
-                      {t('shell.no_other_project')}
-                    </p>
-                  )}
-                  {projectRows.length === 0 && (
-                    <p data-testid="project-none" className="px-3 py-1.5 text-sm text-text-faint">
-                      {t('shell.no_projects_yet')}
-                    </p>
-                  )}
-                  {/* **약속한 것만 적는다**(SET-X2). 조직 admin 이 아니면 도착한 탭에서 [+ 새 프로젝트]가
-                      잠겨 있다 — "새 프로젝트" 를 약속하지 않는다. admin 은 폼이 열린 채로 도착한다 */}
-                  <Link
-                    to="/settings/workspace"
-                    search={orgAdmin ? { new: 1 } : {}}
-                    data-testid="project-new-link"
-                    onClick={() => setMenuOpen(null)}
-                    className="mt-1 block border-t border-border px-3 pt-2 pb-1.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
-                  >
-                    {orgAdmin ? t('shell.new_project') : t('shell.project_manage')}
-                  </Link>
-                </Popover>
-              )}
-            </div>
-          )}
-          <span aria-hidden="true" className="mx-1 h-4 w-px bg-border max-md:hidden" />
-          {/* **홈 링크는 두지 않는다**(2026-08-30 — 사람 지시). 로고가 이미 `/` 로 가는데
-              같은 자리로 가는 길을 둘 두면, 헤더에서 가장 비싼 왼쪽 끝을 같은 목적지가
-              두 번 차지한다. 로고를 누르면 홈이라는 것은 웹의 기본 약속이다. */}
-          {/* 프로젝트 select 오른쪽에 **그 프로젝트로 가는 길**(사람 지시 2026-08-24).
-              골라도 갈 데가 없으면 select 는 표시일 뿐이다 — 고른 프로젝트의 개요로 간다.
-              프로젝트가 없으면 자리도 없다(빈 링크를 두지 않는다). */}
-          {currentProjectSlug !== null && (
-            <Link
-              to="/p/$proj"
-              params={{ proj: currentProjectSlug }}
-              className={cn(HEADER_LINK, 'max-md:hidden')}
-              activeProps={{ className: 'bg-bg-active text-text' }}
-              /* **정확히 개요일 때만 활성이다.** 접두 일치로 두면 작업·세션 화면에서도
-                 헤더가 켜져, 사이드바의 활성 항목과 활성 표시가 둘이 된다 — 그때 사람은
-                 "지금 어디인가"를 두 곳에서 읽고 어느 쪽이 답인지 고민하게 된다. */
-              activeOptions={{ exact: true }}
-            >
-              {t('shell.nav.project')}
-            </Link>
-          )}
-          {/* **숫자는 좁은 화면에서도 헤더에 남는다**(REQ-WEB-164). 서랍으로 내리면 열어
-              봐야 아는 숫자가 되는데, 배지의 전부는 열기 전에 보인다는 것이다 — 글자만
-              접고 글리프의 어깨에 그대로 붙인다(`aria-label` 이 이름을 대신 든다). */}
-          {/* 배지는 **모든 조직**을 센다(2026-09-24 사람 결정 · REQ-WEB-193) — 조직 선택기 바로 옆에
-              있어 지금 조직의 수로 읽히므로, 이름이 그 사실을 말한다 */}
-          <Link
-            to="/inbox"
-            aria-label={t('shell.inbox_all_orgs')}
-            title={t('shell.inbox_all_orgs')}
-            className={cn(HEADER_LINK, 'relative flex shrink-0 items-center', ICON_BUTTON)}
-            activeProps={{ className: 'bg-bg-active text-text' }}
+          {/* **헤더는 "어디" 를 말한다**(2026-09-25 사람 결정 D1 — 상시 사이드바 · REQ-WEB-225). 조직▾ / 프로젝트▾
+              선택기와 [프로젝트] 링크는 사이드바로 내려갔다 — 헤더에는 지금 자리(조직 › 프로젝트 › 화면)만 남는다.
+              같은 곳을 가리키는 [프로젝트] 링크와 사이드바 [개요]가 함께 켜지던 자리다(NAV-05) */}
+          <nav
+            aria-label={t('shell.breadcrumb')}
+            data-testid="breadcrumb"
+            className="ml-1 flex min-w-0 items-center gap-1 text-sm max-md:ml-0"
           >
-            <span aria-hidden="true" className="md:hidden">
-              <Glyph d={GLYPH_INBOX} />
-            </span>
-            <span className="max-md:hidden">{t('shell.inbox')}</span>
-            <CountBadge
-              count={pending}
-              tone="action"
-              testId="inbox-badge"
-              className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[9px]"
-            />
-          </Link>
-          <Link
-            to="/notifications"
-            aria-label={notificationsTitle}
-            title={notificationsTitle}
-            className={cn(HEADER_LINK, 'relative flex shrink-0 items-center', ICON_BUTTON)}
-            activeProps={{ className: 'bg-bg-active text-text' }}
-          >
-            <span aria-hidden="true" className="md:hidden">
-              <Glyph d={GLYPH_BELL} />
-            </span>
-            <span className="max-md:hidden">{t('shell.notifications')}</span>
-            <CountBadge
-              count={unreadCount}
-              tone="waiting"
-              testId="notification-badge"
-              className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[9px]"
-            />
-          </Link>
-        </nav>
+            {/* 조직은 **글자**다 — 헤더에서 `/` 로 가는 길은 로고 하나다(2026-08-30 · 같은 목적지를 두 번 두지 않는다) */}
+            {currentOrg !== null && (
+              <span
+                data-testid="crumb-org"
+                className="max-w-40 truncate rounded-nerv-sm px-1 text-text-mute max-md:hidden"
+              >
+                {currentOrg.name ?? currentOrg.slug}
+              </span>
+            )}
+            {sidebarProject !== undefined && (
+              <>
+                <span aria-hidden="true" className="text-text-ghost max-md:hidden">
+                  /
+                </span>
+                <Link
+                  to="/p/$proj"
+                  params={{ proj: sidebarProject }}
+                  data-testid="crumb-project"
+                  className="max-w-44 truncate rounded-nerv-sm px-1 text-text-mute hover:text-text"
+                >
+                  {String(currentProject?.['name'] ?? sidebarProject)}
+                </Link>
+              </>
+            )}
+            {screenKey !== null && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className={cn('text-text-ghost', sidebarProject === undefined && 'max-md:hidden')}
+                >
+                  /
+                </span>
+                <span
+                  aria-current="page"
+                  data-testid="crumb-screen"
+                  className="truncate px-1 font-medium text-text"
+                >
+                  {t(screenKey)}
+                </span>
+              </>
+            )}
+          </nav>
+        </div>
         <div className="flex shrink-0 items-center gap-2 max-md:gap-0.5">
+          {/* **좁은 화면에서만** 받은 요청·알림이 헤더에 선다(REQ-WEB-164 — 숫자는 열기 전에 보인다). 넓으면
+              사이드바의 전역 구역이 그 자리다 — 두 곳에 같은 수가 서지 않는다 */}
+          {!sidebarStands && (
+            <>
+              {/* **숫자는 좁은 화면에서도 헤더에 남는다**(REQ-WEB-164). 서랍으로 내리면 열어
+                  봐야 아는 숫자가 되는데, 배지의 전부는 열기 전에 보인다는 것이다 — 글자만
+                  접고 글리프의 어깨에 그대로 붙인다(`aria-label` 이 이름을 대신 든다). */}
+              {/* 배지는 **모든 조직**을 센다(2026-09-24 사람 결정 · REQ-WEB-193) — 조직 선택기 바로 옆에
+                  있어 지금 조직의 수로 읽히므로, 이름이 그 사실을 말한다 */}
+              <Link
+                to="/inbox"
+                aria-label={t('shell.inbox_all_orgs')}
+                title={t('shell.inbox_all_orgs')}
+                className={cn(HEADER_LINK, 'relative flex shrink-0 items-center', ICON_BUTTON)}
+                activeProps={{ className: 'bg-bg-active text-text' }}
+              >
+                <span aria-hidden="true" className="md:hidden">
+                  <Glyph d={GLYPH_INBOX} />
+                </span>
+                <span className="max-md:hidden">{t('shell.inbox')}</span>
+                <CountBadge
+                  count={pending}
+                  tone="action"
+                  testId="inbox-badge"
+                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[9px]"
+                />
+              </Link>
+              <Link
+                to="/notifications"
+                aria-label={notificationsTitle}
+                title={notificationsTitle}
+                className={cn(HEADER_LINK, 'relative flex shrink-0 items-center', ICON_BUTTON)}
+                activeProps={{ className: 'bg-bg-active text-text' }}
+              >
+                <span aria-hidden="true" className="md:hidden">
+                  <Glyph d={GLYPH_BELL} />
+                </span>
+                <span className="max-md:hidden">{t('shell.notifications')}</span>
+                <CountBadge
+                  count={unreadCount}
+                  tone="waiting"
+                  testId="notification-badge"
+                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[9px]"
+                />
+              </Link>
+            </>
+          )}
           {/* 검색은 버튼이지만 **입력창처럼 보인다** — 여기에 타이핑하면 된다는 것이
               모양으로 읽혀야 ⌘K 를 모르는 사람도 찾는다 */}
           <button
@@ -807,12 +688,11 @@ export function AppShell({
       )}
 
       <div className="flex">
-        {/* 시안의 사이드바는 본문보다 **아주 조금만** 가라앉는다. `bg-bg-sunken` 은
-            대비가 커서 사이드바가 하나의 패널로 떠 보이는데, 이 화면들에서 사이드바는
-            패널이 아니라 여백에 가깝다(시안 대조 2026-08-23) */}
-        {/* **같은 것이 두 모양으로 선다**(REQ-WEB-164) — `md` 부터는 제자리에 붙박인
-            사이드바, 그 아래에서는 [☰] 가 여는 서랍이다. 두 벌을 그리지 않으므로 트리의
-            펼침 상태도, 스크롤 위치도 하나뿐이다. */}
+        {/* **왼쪽 열은 모든 화면에서 같다**(2026-09-25 사람 결정 D1 · REQ-WEB-225). 프로젝트 화면에서는 탭과
+            트리, 홈·받은 요청·알림·설정에서는 열이 통째로 사라져 본문이 가운데로 뛰고, 도움말에서는 같은 폭의
+            다른 열(차례)이 섰다 — 세 모양이었다(NAV-06). 이제 조직 · 전역 · 프로젝트 · 설정·도움말이 늘 같은
+            자리에 있고, 펼쳐지는 것은 라우트가 정한다: 프로젝트 화면이면 그 프로젝트, 도움말이면 차례.
+            좁은 화면에서는 같은 한 벌이 서랍이다(REQ-WEB-164). */}
         <aside
           id={NAV_ID}
           data-testid="nav-rail"
@@ -823,18 +703,12 @@ export function AppShell({
             if ((e.target as HTMLElement).closest('a') !== null) setDrawerOpen(false);
           }}
           className={cn(
-            'flex-col overflow-hidden border-border px-2 py-3',
+            'flex-col overflow-y-auto border-border px-2 py-3',
             'fixed top-header right-auto bottom-0 left-0 z-40 w-[17.5rem] max-w-[86vw] border-r bg-bg shadow-popover',
             drawerOpen ? 'flex' : 'hidden',
-            sidebarProject === undefined
-              ? // 프로젝트 밖(홈·받은 요청·설정)에서는 넓은 화면에 사이드바가 없다.
-                // 좁은 화면의 서랍은 그때도 남는다 — 조직과 도움말이 거기 있다.
-                'md:hidden'
-              : 'md:sticky md:top-header md:bottom-auto md:z-auto md:flex md:h-[calc(100vh-var(--spacing-header))] md:w-sidebar md:max-w-none md:shrink-0 md:bg-bg-sunken/40 md:shadow-none',
+            'md:sticky md:top-header md:bottom-auto md:z-auto md:flex md:h-[calc(100vh-var(--spacing-header))] md:w-sidebar md:max-w-none md:shrink-0 md:bg-bg-sunken/40 md:shadow-none',
           )}
         >
-          {/* 서랍 머리 — 닫는 길이 서랍 **안에도** 있어야 한다. 뒷막만으로는 닫을 수
-              있다는 것을 아무도 모른다. */}
           {drawerOpen && (
             <div className="flex items-center justify-between px-2 pb-1 md:hidden">
               <p className={RAIL_LABEL}>{t('shell.menu')}</p>
@@ -850,161 +724,329 @@ export function AppShell({
             </div>
           )}
 
-          {/* 조직 — 좁은 화면에서 헤더가 내준 자리가 여기다. **서랍이 열렸을 때만** 그린다:
-              넓은 화면의 DOM 에 같은 링크가 한 벌 더 남으면 접근성 트리와 테스트가 둘을 본다. */}
-          {drawerOpen && currentOrg !== null && (
-            <div className="border-b border-border px-2 pb-2.5 md:hidden">
-              <p className={RAIL_LABEL}>{t('shell.org')}</p>
-              <div className="mt-1 flex flex-col gap-0.5">
-                {orgs.map((org) => (
+          {/* 조직 — 전환기가 열의 머리다. 헤더에 있던 동안 받은 요청·알림 배지가 그 바로 옆이라 "지금 조직의 수" 로
+              읽혔다(배지는 모든 조직을 센다 — REQ-WEB-193) */}
+          {currentOrg !== null && (
+            <div className="relative shrink-0 pb-2" data-menu-root="org">
+              <button
+                type="button"
+                data-testid="org-switcher"
+                data-menu-trigger="org"
+                aria-haspopup="true"
+                aria-expanded={menuOpen === 'org'}
+                aria-controls="shell-menu-org"
+                aria-label={t('shell.org_label', { name: currentOrg.name ?? currentOrg.slug })}
+                onClick={() => setMenuOpen((open) => (open === 'org' ? null : 'org'))}
+                className="flex w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-text text-[10px] font-bold text-bg uppercase"
+                >
+                  {(currentOrg.name ?? currentOrg.slug).slice(0, 1)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span aria-hidden="true" className="block text-2xs text-text-faint">
+                    {t('common.org')}
+                  </span>
+                  <span className="block truncate text-sm font-semibold">{currentOrg.name}</span>
+                </span>
+                <span aria-hidden="true" className="text-text-faint">
+                  ▾
+                </span>
+              </button>
+              {menuOpen === 'org' && (
+                <Popover id="shell-menu-org" className="right-0">
+                  {orgs.map((org) => (
+                    <Link
+                      key={org.slug}
+                      to="/o/$org"
+                      params={{ org: org.slug }}
+                      onClick={() => setMenuOpen(null)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg-hover"
+                    >
+                      <span aria-hidden="true" className="w-3 shrink-0 text-text-faint">
+                        {org.slug === currentOrg.slug ? '✓' : ''}
+                      </span>
+                      <span className="truncate">{org.name}</span>
+                    </Link>
+                  ))}
+                  {orgs.length === 1 && (
+                    <p className="px-3 py-1.5 text-xs text-text-faint">{t('shell.no_other_org')}</p>
+                  )}
+                  {/* **고르는 자리에서 만들 수도 있어야 한다** — 설정 어딘가로 찾아가게 하면 "새로 만들기" 는
+                      아는 사람만 쓰는 기능이 된다 */}
                   <Link
-                    key={org.slug}
-                    to="/o/$org"
-                    params={{ org: org.slug }}
-                    className={cn(NAV_ITEM, org.slug === currentOrg.slug && NAV_ACTIVE)}
+                    to="/settings/workspace"
+                    onClick={() => setMenuOpen(null)}
+                    className="mt-1 block border-t border-border px-3 pt-2 pb-1.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
                   >
-                    <span aria-hidden="true" className="w-3 shrink-0 text-text-faint">
-                      {org.slug === currentOrg.slug ? '✓' : ''}
-                    </span>
-                    <span className="flex-1 truncate">{org.name}</span>
+                    {t('shell.manage_workspace')}
+                  </Link>
+                </Popover>
+              )}
+            </div>
+          )}
+
+          {/* 전역 — 조직을 가로지르는 자리들이다(받은 요청·알림은 모든 조직을 센다) */}
+          <nav aria-label={t('shell.nav.global')} className="flex shrink-0 flex-col gap-0.5">
+            <Link
+              to="/"
+              data-testid="rail-home"
+              className={NAV_ITEM}
+              activeProps={{ className: NAV_ACTIVE }}
+              activeOptions={{ exact: true }}
+            >
+              <span aria-hidden="true" className={NAV_GLYPH}>
+                ⌂
+              </span>
+              <span className="flex-1">{t('shell.home')}</span>
+            </Link>
+            <Link
+              to="/inbox"
+              data-testid="rail-inbox"
+              title={t('shell.inbox_all_orgs')}
+              className={NAV_ITEM}
+              activeProps={{ className: NAV_ACTIVE }}
+            >
+              <span aria-hidden="true" className={NAV_GLYPH}>
+                <Glyph d={GLYPH_INBOX} size={13} />
+              </span>
+              <span className="flex-1">{t('shell.inbox')}</span>
+              <CountBadge count={pending} tone="action" testId="rail-inbox-badge" />
+            </Link>
+            <Link
+              to="/notifications"
+              data-testid="rail-notifications"
+              title={notificationsTitle}
+              className={NAV_ITEM}
+              activeProps={{ className: NAV_ACTIVE }}
+            >
+              <span aria-hidden="true" className={NAV_GLYPH}>
+                <Glyph d={GLYPH_BELL} size={13} />
+              </span>
+              <span className="flex-1">{t('shell.notifications')}</span>
+              <CountBadge count={unreadCount} tone="waiting" testId="rail-notification-badge" />
+            </Link>
+          </nav>
+
+          {/* 프로젝트 — 지금 조직의 것이 다 서고, **라우트의 프로젝트만 펼친다**. 조직 범위 화면에서는 아무것도
+              펼치지 않는다 — 기억한 프로젝트는 "최근" 표식일 뿐 선택이 아니다(REQ-WEB-193 의 목적을 구조가 지킨다) */}
+          {/* 조직을 몰라도(목록을 받기 전) **라우트의 프로젝트는 선다** — 탭과 트리가 그 조회를 기다리면 안 된다 */}
+          {(currentOrg !== null || sidebarProject !== undefined) && (
+            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+              <p className={cn(RAIL_LABEL, 'px-2 pb-1')}>{t('common.project')}</p>
+              {/* 늘어나는 것은 **펼친 프로젝트가 있을 때만**이다 — 트리가 남은 높이를 받아 제 안에서 흐른다. 펼친 것이
+                  없는데 늘어나면 [프로젝트 관리]가 목록에서 떨어져 열 바닥에 붙는다 */}
+              <ul
+                className={cn(
+                  'flex min-h-0 flex-col gap-0.5',
+                  sidebarProject !== undefined && 'flex-1',
+                )}
+              >
+                {railProjects.map((project) => {
+                  const slug = String(project['slug']);
+                  const name = String(project['name'] ?? slug);
+                  if (slug !== sidebarProject)
+                    return (
+                      <li key={slug}>
+                        <Link
+                          to="/p/$proj"
+                          params={{ proj: slug }}
+                          data-testid={`rail-project-${slug}`}
+                          className={NAV_ITEM}
+                        >
+                          <span aria-hidden="true" className={NAV_GLYPH}>
+                            ▸
+                          </span>
+                          <span className="flex-1 truncate">{name}</span>
+                          {!onProjectRoute && slug === currentProjectSlug && (
+                            <span
+                              data-testid="project-recent"
+                              className="shrink-0 text-2xs text-text-faint"
+                            >
+                              {t('shell.recent')}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  return (
+                    <li key={slug} className="flex min-h-0 flex-1 flex-col">
+                      {/* 프로젝트 이름이 **그 프로젝트로 가는 링크**다(NAV-05) — 활성 표시는 아래의 [개요] 하나다 */}
+                      <Link
+                        to="/p/$proj"
+                        params={{ proj: slug }}
+                        data-testid="rail-project-current"
+                        aria-label={t('shell.project_label', { name })}
+                        className={cn(NAV_ITEM, 'font-semibold text-text')}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-status-done text-[9px] font-bold text-white uppercase"
+                        >
+                          {slug.slice(0, 1)}
+                        </span>
+                        <span className="flex-1 truncate">{name}</span>
+                      </Link>
+                      <nav
+                        aria-label={t('shell.nav.project')}
+                        className="mt-0.5 ml-2 flex flex-col gap-0.5 border-l border-border pl-1.5"
+                      >
+                        <Link
+                          to="/p/$proj"
+                          params={{ proj: sidebarProject }}
+                          className={NAV_ITEM}
+                          activeProps={{ className: NAV_ACTIVE }}
+                          activeOptions={{ exact: true }}
+                        >
+                          <span aria-hidden="true" className={NAV_GLYPH}>
+                            ◇
+                          </span>
+                          <span className="flex-1">{t('shell.nav.overview')}</span>
+                        </Link>
+                        <Link
+                          to="/p/$proj/specs"
+                          params={{ proj: sidebarProject }}
+                          className={NAV_ITEM}
+                          activeProps={{ className: NAV_ACTIVE }}
+                        >
+                          <span aria-hidden="true" className={NAV_GLYPH}>
+                            ▤
+                          </span>
+                          <span className="flex-1">{t('shell.nav.specs')}</span>
+                        </Link>
+                        <Link
+                          to="/p/$proj/tasks"
+                          params={{ proj: sidebarProject }}
+                          className={NAV_ITEM}
+                          activeProps={{ className: NAV_ACTIVE }}
+                        >
+                          <span aria-hidden="true" className={NAV_GLYPH}>
+                            ◫
+                          </span>
+                          <span className="flex-1">{t('shell.nav.tasks')}</span>
+                        </Link>
+                        <Link
+                          to="/p/$proj/sessions"
+                          params={{ proj: sidebarProject }}
+                          className={NAV_ITEM}
+                          activeProps={{ className: NAV_ACTIVE }}
+                        >
+                          <span aria-hidden="true" className={NAV_GLYPH}>
+                            ◉
+                          </span>
+                          <span className="flex-1">{t('shell.nav.sessions')}</span>
+                          {/* **지금 몇 개가 돌고 있나**를 사이드바가 말한다 — 세션 화면에 들어가야
+                              아는 숫자면 그 화면을 열기 전에는 아무도 모른다(시안 대조) */}
+                          <CountBadge count={activeSessions} tone="agent" />
+                        </Link>
+                        {/* 리뷰 탭은 Phase 2 였고 2026-08-23 에 열렸다(screens.md §2.6a).
+                            배지는 **열린 critical** — 세션 건수와 같은 이유다: 화면에 들어가야
+                            아는 숫자면 그 화면을 열기 전에는 아무도 모른다 */}
+                        <Link
+                          to="/p/$proj/reviews"
+                          params={{ proj: sidebarProject }}
+                          className={NAV_ITEM}
+                          activeProps={{ className: NAV_ACTIVE }}
+                        >
+                          <span aria-hidden="true" className={NAV_GLYPH}>
+                            ◈
+                          </span>
+                          <span className="flex-1">{t('shell.nav.review')}</span>
+                          <CountBadge count={openCritical} tone="danger" />
+                        </Link>
+                      </nav>
+                      {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3). 쿼리 키는 UUID 축이다 */}
+                      <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-border pt-3">
+                        <SpecTree
+                          projectSlug={sidebarProject}
+                          projectId={asProjectId(shellProject.data?.['id'])}
+                          variant="rail"
+                          activeKey={activeSpecKey}
+                          heading={t('shell.spec_tree')}
+                          baseline={viewBaseline}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {scope.projectsLoaded && projectRows.length === 0 && (
+                <p data-testid="project-none" className="px-2 py-1 text-sm text-text-faint">
+                  {t('shell.no_projects_yet')}
+                </p>
+              )}
+              {/* **약속한 것만 적는다**(SET-X2). 조직 admin 이 아니면 도착한 탭에서 [+ 새 프로젝트]가 잠겨 있다 */}
+              {currentOrg !== null && (
+                <Link
+                  to="/settings/workspace"
+                  search={orgAdmin ? { new: 1 } : {}}
+                  data-testid="project-new-link"
+                  className="mt-1 shrink-0 px-2 py-1 text-xs text-text-faint hover:text-text"
+                >
+                  {orgAdmin ? t('shell.new_project') : t('shell.project_manage')}
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* 설정 · 도움말 — 열의 바닥. 도움말에 있으면 **차례가 여기 펼쳐진다**(도움말의 둘째 열을 걷었다 —
+              좁은 화면의 서랍에도 차례가 선다 · NAV-14) */}
+          <div className="mt-3 shrink-0 border-t border-border pt-2">
+            <Link
+              to="/settings"
+              data-testid="rail-settings"
+              className={NAV_ITEM}
+              activeProps={{ className: NAV_ACTIVE }}
+            >
+              <span aria-hidden="true" className={NAV_GLYPH}>
+                ⚙
+              </span>
+              <span className="flex-1">{t('shell.settings')}</span>
+            </Link>
+            <Link
+              to="/help"
+              data-testid="rail-help"
+              className={NAV_ITEM}
+              activeProps={{ className: NAV_ACTIVE }}
+            >
+              <span aria-hidden="true" className={NAV_GLYPH}>
+                ?
+              </span>
+              <span className="flex-1">{t('shell.help')}</span>
+            </Link>
+            {onHelp ? (
+              <nav
+                data-testid="manual-toc"
+                aria-label={t('help.title')}
+                className="mt-0.5 ml-2 flex flex-col gap-0.5 border-l border-border pl-1.5"
+              >
+                {MANUAL_CHAPTERS.map((chapter) => (
+                  <Link
+                    key={chapter.id}
+                    to="/help/$chapter"
+                    params={{ chapter: chapter.id }}
+                    className={NAV_ITEM}
+                    activeProps={{ className: NAV_ACTIVE }}
+                  >
+                    <span className="flex-1 truncate">{t(chapter.titleKey)}</span>
                   </Link>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {sidebarProject !== undefined && (
-            <>
-              <div className="px-2 pb-2.5">
-                <p className={RAIL_LABEL}>{t('common.project')}</p>
-                {/* 프로젝트에도 표식을 준다 — 이름만 있으면 어느 프로젝트인지 **읽어야** 안다 */}
-                <p className="mt-1 flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-status-done text-[9px] font-bold text-white uppercase"
-                  >
-                    {sidebarProject.slice(0, 1)}
-                  </span>
-                  {/* 헤더와 **같은 글자**로 — 사이드바는 slug, 헤더는 이름이라 같은 프로젝트가 두
-                      이름으로 불렸다(REQ-WEB-193) */}
-                  <span className="truncate text-base font-semibold tracking-[-0.01em]">
-                    {String(currentProject?.['name'] ?? sidebarProject)}
-                  </span>
-                </p>
-              </div>
-              <nav className="mt-3 flex flex-col gap-0.5">
-                <Link
-                  to="/p/$proj"
-                  params={{ proj: sidebarProject }}
-                  className={NAV_ITEM}
-                  activeProps={{ className: NAV_ACTIVE }}
-                  activeOptions={{ exact: true }}
-                >
-                  <span aria-hidden="true" className={NAV_GLYPH}>
-                    ◇
-                  </span>
-                  <span className="flex-1">{t('shell.nav.overview')}</span>
-                </Link>
-                <Link
-                  to="/p/$proj/specs"
-                  params={{ proj: sidebarProject }}
-                  className={NAV_ITEM}
-                  activeProps={{ className: NAV_ACTIVE }}
-                >
-                  <span aria-hidden="true" className={NAV_GLYPH}>
-                    ▤
-                  </span>
-                  <span className="flex-1">{t('shell.nav.specs')}</span>
-                </Link>
-                <Link
-                  to="/p/$proj/tasks"
-                  params={{ proj: sidebarProject }}
-                  className={NAV_ITEM}
-                  activeProps={{ className: NAV_ACTIVE }}
-                >
-                  <span aria-hidden="true" className={NAV_GLYPH}>
-                    ◫
-                  </span>
-                  <span className="flex-1">{t('shell.nav.tasks')}</span>
-                </Link>
-                <Link
-                  to="/p/$proj/sessions"
-                  params={{ proj: sidebarProject }}
-                  className={NAV_ITEM}
-                  activeProps={{ className: NAV_ACTIVE }}
-                >
-                  <span aria-hidden="true" className={NAV_GLYPH}>
-                    ◉
-                  </span>
-                  <span className="flex-1">{t('shell.nav.sessions')}</span>
-                  {/* **지금 몇 개가 돌고 있나**를 사이드바가 말한다 — 세션 화면에 들어가야
-                    아는 숫자면 그 화면을 열기 전에는 아무도 모른다(시안 대조) */}
-                  <CountBadge count={activeSessions} tone="agent" />
-                </Link>
-                {/* 리뷰 탭은 Phase 2 였고 2026-08-23 에 열렸다(screens.md §2.6a).
-                  배지는 **열린 critical** — 세션 건수와 같은 이유다: 화면에 들어가야
-                  아는 숫자면 그 화면을 열기 전에는 아무도 모른다 */}
-                <Link
-                  to="/p/$proj/reviews"
-                  params={{ proj: sidebarProject }}
-                  className={NAV_ITEM}
-                  activeProps={{ className: NAV_ACTIVE }}
-                >
-                  <span aria-hidden="true" className={NAV_GLYPH}>
-                    ◈
-                  </span>
-                  <span className="flex-1">{t('shell.nav.review')}</span>
-                  <CountBadge count={openCritical} tone="danger" />
-                </Link>
               </nav>
-              {/* 트리는 S3 좌측 트리와 같은 컴포넌트다 — 스크롤 위치를 공유한다(§1.3).
-                `projectId` 를 함께 넘겨 쿼리 키를 **UUID 축**으로 맞춘다: 이벤트 무효화는
-                project_id(UUID)로 오는데 여기서 slug 로 키를 만들면 같은 컴포넌트인데도
-                사이드바만 갱신되지 않는다(실측 2026-08-29). */}
-              {/* **트리가 제 상자 안에서 스크롤한다**(2026-08-30). 전부 펼치면 141줄이라
-                사이드바 전체가 스크롤되면 프로젝트 이름·메뉴까지 화면 밖으로 밀린다 —
-                늘 있어야 하는 것이 사라지면 그건 네비게이션이 아니다. */}
-              <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-border pt-3">
-                <SpecTree
-                  projectSlug={sidebarProject}
-                  projectId={asProjectId(shellProject.data?.['id'])}
-                  variant="rail"
-                  activeKey={activeSpecKey}
-                  heading={t('shell.spec_tree')}
-                  baseline={viewBaseline}
-                />
-              </div>
-            </>
-          )}
-
-          {/* 도움말 — 헤더의 `?` 가 좁은 화면에서 내려오는 자리다. 트리가 남은 세로를
-              가져가므로 이 구역은 서랍 바닥에 붙어 선다. */}
-          {drawerOpen && (
-            <div className="mt-3 border-t border-border px-2 pt-2 md:hidden">
-              <p className={RAIL_LABEL}>{t('shell.help')}</p>
-              <div className="mt-1 flex flex-col gap-0.5">
-                {contextChapter !== null && (
-                  <Link
-                    to="/help/$chapter"
-                    params={{ chapter: contextChapter }}
-                    data-testid="drawer-help-this-screen"
-                    className={NAV_ITEM}
-                  >
-                    <span aria-hidden="true" className={NAV_GLYPH}>
-                      ?
-                    </span>
-                    <span className="flex-1">{t('help.this_screen')}</span>
-                  </Link>
-                )}
-                <Link to="/help" className={NAV_ITEM}>
-                  <span aria-hidden="true" className={NAV_GLYPH}>
-                    ▤
-                  </span>
-                  <span className="flex-1">{t('help.title')}</span>
+            ) : (
+              contextChapter !== null && (
+                <Link
+                  to="/help/$chapter"
+                  params={{ chapter: contextChapter }}
+                  data-testid="drawer-help-this-screen"
+                  className={cn(NAV_ITEM, 'ml-2')}
+                >
+                  <span className="flex-1 truncate text-sm">{t('help.this_screen')}</span>
                 </Link>
-              </div>
-            </div>
-          )}
+              )
+            )}
+          </div>
         </aside>
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
           {children}

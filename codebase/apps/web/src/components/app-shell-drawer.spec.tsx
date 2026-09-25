@@ -12,7 +12,7 @@
 import { LocaleProvider } from '../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
@@ -149,8 +149,11 @@ describe('좁은 화면의 셸 서랍 (REQ-WEB-164)', () => {
     const rail = await openDrawer();
     expect(rail.textContent).toContain('조직');
     expect(rail.textContent).toContain('도움말');
-    // 프로젝트가 없으면 탭도 트리도 없다 — 빈 칸을 그리지 않는다
-    expect(rail.querySelector('nav')).toBeNull();
+    // 전역 자리(홈·받은 요청·알림)는 어느 화면에서나 같은 자리에 있다(2026-09-25 D1 · REQ-WEB-225)
+    expect(within(rail).getByRole('navigation', { name: '전역 메뉴' })).toBeDefined();
+    // 라우트에 프로젝트가 없으면 어느 프로젝트도 펼치지 않는다 — 탭도 트리도 없다
+    await waitFor(() => expect(within(rail).getByTestId('rail-project-clemvion')).toBeDefined());
+    expect(within(rail).queryByRole('navigation', { name: '프로젝트' })).toBeNull();
     expect(screen.queryByText('스펙 트리')).toBeNull();
   });
 });

@@ -8,7 +8,7 @@
 // 본 프로젝트도 조직과 무관한 키 하나라, 두 조직에 같은 slug 가 있으면 옛 것이 그대로 골라졌다.
 // 이 파일은 셸을 **다시 마운트하지 않고** 라우터만 움직여 그 상황을 그대로 만든다.
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -88,26 +88,23 @@ function mount(path: string) {
 }
 
 const orgButton = () => screen.getByTestId('org-switcher');
-const projectButton = () => screen.getByTestId('project-switcher');
+const currentProject = () => screen.getByTestId('rail-project-current');
 
 /**
- * 조직 범위 화면(`/`)에서 기억된 프로젝트 — **헤더 칸이 아니라 드롭다운의 "최근"** 이다
- * (2026-09-24 사람 결정 · REQ-WEB-193: 조직 범위 화면에서는 프로젝트를 빌려 보이지 않는다).
+ * 조직 범위 화면(`/`)에서 기억된 프로젝트 — **펼친 프로젝트가 아니라 사이드바 목록의 "최근"** 이다
+ * (2026-09-24 사람 결정 · REQ-WEB-193 → 2026-09-25 D1 · REQ-WEB-225: 조직 범위 화면에서는 어떤
+ * 프로젝트도 펼치지 않는다).
  */
 async function recentProject(): Promise<string> {
-  await waitFor(() => expect((projectButton() as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(projectButton());
-  const recent = (await screen.findByTestId('project-recent')).textContent ?? '';
-  fireEvent.mouseDown(document.body);
-  await waitFor(() => expect(screen.queryByTestId('project-recent')).toBeNull());
-  return recent;
+  const recent = await screen.findByTestId('project-recent');
+  return recent.closest('a')?.textContent ?? '';
 }
 
-describe('조직을 바꾸면 헤더가 따라온다 (REQ-WEB-190)', () => {
+describe('조직을 바꾸면 셸이 따라온다 (REQ-WEB-190)', () => {
   it('셸을 다시 그리지 않아도 조직과 프로젝트가 새 조직의 것이 된다', async () => {
     localStorage.setItem('nerv.last-org', 'nerv');
     const router = mount('/p/shared/tasks');
-    await waitFor(() => expect(projectButton().textContent).toContain('NERV 공용'));
+    await waitFor(() => expect(currentProject().textContent).toContain('NERV 공용'));
 
     await act(() => router.navigate({ to: '/o/$org', params: { org: 'acme' } }));
 

@@ -31,7 +31,7 @@ Inside the panel `Tab` cycles between the input and the ☆ buttons and does not
 
 **The first `Tab` shows "Skip to main content"** — press `Enter` to skip the header and sidebar and start in the page itself.
 
-**Header menus** (organization · project · help · user) move to their first item when opened. `Esc` closes them and returns you to the button that opened them; tabbing out of a menu closes it.
+**Menus** (organization in the left column · help and user in the header) move to their first item when opened. `Esc` closes them and returns you to the button that opened them; tabbing out of a menu closes it.
 
 **The spec tree is a single `Tab` stop** — once inside, move with keys. The expand buttons do not take `Tab`.
 

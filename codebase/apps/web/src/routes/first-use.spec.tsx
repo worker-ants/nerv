@@ -205,12 +205,13 @@ describe('프로젝트가 0개인 홈', () => {
   });
 });
 
-describe('헤더 프로젝트 선택기', () => {
-  it('0개여도 열린다 — "아직 프로젝트가 없습니다" 와 폼이 열린 채 가는 링크(조직 admin)', async () => {
+describe('사이드바의 프로젝트 목록 (2026-09-25 D1 · REQ-WEB-225)', () => {
+  // 헤더 선택기는 0개면 잠겨 "새 프로젝트" 링크에 닿을 수 없었다 — 목록은 열고 닫는 것이 아니라 늘 서 있다
+  it('0개여도 선다 — "아직 프로젝트가 없습니다" 와 폼이 열린 채 가는 링크(조직 admin)', async () => {
     renderAt('/');
-    fireEvent.click(await screen.findByTestId('project-switcher'));
-    expect(await screen.findByTestId('project-none')).toBeTruthy();
-    const link = screen.getByTestId('project-new-link');
+    const rail = await screen.findByTestId('nav-rail');
+    expect(await within(rail).findByTestId('project-none')).toBeTruthy();
+    const link = within(rail).getByTestId('project-new-link');
     expect(link.textContent).toBe('프로젝트 관리 · 새 프로젝트');
     expect(link.getAttribute('href')).toBe('/settings/workspace?new=1');
   });
@@ -218,9 +219,9 @@ describe('헤더 프로젝트 선택기', () => {
   it('조직 admin 이 아니면 "새 프로젝트" 를 약속하지 않는다', async () => {
     world.memberships = ORG_VIEWER;
     renderAt('/');
-    fireEvent.click(await screen.findByTestId('project-switcher'));
-    const link = await screen.findByTestId('project-new-link');
-    expect(link.textContent).toBe('프로젝트 관리');
+    const rail = await screen.findByTestId('nav-rail');
+    const link = await within(rail).findByTestId('project-new-link');
+    await waitFor(() => expect(link.textContent).toBe('프로젝트 관리'));
     expect(link.getAttribute('href')).toBe('/settings/workspace');
   });
 });

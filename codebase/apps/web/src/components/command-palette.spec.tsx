@@ -123,9 +123,10 @@ describe('프로젝트 밖에서도 화면·프로젝트로 간다 (NAV-11)', ()
 
   it('다른 프로젝트 이름을 치면 그 프로젝트로 간다', async () => {
     const history = renderAt('/inbox');
-    await openPalette();
+    const palette = await openPalette();
     type('sudoku');
-    fireEvent.click(await screen.findByText('Sudoku'));
+    // 사이드바의 프로젝트 목록에도 같은 이름이 있다 — 창 안의 것을 누른다
+    fireEvent.click(await within(palette).findByText('Sudoku'));
     await waitFor(() => expect(history.location.pathname).toBe('/p/sudoku'));
   });
 

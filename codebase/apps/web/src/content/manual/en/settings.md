@@ -2,9 +2,9 @@ Settings has four tabs: **Organization & projects, Members, Tokens and Gate poli
 
 ## Organization & projects
 
-Of the two header selects, it is the **project** you create, rename and put away here.
+Of the organization and projects in the left column, it is the **project** you create, rename and put away here.
 
-**The organization this tab acts on is the one picked in the header.** With more than one organization, switching it in the header is what switches what this tab edits — a screen that points at two organizations at once leaves you unsure which one you just renamed.
+**The organization this tab acts on is the one picked at the top of the left column.** With more than one organization, switching it there is what switches what this tab edits — a screen that points at two organizations at once leaves you unsure which one you just renamed.
 
 **Creating, editing and putting away are `admin` work, and which admin depends on what you change.** Renaming or deleting the organization and [New project] are for **organization admins** (people whose organization-wide role is admin) only. Editing or archiving a project row is for organization admins and **that project's admins** — a project admin sees only their own project's row unlocked, with the organization name and other projects locked. With admin nowhere, the [Show archived] toggle is not shown either. [New project] stays **visible but locked** for anyone who is not an organization admin, and the note at the top of the tab **names the organization admins to ask**.
 
@@ -22,7 +22,7 @@ Of the two header selects, it is the **project** you create, rename and put away
 
 Only an `admin` sends invitations — every other role sees **[+ Invite] locked**. **Inviting to the whole organization is for organization admins only**; a project's admin can invite to that project only.
 
-Under **Invitations** on the Members tab, pick an email, a role and **what it applies to**, and you get an **invitation link**. The form starts by naming **the organization you are inviting into** (switch organizations in the header), and the scope is either "Whole organization (every project)" or one of that organization's projects, **by name**. Once created, a "who → organization / scope · role" summary sits above the link.
+Under **Invitations** on the Members tab, pick an email, a role and **what it applies to**, and you get an **invitation link**. The form starts by naming **the organization you are inviting into** (switch organizations at the top of the left column), and the scope is either "Whole organization (every project)" or one of that organization's projects, **by name**. Once created, a "who → organization / scope · role" summary sits above the link.
 
 - **The mail goes out on its own** — where this server has a mail sender configured, the invitation link is sent to that address and the screen says **"Mail sent"**. Where it does not, the screen says **"copy it and pass it on"** instead — covering both with one wording makes one of them a lie, and then someone waits for mail that is not coming.
 - **The link is shown once, right there.** Sent or not, the link sits on the same card, and the server cannot produce it again — on a deployment without mail, **[Copy link]** and pass it on yourself.
@@ -62,7 +62,7 @@ Issue and revoke the tokens agents use. **The steps from issuing to connecting a
 
 ## Gate policy
 
-Gate policy is **per project**, not one set for the whole organization. **Pick the project you are editing with this tab's project picker**; the title, "Gate policy — project name", says which one it is. It starts on the project you last looked at in the header.
+Gate policy is **per project**, not one set for the whole organization. **Pick the project you are editing with this tab's project picker**; the title, "Gate policy — project name", says which one it is. It starts on the project you last looked at ("Recent" in the left column).
 
 Gates decide what a spec change has to go through, according to **how risky it is**. Tiers run T0–T3, and the tier follows from the sum of four risk axes: side effects, sensitivity, reversibility and blast radius.
 

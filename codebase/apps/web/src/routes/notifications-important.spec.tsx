@@ -6,7 +6,7 @@
 // 머리 안에 있어, 거른 채 [모두 읽음]을 누르면 토글째 사라지고 목록은 걸러진 채 갇혔다(HUB-X3).
 // [모두 읽음]은 몇 건을 지웠는지 말하지 않았고, 빈 상태는 알림을 만들지 않는 "작업 완료" 를 약속했다.
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -105,11 +105,15 @@ describe('등급 이름은 "중요" 다 (D3)', () => {
     expect(document.body.textContent).not.toContain('결정이 필요한 것');
   });
 
-  it('헤더의 알림 이름이 두 수를 다 말한다 — 배지가 없어도 왜 없는지 읽힌다', async () => {
+  it('알림 링크의 이름이 두 수를 다 말한다 — 배지가 없어도 왜 없는지 읽힌다', async () => {
     renderAt('/notifications');
     await screen.findByText('중요 12건');
-    const link = screen.getByTitle(/중요 12 · 읽지 않음 695/);
-    expect(link.getAttribute('href')).toBe('/notifications');
+    // 사이드바의 [알림](그리고 사이드바가 서랍으로 접힌 폭의 헤더 글리프)이 같은 이름을 든다
+    const links = screen.getAllByTitle(/중요 12 · 읽지 않음 695/);
+    expect(links.map((a) => a.getAttribute('href'))).toContain('/notifications');
+    expect(within(screen.getByTestId('nav-rail')).getByTitle(/중요 12 · 읽지 않음 695/)).toBe(
+      screen.getByTestId('rail-notifications'),
+    );
   });
 });
 

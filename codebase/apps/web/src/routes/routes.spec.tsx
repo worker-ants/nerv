@@ -9,7 +9,7 @@
 import { LocaleProvider } from '../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
@@ -203,66 +203,64 @@ describe('막힘 사유는 사람 말이다 (REQ-WEB-143)', () => {
   });
 });
 
-describe('헤더 권한 — 조직 → 프로젝트 (2026-08-24 · 사람 지시)', () => {
-  it('조직 오른쪽에 프로젝트 select 가 있다 — 이전에는 고를 길이 화면에 없었다', async () => {
+describe('사이드바 — 조직 · 프로젝트 (2026-09-25 사람 결정 D1 · REQ-WEB-225)', () => {
+  // 2026-08-24 의 "헤더에 조직 ▾ → 프로젝트 ▾ · 그 오른쪽에 프로젝트로 가는 링크" 는 D1 이 개정했다 —
+  // 둘 다 모든 화면에 서는 왼쪽 열로 내려갔고, 헤더에는 지금 자리(조직 › 프로젝트 › 화면)만 남는다.
+  const rail = async (): Promise<HTMLElement> => screen.findByTestId('nav-rail');
+
+  it('조직 전환기와 프로젝트가 왼쪽 열에 있다', async () => {
     renderAt('/p/clemvion/tasks');
-    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
-    expect(screen.getByTestId('org-switcher')).toBeDefined();
+    const nav = await rail();
+    await waitFor(() => expect(within(nav).getByTestId('rail-project-current')).toBeDefined());
+    expect(within(nav).getByTestId('org-switcher')).toBeDefined();
   });
 
-  it('프로젝트 select 오른쪽에 그 프로젝트로 가는 길이 있다 — 골라도 갈 데가 없으면 표시일 뿐이다', async () => {
+  it('프로젝트 이름이 그 프로젝트로 가는 길이다 — 헤더의 [프로젝트] 링크는 걷었다(NAV-05)', async () => {
     renderAt('/p/clemvion/tasks');
-    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
-    const nav = screen.getAllByRole('link', { name: '프로젝트' })[0];
-    expect(nav?.getAttribute('href')).toBe('/p/clemvion');
+    const nav = await rail();
+    await waitFor(() =>
+      expect(within(nav).getByTestId('rail-project-current').getAttribute('href')).toBe(
+        '/p/clemvion',
+      ),
+    );
+    const header = document.querySelector('header')!;
+    expect(within(header).queryByRole('link', { name: '프로젝트' })).toBeNull();
   });
 
-  it('헤더에 홈 링크는 없다 — 로고가 그 자리로 간다 (2026-08-30)', async () => {
+  it('헤더에서 `/` 로 가는 길은 로고 하나다 (2026-08-30)', async () => {
     renderAt('/p/clemvion/tasks');
-    await waitFor(() => expect(screen.getByTestId('project-switcher')).toBeDefined());
-    // 같은 목적지로 가는 길을 둘 두면 헤더에서 가장 비싼 왼쪽 끝이 두 번 쓰인다
-    const toRoot = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/');
+    await rail();
+    // 같은 목적지로 가는 길을 둘 두면 헤더에서 가장 비싼 왼쪽 끝이 두 번 쓰인다 — 브레드크럼의 조직은 글자다
+    const header = document.querySelector('header')!;
+    const toRoot = within(header)
+      .getAllByRole('link')
+      .filter((a) => a.getAttribute('href') === '/');
     expect(toRoot).toHaveLength(1);
     expect(toRoot[0]?.textContent).toContain('NERV');
   });
 
-  it('드롭다운 **안**을 눌러도 닫히지 않는다 — 닫히면 그 항목은 눌러도 아무 일이 없다', async () => {
-    // 바깥 클릭 판정이 사용자 메뉴 ref 하나였을 때, 조직·프로젝트 드롭다운 안의 클릭도
-    // "바깥"으로 읽혔다. mousedown 에서 팝오버가 사라지면 뒤이은 click 은 이미 없는
-    // 요소로 가므로, 그 안의 링크는 **보이지만 눌리지 않는** 상태가 된다.
+  it('조직 메뉴 **안**을 눌러도 닫히지 않는다 — 닫히면 그 항목은 눌러도 아무 일이 없다', async () => {
     renderAt('/p/clemvion/tasks');
-    // 목록이 오기 전의 선택기는 비활성이다 — 비활성 단추를 누르는 검사는 아무것도 보지 않는다
-    await waitFor(() =>
-      expect((screen.getByTestId('project-switcher') as HTMLButtonElement).disabled).toBe(false),
-    );
-
-    fireEvent.click(screen.getByTestId('project-switcher'));
-    const link = screen.getByTestId('project-new-link');
+    fireEvent.click(await screen.findByTestId('org-switcher'));
+    const link = await screen.findByText('조직 관리 · 새 조직');
     fireEvent.mouseDown(link);
-    expect(screen.queryByTestId('project-new-link')).not.toBeNull();
-
+    expect(screen.queryByText('조직 관리 · 새 조직')).not.toBeNull();
     // 진짜 바깥은 여전히 닫는다
     fireEvent.mouseDown(document.body);
-    await waitFor(() => expect(screen.queryByTestId('project-new-link')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('조직 관리 · 새 조직')).toBeNull());
   });
 
-  it('조직 범위 화면에서는 프로젝트를 빌려 보이지 않는다 — 기억은 드롭다운의 "최근" 이다', async () => {
-    // 2026-09-24 사람 결정(REQ-WEB-193). 예전에는 홈·받은 요청·알림·설정에서도 마지막으로 본
-    // 프로젝트가 헤더에 떠, 그 화면 전체가 그 프로젝트의 것처럼 읽혔다(받은 요청은 모든 조직에
-    // 걸친다). 돌아가는 길은 드롭다운 맨 위의 "최근" 이 한 번으로 남긴다.
+  it('조직 범위 화면에서는 프로젝트를 펼치지 않는다 — 기억은 "최근" 표식이다', async () => {
+    // 2026-09-24 사람 결정(REQ-WEB-193)의 목적 — 조직 범위 화면이 한 프로젝트의 것처럼 읽히지 않는다 — 을
+    // 구조가 지킨다: 그 화면에서는 어떤 프로젝트도 펼쳐지지 않고, 기억한 것은 목록의 "최근" 이다.
     const first = renderAt('/p/clemvion/tasks');
     await waitFor(() => expect(localStorage.getItem('nerv.last-project.nerv')).toBe('clemvion'));
-    expect(screen.getByTestId('project-switcher').textContent).toContain('clemvion');
     first.unmount();
 
     renderAt('/inbox');
-    const button = (await screen.findByTestId('project-switcher')) as HTMLButtonElement;
-    await waitFor(() => expect(button.disabled).toBe(false));
-    expect(button.textContent).toContain('프로젝트 선택');
-    expect(button.getAttribute('data-borrowed')).toBe('true');
-    fireEvent.click(button);
-    const recent = await screen.findByTestId('project-recent');
-    expect(recent.textContent).toContain('clemvion');
-    expect(recent.getAttribute('href')).toBe('/p/clemvion');
+    const nav = await rail();
+    const recent = await within(nav).findByTestId('project-recent');
+    expect(recent.closest('a')?.getAttribute('href')).toBe('/p/clemvion');
+    expect(within(nav).queryByTestId('rail-project-current')).toBeNull();
   });
 });

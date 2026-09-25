@@ -9,7 +9,7 @@ You need to know three things, and **this screen already knows all three** — t
 | What                    | Where it comes from                       | This deployment |
 | ----------------------- | ----------------------------------------- | --------------- |
 | The NERV server address | `NERV_API_URL`, set by your administrator | `{{server}}`    |
-| The project slug        | The project selected in the header        | `{{project}}`   |
+| The project slug        | The current project (left column)         | `{{project}}`   |
 | Your role               | Settings → Members                        | `{{role}}`      |
 
 **It may not be the address in your address bar.** Where the screen and the API sit on different hosts, the address bar says `app.…` while agents connect to `api.…` — the value above is the one that matters.

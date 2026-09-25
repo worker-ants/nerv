@@ -73,4 +73,4 @@ For a branch that was bypassed, **who bypassed it, when and why** unfolds beneat
 
 ## The sidebar badge
 
-The number on the review item in the project sidebar is the count of **open `critical`** findings. A number you only learn by opening a screen is a number nobody knows before opening it.
+The number on the review item of the expanded project in the left column is the count of **open `critical`** findings. A number you only learn by opening a screen is a number nobody knows before opening it.

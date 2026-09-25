@@ -70,41 +70,42 @@ function renderAt(path: string): void {
   );
 }
 
-const projectButton = async (): Promise<HTMLButtonElement> => {
-  const b = (await screen.findByTestId('project-switcher')) as HTMLButtonElement;
-  await waitFor(() => expect(b.disabled).toBe(false));
-  return b;
-};
+// 2026-09-25 사람 결정 D1 — 두 선택기는 모든 화면에 서는 왼쪽 열로 내려갔다(REQ-WEB-225).
+// 결정 3 의 목적(조직 범위 화면이 한 프로젝트의 것처럼 읽히지 않는다)은 이제 구조가 지킨다.
+const currentProject = async (): Promise<HTMLElement> =>
+  within(await screen.findByTestId('nav-rail')).findByTestId('rail-project-current');
 
-describe('두 선택기에 이름표가 있다', () => {
+describe('조직과 프로젝트에 이름표가 있다', () => {
   it('조직과 프로젝트를 이름으로 가른다 — 모양만으로는 어느 쪽이 조직인지 모른다', async () => {
     renderAt('/p/clemvion/tasks');
-    const project = await projectButton();
-    expect(screen.getByTestId('org-switcher').getAttribute('aria-label')).toBe('조직: Default');
+    const project = await currentProject();
     await waitFor(() => expect(project.getAttribute('aria-label')).toBe('프로젝트: Clemvion 본편'));
-    expect(screen.getByTestId('org-switcher').textContent).toContain('조직');
-    expect(project.textContent).toContain('프로젝트');
+    const org = screen.getByTestId('org-switcher');
+    expect(org.getAttribute('aria-label')).toBe('조직: Default');
+    expect(org.textContent).toContain('조직');
+    // 프로젝트 목록 머리의 이름표 — 이름만 늘어선 줄이 무엇의 목록인지 말한다
+    expect(within(screen.getByTestId('nav-rail')).getByText('프로젝트')).toBeDefined();
   });
 });
 
 describe('조직 범위 화면에서는 프로젝트를 빌리지 않는다 (결정 3)', () => {
-  it('프로젝트 화면에서는 그 프로젝트가 골라져 있다', async () => {
+  it('프로젝트 화면에서는 그 프로젝트가 펼쳐져 있다', async () => {
     renderAt('/p/sudoku/tasks');
-    const b = await projectButton();
-    await waitFor(() => expect(b.textContent).toContain('스도쿠'));
-    expect(b.getAttribute('data-borrowed')).toBeNull();
+    const project = await currentProject();
+    await waitFor(() => expect(project.textContent).toContain('스도쿠'));
+    // 기억한 프로젝트(clemvion)는 목록의 한 줄이다 — 프로젝트 화면에서는 "최근" 표식도 없다
+    expect(await screen.findByTestId('rail-project-clemvion')).toBeDefined();
+    expect(screen.queryByTestId('project-recent')).toBeNull();
   });
 
-  it('홈에서는 "프로젝트 선택" 이고 기억은 드롭다운 맨 위의 "최근" 이다', async () => {
+  it('홈에서는 아무 프로젝트도 펼치지 않고, 기억은 목록의 "최근" 이다', async () => {
     renderAt('/');
-    const b = await projectButton();
-    expect(b.textContent).toContain('프로젝트 선택');
-    expect(b.getAttribute('aria-label')).toBe('프로젝트: 고르지 않음 — 조직 범위 화면');
-    fireEvent.click(b);
-    const recent = await screen.findByTestId('project-recent');
-    expect(recent.textContent).toBe('최근Clemvion 본편');
-    // 기억은 선택이 아니다 — 목록의 ✓ 는 없다(홈의 빈 상태에도 ✓ 가 있어 드롭다운 안에서만 본다)
-    expect(within(recent.parentElement as HTMLElement).queryByText('✓')).toBeNull();
+    const rail = await screen.findByTestId('nav-rail');
+    const remembered = await within(rail).findByTestId('rail-project-clemvion');
+    expect(remembered.textContent).toBe('▸Clemvion 본편최근');
+    expect(within(rail).queryByTestId('rail-project-current')).toBeNull();
+    // 펼치지 않았으니 탭도 트리도 없다 — 홈이 그 프로젝트의 화면처럼 읽히지 않는다
+    expect(within(rail).queryByRole('navigation', { name: '프로젝트' })).toBeNull();
   });
 
   it('홈의 최근 활동은 어느 프로젝트의 것인지 말한다', async () => {
@@ -125,7 +126,7 @@ describe('배지는 모든 조직을 센다 (결정 1)', () => {
 describe('⌘K 는 어디서 찾는지 말한다', () => {
   it('프로젝트 안에서는 그 프로젝트 이름을, 밖에서는 고르라고', async () => {
     renderAt('/p/clemvion/tasks');
-    await projectButton();
+    await currentProject();
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     const input = (await screen.findByPlaceholderText(
       /Clemvion 본편의 스펙·작업 검색/,
@@ -136,7 +137,7 @@ describe('⌘K 는 어디서 찾는지 말한다', () => {
     // 프로젝트 밖에서도 화면·프로젝트로는 간다 — 문서 검색이 프로젝트 안의 일이라는 것만 말한다
     // (2026-09-25 개정 · REQ-WEB-193 · REQ-WEB-223)
     renderAt('/inbox');
-    await projectButton();
+    await screen.findByTestId('rail-project-clemvion');
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     expect(
       await screen.findByPlaceholderText(/스펙·작업은 프로젝트 안에서 찾습니다/),

@@ -28,34 +28,40 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 
 **Recent activity says what it happened to.** Home and the project screen share one activity list. Each line reads what happened · **to what** (spec key and version, task key, review branch — and the title) · by whom · when, and the key takes you there — a line saying a spec was approved opens the difference from the previous version. Work done by an agent shows an **AI** mark instead of a face; hover it to see which machine and which agent. When the same person does the same thing to the same subject several times in a row (an agent saving a draft over and over, say), the lines **fold into one with ×N** — press it to unfold. Home shows eight lines; the project screen carries on with **[Load more]** at the bottom.
 
-**The right side of home lists your projects, one line each.** For every project you belong to in the current organization it shows three numbers — **active sessions · open approvals · open critical** — so you can see where sessions are running and what is at risk without opening each project in turn. The name takes you to that project; each number takes you to its list — active sessions to the session monitor, open approvals to the inbox, open critical to that project's review center (filtered to critical). Open approvals are **every undecided approval** in that project, including other people's turns — the ones waiting on you are counted under Today above. The project picked in the header gets a faint background (the recent activity on the left is that project's). Progress (coverage) lives on the project screen.
+**The right side of home lists your projects, one line each.** For every project you belong to in the current organization it shows three numbers — **active sessions · open approvals · open critical** — so you can see where sessions are running and what is at risk without opening each project in turn. The name takes you to that project; each number takes you to its list — active sessions to the session monitor, open approvals to the inbox, open critical to that project's review center (filtered to critical). Open approvals are **every undecided approval** in that project, including other people's turns — the ones waiting on you are counted under Today above. The project you looked at last (marked **Recent** in the left column) gets a faint background (the recent activity on the left is that project's). Progress (coverage) lives on the project screen.
 
 **The project screen's header shows what is waiting on you there** — N for your decision · N sessions waiting for a reply · N open critical. They take you to the inbox, the session monitor filtered to waiting sessions, and the review center filtered to critical. Anything at zero is left out; when all three are zero, it says so.
 
 **An active session is one that has not ended** — pending, active or waiting for a reply. Home, the sidebar badge and the project screen all count the same thing. The project screen lists **sessions waiting for a reply first**, and says so when none are running — finished sessions are on the sessions screen. The sidebar badges and recent activity update **without a reload** when a session starts or ends, or an approval or finding appears.
 
-## Two axes of membership scope — organization and project
+## The left column — the same on every screen
 
-The two selects at the left of the header are the membership scope you are looking at: **organization / project**, in that order, each with a small "Organization" or "Project" label in front. The only organizations you can pick are the ones you belong to.
+**The left column is the same on every screen.** From the top: the **organization** · **Home · Inbox · Notifications** · the current organization's **projects** · **Settings · Help**. Moving from home to a project, or from a project to the inbox, leaves the column where it is; only what is expanded changes.
 
-Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There the header's project slot says **"Pick a project"** — showing the project you looked at last would make the whole screen read as that project's. The project you looked at last sits at the top of the list as **"Recent"**, one click away. Places that do show one project, like Home's "Recent activity", put that project's name in their title. **The project slot opens even when there are no projects** — it says "No projects yet", with **[Manage · new project]** at the bottom for organization admins (you arrive with the form open) and **[Manage projects]** for everyone else. When the organization has no projects and you are not its admin, Home names the organization admins to ask.
+- **Organization** — the slot at the top of the column is the organization you are looking at (with a small "Organization" label). Press it for the other organizations you belong to and **[Manage · new organization]**. The only organizations you can pick are the ones you belong to.
+- **Projects** — the current organization's projects, one line each. **On a project screen that project is expanded**, with overview, specs, tasks, sessions, reviews and the spec tree under it. Press another project's name to go to its overview.
+- **Settings · Help** — the bottom of the column. While you are reading help, the manual's **contents** open under [Help]; on other screens that spot holds a single **Help for this screen** line.
 
-The header's **inbox and notification counts cover every organization you belong to** — an approval waiting in another organization is easy to miss if you have to switch to see it — and each row in those lists says which organization and project it belongs to. **⌘K search looks inside the current project only**; the search box says which project, and outside a project it asks you to pick one first.
+Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There **no project is expanded** — expanding the project you looked at last would make the whole screen read as that project's. The project you looked at last carries **"Recent"** next to its name in the list, one click away. Places that do show one project, like Home's "Recent activity", put that project's name in their title. **When there are no projects**, the list says "No projects yet", with **[Manage · new project]** below it for organization admins (you arrive with the form open) and **[Manage projects]** for everyone else. When the organization has no projects and you are not its admin, Home names the organization admins to ask.
 
-**Switching the organization switches everything with it.** The header's project becomes **the project you last looked at in that organization** (its first project if you have not been there yet), and "Switched to …" appears briefly. The last project is remembered per organization, so coming back to the original one brings back what you were looking at there. Accepting an invitation does the same: you move to the organization you joined, and a project invitation opens that project.
+**The header says where you are** — `organization / project / screen`. Press the project name to go to its overview. Picking happens in the left column.
+
+The **inbox and notification counts cover every organization you belong to** — an approval waiting in another organization is easy to miss if you have to switch to see it — and each row in those lists says which organization and project it belongs to. **⌘K searches documents inside a project** — the search box says which project, and outside a project it still takes you to screens and projects ([Shortcuts and language](/help/shortcuts)).
+
+**Switching the organization switches everything with it.** The project list becomes that organization's and "Recent" moves to **the project you last looked at in that organization** (its first project if you have not been there yet), and "Switched to …" appears briefly. The last project is remembered per organization, so coming back to the original one brings back what you were looking at there. Accepting an invitation does the same: you move to the organization you joined, and a project invitation opens that project.
 
 **Links to another organization's work switch the organization first.** Pressing a row from another organization in the inbox or notifications, or opening a project address a colleague sent you from another organization, first switches to that organization ("Switched to …") and then lands on that spot — addresses do not carry the organization, so without the switch the lookup would run in the current organization and say the item does not exist. If the organization that has the project cannot be narrowed to one, you pick among the candidates with **Open in …**.
 
-**To get back home, press the `NERV` logo at the top left.** There is no separate menu item for it — the logo is that link.
+**To get back home**, press the `NERV` logo at the top left or **[Home]** in the left column.
 
 ## Narrow screens — phones and tablets
 
-On a narrow screen the project sidebar moves into a **drawer, opened by the [☰] at the far left of the header**. It is the **same one** that sits fixed beside the content on a wide screen, so the drawer holds the very same things: overview, specs, tasks, sessions, reviews, and the spec tree. A narrower screen does not mean less to see.
+On a narrow screen the left column moves into a **drawer, opened by the [☰] at the far left of the header**. It is the **same one** that sits fixed beside the content on a wide screen, so the drawer holds the very same things: organization · Home · Inbox · Notifications · projects (with the expanded project's tabs and spec tree) · Settings · Help. A narrower screen does not mean less to see.
 
 - The drawer **closes itself once you go somewhere.** To close it where you are, press the [✕] at its top right, press the dimmed area outside it, or press `Esc`.
-- What the header folds away at that width is **wording**, not function: inbox and notifications become glyphs and **keep their count badges** (a number you have to open something to see is not a badge). Search shrinks to a single magnifier, and pressing it opens the same quick switcher.
-- The **organization picker and help move into the drawer**, since they gave up their place in the header. The project picker stays in the header.
-- Widen the window and the drawer closes as the sidebar takes its place again.
+- Inbox and notifications live in the left column on a wide screen; at the narrow width they also sit **in the header as glyphs with their count badges**, so you see them without opening the drawer (a number you have to open something to see is not a badge). Search shrinks to a single magnifier, and pressing it opens the same quick switcher.
+- The header's help `?` folds away at that width — help is at the bottom of the drawer.
+- Widen the window and the drawer closes as the left column takes its place again.
 
 ## Roles
 
@@ -99,11 +105,11 @@ Fill in a name, an email and a password on the sign-up screen and the account is
 
 0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organization yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.
    **If you just created an organization**, you stay on Get started, which shows your role and a **setup checklist** (first project · invite people · connect an agent). Fill in a **first project name** when creating the organization and the project is created in the same step. The same checklist sits at the top of Home, and goes away once all three are done or you press **[Dismiss]** (only organization admins see it).
-1. Sign in and check that the **organization and project** in the header are the ones you meant.
+1. Sign in, check that the **organization** at the top of the left column is the one you meant, and press a **project** in the list below it.
 2. Skim the **spec tree** on the left. What this project decided to build is in there.
 3. Open **Tasks** and look at the `ready` lane — that is what can be picked up right now.
 4. If you are connecting an agent, issue a token under **Settings → Tokens** and install the plugin — the procedure is in [Installing the plugin](/help/install), what fits together with what is in [Agents](/help/agents).
-5. To find a document, press **⌘K**. It finds **specs and requirements** by name, and pasting a stable ID jumps straight to it — not screens or settings — and it only works **inside a project**.
+5. To find a document, press **⌘K**. It finds **specs, requirements and tasks** by name, and pasting a stable ID jumps straight to it — documents are searched **inside a project** only, while screens (the inbox, settings tabs and so on) and projects are reachable from anywhere.
 
 ## Messages in the lower right
 
