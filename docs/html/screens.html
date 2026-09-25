@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.62 (2026-09-25)</span>
+      <span>버전 v1.63 (2026-09-25)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -631,10 +631,10 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
         <div class="wf-input" style="display:block;margin-bottom:10px;color:var(--text)">jimin@example.com</div>
         <div class="sub" style="font-size:11.5px;color:var(--text-mute);margin-bottom:3px">비밀번호</div>
         <div class="wf-input" style="display:block;border-color:var(--danger)">••••••••</div>
-        <div style="font-size:11.5px;color:var(--link);text-align:right;margin-top:4px">비밀번호를 잊었나요? ▸ <span class="marker">4</span></div>
+        <div style="font-size:11.5px;color:var(--link);text-align:right;margin-top:4px">비밀번호를 잊었을 때 ▸ <span class="marker">4</span></div>
         <div style="font-size:11.5px;color:var(--danger);margin:5px 0 12px">⚠ 이메일 또는 비밀번호가 올바르지 않습니다 <span class="marker">1</span></div>
         <div class="wf-btn primary" style="display:block;text-align:center;padding:8px">로그인 <span class="marker">2</span></div>
-        <div class="sub" style="font-size:11.5px;color:var(--text-faint);margin-top:12px;text-align:center">초대 링크로 오셨나요? 로그인한 뒤 초대 카드에서 [수락]을 누르세요. <span class="marker">3</span></div>
+        <div class="sub" style="font-size:11.5px;color:var(--text-faint);margin-top:12px;text-align:center">초대 링크로 오셨다면 로그인한 뒤 초대 카드에서 [수락]을 누르세요. <span class="marker">3</span></div>
       </div>
     </div>
   </div>
@@ -643,7 +643,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <li><span class="marker">1</span><span><b>인라인 실패 사유</b> — 전역 토스트가 아니라 폼 안. 비밀번호 필드만 초기화한다. <code>REQ-WEB-005</code></span></li>
     <li><span class="marker">2</span><span><b>로그인</b> — better-auth 세션 쿠키 발급 후 역할별 첫 화면으로 착지(§1.2 가드). <code>REQ-WEB-006</code></span></li>
     <li><span class="marker">3</span><span><b>초대 수락 경로</b> — 초대 링크 진입 시 로그인 후 <code>InviteAcceptCard</code>로 이어진다(온보딩 ① 대체).</span></li>
-    <li><span class="marker">4</span><span><b>비밀번호를 잊었나요?</b> — <code>/forgot-password</code> 로. 친 이메일을 들고 간다(아래 "비밀번호를 잊었을 때" · 2026-09-25). <code>REQ-WEB-231</code></span></li>
+    <li><span class="marker">4</span><span><b>비밀번호를 잊었을 때</b> — <code>/forgot-password</code> 로. 친 이메일을 들고 간다(아래 "비밀번호를 잊었을 때" · 2026-09-25). <code>REQ-WEB-231</code></span></li>
   </ul>
 
   <div class="wf">
@@ -718,7 +718,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
 
   <p><b>내 계정의 [비밀번호 바꾸기]는 지금 비밀번호를 아는 사람의 문이다</b>(§2.8 · REQ-WEB-229). 잊은 사람에게는 길이 없었다 — 로그인 화면에 그 말이 없었고, 같은 주소로 다시 가입할 수도 없어 누군가 DB 를 고쳐 줘야 했다. 인증 스택은 재설정 문을 열어 두고 있었지만 보낼 곳이 없었다(<a href="api.html">4.4</a> REQ-API-187).</p>
   <ul>
-    <li><b>길은 비밀번호 칸 바로 아래다</b> — "비밀번호를 잊었나요?"(로그인 그림 ④). 틀린 뒤 눈이 머무는 자리다. 친 이메일은 <b>주소가 아니라 히스토리 상태로</b> 들고 간다 — <code>?email=</code> 은 방문 기록·접근 로그·공유한 주소에 남는다.</li>
+    <li><b>길은 비밀번호 칸 바로 아래다</b> — "비밀번호를 잊었을 때"(로그인 그림 ④). 틀린 뒤 눈이 머무는 자리다. 친 이메일은 <b>주소가 아니라 히스토리 상태로</b> 들고 간다 — <code>?email=</code> 은 방문 기록·접근 로그·공유한 주소에 남는다.</li>
     <li><b><code>/forgot-password</code></b> — 이메일 한 칸. 보내면 폼을 치우고 "그 주소로 가입한 계정이 있으면 링크를 보냈습니다 · 60분 동안 쓸 수 있습니다" 를 말한다. <b>있다와 없다를 가르지 않는다</b> — 서버가 같은 답을 하고 화면도 같은 문장이다. 가르는 것은 사람이 할 일이 달라지는 둘뿐이다: 메일을 보내지 않는 서버(기다려도 오지 않는다 — "서버 운영자에게 문의") · 한도(폼 안에서).</li>
     <li><b>메일의 링크는 API 를 거쳐 <code>/reset-password</code> 로 온다</b> — 살아 있으면 <code>?token=</code>, 만료됐거나 이미 썼으면 <code>?error=INVALID_TOKEN</code>. 뒤의 경우 폼 대신 "쓸 수 없는 링크입니다" 와 [재설정 링크 다시 받기]가 선다 — 비밀번호를 두 번 치기 <b>전에</b> 안다. 토큰 없이 와도 같다.</li>
     <li><b><code>/reset-password</code></b> — 새 비밀번호 두 칸(내 계정과 같은 규칙: 8자 이상 · 두 칸이 다르면 보내기 전에 말한다). 정하면 "모든 기기의 로그인을 끊었습니다" 와 [로그인하기] — 여기서 로그인시키지 않는다(서버가 이 사람의 세션을 모두 끊는다). 그 사이 링크가 닳았으면(다른 탭에서 먼저 썼다) 폼을 치우고 새 링크로.</li>
@@ -736,10 +736,10 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
   <p><b>처음 켠 서버에는 계정이 하나도 없다.</b> 개발 시드는 <code>NODE_ENV=production</code> 에서 실행을 거부하므로 운영에는 정말 아무것도 없고, 예전 온보딩은 "관리자가 당신을 추가하면 넘어갑니다"만 적어 두어 <b>그 관리자가 없는 서버에서 막다른 길</b>이었다(사람 보고).</p>
 
   <ul>
-    <li><b><code>/signup</code> 을 연다.</b> 로그인 화면이 "계정이 없나요? 가입 ▸"로 그 길을 보인다. 셸 밖이다 — 조직이 없으면 헤더의 두 select 가 가리킬 것이 없다.</li>
+    <li><b><code>/signup</code> 을 연다.</b> 로그인 화면이 "계정이 없으면 가입 ▸"으로 그 길을 보인다. 셸 밖이다 — 조직이 없으면 헤더의 두 select 가 가리킬 것이 없다.</li>
     <li>가입 직후 <b>바로 로그인</b>시키고 온보딩으로 보낸다. 방금 정한 비밀번호를 다시 치게 하지 않는다.</li>
     <li><b>소속이 없으면 온보딩 ①이 "조직 만들기"다.</b> 만든 사람이 그 조직의 <code>admin</code> 이 된다(EP-ORG-03) — 최고 관리자를 세우는 별도 절차를 두지 않고, <b>조직을 만든 사람이 그 조직을 책임진다</b>.</li>
-    <li>slug 는 이름에서 만들어 주되 <b>고칠 수 있게 둔다</b>(설정 탭의 프로젝트 폼과 같은 규칙). 한글만 적으면 ASCII 규칙에서 빈 값이 나오는데, slug 는 주소와 API 경로의 축(D-09)이라 기계가 뭉갠 값을 조용히 확정하면 되돌릴 수 없다.</li>
+    <li>slug 는 이름에서 만들어 주되 <b>고칠 수 있게 둔다</b>(설정 탭의 프로젝트 폼과 같은 규칙). 한글만 적으면 ASCII 규칙에서 빈 값이 나오는데, slug 는 주소와 API 경로의 축(D-09)이라 기계가 뭉갠 값을 조용히 확정하면 되돌릴 수 없다. 그때 <b>주소 칸이 까닭을 말한다</b>("이름에서 주소를 만들지 못했습니다 — 영문 소문자·숫자로 적어 주세요." · 2026-09-25 · REQ-WEB-233) — 예전에는 [만들기]가 사유 없이 잠겼다(REQ-WEB-003).</li>
     <li><b>기다리는 길도 함께 적는다</b>: 이미 누군가 조직을 쓰고 있다면 새로 만드는 것이 답이 아니다 — 조직이 갈라지면 스펙도 갈라진다. 그 자리에 자기 이메일을 함께 보여 준다(관리자에게 알려 줄 값이다).</li>
   </ul>
 
@@ -1506,7 +1506,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <li><span class="marker">1</span><span><b>상태 + 표시 키</b> — URL로 공유 가능(고정 ID — D-09).</span></li>
     <li><span class="marker">2</span><span><b>출처 역링크</b> — 유래 SpecVersion(불변 스냅샷)과 Requirement로. "왜 이 작업인가"가 한 클릭. <code>FR-05 · D-03</code></span></li>
     <li><span class="marker">3</span><span><b>위임 명세 4요소</b> — <code>goal_md</code>·<code>output_format_md</code>·<code>tools_sources_md</code>·<code>boundaries_md</code>. 미충족 요소는 ❌ + 인라인 편집(EP-TASK-05). <b>2026-09-24 배선</b> — 카드의 [고치기]가 그 자리에 폼을 열고(planner·developer·admin), 임포트 자리표시자도 ❌ 다(REQ-WEB-202). 폼은 채워지지 않았던 요소를 <b>값이 아니라 빈 칸으로</b> 연다(사람 결정 — 안 C): 자리표시자 문장을 값으로 채워 열던 동안 한 칸을 빠뜨려도 저장이 통과했고, 문장을 조금만 고쳐도 찬 칸으로 세어져 뜻 없는 지시문으로 ready 에 오를 수 있었다. 비워 둔 칸은 보내지 않으므로 제목만 고칠 수도 있고, 저장 뒤 아직 비어 있는 칸을 이름으로 말한다. <code>FR-05 · REQ-WEB-016</code></span></li>
-    <li><span class="marker">4</span><span><b>활성 클레임</b> — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 선언 scope, S5 세션 딥링크. <code>FR-06</code>. 출처 줄의 기준 버전(<code>@v4</code>)이 superseded면 <b>재브리핑 배지</b>(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — <code>rebrief_required_at</code>·spec-workflow §3.3. <code>REQ-WEB-036</code></span></li>
+    <li><span class="marker">4</span><span><b>활성 클레임</b> — 사람 assignee와 에이전트 delegate 동시 표기(D-08), 리스 카운트다운, 작업 범위(선언한 scope), S5 세션 딥링크. <code>FR-06</code>. 출처 줄의 기준 버전(<code>@v4</code>)이 superseded면 <b>재브리핑 배지</b>(⟳ 기준 버전 v4 → 최신 v5)가 뜬다 — <code>rebrief_required_at</code>·spec-workflow §3.3. <code>REQ-WEB-036</code></span></li>
     <li><span class="marker">5</span><span><b>의존 그래프</b> — 미해소 의존은 ready 불가 사유로 표기. <code>FR-05</code></span></li>
     <li><span class="marker">6</span><span><b>Evidence</b> — PR·커밋 링크(FR-13). 리뷰 커버리지 표시는 Phase 2. <b>그 링크가 2026-09-10 까지 없었다</b>(사람 지시 · REQ-WEB-159): 이 줄은 처음부터 "PR·커밋 링크" 라고 적혀 있었는데 화면은 종류와 위치를 <b>글자로만</b> 그렸다 — 증적은 "보일 것을 붙였다" 는 약속이고, 확인하러 갈 길이 없으면 약속이 절반만 지켜진다. <b>종류가 갈 곳을 정한다</b>: <code>pr</code> 은 locator 자체가 절대 URL 이고(<a href="api.html">4.4</a> REQ-API-147 이 검증한다), <code>commit</code> 은 <code>{repo_url}/commit/{sha}</code>, <code>code_path</code> 는 <code>{repo_url}/blob/{default_branch}/{경로}</code>(<code>:줄</code> 꼬리는 앵커로), <code>review</code> 는 발견 하나를 가리킬 때 리뷰 센터의 <code>?finding=</code> 이다(REQ-WEB-120). <code>user_guide</code> 는 <b>실재하는 매뉴얼 장일 때만</b> <code>/help/&lt;장&gt;</code> 으로 잇는다(2026-09-10 · REQ-WEB-161 — 장 이름의 정본이 코드에 있으므로 짐작이 아니라 대조다). <code>test</code> 는 저장소마다 모양이 달라 <b>짐작하지 않는다</b> — 누를 수 없는 링크보다 틀린 곳으로 데려가는 링크가 나쁘다. <b>새 탭으로 연다</b>: 이 화면에서 done 전이를 채우는 중이라 같은 탭에서 나가면 폼이 사라진다. <b>증적이 자기 저장소를 달고 있으면 그것이 이긴다</b>(2026-09-10 · REQ-WEB-160 · <a href="api.html">4.4</a> REQ-API-157) — <code>evidence.repo</code> 는 주소가 아니라 경로(<code>org/repo</code>)라 호스트는 프로젝트 주소에서 빌린다. 그리고 <b>증적을 붙이는 셀렉트는 어휘 여섯을 전부</b> 보인다: 화면이 넷을 손으로 적어 두어 <code>review</code>·<code>user_guide</code> 는 웹에서 붙일 길이 없었는데 서버는 처음부터 여섯을 받았다(정본은 <code>@nerv/schema</code> 의 <code>EVIDENCE_KINDS</code> — REQ-CB-006). <code>repo_url</code> 이 비어 있으면 커밋·코드 경로는 글자로 남고 <b>화면이 그 이유를 적는다</b>(§1.5).</span></li>
     <li><span class="marker">7</span><span><b>전이 버튼</b> — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003). [완료로 전이] 는 활성 클레임 보유자·담당자·planner·admin 에게만 활성이고(<a href="api.html">4.4</a> REQ-API-130), 활성 클레임이 없는 <code>claimed</code>·<code>진행 중</code> 작업에는 <b>되돌리기 단추</b>가 함께 선다(REQ-WEB-144) — 4요소가 차 있으면 [준비됨으로 되돌리기], 비어 있으면 [백로그로 되돌리기]. <b>머리의 단추는 상태가 정한다</b>(2026-09-24 · REQ-WEB-202): 백로그 → [준비됨으로 올리기]·[위임 명세 채우기] · 준비됨 → [클레임] · 맡음 → [진행 시작] · 진행 중 → [검토 요청]·[완료…] · 검토 중 → [완료…] · 막힘 → [막힘 풀기]. 그림의 ⑦ 줄이 그 자리다.</span></li>
@@ -1577,7 +1577,7 @@ export const TaskCreateInput = z
   <h3>2.6 S5 세션 모니터 — <a href="ui-wireframes.html">ui-wireframes §2.5</a></h3>
   <p><b>이 화면의 수용 기준 일부가 §2.6a 표에 있다</b>(2026-09-06 색인): REQ-WEB-123 · 124 · 132.</p>
 
-  <p>세션 카드 필수 표기는 와이어프레임 규약 그대로다 — 신원 3요소(사용자·hostname·에이전트 종류) · 클레임한 Task와 유래 스펙 · 하트비트/리스 잔여/경과 · 브랜치/diff 통계 · 선언 scope · 액션.</p>
+  <p>세션 카드 필수 표기는 와이어프레임 규약 그대로다 — 신원 3요소(사용자·hostname·에이전트 종류) · 클레임한 Task와 유래 스펙 · 하트비트/리스 잔여/경과 · 브랜치/diff 통계 · 작업 범위(선언한 scope) · 액션.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
@@ -1826,6 +1826,7 @@ export const ApprovalDecisionInput = z
     <li><b>토큰 발급 흐름</b>: 발급 다이얼로그(<code>TokenCreateInput</code>: <code>project</code>·<code>name</code>·<code>scopes[]</code>·<code>expires</code>) → 성공 시 <b>원문 1회 표시</b>(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 <code>prefix</code>만. 권한 체크박스는 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)를 그대로 쓰고, <code>spec:approve</code>·<code>approval:decide</code>는 <b>체크박스 비활성</b>(사람 전용 — 시스템 불변식). <b>내 역할에 없는 권한도 보이되 잠긴다</b>(§1.8) — 그리고 <b>잠긴 것은 발급 본문에도 실리지 않는다</b>(REQ-WEB-134 · 2026-09-04): 초기 선택값이 상수라, <code>task:claim</code> 이 없는 역할에게 그 칸이 꺼져 보이면서 본문에는 실려 갔다. 화면이 자기가 한 일을 잘못 말하면 토큰 목록의 권한 표를 믿을 수 없게 된다.</li>
     <li><b>토큰이 어느 프로젝트의 것인지를 세 자리에서 말한다</b>(2026-09-21 — 사람 보고 · REQ-WEB-167). 토큰은 프로젝트 하나에 묶이는데 화면이 그 말을 한 번도 하지 않아, 발급할 때도 발급한 뒤에도 대상을 알 수 없었다. <b>고를 때</b> — 발급 대상을 폼이 고른다(헤더가 아니다: 설정 라우트에는 프로젝트 축이 없어 그 값은 "마지막으로 본 프로젝트" 였다). 목록은 헤더의 select 가 그리는 것과 같은 값이고(<code>scope.ts</code> — 두 벌을 두면 하나는 언젠가 낡는다), 기본값은 지금 보고 있는 프로젝트다. 고른 프로젝트가 <b>권한 칸의 잠금도 정한다</b>: 역할은 프로젝트마다 다를 수 있다. <b>받을 때</b> — 원문 카드가 프로젝트·권한·만료를 함께 적고 <b>연결 3단계</b>를 준다(2026-09-24 개정 · REQ-WEB-207): ① 토큰(복사) ② 플러그인 설치 두 줄 ③ <b>설치 캐시 경로로 부르는</b> <code>nerv-init --server … --project … --token …</code> 한 줄. 예전의 한 줄은 맨 이름 <code>nerv-init</code> 이라 셸 PATH 에 없었고, 그 시점에는 그것을 배달하는 플러그인도 아직 없었다(<a href="plugin.html">4.6</a> §3.7 · §4). <code>--token</code> 은 한 줄에 둔다(2026-09-24 <b>사람 결정</b> — 붙여넣기 한 번이 낫다) — 셸 기록에 남는다는 사실과, 빼고 실행하면 가려서 묻는다는 길을 곁에 적는다. 서버 주소는 화면이 이미 안다(§2.10 이 매뉴얼에서 쓰는 그 값 · REQ-WEB-165). <b>나중에</b> — 목록의 <b>첫 열</b>이 프로젝트다(이름으로 읽고 slug 로 대조한다 — 설정 파일에 적는 것은 slug 다). 기본 이름에도 프로젝트가 든다: 상수 하나였을 때는 프로젝트를 옮겨 가며 발급한 토큰이 목록에서 전부 같은 이름이었다. 사람이 적은 이름은 건드리지 않는다. <b>프로젝트가 없으면 [발급]은 비활성이고 그 이유를 같은 자리에서 말한다</b>(§1.5 · REQ-WEB-003 — 예전에는 아무 말 없이 잠겨 있었다).</li>
     <li><b>기본은 권장 묶음이고, 연결을 기다린다</b>(2026-09-24 — UI/UX 검토 · REQ-WEB-207). 기본 권한이 <code>spec:read</code>·<code>task:claim</code> 둘이던 동안 그대로 발급한 토큰은 <code>nerv_bootstrap</code> 이 요구하는 <code>agent-session:launch</code> 가 없어 설치 4·5단계가 처음부터 막혔다 — 매뉴얼은 그 함정을 설명하고 있었지만 화면의 기본값은 그대로였다. 권한 칸 위에 [권장 · 직접 고르기]를 두고, 권장은 스킬 다섯을 쓰는 데 드는 묶음(<code>AGENT_RECOMMENDED_SCOPES</code> — <code>@nerv/schema</code> 한 곳 · <a href="plugin.html">4.6</a> §4 1단계)과 내 역할의 교집합이다. 원문 카드가 열려 있는 동안 목록을 짧게 다시 읽어, 그 토큰이 처음 쓰이면(<code>last_used_at</code>) "연결됨 — 기계" 로 바뀐다 — 예전에는 목록을 새로 고치며 '마지막 사용' 을 지켜봐야 했다. 이 탭의 "이 화면 도움말" 은 설정 장이 아니라 <b>설치 장</b>으로 간다(절 앵커 규칙 §2.10 은 그대로 — 사람 결정).</li>
+    <li><b>권한은 무엇을 허락하는지 말한다</b>(2026-09-25 — UI/UX 검토 SET-14 · REQ-WEB-233). 체크박스가 <code>spec:read</code>·<code>agent-session:launch</code> 같은 코드만 늘어놓아, 고르는 사람은 설계 문서를 열어 봐야 했다. 권한마다 코드 아래에 한 줄(<code>scope.desc.&lt;권한&gt;</code> — "스펙·요구사항을 읽습니다" · "에이전트 세션을 엽니다 — 연결하려면 필요합니다")이 선다. 코드는 그대로 둔다 — 스킬·매뉴얼이 그 이름으로 부른다. 사람 전용 권한의 설명도 결정 번호("(D-08)")가 아니라 까닭("승인과 결정은 사람만 할 수 있어 토큰에 줄 수 없습니다")이다. 토큰 표의 머리 <code>prefix</code> 는 카탈로그의 "앞자리" 다(<a href="glossary.html">용어 사전</a> §3.1).</li>
     <li><b>만료와 죽은 토큰</b>(같은 보고 · REQ-WEB-167). 만료는 스키마·DB·API 셋 다 갖고 있고 검증도 이미 집행하는데(<code>verifyPat</code>) <b>화면에만 없었다.</b> 발급 폼에서 기간으로 고르고(날짜가 아니다 — 브라우저의 자정은 서버의 자정이 아니고, 사람은 "오늘부터 얼마" 로 생각한다) 목록이 그 값을 보인다. <b>기본은 만료 없음이다</b> — 여기서 기본을 바꾸면 오늘 되던 토큰이 어느 날 조용히 죽는다. 폐기·만료된 토큰은 <b>기본으로 접는다</b>(자라기만 하는 줄이고, 관리가 힘들어지는 자리가 정확히 거기다). 지우지는 않는다: 감사가 묻는 것은 "그때 무엇이 있었나" 이기도 하다.</li>
     <li><b>조직 전체 토큰 표</b>(같은 보고 · REQ-WEB-168 · EP-TOK-04 — 2026-09-25 부터 조직 무리의 자기 화면 <code>/settings/org-tokens</code> · REQ-WEB-227). 내 목록으로는 <b>"누가 어느 프로젝트에 무슨 토큰을 갖고 있나" 에 답할 수 없는데, 그것이 관리의 본체다.</b> 서버는 오래전부터 줄 수 있었고 이 문서도 데이터 소스로 적어 두었는데 <b>부르는 화면이 없었다.</b> admin 에게만 보이고, <b>admin 이 아니면 부르지도 않는다</b> — 볼 수 없는 것에 403 을 쌓지 않는 쪽이 §1.8 과 맞는다. <b>거르기는 화면이 한다</b>: 이 엔드포인트의 질의 인자는 없음으로 못 박혀 있고(<a href="api.html">4.4</a> EP-TOK-04), 없는 인자를 보내면 조용히 무시되어 <b>거른 것처럼 보인다</b>. 상태는 셋이고 <b>무엇이 그 토큰을 죽였는지</b>까지 말한다(폐기·만료·활성) — "활성 아님" 만 보이면 admin 은 폐기해야 하는지 기다려도 되는지 알 수 없다.</li>
     <li><b>조직·프로젝트 탭이 다루는 조직은 헤더가 고른 그 조직이다</b>(2026-09-07 배선 · REQ-WEB-076 · §1.8). 이 탭만 <code>primaryMembership()</code> 으로 따로 골랐고, 그 함수는 프로젝트 소속 행을 먼저 집으므로 <b>헤더에서 두 번째 조직을 골라도 첫 조직의 이름을 보이고 첫 조직을 고쳤다.</b> 조직이 하나뿐인 동안에는 드러나지 않는 종류의 결함이고, 드러나는 순간에는 이미 남의 조직 이름을 바꾼 뒤다.</li>
@@ -1854,6 +1855,7 @@ export const ApprovalDecisionInput = z
       <tr><td>REQ-WEB-028</td><td>WHEN admin이 아닌 사용자가 멤버·역할 탭을 열면 THE SYSTEM SHALL 매트릭스를 읽기 전용으로 표시하고 편집 컨트롤을 비활성화한다(FR-14)</td></tr>
       <tr><td>REQ-WEB-167</td><td>WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL <b>대상 프로젝트를 그 폼에서 고르게</b> 하고 고른 값이 권한 칸의 잠금과 기본 이름을 정한다 — 헤더가 고른 값에 기대지 않는다. WHERE 고를 프로젝트가 없으면 THE SYSTEM SHALL [발급]을 비활성으로 두고 <b>그 이유를 같은 자리에서</b> 말한다(§1.5). WHEN 발급에 성공하면 THE SYSTEM SHALL 원문과 함께 <b>프로젝트·권한·만료</b>와 그대로 붙여넣을 설정 한 줄을 보인다(<a href="api.html">4.4</a> REQ-API-160). WHEN 토큰 목록을 그리면 THE SYSTEM SHALL <b>프로젝트를 첫 열로</b> 두고 만료를 함께 보이며, 폐기·만료된 토큰은 기본으로 접고 토글로 편다</td></tr>
       <tr><td>REQ-WEB-207</td><td>WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL 권한을 <b>권장 묶음</b>(스킬 다섯을 쓰는 데 드는 권한 — <code>agent-session:launch</code> 포함)과 내 역할의 교집합으로 시작하고, [직접 고르기]로 바꿀 수 있게 한다. WHEN 발급에 성공하면 THE SYSTEM SHALL 토큰(복사) · 플러그인 설치 · 설치 캐시 경로로 부르는 설정 한 줄의 <b>연결 3단계</b>와 설치 장으로 가는 링크를 보이고, 카드가 열려 있는 동안 그 토큰의 첫 사용을 감지해 연결됐음과 그 기계를 말한다. WHEN 토큰 탭에서 이 화면 도움말을 열면 THE SYSTEM SHALL 설치 장으로 보낸다</td></tr>
+      <tr><td>REQ-WEB-233</td><td>WHEN 토큰 발급 폼의 권한을 그리면 THE SYSTEM SHALL 권한마다 코드와 함께 <b>무엇을 허락하는지 한 줄</b>을 보이고, 사람 전용 권한의 잠금 사유를 결정 번호가 아니라 문장으로 말한다. WHEN 새 프로젝트의 이름에서 주소(slug)를 만들 수 없으면(영문·숫자가 없는 이름) THE SYSTEM SHALL 주소 칸에 그 까닭과 적는 법을 보이고 칸을 틀린 것으로 표시한다 — [만들기]를 사유 없이 잠그지 않는다(REQ-WEB-003)</td></tr>
       <tr><td>REQ-WEB-168</td><td>WHERE 보는 사람이 그 조직의 <b>조직 admin</b>(조직 단위 admin 멤버십 — 2026-09-24 개정 · REQ-API-172)이면 THE SYSTEM SHALL 조직 무리의 [조직 전체 토큰] 화면(<code>/settings/org-tokens</code> — 2026-09-25 개정 · REQ-WEB-227, 예전에는 토큰 탭 아래)에 <b>조직 전체 토큰 표</b>(EP-TOK-04)를 두고 소유자·프로젝트·권한·만료·마지막 사용·상태를 보인다. WHERE admin 이 아니면 THE SYSTEM SHALL 그 표를 <b>그리지도 부르지도 않는다</b>. WHEN 그 표를 거르면 THE SYSTEM SHALL 받아 둔 목록 위에서 거른다 — 서버에 없는 질의 인자를 보내지 않는다(조용히 무시되면 목록이 거른 것처럼 보인다). WHEN 상태를 그리면 THE SYSTEM SHALL 폐기·만료·활성을 <b>구별해</b> 적는다</td></tr>
       <tr><td>REQ-WEB-191</td><td>WHEN 설정 화면이 멤버십·초대·게이트 정책을 쓰면 THE SYSTEM SHALL 대상 범위를 <b>그 줄이나 그 화면의 선택기</b>에서 정하고(헤더가 기억한 프로젝트를 빌리지 않는다) 그 범위를 이름으로 보인다 — 멤버 표 제목은 조직, 적용 범위 칸은 프로젝트 이름, 게이트 정책 제목은 프로젝트 이름. WHEN 초대 폼을 열면 THE SYSTEM SHALL 조직 이름과, 보는 사람이 다룰 수 있는 범위(조직 admin 이면 조직 전체와 모든 프로젝트, 아니면 자기가 admin 인 프로젝트)를 보이고, 만든 뒤에는 누구를 어느 범위에 어떤 역할로 불렀는지 요약한다. WHILE 멤버 표를 그리는 동안 THE SYSTEM SHALL 줄마다 REQ-API-169 와 같은 규칙으로 편집을 잠근다</td></tr>
       <tr><td>REQ-WEB-194</td><td>WHEN 멤버 표를 그리면 THE SYSTEM SHALL 한 사람의 멤버십을 <b>한 묶음</b>으로 모아 이름·이메일을 첫 줄에만 적고 조직 전체 줄을 먼저 두며, 프로젝트 줄에는 그 사람이 조직 전체에서 가진 역할을 누를 수 없는 <b>"상속"</b> 표식으로 보인다. WHILE 화면을 보이는 동안 THE SYSTEM SHALL 브라우저 탭 제목을 "화면 · 프로젝트 · 조직 — NERV" 로 두되 프로젝트는 프로젝트 화면에서만 싣고, 스펙·작업·세션 상세면 맨 앞에 그 상세를 싣는다(2026-09-25 개정 · REQ-WEB-228)</td></tr>

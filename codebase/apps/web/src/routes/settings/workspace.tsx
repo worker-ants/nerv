@@ -385,6 +385,10 @@ function ProjectForm({
   };
 
   const ready = name.trim() !== '' && slug.trim() !== '' && key.trim() !== '';
+  // **이름을 적었는데 주소가 비었으면 그 까닭을 칸에서 말한다**(2026-09-25 · UI/UX 검토 SET-14). 주소는 이름의 영문·숫자로
+  // 만든다 — 한글만 적으면 빈 값이 되고, 예전에는 [만들기]가 사유 없이 잠겼다(REQ-WEB-003). 이 제품의 주 언어가
+  // 한국어라 흔히 만나는 자리다
+  const slugNeeded = name.trim() !== '' && slug.trim() === '';
 
   return (
     <FieldRow className="mb-3 rounded-nerv border border-border bg-bg-elev px-4 py-3">
@@ -396,10 +400,15 @@ function ProjectForm({
           onChange={(e) => onName(e.target.value)}
         />
       </Field>
-      <Field label={t('settings.workspace.project_slug')} hint={t('settings.workspace.slug_hint')}>
+      <Field
+        label={t('settings.workspace.project_slug')}
+        hint={t('settings.workspace.slug_hint')}
+        error={slugNeeded ? t('settings.workspace.slug_needed') : undefined}
+      >
         <Input
           data-testid="project-slug"
           value={slug}
+          aria-invalid={slugNeeded}
           onChange={(e) => setSlug(e.target.value)}
           className="font-mono"
         />

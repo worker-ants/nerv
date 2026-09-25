@@ -53,7 +53,7 @@
     <h1>용어 사전</h1>
     <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.6 (2026-09-25)</span>
+      <span>버전 v0.7 (2026-09-25)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -249,6 +249,17 @@
       <tr><td>생성 문서</td><td><b>해라체</b></td><td><code>export.*</code> (예: <code>llms.txt</code>)</td></tr>
     </tbody>
   </table></div>
+
+  <p><b>요청형 "-세요" 는 화면에 쓴다</b>(2026-09-25 — 사람 결정 D5). "다시 시도하십시오" 는 화면에서 딱딱하다 — 요청·권유는 "-세요 · -해 주세요" 로 쓴다. <b>그 밖의 해요체는 쓰지 않는다</b>(평서·의문의 "-어요 · -나요 · -까요"): 물음은 "-시겠습니까?" 로 묻고, 링크 글자처럼 짧은 자리는 조건으로 바꾼다("계정이 없으면 가입 ▸" · "비밀번호를 잊었을 때 ▸"). 홈에서 가장 큰 글자가 "밀린 결정이 없어요" 였고 바로 아래 문장이 "기다리는 항목이 없습니다." 였다 — 한 카드 안에서 말투가 바뀌었다.</p>
+  <p><b>설계 문서의 말은 화면에 두지 않는다.</b> 결정 번호("(D-08)")·"MVP" 를 읽은 사람은 그 뜻을 찾아갈 곳이 없다 — 까닭을 문장으로 말한다("승인과 결정은 사람만 할 수 있어 토큰에 줄 수 없습니다"). 화면에서 바꿔 부르는 설계 용어는 아래 표가 정한다 — 명세·코드에서는 원래 이름을 그대로 쓴다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>설계 용어</th><th>화면에서</th><th>자리</th></tr></thead>
+    <tbody>
+      <tr><td><code>fail-open</code>(판정 불가 시 진행 — D-14)</td><td>판정할 수 없을 때</td><td>게이트 정책의 읽기 전용 값</td></tr>
+      <tr><td>토큰 <code>prefix</code></td><td>앞자리</td><td>토큰 표의 열 머리 · 발급 안내</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>검사가 센다</b>(2026-09-25). <code>packages/schema/src/i18n/i18n.spec.ts</code> 의 "말투" 묶음이 화면 키 전부(위 표의 에이전트·생성 문서 머리 다섯을 뺀 것)에서 해요체 문장 끝 · 해라체 문장 끝("니다" 가 아닌 "다") · 결정 번호와 "MVP" 를 찾는다. 해라체가 맞는 견본(요구사항 문형 <code>spec.requirements.format</code>)만 이름으로 비켜 둔다. <b>반대 방향은 아직 세지 않는다</b> — 에이전트·CLI 키에 합쇼체가 아홉 곳 있다(2026-09-25 실측 — 훅 메시지 <code>agent.*</code> 셋 · <code>cli.err.*</code> 다섯 · <code>mcp.error.tool_failed</code>).</p>
 
   <h3>3.2 왜 규칙이 필요했나</h3>
   <p>규정이 저장소 어디에도 없었다 — <code>docs/</code>·매뉴얼·<code>AGENTS.md</code>·카탈로그 머리 주석 모두. 카탈로그는 규칙 셋(키 짓기·자리표시자·식별자 비번역)을 적어 두었는데 <b>말투만 빠져 있었고</b>, 그래서 설명·근거를 적는 문장이 문서의 말투를 그대로 끌고 들어왔다. 자국은 <b>화면 아홉</b>이었고, 의도가 아니라는 근거는 넷이다.</p>

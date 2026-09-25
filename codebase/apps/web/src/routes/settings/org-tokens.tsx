@@ -141,7 +141,7 @@ function OrgTokens({
                 <Th>{t('settings.tokens.project')}</Th>
                 <Th>{t('settings.tokens.owner')}</Th>
                 <Th>{t('settings.members.name')}</Th>
-                <Th>prefix</Th>
+                <Th>{t('settings.tokens.prefix')}</Th>
                 <Th>{t('settings.tokens.scopes')}</Th>
                 <Th>{t('settings.tokens.expires')}</Th>
                 <Th>{t('settings.tokens.last_used')}</Th>

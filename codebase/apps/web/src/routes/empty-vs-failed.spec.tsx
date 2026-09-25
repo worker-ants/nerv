@@ -127,14 +127,14 @@ function renderAt(path: string): ReturnType<typeof createMemoryHistory> {
 }
 
 describe('실패는 "없다" 가 아니다 (REQ-WEB-198)', () => {
-  it('홈 — 받은 요청을 불러오지 못하면 "밀린 결정이 없어요" 라고 말하지 않는다', async () => {
+  it('홈 — 받은 요청을 불러오지 못하면 "밀린 결정이 없습니다" 라고 말하지 않는다', async () => {
     override = (path) => (path.startsWith('/approvals') ? FAILED : undefined);
     renderAt('/');
 
     await screen.findByTestId('error-state');
     const heading = screen.getByRole('heading', { level: 1 }).textContent ?? '';
     expect(heading).toContain('받은 요청을 불러오지 못했습니다');
-    expect(heading).not.toContain('없어요');
+    expect(heading).not.toContain('밀린 결정이 없');
     expect(screen.queryByText(ko['home.nothing_waiting'])).toBeNull();
     expect(screen.getByRole('button', { name: ko['common.retry'] })).toBeDefined();
   });
