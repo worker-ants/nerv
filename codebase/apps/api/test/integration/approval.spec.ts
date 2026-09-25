@@ -2296,6 +2296,102 @@ describe('받은 요청의 쪽 넘김 (REQ-API-166)', () => {
 });
 
 /**
+ * **배지는 내가 누를 수 있는 것만 센다**(2026-09-25 — UI/UX 검토 HUB-04 · 사람 결정 D2 · REQ-API-184).
+ *
+ * `total` 은 대기 탭의 전체라 **내가 승인할 수 없는 카드**가 섞였다 — 내가 요청한 것 · 내가 쓴
+ * 초안 · 내 세션이 쓴 초안 · T3 에서 이미 승인하고 남은 칸. 배지와 홈 인사가 그 수를 쓰는 동안
+ * 할 수 있는 것을 다 처리해도 숫자가 0 이 되지 않았고, 잠긴 카드는 요청 시각 순으로 목록
+ * 한가운데 끼어 누를 수 있는 카드를 뒤 쪽으로 밀어냈다.
+ */
+describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)', () => {
+  /** planner 가 볼 대기 — 잠긴 것(자기 요청)은 **더 오래** 기다린 것으로 심는다 */
+  async function seedMixed(): Promise<{ open: string[]; locked: string[] }> {
+    const open: string[] = [];
+    const locked: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const id = newId();
+      locked.push(id);
+      await pool.query(
+        `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                               requested_at)
+         VALUES ($1,$2,'plan',$3,$4, now() - ($5 || ' hours')::interval)`,
+        [id, projectId, newId(), planner, String(20 - i)],
+      );
+    }
+    for (let i = 0; i < 3; i += 1) {
+      const id = newId();
+      open.push(id);
+      await pool.query(
+        `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                               requested_at)
+         VALUES ($1,$2,'plan',$3,$4, now() - ($5 || ' hours')::interval)`,
+        [id, projectId, newId(), reviewer, String(5 - i)],
+      );
+    }
+    return { open, locked };
+  }
+
+  it('누를 수 있는 수를 따로 준다 — 잠긴 카드는 전체에만 든다', async () => {
+    await seedMixed();
+    await questions.create({ projectId, sessionId, title: '어느 쪽으로 갈까' });
+    const page = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    // 결재 여섯(잠김 셋) + 질문 하나
+    expect(page.total).toBe(7);
+    expect(page.actionable_total).toBe(4);
+    // 판정은 카드의 `can_approve` 와 같은 식이다 — 두 수가 어긋나지 않는다
+    const unlocked = page.items.filter(
+      (c) => c['subject_type'] === 'question' || c['can_approve'] === true,
+    );
+    expect(unlocked).toHaveLength(page.actionable_total!);
+  });
+
+  it('잠긴 카드는 뒤로 간다 — 더 오래 기다렸어도 누를 수 있는 것이 먼저다', async () => {
+    const { open, locked } = await seedMixed();
+    const page = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    const ids = page.items.map((c) => String(c['id']));
+    // 앞 구역 안에서는 여전히 오래 기다린 것이 위다(REQ-WEB-024)
+    expect(ids).toEqual([...open, ...locked]);
+    expect(page.items.at(-1)).toMatchObject({
+      can_approve: false,
+      can_approve_reason: 'self_requested',
+    });
+  });
+
+  it('쪽 경계가 두 구역 사이에 걸려도 한 번씩만 훑는다 — 질문은 앞 구역이다', async () => {
+    const { open, locked } = await seedMixed();
+    const asked = await questions.create({ projectId, sessionId, title: '질문' });
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let guard = 0; guard < 10; guard += 1) {
+      const page: Awaited<ReturnType<typeof approvals.inboxGlobal>> = await approvals.inboxGlobal({
+        actor: person(planner),
+        userId: planner,
+        cursor,
+        limit: 2,
+      });
+      seen.push(...page.items.map((c) => String(c['id'])));
+      cursor = page.next_cursor;
+      if (cursor === null) break;
+    }
+    expect(seen).toHaveLength(7);
+    expect(new Set(seen).size).toBe(7);
+    // 질문은 방금 물었으니 앞 구역의 끝이다 — 잠긴 셋보다 먼저 온다
+    expect(seen.slice(-3)).toEqual(locked);
+    expect(seen.indexOf(asked.question_id)).toBe(open.length);
+  });
+
+  it('처리됨에는 누를 수 있는 수가 없다 — 누를 것이 없는 목록이다', async () => {
+    await seedMixed();
+    const page = await approvals.inboxGlobal({
+      actor: person(planner),
+      userId: planner,
+      state: 'decided',
+    });
+    expect(page).not.toHaveProperty('actionable_total');
+  });
+});
+
+/**
  * **요청의 그림자 알림은 요청과 함께 닫힌다**(2026-09-24 — UI/UX 검토 · REQ-API-176).
  *
  * 받은 요청에서 카드를 처리하면 받은 요청 배지는 줄었지만 알림 배지는 그대로였다 — 결정 경로

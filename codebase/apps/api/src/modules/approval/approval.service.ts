@@ -29,6 +29,7 @@ import {
   canApproveReasonSql,
   canBulkApproveSql,
   quorumSql,
+  canApproveExpr,
   canApproveSql,
   eligibleSql,
   quorumColumnsSql,
@@ -63,12 +64,27 @@ export type ApprovalDecision = 'approve' | 'reject' | 'comment';
 const BULK_DECISIONS = approvalDecision.enumValues.filter((d) => d !== 'comment');
 
 /**
- * 대기 목록의 두 소스(결재 · 질문)를 **같은 키로** 세운다 — `(시각 ASC, id ASC)`.
+ * 대기의 첫째 키 — **누를 수 있는 것이 먼저**다(2026-09-25 · REQ-API-184 · 사람 결정 D2).
+ *
+ * 질문은 멤버 누구나 답하므로 늘 0 이고, 결재는 서버 판정(`can_approve`)이 거짓일 때만 1 이다.
+ * 잠긴 카드는 목록에서 빠지지 않는다 — 요청자가 스스로 거둘(거절) 길이고 이유가 카드에
+ * 적힌다(REQ-API-137). 다만 **뒤로 간다**: 잠긴 카드가 요청 시각 순으로 한가운데 끼면, 누를 수
+ * 있는 것을 다 처리해도 첫 쪽이 누를 수 없는 것으로 차 있었다.
+ */
+function lockRank(row: Record<string, unknown>): 0 | 1 {
+  return row['subject_type'] !== 'question' && row['can_approve'] === false ? 1 : 0;
+}
+
+/**
+ * 대기 목록의 두 소스(결재 · 질문)를 **같은 키로** 세운다 — `(잠김, 시각 ASC, id ASC)`.
  *
  * `cursor_at` 은 DB 가 준 텍스트라 사전순 비교가 곧 시각순이다(같은 타임존·같은 형식).
  * 시각이 같으면 `id` 가 가른다 — uuidv7 이라 그 순서가 삽입 순서다.
  */
 function compareByCursor(a: Record<string, unknown>, b: Record<string, unknown>): number {
+  const al = lockRank(a);
+  const bl = lockRank(b);
+  if (al !== bl) return al - bl;
   const at = String(a['cursor_at'] ?? '');
   const bt = String(b['cursor_at'] ?? '');
   if (at !== bt) return at < bt ? -1 : 1;
@@ -114,6 +130,19 @@ export interface InboxCard extends Record<string, unknown> {
   assignee_role: string | null;
   /** stale 판정용 — 결정 시점에 내용이 바뀌었는지 본다 */
   content_hash: string | null;
+}
+
+/** 받은 요청 한 쪽 — §1.6 봉투(EP-APR-01) */
+export interface InboxPage {
+  items: Record<string, unknown>[];
+  next_cursor: string | null;
+  /** 같은 조건의 **전체 수**(REQ-API-166) — 잠긴 카드까지 */
+  total: number;
+  /**
+   * 그중 **내가 누를 수 있는 것**(질문 + `can_approve` 가 참인 결재 · REQ-API-184). 대기 목록에만
+   * 온다 — 처리됨에는 누를 것이 없다(없는 값은 없는 것으로 온다 · `can_approve` 와 같은 규율).
+   */
+  actionable_total?: number;
 }
 
 @Injectable()
@@ -261,7 +290,7 @@ export class ApprovalService {
     state?: string | null;
     cursor?: string | null;
     limit?: string | number | null;
-  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null; total: number }> {
+  }): Promise<InboxPage> {
     return this.inboxGlobal({
       actor: input.actor,
       userId: input.userId,
@@ -295,7 +324,7 @@ export class ApprovalService {
     /** 불투명 커서(§1.6) — 해독되지 않으면 처음부터다 */
     cursor?: string | null;
     limit?: string | number | null;
-  }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null; total: number }> {
+  }): Promise<InboxPage> {
     assertHuman(input.actor, 'inbox', '/inbox');
     const decided =
       assertVocab([input.state ?? 'pending'], APPROVAL_INBOX_STATES, 'state')[0] === 'decided';
@@ -336,7 +365,13 @@ export class ApprovalService {
      * 처리됨은 반대다 — **방금 결정한 것이 위**여야 한다(그 목록은 기록이고, 기록은 최근
      * 것부터 읽는다).
      */
-    const orderBy = decided ? sql`a.decided_at DESC, a.id DESC` : sql`a.requested_at ASC, a.id ASC`;
+    //
+    // 대기의 **첫째 키는 누를 수 있는가**다(2026-09-25 · REQ-API-184) — 잠긴 카드는 뒤로 간다.
+    // `can_approve` 는 위 SELECT 의 열 이름이다(대기 행에서는 늘 참·거짓 — 자격(`eligibleSql`)이
+    // 참인 행만 오고 나머지 항은 NULL 을 만들지 않는다).
+    const orderBy = decided
+      ? sql`a.decided_at DESC, a.id DESC`
+      : sql`can_approve DESC, a.requested_at ASC, a.id ASC`;
     /**
      * **커서는 (정렬 키, id) 다**(§1.6 · REQ-API-124). 시각 하나로 seek 하면 같은 시각의
      * 행이 쪽 경계에 걸릴 때 남은 것이 어느 쪽에도 나오지 않는다 — 한 트랜잭션이 슬롯을
@@ -350,14 +385,20 @@ export class ApprovalService {
     const cursorAt = cursorTimestamp(cursor?.[0]);
     const cursorRowId = cursorId(cursor?.[1]);
     const seekable = cursorAt !== null && cursorRowId !== null;
+    // 대기 커서의 셋째 칸 — 잠긴 구역에 들어섰는가. 칸이 없는 옛 커서는 앞 구역으로 읽는다
+    const cursorLocked = !decided && cursor?.[2] === 1;
     const approvalSeek = !seekable
       ? sql``
       : decided
         ? sql` AND (a.decided_at, a.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
-        : sql` AND (a.requested_at, a.id) > (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`;
+        : sql` AND (NOT COALESCE(${canApproveExpr(input.userId)}, false), a.requested_at, a.id)
+                 > (${cursorLocked}::boolean, ${cursorAt}::timestamptz, ${cursorRowId}::uuid)`;
+    // 질문은 늘 앞 구역이다 — 잠긴 구역에 들어선 커서 뒤에는 질문이 남아 있지 않다
     const questionSeek = !seekable
       ? sql``
-      : sql` AND (q.asked_at, q.id) > (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`;
+      : cursorLocked
+        ? sql` AND false`
+        : sql` AND (q.asked_at, q.id) > (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`;
     /**
      * **결정된 카드에는 판정을 싣지 않는다**(2026-09-24).
      *
@@ -475,7 +516,7 @@ export class ApprovalService {
       const { rows: counted } = await this.db.execute<{ total: number }>(sql`
         SELECT count(*)::int AS total ${approvalFrom} ${approvalWhere}
       `);
-      return this.page(approvals, limit, counted[0]?.total ?? 0);
+      return this.page(approvals, limit, counted[0]?.total ?? 0, false);
     }
 
     // 질문 카드 — 승인과 같은 줄에 선다. 에이전트가 답을 기다리며 멈춰 있고(awaiting_input),
@@ -505,9 +546,22 @@ export class ApprovalService {
        LIMIT ${limit + 1}
     `);
 
-    const { rows: counted } = await this.db.execute<{ total: number }>(sql`
+    /**
+     * **누를 수 있는 수를 따로 센다**(2026-09-25 · REQ-API-184 · 사람 결정 D2). 헤더 배지와 홈의
+     * 인사("결정 N건이 밀려 있어요")가 `total` 을 쓰는 동안, 그 수에는 **내가 승인할 수 없는
+     * 카드**가 섞였다 — 내 에이전트가 올린 스펙 · 내가 쓴 초안 · T3 에서 이미 승인하고 남은 칸.
+     * 할 수 있는 것을 다 처리해도 숫자가 0 이 되지 않았고, 배지는 "내가 막고 있는 것" 을 뜻하지
+     * 않게 됐다. 판정은 목록의 `can_approve` 와 **같은 식**이다(두 벌이면 한쪽만 고쳐진다).
+     */
+    const { rows: counted } = await this.db.execute<{
+      total: number;
+      actionable_total: number;
+    }>(sql`
       SELECT (SELECT count(*) ${approvalFrom} ${approvalWhere})::int
-           + (SELECT count(*) ${questionFrom} ${questionWhere})::int AS total
+           + (SELECT count(*) ${questionFrom} ${questionWhere})::int AS total,
+             (SELECT count(*) ${approvalFrom} ${approvalWhere}
+                AND ${canApproveExpr(input.userId)})::int
+           + (SELECT count(*) ${questionFrom} ${questionWhere})::int AS actionable_total
     `);
 
     /**
@@ -516,7 +570,10 @@ export class ApprovalService {
      * 많으면 다음 쪽이 있고, 아니면 양쪽이 다 바닥난 것이다.
      */
     const merged = [...approvals, ...questions].sort(compareByCursor);
-    return this.page(merged, limit, counted[0]?.total ?? 0);
+    return {
+      ...this.page(merged, limit, counted[0]?.total ?? 0, true),
+      actionable_total: counted[0]?.actionable_total ?? 0,
+    };
   }
 
   /**
@@ -534,12 +591,18 @@ export class ApprovalService {
     rows: Record<string, unknown>[],
     limit: number,
     total: number,
-  ): { items: Record<string, unknown>[]; next_cursor: string | null; total: number } {
+    /** 대기 목록이면 커서가 잠긴 구역에 들어섰는지를 셋째 칸으로 싣는다(REQ-API-184) */
+    lockAware: boolean,
+  ): InboxPage {
     const items = rows.slice(0, limit);
     const last = items.at(-1);
     const next =
       rows.length > limit && last !== undefined
-        ? encodeCursor([String(last['cursor_at']), String(last['id'])])
+        ? encodeCursor([
+            String(last['cursor_at']),
+            String(last['id']),
+            ...(lockAware ? [lockRank(last)] : []),
+          ])
         : null;
     for (const row of items) delete row['cursor_at'];
     return { items, next_cursor: next, total };

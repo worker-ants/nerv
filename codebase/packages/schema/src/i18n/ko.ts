@@ -1242,7 +1242,7 @@ export const ko = {
   'inbox.waited.minutes': '{n}분 대기',
   // ── 알림 센터 (screens.md §2.9) ─────────────────────────────────────────────
   'notif.empty': '알림이 없습니다.',
-  'notif.empty_hint': '스펙 승인·작업 완료·에이전트 질문이 생기면 여기에 쌓입니다.',
+  'notif.empty_hint': '승인 결과·막힌 작업·세션 무응답·코멘트가 여기 옵니다.',
   'notif.lead':
     '여기 있는 것은 이미 일어난 일입니다 — 내 결정을 기다리는 것은 받은 요청에 있습니다.',
   'notif.mark_read': '읽음',
@@ -1250,10 +1250,23 @@ export const ko = {
   'notif.title': '알림',
   'notif.unread': '읽지 않음',
   'notif.filter.all': '전체',
-  'notif.filter.immediate': '결정이 필요한 것',
-  'notif.immediate_badge': '결정 대기 {count}건',
+  'notif.filter.immediate': '중요',
+  'notif.immediate_badge': '중요 {count}건',
   'notif.read_all': '모두 읽음',
   'notif.unread_badge': '읽지 않음 {count}',
+  // 등급 이름은 **중요**다(2026-09-24 사람 결정 D3) — '결정 대기' 라 부르는 동안 스펙 승인됨·세션
+  // 무응답처럼 결정이 아닌 것이 대부분이었고, 머리의 한 줄('결정은 받은 요청에')과 부딪쳤다
+  'notif.filter.unread': '안 읽음',
+  'notif.filter.label': '알림 거르기',
+  'notif.empty_important': '중요한 알림이 없습니다.',
+  'notif.empty_unread': '안 읽은 알림이 없습니다.',
+  'notif.read_all_done': '{count}건을 읽음으로 표시했습니다.',
+  'shell.notifications_counts': '알림 — 모든 조직 · 중요 {important} · 읽지 않음 {unread}',
+  // 받은 요청의 잠긴 카드 — 배지는 내가 누를 수 있는 것만 센다(2026-09-24 사람 결정 D2 · REQ-WEB-217)
+  'inbox.locked_group': '다른 사람의 결정을 기다리는 것 {count}건',
+  'inbox.locked_hint':
+    '내가 요청했거나 쓴 것, 이미 승인한 것입니다 — 승인은 다른 사람이 합니다. 요청을 거둘 때는 여기서 거절합니다.',
+  'home.others_waiting': '다른 사람의 결정을 기다리는 것 {count}건 ▸',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '활성 세션 {count}개',
   'project.actor.agent': '에이전트',

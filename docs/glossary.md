@@ -29,7 +29,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV 문서 세트·화면 문구·매뉴얼·스킬이 공유하는 **용어의 정본**이다 — 한국어와 영어 둘 다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 **치환되는 옛 표현**과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다. 상태값의 목록과 결정 번호(D-01~D-14)·요구사항 번호(FR/NFR)는 여기가 아니라 [1.2 문제 정의와 요구사항](01-problem/pain-points.md)이 정본이고, 이 문서는 그 값들을 **무엇이라 부를지**만 정한다.
 >
-> 문서 버전 v0.5 · 2026-09-07 · HTML 파생본: [glossary.html](html/glossary.html)
+> 문서 버전 v0.6 · 2026-09-25 · HTML 파생본: [glossary.html](html/glossary.html)
+>
+> v0.6 변경(2026-09-25 — 알림 등급의 화면 이름이 뜻과 부딪쳤다, **사람 결정**): **새 표제어 없음 — 알림 한 줄 · §1.3 한 줄.** 알림 센터가 `immediate` 등급을 "결정 대기"·"결정이 필요한 것" 이라 불렀는데, 그 등급에는 스펙 승인됨·세션 무응답·작업 막힘처럼 결정이 아닌 것이 대부분이었고 같은 화면의 한 줄("결정은 받은 요청에")과 부딪쳤다 — 결정은 **받은 요청**의 낱말이다(§2.5). 채택어는 **중요**(영문 `Important`)다(2026-09-24 사람 결정 · [4.5 화면 명세](04-mvp/screens.md) REQ-WEB-218).
 >
 > v0.5 변경(2026-09-07 — 사전의 `코드` 열 절반이 실재하지 않는 이름이었다, 개선 계획 첫 스프린트): **새 표제어 없음 — §2 의 `코드` 열 스물둘을 실물로 고친다.** 이 사전은 §0.2 에서 "식별자는 번역하지 않고 그대로 둔다" 고 선언해 놓고, 정작 그 식별자를 적는 열에 **없는 이름**을 싣고 있었다. 두 종류다 — ① **복수형**: 테이블은 전부 snake_case 단수인데(`organizations`·`projects`·`specs`·`spec_versions`·`requirements`·`change_requests`·`tasks`·`claims`·`findings`·`approvals`·`questions`·`notifications`·`agent_sessions`·`activities`·`invitations`) 열여섯 자리가 복수였다. ② **아예 없는 이름**: `agent_tokens`(실물 `api_token`) · `baselines`(`spec_baseline`) · `reviews`(`review_session`) · `gate_policies`(`project.gate_policy` — 테이블이 아니라 jsonb 열이다) · `stable_key`(그런 열은 없다 — 표시 키는 `spec.key`·`task.key` 이고 요구사항만 `ref` 다) · `claims.spec_ids`·`file_globs`(`claim.scope_spec_ids`·`scope_file_globs`) · `heartbeat_at`(`last_heartbeat_at`). **이 열은 "코드에서 무엇을 찾아야 하는가" 에 답하는 자리**라, 없는 이름을 적으면 찾는 사람이 못 찾고 사전이 사전이기를 그만둔다. 표 머리에 그 규율을 한 줄로 못 박았다. 곁들여 §0.2 와 §2.6 의 예시 `spec_versions` 도 단수로 고쳤다(같은 문서가 같은 실수를 세 자리에서 하고 있었다).
 >
@@ -100,6 +102,7 @@ referenced_by:
 | 옛 이름 | 채택어 | 결정일 | 남은 자리 |
 | --- | --- | --- | --- |
 | 승인함 | **받은 요청** | 2026-08-27 (README v1.45) | 화면·매뉴얼·스킬 0건 · 명세 15곳 |
+| 결정 대기 · 결정이 필요한 것 (알림 등급) | **중요** | 2026-09-24 (screens v1.50) | 화면·매뉴얼 ko·en 0건 |
 
 ---
 
@@ -175,7 +178,7 @@ referenced_by:
 | **받은 요청** ← 승인함 | inbox | `approval` | 내 결정을 기다리는 것들이 모이는 곳. **알림과 다르다** — 알림은 이미 일어난 일이다 |
 | **승인** | approval | `approval_decision` | 사람만 내릴 수 있는 결정 — 승인·반려·코멘트. 토큰에 위임되지 않는다(`D-08`) |
 | **질문** | question | `question` | 에이전트가 막혔을 때 사람에게 묻는 것. 사람이 답하거나, **만든 세션이 스스로 취소**할 수 있다 |
-| **알림** | notification | `notification` | 이미 일어난 일을 알리는 것. 즉시와 모아 보기 두 등급이 있다 |
+| **알림** | notification | `notification` | 이미 일어난 일을 알리는 것. 두 등급 — **중요**(`immediate` · 영문 화면 `Important` · 헤더 배지가 세는 것)와 그 밖(`digest`)이다. 중요를 "결정" 이라 부르지 않는다 — 결정은 받은 요청의 낱말이다 |
 | **세션** | agent session | `agent_session` | 에이전트가 일하는 한 번의 회차. 대기·활동 중·응답 대기·무응답·종료·오류의 여섯 상태. 사람의 로그인 세션과 이름이 겹치므로 **명세에서는 "에이전트 세션" 으로 늘여 쓴다** |
 | **활동** | activity | `activity` | 프로젝트에서 벌어진 일의 시간순 기록. 감사 로그이자 사람이 읽는 피드다 |
 

@@ -18,7 +18,7 @@ import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
 import { useApiError } from '../lib/api-errors.js';
 import { queryKeys } from '../lib/query-keys.js';
-import { inboxCards, inboxTotal, useInbox } from '../lib/queries.js';
+import { inboxActionable, inboxCards, inboxTotal, lockedCard, useInbox } from '../lib/queries.js';
 import type { Row } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
@@ -80,9 +80,26 @@ function InboxScreen(): React.JSX.Element {
   /** 찾던 카드가 목록에 끝내 없다 — 이미 처리됐거나 내 큐가 아니다 */
   const [missing, setMissing] = useState<string | null>(null);
   const handledFocus = useRef<string | null>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  const cards = inboxCards(inbox.data);
+  const listRef = useRef<HTMLDivElement>(null);
+  const allCards = inboxCards(inbox.data);
   const total = inboxTotal(inbox.data);
+  /**
+   * **누를 수 있는 것과 잠긴 것을 가른다**(2026-09-24 사람 결정 D2 · REQ-WEB-217). 잠긴 카드 —
+   * 내가 요청했거나 쓴 것, 이미 승인한 것 — 가 요청 시각 순으로 목록 한가운데 끼어, 할 수 있는
+   * 것을 다 처리해도 목록과 머리의 수가 줄지 않았다. 서버가 그것을 **뒤로** 보내고(REQ-API-184)
+   * 화면은 목록 끝의 접힌 묶음으로 모은다. 목록에서 빼지는 않는다 — 요청을 거두는(거절) 길이다.
+   */
+  const openCards = state === 'pending' ? allCards.filter((card) => !lockedCard(card)) : allCards;
+  const lockedCards = state === 'pending' ? allCards.filter(lockedCard) : [];
+  const [showLocked, setShowLocked] = useState(false);
+  /** 키보드가 닿는 카드 — **보이는 것**이다. 접힌 묶음 안의 카드에는 j/k 가 가지 않는다 */
+  const cards = showLocked ? [...openCards, ...lockedCards] : openCards;
+  const actionable = state === 'pending' ? inboxActionable(inbox.data) : total;
+  const lockedTotal = Math.max(lockedCards.length, total - actionable);
+  /** 잠긴 구역에 닿았다 — 서버가 누를 수 있는 것을 먼저 주므로, 남은 쪽은 모두 잠긴 카드다 */
+  const inLockedZone = lockedCards.length > 0;
+  const cardAt = (index: number): Element | null =>
+    listRef.current?.querySelector(`[data-card-index="${index}"]`) ?? null;
   const queryClient = useQueryClient();
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
@@ -181,6 +198,11 @@ function InboxScreen(): React.JSX.Element {
    */
   useEffect(() => {
     if (focus === undefined || handledFocus.current === focus || inbox.data === undefined) return;
+    // 찾던 카드가 접힌 묶음 안이면 묶음을 편다 — 다음 렌더에서 보이는 목록에 든다
+    if (!showLocked && lockedCards.some((card) => String(card['id']) === focus)) {
+      setShowLocked(true);
+      return;
+    }
     const index = cards.findIndex((card) => String(card['id']) === focus);
     if (index >= 0) {
       handledFocus.current = focus;
@@ -196,7 +218,7 @@ function InboxScreen(): React.JSX.Element {
     }
     handledFocus.current = focus;
     setMissing(focus);
-  }, [focus, cards, inbox]);
+  }, [focus, cards, lockedCards, showLocked, inbox]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -210,8 +232,8 @@ function InboxScreen(): React.JSX.Element {
       if (e.key === 'x') {
         const card = cards[cursor];
         // 보이지 않는 카드는 고르지 않는다 — 결정 키와 같은 규칙이다(REQ-WEB-204)
-        const el = listRef.current?.children[cursor] ?? null;
-        if (card !== undefined && selectableCard(card) && inView(el)) toggle(String(card['id']));
+        if (card !== undefined && selectableCard(card) && inView(cardAt(cursor)))
+          toggle(String(card['id']));
       }
       if (e.key === 'X') setSelected(new Set(selectable.map((card) => String(card['id']))));
       if (e.key === 'A') openConfirm('approve');
@@ -225,10 +247,38 @@ function InboxScreen(): React.JSX.Element {
   }, [cards, cursor, state, selected]);
 
   useEffect(() => {
-    const el = listRef.current?.children[cursor];
+    const el = cardAt(cursor);
     // 레이아웃이 없는 환경(테스트)에는 이 함수가 없다 — 없으면 옮기지 않는다
     if (el instanceof HTMLElement) el.scrollIntoView?.({ block: 'nearest' });
   }, [cursor]);
+
+  const renderCard = (card: Row, index: number): React.JSX.Element => (
+    <li
+      key={String(card['id'])}
+      data-card-index={index}
+      data-active={index === cursor}
+      data-landed={landed === String(card['id']) || undefined}
+      // **누르거나 들어간 카드가 커서다**(REQ-WEB-204). j/k 로만 옮겨지던 동안, 다른 카드의
+      // [본문 보기]를 누르고 a 를 치면 커서가 남아 있던 카드가 승인됐다
+      onPointerDownCapture={() => setCursor(index)}
+      onFocusCapture={() => setCursor(index)}
+      // 포커스는 **왼쪽 띠**다. 링을 두르면 카드가 떠 보이고, j/k 로 훑을 때
+      // 카드가 하나씩 튀어오르는 것처럼 읽힌다
+      className="rounded-nerv border-l-2 border-transparent pl-1 transition-colors data-[active=true]:border-status-action data-[landed=true]:bg-status-action-soft"
+    >
+      <ApprovalCard
+        card={card}
+        active={index === cursor}
+        keysOff={confirming !== null}
+        selectable={state === 'pending' && selectableCard(card)}
+        selected={selected.has(String(card['id']))}
+        onToggle={toggle}
+        {...(failures.has(String(card['id']))
+          ? { failure: failures.get(String(card['id'])) as CardFailure }
+          : {})}
+      />
+    </li>
+  );
 
   return (
     <PageBody>
@@ -279,7 +329,7 @@ function InboxScreen(): React.JSX.Element {
         meta={
           <span className="rounded-full bg-bg-sunken px-2 py-0.5 text-xs text-text-mute">
             {state === 'pending'
-              ? t('inbox.count_pending', { count: total })
+              ? t('inbox.count_pending', { count: actionable })
               : t('inbox.count_decided', { count: total })}
           </span>
         }
@@ -459,7 +509,7 @@ function InboxScreen(): React.JSX.Element {
       {/* **탭마다 제목이 다르다**(2026-09-24 · REQ-WEB-208). 처리됨 탭이 비어도 "지금 당신을 기다리는 항목이
           없습니다" 라고 적어 탭과 맞지 않았다. 대기가 비면 최근 처리 셋을 붙인다(ui-wireframes §3.4) —
           방금 한 일이 어디 갔는지가 빈 목록의 다음 질문이다 */}
-      {inbox.data !== undefined && cards.length === 0 && (
+      {inbox.data !== undefined && openCards.length === 0 && (
         <EmptyState
           icon="✓"
           title={state === 'pending' ? t('home.nothing_waiting') : t('inbox.empty_decided')}
@@ -476,41 +526,48 @@ function InboxScreen(): React.JSX.Element {
         />
       )}
 
-      <ul ref={listRef} className="flex flex-col gap-2">
-        {cards.map((card, index) => (
-          <li
-            key={String(card['id'])}
-            data-active={index === cursor}
-            data-landed={landed === String(card['id']) || undefined}
-            // **누르거나 들어간 카드가 커서다**(REQ-WEB-204). j/k 로만 옮겨지던 동안, 다른 카드의
-            // [본문 보기]를 누르고 a 를 치면 커서가 남아 있던 카드가 승인됐다
-            onPointerDownCapture={() => setCursor(index)}
-            onFocusCapture={() => setCursor(index)}
-            // 포커스는 **왼쪽 띠**다. 링을 두르면 카드가 떠 보이고, j/k 로 훑을 때
-            // 카드가 하나씩 튀어오르는 것처럼 읽힌다
-            className="rounded-nerv border-l-2 border-transparent pl-1 transition-colors data-[active=true]:border-status-action data-[landed=true]:bg-status-action-soft"
-          >
-            <ApprovalCard
-              card={card}
-              active={index === cursor}
-              keysOff={confirming !== null}
-              selectable={state === 'pending' && selectableCard(card)}
-              selected={selected.has(String(card['id']))}
-              onToggle={toggle}
-              {...(failures.has(String(card['id']))
-                ? { failure: failures.get(String(card['id'])) as CardFailure }
-                : {})}
-            />
-          </li>
-        ))}
-      </ul>
+      <div ref={listRef}>
+        <ul className="flex flex-col gap-2">
+          {openCards.map((card, index) => renderCard(card, index))}
+        </ul>
+
+        {/* **다른 사람의 결정을 기다리는 것**은 끝에 접어 둔다(REQ-WEB-217). 이유는 카드마다 그대로
+            적힌다(REQ-WEB-145) — 묶음은 그 카드를 치우는 것이 아니라 순서를 정하는 것이다 */}
+        {inLockedZone && (
+          <section data-testid="inbox-locked" className="mt-5">
+            <button
+              type="button"
+              data-testid="inbox-locked-toggle"
+              aria-expanded={showLocked}
+              onClick={() => setShowLocked((open) => !open)}
+              className="flex items-center gap-1.5 text-sm text-text-mute hover:text-text"
+            >
+              <span aria-hidden="true" className="w-3 text-2xs">
+                {showLocked ? '▾' : '▸'}
+              </span>
+              {t('inbox.locked_group', { count: lockedTotal })}
+            </button>
+            {showLocked && (
+              <>
+                <p className="mt-1 mb-2 pl-[18px] text-2xs text-text-faint">
+                  {t('inbox.locked_hint')}
+                </p>
+                <ul className="flex flex-col gap-2">
+                  {lockedCards.map((card, i) => renderCard(card, openCards.length + i))}
+                </ul>
+              </>
+            )}
+          </section>
+        )}
+      </div>
 
       {/* **이게 전부가 아니면 그렇게 말한다**(REQ-API-166). 예전에는 100건에서 말없이
           잘렸고, 그 상한이 **오래 기다린 쪽**을 잘랐다 — 화면이 존재하는 이유를 뒤집는
           자리였다(실측 2026-09-24: 120건 중 가장 오래 기다린 20건이 통째로 빠졌다).
           일괄 선택은 **보이는 것 전체**를 뜻하므로(REQ-WEB-181) 더 받아 온 것까지
           자연히 포함된다 — 보지 않은 것을 고르게 하는 손잡이를 만들지 않는다. */}
-      {inbox.hasNextPage === true && (
+      {/* 잠긴 구역에 닿은 뒤의 남은 쪽은 모두 잠긴 카드다 — 묶음을 접어 둔 동안은 더 받지 않는다 */}
+      {inbox.hasNextPage === true && (!inLockedZone || showLocked) && (
         <div className="mt-3 flex justify-center">
           <Button
             variant="ghost"
