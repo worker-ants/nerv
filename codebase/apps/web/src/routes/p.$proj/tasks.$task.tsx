@@ -421,6 +421,13 @@ function TaskDetail(): React.JSX.Element {
                   <Link
                     to="/p/$proj/specs/$spec"
                     params={{ proj, spec: String(data['source_spec_id'] ?? data['spec_key']) }}
+                    // **적힌 그 버전을 연다**(SPEC-01 · REQ-WEB-214) — "SPEC v3" 이라 적고 링크는 최신
+                    // 승인본으로 갔다. 기준이 밀려났으면 그 차이를 보는 것이 이 작업의 재브리핑이다
+                    search={
+                      data['basis_version_no'] == null
+                        ? {}
+                        : { v: Number(data['basis_version_no']) }
+                    }
                     className="text-link hover:underline"
                   >
                     <Mono>{String(data['spec_key'])}</Mono>

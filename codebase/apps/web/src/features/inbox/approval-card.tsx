@@ -134,17 +134,22 @@ function subjectLinkOf(card: Record<string, unknown>): {
   to: string;
   params: Record<string, string>;
   path: string;
-  search?: Record<string, string>;
+  search?: Record<string, string | number>;
 } | null {
   const proj = String(card['project_slug'] ?? '');
   if (proj === '') return null;
   const specKey = card['spec_key'];
   if (typeof specKey === 'string' && specKey !== '') {
+    // **결재할 그 버전을 연다**(2026-09-24 · SPEC-01 · REQ-WEB-214). 링크가 버전을 싣지 않아 리뷰어는
+    // 판단해야 할 v4 가 아니라 승인본 v3 를 읽었다 — 카드 안 미리보기는 v4 를 보이면서
+    const versionNo = Number(card['version_no']);
+    const pinned = Number.isInteger(versionNo) && versionNo > 0;
     return {
       key: specKey,
       to: '/p/$proj/specs/$spec',
       params: { proj, spec: specKey },
-      path: `/p/${proj}/specs/${specKey}`,
+      path: `/p/${proj}/specs/${specKey}${pinned ? `?v=${String(versionNo)}` : ''}`,
+      ...(pinned ? { search: { v: versionNo } } : {}),
     };
   }
   const taskKey = card['task_key'];
@@ -198,7 +203,7 @@ function CardLink({
   path: string;
   to: string;
   params: Record<string, string>;
-  search?: Record<string, string>;
+  search?: Record<string, string | number>;
   testId?: string;
   children: React.ReactNode;
 }): React.JSX.Element {
