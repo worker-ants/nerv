@@ -10,11 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as HelpRouteRouteImport } from './routes/help/route'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SettingsRouteRouteImport } from './routes/settings/route'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as HelpIndexRouteImport } from './routes/help/index'
@@ -44,6 +46,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpRouteRoute = HelpRouteRouteImport.update({
   id: '/help',
   path: '/help',
@@ -67,6 +74,11 @@ const NotificationsRoute = NotificationsRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRouteRoute = SettingsRouteRouteImport.update({
@@ -189,10 +201,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/help': typeof HelpRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
   '/help/$chapter': typeof HelpChapterRoute
@@ -218,10 +232,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/help/$chapter': typeof HelpChapterRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -248,10 +264,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/help': typeof HelpRouteRouteWithChildren
   '/settings': typeof SettingsRouteRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/p/$proj': typeof PProjRouteRouteWithChildren
   '/help/$chapter': typeof HelpChapterRoute
@@ -281,10 +299,12 @@ export interface FileRouteTypes {
     | '/'
     | '/help'
     | '/settings'
+    | '/forgot-password'
     | '/inbox'
     | '/login'
     | '/notifications'
     | '/onboarding'
+    | '/reset-password'
     | '/signup'
     | '/p/$proj'
     | '/help/$chapter'
@@ -310,10 +330,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/forgot-password'
     | '/inbox'
     | '/login'
     | '/notifications'
     | '/onboarding'
+    | '/reset-password'
     | '/signup'
     | '/help/$chapter'
     | '/invite/$token'
@@ -339,10 +361,12 @@ export interface FileRouteTypes {
     | '/'
     | '/help'
     | '/settings'
+    | '/forgot-password'
     | '/inbox'
     | '/login'
     | '/notifications'
     | '/onboarding'
+    | '/reset-password'
     | '/signup'
     | '/p/$proj'
     | '/help/$chapter'
@@ -371,10 +395,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HelpRouteRoute: typeof HelpRouteRouteWithChildren
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   InboxRoute: typeof InboxRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
   OnboardingRoute: typeof OnboardingRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   PProjRouteRoute: typeof PProjRouteRouteWithChildren
   InviteTokenRoute: typeof InviteTokenRoute
@@ -388,6 +414,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help': {
@@ -423,6 +456,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -669,10 +709,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HelpRouteRoute: HelpRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   InboxRoute: InboxRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
   OnboardingRoute: OnboardingRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   PProjRouteRoute: PProjRouteRouteWithChildren,
   InviteTokenRoute: InviteTokenRoute,

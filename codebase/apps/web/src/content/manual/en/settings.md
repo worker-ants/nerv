@@ -64,7 +64,7 @@ It is the first item in the **You** group, and the first line of the menu under 
 - **Email** — shown only. It is your sign-in ID, so it is not changed here.
 - **Password** — enter your current password and the new one (twice), then press **[Change password]**. The new password needs at least 8 characters, and you are told before sending if the two do not match. **"Sign out every other device"** is on by default — other browsers and devices are signed out, and the browser you are using stays signed in. A wrong current password is reported right in the form.
 
-An agent token cannot change your name — a person's account is changed by that person. There is no way yet to reset a forgotten password by email.
+An agent token cannot change your name — a person's account is changed by that person. If you **forgot** the password, use "Forgot your password?" on the sign-in screen to get a link by mail and set a new one (see "Forgot your password" in [Getting started](/help/start)).
 
 ## Tokens
 

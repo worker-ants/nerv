@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 38개</b>다 — 도메인 32 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.51 (2026-09-24)</span>
+      <span>버전 v0.52 (2026-09-25)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1087,7 +1087,7 @@ CREATE TABLE auth_account (                  -- 로그인 수단. MVP는 이메�
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE auth_verification (             -- 이메일 검증·비밀번호 재설정 토큰 (메일 발송은 Phase 2)
+CREATE TABLE auth_verification (             -- 이메일 검증·비밀번호 재설정 토큰 (메일은 §2.17 아웃박스)
   id         uuid PRIMARY KEY,
   identifier text NOT NULL,
   value      text NOT NULL,
@@ -1119,9 +1119,9 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
   <p><b><code>notification</code> 을 재사용하지 않는다.</b> 그 표는 <code>project_id</code>·<code>event_id</code>·<code>user_id</code> 가 전부 NOT NULL 인데, 초대받은 사람은 <b>계정조차 없을 수 있고</b> 어느 프로젝트에도 속하지 않았다. 억지로 끼우면 그 세 열이 거짓말을 한다 — <code>notification_channel</code> 에 <code>email</code> 이 있는 것은 FR-12 의 <b>알림</b> 메일 채널을 위한 자리이고, 그것은 Phase 2 의 별개 일이다(<a href="scope.html">4.1</a> FR-12).</p>
 
-  <p><b>본문은 넣을 때 만들어져 들어온다.</b> 워커는 렌더링하지 않는다 — 템플릿이 바뀌어도 이미 줄 서 있던 메일의 내용은 바뀌지 않아야 하고, 그래야 "그 사람이 받은 것"과 "지금 보이는 것"이 같다. 로케일은 <b>받는 사람</b>의 것이다(초대한 사람의 것이 아니다).</p>
+  <p><b>본문은 넣을 때 만들어져 들어온다.</b> 워커는 렌더링하지 않는다 — 템플릿이 바뀌어도 이미 줄 서 있던 메일의 내용은 바뀌지 않아야 하고, 그래야 "그 사람이 받은 것"과 "지금 보이는 것"이 같다. 로케일은 <b>받는 사람</b>의 것이다(초대한 사람의 것이 아니다). 가입 확인·비밀번호 재설정은 <b>요청한 화면의 언어</b>다 — 받는 사람이 바로 그 화면에서 요청했다(2026-09-25).</p>
 
-  <p><code>email_kind</code> 세 값을 한 번에 만드는 것은 의도다 — <code>ALTER TYPE … ADD VALUE</code> 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 지금 쓰는 것은 <code>invite</code> 하나다.</p>
+  <p><code>email_kind</code> 세 값을 한 번에 만드는 것은 의도다 — <code>ALTER TYPE … ADD VALUE</code> 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 셋 다 쓴다 — <code>invite</code>·<code>verify_email</code>(2026-09-22) · <code>reset_password</code>(2026-09-25 · <a href="api.html">4.4</a> REQ-API-187).</p>
 
   <pre><code>CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password');
 

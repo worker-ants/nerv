@@ -18,8 +18,10 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.72 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.73 · 2026-09-25 · HTML 파생본: [codebase.html](../html/codebase.html)
 >
+> v1.73 변경(2026-09-25 — 비밀번호 재설정 메일, **사람 결정 D10**): **§5.2 전표 한 칸 · §2.2 트리 두 줄의 설명.** `NERV_MAIL_HOST` 가 비면 **비밀번호 재설정도 함께 꺼진다** — 운영자가 알아야 하는 사실이라 스위치의 행에 적는다([4.4](api.md) REQ-API-187). `mail/verify-link.ts` 는 재설정 링크도 만들고, `mail.job.ts` 가 보내는 것에 재설정 메일이 더해진다.
+
 > v1.72 변경(2026-09-24 — 헤딩 앵커 규약이 서버에만 있었다): **§3.1 `packages/schema` 트리 한 줄.** `anchor.ts` — 헤딩 → slug(`headingSlug`). 검색·코멘트 앵커가 쓰는 규약이 `apps/api` 의 임베딩 서비스 안에만 있어서, 화면은 앵커로 데려갈 수 없었다([4.5](screens.md) REQ-WEB-215). 표면이 공유하는 순수 판정이라 §1.2 의 넷째 부류다.
 >
 > v1.71 변경(2026-09-24 — 활동과 알림이 무엇에 일어났는지 말하지 않았다): **§2.2 트리 한 줄.** `modules/event/event-subject.ts` — 이벤트의 대상을 한 단계 건너까지 따라가 스펙·작업·발견·질문·리뷰 브랜치·세션을 싣는 조인 조각. 이벤트 피드와 알림 목록이 함께 쓴다([4.4](api.md) REQ-API-181).
@@ -495,7 +497,7 @@ apps/api/src/
       mail.module.ts         # 넣는 쪽과 내보내는 쪽을 함께 판다
       mail.outbox.ts         # email_outbox 에 넣고·집고·표시한다 (4.3 §2.17)
       mail.sender.ts         # nodemailer — SMTP 로 나가는 자리는 여기 하나다
-      verify-link.ts         # 확인 메일의 링크 — 돌아갈 화면은 화면 오리진 안에서만 (4.5 §2.1)
+      verify-link.ts         # 확인·재설정 메일의 링크 — 돌아갈 화면은 화면 오리진 안에서만 (4.5 §2.1)
   worker/
     advisory-lock.ts  # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
     job-runner.ts     # 잡 루프 — advisory lock 아래에서 하나만 돈다
@@ -505,7 +507,7 @@ apps/api/src/
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
       export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
-      mail.job.ts           # 아웃박스 → SMTP — 초대·인증 메일 (4.3 §2.17, 2026-09-22)
+      mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정 메일 (4.3 §2.17, 2026-09-22)
       notification.job.ts   # event → notification 라우팅 (인앱, Slack·메일은 P2)
       partition.job.ts      # event·activity 월 파티션 선생성 — 하루 1회 (4.3 §2.14, REQ-DB-021)
       retention.job.ts      # blob TTL 30일 · Activity 보존 정책 집행
@@ -1065,7 +1067,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
 | `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
-| `NERV_MAIL_HOST` | | — | api · worker | **메일 발신의 스위치다**(2026-09-22 결정 · 2026-09-24 이 이름으로). 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 메일을 켠 날 몇 달 치가 한꺼번에 나간다. 호스트를 스위치로 고른 이유는 그것만이 없어서는 안 되는 값이기 때문이다(포트·TLS 는 기본값이 서고, 사용자·비밀번호는 인증 없는 사내 릴레이에서 아예 빈다). compose 기본값은 `mailpit`(개발용 받이 · 받은 편지함 `:8025`) |
+| `NERV_MAIL_HOST` | | — | api · worker | **메일 발신의 스위치다**(2026-09-22 결정 · 2026-09-24 이 이름으로). 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 메일을 켠 날 몇 달 치가 한꺼번에 나간다. **비밀번호 재설정도 함께 꺼진다**(2026-09-25) — 재설정 요청이 400 `RESET_PASSWORD_DISABLED` 로 답하고 화면이 "서버 운영자에게 문의" 를 말한다([4.4](api.md) REQ-API-187). 메일 없이 비밀번호를 되돌리는 운영자 도구는 아직 없다. 호스트를 스위치로 고른 이유는 그것만이 없어서는 안 되는 값이기 때문이다(포트·TLS 는 기본값이 서고, 사용자·비밀번호는 인증 없는 사내 릴레이에서 아예 빈다). compose 기본값은 `mailpit`(개발용 받이 · 받은 편지함 `:8025`) |
 | `NERV_MAIL_PORT` | | `587` | api · worker | submission(STARTTLS) 포트다. 25 를 기본으로 두지 않는 이유는 그것이 **서버 간 릴레이** 포트이고 클라우드 사업자 대부분이 막아 두기 때문이다. **읽을 수 없는 값이면 기동을 거부한다** — 조용히 587 로 떨어지면 운영자는 자기 오타를 영영 모른다 |
 | `NERV_MAIL_SECURE` | | **포트에서 유도** | api · worker | 접속하자마자 TLS 인가(465)와 평문으로 열어 `STARTTLS` 로 올리는가(587·25)의 구분이다. **비우면 포트가 정한다** — 465 면 참, 그 밖은 거짓. 기본값을 두지 않는 이유는 여기가 사람이 가장 자주 틀리는 자리이고, 바꿔 적으면 연결이 걸린 채 타임아웃하거나 핸드셰이크가 깨지는데 **어느 쪽도 원인을 가리키지 않기** 때문이다. 명시하면 그 값이 이긴다(비표준 포트에서 암묵 TLS 를 받는 게이트웨이가 있다) |
 | `NERV_MAIL_USER` · `NERV_MAIL_PASS` | | — | api · worker | 릴레이 인증. **둘 다 있거나 둘 다 없어야 하고, 한쪽만 있으면 기동을 거부한다** — nodemailer 는 짝이 맞지 않으면 `auth` 를 만들지 못해 **인증 없이 붙고**, 사내 릴레이가 그대로 받아 주면 비밀번호가 읽히지 않는다는 사실이 영영 드러나지 않는다. **k8s 는 이 둘을 `nerv-secrets` 에 함께 둔다**(§6.2) — 사용자 이름은 비밀이 아니지만 비밀번호와 한 벌이고, 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 **한쪽만 채워진 상태가 실제로 생긴다**(`NERV_S3_ACCESS_KEY` 가 같은 자리다). 주소 셋(`_HOST`·`_PORT`·`_SECURE`)은 ConfigMap 이다. 전에는 URL 한 줄이라 통째로 Secret 이었고, 그래서 운영자는 이 배치가 **어디로 보내는지** 설정을 읽어서는 알 수 없었다 |

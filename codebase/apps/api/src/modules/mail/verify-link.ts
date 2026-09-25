@@ -1,4 +1,4 @@
-// 확인 링크 — 가입 확인 메일에 박히는 주소 (정본: docs/04-mvp/api.md §1.3)
+// 확인·재설정 링크 — 가입 확인 메일과 비밀번호 재설정 메일에 박히는 주소 (정본: docs/04-mvp/api.md §1.3)
 //
 // **순수 함수만 둔다.** `better-auth.ts` 가 이 파일을 import 한다 — 그 파일은 Nest 밖이라
 // (`VerificationMail` 머리 주석) 아웃박스 서비스를 끌어오면 DI 그래프가 따라 들어온다.
@@ -28,6 +28,25 @@ export function verifyEmailLink(input: {
   return (
     `${input.api.replace(/\/+$/, '')}/api/auth/verify-email` +
     `?token=${encodeURIComponent(input.token)}&callbackURL=${encodeURIComponent(back)}`
+  );
+}
+
+/**
+ * 비밀번호 재설정 링크 — API 가 토큰을 보고 **화면의 `/reset-password`** 로 돌려보낸다(2026-09-25 · REQ-API-187).
+ *
+ * 확인 링크와 같은 모양이다: 사람이 여는 것은 인증 스택의 `GET /api/auth/reset-password/<토큰>` 이고, 그 자리가
+ * 토큰이 살아 있는지 **보기만 하고**(쓰지 않는다) 화면으로 보낸다 — 살아 있으면 `?token=`, 아니면
+ * `?error=INVALID_TOKEN`. 그래서 만료된 링크를 연 사람은 새 비밀번호를 두 번 치기 **전에** 그 사실을 안다.
+ * 메일 보안 검사기가 링크를 미리 열어도 토큰은 닳지 않는다(쓰는 것은 화면의 POST 다).
+ *
+ * **돌아갈 자리는 요청에서 받지 않는다.** 가입 확인과 달리 여기는 갈 곳이 하나뿐이다 — 요청이 준 값을 실으면
+ * 그만큼 열린 리다이렉트의 여지가 생긴다.
+ */
+export function resetPasswordLink(input: { api: string; web: string; token: string }): string {
+  const back = `${input.web.replace(/\/+$/, '')}/reset-password`;
+  return (
+    `${input.api.replace(/\/+$/, '')}/api/auth/reset-password/${encodeURIComponent(input.token)}` +
+    `?callbackURL=${encodeURIComponent(back)}`
   );
 }
 

@@ -95,12 +95,31 @@ Fill in a name, an email and a password on the sign-up screen and the account is
 - **Resending uses the same limit as signing in (10 per minute).** Hammering somebody else's address would fill their inbox.
 - **An unconfirmed account can do nothing.** If a confirmation mail arrives and you never signed up, just delete it.
 - **Coming in from an invitation link works the same way.** Once confirmed, you are returned to that invitation (see "Inviting people" in [Settings](/help/settings)).
+- **The mail comes in the language of the screen you signed up on.** If you switched it with the language buttons under the sign-up form, it comes in that language. The password reset mail works the same way.
 
 **Some servers skip this step entirely.** Email confirmation is required **only where the server can send mail** — on a deployment with no mail sender configured (an empty `NERV_MAIL_HOST`), signing up takes you straight in, and neither the notice above nor [Resend] is ever shown. The point is to avoid a server that demands a confirmation it cannot send: configured that way, the server refuses to start at all.
 
 **Accounts that were already in use are not asked again.** Accounts that existed before this rule reached the server were treated as confirmed — making a new rule retroactive charges people who did nothing wrong. The rule applies to sign-ups after it.
 
 **Signing in takes you back to where you were going.** If you opened a link a colleague sent before signing in, you land on **that exact address** afterwards — filters, the selected item and any comparison included. If you just came in at the app address, you land on the first screen for your role: **Inbox** for planners, designers and admins, the **task board** for developers and QA, the project overview otherwise. With several organizations, it goes by your role in **the organization you were last looking at**.
+
+## Forgot your password
+
+On the sign-in screen, press **"Forgot your password?"** right under the password field. Whatever you typed into the email field comes along.
+
+1. Check that it is the email you signed up with and press **[Send reset link]**. The form is replaced by **"Check your mail"**.
+2. Open the link in the mail. **The link works for 60 minutes, once.**
+3. Type the new password twice and press **[Set password]**. It needs at least 8 characters, and a mismatch between the two fields is pointed out before anything is sent.
+4. When **"New password set"** appears, press **[Sign in]** and come in with the new password.
+
+- **The screen says the same thing even when no account uses that address.** That way nobody can use this screen to find out whether an account exists — if no mail arrives, check the spam folder, then check that it is the address you signed up with.
+- **Setting a new password signs out every device** — this browser included. Anyone who knew the old password is out at that point.
+- **An expired or already-used link** shows **"This link cannot be used"** and **[Get a new reset link]** instead of the form, so you find out before typing a password.
+- **It works for an account whose email is not confirmed yet.** Setting a password through the link in the mail proves the address is yours, so you come straight in without waiting for a confirmation mail.
+- **Requests use the same limit as signing in (10 per minute).** Going over is reported inside the form.
+- **On a server that does not send mail** (an empty `NERV_MAIL_HOST`) the password cannot be reset here — sending shows **"ask the server operator"**. The point is not to leave you waiting for a mail that will never come.
+
+If you **know your password and want to change it**, do it under "My account" in [Settings](/help/settings).
 
 ## Your first five minutes
 

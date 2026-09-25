@@ -4,7 +4,7 @@
 // 떨어졌고, 소속이 없는 사람은 아무것도 할 수 없는 빈 홈에 섰다(2026-09-24 사람 보고).
 
 import { describe, expect, it } from 'vitest';
-import { returnToOf, verifyEmailLink } from './verify-link.js';
+import { resetPasswordLink, returnToOf, verifyEmailLink } from './verify-link.js';
 
 const API = 'https://api.nerv.example.com';
 const WEB = 'https://app.nerv.example.com';
@@ -67,5 +67,19 @@ describe('better-auth 가 넘긴 링크에서 돌아갈 자리를 꺼낸다', ()
 
   it('못 읽는 값은 null — 링크 하나 때문에 가입이 실패하지 않는다', () => {
     expect(returnToOf('not a url')).toBeNull();
+  });
+});
+
+describe('비밀번호 재설정 링크 (2026-09-25 · REQ-API-187)', () => {
+  it('API 가 토큰을 보고 화면의 /reset-password 로 돌려보낸다', () => {
+    const link = resetPasswordLink({ api: `${API}/`, web: `${WEB}/`, token: 'tok_123' });
+    const url = new URL(link);
+    expect(`${url.origin}${url.pathname}`).toBe(`${API}/api/auth/reset-password/tok_123`);
+    expect(callbackOf(link)).toBe(`${WEB}/reset-password`);
+  });
+
+  it('토큰의 글자는 경로 안에서 깨지지 않는다', () => {
+    const link = resetPasswordLink({ api: API, web: WEB, token: 'a/b?c' });
+    expect(new URL(link).pathname).toBe('/api/auth/reset-password/a%2Fb%3Fc');
   });
 });
