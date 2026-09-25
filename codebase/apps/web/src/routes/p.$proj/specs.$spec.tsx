@@ -10,6 +10,7 @@ import { scrollEdges, type ScrollEdges } from '../../lib/scroll-edges.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { BaselineSelect } from '../../features/spec-editor/baseline-controls.js';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
 import {
@@ -203,7 +204,10 @@ function SpecDetail(): React.JSX.Element {
   // 옮기는 것은 **이력에 쌓지 않는다**(`replace`) — 탭 하나 누를 때마다 뒤로가기가 한 칸씩
   // 늘면 그 단추는 문서를 떠나는 데 쓸 수 없게 된다. 다른 축(`v`·`diff`·`baseline`)은
   // 그대로 물고 간다: 레일을 옮겼다고 보던 버전이 바뀌면 안 된다.
-  const railTab: RailTab = search.rail ?? 'relations';
+  // **읽는 자리에서도 어휘를 확인한다.** 부모 라우트는 검사하지 않은 인자를 그대로 흘려서, 이
+  // 라우트의 `validateSearch` 가 버린 `?rail=그런탭은없다` 가 여기까지 살아 온다. 전에는 마운트
+  // 효과가 레일을 관계로 덮어써 가려져 있었다(그 효과가 `?rail=comments` 도 덮었다 — SPEC-03)
+  const railTab: RailTab = isRailTab(search.rail) ? search.rail : 'relations';
   const setRailTab = (key: RailTab): void => {
     void navigate({ to: '.', search: (prev) => ({ ...prev, rail: key }), replace: true });
   };
@@ -218,7 +222,7 @@ function SpecDetail(): React.JSX.Element {
    * 본문을 보는 방식 — **주소가 진실이다**(REQ-WEB-173 · §1.4 뷰 상태 규약).
    * 기본은 뷰어이고, `?body=source` 면 원문 md 가 선다.
    */
-  const bodyTab: BodyTab = search.body ?? 'viewer';
+  const bodyTab: BodyTab = isBodyTab(search.body) ? search.body : 'viewer';
   const setBodyTab = (key: BodyTab): void => {
     void navigate({
       to: '.',
@@ -239,10 +243,14 @@ function SpecDetail(): React.JSX.Element {
   // **스펙이 바뀌면 이 화면의 상태는 전부 남의 것이 된다.** 라우트 파라미터만 바뀌면
   // 리액트는 같은 컴포넌트를 재사용하므로 열어 둔 것이 그대로 살아남는다 — 앞 문서의
   // 영향 미리보기가 다음 문서 위에 떠 있으면, 거기 적힌 수는 이 문서의 것이 아니다.
+  //
+  // **레일 탭은 여기서 되돌리지 않는다**(2026-09-24 · SPEC-03). 이 효과는 첫 마운트에도 돌아서
+  // 알림이 연 `?rail=comments` 를 곧바로 관계 탭으로 덮었다 — REQ-WEB-163(2026-09-10 사람 지시)이
+  // 막으려던 바로 그 장면이다. 레일은 주소의 축이라 다른 문서로 가는 링크가 싣지 않으면 저절로
+  // 기본으로 돌아가고, 싣고 오면(작업의 출처 요구사항 → `?rail=requirements`) 그것이 맞다.
   useEffect(() => {
     setShowImpact(false);
     setMetaOpen(false);
-    setRailTab('relations');
   }, [spec]);
 
   const body = String(detail.data?.['body_md'] ?? '');
@@ -444,6 +452,22 @@ function SpecDetail(): React.JSX.Element {
               }
             />
           )}
+          {/* **여기서 바꾸거나 풀 수 있어야 한다**(2026-09-24 · SPEC-06). 배지는 말할 뿐이라, 최신으로
+              돌아가려면 목록으로 나가 다시 골라야 했다. 기준선으로 읽는 동안에만 선다 */}
+          {search.baseline !== undefined && (
+            <BaselineSelect
+              projectSlug={proj}
+              value={search.baseline}
+              onChange={(name) =>
+                void navigate({
+                  to: '.',
+                  search: ({ baseline: _baseline, ...rest }) =>
+                    name === null ? rest : { ...rest, baseline: name },
+                  replace: true,
+                })
+              }
+            />
+          )}
           {detail.data?.['basis_superseded'] === true && (
             <StatusBadge token="waiting" label={t('spec.badge_superseded')} />
           )}
@@ -561,7 +585,14 @@ function SpecDetail(): React.JSX.Element {
               <button
                 type="button"
                 data-testid="diff-close"
-                onClick={() => void navigate({ to: '.', search: {}, replace: true })}
+                // 닫는 것은 **비교만** 내려놓는다 — 레일·기준선·본문 보기는 보던 그대로다(SPEC-03)
+                onClick={() =>
+                  void navigate({
+                    to: '.',
+                    search: ({ diff: _diff, v: _v, ...rest }) => rest,
+                    replace: true,
+                  })
+                }
                 className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
               >
                 ← {t('spec.diff.close')}
@@ -577,9 +608,10 @@ function SpecDetail(): React.JSX.Element {
               onChange={(from, to) =>
                 void navigate({
                   to: '.',
-                  search: {
+                  search: ({ v: _v, ...rest }) => ({
+                    ...rest,
                     diff: `v${String(Math.min(from, to))}..v${String(Math.max(from, to))}`,
-                  },
+                  }),
                   replace: true,
                 })
               }
@@ -599,7 +631,13 @@ function SpecDetail(): React.JSX.Element {
               <button
                 type="button"
                 data-testid="version-view-close"
-                onClick={() => void navigate({ to: '.', search: {}, replace: true })}
+                onClick={() =>
+                  void navigate({
+                    to: '.',
+                    search: ({ diff: _diff, v: _v, ...rest }) => rest,
+                    replace: true,
+                  })
+                }
                 className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 text-2xs"
               >
                 {t('spec.version_current')}
@@ -835,12 +873,32 @@ function SpecDetail(): React.JSX.Element {
               이 줄도 머리에 있다 — 방향을 바꾸는 손잡이가 목록과 함께 떠나면
               목록을 다 내려간 사람은 되감아야 방향을 바꾼다. */}
           {railTab === 'relations' && (
-            <RelationTabs
-              value={relTab}
-              onChange={setRelTab}
-              counts={{ all: relationItems.length, in: backlinks.length, out: outgoing.length }}
-              className="px-1 pt-2 pb-2"
-            />
+            // **좁으면 줄을 바꾼다** — 방향 탭 셋 옆에 링크 하나가 더 서면 좁은 레일에서 줄이 레일보다
+            // 넓어져 레일 전체가 옆으로 밀렸다(CI 의 리눅스 글꼴 폭에서 18px · spec-navigation L3)
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pt-2 pb-2">
+              <RelationTabs
+                value={relTab}
+                onChange={setRelTab}
+                counts={{ all: relationItems.length, in: backlinks.length, out: outgoing.length }}
+              />
+              {/* **이 문서 주변을 그림으로**(2026-09-24 · SPEC-07). 목록의 그래프는 늘 전역에서
+                  시작해서, 상세에서 "이 문서 주변" 으로 갈 길이 없었다 */}
+              {relationItems.length > 0 && (
+                <Link
+                  to="/p/$proj/specs"
+                  params={{ proj }}
+                  search={{
+                    view: 'graph',
+                    focus: spec,
+                    ...(search.baseline === undefined ? {} : { baseline: search.baseline }),
+                  }}
+                  data-testid="rail-graph-link"
+                  className="ml-auto shrink-0 text-2xs text-link hover:underline"
+                >
+                  {t('spec.rail.graph_link')} →
+                </Link>
+              )}
+            </div>
           )}
         </div>
 
@@ -863,7 +921,13 @@ function SpecDetail(): React.JSX.Element {
                 <>
                   <p className="px-2 pb-1 text-2xs text-text-ghost">{t('spec.backlinks_hint')}</p>
                   {backlinks.map((r) => (
-                    <RelationRow key={relationKey(r)} relation={r} proj={proj} t={t} />
+                    <RelationRow
+                      key={relationKey(r)}
+                      relation={r}
+                      proj={proj}
+                      baseline={search.baseline}
+                      t={t}
+                    />
                   ))}
                 </>
               )}
@@ -877,7 +941,13 @@ function SpecDetail(): React.JSX.Element {
 
               {relTab !== 'in' &&
                 outgoing.map((r) => (
-                  <RelationRow key={relationKey(r)} relation={r} proj={proj} t={t} />
+                  <RelationRow
+                    key={relationKey(r)}
+                    relation={r}
+                    proj={proj}
+                    baseline={search.baseline}
+                    t={t}
+                  />
                 ))}
             </>
           )}
@@ -923,12 +993,15 @@ function SpecDetail(): React.JSX.Element {
                       data-testid={`diff-open-${String(v['version_no'])}`}
                       disabled={Number(v['version_no']) <= 1}
                       title={Number(v['version_no']) <= 1 ? t('spec.diff.no_previous') : undefined}
+                      // 다른 축(레일·기준선·본문 보기)은 **물고 간다**(SPEC-03) — 비교를 열 때마다
+                      // 레일이 관계 탭으로 튀어, 다른 쌍을 보려면 버전 탭을 다시 눌러야 했다
                       onClick={() =>
                         void navigate({
                           to: '.',
-                          search: {
+                          search: ({ v: _v, ...rest }) => ({
+                            ...rest,
                             diff: `v${String(Number(v['version_no']) - 1)}..v${String(v['version_no'])}`,
-                          },
+                          }),
                         })
                       }
                       className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-40"
@@ -939,7 +1012,13 @@ function SpecDetail(): React.JSX.Element {
                       type="button"
                       data-testid={`version-open-${String(v['version_no'])}`}
                       onClick={() =>
-                        void navigate({ to: '.', search: { v: Number(v['version_no']) } })
+                        void navigate({
+                          to: '.',
+                          search: ({ diff: _diff, ...rest }) => ({
+                            ...rest,
+                            v: Number(v['version_no']),
+                          }),
+                        })
                       }
                       className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
                     >
@@ -1166,10 +1245,13 @@ function relationKey(r: Record<string, unknown>): string {
 function RelationRow({
   relation,
   proj,
+  baseline,
   t,
 }: {
   relation: Record<string, unknown>;
   proj: string;
+  /** 보던 기준선 — 이웃 문서도 같은 세트로 읽는다(REQ-WEB-135 · SPEC-06) */
+  baseline: string | undefined;
   t: ReturnType<typeof useT>;
 }): React.JSX.Element {
   const incoming = relation['direction'] === 'in';
@@ -1177,6 +1259,7 @@ function RelationRow({
     <Link
       to="/p/$proj/specs/$spec"
       params={{ proj, spec: String(relation['key']) }}
+      search={baseline === undefined ? {} : { baseline }}
       className="flex items-start gap-[9px] rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
     >
       {/* 방향 표식(시안): 들어오는 것은 조용히, 나가는 것은 물들여서 */}

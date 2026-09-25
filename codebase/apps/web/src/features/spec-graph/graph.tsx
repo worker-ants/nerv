@@ -53,8 +53,14 @@ export interface GraphEdge {
 export interface SpecGraphProps {
   nodes: readonly GraphNode[];
   edges: readonly GraphEdge[];
-  /** 중심 문서 — 주면 자기중심 모드로 시작한다 */
+  /**
+   * 중심 문서 — 있으면 자기중심 모드다. **주소가 진실이다**(2026-09-24 · SPEC-07 · REQ-WEB-211):
+   * 목록이 `?focus=` 로 들고 있고, 바꾸는 것은 `onFocusChange` 가 주소에 적는다. 컴포넌트 state 로
+   * 두었더니 상세에 들어갔다 돌아오면 중심이 사라졌고, 상세에서 "이 문서 주변" 으로 올 길도 없었다.
+   */
   focusKey?: string | undefined;
+  /** 중심을 바꾼다 — 전역 보기로 돌아가면 `null` */
+  onFocusChange: (key: string | null) => void;
   /** 문서로 이동한다 — **패널에서 이름을 눌렀을 때만** 부른다 */
   onOpen: (key: string) => void;
 }
@@ -256,11 +262,27 @@ export function letAreasPan(cy: cytoscape.Core): void {
   cy.nodes(':parent').panify();
 }
 
-export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): React.JSX.Element {
+export function SpecGraph({
+  nodes,
+  edges,
+  focusKey,
+  onFocusChange,
+  onOpen,
+}: SpecGraphProps): React.JSX.Element {
   const t = useT();
   const container = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
-  const [focus, setFocus] = useState<string | null>(focusKey ?? null);
+  const focus = focusKey ?? null;
+  // [중심] 단추가 돌아갈 곳 — 전역으로 나갔다가 방금 보던 중심으로 되돌아오게 기억한다
+  const [lastFocus, setLastFocus] = useState<string | null>(focusKey ?? null);
+  const setFocus = (key: string | null): void => {
+    if (key !== null) setLastFocus(key);
+    onFocusChange(key);
+  };
+  // 주소가 중심을 바꿨으면(뒤로가기 · 상세의 [그래프에서 보기]) 되돌아올 곳도 그것이다
+  useEffect(() => {
+    if (focusKey !== undefined) setLastFocus(focusKey);
+  }, [focusKey]);
   const [hops, setHops] = useState(1);
   const [grouped, setGrouped] = useState(true);
   /** 고른 문서의 key — 이동이 아니라 **선택**이다 */
@@ -556,11 +578,11 @@ export function SpecGraph({ nodes, edges, focusKey, onOpen }: SpecGraphProps): R
             >
               {t('graph.mode.global')}
             </Button>
-            {focusKey !== undefined && (
+            {lastFocus !== null && (
               <Button
                 size="sm"
                 variant={focus !== null ? 'primary' : 'default'}
-                onClick={() => setFocus(focusKey)}
+                onClick={() => setFocus(lastFocus)}
               >
                 {t('graph.mode.ego')}
               </Button>

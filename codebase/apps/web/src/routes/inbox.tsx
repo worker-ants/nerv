@@ -240,10 +240,19 @@ function InboxScreen(): React.JSX.Element {
           // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
           // **앱 안에서 옮긴다**(REQ-WEB-204) — `<a href>` 라 누를 때마다 앱 전체가 다시 로드되고
           // 실시간 연결이 끊겼다 붙었다
-          <nav className="flex rounded-nerv-sm border border-border p-0.5 text-xs">
+          // 주소가 바뀌는 탭이라 **지금 어느 쪽인지는 `aria-current` 가 말한다**(SYS-12) — 배경색만으로는
+          // 보조기기에 상태가 없다(REQ-WEB-033)
+          <nav
+            aria-label={t('inbox.title')}
+            className="flex rounded-nerv-sm border border-border p-0.5 text-xs"
+          >
             <Link
               to="/inbox"
               search={{}}
+              // 링크는 스스로 `aria-current` 를 단다 — 기본 비교는 쿼리를 **부분**으로 봐서, 빈 쿼리의
+              // [대기 중]이 `?state=decided` 에서도 "지금 여기" 라고 말했다. 쿼리까지 같아야 여기다
+              activeOptions={{ exact: true }}
+              aria-current={state === 'pending' ? 'page' : undefined}
               data-testid="inbox-tab-pending"
               className={cn(
                 'rounded-nerv-sm px-2.5 py-1',
@@ -255,6 +264,8 @@ function InboxScreen(): React.JSX.Element {
             <Link
               to="/inbox"
               search={{ state: 'decided' }}
+              activeOptions={{ exact: true }}
+              aria-current={state === 'decided' ? 'page' : undefined}
               data-testid="inbox-tab-decided"
               className={cn(
                 'rounded-nerv-sm px-2.5 py-1',

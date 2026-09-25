@@ -220,6 +220,53 @@ export function Button({
 }
 
 /** 입력 — 테두리는 평소에 거의 안 보이고 포커스에서 드러난다. */
+/**
+ * **같은 화면 안에서 보기를 바꾸는** 세그먼트(2026-09-24 · UI/UX 검토 SYS-12 · REQ-WEB-211).
+ *
+ * "둘·셋 중 하나 고르기" 가 화면마다 다르게 짜여 있었다 — 스펙 목록의 [트리|표|그래프]는 지금
+ * 어느 보기인지를 배경색과 굵기로만 말해서 보조기기에는 상태가 없었다(REQ-WEB-033). 여기서는
+ * `aria-pressed` 가 그 상태를 싣는다. **주소가 바뀌는 탭**(받은 요청의 대기·처리됨, 설정)은 이것이
+ * 아니라 링크다 — 그쪽은 `aria-current` 로 말한다.
+ */
+export function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  testIdPrefix,
+}: {
+  /** 무엇을 고르는 묶음인가 — 보조기기가 읽는 이름 */
+  label: string;
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+  testIdPrefix?: string;
+}): React.JSX.Element {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="inline-flex rounded-nerv-sm border border-border p-0.5 text-xs"
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={option.value === value}
+          data-testid={testIdPrefix === undefined ? undefined : `${testIdPrefix}-${option.value}`}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            'rounded-nerv-sm px-3 py-1',
+            option.value === value ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Input({ className, ...rest }: React.ComponentProps<'input'>): React.JSX.Element {
   return (
     <input

@@ -35,6 +35,7 @@ import {
   PageBody,
   PageHeader,
   SectionTitle,
+  Segmented,
   Skeleton,
 } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
@@ -44,7 +45,15 @@ export const Route = createFileRoute('/p/$proj/specs/')({
   // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
   validateSearch: (
     search: Record<string, unknown>,
-  ): { archived?: true; baseline?: string; q?: string; status?: string; type?: string } => ({
+  ): {
+    archived?: true;
+    baseline?: string;
+    focus?: string;
+    q?: string;
+    status?: string;
+    type?: string;
+    view?: SpecView;
+  } => ({
     ...(search['archived'] === true || search['archived'] === '1'
       ? { archived: true as const }
       : {}),
@@ -64,9 +73,19 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     ...(typeof search['type'] === 'string' && search['type'] !== ''
       ? { type: search['type'] }
       : {}),
+    // **보는 방식도 뷰 상태다**(2026-09-24 · SPEC-07 · REQ-WEB-211). 컴포넌트 state 라서 그래프에서
+    // 노드를 골라 상세에 들어갔다가 뒤로 오면 트리로 돌아와 있었다 — 고른 중심도 함께 사라졌다.
+    // 기본(tree)은 적지 않는다: 뜻 없는 인자를 주소에 남기지 않는 규칙이다(REQ-WEB-163)
+    ...(search['view'] === 'table' || search['view'] === 'graph' ? { view: search['view'] } : {}),
+    // 그래프의 **중심 문서**. 상세의 [그래프에서 보기]가 이것으로 온다
+    ...(typeof search['focus'] === 'string' && search['focus'] !== ''
+      ? { focus: search['focus'] }
+      : {}),
   }),
   component: SpecListScreen,
 });
+
+type SpecView = 'tree' | 'table' | 'graph';
 
 /** 어휘의 정본은 `@nerv/schema` 의 enum 이다 — 목록을 화면이 새로 만들지 않는다 */
 const SPEC_STATUSES = specVersionStatus.enumValues;
@@ -82,7 +101,9 @@ function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
-  const { archived = false, baseline, q, status, type } = Route.useSearch();
+  const { archived = false, baseline, focus, q, status, type, view: rawView } = Route.useSearch();
+  // 부모 라우트는 검사하지 않은 인자를 흘려보낸다 — `validateSearch` 가 버린 값도 여기 온다
+  const view: SpecView = rawView === 'table' || rawView === 'graph' ? rawView : 'tree';
   const statuses = status === undefined ? [] : status.split(',').filter((value) => value !== '');
   const types = type === undefined ? [] : type.split(',').filter((value) => value !== '');
   /**
@@ -94,32 +115,56 @@ function SpecListScreen(): React.JSX.Element {
   const searchWith = (patch: {
     archived?: boolean;
     baseline?: string | null;
+    focus?: string | null;
     q?: string | null;
     status?: string | null;
     type?: string | null;
-  }): { archived?: true; baseline?: string; q?: string; status?: string; type?: string } => {
+    view?: SpecView;
+  }): {
+    archived?: true;
+    baseline?: string;
+    focus?: string;
+    q?: string;
+    status?: string;
+    type?: string;
+    view?: SpecView;
+  } => {
     const pick = (next: string | null | undefined, now: string | undefined): string | undefined =>
       next === undefined ? now : (next ?? undefined);
     const nextBaseline = pick(patch.baseline, baseline);
     const nextQuery = pick(patch.q, q);
     const nextStatus = pick(patch.status, status);
     const nextType = pick(patch.type, type);
+    const nextView = patch.view ?? view;
+    // 중심은 그래프의 것이다 — 다른 보기로 옮기면 함께 내려놓는다
+    const nextFocus = nextView === 'graph' ? pick(patch.focus, focus) : undefined;
     return {
       ...((patch.archived ?? archived) ? { archived: true as const } : {}),
       ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
       ...(nextQuery === undefined || nextQuery === '' ? {} : { q: nextQuery }),
       ...(nextStatus === undefined || nextStatus === '' ? {} : { status: nextStatus }),
       ...(nextType === undefined || nextType === '' ? {} : { type: nextType }),
+      ...(nextView === 'tree' ? {} : { view: nextView }),
+      ...(nextFocus === undefined || nextFocus === '' ? {} : { focus: nextFocus }),
     };
   };
+  /** 보기·중심은 **이력에 쌓지 않는다** — 레일 탭과 같은 규칙이다(누를 때마다 뒤로가기가 한 칸씩 늘지 않게) */
+  const setView = (next: SpecView): void =>
+    void navigate({
+      to: '/p/$proj/specs',
+      params: { proj },
+      search: searchWith({ view: next }),
+      replace: true,
+    });
+  /** 상세로 갈 때도 **고른 기준선을 물고 간다**(REQ-WEB-135 — "상세까지 물고 간다") */
+  const detailSearch = baseline === undefined ? {} : { baseline };
   const project = useProject(proj);
   // 입력 중인 글자는 화면의 것이고, **보낸 검색어는 주소의 것**이다. 링크가 가리키는 것은
   // 누가 무엇을 타이핑하던 중인지가 아니라 어떤 결과를 보라는 것이다.
   const submitted = q ?? '';
   const [query, setQuery] = useState(submitted);
   // 트리와 그래프는 **같은 질문의 두 답**이다 — 계층으로 찾을 때와 관계로 찾을 때.
-  // 다른 라우트로 가르면 둘을 오가며 비교할 수 없다.
-  const [view, setView] = useState<'tree' | 'table' | 'graph'>('tree');
+  // 다른 라우트로 가르면 둘을 오가며 비교할 수 없다. 어느 보기인지는 **주소가 말한다**(위 validateSearch).
   // 웹에서 문서를 **시작하는** 문(2026-09-03 신설). 이것이 없는 동안 목록은 읽기 전용이었다.
   // 동결은 사람의 거버넌스 행위다(EP-SPEC-12) — 서버가 역할을 최종 판정하므로 화면은
   // 문을 열어 두고, 권한이 없으면 서버가 거절한 사유를 그대로 보인다.
@@ -239,31 +284,17 @@ function SpecListScreen(): React.JSX.Element {
         // "스펙을 무엇으로 보는가"는 제목 바로 다음 질문이라 제목을 따라다녀야 한다.
         meta={
           submitted.trim() === '' ? (
-            <nav
-              aria-label={t('specs.title')}
-              className="inline-flex rounded-nerv-sm border border-border p-0.5 text-xs"
-            >
-              {(['tree', 'table', 'graph'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  data-testid={`view-${mode}`}
-                  onClick={() => setView(mode)}
-                  className={cn(
-                    'rounded-nerv-sm px-3 py-1',
-                    view === mode ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
-                  )}
-                >
-                  {t(
-                    mode === 'tree'
-                      ? 'graph.tab.tree'
-                      : mode === 'table'
-                        ? 'specs.tab.table'
-                        : 'graph.tab.graph',
-                  )}
-                </button>
-              ))}
-            </nav>
+            <Segmented
+              label={t('specs.view_label')}
+              value={view}
+              onChange={setView}
+              testIdPrefix="view"
+              options={[
+                { value: 'tree', label: t('graph.tab.tree') },
+                { value: 'table', label: t('specs.tab.table') },
+                { value: 'graph', label: t('graph.tab.graph') },
+              ]}
+            />
           ) : undefined
         }
         actions={
@@ -375,7 +406,12 @@ function SpecListScreen(): React.JSX.Element {
             <Skeleton rows={6} />
           ) : view === 'table' ? (
             <Suspense fallback={<Skeleton rows={6} />}>
-              <SpecTable nodes={graph.data.nodes} edges={graph.data.edges} projectSlug={proj} />
+              <SpecTable
+                nodes={graph.data.nodes}
+                edges={graph.data.edges}
+                projectSlug={proj}
+                baseline={baseline}
+              />
             </Suspense>
           ) : graph.data.edges.length === 0 ? (
             <EmptyState
@@ -389,8 +425,21 @@ function SpecListScreen(): React.JSX.Element {
               <SpecGraph
                 nodes={graph.data.nodes}
                 edges={graph.data.edges}
+                focusKey={focus}
+                onFocusChange={(key) =>
+                  void navigate({
+                    to: '/p/$proj/specs',
+                    params: { proj },
+                    search: searchWith({ focus: key }),
+                    replace: true,
+                  })
+                }
                 onOpen={(key) =>
-                  void navigate({ to: '/p/$proj/specs/$spec', params: { proj, spec: key } })
+                  void navigate({
+                    to: '/p/$proj/specs/$spec',
+                    params: { proj, spec: key },
+                    search: detailSearch,
+                  })
                 }
               />
             </Suspense>
@@ -409,6 +458,7 @@ function SpecListScreen(): React.JSX.Element {
                   <Link
                     to="/p/$proj/specs/$spec"
                     params={{ proj, spec: String(hit['key']) }}
+                    search={detailSearch}
                     className="block"
                   >
                     <Card interactive padded={false} className="px-3 py-2.5">
@@ -484,6 +534,7 @@ function SpecListScreen(): React.JSX.Element {
                   <Link
                     to="/p/$proj/specs/$spec"
                     params={{ proj, spec: String(r['key']) }}
+                    search={detailSearch}
                     className="text-sm text-link hover:underline"
                   >
                     {String(r['title'])}

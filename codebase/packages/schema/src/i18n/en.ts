@@ -362,6 +362,8 @@ export const en = {
   'reviews.promoted_already': 'This finding is already task {key}.',
   'feed.repeat': '×{count}',
   'feed.repeat_label': '{count} in a row — expand or collapse',
+  'specs.view_label': 'View as',
+  'spec.rail.graph_link': 'View in graph',
   'reviews.expand': 'Expand',
   'reviews.action.spec_change': 'Spec fix',
   'reviews.resolve.spec': 'Corrected spec',

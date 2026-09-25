@@ -524,6 +524,9 @@ export function SpecTree({
         <Link
           to="/p/$proj/specs/$spec"
           params={{ proj: projectSlug, spec: node.key }}
+          // **고른 기준선을 상세까지 물고 간다**(REQ-WEB-135). 기준선으로 목록을 본 사람이 줄을 누르면
+          // 상세는 최신 승인본을 열었고 머리의 기준선 배지도 사라졌다(2026-09-24 · SPEC-06)
+          search={baseline === undefined ? {} : { baseline }}
           {...(node.key === activeKey ? { ref: activeRef } : {})}
           data-active={node.key === activeKey}
           data-holds-active={holdsActive}
