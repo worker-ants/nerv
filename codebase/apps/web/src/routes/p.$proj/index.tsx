@@ -3,13 +3,12 @@
 // 진입 시 `project:{id}` 룸에 join 한다(§1.4 룸 2종). join 하지 않으면 이 화면은 조용히
 // 낡은 데이터를 보여준다 — 폴백 폴링이 있지만 그건 끊겼을 때의 안전망이지 기본 경로가 아니다.
 
-import { eventLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
 import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
-import { relativeTime } from '../../lib/format.js';
-import { rows, useCoverage, useEvents, useProject, useSessions } from '../../lib/queries.js';
+import { useCoverage, useProject, useSessions } from '../../lib/queries.js';
+import { EventFeed } from '../../components/event-feed.js';
 import { cn } from '../../lib/utils.js';
 import {
   Card,
@@ -17,7 +16,6 @@ import {
   PageBody,
   PageHeader,
   SectionTitle,
-  Skeleton,
 } from '../../components/ui/primitives.js';
 import type { SessionCard as SessionCardData } from '../../features/session-monitor/types.js';
 import { asProjectId } from '../../lib/query-keys.js';
@@ -30,7 +28,6 @@ function ProjectOverview(): React.JSX.Element {
   const project = useProject(proj);
   const coverage = useCoverage(proj, asProjectId(project.data?.['id']));
   const sessions = useSessions(proj, asProjectId(project.data?.['id']));
-  const events = useEvents(proj, asProjectId(project.data?.['id']));
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
   const active = (sessions.data?.items ?? []) as unknown as SessionCardData[];
 
@@ -127,36 +124,12 @@ function ProjectOverview(): React.JSX.Element {
           여기서 또 그리면 같은 트리가 나란히 두 개 뜬다(문서 대조에서 발견). */}
       <section className="max-w-content">
         <SectionTitle>{t('project.recent_events')}</SectionTitle>
-        {events.isLoading && <Skeleton rows={4} />}
-        <ul className="flex flex-col">
-          {rows(events.data).map((e) => (
-            <li
-              key={String(e['id'])}
-              className="flex items-center gap-2 border-b border-border py-1.5 text-sm last:border-0"
-            >
-              {/* 사람/에이전트 구분은 감사의 첫 질문이다(FR-16 · D-08) */}
-              <span
-                aria-label={
-                  e['is_agent'] === true ? t('project.actor.agent') : t('project.actor.human')
-                }
-                title={e['is_agent'] === true ? t('project.actor.agent') : t('project.actor.human')}
-                className="shrink-0 text-xs"
-              >
-                {e['is_agent'] === true ? '🤖' : '👤'}
-              </span>
-              <span className="min-w-0 flex-1 truncate">{t(eventLabelKey(String(e['type'])))}</span>
-              <span className="shrink-0 text-xs text-text-mute">
-                {String(e['actor_name'] ?? '')}
-              </span>
-              <span className="w-16 shrink-0 text-right text-xs text-text-faint">
-                {relativeTime(t, typeof e['occurred_at'] === 'string' ? e['occurred_at'] : null)}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {!events.isLoading && rows(events.data).length === 0 && (
-          <EmptyState icon="·" title={t('project.no_events')} action={null} />
-        )}
+        {/* 홈과 **같은 피드**다(REQ-WEB-210) — 이름도 모양도 달랐고, 30줄에서 끝났다 */}
+        <EventFeed
+          projectSlug={proj}
+          projectId={asProjectId(project.data?.['id'])}
+          emptyText={t('project.no_events')}
+        />
       </section>
     </PageBody>
   );

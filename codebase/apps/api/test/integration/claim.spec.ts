@@ -1160,6 +1160,53 @@ describe('작업이 누가 실행하는지·누구의 일인지를 싣는다 (RE
   });
 });
 
+describe('피드가 클레임·세션·리뷰의 대상을 싣는다 (REQ-API-181)', () => {
+  it('클레임을 놓으면 그 작업을, 세션 이벤트는 그 기계를, 리뷰 제출은 브랜치와 작업을 싣는다', async () => {
+    const taskId = await makeTask('CLV-T-FEED01');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await tasks.release({
+      claimId: claim.claimId,
+      reason: 'handoff',
+      userId: hana,
+      actor: { projectId, userId: hana, sessionId: sessionHana, isAdmin: false },
+    });
+    // 행위자 없이 시스템이 낸 이벤트 — 대상 세션이 아니면 어느 기계의 일인지 말할 곳이 없다
+    const staleId = newId();
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'session.stale',false,'agent_session',$3)`,
+      [staleId, projectId, sessionYuna],
+    );
+    const reviewId = newId();
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, task_id, branch, base_sha, head_sha, changeset_hash,
+                                   kind, trigger)
+       VALUES ($1,$2,$3,'feat/feed','base','head',decode($4,'hex'),'code','manual')`,
+      [reviewId, projectId, taskId, reviewId.replaceAll('-', '').slice(0, 32)],
+    );
+    const submittedId = newId();
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),'review.submitted',$3,true,'review_session',$4)`,
+      [submittedId, projectId, hana, reviewId],
+    );
+
+    const { items } = await events.feed({ projectId });
+    expect(items.find((e) => e['type'] === NERV_EVENT.CLAIM_RELEASED)).toMatchObject({
+      task_key: 'CLV-T-FEED01',
+    });
+    expect(items.find((e) => e['id'] === staleId)).toMatchObject({
+      session_hostname: 'linux-ci-01',
+      session_agent_type: 'codex',
+    });
+    expect(items.find((e) => e['id'] === submittedId)).toMatchObject({
+      review_branch: 'feat/feed',
+      task_key: 'CLV-T-FEED01',
+      actor_user_id: hana,
+    });
+  });
+});
+
 describe('세션 카드가 한 일과 기다리는 것을 말한다 (REQ-API-179)', () => {
   it('활성 클레임이 없으면 마지막으로 쥔 작업과 **어떻게 끝났는지**를 싣는다', async () => {
     const taskId = await makeTask('CLV-T-LASTCL');

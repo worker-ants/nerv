@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.70 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.71 · 2026-09-24 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.71 변경(2026-09-24 — 활동과 알림이 무엇에 일어났는지 말하지 않았다): **§2.2 트리 한 줄.** `modules/event/event-subject.ts` — 이벤트의 대상을 한 단계 건너까지 따라가 스펙·작업·발견·질문·리뷰 브랜치·세션을 싣는 조인 조각. 이벤트 피드와 알림 목록이 함께 쓴다([4.4](api.md) REQ-API-181).
 >
 > v1.70 변경(2026-09-24 — 받은 요청을 믿고 누를 수 없었다): **§2.2 트리 한 줄.** `modules/event/request-notifications.ts` — 결재·질문이 닫히면 그 요청의 알림을 모든 수신자에게서 닫고, 이미 닫힌 요청의 알림은 읽은 채로 파생한다([4.4](api.md) REQ-API-176).
 >
@@ -423,6 +425,7 @@ apps/api/src/
       invitation.service.ts     # 초대 발급·수락 — 자동 수락 경로는 없다
     event/
       event-core.module.ts         # 의존 없는 핵 — 순환을 감추는 대신 갈라냈다 (REQ-API-151)
+      event-subject.ts             # 이벤트가 무엇에 일어났나 — 피드·알림이 함께 쓰는 대상 조인 (REQ-API-181)
       event-subscriber.service.ts  # 파드별 SUBSCRIBE nerv_events → 자기 소켓·SSE 스트림 emit
       event.controller.ts          # REST — 이벤트 피드 · 알림
       event.module.ts

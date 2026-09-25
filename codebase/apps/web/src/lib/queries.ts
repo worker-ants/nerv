@@ -595,13 +595,27 @@ export function useCoverage(slug: string, projectId?: ProjectId): UseQueryResult
  *
  * `select` 로 `items` 를 풀어 호출부(`rows(events.data)`)를 그대로 둔다.
  */
-export function useEvents(slug: string, projectId?: ProjectId): UseQueryResult<Row[]> {
+/**
+ * EP-EVT-01 — 프로젝트 활동 피드. **쪽을 잇는다**(2026-09-24 · REQ-WEB-210). 개요는 30줄에서
+ * 끝났고 더 볼 길이 없었다 — 서버는 처음부터 `next_cursor` 를 줬다. 홈과 개요가 같은 키를 쓰니
+ * 같은 모양이어야 한다(한쪽이 맨 목록, 다른 쪽이 쪽 묶음이면 캐시가 서로를 깬다).
+ */
+export function useEventFeed(
+  slug: string,
+  projectId?: ProjectId,
+): UseInfiniteQueryResult<InfiniteData<{ items: Row[]; next_cursor: string | null }>> {
   const refetchInterval = useLivePolling();
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.projectEvents(projectId ?? PENDING_PROJECT),
-    queryFn: () =>
-      apiFetch<{ items: Row[]; next_cursor: string | null }>(`/projects/${slug}/events?limit=30`),
-    select: (data) => data.items,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '30' });
+      if (pageParam !== null) params.set('before', String(pageParam));
+      return apiFetch<{ items: Row[]; next_cursor: string | null }>(
+        `/projects/${slug}/events?${params.toString()}`,
+      );
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
     refetchInterval,
     // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
     enabled: projectId !== undefined,

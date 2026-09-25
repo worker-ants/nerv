@@ -354,6 +354,8 @@ export const ko = {
   'reviews.from_task': '작업 {key}',
   'reviews.promoted_to': '→ {key}',
   'reviews.promoted_already': '이미 {key} 로 올린 발견입니다.',
+  'feed.repeat': '×{count}',
+  'feed.repeat_label': '잇달아 같은 일 {count}건 — 펼치기·접기',
   'reviews.expand': '펼치기',
   'reviews.action.spec_change': '스펙 정정',
   'reviews.resolve.spec': '고친 스펙',
@@ -1229,7 +1231,7 @@ export const ko = {
   'project.no_sessions': '지금 도는 세션이 없습니다.',
   'project.no_sessions_hint_post': '로 작업을 잡으면 여기에 나타납니다.',
   'project.no_sessions_hint_pre': '에이전트가',
-  'project.recent_events': '최근 이벤트',
+  'project.recent_events': '최근 활동',
   // ── 스펙 목록·검색 (screens.md §2.4) ──────────────────────────────────────────
   'specs.archived_badge': '보관됨',
   'specs.back_to_tree': '전체 트리로',

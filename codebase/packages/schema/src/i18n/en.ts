@@ -360,6 +360,8 @@ export const en = {
   'reviews.from_task': 'Task {key}',
   'reviews.promoted_to': '→ {key}',
   'reviews.promoted_already': 'This finding is already task {key}.',
+  'feed.repeat': '×{count}',
+  'feed.repeat_label': '{count} in a row — expand or collapse',
   'reviews.expand': 'Expand',
   'reviews.action.spec_change': 'Spec fix',
   'reviews.resolve.spec': 'Corrected spec',

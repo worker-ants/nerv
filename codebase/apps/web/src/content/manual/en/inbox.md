@@ -119,6 +119,8 @@ The shortcuts do nothing while the cursor is in a text field — typing `a` in a
 
 The notification center is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The unread count sits on the header badge and clears as you read.
 
+**Each line says what it is about** — spec key and version, task key, and the title. That includes approval requests and questions: an approval request names what is being decided (the document, or the plan's task, or the finding to downgrade), and a question shows **its title** and the task it is attached to. Pressing it still takes you to **that card** in the inbox — the notification is a shadow; deciding happens in the inbox. When the same notification about the same subject arrives several times in a row, the lines **fold into one with ×N**. Press ×N to unfold; pressing the folded line marks the whole group **read together**.
+
 **Opening a notification lands on what changed.** A notification that a spec was approved or rejected takes you to the **difference from the previous version**, not the document body — you no longer read a document from the top to find what moved. A first version has nothing to compare against, so it opens the body. A notification that someone commented opens with the **comments panel already showing**.
 
 **Handling a request in the inbox also marks its notification read.** Approval requests and questions are counted in two places, the inbox and notifications; whoever handles one — even another approver in the queue, first — marks that request's notifications read for everyone. You do not have to clear both badges. In the notification list the row gains **"(handled · Jimin, Approval)"**, saying who closed it and how.

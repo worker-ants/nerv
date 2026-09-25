@@ -18,6 +18,7 @@ import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
+import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
 import { ValkeyService } from './valkey.service.js';
 
 /** 도메인 서비스가 채우는 이벤트 입력. actor 쌍은 D-08(사람·에이전트 동시 기록)이다. */
@@ -170,10 +171,15 @@ export class EventService {
              -- 그 덮개가 걷히는 날 값은 ms 로 잘리고, 커서의 동률 판정이 조용히 깨진다.
              e.occurred_at::text AS occurred_at,
              u.display_name AS actor_name, se.hostname, se.agent_type::text AS agent_type,
-             se.external_session_id
+             se.external_session_id,
+             -- 같은 사람이 같은 대상에 같은 일을 잇달아 하면 화면이 한 줄로 접는다 — 이름은 같을 수 있어 id 로 가른다
+             e.actor_user_id, e.actor_session_id,
+             -- **무엇에 일어났나**(2026-09-24 · REQ-API-181) — 알림 목록과 같은 조각이다(event-subject.ts)
+             ${EVENT_SUBJECT_COLUMNS}
         FROM event e
    LEFT JOIN "user" u ON u.id = e.actor_user_id
    LEFT JOIN agent_session se ON se.id = e.actor_session_id
+   ${EVENT_SUBJECT_JOINS}
        WHERE e.project_id = ${input.projectId}${typeFilter}${subject}${before}
        ORDER BY e.occurred_at DESC, e.id DESC
        LIMIT ${limit + 1}
