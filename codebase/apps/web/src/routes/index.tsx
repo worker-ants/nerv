@@ -20,6 +20,7 @@ import {
 import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { EmptyState, Skeleton } from '../components/ui/primitives.js';
+import { StatusBadge } from '../components/status-badge.js';
 import { InvitationCards } from '../components/invitation-cards.js';
 import { EventFeed } from '../components/event-feed.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
@@ -296,9 +297,8 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
           </span>
         </span>
         {blocking && (
-          <span className="shrink-0 rounded-[5px] bg-status-waiting-soft px-2 py-[2.5px] text-[11px] font-medium text-status-waiting">
-            {t('home.todo.blocking')}
-          </span>
+          // 받은 요청 카드의 같은 표지와 **같은 부품**이다 — 배지를 픽셀까지 손으로 베껴 두었다(SYS-07)
+          <StatusBadge token="waiting" mark={null} label={t('home.todo.blocking')} />
         )}
         {/* 기다린 시간은 **카드와 같은 말과 같은 색**이다 — 한 시간 넘으면 호박색(REQ-WEB-204) */}
         <span

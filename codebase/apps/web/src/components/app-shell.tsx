@@ -36,7 +36,7 @@ import { SpecTreeColumn } from './spec-tree-column.js';
 import { SettingsNav } from '../features/settings/settings-nav.js';
 import { LocaleSwitch } from './locale-switch.js';
 import { NAV_ACTIVE, NAV_ITEM, RAIL_LABEL } from './nav-styles.js';
-import { MenuItem, Popover } from './ui/primitives.js';
+import { CountBadge, MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
 
@@ -97,41 +97,6 @@ const GLYPH_INBOX = [
   'M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z',
 ];
 const GLYPH_BELL = ['M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9', 'M10.3 21a1.9 1.9 0 0 0 3.4 0'];
-
-function CountBadge({
-  count,
-  tone,
-  testId,
-  className,
-}: {
-  count: number;
-  tone: 'action' | 'waiting' | 'agent' | 'danger';
-  testId?: string;
-  className?: string;
-}): React.JSX.Element | null {
-  if (count === 0) return null;
-  return (
-    <span
-      {...(testId === undefined ? {} : { 'data-testid': testId })}
-      className={cn(
-        // **차오른 색이 아니라 물든 색이다**(시안). 진한 배경 + 흰 글자는 화면에서 가장
-        // 시끄러운 물건이 되는데, 배지는 어디에나 있다 — 소프트 배경 + 같은 계열 글자면
-        // 숫자는 읽히되 화면이 배지로 뒤덮이지 않는다.
-        'ml-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-[5px] text-2xs font-semibold',
-        tone === 'action'
-          ? 'bg-status-action-soft text-status-action'
-          : tone === 'agent'
-            ? 'bg-status-agent-soft text-status-agent'
-            : tone === 'danger'
-              ? 'bg-status-danger-soft text-status-danger'
-              : 'bg-status-waiting-soft text-status-waiting',
-        className,
-      )}
-    >
-      {count > 99 ? '99+' : count}
-    </span>
-  );
-}
 
 export function AppShell({
   children,

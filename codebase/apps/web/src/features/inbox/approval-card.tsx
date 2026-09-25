@@ -542,12 +542,12 @@ export function ApprovalCard({
         </span>
         {/* **세션을 멈춰 세운 질문**은 행동하는 카드에서도 그렇다고 말한다 — 홈의 줄에만 있었다 */}
         {isQuestion && card['urgency'] === 'blocking' && (
-          <span
+          <StatusBadge
             data-testid="card-blocking"
-            className="shrink-0 rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 text-xs font-medium text-status-waiting"
-          >
-            {t('home.todo.blocking')}
-          </span>
+            token="waiting"
+            mark={null}
+            label={t('home.todo.blocking')}
+          />
         )}
         {/* **어느 조직·프로젝트의 일인가**(REQ-WEB-192) — 받은 요청은 조직을 가로지른다 */}
         <ScopeBadge
@@ -561,15 +561,15 @@ export function ApprovalCard({
             승인해야 확정되는데, 카드가 그 사실을 말하지 않으면 첫 승인자는 자기가 마지막
             결재라고 믿는다 — 조용히 약해진 게이트는 없는 게이트보다 나쁘다. */}
         {Number(card['approvals_required'] ?? 1) > 1 && (
-          <span
+          <StatusBadge
             data-testid="quorum"
-            className="shrink-0 rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 text-xs font-medium text-status-waiting"
-          >
-            {t('inbox.card.quorum', {
+            token="waiting"
+            mark={null}
+            label={t('inbox.card.quorum', {
               given: Number(card['approvals_given'] ?? 0),
               required: Number(card['approvals_required'] ?? 1),
             })}
-          </span>
+          />
         )}
         {typeof card['assignee_role'] === 'string' && (
           <span data-testid="role-queue" className="shrink-0 text-xs text-text-faint">
@@ -618,12 +618,12 @@ export function ApprovalCard({
               </span>
             )}
             {card['session_waiting'] === true && (
-              <span
+              <StatusBadge
                 data-testid="session-waiting"
-                className="rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 font-medium text-status-waiting"
-              >
-                {t('inbox.card.session_waiting')}
-              </span>
+                token="waiting"
+                mark={null}
+                label={t('inbox.card.session_waiting')}
+              />
             )}
           </p>
           <TargetLine card={card} currentOrg={currentOrg} />

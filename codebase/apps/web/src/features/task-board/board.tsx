@@ -35,7 +35,8 @@ import { useScope } from '../../lib/scope.js';
 import { DelegationForm } from './delegation-form.js';
 import { leaseRemaining, relativeTime } from '../session-monitor/format.js';
 import { blockedReasonText } from '../../lib/format.js';
-import { TASK_TOKEN } from '../../components/status-token.js';
+import { TASK_TOKEN, statusDot } from '../../components/status-token.js';
+import { StatusBadge } from '../../components/status-badge.js';
 import {
   rows,
   useMe,
@@ -86,20 +87,6 @@ const MINE_LANES = 'ready,claimed,in_progress,in_review,blocked';
 
 /** 레인 이름은 `task_status` 어휘다 — 토큰·라벨 표를 그대로 색인한다 */
 type Lane = keyof typeof TASK_TOKEN;
-
-/**
- * 레인 점 색 — **§4.2 상태 토큰의 진한 쪽**을 그대로 쓴다(새 색을 만들지 않는다).
- * 배지는 soft 배경 + 같은 계열 글자였는데, 맨 점은 배경이 없으니 진한 값이 필요하다.
- */
-const LANE_DOT: Record<Lane, string> = {
-  backlog: 'bg-status-idle-text',
-  ready: 'bg-status-action',
-  claimed: 'bg-status-agent',
-  in_progress: 'bg-status-progress',
-  in_review: 'bg-status-waiting',
-  done: 'bg-status-done',
-  blocked: 'bg-status-danger',
-};
 
 /** 만료까지 남은 초 — 음수면 이미 만료다(회수는 워커가 한다). */
 function leaseSeconds(expiresAt: string): number {
@@ -578,7 +565,7 @@ function Lane({
         >
           <span
             aria-hidden="true"
-            className={cn('size-1.5 shrink-0 rounded-full', LANE_DOT[lane])}
+            className={cn('size-1.5 shrink-0 rounded-full', statusDot(TASK_TOKEN, lane))}
           />
           {/* `statusLabelKey` 는 **키**를 준다 — 번역을 거치지 않으면 화면에
                       `status.task.ready` 가 그대로 찍힌다(실측 2026-08-23) */}
@@ -742,10 +729,12 @@ function TaskCard({
       {task['basis_superseded'] === true && (
         // 기준 버전이 지나갔다 — 재브리핑 신호(agent-integration §2.4).
         // 메타 줄에 섞어 두면 흐린 글자 사이에 묻힌다 — 제 줄을 준다.
-        <div className="mt-1.5 inline-flex items-center gap-1 rounded-nerv-sm bg-status-waiting-soft px-1.5 py-0.5 text-2xs font-medium text-status-waiting">
-          <span aria-hidden="true">↑</span>
-          {t('tasks.basis_superseded')}
-        </div>
+        <StatusBadge
+          token="waiting"
+          mark="↑"
+          label={t('tasks.basis_superseded')}
+          className="mt-1.5"
+        />
       )}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-text-faint">
         {/* **누구 것인가를 읽지 않고 알아보게 한다** — 이름을 글자로 늘어놓으면
@@ -777,17 +766,13 @@ function TaskCard({
           )}
         {/* 우선순위는 레인의 정렬 기준이다 — **급한 둘만** 작게 보인다(다 보이면 신호가 아니다) */}
         {(task['priority'] === 'P0' || task['priority'] === 'P1') && (
-          <span
+          <StatusBadge
             data-testid="task-card-priority"
-            className={cn(
-              'rounded-nerv-sm px-1 text-2xs font-medium',
-              task['priority'] === 'P0'
-                ? 'bg-status-danger-soft text-status-danger'
-                : 'bg-status-waiting-soft text-status-waiting',
-            )}
-          >
-            {String(task['priority'])}
-          </span>
+            token={task['priority'] === 'P0' ? 'danger' : 'waiting'}
+            mark={null}
+            size="sm"
+            label={String(task['priority'])}
+          />
         )}
         <span className="font-mono tracking-[-0.02em] text-text-faint">{String(task['key'])}</span>
         {/* 어느 스펙에서 나온 일인가 — 흐리게, 누르면 그 스펙으로 */}
