@@ -23,6 +23,7 @@ import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as OOrgRouteImport } from './routes/o.$org'
 import { Route as PProjRouteRouteImport } from './routes/p.$proj/route'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SettingsAccountRouteImport } from './routes/settings/account'
 import { Route as SettingsGatesRouteImport } from './routes/settings/gates'
 import { Route as SettingsMembersRouteImport } from './routes/settings/members'
 import { Route as SettingsOrgTokensRouteImport } from './routes/settings/org-tokens'
@@ -106,6 +107,11 @@ const PProjRouteRoute = PProjRouteRouteImport.update({
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsAccountRoute = SettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsGatesRoute = SettingsGatesRouteImport.update({
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/help/$chapter': typeof HelpChapterRoute
   '/invite/$token': typeof InviteTokenRoute
   '/o/$org': typeof OOrgRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/help/$chapter': typeof HelpChapterRoute
   '/invite/$token': typeof InviteTokenRoute
   '/o/$org': typeof OOrgRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/help/$chapter': typeof HelpChapterRoute
   '/invite/$token': typeof InviteTokenRoute
   '/o/$org': typeof OOrgRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/help/$chapter'
     | '/invite/$token'
     | '/o/$org'
+    | '/settings/account'
     | '/settings/gates'
     | '/settings/members'
     | '/settings/org-tokens'
@@ -308,6 +318,7 @@ export interface FileRouteTypes {
     | '/help/$chapter'
     | '/invite/$token'
     | '/o/$org'
+    | '/settings/account'
     | '/settings/gates'
     | '/settings/members'
     | '/settings/org-tokens'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/help/$chapter'
     | '/invite/$token'
     | '/o/$org'
+    | '/settings/account'
     | '/settings/gates'
     | '/settings/members'
     | '/settings/org-tokens'
@@ -469,6 +481,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/account': {
+      id: '/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof SettingsAccountRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/gates': {
       id: '/settings/gates'
       path: '/gates'
@@ -585,6 +604,7 @@ const HelpRouteRouteWithChildren = HelpRouteRoute._addFileChildren(
 )
 
 interface SettingsRouteRouteChildren {
+  SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsGatesRoute: typeof SettingsGatesRoute
   SettingsMembersRoute: typeof SettingsMembersRoute
   SettingsOrgTokensRoute: typeof SettingsOrgTokensRoute
@@ -594,6 +614,7 @@ interface SettingsRouteRouteChildren {
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsAccountRoute: SettingsAccountRoute,
   SettingsGatesRoute: SettingsGatesRoute,
   SettingsMembersRoute: SettingsMembersRoute,
   SettingsOrgTokensRoute: SettingsOrgTokensRoute,

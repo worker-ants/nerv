@@ -18,7 +18,7 @@
 // 그리지 않고 하나를 옮긴다.** 같은 `<aside>` 가 넓은 화면에서는 고정 사이드바로, 좁은
 // 화면에서는 헤더 [☰] 가 여는 서랍으로 선다 — 트리의 펼침 상태가 두 벌로 갈리지 않는다.
 
-import { LOCALE_LABEL, LOCALES, useLocale, useT } from '../lib/i18n.js';
+import { useT } from '../lib/i18n.js';
 import { THEMES, useTheme } from '../lib/theme.js';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -34,6 +34,7 @@ import { documentTitle, onDetailRoute, screenKeyFor } from '../lib/document-titl
 import { useTitleDetailValue } from '../lib/title-detail.js';
 import { SpecTreeColumn } from './spec-tree-column.js';
 import { SettingsNav } from '../features/settings/settings-nav.js';
+import { LocaleSwitch } from './locale-switch.js';
 import { MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
@@ -146,7 +147,6 @@ export function AppShell({
   activeSpecKey,
 }: AppShellProps): React.JSX.Element {
   const t = useT();
-  const { locale, setLocale } = useLocale();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   // 활성 세션 수는 프로젝트 조회가 함께 준다(EP-PRJ-03) — 세션 목록을 또 부르지 않는다
@@ -653,38 +653,26 @@ export function AppShell({
                   <p className="border-b border-border px-3 pb-1.5 text-xs text-text-faint">
                     {me.data.email}
                   </p>
+                  {/* **내 계정이 이름 바로 아래다**(2026-09-25 — 사람 결정 D10 · REQ-WEB-229) — 이름·비밀번호를 바꾸러 온
+                      사람은 자기 이름을 누른다 */}
+                  <Link
+                    to="/settings/account"
+                    data-testid="user-menu-account"
+                    onClick={() => setMenuOpen(null)}
+                    className="mt-1 block px-3 py-1.5 text-sm hover:bg-bg-hover"
+                  >
+                    {t('settings.tab.account')}
+                  </Link>
                   <Link
                     to="/settings"
                     onClick={() => setMenuOpen(null)}
-                    className="mt-1 block px-3 py-1.5 text-sm hover:bg-bg-hover"
+                    className="block px-3 py-1.5 text-sm hover:bg-bg-hover"
                   >
                     {t('shell.settings')}
                   </Link>
                   {/* 언어 전환은 사용자 메뉴에 둔다 — 자주 바꾸는 것이 아니고, 계정에 붙은
-                      설정이라 사용자 이름 아래가 사람들이 먼저 찾아보는 자리다 */}
-                  <div className="mt-1 border-t border-border px-3 pt-1.5 pb-1">
-                    <p className="mb-1 text-2xs text-text-faint">{t('shell.language')}</p>
-                    <div className="flex gap-1">
-                      {LOCALES.map((code) => (
-                        <button
-                          key={code}
-                          type="button"
-                          data-testid={`locale-${code}`}
-                          aria-pressed={locale === code}
-                          onClick={() => setLocale(code)}
-                          className={cn(
-                            'rounded-nerv-sm px-2 py-0.5 text-xs',
-                            locale === code
-                              ? 'bg-bg-active font-medium'
-                              : 'text-text-mute hover:bg-bg-hover',
-                          )}
-                        >
-                          {/* 언어 이름은 그 언어로 적는다 — 읽을 수 없는 말로 적힌 선택지는 고를 수 없다 */}
-                          {LOCALE_LABEL[code]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                      설정이라 사용자 이름 아래가 사람들이 먼저 찾아보는 자리다. 로그인 전 화면도 같은 단추 줄이다 */}
+                  <LocaleSwitch className="mt-1 border-t border-border px-3 pt-1.5 pb-1" />
                   {/* 테마는 언어 바로 아래다 — 둘 다 "이 화면을 어떻게 볼 것인가"이고,
                       같은 자리에 같은 모양으로 있어야 한 번 찾은 사람이 다시 찾는다.
                       다만 성질은 다르다: 언어는 계정에 붙고 **테마는 기계에 붙는다**

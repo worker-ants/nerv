@@ -52,6 +52,9 @@ test('화면이 영어면 서버 응답도 영어다 — 절반만 번역된 화
   const context = await browser.newContext({ storageState: STORAGE_STATE, locale: 'en-US' });
   const page = await context.newPage();
   await page.goto('/');
+  // **화면이 영어가 된 뒤에 부른다**(2026-09-25 — CI 에서 드러난 경쟁). `index.html` 은 `lang="ko"` 로 시작하고
+  // 앱이 올라온 뒤에야 `en` 으로 바꾼다 — 바로 읽으면 느린 러너에서는 아직 `ko` 라 서버가 한국어로 답했다
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
   // 화면이 실제로 보내는 헤더로 부른다(fetch 가 apiFetch 와 같은 규칙을 쓰게)
   const message = await page.evaluate(async () => {

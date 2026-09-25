@@ -12,6 +12,15 @@
 // 판정하고(REQ-API-112), 여기서 보는 것은 **모양**이다 — 둘은 다른 물음이라 자리를 나눈다.
 
 import { z } from 'zod';
+import { DISPLAY_NAME_MAX } from '../constants.js';
+
+/**
+ * EP-AUTH-02 — 내 표시 이름(2026-09-25 · REQ-API-186). 앞뒤 공백은 이름이 아니다 — 잘라 낸 뒤에 센다.
+ * 이메일은 로그인 아이디라 여기서 받지 않는다(`.strict()` 가 조용히 버리지 않고 거절한다).
+ */
+export const MeUpdateInput = z
+  .object({ display_name: z.string().trim().min(1).max(DISPLAY_NAME_MAX) })
+  .strict();
 
 /** EP-ORG-03 */
 export const OrgCreateInput = z

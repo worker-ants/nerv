@@ -120,6 +120,8 @@ describe('설정의 항목은 범위로 묶인다 (SET-06)', () => {
       '/settings/members',
       '/settings/org-tokens',
       '/settings/gates',
+      // 나 — 내 계정이 먼저다(2026-09-25 · REQ-WEB-229)
+      '/settings/account',
       '/settings/tokens',
     ]);
     expect(within(nav).getByTestId('settings-nav-members').getAttribute('aria-current')).toBe(

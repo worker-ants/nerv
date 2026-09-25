@@ -4,6 +4,8 @@
 // 값과 오류를 동시에 볼 수 없고, 이메일까지 지우면 다시 타이핑하게 만든다.
 
 import { useT } from '../lib/i18n.js';
+import { PASSWORD_MIN_LENGTH } from '@nerv/schema';
+import { LocaleSwitch } from '../components/locale-switch.js';
 import { createFileRoute, Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -113,7 +115,7 @@ function LoginScreen(): React.JSX.Element {
             <Input
               type="password"
               required
-              minLength={8}
+              minLength={PASSWORD_MIN_LENGTH}
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -158,6 +160,8 @@ function LoginScreen(): React.JSX.Element {
           </Link>
         </p>
         <p className="mt-1 text-center text-xs text-text-faint">{t('login.invite_note')}</p>
+        {/* 로그인 전에도 언어를 바꾼다 — 사용자 메뉴는 셸 안에만 있다(REQ-WEB-230) */}
+        <LocaleSwitch labelled={false} className="mt-6 flex justify-center" />
       </div>
     </div>
   );

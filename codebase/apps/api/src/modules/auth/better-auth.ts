@@ -8,7 +8,12 @@
 // 사용자 행은 도메인 `user` 테이블을 그대로 쓴다 — 인증용 사본을 만들면 같은 사람이 두 개의
 // id 를 갖게 되고, event.actor_user_id 가 어느 쪽을 가리키는지 매번 물어야 한다.
 
-import { RATE_LIMIT_AUTH_PER_MIN, RATE_LIMIT_SIGN_IN_PER_MIN, newId } from '@nerv/schema';
+import {
+  PASSWORD_MIN_LENGTH,
+  RATE_LIMIT_AUTH_PER_MIN,
+  RATE_LIMIT_SIGN_IN_PER_MIN,
+  newId,
+} from '@nerv/schema';
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
 import { allowedOriginsFromEnv, apiUrlFromEnv, cookieDomainFromEnv } from '../../common/origins.js';
@@ -108,15 +113,23 @@ export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
         '/sign-up/email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
         // 재발송도 같은 한도다 — 남의 주소를 골라 두드리면 그 사람의 메일함이 시끄러워진다
         '/send-verification-email': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
+        // 비밀번호 바꾸기도 지금 비밀번호를 맞히는 자리라 로그인과 같은 한도다(2026-09-25 · REQ-API-186)
+        '/change-password': { window: 60, max: RATE_LIMIT_SIGN_IN_PER_MIN },
       },
     },
+    /**
+     * **이름을 바꾸는 문은 하나다**(2026-09-25 · REQ-API-186). 인증 스택의 `/update-user` 는 이름(→ `display_name`)과
+     * 사진을 **검사 없이** 받는다 — 빈 이름·끝없는 이름이 멤버 표에 박힌다. 이름은 `PATCH /api/v1/me`(EP-AUTH-02 ·
+     * 길이·공백 검사)만 바꾸고, 이 경로는 닫는다(404).
+     */
+    disabledPaths: ['/update-user'],
     emailAndPassword: {
       enabled: true,
       // **강제한다**(2026-09-22 사람 결정). 다만 강제는 메일을 보낼 수 있을 때만 성립하므로
       // 기본값을 SMTP 에서 유도한다 — 판정은 `mail.config.ts` 한 곳이고, 메일 없이 켜 둔
       // 배치는 기동 단계에서 이미 거부됐다(`assertMailConfig`).
       requireEmailVerification: requireEmailVerificationFromEnv(),
-      minPasswordLength: 8,
+      minPasswordLength: PASSWORD_MIN_LENGTH,
     },
     emailVerification: {
       // 가입하면 바로 나간다 — 따로 누를 것을 두지 않는다

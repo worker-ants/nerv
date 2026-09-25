@@ -21,6 +21,7 @@ type SettingsPath =
   | '/settings/members'
   | '/settings/org-tokens'
   | '/settings/gates'
+  | '/settings/account'
   | '/settings/tokens';
 
 /**
@@ -69,7 +70,12 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   {
     key: 'me',
     label: 'settings.group.me',
-    items: [{ to: '/settings/tokens', label: 'settings.tab.tokens' }],
+    // **내 계정이 먼저다**(2026-09-25 — 사람 결정 D10 · REQ-WEB-229) — 이름·비밀번호는 누구에게나 있고 토큰은 쓰는
+    // 사람에게만 있다
+    items: [
+      { to: '/settings/account', label: 'settings.tab.account' },
+      { to: '/settings/tokens', label: 'settings.tab.tokens' },
+    ],
   },
 ];
 
