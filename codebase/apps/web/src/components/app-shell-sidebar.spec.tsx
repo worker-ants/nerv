@@ -5,7 +5,8 @@
 // 헤더의 드롭다운 둘이었고, 헤더의 [프로젝트] 링크와 사이드바의 [개요]가 같은 곳을 가리키며 함께 켜졌다
 // (NAV-05). 이 스위트가 지키는 것: 열이 어느 화면에서나 같은 한 벌로 서고 화면을 옮겨도 다시 그려지지
 // 않는다 · 헤더는 지금 자리(조직 › 프로젝트 › 화면)를 말한다 · 받은 요청·알림은 열의 전역 구역에 한 번만
-// 선다 · 도움말의 차례는 열 안에서 펼쳐진다.
+// 선다 · 열이 항목보다 짧으면 열 전체가 흐른다(가려지는 항목이 없다) · 도움말의 차례는 열이 아니라 둘째
+// 열이다(2026-09-25 사람 지시 · REQ-WEB-232).
 
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -206,25 +207,57 @@ describe('받은 요청·알림은 한 자리에 선다', () => {
   });
 });
 
-describe('도움말의 차례는 사이드바에 펼쳐진다 (NAV-14)', () => {
-  it('도움말에서는 [도움말] 아래에 장 전부가 선다', async () => {
+describe('도움말의 차례는 사이드바가 아니라 둘째 열이다 (2026-09-25 사람 지시 · REQ-WEB-232)', () => {
+  it('도움말에서도 [도움말] 아래에 장이 펼쳐지지 않는다 — 차례는 사이드바 밖의 열에 선다', async () => {
+    stubWide();
     mount('/help/tasks');
     const nav = await rail();
-    const toc = within(nav).getByTestId('manual-toc');
+    const toc = await screen.findByTestId('manual-toc');
+    expect(nav.contains(toc)).toBe(false);
+    expect(screen.getByTestId('manual-column').contains(toc)).toBe(true);
     const links = within(toc).getAllByRole('link');
     expect(links).toHaveLength(MANUAL_CHAPTERS.length);
-    expect(links.map((a) => a.getAttribute('href'))).toContain('/help/tasks');
     expect(
       links.find((a) => a.getAttribute('href') === '/help/tasks')?.getAttribute('aria-current'),
     ).toBe('page');
+    // 사이드바의 [도움말]은 그 화면에 있다는 표시로 남는다
+    expect(within(nav).getByTestId('rail-help').getAttribute('aria-current')).toBe('page');
   });
 
-  it('다른 화면에서는 차례 대신 "이 화면 도움말" 한 줄이다', async () => {
+  it('다른 화면에서는 "이 화면 도움말" 한 줄이다 — 도움말 화면에서는 서지 않는다', async () => {
     mount('/p/clemvion/tasks');
     const nav = await rail();
-    expect(within(nav).queryByTestId('manual-toc')).toBeNull();
+    expect(screen.queryByTestId('manual-toc')).toBeNull();
     expect(within(nav).getByTestId('drawer-help-this-screen').getAttribute('href')).toBe(
       '/help/tasks',
     );
+  });
+});
+
+describe('열 전체가 한 상자로 흐른다 (2026-09-25 사람 보고 · REQ-WEB-232)', () => {
+  // jsdom 은 높이를 재지 않는다 — 여기서 태우는 것은 **무엇이 줄어드는 칸이고 무엇이 흐르는 상자인가** 라는
+  // 계약이다. 항목이 실제로 가려지지 않는지는 L3(`shell.spec.ts`)가 낮은 창에서 잰다.
+  it('프로젝트 구역은 줄어들지 않고 제 높이를 갖는다 — 넘치면 열이 흐른다', async () => {
+    stubWide();
+    mount('/p/clemvion/tasks');
+    const nav = await rail();
+    expect(nav.className).toContain('overflow-y-auto');
+    const projects = within(nav).getByTestId('rail-projects');
+    // 줄어드는 칸(`flex-1 min-h-0`)이던 동안 목록이 바닥 블록 뒤로 겹쳐 가려졌다
+    expect(projects.className).not.toContain('min-h-0');
+    expect(projects.className).not.toContain('flex-1');
+    expect(projects.className).toContain('shrink-0');
+  });
+
+  it('바닥 블록은 남는 자리가 있을 때만 바닥에 붙는다 — 사이의 빈칸이 줄어든다', async () => {
+    stubWide();
+    mount('/settings/workspace');
+    const nav = await rail();
+    const footer = within(nav).getByTestId('rail-footer');
+    const spacer = footer.previousElementSibling as HTMLElement;
+    expect(spacer.getAttribute('aria-hidden')).toBe('true');
+    expect(spacer.className).toContain('flex-1');
+    expect(footer.className).toContain('shrink-0');
+    expect(footer.className).not.toContain('mt-auto');
   });
 });

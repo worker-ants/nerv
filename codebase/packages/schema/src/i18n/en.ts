@@ -1058,6 +1058,9 @@ export const en = {
   'help.on_this_page': 'On this page',
   'help.this_screen': 'Help for this screen',
   'help.title': 'Product manual',
+  'help.toc': 'Manual contents',
+  'help.column.show': 'Show contents',
+  'help.column.hide': 'Hide contents',
   // ── 시간 표기 — 상대 시각만 쓴다 (ui-wireframes §3.3) ──────────────────────────────
   'time.days_ago': '{n}d ago',
   'time.hours_ago': '{n}h ago',

@@ -1040,6 +1040,9 @@ export const ko = {
   'help.on_this_page': '이 문서 안',
   'help.this_screen': '이 화면 도움말',
   'help.title': '제품 매뉴얼',
+  'help.toc': '매뉴얼 차례',
+  'help.column.show': '차례 펴기',
+  'help.column.hide': '차례 접기',
   // ── 시간 표기 — 상대 시각만 쓴다 (ui-wireframes §3.3) ──────────────────────────────
   'time.days_ago': '{n}일 전',
   'time.hours_ago': '{n}시간 전',
