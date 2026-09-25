@@ -49,6 +49,8 @@ An approval card offers three things: **approve, reject, comment**. **A rejectio
 
 **A question card is different** — it has one button, [Send answer], and `a` and `r` do nothing there.
 
+**A decision goes out five seconds after you press it.** When you approve, reject, comment or answer a question (options included), the card does not send it at once: it shows what it is about to send and an **[Undo]** button. Press [Undo] or `z` before the bar underneath runs out and nothing is sent — the buttons come back. That is the only way to take a decision back: **once sent, it cannot be undone** (an approval has already moved the document and the notifications have already gone out). While it waits the comment box is read-only — what goes out is what you had written when you pressed. Leave for another screen in the meantime and the decision goes out straight away; close or reload the window and the browser asks first. Bulk decisions do not wait five seconds — their confirmation list has already asked once.
+
 **What is yours is usually not yours to approve.** A card is yours in any of three ways: you **requested** it, you **wrote** the draft, or **your session** wrote it. Having someone else submit it changes nothing: what this guards against is **passing your own work through yourself**, and looking only at the requester lets one favour walk around that. Two exceptions:
 
 - **admin** — a human admin signing their own judgement is a different act. An org-level admin counts too.
@@ -85,17 +87,18 @@ Decided cards move to the **Decided** tab. That tab carries **what you decided**
 
 ## Keyboard
 
-| Key       | Action                         |
-| --------- | ------------------------------ |
-| `j` · `k` | Move between cards             |
-| `a`       | Approve                        |
-| `r`       | Reject                         |
-| `c`       | Jump to the comment box        |
-| `x`       | Add this card to the selection |
-| `⇧X`      | Select everything visible      |
-| `⇧A`      | Approve the selection          |
-| `⇧R`      | Reject the selection           |
-| `Esc`     | Clear the selection            |
+| Key       | Action                                      |
+| --------- | ------------------------------------------- |
+| `j` · `k` | Move between cards                          |
+| `a`       | Approve                                     |
+| `r`       | Reject                                      |
+| `c`       | Jump to the comment box                     |
+| `z`       | Undo within five seconds, before it is sent |
+| `x`       | Add this card to the selection              |
+| `⇧X`      | Select everything visible                   |
+| `⇧A`      | Approve the selection                       |
+| `⇧R`      | Reject the selection                        |
+| `Esc`     | Clear the selection                         |
 
 Inside the comment or answer box there are three more.
 

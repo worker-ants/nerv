@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCard } from './approval-card.js';
+import { setDecisionGraceForTesting } from './decision-grace.js';
 import { RealtimeProvider, useRealtime } from '../../lib/realtime.js';
 
 /** 못 쓰는 단추인가 — 사유가 있으면 포커스가 남는 잠금(`aria-disabled`)이다(REQ-WEB-235) */
@@ -39,7 +40,9 @@ let posted: { url: string; body: unknown }[] = [];
 /** 결정 응답의 정족수 — 검사마다 갈아 끼운다 */
 let quorumResponse: { given: number; required: number; satisfied: boolean } | null = null;
 
+// 결정의 **내용**을 본다 — 보내기 전 5초(REQ-WEB-237)는 decision-grace.spec.tsx 가 센다
 beforeEach(() => {
+  setDecisionGraceForTesting(0);
   posted = [];
   quorumResponse = null;
   vi.stubGlobal(
@@ -59,6 +62,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setDecisionGraceForTesting();
   vi.unstubAllGlobals();
   cleanup();
 });
@@ -328,12 +332,12 @@ describe('REQ-WEB-195 — 결정의 멱등 키는 누름마다 새로 난다', (
       }),
     );
     renderCard(APPROVAL);
-    const comment = screen.getByRole('button', { name: '코멘트' });
     fireEvent.change(screen.getByTestId('decision-comment'), { target: { value: '범위 확인' } });
-    fireEvent.click(comment);
+    fireEvent.click(screen.getByRole('button', { name: '코멘트' }));
     await waitFor(() => expect(keys).toHaveLength(1));
-    await waitFor(() => expect((comment as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(comment);
+    // 보내는 동안에는 단추 자리에 "보내는 중" 줄이 선다 — 끝나면 단추가 돌아온다
+    const again = await screen.findByRole('button', { name: '코멘트' });
+    fireEvent.click(again);
     await waitFor(() => expect(keys).toHaveLength(2));
     expect(keys[0]).not.toBe(keys[1]);
   });

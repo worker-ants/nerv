@@ -177,6 +177,15 @@ export function Skeleton({
 
 // ── 조작 ───────────────────────────────────────────────────────────────────
 
+/** 단축키 표기 — 본문 글자와 구분되게, 그러나 조용하게. 키 이름은 번역하지 않는다(키보드에 새겨진 글자다) */
+export function Kbd({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <kbd className="rounded-nerv-sm border border-border bg-bg-sunken px-1 font-mono text-text-mute">
+      {children}
+    </kbd>
+  );
+}
+
 export type ButtonVariant = 'primary' | 'default' | 'ghost' | 'danger' | 'danger-solid';
 export type ButtonSize = 'sm' | 'md';
 
