@@ -234,7 +234,7 @@ describe('설치 장의 환경값 (REQ-WEB-165)', () => {
 // 재지 않으므로 여기서 태우는 것은 **어디가 스크롤 상자이고 무엇이 그 상자에 붙는가**
 // 라는 계약이다 — 실제로 페이지가 가만히 있는지는 L3 가 잰다.
 describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
-  it('차례가 있는 폭부터 화면 높이를 쥐고, 차례와 본문이 각자 흐른다', async () => {
+  it('사이드바가 서는 폭부터 화면 높이를 쥐고, 차례와 본문이 각자 흐른다', async () => {
     renderAt('/help/tasks');
     await waitFor(() => expect(screen.getByTestId('manual-content')).toBeDefined());
     const content = screen.getByTestId('manual-content');
@@ -242,12 +242,13 @@ describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
     expect(row?.className).toContain('md:h-[calc(100dvh-var(--spacing-header))]');
     expect(row?.className).toContain('md:overflow-hidden');
     expect(content.className).toContain('md:overflow-y-auto');
-    // 차례도 자기 안에서 흐른다 — 열 장이 화면보다 길어지면 아래쪽에 닿지 못한다
-    const toc = row?.querySelector('aside');
-    expect(toc?.className).toContain('overflow-y-auto');
-    // 페이지가 흐르지 않으므로 뷰포트에 손수 묶던 계산식은 남지 않는다
-    expect(toc?.className).not.toMatch(/sticky/);
-    expect(toc?.className).not.toMatch(/h-\[calc/);
+    // 차례는 셸 사이드바에 선다(2026-09-25 D1 · REQ-WEB-225) — 도움말이 같은 폭의 둘째 왼쪽 열을 세우지 않는다
+    expect(Array.from(row?.children ?? []).map((c) => c.tagName)).toEqual(['DIV']);
+    const toc = screen.getByTestId('manual-toc');
+    const rail = screen.getByTestId('nav-rail');
+    expect(rail.contains(toc)).toBe(true);
+    // 사이드바도 자기 안에서 흐른다 — 열 장이 화면보다 길어지면 아래쪽에 닿지 못한다
+    expect(rail.className).toContain('overflow-y-auto');
   });
 
   it('"이 문서 안" 은 본문 상자의 꼭대기에 붙는다 — 셸 헤더가 기준이 아니다', async () => {

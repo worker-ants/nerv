@@ -97,15 +97,21 @@ test.describe('시드 세션', () => {
   // 매 테스트 로그인하면 스위트가 자기 인증 쿼터를 먹는다(§1.8).
   test.use({ storageState: STORAGE_STATE });
 
-  test('헤더에 조직 스위처와 사용자 메뉴가 있다 (§1.3 레이아웃)', async ({ page }) => {
+  test('사이드바 머리에 조직 스위처, 헤더에 사용자 메뉴가 있다 (§1.3 레이아웃)', async ({
+    page,
+  }) => {
     await page.goto('/');
     await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
 
-    // 헤더는 **조직 소속**다 — 어느 조직을 보고 있는지가 화면에 없으면 다중 조직에서 길을 잃는다
-    await expect(page.getByTestId('org-switcher')).toBeVisible();
+    // 어느 조직을 보고 있는지가 화면에 없으면 다중 조직에서 길을 잃는다 — 2026-09-25 부터 그 자리는
+    // 모든 화면에 서는 사이드바의 머리다(D1 · REQ-WEB-225)
+    await expect(page.getByTestId('nav-rail').getByTestId('org-switcher')).toBeVisible();
 
     await page.getByTestId('user-menu').click();
-    await expect(page.getByRole('link', { name: '설정' })).toBeVisible();
+    // 사이드바에도 [설정]이 있다 — 사용자 메뉴 안의 것을 본다
+    await expect(
+      page.locator('#shell-menu-user').getByRole('link', { name: '설정' }),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible();
 
     // 바깥을 누르면 닫힌다 — 열린 채로 남으면 다음 클릭이 먹히지 않는다
@@ -113,20 +119,34 @@ test.describe('시드 세션', () => {
     await expect(page.getByRole('button', { name: '로그아웃' })).toHaveCount(0);
   });
 
-  test('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async ({ page }) => {
-    // 받은 요청은 조직 소속 화면이라 사이드바가 없는 것이 맞다.
-    //
-    // **세는 것이 아니라 보이는가를 본다**(2026-09-21 · REQ-WEB-164). 좁은 화면의 서랍이
-    // 같은 `<aside>` 한 벌이 된 뒤로 그 요소는 프로젝트 밖에서도 DOM 에 있다 — 이 폭에서
-    // 보이지 않을 뿐이다. 애초에 이 테스트가 지키려던 것도 "몇 개인가"가 아니었다.
+  test('사이드바는 모든 화면에 선다 — 펼쳐지는 것만 라우트가 정한다 (REQ-WEB-225)', async ({
+    page,
+  }) => {
+    // 2026-09-25 까지는 /p/:proj/* 에서만 섰다 — 홈·받은 요청·알림·설정에서는 열이 통째로 사라져
+    // 본문이 가운데로 뛰었다(NAV-06). 이제 열은 어디서나 서고, 조직 범위 화면에서는 어느 프로젝트도
+    // 펼치지 않는다.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/inbox');
-    await expect(page.getByRole('link', { name: /NERV/ }).first()).toBeVisible();
-    await expect(page.getByTestId('nav-rail')).toBeHidden();
+    const rail = page.getByTestId('nav-rail');
+    await expect(rail).toBeVisible();
+    await expect(rail.getByTestId('rail-project-current')).toHaveCount(0);
+    await expect(page.getByTestId('spec-tree')).toHaveCount(0);
+    const mainOnInbox = await page.locator('main#main').boundingBox();
 
-    // 프로젝트에 들어가면 탭과 스펙 트리가 함께 선다
-    await page.goto('/p/clemvion');
-    await expect(page.getByTestId('nav-rail')).toBeVisible();
+    // **열은 다시 그려지지 않는다** — 화면을 옮겨도 같은 요소다(표식이 남는다) · 본문의 왼쪽 끝이 그대로다
+    await rail.evaluate((el) => el.setAttribute('data-probe', 'kept'));
+    await rail.getByTestId('rail-project-clemvion').click();
+    await page.waitForURL(/\/p\/clemvion$/);
+    await expect(rail.getByTestId('rail-project-current')).toBeVisible();
     await expect(page.getByTestId('spec-tree')).toHaveCount(1);
+    await expect(rail).toHaveAttribute('data-probe', 'kept');
+    const mainOnProject = await page.locator('main#main').boundingBox();
+    expect(mainOnProject?.x).toBe(mainOnInbox?.x);
+
+    // 헤더는 지금 자리를 말한다 — 고르는 자리는 헤더에 없다
+    await expect(page.getByTestId('crumb-project')).toHaveText(/clemvion/i);
+    await expect(page.getByTestId('crumb-screen')).toHaveText('개요');
+    await expect(page.locator('header').getByTestId('org-switcher')).toHaveCount(0);
 
     // S3 도 마찬가지다 — 좌측 트리는 셸이 소유하므로 중복 렌더가 없어야 한다(대조에서 발견)
     await page.goto('/p/clemvion/specs/SPC-CWC-007');

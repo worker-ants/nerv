@@ -7,6 +7,8 @@
 import { expect, test } from '@playwright/test';
 import { STORAGE_STATE } from './global-setup.js';
 
+// 받은 요청 링크는 넓은 화면에서 사이드바의 전역 구역에 선다(2026-09-25 D1 · REQ-WEB-225) — 헤더가 아니라 거기서 읽는다
+
 test.use({ storageState: STORAGE_STATE });
 
 test('브라우저 언어가 영어면 화면이 영어로 뜬다', async ({ browser }) => {
@@ -16,7 +18,7 @@ test('브라우저 언어가 영어면 화면이 영어로 뜬다', async ({ bro
   });
   const page = await context.newPage();
   await page.goto('/');
-  await expect(page.locator('header').getByRole('link', { name: /Inbox/ })).toBeVisible();
+  await expect(page.getByTestId('rail-inbox')).toHaveText(/Inbox/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await context.close();
 });
@@ -25,7 +27,7 @@ test('브라우저 언어가 한국어면 화면이 한국어로 뜬다', async 
   const context = await browser.newContext({ storageState: STORAGE_STATE, locale: 'ko-KR' });
   const page = await context.newPage();
   await page.goto('/');
-  await expect(page.locator('header').getByRole('link', { name: /받은 요청/ })).toBeVisible();
+  await expect(page.getByTestId('rail-inbox')).toHaveText(/받은 요청/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
   await context.close();
 });
@@ -37,12 +39,12 @@ test('사용자가 고른 언어가 브라우저 언어를 이기고, 다시 열
 
   await page.getByTestId('user-menu').click();
   await page.getByTestId('locale-en').click();
-  await expect(page.locator('header').getByRole('link', { name: /Inbox/ })).toBeVisible();
+  await expect(page.getByTestId('rail-inbox')).toHaveText(/Inbox/);
 
   // 새로 열어도 고른 값이 살아 있다 — 매번 다시 고르게 만들지 않는다
   const again = await context.newPage();
   await again.goto('/');
-  await expect(again.locator('header').getByRole('link', { name: /Inbox/ })).toBeVisible();
+  await expect(again.getByTestId('rail-inbox')).toHaveText(/Inbox/);
   await context.close();
 });
 

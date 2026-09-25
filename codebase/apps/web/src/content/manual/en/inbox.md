@@ -23,7 +23,7 @@ An approval card carries two more lines under its header.
 
 ### Which organization and project it belongs to
 
-The inbox gathers from **every organization and project you belong to**, so each card carries, on its right, the **name of the project** it belongs to. If you are in more than one organization, the organization's name comes first so it reads "organization / project", and anything outside the organization picked in the header is shown in an **accent colour** — so you do not read another organization's approval as one of this organization's. Items with no project say "Whole organization". Home's to-do list and notifications use the same marking.
+The inbox gathers from **every organization and project you belong to**, so each card carries, on its right, the **name of the project** it belongs to. If you are in more than one organization, the organization's name comes first so it reads "organization / project", and anything outside the current organization (top of the left column) is shown in an **accent colour** — so you do not read another organization's approval as one of this organization's. Items with no project say "Whole organization". Home's to-do list and notifications use the same marking.
 
 ## Question cards
 
@@ -56,7 +56,7 @@ An approval card offers three things: **approve, reject, comment**. **A rejectio
 
 Both exceptions are written to the audit trail (including which of the three ways made it yours). Whether the button opens is decided by the server and carried on the card, so the screen does not judge it again — **and when it is locked, the card says why.**
 
-**Those cards sit folded at the end of the list.** Cards you cannot approve — ones you requested or wrote, or the second slot of a T3 you already approved — gather at the end of the waiting list in a **N waiting on someone else** group. The header badge, the home greeting and the count at the top do not count them — once you have handled everything you can, the number reaches 0. Unfold the group and each card still says why it is locked; to withdraw a request, reject it there. While the group is folded, `j`/`k` do not move onto those cards. Home's today list leaves them out too and only notes how many there are underneath. When a notification or link points at one of them, the group unfolds by itself.
+**Those cards sit folded at the end of the list.** Cards you cannot approve — ones you requested or wrote, or the second slot of a T3 you already approved — gather at the end of the waiting list in a **N waiting on someone else** group. The inbox badge, the home greeting and the count at the top do not count them — once you have handled everything you can, the number reaches 0. Unfold the group and each card still says why it is locked; to withdraw a request, reject it there. While the group is folded, `j`/`k` do not move onto those cards. Home's today list leaves them out too and only notes how many there are underneath. When a notification or link points at one of them, the group unfolds by itself.
 
 **Reject and comment are open to the requester too.** Only approval is held back. And **leaving a comment returns the document to draft** — that is what makes it fixable and resubmittable.
 
@@ -79,7 +79,7 @@ Pressing the button does not send anything yet: it **lists what you are about to
 
 You can pick up to **50** at a time, and [Everything visible] picks only what is **on screen right now**.
 
-**The list does not arrive all at once** — **[Load more]** at the bottom fetches the rest. The count in the header, and the badge, are counted by the server, not from what has arrived — and they count **only what you can act on** (the folded group above is left out). The waiting tab puts **what has waited longest on top**, so what you fetch next is always the less urgent end — you never scroll to the bottom to find something urgent.
+**The list does not arrive all at once** — **[Load more]** at the bottom fetches the rest. The count at the top, and the badge, are counted by the server, not from what has arrived — and they count **only what you can act on** (the folded group above is left out). The waiting tab puts **what has waited longest on top**, so what you fetch next is always the less urgent end — you never scroll to the bottom to find something urgent.
 
 Decided cards move to the **Decided** tab. That tab carries **what you decided** — decisions other people made are in their own lists. Nothing is deleted, so what was decided, when and how stays readable later, and the card stays put after an approval settles the document or a rejection sends it back to draft. Cards in that tab carry no decision buttons or input boxes; in place of the waiting time they say **what was decided, and when**. If a note was left with the decision — a rejection always carries one — that sentence sits on the card too. When the waiting tab is empty, **the three most recent decisions** sit under it, so you can see where what you just did went.
 
@@ -117,7 +117,7 @@ The shortcuts do nothing while the cursor is in a text field — typing `a` in a
 
 ## Notifications
 
-**The badge counts only important ones.** Notifications come in two grades, and the header number counts unread **Important** notifications only. Without that split, the few urgent ones are buried under hundreds of background events.
+**The badge counts only important ones.** Notifications come in two grades, and the number on **[Notifications]** in the left column counts unread **Important** notifications only. Without that split, the few urgent ones are buried under hundreds of background events.
 
 | Grade         | What arrives                                                                                                                                                                                                                        |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -126,9 +126,9 @@ The shortcuts do nothing while the cursor is in a text field — typing `a` in a
 
 Sessions starting or ending, and tasks being claimed or finished, do not create notifications — you see them in the activity feed. **Important is not "a decision"**: something already finished, like a spec being approved, is Important too. What waits on your decision is in the inbox.
 
-Narrow the list with **[All · Important · Unread]** above it. The control stays even when nothing is unread, so after marking everything read while filtered you can still go back to All. Your choice is kept in the address (`?filter=`) — it survives a reload and a shared link. Hover over **Notifications** in the header to see both numbers, important and unread — that is why the badge can be empty while the notification centre still shows many unread.
+Narrow the list with **[All · Important · Unread]** above it. The control stays even when nothing is unread, so after marking everything read while filtered you can still go back to All. Your choice is kept in the address (`?filter=`) — it survives a reload and a shared link. Hover over **Notifications** in the left column to see both numbers, important and unread — that is why the badge can be empty while the notification centre still shows many unread.
 
-The notification center is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The number of unread Important notifications sits on the header badge and clears as you read.
+The notification center is for **what you missed**. If the inbox is "what I must do", notifications are "what I should know". The number of unread Important notifications sits on the **[Notifications]** badge and clears as you read.
 
 **Each line says what it is about** — spec key and version, task key, and the title. That includes approval requests and questions: an approval request names what is being decided (the document, or the plan's task, or the finding to downgrade), and a question shows **its title** and the task it is attached to. Pressing it still takes you to **that card** in the inbox — the notification is a shadow; deciding happens in the inbox. When the same notification about the same subject arrives several times in a row, the lines **fold into one with ×N**. Press ×N to unfold; pressing the folded line marks the whole group **read together**.
 
