@@ -39,7 +39,7 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 **The left column is the same on every screen.** From the top: the **organization** · **Home · Inbox · Notifications** · the current organization's **projects** · **Settings · Help**. Moving from home to a project, or from a project to the inbox, leaves the column where it is; only what is expanded changes.
 
 - **Organization** — the slot at the top of the column is the organization you are looking at (with a small "Organization" label). Press it for the other organizations you belong to and **[Manage · new organization]**. The only organizations you can pick are the ones you belong to.
-- **Projects** — the current organization's projects, one line each. **On a project screen that project is expanded**, with overview, specs, tasks, sessions, reviews and the spec tree under it. Press another project's name to go to its overview.
+- **Projects** — the current organization's projects, one line each. **On a project screen that project is expanded**, with overview, specs, tasks, sessions and reviews under it (the spec tree stands as a column beside a document you are reading — see [Specs](/help/specs)). Press another project's name to go to its overview.
 - **Settings · Help** — the bottom of the column. While you are reading help, the manual's **contents** open under [Help]; on other screens that spot holds a single **Help for this screen** line.
 
 Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There **no project is expanded** — expanding the project you looked at last would make the whole screen read as that project's. The project you looked at last carries **"Recent"** next to its name in the list, one click away. Places that do show one project, like Home's "Recent activity", put that project's name in their title. **When there are no projects**, the list says "No projects yet", with **[Manage · new project]** below it for organization admins (you arrive with the form open) and **[Manage projects]** for everyone else. When the organization has no projects and you are not its admin, Home names the organization admins to ask.
@@ -56,11 +56,12 @@ The **inbox and notification counts cover every organization you belong to** —
 
 ## Narrow screens — phones and tablets
 
-On a narrow screen the left column moves into a **drawer, opened by the [☰] at the far left of the header**. It is the **same one** that sits fixed beside the content on a wide screen, so the drawer holds the very same things: organization · Home · Inbox · Notifications · projects (with the expanded project's tabs and spec tree) · Settings · Help. A narrower screen does not mean less to see.
+On a narrow screen the left column moves into a **drawer, opened by the [☰] at the far left of the header**. It is the **same one** that sits fixed beside the content on a wide screen, so the drawer holds the very same things: organization · Home · Inbox · Notifications · projects (with the expanded project's tabs) · Settings · Help. A narrower screen does not mean less to see.
 
 - The drawer **closes itself once you go somewhere.** To close it where you are, press the [✕] at its top right, press the dimmed area outside it, or press `Esc`.
 - Inbox and notifications live in the left column on a wide screen; at the narrow width they also sit **in the header as glyphs with their count badges**, so you see them without opening the drawer (a number you have to open something to see is not a badge). Search shrinks to a single magnifier, and pressing it opens the same quick switcher.
 - The header's help `?` folds away at that width — help is at the bottom of the drawer.
+- The **spec tree** for a document you are reading is not in the drawer but in the strip at the left edge — press it and the tree opens over the page; picking a document or pressing `Esc` closes it.
 - Widen the window and the drawer closes as the left column takes its place again.
 
 ## Roles
@@ -106,7 +107,7 @@ Fill in a name, an email and a password on the sign-up screen and the account is
 0. If you were sent an invitation link, open that first — signing in accepts the invitation. If you do not belong to an organization yet, signing in takes you to **Get started**, where any invitation waiting for you sits as a card.
    **If you just created an organization**, you stay on Get started, which shows your role and a **setup checklist** (first project · invite people · connect an agent). Fill in a **first project name** when creating the organization and the project is created in the same step. The same checklist sits at the top of Home, and goes away once all three are done or you press **[Dismiss]** (only organization admins see it).
 1. Sign in, check that the **organization** at the top of the left column is the one you meant, and press a **project** in the list below it.
-2. Skim the **spec tree** on the left. What this project decided to build is in there.
+2. Open **Specs** and skim the tree. What this project decided to build is in there.
 3. Open **Tasks** and look at the `ready` lane — that is what can be picked up right now.
 4. If you are connecting an agent, issue a token under **Settings → Tokens** and install the plugin — the procedure is in [Installing the plugin](/help/install), what fits together with what is in [Agents](/help/agents).
 5. To find a document, press **⌘K**. It finds **specs, requirements and tasks** by name, and pasting a stable ID jumps straight to it — documents are searched **inside a project** only, while screens (the inbox, settings tabs and so on) and projects are reachable from anywhere.

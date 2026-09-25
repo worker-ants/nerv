@@ -35,7 +35,7 @@ function RootComponent(): React.JSX.Element {
   const href = useRouterState({ select: (s) => s.location.href });
   const me = useMe();
 
-  // 사이드바 트리가 "지금 보는 문서"를 알아야 그 자리를 펼치고 표시할 수 있다(§1.3).
+  // 스펙 트리(둘째 열)가 "지금 보는 문서"를 알아야 그 자리를 펼치고 표시할 수 있다(§1.3 · REQ-WEB-226).
   // 라우트 파라미터가 그 유일한 출처다 — 트리가 스스로 알 방법은 없다.
   const activeSpecKey = matches
     .map((m) => (m.params as { spec?: string }).spec)

@@ -79,6 +79,13 @@ export interface SpecTreeProps {
   controls?: React.ReactNode;
   /** 고른 기준선 — 그 세트가 담은 문서만, 그때의 버전으로 그린다(REQ-API-098) */
   baseline?: string | undefined;
+  /**
+   * 레일에도 **제목 거르기** 칸을 세운다(2026-09-25 — UI/UX 검토 OBS-01 · REQ-WEB-226). 스펙 화면의 둘째 열이
+   * 트리의 자리가 된 뒤로 그 열의 머리가 "어디 있나" 를 좁히는 칸이다 — 문서 검색은 ⌘K 가 한다.
+   */
+  titleFilter?: boolean;
+  /** 머리줄 끝에 붙는 조작 — 둘째 열의 [접기]가 여기 선다 */
+  headerAction?: React.ReactNode;
 }
 
 /**
@@ -277,6 +284,8 @@ export function SpecTree({
   types,
   controls,
   baseline,
+  titleFilter = false,
+  headerAction,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId, includeArchived, baseline);
@@ -442,9 +451,17 @@ export function SpecTree({
     setScrollRequest((n) => n + 1);
   };
 
+  // 머리줄에 붙는 조작(둘째 열의 [접기])은 **트리가 서기 전에도** 있어야 한다 — 불러오는 동안이나 빈
+  // 프로젝트에서 사라지면 넓은 화면의 열을 접을 길이 없다
+  const actionRow =
+    headerAction === undefined ? null : (
+      <div className="mb-1 flex justify-end px-2">{headerAction}</div>
+    );
+
   if (tree.isLoading) {
     return (
       <div data-testid="tree-skeleton" className="flex flex-col gap-2">
+        {actionRow}
         {[0, 1, 2].map((i) => (
           <div key={i} className="h-4 rounded bg-bg-sunken" />
         ))}
@@ -454,12 +471,13 @@ export function SpecTree({
 
   if (nodes.length === 0) {
     // 막다른 길 금지 — 빈 상태에도 다음 행동이 있다(§1.5). **목록 화면이 시작하는 길을 말한다**
-    // (REQ-WEB-208) — 사이드바는 한 줄로 그리로 보낸다. 예전에는 둘 다 "첫 스펙 만들기" 로 목록을
+    // (REQ-WEB-208) — 레일(스펙 상세의 둘째 열)은 한 줄로 그리로 보낸다. 예전에는 둘 다 "첫 스펙 만들기" 로 목록을
     // 가리켰고, 목록은 같은 문장을 다시 보였다(만드는 문은 2026-09-22 에 걷혔다)
     return variant === 'full' ? (
       <SpecStartCard projectSlug={projectSlug} />
     ) : (
       <div className="text-sm text-text-mute">
+        {actionRow}
         {t('specs.empty')}{' '}
         <Link
           to="/p/$proj/specs"
@@ -795,6 +813,19 @@ export function SpecTree({
           >
             {t('specs.count.short', { shown, total })}
           </span>
+          {headerAction}
+        </div>
+      )}
+      {variant === 'rail' && titleFilter && (
+        <div className="mb-1.5 px-1">
+          <Input
+            data-testid="tree-title-filter"
+            aria-label={t('specs.tree_filter')}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t('specs.tree_filter')}
+            className="h-[27px] w-full text-sm"
+          />
         </div>
       )}
       {variant === 'full' && (

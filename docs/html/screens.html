@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.56 (2026-09-25)</span>
+      <span>버전 v1.57 (2026-09-25)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -195,8 +195,6 @@
         <div class="wf-nav-item on">&nbsp;&nbsp;◫ 작업</div>
         <div class="wf-nav-item">&nbsp;&nbsp;◉ 세션 <span class="badge impl">3</span></div>
         <div class="wf-nav-item">&nbsp;&nbsp;◈ 리뷰 <span class="badge blocked">1</span></div>
-        <div class="wf-nav-item">&nbsp;&nbsp;▾ 7-channel-web-chat</div>
-        <div class="wf-nav-item">&nbsp;&nbsp;&nbsp;&nbsp;1-widget <span class="badge approved">apr</span></div>
         <div class="wf-nav-item">▸ sudoku</div>
         <div class="wf-nav-group">&nbsp;<span class="marker">4</span></div>
         <div class="wf-nav-item">⚙ 설정</div>
@@ -223,8 +221,9 @@
     <tbody>
       <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>지금 자리를 말한다: 로고 · <code>조직 / 프로젝트 / 화면</code></b>(브레드크럼 — 2026-09-25 개정 · 사람 결정 D1 · REQ-WEB-225). 조직은 글자이고(헤더에서 <code>/</code> 로 가는 길은 로고 하나다 — 2026-08-30), 프로젝트는 그 개요로 가는 링크, 화면은 <code>aria-current</code> 다. 오른쪽은 전역 검색 · 도움말 <code>?</code> · 사용자 메뉴. <b>고르는 자리(조직 ▾ · 프로젝트 ▾ · [프로젝트] 링크)는 사이드바로 내려갔다</b> — 2026-08-24 의 "소속 두 축이 헤더에 순서대로 선다"(REQ-WEB-069)를 개정한다. 좁은 화면(<code>md</code> 미만)에서는 [☰]와 받은 요청·알림 글리프가 더 선다(REQ-WEB-164)</td></tr>
       <tr><td><span class="marker">2</span> 사이드바 — 조직 · 전역</td><td>열의 머리는 <b>조직 전환기</b>다("조직" 이름표 · 다른 조직 · 조직 관리). 그 아래 <b>전역 구역</b> — 홈 · 받은 요청 · 알림. 조직을 가로지르는 자리들이라 프로젝트 목록 <b>위</b>에 선다(2026-08-23 에 시안의 "받은 요청을 프로젝트 사이드바로" 를 받지 않은 이유 — 조직 전역이지 프로젝트 소속이 아니다 — 는 그대로 지킨다). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3) — 그중 <b>내가 누를 수 있는 것</b>이다(<code>actionable_total</code> · 2026-09-24 사람 결정 D2 · REQ-WEB-217). 알림 배지는 안 읽은 <b>중요</b> 수다(REQ-WEB-149). 두 배지는 <b>모든 조직</b>을 센다(REQ-WEB-193)</td></tr>
-      <tr><td><span class="marker">3</span> 사이드바 — 프로젝트</td><td>지금 조직의 프로젝트가 한 줄씩 서고 <b>라우트의 프로젝트만 펼친다</b>: 이름(그 개요로 가는 링크 — NAV-05) · 개요·스펙·작업·세션·리뷰 탭(리뷰 탭은 Phase 2 로 계획했으나 2026-08-23 에 열렸다 — <b>활성 링크 + 열린 critical 배지</b>다, §2.6a) · 스펙 트리(S3 좌측 트리와 같은 컴포넌트, 스크롤 위치 유지 — ui-wireframes §2.3 (1)). 조직 범위 화면(홈·받은 요청·알림·설정·도움말)에서는 <b>아무것도 펼치지 않고</b> 기억한 프로젝트에 "최근" 표식만 단다 — 2026-09-24 의 "프로젝트 선택" · 드롭다운 "최근"(REQ-WEB-193)이 지키려던 것(그 화면이 한 프로젝트의 것처럼 읽히지 않는다)을 구조가 지킨다. 목록 끝에 [프로젝트 관리 · 새 프로젝트](조직 admin 이 아니면 [프로젝트 관리]). 2026-08-24 의 "하나뿐일 때도 select 로 둔다" 는 목록이 늘 서는 구조로 개정했다(2026-09-25 · D1)</td></tr>
+      <tr><td><span class="marker">3</span> 사이드바 — 프로젝트</td><td>지금 조직의 프로젝트가 한 줄씩 서고 <b>라우트의 프로젝트만 펼친다</b>: 이름(그 개요로 가는 링크 — NAV-05) · 개요·스펙·작업·세션·리뷰 탭(리뷰 탭은 Phase 2 로 계획했으나 2026-08-23 에 열렸다 — <b>활성 링크 + 열린 critical 배지</b>다, §2.6a) — 스펙 트리는 여기 없다(2026-09-25 개정 · REQ-WEB-226 — 아래 둘째 열 행). 조직 범위 화면(홈·받은 요청·알림·설정·도움말)에서는 <b>아무것도 펼치지 않고</b> 기억한 프로젝트에 "최근" 표식만 단다 — 2026-09-24 의 "프로젝트 선택" · 드롭다운 "최근"(REQ-WEB-193)이 지키려던 것(그 화면이 한 프로젝트의 것처럼 읽히지 않는다)을 구조가 지킨다. 목록 끝에 [프로젝트 관리 · 새 프로젝트](조직 admin 이 아니면 [프로젝트 관리]). 2026-08-24 의 "하나뿐일 때도 select 로 둔다" 는 목록이 늘 서는 구조로 개정했다(2026-09-25 · D1)</td></tr>
       <tr><td><span class="marker">4</span> 사이드바 — 설정 · 도움말</td><td>열의 바닥. 도움말 화면에서는 <b>[도움말] 아래에 차례가 펼쳐진다</b>(§2.10 — 도움말이 따로 세우던 같은 폭의 둘째 왼쪽 열을 걷었다 · 좁은 화면의 서랍에도 차례가 선다, NAV-14). 다른 화면에서는 그 자리가 "이 화면 도움말" 한 줄이다. <b>좁은 화면(<code>md</code> 미만)에서는 열 전체가 같은 한 벌로 헤더 [☰]가 여는 서랍이다</b>(2026-09-21 · REQ-WEB-164)</td></tr>
+      <tr><td>스펙 트리 — 둘째 열</td><td><b>스펙 상세(<code>/p/:proj/specs/:spec</code>)에서만 선다</b>(2026-09-25 개정 — 사람 결정 D1 · OBS-01 · REQ-WEB-226). 사이드바와 본문 사이의 열이고 S3 좌측 트리와 같은 컴포넌트다(ui-wireframes §2.3 (1)). 셸이 세우므로 문서를 옮겨도(상세가 불러오는 동안에도) 펼침·스크롤이 남는다. 머리에 <b>제목·키로 거르기</b> 칸 — 문서 검색은 ⌘K 의 일이다. 넓은 화면(<code>xl</code> 이상)에서는 제자리에 서고 [접기]로 접으면 그 상태가 이 브라우저에 남는다. 좁으면 띠의 단추가 여는 겹침 패널이다 — <code>Esc</code>·문서를 고르면 닫힌다(REQ-WEB-164 의 서랍과 같은 규칙 · 두 벌을 그리지 않는다). <b>스펙 목록에는 서지 않는다</b> — 목록 본문의 전수 트리가 이 열의 전체 화면 판이라(§2.4), 세우면 같은 트리가 한 화면에 두 번 선다. 2026-09-25 까지는 사이드바의 마지막 블록이었다 — 작업·세션·리뷰 화면에서도 열의 대부분을 차지했다</td></tr>
       <tr><td><span class="marker">5</span> 연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 캐시된 읽기 전용. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
       <tr><td><span class="marker">6</span> 토스트 스택</td><td><code>claim.conflict_warn</code> 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 — ui-wireframes §4.1 · <b>무엇을</b> 처리했는지 적는다), 남이 바꾼 문서의 알림(그 문서로 가는 링크 · 같은 문서는 한 장). 톤마다 기호·색 줄·보조기기 알림이 다르고, 수명은 종류가 정하며, 셋까지 보인다(REQ-WEB-197). <b>되돌리기 링크는 두지 않는다</b> — 서버에 결정 철회 경로가 없어 링크가 된 적이 없는 약속이었다(2026-09-24 · 철회 경로를 만들지는 사람 결정 대기)</td></tr>
     </tbody>
@@ -257,7 +256,9 @@
 
 <p><b>키보드 셸</b>(2026-09-25 — UI/UX 검토 · REQ-WEB-224). 첫 <code>Tab</code> 에 <b>본문으로 건너뛰기</b>가 서고 <code>&lt;main id="main"&gt;</code> 이 포커스를 받는다(해시는 바꾸지 않는다 — 스펙 상세는 해시를 헤딩 앵커로 읽는다). 셸 메뉴 셋(사이드바의 조직 · 헤더의 도움말·사용자 — 프로젝트 메뉴는 2026-09-25 에 사이드바 목록이 됐다)은 <code>aria-haspopup</code>·<code>aria-expanded</code> 를 달고, 열면 첫 항목으로 가며, <code>Esc</code> 로 닫고 연 단추로 돌아가고, 포커스가 메뉴 밖으로 나가면 닫힌다. 모달은 <b>한 벌</b>이다(<code>components/ui/modal.tsx</code> — <code>aria-modal</code> · <code>Esc</code> 는 어디서든 · <code>Tab</code> 가둠 · 첫 포커스 · 연 자리로 복귀; 안쪽 확인 단계는 <code>Esc</code> 를 먼저 먹는다). hover 에서만 드러나던 것은 무리에 포커스가 있을 때와 hover 가 없는 기기에서 늘 드러난다(<code>REVEAL_ON_HOVER</code>). 스펙 트리는 <code>tree</code>/<code>treeitem</code>(수준·펼침·보는 문서) · 로빙 탭으로 Tab 한 칸이다 — <code>↑↓</code> 이동 · <code>→</code> 펴기/첫 자식 · <code>←</code> 접기/부모 · <code>Home</code>·<code>End</code>. <code>tabindex=-1</code> 인 포커스 대상(본문·모달 틀)에는 포커스 고리를 그리지 않는다.</p>
 
-<p><b>왼쪽 열은 모든 화면에서 같다</b>(2026-09-25 — 사람 결정 D1 · UI/UX 검토 NAV-05·06·14 · REQ-WEB-225). 사이드바가 <code>/p/:proj/*</code> 에서만 서던 동안 왼쪽 열은 라우트마다 세 모양이었다 — 프로젝트 화면에서는 탭과 트리, 홈·받은 요청·알림·설정에서는 열이 통째로 사라져 본문이 가운데로 뛰었고, 도움말에서는 같은 폭의 다른 열(차례)이 섰다. 고르는 자리도 둘로 갈렸다: 조직·프로젝트는 헤더의 드롭다운이고 그 프로젝트의 화면들은 사이드바였으며, 헤더의 [프로젝트] 링크와 사이드바 [개요]가 같은 곳을 가리키며 함께 켜졌다. 이제 열은 <b>한 벌</b>이다 — 위에서부터 조직 전환기 · 전역(홈 · 받은 요청 · 알림) · 지금 조직의 프로젝트 · 설정 · 도움말. <b>펼쳐지는 것만 라우트가 정한다</b>: 프로젝트 화면이면 그 프로젝트(탭 · 트리), 도움말이면 차례. 같은 <code>&lt;aside&gt;</code> 가 화면을 옮겨도 다시 그려지지 않는다(스펙 트리의 펼침·스크롤이 남는다). 헤더에는 지금 자리(<code>조직 / 프로젝트 / 화면</code>)만 남는다 — 조직은 글자, 프로젝트는 그 개요로 가는 링크, 화면은 <code>aria-current</code>. 넓은 화면의 받은 요청·알림 배지는 사이드바에만 선다. 스펙 화면의 트리를 둘째 열로 옮기는 것(OBS-01)과 설정을 범위로 묶는 것은 다음 묶음이다.</p>
+<p><b>왼쪽 열은 모든 화면에서 같다</b>(2026-09-25 — 사람 결정 D1 · UI/UX 검토 NAV-05·06·14 · REQ-WEB-225). 사이드바가 <code>/p/:proj/*</code> 에서만 서던 동안 왼쪽 열은 라우트마다 세 모양이었다 — 프로젝트 화면에서는 탭과 트리, 홈·받은 요청·알림·설정에서는 열이 통째로 사라져 본문이 가운데로 뛰었고, 도움말에서는 같은 폭의 다른 열(차례)이 섰다. 고르는 자리도 둘로 갈렸다: 조직·프로젝트는 헤더의 드롭다운이고 그 프로젝트의 화면들은 사이드바였으며, 헤더의 [프로젝트] 링크와 사이드바 [개요]가 같은 곳을 가리키며 함께 켜졌다. 이제 열은 <b>한 벌</b>이다 — 위에서부터 조직 전환기 · 전역(홈 · 받은 요청 · 알림) · 지금 조직의 프로젝트 · 설정 · 도움말. <b>펼쳐지는 것만 라우트가 정한다</b>: 프로젝트 화면이면 그 프로젝트(탭 — 스펙 트리는 스펙 상세의 둘째 열이다 · REQ-WEB-226), 도움말이면 차례. 같은 <code>&lt;aside&gt;</code> 가 화면을 옮겨도 다시 그려지지 않는다. 헤더에는 지금 자리(<code>조직 / 프로젝트 / 화면</code>)만 남는다 — 조직은 글자, 프로젝트는 그 개요로 가는 링크, 화면은 <code>aria-current</code>. 넓은 화면의 받은 요청·알림 배지는 사이드바에만 선다. 스펙 트리는 같은 날 스펙 상세의 둘째 열로 옮겼다(OBS-01 · REQ-WEB-226 — 아래 단락). 설정을 범위로 묶는 것은 다음 묶음이다.</p>
+
+<p><b>스펙 트리는 스펙 상세의 둘째 열이다</b>(2026-09-25 — 사람 결정 D1 · UI/UX 검토 OBS-01 · REQ-WEB-226). 트리는 사이드바의 마지막 블록이라 작업 보드·세션·리뷰에서도 그 화면과 상관없는 141편이 열의 대부분을 차지했고, 스펙 목록에서는 본문의 전수 트리와 함께 <b>같은 트리가 한 화면에 두 번</b> 섰다. 찾는 칸도 넷(⌘K · 목록 검색 · 두 트리의 필터)이라 무엇을 찾는 칸인지 눌러 봐야 알았다. 사이드바는 "어느 프로젝트의 어느 화면" 까지만 말하고, 한 화면 안의 깊은 구조는 그 화면에서만 서는 둘째 열이 든다(리서치 패턴 5 — Jira·Plane·Sentry). <b>셸이 세운다</b> — 상세 라우트가 그리면 다른 문서를 불러오는 동안 열이 사라졌다 돌아와 펼침·스크롤을 잃는다. 넓으면(<code>xl</code> 이상 — 사이드바·열·본문 바닥 26rem·레일이 함께 드는 가장 좁은 폭) 제자리에 서고 [접기]로 접은 것이 이 브라우저에 남는다. 좁으면 띠의 단추가 여는 겹침 패널이다(<code>Esc</code>·문서를 고르면 닫힌다 · 닫혀도 언마운트하지 않는다). <b>스펙 목록에는 서지 않는다</b> — 목록 본문의 전수 트리가 이 열의 전체 화면 판이다. 찾는 칸은 이름으로 가른다: 트리의 칸은 "제목·키로 거르기", 목록 머리는 "내용·번호로 검색" 이다. 목록 검색을 걷지 않은 것은 그 결과 화면(본 결과와 관계 확장을 가른다 — REQ-WEB-041~043)을 ⌘K 가 하지 않기 때문이다.</p>
 
 <h3>1.3a 전역 퀵 스위처 — ⌘K (<code>QuickSwitcher</code>)</h3>
 
@@ -446,7 +447,8 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>REQ-WEB-004</td><td>WHEN <code>project:{id}</code> 룸에서 화면 관련 이벤트를 수신하면 THE SYSTEM SHALL 5초 이내에 해당 쿼리를 재조회해 화면에 반영한다(NFR-02)</td></tr>
       <tr><td>REQ-WEB-164</td><td>WHERE 사이드바가 서지 않는 폭(<code>md</code> 미만)이면 THE SYSTEM SHALL 사이드바(모든 화면 — 2026-09-25 개정 · REQ-WEB-225)를 헤더 [☰]가 여는 <b>서랍</b>으로 세우고 — 사이드바와 <b>같은 한 벌</b>이다(두 벌이면 트리의 펼침 상태가 갈린다) — 서랍 안의 링크를 따라가거나 <code>Esc</code>·뒷막을 누르면, 또는 폭이 <code>md</code> 이상이 되면 닫는다. WHILE 그 폭인 동안 THE SYSTEM SHALL 헤더의 항목을 겹침 없이 한 줄에 들이되 <b>받은 요청·알림의 숫자 배지는 헤더에 남기고</b>, 접은 것(도움말)은 서랍 안에 둔다</td></tr>
       <tr><td>REQ-WEB-224</td><td>WHEN 셸에서 첫 <code>Tab</code> 을 누르면 THE SYSTEM SHALL 본문으로 건너뛰는 링크를 보이고 그것이 본문(<code>&lt;main&gt;</code>)에 포커스를 준다. WHEN 셸 메뉴(사이드바의 조직 · 헤더의 도움말·사용자 — 2026-09-25 개정 · REQ-WEB-225)를 열면 THE SYSTEM SHALL 단추에 열림을 알리고(<code>aria-expanded</code>) 첫 항목으로 포커스를 옮기며, WHEN <code>Esc</code> 이거나 포커스가 메뉴 밖으로 나가면 THE SYSTEM SHALL 닫고 <code>Esc</code> 면 연 단추로 포커스를 돌려준다. WHILE 모달이 열려 있는 동안 THE SYSTEM SHALL <code>aria-modal</code> 로 알리고 <code>Tab</code> 을 안에 가두며 <code>Esc</code> 로 닫고, WHEN 닫히면 THE SYSTEM SHALL 연 자리로 포커스를 돌려준다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 본문을 키보드로 닿는 링크로 두고 안 읽음을 글자로 알리며, hover 에서만 드러나는 조작은 포커스와 터치에서도 드러낸다. WHEN 스펙 트리를 그리면 THE SYSTEM SHALL 트리 전체를 <code>Tab</code> 한 칸으로 두고 화살표·Home·End 로 줄을 옮기고 가지를 접고 편다</td></tr>
-      <tr><td>REQ-WEB-225</td><td>WHILE 로그인 상태이면 THE SYSTEM SHALL 어느 화면에서나 같은 왼쪽 열 한 벌 — 조직 전환기 · 전역 구역(홈 · 받은 요청 · 알림과 그 배지) · 지금 조직의 프로젝트 목록 · 설정 · 도움말 — 을 세우고, 화면을 옮겨도 그 열을 다시 그리지 않는다. WHERE 라우트에 프로젝트가 있으면 THE SYSTEM SHALL 목록에서 그 프로젝트만 펼쳐 탭과 스펙 트리를 보이고, WHERE 없으면 THE SYSTEM SHALL 아무것도 펼치지 않고 기억한 프로젝트에 "최근" 표식을 단다. WHILE 도움말을 보는 동안 THE SYSTEM SHALL 매뉴얼 차례를 그 열의 [도움말] 아래에 펼친다. THE SYSTEM SHALL 헤더에 지금 자리(조직 / 프로젝트 / 화면)를 보이고, 고르는 자리(조직·프로젝트 선택)와 그 프로젝트로 가는 헤더 링크를 두지 않는다. WHERE 열이 서는 폭(<code>md</code> 이상)이면 THE SYSTEM SHALL 받은 요청·알림 배지를 헤더에 거듭 세우지 않는다</td></tr>
+      <tr><td>REQ-WEB-225</td><td>WHILE 로그인 상태이면 THE SYSTEM SHALL 어느 화면에서나 같은 왼쪽 열 한 벌 — 조직 전환기 · 전역 구역(홈 · 받은 요청 · 알림과 그 배지) · 지금 조직의 프로젝트 목록 · 설정 · 도움말 — 을 세우고, 화면을 옮겨도 그 열을 다시 그리지 않는다. WHERE 라우트에 프로젝트가 있으면 THE SYSTEM SHALL 목록에서 그 프로젝트만 펼쳐 탭을 보이고(스펙 트리는 REQ-WEB-226 의 둘째 열이다 — 2026-09-25 개정), WHERE 없으면 THE SYSTEM SHALL 아무것도 펼치지 않고 기억한 프로젝트에 "최근" 표식을 단다. WHILE 도움말을 보는 동안 THE SYSTEM SHALL 매뉴얼 차례를 그 열의 [도움말] 아래에 펼친다. THE SYSTEM SHALL 헤더에 지금 자리(조직 / 프로젝트 / 화면)를 보이고, 고르는 자리(조직·프로젝트 선택)와 그 프로젝트로 가는 헤더 링크를 두지 않는다. WHERE 열이 서는 폭(<code>md</code> 이상)이면 THE SYSTEM SHALL 받은 요청·알림 배지를 헤더에 거듭 세우지 않는다</td></tr>
+      <tr><td>REQ-WEB-226</td><td>WHILE 스펙 상세를 보이는 동안 THE SYSTEM SHALL 스펙 트리를 사이드바가 아니라 사이드바와 본문 사이의 <b>둘째 열</b>로 세우고, 문서를 옮겨도 그 열을 다시 그리지 않으며(펼침·스크롤이 남는다), 그 머리에 제목·키로 거르는 칸을 둔다. WHERE 열이 제자리에 서는 폭(<code>xl</code> 이상)이면 THE SYSTEM SHALL 사람이 접은 상태를 이 브라우저에 남기고, WHERE 그보다 좁으면 THE SYSTEM SHALL 열을 띠의 단추가 여는 겹침 패널로 두고 <code>Esc</code> 나 문서를 고르면 닫는다. THE SYSTEM SHALL 스펙 목록과 다른 화면(개요·작업·세션·리뷰 등)에 이 열을 세우지 않는다 — 스펙 목록의 트리는 본문의 전수 목록 하나다</td></tr>
       <tr><td>REQ-WEB-195</td><td>WHEN 사람이 상태를 바꾸는 조작을 누르면 THE SYSTEM SHALL 그 누름마다 새 멱등 키(<code>Idempotency-Key</code>)를 만들어 싣고 — 대상의 ID·본문으로 키를 만들지 않는다 — 같은 누름이 아직 도는 동안의 거듭 요청에만 같은 키를 쓴다. WHEN 그 거듭 요청이 <code>idempotency_in_flight</code> 로 돌아오면 THE SYSTEM SHALL 그것을 실패로 알리지 않는다 — 결과는 첫 요청이 말한다</td></tr>
       <tr><td>REQ-WEB-196</td><td>WHEN 상태를 바꾸는 요청이 실패하면 THE SYSTEM SHALL 그 실패를 <b>한 번</b> 알린다 — 화면이 제자리에서 말하면 그것만, 아니면 위 표의 기본 동작으로 — 그리고 문장은 <code>describeApiError</code> 를 거쳐 부류·재시도 시각·갈 곳을 잃지 않는다. WHERE 요청 전에 알 수 있는 거절이면(사유 없는 거절) THE SYSTEM SHALL 요청을 보내지 않고 그 입력 칸으로 데려간다</td></tr>
       <tr><td>REQ-WEB-197</td><td>WHEN 토스트를 띄우면 THE SYSTEM SHALL 톤을 기호와 색 줄로 가르고(실패·경고 ⚠ · 내가 한 일 ✓ · 남이 한 일 ℹ) 경고는 <code>role="alert"</code>, 그 밖은 <code>role="status"</code> 로 보조기기에 알리며, 수명을 종류로 정한다(결재 처리 트레일 3분 · 경고 20초 · 그 밖 8초). WHILE 토스트가 셋을 넘으면 THE SYSTEM SHALL 가장 새 셋만 보이고 나머지 수와 [모두 닫기]를 둔다. WHEN 남이 바꾼 문서를 알리면 THE SYSTEM SHALL 같은 문서의 알림을 한 장으로 합치고 그 문서로 가는 링크를 단다. WHEN 결재를 처리하면 THE SYSTEM SHALL 무엇을 처리했는지(키·제목)를 말한다. WHERE 링크가 앱 안 경로면 THE SYSTEM SHALL 앱을 새로 적재하지 않고 옮겨 간다</td></tr>
@@ -821,8 +823,8 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
 
   <ul>
     <li><b>실시간</b>: <code>project:{id}</code> 룸 — <code>spec.*</code> → 트리, <code>session.*</code> → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회(§1.4 공통 규칙 ① — 2026-09-25 까지 감사 축에만 걸려 있었다). 사이드바의 세션·리뷰 배지도 머리를 바꾸는 이벤트에 되읽힌다(공통 규칙 ②).</li>
-    <li><b>컴포넌트</b>: <code>SpecTree</code>(사이드바와 공유) · <code>ImplStatusCard</code> · <code>SessionStrip</code> · <code>EventFeed</code> · <code>NewSpecButton</code>(권한: 역할 매트릭스 — spec-workflow §1.6).</li>
-    <li><b>빈 상태</b>: 스펙 0건 — 스펙 목록의 <b>시작 카드</b>가 말한다(<code>claude "/nerv:spec new"</code> 복사 · 에이전트 연결 · CLI 임포터 — 2026-09-24 · REQ-WEB-208). 사이드바 트리는 한 줄로 그리로 보낸다. [+ 새 스펙]은 2026-09-22 에 걷었다(REQ-WEB-173) — 옛 빈 문구 "첫 스펙 만들기" 는 만드는 문이 없는 그 목록으로 되돌아왔다. 세션 0 은 에이전트를 붙이는 길(설치 안내 · 토큰 발급)을 준다.</li>
+    <li><b>컴포넌트</b>: <code>SpecTree</code>(2026-09-25 부터 개요에는 서지 않는다 — 스펙 상세의 둘째 열 · REQ-WEB-226) · <code>ImplStatusCard</code> · <code>SessionStrip</code> · <code>EventFeed</code> · <code>NewSpecButton</code>(권한: 역할 매트릭스 — spec-workflow §1.6).</li>
+    <li><b>빈 상태</b>: 스펙 0건 — 스펙 목록의 <b>시작 카드</b>가 말한다(<code>claude "/nerv:spec new"</code> 복사 · 에이전트 연결 · CLI 임포터 — 2026-09-24 · REQ-WEB-208). 스펙 상세의 트리 열은 한 줄로 그리로 보낸다(2026-09-25 부터 — 예전에는 사이드바 트리 · REQ-WEB-226). [+ 새 스펙]은 2026-09-22 에 걷었다(REQ-WEB-173) — 옛 빈 문구 "첫 스펙 만들기" 는 만드는 문이 없는 그 목록으로 되돌아왔다. 세션 0 은 에이전트를 붙이는 길(설치 안내 · 토큰 발급)을 준다.</li>
   </ul>
 
   <div class="table-wrap"><table>
@@ -838,9 +840,9 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
   <h3>2.4 S3 스펙 상세 — <a href="ui-wireframes.html">ui-wireframes §2.3</a></h3>
   <p><b>이 화면의 수용 기준 일부가 §2.6a 표에 있다</b>(2026-09-06 색인): REQ-WEB-068 · 121 · 122 · 125 · 126 · 130.</p>
 
-  <p>3열 레이아웃(좌 트리 · 중앙 본문 · 우 상태 패널). 에디터 상세 규약은 <a href="#sec-3">§3</a>에 있다.</p>
+  <p>3열 레이아웃(좌 트리 · 중앙 본문 · 우 상태 패널). 좌 트리는 셸이 세우는 둘째 열이다(2026-09-25 · REQ-WEB-226). 에디터 상세 규약은 <a href="#sec-3">§3</a>에 있다.</p>
 
-  <p><b>하위 뷰: 스펙 목록</b> (<code>/p/:proj/specs</code>) — 사이드바 트리(<code>SpecTree</code>)의 전체 화면 판이다. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).</p>
+  <p><b>하위 뷰: 스펙 목록</b> (<code>/p/:proj/specs</code>) — 스펙 상세의 트리 열(<code>SpecTree</code> 레일)의 전체 화면 판이다. 그래서 목록에는 둘째 열이 서지 않는다(2026-09-25 개정 · REQ-WEB-226 — 예전에는 사이드바 트리와 함께 한 화면에 두 번 섰다). 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).</p>
 
   <div class="wf">
     <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/specs</div></div>
@@ -858,7 +860,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
         <div class="wf-topbar">
           <span class="sub">트리 탭</span>
           <span class="wf-btn ghost">상태 ▾</span><span class="wf-btn ghost">종류 ▾</span>
-          <span class="wf-btn ghost">트리 필터</span>
+          <span class="wf-btn ghost">제목·키로 거르기</span>
           <span class="wf-btn ghost">펼치기</span><span class="wf-btn ghost">접기</span>
           <span class="sub">표시 N/전체 M</span><span class="marker">3</span>
         </div>
@@ -1029,7 +1031,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>REQ-WEB-101</td><td>WHEN 스펙 목록의 트리 탭을 열면 THE SYSTEM SHALL 그 프로젝트의 모든 문서를 펼친 상태로 표시한다 — 사람이 접기 전에는 접힌 가지에 문서가 남지 않는다</td></tr>
       <tr><td>REQ-WEB-102</td><td>WHEN 스펙 트리·표를 렌더하면 THE SYSTEM SHALL 표시 건수와 전체 건수를 함께 표시한다(<code>표시 N / 전체 M</code>)</td></tr>
       <tr><td>REQ-WEB-103</td><td>WHILE 가상 스크롤로 트리를 그리는 동안 THE SYSTEM SHALL 접기/펼치기와 자식 수 표시를 일반 렌더와 동일하게 제공한다</td></tr>
-      <tr><td>REQ-WEB-104</td><td>WHEN 두 자리(사이드바·전수 목록)의 트리가 함께 떠 있으면 THE SYSTEM SHALL 펼침 상태를 자리별로 보존한다 — 한쪽에서 접은 것이 다른 쪽의 첫 화면을 바꾸지 않는다</td></tr>
+      <tr><td>REQ-WEB-104</td><td>WHEN 두 자리(스펙 상세의 둘째 열·전수 목록 — 2026-09-25 개정 · REQ-WEB-226, 예전에는 사이드바)의 트리를 오가면 THE SYSTEM SHALL 펼침 상태를 자리별로 보존한다 — 한쪽에서 접은 것이 다른 쪽의 첫 화면을 바꾸지 않는다</td></tr>
     </tbody>
   </table></div>
 
@@ -1052,7 +1054,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td><b>REQ-WEB-170</b></td><td>WHEN 트리 줄의 펴기/접기 표식을 그리면 THE SYSTEM SHALL <b>24×24 이상의 타깃</b>과 본문 글자 이상의 대비를 주고, 호버·포커스에 배경으로 되먹임하며, 펼침 여부를 <code>aria-expanded</code> 로 말한다. WHEN 상태가 바뀌면 THE SYSTEM SHALL 같은 도형의 <b>방향</b>으로 그것을 보인다(두 글리프를 갈아 끼우지 않는다)</td></tr>
-      <tr><td><b>REQ-WEB-171</b></td><td>WHEN 사이드바 트리를 그리면 THE SYSTEM SHALL 머리줄에 <b>[전체 펼치기]·[전체 접기] 단추 둘</b>을 두고, 각 단추는 상태와 무관하게 늘 같은 일을 한다. WHERE 그 단추가 할 일이 없으면(이미 전부 펴짐·전부 접힘) THE SYSTEM SHALL 숨기지 않고 비활성으로 둔다. WHERE 접을 가지가 없으면 THE SYSTEM SHALL 두 단추를 두지 않는다(2026-09-24 개정 — 토글 하나에서 둘로)</td></tr>
+      <tr><td><b>REQ-WEB-171</b></td><td>WHEN 둘째 열의 트리(레일 — 2026-09-25 개정 · REQ-WEB-226)를 그리면 THE SYSTEM SHALL 머리줄에 <b>[전체 펼치기]·[전체 접기] 단추 둘</b>을 두고, 각 단추는 상태와 무관하게 늘 같은 일을 한다. WHERE 그 단추가 할 일이 없으면(이미 전부 펴짐·전부 접힘) THE SYSTEM SHALL 숨기지 않고 비활성으로 둔다. WHERE 접을 가지가 없으면 THE SYSTEM SHALL 두 단추를 두지 않는다(2026-09-24 개정 — 토글 하나에서 둘로)</td></tr>
     </tbody>
   </table></div>
 
@@ -1070,7 +1072,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td><b>REQ-WEB-186</b></td><td>WHEN 사람이 보고 있는 문서의 조상 가지를 접거나 전체 접기를 누르면 THE SYSTEM SHALL 그 가지를 접힌 채로 두고 다시 펼치지 않는다 — 경로 자동 펼침(REQ-WEB-053)은 <b>보는 문서가 바뀔 때 한 번</b>이다. WHILE 보고 있는 문서를 품은 가지가 접혀 있는 동안 THE SYSTEM SHALL 그 가지 줄에 표식을 둔다</td></tr>
-      <tr><td><b>REQ-WEB-187</b></td><td>WHILE 사이드바 트리가 보고 있는 문서를 담고 있는 동안 THE SYSTEM SHALL 머리줄에 <b>[보고 있는 문서로]</b> 단추를 두고, 누르면 그 문서의 조상을 펼쳐 저장하고 그 줄로 스크롤한다</td></tr>
+      <tr><td><b>REQ-WEB-187</b></td><td>WHILE 둘째 열의 트리(레일)가 보고 있는 문서를 담고 있는 동안 THE SYSTEM SHALL 머리줄에 <b>[보고 있는 문서로]</b> 단추를 두고, 누르면 그 문서의 조상을 펼쳐 저장하고 그 줄로 스크롤한다</td></tr>
     </tbody>
   </table></div>
 
@@ -1117,7 +1119,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <thead><tr><th></th><th>그대로 다른 것</th></tr></thead>
     <tbody>
       <tr><td>밀도</td><td>레일 26px 줄 · 13px 글자, 상태는 <b>평소와 다른 것만</b> 점으로(REQ-WEB-057)</td></tr>
-      <tr><td>조작</td><td>트리 필터는 전수 목록에만. <b>전체 펴기/접기는 둘 다 있다</b>(2026-09-21 개정 · REQ-WEB-171) — 전수 목록은 글자 단추 둘, 레일은 머리줄의 아이콘 단추 둘이다(2026-09-24 개정). <b>[보고 있는 문서로]</b> 는 레일에만(REQ-WEB-187)</td></tr>
+      <tr><td>조작</td><td><b>제목·키로 거르기</b> 칸은 둘 다 있다(2026-09-25 개정 — 둘째 열의 머리 · REQ-WEB-226. 예전에는 전수 목록에만). <b>전체 펴기/접기는 둘 다 있다</b>(2026-09-21 개정 · REQ-WEB-171) — 전수 목록은 글자 단추 둘, 레일은 머리줄의 아이콘 단추 둘이다(2026-09-24 개정). <b>[보고 있는 문서로]</b> 는 레일에만(REQ-WEB-187)</td></tr>
       <tr><td>펼침 상태</td><td>자리별로 보존한다(REQ-WEB-104) — 한쪽에서 접은 것이 다른 쪽을 바꾸지 않는다</td></tr>
     </tbody>
   </table></div>
@@ -1130,7 +1132,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
-      <tr><td>REQ-WEB-108</td><td>WHEN 사이드바에 스펙 트리를 렌더하면 THE SYSTEM SHALL 그 프로젝트의 모든 문서를 펼친 상태로 표시하고, 목록만 제 상자 안에서 스크롤하며 구역 머리와 건수는 고정한다</td></tr>
+      <tr><td>REQ-WEB-108</td><td>WHEN 스펙 상세의 둘째 열에 스펙 트리를 렌더하면(2026-09-25 개정 — 예전에는 사이드바 · REQ-WEB-226) THE SYSTEM SHALL 그 프로젝트의 모든 문서를 펼친 상태로 표시하고, 목록만 제 상자 안에서 스크롤하며 구역 머리와 건수는 고정한다</td></tr>
     </tbody>
   </table></div>
 

@@ -123,9 +123,9 @@ function renderAt(path: string): void {
 describe('200편을 넘는 트리 (REQ-WEB-044)', () => {
   it('창 밖은 그리지 않는다 — 그래도 수는 전부를 말한다', async () => {
     renderAt('/p/demo/specs');
-    await waitFor(() => expect(screen.getAllByTestId('spec-tree').length).toBe(2));
-    // 전수 목록(뒤) — 사이드바(앞)도 같은 분기를 탄다
-    const full = screen.getAllByTestId('spec-tree')[1]!;
+    // 목록의 트리는 본문의 전수 목록 하나다(REQ-WEB-226) — 스펙 상세의 둘째 열도 같은 분기를 탄다
+    await waitFor(() => expect(screen.getAllByTestId('spec-tree').length).toBe(1));
+    const full = screen.getAllByTestId('spec-tree')[0]!;
     await waitFor(() => expect(full.getAttribute('data-virtualized')).toBe('true'));
     const drawn = within(full).getAllByRole('link').length;
     expect(drawn).toBeGreaterThan(0);
@@ -136,8 +136,8 @@ describe('200편을 넘는 트리 (REQ-WEB-044)', () => {
   it('임계 아래는 가상 분기로 가지 않는다 — 작은 프로젝트가 스크롤 상자에 갇히지 않게', async () => {
     nodes = flat(150);
     renderAt('/p/demo/specs');
-    await waitFor(() => expect(screen.getAllByTestId('spec-tree').length).toBe(2));
-    const full = screen.getAllByTestId('spec-tree')[1]!;
+    await waitFor(() => expect(screen.getAllByTestId('spec-tree').length).toBe(1));
+    const full = screen.getAllByTestId('spec-tree')[0]!;
     await within(full).findByText('문서 149');
     expect(full.getAttribute('data-virtualized')).toBe('false');
   });

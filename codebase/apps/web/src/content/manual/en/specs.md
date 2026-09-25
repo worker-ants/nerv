@@ -17,7 +17,7 @@ An `area` may hold a place in the tree with no body of its own. For the rest, th
 
 ## Where you can see all of them
 
-The tree in the left sidebar holds **every document, expanded**. A place that lists things and lists only some of them leaves you unable to tell a missing document from a collapsed one. The `141 / 141` in its header is **how many are showing / how many there are**; collapse a branch and that number drops, telling you what is now hidden.
+**Open a document and a spec tree column stands beside the sidebar.** It holds **every document, expanded**. A place that lists things and lists only some of them leaves you unable to tell a missing document from a collapsed one. The `141 / 141` in its header is **how many are showing / how many there are**; collapse a branch and that number drops, telling you what is now hidden.
 
 **The top of the spec list shows how many documents are in each status** (draft · in review · approved …). Pressing one opens the tree filtered to that status; pressing it again clears it. The end of each row in the full tree shows **the current version · last updated · 💬 open comments**, so you can pick what needs work from the rows alone. **[Create baseline]** is for planners and admins; other roles see it locked with the reason.
 
@@ -29,17 +29,19 @@ The header has three buttons.
 - **Arrows pointing apart** — expand all. Dimmed when everything is already expanded.
 - **Arrows pointing together** — collapse all. It folds down to the roots even while you are viewing a document. Dimmed when everything is already collapsed.
 
-What you fold is remembered, and the sidebar and the spec list screen remember it **separately**.
+What you fold is remembered, and the tree column beside a document and the spec list screen remember it **separately**.
+
+**The tree column stands only while you are reading a document** — on tasks, sessions and reviews that width goes to the page itself. Type in **Filter by title or key** at the top of the column and only documents whose title or key matches remain (to search contents, use ⌘K or the spec list's search). On a wide screen, **[Hide spec tree]** at the end of its header folds it away, and this browser remembers that — press the strip at the left edge to bring it back. On a narrow screen the strip opens the tree over the page, and picking a document or pressing `Esc` closes it.
 
 To see all of them, go to **Specs** in the left menu. That screen is the **complete list** — it opens with every document expanded, and collapsing is something you do, not the default. **A document that is not there is not in this project.**
 
-Both the tree tab and the table tab print `Showing N of M`. When the two numbers differ, that many are collapsed or filtered out by the tree filter.
+Both the tree tab and the table tab print `Showing N of M`. When the two numbers differ, that many are collapsed or filtered out by **Filter by title or key**. The list has no separate tree column — the tree on this screen is that column's full-screen version.
 
 The **Status** selector above the list narrows it by status — `draft`, `in review`, or the two together. What stays is **the documents in that status and the ones above them**: the ancestors are not matches, they are there **to hold the place** (without a parent you cannot tell where a document belongs). A branch with nothing matching underneath drops out entirely. The chosen status **stays in the address, so a link hands someone the same list.** The `of M` is the project's document count, unaffected by the filter.
 
 The **Type** selector beside it works the same way. Choose `Skeleton (vision + area)` and only the documents that **hold a place** remain, so the shape of the tree is visible at a glance — a project of 141 documents has a skeleton of 17. It is a good way to decide where a new document belongs. Set both and only what matches **both** stays.
 
-Both selectors appear **only on the tree tab**, in the tree's own control row beside the filter and the expand/collapse buttons — switch to the table or the relationship graph and they are gone.
+Both selectors appear **only on the tree tab**, in the tree's own control row beside **Filter by title or key** and the expand/collapse buttons — switch to the table or the relationship graph and they are gone.
 
 ## Versions and statuses
 

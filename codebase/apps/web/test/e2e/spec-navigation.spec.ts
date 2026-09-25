@@ -20,7 +20,7 @@ test('다른 스펙으로 옮기면 본문이 그 문서 것으로 바뀐다', a
   await expect(body).toContainText('위젯', { timeout: 15000 });
   const first = (await body.textContent()) ?? '';
 
-  // 사이드바 트리로 이동 — 새로고침이 아니라 **SPA 내비게이션**이어야 한다
+  // 트리(스펙 상세의 둘째 열 · REQ-WEB-226)로 이동 — 새로고침이 아니라 **SPA 내비게이션**이어야 한다
   await page.getByTestId('spec-tree').first().getByText('세션 복원 API').first().click();
   await expect(page).toHaveURL(/SPC-CWC-012/);
 
