@@ -9,8 +9,8 @@
 // 치는 것이 stop 을 누르는 가장 흔한 상황이라, 전달을 기다리면 아무 일도 일어나지 않는다.
 
 import { useT } from '../../lib/i18n.js';
-import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { sessionState } from '@nerv/schema';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ActivityRail } from '../../features/session-monitor/activity-rail.js';
 import { PluginCoverage } from '../../features/session-monitor/plugin-coverage.js';
 import { SessionBoard } from '../../features/session-monitor/session-board.js';
@@ -19,17 +19,46 @@ import { PageBody, PageHeader } from '../../components/ui/primitives.js';
 import type { SessionCard } from '../../features/session-monitor/types.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
-export const Route = createFileRoute('/p/$proj/sessions/')({ component: SessionMonitor });
+export interface SessionSearch {
+  /** 스트립에서 고른 상태 */
+  state?: string;
+  /** 레일에 편 세션 */
+  s?: string;
+}
+
+/** 상태 어휘 — 정본은 `@nerv/schema` 다. 모르는 값은 버린다(부모 라우트는 검사하지 않은 인자를 흘린다) */
+const isState = (value: unknown): value is string =>
+  typeof value === 'string' && (sessionState.enumValues as readonly string[]).includes(value);
+
+export const Route = createFileRoute('/p/$proj/sessions/')({
+  // **거른 상태와 편 세션은 주소다**(2026-09-24 — UI/UX 검토 WORK-11 · REQ-WEB-212). 둘 다 컴포넌트
+  // state 라 "이 세션 좀 봐" 를 링크로 줄 수 없었고, 새로고침 한 번에 첫 줄로 돌아갔다
+  validateSearch: (search: Record<string, unknown>): SessionSearch => ({
+    ...(isState(search['state']) ? { state: search['state'] } : {}),
+    ...(typeof search['s'] === 'string' && search['s'] !== '' ? { s: search['s'] } : {}),
+  }),
+  component: SessionMonitor,
+});
 
 function SessionMonitor(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const project = useProject(proj);
+  const search = Route.useSearch();
+  const navigate = useNavigate();
   // 스트립에서 고른 상태 — 목록과 레일이 **같은 조각**을 봐야 하므로 여기가 그 자리다
-  const [state, setState] = useState<string | null>(null);
+  const state = isState(search.state) ? search.state : null;
   const sessions = useSessions(proj, asProjectId(project.data?.['id']), state);
   const projectId = project.data?.['id'];
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = typeof search.s === 'string' && search.s !== '' ? search.s : null;
+  /** 레일에 펴는 것은 이력에 쌓지 않는다 — 줄을 훑을 때마다 뒤로가기가 한 칸씩 늘지 않게 */
+  const setSelectedId = (id: string): void =>
+    void navigate({
+      to: '/p/$proj/sessions',
+      params: { proj },
+      search: (prev: SessionSearch) => ({ ...prev, s: id }),
+      replace: true,
+    });
 
   const cards = (sessions.data?.items ?? []) as unknown as SessionCard[];
   // 고르지 않았으면 첫 줄이 초점이다 — 빈 레일은 화면 절반을 버리는 것이다
@@ -47,11 +76,14 @@ function SessionMonitor(): React.JSX.Element {
             selectedId={focused?.id}
             onSelect={setSelectedId}
             state={state}
-            onStateChange={(next) => {
-              setState(next);
-              // 거른 뒤에도 앞서 고른 세션이 레일에 남아 있으면 화면 둘이 다른 말을 한다
-              setSelectedId(null);
-            }}
+            // 거른 뒤에도 앞서 고른 세션이 레일에 남아 있으면 화면 둘이 다른 말을 한다 — 고른 것을 푼다
+            onStateChange={(next) =>
+              void navigate({
+                to: '/p/$proj/sessions',
+                params: { proj },
+                search: next === null ? {} : { state: next },
+              })
+            }
           />
         </PageBody>
       </div>

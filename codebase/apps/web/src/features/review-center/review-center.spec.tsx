@@ -504,8 +504,9 @@ describe('세 칸의 스크롤 상자 (REQ-WEB-158)', () => {
       expect(box.className).toContain('lg:overflow-x-hidden');
       expect(box.className).toContain('lg:h-full');
     }
-    // 레일은 틀이 서 있고 **내용이 그 안에서** 흐른다 — 테두리까지 함께 흘러 올라가지 않는다
-    const rail = screen.getByTestId('review-rail');
+    // 레일은 틀이 서 있고 **내용이 그 안에서** 흐른다 — 테두리까지 함께 흘러 올라가지 않는다.
+    // 고르기가 주소를 거치므로(REQ-WEB-212) 레일은 한 틱 뒤에 선다
+    const rail = await screen.findByTestId('review-rail');
     expect(rail.className).toContain('xl:h-full');
     expect(rail.firstElementChild?.className).toContain('xl:overflow-y-auto');
     // 페이지가 스크롤하지 않으므로 붙일 것이 없다 — 그 자리의 `sticky` 는 아무 일도 안 한다
@@ -547,7 +548,7 @@ describe('좁은 화면에서도 고른 하나를 편다 (REQ-WEB-161)', () => {
     await renderCenter();
     fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
 
-    expect(screen.getAllByTestId('finding-rail')).toHaveLength(1);
+    expect(await screen.findAllByTestId('finding-rail')).toHaveLength(1);
     expect(screen.queryByTestId('review-rail')).toBeNull();
   });
 
@@ -555,9 +556,8 @@ describe('좁은 화면에서도 고른 하나를 편다 (REQ-WEB-161)', () => {
     await renderCenter();
     fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
 
+    const rail = await screen.findByTestId('review-rail');
     expect(screen.queryByTestId('finding-rail-inline')).toBeNull();
-    expect(screen.getByTestId('review-rail').contains(screen.getByTestId('finding-rail'))).toBe(
-      true,
-    );
+    expect(rail.contains(screen.getByTestId('finding-rail'))).toBe(true);
   });
 });

@@ -11,9 +11,12 @@ import { Button } from './ui/primitives.js';
 export function CopyButton({
   value,
   testId,
+  label,
 }: {
   value: string;
   testId?: string | undefined;
+  /** 무엇을 복사하는지 — 없으면 "복사" (값이 곁에 보이는 자리) */
+  label?: string | undefined;
 }): React.JSX.Element {
   const t = useT();
   const [copied, setCopied] = useState(false);
@@ -29,7 +32,7 @@ export function CopyButton({
         });
       }}
     >
-      {copied ? t('help.copied') : t('help.copy')}
+      {copied ? t('help.copied') : (label ?? t('help.copy'))}
     </Button>
   );
 }

@@ -12,6 +12,8 @@ The card carries four more things — the **remaining lease** (it changes colour
 
 The list does not arrive all at once. When there is more, **[Load more]** sits below it, and pressing it **appends** the next page — the rows you were already looking at stay put. The counts in the summary above are independent of the filter and the page: they count the **whole project**, because the summary is the whole picture and the list is a slice of it.
 
+**The state filter and the session open in the rail stay in the address** — you can pass on "look at this session" as the address itself, and reloading keeps the same session open. Changing the state filter clears the picked session.
+
 ### Machines with the plugin on
 
 **`Plugin on N / M hosts`** above the list counts, among the machines that opened a Claude Code session in the last 30 days, how many have the NERV plugin on. Press it to unfold one line per machine — **On (version) · Off**, whose machine it is, and when it was last seen — with **machines that are off at the top**.

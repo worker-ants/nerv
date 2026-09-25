@@ -18,15 +18,7 @@ import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useT } from '../lib/i18n.js';
 import { useMe } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
-import { rememberOrg } from '../lib/scope.js';
-
-/**
- * 앱 안의 경로만 — `//evil.example` 은 프로토콜 상대 주소라 밖으로 나간다. 브라우저는 `\` 를
- * `/` 로 읽으므로 `/\evil.example` 도 같다(착지를 히스토리에 그대로 넘기므로 여기서 막는다).
- */
-export function safeNext(value: unknown): string | undefined {
-  return typeof value === 'string' && /^\/(?![/\\])/.test(value) ? value : undefined;
-}
+import { rememberOrg, safeNext } from '../lib/scope.js';
 
 export const Route = createFileRoute('/o/$org')({
   validateSearch: (search: Record<string, unknown>): { next?: string } => {

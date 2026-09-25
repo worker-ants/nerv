@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { acceptedLanding } from '../components/invitation-cards.js';
-import { safeNext } from './o.$org.js';
+import { safeNext } from '../lib/scope.js';
 import { routeTree } from '../routeTree.gen';
 
 vi.mock('socket.io-client', () => ({

@@ -358,6 +358,7 @@ export const ko = {
   'feed.repeat_label': '잇달아 같은 일 {count}건 — 펼치기·접기',
   'specs.view_label': '보기 방식',
   'spec.rail.graph_link': '그래프에서 보기',
+  'reviews.rail.copy_link': '링크 복사',
   'reviews.expand': '펼치기',
   'reviews.action.spec_change': '스펙 정정',
   'reviews.resolve.spec': '고친 스펙',

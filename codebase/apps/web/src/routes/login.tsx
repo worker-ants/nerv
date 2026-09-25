@@ -4,7 +4,7 @@
 // 값과 오류를 동시에 볼 수 없고, 이메일까지 지우면 다시 타이핑하게 만든다.
 
 import { useT } from '../lib/i18n.js';
-import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
@@ -16,18 +16,23 @@ import {
 } from '../lib/session.js';
 import { fetchMe } from '../lib/session.js';
 import { queryKeys } from '../lib/query-keys.js';
+import { readLastOrg } from '../lib/last-org.js';
+import { rememberOrg, safeNext } from '../lib/scope.js';
 import { Button, Field, Input } from '../components/ui/primitives.js';
 
 export const Route = createFileRoute('/login')({
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    ...(typeof search['redirect'] === 'string' ? { redirect: search['redirect'] } : {}),
-  }),
+  // 앱 안의 경로만 받는다 — 로그인 뒤 **히스토리에 그대로** 넘기므로 밖으로 나가는 주소를 막는다
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => {
+    const redirect = safeNext(search['redirect']);
+    return redirect === undefined ? {} : { redirect };
+  },
   component: LoginScreen,
 });
 
 function LoginScreen(): React.JSX.Element {
   const t = useT();
   const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const search = useSearch({ from: '/login' });
   const [email, setEmail] = useState('');
@@ -56,15 +61,25 @@ function LoginScreen(): React.JSX.Element {
     // 로그인 직후 착지 규칙: 조직 0개면 온보딩, 아니면 역할별 첫 화면(REQ-WEB-006)
     const me = await fetchMe();
     queryClient.setQueryData(queryKeys.me(), me);
-    const target =
-      search.redirect ??
-      (me.memberships.length === 0
-        ? '/onboarding'
-        : landingFor(
-            primaryMembership(me)?.roles ?? ['viewer'],
-            primaryMembership(me)?.project_slug ?? null,
-          ));
-    void navigate({ to: target });
+    // **가던 곳이 있으면 그곳으로, 뷰 상태까지**(2026-09-24 · NAV-09 · REQ-WEB-212). 가드가 경로만
+    // 실어 보내서 `…?diff=v3..v4` 로 온 사람은 로그인 뒤 본문 전체를 받았다. 라우터의 `to` 는
+    // 경로 자리라 쿼리를 함께 주면 경로의 일부로 읽히므로 주소 전체를 히스토리에 넘긴다.
+    // `/` 는 "특정한 목적지 없음" 이다 — 앱 주소를 북마크해 들어온 사람에게 역할별 첫 화면이 서야 한다
+    const redirect = safeNext(search.redirect);
+    if (redirect !== undefined && redirect !== '/') {
+      router.history.push(redirect);
+      return;
+    }
+    if (me.memberships.length === 0) {
+      void navigate({ to: '/onboarding' });
+      return;
+    }
+    const primary = primaryMembership(me, readLastOrg());
+    // 고른 멤버십의 조직을 **지금 조직으로 적는다** — 헤더가 본문과 같은 조직을 가리키게
+    if (primary !== null) rememberOrg(primary.org_slug);
+    void navigate({
+      to: landingFor(primary?.roles ?? ['viewer'], primary?.project_slug ?? null),
+    });
   }
 
   return (

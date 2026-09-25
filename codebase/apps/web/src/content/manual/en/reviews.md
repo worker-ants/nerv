@@ -51,6 +51,8 @@ Narrow the list with the filters in the **left column** — **severity, area, st
 
 **The default shows only `open`.** That is why a finding you have disposed of is not there; change the status filter to see it. Open a single finding by link from elsewhere and, if it falls outside the default, the screen **drops the status filter once by itself** — so following a link never lands you on an empty page.
 
+**The filters you set and the finding you picked stay in the address.** Hand over the address narrowed to "open critical findings about the spec" and the other person sees the same queue; reloading or going back does not drop them. Changing a filter clears the picked finding. To pass on a single finding, use **[Copy link]** at the top of the rail — no need to copy the short id by hand.
+
 **You can also arrive by branch.** Pressing the branch on a task's review row or in the gate table opens the review center filtered to **that branch's findings only**, with "Showing findings from branch … only." above the list next to **[Clear the branch filter]**. The counts beside the filters are counted within that branch too. The branch is the one from the round in which a finding was **last observed**.
 
 **The status filter has no `spec_change` value.** A finding closed by fixing the spec is stored as `fixed`; what it was resolved with is written on the rail.

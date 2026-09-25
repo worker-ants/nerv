@@ -30,6 +30,9 @@ function RootComponent(): React.JSX.Element {
   const matches = useMatches();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // 가드가 싣는 것은 **주소 전체**다(경로 + 쿼리 + 해시) — 경로만 실으면 공유받은 `…?finding=` ·
+  // `…?diff=v3..v4` 가 로그인 한 번에 사라진다(2026-09-24 · NAV-09 · REQ-WEB-212)
+  const href = useRouterState({ select: (s) => s.location.href });
   const me = useMe();
 
   // 사이드바 트리가 "지금 보는 문서"를 알아야 그 자리를 펼치고 표시할 수 있다(§1.3).
@@ -58,9 +61,9 @@ function RootComponent(): React.JSX.Element {
       !BARE_ROUTES.has(pathname) &&
       !BARE_PREFIXES.some((p) => pathname.startsWith(p))
     ) {
-      void navigate({ to: '/login', search: { redirect: pathname } });
+      void navigate({ to: '/login', search: { redirect: href } });
     }
-  }, [navigate, pathname, unauthenticated]);
+  }, [navigate, pathname, href, unauthenticated]);
 
   if (BARE_ROUTES.has(pathname) || BARE_PREFIXES.some((p) => pathname.startsWith(p)))
     return <Outlet />;
