@@ -20,10 +20,10 @@ test('본문을 내려도 페이지·차례·문서 안 목차는 제자리다',
 
   const moved = await page.getByTestId('manual-content').evaluate((content) => {
     const doc = document.documentElement;
-    // 자리(첫째·둘째)가 아니라 **무엇이 든 상자인지**로 집는다 — 자리로 집으면
-    // 나중에 aside 가 하나 늘 때 테스트가 조용히 다른 것을 재게 된다
+    // 자리(첫째·둘째)가 아니라 **이름과 든 것**으로 집는다 — 자리로 집으면 나중에 열이 하나 늘 때 테스트가
+    // 조용히 다른 것을 재게 된다(차례는 2026-09-25 부터 사이드바가 아니라 둘째 열이다 · REQ-WEB-232)
+    const toc = document.querySelector('[data-testid="manual-toc"]') as HTMLElement;
     const asides = [...document.querySelectorAll('aside')] as HTMLElement[];
-    const toc = asides.find((el) => el.querySelector('a[href="/help/specs"]')) as HTMLElement;
     const onThisPage = asides.find((el) => el.querySelector('a[href^="#"]')) as HTMLElement;
     const before = {
       toc: toc.getBoundingClientRect().top,
@@ -49,6 +49,24 @@ test('본문을 내려도 페이지·차례·문서 안 목차는 제자리다',
   // 차례와 "이 문서 안" 은 따라 움직이지 않는다
   expect(moved.tocShift).toBeLessThanOrEqual(1);
   expect(moved.onThisPageShift).toBeLessThanOrEqual(1);
+});
+
+// **차례는 사이드바 오른쪽의 둘째 열이다**(2026-09-25 사람 지시 · REQ-WEB-232). 사이드바의 [도움말] 아래에
+// 펼쳐지던 동안 열 장이 프로젝트 목록과 한 열에서 자리를 다퉜다 — 스펙 상세의 트리 열과 같은 자리·같은 뼈대다.
+test('차례는 사이드바가 아니라 그 오른쪽의 둘째 열에 선다', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/help/tasks');
+  const toc = page.getByTestId('manual-toc');
+  await expect(toc).toBeVisible({ timeout: 15000 });
+  const rail = page.getByTestId('nav-rail');
+  expect(await rail.getByTestId('manual-toc').count()).toBe(0);
+  const railBox = (await rail.boundingBox())!;
+  const tocBox = (await toc.boundingBox())!;
+  const bodyBox = (await page.getByTestId('manual-body').boundingBox())!;
+  // 사이드바 · 차례 · 본문 순서로 나란히 — 겹치지 않는다
+  expect(tocBox.x).toBeGreaterThanOrEqual(railBox.x + railBox.width - 1);
+  expect(bodyBox.x).toBeGreaterThanOrEqual(tocBox.x + tocBox.width - 1);
+  await expect(toc.getByRole('link', { name: '작업' })).toHaveAttribute('aria-current', 'page');
 });
 
 test('차례 위에서 굴린 바퀴는 본문을 움직이지 않는다', async ({ page }) => {

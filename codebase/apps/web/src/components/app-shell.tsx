@@ -26,7 +26,7 @@ import { connectionBanner, useRealtime } from '../lib/realtime.js';
 import { canManageScope, signOut } from '../lib/session.js';
 import { inboxActionable, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
-import { chapterForRoute, MANUAL_CHAPTERS } from '../lib/manual.js';
+import { chapterForRoute } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { ToastStack } from './toast-stack.js';
@@ -35,6 +35,7 @@ import { useTitleDetailValue } from '../lib/title-detail.js';
 import { SpecTreeColumn } from './spec-tree-column.js';
 import { SettingsNav } from '../features/settings/settings-nav.js';
 import { LocaleSwitch } from './locale-switch.js';
+import { NAV_ACTIVE, NAV_ITEM, RAIL_LABEL } from './nav-styles.js';
 import { MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
@@ -56,18 +57,9 @@ export interface AppShellProps {
 const HEADER_LINK =
   'rounded-nerv-sm px-2 py-1 text-sm text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
 
-/** 사이드바 항목 — 활성 표시는 배경 + 굵기다. 색만으로 구분하지 않는다(REQ-WEB-033) */
-// 시안의 nav 는 29px 줄에 13.5px 글자다 — 손가락이 아니라 눈으로 고르는 목록이라
-// 빽빽해도 되고, 빽빽해야 트리와 한 덩어리로 읽힌다(시안 대조 2026-08-23).
-const NAV_ITEM =
-  'group flex h-[29px] items-center gap-2 rounded-[5px] px-2 text-base text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
-const NAV_ACTIVE = 'bg-bg-active font-medium text-text';
 /** 글리프 칸 — 시안은 15px 고정 폭에 흐린 색, **활성일 때만 강조색**이다 */
 const NAV_GLYPH =
   'inline-flex w-[15px] shrink-0 text-text-faint group-[.bg-bg-active]:text-status-action';
-
-/** 사이드바·서랍의 구역 이름 — 트리 머리와 같은 크기여야 한 덩어리로 읽힌다 */
-const RAIL_LABEL = 'text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase';
 
 /** 좁은 화면에서 글자 대신 서는 한 칸짜리 단추 */
 const ICON_BUTTON = 'max-md:size-[27px] max-md:justify-center max-md:px-0';
@@ -743,8 +735,14 @@ export function AppShell({
         {/* **왼쪽 열은 모든 화면에서 같다**(2026-09-25 사람 결정 D1 · REQ-WEB-225). 프로젝트 화면에서는 탭과
             트리, 홈·받은 요청·알림·설정에서는 열이 통째로 사라져 본문이 가운데로 뛰고, 도움말에서는 같은 폭의
             다른 열(차례)이 섰다 — 세 모양이었다(NAV-06). 이제 조직 · 전역 · 프로젝트 · 설정·도움말이 늘 같은
-            자리에 있고, 펼쳐지는 것은 라우트가 정한다: 프로젝트 화면이면 그 프로젝트, 도움말이면 차례.
-            좁은 화면에서는 같은 한 벌이 서랍이다(REQ-WEB-164). */}
+            자리에 있고, 펼쳐지는 것은 라우트가 정한다: 프로젝트 화면이면 그 프로젝트, 설정이면 설정 항목.
+            도움말의 차례는 스펙 트리처럼 둘째 열이다(2026-09-25 사람 지시 · REQ-WEB-232).
+            좁은 화면에서는 같은 한 벌이 서랍이다(REQ-WEB-164).
+
+            **열 전체가 한 상자로 흐른다**(2026-09-25 사람 보고 · REQ-WEB-232). 프로젝트 구역이 남는 높이에 맞춰
+            줄어드는 칸(`flex-1 min-h-0`)이던 동안, 항목이 열보다 많아지면 스크롤이 생기는 대신 그 구역이 줄고 목록이
+            바닥의 설정·도움말 뒤로 겹쳐 가려졌다 — 프로젝트가 많거나 설정 항목이 펼쳐진 화면에서 닿지 못하는 항목이
+            생겼다. 구역은 제 높이를 갖고, 넘치면 열이 흐른다. 바닥 블록은 남는 자리가 있을 때만 바닥에 붙는다. */}
         <aside
           id={NAV_ID}
           data-testid="nav-rail"
@@ -755,7 +753,7 @@ export function AppShell({
             if ((e.target as HTMLElement).closest('a') !== null) setDrawerOpen(false);
           }}
           className={cn(
-            'flex-col overflow-y-auto border-border px-2 py-3',
+            'flex-col overflow-y-auto overscroll-contain border-border px-2 py-3',
             'fixed top-header right-auto bottom-0 left-0 z-40 w-[17.5rem] max-w-[86vw] border-r bg-bg shadow-popover',
             drawerOpen ? 'flex' : 'hidden',
             'md:sticky md:top-header md:bottom-auto md:z-auto md:flex md:h-[calc(100vh-var(--spacing-header))] md:w-sidebar md:max-w-none md:shrink-0 md:bg-bg-sunken/40 md:shadow-none',
@@ -887,7 +885,7 @@ export function AppShell({
               펼치지 않는다 — 기억한 프로젝트는 "최근" 표식일 뿐 선택이 아니다(REQ-WEB-193 의 목적을 구조가 지킨다) */}
           {/* 조직을 몰라도(목록을 받기 전) **라우트의 프로젝트는 선다** — 탭이 그 조회를 기다리면 안 된다 */}
           {(currentOrg !== null || sidebarProject !== undefined) && (
-            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+            <div data-testid="rail-projects" className="mt-4 flex shrink-0 flex-col">
               <p className={cn(RAIL_LABEL, 'px-2 pb-1')}>{t('common.project')}</p>
               <ul className="flex flex-col gap-0.5">
                 {railProjects.map((project) => {
@@ -1044,9 +1042,10 @@ export function AppShell({
             </div>
           )}
 
-          {/* 설정 · 도움말 — 열의 바닥. 도움말에 있으면 **차례가 여기 펼쳐진다**(도움말의 둘째 열을 걷었다 —
-              좁은 화면의 서랍에도 차례가 선다 · NAV-14) */}
-          <div className="mt-3 shrink-0 border-t border-border pt-2">
+          {/* 남는 높이가 있으면 바닥 블록을 바닥으로 민다 — 없으면 0 이 되고 열이 흐른다(위 머리 주석) */}
+          <div aria-hidden="true" className="min-h-3 flex-1" />
+          {/* 설정 · 도움말 — 열의 바닥. 도움말의 차례는 여기 펼쳐지지 않는다 — 둘째 열이다(REQ-WEB-232) */}
+          <div data-testid="rail-footer" className="shrink-0 border-t border-border pt-2">
             <Link
               to="/settings"
               data-testid="rail-settings"
@@ -1058,7 +1057,7 @@ export function AppShell({
               </span>
               <span className="flex-1">{t('shell.settings')}</span>
             </Link>
-            {/* 설정에 있으면 **항목이 여기 펼쳐진다** — 도움말의 차례와 같은 규칙이다(범위로 묶인 목록 · REQ-WEB-227) */}
+            {/* 설정에 있으면 **항목이 여기 펼쳐진다**(범위로 묶인 목록 · REQ-WEB-227) */}
             {onSettings && <SettingsNav variant="rail" />}
             <Link
               to="/help"
@@ -1071,35 +1070,16 @@ export function AppShell({
               </span>
               <span className="flex-1">{t('shell.help')}</span>
             </Link>
-            {onHelp ? (
-              <nav
-                data-testid="manual-toc"
-                aria-label={t('help.title')}
-                className="mt-0.5 ml-2 flex flex-col gap-0.5 border-l border-border pl-1.5"
+            {/* 다른 화면에서는 "이 화면 도움말" 한 줄 — 도움말 화면에서는 차례가 둘째 열에 서 있다 */}
+            {!onHelp && contextChapter !== null && (
+              <Link
+                to="/help/$chapter"
+                params={{ chapter: contextChapter }}
+                data-testid="drawer-help-this-screen"
+                className={cn(NAV_ITEM, 'ml-2')}
               >
-                {MANUAL_CHAPTERS.map((chapter) => (
-                  <Link
-                    key={chapter.id}
-                    to="/help/$chapter"
-                    params={{ chapter: chapter.id }}
-                    className={NAV_ITEM}
-                    activeProps={{ className: NAV_ACTIVE }}
-                  >
-                    <span className="flex-1 truncate">{t(chapter.titleKey)}</span>
-                  </Link>
-                ))}
-              </nav>
-            ) : (
-              contextChapter !== null && (
-                <Link
-                  to="/help/$chapter"
-                  params={{ chapter: contextChapter }}
-                  data-testid="drawer-help-this-screen"
-                  className={cn(NAV_ITEM, 'ml-2')}
-                >
-                  <span className="flex-1 truncate text-sm">{t('help.this_screen')}</span>
-                </Link>
-              )
+                <span className="flex-1 truncate text-sm">{t('help.this_screen')}</span>
+              </Link>
             )}
           </div>
         </aside>

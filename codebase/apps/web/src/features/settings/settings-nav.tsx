@@ -14,6 +14,7 @@ import { useMe } from '../../lib/queries.js';
 import { canManageScope } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
+import { NAV_ACTIVE, NAV_ITEM } from '../../components/nav-styles.js';
 import type { MessageKey } from '@nerv/schema';
 
 type SettingsPath =
@@ -78,11 +79,6 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     ],
   },
 ];
-
-/** 사이드바 항목과 같은 모양 — 셸의 NAV_ITEM 과 맞춘다(여기서 셸을 import 하지 않는다) */
-const RAIL_ITEM =
-  'group flex h-[29px] items-center gap-2 rounded-[5px] px-2 text-base text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
-const RAIL_ACTIVE = 'bg-bg-active font-medium text-text';
 
 // 가로 줄의 활성 표시는 `data-status` 로 준다 — `activeProps` 의 border 두 벌은 생성된 CSS 순서가 이긴다(REQ-WEB-151)
 const TAB =
@@ -163,7 +159,7 @@ export function SettingsNav({
                 key={item.label}
                 aria-disabled="true"
                 className={cn(
-                  RAIL_ITEM,
+                  NAV_ITEM,
                   'cursor-default text-text-ghost hover:bg-transparent hover:text-text-ghost',
                 )}
               >
@@ -175,8 +171,8 @@ export function SettingsNav({
                 key={item.to}
                 to={item.to}
                 data-testid={`settings-nav-${item.to.slice('/settings/'.length)}`}
-                className={RAIL_ITEM}
-                activeProps={{ className: RAIL_ACTIVE }}
+                className={NAV_ITEM}
+                activeProps={{ className: NAV_ACTIVE }}
               >
                 <span className="flex-1 truncate">{t(item.label)}</span>
               </Link>

@@ -242,13 +242,15 @@ describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
     expect(row?.className).toContain('md:h-[calc(100dvh-var(--spacing-header))]');
     expect(row?.className).toContain('md:overflow-hidden');
     expect(content.className).toContain('md:overflow-y-auto');
-    // 차례는 셸 사이드바에 선다(2026-09-25 D1 · REQ-WEB-225) — 도움말이 같은 폭의 둘째 왼쪽 열을 세우지 않는다
-    expect(Array.from(row?.children ?? []).map((c) => c.tagName)).toEqual(['DIV']);
+    // 차례는 둘째 열이다(2026-09-25 사람 지시 · REQ-WEB-232) — 한 줄에 열과 본문 상자가 나란히 선다
+    expect(Array.from(row?.children ?? []).map((c) => c.getAttribute('data-testid'))).toEqual([
+      'manual-column',
+      'manual-content',
+    ]);
     const toc = screen.getByTestId('manual-toc');
-    const rail = screen.getByTestId('nav-rail');
-    expect(rail.contains(toc)).toBe(true);
-    // 사이드바도 자기 안에서 흐른다 — 열 장이 화면보다 길어지면 아래쪽에 닿지 못한다
-    expect(rail.className).toContain('overflow-y-auto');
+    expect(screen.getByTestId('nav-rail').contains(toc)).toBe(false);
+    // 차례도 자기 안에서 흐른다 — 장이 열보다 많아지면 목록만 흐르고 머리는 제자리다
+    expect(toc.lastElementChild?.className).toContain('overflow-y-auto');
   });
 
   it('"이 문서 안" 은 본문 상자의 꼭대기에 붙는다 — 셸 헤더가 기준이 아니다', async () => {
@@ -269,5 +271,68 @@ describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
     expect(cls).toContain('[&_h2]:scroll-mt-[calc(var(--spacing-header)+1.5rem)]');
     // 본문이 자기 상자 안에서 흐르면 상자 위가 곧 헤더 아래다 — 페이지 여백만큼이면 된다
     expect(cls).toContain('md:[&_h2]:scroll-mt-6');
+  });
+});
+
+// ── 차례의 둘째 열 (2026-09-25 사람 지시 · REQ-WEB-232) ────────────────────────
+//
+// 차례는 셸 사이드바의 [도움말] 아래에 펼쳐져 있었다. 스펙 상세의 트리처럼 사이드바와 본문 사이의 열에 선다 —
+// 열의 뼈대(띠 · 접기 · 좁은 폭의 겹침 패널)는 스펙 트리 열과 같은 한 벌(`side-column.tsx`)이다.
+describe('도움말 차례의 둘째 열 (REQ-WEB-232)', () => {
+  /** 열이 제자리에 서는 폭(`lg` — 64rem)인가 */
+  function stubWidth(wide: boolean): void {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches: query === '(min-width: 48rem)' || (wide && query === '(min-width: 64rem)'),
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('넓으면 제자리에 서고, 접으면 띠만 남으며 그 선택을 기억한다', async () => {
+    stubWidth(true);
+    renderAt('/help/tasks');
+    const column = await screen.findByTestId('manual-column');
+    expect(column.getAttribute('data-open')).toBe('true');
+    expect(screen.getByTestId('manual-column-panel').className).not.toContain('absolute');
+    fireEvent.click(screen.getByTestId('manual-column-toggle'));
+    await waitFor(() => expect(column.getAttribute('data-open')).toBe('false'));
+    expect(localStorage.getItem('nerv.manual-column')).toBe('closed');
+    // 스펙 트리 열과 기억하는 자리가 다르다 — 한쪽을 접었다고 다른 쪽이 접히지 않는다
+    expect(localStorage.getItem('nerv.spec-column')).toBeNull();
+  });
+
+  it('접어 둔 채 다시 오면 접혀 있다', async () => {
+    localStorage.setItem('nerv.manual-column', 'closed');
+    stubWidth(true);
+    renderAt('/help/tasks');
+    const column = await screen.findByTestId('manual-column');
+    expect(column.getAttribute('data-open')).toBe('false');
+    expect(screen.getByTestId('manual-column-toggle').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('좁으면 띠의 단추가 겹침 패널을 열고, 장을 고르거나 Esc 를 누르면 닫힌다', async () => {
+    stubWidth(false);
+    renderAt('/help/tasks');
+    const column = await screen.findByTestId('manual-column');
+    expect(column.getAttribute('data-open')).toBe('false');
+    const toggle = screen.getByTestId('manual-column-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(column.getAttribute('data-open')).toBe('true'));
+    expect(screen.getByTestId('manual-column-panel').className).toContain('absolute');
+    // 좁은 폭의 열고 닫음은 그 순간의 것이다 — 남기지 않는다
+    expect(localStorage.getItem('nerv.manual-column')).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: '세션' }));
+    await waitFor(() => expect(column.getAttribute('data-open')).toBe('false'));
+    fireEvent.click(toggle);
+    await waitFor(() => expect(column.getAttribute('data-open')).toBe('true'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(column.getAttribute('data-open')).toBe('false'));
+    expect(document.activeElement).toBe(toggle);
   });
 });

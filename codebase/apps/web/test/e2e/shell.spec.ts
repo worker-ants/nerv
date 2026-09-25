@@ -239,4 +239,31 @@ test.describe('시드 세션', () => {
       ),
     ).toBeLessThanOrEqual(0);
   });
+
+  // **항목이 열보다 많아도 가려지는 것이 없다**(2026-09-25 사람 보고 · REQ-WEB-232). 프로젝트 구역이 남는 높이에
+  // 맞춰 줄어드는 칸이던 동안, 열이 모자라면 스크롤이 생기는 대신 목록이 바닥의 설정·도움말 뒤로 겹쳤다 —
+  // 그 자리를 누르면 겹친 블록이 눌렸다. jsdom 은 높이를 재지 못해 여기서만 잰다.
+  test('낮은 창에서도 사이드바의 어떤 항목도 가려지지 않는다 — 넘치면 열이 흐른다', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 460 });
+    await page.goto('/p/clemvion/tasks');
+    const rail = page.getByTestId('nav-rail');
+    await expect(rail.getByTestId('rail-project-settings')).toBeAttached({ timeout: 15000 });
+    // 전제 — 열이 화면보다 길다(짧으면 아래 판정이 아무것도 증명하지 않는다)
+    expect(await rail.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(0);
+    for (const id of ['rail-project-settings', 'rail-settings', 'rail-help']) {
+      const item = rail.getByTestId(id);
+      await item.scrollIntoViewIfNeeded();
+      // 그 자리를 누르면 **그 항목이** 눌린다 — 다른 블록이 위에 겹쳐 있지 않다
+      const covered = await item.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return hit === null || !el.contains(hit);
+      });
+      expect(covered, id).toBe(false);
+    }
+    // 열이 흘러도 페이지는 흐르지 않는다 — 바퀴가 본문을 움직이지 않게
+    expect(await page.evaluate(() => Math.round(document.documentElement.scrollTop))).toBe(0);
+  });
 });

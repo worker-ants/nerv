@@ -40,7 +40,9 @@ Wherever an agent gets stuck it raises a **question**, which arrives in your inb
 
 - **Organization** — the slot at the top of the column is the organization you are looking at (with a small "Organization" label). Press it for the other organizations you belong to and **[Manage · new organization]**. The only organizations you can pick are the ones you belong to.
 - **Projects** — the current organization's projects, one line each. **On a project screen that project is expanded**, with overview, specs, tasks, sessions, reviews and settings under it (the spec tree stands as a column beside a document you are reading — see [Specs](/help/specs)). Press another project's name to go to its overview.
-- **Settings · Help** — the bottom of the column. In settings, the **settings items** open under [Settings]; while you are reading help, the manual's **contents** open under [Help]; on other screens that spot holds a single **Help for this screen** line.
+- **Settings · Help** — the bottom of the column. In settings, the **settings items** open under [Settings]; on other screens [Help] is followed by a single **Help for this screen** line. While you are reading help, the manual's **contents** stand not in this column but in **the column right next to it** — the same spot as the spec tree beside a document — and the button at its top folds it away and back (folded stays folded next time).
+
+**When the column holds more than fits, it scrolls.** With many projects, or with the settings items expanded, roll the wheel over the left column to reach the end — nothing is hidden.
 
 Home, inbox, notifications and settings are organization-wide, so their addresses carry no project. There **no project is expanded** — expanding the project you looked at last would make the whole screen read as that project's. The project you looked at last carries **"Recent"** next to its name in the list, one click away. Places that do show one project, like Home's "Recent activity", put that project's name in their title. **When there are no projects**, the list says "No projects yet", with **[Manage · new project]** below it for organization admins (you arrive with the form open) and **[Manage projects]** for everyone else. When the organization has no projects and you are not its admin, Home names the organization admins to ask.
 
@@ -61,7 +63,7 @@ On a narrow screen the left column moves into a **drawer, opened by the [☰] at
 - The drawer **closes itself once you go somewhere.** To close it where you are, press the [✕] at its top right, press the dimmed area outside it, or press `Esc`.
 - Inbox and notifications live in the left column on a wide screen; at the narrow width they also sit **in the header as glyphs with their count badges**, so you see them without opening the drawer (a number you have to open something to see is not a badge). Search shrinks to a single magnifier, and pressing it opens the same quick switcher.
 - The header's help `?` folds away at that width — help is at the bottom of the drawer.
-- The **spec tree** for a document you are reading is not in the drawer but in the strip at the left edge — press it and the tree opens over the page; picking a document or pressing `Esc` closes it.
+- The **spec tree** for a document you are reading, and the **contents** of the manual, are not in the drawer but in the strip at the left edge — press it and the column opens over the page; picking a document or chapter, or pressing `Esc`, closes it.
 - Widen the window and the drawer closes as the left column takes its place again.
 
 ## Roles
