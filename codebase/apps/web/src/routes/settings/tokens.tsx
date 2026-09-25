@@ -24,8 +24,7 @@ import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { UseMutationResult } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AGENT_RECOMMENDED_SCOPES,
   AGENT_SCOPES,
@@ -35,10 +34,9 @@ import {
 } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { deployedServerOrigin } from '../../lib/manual-vars.js';
-import { rows, useMe, useOrgTokens, useTokens } from '../../lib/queries.js';
+import { rows, useMe, useTokens } from '../../lib/queries.js';
 import { canManageScope, rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
-import { useRealtime } from '../../lib/realtime.js';
 import {
   Button,
   Card,
@@ -58,8 +56,13 @@ import {
 } from '../../components/ui/primitives.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { CopyButton } from '../../components/copy-button.js';
-import { ScopeBadge } from '../../components/scope-badge.js';
-import { ConfirmAction } from '../../components/ui/confirm-action.js';
+import {
+  day,
+  isExpired,
+  ProjectCell,
+  RevokeButton,
+  useRevoke,
+} from '../../features/settings/token-parts.js';
 
 export const Route = createFileRoute('/settings/tokens')({ component: TokensTab });
 
@@ -77,16 +80,6 @@ const EXPIRY_DAYS = [0, 30, 90, 365] as const;
 function expiryIso(days: number): string | null {
   if (days === 0) return null;
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-/** 만료가 이미 지났는가 — 서버의 검증(`verifyPat`)과 같은 판정이다. */
-function isExpired(value: unknown): boolean {
-  return typeof value === 'string' && new Date(value).getTime() <= Date.now();
-}
-
-/** 표의 날짜 칸 — 시각까지 적으면 열이 읽히지 않는다. 없으면 "없음" 이라고 말한다. */
-function day(value: unknown, absent: string): string {
-  return typeof value === 'string' && value !== '' ? value.slice(0, 10) : absent;
 }
 
 interface Issued {
@@ -113,7 +106,6 @@ function TokensTab(): React.JSX.Element {
   // 조직 전체 토큰 표는 **조직 admin 만**(2026-09-24 · REQ-API-172) — 조직의 모든 토큰을 보이는
   // 표라, 한 프로젝트의 admin 이 남의 프로젝트 토큰을 보면 안 된다. 서버와 같은 규칙이다
   const isAdmin = canManageScope(me.data, orgSlug, null);
-  const orgTokens = useOrgTokens(orgSlug, isAdmin);
 
   const [target, setTarget] = useState<string | null>(null);
   const project = target ?? projectSlug;
@@ -440,78 +432,18 @@ function TokensTab(): React.JSX.Element {
         )}
       </div>
 
-      {isAdmin && <OrgTokens tokens={rows(orgTokens.data)} revoke={revoke} />}
+      {/* **조직 전체 토큰은 조직 묶음의 자기 화면이다**(2026-09-25 — 사람 결정 D1 · SET-06 · REQ-WEB-227). 이 탭은 **내**
+          토큰(모든 조직)이고, 조직의 것까지 한 화면에 섞어 두었더니 두 범위가 탭 경계와 어긋났다 — 조직 admin 에게만
+          그 자리로 가는 길을 남긴다 */}
+      {isAdmin && (
+        <p data-testid="org-tokens-pointer" className="text-sm text-text-mute">
+          {t('settings.tokens.org_moved')}{' '}
+          <Link to="/settings/org-tokens" className="text-link hover:underline">
+            {t('settings.tokens.org_title')} ▸
+          </Link>
+        </p>
+      )}
     </div>
-  );
-}
-
-/**
- * 폐기 — 내 표와 조직 전체 표가 같은 것을 쓴다(EP-TOK-03 은 본인 또는 조직 admin · REQ-API-173).
- * 실패는 기본 처리기가 말한다(REQ-WEB-196).
- */
-function useRevoke(orgSlug: string | null): UseMutationResult<unknown, Error, string> {
-  const t = useT();
-  const queryClient = useQueryClient();
-  const { pushToast } = useRealtime();
-  return useMutation<unknown, Error, string>({
-    mutationFn: (id: string) => apiFetch(`/me/tokens/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['me', 'tokens'] });
-      void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'tokens'] });
-      pushToast({ tone: 'ok', message: t('settings.tokens.revoke_done') });
-    },
-  });
-}
-
-/**
- * **폐기는 되돌릴 수 없다**(REQ-WEB-200). 예전에는 한 번 누르면 끝이었고, 그 토큰을 쓰던
- * 기계의 에이전트는 작업 도중 다음 호출부터 401 을 받았다. 확인은 **누가 끊기는지**를 말한다 —
- * 마지막으로 쓴 기계가 유출 판단과 폐기 판단의 첫 단서다(NFR-03).
- */
-function RevokeButton({
-  token,
-  revoke,
-}: {
-  token: Record<string, unknown>;
-  revoke: ReturnType<typeof useRevoke>;
-}): React.JSX.Element {
-  const t = useT();
-  const host = token['last_used_hostname'];
-  return (
-    <ConfirmAction
-      label={t('settings.tokens.revoke')}
-      testId="token-revoke"
-      message={t('settings.tokens.revoke_confirm', { name: String(token['name']) })}
-      detail={
-        token['last_used_at'] === null || token['last_used_at'] === undefined
-          ? t('settings.tokens.revoke_detail_unused')
-          : typeof host === 'string' && host !== ''
-            ? t('settings.tokens.revoke_detail_host', { host })
-            : t('settings.tokens.revoke_detail_used')
-      }
-      confirmLabel={t('settings.tokens.revoke')}
-      pending={revoke.isPending}
-      onConfirm={() => revoke.mutate(String(token['id']))}
-    />
-  );
-}
-
-/**
- * 프로젝트 칸 — 이름으로 읽고 slug 로 대조한다(설정 파일에 적는 것은 slug 다).
- *
- * **내 토큰은 모든 조직의 것이다**(REQ-WEB-192) — 조직이 둘 이상이면 조직이 앞에 선다.
- * 조직 전체 표(`OrgTokens`)는 한 조직의 것이라 조직을 넘기지 않는다.
- */
-function ProjectCell({ token }: { token: Record<string, unknown> }): React.JSX.Element {
-  return (
-    <ScopeBadge
-      className="text-sm text-text"
-      orgSlug={token['org_slug']}
-      orgName={token['org_name']}
-      projectSlug={token['project_slug'] ?? ''}
-      projectName={token['project_name']}
-      withSlug
-    />
   );
 }
 
@@ -637,139 +569,6 @@ function RevealOnce({
           {t('common.close')}
         </Button>
       </div>
-    </div>
-  );
-}
-
-/**
- * 조직 전체 토큰 — EP-TOK-04 (admin).
- *
- * **서버는 2026-08 부터 이것을 줄 수 있었고 부르는 화면이 없었다.** 내 목록으로는
- * "누가 어느 프로젝트에 무슨 토큰을 갖고 있나" 에 답할 수 없는데, 그것이 관리의 본체다.
- *
- * **거르기는 화면에서 한다.** 전표가 이 엔드포인트의 질의 인자를 **없음**으로 못 박았고
- * (2026-09-06 정정 — 컨트롤러가 읽지 않는다), 조직 하나의 토큰은 한 응답에 들어오는
- * 크기다. 없는 인자를 화면이 보내면 조용히 무시되고, 그때 목록은 거른 것처럼 보인다.
- */
-function OrgTokens({
-  tokens,
-  revoke,
-}: {
-  tokens: Record<string, unknown>[];
-  revoke: ReturnType<typeof useRevoke>;
-}): React.JSX.Element {
-  const t = useT();
-  const [project, setProject] = useState('');
-  const [owner, setOwner] = useState('');
-
-  const projects = useMemo(
-    () => [...new Set(tokens.map((token) => String(token['project_slug'] ?? '')))].sort(),
-    [tokens],
-  );
-  const owners = useMemo(
-    () => [...new Set(tokens.map((token) => String(token['owner'] ?? '')))].sort(),
-    [tokens],
-  );
-  const shown = tokens.filter(
-    (token) =>
-      (project === '' || String(token['project_slug'] ?? '') === project) &&
-      (owner === '' || String(token['owner'] ?? '') === owner),
-  );
-
-  return (
-    <div>
-      <SectionTitle>{t('settings.tokens.org_title')}</SectionTitle>
-      <p className="mb-2 text-xs text-text-mute">{t('settings.tokens.org_hint')}</p>
-      {tokens.length === 0 ? (
-        <EmptyState icon="◇" title={t('settings.tokens.org_empty')} action={null} />
-      ) : (
-        <>
-          <div className="mb-2 flex flex-wrap gap-2">
-            <Select
-              data-testid="org-token-project"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              className="w-48"
-            >
-              <option value="">{t('settings.tokens.all_projects')}</option>
-              {projects.map((slug) => (
-                <option key={slug} value={slug}>
-                  {slug}
-                </option>
-              ))}
-            </Select>
-            <Select
-              data-testid="org-token-owner"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-              className="w-48"
-            >
-              <option value="">{t('settings.tokens.all_owners')}</option>
-              {owners.map((who) => (
-                <option key={who} value={who}>
-                  {who}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <Table
-            head={
-              <>
-                <Th>{t('settings.tokens.project')}</Th>
-                <Th>{t('settings.tokens.owner')}</Th>
-                <Th>{t('settings.members.name')}</Th>
-                <Th>prefix</Th>
-                <Th>{t('settings.tokens.scopes')}</Th>
-                <Th>{t('settings.tokens.expires')}</Th>
-                <Th>{t('settings.tokens.last_used')}</Th>
-                <Th>{t('settings.tokens.status')}</Th>
-                {/* **남의 토큰을 끊는 문**(REQ-WEB-201). 이 표는 보이기만 했다 — 서버는 조직
-                    admin 의 폐기를 허용하고(REQ-API-173) 매뉴얼도 그렇다고 적었는데, 떠난 사람의
-                    토큰은 API 를 직접 부를 줄 아는 사람만 끊을 수 있었다 */}
-                <Th />
-              </>
-            }
-          >
-            {shown.map((token) => (
-              <Tr key={String(token['id'])}>
-                <Td>
-                  <ProjectCell token={token} />
-                </Td>
-                <Td>{String(token['owner'] ?? '')}</Td>
-                <Td className="font-medium">{String(token['name'])}</Td>
-                <Td className="font-mono text-xs">{String(token['prefix'])}…</Td>
-                <Td className="text-xs text-text-mute">
-                  {(token['scopes'] as string[] | undefined)?.join(' · ')}
-                </Td>
-                <Td className="text-xs text-text-mute">
-                  {day(token['expires_at'], t('settings.tokens.no_expiry'))}
-                </Td>
-                <Td className="text-xs text-text-mute">
-                  {token['last_used_at'] === null
-                    ? t('settings.tokens.unused')
-                    : day(token['last_used_at'], '—')}
-                </Td>
-                {/* 상태는 셋이고 **무엇이 이 토큰을 죽였는지**까지 말한다 — "활성 아님" 만
-                    보이면 admin 은 폐기해야 하는지 기다려도 되는지 알 수 없다 */}
-                <Td className="text-xs">
-                  {token['revoked_at'] !== null ? (
-                    <span className="text-text-faint">{t('settings.tokens.revoked')}</span>
-                  ) : isExpired(token['expires_at']) ? (
-                    <span className="text-status-danger">{t('settings.tokens.expired')}</span>
-                  ) : (
-                    <span className="text-status-ok">{t('settings.tokens.active')}</span>
-                  )}
-                </Td>
-                <Td className="text-right">
-                  {token['revoked_at'] === null && !isExpired(token['expires_at']) && (
-                    <RevokeButton token={token} revoke={revoke} />
-                  )}
-                </Td>
-              </Tr>
-            ))}
-          </Table>
-        </>
-      )}
     </div>
   );
 }

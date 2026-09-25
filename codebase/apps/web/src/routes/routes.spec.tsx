@@ -130,10 +130,12 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     expect(screen.queryByText('clemvion')).toBeNull();
   });
 
-  it('/settings 는 멤버 탭으로 리다이렉트한다', async () => {
+  it('/settings 는 첫 무리(조직)의 첫 항목 — 조직·프로젝트로 리다이렉트한다 (2026-09-25 · REQ-WEB-227)', async () => {
     renderAt('/settings');
-    // 제목은 조직을 말한다("{조직} 멤버·역할" · REQ-WEB-191)
-    await waitFor(() => expect(screen.getByText(/멤버·역할$/, { selector: 'h1' })).toBeDefined());
+    // 제목은 조직을 말한다("{조직} 조직·프로젝트") — 예전에는 둘째 칸인 멤버·역할에 착지했다
+    await waitFor(() =>
+      expect(screen.getByText(/조직·프로젝트$/, { selector: 'h1' })).toBeDefined(),
+    );
   });
 
   it('/o/:org 는 화면 없이 / 로 리다이렉트한다 (§1.6 — 그림 비대상)', async () => {

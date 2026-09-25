@@ -272,6 +272,7 @@ export const en = {
   'settings.members.scope_rule':
     'Organization-wide rows can be changed by organization admins only; project rows also by that project’s admins. Rows you cannot change are read-only.',
   'settings.members.title_org': '{org} members & roles',
+  'settings.workspace.title_org': '{org} — organization & projects',
   'settings.workspace.org_admin_only':
     'Only organization admins can rename or delete the organization or create projects — a project’s admins can also edit that project’s row.',
   'shell.inbox_all_orgs': 'Inbox — every organization',
@@ -1623,6 +1624,20 @@ export const en = {
   'settings.tab.members': 'Members and roles',
   'settings.tab.tokens': 'Agent tokens',
   'settings.title': 'Settings',
+  'settings.heading': 'Settings — {org}',
+  'settings.nav_label': 'Settings menu',
+  'settings.group.org': 'Organization',
+  'settings.group.project': 'Project',
+  'settings.group.me': 'You · every organization',
+  'settings.tab.org_tokens': 'Organization tokens',
+  'settings.tab.integrations': 'Integrations',
+  'settings.org_tokens.title': '{org} — organization tokens',
+  'settings.org_tokens.admin_only':
+    'Only organization admins see organization tokens. Your own tokens are under [Agent tokens].',
+  'settings.tokens.org_moved':
+    'Tokens for the whole organization have their own page in the organization group —',
+  'shell.nav.project_settings': 'Settings',
+  'shell.nav.project_settings_title': 'Settings for this project — gate policy',
   'settings.tokens.active': 'Active',
   'settings.tokens.all_owners': 'All owners',
   'settings.tokens.all_projects': 'All projects',

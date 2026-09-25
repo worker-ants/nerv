@@ -1,4 +1,6 @@
-Settings has four tabs: **Organization & projects, Members, Tokens and Gate policy**.
+**Settings are grouped by scope** — **Organization** (organization & projects · members · organization tokens) · **Project** (gate policy · integrations, which is Phase 2 and only holds its place) · **You** (agent tokens). On a wide screen the list opens under **[Settings]** in the left column; on a narrow screen it is the row across the top of the settings screen. The heading says **which organization's settings** these are, and [Settings] takes you to the first item, organization & projects.
+
+**Switching the organization keeps you in settings.** Switch at the top of the left column while in settings (or the inbox, notifications or help) and you come back to the same screen for the new organization. Switching from a project screen takes you home — the new organization does not have that project.
 
 ## Organization & projects
 
@@ -8,7 +10,7 @@ Of the organization and projects in the left column, it is the **project** you c
 
 **Creating, editing and putting away are `admin` work, and which admin depends on what you change.** Renaming or deleting the organization and [New project] are for **organization admins** (people whose organization-wide role is admin) only. Editing or archiving a project row is for organization admins and **that project's admins** — a project admin sees only their own project's row unlocked, with the organization name and other projects locked. With admin nowhere, the [Show archived] toggle is not shown either. [New project] stays **visible but locked** for anyone who is not an organization admin, and the note at the top of the tab **names the organization admins to ask**.
 
-- **Create a project** — type a name and the address (slug) and key follow from it. The key is the short prefix on **task** numbers (`CLV-T-3F92A1`). A spec key is unrelated — a person writes it when creating the document. Coming from **[Manage · new project]** at the bottom of the header's project menu (organization admins), you arrive with this form **already open**. Once created, the message in the lower right carries **[Open]**, which takes you straight into the project.
+- **Create a project** — type a name and the address (slug) and key follow from it. The key is the short prefix on **task** numbers (`CLV-T-3F92A1`). A spec key is unrelated — a person writes it when creating the document. Coming from **[Manage · new project]** under the project list in the left column (organization admins), you arrive with this form **already open**. Once created, the message in the lower right carries **[Open]**, which takes you straight into the project.
 - **Rename** — only the name changes. **The slug does not** — addresses and API paths are built on it, so changing it would break every link already out in the world.
 - **Repository kind** — chosen in the same [Edit] (`github` by default, or `gitlab`). It decides only the **shape of the links**: GitLab puts `/-/` in commit and file addresses, so links do not open unless this is set. **The server never connects to the repository.** We do not guess it from the domain for the same reason — a self-hosted address does not say which kind it is.
 - **Repository URL and default branch** — the project row's [Edit] takes these alongside the name. Commits and code paths attached to a task's **evidence** open on top of this URL (see "Click the evidence" in the [Tasks](/help/tasks) chapter) — when it is empty those rows are not clickable and the task screen says so. To remove a wrong URL, **clear the field and save**.
@@ -56,13 +58,13 @@ Editing members and roles is `admin` only — **organization-wide rows by organi
 
 ## Tokens
 
-Issue and revoke the tokens agents use. **The steps from issuing to connecting are in the [Plugin install](/help/install) chapter**, and help opened from this tab goes there. After issuing, a card gives you **three connection steps** (token · plugin install · one setup line) and turns into **"Connected"** the first time the token is used. Scopes start as the **[Recommended]** set. Tokens are **bound to a project**, so none can be issued while the organization has no projects — organization admins see **[Create a project]** in that spot.
+Issue and revoke **your own** tokens for agents — the list holds yours from every organization you belong to. **The steps from issuing to connecting are in the [Plugin install](/help/install) chapter**, and help opened from this tab goes there. After issuing, a card gives you **three connection steps** (token · plugin install · one setup line) and turns into **"Connected"** the first time the token is used. Scopes start as the **[Recommended]** set. Tokens are **bound to a project**, so none can be issued while the organization has no projects — organization admins see **[Create a project]** in that spot.
 
-**Revoking cannot be undone, so it asks once more** and names the **machine that last used** the token — the agent there is cut off from its next call. Organization admins also cut off other people's live tokens with the same [Revoke] in the **organization-wide token table** (someone who has left, for example).
+**Revoking cannot be undone, so it asks once more** and names the **machine that last used** the token — the agent there is cut off from its next call. Organization admins see who holds which token for which project under **[Organization tokens]** in the organization group, and cut off other people's live tokens there with the same [Revoke] (someone who has left, for example). The table filters by project name and owner. Anyone who is not an organization admin does not see this item.
 
 ## Gate policy
 
-Gate policy is **per project**, not one set for the whole organization. **Pick the project you are editing with this tab's project picker**; the title, "Gate policy — project name", says which one it is. It starts on the project you last looked at ("Recent" in the left column).
+Gate policy is **per project**, not one set for the whole organization. **Pick the project you are editing with this tab's project picker**; the title, "Gate policy — project name", says which one it is. It starts on the project you last looked at ("Recent" in the left column). The chosen project stays in the address (`?project=`), so you can pass the link on, and while you are in a project **[Settings]** under it in the left column takes you straight to that project's gate policy.
 
 Gates decide what a spec change has to go through, according to **how risky it is**. Tiers run T0–T3, and the tier follows from the sum of four risk axes: side effects, sensitivity, reversibility and blast radius.
 

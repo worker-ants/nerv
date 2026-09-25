@@ -180,7 +180,7 @@ async function firstRowOf(name: string): Promise<HTMLElement> {
 
 describe('토큰 폐기는 누가 끊기는지 말하고 한 번 묻는다 (REQ-WEB-200)', () => {
   it('조직 전체 표에서 남의 살아 있는 토큰을 끊는다 — 확인 전에는 부르지 않는다', async () => {
-    renderAt('/settings/tokens');
+    renderAt('/settings/org-tokens');
     const revoke = await screen.findByTestId('token-revoke');
     // 폐기·만료된 것에는 단추가 없다 — 이미 끊겼다
     expect(screen.getAllByTestId('token-revoke')).toHaveLength(1);
