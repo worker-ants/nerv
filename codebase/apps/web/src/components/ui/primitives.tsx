@@ -469,17 +469,27 @@ export function Td({
 }
 
 /** 떠 있는 면 — 여기서만 그림자를 쓴다. */
+/**
+ * **hover 에서만 드러나는 것의 규칙 한 벌**(2026-09-25 — UI/UX 검토 SYS-X3 · REQ-WEB-224). `opacity-0
+ * group-hover:opacity-100` 만 두면 키보드로 포커스해도 투명하고(전역 포커스 고리도 함께 묻힌다) 터치 기기에는
+ * 드러날 길이 없다 — 알림 [읽음] 이 그랬다. 무리 안에 포커스가 있을 때와 hover 가 없는 기기에서는 늘 보인다.
+ */
+export const REVEAL_ON_HOVER =
+  'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100';
+
 export function Popover({
   children,
   className,
   align = 'left',
+  ...rest
 }: {
   children: React.ReactNode;
   className?: string;
   align?: 'left' | 'right';
-}): React.JSX.Element {
+} & Omit<React.HTMLAttributes<HTMLDivElement>, 'className' | 'children'>): React.JSX.Element {
   return (
     <div
+      {...rest}
       className={cn(
         'absolute z-40 mt-1 min-w-44 rounded-nerv border border-border bg-bg-elev py-1 shadow-popover',
         align === 'right' ? 'right-0' : 'left-0',

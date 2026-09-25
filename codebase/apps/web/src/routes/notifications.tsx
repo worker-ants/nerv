@@ -31,6 +31,7 @@ import {
   Mono,
   PageBody,
   PageHeader,
+  REVEAL_ON_HOVER,
   Segmented,
   Skeleton,
 } from '../components/ui/primitives.js';
@@ -148,6 +149,15 @@ function NotificationScreen(): React.JSX.Element {
     const subject = eventSubject(n);
     const unreadIds = members.filter((m) => m['state'] === 'unread').map((m) => String(m['id']));
     const state = unreadIds.length > 0 ? 'unread' : 'read';
+    const target = deepLinkFor(n);
+    const href = hrefOf(target);
+    const routed = inOrgHref(n['org_slug'], href, orgSlug);
+    const open = (): void => {
+      for (const id of unreadIds) markRead.mutate(id);
+      // 다른 조직의 알림이면 조직을 바꾸고 그 자리로 간다(REQ-WEB-199)
+      if (routed !== href) router.history.push(routed);
+      else void navigate(target);
+    };
     return (
       <li
         key={String(n['id'])}
@@ -155,15 +165,7 @@ function NotificationScreen(): React.JSX.Element {
         data-testid="notification-row"
         // 행 전체가 클릭 대상이다 — 읽음 처리와 이동이 한 동작이어야 한다(REQ-WEB-034).
         // 따로 두면 사람은 링크만 누르고 배지는 영원히 줄지 않는다.
-        onClick={() => {
-          for (const id of unreadIds) markRead.mutate(id);
-          const target = deepLinkFor(n);
-          const href = hrefOf(target);
-          const routed = inOrgHref(n['org_slug'], href, orgSlug);
-          // 다른 조직의 알림이면 조직을 바꾸고 그 자리로 간다(REQ-WEB-199)
-          if (routed !== href) router.history.push(routed);
-          else void navigate(target);
-        }}
+        onClick={open}
         className={cn(
           'group flex cursor-pointer items-center gap-3 border-b border-border px-2 py-2.5 text-sm last:border-0 hover:bg-bg-hover data-[state=read]:text-text-mute',
           nested && 'pl-7',
@@ -172,13 +174,26 @@ function NotificationScreen(): React.JSX.Element {
         {/* 읽지 않음은 점 하나로 — 행 전체를 굵게 하면 목록이 소란스러워진다.
             점만으로 구분하지 않도록 aria-label 을 붙인다(REQ-WEB-033) */}
         <span
-          aria-label={state === 'unread' ? t('notif.unread') : t('notif.read')}
+          aria-hidden="true"
           className={cn(
             'h-1.5 w-1.5 shrink-0 rounded-full',
             state === 'unread' ? 'bg-status-action' : 'bg-transparent',
           )}
         />
-        <span className="min-w-0 flex-1 truncate">
+        {/* **키보드로도 연다**(2026-09-25 — UI/UX 검토 HUB-X1 · REQ-WEB-224). 행이 `<li onClick>` 뿐이라 Tab 으로
+            닿지 않았고 Enter 로 열 수 없었다 — 본문이 링크다(주소도 싣는다). 누르면 행과 같은 일을 한다 */}
+        <a
+          href={routed}
+          data-testid="notification-link"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            open();
+          }}
+          className="min-w-0 flex-1 truncate"
+        >
+          {/* role 없는 점의 aria-label 은 읽히지 않는다 — 안 읽음은 글자로 말한다 */}
+          {state === 'unread' && <span className="sr-only">{t('notif.unread')}: </span>}
           <span className="font-medium text-text">{t(eventLabelKey(type))}</span>
           {/* **무엇에 대한 알림인가**(REQ-WEB-210 · REQ-API-181) — 키와 버전, 그리고 제목. 결재·질문
               알림은 키도 제목도 없이 "승인 요청" 만 반복했다 */}
@@ -203,7 +218,7 @@ function NotificationScreen(): React.JSX.Element {
               })}
             </span>
           )}
-        </span>
+        </a>
         {members.length > 1 && (
           <button
             type="button"
@@ -244,7 +259,8 @@ function NotificationScreen(): React.JSX.Element {
             <Button
               size="sm"
               variant="ghost"
-              className="opacity-0 group-hover:opacity-100"
+              // 키보드 포커스·터치에서도 보인다 — 투명한 채 포커스를 받으면 고리까지 함께 사라졌다
+              className={REVEAL_ON_HOVER}
               onClick={(e) => {
                 e.stopPropagation(); // 이동 없이 읽음만 처리하는 경로도 남긴다
                 for (const id of unreadIds) markRead.mutate(id);

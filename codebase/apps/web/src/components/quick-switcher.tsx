@@ -23,6 +23,7 @@ import { chapterForRoute } from '../lib/manual.js';
 import { inOrgHref, useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
 import { StatusBadge } from './status-badge.js';
+import { useModal } from './ui/modal.js';
 import { SPEC_VERSION_TOKEN } from './status-token.js';
 import type { StatusToken } from './status-badge.js';
 
@@ -161,8 +162,6 @@ export function QuickSwitcher({
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  /** 연 자리 — 닫으면 포커스를 돌려준다(REQ-WEB-223 · NAV-12) */
-  const openerRef = useRef<Element | null>(null);
   const listId = useId();
   // **핀은 상태다.** localStorage 만 보고 그리면 눌러도 화면이 그대로라, 판정과 저장은
   // 있는데 쓸 수 없었다 — 2026-09-05 감사까지 이 목록에 단추가 없던 자리다.
@@ -286,19 +285,13 @@ export function QuickSwitcher({
     if (cursor > items.length - 1) setCursor(Math.max(0, items.length - 1));
   }, [items.length, cursor]);
 
+  // 첫 포커스는 입력칸 · Esc 는 어디서든 · Tab 은 안에서 · 닫으면 연 자리로 — 모달 한 벌의 규칙이다(REQ-WEB-224)
+  const { onKeyDown: modalKeys } = useModal(open, boxRef, onClose, inputRef);
   useEffect(() => {
-    if (open) {
-      openerRef.current = document.activeElement;
-      inputRef.current?.focus();
-      return;
-    }
+    if (open) return;
     setQuery('');
     setHits([]);
     setCursor(0);
-    // **연 자리로 돌려준다** — 닫은 뒤 포커스가 문서 맨 앞으로 떨어지면 키보드로 일하던 자리를 잃는다
-    const opener = openerRef.current;
-    openerRef.current = null;
-    if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
   }, [open]);
 
   useEffect(() => {
@@ -322,24 +315,6 @@ export function QuickSwitcher({
     },
     [onClose, orgSlug, router],
   );
-
-  /** **Tab 을 대화상자 안에 가둔다** — 뒤의 페이지로 새면 aria-modal 이 거짓말이 된다 */
-  const trapTab = (e: React.KeyboardEvent): void => {
-    if (e.key !== 'Tab' || boxRef.current === null) return;
-    const focusables = Array.from(
-      boxRef.current.querySelectorAll<HTMLElement>('input, button:not([disabled])'),
-    );
-    if (focusables.length === 0) return;
-    const first = focusables[0]!;
-    const last = focusables[focusables.length - 1]!;
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
 
   if (!open) return null;
 
@@ -368,13 +343,7 @@ export function QuickSwitcher({
       className="fixed inset-0 z-50 flex items-start justify-center bg-text/20 pt-[15vh] backdrop-blur-[2px]"
       onClick={onClose}
       // Esc 는 **어디서든** 닫는다 — 입력칸에 있을 때만 먹던 동안 고정 단추로 옮겨 가면 닫을 수 없었다
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.stopPropagation();
-          onClose();
-        }
-        trapTab(e);
-      }}
+      onKeyDown={modalKeys}
     >
       <div
         ref={boxRef}

@@ -853,6 +853,7 @@ export const ko = {
   'shell.notifications': '알림',
   'shell.theme': '테마',
   'shell.settings': '설정',
+  'shell.skip_to_main': '본문으로 건너뛰기',
   'theme.dark': '어둡게',
   'theme.light': '밝게',
   'theme.system': '시스템',
@@ -1315,6 +1316,7 @@ export const ko = {
   'specs.show_archived_hint': '보관한 문서까지 목록에 담습니다 — 복구는 그 문서에서 합니다',
   'specs.title': '스펙',
   'specs.tree_filter': '트리 필터',
+  'specs.tree_label': '스펙 트리',
   // ── S3 스펙 상세 (screens.md §2.4·§3) ───────────────────────────────────────
   'spec.backlinks': '역참조 {count}건',
   'spec.backlinks_hint': '고치면 흔들리는 문서',

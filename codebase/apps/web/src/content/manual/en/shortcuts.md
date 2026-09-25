@@ -27,9 +27,27 @@ Press the **☆** at the right of a row to pin that document (★); press it aga
 
 Inside the panel `Tab` cycles between the input and the ☆ buttons and does not escape to the screen behind. `Esc` closes it from anywhere, and closing returns you to **where you were before opening it**. Screen readers hear the input as a combo box owning the list, and the highlighted row as the chosen one.
 
+## The screen by keyboard
+
+**The first `Tab` shows "Skip to main content"** — press `Enter` to skip the header and sidebar and start in the page itself.
+
+**Header menus** (organization · project · help · user) move to their first item when opened. `Esc` closes them and returns you to the button that opened them; tabbing out of a menu closes it.
+
+**The spec tree is a single `Tab` stop** — once inside, move with keys. The expand buttons do not take `Tab`.
+
+| Key            | Action                                                     |
+| -------------- | ---------------------------------------------------------- |
+| `↑` · `↓`      | Move between rows                                          |
+| `→`            | Expand a collapsed branch — if open, go to its first child |
+| `←`            | Collapse an open branch — on a leaf, go to its parent      |
+| `Home` · `End` | First · last                                               |
+| `Enter`        | Open that document                                         |
+
+**Notifications: `Tab` to a row and press `Enter`** — like clicking, it marks the row read and takes you there. **[Read]** is always visible when the row has focus or on a touch screen.
+
 ## Dialogs and panels
 
-`Esc` closes — the **Spec metadata** dialog ([⋯ Metadata]), the **Create baseline** dialog, a diagram's **full screen**, the panel for a selected node in the **relationship graph**, and any **ask-once-more confirmation** (same as cancelling it). In a dialog showing a confirmation, `Esc` closes only the confirmation.
+`Esc` closes — the **Spec metadata** dialog ([⋯ Metadata]), the **Create baseline** dialog, a diagram's **full screen**, the panel for a selected node in the **relationship graph**, and any **ask-once-more confirmation** (same as cancelling it). In a dialog showing a confirmation, `Esc` closes only the confirmation. While a dialog is open `Tab` cycles inside it, and closing it returns you to **the button that opened it**.
 
 When resolving a review finding, in the field that picks a spec, `↓` moves down into the results and `Enter` takes the first one.
 

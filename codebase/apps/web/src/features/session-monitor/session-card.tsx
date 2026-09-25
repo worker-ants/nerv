@@ -10,7 +10,7 @@ import { useT } from '../../lib/i18n.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
 import type { StatusToken } from '../../components/status-badge.js';
-import { Avatar } from '../../components/ui/primitives.js';
+import { Avatar, REVEAL_ON_HOVER } from '../../components/ui/primitives.js';
 import { EntityLink } from '../../components/entity-link.js';
 import { cn } from '../../lib/utils.js';
 import { diffStat, identity, leaseRemaining, relativeTime } from './format.js';
@@ -177,10 +177,15 @@ export function SessionCard({
           겹침을 읽어야 할 때는 hover 로 드러난다(REQ-WEB-019 는 표기 여부만 요구한다) */}
       {card.scope_file_globs.length > 0 && (
         <div
-          className="hidden w-40 shrink-0 truncate font-mono text-2xs text-text-faint opacity-0 transition-opacity group-hover:opacity-100 @5xl:block"
+          className={cn(
+            'hidden w-40 shrink-0 truncate font-mono text-2xs text-text-faint transition-opacity @5xl:block',
+            // 키보드 포커스·터치에서도 드러난다 — 겹침을 가르는 단서가 입력 수단에 따라 사라지면 안 된다
+            REVEAL_ON_HOVER,
+          )}
           title={card.scope_file_globs.join('\n')}
-          aria-label={t('session.scope')}
         >
+          {/* role 없는 칸의 aria-label 은 읽히지 않는다 — 이름은 글자로 둔다 */}
+          <span className="sr-only">{t('session.scope')}: </span>
           {card.scope_file_globs[0]}
           {card.scope_file_globs.length > 1 && ` +${card.scope_file_globs.length - 1}`}
         </div>
