@@ -112,10 +112,12 @@ describe('관계 하위 탭 (2026-08-24 · 사람 지시)', () => {
   });
 
   it('역참조 설명은 그 무리의 **머리**에 있다 — 꼬리에 달면 다 읽은 뒤에야 안다', async () => {
-    await waitFor(() => expect(screen.queryByText('고치면 흔들리는 문서')).not.toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByText('이 문서를 고치면 영향을 받는 문서')).not.toBeNull(),
+    );
     const rail = screen.getByTestId('rel-tab-all').closest('aside');
     const nodes = [...(rail?.querySelectorAll('p, a[href*="/specs/"]') ?? [])];
-    const hint = nodes.findIndex((n) => n.textContent === '고치면 흔들리는 문서');
+    const hint = nodes.findIndex((n) => n.textContent === '이 문서를 고치면 영향을 받는 문서');
     const firstLink = nodes.findIndex((n) => n.tagName === 'A');
     expect(hint).toBeGreaterThanOrEqual(0);
     expect(hint).toBeLessThan(firstLink);
@@ -138,10 +140,12 @@ describe('관계 하위 탭 (2026-08-24 · 사람 지시)', () => {
   });
 
   it('레퍼런스만 볼 때는 역참조 설명을 달지 않는다 — 지금 보는 것을 잘못 읽게 된다', async () => {
-    await waitFor(() => expect(screen.queryByText('고치면 흔들리는 문서')).not.toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByText('이 문서를 고치면 영향을 받는 문서')).not.toBeNull(),
+    );
 
     fireEvent.click(screen.getByTestId('rel-tab-out'));
-    await waitFor(() => expect(screen.queryByText('고치면 흔들리는 문서')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('이 문서를 고치면 영향을 받는 문서')).toBeNull());
   });
 });
 

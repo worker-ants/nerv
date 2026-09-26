@@ -121,7 +121,7 @@ describe('SessionStart — 등록 + 컨텍스트 주입', () => {
     // 래퍼가 계약이다 — 최상위로 돌려주면 훅은 성공하고 주입만 사라진다
     expect(res.body['hookSpecificOutput']).toMatchObject({ hookEventName: 'SessionStart' });
     expect(res.body['additionalContext']).toBeUndefined();
-    expect(injected(res.body)).toContain('활성 클레임 없음');
+    expect(injected(res.body)).toContain('활성 클레임이 없다');
 
     const { rows } = await pool.query<{ hostname: string; state: string; agent_type: string }>(
       `SELECT hostname, state::text AS state, agent_type::text AS agent_type

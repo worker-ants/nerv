@@ -131,7 +131,7 @@ describe('읽은 자리에서 처분한다 (REQ-WEB-222)', () => {
     expect(await rail.findByTestId('resolve-dialog')).toBeDefined();
     expect(within(cards[1]!).queryByTestId('resolve-dialog')).toBeNull();
     // 유예는 "나중에 할 일" 과 헷갈린다 — Task 로 올리는 길을 곁에서 말한다
-    expect(rail.getByTestId('resolve-wont-fix-hint').textContent).toContain('Task 로 올리기');
+    expect(rail.getByTestId('resolve-wont-fix-hint').textContent).toContain('작업으로 등록');
   });
 
   it('처분 단추는 권한이 있어도 무엇을 요구하는지 말한다', async () => {
@@ -139,7 +139,7 @@ describe('읽은 자리에서 처분한다 (REQ-WEB-222)', () => {
     const card = within((await screen.findAllByTestId('finding-card'))[0]!);
     expect(card.getByTestId('resolve-fixed').getAttribute('title')).toContain('커밋 SHA');
     expect(card.getByTestId('resolve-spec_change').getAttribute('title')).toContain('스펙');
-    expect(card.getByTestId('resolve-wont_fix').getAttribute('title')).toContain('Task 로');
+    expect(card.getByTestId('resolve-wont_fix').getAttribute('title')).toContain('작업으로');
   });
 
   it('좁은 폭에서도 폼은 그 카드 아래에 편 레일 안에 선다', async () => {

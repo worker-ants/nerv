@@ -289,7 +289,7 @@ describe('온보딩 — 역할의 범위와 다음 행동', () => {
     renderAt('/onboarding');
     const link = await screen.findByRole('link', { name: /작업 보드/ });
     expect(link.getAttribute('href')).toBe('/p/sudoku/tasks');
-    expect(screen.getByText('② Default · 스도쿠에서 당신의 역할: developer')).toBeDefined();
+    expect(screen.getByText('② Default · 스도쿠에서 내 역할: developer')).toBeDefined();
   });
 });
 
@@ -315,7 +315,7 @@ describe('멤버 표는 사람마다 한 묶음 (REQ-WEB-194 · 결정 2)', () =
     const project = within(rows[1]!).getByTestId('role-planner') as HTMLButtonElement;
     expect(project.getAttribute('data-inherited')).toBe('true');
     expect(project.disabled).toBe(true);
-    expect(project.getAttribute('title')).toContain('상속');
+    expect(project.getAttribute('title')).toContain('조직 전체 역할이라');
     // 조직 전체 줄의 planner 는 실제로 켜져 있다 — 상속이 아니다
     expect(within(rows[0]!).getByTestId('role-planner').getAttribute('aria-pressed')).toBe('true');
     // 조직 역할이 없는 사람에게는 상속 표시가 없다

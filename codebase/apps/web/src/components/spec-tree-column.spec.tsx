@@ -154,7 +154,7 @@ describe('찾는 칸 — 둘째 열의 머리는 제목 거르기다', () => {
     const col = await column();
     await within(col).findByText('임베드');
     const filter = within(col).getByTestId('tree-title-filter');
-    expect(filter.getAttribute('placeholder')).toBe('제목·키로 거르기');
+    expect(filter.getAttribute('placeholder')).toBe('제목·키로 찾기');
     fireEvent.change(filter, { target: { value: '위젯' } });
     expect(within(col).queryByText('임베드')).toBeNull();
     expect(within(col).getByText('위젯')).toBeDefined();

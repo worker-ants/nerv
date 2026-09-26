@@ -158,7 +158,7 @@ describe('받은 요청 — 수는 누를 수 있는 것이다 (REQ-WEB-217)', (
     await waitFor(() => expect(cardCount()).toBe(5));
     // 잠긴 이유는 카드마다 그대로 적힌다(REQ-WEB-145) — 묶음은 순서를 정할 뿐이다
     expect(screen.getByText('내가 올린 문서')).toBeDefined();
-    expect(screen.getByTestId('inbox-locked').textContent).toContain('요청을 거둘 때는');
+    expect(screen.getByTestId('inbox-locked').textContent).toContain('요청을 취소하려면');
   });
 
   it('찾아온 카드가 묶음 안이면 묶음을 편다 — `?focus=` 가 닿는다', async () => {
@@ -189,7 +189,7 @@ describe('홈 — 인사와 오늘 할 일도 같은 수다 (REQ-WEB-217)', () =
     renderAt('/');
     const strip = await screen.findByTestId('today-strip');
     await waitFor(() => expect(strip.textContent).toContain('열린 문서'));
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('결정 3건');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('결정할 일이 3건');
     expect(strip.textContent).not.toContain('내가 올린 문서');
     // 수에서는 뺐지만 사라지지는 않는다 — 남의 결정을 기다리는 것이 따로 선다
     expect(screen.getByTestId('home-others-waiting').textContent).toContain('2건');
@@ -200,7 +200,7 @@ describe('홈 — 인사와 오늘 할 일도 같은 수다 (REQ-WEB-217)', () =
     renderAt('/');
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
-        '밀린 결정이 없습니다',
+        '기다리는 결정이 없습니다',
       ),
     );
     expect(screen.getByTestId('home-others-waiting').textContent).toContain('2건');

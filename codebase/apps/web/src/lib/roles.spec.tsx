@@ -135,9 +135,9 @@ afterEach(() => {
 describe('조직 단위 admin 이 admin 으로 대접받는다', () => {
   it('스펙 메타 편집이 열려 있다 (사람 보고 2026-08-24)', async () => {
     renderAt('/p/clemvion/specs/SPC-CWC-007');
-    await waitFor(() => expect(screen.getByRole('button', { name: /메타/ })).toBeDefined());
+    await waitFor(() => expect(screen.getByRole('button', { name: /문서 정보/ })).toBeDefined());
 
-    fireEvent.click(screen.getByRole('button', { name: /메타/ }));
+    fireEvent.click(screen.getByRole('button', { name: /문서 정보/ }));
     await waitFor(() => expect(screen.getByText(/제목/)).toBeDefined());
     // 읽기 전용 경고가 뜨면 그것이 곧 이 결함이다
     expect(screen.queryByText(/읽기 전용/)).toBeNull();

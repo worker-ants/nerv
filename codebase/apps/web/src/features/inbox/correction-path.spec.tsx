@@ -100,7 +100,7 @@ describe('처리됨 카드는 바로잡는 길을 싣는다 (REQ-WEB-239)', () =
       }),
     );
     const line = await screen.findByTestId('correction-path');
-    expect(line.textContent).toContain('보낸 승인은 거둘 수 없습니다');
+    expect(line.textContent).toContain('보낸 승인은 취소할 수 없습니다');
     expect(line.textContent).toContain('새 초안');
     const link = screen.getByTestId('correction-link');
     expect(link.getAttribute('href')).toContain('/p/clemvion/specs/SPC-CWC-007');
@@ -123,7 +123,7 @@ describe('처리됨 카드는 바로잡는 길을 싣는다 (REQ-WEB-239)', () =
       decided({ subject_type: 'plan', task_key: 'CLV-T-1KTDCK', decision: 'approve' }),
     );
     const line = await screen.findByTestId('correction-path');
-    expect(line.textContent).toContain('다시 서지 않습니다');
+    expect(line.textContent).toContain('되돌릴 수 없습니다');
     expect(line.textContent).toContain('클레임');
     expect(screen.getByTestId('correction-link').getAttribute('href')).toContain(
       '/p/clemvion/tasks/CLV-T-1KTDCK',
@@ -137,7 +137,7 @@ describe('처리됨 카드는 바로잡는 길을 싣는다 (REQ-WEB-239)', () =
     expect((await screen.findByTestId('correction-path')).textContent).toContain('새 발견');
     cleanup();
     await renderCard(decided({ subject_type: 'gate_bypass', decision: 'approve' }));
-    expect((await screen.findByTestId('correction-path')).textContent).toContain('새 결정');
+    expect((await screen.findByTestId('correction-path')).textContent).toContain('새로 결정');
   });
 
   it('대기 카드에는 서지 않는다 — 결정하기 전에는 바로잡을 것이 없다', async () => {

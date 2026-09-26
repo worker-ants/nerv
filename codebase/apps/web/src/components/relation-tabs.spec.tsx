@@ -25,7 +25,7 @@ describe('RelationTabs', () => {
     renderTabs('all');
     expect(screen.getByTestId('rel-tab-all').textContent).toBe('전체7');
     expect(screen.getByTestId('rel-tab-in').textContent).toBe('역참조3');
-    expect(screen.getByTestId('rel-tab-out').textContent).toBe('레퍼런스4');
+    expect(screen.getByTestId('rel-tab-out').textContent).toBe('참조4');
   });
 
   it('고른 것을 aria-pressed 로 말한다 — 색만으로 구분하지 않는다(REQ-WEB-033)', () => {

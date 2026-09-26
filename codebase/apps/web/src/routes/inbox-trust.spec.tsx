@@ -284,7 +284,7 @@ describe('무엇을 · 누가 · 왜 (REQ-WEB-204)', () => {
     await waitFor(() => expect(cards()).toHaveLength(1));
     const line = within(cards()[0] as HTMLElement).getByTestId('gate-rationale');
     expect(line.textContent).toBe(
-      '4축 3점 (부작용 2 · 민감도 1 · 가역성 0 · 영향 범위 0) · 이 문서의 첫 승인 버전 → 티어 +1',
+      '위험도 3점 (부작용 2 · 민감도 1 · 가역성 0 · 영향 범위 0) · 이 문서의 첫 승인 버전 → 티어 +1',
     );
     expect(line.querySelectorAll('[data-signal]')).toHaveLength(1);
   });
@@ -336,7 +336,7 @@ describe('무엇을 · 누가 · 왜 (REQ-WEB-204)', () => {
     await waitFor(() => expect(cards()).toHaveLength(2));
     const first = within(cards()[0] as HTMLElement).getByTestId('gate-rationale');
     expect(first.textContent).toMatch(
-      /^4축 3점 \(부작용 2 · 민감도 1 · 가역성 0 · 영향 범위 0\) · 이 문서의 첫 승인 버전 · 같은 실패 3회 신고 \(e2e 가 세 번 깨진다 · .+ ▸\) → 티어 \+1$/,
+      /^위험도 3점 \(부작용 2 · 민감도 1 · 가역성 0 · 영향 범위 0\) · 이 문서의 첫 승인 버전 · 같은 실패 3회 신고 \(e2e 가 세 번 깨진다 · .+ ▸\) → 티어 \+1$/,
     );
     expect(within(first).getByTestId('gate-evidence').getAttribute('href')).toBe(
       '/p/clemvion/tasks/CLV-T-1KTDCK',

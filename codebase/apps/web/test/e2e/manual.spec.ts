@@ -46,7 +46,7 @@ test('본문을 내려도 페이지·차례·문서 안 목차는 제자리다',
   expect(moved.scrolled).toBeGreaterThan(0);
   // 페이지에는 스크롤이 없다 — 본문이 아무리 길어도 문서가 자라지 않는다
   expect(moved.docOverflow).toBeLessThanOrEqual(1);
-  // 차례와 "이 문서 안" 은 따라 움직이지 않는다
+  // 차례와 "이 페이지 목차" 는 따라 움직이지 않는다
   expect(moved.tocShift).toBeLessThanOrEqual(1);
   expect(moved.onThisPageShift).toBeLessThanOrEqual(1);
 });

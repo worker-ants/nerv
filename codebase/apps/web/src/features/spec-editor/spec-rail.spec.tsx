@@ -106,7 +106,7 @@ describe('요구사항 패널', () => {
     await withProviders(<RequirementPanel projectSlug="clemvion" specKey="SPC-CWC-007" />);
     // 문구는 "블록" 에서 "줄" 로 바뀌었다(2026-09-24 · SPEC-14) — 사람이 쓰는 것은 본문의 한 줄이다.
     // 다음 행동은 둘이다: 줄의 형식이 그 자리에 보이고, 매뉴얼로 가는 길이 있다
-    await waitFor(() => expect(screen.getByText(/요구사항 줄이 없습니다/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/요구사항이 없습니다/)).toBeTruthy());
     expect(screen.getByTestId('requirements-empty').textContent).toContain('THE SYSTEM SHALL');
     expect(
       screen

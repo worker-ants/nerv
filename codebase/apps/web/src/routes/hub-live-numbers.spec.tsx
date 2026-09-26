@@ -164,7 +164,7 @@ describe('개요의 활성 세션은 끝나지 않은 셋이다 (HUB-10 · REQ-W
     };
     renderAt('/p/clemvion');
     // 빈 상태와 "0개" 는 받아 온 뒤에만 선다 — 그 전에 0 이라 말하면 모르는 것을 없다고 한다
-    expect(await screen.findByText('지금 도는 세션이 없습니다.')).toBeDefined();
+    expect(await screen.findByText('지금 실행 중인 세션이 없습니다.')).toBeDefined();
     expect(screen.getByText('활성 세션 0개')).toBeDefined();
     expect(
       screen
@@ -200,7 +200,7 @@ describe('개요 머리가 여기서 나를 기다리는 것을 말한다 (HUB-0
     board.summary = { ...board.summary, awaiting_input: 0 };
     renderAt('/p/clemvion');
     const line = await screen.findByTestId('project-waiting');
-    await waitFor(() => expect(line.textContent).toContain('기다리는 것은 없습니다'));
+    await waitFor(() => expect(line.textContent).toContain('내가 결정할 항목은 없습니다'));
   });
 });
 

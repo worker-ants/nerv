@@ -78,7 +78,7 @@ describe('번역', () => {
 
   it('Message 는 로케일을 나중에 정한다 — 던질 때가 아니라 응답할 때', () => {
     const m = msg('error.task.not_ready', { status: 'backlog' });
-    expect(renderMessage(m, 'ko')).toBe('작업이 ready 가 아닙니다(backlog).');
+    expect(renderMessage(m, 'ko')).toBe('작업이 준비됨 상태가 아닙니다(backlog).');
     expect(renderMessage(m, 'en')).toBe('The task is not ready (backlog).');
   });
 });

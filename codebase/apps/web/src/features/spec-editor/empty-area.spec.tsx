@@ -92,7 +92,7 @@ describe('본문 없는 area 노드 (REQ-WEB-068)', () => {
     stub(AREA);
     await renderSpec();
     const note = screen.getByTestId('spec-empty-body').textContent ?? '';
-    expect(note).toContain('디렉터리를 묶는 노드');
+    expect(note).toContain('하위 문서를 묶는 노드');
     // 원본에 개요 문서가 없다는 사실까지 말해야 "사라진 것"과 구별된다
     expect(note).toContain('_product-overview.md');
   });

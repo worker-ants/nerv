@@ -228,7 +228,7 @@ describe('떠난 사람을 내보낸다 (REQ-WEB-201)', () => {
     const row = await firstRowOf('관리자');
     const exit = within(row).getByTestId('member-offboard') as HTMLButtonElement;
     expect(isLocked(exit)).toBe(true);
-    expect(reasonOf(exit)).toBe('자신은 내보낼 수 없습니다.');
+    expect(reasonOf(exit)).toBe('자기 자신은 내보낼 수 없습니다.');
   });
 });
 
@@ -239,7 +239,7 @@ describe('조직의 마지막 admin (REQ-WEB-201 · REQ-API-174)', () => {
     const chip = within(row).getByTestId('role-admin') as HTMLButtonElement;
     await waitFor(() => expect(chip.disabled).toBe(true));
     expect(chip.title).toBe(
-      '이 조직의 마지막 admin 입니다 — 다른 사람을 먼저 조직 admin 으로 세우세요.',
+      '이 조직의 마지막 admin 입니다. 다른 사람을 먼저 조직 admin 으로 지정하세요.',
     );
   });
 
@@ -268,7 +268,9 @@ describe('조직의 마지막 admin (REQ-WEB-201 · REQ-API-174)', () => {
       await waitFor(() => expect(chip.disabled).toBe(false));
       fireEvent.click(chip);
       expect(sent).toHaveLength(0);
-      expect(screen.getByTestId('self-admin-confirming').textContent).toContain('편집이 잠깁니다');
+      expect(screen.getByTestId('self-admin-confirming').textContent).toContain(
+        '편집할 수 없게 됩니다',
+      );
       fireEvent.click(screen.getByTestId('self-admin-confirm'));
       await waitFor(() => expect(sent).toHaveLength(1));
       expect(sent[0]?.url).toMatch(/\/memberships\/m-admin$/);
@@ -324,7 +326,7 @@ describe('게이트 정책 — 칸 셋 · 검증 · 전후 (REQ-WEB-201)', () =>
     fireEvent.click(screen.getByTestId('gates-save'));
     expect(sent).toHaveLength(0);
     expect(screen.getByTestId('gates-save-confirming').textContent).toContain(
-      '자동 통과가 넓어집니다',
+      '자동 통과 범위가 넓어집니다',
     );
     fireEvent.click(screen.getByTestId('gates-save-confirm'));
     await waitFor(() => expect(sent).toHaveLength(1));

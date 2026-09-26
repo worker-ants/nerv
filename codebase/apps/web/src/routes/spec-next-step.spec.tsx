@@ -207,7 +207,7 @@ describe('초안이면 [검토 요청]이 머리에 있다', () => {
       expect((screen.getByTestId('submit-review') as HTMLButtonElement).disabled).toBe(true),
     );
     expect(screen.getByTestId('submit-blocked').textContent).toContain('2건');
-    expect(screen.getByTestId('check-findings').textContent).toContain('막음');
+    expect(screen.getByTestId('check-findings').textContent).toContain('차단');
     expect(screen.getByTestId('check-findings').textContent).not.toContain('block');
   });
 });

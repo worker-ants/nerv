@@ -95,7 +95,7 @@ describe('실시간만 끊기면 헤더의 점이다 (REQ-WEB-002)', () => {
     expect(screen.queryByTestId('connection-banner')).toBeNull();
     // 늘 있는 알림 자리에 문장이 들어온다 — 새로 생긴 알림 자리는 읽히지 않는 보조기기가 있다
     expect(screen.getByTestId('connection-live').getAttribute('role')).toBe('status');
-    expect(screen.getByTestId('connection-live').textContent).toContain('폴링');
+    expect(screen.getByTestId('connection-live').textContent).toContain('주기적으로');
   });
 
   it('누르면 무엇이 되고 안 되는지와 언제 끊겼는지 말한다 — Esc 로 닫고 그 단추로 돌아간다', async () => {
@@ -111,7 +111,7 @@ describe('실시간만 끊기면 헤더의 점이다 (REQ-WEB-002)', () => {
     const detail = screen.getByTestId('connection-detail');
     expect(detail.textContent).toContain('실시간 갱신이 끊겼습니다');
     expect(detail.textContent).toContain('15초마다 새로 받습니다');
-    expect(detail.textContent).toContain('쓰기는 그대로 됩니다');
+    expect(detail.textContent).toContain('수정은 그대로 할 수 있고');
     expect(detail.textContent).toMatch(/\d+초 전 끊겼습니다/);
 
     fireEvent.keyDown(window, { key: 'Escape' });

@@ -122,7 +122,7 @@ describe('SessionCard — REQ-WEB-019 필수 표기', () => {
 
   it('stale 카드는 왜 그렇게 됐는지까지 적는다 (REQ-WEB-020 · D-13)', async () => {
     render(<SessionCard card={{ ...base, state: 'stale' }} now={NOW} />);
-    expect(screen.getByText(/무활동 임계 30:00 초과/)).toBeDefined();
+    expect(screen.getByText(/30분 동안 활동이 없어/)).toBeDefined();
     // 상태는 색만이 아니라 라벨로도 나온다(REQ-WEB-033)
     expect(screen.getByText('무응답')).toBeDefined();
   });
@@ -291,7 +291,7 @@ describe('스트립은 필터다 (REQ-WEB-116)', () => {
     await waitFor(() => expect(screen.queryByTestId('session-summary')).not.toBeNull());
     // 부트스트랩 안내가 아니라 "그 상태가 없다" + 전부 보기다
     expect(screen.queryByText(/nerv_bootstrap/)).toBeNull();
-    expect(screen.getByText('전부 보기')).toBeDefined();
+    expect(screen.getByText('모두 보기')).toBeDefined();
   });
 
   it('고를 수 없는 화면에서는 단추처럼 굴지 않는다 — 개요 카드의 스트립이 그 자리다', async () => {

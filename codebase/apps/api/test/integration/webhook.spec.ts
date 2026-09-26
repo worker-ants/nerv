@@ -160,7 +160,7 @@ describe('Task 연결 — 브랜치·제목·본문 어디서든 찾는다', () 
     };
     await post(payload);
     const second = await post(payload);
-    expect(second.body['skipped_reason']).toContain('멱등');
+    expect(second.body['skipped_reason']).toContain('이미 수집된 증적');
 
     const { rows } = await pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM evidence WHERE task_id = $1`,

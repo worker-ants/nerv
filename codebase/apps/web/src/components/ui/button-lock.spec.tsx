@@ -148,7 +148,7 @@ describe('오프라인이면 쓰기 단추가 잠긴다 (SYS-09 · REQ-WEB-235)'
     act(() => goOffline(true));
     expect(approve.getAttribute('aria-disabled')).toBe('true');
     expect(approve.getAttribute('data-reason')).toBe(
-      '오프라인입니다 — 서버에 닿으면 다시 누를 수 있습니다.',
+      '오프라인입니다. 서버에 다시 연결되면 누를 수 있습니다.',
     );
     expect(screen.getByRole('button', { name: '반려' }).getAttribute('aria-disabled')).toBe('true');
     // 읽기만 하는 단추는 그대로다 — 오프라인에도 볼 수는 있다
@@ -193,6 +193,8 @@ describe('배너 두 단계가 모양으로 갈린다 (D8 · REQ-WEB-235)', () =
     expect(banner.className).toContain('bg-status-idle');
     expect(banner.className).not.toContain('bg-status-waiting-soft');
     expect(banner.textContent).toMatch(/⚠/);
-    expect(banner.textContent).toMatch(/\d{2}:\d{2} 에 받은 것이고, 쓰기는 복구될 때까지 잠깁니다/);
+    expect(banner.textContent).toMatch(
+      /\d{2}:\d{2} 에 받은 것이고, 연결이 복구될 때까지 수정할 수 없습니다/,
+    );
   });
 });
