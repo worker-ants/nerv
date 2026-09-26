@@ -154,9 +154,10 @@ describe('키 이름 규약', () => {
 // 바로 아래 문장은 "기다리는 항목이 없습니다." 였다 — 한 카드 안에서 말투가 바뀌었다. 해요체 여덟 · 해라체 둘이
 // 새 화면이 들어올 때마다 조용히 늘었다(그중 하나는 전날 들어온 로그인 화면이다). **요청형 "-세요" 는 허용한다**
 // (D5 — "다시 시도하십시오" 는 화면에서 딱딱하다). 설계 문서의 말(결정 번호 · "MVP")도 화면에 새지 않는다.
+/** 에이전트·CLI 가 받는 것과 생성 문서 — 해라체다(§3.1). 화면 묶음은 이 키를 세지 않고, 아래 묶음이 센다 */
+const AGENT_PREFIXES = ['mcp.', 'agent.', 'cli.', 'import.', 'export.'];
+
 describe('말투 — 사람이 보는 화면은 합쇼체다', () => {
-  /** 에이전트·CLI 가 받는 것과 생성 문서 — 해라체다(§3.1). 여기서는 세지 않는다 */
-  const AGENT_PREFIXES = ['mcp.', 'agent.', 'cli.', 'import.', 'export.'];
   /**
    * 해라체가 맞는 화면 문구 — **문구 자체가 해라체로 쓰는 형식의 견본**이다. 요구사항 문장의 모양
    * (`… THE SYSTEM SHALL <동작>한다`)을 보여 주는 자리라, 합쇼체로 바꾸면 틀린 견본이 된다.
@@ -197,5 +198,34 @@ describe('말투 — 사람이 보는 화면은 합쇼체다', () => {
     for (const key of HAERA_SAMPLES) {
       expect(ko[key as keyof typeof ko]).toMatch(/다$/);
     }
+  });
+});
+
+// ── 반대 방향 (2026-09-26 · glossary §3.1) ──────────────────────────────────────────────────
+//
+// 화면 묶음이 들어온 날(2026-09-25) 반대 방향은 세지 않았다 — 에이전트·CLI 키에 합쇼체가 열 곳 있었다(훅 메시지
+// `agent.*` 셋 · `cli.err.*` 여섯 · `mcp.error.tool_failed`). 훅 응답은 그 옆에 합쇼체 문장을 카탈로그 밖에서 이어
+// 붙여, SessionStart 가 모델에 주입하는 한 줄 안에서 "…있습니다. …끝내세요." 로 말투가 두 번 바뀌었다.
+describe('말투 — 에이전트·CLI 가 받는 것은 해라체다', () => {
+  const agent = Object.entries(ko).filter(([key]) =>
+    AGENT_PREFIXES.some((prefix) => key.startsWith(prefix)),
+  );
+  /** 종성이 ㅂ 인 음절 + "니다" — 합니다 · 입니다 · 습니다 · 됩니다. "아니다" 는 걸리지 않는다 */
+  const hapsho = (value: string): boolean =>
+    [...value.matchAll(/([\uAC00-\uD7A3])니다/gu)].some(
+      (m) => ((m[1] ?? '').charCodeAt(0) - 0xac00) % 28 === 17,
+    );
+
+  it('합쇼체가 없다 — "ㅂ니다" 는 "다" 다', () => {
+    expect(agent.filter(([, value]) => hapsho(value)).map(([key]) => key)).toEqual([]);
+    expect(hapsho('도구 실행에 실패했습니다.')).toBe(true);
+    expect(hapsho('함께 쓸 수 없습니다.')).toBe(true);
+    expect(hapsho('해석하지 못했습니다: {content}')).toBe(true);
+    expect(hapsho('사용자 id 문자열이 아니다.')).toBe(false);
+  });
+
+  it('요청형 "-세요" 도 없다 — 에이전트에게는 할 일을 "-한다" 로 적는다', () => {
+    const seyo = /세요(?=[.?!,)\s]|$)/;
+    expect(agent.filter(([, value]) => seyo.test(value)).map(([key]) => key)).toEqual([]);
   });
 });

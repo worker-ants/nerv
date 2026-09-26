@@ -53,7 +53,7 @@
     <h1>용어 사전</h1>
     <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 35개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.7 (2026-09-25)</span>
+      <span>버전 v0.8 (2026-09-26)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -259,7 +259,7 @@
       <tr><td>토큰 <code>prefix</code></td><td>앞자리</td><td>토큰 표의 열 머리 · 발급 안내</td></tr>
     </tbody>
   </table></div>
-  <p><b>검사가 센다</b>(2026-09-25). <code>packages/schema/src/i18n/i18n.spec.ts</code> 의 "말투" 묶음이 화면 키 전부(위 표의 에이전트·생성 문서 머리 다섯을 뺀 것)에서 해요체 문장 끝 · 해라체 문장 끝("니다" 가 아닌 "다") · 결정 번호와 "MVP" 를 찾는다. 해라체가 맞는 견본(요구사항 문형 <code>spec.requirements.format</code>)만 이름으로 비켜 둔다. <b>반대 방향은 아직 세지 않는다</b> — 에이전트·CLI 키에 합쇼체가 아홉 곳 있다(2026-09-25 실측 — 훅 메시지 <code>agent.*</code> 셋 · <code>cli.err.*</code> 다섯 · <code>mcp.error.tool_failed</code>).</p>
+  <p><b>검사가 센다</b>(2026-09-25). <code>packages/schema/src/i18n/i18n.spec.ts</code> 의 "말투" 묶음이 화면 키 전부(위 표의 에이전트·생성 문서 머리 다섯을 뺀 것)에서 해요체 문장 끝 · 해라체 문장 끝("니다" 가 아닌 "다") · 결정 번호와 "MVP" 를 찾는다. 해라체가 맞는 견본(요구사항 문형 <code>spec.requirements.format</code>)만 이름으로 비켜 둔다. <b>반대 방향도 센다</b>(2026-09-26) — 에이전트·CLI 키(위 표의 다섯 머리)에서 합쇼체(종성이 ㅂ 인 음절 + "니다" — "아니다" 는 걸리지 않는다)와 요청형 "-세요" 를 찾는다. 처음 셌을 때 열 곳이었다 — 훅 메시지 <code>agent.*</code> 셋 · <code>cli.err.*</code> 여섯 · <code>mcp.error.tool_failed</code>(전날 실측은 아홉이었다: 문장 끝을 마침표로만 봐서 쌍점 앞의 "…못했습니다:" 를 놓쳤다). 훅 응답은 그 옆에 합쇼체 문장을 <b>카탈로그 밖에서</b> 이어 붙이고 있어서(<code>ingest.controller.ts</code>) 모델이 받는 한 줄 안에서 말투가 두 번 바뀌었다 — 그 두 문장도 카탈로그로 옮겼다. 카탈로그 밖의 문장은 이 검사가 볼 수 없다.</p>
 
   <h3>3.2 왜 규칙이 필요했나</h3>
   <p>규정이 저장소 어디에도 없었다 — <code>docs/</code>·매뉴얼·<code>AGENTS.md</code>·카탈로그 머리 주석 모두. 카탈로그는 규칙 셋(키 짓기·자리표시자·식별자 비번역)을 적어 두었는데 <b>말투만 빠져 있었고</b>, 그래서 설명·근거를 적는 문장이 문서의 말투를 그대로 끌고 들어왔다. 자국은 <b>화면 아홉</b>이었고, 의도가 아니라는 근거는 넷이다.</p>
