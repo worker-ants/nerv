@@ -826,7 +826,7 @@ export class ApprovalService {
           SELECT count(*)::int AS n FROM approval prev
            WHERE prev.subject_type = ${approval.subject_type}
              AND prev.subject_id = ${approval.subject_id}
-             AND prev.decision = 'approve' AND prev.assignee_user_id = ${input.userId}
+             AND prev.decision = 'approve' AND prev.decided_by_user_id = ${input.userId}
              AND NOT prev.is_bypass
              AND (${approval.submitted_at}::timestamptz IS NULL
                   OR prev.decided_at >= ${approval.submitted_at}::timestamptz)
@@ -888,6 +888,14 @@ export class ApprovalService {
                SELECT 1 FROM approval a2
                 WHERE a2.requested_by_session_id = ${approval.requested_by_session_id}
                   AND a2.id <> ${input.approvalId} AND a2.decision IS NULL
+                  -- **닫힌 라운드의 형제 슬롯은 기다림이 아니다**(2026-09-26). T3 의 한 슬롯이 거절되면 문서는
+                  -- 초안으로 가고 다른 슬롯은 결정 없이 남는다 — 그 슬롯이 세션을 붙잡아 거절을 받고도
+                  -- awaiting_input 에 머물렀다. 문서가 검토 중이 아닌 스펙 슬롯은 세지 않는다
+                  AND NOT EXISTS (
+                    SELECT 1 FROM spec_version sv2
+                     WHERE a2.subject_type = 'spec_version' AND sv2.id = a2.subject_id
+                       AND sv2.status <> 'in_review'
+                  )
              )
         `);
       }
@@ -1093,7 +1101,9 @@ export class ApprovalService {
              a.decided_at::text AS decided_at, u.display_name AS decided_by,
              COALESCE(s.key, t.key, f.title) AS subject_key
         FROM approval a
-   LEFT JOIN "user" u ON u.id = a.assignee_user_id
+   -- 결정자는 **누른 사람**이다(2026-09-26) — 지정자로 읽던 동안 admin 이 대신 결정한 카드는 에이전트에게
+   -- 지정자의 이름으로 갔다
+   LEFT JOIN "user" u ON u.id = COALESCE(a.decided_by_user_id, a.assignee_user_id)
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN task t ON t.id = a.subject_id AND a.subject_type = 'plan'
