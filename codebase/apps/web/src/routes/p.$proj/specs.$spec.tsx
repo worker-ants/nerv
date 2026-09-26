@@ -65,7 +65,14 @@ import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRememberVisit } from '../../components/quick-switcher.js';
 import { cn } from '../../lib/utils.js';
-import { Avatar, Button, Mono, PageBody, Skeleton } from '../../components/ui/primitives.js';
+import {
+  Avatar,
+  Button,
+  GlyphChip,
+  Mono,
+  PageBody,
+  Skeleton,
+} from '../../components/ui/primitives.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
@@ -1520,15 +1527,14 @@ function RelationRow({
       className="flex items-start gap-2 rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
     >
       {/* 방향 표식(시안): 들어오는 것은 조용히, 나가는 것은 물들여서 */}
-      <span
-        aria-hidden="true"
+      <GlyphChip
         className={cn(
-          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] font-semibold',
+          'mt-px',
           incoming ? 'bg-bg-sunken text-text-mute' : 'bg-status-action-soft text-status-action',
         )}
       >
         {incoming ? '↓' : '↑'}
-      </span>
+      </GlyphChip>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm leading-[1.45] text-text">
           {String(relation['title'])}

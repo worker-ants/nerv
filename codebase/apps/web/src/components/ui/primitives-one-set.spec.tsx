@@ -13,7 +13,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Button, SummaryStrip } from './primitives.js';
+import { Button, GlyphChip, SummaryStrip } from './primitives.js';
 import { cn } from '../../lib/utils.js';
 
 afterEach(cleanup);
@@ -91,6 +91,37 @@ describe('줄 안의 작은 단추는 Button 이다', () => {
   });
 });
 
+describe('머리글자 칸은 한 부품이다 (임의 px 장부 PR 2)', () => {
+  it('18px 칸 · 10px 글자 · 모양 둘 — 보조기기에는 숨는다(곁의 글자가 이미 말한다)', () => {
+    render(
+      <>
+        <GlyphChip>↑</GlyphChip>
+        <GlyphChip shape="round" className="bg-status-danger-soft">
+          !
+        </GlyphChip>
+      </>,
+    );
+    const [square, round] = [...document.querySelectorAll('span[aria-hidden="true"]')];
+    expect(square?.className).toContain('size-4.5');
+    expect(square?.className).toContain('text-3xs');
+    expect(square?.className).toContain('rounded-nerv-sm');
+    expect(round?.className).toContain('rounded-full');
+    expect(round?.className).not.toContain('rounded-nerv-sm');
+    // 색은 부르는 쪽이 고른다
+    expect(round?.className).toContain('bg-status-danger-soft');
+  });
+
+  it('18px 머리글자 칸을 손으로 짠 곳이 없다 — 그래프 패널 · 관계 레일 · 타임라인이 세 벌이었다', () => {
+    const glyph =
+      /size-(?:\[18px\]|4\.5)[^"'`]*text-(?:\[10px\]|3xs)|text-(?:\[10px\]|3xs)[^"'`]*size-(?:\[18px\]|4\.5)/;
+    const offenders = sources()
+      .filter((file) => !file.endsWith('primitives.tsx'))
+      .filter((file) => glyph.test(readFileSync(file, 'utf8')))
+      .map(rel);
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('충돌 해소가 우리 토큰의 이름을 안다', () => {
   it('뒤에 온 반경·높이·글자 크기가 앞의 것을 덮는다', () => {
     expect(cn('rounded-nerv', 'rounded-nerv-sm')).toBe('rounded-nerv-sm');
@@ -150,15 +181,14 @@ describe('요약 줄은 한 벌이다', () => {
  * 한다 — 줄였으면 장부도 줄인다(늘어난 수는 실패다). 2026-09-26 에 셸 · 홈 · 프리미티브 · 사이드바 줄 · 세션 요약 줄을
  * 토큰(`h-control-sm` · `h-nav-row` · `text-3xs` · `text-metric` · `rounded-nerv*`)과 척도로 접어 109곳이 51곳이 됐고,
  * 같은 날 간격 · 반경 · 글자 · 흐림 31곳을 척도로 접어 20곳이 됐다(장부 아티팩트의 PR 1 — 한 곳에 1~2px 이하가 움직였다).
- * 남은 것은 부류마다 한 PR 이다 — 머리글자 칸 세 벌(A) · 상태 배지 모양(B) · 레이아웃 폭(C).
+ * 이어서 머리글자 칸 세 벌(A · 9곳)을 한 부품(`GlyphChip`)으로 모아 11곳이 됐다(PR 2).
+ * 남은 것은 부류마다 한 PR 이다 — 상태 배지 모양(B) · 레이아웃 폭(C).
  */
 const LEDGER: Record<string, number> = {
   // B — 배지의 모양은 `status-one-set.spec.tsx` 가 베낀 알약을 찾는 표지다 — 함께 옮긴다
   'components/status-badge.tsx': 4,
-  // A — 18px 머리글자 칸(글리프 열 · 둥근 칸)
-  'features/session-monitor/activity-timeline.tsx': 3,
-  // A(관계 행의 종류 칸 셋) · C(최소 높이 · 안내 폭 · 옆 패널 폭)
-  'features/spec-graph/graph.tsx': 6,
+  // C — 최소 높이 · 안내 폭 · 옆 패널 폭
+  'features/spec-graph/graph.tsx': 3,
   // C — 레인 폭
   'features/task-board/board.tsx': 1,
   // C — 장 안 목차 폭
@@ -167,8 +197,6 @@ const LEDGER: Record<string, number> = {
   'routes/p.$proj/reviews.index.tsx': 1,
   // C — 세션 상세 레일 폭
   'routes/p.$proj/sessions.index.tsx': 1,
-  // A — 관계 행의 종류 칸(그래프 패널과 같은 모양의 둘째 벌)
-  'routes/p.$proj/specs.$spec.tsx': 3,
 };
 
 describe('임의 px 은 줄기만 한다 (REQ-WEB-045)', () => {
@@ -206,6 +234,8 @@ describe('임의 px 은 줄기만 한다 (REQ-WEB-045)', () => {
       'components/quick-switcher.tsx',
       'components/ui/modal.tsx',
       'routes/inbox.tsx',
+      'features/session-monitor/activity-timeline.tsx',
+      'routes/p.$proj/specs.$spec.tsx',
     ]) {
       expect(LEDGER[file]).toBeUndefined();
       expect(counted[file]).toBeUndefined();

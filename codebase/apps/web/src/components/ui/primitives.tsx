@@ -689,6 +689,38 @@ const AVATAR_TONE = [
 ] as const;
 
 /**
+ * **머리글자 칸** — 18px 칸 안의 한 글자(2026-09-26 — 임의 px 장부 PR 2 · REQ-WEB-238).
+ *
+ * 관계 행의 방향(↑ 나가는 · ↓ 들어오는)과 활동 타임라인의 종류 글리프가 같은 칸을 세 자리에서 각자 짰다
+ * (18px 칸 · 5px 모서리 · 10px 글자를 손으로 적었다 — 그래프 패널 · 스펙 관계 레일 · 세션 타임라인). 모양은 여기 한 곳이 정하고,
+ * 부르는 쪽은 색(`className`)과 모양(`shape`)만 고른다. 글리프는 곁의 글자가 이미 말하는 것을 되풀이하는 표지라
+ * 보조기기에는 숨긴다.
+ */
+export function GlyphChip({
+  children,
+  shape = 'square',
+  className,
+}: {
+  children: React.ReactNode;
+  /** `square` — 관계 행의 방향 · `round` — 타임라인의 종류 */
+  shape?: 'square' | 'round';
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'inline-flex size-4.5 shrink-0 items-center justify-center text-3xs font-semibold',
+        shape === 'round' ? 'rounded-full' : 'rounded-nerv-sm',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
  * 사람 표식 — 이름 첫 글자.
  *
  * 목록에서 "누구 것인가"를 **읽지 않고 알아보게** 하는 장치다. 이름을 글자로만 늘어놓으면
