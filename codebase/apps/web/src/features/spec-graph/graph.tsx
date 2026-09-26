@@ -21,6 +21,17 @@
 // 돌아오면 배치가 다시 계산돼 방금 보던 그림이 사라졌다 — 탐색 도구가 탐색을 끊었다.
 // 이제 고른 노드와 그 이웃·간선이 강조되고, 오른쪽 패널이 관계를 글자로 적는다.
 // **이동은 패널에서 이름을 누를 때만** 일어난다.
+//
+// **같은 데이터는 같은 그림이다**(2026-09-27 — 사람 보고 · REQ-WEB-245). 열 때마다 배치가
+// 달라져 자리를 익힐 수 없었다. 이제 입력을 정렬해 넣고 배치 번호(`?layout=`)로 난수를 정한다
+// (`layout.ts` `withSeed`). 그림을 부수고 새로 그리는 것은 **구조가 바뀔 때뿐**이다 — 노드 id ·
+// 부모 · 간선의 지문(`layout-cache.ts`)이 같으면 제목·상태만 갈아 끼운다. 에이전트가 초안을
+// 저장할 때마다 그래프 질의가 다시 오는데, 그때마다 새로 배치하던 동안 보던 그림이 눈앞에서
+// 뒤집혔다. 계산한 자리는 브라우저에 적어 두었다가 같은 입력이면 그대로 쓴다.
+//
+// **WebGL 로 그린다**(REQ-WEB-246). 캔버스 렌더러는 확대·이동할 때마다 간선을 전부 다시 그려
+// 3,036 개에서 한 장면에 38–40ms(초당 19–24장)였다. cytoscape 3.31 부터 들어 있는 WebGL 모드는
+// 같은 그래프를 초당 100장 넘게 그린다(합성 데이터 실측). 새 라이브러리가 아니다.
 
 import cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
@@ -31,7 +42,24 @@ import { cn } from '../../lib/utils.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { Button, GlyphChip } from '../../components/ui/primitives.js';
-import { LABEL_FONT_SIZE, LABEL_MIN_ZOOMED, declutterLabels, runLayout } from './layout.js';
+import {
+  DEFAULT_LAYOUT,
+  LABEL_FONT_SIZE,
+  PICKED_FONT_SIZE,
+  applyLeafPositions,
+  declutterLabels,
+  fitAndLabel,
+  labelZoomState,
+  leafPositions,
+  runLayout,
+} from './layout.js';
+import {
+  graphFingerprint,
+  layoutCacheKey,
+  layoutSignature,
+  readCachedLayout,
+  writeCachedLayout,
+} from './layout-cache.js';
 
 cytoscape.use(fcose);
 
@@ -63,7 +91,71 @@ export interface SpecGraphProps {
   onFocusChange: (key: string | null) => void;
   /** 문서로 이동한다 — **패널에서 이름을 눌렀을 때만** 부른다 */
   onOpen: (key: string) => void;
+  /**
+   * 배치 번호 — 같은 번호면 같은 그림이다(REQ-WEB-245). 중심처럼 **주소가 진실이다**(`?layout=`):
+   * 링크를 건네면 상대도 같은 그림을 본다. 없으면 기본(1)이다.
+   */
+  layout?: number | undefined;
+  /** 배치 번호를 바꾼다 — 기본으로 돌아가면 `null` */
+  onLayoutChange?: (layout: number | null) => void;
 }
+
+/** 브라우저에 적어 두는 렌더러 선택 — 끄면 캔버스로 그린다 */
+const WEBGL_PREFERENCE = 'nerv.graph.webgl';
+
+/**
+ * WebGL 로 그릴 수 있는가. **cytoscape 는 WebGL 컨텍스트를 못 얻으면 대신할 길 없이 멈춘다**
+ * (`initWebgl` 이 곧바로 `gl.getParameter` 를 부른다) — 그래서 켜기 전에 먼저 묻는다.
+ */
+function webglAvailable(): boolean {
+  try {
+    return document.createElement('canvas').getContext('webgl2') !== null;
+  } catch {
+    return false;
+  }
+}
+
+function webglPreferred(): boolean {
+  try {
+    if (window.localStorage.getItem(WEBGL_PREFERENCE) === 'off') return false;
+  } catch {
+    // 저장소가 막혔으면 기본값(켬)이다
+  }
+  return true;
+}
+
+/**
+ * 렌더러를 바꾸면 **화면을 다시 불러온다.** cytoscape 는 WebGL 모드를 켤 때 렌더러의 공유
+ * 상수(`CANVAS_LAYERS`)를 바꿔 두어, 같은 페이지에서 캔버스로 되돌리면 다음 그림이 그 값을
+ * 물려받는다. 되돌리는 길은 드물게 쓰는 비상구라 깨끗하게 새로 여는 편이 낫다.
+ */
+function switchRenderer(on: boolean): void {
+  try {
+    window.localStorage.setItem(WEBGL_PREFERENCE, on ? 'on' : 'off');
+  } catch {
+    return;
+  }
+  window.location.reload();
+}
+
+const byId = (a: { id: string }, b: { id: string }): number =>
+  a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+
+/** 간선은 두 끝과 종류로 정렬한다 — 순서가 달라도 같은 그림이어야 한다(REQ-WEB-245) */
+const byEnds = (a: GraphEdge, b: GraphEdge): number =>
+  a.from_id < b.from_id
+    ? -1
+    : a.from_id > b.from_id
+      ? 1
+      : a.to_id < b.to_id
+        ? -1
+        : a.to_id > b.to_id
+          ? 1
+          : a.kind < b.kind
+            ? -1
+            : a.kind > b.kind
+              ? 1
+              : 0;
 
 /** 패널 한 줄 — 이웃 하나와 그 관계 */
 export interface Connection {
@@ -268,11 +360,20 @@ export function SpecGraph({
   focusKey,
   onFocusChange,
   onOpen,
+  layout: layoutProp,
+  onLayoutChange,
 }: SpecGraphProps): React.JSX.Element {
   const t = useT();
   const container = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const focus = focusKey ?? null;
+  const layout = layoutProp ?? DEFAULT_LAYOUT;
+  // 렌더러는 **열 때 한 번** 정한다 — 바꾸면 화면을 다시 불러온다(`switchRenderer`)
+  const [webglSupported] = useState(webglAvailable);
+  const [webgl] = useState(() => webglSupported && webglPreferred());
+  /** 계산한(또는 적어 둔) 자리 — 손으로 옮긴 노드를 되돌릴 때 쓴다 */
+  const computedRef = useRef<Map<string, cytoscape.Position> | null>(null);
+  const [moved, setMoved] = useState(false);
   // [중심] 단추가 돌아갈 곳 — 전역으로 나갔다가 방금 보던 중심으로 되돌아오게 기억한다
   const [lastFocus, setLastFocus] = useState<string | null>(focusKey ?? null);
   const setFocus = (key: string | null): void => {
@@ -323,23 +424,49 @@ export function SpecGraph({
   /** 범례는 **그림에서 나온다** — 손으로 적은 목록이면 화면과 갈라지는 날이 온다 */
   const legend = useMemo(() => legendFor(nodes, visible, grouped), [grouped, nodes, visible]);
 
+  /**
+   * 그리는 것 — **정렬해서** 넣는다. 서버가 주는 순서(간선 질의에는 원래 순서가 없었다)나 트리의
+   * 정렬 키가 바뀌어도 그림이 바뀌지 않게 노드는 id, 간선은 두 끝과 종류로 줄 세운다.
+   */
+  const shown = useMemo(() => {
+    const shownNodes = [...nodes].filter((n) => visible.has(n.id)).sort(byId);
+    const ids = new Set(shownNodes.map((n) => n.id));
+    const shownEdges = [...edges]
+      .filter((e) => ids.has(e.from_id) && ids.has(e.to_id))
+      .sort(byEnds);
+    return { nodes: shownNodes, edges: shownEdges, ids };
+  }, [edges, nodes, visible]);
+
+  /** 배치를 바꾸는 것만의 지문 — 이것이 같으면 그림을 부수지 않는다 */
+  const fingerprint = useMemo(
+    () =>
+      graphFingerprint(
+        shown.nodes.map((n) => ({
+          id: n.id,
+          parent:
+            grouped && n.parent_id !== null && shown.ids.has(n.parent_id) ? n.parent_id : null,
+        })),
+        shown.edges.map((e) => ({ from: e.from_id, to: e.to_id })),
+      ),
+    [grouped, shown],
+  );
+  // 빌드 이펙트는 지문으로만 다시 돈다 — 그 안에서 읽는 최신 데이터는 ref 로 건넨다
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+
   useEffect(() => {
     const el = container.current;
     if (el === null) return;
 
-    const shown = nodes.filter((n) => visible.has(n.id));
-    const shownIds = new Set(shown.map((n) => n.id));
+    const { nodes: shownNodes, edges: shownEdges, ids: shownIds } = shownRef.current;
     const degree = new Map<string, number>();
-    for (const edge of edges) {
-      if (!shownIds.has(edge.from_id) || !shownIds.has(edge.to_id)) continue;
-      degree.set(edge.to_id, (degree.get(edge.to_id) ?? 0) + 1);
-    }
+    for (const edge of shownEdges) degree.set(edge.to_id, (degree.get(edge.to_id) ?? 0) + 1);
 
     const cy = cytoscape({
       container: el,
       // compound 부모는 **보이는 노드 중에서만** 잡는다 — 부모가 화면 밖이면 cytoscape 가 던진다
       elements: [
-        ...shown.map((n) => ({
+        ...shownNodes.map((n) => ({
           data: {
             id: n.id,
             label: n.title,
@@ -351,9 +478,9 @@ export function SpecGraph({
               : {}),
           },
         })),
-        ...edges
-          .filter((e) => shownIds.has(e.from_id) && shownIds.has(e.to_id))
-          .map((e, i) => ({ data: { id: `e${i}`, source: e.from_id, target: e.to_id } })),
+        ...shownEdges.map((e, i) => ({
+          data: { id: `e${i}`, source: e.from_id, target: e.to_id },
+        })),
       ],
       style: [
         {
@@ -374,8 +501,10 @@ export function SpecGraph({
             // **읽을 수 없는 크기면 그리지 않는다.** 전체 보기의 기본 배율은 0.42 라
             // 9px 라벨이 화면에는 3.8px 로 찍힌다(실측 2026-08-27 · 노드 125개). 그건
             // 글자가 아니라 얼룩이고, 얼룩 125개가 그림을 덮으면 구조가 안 보인다.
-            // 가까이 가면(배율 0.89 이상) 이름이 돌아온다.
-            'min-zoomed-font-size': LABEL_MIN_ZOOMED,
+            // 가까이 가면(배율 0.89 이상) 이름이 돌아온다. 가리는 일은 `.tiny` 가 한다 —
+            // cytoscape 의 `min-zoomed-font-size` 는 픽셀 비율 2 인 화면에서 배율 0.25 부터
+            // 그려 버린다(`layout.ts` `labelReadable` · 2026-09-27 실측).
+            'min-zoomed-font-size': 0,
             width: 'data(weight)',
             height: 'data(weight)',
           },
@@ -455,10 +584,16 @@ export function SpecGraph({
             'border-color': cssVar('--color-status-action'),
             'border-opacity': 1,
             color: cssVar('--color-text'),
-            'font-size': 11,
+            'font-size': PICKED_FONT_SIZE,
             'text-opacity': 1,
             'z-index': 10,
           },
+        },
+        // **작아서 못 읽는 이름**은 고른 문서의 것이라도 가린다 — 그래서 `.picked` 뒤에 둔다
+        // (뒤의 규칙이 이긴다). 판정은 CSS 픽셀로 `declutterLabels` 가 한다(REQ-WEB-095)
+        {
+          selector: 'node.tiny',
+          style: { 'text-opacity': 0 },
         },
       ],
       // **끄는 것은 배치이지 재배치가 아니다**(2026-08-27 — 사람 지시). 노드를 끌면 그림 위의
@@ -466,6 +601,8 @@ export function SpecGraph({
       // 트리 하나뿐이고, 그래프는 데이터를 쓰지 않는다는 뜻에서 읽기 전용이다.
       // (`autoungrabify` 를 걷었다 — 영역 상자는 `panify()` 가 잡기를 끄므로 그대로 패닝이다.)
       wheelSensitivity: 0.2,
+      // 확대·이동을 WebGL 로 그린다(REQ-WEB-246) — 지원하지 않거나 사람이 끈 브라우저는 캔버스다
+      webgl,
     });
 
     letAreasPan(cy);
@@ -481,11 +618,44 @@ export function SpecGraph({
         if (cyRef.current !== null) declutterLabels(cy);
       });
     };
-    cy.on('zoom', relabel);
+    // 배율은 **문턱을 넘나들 때만** 답을 바꾼다 — 확대하는 동안 매 장면 다시 세지 않는다
+    let zoomState = '';
+    cy.on('zoom', () => {
+      const next = labelZoomState(cy.zoom());
+      if (next === zoomState) return;
+      zoomState = next;
+      relabel();
+    });
     cy.on('position', 'node', relabel);
-    // 배치는 여기서 시작한다 — 생성자에 맡기지 않는 이유는 fcose 가 낸 답을 **정리해서**
-    // 써야 하기 때문이다(형제 영역 겹침 제거·다지기 · layout.ts)
-    runLayout(cy);
+    cy.on('dragfree', 'node', () => setMoved(true));
+
+    // **같은 입력이면 적어 둔 자리를 쓴다**(REQ-WEB-245) — 결정적인 배치라 새로 계산한 것과 같다.
+    // 없으면 여기서 배치한다: 생성자에 맡기지 않는 이유는 fcose 가 낸 답을 **정리해서** 써야
+    // 하기 때문이다(형제 영역 겹침 제거·다지기 · layout.ts)
+    const key = layoutCacheKey({
+      fingerprint,
+      seed: layout,
+      width: cy.width(),
+      height: cy.height(),
+      titles: shownNodes.map((n) => n.title),
+    });
+    const settle = (positions: Map<string, cytoscape.Position>): void => {
+      computedRef.current = positions;
+      // E2E 가 "새로 고쳐도 같은 그림인가" 를 캔버스 안을 보지 않고 잰다
+      el.dataset.layout = layoutSignature(positions);
+    };
+    const cached = readCachedLayout(key);
+    if (cached !== null && applyLeafPositions(cy, cached)) {
+      settle(leafPositions(cy));
+      fitAndLabel(cy);
+    } else {
+      runLayout(cy, layout, (positions) => {
+        writeCachedLayout(key, positions);
+        settle(positions);
+      });
+    }
+    zoomState = labelZoomState(cy.zoom());
+    setMoved(false);
 
     if (focus !== null) {
       const node = cy.nodes().filter((n) => n.data('key') === focus);
@@ -508,7 +678,24 @@ export function SpecGraph({
       if (frame !== 0) cancelAnimationFrame(frame);
       cy.destroy();
     };
-  }, [edges, focus, grouped, nodes, visible]);
+  }, [fingerprint, focus, grouped, layout, webgl]);
+
+  // **구조가 같으면 글자와 색만 갈아 끼운다** — 초안 저장 · 상태 전이 · 제목 수정이 그림을
+  // 부수지 않는다(REQ-WEB-245). 종류가 바뀌면 색은 스타일의 매퍼가 다시 읽는다.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (cy === null) return;
+    cy.batch(() => {
+      for (const n of shown.nodes) {
+        const node = cy.getElementById(n.id);
+        if (node.empty()) continue;
+        if (node.data('label') !== n.title) node.data('label', n.title);
+        if (node.data('type') !== n.type) node.data('type', n.type);
+        if (node.data('key') !== n.key) node.data('key', n.key);
+      }
+    });
+    declutterLabels(cy);
+  }, [shown]);
 
   // 고른 것이 바뀌면 **다시 그리지 않고** 클래스만 갈아 끼운다.
   // 이어서 캔버스 폭이 바뀐 것을 알리고(패널이 열리고 닫힌다), 고른 노드가 시야 밖으로
@@ -528,14 +715,16 @@ export function SpecGraph({
   useEffect(() => setRelTab('all'), [selected]);
 
   /**
-   * 배치를 다시 계산한다 — **그림만 다시 그린다.**
-   *
-   * 컴포넌트를 다시 그리지 않는 이유는 고른 문서·중심 모드·패널이 그대로 남아야 하기
-   * 때문이다. 강조 클래스는 노드에 붙어 있으므로 자리가 바뀌어도 따라간다.
+   * 손으로 옮긴 노드를 **이 배치의 자리로** 되돌린다 — 화면 배율은 그대로 둔다.
+   * 예전에는 [다시 배치]가 이 일도 했지만, 이제 그 단추는 번호를 올려 **다른** 그림을 본다.
    */
-  const relayout = (): void => {
+  const restoreMoved = (): void => {
     const cy = cyRef.current;
-    if (cy !== null) runLayout(cy);
+    const saved = computedRef.current;
+    if (cy === null || saved === null) return;
+    applyLeafPositions(cy, saved);
+    declutterLabels(cy);
+    setMoved(false);
   };
 
   const panelOpen = selectedNode !== undefined;
@@ -612,10 +801,33 @@ export function SpecGraph({
               />
               {t('graph.group_by_area')}
             </label>
-            {/* 손으로 끌어 놓은 자리를 되돌리는 길이자, 밀집한 자리를 한 번 더 굴려 보는 길 */}
-            <Button size="sm" data-testid="graph-relayout" onClick={relayout}>
+            {/* **다른 그림을 본다** — 번호를 하나 올린다(REQ-WEB-245). 번호는 주소에 남아 링크로
+                건네면 상대도 같은 그림을 본다. 밀집한 자리는 한 번 더 굴리면 풀린다 */}
+            <Button
+              size="sm"
+              data-testid="graph-relayout"
+              onClick={() => onLayoutChange?.(layout + 1)}
+            >
               {t('graph.relayout')}
             </Button>
+            {layout !== DEFAULT_LAYOUT && (
+              <span className="flex items-center gap-1.5 text-text-mute">
+                <span data-testid="graph-layout-n">{t('graph.layout_n', { n: layout })}</span>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  data-testid="graph-layout-reset"
+                  onClick={() => onLayoutChange?.(null)}
+                >
+                  {t('graph.layout_reset')}
+                </Button>
+              </span>
+            )}
+            {moved && (
+              <Button size="sm" variant="subtle" data-testid="graph-restore" onClick={restoreMoved}>
+                {t('graph.restore')}
+              </Button>
+            )}
             <span aria-hidden="true" className="h-4 w-px bg-border" />
             {/* 안내는 **한 번 읽으면 끝인 것**이라 늘 켜 두지 않는다 — 물음표 뒤로 접고,
                 더 알고 싶은 사람은 매뉴얼로 간다 */}
@@ -647,6 +859,19 @@ export function SpecGraph({
             <p>{t('graph.hint.read')}</p>
             <p className="mt-2 mb-0.5 font-semibold text-text">{t('graph.hint.act_label')}</p>
             <p>{t('graph.hint')}</p>
+            {/* **그리기의 비상구**(REQ-WEB-246). WebGL 모드는 cytoscape 의 미리보기 기능이라
+                드물게 그림이 깨지는 기기가 있을 수 있다 — 그때 사람이 캔버스로 되돌린다 */}
+            <label className="mt-2 flex items-center gap-1.5 font-semibold text-text">
+              <input
+                type="checkbox"
+                data-testid="graph-webgl"
+                checked={webgl}
+                disabled={!webglSupported}
+                onChange={(e) => switchRenderer(e.target.checked)}
+              />
+              {t('graph.webgl')}
+            </label>
+            <p>{webglSupported ? t('graph.webgl_hint') : t('graph.webgl_unsupported')}</p>
             <Link
               to="/help/$chapter"
               params={{ chapter: 'specs' }}

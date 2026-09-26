@@ -281,7 +281,7 @@ The **Relations** tab in the right rail shows both kinds. Its sub-tabs split the
 
 The number next to each sub-tab name is the count for that direction. You can see the count before clicking, so you never need to open an empty tab.
 
-The **relations graph** shows the same relations as a picture. It is the `Relations` tab on the spec list screen. Clicking a node does **not** open that document. Instead, it highlights the node and everything linked to it, and opens a panel on the right with the document's name and its neighbors (backlinks / references). To go to the document, **click its name in the panel.** Click the background or press `Esc` to clear the selection. **The view you are on (tree, table, graph) and the graph's center document stay in the URL.** If you open a document and come back, the view is as you left it, and if you share the link, the other person sees the same graph. **[View in graph →]** at the top of the **Relations** tab in a document's rail opens the graph centered on that document.
+The **relations graph** shows the same relations as a picture. It is the `Relations` tab on the spec list screen. Clicking a node does **not** open that document. Instead, it highlights the node and everything linked to it, and opens a panel on the right with the document's name and its neighbors (backlinks / references). To go to the document, **click its name in the panel.** Click the background or press `Esc` to clear the selection. **The view you are on (tree, table, graph), the graph's center document and the layout number stay in the URL.** If you open a document and come back, the view is as you left it, and if you share the link, the other person sees the same graph. **[View in graph →]** at the top of the **Relations** tab in a document's rail opens the graph centered on that document.
 
 **Color shows the document type, and size shows the backlink count.** The **legend at the bottom left** of the canvas explains both. Vision, feature, design, convention and decision each have their own color. Areas are drawn as pale rectangles instead of circles, so the legend shows them as rectangles too. The legend lists **only the types currently drawn**.
 
@@ -291,9 +291,15 @@ A bigger node means more documents point to it. Keep two things in mind so you d
 
 **Sibling area boxes never overlap.** So when one box is drawn inside another, it really is a parent-child relationship. You never have to guess whether boxes are nested or just overlapping.
 
-The graph controls are in the **top left of the canvas**: view scope (**Whole project** / **Around this doc**), **Group by area**, [Re-layout], and a **`?`** button. The `?` button opens both **How to read** (color, size, fading) and **Gestures**. Node and edge counts are in the bottom-right corner, and the legend is in the bottom-left corner.
+The graph controls are in the **top left of the canvas**: view scope (**Whole project** / **Around this doc**), **Group by area**, [Another layout], and a **`?`** button. The `?` button opens **How to read** (color, size, fading), **Gestures** and the **Fast rendering (WebGL)** switch. Node and edge counts are in the bottom-right corner, and the legend is in the bottom-left corner.
 
-**You can drag nodes.** Use this to pull apart a crowded spot. The new position is kept only in this view. It does not change the document's position in the tree, and redrawing the graph (switching center mode or area grouping) restores the computed layout. **[Re-layout]** recomputes the arrangement. Each run gives a different layout, which helps untangle a knot. It also undoes your own dragging.
+**The same documents and relations always get the same layout.** Reload the page or have someone else open it, and each document is in the same place, so you can learn where things are. A different window size gives a slightly different layout. When an agent only changes a document's content or status, the picture stays as it is; the graph is laid out again only when documents or relations are added or removed.
+
+**[Another layout]** shows a different arrangement, which helps untangle a knot. Each click raises the layout number by one, and the number stays in the URL, so you can share that layout as a link. When the number is not 1, **Layout N** and **[First layout]** appear next to it; [First layout] returns to the default layout.
+
+**You can drag nodes.** Use this to pull apart a crowded spot. The new position is kept only in this view and does not change the document's position in the tree. After you drag a node, **[Undo moves]** appears and puts the nodes back where this layout placed them. Switching center mode or area grouping, or showing another layout, also discards your moves.
+
+The graph is drawn with **WebGL**, so zooming and panning stay smooth. If the picture looks broken, turn off **Fast rendering (WebGL)** under `?`. The page reloads and draws on a regular canvas. Browsers without WebGL support use the regular canvas from the start.
 
 When zoomed out, **document names are hidden.** A hundred labels too small to read would only smudge the picture. Zoom in and the names come back. Area names are shown at any zoom level.
 
