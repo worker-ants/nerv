@@ -53,7 +53,7 @@
     <h1>용어 사전</h1>
     <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 37개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.11 (2026-09-26)</span>
+      <span>버전 v0.12 (2026-09-26)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -274,6 +274,39 @@
 
   <h3>3.3 고치지 않은 셋</h3>
   <p><code>import.requirement_not_found</code> · <code>import.task_not_found</code> 는 <b>웹이 그리지 않는다</b> — <code>apps/cli/src/run.ts</code> 가 <code>item.detail ?? t('cli.reason.load_failed')</code> 로 소비하므로 <code>cli.reason.*</code> 열아홉과 같은 자리다. <code>export.index_lead</code> 는 <code>llms.txt</code> 에 쓰이는 문서 본문이다. 셋 다 §3.1 의 규칙대로 해라체가 맞다.</p>
+
+  <h3>3.4 어휘 — 한국에서 쓰지 않는 표현 (2026-09-26 신설)</h3>
+  <p><b>한국어로 자연스럽지 않은 말은 쓰지 않는다</b>(2026-09-26 — 사람 지시). 화면 문구 · 도움말 · 명세 · 커밋 메시지 · PR 본문 · 에이전트가 사람에게 하는 대답 모두에 적용한다. 한국의 개발자와 사용자가 실제로 쓰는 말을 쓰고, 영어를 옮긴 듯한 표현이나 사물에 사람의 동작을 붙이는 비유는 쓰지 않는다. 도움말의 "스펙은 이 제품의 중심 문서입니다. 코드가 아니라 스펙이 기준이고, 에이전트가 구현 전에 읽는 것도 스펙입니다." 가 그런 문장이다. "NERV 에서는 스펙을 기준으로 개발합니다. 에이전트도 구현을 시작하기 전에 스펙을 먼저 읽습니다." 처럼 쓴다.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>쓰지 않는 말</th><th>이렇게 쓰였다</th><th>대신</th></tr></thead>
+    <tbody>
+      <tr><td>서다 · 세우다 (표시·카드·배지·버튼이)</td><td>"표시가 섭니다", "배지를 세운다"</td><td>나타나다 · 표시되다 · 생기다 / 표시하다 · 띄우다</td></tr>
+      <tr><td>걷다 (기능·코드·신호를)</td><td>"롤백 신호를 걷는다"</td><td>없애다 · 제거하다 · 빼다</td></tr>
+      <tr><td>싣다 (응답·이벤트·주소에)</td><td>"응답에 싣는다", "주소에 실어"</td><td>담다 · 포함하다 · 넣다</td></tr>
+      <tr><td>배선</td><td>"이벤트를 배선한다"</td><td>연결 · 구현</td></tr>
+      <tr><td>닿다 (요청·신호가)</td><td>"신고가 제출에 닿는다"</td><td>이어지다 · 적용되다 · 전달되다</td></tr>
+      <tr><td>가르다</td><td>"두 경우를 가른다"</td><td>나누다 · 구분하다</td></tr>
+      <tr><td>짚다 (검사가)</td><td>"검사가 짚었다"</td><td>잡아내다 · 지적하다</td></tr>
+      <tr><td>쥐다 (작업·상태를)</td><td>"세션이 쥔 작업"</td><td>맡다 · 가지다 · (작업을) 잡다</td></tr>
+      <tr><td>머리 (화면·문서·카드의)</td><td>"문서 머리", "카드 머리"</td><td>상단 · 제목 줄 · 헤더</td></tr>
+      <tr><td>말하다 (화면·문서·서버가)</td><td>"카드가 말합니다"</td><td>보여 주다 · 알려 주다 · 적혀 있다</td></tr>
+      <tr><td>들고 있다 (결정을)</td><td>"카드가 결정을 5초 들고 있다"</td><td>보류하다 · 기다렸다가 보내다</td></tr>
+      <tr><td>무르다</td><td>"결정을 무른다"</td><td>취소하다</td></tr>
+      <tr><td>곁에</td><td>"배지 곁에"</td><td>옆에</td></tr>
+      <tr><td>길 · 문 (방법·경로의 비유)</td><td>"바로잡는 길", "들어가는 문"</td><td>방법 · 경로</td></tr>
+      <tr><td>옮겨 적다 (값을)</td><td>"판정을 옮겨 적는다"</td><td>그대로 기록하다 · 복사하다</td></tr>
+    </tbody>
+  </table></div>
+  <p>문장 습관도 같다.</p>
+  <ul>
+    <li>"A 가 아니라 B 다" 를 되풀이하지 않는다. 대비가 꼭 필요할 때 한 번만 쓴다.</li>
+    <li>사물을 주어로 사람의 동작을 쓰지 않는다. 화면 · 서버 · 문서는 "말하거나 · 알거나 · 묻지" 않는다. "표시한다 · 확인한다 · 요청한다" 로 쓴다.</li>
+    <li>번역투를 쓰지 않는다. "~에 대해 ~을 가진다", "~되어진다", "~하는 것이다" 같은 표현이 그렇다.</li>
+    <li>화면과 도움말에서는 한 문장에 한 가지만 말하고, 줄표(—)로 문장을 길게 잇지 않는다.</li>
+    <li>영어도 같다. 제품 영어로 쓰고 한국어 비유를 직역하지 않는다("the badge stands", "carries the field" 대신 "shows", "includes").</li>
+    <li>쓰고 나서 소리 내어 읽었을 때 한국어 화자가 그렇게 말하지 않을 문장이면 고친다.</li>
+  </ul>
+  <p><b>적용.</b> 새로 쓰는 문장은 처음부터 이 표를 따른다. 이미 쓰인 화면 문구와 도움말은 재검토 PR 들에서 고친다(2026-09-26 — 사람 지시). 명세와 코드 주석은 그 자리를 고칠 때 함께 고친다.</p>
 
   <h2 id="sec-4">4. 적용 규칙</h2>
 
