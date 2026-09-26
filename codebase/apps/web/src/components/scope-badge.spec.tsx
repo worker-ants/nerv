@@ -120,7 +120,7 @@ describe('초대 문장 — 어디로 부르는지가 문장 안에 있다', () 
   it('조직 전체 초대', () => {
     renderSentence({ org_name: 'Acme', role: 'planner', project_slug: null });
     expect(screen.getByTestId('sentence').textContent).toBe(
-      'Acme 이(가) 당신을 조직 전체에 planner 로 초대했습니다.',
+      'Acme 에서 조직 전체에 planner 역할로 초대했습니다.',
     );
   });
 
@@ -132,7 +132,7 @@ describe('초대 문장 — 어디로 부르는지가 문장 안에 있다', () 
       project_name: 'Acme 웹',
     });
     expect(screen.getByTestId('sentence').textContent).toBe(
-      'Acme 이(가) 당신을 Acme 웹 프로젝트에 developer 로 초대했습니다.',
+      'Acme 에서 Acme 웹 프로젝트에 developer 역할로 초대했습니다.',
     );
   });
 });

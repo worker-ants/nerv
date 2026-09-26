@@ -190,7 +190,7 @@ describe('/reset-password', () => {
     fill('new-password', 'new-password');
     fireEvent.click(submit);
     const done = await screen.findByTestId('reset-done');
-    expect(done.textContent).toContain('모든 기기의 로그인을 끊었습니다');
+    expect(done.textContent).toContain('모든 기기에서 로그아웃했습니다');
     expect(screen.getByTestId('reset-to-login').getAttribute('href')).toBe('/login');
     expect(sent[0]!.body).toEqual({ token: 'tok_1', newPassword: 'new-password' });
   });

@@ -120,7 +120,7 @@ describe('표시 이름 (REQ-WEB-229)', () => {
   it('이메일은 보이기만 한다 — 로그인 아이디다', async () => {
     mount('/settings/account');
     expect((await screen.findByTestId('account-email')).textContent).toBe('jimin@example.com');
-    expect(screen.getByText('로그인 아이디라 여기서 바꾸지 않습니다.')).toBeDefined();
+    expect(screen.getByText('로그인 아이디라서 바꿀 수 없습니다.')).toBeDefined();
   });
 });
 

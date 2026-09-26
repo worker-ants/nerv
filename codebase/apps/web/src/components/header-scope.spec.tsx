@@ -140,7 +140,7 @@ describe('⌘K 는 어디서 찾는지 말한다', () => {
     await screen.findByTestId('rail-project-clemvion');
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     expect(
-      await screen.findByPlaceholderText(/스펙·작업은 프로젝트 안에서 찾습니다/),
+      await screen.findByPlaceholderText(/스펙·작업은 프로젝트를 연 뒤 찾을 수 있습니다/),
     ).toBeDefined();
   });
 });

@@ -49,7 +49,7 @@ describe('상태 매핑 — ready 는 절대 나오지 않는다 (REQ-IMP-009)',
   it('worktree 미선언은 backlog + 경고다 — 값을 지어내지 않는다', () => {
     const task = classify('plan/in-progress/x.md', {}).task;
     expect(task?.status).toBe('backlog');
-    expect(task?.warnings.join()).toContain('worktree 미선언');
+    expect(task?.warnings.join()).toContain('worktree 가 없다');
   });
 });
 
@@ -57,7 +57,7 @@ describe('추정 금지', () => {
   it('started 가 없으면 임포트 시각 + 경고다 — git 이력으로 메우지 않는다', () => {
     const task = classify('plan/complete/x.md', { worktree: 'wt' }).task;
     expect(task?.started).toBe(OPTIONS.importedAt);
-    expect(task?.warnings.join()).toContain('started 미선언');
+    expect(task?.warnings.join()).toContain('started 가 없다');
   });
 
   it('priority 는 선언된 것만 — 미선언은 null 이다', () => {
@@ -100,7 +100,7 @@ describe('E11-S02 owner 는 신원이 아니다', () => {
       { ...OPTIONS, ownerMap: { developer: 'user-1' } },
     );
     expect(result.task?.assignee_user_id).toBeNull();
-    expect(result.task?.warnings.join()).toContain('수동 배정');
+    expect(result.task?.warnings.join()).toContain('직접 배정한다');
   });
 
   it('owner-map 형식이 틀리면 던진다 — 조용히 전원 unassigned 가 되지 않게', () => {

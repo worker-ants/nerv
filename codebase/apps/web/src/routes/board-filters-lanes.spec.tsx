@@ -185,7 +185,7 @@ describe('레인은 한 쪽에서 끝나지 않는다 (WORK-10)', () => {
     renderAt('/p/clemvion/tasks');
     const lane = await screen.findByTestId('column-ready');
     const more = await within(lane).findByTestId('lane-more-ready');
-    expect(more.textContent).toBe('더 받아 오기');
+    expect(more.textContent).toBe('더 불러오기');
     fireEvent.click(more);
     await waitFor(() => expect(within(lane).getByText('작업 r2')).toBeDefined());
     expect(asked.some((u) => u.includes('status=ready') && u.includes('cursor=c1'))).toBe(true);

@@ -220,7 +220,7 @@ describe('REQ-WEB-148 — 근거·클레임·리뷰 카드', () => {
 
   it('리뷰가 없으면 없다고 말한다 — 빈 칸이 아니라 문장이다', async () => {
     await renderDetail();
-    expect(screen.getByText('이 작업을 지난 리뷰가 없습니다.')).toBeTruthy();
+    expect(screen.getByText('이 작업을 검토한 리뷰가 없습니다.')).toBeTruthy();
   });
 
   it('리뷰의 열린 critical 은 눈에 띈다', async () => {
@@ -382,7 +382,7 @@ describe('클레임 포기', () => {
     await renderDetail();
     fireEvent.click(await screen.findByTestId('release-abandon'));
     expect(posted).toHaveLength(0);
-    expect(screen.getByTestId('release-abandon-confirming').textContent).toContain('ready');
+    expect(screen.getByTestId('release-abandon-confirming').textContent).toContain('준비됨');
     fireEvent.click(screen.getByTestId('release-abandon-confirm'));
     await waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]?.url).toMatch(/\/claims\/c-1\/release$/);

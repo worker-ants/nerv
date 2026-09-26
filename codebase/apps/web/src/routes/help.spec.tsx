@@ -129,7 +129,7 @@ describe('매뉴얼 라우트', () => {
     const body = screen.getByTestId('manual-body');
     expect(body.querySelectorAll('h2').length).toBeGreaterThan(2);
     expect(body.querySelector('h2')?.id).toBe('sec-1');
-    expect(screen.getByText('이 문서 안')).toBeDefined();
+    expect(screen.getByText('이 페이지 목차')).toBeDefined();
   });
 
   // 상태의 흐름은 그림이다(2026-09-26 — 사람 지시 · REQ-WEB-243). 예전에는 ```mermaid 펜스가 코드로 보였다
@@ -289,10 +289,10 @@ describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
     expect(toc.lastElementChild?.className).toContain('overflow-y-auto');
   });
 
-  it('"이 문서 안" 은 본문 상자의 꼭대기에 붙는다 — 셸 헤더가 기준이 아니다', async () => {
+  it('"이 페이지 목차" 은 본문 상자의 꼭대기에 붙는다 — 셸 헤더가 기준이 아니다', async () => {
     renderAt('/help/tasks');
-    await waitFor(() => expect(screen.getByText('이 문서 안')).toBeDefined());
-    const aside = screen.getByText('이 문서 안').closest('aside');
+    await waitFor(() => expect(screen.getByText('이 페이지 목차')).toBeDefined());
+    const aside = screen.getByText('이 페이지 목차').closest('aside');
     expect(aside?.className).toContain('sticky');
     expect(aside?.className).toContain('top-0');
     // 이 목차가 보이는 폭(xl)은 본문이 자기 안에서 흐르는 폭(md)보다 넓다

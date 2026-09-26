@@ -150,8 +150,8 @@ describe('검토 요청 전의 영향 미리보기 (E08-S10)', () => {
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(button);
     const preview = await screen.findByTestId('impact-preview');
-    expect(preview.textContent).toContain('역참조 문서 2건');
-    expect(preview.textContent).toContain('파생 Task 3건');
+    expect(preview.textContent).toContain('이 문서를 참조하는 문서 2건');
+    expect(preview.textContent).toContain('파생 작업 3건');
     expect(submitted).toHaveLength(0);
   });
 

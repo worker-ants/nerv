@@ -54,7 +54,7 @@ describe('플러그인 활성화 현황 (REQ-WEB-189)', () => {
     };
     renderIt();
     expect((await screen.findByTestId('plugin-coverage')).textContent).toContain(
-      '플러그인 켜짐 1 / 2 호스트',
+      '플러그인 켜짐 1 / 2대',
     );
     expect(screen.queryAllByTestId('plugin-host')).toHaveLength(0);
   });
@@ -71,7 +71,7 @@ describe('플러그인 활성화 현황 (REQ-WEB-189)', () => {
     const rows = screen.getAllByTestId('plugin-host');
     expect(within(rows[0]!).getByText('꺼짐')).toBeDefined();
     expect(within(rows[1]!).getByText('켜짐 · v0.3.2')).toBeDefined();
-    expect(screen.getByText(/훅이 없으니 활동·브랜치가/)).toBeDefined();
+    expect(screen.getByText(/훅이 없어서 활동과 브랜치가/)).toBeDefined();
   });
 
   it('모두 켜져 있으면 빠지는 것을 적지 않는다', async () => {
@@ -85,6 +85,6 @@ describe('플러그인 활성화 현황 (REQ-WEB-189)', () => {
     body = { window_days: 30, total: 0, active: 0, hosts: [] };
     renderIt();
     fireEvent.click(await screen.findByTestId('plugin-coverage-toggle'));
-    expect(screen.getByText('최근 30일 안에 Claude Code 세션을 연 기계가 없습니다.')).toBeDefined();
+    expect(screen.getByText('최근 30일 동안 Claude Code 세션을 연 머신이 없습니다.')).toBeDefined();
   });
 });

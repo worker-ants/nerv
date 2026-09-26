@@ -209,7 +209,7 @@ describe('S6 발견 큐 — provenance 와 dedup (REQ-WEB-062·063)', () => {
 
   it('같은 지적은 카드 하나 + 관측 횟수다 (fingerprint dedup)', async () => {
     await renderCenter();
-    expect(screen.getByTestId('finding-occurrences').textContent).toContain('3회 관측');
+    expect(screen.getByTestId('finding-occurrences').textContent).toContain('3회 발견');
   });
 
   it('표시 키를 만들지 않는다 — "짧은 id" 라고 밝히고 **뒤** 8자를 준다', async () => {
@@ -217,9 +217,9 @@ describe('S6 발견 큐 — provenance 와 dedup (REQ-WEB-062·063)', () => {
     // 밝히지 않으면 사람은 그것을 전체 id 로 오해하고 어딘가에 붙여 넣는다.
     // 앞자리가 아닌 이유: UUIDv7 의 앞 48비트는 시각이라 같은 리뷰에서 나온 발견들이
     // 전부 같은 앞자리를 갖는다(실측 — 시드 화면에서 세 발견이 모두 `01990a66` 이었다).
-    expect(screen.getByText('짧은 id 3e4f5a6b')).toBeDefined();
+    expect(screen.getByText('짧은 ID 3e4f5a6b')).toBeDefined();
     // 두 발견의 짧은 id 는 서로 달라야 한다 — 같으면 손잡이가 아니다
-    expect(screen.getByText('짧은 id 77778888')).toBeDefined();
+    expect(screen.getByText('짧은 ID 77778888')).toBeDefined();
   });
 
   it('심각도는 색만이 아니라 라벨로도 나온다 (REQ-WEB-033)', async () => {
@@ -325,7 +325,7 @@ describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (RE
 
   it('막지는 않는다고 화면이 말한다 — 표시와 집행을 섞지 않는다', async () => {
     await renderCenter();
-    expect(screen.getByText(/아직 막지는 않습니다/)).toBeDefined();
+    expect(screen.getByText(/아직 병합을 막지는 않습니다/)).toBeDefined();
   });
 
   it('잘랐으면 잘랐다고 말한다 — clemvion 실측 441 브랜치 (REQ-WEB-067)', async () => {

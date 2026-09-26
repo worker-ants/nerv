@@ -123,7 +123,7 @@ describe('되돌릴 수 없는 일은 한 번 더 묻는다', () => {
       expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(true),
     );
     expect(screen.getByTestId('org-delete-rule').textContent).toBe(
-      '프로젝트 2개(보관 1개 포함)가 있어 지울 수 없습니다.',
+      '프로젝트 2개(보관 1개 포함)가 있어 삭제할 수 없습니다.',
     );
     expect(screen.queryByText(/보관하세요/)).toBeNull();
   });
@@ -237,14 +237,16 @@ describe('새 프로젝트 — 이름에서 slug·key 를 만들어 준다', () 
     expect((slug as HTMLInputElement).value).toBe('');
     expect(slug.getAttribute('aria-invalid')).toBe('true');
     expect(
-      screen.getByText('이름에서 주소를 만들지 못했습니다 — 영문 소문자·숫자로 적어 주세요.'),
+      screen.getByText('이름으로 주소를 만들지 못했습니다. 영문 소문자와 숫자로 직접 적어 주세요.'),
     ).toBeDefined();
     expect((screen.getByTestId('project-create') as HTMLButtonElement).disabled).toBe(true);
     // 적으면 사유가 걷힌다
     fireEvent.change(slug, { target: { value: 'console' } });
     expect(slug.getAttribute('aria-invalid')).toBe('false');
     expect(
-      screen.queryByText('이름에서 주소를 만들지 못했습니다 — 영문 소문자·숫자로 적어 주세요.'),
+      screen.queryByText(
+        '이름으로 주소를 만들지 못했습니다. 영문 소문자와 숫자로 직접 적어 주세요.',
+      ),
     ).toBeNull();
   });
 });
@@ -448,8 +450,8 @@ describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () =
     // **숨기지 않는다**(REQ-WEB-003) — 비활성 + 사유
     const create = screen.getByTestId('project-new') as HTMLButtonElement;
     expect(isLocked(create)).toBe(true);
-    expect(reasonOf(create)).toBe('새 프로젝트는 조직 admin 이 만듭니다.');
-    expect(screen.getByText(/새 프로젝트는 조직 admin 만 만들 수 있습니다/)).toBeDefined();
+    expect(reasonOf(create)).toBe('새 프로젝트는 조직 admin 만 만들 수 있습니다.');
+    expect(screen.getByText(/프로젝트의 이름·저장소·보관은 그 프로젝트의 admin 도/)).toBeDefined();
   });
 
   it('자기 프로젝트 줄은 열리고 남의 프로젝트 줄은 잠긴다', async () => {

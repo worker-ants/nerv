@@ -110,7 +110,7 @@ describe('오늘 할 일 한 줄의 제목 (screens.md §2.1)', () => {
 
   it('제목 재료가 없으면 **그 종류의 이름**을 적는다 — 어휘를 그대로 찍지 않는다', async () => {
     const text = await stripText();
-    expect(text).toContain('플랜 승인 요청');
+    expect(text).toContain('계획 승인 요청');
     // 이 둘이 화면에 뜨면 회귀다 — `spec_version`·`plan` 은 DB 의 enum 값이다
     expect(text).not.toContain('spec_version');
     expect(text).not.toContain('plan');

@@ -63,7 +63,7 @@ describe('봉투의 message 는 요청 로케일로 만든다', () => {
   );
 
   it('Accept-Language 가 없으면 기본 로케일(ko)', () => {
-    expect(catchWith(undefined, error)?.message).toBe('작업이 ready 가 아닙니다(backlog).');
+    expect(catchWith(undefined, error)?.message).toBe('작업이 준비됨 상태가 아닙니다(backlog).');
   });
 
   it('en 을 요청하면 영어 문장이 나간다', () => {
@@ -71,7 +71,7 @@ describe('봉투의 message 는 요청 로케일로 만든다', () => {
   });
 
   it('모르는 언어는 기본 로케일로 떨어진다 — 협상 실패가 500 이 되면 안 된다', () => {
-    expect(catchWith('fr-FR', error)?.message).toBe('작업이 ready 가 아닙니다(backlog).');
+    expect(catchWith('fr-FR', error)?.message).toBe('작업이 준비됨 상태가 아닙니다(backlog).');
   });
 
   it('중복 헤더(배열)도 읽는다 — Fastify 가 그렇게 준다', () => {

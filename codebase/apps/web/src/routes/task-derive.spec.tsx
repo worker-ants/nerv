@@ -84,7 +84,7 @@ function fill(form: HTMLFormElement, values: Record<string, string>): void {
 describe('승인본에서 파생 (E08-S05)', () => {
   it('스펙 상세가 보낸 주소가 폼의 출처다 — 피커 대신 고정 표기', async () => {
     await renderAt(DERIVE);
-    expect(screen.getByTestId('source-locked').textContent).toBe('auth-login v3 에서 파생합니다');
+    expect(screen.getByTestId('source-locked').textContent).toBe('auth-login v3 에서 만듭니다');
     expect(screen.queryByTestId('source-spec')).toBeNull();
   });
 

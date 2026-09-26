@@ -121,7 +121,7 @@ describe('받은 요청의 쪽 넘김 (REQ-API-166)', () => {
     expect(screen.queryByTestId('inbox-more')).toBeNull();
   });
 
-  it('이어 받은 카드도 일괄 선택에 든다 — "보이는 것 전체" 가 그 뜻이다 (REQ-WEB-181)', async () => {
+  it('이어 받은 카드도 일괄 선택에 든다 — "보이는 항목 모두 선택" 가 그 뜻이다 (REQ-WEB-181)', async () => {
     renderAt('/inbox');
     await waitFor(() => expect(screen.getAllByTestId('approval-card')).toHaveLength(3));
     fireEvent.click(screen.getByTestId('inbox-more'));

@@ -23,7 +23,7 @@ test('미인증 사용자는 /login 으로 가고 원래 경로가 보존된다 
   await page.goto('/p/clemvion/tasks');
   await page.waitForURL(/\/login/);
   expect(new URL(page.url()).searchParams.get('redirect')).toBe('/p/clemvion/tasks');
-  await expect(page.getByText('스펙 단일 진실')).toBeVisible();
+  await expect(page.getByText('스펙 중심 개발')).toBeVisible();
 });
 
 test('로그인 실패 사유는 폼 안에 뜨고 비밀번호만 지워진다 (REQ-WEB-005)', async ({ page }) => {

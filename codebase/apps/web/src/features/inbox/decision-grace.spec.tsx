@@ -114,7 +114,7 @@ describe('누른 결정은 5초 들고 있다가 보낸다 (REQ-WEB-237)', () =>
 
     const strip = screen.getByTestId('decision-grace');
     expect(strip.getAttribute('role')).toBe('status');
-    expect(strip.textContent).toContain('승인 — 5초 뒤 보냅니다.');
+    expect(strip.textContent).toContain('승인: 5초 뒤에 보냅니다.');
     // 누른 단추가 사라졌다 — 포커스는 [취소]로 간다(body 로 떨어지지 않게)
     await advance(0);
     expect(document.activeElement).toBe(screen.getByTestId('decision-cancel'));
@@ -173,7 +173,7 @@ describe('누른 결정은 5초 들고 있다가 보낸다 (REQ-WEB-237)', () =>
     renderCard(APPROVAL);
     fireEvent.change(screen.getByTestId('decision-comment'), { target: { value: '범위 밖' } });
     press('거절');
-    expect(screen.getByTestId('decision-grace').textContent).toContain('거절 — 5초 뒤 보냅니다.');
+    expect(screen.getByTestId('decision-grace').textContent).toContain('거절: 5초 뒤에 보냅니다.');
     await advance(DECISION_GRACE_MS);
     vi.useRealTimers();
     await waitFor(() => expect(sent()).toHaveLength(1));
@@ -184,7 +184,7 @@ describe('누른 결정은 5초 들고 있다가 보낸다 (REQ-WEB-237)', () =>
     renderCard(QUESTION);
     press('B — 감점 가중');
     expect(screen.getByTestId('decision-grace').textContent).toContain(
-      '답변 “B — 감점 가중” — 5초 뒤 보냅니다.',
+      '답변 “B — 감점 가중”: 5초 뒤에 보냅니다.',
     );
     // 들고 있는 동안 다른 선택지를 눌러도 둘째 답이 되지 않는다
     expect(

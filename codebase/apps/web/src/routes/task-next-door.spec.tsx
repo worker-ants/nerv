@@ -236,7 +236,7 @@ describe('코드값이 아니라 사람 말 (REQ-WEB-202)', () => {
     await renderDetail();
     const body = document.body.textContent ?? '';
     expect(body).toContain('진행 중');
-    expect(body).toContain('놓음');
+    expect(body).toContain('해제됨');
     expect(body).toContain('스펙 커버리지');
     expect(body).not.toContain('in_progress');
     expect(body).not.toContain('spec_coverage');

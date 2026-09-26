@@ -72,12 +72,12 @@ describe('리포트', () => {
     expect(md).toContain('status_map 에 없는 값');
   });
 
-  it('기대 집계 대조표를 싣는다 (REQ-IMP-016)', () => {
+  it('예상 집계 비교표를 싣는다 (REQ-IMP-016)', () => {
     const md = renderMarkdown({
       ...base,
       expectation: [{ field: 'spec_total', expected: 135, actual: 130, ok: false }],
     });
-    expect(md).toContain('기대 집계 대조');
+    expect(md).toContain('예상 집계 비교');
     expect(md).toContain('**불일치**');
   });
 

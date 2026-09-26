@@ -37,7 +37,7 @@ test('누른 승인은 5초 들고 있다가 나간다 — [취소]면 아무것
 
   await target.getByTestId('approve').click();
   const strip = target.getByTestId('decision-grace');
-  await expect(strip).toContainText('승인 — 5초 뒤 보냅니다.');
+  await expect(strip).toContainText('승인: 5초 뒤에 보냅니다.');
   // 누른 단추가 사라졌다 — 포커스가 body 로 떨어지지 않고 [취소]에 선다
   await expect(target.getByTestId('decision-cancel')).toBeFocused();
   // 막대가 움직인다 — 테마의 keyframes 가 빌드에 실렸다

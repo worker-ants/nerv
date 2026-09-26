@@ -71,7 +71,7 @@ function renderDialog(reply: { status: number; body: unknown }): {
   return { onClose, calls };
 }
 
-describe('스펙 메타 — 보관', () => {
+describe('문서 정보 · 보관', () => {
   it('확인 전에는 보관하지 않는다 — 되살리는 길을 함께 말한다', async () => {
     const { calls } = renderDialog({ status: 200, body: {} });
     fireEvent.click(await screen.findByTestId('meta-archive'));

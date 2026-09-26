@@ -327,7 +327,7 @@ describe('제목 없는 대상의 이름 (REQ-WEB-133)', () => {
   // 목록 질의는 `spec_version` 에만 제목을 JOIN 한다 — 나머지는 제목 없이 온다.
   // 2026-09-06 까지 폴백이 `gate_bypass` 하나뿐이라 플랜 결재 카드가 "(제목 없음)" 이었다.
   it.each([
-    ['plan', '플랜'],
+    ['plan', '계획'],
     ['finding', '발견'],
     ['gate_bypass', '게이트'],
     ['change_request', '변경'],
