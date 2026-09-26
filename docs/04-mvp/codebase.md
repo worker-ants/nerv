@@ -18,8 +18,10 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.73 · 2026-09-25 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.74 · 2026-09-26 · HTML 파생본: [codebase.html](../html/codebase.html)
 >
+> v1.74 변경(2026-09-26 — 트리의 주석 하나): **§1 트리 한 줄 정정.** `gate-tier.ts` 를 "축 셋 + 동적 강화" 라 적었는데 축은 넷이다(부작용 · 민감도 · 가역성 · 영향 범위 — [3.5](../03-proposal/spec-workflow.md) §2.4).
+
 > v1.73 변경(2026-09-25 — 비밀번호 재설정 메일, **사람 결정 D10**): **§5.2 전표 한 칸 · §2.2 트리 두 줄의 설명.** `NERV_MAIL_HOST` 가 비면 **비밀번호 재설정도 함께 꺼진다** — 운영자가 알아야 하는 사실이라 스위치의 행에 적는다([4.4](api.md) REQ-API-187). `mail/verify-link.ts` 는 재설정 링크도 만들고, `mail.job.ts` 가 보내는 것에 재설정 메일이 더해진다.
 
 > v1.72 변경(2026-09-24 — 헤딩 앵커 규약이 서버에만 있었다): **§3.1 `packages/schema` 트리 한 줄.** `anchor.ts` — 헤딩 → slug(`headingSlug`). 검색·코멘트 앵커가 쓰는 규약이 `apps/api` 의 임베딩 서비스 안에만 있어서, 화면은 앵커로 데려갈 수 없었다([4.5](screens.md) REQ-WEB-215). 표면이 공유하는 순수 판정이라 §1.2 의 넷째 부류다.
@@ -469,7 +471,7 @@ apps/api/src/
       baseline.service.ts       # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
       embedding.client.ts       # OpenAI 호환 /v1/embeddings 단일 계약 (REQ-CB-020·033)
       embedding.service.ts      # 청크 · 재임베딩 잡
-      gate-tier.ts              # 게이트 티어 판정 — 축 셋 + 동적 강화 (spec-workflow §2.4)
+      gate-tier.ts              # 게이트 티어 판정 — 네 축 + 동적 강화 (spec-workflow §2.4)
       impl-status.ts            # 구현 축 파생 — 증적 술어 한 벌 (D-03 · REQ-API-097)
       mirror.controller.ts      # markdown 미러 — 버전 프리픽스 없이 불변 (§2.8)
       reader-hash.ts            # 읽은 것의 지문 — base_hash 의 재료 (§1.4g)

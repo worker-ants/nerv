@@ -257,6 +257,36 @@ describe('무엇을 · 누가 · 왜 (REQ-WEB-204)', () => {
     expect(within(card).getByTestId('diff-link').getAttribute('href')).toBe(
       '/p/clemvion/specs/SPC-1?diff=v2..v3',
     );
+    // 근거 칸이 없는 옛 요청은 배지만 — 없는 점수를 0 으로 그리지 않는다
+    expect(within(card).queryByTestId('gate-rationale')).toBeNull();
+  });
+
+  it('티어 곁에 근거가 선다 — 4축 합계 · 축별 점수 · 올린 신호 (REQ-WEB-240 · §6.4)', async () => {
+    // 첫 승인 버전 가산으로 T2 가 된 문서는 배지만으로는 이유 없이 T2 였다. 사람이 왜
+    // 불렸는지 알아야 무엇을 볼지 안다 — 문장은 이벤트의 판정 값으로 화면이 쓴다
+    pages = [
+      {
+        items: [
+          spec(1, {
+            version_no: 1,
+            gate_tier: 'T2',
+            gate_score: 3,
+            gate_axes: { side_effect: 2, sensitivity: 1, reversibility: 0, blast_radius: 0 },
+            // 모르는 신호는 건너뛴다 — 서버가 먼저 새 신호를 싣는 날 키 이름을 찍지 않는다
+            gate_signals: ['first_version', 'someday_signal'],
+          }),
+        ],
+        next_cursor: null,
+        total: 1,
+      },
+    ];
+    renderAt('/inbox');
+    await waitFor(() => expect(cards()).toHaveLength(1));
+    const line = within(cards()[0] as HTMLElement).getByTestId('gate-rationale');
+    expect(line.textContent).toBe(
+      '4축 3점 (부작용 2 · 민감도 1 · 가역성 0 · 영향 범위 0) · 이 문서의 첫 승인 버전 → 티어 +1',
+    );
+    expect(line.querySelectorAll('[data-signal]')).toHaveLength(1);
   });
 });
 

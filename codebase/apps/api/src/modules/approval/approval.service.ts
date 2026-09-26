@@ -494,12 +494,13 @@ export class ApprovalService {
              pt.key AS task_key, pt.title AS task_title,
              CASE WHEN a.subject_type = 'finding' THEN a.subject_id END AS finding_id,
              f.title AS finding_title, f.severity::text AS finding_severity,
-             -- 게이트 티어는 요청 이벤트의 payload 에 남는다(스펙 제출이 판정한 그 값)
-             (SELECT e.payload->>'gate_tier' FROM event e
-               WHERE e.type = ${NERV_EVENT.APPROVAL_REQUESTED} AND e.subject_id = a.id
-                 AND e.payload ? 'gate_tier'
-               ORDER BY e.occurred_at DESC
-               LIMIT 1) AS gate_tier,
+             -- 게이트 티어는 요청 이벤트의 payload 에 남는다(스펙 제출이 판정한 그 값).
+             -- **근거도 함께 온다**(2026-09-26 · REQ-API-188 · spec-workflow §6.4) — 4축 합계 ·
+             -- 축별 점수 · 티어를 올린 신호. 이 칸이 생기기 전의 요청에는 티어만 있다(칸은 NULL)
+             gate.payload->>'gate_tier' AS gate_tier,
+             (gate.payload->>'gate_score')::int AS gate_score,
+             gate.payload->'gate_axes' AS gate_axes,
+             gate.payload->'gate_signals' AS gate_signals,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
         ${approvalFrom}
         JOIN "user" u ON u.id = a.requested_by_user_id
@@ -507,6 +508,12 @@ export class ApprovalService {
    LEFT JOIN agent_session rs ON rs.id = a.requested_by_session_id
    LEFT JOIN task pt ON pt.id = a.subject_id AND a.subject_type = 'plan'
    LEFT JOIN finding f ON f.id = a.subject_id AND a.subject_type = 'finding'
+   LEFT JOIN LATERAL (
+          SELECT e.payload FROM event e
+           WHERE e.type = ${NERV_EVENT.APPROVAL_REQUESTED} AND e.subject_id = a.id
+             AND e.payload ? 'gate_tier'
+           ORDER BY e.occurred_at DESC
+           LIMIT 1) gate ON true
        ${approvalWhere}${approvalSeek}
        ORDER BY ${orderBy}
        LIMIT ${limit + 1}

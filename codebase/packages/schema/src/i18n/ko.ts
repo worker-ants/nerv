@@ -247,6 +247,8 @@ export const ko = {
   'inbox.card.correct.finding_returned': '에이전트가 다시 요청하면 새 카드가 섭니다.',
   'inbox.card.correct.bypass': '면제는 기록으로 남습니다 — 거두는 것은 새 결정입니다.',
   'inbox.card.to_session': '세션으로',
+  // 티어 곁의 근거 한 줄(2026-09-26 · REQ-WEB-240) — 축별 점수와 신호가 뒤따른다
+  'inbox.card.gate_score': '4축 {score}점',
   'inbox.scope_all':
     '내가 속한 모든 조직의 받은 요청입니다 — 줄마다 어느 조직·프로젝트의 일인지 적혀 있습니다.',
   'inbox.subject.change_request': '변경 요청',
@@ -339,6 +341,11 @@ export const ko = {
   'gate.reason.retry_threshold': '재시도 임계 초과 → 티어 +1',
   'gate.reason.recent_rollback': '최근 30일 롤백 이력 → 티어 +1',
   'gate.reason.first_version': '이 문서의 첫 승인 버전 → 티어 +1',
+  // 게이트의 네 축 — 이름은 spec-workflow §2.4 의 표(2026-09-26 · glossary 「티어」)
+  'gate.axis.side_effect': '부작용',
+  'gate.axis.sensitivity': '민감도',
+  'gate.axis.reversibility': '가역성',
+  'gate.axis.blast_radius': '영향 범위',
   'check.link_unknown':
     '링크가 가리키는 {key} 를 이 프로젝트에서 찾을 수 없습니다 — 오타이거나 아직 안 쓴 문서입니다.',
   'check.no_relations':
@@ -1599,7 +1606,7 @@ export const ko = {
   'settings.gates.admin_only_title': '이 편집은 admin 역할만 가능합니다',
   'settings.gates.boundaries': '티어 경계 (T1/T2/T3 진입 점수)',
   'settings.gates.boundaries_hint':
-    '4축(부수효과 · 민감도 · 되돌림 · 폭발 반경) 합산 점수가 경계 이상이면 그 티어입니다. 낮출수록 더 많은 변경이 사람을 거칩니다.',
+    '4축(부작용 · 민감도 · 가역성 · 영향 범위) 합산 점수가 경계 이상이면 그 티어입니다. 낮출수록 더 많은 변경이 사람을 거칩니다.',
   'settings.gates.dynamic': '동적 강화',
   'settings.gates.dynamic_hint':
     '문서의 첫 승인 버전이면 티어를 한 단계 올립니다 — 재시도·롤백 이력은 아직 세지 않습니다',

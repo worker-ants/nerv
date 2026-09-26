@@ -11,7 +11,13 @@ import { useApiError } from '../../lib/api-errors.js';
 import { relativeTime } from '../../lib/format.js';
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { MessageKey, Translator } from '@nerv/schema';
+import {
+  GATE_AXES,
+  GATE_SIGNALS,
+  type GateSignal,
+  type MessageKey,
+  type Translator,
+} from '@nerv/schema';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { usePressKey } from '../../lib/press-key.js';
@@ -1092,8 +1098,47 @@ function decisionLabel(t: Translator, decision: Decision): string {
 }
 
 /**
+ * **왜 이 티어인가**(2026-09-26 · REQ-WEB-240 · spec-workflow §6.4) — 4축 합계와 축별 점수, 티어를
+ * 올린 신호. 배지만 있던 동안 첫 승인 버전 가산으로 T2 가 된 문서도 사람에게는 이유 없이 T2
+ * 였다 — 사람이 왜 불렸는지 모르면 무엇을 봐야 하는지도 모른다.
+ *
+ * 문장은 **시스템이 쓴다** — 에이전트의 설명이 아니라 이벤트에 남은 판정 값으로 그린다(OWASP
+ * ASI09 의 완화: 모델이 만든 근거가 아니라 평이한 위험 요약). 근거 칸이 생기기 전의 요청은
+ * 점수가 없어 이 줄을 그리지 않는다.
+ */
+function GateRationale({ card }: { card: Record<string, unknown> }): React.JSX.Element | null {
+  const t = useT();
+  const score = card['gate_score'];
+  if (typeof score !== 'number') return null;
+  const rawAxes = card['gate_axes'];
+  const axes: Record<string, unknown> =
+    typeof rawAxes === 'object' && rawAxes !== null ? (rawAxes as Record<string, unknown>) : {};
+  const axisText = GATE_AXES.flatMap((axis) => {
+    const value = axes[axis];
+    return typeof value === 'number' ? [`${t(`gate.axis.${axis}`)} ${value}`] : [];
+  }).join(' · ');
+  const rawSignals = card['gate_signals'];
+  // 모르는 신호는 건너뛴다 — 서버가 먼저 새 신호를 싣는 날 화면이 키 이름을 찍지 않게
+  const signals = (Array.isArray(rawSignals) ? rawSignals : []).filter(
+    (signal): signal is GateSignal => (GATE_SIGNALS as readonly unknown[]).includes(signal),
+  );
+  return (
+    <p data-testid="gate-rationale" className="text-text-mute">
+      {t('inbox.card.gate_score', { score })}
+      {axisText !== '' && ` (${axisText})`}
+      {signals.map((signal) => (
+        <span key={signal} data-signal={signal}>
+          {' · '}
+          {t(`gate.reason.${signal}`)}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/**
  * 대상 줄 — 유형마다 **무엇을** 결정하는지(REQ-WEB-204).
- *   스펙: `v{n}` · 게이트 티어 · 변경 요약 · [변경분 보기 ▸](직전 버전과의 diff)
+ *   스펙: `v{n}` · 게이트 티어 · [변경분 보기 ▸](직전 버전과의 diff) · 티어의 근거(REQ-WEB-240) · 변경 요약
  *   플랜: 그 작업의 키·제목 · 발견: 발견의 심각도·제목(머리의 링크가 리뷰 센터의 그 발견으로 간다)
  */
 function TargetLine({
@@ -1135,6 +1180,7 @@ function TargetLine({
             </CardLink>
           )}
         </p>
+        <GateRationale card={card} />
         {typeof card['change_summary_md'] === 'string' && card['change_summary_md'] !== '' && (
           <p data-testid="change-summary" className="line-clamp-2 text-text-mute">
             {card['change_summary_md']}

@@ -385,3 +385,19 @@ export const MAIL_IMPLICIT_TLS_PORT = 465;
  * 활성화율을 끌어내린다. 30일은 파일럿 한 주기(2주 스프린트 둘)를 덮는다.
  */
 export const PLUGIN_COVERAGE_WINDOW_DAYS = 30;
+
+// ── 게이트 티어의 산출 근거 (2026-09-26 · spec-workflow §2.4 · §6.4 · REQ-API-188) ─────────────
+/**
+ * 게이트 티어를 정하는 **네 축** — 각 0~2점, 합이 티어를 정한다. 이름은 spec-workflow §2.4 의 표를
+ * 따른다(부작용 · 민감도 · 가역성 · 영향 범위). 제출·결재 요청 이벤트의 `gate_axes` 가 이 키로
+ * 축별 점수를 싣고, 받은 요청 카드가 그대로 읽는다.
+ */
+export const GATE_AXES = ['side_effect', 'sensitivity', 'reversibility', 'blast_radius'] as const;
+export type GateAxis = (typeof GATE_AXES)[number];
+/**
+ * 티어를 한 단계 올리는 **동적 강화 신호** — 이벤트의 `gate_signals` 가 발동한 것만 싣는다.
+ * 이름은 카탈로그의 `gate.reason.<키>` 와 같다. 서버가 지금 계산하는 것은 `first_version`
+ * 하나다(나머지 둘은 판정이 받기만 한다 — spec-workflow §2.4 "지금 세는 신호는 하나다").
+ */
+export const GATE_SIGNALS = ['retry_threshold', 'recent_rollback', 'first_version'] as const;
+export type GateSignal = (typeof GATE_SIGNALS)[number];

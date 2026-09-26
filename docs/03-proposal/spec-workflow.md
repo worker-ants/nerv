@@ -13,12 +13,14 @@ referenced_by:
   - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
+  - 04-mvp/codebase.md
   - 04-mvp/database.md
   - 04-mvp/api.md
   - 04-mvp/screens.md
   - 04-mvp/plugin.md
   - 04-mvp/importer.md
   - 04-mvp/backlog.md
+  - glossary.md
   - README.md
 ---
 # 스펙 워크플로우와 거버넌스
