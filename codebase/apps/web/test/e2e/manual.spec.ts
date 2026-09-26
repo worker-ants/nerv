@@ -94,6 +94,36 @@ test('차례 위에서 굴린 바퀴는 본문을 움직이지 않는다', async
   ).toEqual({ page: 0, content: 0 });
 });
 
+// ── 장을 옮기면 본문은 처음부터 (REQ-WEB-244 · 2026-09-26 사람 보고) ───────────
+//
+// 본문 칸은 장을 옮겨도 그대로 남는 상자라(차례와 함께 이 라우트가 세운다), 라우터가 창만 되돌리는
+// 동안 새 장이 **앞 장을 읽던 깊이에서** 열렸다. 같은 장 안의 목차(`#앵커`)는 그 자리로 가야 한다.
+test('다른 장을 누르면 본문이 처음부터 열린다 — 같은 장 안의 목차는 그 자리로 간다', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/help/tasks');
+  await expect(page.getByTestId('manual-body')).toBeVisible({ timeout: 15000 });
+  const content = page.getByTestId('manual-content');
+  const scrolled = (): Promise<number> => content.evaluate((el) => Math.round(el.scrollTop));
+
+  await content.evaluate((el) => {
+    el.scrollTop = 600;
+  });
+  // 전제 — 실제로 내려가 있다(이 장이 화면보다 짧으면 아래 판정은 아무것도 증명하지 않는다)
+  expect(await scrolled()).toBeGreaterThan(0);
+
+  await page.getByTestId('manual-toc').locator('a[href$="/help/specs"]').click();
+  await expect(page).toHaveURL(/\/help\/specs$/);
+  await expect.poll(scrolled).toBe(0);
+
+  // 같은 장 안의 목차 — 되돌리지 않고 그 제목으로 간다
+  // "이 문서 안" 목차는 본문 칸 안의 `aside` 다 — 셸의 다른 링크를 집지 않게 칸 안에서 찾는다
+  const onThisPage = content.locator('aside a[href^="#"]').nth(3);
+  await onThisPage.click();
+  await expect.poll(scrolled).toBeGreaterThan(0);
+});
+
 // ── 설치 장은 이 배치의 값으로 말한다 (screens.md §2.10 · REQ-WEB-165) ───────
 //
 // **여기서만 확인할 수 있는 것은 "앞문이 내어 준 주소가 실제로 문서에 들어가는가" 다.**

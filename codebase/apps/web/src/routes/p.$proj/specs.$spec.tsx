@@ -76,6 +76,7 @@ import {
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
+import { useScrollTopOn } from '../../lib/scroll-top.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({
   /**
@@ -270,6 +271,11 @@ function SpecDetail(): React.JSX.Element {
    * 그때는 탭을 펴면서 레일로 내려 준다. 2열에서는 옆에 있으니 움직이지 않는다.
    */
   const asideRef = useRef<HTMLElement>(null);
+  // **다른 문서로 옮기면 본문과 레일은 처음부터**(REQ-WEB-244). 열쇠는 문서다 — 레일 탭 ·
+  // 본문 탭 · 버전은 같은 문서 안의 이동이라 읽던 자리를 지킨다
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useScrollTopOn(bodyRef, spec);
+  useScrollTopOn(asideRef, spec);
   const twoColumns = useMediaQuery('(min-width: 64rem)');
   const openRail = (key: RailTab): void => {
     setRailTab(key);
@@ -621,6 +627,7 @@ function SpecDetail(): React.JSX.Element {
           여기서 또 쓰면 랜드마크가 **겹쳐 두 개**가 되고, 그것은 유효하지 않은 문서다.
           다른 라우트는 전부 셸의 것 하나만 쓴다. */}
       <div
+        ref={bodyRef}
         data-testid="spec-body"
         className="min-w-0 lg:h-full lg:min-w-104 lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
       >

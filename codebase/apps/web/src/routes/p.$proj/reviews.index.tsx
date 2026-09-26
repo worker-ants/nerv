@@ -9,7 +9,7 @@
 import { scopesForRoles } from '@nerv/schema';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { ErrorState } from '../../components/query-state.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
 import { FindingRail } from '../../features/review-center/finding-rail.js';
 import { GateCoverage } from '../../features/review-center/gate-coverage.js';
@@ -33,6 +33,7 @@ import {
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { asProjectId } from '../../lib/query-keys.js';
+import { useScrollTopOn } from '../../lib/scroll-top.js';
 
 /** 주소의 필터 — 쉼표 목록이다(서버 질의 `?severity=critical,warning` 과 같은 모양) */
 export interface ReviewSearch {
@@ -167,6 +168,15 @@ function ReviewCenter(): React.JSX.Element {
   // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 200 에서 끝나지 않는다(REQ-API-083)
   const items = (queue.data?.pages ?? []).flatMap((page) => page.items);
   const selected = items.find((f) => String(f['id']) === selectedId) ?? null;
+  // **고른 것이 바뀌면 레일은 처음부터, 거르는 조건이 바뀌면 큐는 처음부터**(REQ-WEB-244).
+  // 큐의 열쇠에 고른 발견을 넣지 않는다 — 목록에서 하나를 누를 때마다 목록이 튀면 안 된다
+  const queueRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+  useScrollTopOn(
+    queueRef,
+    [search.branch, search.severity, search.status, search.area, search.tag].join('|'),
+  );
+  useScrollTopOn(railRef, selectedId);
   /** 레일의 처분 폼 — 고른 발견의 것만 연다(다른 발견을 고르면 닫힌다) */
   const railResolve = (
     finding: Row,
@@ -347,6 +357,7 @@ function ReviewCenter(): React.JSX.Element {
             **페이지 스크롤**이라 칸을 각자 가두는 순간 아무도 닿지 못한다. 큐와 같은 물음의
             다른 축이므로(무엇이 위험한가 ↔ 어디까지 덮였나) 같은 칸에서 이어 읽는다. */}
         <div
+          ref={queueRef}
           data-testid="review-content"
           className="min-w-0 flex-1 lg:h-full lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
         >
@@ -479,7 +490,10 @@ function ReviewCenter(): React.JSX.Element {
           // 아무 일도 하지 않는다. 스크롤을 바깥 `aside` 가 아니라 **카드에** 두는 이유는
           // 테두리까지 함께 흘러 올라가지 않게 하기 위해서다.
           <aside data-testid="review-rail" className="hidden w-85 shrink-0 xl:block xl:h-full">
-            <div className="rounded-nerv border border-border bg-bg-elev px-4 py-3.5 xl:h-full xl:overflow-x-hidden xl:overflow-y-auto">
+            <div
+              ref={railRef}
+              className="rounded-nerv border border-border bg-bg-elev px-4 py-3.5 xl:h-full xl:overflow-x-hidden xl:overflow-y-auto"
+            >
               <FindingRail
                 finding={selected}
                 projectSlug={proj}

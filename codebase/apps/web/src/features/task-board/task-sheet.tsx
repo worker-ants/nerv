@@ -13,6 +13,7 @@ import { useEffect, useRef } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { useProject, useTaskLane } from '../../lib/queries.js';
 import { asProjectId } from '../../lib/query-keys.js';
+import { useScrollTopOn } from '../../lib/scroll-top.js';
 import { boardFilters } from './board-search.js';
 
 /** 입력 중에는 단축키가 글자를 먹지 않는다 — 받은 요청의 j/k 와 같은 규칙이다 */
@@ -62,6 +63,9 @@ export function TaskSheet({
   // 전역 `:focus-visible` 테두리가 시트 가장자리를 따라 긴 파란 선으로 섰다(L3 스크린샷 실측).
   // 읽는 도구는 ✕ 에 닿으면서 시트(대화상자)의 이름을 함께 읽는다
   const closeRef = useRef<HTMLButtonElement>(null);
+  // 다른 작업으로 넘기면(j/k · 보드에서 다른 카드) 시트는 처음부터 읽는다(REQ-WEB-244)
+  const sheetRef = useRef<HTMLElement>(null);
+  useScrollTopOn(sheetRef, taskKey);
   useEffect(() => {
     closeRef.current?.focus({ preventScroll: true });
   }, [taskKey]);
@@ -83,6 +87,7 @@ export function TaskSheet({
 
   return (
     <aside
+      ref={sheetRef}
       role="dialog"
       aria-modal="false"
       aria-label={t('task.sheet.label', { key: taskKey })}
