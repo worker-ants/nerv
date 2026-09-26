@@ -21,8 +21,8 @@ function ManualShell(): React.JSX.Element {
     // 나란히 놓인 것이 없으니 가둘 이유도 없고, 페이지가 흐르는 편이 그 폭의 손에 맞는다.
     // 높이는 `dvh` 로 잰다: 모바일 브라우저의 주소창이 접히면 `vh` 는 실제 화면보다 크다.
     <div
-      className="flex min-h-[calc(100dvh-var(--spacing-header))]
-        md:h-[calc(100dvh-var(--spacing-header))] md:overflow-hidden"
+      className="flex min-h-below-header
+        md:h-below-header md:overflow-hidden"
     >
       {/* **차례는 둘째 열이다**(2026-09-25 사람 지시 · REQ-WEB-232). 셸 사이드바의 [도움말] 아래에 펼쳐지던
           동안 열 장이 프로젝트 목록과 한 열에서 자리를 다퉜다. 좁은 폭에서는 띠의 단추가 여는 겹침 패널이다

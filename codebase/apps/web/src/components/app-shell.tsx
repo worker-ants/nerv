@@ -324,7 +324,7 @@ export function AppShell({
           e.preventDefault();
           document.getElementById('main')?.focus();
         }}
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:rounded-nerv focus:bg-bg-elev focus:px-3 focus:py-2 focus:text-sm focus:shadow-popover"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-60 focus:rounded-nerv focus:bg-bg-elev focus:px-3 focus:py-2 focus:text-sm focus:shadow-popover"
       >
         {t('shell.skip_to_main')}
       </a>
@@ -348,7 +348,7 @@ export function AppShell({
           <Link
             to="/"
             title={t('shell.home')}
-            className="mr-1 flex shrink-0 items-center gap-2 px-1 text-sm font-semibold tracking-[-0.01em] max-md:mr-0"
+            className="mr-1 flex shrink-0 items-center gap-2 px-1 text-sm font-semibold tracking-heading max-md:mr-0"
           >
             <span
               aria-hidden="true"
@@ -497,7 +497,7 @@ export function AppShell({
                     />
                     {t('realtime.ws_down_title')}
                   </p>
-                  <p className="mt-1.5 text-xs leading-[1.55] text-text-mute">
+                  <p className="mt-1.5 text-xs text-text-mute">
                     {t('realtime.ws_down_body', { s: FALLBACK_POLL_MS / 1000 })}
                   </p>
                   {disconnectedSince !== null && (
@@ -797,9 +797,9 @@ export function AppShell({
           }}
           className={cn(
             'flex-col overflow-y-auto overscroll-contain border-border px-2 py-3',
-            'fixed top-header right-auto bottom-0 left-0 z-40 w-[17.5rem] max-w-[86vw] border-r bg-bg shadow-popover',
+            'fixed top-header right-auto bottom-0 left-0 z-40 w-70 max-w-[86vw] border-r bg-bg shadow-popover',
             drawerOpen ? 'flex' : 'hidden',
-            'md:sticky md:top-header md:bottom-auto md:z-auto md:flex md:h-[calc(100vh-var(--spacing-header))] md:w-sidebar md:max-w-none md:shrink-0 md:bg-bg-sunken/40 md:shadow-none',
+            'md:sticky md:top-header md:bottom-auto md:z-auto md:flex md:h-below-header md:w-sidebar md:max-w-none md:shrink-0 md:bg-bg-sunken/40 md:shadow-none',
           )}
         >
           {drawerOpen && (

@@ -239,7 +239,7 @@ describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
     await waitFor(() => expect(screen.getByTestId('manual-content')).toBeDefined());
     const content = screen.getByTestId('manual-content');
     const row = content.parentElement;
-    expect(row?.className).toContain('md:h-[calc(100dvh-var(--spacing-header))]');
+    expect(row?.className).toContain('md:h-below-header');
     expect(row?.className).toContain('md:overflow-hidden');
     expect(content.className).toContain('md:overflow-y-auto');
     // 차례는 둘째 열이다(2026-09-25 사람 지시 · REQ-WEB-232) — 한 줄에 열과 본문 상자가 나란히 선다
@@ -268,7 +268,7 @@ describe('매뉴얼의 스크롤 상자 (REQ-WEB-157)', () => {
     await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());
     const cls = screen.getByTestId('manual-body').className;
     // 페이지가 흐르는 좁은 화면에서는 셸 헤더가 그 자리를 덮는다
-    expect(cls).toContain('[&_h2]:scroll-mt-[calc(var(--spacing-header)+1.5rem)]');
+    expect(cls).toContain('[&_h2]:scroll-mt-anchor');
     // 본문이 자기 상자 안에서 흐르면 상자 위가 곧 헤더 아래다 — 페이지 여백만큼이면 된다
     expect(cls).toContain('md:[&_h2]:scroll-mt-6');
   });

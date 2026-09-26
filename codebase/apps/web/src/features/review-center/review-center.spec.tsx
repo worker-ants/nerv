@@ -499,7 +499,7 @@ describe('세 칸의 스크롤 상자 (REQ-WEB-158)', () => {
     const content = await screen.findByTestId('review-content');
     const row = content.parentElement;
     const page = row?.parentElement;
-    expect(page?.className).toContain('lg:h-[calc(100dvh-var(--spacing-header))]');
+    expect(page?.className).toContain('lg:h-below-header');
     expect(page?.className).toContain('lg:overflow-hidden');
     // 높이만 잡으면 헛돈다 — 줄이 `min-h-0` 이 아니면 칸이 상자보다 커져 안쪽 스크롤이
     // 서지 않는다(격자의 `minmax(0,1fr)` 과 같은 이유다)

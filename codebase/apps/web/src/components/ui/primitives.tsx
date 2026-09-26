@@ -58,11 +58,11 @@ export function PageHeader({
               14px 와 너무 가까워, 제목이 "조금 굵은 문장"으로 읽히고 화면에 시작점이
               생기지 않는다 — 그것이 "텍스트 나열"의 첫 번째 원인이었다.
               프리미티브 한 곳에서 정하므로 열세 화면이 함께 바뀐다. */}
-          <h1 className="truncate text-2xl font-bold tracking-[-0.022em]">{title}</h1>
+          <h1 className="truncate text-2xl font-bold tracking-tight">{title}</h1>
           {meta}
         </div>
         {description !== undefined && (
-          <p className="mt-2 text-base leading-[1.55] text-text-mute">{description}</p>
+          <p className="mt-2 text-base text-text-mute">{description}</p>
         )}
       </div>
       {actions !== undefined && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
@@ -669,10 +669,7 @@ export function SectionLabel({
 }): React.JSX.Element {
   return (
     <div
-      className={cn(
-        'text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase',
-        className,
-      )}
+      className={cn('text-2xs font-semibold tracking-label text-text-faint uppercase', className)}
     >
       {children}
     </div>
@@ -840,7 +837,7 @@ export function SummaryStrip({
         const number = (
           <span
             className={cn(
-              'text-metric font-[650] tracking-[-0.02em] tabular-nums',
+              'text-metric font-strong tracking-tight tabular-nums',
               // 점이 색을 나르면 숫자는 중립이다
               m.dot === undefined ? tone[m.tone ?? 'default'] : 'text-text',
             )}
@@ -866,7 +863,7 @@ export function SummaryStrip({
             </>
           ) : (
             <>
-              <span className="text-2xs font-semibold tracking-[0.06em] text-text-faint uppercase">
+              <span className="text-2xs font-semibold tracking-label text-text-faint uppercase">
                 {m.label}
               </span>
               {number}

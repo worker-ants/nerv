@@ -637,7 +637,7 @@ export function SpecGraph({
         {helpOpen && (
           <div
             data-testid="graph-help-panel"
-            className="absolute top-14 left-2 z-10 max-w-105 rounded-nerv border border-border bg-bg-elev px-3 py-2.5 text-xs leading-[1.6] text-text-mute shadow-popover"
+            className="absolute top-14 left-2 z-10 max-w-105 rounded-nerv border border-border bg-bg-elev px-3 py-2.5 text-xs leading-relaxed text-text-mute shadow-popover"
           >
             {/* **읽는 법이 먼저다.** 조작은 만져 보면 알게 되지만 색과 크기는 그림에서
                 읽어 낼 수 없다 — 범례가 한 줄로 말하는 것을 여기서 끝까지 적는다(크기에
@@ -674,7 +674,7 @@ export function SpecGraph({
                 type="button"
                 data-testid="graph-panel-open"
                 onClick={() => onOpen(selectedNode.key)}
-                className="min-w-0 flex-1 text-left text-base leading-[1.35] font-semibold tracking-[-0.01em] text-text hover:text-link hover:underline"
+                className="min-w-0 flex-1 text-left text-base leading-snug font-semibold tracking-heading text-text hover:text-link hover:underline"
               >
                 {selectedNode.title}
               </button>
@@ -850,7 +850,7 @@ function ConnectionRow({
         {incoming === true ? '↓' : '↑'}
       </GlyphChip>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm leading-[1.45] text-text">
+        <span className="block truncate text-sm leading-snug text-text">
           {connection.node.title}
         </span>
         <span className="mt-0.5 block truncate text-2xs text-text-faint">

@@ -604,7 +604,7 @@ function SpecDetail(): React.JSX.Element {
     // 높이를 묶는 것은 2열일 때뿐이다: 1열(좁은 화면)에서 두 칸을 각각 가두면 스크롤이
     // 두 겹이 되고, 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 보이지 않는다.
     <div
-      className="grid w-full gap-6 px-6 py-6 lg:h-[calc(100dvh-var(--spacing-header))]
+      className="grid w-full gap-6 px-6 py-6 lg:h-below-header
         lg:grid-cols-[1fr_17rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden"
     >
       {/* **본문은 창을 따라 넓어진다**(2026-09-08 — 사람 지시 · 2026-08-23 의 44rem 을
@@ -622,7 +622,7 @@ function SpecDetail(): React.JSX.Element {
           다른 라우트는 전부 셸의 것 하나만 쓴다. */}
       <div
         data-testid="spec-body"
-        className="min-w-0 lg:h-full lg:min-w-[26rem] lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
+        className="min-w-0 lg:h-full lg:min-w-104 lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1"
       >
         {/* 시안의 문서 머리: **메타 줄 → 큰 제목 → 곁줄** 세 층이다. 제목 옆에 배지를
             늘어놓던 이전 배치는 제목이 배지들과 폭을 다퉜다 — 문서의 이름은 문서에서
@@ -747,7 +747,7 @@ function SpecDetail(): React.JSX.Element {
             붙었을 때 그만큼 틈이 남고, 그 틈으로 흐르는 본문이 비쳐 지나간다. */}
         <h1
           data-testid="spec-title"
-          className="sticky top-header z-20 bg-bg pt-1.5 pb-0.5 text-3xl font-bold tracking-[-0.026em] lg:top-0
+          className="sticky top-header z-20 bg-bg pt-1.5 pb-0.5 text-3xl font-bold tracking-tight lg:top-0
             after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2
             after:bg-gradient-to-b after:from-bg after:to-transparent after:content-['']"
         >
@@ -1536,7 +1536,7 @@ function RelationRow({
         {incoming ? '↓' : '↑'}
       </GlyphChip>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm leading-[1.45] text-text">
+        <span className="block truncate text-sm leading-snug text-text">
           {String(relation['title'])}
         </span>
         <span className="mt-0.5 block text-2xs text-text-faint">

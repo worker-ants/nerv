@@ -202,3 +202,61 @@ describe('임의 px 이 없다 (REQ-WEB-045)', () => {
     expect(graph).toContain('w-72 shrink-0 flex-col');
   });
 });
+
+/**
+ * **괄호 값은 허용 목록뿐이다**(2026-09-26 — 임의 값 장부 · 사람 결정 · REQ-WEB-238). px 가 0 이 된 뒤에도 괄호 속에
+ * 자간 열 가지 · 행간 여섯 가지 · 굵기 650 · 31px 글자 · "화면 높이 − 헤더" 계산식 아홉 · rem 폭 여섯 · z 둘이 남아 있었다
+ * (95곳 중 60곳). 토큰(`tracking-heading`·`label` · `font-strong` · `below-header` · `anchor`)과 척도로 접었고, 남긴 것은
+ * 값이 아닌 것뿐이다 — 선택자 · CSS 함수 · 격자 틀 · 화면·글자 비율 단위.
+ */
+describe('괄호 값은 허용 목록뿐이다 (REQ-WEB-238)', () => {
+  /** 값이 아닌 것 — 선택자 변형 · 가상 요소의 내용 · 격자 틀 */
+  const SELECTOR = /^(data|aria|group|peer|has|not|supports|in)$/;
+  const TEMPLATE = /^(content|grid-cols|grid-rows)$/;
+  /** 토큰으로만 쓰는 종류 — 괄호가 오면 어떤 단위든 실패다 */
+  const TOKEN_ONLY = /^(tracking|leading|font|text|z)$/;
+  function allowed(kind: string, value: string): boolean {
+    if (SELECTOR.test(kind) || TEMPLATE.test(kind) || value === 'inherit') return true;
+    if (TOKEN_ONLY.test(kind)) return false;
+    // 헤더 아래 높이·제목 여백은 토큰 하나다(below-header · anchor) — 계산식을 다시 적지 않는다
+    if (value.includes('--spacing-header')) return false;
+    // 계산 · 화면·글자 비율은 토큰으로 옮길 값이 아니다(min() · calc() · vh · % · em · lh)
+    if (value.includes('(')) return true;
+    return /^-?\d+(\.\d+)?(vh|dvh|svh|lvh|vw|%|lh)$/.test(value) || /^-?\d+(\.\d+)?em$/.test(value);
+  }
+
+  it('허용 목록 밖의 임의 값이 없다 — 자간·행간·굵기·글자·z·rem·px 는 토큰과 척도로 쓴다', () => {
+    const offenders = sources().flatMap((file) =>
+      [...readFileSync(file, 'utf8').matchAll(/\b([a-z][a-z0-9-]*)-\[([^\]\s]+)\]/g)]
+        .filter((m) => !allowed(m[1]!, m[2]!))
+        .map((m) => `${rel(file)}: ${m[0]}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('허용 목록이 너무 넓지 않다 — 접은 값들은 모두 걸린다', () => {
+    for (const [kind, value] of [
+      ['tracking', '-0.01em'],
+      ['leading', '1.45'],
+      ['font', '650'],
+      ['text', '1.9375rem'],
+      ['z', '60'],
+      ['w', '17.5rem'],
+      ['w', '12px'],
+      ['h', 'calc(100vh-var(--spacing-header))'],
+    ] as const) {
+      expect(allowed(kind, value)).toBe(false);
+    }
+    for (const [kind, value] of [
+      ['data', 'active=true'],
+      ['content', "''"],
+      ['grid-cols', '1fr_17rem'],
+      ['max-h', '70vh'],
+      ['max-w', '40%'],
+      ['h', '1em'],
+      ['w', 'min(24rem,calc(100vw-2rem))'],
+    ] as const) {
+      expect(allowed(kind, value)).toBe(true);
+    }
+  });
+});

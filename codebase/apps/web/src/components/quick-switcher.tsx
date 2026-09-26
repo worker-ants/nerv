@@ -408,7 +408,7 @@ export function QuickSwitcher({
             >
               <p
                 aria-hidden="true"
-                className="px-4 pt-2 pb-1 text-2xs font-semibold tracking-[0.04em] text-text-faint"
+                className="px-4 pt-2 pb-1 text-2xs font-semibold tracking-label text-text-faint"
               >
                 {GROUP_LABEL[group]}
               </p>

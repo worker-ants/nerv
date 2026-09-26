@@ -84,12 +84,12 @@ export function InvitationCards({
   return (
     <section data-testid="invitation-cards" className="flex flex-col gap-2">
       {heading && (
-        <div className="text-lg font-[650] tracking-[-0.012em]">{t('invite.mine_title')}</div>
+        <div className="text-lg font-strong tracking-heading">{t('invite.mine_title')}</div>
       )}
       {pending.map((invite) => (
         <Card key={String(invite['id'])} className="flex flex-wrap items-center gap-3">
           <span className="min-w-0 flex-1">
-            <span className="block text-base leading-[1.45] font-medium tracking-[-0.008em]">
+            <span className="block text-base leading-snug font-medium tracking-heading">
               {/* **어디로 부르는지가 문장 안에 있다**(REQ-WEB-192) — 흐린 둘째 줄의 slug 로만 말하던
                   동안 프로젝트 초대가 조직 전체 역할처럼 읽혔다 */}
               {invitationSentence(t, invite)}

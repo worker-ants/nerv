@@ -65,7 +65,7 @@ function SessionMonitor(): React.JSX.Element {
   const focused = cards.find((c) => c.id === selectedId) ?? cards[0] ?? null;
 
   return (
-    <div className="flex min-h-[calc(100vh-var(--spacing-header))]">
+    <div className="flex min-h-below-header">
       <div className="min-w-0 flex-1">
         <PageBody wide>
           <PageHeader title={t('sessions.title')} />

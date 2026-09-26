@@ -129,7 +129,7 @@ export function SideColumn({
       // 사이드바와 같은 규칙이다 — 페이지가 흘러도 열은 화면 높이로 제자리에 선다. `sticky` 는 제 쌓임 맥락을
       // 만들어 안쪽 패널의 z 가 그 안에 갇힌다 — 열 자신이 z 를 가져야 좁은 폭의 패널이 본문(제목의 sticky · z-20)을
       // 덮는다. 헤더·서랍의 뒷막(z-30)보다는 아래다: 서랍이 열린 동안 띠가 뒷막 위로 떠 눌리면 안 된다
-      className="sticky top-header z-[25] flex h-[calc(100dvh-var(--spacing-header))] shrink-0 self-start"
+      className="sticky top-header z-25 flex h-below-header shrink-0 self-start"
     >
       {/* **띠** — 열이 제자리에 없을 때(접었거나 좁은 폭) 여는 자리가 늘 같은 곳에 있다 */}
       {!(open && wide) && (

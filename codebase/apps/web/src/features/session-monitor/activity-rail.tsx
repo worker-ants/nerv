@@ -44,7 +44,7 @@ export function ActivityRail({
       {/* 초점 머리 — 누구의 세션을 보고 있는가 */}
       <div className="flex items-center gap-2">
         <Avatar name={card.user_name} size="md" />
-        <span className="text-base font-semibold tracking-[-0.01em]">{card.user_name}</span>
+        <span className="text-base font-semibold tracking-heading">{card.user_name}</span>
         <span className="font-mono text-xs text-text-faint">{card.hostname}</span>
         <Link
           to="/p/$proj/sessions/$session"
