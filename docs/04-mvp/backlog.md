@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.65 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.66 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v1.66 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **상태 배지의 반 픽셀** 한 줄([4.5](screens.md) §4.3 · REQ-WEB-236). 스토리 수·`done` 수는 그대로다.
+
 > v1.65 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **머리글자 칸이 세 벌이었다** 한 줄([4.5](screens.md) REQ-WEB-238). 스토리 수·`done` 수는 그대로다.
 
 > v1.64 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **임의 px 장부의 첫 묶음** 한 줄([4.5](screens.md) REQ-WEB-238 · REQ-WEB-045). 스토리 수·`done` 수는 그대로다.
@@ -552,6 +554,7 @@ referenced_by:
 | 실시간만 끊겨도 전폭 배너가 섰다 | `apps/web/src/lib/realtime.tsx`(`connectionMark` 신설 · `disconnectedSince` · `connectionBanner` 는 오프라인만) · `lib/ws.ts`(`connect_error` 도 끊김) · `components/app-shell.tsx`(헤더의 연결 표시 · 누르면 까닭 · 늘 있는 알림 자리 · 배너는 회색 ⚠ 하나) · `packages/schema` `realtime.ws_down_*`·`offline_short` · L1 `connection-mark.spec.tsx`(신설) · `realtime.spec.ts`·`ws.spec.ts` · L3 `connection-mark.spec.ts`(신설 — 소켓 길목을 막는다) · 매뉴얼 ko·en `start.md` | 실시간만 끊긴 단계(REST 정상)는 폴링으로 일이 계속되고 쓰기도 되는데 전폭 호박 배너가 화면을 한 줄 밀었다. 사람 결정 D8(2026-09-26 — 시안을 보고): 그 단계는 헤더의 점, 배너는 오프라인에만([4.5](screens.md) REQ-WEB-002 · REQ-WEB-235 개정). 처음부터 붙지 못한 소켓(`connect_error`)은 아무 표시도 없었다 — 함께 고쳤다. |
 | 임의 px 장부의 첫 묶음 — 간격 · 반경 · 글자 · 흐림 | `features/task-board/board.tsx` · `features/spec-graph/graph.tsx` · `features/session-monitor/activity-timeline.tsx`·`activity-rail.tsx` · `components/event-feed.tsx`·`spec-tree.tsx`·`relation-tabs.tsx`·`quick-switcher.tsx`·`ui/modal.tsx` · `routes/inbox.tsx` · `routes/p.$proj/sessions.index.tsx`·`specs.$spec.tsx`(임의 px 31곳 → 척도 · `rounded-nerv*`·`rounded-xs` · `text-3xs`·`text-sm`·`text-base` · `h-control-sm`·`h-6.5` · `backdrop-blur-xs`) · L1 `primitives-one-set.spec.tsx`(장부 51 → 20) | 남은 임의 px 51곳을 부류로 나눈 장부(아티팩트)에서 사람이 권장안 셋을 골랐다(레이아웃 폭은 척도 수 · 배지 1px 낮춤 · 세션 레일 이름 14px). 첫 묶음은 결정 없이 접히는 31곳이다 — 한 곳에 1~2px 이하. 남은 20곳은 머리글자 칸(A) · 상태 배지(B) · 레이아웃 폭(C) 세 PR 이다([4.5](screens.md) REQ-WEB-238). |
 | 머리글자 칸이 세 벌이었다 — 임의 px 장부 PR 2 | `apps/web/src/components/ui/primitives.tsx`(`GlyphChip` 신설 — 네모 · 동그라미) · `features/spec-graph/graph.tsx`(패널 관계 행) · `routes/p.$proj/specs.$spec.tsx`(관계 레일) · `features/session-monitor/activity-timeline.tsx`(종류 글리프) · L1 `primitives-one-set.spec.tsx`(부품 · 베낀 칸 검사 · 장부 20 → 11) | 18px 칸에 10px 글자를 넣은 머리글자 칸을 세 자리가 임의 px 로 각자 짰다. 한 부품으로 모으고 베낀 칸을 검사가 막는다 — 네모 칸의 모서리가 5px → 4px([4.5](screens.md) REQ-WEB-238). |
+| 상태 배지의 반 픽셀 — 임의 px 장부 PR 3 | `apps/web/src/components/status-badge.tsx`(세로 `py-0.5` · 모서리 `rounded-nerv-sm` · 간격 `gap-1` · 점은 6px 원) · L1 `status-badge.spec.tsx`(점은 원) · `status-one-set.spec.tsx`(베낀 배지의 표지를 새 모양으로) · `primitives-one-set.spec.tsx`(장부 11 → 7) | 배지 한 부품이 시안의 반 픽셀(세로 2.5 · 모서리 5)과 8px 글자 ● 를 임의 px 로 들고 있었다. 척도로 접어 배지가 1px 낮아졌다 — 사람이 받았다(장부의 결정 2 · [4.5](screens.md) §4.3). |
 
 #### 이 절은 언제 갱신되는가
 

@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.71 (2026-09-26)</span>
+      <span>버전 v1.72 (2026-09-26)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -2214,6 +2214,7 @@ export const ApprovalDecisionInput = z
     <li><b>신원·시간 표기</b> — 신원 3요소 <code>도현 · mac-02 · claude-code</code>(좁은 화면은 <code>mac-02/claude-code</code> 축약, hostname은 고정폭). 하트비트는 상대 시각만, diff는 <code>+218 −34 · 파일 7</code> — ui-wireframes §3.3.</li>
     <li><b>점도 같은 한 길이다</b>(2026-09-25 — UI/UX 검토 SYS-07 · REQ-WEB-236). 배경이 없는 맨 점(레인 · 세션 요약 줄 · 스펙 트리의 좁은 열)은 §4.2 토큰의 <b>진한 쪽</b>을 쓰고, 그 값은 <code>components/status-token.ts</code> 의 <code>STATUS_DOT</code> 한 표에서만 고른다(<code>statusDot(엔티티 매핑, 값)</code>). 화면마다 점 색표를 들던 동안 같은 <code>stale</code> 이 요약 줄에서는 회색, 카드 배지에서는 빨강이었다.</li>
     <li><b>상태가 아닌 표지도 상태 배지 한 부품이다</b>(같은 날 · REQ-WEB-236). 막는 중 · 정족수 · 세션 대기 · 기준 지나감 · 우선순위는 상태가 아니라 점을 두지 않거나(<code>mark={null}</code>) 뜻을 가진 기호(<code>↑</code>)를 두고, 촘촘한 카드 메타 줄에서는 여백만 줄인다(<code>size="sm"</code>) — 글자 크기·색·라운드는 배지와 같다. 숫자 배지(<code>CountBadge</code> · 사이드바의 받은 요청 · 알림 · 세션 · 리뷰 수)도 같은 색표를 읽는다. 배지를 손으로 베낀 알약이 다섯이었고 같은 "막는 중" 이 자리마다 크기가 달랐다.</li>
+    <li><b>배지의 모양은 척도다</b>(2026-09-26 — 임의 px 장부 PR 3 · 사람 결정). 세로 2px · 가로 8px(촘촘한 <code>sm</code> 은 6px · 세로 0) · 모서리 4px(<code>rounded-nerv-sm</code>) · 11px/500 · 점은 6px 원(<code>bg-current</code> — 배지 글자색을 그대로 받는다). 시안의 반 픽셀(세로 2.5px · 모서리 5px)과 8px 글자 ● 는 척도에 없어 접었다 — 배지가 1px 낮아졌다. 베낀 배지를 찾는 검사(<code>status-one-set.spec.tsx</code>)는 이 모양 줄을 표지로 쓴다.</li>
     <li><b>컴포넌트 기반</b> — Tailwind + shadcn/ui. 배지·카드·표·탭은 shadcn 프리미티브 위에 위 토큰만 사용한다. 임의 hex 직접 사용은 lint로 금지(REQ-WEB-032).</li>
     <li><b>없는 토큰 이름도 막는다</b> — lint 가 막는 것은 임의 hex 인데, <code>bg-surface</code> 처럼 <b>실재하지 않는 토큰 이름</b>은 hex 가 아니라 통과하고 Tailwind 는 그 클래스에 <b>아무 CSS 도 내지 않는다.</b> 틀린 색이면 눈에 띄지만 <b>없는 색은 눈에 띄지 않는다</b> — 라이트 테마의 바탕이 흰색이라 배경 없는 다이얼로그가 정상으로 보였고, 다크 테마에서만 드러났다(2026-09-06 · 사람 보고). 검사가 <code>tokens.css</code> 의 <code>--color-*</code>·<code>--shadow-*</code> 와 대조한다(REQ-WEB-032 확장 · <code>styles/tokens.spec.ts</code>).</li>
   </ul>
