@@ -104,8 +104,9 @@ export class IngestController {
         additionalContext:
           claims.length === 0
             ? text('agent.no_claim')
-            : `NERV: 활성 클레임 ${claims.map((c) => `${c.task_key}(${c.status})`).join(', ')}. ` +
-              text('agent.resume_claim'),
+            : `${text('agent.active_claims', {
+                claims: claims.map((c) => `${c.task_key}(${c.status})`).join(', '),
+              })} ${text('agent.resume_claim')}`,
       },
     };
   }
@@ -211,9 +212,9 @@ export class IngestController {
     return {
       ok: true,
       decision: 'block',
-      reason:
-        `아직 정리하지 않은 클레임이 있습니다: ${unfinished.map((c) => c.task_key).join(', ')}. ` +
-        text('agent.release_before_exit'),
+      reason: `${text('agent.unfinished_claims', {
+        keys: unfinished.map((c) => c.task_key).join(', '),
+      })} ${text('agent.release_before_exit')}`,
     };
   }
 

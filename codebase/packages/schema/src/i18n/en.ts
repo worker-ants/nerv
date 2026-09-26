@@ -322,7 +322,9 @@ export const en = {
   'import.requirement_not_found': 'Requirement not found — it points outside this repository',
   'import.spec_not_found': 'target spec not found',
   'agent.no_claim': 'NERV: no active claim — start with /nerv:next.',
+  'agent.active_claims': 'NERV: active claims {claims}.',
   'agent.resume_claim': 'Continue with it — do not claim anything new.',
+  'agent.unfinished_claims': 'Claims not yet wrapped up: {keys}.',
   'agent.release_before_exit':
     'Record status with nerv_task_update, then release with nerv_task_release before exiting.',
   'gate.reason.retry_threshold': 'retry threshold exceeded → tier +1',
