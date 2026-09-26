@@ -404,7 +404,11 @@ export class SpecService {
       SELECT r.from_spec_id AS from_id, r.to_spec_id AS to_id, r.kind::text AS kind
         FROM spec_relation r
        WHERE r.project_id = ${input.projectId}
+       ORDER BY r.from_spec_id, r.to_spec_id, r.kind
     `);
+    // **순서를 정해서 준다**(2026-09-27 · REQ-WEB-245) — 순서가 없던 동안 같은 데이터가 요청마다
+    // 다른 순서로 올 수 있었고, 배치는 입력 순서만 달라도 그림이 바뀐다(시드를 고정하고 간선만
+    // 섞어도 노드가 평균 143px 움직였다). 화면도 정렬하지만, 같은 요청에는 같은 응답이 맞다.
     // 아카이브 등으로 노드에서 빠진 끝점은 간선도 함께 뺀다 — 허공을 가리키는 선을 만들지 않는다
     return { nodes, edges: rows.filter((e) => visible.has(e.from_id) && visible.has(e.to_id)) };
   }
