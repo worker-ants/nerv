@@ -28,7 +28,7 @@ import { branchFromRetryState, parseReviewSummary } from './parse/review.js';
 import { addedAtMap, headOf, snapshotMap, snapshotOf } from './parse/git.js';
 import { parseFrontmatter, splitStatus } from './parse/frontmatter.js';
 import { extractRequirements } from './parse/requirements.js';
-import { scan } from './parse/scan.js';
+import { RepoIndex, scan } from './parse/scan.js';
 import {
   emptyManifest,
   knows,
@@ -60,8 +60,10 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
   const items: ImportSpecItem[] = [];
   const statusCounts: Record<string, number> = {};
 
+  // `code:` glob 의 실존 검사에 쓴다 — 처음 물을 때 한 번만 걷는다(REQ-IMP-032)
+  const repo = new RepoIndex(options.root);
   for (const file of files) {
-    const converted = convert(file, profile, entries, statusCounts);
+    const converted = convert(file, profile, entries, statusCounts, repo);
     if (converted !== null) items.push(converted);
   }
 
@@ -746,6 +748,7 @@ function convert(
   profile: ImportProfile,
   entries: ReportEntry[],
   statusCounts: Record<string, number>,
+  repo: RepoIndex,
 ): ImportSpecItem | null {
   const parsed = parseFrontmatter(file.content);
   const { frontmatter, body } = parsed;
@@ -826,8 +829,43 @@ function convert(
     doc_status: (status?.doc ?? 'draft') as ImportSpecItem['doc_status'],
     sort_key: sortKeyOf(basename(file.path)),
     requirements: requirementsOf(file, body, profile, status?.impl ?? 'unimplemented', entries),
-    evidence: [],
+    evidence: codeEvidenceOf(file, frontmatter, profile, repo, entries),
   };
+}
+
+/**
+ * **`code:` glob → `code_path` 증적**(importer.md §2.3 · REQ-IMP-032 · 2026-09-26).
+ *
+ * 2026-09-26 까지 이 키는 "아는 키" 로 표시돼(`preservedOf`) 미매핑 경고도 나지 않으면서
+ * 적재되지도 않았다 — 원본의 glob 691개가 **아무 말 없이** 사라졌다. glob 하나가 증적 한 행이고,
+ * 저장소에서 아무 파일도 가리키지 않으면 `stale` 로 싣고 수동 확인 큐에 올린다.
+ * 이 증적은 스펙 버전에 붙는다 — 구현 축의 파생은 요구사항·작업에 붙은 증적만 센다.
+ */
+function codeEvidenceOf(
+  file: ScannedFile,
+  frontmatter: Record<string, string | string[]>,
+  profile: ImportProfile,
+  repo: RepoIndex,
+  entries: ReportEntry[],
+): ImportSpecItem['evidence'] {
+  if (profile.frontmatter.code !== 'evidence.code_path') return [];
+  const raw = frontmatter['code'];
+  const globs = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw])
+    .map((glob) => glob.trim())
+    .filter((glob) => glob !== '');
+  return globs.map((glob) => {
+    const stale = !repo.exists(glob);
+    if (stale) {
+      entries.push({
+        file: file.path,
+        line: null,
+        rule: 'code-glob-no-match',
+        reason: t()('cli.reason.code_glob_no_match', { glob }),
+        disposition: 'manual',
+      });
+    }
+    return { kind: 'code_path', locator: glob, stale };
+  });
 }
 
 /**

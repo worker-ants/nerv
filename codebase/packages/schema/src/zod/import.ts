@@ -162,7 +162,14 @@ export const importSpecItemSchema = z.object({
    */
   sort_key: z.string().default(''),
   requirements: z.array(importRequirementSchema).default([]),
-  evidence: z.array(z.object({ kind: z.string(), locator: z.string() })).default([]),
+  /**
+   * 증적 — 지금은 `code:` glob 이 `code_path` 로 온다(importer.md §2.3 · REQ-IMP-032).
+   * **`stale` 은 CLI 가 판정한다**: 원본 저장소를 보는 쪽이 CLI 뿐이라(서버는 파일 시스템을
+   * 모른다 — §1.4 경계 1), 경로 실존 검사에서 아무 파일도 가리키지 않는 glob 을 표시해 보낸다.
+   */
+  evidence: z
+    .array(z.object({ kind: z.string(), locator: z.string(), stale: z.boolean().default(false) }))
+    .default([]),
 });
 
 export const importSpecBatchInputSchema = z.object({

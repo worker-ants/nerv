@@ -472,10 +472,12 @@ export class ImportService {
     }
 
     for (const evidence of item.evidence) {
+      // **낡음은 CLI 가 판정해 싣는다**(REQ-IMP-032) — 원본 저장소를 보는 쪽이 CLI 뿐이다.
+      // 가리키는 파일이 없는 glob 은 `stale=true` 로 적재돼 수동 확인 큐와 짝을 이룬다
       await tx.execute(sql`
-        INSERT INTO evidence (id, project_id, spec_version_id, kind, locator, source)
+        INSERT INTO evidence (id, project_id, spec_version_id, kind, locator, source, stale)
         VALUES (${newId()}, ${actor.projectId}, ${versionId}, ${evidence.kind}::evidence_kind,
-                ${evidence.locator}, 'human')
+                ${evidence.locator}, 'human', ${evidence.stale})
       `);
     }
 

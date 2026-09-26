@@ -3,6 +3,7 @@ id: SPC-MVP-IMPORTER
 status: approved
 updated: 2026-09-06
 referenced_by:
+  - 03-proposal/spec-workflow.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
@@ -19,7 +20,9 @@ referenced_by:
 
 > **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.22 · 2026-09-07 · HTML 파생본: [importer.html](../html/importer.html)
+> 문서 버전 v0.23 · 2026-09-26 · HTML 파생본: [importer.html](../html/importer.html)
+>
+> v0.23 변경(2026-09-26 — `code:` glob 이 아무 말 없이 사라졌다): **REQ-IMP-032 신설 · §2.3 `code:` 행.** 이 키는 CLI 가 "아는 키" 로 표시해 미매핑 경고도 내지 않으면서 적재하지도 않았다 — clemvion 의 glob 691개가 조용히 버려졌다. glob 하나를 `code_path` 증적 하나로 싣고, 경로 실존 검사에서 아무것도 가리키지 않으면 `stale=true` + `code-glob-no-match`(manual)로 올린다. 곁에 frontmatter 의 한 줄 목록(`code: []`)이 문자열 `"[]"` 로 읽히던 것을 고쳤다. clemvion `5b458b1ec` dry-run: glob 691 · 미매치 0 · 원본 쓰기 0.
 >
 > v0.22 변경(2026-09-07 — 등급이 이름만 남아 있었다, 개선 계획 여섯째 스프린트): **REQ-IMP-023~031 신설 · REQ-IMP-020 정정 · §4.1 전표 여덟 행 · §2.6 매핑 · §3.3·§5.1 실물화.** ① **abort 게이트가 spec 패스에만 있었다** — plan·review 는 `aborted` 항목을 리포트에 적은 뒤 **그대로 전송**했다. 중단이라 적어 놓고 중단하지 않으면 그 등급은 이름만 남는다. ② **전표와 코드가 세 자리 갈려 있었다**(`dist-mismatch`·`status-unknown`·`title-missing`) — 전표가 warn 이라 적은 것을 코드가 `skipped` 로 내면 정상 실행이 종료 코드 1 이 되고, 그 코드를 게이트로 쓰는 쪽은 늘 빨강을 본다. 이제 L1 이 이 문서를 읽어 대조한다. 슬러그 오용 다섯 자리(`link-unresolved` 가 참조 과다에, `owner-unmapped` 가 완료 시각 미복구에 …)도 함께 고쳤다 — 슬러그로 재실행 큐를 고를 수 없던 이유다. ③ **`hint` 는 선언만 있고 채우는 코드가 0곳이었다.** ④ 가장 흔한 실패 둘(토큰 만료·프로파일 오타)이 리포트 없이 종료 코드 1 로 죽었다 — 이 CLI 의 어휘에서 1 은 "완료했으나 수동 확인" 이다. ⑤ `id-collision` 의 class 를 skip 으로 정정한다(사람 결정) — 코드는 처음부터 항목만 빼고 계속했다. ⑥ **`root_commit` 이 세 리포트에서 `null` 고정**이었다 — 렌더러는 그 필드를 그리고 있었으므로 사람은 커밋 없는 임포트 기록을 읽었다. ⑦ **파서가 계산한 셋(`started`·`priority`·`spec_impact`)을 계약에 실을 자리가 없어 버리고 있었다** — 서버는 그때마다 기본값을 채웠고 화면은 그 기본값을 사람이 고른 값으로 그렸다. 특히 done 의 `{"none": true}` 는 "영향 없음을 확인했다" 는 선언이라 지어 넣으면 거짓 부정이다(사람 결정 — `{"unknown": true}` 로). 우선순위 미표기를 NULL 로 두기 위해 [4.3](database.md) 0024 를 함께 낸다(사람 결정). ⑧ **§1.4 의 유일한 프로파일 예시가 첫 인라인 맵에서 죽었다** — `JSON.parse` 는 따옴표 없는 키를 받지 않는다. 문서가 보여 주는 대로 쓴 사람은 자기 파일이 잘못됐다고 읽는다. ⑨ **매니페스트가 frontmatter 를 기억하지 않았다** — 목표 2("원문 해시를 매니페스트에")가 본문에 대해서만 참이었고, 옮기지도 보존하지도 않은 키는 흔적 없이 사라졌다. ⑩ **nerv-docs 프로파일이 §5.1 과 다섯 자리에서 달랐다**(README 제외 · 잎 종류 · `status` 기본값 · 보존 키 · 요구사항 정규식) — 이 저장소 자신의 문서를 옮기는 프로파일이고, 첫 임포트의 결과가 그대로 Task 의 초기 상태가 된다. ⑪ **임포트가 만든 진행 중은 아무도 하지 않는 진행 중이었다**(사람 결정) — 활성 클레임이 없어 큐에도 안 보이고 회수되지도 않는데 상태만 "진행 중" 이라 사람은 누군가 하고 있다고 읽는다(실측 24건). 매핑을 `backlog + warn` 으로 바꾸고 이미 들어온 행은 [4.3](database.md) 0025 로 되돌린다.
 >
@@ -196,7 +199,7 @@ task:                        # plan 프로파일(P1) — §2.6
 | --- | --- | --- |
 | `id:` (kebab-case, basename 기반) | `spec.key` + `spec.id`(서버 발급 UUID) | §2.2. UUID가 정본, 옛 id는 별칭 |
 | `status:` 5값 | **2축 분해** — 문서 축 `spec_version.status` + 구현 축 `requirement.impl_status` | 아래 분해 표 |
-| `code:` glob 목록 | `evidence(kind='code_path', locator=glob)` 다중 행 | glob당 1행. `source='human'`(실행자 위임), `stale=false`로 적재 후 **경로 실존 검사**를 돌려 미매치 glob은 `stale=true` + 수동 확인 큐 — "stale glob은 본 가드만으로 검출 불가"(R-1)라던 자기 인정 약점을 임포트 직후 값으로 드러낸다 |
+| `code:` glob 목록 | `evidence(kind='code_path', locator=glob)` 다중 행 | glob당 1행. `source='human'`(실행자 위임), `stale=false`로 적재 후 **경로 실존 검사**를 돌려 미매치 glob은 `stale=true` + 수동 확인 큐 — "stale glob은 본 가드만으로 검출 불가"(R-1)라던 자기 인정 약점을 임포트 직후 값으로 드러낸다. **2026-09-26 구현**(REQ-IMP-032): 원본 저장소를 보는 쪽이 CLI 뿐이라 검사도 CLI 가 하고 계약의 `stale` 로 싣는다. 경로는 스캔 뿌리 기준이고 glob 문법은 스캔과 같다(Next.js 의 `[slug]` 는 글자 그대로). 증적은 스펙 버전에 붙어 구현 축의 파생에는 들지 않는다. 본문이 그대로인 문서는 재실행에서 다시 보내지 않으므로, 그 사이 사라진 경로는 다음 본문 변경 때 드러난다 |
 | `pending_plans:` | `task(source_requirement_id=…, status≠done)` 링크 | P0 시점에는 Task가 없으므로 경로를 매니페스트의 미해소 목록에 적어 두고, **P1 plan 임포트가 해소**한다. 요구사항 단위 지정이 불가능한 항목은 Task의 `source_spec_version_id`만 세팅하고 수동 확인 큐로 |
 | `user_guide:` | `evidence(kind='user_guide')` | 가드 미적용(R-10)이던 필드가 다른 증적과 같은 검증 경로에 올라온다 |
 | 요구사항 표(`NAV-WF-01` 등) | `requirement` 행 | §2.5 |
@@ -498,6 +501,7 @@ CLI 는 **서버 없이도 돈다**(dry-run 은 `--server` 없이 완주한다 �
 | REQ-IMP-031 | WHEN 원본 계획이 진행 중 디렉터리에 worktree 값을 갖고 있으면 THE SYSTEM SHALL **`backlog`** 로 적재하고 그 사실을 리포트에 `warn` 으로 남긴다 — 활성 클레임 없는 `in_progress`·`claimed` 는 만들지 않는다(REQ-IMP-009 의 확장). WHERE 그런 행이 이미 적재돼 있으면 THE SYSTEM SHALL 마이그레이션 0025 로 되돌린다(위임 명세가 placeholder 이고 활성 클레임이 없는 것만 · 멱등) — placeholder 문자열은 지우지 않는다: 그것이 "임포트로 들어왔고 명세가 없다" 는 유일한 표시다 | 매핑 1건(backlog + worktree 가 리포트에) · 0025 L2(고아만 되돌리고 사람이 쓴 것은 그대로) |
 | REQ-IMP-029 | WHEN `--profile-file` 이 YAML 을 가리키면 THE SYSTEM SHALL 프로파일이 실제로 쓰는 부분집합 — 중첩 맵 · 블록 리스트(`- item`) · **따옴표 없는 인라인 맵·배열** · 스칼라 — 을 읽고, 그 밖의 문법은 조용히 넘기지 않고 `profile-invalid` 로 중단한다. WHILE §1.4 가 프로파일 예시를 보여 주는 동안 THE SYSTEM SHALL 그 예시가 실제로 읽히는지를 L1 이 확인한다 — 문서가 보여 주는 대로 쓴 사람은 자기 파일이 잘못됐다고 읽는다 | §1.4 예시 파싱 1건 · 인라인 맵·배열·블록 리스트 3건 · 범위 밖 던지기 1건 |
 | REQ-IMP-030 | WHEN 스펙을 적재하고 매니페스트를 쓰면 THE SYSTEM SHALL 본문 해시와 **선두 frontmatter 블록의 해시를 따로** 적고, 프로파일이 `preserve` 로 선언한 키의 값과 **모르는 키의 이름**을 함께 남긴다(`frontmatter-unmapped` warn). WHEN 선두 블록이 `---` 로 열렸는데 닫히지 않으면 THE SYSTEM SHALL `frontmatter-unparsable` 로 그 파일을 빼고 계속한다 — 조용히 본문으로 읽으면 원본의 고정 ID 를 잃는다. WHERE 프로파일이 `status_default` 를 선언하면 THE SYSTEM SHALL `status` 없는 문서에 그 값을 쓴다 | 해시 둘·보존·미매핑 1건 · nerv-docs 규칙 넷 |
+| REQ-IMP-032 | WHEN 스펙 frontmatter 가 `code:` glob 목록을 선언하고 프로파일이 그것을 `evidence.code_path` 로 옮기면 THE SYSTEM SHALL glob 하나마다 `code_path` 증적을 싣고, WHEN 그 glob 이 스캔 뿌리에서 아무 파일·디렉터리도 가리키지 않으면(`.git`·`node_modules` 제외) THE SYSTEM SHALL 그 증적을 `stale=true` 로 싣고 `code-glob-no-match`(manual)를 리포트에 올린다. WHEN frontmatter 값이 한 줄 목록(`[]` · `[a, b]`)이면 THE SYSTEM SHALL 그것을 목록으로 읽는다 |
 | REQ-IMP-022 | WHEN 서버가 표시 키를 발급하면 THE SYSTEM SHALL 데이터 모델 §5.1 형식(`<project.key>-<타입>-<base32 6자>`)을 쓴다 — 생성 경로가 달라도 같다(§2.6b) |
 
 ### 3.6 실행 주체 — 운영자 절차 (2026-09-06 개정 · 래퍼 스킬을 걷었다)

@@ -171,6 +171,35 @@ describe('EP-IMP-02 specs — 소급 적재', () => {
     expect(applied.rows[0]?.n).toBeGreaterThan(0);
   });
 
+  it('code: glob 은 code_path 증적이 되고, CLI 가 표시한 낡음이 그대로 적재된다 (REQ-IMP-032)', async () => {
+    // 원본 저장소를 보는 쪽은 CLI 뿐이라 실존 검사도 CLI 가 한다 — 서버는 표시를 싣는다.
+    // 생략하면 낡지 않은 것이다(계약의 기본값)
+    const res = await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [
+        {
+          ...docItem('SPC-CODE-1'),
+          evidence: [
+            { kind: 'code_path', locator: 'codebase/backend/src/auth/**' },
+            { kind: 'code_path', locator: 'codebase/backend/src/gone.ts', stale: true },
+          ],
+        },
+      ],
+    });
+    expect(res.status).toBe(201);
+    const { rows } = await pool.query<{ locator: string; stale: boolean; anchored: boolean }>(
+      `SELECT e.locator, e.stale, (e.spec_version_id IS NOT NULL) AS anchored
+         FROM evidence e JOIN spec s ON s.current_version_id = e.spec_version_id
+        WHERE s.key = 'SPC-CODE-1' AND e.kind = 'code_path'
+        ORDER BY e.locator`,
+    );
+    expect(rows).toEqual([
+      { locator: 'codebase/backend/src/auth/**', stale: false, anchored: true },
+      { locator: 'codebase/backend/src/gone.ts', stale: true, anchored: true },
+    ]);
+  });
+
   it('2회 연속 실행의 신규 생성 레코드가 0이다 (성공 기준 0-7)', async () => {
     const batch = { profile: 'clemvion', kind: 'document' as const, items: [docItem('SPC-IDEM')] };
     await post('specs', batch);

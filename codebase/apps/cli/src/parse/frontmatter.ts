@@ -49,10 +49,24 @@ export function parseFrontmatter(content: string): ParsedDocument {
     const [, key, value] = pair;
     if (key === undefined) continue;
     currentKey = key;
-    frontmatter[key] = value === undefined || value === '' ? [] : unquote(value);
+    frontmatter[key] = value === undefined || value === '' ? [] : scalarOrFlowList(value);
   }
 
   return { frontmatter, body, raw, unparsable: false };
+}
+
+/**
+ * 한 줄 목록(`code: []` · `code: [a, b]`)은 **목록이다**(2026-09-26). 이 파서는 줄 목록(`- a`)만
+ * 알아서, clemvion 의 `code: []` 가 문자열 `"[]"` 로 읽혀 존재하지 않는 경로 하나가 됐다 —
+ * 실존 검사가 그것을 "아무것도 가리키지 않는 glob" 으로 보고했다(실측 2026-09-26).
+ */
+function scalarOrFlowList(value: string): string | string[] {
+  const flow = /^\[(.*)\]$/.exec(value.trim());
+  if (flow === null) return unquote(value);
+  return (flow[1] ?? '')
+    .split(',')
+    .map((item) => unquote(item))
+    .filter((item) => item !== '');
 }
 
 function unquote(value: string): string {

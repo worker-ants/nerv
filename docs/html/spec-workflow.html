@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.18 (2026-09-26)</span>
+      <span>버전 v0.19 (2026-09-26)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -237,7 +237,7 @@
   </div>
 
   <p>이 축의 값은 <b>사람이 손으로 찍지 않는다.</b> 서버가 관계 그래프에서 파생한다(D-03).</p>
-  <p><b>구현 축의 그림은 여기 하나다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 그림과 <a href="data-model.html">3.3</a> §1.4 가 거꾸로 가는 간선을 서로 다르게 그리고 있었다 — 여기는 <code>verified → implemented: 회귀 실패</code>, 저기는 <code>implemented → unimplemented: 증적 stale 판정</code> — 둘 다 첫 커밋 그대로였고, 코드는 어느 쪽도 하지 않았다. 대신 코드는 두 그림에 없는 되돌림 둘을 하고 있었다. 정한 것은 셋이다. ① 구현 축의 상태도와 파생 규칙은 <b>이 절이 정본</b>이고 3.3 은 링크한다(상태 어휘의 정본은 그대로 <a href="pain-points.html">1.2</a> D-02). ② 간선은 사건("CR MODIFIED")이 아니라 <b>조건</b>("무엇이 참이면")으로 적는다 — 파생 값에 사건 간선을 그리면 같은 조건을 만드는 다른 길이 전부 빠진다. 그래서 코드가 하던 되돌림 둘(착수 취소 · 새 파생 작업 착수)을 그린다. ③ <code>증적 stale → unimplemented</code> 는 걷는다 — done 작업이 하나라도 있으면 아래 규칙표는 미구현을 내지 않는다. 낡은 증적은 <b>증적에서 빠질</b> 뿐이다(파생과 커버리지가 이미 거른다 — 그 값을 세우는 판정은 아직 없다). <code>회귀 실패 → implemented</code> 는 서버가 테스트 결과를 받지 않아 판정할 수 없다 — <b>재검토 트리거</b>: CI 결과를 받게 되면(FR-10 · Phase 2) 최근 실행 결과를 따로 두고 파생의 입력에 넣는다. 요구사항 관리 도구들이 테스트 결과를 최근 실행에서 계산해 워크플로 상태와 따로 두는 것과 같은 모양이다.</p>
+  <p><b>구현 축의 그림은 여기 하나다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 그림과 <a href="data-model.html">3.3</a> §1.4 가 거꾸로 가는 간선을 서로 다르게 그리고 있었다 — 여기는 <code>verified → implemented: 회귀 실패</code>, 저기는 <code>implemented → unimplemented: 증적 stale 판정</code> — 둘 다 첫 커밋 그대로였고, 코드는 어느 쪽도 하지 않았다. 대신 코드는 두 그림에 없는 되돌림 둘을 하고 있었다. 정한 것은 셋이다. ① 구현 축의 상태도와 파생 규칙은 <b>이 절이 정본</b>이고 3.3 은 링크한다(상태 어휘의 정본은 그대로 <a href="pain-points.html">1.2</a> D-02). ② 간선은 사건("CR MODIFIED")이 아니라 <b>조건</b>("무엇이 참이면")으로 적는다 — 파생 값에 사건 간선을 그리면 같은 조건을 만드는 다른 길이 전부 빠진다. 그래서 코드가 하던 되돌림 둘(착수 취소 · 새 파생 작업 착수)을 그린다. ③ <code>증적 stale → unimplemented</code> 는 걷는다 — done 작업이 하나라도 있으면 아래 규칙표는 미구현을 내지 않는다. 낡은 증적은 <b>증적에서 빠질</b> 뿐이다(파생과 커버리지가 이미 거른다 — 그 값을 세우는 것은 지금 임포터의 경로 실존 검사뿐이고(<a href="importer.html">4.7</a> REQ-IMP-032), 그 증적은 스펙 버전에 붙어 파생에 들지 않는다). <code>회귀 실패 → implemented</code> 는 서버가 테스트 결과를 받지 않아 판정할 수 없다 — <b>재검토 트리거</b>: CI 결과를 받게 되면(FR-10 · Phase 2) 최근 실행 결과를 따로 두고 파생의 입력에 넣는다. 요구사항 관리 도구들이 테스트 결과를 최근 실행에서 계산해 워크플로 상태와 따로 두는 것과 같은 모양이다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>Requirement 상태</th><th>파생 규칙</th></tr></thead>
