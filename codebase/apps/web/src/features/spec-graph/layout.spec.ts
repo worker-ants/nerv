@@ -4,22 +4,33 @@
 // 읽히고, 그것은 데이터에 없는 계층이다. 눈으로는 "좀 지저분하네"로 보여서 넘어가고,
 // 넘어가면 그래프가 거짓 구조를 말하는 채로 산다.
 //
-// 배치 자체(어느 영역이 어느 영역 옆에 서는가)는 fcose 의 일이라 검사하지 않는다 —
-// `randomize` 라 매번 다르고, 다른 것이 그 옵션의 쓸모다.
+// 배치 자체(어느 영역이 어느 영역 옆에 놓이는가)는 fcose 의 일이라 모양은 검사하지 않는다.
+// 대신 **같은 번호면 같은 자리**인지는 본다(2026-09-27 · REQ-WEB-245) — 열 때마다 그림이
+// 달라 자리를 익힐 수 없던 결함이고, 배치가 비동기로 바뀌는 날 가장 먼저 여기서 깨진다.
 
 import cytoscape from 'cytoscape';
+import fcose from 'cytoscape-fcose';
 import { describe, expect, it } from 'vitest';
 import {
   LABEL_ZOOM,
+  PICKED_FONT_SIZE,
   compactAreas,
   crowdedLabels,
   extent,
   gravitate,
+  labelReadable,
+  labelZoomState,
+  leafPositions,
   pack,
   relax,
+  runLayout,
+  seededRandom,
+  withSeed,
   type LabelBox,
   type PackItem,
 } from './layout.js';
+
+cytoscape.use(fcose);
 
 const box = (cx: number, cy: number, w = 40, h = 40): PackItem => ({ cx, cy, w, h });
 
@@ -273,5 +284,127 @@ describe('이름이 그려지는 배율', () => {
     // 이 수가 배치의 판정("이름의 자리를 잡아 둘까")과 화면의 판정("이름을 그릴까")을
     // 한 곳에서 잇는다. 두 벌로 적으면 한쪽만 바뀌는 날 둘이 어긋난다.
     expect(LABEL_ZOOM).toBeCloseTo(8 / 9, 10);
+  });
+});
+
+describe('읽히는 크기 (2026-09-27 · REQ-WEB-095)', () => {
+  // cytoscape 의 `min-zoomed-font-size` 는 픽셀 비율을 곱하고 2 의 거듭제곱으로 올려 판정해서,
+  // Retina 에서는 배율 0.25 만 넘어도 4px 짜리 이름을 그렸다. 판정은 CSS 픽셀 하나로 한다.
+  it('9px 이름은 배율 0.889 부터, 고른 문서(11px)는 그보다 낮은 배율부터 읽힌다', () => {
+    expect(labelReadable(0.88)).toBe(false);
+    expect(labelReadable(0.89)).toBe(true);
+    expect(labelReadable(0.5)).toBe(false);
+    expect(labelReadable(0.73, PICKED_FONT_SIZE)).toBe(true);
+    expect(labelReadable(0.72, PICKED_FONT_SIZE)).toBe(false);
+  });
+
+  it('배율은 문턱을 넘나들 때만 답을 바꾼다 — 확대하는 동안 매 장면 다시 세지 않는다', () => {
+    expect(labelZoomState(0.4)).toBe(labelZoomState(0.6));
+    expect(labelZoomState(0.6)).not.toBe(labelZoomState(0.8));
+    expect(labelZoomState(0.8)).not.toBe(labelZoomState(0.95));
+    expect(labelZoomState(1.2)).toBe(labelZoomState(3));
+  });
+});
+
+describe('밀어내기의 끝 (2026-09-27)', () => {
+  // 반씩 물러난 뒤의 부동소수점 찌꺼기를 겹침으로 세지 않게 했고, 다지기는 잇달아 못 풀면
+  // 멈춘다 — 그래도 결과의 규칙(겹침이 없다 · 같은 입력이면 같은 답)은 그대로여야 한다
+  const crowd = (): PackItem[] => {
+    const next = seededRandom(7);
+    return Array.from({ length: 120 }, () =>
+      box(next() * 600, next() * 400, 20 + next() * 60, 20 + next() * 40),
+    );
+  };
+
+  it('0 을 돌려주면 정말로 겹친 쌍이 없다', () => {
+    const items = crowd();
+    expect(relax(items, 12, 2000)).toBe(0);
+    for (const [i, a] of items.entries())
+      for (const b of items.slice(i + 1)) {
+        const ox = (a.w + b.w) / 2 + 12 - Math.abs(a.cx - b.cx);
+        const oy = (a.h + b.h) / 2 + 12 - Math.abs(a.cy - b.cy);
+        // 1e-6px 보다 얕은 겹침은 없는 것으로 본다(`OVERLAP_EPSILON` — 부동소수점 찌꺼기)
+        expect(ox > 1e-6 && oy > 1e-6).toBe(false);
+      }
+  });
+
+  it('같은 입력이면 같은 답이다', () => {
+    const one = crowd();
+    const two = crowd();
+    pack(one, { gap: 12, aspect: 1.5 });
+    pack(two, { gap: 12, aspect: 1.5 });
+    expect(one).toEqual(two);
+  });
+});
+
+describe('같은 번호면 같은 그림 (2026-09-27 · REQ-WEB-245)', () => {
+  /** 영역 넷 · 문서 40 · 관계 120 — 번호가 같으면 자리가 같아야 한다 */
+  function graph(): cytoscape.Core {
+    const next = seededRandom(3);
+    const areas = ['a0', 'a1', 'a2', 'a3'];
+    const docs = Array.from({ length: 40 }, (_, i) => `d${String(i).padStart(2, '0')}`);
+    const edges: { data: { id: string; source: string; target: string } }[] = [];
+    for (let i = 0; i < 120; i += 1) {
+      const source = docs[Math.floor(next() * docs.length)] as string;
+      const target = docs[Math.floor(next() * docs.length)] as string;
+      if (source !== target) edges.push({ data: { id: `e${i}`, source, target } });
+    }
+    return cytoscape({
+      headless: true,
+      styleEnabled: true,
+      elements: [
+        ...areas.map((id) => ({ data: { id } })),
+        ...docs.map((id, i) => ({ data: { id, parent: areas[i % areas.length] } })),
+        ...edges,
+      ],
+      style: [{ selector: 'node', style: { width: 24, height: 24 } }],
+    });
+  }
+
+  const layoutWith = (seed: number): Map<string, cytoscape.Position> => {
+    const cy = graph();
+    let done: Map<string, cytoscape.Position> | null = null;
+    runLayout(cy, seed, (positions) => {
+      done = positions;
+    });
+    cy.destroy();
+    // 배치는 **같은 턴에** 끝나야 한다 — 비동기가 되면 난수의 일부가 원래 것으로 돌아간다
+    expect(done).not.toBeNull();
+    return done as unknown as Map<string, cytoscape.Position>;
+  };
+
+  it('같은 번호로 두 번 배치하면 모든 문서가 같은 자리다', () => {
+    expect([...layoutWith(1)]).toEqual([...layoutWith(1)]);
+  });
+
+  it('번호가 다르면 다른 그림이다 — [다른 배치]의 쓸모', () => {
+    const one = layoutWith(1);
+    const two = layoutWith(2);
+    const moved = [...one].filter(([id, at]) => {
+      const other = two.get(id);
+      return other !== undefined && Math.hypot(other.x - at.x, other.y - at.y) > 1;
+    });
+    expect(moved.length).toBeGreaterThan(0);
+  });
+
+  it('배치가 끝나면 Math.random 을 돌려놓는다 — 던져도 돌려놓는다', () => {
+    const original = Math.random;
+    layoutWith(1);
+    expect(Math.random).toBe(original);
+    expect(() =>
+      withSeed(5, () => {
+        throw new Error('배치 실패');
+      }),
+    ).toThrow('배치 실패');
+    expect(Math.random).toBe(original);
+  });
+
+  it('잎의 자리만 적는다 — 영역 상자는 자식을 감싼 자국이다', () => {
+    const cy = graph();
+    runLayout(cy, 1);
+    const at = leafPositions(cy);
+    expect(at.has('a0')).toBe(false);
+    expect(at.has('d00')).toBe(true);
+    cy.destroy();
   });
 });

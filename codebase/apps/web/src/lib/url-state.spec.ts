@@ -18,6 +18,15 @@ const parseBoard = TaskBoard.options.validateSearch as (
 ) => Record<string, unknown>;
 
 describe('스펙 목록의 주소', () => {
+  it('그래프의 배치 번호를 읽는다 — 같은 번호면 같은 그림이다(REQ-WEB-245)', () => {
+    expect(parseSpecs({ view: 'graph', layout: 3 })).toMatchObject({ layout: 3 });
+    expect(parseSpecs({ view: 'graph', layout: '4' })).toMatchObject({ layout: 4 });
+    // 기본(1)은 적지 않는다 — 뜻 없는 인자를 주소에 남기지 않는다(REQ-WEB-163)
+    expect(parseSpecs({ layout: 1 })).not.toHaveProperty('layout');
+    expect(parseSpecs({ layout: 2.5 })).not.toHaveProperty('layout');
+    expect(parseSpecs({ layout: 'x' })).not.toHaveProperty('layout');
+  });
+
   it('검색어를 주소에서 읽는다 — 결과를 링크로 건넨다', () => {
     expect(parseSpecs({ q: '위젯' })).toMatchObject({ q: '위젯' });
   });

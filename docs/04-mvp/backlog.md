@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.86 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.87 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v1.87 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **관계 그래프 — 같은 데이터는 같은 그림, 확대는 WebGL** 한 줄([4.5](screens.md) REQ-WEB-245·246). 스토리 수·`done` 수는 그대로다.
+
 > v1.86 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **보는 것이 바뀌면 본문은 처음부터** 한 줄([4.5](screens.md) REQ-WEB-244). 스토리 수·`done` 수는 그대로다.
 
 > v1.85 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **일괄 결정 상한을 넘긴 요청의 오류 문구** 한 줄([4.4](api.md) REQ-API-191). 스토리 수·`done` 수는 그대로다.
@@ -615,6 +617,7 @@ referenced_by:
 | 받은 요청 일괄 결정의 상한과 빠지는 이유 | `apps/web/src/routes/inbox.tsx` · `features/inbox/approval-card.tsx`(`bulkBlockText` · `cannotApproveText`) · 매뉴얼 ko·en `inbox.md` · L1 `inbox-bulk.spec.tsx` · `approval-card.spec.tsx` | 서버는 일괄 결정을 50건까지 받는데(EP-APR-06) [모두 선택]이 보이는 것을 전부 골라, 51건부터는 요청 전체가 "요청 본문이 스키마와 맞지 않습니다" 로 돌아왔다. 상한에 이르면 고르지 않은 체크박스가 잠기고 선택 바가 까닭을 말하며, [보이는 항목 선택]은 위에서부터 50건까지 고른다(2026-09-26 사람 결정 · [4.5](screens.md) REQ-WEB-181). 서버가 카드마다 주던 일괄 제외 이유(`bulk_block_reason`)도 확인 단계에 표시한다(REQ-WEB-182) |
 | 일괄 결정 상한을 넘긴 요청의 오류 문구 | `apps/api/src/common/parse-body.ts`(`describeIssues`) · `packages/schema/src/zod/review.ts` · `packages/schema/src/i18n/index.ts`(`isMessageKey`) · `approval.controller.ts`(200) · L1 `parse-body.spec.ts` · L2 `approval-bulk-limit.spec.ts` | 웹이 아닌 클라이언트가 일괄 결정에 51건 이상을 보내면 "요청 본문이 스키마와 맞지 않습니다" 한 줄만 돌아왔다(사람 요청). 어긴 zod 규칙에 카탈로그 키가 달려 있으면 그 문구로 답한다 — ko "한 번에 50건까지 결정할 수 있습니다." · en 도 같다([4.4](api.md) REQ-API-191). 곁들여 EP-APR-06 이 명세(REQ-API-162)와 달리 201 로 답하던 것을 200 으로 고쳤다 |
 | 보는 것이 바뀌면 본문은 처음부터 | `apps/web/src/lib/scroll-top.ts`(`useScrollTopOn`) · `routes/help/route.tsx` · `routes/p.$proj/specs.$spec.tsx` · `routes/p.$proj/reviews.index.tsx` · `features/task-board/task-sheet.tsx` · L1 `scroll-top.spec.tsx` · L3 `manual.spec.ts` · `spec-navigation.spec.ts` | 도움말에서 다른 장을 누르면 새 장이 앞 장을 읽던 깊이에서 열렸다(사람 보고). 라우터는 창만 되돌리는데 본문이 자기 상자 안에서 흐르는 화면이 넷이다. 상자마다 무엇을 보는가를 열쇠로 두고 그것이 바뀔 때만 되돌린다([4.5](screens.md) REQ-WEB-244) — 레일 탭처럼 같은 대상 안의 이동은 읽던 자리를 지킨다 |
+| 관계 그래프 — 같은 데이터는 같은 그림, 확대는 WebGL | `apps/web/src/features/spec-graph/`(`layout.ts` `withSeed` · 다지기 조기 종료 · 이름 문턱 · `layout-cache.ts` · `graph.tsx`) · `routes/p.$proj/specs.index.tsx`(`?layout=`) · `spec.service.ts`(간선 정렬) · 매뉴얼 ko·en · L1 `layout.spec.ts` · `layout-cache.spec.ts` · `url-state.spec.ts` · L3 `spec-graph.spec.ts` | 열 때마다 배치가 달라 자리를 익힐 수 없었고, 243 문서 · 3,036 관계에서 확대·이동이 초당 19–24장이었다(사람 보고). 배치 번호가 난수를 정하고(같은 데이터면 같은 그림 · [다른 배치]는 번호를 주소에 남긴다), 입력을 정렬하고, 구조가 바뀔 때만 다시 그리며, 계산한 자리를 브라우저에 적어 둔다. 확대·이동은 cytoscape 내장 WebGL(캔버스로 되돌리는 스위치), 이름 문턱은 CSS 픽셀로, 정리 패스는 풀리지 않는 다지기를 헛돌지 않는다([4.5](screens.md) REQ-WEB-245·246). 남은 것: 문서가 늘 때 그림이 흔들리지 않게 하는 방법(사람 결정 대기) |
 
 #### 이 절은 언제 갱신되는가
 

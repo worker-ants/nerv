@@ -53,7 +53,26 @@
 //      부터 자리를 차지하고, 자리를 잃은 이름은 가라앉는다. 읽을 수 없는 크기를 그리지
 //      않는 것과 같은 규칙의 다른 얼굴이다(REQ-WEB-095) — **가려서 못 읽는 것도 못 읽는
 //      것이다.** 고른 문서의 이름은 언제나 이긴다.
-
+//
+// ── 같은 데이터는 같은 그림 (2026-09-27 · 사람 보고 · REQ-WEB-245) ──────────────────
+//
+// **열 때마다 배치가 달라서 자리를 익힐 수 없었다.** fcose 를 `randomize` 로 돌렸고 fcose 는 시드를
+// 받지 않는다(README 에 옵션이 없다 — 스펙트럴 단계가 `Math.random` 을 부른다). 같은 문서·같은
+// 관계로 두 번 열면 노드가 평균 690–880px 움직였다(합성 243 문서 · 3,036 관계). 이제 배치를 도는
+// 동안만 `Math.random` 을 **배치 번호로 정한 난수**로 바꾼다(`withSeed`). 번호는 주소에 남고
+// (`?layout=` · 기본 1) [다른 배치]가 하나씩 올린다. 정리 패스는 원래 결정적이다.
+//
+// **입력 순서도 답을 바꾼다** — 시드를 고정해도 간선 순서만 섞으면 평균 143px, 노드 순서를 섞으면
+// 741px 움직였다. 그래서 그리는 쪽(`graph.tsx`)이 노드는 id, 간선은 (from, to) 순으로 정렬해 넣는다.
+//
+// ── 빠르게 (2026-09-27 · REQ-WEB-246) ─────────────────────────────────────────────
+//
+// 정리 패스는 무리를 조금씩 줄였다가 밀어내기를 반복하는데, **더는 풀리지 않을 만큼 줄인 뒤에도**
+// 끝까지(60단계) 줄이며 그때마다 밀어내기를 반복 상한(400바퀴)까지 헛돌렸다. 합성 243 문서에서
+// 정리 패스가 돈 바퀴의 98.7%가 그렇게 끝내 풀지 못한 호출 안에 있었다(계측). 이제 두 번 잇달아
+// 못 풀면 더 줄이지 않는다. 고르는 답의 규칙(겹침 없는 것 중 가장 작은 것)은 그대로다.
+// 곁들여 반씩 물러난 뒤 남는 부동소수점 찌꺼기(1e-13px)를 겹침으로 세지 않는다 — 그 쌍은 더
+// 밀어도 값이 바뀌지 않아, 다 풀린 후보를 "겹친 채" 로 버리게 했다.
 import type cytoscape from 'cytoscape';
 
 /** 영역 **안에서** 형제 사이에 남기는 간격(px) — 좁힐수록 그림이 커지고, 이름은 서로를 가린다 */
@@ -66,6 +85,8 @@ const AREA_LABEL = 16;
 const AREA_PAD = 12;
 /** 구멍 메우기를 몇 번 도는가 */
 const GRAVITY_PASSES = 3;
+/** 다지기가 잇달아 몇 번 풀지 못하면 더 줄이지 않는가 */
+const GIVE_UP_AFTER = 2;
 /** 겹침을 끝까지 푸는 데 쓰는 반복 상한 — 처음과 마지막에 한 번씩만 돈다 */
 const SETTLE_ITERATIONS = 2000;
 /** 맞춤 여백 — 기본값(30)보다 좁힌다. 여백은 그림이 쓸 수 있었던 픽셀이다 */
@@ -79,14 +100,69 @@ const FIT_PADDING = 16;
  */
 export const LABEL_FONT_SIZE = 9;
 export const LABEL_MIN_ZOOMED = 8;
+/** 고른 문서의 이름은 조금 크다 — 그래서 더 낮은 배율부터 읽힌다 */
+export const PICKED_FONT_SIZE = 11;
 /** 이 배율부터 이름이 그려진다 — 배치가 이름의 자리를 잡아 둘지 가르는 문턱이다 */
 export const LABEL_ZOOM = LABEL_MIN_ZOOMED / LABEL_FONT_SIZE;
 
 /**
- * 배치 옵션 — 첫 그림과 [다시 배치]가 **같은 값**을 쓴다.
+ * 이 글자가 화면에서 읽히는 크기인가 — **CSS 픽셀로 잰다**(REQ-WEB-095).
  *
- * `randomize` 라 누를 때마다 다른 답이 나온다. 그것이 그 버튼의 쓸모다: 밀집한 자리는
- * 한 번 더 굴리면 풀리고, 손으로 끌어 흐트러뜨린 뒤 되돌리는 길도 여기 하나다.
+ * cytoscape 의 `min-zoomed-font-size` 에 맡기지 않는다. 그 판정은 `글자 × 2^ceil(log2(배율 ×
+ * 픽셀 비율))` 이라 픽셀 비율이 2 인 화면(Retina)에서는 배율 0.25 만 넘어도 그린다 — 맞춤
+ * 배율(0.43–0.51)에서 모든 이름이 4px 짜리 얼룩으로 찍혔고, 이 파일은 "아직 안 그려진다" 고
+ * 믿어 겹친 이름을 가리지도 않았다(2026-09-27 실측 · 스크린숏). 같은 문턱을 화면 종류와
+ * 무관하게 쓰려고 이름을 감추는 일을 클래스(`tiny`)로 직접 한다.
+ */
+export function labelReadable(zoom: number, fontSize = LABEL_FONT_SIZE): boolean {
+  return zoom * fontSize >= LABEL_MIN_ZOOMED;
+}
+
+// ── 배치 번호 → 난수 ────────────────────────────────────────────────────────────
+
+/** 기본 배치 번호 — 주소에 `?layout=` 이 없으면 이것이다 */
+export const DEFAULT_LAYOUT = 1;
+
+/**
+ * 번호 하나로 정해지는 난수열(mulberry32) — 같은 번호면 같은 수가 같은 순서로 나온다.
+ * 품질은 배치의 첫 자리를 흩어 놓는 데 충분하고, 무엇보다 **브라우저와 무관하게 같은 정수 연산**이다.
+ */
+export function seededRandom(seed: number): () => number {
+  let state = (Math.imul(seed | 0, 0x9e3779b1) ^ 0x6d2b79f5) >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * `run` 이 도는 동안만 `Math.random` 을 번호의 난수열로 바꾼다.
+ *
+ * fcose(와 그 밑의 cose-base)는 시드를 받지 않고 `Math.random` 을 직접 부른다. 전역을 잠깐
+ * 바꾸는 것은 **배치가 동기로 끝날 때만** 안전하다(`LAYOUT.animate: false`) — 비동기가 되면
+ * 난수의 일부가 원래 것으로 돌아가 그림이 다시 매번 달라진다. `layout.spec.ts` 가 "같은 번호면
+ * 같은 자리" 를 재서 그날을 알려 준다.
+ */
+export function withSeed<T>(seed: number, run: () => T): T {
+  const original = Math.random;
+  Math.random = seededRandom(seed);
+  try {
+    return run();
+  } finally {
+    Math.random = original;
+  }
+}
+
+/**
+ * 배치 옵션 — 첫 그림과 [다른 배치]가 **같은 값**을 쓴다.
+ *
+ * `randomize` 는 첫 자리를 흩어 놓고 시작한다는 뜻이다(엉킨 채로 시작하지 않는다). 흩는 데 쓰는
+ * 난수는 배치 번호가 정하므로(`withSeed`) 같은 번호면 같은 그림이다 — [다른 배치]는 번호를 하나
+ * 올려 다른 답을 본다. 밀집한 자리는 한 번 더 굴리면 풀리고, 손으로 끌어 흐트러뜨린 뒤 되돌리는
+ * 길도 번호 하나다.
  *
  * **`fit` 은 끈다.** 맞추는 것은 정리 패스가 끝난 뒤의 일이고, fcose 가 먼저 맞춰 두면
  * 그 배율은 곧 버려진다.
@@ -137,6 +213,9 @@ export function extent(items: readonly PackItem[]): PackRect {
   return { x1, y1, x2, y2, w: x2 - x1, h: y2 - y1, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
 }
 
+/** 이보다 얕은 겹침은 없는 것으로 본다(px) — 화면에서 보이지 않고, 부동소수점이 남기는 크기다 */
+const OVERLAP_EPSILON = 1e-6;
+
 function pairsOf(items: readonly PackItem[]): [PackItem, PackItem][] {
   const pairs: [PackItem, PackItem][] = [];
   for (const [i, a] of items.entries()) {
@@ -161,7 +240,9 @@ export function relax(items: readonly PackItem[], gap: number, iterations: numbe
     for (const [a, b] of pairs) {
       const ox = (a.w + b.w) / 2 + gap - Math.abs(a.cx - b.cx);
       const oy = (a.h + b.h) / 2 + gap - Math.abs(a.cy - b.cy);
-      if (ox <= 0 || oy <= 0) continue;
+      // 반씩 물러난 뒤에도 부동소수점 찌꺼기(1e-13px)가 남아 "겹쳤다" 로 세는 일이 있다 — 그 쌍은
+      // 더 밀어도 값이 바뀌지 않아 끝나지 않고, 다지기는 그 후보를 "겹친 채" 로 버린다
+      if (ox <= OVERLAP_EPSILON || oy <= OVERLAP_EPSILON) continue;
       const depth = Math.min(ox, oy);
       if (depth > worst) worst = depth;
       // 중심이 정확히 같으면 방향이 없다 — 목록 순서로 가른다(같은 입력이면 같은 답이다)
@@ -286,6 +367,7 @@ export function pack(
   relax(items, gap, SETTLE_ITERATIONS);
   let best = snapshot(items);
   let bestCost = cost(extent(items));
+  let failures = 0;
 
   for (let step = 0; step < steps; step += 1) {
     const bb = extent(items);
@@ -308,6 +390,11 @@ export function pack(
       bestCost = now;
       best = snapshot(items);
     }
+    // **더 줄여도 풀리지 않으면 멈춘다**(2026-09-27). 풀지 못한 밀어내기는 반복 상한까지 헛돌고,
+    // 그 뒤의 후보는 더 줄인 것이라 더 풀기 어렵다 — 합성 243 문서에서 정리 패스가 돈 바퀴의
+    // 98.7%(343,346 중 338,800)가 끝내 풀지 못한 호출 안에 있었다. 두 번 잇달아 못 풀면 그만둔다.
+    failures = settled ? 0 : failures + 1;
+    if (failures >= GIVE_UP_AFTER) break;
   }
   restore(items, best);
   // 첫 밀어내기가 끝내 못 풀었으면 여기서 한 번 더 — **겹치지 않는 것이 작은 것보다 먼저다**
@@ -553,22 +640,24 @@ export function crowdedLabels(boxes: readonly LabelBox[]): Set<string> {
 }
 
 /**
- * 겹치는 이름을 가린다 — 배치가 아니라 **화면**의 일이다(REQ-WEB-095 개정).
+ * 이름의 상태를 정한다 — **작아서 못 읽는 것**(`tiny`)과 **가려서 못 읽는 것**(`crowded`).
+ * 배치가 아니라 **화면**의 일이다(REQ-WEB-095 개정).
  *
  * 재는 것은 모델 좌표가 아니라 **화면 좌표**다 — 읽을 수 있느냐는 화면의 성질이다.
- * 다만 이름은 그림과 **함께** 커지므로(cytoscape 의 `font-size` 는 모델 크기다) 배율을
- * 바꾼다고 답이 달라지지는 않는다. 답을 바꾸는 것은 노드를 끄는 일과, 하나를 골라
- * 나머지를 가라앉히는 일이다.
+ * 다만 이름은 그림과 **함께** 커지므로(cytoscape 의 `font-size` 는 모델 크기다) 배율은
+ * 문턱(`labelReadable`)을 넘나들 때만 답을 바꾼다. 그 밖에 답을 바꾸는 것은 노드를 끄는 일과,
+ * 하나를 골라 나머지를 가라앉히는 일이다.
  *
  * 셋을 건너뛴다 — **영역 이름**(지도의 지명이라 배율과 무관하게 남는다 · REQ-WEB-095) ·
  * **가라앉은 노드**(이미 안 보이므로 자리를 다투지 않는다. 그래서 하나를 고르면 그 이웃의
  * 이름이 되살아난다) · **이름이 없는 노드**.
  *
- * 배율이 낮아 cytoscape 가 이미 이름을 지운 자리에서는 아무 일도 하지 않는다(가릴 것이
- * 없다). 그 판정에 쓰는 값이 스타일과 갈리지 않도록 상수는 이 파일이 갖는다.
+ * **바뀐 노드의 클래스만 건드린다**(2026-09-27). 전체를 다시 칠하면 WebGL 렌더러는 클래스가
+ * 그대로여도 한 장면을 통째로 다시 그렸다 — 확대 중 초당 116 장이 48 장이 됐다(실측).
  */
 export function declutterLabels(cy: cytoscape.Core): void {
-  const drawn = cy.zoom() * LABEL_FONT_SIZE >= LABEL_MIN_ZOOMED;
+  const zoom = cy.zoom();
+  const drawn = labelReadable(zoom);
   const boxes: LabelBox[] = [];
   if (drawn) {
     cy.nodes().forEach((node) => {
@@ -589,28 +678,89 @@ export function declutterLabels(cy: cytoscape.Core): void {
     });
   }
   const hidden = crowdedLabels(boxes);
+  const changes: [cytoscape.NodeSingular, string, boolean][] = [];
+  cy.nodes().forEach((node) => {
+    const crowded = hidden.has(node.id());
+    if (node.hasClass('crowded') !== crowded) changes.push([node, 'crowded', crowded]);
+    if (node.isParent()) return;
+    const tiny = !labelReadable(zoom, node.hasClass('picked') ? PICKED_FONT_SIZE : LABEL_FONT_SIZE);
+    if (node.hasClass('tiny') !== tiny) changes.push([node, 'tiny', tiny]);
+  });
+  if (changes.length === 0) return;
   cy.batch(() => {
-    cy.nodes().forEach((node) => {
-      node.toggleClass('crowded', hidden.has(node.id()));
-    });
+    for (const [node, name, on] of changes) node.toggleClass(name, on);
   });
 }
 
 /**
- * 배치를 계산하고 정리한 뒤 화면에 맞춘다 — 첫 그림과 [다시 배치]가 같은 길을 지난다.
+ * 배율이 이름의 답을 바꾸는가 — 확대 중에는 이 값이 달라질 때만 이름을 다시 센다.
+ * (이름은 그림과 함께 커지므로 문턱을 넘나들 때만 누가 보이는지가 바뀐다)
+ */
+export function labelZoomState(zoom: number): string {
+  return `${labelReadable(zoom)}|${labelReadable(zoom, PICKED_FONT_SIZE)}`;
+}
+
+/** 잎 노드의 자리 — 영역 상자는 자식을 감싼 자국이라 적지 않는다(부모를 옮기면 자식이 따라 움직인다) */
+export function leafPositions(cy: cytoscape.Core): Map<string, cytoscape.Position> {
+  const at = new Map<string, cytoscape.Position>();
+  cy.nodes().forEach((node) => {
+    if (!node.isParent()) at.set(node.id(), { ...node.position() });
+  });
+  return at;
+}
+
+/**
+ * 적어 둔 자리로 되돌린다 — **모든 잎의 자리가 있을 때만** 쓴다. 하나라도 빠지면 그 노드가
+ * 원점에 남아 그림 한가운데 엉뚱한 점이 생기므로, 그때는 `false` 를 돌려주고 새로 계산하게 한다.
+ */
+export function applyLeafPositions(
+  cy: cytoscape.Core,
+  saved: ReadonlyMap<string, cytoscape.Position>,
+): boolean {
+  let complete = true;
+  cy.nodes().forEach((node) => {
+    if (!node.isParent() && !saved.has(node.id())) complete = false;
+  });
+  if (!complete) return false;
+  cy.batch(() => {
+    cy.nodes().forEach((node) => {
+      const at = node.isParent() ? undefined : saved.get(node.id());
+      if (at !== undefined) node.position(at);
+    });
+  });
+  return true;
+}
+
+/** 배치를 끝낸 뒤 화면에 맞추고 이름을 정한다 — 새로 계산한 때와 적어 둔 자리를 쓴 때가 같은 길이다 */
+export function fitAndLabel(cy: cytoscape.Core): void {
+  cy.fit(undefined, FIT_PADDING);
+  declutterLabels(cy);
+}
+
+/**
+ * 배치를 계산하고 정리한 뒤 화면에 맞춘다 — 첫 그림과 [다른 배치]가 같은 길을 지난다.
  *
  * `layoutstop` 을 기다리는 이유는 fcose 가 언제 끝났는지를 그 이벤트만 알기 때문이다.
  * `animate: false` 라 지금은 같은 턴에 끝나지만, 그 사실에 기대어 순서를 적으면
  * 옵션 한 줄이 바뀌는 날 정리 패스가 **빈 배치 위에서** 돈다.
+ *
+ * `onDone` 은 정리까지 끝난 잎의 자리를 받는다 — 그리는 쪽이 그것을 적어 두었다가 다음에
+ * 같은 입력이면 계산을 건너뛴다(`layout-cache.ts`).
  */
-export function runLayout(cy: cytoscape.Core): void {
-  const layout = cy.layout(LAYOUT);
-  layout.one('layoutstop', () => {
-    const fcoseAt = positionsOf(cy);
-    compactAreas(cy);
-    compactForLabels(cy, fcoseAt);
-    cy.fit(undefined, FIT_PADDING);
-    declutterLabels(cy);
+export function runLayout(
+  cy: cytoscape.Core,
+  seed: number = DEFAULT_LAYOUT,
+  onDone?: (positions: Map<string, cytoscape.Position>) => void,
+): void {
+  withSeed(seed, () => {
+    const layout = cy.layout(LAYOUT);
+    layout.one('layoutstop', () => {
+      const fcoseAt = positionsOf(cy);
+      compactAreas(cy);
+      compactForLabels(cy, fcoseAt);
+      onDone?.(leafPositions(cy));
+      fitAndLabel(cy);
+    });
+    layout.run();
   });
-  layout.run();
 }

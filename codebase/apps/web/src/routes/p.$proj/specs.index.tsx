@@ -51,6 +51,7 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     archived?: true;
     baseline?: string;
     focus?: string;
+    layout?: number;
     q?: string;
     status?: string;
     type?: string;
@@ -84,9 +85,19 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     ...(typeof search['focus'] === 'string' && search['focus'] !== ''
       ? { focus: search['focus'] }
       : {}),
+    // 그래프의 **배치 번호**(REQ-WEB-245) — 같은 번호면 같은 그림이다. 기본(1)은 적지 않는다
+    ...(layoutNumber(search['layout']) === undefined
+      ? {}
+      : { layout: layoutNumber(search['layout']) as number }),
   }),
   component: SpecListScreen,
 });
+
+/** `?layout=` — 2 이상의 정수만 받는다(1 은 기본이라 적지 않는다). 주소는 JSON 으로 읽혀 숫자로 온다 */
+function layoutNumber(value: unknown): number | undefined {
+  const n = typeof value === 'string' ? Number(value) : value;
+  return typeof n === 'number' && Number.isInteger(n) && n >= 2 && n <= 9999 ? n : undefined;
+}
 
 type SpecView = 'tree' | 'table' | 'graph';
 
@@ -104,7 +115,16 @@ function SpecListScreen(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
-  const { archived = false, baseline, focus, q, status, type, view: rawView } = Route.useSearch();
+  const {
+    archived = false,
+    baseline,
+    focus,
+    layout,
+    q,
+    status,
+    type,
+    view: rawView,
+  } = Route.useSearch();
   // 부모 라우트는 검사하지 않은 인자를 흘려보낸다 — `validateSearch` 가 버린 값도 여기 온다
   const view: SpecView = rawView === 'table' || rawView === 'graph' ? rawView : 'tree';
   const statuses = status === undefined ? [] : status.split(',').filter((value) => value !== '');
@@ -119,6 +139,7 @@ function SpecListScreen(): React.JSX.Element {
     archived?: boolean;
     baseline?: string | null;
     focus?: string | null;
+    layout?: number | null;
     q?: string | null;
     status?: string | null;
     type?: string | null;
@@ -127,6 +148,7 @@ function SpecListScreen(): React.JSX.Element {
     archived?: true;
     baseline?: string;
     focus?: string;
+    layout?: number;
     q?: string;
     status?: string;
     type?: string;
@@ -139,8 +161,14 @@ function SpecListScreen(): React.JSX.Element {
     const nextStatus = pick(patch.status, status);
     const nextType = pick(patch.type, type);
     const nextView = patch.view ?? view;
-    // 중심은 그래프의 것이다 — 다른 보기로 옮기면 함께 내려놓는다
+    // 중심과 배치 번호는 그래프의 것이다 — 다른 보기로 옮기면 함께 내려놓는다
     const nextFocus = nextView === 'graph' ? pick(patch.focus, focus) : undefined;
+    const nextLayout =
+      nextView === 'graph'
+        ? patch.layout === undefined
+          ? layout
+          : (patch.layout ?? undefined)
+        : undefined;
     return {
       ...((patch.archived ?? archived) ? { archived: true as const } : {}),
       ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
@@ -149,6 +177,7 @@ function SpecListScreen(): React.JSX.Element {
       ...(nextType === undefined || nextType === '' ? {} : { type: nextType }),
       ...(nextView === 'tree' ? {} : { view: nextView }),
       ...(nextFocus === undefined || nextFocus === '' ? {} : { focus: nextFocus }),
+      ...(nextLayout === undefined || nextLayout < 2 ? {} : { layout: nextLayout }),
     };
   };
   /** 보기·중심은 **이력에 쌓지 않는다** — 레일 탭과 같은 규칙이다(누를 때마다 뒤로가기가 한 칸씩 늘지 않게) */
@@ -483,6 +512,15 @@ function SpecListScreen(): React.JSX.Element {
                 nodes={graph.data.nodes}
                 edges={graph.data.edges}
                 focusKey={focus}
+                layout={layout}
+                onLayoutChange={(next) =>
+                  void navigate({
+                    to: '/p/$proj/specs',
+                    params: { proj },
+                    search: searchWith({ layout: next }),
+                    replace: true,
+                  })
+                }
                 onFocusChange={(key) =>
                   void navigate({
                     to: '/p/$proj/specs',

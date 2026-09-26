@@ -24,7 +24,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 **22종**(P0 8 + P1 14 · 카탈로그 24종 — 리뷰 2종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.34 · 2026-09-24 · HTML 파생본: [scope.html](../html/scope.html)
+> 문서 버전 v0.35 · 2026-09-27 · HTML 파생본: [scope.html](../html/scope.html)
+>
+> v0.35 변경(2026-09-27 — 관계 그래프가 243 문서에서 느렸다, 사람 결정): **§2 그래프 시각화 행.** 확대·이동을 cytoscape 내장 WebGL 렌더러로 그린다(새 라이브러리가 아니다). 재검토 트리거를 노드 수에서 실측(WebGL 모드에서 초당 30장 미만 · 여는 데 1초 초과)으로 바꿨다 — 비용을 정하는 것은 간선 수였다([4.5](screens.md) REQ-WEB-246).
 >
 > v0.34 변경(2026-09-24 — 인증 행이 실물과 두 자리에서 달랐다, **사람 결정**): **§2.1 인증 행 정정 — 스택은 그대로 better-auth 다.** 바뀐 것은 better-auth 가 **무엇을 맡는가**의 서술이다. ① PAT 는 "api-key 플러그인 기반" 이 아니라 **자체 `api_token` 테이블**이다 — [4.3](database.md) §2.2 가 DDL 로 확정한 저장 스키마와 better-auth 의 apiKey 테이블이 서로 달라, 함께 쓰면 토큰이 두 곳에 살게 된다(`auth.service.ts` 머리 주석이 처음부터 그 판정을 적어 두었다). ② organization 플러그인은 **켜지 않는다** — [4.3](database.md) §2.16 이 2026-08-22 에 이미 확정했는데 이 행이 따라가지 않았다. 둘 다 실물이 옳고 문서가 낡은 자리다. 재검토 트리거는 점화되지 않았다([4.8](backlog.md) E03-S02).
 >
@@ -156,7 +158,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 발신(메일) | **nodemailer(SMTP)** — 가입 이메일 인증 · 초대 메일 | 2026-09-22 | 제공자 SDK 를 들이지 않는다: SMTP 하나면 사내 메일 서버·SES·Resend·Postmark 가 같은 계약이고, 갈아도 코드가 그대로다. **표면은 `email_outbox` 에 행을 넣고 워커가 보낸다**([4.3](database.md) §2.17) — 인라인 발송은 응답 시간으로 이메일의 존재를 흘리고, 실패를 기록할 곳도 없다. 비어 있으면 꺼진다(`NERV_MAIL_HOST` — 접속 정보는 여섯 키다. 2026-09-24 부터, [4.2](codebase.md) §5.2) |
 | 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
-| 그래프 시각화 | **Cytoscape.js + fcose** — 스펙 관계 그래프([4.5](screens.md) §2.4a) | 2026-08-23 | compound(영역 묶음) 레이아웃이 도입 이유다 — 자체 구현하면 그것이 곧 레이아웃 엔진을 쓰는 일이 된다. MIT · 코어 의존 0. gzip 172KB라 **탭 진입 시 지연 로드**한다(목록 청크 552KB → 5KB 실측). 재검토 트리거: 노드 1,000을 넘어 canvas 렌더가 버거워지면 WebGL(sigma)로 옮긴다 |
+| 그래프 시각화 | **Cytoscape.js + fcose** — 스펙 관계 그래프([4.5](screens.md) §2.4a) | 2026-08-23 | compound(영역 묶음) 레이아웃이 도입 이유다 — 자체 구현하면 그것이 곧 레이아웃 엔진을 쓰는 일이 된다. MIT · 코어 의존 0. gzip 172KB라 **탭 진입 시 지연 로드**한다(목록 청크 552KB → 5KB 실측). **확대·이동은 cytoscape 내장 WebGL 렌더러로 그린다**(2026-09-27 개정 — 사람 결정 · [4.5](screens.md) REQ-WEB-246). 3.31 부터 들어 있는 미리보기 기능이라 새 라이브러리가 아니고, 캔버스로 되돌리는 스위치를 둔다. 재검토 트리거: WebGL 모드에서 확대·이동이 초당 30장 아래로 떨어지거나 여는 데 1초를 넘기면(실측) 다른 렌더러를 검토한다. 노드 수로 적었던 옛 트리거(노드 1,000)는 비용을 정하는 것이 간선 수라 맞지 않았다 — 노드 243 · 간선 3,036 에서 캔버스는 이미 초당 20장이었다 |
 | MCP | MCP TypeScript SDK | 2026-08-13 (3부 원안) | 2026-07-28 리비전 기준 구현 + 구 리비전(2025-03-26~2025-11-25) 병행 서빙(D-11) |
 | 프론트 세부 | TanStack Router/Query · Tailwind + shadcn/ui · react-hook-form + zod | 2026-08-13 (3부 원안) | zod 스키마는 `packages/schema` 공유. WebSocket 이벤트 → Query 무효화 |
 | 테스트 | **Vitest**(L1 단위·L2 통합·L3 API E2E) + **Playwright**(L3 웹 E2E) | 2026-08-22 | 3계층 배치·명령·무게중심(L2)은 [4.2 코드베이스와 배포](codebase.md) §4.3 정본. L2는 mock 없이 실제 Postgres 상대(동시성 검증은 mock 금지 — AGENTS.md 규약과 동일). Playwright는 웹 E2E에만 — API 시나리오는 Vitest가 compose 스택 상대로 돈다 |
