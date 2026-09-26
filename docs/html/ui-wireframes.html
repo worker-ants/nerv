@@ -53,7 +53,7 @@
     <h1>화면 설계 (와이어프레임)</h1>
     <p class="lead">NERV 웹 화면 8종의 정보 구조 · 고충실도 와이어프레임 · 상태 표현 규칙 · 인터랙션 규약. 설계의 축은 하나다 — <b>화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.</b></p>
     <div class="meta-line">
-      <span>버전 v0.12 (2026-09-26)</span>
+      <span>버전 v0.13 (2026-09-26)</span>
       <span>원본: <code>docs/03-proposal/ui-wireframes.md</code></span>
       <span>주로 다루는 결정: D-02 · D-06 · D-08 · D-13 · D-14</span>
       <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -290,7 +290,7 @@
       <tr><td><code>planner</code></td><td>S1 → 받은 요청</td><td>S3 · S7 · S2</td><td>Requirement를 <code>verified</code>로 올리는 전이는 노출되지 않음</td></tr>
       <tr><td><code>designer</code></td><td>S1 → 받은 요청</td><td>S3(design 타입) · S7</td><td>스펙 승인 권한은 지정 리뷰어일 때만 활성</td></tr>
       <tr><td><code>developer</code></td><td>S1 → 작업 보드</td><td>S4 · S5 · S3</td><td>게이트 면제 버튼은 확인 다이얼로그 + 사유 필수</td></tr>
-      <tr><td><code>qa</code></td><td>S1 → 리뷰 센터</td><td>S6 · S2 커버리지 · S4</td><td><code>implemented → verified</code> 전이는 qa(및 admin)만 가능</td></tr>
+      <tr><td><code>qa</code></td><td>S1 → 리뷰 센터</td><td>S6 · S2 커버리지 · S4</td><td>검증 서명(테스트 증적)은 qa(및 admin)만 — <code>verified</code> 는 서버가 파생한다</td></tr>
       <tr><td><code>viewer</code></td><td>S1</td><td>전 화면 읽기</td><td>모든 행동 버튼이 비활성(툴팁으로 사유 표기)</td></tr>
       <tr><td><code>admin</code></td><td>S1</td><td>S8 + 전 화면</td><td>—</td></tr>
     </tbody>

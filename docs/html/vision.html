@@ -53,7 +53,7 @@
     <h1>비전과 핵심 시나리오</h1>
     <p class="lead">NERV(가칭)는 <b>스펙이 단일 진실이 되고, 에이전트가 조정되고, 사람이 게이트를 지키는</b> 협업 플랫폼이다. 파일 기반 SDD 도구들은 문서 어휘를 표준화했지만 멀티유저 조정은 공식적으로 포기했고(Spec Kit #497·#2116, OpenSpec #435 “closed as not planned”), clemvion은 그 상한을 7,600줄 훅과 <code>review/</code> 13,777개 md·131MB로 실증했다. 이 문서는 3대 가치, 4개 직군의 하루 시나리오, 핵심 여정 3개, Build vs Buy 판단, 그리고 계측 가능한 성공 지표를 정의한다.</p>
     <div class="meta-line">
-      <span>버전 v0.4 (2026-09-07)</span>
+      <span>버전 v0.5 (2026-09-26)</span>
       <span>원본: <code>docs/03-proposal/vision.md</code></span>
       <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="architecture.html">3.2</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
     </div>
@@ -318,7 +318,7 @@
       <tr><td>09:30</td><td><span class="badge human">S6 리뷰 센터</span></td><td>finding 큐를 severity로 필터 — 지난 24시간 critical 3 · warning 17 · info 42. 각 Finding은 코드 위치·검토 커밋·<b>유래한 스펙/Requirement</b>·해결 이력을 갖는다. 하나가 하는 일은 AI 리뷰를 다시 읽는 게 아니라 <b>위험 판단</b>이다 — 인증·결제·마이그레이션에 닿는 것을 골라 올린다.</td></tr>
       <tr><td>10:15</td><td><span class="badge human">S6 리뷰 센터</span></td><td><code>spec_drift</code> 태그가 붙은 finding: 구현이 스펙보다 낫다고 판단된 케이스. 코드를 되돌리는 대신 CR 제안 경로로 라우팅한다(clemvion의 SPEC-DRIFT 규약 이식 — D-07).</td></tr>
       <tr><td>11:00</td><td><span class="badge human">S2 프로젝트 개요</span></td><td>커버리지 게이지에서 <code>verified</code>가 낮은 영역을 드릴다운. <code>REQ-CWC-018</code>은 implemented지만 연결된 테스트 증적이 없다 → 검증 Task를 만든다(FR-13).</td></tr>
-      <tr><td>14:00</td><td><span class="badge human">S4 작업 보드</span></td><td>검증을 마친 요구사항을 <code>implemented → verified</code>로. 이 전이는 qa(및 admin) 역할만 가능하다(FR-14). 커버리지 숫자가 즉시 바뀐다.</td></tr>
+      <tr><td>14:00</td><td><span class="badge human">S4 작업 보드</span></td><td>검증을 마친 요구사항을 <code>implemented → verified</code>로. 올리는 것은 사람이 아니라 서버다 — qa(및 admin)가 테스트 증적에 서명하면 파생된다(FR-14 · 2026-09-26 정정). 커버리지 숫자가 즉시 바뀐다.</td></tr>
       <tr><td>15:30</td><td><span class="badge human">S6 리뷰 센터</span></td><td>게이트 현황: <code>feature/widget-v2</code> 커버됨, <code>hotfix/session-restore</code>에 <b>BYPASS 기록 1건</b> — 어제 밤 배포에서 게이트를 면제한 사람과 사유가 남아 있다. 그 커밋 범위에 사후 리뷰를 예약한다. <b>면제가 조용히 일어나지 않는다는 것 자체가 기능</b>이다(D-14·FR-10).</td></tr>
       <tr><td>16:20</td><td><span class="badge human">S8 설정·멤버</span></td><td>게이트 정책 조정 — 저위험 변경(오탈자·주석)은 자동 통과, 인증·결제 경로 변경은 사람 승인 필수. 위험 분류(P0~P3)를 게이트 티어에 직결하는 설계는 필드 리포트의 권고를 정책 UI로 옮긴 것이다. <i>(현황 2026-09-07 — <b>게이트 정책 편집은 admin 전용</b>이라 하나(QA)는 admin 을 겸하거나 admin 에게 요청한다: 화면은 비활성 + 사유, 서버는 403)</i></td></tr>
     </tbody>

@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.15 · 2026-09-07 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.16 · 2026-09-26 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.16 변경(2026-09-26 — 구현 축의 그림이 두 벌이었다, **사람 결정** · 구현 축 상태도 검토): **§1.4 그림 한 축 · 한 단락.** 이 절의 구현 축 그림이 [3.5](spec-workflow.md) §1.3 과 거꾸로 가는 간선을 다르게 그리고 있었다(여기는 증적 stale → unimplemented, 저기는 회귀 실패). 구현 축의 상태도와 파생 규칙은 [3.5](spec-workflow.md) §1.3 한 곳에 두기로 하고, 여기서는 문서 축만 그리고 두 축의 관계를 적는다.
 >
 > v0.15 변경(2026-09-07 — 문지기 넷이 더 섰다, 개선 계획 둘째 스프린트): **새 결정 없음 — 2026-09-02 의 "경로 그래프는 강제하지 않는다" 는 그대로다.** §2.4 전이 규칙 표에 행 둘(`claimed`·`in_progress → ready`·`backlog` · `ready` 도착 판정)을 더하고, 문지기 셋·넷을 적던 두 문장을 **여덟**로 고쳐 쓴다([4.4](../04-mvp/api.md) REQ-API-129~132).
 >
@@ -179,18 +181,9 @@ stateDiagram-v2
     approved --> superseded: 후속 버전 승인
     approved --> deprecated: 폐기 결정
   }
-  state "구현 축 · requirement.impl_status" as IMPL {
-    [*] --> unimplemented
-    unimplemented --> in_progress: 파생 Task claimed
-    in_progress --> implemented: 코드 · PR Evidence 연결
-    implemented --> verified: 테스트 · 리뷰 증적 확인
-    implemented --> unimplemented: 증적 stale 판정
-    implemented --> in_progress: CR로 요구사항 modified
-    verified --> in_progress: CR로 요구사항 modified
-  }
 ```
 
-두 축은 서로를 참조하지만 결합하지 않는다. 새 SpecVersion이 승인돼도 이미 `verified`인 Requirement는 그대로 이월되고(`requirement_version.change_kind = 'unchanged'`), `modified`로 표시된 것만 `in_progress`로 되돌아간다. 이 계산이 CR 승인 시 영향 분석의 전부다(FR-04).
+**구현 축(`requirement.impl_status`)의 상태도와 파생 규칙은 [3.5](spec-workflow.md) §1.3 한 곳에 둔다**(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 [3.5](spec-workflow.md) §1.3 이 정한다(FR-04 의 영향 분석은 CR 과 함께 Phase 2).
 
 ---
 
@@ -1085,4 +1078,5 @@ fingerprint = sha256(
 - [3.5 스펙 워크플로우와 거버넌스](spec-workflow.md) — §1.4 상태 머신의 전이 조건·권한·게이트 규칙
 - [3.6 화면 설계 (와이어프레임)](ui-wireframes.md) — §4의 질의가 그리는 S1~S8 화면
 - [3.7 로드맵](roadmap.md) — §3 매핑을 실행하는 임포터와 clemvion 마이그레이션 계획(D-12)
+
 

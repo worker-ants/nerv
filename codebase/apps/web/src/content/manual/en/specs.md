@@ -210,13 +210,16 @@ Priority starts at `must`, because the EARS line in the body does not carry one.
 
 **Implementation status is not something a person marks.** The server derives it from the tasks that came out of that requirement.
 
-| Status          | When                                                           |
-| --------------- | -------------------------------------------------------------- |
-| `unimplemented` | Every derived task is `backlog` or `ready`                     |
-| `in_progress`   | At least one is **claimed** or under way                       |
-| `implemented`   | All are `done` **and** there is at least one piece of evidence |
+| Status          | When                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `unimplemented` | Nothing started and nothing done (every derived task is `backlog`, `ready` or `blocked`) |
+| `in_progress`   | At least one is **claimed** or under way — or some are done but not all yet              |
+| `implemented`   | All are `done` **and** there is at least one piece of evidence                           |
+| `verified`      | `implemented`, with a test record signed by QA or an admin and no open `critical`        |
 
-**All done with no evidence stays `in_progress`** — to say it is finished, attach something to show. `verified` is not marked by the server yet: its conditions (a QA verification record, and no open `critical` in that commit range) are not something the data carries today, and marking it without them would make the value mean nothing. Values that came in through the importer are left alone.
+**All done with no evidence stays `in_progress`** — to say it is finished, attach something to show. **Verifying means QA or an admin leaving a test record**: nobody raises the status by hand; when that signature exists the server marks the requirement `verified`. Once verified, it does not drop when a finding opens. A test record attached by an agent is not a signature.
+
+**Status can also go back.** When a task is released and nothing is started any more, it returns to `unimplemented`; when a new task starts on an implemented requirement, it returns to `in_progress` — both because that is where the work now stands. Evidence whose target has disappeared does not count. Values that came in through the importer stay as they are until a task is linked to that requirement.
 
 The document header also carries a **references updated** badge: it lights when a document this one points at has moved ahead of the version you are reading, and it names which one. It is the server's judgement, not the screen's guess.
 

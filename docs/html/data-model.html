@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.15 (2026-09-07)</span>
+      <span>버전 v0.16 (2026-09-26)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -321,7 +321,7 @@
   <h3>1.4 두 축의 상태 머신</h3>
 
   <div class="diagram">
-    <svg viewBox="0 0 740 300" role="img" aria-label="문서 축과 구현 축의 상태 머신">
+    <svg viewBox="0 0 740 140" role="img" aria-label="문서 축의 상태 머신">
       <defs>
         <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
@@ -361,42 +361,11 @@
         <text x="177" y="114">거절 · 수정 요청</text>
         <text x="630" y="128">후속 버전 승인 / 폐기 결정</text>
       </g>
-
-      <text x="24" y="176" fill="var(--text-mute)" font-family="var(--font)" font-size="11.5" font-weight="700">구현 축 · requirement.impl_status — "어디까지 됐나"</text>
-      <g fill="var(--accent-soft)" stroke="var(--accent)">
-        <rect x="30" y="194" width="130" height="38" rx="10"/>
-        <rect x="220" y="194" width="120" height="38" rx="10"/>
-        <rect x="400" y="194" width="120" height="38" rx="10"/>
-        <rect x="580" y="194" width="110" height="38" rx="10"/>
-      </g>
-      <g fill="var(--text)" font-family="var(--font)" font-size="12.5" text-anchor="middle">
-        <text x="95" y="218">unimplemented</text>
-        <text x="280" y="218">in_progress</text>
-        <text x="460" y="218">implemented</text>
-        <text x="635" y="218">verified</text>
-      </g>
-      <g fill="none" stroke="var(--border-strong)" stroke-width="1.4" marker-end="url(#ar)">
-        <path d="M160,213 H216"/>
-        <path d="M340,213 H396"/>
-        <path d="M520,213 H576"/>
-        <path d="M455,232 V254 H100 V236"/>
-      </g>
-      <g fill="var(--text-mute)" font-family="var(--font)" font-size="10.5" text-anchor="middle">
-        <text x="188" y="207">Task claimed</text>
-        <text x="368" y="207">Evidence 연결</text>
-        <text x="548" y="207">테스트·리뷰 증적</text>
-        <text x="277" y="268">증적 stale 판정</text>
-      </g>
-      <g fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="5 4">
-        <path d="M635,194 V150 H330 V190" marker-end="url(#ar-cr)"/>
-        <path d="M460,194 V150"/>
-      </g>
-      <text x="486" y="144" fill="var(--accent)" font-family="var(--font)" font-size="10.5" text-anchor="middle">CR로 요구사항 modified</text>
     </svg>
-    <div class="cap">그림 2. 두 축은 서로를 참조하지만 결합하지 않는다.</div>
+    <div class="cap">그림 2. 문서 축. 구현 축의 상태도는 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 있다(2026-09-26).</div>
   </div>
 
-  <p>새 SpecVersion이 승인돼도 이미 <code>verified</code>인 Requirement는 그대로 이월되고(<code>requirement_version.change_kind = 'unchanged'</code>), <code>modified</code>로 표시된 것만 <code>in_progress</code>로 되돌아간다. 이 계산이 CR 승인 시 영향 분석의 전부다(FR-04).</p>
+  <p><b>구현 축(<code>requirement.impl_status</code>)의 상태도와 파생 규칙은 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 둔다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 <a href="spec-workflow.html">3.5</a> §1.3 이 정한다(FR-04 의 영향 분석은 CR 과 함께 Phase 2).</p>
 
   <h2 id="sec-2">2. 엔티티 상세</h2>
 

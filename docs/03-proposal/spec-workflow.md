@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.16 · 2026-09-26 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.17 · 2026-09-26 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.17 변경(2026-09-26 — 구현 축의 그림이 두 벌이었다, **사람 결정** · 구현 축 상태도 검토): **§1.3 그림 · 규칙표 · 두 단락 · §1.5 한 줄 · §1.6 한 줄 · §3.3 두 칸.** 이 절과 [3.3](data-model.md) §1.4 가 거꾸로 가는 간선을 서로 다르게 그리고 있었고(여기는 회귀 실패, 저기는 증적 stale), 코드는 어느 쪽도 하지 않고 두 그림에 없는 되돌림 둘을 하고 있었다. 이 절을 구현 축 상태도의 유일한 자리로 두고, 간선을 조건으로 다시 그렸다.
 >
 > v0.16 변경(2026-09-26 — 동적 강화의 두 신호, **사람 결정**): **§2.4 두 단락.** 재시도 신호를 정의해 켜고(에이전트의 `e2e-fail-3x` 신고 · 세 길 · 사람이 마지막으로 승인한 뒤), 롤백 신호는 걷어 재검토 트리거로 남기며, 신호가 여럿이어도 한 단계로 묶는다. v0.15 가 "사람 결정 대기" 로 남긴 자리를 닫는다(검토 아티팩트 "동적 강화 두 신호").
 >
@@ -117,26 +119,27 @@ SpecVersion은 **불변 스냅샷**이다. 가변인 구간은 `draft` 하나뿐
 stateDiagram-v2
     direction LR
     [*] --> unimplemented
-    unimplemented --> in_progress: 파생 Task claimed
-    in_progress --> implemented: Task done + Evidence 연결
-    implemented --> verified: QA 검증 통과 + 테스트 증적
-    implemented --> in_progress: CR MODIFIED 강등
-    verified --> in_progress: CR MODIFIED 강등
-    verified --> implemented: 회귀 실패
+    unimplemented --> in_progress: 파생 작업 착수
+    in_progress --> implemented: 파생 작업 전부 done + 증적
+    implemented --> verified: 서명된 test 증적 · 열린 critical 0
+    in_progress --> unimplemented: 착수 취소 · done 없음
+    implemented --> in_progress: 새 파생 작업 착수
 ```
 
 이 축의 값은 **사람이 손으로 찍지 않는다.** 서버가 관계 그래프에서 파생한다(D-03).
 
+**구현 축의 그림은 여기 하나다**(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 그림과 [3.3](data-model.md) §1.4 가 거꾸로 가는 간선을 서로 다르게 그리고 있었다 — 여기는 `verified → implemented: 회귀 실패`, 저기는 `implemented → unimplemented: 증적 stale 판정` — 둘 다 첫 커밋 그대로였고, 코드는 어느 쪽도 하지 않았다. 대신 코드는 두 그림에 없는 되돌림 둘을 하고 있었다. 정한 것은 셋이다. ① 구현 축의 상태도와 파생 규칙은 **이 절이 정본**이고 3.3 은 링크한다(상태 어휘의 정본은 그대로 [1.2](../01-problem/pain-points.md) D-02). ② 간선은 사건("CR MODIFIED")이 아니라 **조건**("무엇이 참이면")으로 적는다 — 파생 값에 사건 간선을 그리면 같은 조건을 만드는 다른 길이 전부 빠진다. 그래서 코드가 하던 되돌림 둘(착수 취소 · 새 파생 작업 착수)을 그린다. ③ `증적 stale → unimplemented` 는 걷는다 — done 작업이 하나라도 있으면 아래 규칙표는 미구현을 내지 않는다. 낡은 증적은 **증적에서 빠질** 뿐이다(파생과 커버리지가 이미 거른다 — 그 값을 세우는 판정은 아직 없다). `회귀 실패 → implemented` 는 서버가 테스트 결과를 받지 않아 판정할 수 없다 — **재검토 트리거**: CI 결과를 받게 되면(FR-10 · Phase 2) 최근 실행 결과를 따로 두고 파생의 입력에 넣는다. 요구사항 관리 도구들이 테스트 결과를 최근 실행에서 계산해 워크플로 상태와 따로 두는 것과 같은 모양이다.
+
 | Requirement 상태 | 파생 규칙 |
 | --- | --- |
-| `unimplemented` | 연결된 Task가 없거나 전부 `backlog`/`ready` |
-| `in_progress` | 파생 Task 중 하나 이상이 `claimed`/`in_progress`/`in_review` |
-| `implemented` | 파생 Task 전부 `done` **그리고** Evidence(코드 경로·커밋·PR) 1건 이상 연결 |
+| `unimplemented` | 연결된 Task가 없거나, 착수된 것도 `done` 인 것도 없다(전부 `backlog`/`ready`/`blocked`) |
+| `in_progress` | 파생 Task 중 하나 이상이 `claimed`/`in_progress`/`in_review` — **또는** `done` 이 있지만 아직 전부가 아니거나 증적이 없다 |
+| `implemented` | 파생 Task 전부 `done` **그리고** Evidence(코드 경로·커밋·PR·리뷰 — 낡은 것은 빼고) 1건 이상 연결 |
 | `verified` | `implemented` + 검증자가 서명한 Evidence(`kind=test` · `verified_by`) 1건 이상, 그 요구사항에 open `critical` finding 0 |
 
 > **`verified` 의 범위는 요구사항이다**(2026-09-07 구현). 표가 적은 "해당 커밋 범위" 는 커밋과 발견을 잇는 축이 Phase 2 라 아직 없다 — 지금은 그 요구사항에 열린 `critical` 이 없는지를 본다. 강등도 하지 않는다: 이미 `verified` 인 행은 내리지 않으므로 발견 하나가 열릴 때마다 검증 사실이 지워졌다 붙는 일이 없다.
 
-강등(→ `in_progress`)은 CR이 그 요구사항을 MODIFIED로 표시할 때 자동으로 일어난다. clemvion이 `CCH-SE-02`를 놓친 사각 — "문서는 implemented인데 그 안의 한 요구사항은 미구현" — 은 상태의 단위를 요구사항으로 내리는 것만으로 사라진다.
+**문장이 바뀐 요구사항**은 지금 값을 그대로 둔다 — 새 버전 승인은 요구사항 행의 문장만 고친다(2026-09-26). 재작업이 필요하면 그 요구사항에 작업을 붙인다: 그 착수가 위 그림의 `implemented → in_progress` 다(done 은 되살리지 않는다). 검증 서명을 그 문장에 묶는 일 — 문장이 바뀌면 검증이 풀린다 — 은 같은 검토에서 정했고 다음 변경에서 들어온다([4.8](../04-mvp/backlog.md) §1.4). clemvion이 `CCH-SE-02`를 놓친 사각 — "문서는 implemented인데 그 안의 한 요구사항은 미구현" — 은 상태의 단위를 요구사항으로 내리는 것만으로 사라진다.
 
 ### 1.4 Task 축 — 실행 상태도
 
@@ -177,7 +180,7 @@ stateDiagram-v2
 | 클레임 | 변화 없음 | `unimplemented → in_progress` | `ready → claimed` |
 | Task 완료 | 변화 없음 | `in_progress → implemented` (Evidence 조건) | `in_progress`·`in_review → done` |
 | QA 검증 | 변화 없음 | `implemented → verified` | 변화 없음 |
-| CR 승인(MODIFIED) | 새 버전 `approved`, 이전 `superseded` | 해당 REQ `verified/implemented → in_progress` | 관련 Task 재개 또는 신설 |
+| CR 승인(MODIFIED) | 새 버전 `approved`, 이전 `superseded` | 문장만 바뀐다 — 값은 작업·증적에서 다시 파생된다(§1.3) | 재검증 Task 신설(완료 Task 는 되살리지 않는다 — done 은 최종) |
 
 이 표가 P4("구현 상태·다음 할 일 추적 곤란")의 답이다. clemvion에서는 이 세 축이 `spec/0-overview.md` §6의 수동 표, `_product-overview.md`의 수동 ✅, `plan/in-progress/` 디렉토리 위치라는 서로 다른 세 문서 관행에 흩어져 있었고, 백로그 인덱스 문서(`clemvion:plan/in-progress/0-unimplemented-overview.md`)는 "미관리 stale 문서"로 삭제됐다(#426). 상태가 질의 가능한 메타데이터가 되면 인덱스 문서를 유지할 필요 자체가 없다.
 
@@ -196,7 +199,7 @@ stateDiagram-v2
 | Task 클레임·리스 갱신 | ● | ● | ● | ● | ● | — | ● |
 | 리뷰 제출(ReviewSession) | ● | ● | ● | ● | ● | — | ● |
 | finding 해결 판정 | ● | ● | ● | ● | ● | — | ○ `fixed`만 |
-| Requirement `verified` 전이 | ● | — | — | — | ● | — | — |
+| 검증 서명(`kind=test` 증적 — `verified` 는 서버가 파생한다 · §1.3) | ● | — | — | — | ● | — | — |
 | **게이트 면제(BYPASS)** | ● | ○ 스펙 계열만 | — | ○ 코드 계열만 | — | — | **불가** |
 | 게이트 정책·위험도 임계 편집 | ● | — | — | — | — | — | — |
 | 알림 구독 규칙 편집(본인) | ● | ● | ● | ● | ● | ● | — |
@@ -357,8 +360,8 @@ CR 승인은 세 축을 동시에 움직인다. 서버가 아래 규칙으로 �
 | 델타 | 문서 축 | 구현 축(Requirement) | Task 축 | 알림 티어 |
 | --- | --- | --- | --- | --- |
 | ADDED | 새 버전 approved, 이전 superseded | 새 REQ `unimplemented` | 파생 Task `backlog` 자동 제안(위임 명세 초안 포함) | standard |
-| MODIFIED | 동일 | `implemented`/`verified` → `in_progress` 강등 | 완료 Task는 재검증 Task 신설, 진행 중 Task는 **재브리핑 필요** 플래그(`task.rebrief_required_at` 세팅 + `task.rebrief_required` 이벤트 — 실물은 [데이터 모델](data-model.md) §2.4) | high (클레임 보유 세션에는 critical) |
-| REMOVED | 동일 | REQ `deprecated` | 파생 Task 중 미착수분은 취소 제안, 진행 중이면 즉시 중단 확인 요청 | critical |
+| MODIFIED | 동일 | 문장이 바뀐다 — 값은 파생 그대로(§1.3 · 재검증 Task 가 착수되면 `in_progress`) | 완료 Task는 재검증 Task 신설, 진행 중 Task는 **재브리핑 필요** 플래그(`task.rebrief_required_at` 세팅 + `task.rebrief_required` 이벤트 — 실물은 [데이터 모델](data-model.md) §2.4) | high (클레임 보유 세션에는 critical) |
+| REMOVED | 동일 | REQ 묘비(`removed_in_version_id`) — 목록·커버리지에서 빠지고 값은 남는다 | 파생 Task 중 미착수분은 취소 제안, 진행 중이면 즉시 중단 확인 요청 | critical |
 
 진행 중인 클레임이 있는 요구사항을 MODIFIED/REMOVED 하는 CR은 **그 세션에 즉시 알림을 보내고**(§6), 세션은 다음 하트비트에서 변경을 인지해 `blocked(spec_conflict)`로 스스로 전이할 수 있다. clemvion이 "동일 spec 파일을 두 worktree가 동시 수정 중이면 plan에 명시하고 직렬화한다. **자동 검출은 없다**"고 포기했던 지점(`clemvion:.claude/docs/worktree-policy.md` §3)이 여기서 복원된다 — 서버가 모든 세션의 scope 선언을 보기 때문이다.
 

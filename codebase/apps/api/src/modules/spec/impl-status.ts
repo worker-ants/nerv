@@ -20,9 +20,15 @@ type Queryable = Pick<NervDb, 'execute'>;
  *
  * | 상태 | 규칙 |
  * | --- | --- |
- * | `unimplemented` | 연결된 Task 가 전부 `backlog`/`ready` |
- * | `in_progress` | 하나 이상이 `claimed`/`in_progress`/`in_review` |
- * | `implemented` | 전부 `done` **그리고** Evidence 1건 이상 |
+ * | `unimplemented` | 착수된 것도 `done` 인 것도 없다(전부 `backlog`/`ready`/`blocked`) |
+ * | `in_progress` | 하나 이상이 `claimed`/`in_progress`/`in_review` — 또는 `done` 이 있지만 아직 전부가 아니거나 증적이 없다 |
+ * | `implemented` | 전부 `done` **그리고** Evidence 1건 이상(낡은 것 제외) |
+ *
+ * **간선은 사건이 아니라 조건이다**(2026-09-26 사람 결정 · spec-workflow §1.3 이 유일한 상태도).
+ * 그래서 되돌림도 조건에서 나온다 — 착수가 취소되고 `done` 이 없으면 `unimplemented`, 구현된
+ * 요구사항에 새 작업이 착수되면 `in_progress`. 두 명세가 그리던 "회귀 실패" 와 "증적 stale →
+ * 미구현" 은 여기 없다: 앞의 것은 서버가 테스트 결과를 받지 않아 판정할 수 없고(Phase 2 의
+ * 재검토 트리거), 뒤의 것은 이 표와 모순한다 — 낡은 증적은 **증적에서 빠질** 뿐이다.
  *
  * **전부 `done` 인데 증적이 없으면 `in_progress` 에 머문다.** 표가 `implemented` 에 두 조건을
  * 모두 걸었기 때문이고, 그래야 "됐다고 하려면 보일 것을 붙여라" 가 압력으로 남는다.
@@ -33,8 +39,8 @@ type Queryable = Pick<NervDb, 'execute'>;
  * `test` 증적**이 1건 이상 · 그 요구사항에 열린 `critical` 발견이 0건. 정본이 적은 "그 커밋
  * 범위" 축만 아직 없다 — 커밋과 발견을 잇는 축이 Phase 2 라, 지금은 요구사항 단위로 본다.
  *
- * **내리지는 않는다.** 이미 `verified` 인 행은 그대로 둔다(강등은 CR 축이고 Phase 2 다) —
- * 그 가드가 없으면 발견 하나가 열릴 때마다 검증 사실이 지워졌다 다시 붙는다.
+ * **내리지는 않는다.** 이미 `verified` 인 행은 그대로 둔다 — 그 가드가 없으면 발견 하나가
+ * 열릴 때마다 검증 사실이 지워졌다 다시 붙는다.
  *
  * **Task 가 하나도 없으면 손대지 않는다.** 표의 첫 줄은 "연결된 Task 가 없거나"까지 포함하지만,
  * 그대로 적용하면 임포터가 문서에서 읽어 넣은 값(clemvion 의 `implemented` 들)을 증적 등록
@@ -53,10 +59,13 @@ type Queryable = Pick<NervDb, 'execute'>;
  */
 export function evidenceExistsSql(reqAlias = 'r'): SQL {
   const ref = sql.raw(`${reqAlias}.id`);
+  // 낡은 증적(`stale` — 가리키는 대상이 사라졌다)은 세지 않는다(2026-09-26 · spec-workflow §1.3).
+  // 지금은 그 값을 세우는 판정이 없지만, 생기는 날 파생이 알아서 `in_progress` 를 낸다
   return sql`EXISTS (
     SELECT 1 FROM evidence e
-     WHERE e.requirement_id = ${ref}
-        OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${ref})
+     WHERE (e.requirement_id = ${ref}
+            OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${ref}))
+       AND NOT e.stale
   )`;
 }
 
@@ -67,7 +76,7 @@ export function verifiedEvidenceSql(reqAlias = 'r'): SQL {
     SELECT 1 FROM evidence e
      WHERE (e.requirement_id = ${ref}
             OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${ref}))
-       AND e.kind = 'test' AND e.verified_by IS NOT NULL
+       AND e.kind = 'test' AND e.verified_by IS NOT NULL AND NOT e.stale
   )`;
 }
 

@@ -21,6 +21,7 @@ import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { IMPORTED_DELEGATION } from '../../src/modules/import/import.service.js';
+import { recomputeImplStatus } from '../../src/modules/spec/impl-status.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -1576,6 +1577,69 @@ describe('구현 축 — 서버가 관계 그래프에서 파생한다', () => {
     await pool.query(`UPDATE requirement SET impl_status = 'verified' WHERE id = $1`, [reqId]);
     await tasks.claim(claimInput(taskId, sessionHana, hana));
     expect(await statusOf(reqId)).toBe('verified');
+  });
+
+  // ── 간선은 조건이다 — 코드가 하던 되돌림 둘을 상태도가 그린다(2026-09-26 · spec-workflow §1.3) ──
+  //
+  // 두 명세의 상태도는 이 둘을 그리지 않았다. 옳은 파생인데 그림만 본 사람에게는 까닭 없는
+  // 강등으로 보였다 — 그림에 올리면서 여기 고정한다.
+
+  it('착수가 취소되고 done 이 없으면 `in_progress → unimplemented` 로 돌아간다', async () => {
+    const { reqId, taskId } = await reqWithTask('R', 'TSK-IMPL-R');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    expect(await statusOf(reqId)).toBe('in_progress');
+    await tasks.release({
+      claimId: claim.claimId,
+      reason: 'handoff',
+      userId: hana,
+      actor: { projectId, userId: hana, sessionId: sessionHana, isAdmin: false },
+    });
+    expect(await statusOf(reqId)).toBe('unimplemented');
+  });
+
+  it('구현된 요구사항에 새 파생 작업이 착수되면 `implemented → in_progress` 가 된다', async () => {
+    const { reqId, taskId } = await reqWithTask('N', 'TSK-IMPL-N');
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: hana,
+      sessionId: sessionHana,
+      specImpact: { none: true },
+      evidence: [{ kind: 'commit', locator: 'def5678' }],
+    });
+    expect(await statusOf(reqId)).toBe('implemented');
+    // 재작업은 새 작업이다 — done 은 되살리지 않는다
+    const rework = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_requirement_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-IMPL-N2','재작업','ready',$3,'목표','PR','저장소','경계')`,
+      [rework, projectId, reqId],
+    );
+    await tasks.claim(claimInput(rework, sessionHana, hana));
+    expect(await statusOf(reqId)).toBe('in_progress');
+  });
+
+  it('낡은 증적은 세지 않는다 — 전부 done 이어도 증적이 모두 stale 이면 `in_progress` 다', async () => {
+    // 두 명세 가운데 하나는 "증적 stale → unimplemented" 를 그렸는데, done 작업이 있으면 파생은
+    // 미구현을 내지 않는다. 낡은 증적은 증적에서 빠질 뿐이다(2026-09-26 사람 결정)
+    const { reqId, taskId } = await reqWithTask('S', 'TSK-IMPL-S');
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: hana,
+      sessionId: sessionHana,
+      specImpact: { none: true },
+      evidence: [{ kind: 'code_path', locator: 'src/gone.ts' }],
+    });
+    expect(await statusOf(reqId)).toBe('implemented');
+    await pool.query(`UPDATE evidence SET stale = true WHERE task_id = $1`, [taskId]);
+    await recomputeImplStatus(drizzleDb, reqId);
+    expect(await statusOf(reqId)).toBe('in_progress');
   });
 });
 
