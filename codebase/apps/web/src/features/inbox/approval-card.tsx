@@ -1106,7 +1106,13 @@ function decisionLabel(t: Translator, decision: Decision): string {
  * ASI09 의 완화: 모델이 만든 근거가 아니라 평이한 위험 요약). 근거 칸이 생기기 전의 요청은
  * 점수가 없어 이 줄을 그리지 않는다.
  */
-function GateRationale({ card }: { card: Record<string, unknown> }): React.JSX.Element | null {
+function GateRationale({
+  card,
+  currentOrg,
+}: {
+  card: Record<string, unknown>;
+  currentOrg: string | null;
+}): React.JSX.Element | null {
   const t = useT();
   const score = card['gate_score'];
   if (typeof score !== 'number') return null;
@@ -1122,17 +1128,84 @@ function GateRationale({ card }: { card: Record<string, unknown> }): React.JSX.E
   const signals = (Array.isArray(rawSignals) ? rawSignals : []).filter(
     (signal): signal is GateSignal => (GATE_SIGNALS as readonly unknown[]).includes(signal),
   );
+  const evidence = Array.isArray(card['gate_evidence'])
+    ? (card['gate_evidence'] as unknown[]).filter(
+        (item): item is Record<string, unknown> => typeof item === 'object' && item !== null,
+      )
+    : [];
   return (
     <p data-testid="gate-rationale" className="text-text-mute">
       {t('inbox.card.gate_score', { score })}
       {axisText !== '' && ` (${axisText})`}
-      {signals.map((signal) => (
-        <span key={signal} data-signal={signal}>
-          {' · '}
-          {t(`gate.reason.${signal}`)}
-        </span>
-      ))}
+      {signals.map((signal) => {
+        const source = evidence.find((item) => item['signal'] === signal);
+        return (
+          <span key={signal} data-signal={signal}>
+            {' · '}
+            {t(`gate.reason.${signal}`)}
+            {source !== undefined && (
+              <>
+                {' ('}
+                <GateEvidenceLink card={card} source={source} currentOrg={currentOrg} />
+                {')'}
+              </>
+            )}
+          </span>
+        );
+      })}
+      {/* 여럿이어도 한 단계다(2026-09-26 사람 결정) — "+1" 은 끝에 한 번 */}
+      {signals.length > 0 && ` ${t('gate.escalated')}`}
     </p>
+  );
+}
+
+/**
+ * **신호의 근거로 가는 길**(2026-09-26 · REQ-WEB-240 · REQ-API-189) — 재시도 신호면 에이전트가 올린
+ * `e2e-fail-3x` 에스컬레이션. 발견이면 리뷰 센터의 그 발견, 질문이면 그 작업(없으면 그 세션)으로
+ * 간다 — 사람이 "같은 실패 3회" 가 무엇이었는지 원문으로 확인하고 결정하게.
+ */
+function GateEvidenceLink({
+  card,
+  source,
+  currentOrg,
+}: {
+  card: Record<string, unknown>;
+  source: Record<string, unknown>;
+  currentOrg: string | null;
+}): React.JSX.Element {
+  const t = useT();
+  const proj = String(card['project_slug'] ?? '');
+  const id = String(source['id'] ?? '');
+  const taskKey = typeof source['task_key'] === 'string' ? source['task_key'] : null;
+  const sessionId = typeof source['session_id'] === 'string' ? source['session_id'] : null;
+  const at = typeof source['at'] === 'string' ? source['at'] : null;
+  const label = `${String(source['title'] ?? '')} · ${relativeTime(t, at)} ▸`;
+  const target =
+    source['kind'] === 'finding'
+      ? {
+          to: '/p/$proj/reviews',
+          params: { proj },
+          path: `/p/${proj}/reviews?finding=${id}`,
+          search: { finding: id },
+        }
+      : taskKey !== null
+        ? {
+            to: '/p/$proj/tasks/$task',
+            params: { proj, task: taskKey },
+            path: `/p/${proj}/tasks/${taskKey}`,
+          }
+        : sessionId !== null
+          ? {
+              to: '/p/$proj/sessions/$session',
+              params: { proj, session: sessionId },
+              path: `/p/${proj}/sessions/${sessionId}`,
+            }
+          : null;
+  if (target === null || proj === '') return <span data-testid="gate-evidence">{label}</span>;
+  return (
+    <CardLink orgSlug={card['org_slug']} currentOrg={currentOrg} testId="gate-evidence" {...target}>
+      {label}
+    </CardLink>
   );
 }
 
@@ -1180,7 +1253,7 @@ function TargetLine({
             </CardLink>
           )}
         </p>
-        <GateRationale card={card} />
+        <GateRationale card={card} currentOrg={currentOrg} />
         {typeof card['change_summary_md'] === 'string' && card['change_summary_md'] !== '' && (
           <p data-testid="change-summary" className="line-clamp-2 text-text-mute">
             {card['change_summary_md']}

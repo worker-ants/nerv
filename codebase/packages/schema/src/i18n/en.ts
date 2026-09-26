@@ -340,9 +340,9 @@ export const en = {
   'agent.unfinished_claims': 'Claims not yet wrapped up: {keys}.',
   'agent.release_before_exit':
     'Record status with nerv_task_update, then release with nerv_task_release before exiting.',
-  'gate.reason.retry_threshold': 'retry threshold exceeded → tier +1',
-  'gate.reason.recent_rollback': 'rollback within 30 days → tier +1',
-  'gate.reason.first_version': "the document's first approved version → tier +1",
+  'gate.reason.first_version': "the document's first approved version",
+  'gate.reason.retry_threshold': 'the same failure reported three times',
+  'gate.escalated': '→ tier +1',
   'gate.axis.side_effect': 'side effects',
   'gate.axis.sensitivity': 'sensitivity',
   'gate.axis.reversibility': 'reversibility',
@@ -1640,7 +1640,7 @@ export const en = {
     'A change enters a tier when its four-axis score (side effects · sensitivity · reversibility · blast radius) reaches the boundary. Lower boundaries send more changes to a person.',
   'settings.gates.dynamic': 'Dynamic escalation',
   'settings.gates.dynamic_hint':
-    "A document's first approved version goes up one tier — retry and rollback history are not counted yet",
+    "A document's first approved version, or an agent reporting the same failure three times, raises the tier by one — still one step when both apply",
   'settings.gates.failopen': 'When it cannot decide · read-only',
   'settings.gates.failopen_body':
     'When it cannot decide it does not block — it proceeds and records; {count} in a row within {hours} hours escalates.',

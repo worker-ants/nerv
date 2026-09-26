@@ -501,6 +501,8 @@ export class ApprovalService {
              (gate.payload->>'gate_score')::int AS gate_score,
              gate.payload->'gate_axes' AS gate_axes,
              gate.payload->'gate_signals' AS gate_signals,
+             -- 신호의 근거 — 재시도 신호가 가리키는 에스컬레이션(2026-09-26 · REQ-API-189)
+             gate.payload->'gate_evidence' AS gate_evidence,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
         ${approvalFrom}
         JOIN "user" u ON u.id = a.requested_by_user_id

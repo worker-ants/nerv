@@ -338,9 +338,10 @@ export const ko = {
   'agent.unfinished_claims': '아직 정리하지 않은 클레임이 있다: {keys}.',
   'agent.release_before_exit':
     'nerv_task_update 로 상태를 남기고 nerv_task_release 로 내려놓은 뒤 끝낸다.',
-  'gate.reason.retry_threshold': '재시도 임계 초과 → 티어 +1',
-  'gate.reason.recent_rollback': '최근 30일 롤백 이력 → 티어 +1',
-  'gate.reason.first_version': '이 문서의 첫 승인 버전 → 티어 +1',
+  // 신호 이름 — 여럿이어도 티어는 한 단계만 오르므로 "+1" 은 끝에 한 번 붙는다(gate.escalated)
+  'gate.reason.first_version': '이 문서의 첫 승인 버전',
+  'gate.reason.retry_threshold': '같은 실패 3회 신고',
+  'gate.escalated': '→ 티어 +1',
   // 게이트의 네 축 — 이름은 spec-workflow §2.4 의 표(2026-09-26 · glossary 「티어」)
   'gate.axis.side_effect': '부작용',
   'gate.axis.sensitivity': '민감도',
@@ -1609,7 +1610,7 @@ export const ko = {
     '4축(부작용 · 민감도 · 가역성 · 영향 범위) 합산 점수가 경계 이상이면 그 티어입니다. 낮출수록 더 많은 변경이 사람을 거칩니다.',
   'settings.gates.dynamic': '동적 강화',
   'settings.gates.dynamic_hint':
-    '문서의 첫 승인 버전이면 티어를 한 단계 올립니다 — 재시도·롤백 이력은 아직 세지 않습니다',
+    '문서의 첫 승인 버전이거나, 에이전트가 같은 실패 3회를 신고했으면 티어를 한 단계 올립니다 — 둘 다여도 한 단계입니다',
   'settings.gates.failopen': '판정할 수 없을 때 · 보기만 합니다',
   'settings.gates.failopen_body':
     '판정할 수 없으면 막지 않고 진행하되 기록합니다 — {hours}시간 안에 {count}번 이어지면 격상합니다.',
