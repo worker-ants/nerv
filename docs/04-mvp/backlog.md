@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.79 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.80 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v1.80 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **매뉴얼 본문 재검토 — 한국어** 한 줄([용어 사전](../glossary.md) §3.4). 스토리 수·`done` 수는 그대로다.
+
 > v1.79 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **화면 문구 재검토 — 한국어** 한 줄([용어 사전](../glossary.md) §3.4). 스토리 수·`done` 수는 그대로다.
 
 > v1.78 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **도움말의 상태 흐름을 그림으로** 한 줄([4.5](screens.md) REQ-WEB-243). 스토리 수·`done` 수는 그대로다.
@@ -594,6 +596,7 @@ referenced_by:
 | 설정의 조직과 프로젝트를 나누고 멤버와 초대를 탭으로 | `apps/web/src/routes/settings/org.tsx` · `projects.tsx`(옛 `workspace.tsx` 를 나눴다 — 옛 주소는 새 주소로 보낸다) · `members.tsx`(`MembersTabs` · `?tab=invites`) · `features/settings/settings-nav.tsx` · `components/start-checklist.tsx` · `lib/event-subject.ts` · L1 `org-projects.spec.tsx` · `settings-scope.spec.tsx` | "조직·프로젝트" 한 화면이 조직 무리에만 있어서 프로젝트 목록을 프로젝트 무리에서 찾을 수 없었고, 멤버·역할 화면은 초대 구역이 멤버 표 위에 있었다(사람 지시). 조직 정보는 조직 무리에, 프로젝트 목록은 프로젝트 무리에 두고, 멤버(기본)와 초대를 탭으로 나눴다([4.5](screens.md) REQ-WEB-242) |
 | 도움말의 상태 흐름을 그림으로 | `apps/web/src/components/mermaid-diagram.tsx`(그리기 · 배율 · 전체화면을 편집기 노드뷰에서 옮겼다) · `lib/markdown.ts`(`diagrams` — 빈 자리와 원본) · `routes/help/$chapter.tsx`(포털) · 매뉴얼 ko·en 상태도 다섯 · L1 `manual-diagrams.spec.ts`(실제 mermaid 파서) · `markdown.spec.ts` · `help.spec.tsx` | 매뉴얼이 상태를 표와 글로만 설명했고, 도움말은 `mermaid` 코드블록을 코드 그대로 보였다(사람 지시). 스펙 버전 · 요구사항 구현 · 작업 · 에이전트 세션 · 초대의 상태도를 그림으로 그린다([4.5](screens.md) REQ-WEB-243) |
 | 화면 문구 재검토 — 한국어 | `packages/schema/src/i18n/ko.ts`(545개) · 매뉴얼 ko 의 화면 이름 인용 · L1 기대값 | 화면 문구에 한국에서 쓰지 않는 표현과 줄표로 길게 이은 문장이 많았다(사람 지시). 1,713개를 모두 읽고 545개를 고쳤다 — 이름이 바뀐 화면 요소는 [4.5](screens.md) v1.81 변경 기록에 있다. 영어 문구와 매뉴얼 본문은 이어지는 PR 에서 고친다([용어 사전](../glossary.md) §3.4) |
+| 매뉴얼 본문 재검토 — 한국어 | `apps/web/src/content/manual/ko/*.md`(10장) | 매뉴얼 한국어 본문에 한국에서 쓰지 않는 표현 161곳과 줄표로 이은 문장 414곳이 있었다(사람 지시). 10장을 모두 다시 써서 표현은 0, 줄표는 63(대부분 "라벨 — 설명" 목록)이 됐다. 화면 이름 인용을 카탈로그에 맞췄고(버튼 · 계획 · 에이전트 토큰 · 머신 등), 낡은 사실 셋을 고쳤다: 첨부의 [본문에 넣기] 버튼(웹 본문 편집을 없앤 뒤로 없다 · REQ-WEB-173) · 조직 전체 토큰의 위치(별도 화면) · 셸 프로필과 `.nerv/env` 의 우선순위([4.6](plugin.md) §3.3). 영어는 이어지는 PR 에서 고친다 |
 
 #### 이 절은 언제 갱신되는가
 
