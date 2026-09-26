@@ -244,7 +244,7 @@ function TokensTab(): React.JSX.Element {
               <>
                 {t('settings.tokens.no_project_admin')}{' '}
                 <Link
-                  to="/settings/workspace"
+                  to="/settings/projects"
                   search={{ new: 1 }}
                   data-testid="token-create-project"
                   className="text-link hover:underline"

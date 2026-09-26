@@ -291,9 +291,12 @@ export const en = {
   'settings.members.scope_rule':
     'Organization-wide rows can be changed by organization admins only; project rows also by that project’s admins. Rows you cannot change are read-only.',
   'settings.members.title_org': '{org} members & roles',
-  'settings.workspace.title_org': '{org} — organization & projects',
+  'settings.workspace.title_org': '{org} — organization',
+  'settings.workspace.title_projects': '{org} — projects',
   'settings.workspace.org_admin_only':
-    'Only organization admins can rename or delete the organization or create projects — a project’s admins can also edit that project’s row.',
+    'Only organization admins can rename or delete the organization.',
+  'settings.workspace.projects_admin_only':
+    'Only organization admins can create projects. A project’s admins can also edit its name, repository, and archive state.',
   'shell.inbox_all_orgs': 'Inbox — every organization',
   'shell.notifications_all_orgs': 'Notifications — every organization',
   'shell.org_label': 'Organization: {name}',
@@ -500,7 +503,8 @@ export const en = {
   'sessions.rail.trajectory': 'What it did',
   'session.no_trajectory': 'Nothing recorded yet.',
   'sessions.rail.activity': 'Activity',
-  'settings.tab.workspace': 'Organization & projects',
+  'settings.tab.org': 'General',
+  'settings.tab.projects': 'Projects',
   'settings.workspace.admin_only': 'Only an admin can change organization and project settings.',
   'settings.workspace.archive': 'Archive',
   'settings.workspace.archived': 'Archived',
@@ -1176,7 +1180,7 @@ export const en = {
   'invite.scope_org': 'Whole organization',
   'invite.send': 'Create invitation',
   'invite.sending': 'Creating…',
-  'invite.title': 'Invitations',
+  'invite.title': 'Sent invitations',
   'login.email': 'Email',
   'login.no_account': 'No account? Sign up ▸',
   'login.invite_note':
@@ -1670,6 +1674,9 @@ export const en = {
   'settings.members.scope': 'Applies to',
   'settings.tab.gates': 'Gate policy',
   'settings.tab.members': 'Members and roles',
+  'settings.members.tabs_label': 'Members and invitations',
+  'settings.members.tab_members': 'Members',
+  'settings.members.tab_invites': 'Invitations',
   'settings.tab.tokens': 'Agent tokens',
   'spec.ancestors': 'Parent documents',
   'settings.tab.account': 'My account',

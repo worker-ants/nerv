@@ -871,7 +871,7 @@ export function AppShell({
                   {/* **고르는 자리에서 만들 수도 있어야 한다** — 설정 어딘가로 찾아가게 하면 "새로 만들기" 는
                       아는 사람만 쓰는 기능이 된다 */}
                   <Link
-                    to="/settings/workspace"
+                    to="/settings/org"
                     onClick={() => setMenuOpen(null)}
                     className="mt-1 block border-t border-border px-3 pt-2 pb-1.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
                   >
@@ -1074,7 +1074,7 @@ export function AppShell({
               {/* **약속한 것만 적는다**(SET-X2). 조직 admin 이 아니면 도착한 탭에서 [+ 새 프로젝트]가 잠겨 있다 */}
               {currentOrg !== null && (
                 <Link
-                  to="/settings/workspace"
+                  to="/settings/projects"
                   search={orgAdmin ? { new: 1 } : {}}
                   data-testid="project-new-link"
                   className="mt-1 shrink-0 px-2 py-1 text-xs text-text-faint hover:text-text"

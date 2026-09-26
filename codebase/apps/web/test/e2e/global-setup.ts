@@ -29,7 +29,7 @@ export const STORAGE_STATE = 'test-results/.auth/seeded.json';
  *    `admin@example.com` 은 조직 스코프 멤버십(`project_id` NULL)이라 `rolesInProject` 가
  *    그것을 포함해 **프로젝트 화면은 그대로 다 보인다**(lib/session.ts).
  *
- * 잠긴 쪽의 **판정**은 L1 이 태운다(`routes/settings/workspace.spec.tsx`) — 여기서 잃는 것은
+ * 잠긴 쪽의 **판정**은 L1 이 태운다(`routes/settings/org-projects.spec.tsx`) — 여기서 잃는 것은
  * 그림뿐이고, 그 그림은 원래 아무도 확인에 쓰지 않던 것이다.
  */
 export const ADMIN_EMAIL = 'admin@example.com';

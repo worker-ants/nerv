@@ -344,6 +344,17 @@ describe('대상 읽기 규칙', () => {
     });
   });
 
+  it('초대 거절은 부른 사람의 초대 탭으로 간다 — 멤버 탭이 기본이다(REQ-WEB-242)', () => {
+    expect(
+      eventTarget({
+        project_slug: 'clemvion',
+        type: NERV_EVENT.INVITATION_DECLINED,
+        subject_type: 'invitation',
+        subject_id: 'inv-1',
+      }),
+    ).toEqual({ to: '/settings/members', search: { tab: 'invites' } });
+  });
+
   it('떨어져 있는 같은 일은 접지 않는다 — 그 사이의 다른 일이 흐름이다', () => {
     const r = (id: string, type: string): Row => ({ id, type, subject_id: 'x' });
     const groups = collapseRepeats([r('1', 'a'), r('2', 'b'), r('3', 'a')], (e) =>

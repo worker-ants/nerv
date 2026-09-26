@@ -130,12 +130,10 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     expect(screen.queryByText('clemvion')).toBeNull();
   });
 
-  it('/settings 는 첫 무리(조직)의 첫 항목 — 조직·프로젝트로 리다이렉트한다 (2026-09-25 · REQ-WEB-227)', async () => {
+  it('/settings 는 첫 무리(조직)의 첫 항목 — 조직 정보로 리다이렉트한다 (2026-09-26 · REQ-WEB-227 · 242)', async () => {
     renderAt('/settings');
-    // 제목은 조직을 말한다("{조직} 조직·프로젝트") — 예전에는 둘째 칸인 멤버·역할에 착지했다
-    await waitFor(() =>
-      expect(screen.getByText(/조직·프로젝트$/, { selector: 'h1' })).toBeDefined(),
-    );
+    // 제목에 조직 이름이 있다("{조직} 조직 정보") — 예전에는 둘째 칸인 멤버·역할이 열렸다
+    await waitFor(() => expect(screen.getByText(/조직 정보$/, { selector: 'h1' })).toBeDefined());
   });
 
   it('/o/:org 는 화면 없이 / 로 리다이렉트한다 (§1.6 — 그림 비대상)', async () => {
@@ -143,9 +141,12 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
     await waitFor(() => expect(screen.getByTestId('today-strip')).toBeDefined());
   });
 
-  it('설정 탭 3종이 전부 있다 — git 연동 탭은 Phase 2 (scope.md §4.1)', async () => {
+  it('설정 항목이 전부 있다 — git 연동 탭은 Phase 2 (scope.md §4.1)', async () => {
     for (const [path, title] of [
-      // 멤버는 조직을, 게이트는 프로젝트를 제목에 싣는다(REQ-WEB-191)
+      // 멤버는 조직을, 게이트는 프로젝트를 제목에 넣는다(REQ-WEB-191)
+      // 조직 정보와 프로젝트 목록은 2026-09-26 부터 두 화면이다(REQ-WEB-242)
+      ['/settings/org', /조직 정보$/],
+      ['/settings/projects', /프로젝트$/],
       ['/settings/members', /멤버·역할$/],
       ['/settings/tokens', /^에이전트 토큰$/],
       ['/settings/gates', /^게이트 정책/],

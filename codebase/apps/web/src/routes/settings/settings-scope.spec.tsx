@@ -102,6 +102,7 @@ const MEMBERS = [
 ];
 
 let me: unknown = ORG_ADMIN;
+let invitations: unknown[] = [];
 let sent: { method: string; url: string; body: Record<string, unknown> }[] = [];
 
 beforeEach(() => {
@@ -109,6 +110,7 @@ beforeEach(() => {
   sent = [];
   me = ORG_ADMIN;
   members = MEMBERS;
+  invitations = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: RequestInit) => {
@@ -121,7 +123,7 @@ beforeEach(() => {
       const json = path.endsWith('/members')
         ? members
         : path.includes('/invitations')
-          ? []
+          ? invitations
           : /\/orgs\/[^/]+\/projects/.test(path)
             ? PROJECTS
             : /\/projects\/[^/?]+$/.test(path)
@@ -138,7 +140,7 @@ afterEach(() => {
   cleanup();
 });
 
-function renderAt(path: string): void {
+function renderAt(path: string): { state: { location: { href: string } } } {
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [path] }),
@@ -154,6 +156,7 @@ function renderAt(path: string): void {
       </QueryClientProvider>
     </LocaleProvider>,
   );
+  return router;
 }
 
 /** 그 사람 줄의 역할 칩 */
@@ -205,7 +208,7 @@ describe('프로젝트 admin 은 자기 프로젝트만 (REQ-API-169)', () => {
 
   it('초대 범위에 조직 전체가 없고 자기 프로젝트만 있다', async () => {
     me = PROJECT_ADMIN;
-    renderAt('/settings/members');
+    renderAt('/settings/members?tab=invites');
     fireEvent.click(await screen.findByTestId('invite-new'));
     const select = (await screen.findByTestId('invite-scope')) as HTMLSelectElement;
     await waitFor(() => expect(select.options.length).toBe(1));
@@ -216,7 +219,7 @@ describe('프로젝트 admin 은 자기 프로젝트만 (REQ-API-169)', () => {
 describe('초대 폼 — 어느 조직의 어느 범위로', () => {
   it('조직을 말하고, 그 조직의 프로젝트 **전부**에서 고른다', async () => {
     localStorage.setItem('nerv.last-project.default', 'clemvion');
-    renderAt('/settings/members');
+    renderAt('/settings/members?tab=invites');
     fireEvent.click(await screen.findByTestId('invite-new'));
     expect((await screen.findByTestId('invite-org')).textContent).toBe('Default');
     const select = (await screen.findByTestId('invite-scope')) as HTMLSelectElement;
@@ -229,7 +232,7 @@ describe('초대 폼 — 어느 조직의 어느 범위로', () => {
   });
 
   it('고른 범위로 보내고, 무엇을 만들었는지 요약한다', async () => {
-    renderAt('/settings/members');
+    renderAt('/settings/members?tab=invites');
     fireEvent.click(await screen.findByTestId('invite-new'));
     const select = (await screen.findByTestId('invite-scope')) as HTMLSelectElement;
     await waitFor(() => expect(select.options.length).toBe(3));
@@ -317,5 +320,44 @@ describe('멤버 표는 사람마다 한 묶음 (REQ-WEB-194 · 결정 2)', () =
     expect(within(rows[0]!).getByTestId('role-planner').getAttribute('aria-pressed')).toBe('true');
     // 조직 역할이 없는 사람에게는 상속 표시가 없다
     expect(within(rows[2]!).getByTestId('role-planner').getAttribute('data-inherited')).toBeNull();
+  });
+});
+
+describe('멤버와 초대는 탭이다 (2026-09-26 — 사람 지시 · REQ-WEB-242)', () => {
+  const invite = (id: string, state: string): Record<string, unknown> => ({
+    id,
+    email: `${id}@example.com`,
+    role: 'qa',
+    state,
+    project_slug: null,
+    project_name: null,
+    last_sent_at: null,
+  });
+
+  it('멤버 탭이 기본으로 열리고, 초대 구역은 보이지 않는다', async () => {
+    renderAt('/settings/members');
+    await rowOf('유나');
+    expect(screen.getByTestId('members-tab-members').getAttribute('aria-current')).toBe('page');
+    expect(screen.getByTestId('members-tab-invites').getAttribute('aria-current')).toBeNull();
+    expect(screen.queryByTestId('invite-new')).toBeNull();
+    // 탭 옆의 수는 **사람** 수다
+    await waitFor(() =>
+      expect(screen.getByTestId('members-tab-members-count').textContent).toBe('2'),
+    );
+  });
+
+  it('초대 탭을 누르면 주소가 바뀌고 초대 구역만 보인다 — 수는 대기 중인 초대만 센다', async () => {
+    invitations = [invite('a', 'pending'), invite('b', 'accepted'), invite('c', 'pending')];
+    const router = renderAt('/settings/members');
+    await rowOf('유나');
+    await waitFor(() =>
+      expect(screen.getByTestId('members-tab-invites-count').textContent).toBe('2'),
+    );
+    fireEvent.click(screen.getByTestId('members-tab-invites'));
+    await waitFor(() => expect(router.state.location.href).toBe('/settings/members?tab=invites'));
+    expect(await screen.findByTestId('invite-new')).toBeDefined();
+    expect(screen.queryByText('유나')).toBeNull();
+    expect(screen.getByTestId('members-tab-invites').getAttribute('aria-current')).toBe('page');
+    expect(screen.getByTestId('members-tab-members').getAttribute('aria-current')).toBeNull();
   });
 });
