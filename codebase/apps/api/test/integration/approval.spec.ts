@@ -1058,9 +1058,12 @@ describe('프로젝트 받은 요청은 전역과 같은 목록이다 (REQ-API-1
     });
     await questions.create({ projectId, sessionId, title: '스토리지 선택' });
 
-    const kinds = (await projectInbox(planner)).map((c) => String(c['subject_type']));
+    const cards = await projectInbox(planner);
+    const kinds = cards.map((c) => String(c['subject_type']));
     expect(kinds).toContain('plan');
     expect(kinds).toContain('question');
+    // 답을 보낸 뒤 그 세션으로 가는 길이 카드에 있다(2026-09-26 · REQ-WEB-239) — 잘못 답했으면 지시로 고쳐 말한다
+    expect(cards.find((c) => c['subject_type'] === 'question')?.['session_id']).toBe(sessionId);
   });
 
   it('보관한 프로젝트의 결재는 여기에도 오지 않는다 — 전역에서 고친 규칙이 안 닿았다', async () => {

@@ -338,6 +338,15 @@ export function ApprovalCard({
     ? (card['options'] as unknown[]).filter((o): o is string => typeof o === 'string')
     : [];
   const projectSlug = String(card['project_slug'] ?? '');
+  // **답을 받은 세션으로 가는 길**(2026-09-26 · REQ-WEB-239). 보낸 답은 거둘 수 없다 — 에이전트가 1초 안에 받는다.
+  // 잘못 답했으면 그 세션에 지시로 고쳐 말하는 것이 바로잡는 길이라, 전달됐다는 토스트가 그 자리로 데려간다
+  const sessionLink =
+    isQuestion &&
+    typeof card['session_id'] === 'string' &&
+    card['session_id'] !== '' &&
+    projectSlug !== ''
+      ? inOrgHref(card['org_slug'], `/p/${projectSlug}/sessions/${card['session_id']}`, currentOrg)
+      : null;
 
   /**
    * 선택지로 답한다 — **원클릭이 이 필드의 존재 이유다**(data-model §2.7).
@@ -367,6 +376,9 @@ export function ApprovalCard({
           host: String(card['hostname'] ?? '?'),
           agent: String(card['agent_type'] ?? '?'),
         }),
+        ...(sessionLink === null
+          ? {}
+          : { href: sessionLink, hrefLabel: t('inbox.card.to_session') }),
       });
     },
     onError: onApiError,
@@ -427,12 +439,14 @@ export function ApprovalCard({
               subject: subjectLabel(t, card),
               decision: decisionLabel(t, decision),
             }),
-        ...(subjectLink === null
-          ? {}
-          : {
-              href: inOrgHref(card['org_slug'], subjectLink.path, currentOrg),
-              hrefLabel: t('shell.toast.open'),
-            }),
+        ...(sessionLink !== null
+          ? { href: sessionLink, hrefLabel: t('inbox.card.to_session') }
+          : subjectLink === null
+            ? {}
+            : {
+                href: inOrgHref(card['org_slug'], subjectLink.path, currentOrg),
+                hrefLabel: t('shell.toast.open'),
+              }),
       });
     },
     onError: onApiError,
@@ -809,6 +823,14 @@ export function ApprovalCard({
               </span>
             </div>
           )}
+          {decided !== null && (
+            <CorrectionPath
+              card={card}
+              decided={decided}
+              subjectLink={subjectLink}
+              currentOrg={currentOrg}
+            />
+          )}
           {/* 결정된 카드에는 입력 칸을 두지 않는다(2026-09-03) — 처리됨 탭에서 코멘트를
               적고 [승인] 을 눌러도 서버는 already_decided 로 거절한다. 누를 수 있는 것은
               할 수 있다는 뜻이어야 한다. */}
@@ -997,6 +1019,69 @@ function GraceStrip({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * **보낸 결정을 바로잡는 길**(2026-09-26 — 사람 결정 · 결정 철회 검토 · REQ-WEB-239).
+ *
+ * 철회 API 는 만들지 않는다 — 결정은 누르는 트랜잭션 안에서 문서를 옮기고 에이전트를 깨우며, 명세는 되돌리는 것을
+ * "새 결정" 으로 정해 두었다. 거두는 대신 바로잡는 길은 대상·결정마다 다르고, 그것이 한 줄로 카드에 선다.
+ * 매뉴얼이 "보낸 뒤에는 되돌릴 수 없습니다" 에서 끝나던 자리를 카드가 잇는다.
+ */
+const CORRECTION = {
+  spec_version: {
+    approve: 'inbox.card.correct.spec_approved',
+    other: 'inbox.card.correct.spec_returned',
+  },
+  change_request: {
+    approve: 'inbox.card.correct.spec_approved',
+    other: 'inbox.card.correct.spec_returned',
+  },
+  plan: { approve: 'inbox.card.correct.plan_approved', other: 'inbox.card.correct.plan_returned' },
+  finding: {
+    approve: 'inbox.card.correct.finding_approved',
+    other: 'inbox.card.correct.finding_returned',
+  },
+  gate_bypass: { approve: 'inbox.card.correct.bypass', other: 'inbox.card.correct.bypass' },
+} as const satisfies Record<string, { approve: MessageKey; other: MessageKey }>;
+
+function CorrectionPath({
+  card,
+  decided,
+  subjectLink,
+  currentOrg,
+}: {
+  card: Record<string, unknown>;
+  decided: string;
+  subjectLink: ReturnType<typeof subjectLinkOf>;
+  currentOrg: string | null;
+}): React.JSX.Element | null {
+  const t = useT();
+  const entry = CORRECTION[String(card['subject_type']) as keyof typeof CORRECTION] as
+    (typeof CORRECTION)[keyof typeof CORRECTION] | undefined;
+  if (entry === undefined) return null;
+  return (
+    <p
+      data-testid="correction-path"
+      data-subject={String(card['subject_type'])}
+      className="mt-2 flex flex-wrap items-baseline gap-x-2 text-xs text-text-mute"
+    >
+      <span>{t(decided === 'approve' ? entry.approve : entry.other)}</span>
+      {subjectLink !== null && (
+        <CardLink
+          orgSlug={card['org_slug']}
+          currentOrg={currentOrg}
+          path={subjectLink.path}
+          to={subjectLink.to}
+          params={subjectLink.params}
+          {...(subjectLink.search === undefined ? {} : { search: subjectLink.search })}
+          testId="correction-link"
+        >
+          {subjectLink.key} ▸
+        </CardLink>
+      )}
+    </p>
   );
 }
 

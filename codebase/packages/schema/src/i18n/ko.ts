@@ -235,6 +235,18 @@ export const ko = {
   'inbox.card.decided_at': '{decision} · {when}',
   /** 처리됨 카드에 남는 한 줄 — 거절 사유가 여기 든다(REQ-WEB-133) */
   'inbox.card.decision_note': '결정에 남긴 말',
+  'inbox.card.correct.spec_approved':
+    '보낸 승인은 거둘 수 없습니다 — 문서에 코멘트를 남기거나, 확정된 뒤라면 새 초안을 만들어 다시 승인받습니다.',
+  'inbox.card.correct.spec_returned':
+    '문서는 초안으로 돌아갔습니다 — 작성자가 고쳐 다시 제출합니다.',
+  'inbox.card.correct.plan_approved':
+    '계획 승인은 한 번 지나면 다시 서지 않습니다 — 멈추려면 그 작업의 세션을 중단하거나 클레임을 놓습니다.',
+  'inbox.card.correct.plan_returned': '다음에 클레임하면 새 계획이 올라옵니다.',
+  'inbox.card.correct.finding_approved':
+    '처분은 바꿀 수 없습니다 — 다시 다뤄야 하면 새 발견으로 올립니다.',
+  'inbox.card.correct.finding_returned': '에이전트가 다시 요청하면 새 카드가 섭니다.',
+  'inbox.card.correct.bypass': '면제는 기록으로 남습니다 — 거두는 것은 새 결정입니다.',
+  'inbox.card.to_session': '세션으로',
   'inbox.scope_all':
     '내가 속한 모든 조직의 받은 요청입니다 — 줄마다 어느 조직·프로젝트의 일인지 적혀 있습니다.',
   'inbox.subject.change_request': '변경 요청',
@@ -1589,7 +1601,8 @@ export const ko = {
   'settings.gates.boundaries_hint':
     '4축(부수효과 · 민감도 · 되돌림 · 폭발 반경) 합산 점수가 경계 이상이면 그 티어입니다. 낮출수록 더 많은 변경이 사람을 거칩니다.',
   'settings.gates.dynamic': '동적 강화',
-  'settings.gates.dynamic_hint': '재시도·롤백 이력이 있으면 티어를 한 단계 올립니다',
+  'settings.gates.dynamic_hint':
+    '문서의 첫 승인 버전이면 티어를 한 단계 올립니다 — 재시도·롤백 이력은 아직 세지 않습니다',
   'settings.gates.failopen': '판정할 수 없을 때 · 보기만 합니다',
   'settings.gates.failopen_body':
     '판정할 수 없으면 막지 않고 진행하되 기록합니다 — {hours}시간 안에 {count}번 이어지면 격상합니다.',

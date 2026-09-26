@@ -53,7 +53,7 @@
     <h1>화면 설계 (와이어프레임)</h1>
     <p class="lead">NERV 웹 화면 8종의 정보 구조 · 고충실도 와이어프레임 · 상태 표현 규칙 · 인터랙션 규약. 설계의 축은 하나다 — <b>화면은 요구사항(FR)의 렌더링이며, 번호가 붙지 않는 요소는 그리지 않는다.</b></p>
     <div class="meta-line">
-      <span>버전 v0.11 (2026-09-26)</span>
+      <span>버전 v0.12 (2026-09-26)</span>
       <span>원본: <code>docs/03-proposal/ui-wireframes.md</code></span>
       <span>주로 다루는 결정: D-02 · D-06 · D-08 · D-13 · D-14</span>
       <span class="refs">참조하는 문서: <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -1193,9 +1193,9 @@
   <h3>4.1 승인 카드 — 원클릭 승인 / 거절 / 코멘트</h3>
 
   <ul>
-    <li><b>승인</b>: 누르면 카드가 5초 들고 있다가 보낸다 — 그 사이 [취소]·<code>z</code> 로 무른다(2026-09-25 사람 결정 D7 · 거절·코멘트·답변도 같다). 보낸 뒤 카드가 접히고 "처리됨" 트레일에 3분간 남는다. 되돌리기 링크는 없다 — 서버에 결정 철회 경로가 없고, 철회는 감사·게이트의 뜻이 무거워 따로 정한다.</li>
+    <li><b>승인</b>: 누르면 카드가 5초 들고 있다가 보낸다 — 그 사이 [취소]·<code>z</code> 로 무른다(2026-09-25 사람 결정 D7 · 거절·코멘트·답변도 같다). 보낸 뒤 카드가 접히고 "처리됨" 트레일에 3분간 남는다. 되돌리기 링크는 없다 — 결정 철회 경로는 두지 않기로 했다(2026-09-26 사람 결정). 바로잡는 것은 새 결정이고, 처리됨 카드가 대상·결정별로 그 길과 링크를 싣는다(<a href="screens.html">4.5</a> REQ-WEB-239).</li>
     <li><b>거절</b>: 사유 입력이 필수다. 사유는 요청자 알림과 감사 로그 양쪽에 들어간다(FR-16).</li>
-    <li><b>코멘트</b>: 상태를 바꾸지 않고 스레드에 남긴다. 질문 카드에서는 선택지 + 코멘트를 함께 보낼 수 있다.</li>
+    <li><b>코멘트</b>: 스레드에 남기고, 스펙 문서는 초안으로 돌아간다 — 고쳐 다시 내라는 뜻이다(2026-09-02 부터 · 거절과 다른 것은 상태가 아니라 뜻이라, 이벤트는 거절이 아니라 코멘트로 남는다). 질문 카드에서는 선택지 + 코멘트를 함께 보낼 수 있다.</li>
     <li><b>지시자≠승인자</b>: 요청자와 승인자가 같으면 승인 버튼이 비활성화되고 툴팁으로 사유가 뜬다. 에이전트가 제안한 CR은 위임한 사람도 단독 승인할 수 없다.</li>
     <li><b>일괄 처리</b>: 같은 유형 · <b>서로 다른 대상</b>의 저위험 항목만 일괄 승인 가능. 위험도 게이트(D-06)가 저위험으로 분류한 것에 한한다 — 실물의 축은 <b>정족수 1</b>이고(T3 은 슬롯이 둘이다) 게이트 면제 요청은 빠진다. <b>admin 은 그 둘을 면제</b>한다(2026-09-22 사람 결정). 거절은 이 조건을 보지 않는다. 계약과 수용 기준은 <a href="api.html">4.4 API</a> §2.6 EP-APR-06 · <a href="screens.html">4.5 화면</a> §2.7 이 정본이다.<br><small><b>2026-09-22 정정 — "같은 스펙" 이 아니다.</b> 이 줄은 오래 <i>같은 스펙</i>이라 적었는데, 지금 모델에서 같은 스펙의 대기 결재는 <b>정족수 슬롯</b>이고(<a href="api.html">4.4</a> REQ-API-140) 한 사람은 같은 대상에 한 번만 승인한다. 그대로 구현하면 일괄은 <b>1건 성공 + 나머지 <code>already_approved</code></b> 가 된다 — 묶어야 할 축은 <i>같은 스펙</i>이 아니라 <i>서로 다른 대상</i>이었다. 정족수 모델(2026-09-07)보다 이 문장이 먼저 쓰였고, 그 뒤로 아무도 다시 읽지 않았다.</small></li>
     <li><b>전달 확인</b>: 처리 즉시 카드에 "요청 세션 <code>linux-ci-01/codex</code>에 전달됨"이 표시되고, 세션 상태가 <code>awaiting_input → active</code>로 바뀌는 것이 S5에 반영된다.</li>

@@ -532,6 +532,9 @@ export class ApprovalService {
              (SELECT o.name FROM organization o WHERE o.id = p.org_id) AS org_name,
              u.display_name AS requested_by,
              se.hostname, se.agent_type::text AS agent_type, se.external_session_id,
+             -- 답을 보낸 뒤 **그 세션으로 가는 길**(2026-09-26 · REQ-WEB-239) — 잘못 답했으면 거두는 길은
+             -- 없고(에이전트가 1초 안에 받는다) 그 세션에 지시로 고쳐 말한다
+             q.agent_session_id AS session_id,
              -- **출처는 카드의 절반이다.** 사람은 에이전트의 요약이 아니라 원문을 보고
              -- 판단하므로, 어느 문서·작업·발견에서 온 질문인지가 카드에 있어야 한다
              t.key AS task_key, s.key AS spec_key, q.finding_id, q.escalate::text AS escalate,

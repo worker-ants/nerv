@@ -235,6 +235,18 @@ export const en = {
   'home.recent_activity_in': 'Recent activity — {project}',
   'inbox.card.decided_at': '{decision} · {when}',
   'inbox.card.decision_note': 'Note left with the decision',
+  'inbox.card.correct.spec_approved':
+    'An approval can’t be taken back — leave a comment on the document, or once it is approved, fix it with a new draft.',
+  'inbox.card.correct.spec_returned':
+    'The document went back to draft — its author revises and resubmits it.',
+  'inbox.card.correct.plan_approved':
+    'A plan approval does not come back once given — to stop the work, stop its session or release the claim.',
+  'inbox.card.correct.plan_returned': 'A new plan comes up at the next claim.',
+  'inbox.card.correct.finding_approved':
+    'A resolution can’t be changed — raise a new finding if it needs another look.',
+  'inbox.card.correct.finding_returned': 'If the agent asks again, a new card appears.',
+  'inbox.card.correct.bypass': 'A bypass stays on record — withdrawing it is a new decision.',
+  'inbox.card.to_session': 'Open session',
   'inbox.scope_all':
     'Requests from every organization you belong to — each row says which organization and project it belongs to.',
   'inbox.subject.change_request': 'Change request',
@@ -1622,7 +1634,8 @@ export const en = {
   'settings.gates.boundaries_hint':
     'A change enters a tier when its four-axis score (side effects · sensitivity · reversibility · blast radius) reaches the boundary. Lower boundaries send more changes to a person.',
   'settings.gates.dynamic': 'Dynamic escalation',
-  'settings.gates.dynamic_hint': 'A history of retries or rollbacks pushes the tier up one step',
+  'settings.gates.dynamic_hint':
+    "A document's first approved version goes up one tier — retry and rollback history are not counted yet",
   'settings.gates.failopen': 'When it cannot decide · read-only',
   'settings.gates.failopen_body':
     'When it cannot decide it does not block — it proceeds and records; {count} in a row within {hours} hours escalates.',
