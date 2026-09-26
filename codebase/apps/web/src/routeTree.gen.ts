@@ -28,7 +28,9 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAccountRouteImport } from './routes/settings/account'
 import { Route as SettingsGatesRouteImport } from './routes/settings/gates'
 import { Route as SettingsMembersRouteImport } from './routes/settings/members'
+import { Route as SettingsOrgRouteImport } from './routes/settings/org'
 import { Route as SettingsOrgTokensRouteImport } from './routes/settings/org-tokens'
+import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
 import { Route as SettingsTokensRouteImport } from './routes/settings/tokens'
 import { Route as SettingsWorkspaceRouteImport } from './routes/settings/workspace'
 import { Route as PProjIndexRouteImport } from './routes/p.$proj/index'
@@ -136,9 +138,19 @@ const SettingsMembersRoute = SettingsMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsOrgRoute = SettingsOrgRouteImport.update({
+  id: '/org',
+  path: '/org',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsOrgTokensRoute = SettingsOrgTokensRouteImport.update({
   id: '/org-tokens',
   path: '/org-tokens',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
+const SettingsProjectsRoute = SettingsProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
 const SettingsTokensRoute = SettingsTokensRouteImport.update({
@@ -215,7 +227,9 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
+  '/settings/org': typeof SettingsOrgRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
+  '/settings/projects': typeof SettingsProjectsRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help/': typeof HelpIndexRoute
@@ -245,7 +259,9 @@ export interface FileRoutesByTo {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
+  '/settings/org': typeof SettingsOrgRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
+  '/settings/projects': typeof SettingsProjectsRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help': typeof HelpIndexRoute
@@ -278,7 +294,9 @@ export interface FileRoutesById {
   '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
   '/settings/members': typeof SettingsMembersRoute
+  '/settings/org': typeof SettingsOrgRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
+  '/settings/projects': typeof SettingsProjectsRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
   '/help/': typeof HelpIndexRoute
@@ -313,7 +331,9 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/gates'
     | '/settings/members'
+    | '/settings/org'
     | '/settings/org-tokens'
+    | '/settings/projects'
     | '/settings/tokens'
     | '/settings/workspace'
     | '/help/'
@@ -343,7 +363,9 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/gates'
     | '/settings/members'
+    | '/settings/org'
     | '/settings/org-tokens'
+    | '/settings/projects'
     | '/settings/tokens'
     | '/settings/workspace'
     | '/help'
@@ -375,7 +397,9 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/gates'
     | '/settings/members'
+    | '/settings/org'
     | '/settings/org-tokens'
+    | '/settings/projects'
     | '/settings/tokens'
     | '/settings/workspace'
     | '/help/'
@@ -542,11 +566,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMembersRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/org': {
+      id: '/settings/org'
+      path: '/org'
+      fullPath: '/settings/org'
+      preLoaderRoute: typeof SettingsOrgRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/org-tokens': {
       id: '/settings/org-tokens'
       path: '/org-tokens'
       fullPath: '/settings/org-tokens'
       preLoaderRoute: typeof SettingsOrgTokensRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
+    '/settings/projects': {
+      id: '/settings/projects'
+      path: '/projects'
+      fullPath: '/settings/projects'
+      preLoaderRoute: typeof SettingsProjectsRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
     '/settings/tokens': {
@@ -647,7 +685,9 @@ interface SettingsRouteRouteChildren {
   SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsGatesRoute: typeof SettingsGatesRoute
   SettingsMembersRoute: typeof SettingsMembersRoute
+  SettingsOrgRoute: typeof SettingsOrgRoute
   SettingsOrgTokensRoute: typeof SettingsOrgTokensRoute
+  SettingsProjectsRoute: typeof SettingsProjectsRoute
   SettingsTokensRoute: typeof SettingsTokensRoute
   SettingsWorkspaceRoute: typeof SettingsWorkspaceRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -657,7 +697,9 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAccountRoute: SettingsAccountRoute,
   SettingsGatesRoute: SettingsGatesRoute,
   SettingsMembersRoute: SettingsMembersRoute,
+  SettingsOrgRoute: SettingsOrgRoute,
   SettingsOrgTokensRoute: SettingsOrgTokensRoute,
+  SettingsProjectsRoute: SettingsProjectsRoute,
   SettingsTokensRoute: SettingsTokensRoute,
   SettingsWorkspaceRoute: SettingsWorkspaceRoute,
   SettingsIndexRoute: SettingsIndexRoute,

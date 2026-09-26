@@ -1,12 +1,16 @@
 // /settings/members — S8 멤버·역할 (ui-wireframes §2.8 · FR-14)
 //
 // 역할 6종이 여기서 결정되고, 그 값이 플랫폼 전체 권한의 정본이다(membership.role).
+//
+// **멤버와 초대는 탭으로 나눈다**(2026-09-26 — 사람 지시 · REQ-WEB-242). 예전에는 초대 구역이 멤버 표 위에 있어서,
+// 멤버를 보러 온 사람이 매번 초대 폼과 보낸 초대 목록을 지나야 했다. 첫 탭이 멤버이고 기본으로 열린다. 탭은 주소
+// (`?tab=invites`)에 있어서 초대 거절 알림과 시작하기 체크리스트가 초대 탭으로 바로 보낸다.
 // **권한 없는 버튼은 숨기지 않고 비활성 + 사유를 붙인다**(REQ-WEB-003) — 숨기면 사용자는
 // 기능이 없다고 생각하고, 그 오해는 관리자에게 문의로 돌아온다.
 
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
@@ -148,7 +152,12 @@ function liveTokensOf(tokens: readonly Record<string, unknown>[], userId: string
     .map((token) => String(token['id']));
 }
 
-export const Route = createFileRoute('/settings/members')({ component: MembersTab });
+export const Route = createFileRoute('/settings/members')({
+  // 멤버가 기본 탭이라 주소에 적지 않는다 — `?tab=invites` 만 있다
+  validateSearch: (search: Record<string, unknown>): { tab?: 'invites' } =>
+    search['tab'] === 'invites' ? { tab: 'invites' } : {},
+  component: MembersTab,
+});
 
 const ROLES = ['admin', 'planner', 'designer', 'developer', 'qa', 'viewer'] as const;
 
@@ -156,6 +165,7 @@ function MembersTab(): React.JSX.Element {
   const t = useT();
   const me = useMe();
   const { orgSlug, orgName, projects } = useScope();
+  const { tab } = Route.useSearch();
   const members = useMembers(orgSlug);
   const memberRows = rows(members.data);
   const queryClient = useQueryClient();
@@ -185,6 +195,17 @@ function MembersTab(): React.JSX.Element {
   );
   const lastOrgAdmin = (userId: string): boolean =>
     orgAdminIds.size === 1 && orgAdminIds.has(userId);
+  // 탭 옆의 수 — 멤버는 **사람** 수(겸직한 한 사람은 멤버십이 여럿이다), 초대는 대기 중인 것만.
+  // 초대 목록은 부를 수 있는 사람만 불러온다(InviteSection 과 같은 쿼리라 한 번만 요청된다)
+  const invitations = useOrgInvitations(canInvite ? orgSlug : null);
+  const peopleCount =
+    members.data === undefined
+      ? null
+      : new Set(memberRows.map((r) => String(r['user_id'] ?? r['email']))).size;
+  const pendingInvites =
+    invitations.data === undefined
+      ? null
+      : rows(invitations.data).filter((r) => r['state'] === 'pending').length;
 
   /**
    * 역할 하나를 켜고 끈다. **부여마다 행**이므로 켜기는 추가, 끄기는 삭제다 —
@@ -253,21 +274,24 @@ function MembersTab(): React.JSX.Element {
           {t('settings.members.scope_rule')}
         </ReadOnlyNotice>
       )}
-      {/* **부르는 자리와 관리하는 자리가 같아야 한다.** 멤버 표는 이미 있는 사람만 다루고,
-          새 사람을 넣는 길은 화면에 아예 없었다 — 서버의 EP-MBR-02 는 기존 사용자만
-          찾으므로 신규 사용자는 어느 쪽으로도 들어올 수 없었다(사람 지시 2026-08-27) */}
-      <InviteSection
-        orgSlug={orgSlug}
-        orgName={orgName}
-        orgWide={orgAdmin}
-        projects={invitable}
-        canInvite={canInvite}
-        known={inviteKnown}
-      />
+      <MembersTabs tab={tab ?? 'members'} people={peopleCount} pending={pendingInvites} />
 
-      {/* **"멤버가 없습니다" 는 받아 온 뒤에만 말한다**(REQ-WEB-198) — 로딩 검사가 없던 동안
-          이 탭에 들어갈 때마다 그 문장이 먼저 번쩍였고, 실패하면 그대로 남았다 */}
-      {members.data === undefined ? (
+      {/* **"멤버가 없습니다" 는 받아 온 뒤에만 보인다**(REQ-WEB-198) — 로딩 검사가 없던 동안 이 탭에
+          들어갈 때마다 그 문장이 먼저 번쩍였고, 실패하면 그대로 남았다 */}
+
+      {/* **초대와 멤버 관리는 한 화면에 있어야 한다.** 멤버 표는 이미 있는 사람만 다루고, 새 사람을 넣을
+          방법이 화면에 없었다 — 서버의 EP-MBR-02 는 기존 사용자만 찾으므로 신규 사용자는 어느 쪽으로도
+          들어올 수 없었다(사람 지시 2026-08-27) */}
+      {tab === 'invites' ? (
+        <InviteSection
+          orgSlug={orgSlug}
+          orgName={orgName}
+          orgWide={orgAdmin}
+          projects={invitable}
+          canInvite={canInvite}
+          known={inviteKnown}
+        />
+      ) : members.data === undefined ? (
         failedWithoutData(members) ? (
           <ErrorState error={members.error} onRetry={() => void members.refetch()} />
         ) : (
@@ -422,6 +446,74 @@ function MembersTab(): React.JSX.Element {
         </Table>
       )}
     </section>
+  );
+}
+
+/** 탭 줄의 링크 — 활성 밑줄은 설정 메뉴의 가로 줄과 같은 모양이다 */
+const TAB =
+  'flex shrink-0 items-center gap-1.5 border-b-2 px-1 pb-2 text-sm whitespace-nowrap transition-colors';
+
+/**
+ * 멤버 · 초대 탭(REQ-WEB-242). **주소가 바뀌는 탭이라 링크다** — 지금 어느 탭인지는 `aria-current` 로
+ * 알린다(SYS-12 · 받은 요청의 탭과 같은 규칙). 기본 비교는 쿼리를 부분으로 봐서 빈 쿼리의 [멤버]가
+ * `?tab=invites` 에서도 활성으로 잡힌다 — `exact` 로 쿼리까지 비교한다.
+ */
+function MembersTabs({
+  tab,
+  people,
+  pending,
+}: {
+  tab: 'members' | 'invites';
+  /** 멤버 수(사람) — 아직 모르면 null */
+  people: number | null;
+  /** 대기 중인 초대 수 — 부를 수 없거나 아직 모르면 null */
+  pending: number | null;
+}): React.JSX.Element {
+  const t = useT();
+  const items = [
+    { key: 'members', search: {}, label: t('settings.members.tab_members'), count: people },
+    {
+      key: 'invites',
+      search: { tab: 'invites' as const },
+      label: t('settings.members.tab_invites'),
+      count: pending,
+    },
+  ] as const;
+  return (
+    <nav
+      aria-label={t('settings.members.tabs_label')}
+      className="mb-4 flex gap-5 border-b border-border"
+    >
+      {items.map((item) => {
+        const active = item.key === tab;
+        return (
+          <Link
+            key={item.key}
+            to="/settings/members"
+            search={item.search}
+            activeOptions={{ exact: true }}
+            aria-current={active ? 'page' : undefined}
+            data-testid={`members-tab-${item.key}`}
+            className={cn(
+              TAB,
+              active
+                ? 'border-status-action font-medium text-text'
+                : 'border-transparent text-text-mute hover:text-text',
+            )}
+          >
+            {item.label}
+            {item.count !== null && (
+              <span
+                data-testid={`members-tab-${item.key}-count`}
+                className="text-xs text-text-faint tabular-nums"
+              >
+                {item.count}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -589,7 +681,7 @@ function InviteSection({
   if (!canInvite) {
     if (!known) return null;
     return (
-      <section className="mb-6">
+      <section>
         <SectionTitle
           action={
             <Button size="sm" data-testid="invite-new" disabled title={t('invite.locked')}>
@@ -605,7 +697,7 @@ function InviteSection({
   }
 
   return (
-    <section className="mb-6">
+    <section>
       <SectionTitle
         action={
           <Button size="sm" data-testid="invite-new" onClick={() => setOpen(!open)}>

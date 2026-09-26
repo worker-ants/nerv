@@ -182,7 +182,13 @@ describe('프로젝트가 0개인 홈', () => {
     renderAt('/');
     const checklist = await screen.findByTestId('start-checklist');
     const link = within(within(checklist).getByTestId('start-step-project')).getByRole('link');
-    expect(link.getAttribute('href')).toBe('/settings/workspace?new=1');
+    expect(link.getAttribute('href')).toBe('/settings/projects?new=1');
+    // 초대 걸음은 초대 탭으로 연다 — 멤버 탭이 기본이다(REQ-WEB-242)
+    expect(
+      within(within(checklist).getByTestId('start-step-invite'))
+        .getByRole('link')
+        .getAttribute('href'),
+    ).toBe('/settings/members?tab=invites');
     // 프로젝트가 없으면 활동도 없다 — "알림이 없습니다." 를 활동 자리에 적지 않는다
     expect(screen.queryByText('알림이 없습니다.')).toBeNull();
   });
@@ -213,7 +219,7 @@ describe('사이드바의 프로젝트 목록 (2026-09-25 D1 · REQ-WEB-225)', (
     expect(await within(rail).findByTestId('project-none')).toBeTruthy();
     const link = within(rail).getByTestId('project-new-link');
     expect(link.textContent).toBe('프로젝트 관리 · 새 프로젝트');
-    expect(link.getAttribute('href')).toBe('/settings/workspace?new=1');
+    expect(link.getAttribute('href')).toBe('/settings/projects?new=1');
   });
 
   it('조직 admin 이 아니면 "새 프로젝트" 를 약속하지 않는다', async () => {
@@ -222,18 +228,18 @@ describe('사이드바의 프로젝트 목록 (2026-09-25 D1 · REQ-WEB-225)', (
     const rail = await screen.findByTestId('nav-rail');
     const link = await within(rail).findByTestId('project-new-link');
     await waitFor(() => expect(link.textContent).toBe('프로젝트 관리'));
-    expect(link.getAttribute('href')).toBe('/settings/workspace');
+    expect(link.getAttribute('href')).toBe('/settings/projects');
   });
 });
 
-describe('설정 → 조직·프로젝트', () => {
+describe('설정 → 조직 정보 · 프로젝트 목록', () => {
   it('?new=1 로 오면 프로젝트 폼이 열린 채 도착한다', async () => {
-    renderAt('/settings/workspace?new=1');
+    renderAt('/settings/projects?new=1');
     expect(await screen.findByTestId('project-name')).toBeTruthy();
   });
 
   it('새 조직을 만들 수 있다 — 만들면 그 조직의 첫 프로젝트 만들기로 옮겨 간다', async () => {
-    const router = renderAt('/settings/workspace');
+    const router = renderAt('/settings/org');
     fireEvent.click(await screen.findByTestId('new-org-toggle'));
     const form = within(screen.getByTestId('new-org'));
     fireEvent.change(form.getByTestId('org-name'), { target: { value: 'Beta Labs' } });
@@ -241,7 +247,7 @@ describe('설정 → 조직·프로젝트', () => {
     await waitFor(() =>
       expect(posted[0]).toMatchObject({ url: '/orgs', body: { slug: 'beta-labs' } }),
     );
-    await waitFor(() => expect(router.state.location.href).toContain('/settings/workspace?new=1'));
+    await waitFor(() => expect(router.state.location.href).toContain('/settings/projects?new=1'));
   });
 });
 
@@ -298,6 +304,6 @@ describe('토큰 탭', () => {
   it('조직 admin 에게 "admin 에게 요청하세요" 대신 프로젝트를 만들러 가는 길을 준다', async () => {
     renderAt('/settings/tokens');
     const link = await screen.findByTestId('token-create-project');
-    expect(link.getAttribute('href')).toBe('/settings/workspace?new=1');
+    expect(link.getAttribute('href')).toBe('/settings/projects?new=1');
   });
 });

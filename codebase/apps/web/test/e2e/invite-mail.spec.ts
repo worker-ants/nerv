@@ -31,7 +31,7 @@ test('초대를 만들면 그 주소로 메일이 도착한다 — 본문에 수
   // 같은 주소로 두 번 돌면 앞의 초대가 회수되고 메일이 두 통이 된다 — 매 실행을 갈라 둔다
   const to = `invitee-${Date.now()}@e2e.invalid`;
 
-  await page.goto('/settings/members');
+  await page.goto('/settings/members?tab=invites');
   await page.getByTestId('invite-new').click();
   await page.getByTestId('invite-email').fill(to);
   await page.getByRole('button', { name: /초대/ }).last().click();

@@ -96,7 +96,7 @@ const rail = (): Promise<HTMLElement> => screen.findByTestId('nav-rail');
 const header = (): HTMLElement => document.querySelector('header')!;
 
 describe('왼쪽 열은 모든 화면에서 같다 (NAV-06)', () => {
-  it.each(['/', '/inbox', '/notifications', '/settings/workspace', '/help', '/p/clemvion/tasks'])(
+  it.each(['/', '/inbox', '/notifications', '/settings/org', '/help', '/p/clemvion/tasks'])(
     '%s 에도 조직 · 전역 · 프로젝트 · 설정·도움말이 같은 자리에 있다',
     async (path) => {
       mount(path);
@@ -251,7 +251,7 @@ describe('열 전체가 한 상자로 흐른다 (2026-09-25 사람 보고 · REQ
 
   it('바닥 블록은 남는 자리가 있을 때만 바닥에 붙는다 — 사이의 빈칸이 줄어든다', async () => {
     stubWide();
-    mount('/settings/workspace');
+    mount('/settings/org');
     const nav = await rail();
     const footer = within(nav).getByTestId('rail-footer');
     const spacer = footer.previousElementSibling as HTMLElement;

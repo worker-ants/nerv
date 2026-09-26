@@ -68,7 +68,7 @@ export function StartChecklist({
       id: 'project',
       done: rows(projects.data).length > 0,
       label: t('start.project'),
-      to: '/settings/workspace' as const,
+      to: '/settings/projects' as const,
       // 폼이 열린 채로 도착한다 — 도착해서 [+ 새 프로젝트]를 한 번 더 찾게 하지 않는다
       search: { new: 1 as const },
     },
@@ -80,8 +80,9 @@ export function StartChecklist({
         new Set(rows(members.data).map((m) => m['user_id'])).size > 1 ||
         rows(invitations.data).some((i) => i['state'] === 'pending'),
       label: t('start.invite'),
+      // 초대 탭으로 연다 — 멤버 탭이 기본이라 그냥 보내면 초대 폼을 한 번 더 찾아야 한다(REQ-WEB-242)
       to: '/settings/members' as const,
-      search: {},
+      search: { tab: 'invites' as const },
     },
     {
       id: 'agent',

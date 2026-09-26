@@ -116,9 +116,11 @@ describe('설정의 항목은 범위로 묶인다 (SET-06)', () => {
         .getAllByRole('link')
         .map((a) => a.getAttribute('href')),
     ).toEqual([
-      '/settings/workspace',
+      '/settings/org',
       '/settings/members',
       '/settings/org-tokens',
+      // 프로젝트 — 프로젝트 목록이 먼저다(2026-09-26 · REQ-WEB-242)
+      '/settings/projects',
       '/settings/gates',
       // 나 — 내 계정이 먼저다(2026-09-25 · REQ-WEB-229)
       '/settings/account',
@@ -129,7 +131,7 @@ describe('설정의 항목은 범위로 묶인다 (SET-06)', () => {
     );
   });
 
-  it('연동은 Phase 2 — 자리만 비활성으로 선다', async () => {
+  it('연동은 Phase 2 — 항목만 비활성으로 보인다', async () => {
     mount('/settings/members');
     const nav = await railNav();
     const integrations = within(nav).getByText('연동').closest('[aria-disabled]');
@@ -151,17 +153,26 @@ describe('설정의 항목은 범위로 묶인다 (SET-06)', () => {
     expect(within(rail).queryByTestId('settings-nav')).toBeNull();
   });
 
-  it('머리가 어느 조직의 설정인지 말한다', async () => {
+  it('상단에 어느 조직의 설정인지 적혀 있다', async () => {
     mount('/settings/members');
     await waitFor(() =>
       expect(screen.getByTestId('settings-heading').textContent).toBe('설정 — Default'),
     );
   });
 
-  it('/settings 는 첫 무리의 첫 항목에 착지한다', async () => {
+  it('/settings 는 첫 무리의 첫 항목(조직 정보)을 연다', async () => {
     const router = mount('/settings');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/settings/workspace'));
-    expect(await screen.findByRole('heading', { name: 'Default 조직·프로젝트' })).toBeDefined();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/settings/org'));
+    expect(await screen.findByRole('heading', { name: 'Default 조직 정보' })).toBeDefined();
+  });
+
+  // 조직과 프로젝트를 나눴다(2026-09-26 · REQ-WEB-242) — 옛 주소는 새 주소로 보낸다
+  it('옛 주소 /settings/workspace 는 조직 정보로, ?new=1 이면 프로젝트 만들기로 간다', async () => {
+    const router = mount('/settings/workspace');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/settings/org'));
+    cleanup();
+    const again = mount('/settings/workspace?new=1');
+    await waitFor(() => expect(again.state.location.href).toBe('/settings/projects?new=1'));
   });
 });
 

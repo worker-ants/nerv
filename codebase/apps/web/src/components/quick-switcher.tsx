@@ -197,7 +197,7 @@ export function QuickSwitcher({
         href: '/notifications',
         keywords: 'notifications',
       },
-      ...(['workspace', 'members', 'tokens', 'gates'] as const).map((tab) => ({
+      ...(['org', 'members', 'projects', 'gates', 'tokens'] as const).map((tab) => ({
         id: `go-settings-${tab}`,
         group: 'go' as const,
         label: t(`settings.tab.${tab}`),

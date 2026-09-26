@@ -85,8 +85,10 @@ export function eventTarget(n: EventRow, requests: 'inbox' | 'subject' = 'inbox'
   if (type.startsWith('session.') || type.startsWith('claim.')) {
     return { to: `/p/${project}/sessions` };
   }
-  // 초대를 거절했다 — 부른 사람이 보는 초대 목록으로(REQ-API-178). 다시 부를지 거기서 정한다
-  if (type === NERV_EVENT.INVITATION_DECLINED) return { to: '/settings/members' };
+  // 초대를 거절했다 — 부른 사람이 보는 초대 탭으로(REQ-API-178 · REQ-WEB-242). 다시 부를지 거기서 정한다
+  if (type === NERV_EVENT.INVITATION_DECLINED) {
+    return { to: '/settings/members', search: { tab: 'invites' } };
+  }
   return { to: `/p/${project}` };
 }
 

@@ -39,6 +39,10 @@ const SHOTS: [string, string][] = [
   // 그때의 관측 신원(planner)에게는 잠긴 컨트롤만 보였다 — 역할 셀렉트·초대 폼·tier 입력이
   // 디자인 확인의 대상인데 그 대상이 그림에 없었다.
   ['/settings/members', 'settings-members'],
+  // 멤버와 초대는 탭이다(2026-09-26 · REQ-WEB-242) — 초대 폼은 둘째 탭에 있어서 따로 찍어야 그림에 남는다
+  ['/settings/members?tab=invites', 'settings-invites'],
+  ['/settings/org', 'settings-org'],
+  ['/settings/projects', 'settings-projects'],
   ['/settings/gates', 'settings-gates'],
   // 매뉴얼도 화면이다 — 디자인 확인에서 빠지면 여기만 아무도 안 본 채로 배포된다
   ['/help/tasks', 'manual'],

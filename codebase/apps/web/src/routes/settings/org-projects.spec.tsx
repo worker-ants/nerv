@@ -1,7 +1,7 @@
-// /settings/workspace — 조직·프로젝트 관리 (EP-ORG-03~05 · EP-PRJ-02·04·05)
+// /settings/org · /settings/projects — 조직 정보와 프로젝트 목록 (EP-ORG-03~05 · EP-PRJ-02·04·05)
 //
-// 검사하는 것은 두 가지다: **권한 판정이 겸직을 합치는가**, 그리고 **되돌릴 수 없는
-// 일 앞에 확인이 서는가**.
+// 2026-09-26 부터 두 화면이다(REQ-WEB-242 — 예전의 /settings/workspace 한 화면). 검사하는 것은 두 가지다:
+// **권한 판정이 겸직을 합치는가**, 그리고 **되돌릴 수 없는 일 앞에서 한 번 더 묻는가**.
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -54,10 +54,10 @@ function stub(projects: unknown[]): void {
   );
 }
 
-async function renderTab(expectRows = true): Promise<void> {
+function mountAt(path: '/settings/org' | '/settings/projects'): void {
   const router = createRouter({
     routeTree,
-    history: createMemoryHistory({ initialEntries: ['/settings/workspace'] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
   });
   render(
     <LocaleProvider locale="ko">
@@ -70,7 +70,18 @@ async function renderTab(expectRows = true): Promise<void> {
       </QueryClientProvider>
     </LocaleProvider>,
   );
+}
+
+/** 조직 정보 — 조직 이름·삭제·새 조직 */
+async function renderOrg(): Promise<void> {
+  mountAt('/settings/org');
   await waitFor(() => expect(screen.getByTestId('org-name')).toBeDefined());
+}
+
+/** 프로젝트 목록 */
+async function renderTab(expectRows = true): Promise<void> {
+  mountAt('/settings/projects');
+  await waitFor(() => expect(screen.getByTestId('project-new')).toBeDefined());
   // 프로젝트 목록은 me 보다 늦게 온다 — 줄을 기다리지 않으면 아직 빈 상태를 검사하게 된다
   if (expectRows) await waitFor(() => expect(screen.getByTestId('project-row')).toBeDefined());
 }
@@ -92,11 +103,14 @@ describe('권한 — 겸직은 합집합이다', () => {
   it('admin 이면 안내 배너를 띄우지 않는다', async () => {
     stub([{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', archived_at: null }]);
     await renderTab();
-    expect(screen.queryByText(/admin 만 바꿀 수 있습니다/)).toBeNull();
+    expect(screen.queryByTestId('read-only-notice')).toBeNull();
+    cleanup();
+    await renderOrg();
+    expect(screen.queryByTestId('read-only-notice')).toBeNull();
   });
 });
 
-describe('되돌릴 수 없는 일에는 확인이 선다', () => {
+describe('되돌릴 수 없는 일은 한 번 더 묻는다', () => {
   it('프로젝트가 있으면 조직 삭제는 잠기고, 보관한 것까지 센 수를 말한다', async () => {
     // 예전 안내는 "먼저 프로젝트를 보관하세요" 였다 — 서버는 보관한 것까지 세서 거절하므로,
     // 따라 한 admin 은 모든 사람의 결재 카드를 숨기고도 조직을 지우지 못했다(REQ-WEB-201)
@@ -104,7 +118,7 @@ describe('되돌릴 수 없는 일에는 확인이 선다', () => {
       { id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', archived_at: null },
       { id: 'p-2', slug: 'old', key: 'OLD', name: '옛', archived_at: '2026-08-01T00:00:00Z' },
     ]);
-    await renderTab(false);
+    await renderOrg();
     await waitFor(() =>
       expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(true),
     );
@@ -116,7 +130,7 @@ describe('되돌릴 수 없는 일에는 확인이 선다', () => {
 
   it('비어 있는 조직의 삭제는 같은 자리에서 한 번 더 묻는다', async () => {
     stub([]);
-    await renderTab(false);
+    await renderOrg();
     await waitFor(() =>
       expect((screen.getByTestId('org-delete') as HTMLButtonElement).disabled).toBe(false),
     );
@@ -195,7 +209,7 @@ describe('지금 조직은 한 곳에서 정한다 (REQ-WEB-076)', () => {
     );
     // 헤더의 조직 select 가 남기는 것과 같은 자리다(`lib/scope.ts`)
     localStorage.setItem('nerv.last-org', 'acme');
-    await renderTab(false);
+    await renderOrg();
 
     await waitFor(() =>
       expect((screen.getByTestId('org-name') as HTMLInputElement).value).toBe('Acme'),
@@ -417,16 +431,25 @@ describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () =
     );
   });
 
-  it('조직 이름·삭제·새 프로젝트는 잠기고, 그렇다고 말한다', async () => {
+  it('조직 이름·삭제는 잠기고, 안내에 그 이유가 있다', async () => {
+    await renderOrg();
+    await waitFor(() =>
+      expect((screen.getByTestId('org-name') as HTMLInputElement).disabled).toBe(true),
+    );
+    expect(isLocked(screen.getByTestId('org-delete'))).toBe(true);
+    expect(
+      screen.getByText('조직 이름을 바꾸거나 조직을 삭제하는 일은 조직 admin 만 할 수 있습니다.'),
+    ).toBeDefined();
+  });
+
+  it('새 프로젝트는 잠기고, 안내에 그 이유가 있다', async () => {
     await renderTab(false);
     await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
-    expect((screen.getByTestId('org-name') as HTMLInputElement).disabled).toBe(true);
-    expect(isLocked(screen.getByTestId('org-delete'))).toBe(true);
     // **숨기지 않는다**(REQ-WEB-003) — 비활성 + 사유
     const create = screen.getByTestId('project-new') as HTMLButtonElement;
     expect(isLocked(create)).toBe(true);
     expect(reasonOf(create)).toBe('새 프로젝트는 조직 admin 이 만듭니다.');
-    expect(screen.getByText(/조직 이름·삭제와 새 프로젝트는 조직 admin 만/)).toBeDefined();
+    expect(screen.getByText(/새 프로젝트는 조직 admin 만 만들 수 있습니다/)).toBeDefined();
   });
 
   it('자기 프로젝트 줄은 열리고 남의 프로젝트 줄은 잠긴다', async () => {
