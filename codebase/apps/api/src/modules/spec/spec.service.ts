@@ -26,6 +26,7 @@ import {
   specVersionStatus,
   text,
 } from '@nerv/schema';
+import type { GateEvidence } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { evidenceExistsSql } from './impl-status.js';
@@ -1061,6 +1062,7 @@ export class SpecService {
         version.spec_id,
         version.spec_type,
         input.specVersionId,
+        input.sessionId ?? null,
       );
 
       // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
@@ -1206,13 +1208,13 @@ export class SpecService {
       specId: version.spec_id,
       approverUserId: input.approverUserId,
       actor: { userId: input.approverUserId, sessionId: null, isAgent: false },
-      gate: await this.assessGate(
-        tx,
-        input.projectId,
-        version.spec_id,
-        version.spec_type,
-        input.specVersionId,
-      ),
+      // 제출 때의 판정을 옮겨 적는다 — 다시 계산하지 않는다(슬롯과 기록이 어긋나지 않게)
+      gate: await this.submittedGate(tx, {
+        projectId: input.projectId,
+        specId: version.spec_id,
+        specType: version.spec_type,
+        specVersionId: input.specVersionId,
+      }),
     });
   }
 
@@ -2083,6 +2085,8 @@ export class SpecService {
     specId: string,
     specType: string,
     specVersionId: string,
+    /** 제출한 세션 — 재시도 신호의 셋째 길(그 세션이 올린 신고) */
+    sessionId: string | null,
   ): Promise<GateDecision> {
     const { rows } = await tx.execute<{
       referencing: number;
@@ -2115,8 +2119,13 @@ export class SpecService {
     const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
     // 정책이 깨져 있어도 판정을 멈추지 않는다 — 기본값으로 간다(보존 잡과 같은 규율)
     const policy = parsed.success ? parsed.data : GatePolicySchema.parse({});
+    // 끈 프로젝트에서는 신호를 세지 않으므로 찾지도 않는다
+    const retry =
+      policy.spec_gate.dynamic_escalation === false
+        ? null
+        : await this.retryEvidence(tx, { projectId, specId, sessionId });
 
-    return decideGate(
+    const decision = decideGate(
       inferAxes({
         specType,
         requirementsAdded: delta.requirements.added.length,
@@ -2141,11 +2150,127 @@ export class SpecService {
         // 나온다 — 요구사항을 새로 세우는 feature 스펙이 3점(T1)으로 사람 없이 통과했다.
         // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
         firstApprovedVersion: bodies[0]?.base_md == null,
+        repeatedFailures: retry !== null,
       },
       {
         boundaries: policy.spec_gate.tier_boundaries,
         dynamicEscalation: policy.spec_gate.dynamic_escalation,
       },
+    );
+    // 신호의 근거를 싣는다 — 카드가 신호 곁에 원문으로 가는 링크를 그린다(REQ-API-189)
+    return retry !== null && decision.signals.includes('retry_threshold')
+      ? { ...decision, evidence: [retry] }
+      : decision;
+  }
+
+  /**
+   * **재시도 신호 — 같은 실패 3회 신고**(2026-09-26 사람 결정 · REQ-API-189 · spec-workflow §2.4).
+   *
+   * 서버는 테스트 결과를 받지 않는다 — 증적에 통과·실패 열이 없고 웹훅은 PR·커밋의 존재만 적는다.
+   * 그래서 실패를 직접 세지 않고, 에이전트가 **`e2e-fail-3x`**(clemvion 에서 옮긴 어휘 — 같은
+   * 실패 3회 반복)로 올린 에스컬레이션을 센다. 질문(`question.escalate`)과 발견 처분
+   * (`resolution.escalate_reason`) 두 곳이다. 한 건이면 선다 — 임계 3 은 어휘 안에 이미 있다.
+   *
+   * 신고가 이 스펙에 **닿는 길은 셋**이다: ① 질문의 스펙이거나 발견이 이 스펙의 버전·요구사항을
+   * 가리킨다 · ② 질문·리뷰의 작업이 이 스펙에서 파생됐다 · ③ 신고한 세션이 이번 제출의 세션이다.
+   * 다른 문서의 실패는 세지 않는다.
+   *
+   * **사람이 이 스펙을 마지막으로 승인한 뒤**의 신고만 센다 — 신호가 요구하는 것은 "사람이 한 번
+   * 본다" 이고, 사람이 승인했으면 본 것이다. 자동 통과(T0·T1 — `approved_by_user_id` 가 비어 있다)는
+   * 아무도 보지 않았으므로 창을 닫지 않는다. `infra`(환경 탓)·`sensitive-fix`(민감도)는 실패가 아니다.
+   * 가장 최근의 신고 하나를 근거로 돌려준다.
+   */
+  private async retryEvidence(
+    tx: Tx,
+    input: { projectId: string; specId: string; sessionId: string | null },
+  ): Promise<GateEvidence | null> {
+    const { rows } = await tx.execute<{
+      kind: 'question' | 'finding';
+      id: string;
+      title: string;
+      at: string;
+      task_key: string | null;
+      session_id: string | null;
+    }>(sql`
+      WITH versions AS (SELECT id FROM spec_version WHERE spec_id = ${input.specId}),
+           reqs AS (SELECT id FROM requirement WHERE spec_id = ${input.specId}),
+           derived AS (
+             SELECT t.id FROM task t
+              WHERE t.project_id = ${input.projectId}
+                AND (t.source_spec_version_id IN (SELECT id FROM versions)
+                     OR t.source_requirement_id IN (SELECT id FROM reqs))),
+           esc AS (
+             SELECT 'question' AS kind, q.id, q.title, q.asked_at AS at, q.spec_id, q.task_id,
+                    q.agent_session_id AS session_id,
+                    NULL::uuid AS finding_version_id, NULL::uuid AS finding_requirement_id
+               FROM question q
+              WHERE q.project_id = ${input.projectId} AND q.escalate = 'e2e-fail-3x'
+             UNION ALL
+             SELECT 'finding', f.id, f.title, r.created_at, NULL::uuid, rs.task_id,
+                    r.actor_session_id, f.spec_version_id, f.requirement_id
+               FROM resolution r
+               JOIN finding f ON f.id = r.finding_id
+          LEFT JOIN review_session rs ON rs.id = f.last_session_id
+              WHERE f.project_id = ${input.projectId}
+                AND r.kind = 'escalated' AND r.escalate_reason = 'e2e-fail-3x')
+      SELECT e.kind, e.id, e.title, t.key AS task_key, e.session_id,
+             to_char(e.at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at
+        FROM esc e
+   LEFT JOIN task t ON t.id = e.task_id
+       -- **사람이 승인한** 마지막 버전 이후 — 자동 통과(T0·T1)는 아무도 보지 않았으므로 창을 닫지 않는다
+       WHERE e.at > coalesce((SELECT max(approved_at) FROM spec_version
+                               WHERE spec_id = ${input.specId} AND approved_by_user_id IS NOT NULL),
+                             '-infinity'::timestamptz)
+         AND (e.spec_id = ${input.specId}
+              OR e.finding_version_id IN (SELECT id FROM versions)
+              OR e.finding_requirement_id IN (SELECT id FROM reqs)
+              OR e.task_id IN (SELECT id FROM derived)
+              OR (${input.sessionId}::uuid IS NOT NULL AND e.session_id = ${input.sessionId}::uuid))
+       ORDER BY e.at DESC
+       LIMIT 1
+    `);
+    const row = rows[0];
+    return row === undefined
+      ? null
+      : {
+          signal: 'retry_threshold',
+          kind: row.kind,
+          id: row.id,
+          title: row.title,
+          task_key: row.task_key,
+          session_id: row.session_id,
+          at: row.at,
+        };
+  }
+
+  /**
+   * **제출 때의 판정을 읽는다**(2026-09-26 · spec-workflow §2.4). 슬롯 수는 제출 때 정해지므로,
+   * 승인 때 다시 계산하면 그 사이에 올라온 신고나 늘어난 파생 작업이 기록의 티어만 바꿔 슬롯과
+   * 어긋난다(`spec.approved` 의 티어는 플랜 게이트가 읽는다). 제출 이벤트가 없는 옛 버전만
+   * 다시 계산한다.
+   */
+  private async submittedGate(
+    tx: Tx,
+    input: { projectId: string; specId: string; specType: string; specVersionId: string },
+  ): Promise<Pick<GateDecision, 'tier' | 'autoPass'>> {
+    const { rows } = await tx.execute<{ tier: string | null }>(sql`
+      SELECT e.payload->>'gate_tier' AS tier FROM event e
+       WHERE e.type = ${NERV_EVENT.SPEC_SUBMITTED} AND e.subject_id = ${input.specVersionId}
+         AND e.payload ? 'gate_tier'
+       ORDER BY e.occurred_at DESC
+       LIMIT 1
+    `);
+    const tier = rows[0]?.tier;
+    if (tier === 'T0' || tier === 'T1' || tier === 'T2' || tier === 'T3') {
+      return { tier, autoPass: tier === 'T0' || tier === 'T1' };
+    }
+    return this.assessGate(
+      tx,
+      input.projectId,
+      input.specId,
+      input.specType,
+      input.specVersionId,
+      null,
     );
   }
 
@@ -2171,7 +2296,7 @@ export class SpecService {
        * 물음이라 자리를 나눈다: 액터는 그 제출을 한 사람·세션이다.
        */
       actor: { userId: string | null; sessionId: string | null; isAgent: boolean };
-      gate: GateDecision;
+      gate: Pick<GateDecision, 'tier' | 'autoPass'>;
     },
   ): Promise<void> {
     // 같은 Spec 의 이전 approved 를 superseded 로 (서버 자동 전이 — §1.2)

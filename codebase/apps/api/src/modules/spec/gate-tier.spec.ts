@@ -94,23 +94,33 @@ describe('프로젝트 정책 — 경계와 동적 강화 스위치가 실제로
 
   it('동적 강화를 끄면 신호를 세지 않는다 — 껐다고 믿은 사람이 옳아야 한다', () => {
     const signals = { firstApprovedVersion: true, repeatedFailures: true };
-    expect(decideGate(axes(2, 1, 0, 0), signals).tier).toBe('T3');
+    expect(decideGate(axes(2, 1, 0, 0), signals).tier).toBe('T2');
     expect(decideGate(axes(2, 1, 0, 0), signals, { dynamicEscalation: false }).tier).toBe('T1');
   });
 });
 
 describe('동적 강화 — 세션 신뢰도도 티어를 올린다', () => {
-  it('재시도 임계 초과는 +1 (clemvion e2e-fail-3x 계승)', () => {
+  it('같은 실패 3회 신고는 +1 (clemvion e2e-fail-3x 계승 · 2026-09-26)', () => {
     const base = decideGate(axes(0, 0, 0, 0));
     const escalated = decideGate(axes(0, 0, 0, 0), { repeatedFailures: true });
     expect(base.tier).toBe('T0');
     expect(escalated.tier).toBe('T1');
-    expect(escalated.rationale).toContain('재시도 임계 초과');
+    expect(escalated.rationale).toContain('같은 실패 3회 신고 → 티어 +1');
   });
 
-  it('롤백 이력도 +1 이고 둘이 겹치면 +2', () => {
-    const both = decideGate(axes(0, 0, 0, 0), { repeatedFailures: true, recentRollback: true });
+  it('신호가 여럿이어도 한 단계다 — 쌓으면 첫 버전 T1 문서가 신호 하나로 T3 까지 갔다 (2026-09-26 사람 결정)', () => {
+    // 신호가 말하는 것은 "사람이 한 번 봐야 한다" 이지 "두 사람이" 가 아니다. T3 는 직군 교차
+    // 2인과 파생 작업의 플랜 승인까지 부른다 — 묻는 횟수가 늘면 확인은 읽히지 않는다
+    const both = decideGate(axes(2, 1, 0, 0), {
+      firstApprovedVersion: true,
+      repeatedFailures: true,
+    });
     expect(both.tier).toBe('T2');
+    expect(both.signals).toEqual(['first_version', 'retry_threshold']);
+    // "+1" 은 끝에 한 번 — 둘 다 적고 한 단계만 올랐다고 말한다
+    expect(both.rationale).toBe(
+      '4축 합계 3점 · 이 문서의 첫 승인 버전 · 같은 실패 3회 신고 → 티어 +1',
+    );
   });
 
   it('T3 위는 없다 — 강화가 무한히 올라가지 않는다', () => {
@@ -134,7 +144,7 @@ describe('산출 근거를 구조로 남긴다 (2026-09-26 · REQ-API-188)', () 
       firstApprovedVersion: true,
       repeatedFailures: true,
     });
-    expect(both.signals).toEqual(['retry_threshold', 'first_version']);
+    expect(both.signals).toEqual(['first_version', 'retry_threshold']);
   });
 
   it('끈 프로젝트에서는 신호가 없다 — 올리지 않은 것을 올렸다고 적지 않는다', () => {
@@ -155,6 +165,23 @@ describe('산출 근거를 구조로 남긴다 (2026-09-26 · REQ-API-188)', () 
       gate_signals: ['first_version'],
     });
     expect(Object.keys(payload.gate_axes)).toEqual([...GATE_AXES]);
+  });
+
+  it('근거는 있을 때만 싣는다 — 재시도 신호가 가리키는 에스컬레이션 (REQ-API-189)', () => {
+    const evidence = {
+      signal: 'retry_threshold' as const,
+      kind: 'question' as const,
+      id: 'q-1',
+      title: 'e2e 가 세 번 같은 자리에서 깨진다',
+      task_key: 'CLV-T-1',
+      session_id: 's-1',
+      at: '2026-09-26T00:00:00.000Z',
+    };
+    const decision = decideGate(axes(2, 1, 0, 0), { repeatedFailures: true });
+    expect(gateEventPayload({ ...decision, evidence: [evidence] }).gate_evidence).toEqual([
+      evidence,
+    ]);
+    expect(gateEventPayload(decision)).not.toHaveProperty('gate_evidence');
   });
 });
 

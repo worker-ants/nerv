@@ -288,6 +288,63 @@ describe('무엇을 · 누가 · 왜 (REQ-WEB-204)', () => {
     );
     expect(line.querySelectorAll('[data-signal]')).toHaveLength(1);
   });
+
+  it('신호가 여럿이어도 "+1" 은 한 번 — 재시도 신호는 그 신고로 가는 길을 단다 (REQ-WEB-240 · REQ-API-189)', async () => {
+    pages = [
+      {
+        items: [
+          spec(1, {
+            version_no: 1,
+            gate_tier: 'T2',
+            gate_score: 3,
+            gate_axes: { side_effect: 2, sensitivity: 1, reversibility: 0, blast_radius: 0 },
+            gate_signals: ['first_version', 'retry_threshold'],
+            gate_evidence: [
+              {
+                signal: 'retry_threshold',
+                kind: 'question',
+                id: 'q-1',
+                title: 'e2e 가 세 번 깨진다',
+                task_key: 'CLV-T-1KTDCK',
+                session_id: 'sess-0001',
+                at: new Date().toISOString(),
+              },
+            ],
+          }),
+          spec(2, {
+            gate_tier: 'T3',
+            gate_score: 5,
+            gate_signals: ['retry_threshold'],
+            gate_evidence: [
+              {
+                signal: 'retry_threshold',
+                kind: 'finding',
+                id: 'f-1',
+                title: '같은 e2e 실패',
+                task_key: null,
+                session_id: null,
+                at: new Date().toISOString(),
+              },
+            ],
+          }),
+        ],
+        next_cursor: null,
+        total: 2,
+      },
+    ];
+    renderAt('/inbox');
+    await waitFor(() => expect(cards()).toHaveLength(2));
+    const first = within(cards()[0] as HTMLElement).getByTestId('gate-rationale');
+    expect(first.textContent).toMatch(
+      /^4축 3점 \(부작용 2 · 민감도 1 · 가역성 0 · 영향 범위 0\) · 이 문서의 첫 승인 버전 · 같은 실패 3회 신고 \(e2e 가 세 번 깨진다 · .+ ▸\) → 티어 \+1$/,
+    );
+    expect(within(first).getByTestId('gate-evidence').getAttribute('href')).toBe(
+      '/p/clemvion/tasks/CLV-T-1KTDCK',
+    );
+    // 발견이면 리뷰 센터의 그 발견으로 간다
+    const second = within(cards()[1] as HTMLElement).getByTestId('gate-evidence');
+    expect(second.getAttribute('href')).toBe('/p/clemvion/reviews?finding=f-1');
+  });
 });
 
 describe('코멘트 칸에서도 키보드로 끝낸다 (REQ-WEB-204)', () => {

@@ -1,4 +1,4 @@
-import { text, type GateAxis, type GateSignal } from '@nerv/schema';
+import { text, type GateAxis, type GateEvidence, type GateSignal } from '@nerv/schema';
 // 스펙 변경 게이트 티어 T0~T3 — 정본: docs/03-proposal/spec-workflow.md §2.4 (D-06)
 //
 // **자동 통과 경로는 필수 기능이다.** SDD 에 대한 대표적 비판이 "버그 하나 고치는 데 16개
@@ -40,14 +40,23 @@ export interface GateDecision {
   axes: GateAxes;
   /** 티어를 올린 신호 — 발동한 것만, 판정 순서대로 */
   signals: GateSignal[];
+  /** 신호의 근거 — 사람이 따라가 볼 원문(재시도 신호의 에스컬레이션 · REQ-API-189). 판정은 채우지 않는다 */
+  evidence?: GateEvidence[];
 }
 
 /** 동적 강화 사유 — 액션 위험도만이 아니라 세션의 신뢰도도 티어를 올린다(§2.4). */
 export interface EscalationSignals {
-  /** 같은 Task 재시도가 임계를 넘었다(clemvion 의 e2e-fail-3x 어휘 계승) */
+  /**
+   * **같은 실패 3회 신고**(2026-09-26 사람 결정 · REQ-API-189). 에이전트가 `e2e-fail-3x`(clemvion
+   * 에서 옮긴 어휘 — 같은 실패 3회 반복)로 올린 에스컬레이션이 이번 제출에 닿았다 — 같은 스펙 ·
+   * 그 스펙의 파생 작업 · 제출한 세션 가운데 한 길로, 그 스펙이 마지막으로 승인된 뒤에.
+   * 계산은 `SpecService.retryEvidence` 가 한다. 서버는 테스트 결과를 받지 않으므로 실패를 직접
+   * 세지 않고 에이전트의 신고를 센다.
+   *
+   * 롤백 이력 신호(`recentRollback`)는 같은 날 걷었다 — "승인 후 롤백" 에 해당하는 전이가
+   * NERV 에 없다(버전 되돌리기가 생기면 다시 본다 · spec-workflow §2.4 재검토 트리거).
+   */
   repeatedFailures?: boolean;
-  /** 최근 30일 내 해당 영역의 승인 후 롤백 이력 */
-  recentRollback?: boolean;
   /**
    * **이 문서의 첫 approved 버전이다**(2026-09-02 사람 결정).
    *
@@ -102,13 +111,17 @@ export function decideGate(
   // 동적 강화를 끈 프로젝트에서는 신호를 세지 않는다(`gate_policy.dynamic_escalation`).
   // 끄는 선택지를 화면에 두고 값은 무시하면, 끈 사람은 껐다고 믿는다.
   if (policy.dynamicEscalation !== false) {
-    if (signals.repeatedFailures === true) fired.push('retry_threshold');
-    if (signals.recentRollback === true) fired.push('recent_rollback');
     if (signals.firstApprovedVersion === true) fired.push('first_version');
+    if (signals.repeatedFailures === true) fired.push('retry_threshold');
   }
-  for (const signal of fired) {
+  // **여럿이어도 한 단계다**(2026-09-26 사람 결정 · spec-workflow §2.4). 신호가 말하는 것은
+  // "사람이 한 번 봐야 한다" 이지 "두 사람이" 가 아니다 — 쌓으면 첫 버전인 T1 문서에 신호 하나가
+  // 겹쳐 T3(직군 교차 2인 + 파생 작업의 플랜 승인)까지 갔다. 묻는 횟수가 늘면 확인은 읽히지 않는다.
+  if (fired.length > 0) {
     tier = escalate(tier);
-    reasons.push(text(`gate.reason.${signal}`));
+    reasons.push(
+      `${fired.map((signal) => text(`gate.reason.${signal}`)).join(' · ')} ${text('gate.escalated')}`,
+    );
   }
 
   return {
@@ -134,6 +147,7 @@ export function gateEventPayload(gate: GateDecision): {
   gate_score: number;
   gate_axes: Record<GateAxis, number>;
   gate_signals: GateSignal[];
+  gate_evidence?: GateEvidence[];
 } {
   return {
     gate_tier: gate.tier,
@@ -145,6 +159,10 @@ export function gateEventPayload(gate: GateDecision): {
       blast_radius: gate.axes.blastRadius,
     },
     gate_signals: gate.signals,
+    // 근거는 있을 때만 — 칸이 비어 있으면 카드는 신호 이름만 그린다
+    ...(gate.evidence !== undefined && gate.evidence.length > 0
+      ? { gate_evidence: gate.evidence }
+      : {}),
   };
 }
 

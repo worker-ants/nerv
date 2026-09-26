@@ -395,9 +395,25 @@ export const PLUGIN_COVERAGE_WINDOW_DAYS = 30;
 export const GATE_AXES = ['side_effect', 'sensitivity', 'reversibility', 'blast_radius'] as const;
 export type GateAxis = (typeof GATE_AXES)[number];
 /**
- * 티어를 한 단계 올리는 **동적 강화 신호** — 이벤트의 `gate_signals` 가 발동한 것만 싣는다.
- * 이름은 카탈로그의 `gate.reason.<키>` 와 같다. 서버가 지금 계산하는 것은 `first_version`
- * 하나다(나머지 둘은 판정이 받기만 한다 — spec-workflow §2.4 "지금 세는 신호는 하나다").
+ * 티어를 올리는 **동적 강화 신호** — 이벤트의 `gate_signals` 가 발동한 것만 싣는다. 이름은
+ * 카탈로그의 `gate.reason.<키>` 와 같다. **여럿이 발동해도 티어는 한 단계만 오른다**(2026-09-26
+ * 사람 결정 — spec-workflow §2.4). 롤백 이력 신호는 같은 날 걷었다 — NERV 에 "승인 후 롤백" 에
+ * 해당하는 전이가 없다(버전 되돌리기가 생기면 다시 본다 · 재검토 트리거).
  */
-export const GATE_SIGNALS = ['retry_threshold', 'recent_rollback', 'first_version'] as const;
+export const GATE_SIGNALS = ['first_version', 'retry_threshold'] as const;
 export type GateSignal = (typeof GATE_SIGNALS)[number];
+/**
+ * 신호의 **근거** — 사람이 따라가 볼 수 있는 원문 하나(2026-09-26 · REQ-API-189). 재시도 신호면
+ * 에이전트가 올린 `e2e-fail-3x` 에스컬레이션(질문 또는 발견 처분)이다. 이벤트의 `gate_evidence`
+ * 가 싣고 받은 요청 카드가 신호 곁에 링크로 그린다.
+ */
+export interface GateEvidence {
+  signal: GateSignal;
+  kind: 'question' | 'finding';
+  id: string;
+  title: string;
+  task_key: string | null;
+  session_id: string | null;
+  /** 신고 시각 — ISO 문자열 */
+  at: string;
+}

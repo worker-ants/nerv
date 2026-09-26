@@ -11,7 +11,7 @@ import { NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
@@ -708,6 +708,246 @@ describe('E09-S04 위험도 가변 게이트 (D-06)', () => {
  * **제출은 작성자 본인 또는 planner·admin 이다**(2026-09-07 · REQ-API-139).
  * 이 문이 없던 동안 아무나 남의 초안을 제출할 수 있었고, 그것이 지시자≠승인자의 앞문이었다.
  */
+describe('재시도 신호 — 같은 실패 3회 신고 (REQ-API-189 · 2026-09-26 사람 결정)', () => {
+  // 에이전트가 `e2e-fail-3x`(같은 실패 3회 반복)로 올린 에스컬레이션이 제출에 닿으면 티어가
+  // 한 단계 오른다. 서버는 테스트 결과를 받지 않아 실패를 직접 세지 않고 에이전트의 신고를 센다.
+  //
+  // 기준 문서: 첫 버전(본문만 · 1점 T0 + 첫 버전 = T1)을 통과시킨 뒤, 둘째 버전에서 요구사항 하나를
+  // 더하면 부작용 2 + 민감도 1 = 3점 = T1(자동 통과)이다. 신호가 서면 T2 — 사람 한 명이 본다.
+  async function approvedFirst(
+    label: string,
+  ): Promise<{ specId: string; v1: string; key: string }> {
+    const key = `SPC-RT${label}-${newId().slice(-4).toUpperCase()}`;
+    const { specId, versionId } = await newDraft(key, `# ${key}\n\n본문만 있는 문서`);
+    const first = await specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      userId: planner,
+    });
+    expect(first.status).toBe('approved');
+    return { specId, v1: versionId, key };
+  }
+
+  async function secondVersion(specId: string, key: string, label: string): Promise<string> {
+    const draft = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      baseHash: await hashOf(specId),
+      bodyMd: `# ${key}\n\n본문만 있는 문서\n\nREQ-RT${label}-001 WHEN 저장하면 THE SYSTEM SHALL 남긴다`,
+      userId: planner,
+    });
+    return draft['spec_version_id'] as string;
+  }
+
+  async function agentSession(): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-07','active')`,
+      [id, projectId, planner],
+    );
+    return id;
+  }
+
+  async function ask(input: {
+    sessionId: string;
+    specId?: string;
+    taskId?: string;
+    reason?: string;
+    minutesAgo?: number;
+  }): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO question (id, project_id, agent_session_id, title, escalate, spec_id, task_id, asked_at)
+       VALUES ($1,$2,$3,'e2e 가 같은 자리에서 세 번 깨진다',$4::escalate_reason,$5,$6,
+               now() - make_interval(mins => $7))`,
+      [
+        id,
+        projectId,
+        input.sessionId,
+        input.reason ?? 'e2e-fail-3x',
+        input.specId ?? null,
+        input.taskId ?? null,
+        input.minutesAgo ?? 0,
+      ],
+    );
+    return id;
+  }
+
+  // 신고 행은 스펙·작업·버전을 가리킨다 — 공용 beforeEach 가 그것들을 지우기 전에 치운다
+  afterEach(async () => {
+    await pool.query('DELETE FROM resolution');
+    await pool.query('DELETE FROM finding');
+    await pool.query('DELETE FROM review_session');
+    await pool.query('DELETE FROM question');
+  });
+
+  const submit = (versionId: string, sessionId?: string) =>
+    specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      userId: planner,
+      sessionId: sessionId ?? null,
+    });
+
+  it('① 이 스펙을 가리키는 신고 — 둘째 버전의 T1 이 T2 가 되고 근거가 카드까지 간다', async () => {
+    const { specId, key } = await approvedFirst('SPEC');
+    const sessionId = await agentSession();
+    const questionId = await ask({ sessionId, specId });
+    const v2 = await secondVersion(specId, key, 'SPEC');
+    const result = await submit(v2);
+    expect(result.gate.tier).toBe('T2');
+    expect(result.status).toBe('in_review');
+    expect(result.gate.signals).toEqual(['retry_threshold']);
+    expect(result.gate.rationale).toContain('같은 실패 3회 신고 → 티어 +1');
+    const { items } = await approvals.inbox({
+      projectId,
+      userId: reviewer,
+      actor: person(reviewer),
+    });
+    // 그 스펙을 가리키는 열린 질문도 같은 키로 받은 요청에 선다 — 결재 카드를 집는다
+    const card = items.find(
+      (item) => item['spec_key'] === key && item['subject_type'] === 'spec_version',
+    );
+    expect(card?.['gate_signals']).toEqual(['retry_threshold']);
+    expect(card?.['gate_evidence']).toEqual([
+      expect.objectContaining({
+        signal: 'retry_threshold',
+        kind: 'question',
+        id: questionId,
+        title: 'e2e 가 같은 자리에서 세 번 깨진다',
+        task_key: null,
+        session_id: sessionId,
+      }),
+    ]);
+  });
+
+  it('② 이 스펙에서 파생된 작업의 신고도 센다 — 근거는 그 작업의 키를 든다', async () => {
+    const { specId, v1, key } = await approvedFirst('TASK');
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id)
+       VALUES ($1,$2,$3,'파생 작업','backlog',$4)`,
+      [taskId, projectId, `CLV-T-RT${newId().slice(-4).toUpperCase()}`, v1],
+    );
+    await ask({ sessionId: await agentSession(), taskId });
+    const result = await submit(await secondVersion(specId, key, 'TASK'));
+    // 파생 작업이 생겨 가역성·영향 범위가 1씩 올라 축만으로 5점(T2) — 신호가 한 단계 더 올린다
+    expect(result.gate.score).toBe(5);
+    expect(result.gate.signals).toEqual(['retry_threshold']);
+    expect(result.gate.tier).toBe('T3');
+    expect(result.gate.evidence?.[0]?.task_key).toMatch(/^CLV-T-RT/);
+  });
+
+  it('발견 처분의 에스컬레이션도 센다 — 이 스펙의 버전을 가리키는 발견', async () => {
+    const { specId, v1, key } = await approvedFirst('FIND');
+    const findingId = newId();
+    const reviewSessionId = newId();
+    const hex = findingId.replaceAll('-', '').slice(0, 32);
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, branch, base_sha, head_sha, changeset_hash, kind, trigger)
+       VALUES ($1,$2,'feat/x','base','head',decode($3,'hex'),'code','manual')`,
+      [reviewSessionId, projectId, hex],
+    );
+    await pool.query(
+      `INSERT INTO finding (id, project_id, fingerprint, category, severity, status, title,
+                            first_session_id, last_session_id, spec_version_id)
+       VALUES ($1,$2,decode($3,'hex'),'correctness','warning','open','같은 e2e 실패',$4,$4,$5)`,
+      [findingId, projectId, hex, reviewSessionId, v1],
+    );
+    await pool.query(
+      `INSERT INTO resolution (id, finding_id, kind, escalate_reason, rationale_md, actor_user_id)
+       VALUES ($1,$2,'escalated','e2e-fail-3x','세 번 같은 자리에서 깨져 넘긴다',$3)`,
+      [newId(), findingId, planner],
+    );
+    const result = await submit(await secondVersion(specId, key, 'FIND'));
+    expect(result.gate.tier).toBe('T2');
+    expect(result.gate.evidence?.[0]).toMatchObject({ kind: 'finding', id: findingId });
+  });
+
+  it('③ 제출한 세션이 올린 신고는 어느 문서의 것이든 센다 — 다른 사람의 제출에는 붙지 않는다', async () => {
+    // 첫 버전의 자동 통과(T1)는 사람이 본 것이 아니라 창을 닫지 않는다 — 그 전의 신고도 센다
+    const sessionId = await agentSession();
+    await ask({ sessionId });
+    const mine = await approvedFirst('SESS');
+    const viaSession = await submit(await secondVersion(mine.specId, mine.key, 'SESS'), sessionId);
+    expect(viaSession.gate.tier).toBe('T2');
+
+    const other = await approvedFirst('HUMAN');
+    const human = await submit(await secondVersion(other.specId, other.key, 'HUMAN'));
+    expect(human.gate.tier).toBe('T1');
+    expect(human.status).toBe('approved');
+  });
+
+  it('세지 않는 것 — 마지막 승인 전의 신고 · infra 사유 · 다른 문서의 신고', async () => {
+    const sessionId = await agentSession();
+    // 사람이 승인하기 전에 올라온 신고 — 그 승인이 이미 봤다. 첫 버전은 신호가 서서(첫 버전과
+    // 겹쳐도 한 단계) T2 로 사람이 승인하고, 그 뒤의 둘째 버전에는 서지 않는다
+    const key = `SPC-RTCLEAR-${newId().slice(-4).toUpperCase()}`;
+    const { specId, versionId } = await newDraft(
+      key,
+      `# ${key}\n\nREQ-RTCLEAR-001 WHEN 저장하면 THE SYSTEM SHALL 남긴다`,
+    );
+    await ask({ sessionId, specId, minutesAgo: 60 });
+    const first = await submit(versionId);
+    expect(first.gate.tier).toBe('T2');
+    expect(first.gate.signals).toEqual(['first_version', 'retry_threshold']);
+    await decideOn(versionId, reviewer, 'approve');
+    const cleared = await submit(await secondVersion(specId, key, 'CLEAR'));
+    expect(cleared.gate.tier).toBe('T1');
+    expect(cleared.gate.signals).toEqual([]);
+    // infra 는 환경 탓이지 실패가 아니다
+    const infra = await approvedFirst('INFRA');
+    await ask({ sessionId, specId: infra.specId, reason: 'infra' });
+    expect((await submit(await secondVersion(infra.specId, infra.key, 'INFRA'))).gate.tier).toBe(
+      'T1',
+    );
+    // 다른 문서의 신고
+    const elsewhere = await approvedFirst('ELSE');
+    const unrelated = await approvedFirst('UNREL');
+    await ask({ sessionId, specId: unrelated.specId });
+    expect(
+      (await submit(await secondVersion(elsewhere.specId, elsewhere.key, 'ELSE'))).gate.tier,
+    ).toBe('T1');
+  });
+
+  it('동적 강화를 끈 프로젝트에서는 신호를 세지 않는다', async () => {
+    const { specId, key } = await approvedFirst('OFF');
+    await ask({ sessionId: await agentSession(), specId });
+    await pool.query(
+      `UPDATE project SET gate_policy = jsonb_set(coalesce(gate_policy, '{}'::jsonb), '{spec_gate}',
+         '{"tier_boundaries":[2,4,6],"dynamic_escalation":false}'::jsonb) WHERE id = $1`,
+      [projectId],
+    );
+    try {
+      const result = await submit(await secondVersion(specId, key, 'OFF'));
+      expect(result.gate.tier).toBe('T1');
+      expect(result.gate.evidence).toBeUndefined();
+    } finally {
+      await pool.query(`UPDATE project SET gate_policy = gate_policy - 'spec_gate' WHERE id = $1`, [
+        projectId,
+      ]);
+    }
+  });
+
+  it('승인 때의 기록은 제출 때의 판정이다 — 그 사이 근거가 사라져도 다시 계산하지 않는다', async () => {
+    // 슬롯 수는 제출 때 정해진다. 승인 때 다시 계산하면 기록(`spec.approved` — 플랜 게이트가
+    // 읽는다)만 다른 티어가 되어 슬롯과 어긋났다
+    const { specId, key } = await approvedFirst('COPY');
+    const questionId = await ask({ sessionId: await agentSession(), specId });
+    const v2 = await secondVersion(specId, key, 'COPY');
+    expect((await submit(v2)).gate.tier).toBe('T2');
+    await pool.query(`DELETE FROM question WHERE id = $1`, [questionId]);
+    await decideOn(v2, reviewer, 'approve');
+    const { rows } = await pool.query<{ tier: string }>(
+      `SELECT payload->>'gate_tier' AS tier FROM event WHERE type = 'spec.approved' AND subject_id = $1`,
+      [v2],
+    );
+    expect(rows[0]?.tier).toBe('T2');
+  });
+});
+
 describe('제출 권한 (REQ-API-139)', () => {
   it('작성자도 planner 도 아닌 사람은 제출하지 못한다 — 초안은 그대로 draft 다', async () => {
     const { versionId } = await newDraft('SPC-SUBMIT-GATE');
