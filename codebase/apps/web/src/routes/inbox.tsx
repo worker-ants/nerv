@@ -553,7 +553,7 @@ function InboxScreen(): React.JSX.Element {
             </button>
             {showLocked && (
               <>
-                <p className="mt-1 mb-2 pl-[18px] text-2xs text-text-faint">
+                <p className="mt-1 mb-2 pl-4.5 text-2xs text-text-faint">
                   {t('inbox.locked_hint')}
                 </p>
                 <ul className="flex flex-col gap-2">

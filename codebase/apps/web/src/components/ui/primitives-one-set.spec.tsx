@@ -148,25 +148,27 @@ describe('요약 줄은 한 벌이다', () => {
 /**
  * **임의 px 장부**(REQ-WEB-045). 장부 밖의 파일에는 `[Npx]` 가 없어야 하고, 장부의 파일은 적힌 수와 **같아야**
  * 한다 — 줄였으면 장부도 줄인다(늘어난 수는 실패다). 2026-09-26 에 셸 · 홈 · 프리미티브 · 사이드바 줄 · 세션 요약 줄을
- * 토큰(`h-control-sm` · `h-nav-row` · `text-3xs` · `text-metric` · `rounded-nerv*`)과 척도로 접어 109곳이 51곳이 됐다.
+ * 토큰(`h-control-sm` · `h-nav-row` · `text-3xs` · `text-metric` · `rounded-nerv*`)과 척도로 접어 109곳이 51곳이 됐고,
+ * 같은 날 간격 · 반경 · 글자 · 흐림 31곳을 척도로 접어 20곳이 됐다(장부 아티팩트의 PR 1 — 한 곳에 1~2px 이하가 움직였다).
+ * 남은 것은 부류마다 한 PR 이다 — 머리글자 칸 세 벌(A) · 상태 배지 모양(B) · 레이아웃 폭(C).
  */
 const LEDGER: Record<string, number> = {
-  'components/event-feed.tsx': 3,
-  'components/quick-switcher.tsx': 1,
-  'components/relation-tabs.tsx': 1,
-  'components/spec-tree.tsx': 4,
-  // 배지의 모양은 `status-one-set.spec.tsx` 가 베낀 알약을 찾는 표지다 — 함께 옮긴다
+  // B — 배지의 모양은 `status-one-set.spec.tsx` 가 베낀 알약을 찾는 표지다 — 함께 옮긴다
   'components/status-badge.tsx': 4,
-  'components/ui/modal.tsx': 1,
-  'features/session-monitor/activity-rail.tsx': 1,
-  'features/session-monitor/activity-timeline.tsx': 6,
-  'features/spec-graph/graph.tsx': 8,
-  'features/task-board/board.tsx': 8,
+  // A — 18px 머리글자 칸(글리프 열 · 둥근 칸)
+  'features/session-monitor/activity-timeline.tsx': 3,
+  // A(관계 행의 종류 칸 셋) · C(최소 높이 · 안내 폭 · 옆 패널 폭)
+  'features/spec-graph/graph.tsx': 6,
+  // C — 레인 폭
+  'features/task-board/board.tsx': 1,
+  // C — 장 안 목차 폭
   'routes/help/$chapter.tsx': 1,
-  'routes/inbox.tsx': 1,
+  // C — 리뷰 레일 폭
   'routes/p.$proj/reviews.index.tsx': 1,
-  'routes/p.$proj/sessions.index.tsx': 2,
-  'routes/p.$proj/specs.$spec.tsx': 9,
+  // C — 세션 상세 레일 폭
+  'routes/p.$proj/sessions.index.tsx': 1,
+  // A — 관계 행의 종류 칸(그래프 패널과 같은 모양의 둘째 벌)
+  'routes/p.$proj/specs.$spec.tsx': 3,
 };
 
 describe('임의 px 은 줄기만 한다 (REQ-WEB-045)', () => {
@@ -190,13 +192,20 @@ describe('임의 px 은 줄기만 한다 (REQ-WEB-045)', () => {
     expect(drift).toEqual([]);
   });
 
-  it('접은 파일은 장부에 없다 — 셸 · 홈 · 프리미티브 · 사이드바 줄 · 세션 요약 줄', () => {
+  it('접은 파일은 장부에 없다 — 셸 · 홈 · 프리미티브 · 사이드바 줄 · 세션 요약 줄 · 피드 · 트리 · 창 뒤판', () => {
     for (const file of [
       'components/app-shell.tsx',
       'routes/index.tsx',
       'components/ui/primitives.tsx',
       'components/nav-styles.ts',
       'features/session-monitor/session-board.tsx',
+      'features/session-monitor/activity-rail.tsx',
+      'components/event-feed.tsx',
+      'components/spec-tree.tsx',
+      'components/relation-tabs.tsx',
+      'components/quick-switcher.tsx',
+      'components/ui/modal.tsx',
+      'routes/inbox.tsx',
     ]) {
       expect(LEDGER[file]).toBeUndefined();
       expect(counted[file]).toBeUndefined();

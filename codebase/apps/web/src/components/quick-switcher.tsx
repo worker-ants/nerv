@@ -340,7 +340,7 @@ export function QuickSwitcher({
       aria-modal="true"
       aria-label={t('switcher.label')}
       data-testid="quick-switcher"
-      className="fixed inset-0 z-50 flex items-start justify-center bg-text/20 pt-[15vh] backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-text/20 pt-[15vh] backdrop-blur-xs"
       onClick={onClose}
       // Esc 는 **어디서든** 닫는다 — 입력칸에 있을 때만 먹던 동안 고정 단추로 옮겨 가면 닫을 수 없었다
       onKeyDown={modalKeys}

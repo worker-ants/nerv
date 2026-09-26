@@ -56,7 +56,7 @@ export function ActivityTimeline({
   return (
     <>
       {timeline.isLoading && <Skeleton rows={4} />}
-      <ol className={cn('min-h-0 pl-[3px]', className)}>
+      <ol className={cn('min-h-0 pl-1', className)}>
         {/* **잘렸다고 말만 하지 않는다**(2026-09-07). 예전에는 "앞쪽 활동이 더 있습니다"
             한 줄이었고, 그 줄을 읽은 사람에게 갈 길이 없었다 — 443건 세션의 초반은
             표시가 생긴 뒤에도 여전히 닿지 않는 곳이었다. */}
@@ -214,7 +214,7 @@ function ActivityRow({
   const runs = group.items.length;
 
   return (
-    <li className="relative flex gap-[11px]" data-testid="activity-row">
+    <li className="relative flex gap-3" data-testid="activity-row">
       <div className="flex w-[18px] shrink-0 flex-col items-center">
         <span
           aria-hidden="true"
@@ -227,7 +227,7 @@ function ActivityRow({
         </span>
         {!last && <span className="min-h-2 w-px flex-1 bg-border" />}
       </div>
-      <div className="min-w-0 flex-1 pb-[13px]">
+      <div className="min-w-0 flex-1 pb-3">
         <div className="flex items-start gap-2">
           <span
             className={cn(

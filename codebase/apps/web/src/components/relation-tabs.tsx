@@ -42,7 +42,7 @@ export function RelationTabs({
           aria-pressed={value === key}
           onClick={() => onChange(key)}
           className={cn(
-            'flex items-center gap-1 rounded-nerv-sm px-2 py-[3px] text-2xs transition-colors',
+            'flex items-center gap-1 rounded-nerv-sm px-2 py-1 text-2xs transition-colors',
             value === key
               ? 'bg-bg-active font-medium text-text'
               : 'text-text-faint hover:bg-bg-hover hover:text-text',
