@@ -53,6 +53,26 @@ Specs are **not edited in place — versions accumulate.** Each version is in on
 - `superseded` — a newer approved version exists. The document remains; the baseline moved.
 - `deprecated` — no longer in use.
 
+```mermaid
+stateDiagram-v2
+    accTitle: Status flow of a spec version
+    direction TB
+    state "Draft (draft)" as draft
+    state "In review (in_review)" as in_review
+    state "Approved (approved)" as approved
+    state "Superseded (superseded)" as superseded
+    state "Deprecated (deprecated)" as deprecated
+    [*] --> draft: Create the document
+    draft --> in_review: Request review
+    in_review --> draft: Reject · comment
+    draft --> approved: Passes the gate (T0·T1)
+    in_review --> approved: Approved (T2·T3)
+    approved --> superseded: A newer version is approved
+    approved --> deprecated: Deprecate
+```
+
+The diagram shows **one version**. An approved version is never edited. You create a new version (a draft), send it for review, and when it is approved the previous version becomes **superseded**. Low-grade documents (T0·T1) are approved as soon as you request review, with no approval step (see "Checks and submission" below).
+
 **How to see a draft.** One of three ways.
 
 1. Pick `draft` in the **Status** selector above the list — it stays in the address, so a link hands someone the same view.
@@ -217,6 +237,23 @@ Priority starts at `must`, because the EARS line in the body does not carry one.
 | `in_progress`   | At least one is **claimed** or under way — or some are done but not all yet              |
 | `implemented`   | All are `done` **and** there is at least one piece of evidence                           |
 | `verified`      | `implemented`, with a test record signed by QA or an admin and no open `critical`        |
+
+```mermaid
+stateDiagram-v2
+    accTitle: Implementation status flow of a requirement
+    direction TB
+    state "Not implemented (unimplemented)" as unimplemented
+    state "In progress (in_progress)" as in_progress
+    state "Implemented (implemented)" as implemented
+    state "Verified (verified)" as verified
+    [*] --> unimplemented: Document approved
+    unimplemented --> in_progress: Work starts
+    in_progress --> unimplemented: Work cancelled
+    in_progress --> implemented: All tasks done + evidence
+    implemented --> in_progress: New task starts
+    implemented --> verified: Signed by QA or an admin
+    verified --> implemented: The statement changes
+```
 
 **All done with no evidence stays `in_progress`** — to say it is finished, attach something to show. **Verifying means QA or an admin leaving a test record**: nobody raises the status by hand; when that signature exists the server marks the requirement `verified`. Once verified, it does not drop when a finding opens. A test record attached by an agent is not a signature.
 

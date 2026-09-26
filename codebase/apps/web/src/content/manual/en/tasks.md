@@ -14,6 +14,36 @@ Lanes are task statuses.
 | Done (`done`)               | Finished                       |
 | Blocked (`blocked`)         | Stuck — with a stated reason   |
 
+```mermaid
+stateDiagram-v2
+    accTitle: Status flow of a task
+    direction TB
+    state "Backlog (backlog)" as backlog
+    state "Ready (ready)" as ready
+    state "Claimed (claimed)" as claimed
+    state "In progress (in_progress)" as in_progress
+    state "In review (in_review)" as in_review
+    state "Done (done)" as done
+    state "Blocked (blocked)" as blocked
+    [*] --> backlog: Create a task
+    backlog --> ready: Move to Ready
+    ready --> claimed: Claim
+    claimed --> in_progress: Work starts
+    claimed --> ready: Release · claim expires
+    in_progress --> ready: Stopped · session stale
+    in_progress --> in_review: Request review
+    in_review --> in_progress: Rework
+    in_progress --> done: Complete
+    in_review --> done: Complete
+    ready --> blocked: Blocked
+    in_progress --> blocked: Blocked
+    blocked --> ready: Unblock
+    blocked --> in_progress: Unblock (still claimed)
+    done --> [*]
+```
+
+The diagram shows only the common paths. Moving back (to Ready or Backlog) and the rules for who may move what are in the sections below. **Done cannot be undone.**
+
 Screens speak in **names** — board lanes, the task screen, sessions and a spec's derived-task list all use the same names. The value in brackets is the identifier the API, the CLI and agents use.
 
 **A board card says whose work it is and who is running it.** The assignee shows only as an initials circle, but hovering shows the name and a screen reader reads it. When an agent session is running the task a small **AI** mark appears; press it to go to that session. Priority shows as a chip **for P0 and P1 only** — on every card it would not be a signal. The source spec key also takes you to that spec.

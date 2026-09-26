@@ -14,6 +14,36 @@
 | 완료 (`done`)           | 끝났습니다                   |
 | 막힘 (`blocked`)        | 막혔습니다 — 사유가 붙습니다 |
 
+```mermaid
+stateDiagram-v2
+    accTitle: 작업의 상태 흐름
+    direction TB
+    state "백로그 (backlog)" as backlog
+    state "준비됨 (ready)" as ready
+    state "맡음 (claimed)" as claimed
+    state "진행 중 (in_progress)" as in_progress
+    state "검토 중 (in_review)" as in_review
+    state "완료 (done)" as done
+    state "막힘 (blocked)" as blocked
+    [*] --> backlog: 작업 만들기
+    backlog --> ready: 준비됨으로 올리기
+    ready --> claimed: 클레임
+    claimed --> in_progress: 작업 시작
+    claimed --> ready: 놓기 · 점유 만료
+    in_progress --> ready: 중단 · 세션 무응답
+    in_progress --> in_review: 검토 요청
+    in_review --> in_progress: 다시 작업
+    in_progress --> done: 완료
+    in_review --> done: 완료
+    ready --> blocked: 막힘
+    in_progress --> blocked: 막힘
+    blocked --> ready: 막힘 풀기
+    blocked --> in_progress: 막힘 풀기 (맡은 사람 있음)
+    done --> [*]
+```
+
+그림은 흔한 흐름만 그립니다. 되돌리기(준비됨·백로그로)와 권한별 규칙은 아래 절에 있습니다. **완료는 되돌릴 수 없습니다.**
+
 화면은 **이름**으로 말합니다 — 보드 레인·작업 상세·세션·스펙의 파생 작업 목록이 모두 같은 이름을 씁니다. 괄호 안의 값은 API·CLI·에이전트가 쓰는 식별자입니다.
 
 **보드 카드는 누구의 일이고 누가 돌리는지를 적습니다.** 담당은 이니셜 동그라미로만 서지만 마우스를 올리면 이름이 뜨고, 스크린리더는 이름을 읽습니다. 에이전트 세션이 그 작업을 돌리고 있으면 작은 **AI** 표식이 서고, 누르면 그 세션으로 갑니다. 우선순위는 **P0·P1 만** 칩으로 섭니다 — 모든 카드에 붙으면 신호가 아닙니다. 출처 스펙의 키도 누르면 그 스펙으로 갑니다.

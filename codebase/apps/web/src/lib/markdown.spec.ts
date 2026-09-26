@@ -59,4 +59,30 @@ describe('renderDoc', () => {
     expect(html).toContain('<ul>');
     expect(html).toContain('<pre>');
   });
+
+  describe('다이어그램 자리 (2026-09-26 — 사람 지시 · REQ-WEB-243)', () => {
+    const SOURCE = '앞\n\n```mermaid\nstateDiagram-v2\n  a --> b\n```\n\n```\ncode\n```';
+
+    it('끄면 mermaid 펜스는 여느 코드블록이다 — 도움말 밖의 쓰임새는 그대로다', () => {
+      const doc = renderDoc(SOURCE, { copyLabel: '복사' });
+      expect(doc.diagrams).toEqual([]);
+      expect(doc.html).not.toContain('data-diagram');
+      expect(doc.html.match(/data-copy/g)).toHaveLength(2);
+    });
+
+    it('켜면 빈 자리와 원본으로 나뉘고, 그 자리에는 복사 단추가 없다', () => {
+      const doc = renderDoc(SOURCE, { copyLabel: '복사', diagrams: true });
+      expect(doc.diagrams).toEqual(['stateDiagram-v2\n  a --> b\n']);
+      expect(doc.html).toContain('<div class="nerv-diagram" data-diagram="0"></div>');
+      expect(doc.html).not.toContain('stateDiagram-v2');
+      // 다른 코드블록은 그대로 복사 단추가 붙는다
+      expect(doc.html.match(/data-copy/g)).toHaveLength(1);
+    });
+
+    it('본문이 자리를 흉내 낼 수 없다 — 원시 HTML 은 글자로 이스케이프된다', () => {
+      const doc = renderDoc('<div data-diagram="0"></div>', { diagrams: true });
+      expect(doc.html).not.toContain('<div data-diagram');
+      expect(doc.diagrams).toEqual([]);
+    });
+  });
 });

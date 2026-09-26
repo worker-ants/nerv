@@ -13,6 +13,16 @@ import { RealtimeProvider } from '../lib/realtime.js';
 import { resetRuntimeConfigForTesting } from '../lib/config.js';
 import { routeTree } from '../routeTree.gen';
 
+// 실제 mermaid 는 레이아웃을 재는데 jsdom 에는 그것이 없다 — 계약(호출 → svg)만 흉내 낸다
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(async (_id: string, code: string) => ({
+      svg: `<svg data-testid="drawn"><title>${code.includes('작업의') ? 'task' : 'other'}</title></svg>`,
+    })),
+  },
+}));
+
 vi.mock('socket.io-client', () => ({
   io: () => ({
     on: () => undefined,
@@ -120,6 +130,32 @@ describe('매뉴얼 라우트', () => {
     expect(body.querySelectorAll('h2').length).toBeGreaterThan(2);
     expect(body.querySelector('h2')?.id).toBe('sec-1');
     expect(screen.getByText('이 문서 안')).toBeDefined();
+  });
+
+  // 상태의 흐름은 그림이다(2026-09-26 — 사람 지시 · REQ-WEB-243). 예전에는 ```mermaid 펜스가 코드로 보였다
+  it('상태도는 코드가 아니라 그림으로 그려지고, 복사 단추가 붙지 않는다', async () => {
+    renderAt('/help/tasks');
+    const body = await screen.findByTestId('manual-body');
+    await waitFor(() => expect(body.querySelector('[data-testid="drawn"]')).not.toBeNull());
+    const diagram = body.querySelector<HTMLElement>('[data-testid="mermaid-diagram"]');
+    expect(diagram?.querySelector('title')?.textContent).toBe('task');
+    // 그림 옆에 배율 · 전체화면이 있다 — 스펙 본문의 다이어그램과 같은 컨트롤이다
+    expect(diagram?.querySelector('[data-testid="mermaid-fullscreen-toggle"]')).not.toBeNull();
+    expect(diagram?.closest('.nerv-code')).toBeNull();
+    expect(body.textContent).not.toContain('stateDiagram-v2');
+  });
+
+  it('장을 옮기면 그 장의 그림으로 바뀐다 — 앞 장의 그림이 남지 않는다', async () => {
+    renderAt('/help/tasks');
+    const body = await screen.findByTestId('manual-body');
+    await waitFor(() => expect(body.querySelectorAll('[data-testid="drawn"]')).toHaveLength(1));
+    fireEvent.click(document.querySelector('a[href="/help/sessions"]')!);
+    await waitFor(() =>
+      expect(screen.getByTestId('manual-body').querySelector('title')?.textContent).toBe('other'),
+    );
+    expect(
+      screen.getByTestId('manual-body').querySelectorAll('[data-testid="drawn"]'),
+    ).toHaveLength(1);
   });
 
   it('없는 장은 빈 화면이 아니라 없다고 말한다', async () => {
