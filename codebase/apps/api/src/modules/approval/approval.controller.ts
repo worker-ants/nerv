@@ -4,7 +4,18 @@
 // 그러려면 승인이 여기서 되는 것만으로는 부족하고, 여기서 **되어야만** 해야 한다 —
 // 그래서 결정은 사람 전용이고 에이전트는 도구로도 도달할 수 없다.
 
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApprovalBulkDecisionInput,
   ApprovalDecisionInput,
@@ -212,8 +223,13 @@ export class ApprovalInboxController {
    *
    * 이 자리가 하는 일은 번역뿐이다(D-05): 본문을 검증하고, 서비스가 돌려준 항목별
    * **문구 재료를 요청 로케일로 렌더**한다. 도메인은 로케일을 모른다.
+   *
+   * **200 이다, 201 이 아니다**(REQ-API-162). 만드는 것이 아니라 결정하는 동작이고, 명세는
+   * "200 이 전부 성공을 뜻하지 않는다" 고 적는다. Nest 는 `@HttpCode` 가 없으면 POST 에 201 을
+   * 줘서 그동안 201 이었다(2026-09-26 L2 가 찾았다).
    */
   @Post('decisions')
+  @HttpCode(HttpStatus.OK)
   async decideBulk(
     @Req() req: ProjectRequest,
     @Body() body: Record<string, unknown>,
