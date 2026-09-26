@@ -210,6 +210,13 @@ export function rolesWithScope(scope: RoleScope): string[] {
  * designer 가 지정 없이 모든 design 문서를 결재하게 되면 ○ 가 ● 로 바뀌는 것이고,
  * 그것은 매트릭스를 고치는 결정이지 구현이 아니다.
  */
+/**
+ * **검증 서명을 남길 수 있는 역할**(2026-09-07 · REQ-API-143). `kind=test` 증적을 이 역할의 사람이
+ * 올리면 그 자리에서 서명이 붙고, 파생이 `verified` 를 판정한다. 에이전트 세션이 올린 것은 서명이
+ * 아니다. 화면은 같은 목록으로 "영향 없음 확인" 을 보일지 정한다(2026-09-26 · REQ-WEB-241).
+ */
+export const EVIDENCE_SIGNER_ROLES = ['qa', 'admin'] as const;
+
 export const SPEC_APPROVER_ROLES: Readonly<Record<string, string>> = {
   vision: 'admin',
   area: 'planner',

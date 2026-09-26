@@ -40,7 +40,8 @@ type Queryable = Pick<NervDb, 'execute'>;
  * 범위" 축만 아직 없다 — 커밋과 발견을 잇는 축이 Phase 2 라, 지금은 요구사항 단위로 본다.
  *
  * **내리지는 않는다.** 이미 `verified` 인 행은 그대로 둔다 — 그 가드가 없으면 발견 하나가
- * 열릴 때마다 검증 사실이 지워졌다 다시 붙는다.
+ * 열릴 때마다 검증 사실이 지워졌다 다시 붙는다. **문장이 바뀌었을 때만 예외다**(2026-09-26 ·
+ * REQ-API-190): 서명은 그 문장에 대한 것이라, 바뀐 문장에 대한 서명이 없으면 다시 파생한다.
  *
  * **Task 가 하나도 없으면 손대지 않는다.** 표의 첫 줄은 "연결된 Task 가 없거나"까지 포함하지만,
  * 그대로 적용하면 임포터가 문서에서 읽어 넣은 값(clemvion 의 `implemented` 들)을 증적 등록
@@ -69,15 +70,46 @@ export function evidenceExistsSql(reqAlias = 'r'): SQL {
   )`;
 }
 
-/** 검증 증적 — QA·admin 이 서명한 `test` 증적이 있는가(`verified` 의 첫째 조건). */
-export function verifiedEvidenceSql(reqAlias = 'r'): SQL {
+/** 서명된 `test` 증적 — 언제 서명했든(`reverifyRequiredSql` 이 옛 서명을 알아보는 데 쓴다). */
+function signedEvidenceSql(reqAlias: string, currentOnly: boolean): SQL {
   const ref = sql.raw(`${reqAlias}.id`);
+  const changedAt = sql.raw(`${reqAlias}.statement_changed_at`);
   return sql`EXISTS (
     SELECT 1 FROM evidence e
      WHERE (e.requirement_id = ${ref}
             OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${ref}))
        AND e.kind = 'test' AND e.verified_by IS NOT NULL AND NOT e.stale
+       ${currentOnly ? sql`AND (${changedAt} IS NULL OR e.created_at >= ${changedAt})` : sql``}
   )`;
+}
+
+/**
+ * 검증 증적 — QA·admin 이 **지금 문장에** 서명한 `test` 증적이 있는가(`verified` 의 첫째 조건).
+ *
+ * **서명은 그 문장에 대한 것이다**(2026-09-26 사람 결정 · REQ-API-190). 문장이 바뀐 뒤
+ * (`statement_changed_at`)보다 앞선 서명은 지금 문장을 보증하지 않는다 — 요구사항 관리 도구들이
+ * 판정을 내용에 묶어, 위쪽이 바뀌면 아래쪽 링크를 의심으로 되돌리는 것과 같은 규율이다.
+ */
+export function verifiedEvidenceSql(reqAlias = 'r'): SQL {
+  return signedEvidenceSql(reqAlias, true);
+}
+
+/**
+ * **다시 검증 필요** — 서명된 test 증적이 있는데 모두 지금 문장보다 앞선다(2026-09-26 · REQ-API-190).
+ * 상태가 아니라 표시다: 검증이 풀린 이유를 사람에게 말하고, 사람이 다시 서명하면 사라진다.
+ */
+export function reverifyRequiredSql(reqAlias = 'r'): SQL {
+  const changedAt = sql.raw(`${reqAlias}.statement_changed_at`);
+  return sql`(${changedAt} IS NOT NULL AND ${signedEvidenceSql(reqAlias, false)}
+             AND NOT ${signedEvidenceSql(reqAlias, true)})`;
+}
+
+/**
+ * 문장 비교의 정규형 — 공백과 서식 기호를 뺀다. 오타가 아닌 서식 정리로 서명이 풀리지 않게
+ * 한다(Jama 가 필드 단위로, DOORS 가 "Affects Link Validity" 로 무효화할 변경을 거르는 것과 같다).
+ */
+export function normalizedStatementSql(expr: SQL): SQL {
+  return sql`regexp_replace(${expr}, '[[:space:]*_~\`]+', '', 'g')`;
 }
 
 /** 열린 critical 발견 — 있으면 검증됐다고 말할 수 없다(`verified` 의 둘째 조건). */
@@ -90,9 +122,7 @@ export function openCriticalSql(reqAlias = 'r'): SQL {
 }
 
 export async function recomputeImplStatus(db: Queryable, requirementId: string): Promise<void> {
-  await db.execute(sql`
-    UPDATE requirement r
-       SET impl_status = (
+  const next = sql`(
          CASE
            WHEN EXISTS (
              SELECT 1 FROM task t
@@ -112,9 +142,17 @@ export async function recomputeImplStatus(db: Queryable, requirementId: string):
            ) THEN 'in_progress'
            ELSE 'unimplemented'
          END
-       )::impl_status
+       )::impl_status`;
+  await db.execute(sql`
+    UPDATE requirement r
+       SET impl_status = ${next},
+           -- 검증된 시각 — 처음 선 때를 지키고, 풀리면 비운다(REQ-API-190)
+           verified_at = CASE WHEN ${next} = 'verified' THEN coalesce(r.verified_at, now()) END
      WHERE r.id = ${requirementId}
-       AND r.impl_status <> 'verified'
+       -- 한번 선 검증은 내리지 않는다 — **문장이 바뀌어 지금 문장의 서명이 없을 때만** 다시
+       -- 파생한다(2026-09-26 사람 결정). 발견이 열린 것으로는 풀리지 않는다(REQ-API-141)
+       AND (r.impl_status <> 'verified'
+            OR (r.statement_changed_at IS NOT NULL AND NOT ${verifiedEvidenceSql()}))
        AND EXISTS (SELECT 1 FROM task t WHERE t.source_requirement_id = r.id)
   `);
 }

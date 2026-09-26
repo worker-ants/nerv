@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.16 · 2026-09-26 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.17 · 2026-09-26 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.17 변경(2026-09-26 — 검증 서명은 그 문장에 대한 것이다, **사람 결정** · 구현 축 상태도 검토): **`requirement` 필드 한 줄.** `statement_changed_at` — 승인이 문장을 바꾼 시각([3.5](spec-workflow.md) §1.3).
 >
 > v0.16 변경(2026-09-26 — 구현 축의 그림이 두 벌이었다, **사람 결정** · 구현 축 상태도 검토): **§1.4 그림 한 축 · 한 단락.** 이 절의 구현 축 그림이 [3.5](spec-workflow.md) §1.3 과 거꾸로 가는 간선을 다르게 그리고 있었다(여기는 증적 stale → unimplemented, 저기는 회귀 실패). 구현 축의 상태도와 파생 규칙은 [3.5](spec-workflow.md) §1.3 한 곳에 두기로 하고, 여기서는 문서 축만 그리고 두 축의 관계를 적는다.
 >
@@ -312,7 +314,8 @@ stateDiagram-v2
 | `introduced_in_version_id` | uuid FK | 이 요구사항이 처음 등장한 SpecVersion |
 | `current_version_id` | uuid FK | 최신 본문을 담은 SpecVersion |
 | `removed_in_version_id` | uuid FK NULL | 제거된 요구사항의 묘비(이력은 지우지 않는다) |
-| `verified_at` | timestamptz NULL | |
+| `verified_at` | timestamptz NULL | `verified` 가 된 시각 — 풀리면 비운다 |
+| `statement_changed_at` | timestamptz NULL | 승인이 문장을 바꾼 시각(공백·서식만 바뀐 것은 치지 않는다). 그보다 앞선 검증 서명은 지금 문장을 보증하지 않는다 — [3.5](spec-workflow.md) §1.3 · 2026-09-26 |
 
 **`requirement_version`** — 버전×요구사항 델타. CR 델타 뷰(FR-04)와 영향 분석이 전부 이 테이블에서 나온다.
 

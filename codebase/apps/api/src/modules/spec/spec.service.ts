@@ -9,6 +9,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  EVIDENCE_SIGNER_ROLES,
   canCreateSpecType,
   evidenceKind,
   GatePolicySchema,
@@ -29,7 +30,7 @@ import {
 import type { GateEvidence } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
-import { evidenceExistsSql } from './impl-status.js';
+import { evidenceExistsSql, normalizedStatementSql, reverifyRequiredSql } from './impl-status.js';
 import { isWrappedBody } from '../../mcp/untrusted.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -200,11 +201,25 @@ export class SpecService {
                 'must'::requirement_priority, ${input.specVersionId}, ${input.specVersionId})
         ON CONFLICT (project_id, ref) DO UPDATE
               SET statement_md = ${statement},
+                  -- **문장이 바뀐 시각**(2026-09-26 · REQ-API-190). 검증 서명은 그 문장에 대한
+                  -- 것이라, 이 시각보다 앞선 서명은 지금 문장을 보증하지 않는다. 공백·서식만
+                  -- 바뀐 것은 바뀐 것으로 치지 않는다
+                  statement_changed_at = CASE
+                    WHEN ${normalizedStatementSql(sql`requirement.statement_md`)}
+                         IS DISTINCT FROM ${normalizedStatementSql(sql`${statement}::text`)}
+                    THEN now() ELSE requirement.statement_changed_at END,
                   current_version_id = ${input.specVersionId},
                   -- 빠졌다가 돌아온 요구사항은 다시 살아 있는 것으로 본다
                   removed_in_version_id = NULL
       `);
     }
+
+    // 문장이 바뀐 요구사항은 다시 파생한다 — 옛 문장에 한 서명으로 선 검증은 여기서 풀린다.
+    // `now()` 는 트랜잭션의 시작 시각이라 위에서 찍은 값과 같다
+    const { rows: restated } = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM requirement WHERE spec_id = ${input.specId} AND statement_changed_at = now()
+    `);
+    for (const row of restated) await recomputeImplStatus(tx, row.id);
 
     // 본문에서 사라진 것 — 지우지 않고 이 버전에서 빠졌다고 적는다
     await tx.execute(sql`
@@ -1558,7 +1573,9 @@ export class SpecService {
              count(*) FILTER (
                WHERE r.impl_status = 'unimplemented'
                  AND NOT EXISTS (SELECT 1 FROM task t WHERE t.source_requirement_id = r.id)
-             )::int AS empty_promises
+             )::int AS empty_promises,
+             -- **다시 검증 필요**(2026-09-26 · REQ-API-190) — 서명은 있는데 모두 지금 문장보다 앞선다
+             count(*) FILTER (WHERE ${reverifyRequiredSql()})::int AS reverify_required
         FROM spec s
    LEFT JOIN requirement r ON r.spec_id = s.id AND r.removed_in_version_id IS NULL
        WHERE s.project_id = ${input.projectId} AND s.archived_at IS NULL${specFilter}
@@ -1573,6 +1590,7 @@ export class SpecService {
       in_progress: number;
       evidence_missing: number;
       empty_promises: number;
+      reverify_required: number;
     }
     const totals = rows.reduce<CoverageTotals>(
       (acc, row) => ({
@@ -1582,6 +1600,7 @@ export class SpecService {
         in_progress: acc.in_progress + Number(row['in_progress'] ?? 0),
         evidence_missing: acc.evidence_missing + Number(row['evidence_missing'] ?? 0),
         empty_promises: acc.empty_promises + Number(row['empty_promises'] ?? 0),
+        reverify_required: acc.reverify_required + Number(row['reverify_required'] ?? 0),
       }),
       {
         total: 0,
@@ -1590,6 +1609,7 @@ export class SpecService {
         in_progress: 0,
         evidence_missing: 0,
         empty_promises: 0,
+        reverify_required: 0,
       },
     );
 
@@ -1640,6 +1660,8 @@ export class SpecService {
     projectId: string;
     specKey?: string | null;
     implStatus?: string | null;
+    /** 다시 검증이 필요한 것만(2026-09-26 · REQ-API-190) */
+    reverifyRequired?: boolean;
   }): Promise<Record<string, unknown>[]> {
     const specFilter = input.specKey == null ? sql`` : sql` AND s.key = ${input.specKey}`;
     const statusFilter =
@@ -1647,10 +1669,22 @@ export class SpecService {
         ? sql``
         : // 어휘 밖의 값은 400 이다 — 그대로 캐스팅하면 오타가 500 이 된다(§1.4j)
           sql` AND r.impl_status = ${assertVocab([input.implStatus], implStatus.enumValues, 'impl_status')[0]}::impl_status`;
+    const reverifyFilter =
+      input.reverifyRequired === true ? sql` AND ${reverifyRequiredSql()}` : sql``;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT r.id, r.ref, r.statement_md, r.priority::text AS priority,
-             r.impl_status::text AS impl_status, r.verified_at,
+             r.impl_status::text AS impl_status, r.verified_at, r.statement_changed_at,
              s.key AS spec_key, s.title AS spec_title,
+             -- **다시 검증 필요**(2026-09-26 · REQ-API-190) — 상태가 아니라 표시다. 앞선 서명의
+             -- locator 를 함께 실어, qa·admin 이 "영향 없음 확인" 으로 같은 테스트에 다시 서명한다
+             ${reverifyRequiredSql()} AS reverify_required,
+             CASE WHEN ${reverifyRequiredSql()} THEN (
+               SELECT e.locator FROM evidence e
+                WHERE (e.requirement_id = r.id
+                       OR e.task_id IN (SELECT t3.id FROM task t3 WHERE t3.source_requirement_id = r.id))
+                  AND e.kind = 'test' AND e.verified_by IS NOT NULL AND NOT e.stale
+                ORDER BY e.created_at DESC LIMIT 1)
+             END AS reverify_locator,
              (SELECT count(*) FROM task t WHERE t.source_requirement_id = r.id)::int AS task_count,
              -- 파생과 같은 술어다(REQ-API-141) — 요구사항에 직접 붙은 것과 파생 Task 의 것
              (SELECT count(*) FROM evidence e
@@ -1659,7 +1693,7 @@ export class SpecService {
              )::int AS evidence_count
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${input.projectId}
-         AND r.removed_in_version_id IS NULL${specFilter}${statusFilter}
+         AND r.removed_in_version_id IS NULL${specFilter}${statusFilter}${reverifyFilter}
        ORDER BY r.ref
     `);
     return rows;
@@ -1669,7 +1703,8 @@ export class SpecService {
   async requirement(input: { projectId: string; ref: string }): Promise<Record<string, unknown>> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT r.id, r.ref, r.statement_md, r.acceptance_md, r.priority::text AS priority,
-             r.impl_status::text AS impl_status, r.verified_at, s.key AS spec_key
+             r.impl_status::text AS impl_status, r.verified_at, r.statement_changed_at,
+             ${reverifyRequiredSql()} AS reverify_required, s.key AS spec_key
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${input.projectId} AND r.ref = ${input.ref}
          AND r.removed_in_version_id IS NULL
@@ -1691,9 +1726,15 @@ export class SpecService {
     const { rows: tasks } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT id, key, title, status::text AS status FROM task WHERE source_requirement_id = ${id}
     `);
+    // 목록의 증적 수와 **같은 범위**다(2026-09-26) — 요구사항에 직접 붙은 것과 파생 Task 의 것.
+    // 상세만 앞의 것을 봐서, 목록이 "증적 3" 이라 말한 요구사항을 열면 1건이 보였다
     const { rows: evidence } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT id, kind::text AS kind, locator, source::text AS source, created_at
-        FROM evidence WHERE requirement_id = ${id} ORDER BY created_at
+      SELECT e.id, e.kind::text AS kind, e.locator, e.source::text AS source, e.created_at,
+             e.task_id, (e.verified_by IS NOT NULL) AS signed, e.stale
+        FROM evidence e
+       WHERE e.requirement_id = ${id}
+          OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${id})
+       ORDER BY e.created_at
     `);
     return { ...requirement, history, tasks, evidence };
   }
@@ -1737,7 +1778,7 @@ export class SpecService {
       const verifies =
         kind === 'test' &&
         input.sessionId == null &&
-        (input.roles ?? []).some((r) => r === 'qa' || r === 'admin');
+        (input.roles ?? []).some((r) => (EVIDENCE_SIGNER_ROLES as readonly string[]).includes(r));
       await tx.execute(sql`
         INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source,
                               verified_by, verified_at)

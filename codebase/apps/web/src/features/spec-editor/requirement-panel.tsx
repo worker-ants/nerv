@@ -9,12 +9,20 @@
 // 숫자는 프로젝트 개요가 말하지만, **어느 요구사항인지**는 이 목록만 말할 수 있다.
 
 import { Link } from '@tanstack/react-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useT } from '../../lib/i18n.js';
-import { rows, useRequirements, useTaskLane } from '../../lib/queries.js';
+import { rows, useMe, useRequirements, useTaskLane } from '../../lib/queries.js';
+import { apiFetch } from '../../lib/api.js';
+import { useApiError } from '../../lib/api-errors.js';
+import { queryKeys } from '../../lib/query-keys.js';
+import { useRealtime } from '../../lib/realtime.js';
+import { useScope } from '../../lib/scope.js';
+import { rolesInProject } from '../../lib/session.js';
 import { Mono, Skeleton } from '../../components/ui/primitives.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { REQUIREMENT_TOKEN } from '../../components/status-token.js';
-import { statusLabelKey } from '@nerv/schema';
+import { EVIDENCE_SIGNER_ROLES, statusLabelKey } from '@nerv/schema';
 import { taskStatusText } from '../../lib/format.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -35,6 +43,12 @@ export function RequirementPanel({
   const t = useT();
   const query = useRequirements(projectSlug, specKey);
   const items = rows(query.data);
+  // 검증 서명을 남길 수 있는 사람만 "영향 없음 확인" 을 본다 — 서버의 서명 규칙과 같은 목록이다
+  const me = useMe();
+  const { orgSlug } = useScope(projectSlug);
+  const canSign = rolesInProject(me.data, orgSlug, projectSlug).some((role) =>
+    (EVIDENCE_SIGNER_ROLES as readonly string[]).includes(role),
+  );
 
   if (query.isLoading) return <Skeleton className="h-16" />;
   if (items.length === 0) {
@@ -87,6 +101,14 @@ export function RequirementPanel({
               </span>
             </div>
             <p className="line-clamp-2 text-xs text-text-mute">{String(r['statement_md'] ?? '')}</p>
+            {r['reverify_required'] === true && (
+              <ReverifyLine
+                projectSlug={projectSlug}
+                specKey={specKey}
+                requirement={r}
+                canSign={canSign}
+              />
+            )}
             {/* **빈 약속은 눈에 띄어야 한다**(FR-13) — 0 을 회색으로 숨기면 세는 뜻이 없다 */}
             <p
               data-testid={tasks === 0 && evidence === 0 ? 'empty-promise' : undefined}
@@ -122,6 +144,67 @@ export function RequirementPanel({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * **다시 검증 필요**(2026-09-26 사람 결정 · spec-workflow §1.3 · REQ-WEB-241). 검증 서명은 그 문장에
+ * 대한 것이다 — 새 버전이 문장을 바꾸면 앞선 서명은 지금 문장을 보증하지 않아 검증이 풀린다. 상태가
+ * 아니라 표시다: 풀린 까닭을 말하고, 사람이 해제한다.
+ *
+ * 해제는 둘이다 — 새 테스트 증적에 서명하거나, 앞선 서명이 새 문장에도 맞다고 **영향 없음 확인**을
+ * 남긴다. 뒤의 것은 같은 테스트(locator)에 다시 서명하는 것이라 증적과 이벤트로 남는다(EP-REQ-03).
+ * 오타 하나로 테스트를 다시 돌리게 하면 이 표시는 곧 무시된다.
+ */
+function ReverifyLine({
+  projectSlug,
+  specKey,
+  requirement,
+  canSign,
+}: {
+  projectSlug: string;
+  specKey: string;
+  requirement: Record<string, unknown>;
+  canSign: boolean;
+}): React.JSX.Element {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  const onApiError = useApiError();
+  const ref = String(requirement['ref']);
+  const locator =
+    typeof requirement['reverify_locator'] === 'string' ? requirement['reverify_locator'] : null;
+  const reaffirm = useMutation({
+    mutationFn: () =>
+      apiFetch(`/projects/${projectSlug}/requirements/${encodeURIComponent(ref)}/evidence`, {
+        method: 'POST',
+        body: { kind: 'test', locator },
+      }),
+    onSuccess: () => {
+      pushToast({ tone: 'ok', message: t('spec.requirements.reaffirmed', { ref }) });
+      void queryClient.invalidateQueries({
+        queryKey: [...queryKeys.spec(specKey), 'requirements'],
+      });
+    },
+    onError: onApiError,
+  });
+  return (
+    <div data-testid="reverify-required" className="flex flex-wrap items-center gap-1.5">
+      <StatusBadge token="waiting" label={t('spec.requirements.reverify')} />
+      <span className="text-2xs text-text-faint">{t('spec.requirements.reverify_hint')}</span>
+      {canSign && locator !== null && (
+        <ConfirmAction
+          label={t('spec.requirements.reaffirm')}
+          variant="subtle"
+          size="xs"
+          testId="reaffirm"
+          message={t('spec.requirements.reaffirm_confirm', { locator })}
+          confirmLabel={t('spec.requirements.reaffirm')}
+          pending={reaffirm.isPending}
+          onConfirm={() => reaffirm.mutate()}
+        />
+      )}
+    </div>
   );
 }
 

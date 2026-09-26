@@ -315,11 +315,14 @@ export class SpecController {
     @Req() req: ProjectRequest,
     @Query('spec') spec?: string,
     @Query('impl_status') implStatus?: string,
+    /** `1` 이면 다시 검증이 필요한 것만(2026-09-26 · REQ-API-190) */
+    @Query('reverify') reverify?: string,
   ): Promise<unknown> {
     return this.specs.requirements({
       projectId: projectOf(req),
       specKey: spec ?? null,
       implStatus: implStatus ?? null,
+      reverifyRequired: reverify === '1' || reverify === 'true',
     });
   }
 

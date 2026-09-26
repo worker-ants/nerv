@@ -1469,3 +1469,159 @@ describe('E04 요구사항 행 — 승인이 본문에서 뽑는다', () => {
     expect(rows.find((r) => r.ref === 'REQ-CCC-002')?.removed).toBe(v2);
   });
 });
+
+describe('검증 서명은 그 문장에 대한 것이다 (REQ-API-190 · 2026-09-26 사람 결정)', () => {
+  // 새 버전 승인이 요구사항 문장을 바꿔도 `verified` 가 그대로 남아, 검증 배지가 아무도 확인하지
+  // 않은 문장을 보증했다. 문장이 바뀐 시각보다 앞선 서명은 지금 문장을 보증하지 않는다 — 검증이
+  // 풀려 구현됨으로 돌아가고 "다시 검증 필요" 가 선다. 사람이 다시 서명하면 사라진다.
+  afterEach(async () => {
+    // 증적과 작업은 요구사항을 가리킨다 — 공용 beforeEach 가 요구사항을 지우기 전에 치운다
+    await pool.query('DELETE FROM evidence');
+    await pool.query('DELETE FROM task');
+  });
+
+  async function approveVersion(specId: string, key: string, statement: string): Promise<string> {
+    const current = await specs.get({ projectId, specKey: key });
+    const next = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId,
+      bodyMd: ['# 결제', '', `- REQ-PAY-004 ${statement}`].join('\n'),
+      baseHash: String(current['content_hash']),
+      userId: planner,
+    });
+    const versionId = String(next['spec_version_id']);
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+    await decideOn(versionId, reviewer, 'approve');
+    return versionId;
+  }
+
+  async function statusOf(reqId: string): Promise<string> {
+    const { rows } = await pool.query<{ s: string }>(
+      `SELECT impl_status::text AS s FROM requirement WHERE id = $1`,
+      [reqId],
+    );
+    return rows[0]?.s ?? '';
+  }
+
+  /** v1 을 승인하고 파생 작업을 done + 증적으로 두고 qa 가 test 에 서명한다 — verified 에서 시작 */
+  async function verifiedRequirement(): Promise<{ specId: string; key: string; reqId: string }> {
+    const key = `SPC-PAY-${newId().slice(-4).toUpperCase()}`;
+    const { specId, versionId } = await newDraft(
+      key,
+      [
+        '# 결제',
+        '',
+        '- REQ-PAY-004 WHEN 결제가 실패하면 THE SYSTEM SHALL 3회까지 다시 시도한다',
+      ].join('\n'),
+    );
+    await raiseTier(specId);
+    await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+    await decideOn(versionId, reviewer, 'approve');
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM requirement WHERE project_id = $1 AND ref = 'REQ-PAY-004'`,
+      [projectId],
+    );
+    const reqId = rows[0]?.id ?? '';
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_requirement_id, done_at,
+                         spec_impact, goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'결제 재시도','done',$4,now(),'{"none":true}'::jsonb,
+               '목표','PR','저장소','경계')`,
+      [taskId, projectId, `CLV-T-PAY${newId().slice(-4).toUpperCase()}`, reqId],
+    );
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'commit','abc1234','agent')`,
+      [newId(), projectId, taskId],
+    );
+    const signed = await specs.addEvidence({
+      projectId,
+      ref: 'REQ-PAY-004',
+      kind: 'test',
+      locator: 'e2e/payment-retry.spec.ts',
+      userId: reviewer,
+      roles: ['qa'],
+    });
+    expect(signed['verified']).toBe(true);
+    expect(await statusOf(reqId)).toBe('verified');
+    return { specId, key, reqId };
+  }
+
+  const listed = async (key: string): Promise<Record<string, unknown> | undefined> =>
+    (await specs.requirements({ projectId, specKey: key })).find((r) => r['ref'] === 'REQ-PAY-004');
+
+  it('문장이 바뀌면 검증이 풀려 구현됨이 되고 "다시 검증 필요" 가 선다 — 앞선 서명의 테스트를 함께 싣는다', async () => {
+    const { specId, key, reqId } = await verifiedRequirement();
+    await approveVersion(
+      specId,
+      key,
+      'WHEN 결제가 실패하면 THE SYSTEM SHALL 5회까지 다시 시도한다',
+    );
+    expect(await statusOf(reqId)).toBe('implemented');
+    const row = await listed(key);
+    expect(row?.['reverify_required']).toBe(true);
+    expect(row?.['reverify_locator']).toBe('e2e/payment-retry.spec.ts');
+    expect(row?.['verified_at']).toBeNull();
+    const coverage = await specs.coverage({ projectId, specKey: key });
+    const totals = coverage['totals'] as Record<string, number>;
+    expect(totals['reverify_required']).toBe(1);
+    expect(totals['verified']).toBe(0);
+    // 목록 거르개
+    const only = await specs.requirements({ projectId, specKey: key, reverifyRequired: true });
+    expect(only.map((r) => r['ref'])).toEqual(['REQ-PAY-004']);
+  });
+
+  it('qa 가 다시 서명하면(영향 없음 확인) 검증이 돌아오고 표시가 사라진다', async () => {
+    const { specId, key, reqId } = await verifiedRequirement();
+    await approveVersion(
+      specId,
+      key,
+      'WHEN 결제가 실패하면 THE SYSTEM SHALL 5회까지 다시 시도한다',
+    );
+    await specs.addEvidence({
+      projectId,
+      ref: 'REQ-PAY-004',
+      kind: 'test',
+      locator: 'e2e/payment-retry.spec.ts',
+      userId: reviewer,
+      roles: ['qa'],
+    });
+    expect(await statusOf(reqId)).toBe('verified');
+    const row = await listed(key);
+    expect(row?.['reverify_required']).toBe(false);
+    expect(row?.['verified_at']).not.toBeNull();
+  });
+
+  it('공백·서식만 바뀐 것은 바뀐 것으로 치지 않는다 — 검증이 그대로다', async () => {
+    const { specId, key, reqId } = await verifiedRequirement();
+    await approveVersion(
+      specId,
+      key,
+      'WHEN  결제가 실패하면 THE SYSTEM SHALL **3회까지** 다시 시도한다',
+    );
+    expect(await statusOf(reqId)).toBe('verified');
+    expect((await listed(key))?.['reverify_required']).toBe(false);
+  });
+
+  it('에이전트가 붙인 테스트는 서명이 아니다 — 표시는 사람이 해제한다', async () => {
+    const { specId, key, reqId } = await verifiedRequirement();
+    await approveVersion(
+      specId,
+      key,
+      'WHEN 결제가 실패하면 THE SYSTEM SHALL 5회까지 다시 시도한다',
+    );
+    await specs.addEvidence({
+      projectId,
+      ref: 'REQ-PAY-004',
+      kind: 'test',
+      locator: 'e2e/payment-retry.spec.ts',
+      userId: planner,
+      sessionId: newId(),
+      roles: ['qa'],
+    });
+    expect(await statusOf(reqId)).toBe('implemented');
+    expect((await listed(key))?.['reverify_required']).toBe(true);
+  });
+});
