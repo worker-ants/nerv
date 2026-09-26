@@ -16,6 +16,7 @@ import { useT } from '../../lib/i18n.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
+import { Button } from '../../components/ui/primitives.js';
 
 /** 서버와 같은 화이트리스트 — 고르개가 아닌 것을 보여 주면 올린 뒤에야 거부당한다 */
 const ACCEPT =
@@ -154,8 +155,9 @@ export function AttachmentPanel({
               </div>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {onInsert !== undefined && (
-                  <button
-                    type="button"
+                  <Button
+                    size="xs"
+                    variant="subtle"
                     data-testid="attach-insert"
                     onClick={() =>
                       // **그림이 아닌 것은 링크다**(2026-09-07 · 사람 결정). 삽입 단추가
@@ -167,10 +169,9 @@ export function AttachmentPanel({
                           : `[${String(item['filename'])}](${path})`,
                       )
                     }
-                    className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
                   >
                     {t('spec.attach.insert')}
-                  </button>
+                  </Button>
                 )}
                 {canEdit && (
                   <ConfirmAction
@@ -183,16 +184,17 @@ export function AttachmentPanel({
                     pending={remove.isPending}
                     onConfirm={() => remove.mutate(id)}
                     trigger={({ open, ref, disabled }) => (
-                      <button
+                      <Button
+                        size="xs"
+                        variant="subtle"
                         ref={ref}
-                        type="button"
                         data-testid="attach-remove"
                         disabled={disabled}
                         onClick={open}
-                        className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-faint hover:text-status-danger"
+                        className="text-text-faint hover:text-status-danger"
                       >
                         {t('common.delete')}
-                      </button>
+                      </Button>
                     )}
                   />
                 )}

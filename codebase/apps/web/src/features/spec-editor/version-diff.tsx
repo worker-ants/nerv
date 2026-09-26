@@ -13,6 +13,7 @@
 
 import { useT } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
+import { Button } from '../../components/ui/primitives.js';
 import type { Row } from '../../lib/queries.js';
 
 /** 변경 줄 앞뒤로 남기는 맥락 — 세 줄이면 그 문단이 어디인지 알아볼 수 있다 */
@@ -73,15 +74,16 @@ export function VersionDiff({
           versions={versions}
           onPick={(v) => onChange(from ?? v, v)}
         />
-        <button
-          type="button"
+        <Button
+          size="xs"
+          variant="subtle"
           data-testid="diff-full-toggle"
           aria-pressed={full}
           onClick={onToggleFull}
-          className="ml-auto rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+          className="ml-auto"
         >
           {full ? t('spec.diff.changed_only') : t('spec.diff.show_all')}
-        </button>
+        </Button>
       </header>
 
       {isPending && <p className="text-sm text-text-mute">{t('common.loading')}</p>}

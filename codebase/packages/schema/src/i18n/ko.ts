@@ -439,6 +439,7 @@ export const ko = {
   'reviews.gate.title': '게이트 현황',
   'reviews.gate.verdict': '판정',
   'reviews.no_permission': '처분에는 review:resolve 권한이 필요합니다.',
+  'reviews.promote_no_permission': 'Task 로 올리려면 task:update 권한이 필요합니다.',
   'reviews.occurrence': '{count}회 관측 · 최근 {round}라운드',
   'reviews.provenance.code': '코드',
   'reviews.provenance.commit': '검토 커밋',

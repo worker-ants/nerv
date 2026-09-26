@@ -25,6 +25,7 @@ import type { Row } from '../../lib/queries.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 import { ResolveDialog } from './resolve-dialog.js';
 import type { ResolveAction } from './resolve-dialog.js';
+import { Button } from '../../components/ui/primitives.js';
 
 const ACTIONS = ['fixed', 'spec_change', 'dismissed', 'wont_fix'] as const;
 
@@ -135,22 +136,20 @@ export function FindingRail({
         <section data-testid="rail-resolve" aria-label={t('reviews.rail.resolve')}>
           <div className="flex flex-wrap gap-1.5">
             {ACTIONS.map((action) => (
-              <button
+              <Button
+                size="xs"
+                variant="subtle"
                 key={action}
-                type="button"
                 data-testid={`rail-resolve-${action}`}
                 aria-pressed={resolveAction === action}
                 disabled={!canResolve}
-                title={
-                  canResolve
-                    ? t(`reviews.action.${action}_hint` as 'reviews.action.fixed_hint')
-                    : t('reviews.no_permission')
-                }
+                title={t(`reviews.action.${action}_hint` as 'reviews.action.fixed_hint')}
+                disabledReason={t('reviews.no_permission')}
                 onClick={() => onResolve(action)}
-                className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute transition-colors hover:border-border-strong hover:text-text disabled:cursor-not-allowed disabled:opacity-60 aria-pressed:border-border-strong aria-pressed:bg-bg-active aria-pressed:text-text"
+                className="aria-pressed:border-border-strong aria-pressed:bg-bg-active aria-pressed:text-text"
               >
                 {t(`reviews.action.${action}` as 'reviews.action.fixed')}
-              </button>
+              </Button>
             ))}
           </div>
           {resolveAction !== null && (
@@ -251,16 +250,16 @@ export function FindingRail({
           className="w-full rounded-nerv-sm border border-border bg-bg-elev px-2 py-1.5 text-sm"
         />
         <div className="mt-1.5 flex flex-wrap gap-1.5">
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="comment-submit"
             disabled={!canResolve || draft.trim() === '' || add.isPending}
-            title={canResolve ? undefined : t('reviews.no_permission')}
+            disabledReason={canResolve ? undefined : t('reviews.no_permission')}
             onClick={() => add.mutate(draft)}
-            className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
           >
             {t('reviews.rail.comment_submit')}
-          </button>
+          </Button>
           {/* **"나중에 하자" 가 갈 곳** — wont_fix 는 근거만 남기고 큐에서 사라진다 */}
           {/* 올린 뒤에는 **그 작업으로 가는 링크**다 — 잠긴 단추만 남던 자리다(REQ-WEB-115 · REQ-WEB-209) */}
           {promoted ? (
@@ -273,16 +272,17 @@ export function FindingRail({
               {t('reviews.promoted_to', { key: String(finding['promoted_task_key']) })} ▸
             </EntityLink>
           ) : (
-            <button
-              type="button"
+            <Button
+              size="xs"
+              variant="subtle"
               data-testid="promote-task"
               disabled={!canPromote || promote.isPending}
-              title={canPromote ? undefined : t('reviews.no_permission')}
+              // 승격은 처분과 다른 축이다(`task:update`) — 처분의 문구를 빌리면 틀린 권한을 말한다
+              disabledReason={canPromote ? undefined : t('reviews.promote_no_permission')}
               onClick={() => promote.mutate()}
-              className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-50"
             >
               {t('reviews.promote')}
-            </button>
+            </Button>
           )}
         </div>
       </section>

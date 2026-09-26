@@ -22,6 +22,7 @@ import { useScope } from '../../lib/scope.js';
 import { useMediaQuery } from '../../lib/use-media-query.js';
 import { cn } from '../../lib/utils.js';
 import {
+  Button,
   Card,
   EmptyState,
   PageBody,
@@ -452,15 +453,16 @@ function ReviewCenter(): React.JSX.Element {
             </Card>
           )}
           {truncated && (
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="subtle"
               data-testid="queue-more"
               disabled={queue.isFetchingNextPage}
               onClick={() => void queue.fetchNextPage()}
-              className="mt-2 w-full rounded-nerv border border-border py-1.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+              className="mt-2 w-full text-2xs"
             >
               {t('reviews.queue.more')}
-            </button>
+            </Button>
           )}
 
           <div className="mt-6">

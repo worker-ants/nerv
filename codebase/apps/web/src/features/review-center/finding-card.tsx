@@ -20,6 +20,7 @@ import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
 import type { Row } from '../../lib/queries.js';
 import { cn } from '../../lib/utils.js';
+import { Button } from '../../components/ui/primitives.js';
 
 export interface FindingCardProps {
   finding: Row;
@@ -232,30 +233,23 @@ export function FindingCard({
           {/* **넷이다**(2026-08-30). 구현이 맞고 스펙이 틀린 지적은 코드가 아니라 문서를
               고쳐 닫힌다 — 그 길이 없으면 사람도 에이전트도 남은 값 중 아무거나 고른다 */}
           {(['fixed', 'spec_change', 'dismissed', 'wont_fix'] as const).map((action) => (
-            <button
+            <Button
+              size="xs"
+              variant="subtle"
               key={action}
-              type="button"
               data-testid={`resolve-${action}`}
               disabled={!canResolve}
               // 무엇을 요구하는지 늘 말한다 — 기각과 유예가 어떻게 다른지는 권한과 상관없는 물음이다
-              title={
-                canResolve
-                  ? t(`reviews.action.${action}_hint` as 'reviews.action.fixed_hint')
-                  : t('reviews.no_permission')
-              }
+              title={t(`reviews.action.${action}_hint` as 'reviews.action.fixed_hint')}
+              // 못 누르는 까닭은 말풍선과 설명으로 — `title` 은 마우스에만 닿는다(REQ-WEB-003)
+              disabledReason={t('reviews.no_permission')}
               onClick={(e) => {
                 e.stopPropagation();
                 onResolve(finding, action);
               }}
-              className={cn(
-                'rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute transition-colors',
-                canResolve
-                  ? 'hover:border-border-strong hover:text-text'
-                  : 'cursor-not-allowed opacity-60',
-              )}
             >
               {t(`reviews.action.${action}` as 'reviews.action.fixed')}
-            </button>
+            </Button>
           ))}
         </div>
       )}

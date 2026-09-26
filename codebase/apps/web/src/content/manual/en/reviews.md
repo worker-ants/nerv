@@ -34,7 +34,7 @@ Findings carry one of three severities: `critical` · `warning` · `info`. `open
 
 **You can pick with the keyboard too.** A card's title is a button — `Tab` to it and press `Enter` — and outside a text box `j`/`k` move through the queue one card at a time. Rows on the sessions screen have the name as a button as well.
 
-Resolutions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.**
+Resolutions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.** **Promoting to a task is a different permission** (`task:update`) — developers can do it too. A button you lack the permission for says why when you hover it or reach it with `Tab`.
 
 **Lowering a `critical` is a person's decision.** When an agent tries to move a `critical` finding to `dismissed` or `wont_fix`, it is not applied on the spot — an **approval card** is created instead. There is deliberately no quiet path for making a severe problem disappear.
 

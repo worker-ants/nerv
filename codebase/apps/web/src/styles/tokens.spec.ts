@@ -43,7 +43,9 @@ const BUILTIN = new Set(['transparent', 'current', 'inherit', 'white', 'black'])
  */
 const NOT_A_COLOR = new Set([
   // text- 크기·정렬·줄바꿈
+  '3xs',
   '2xs',
+  'metric',
   'xs',
   'sm',
   'base',

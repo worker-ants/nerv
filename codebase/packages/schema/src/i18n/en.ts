@@ -446,6 +446,7 @@ export const en = {
   'reviews.gate.title': 'Gate status',
   'reviews.gate.verdict': 'Verdict',
   'reviews.no_permission': 'Resolving requires the review:resolve scope.',
+  'reviews.promote_no_permission': 'Promoting to a task requires the task:update scope.',
   'reviews.occurrence': 'seen {count}× · latest round {round}',
   'reviews.provenance.code': 'Code',
   'reviews.provenance.commit': 'Reviewed commit',

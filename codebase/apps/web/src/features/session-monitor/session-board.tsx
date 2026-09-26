@@ -11,8 +11,7 @@ import { useT } from '../../lib/i18n.js';
 import { useSessions } from '../../lib/queries.js';
 import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
-import { cn } from '../../lib/utils.js';
-import { Button, EmptyState, Skeleton } from '../../components/ui/primitives.js';
+import { Button, EmptyState, Skeleton, SummaryStrip } from '../../components/ui/primitives.js';
 import { SESSION_TOKEN, statusDot } from '../../components/status-token.js';
 import { ErrorState } from '../../components/query-state.js';
 import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
@@ -203,55 +202,32 @@ export function SessionSummaryStrip({
         {t('sessions.no_sessions')}
       </div>
     ) : (
-      // 시안의 세션 스트립은 **점 + 큰 숫자 + 라벨**을 한 줄에 둔다 — 상태의 색은
-      // 점이 나르고 숫자는 중립을 지킨다(숫자까지 물들이면 스트립이 신호등이 된다).
-      // 칸이 여섯이라 좁은 화면에서는 넘친다 — 문서를 가로로 밀지 않고 스트립 안에서 민다
-      <div
+      // 시안의 세션 스트립은 **점 + 큰 숫자 + 라벨**을 한 줄에 둔다 — 상태의 색은 점이 나르고 숫자는 중립을 지킨다.
+      // 줄은 공용 요약 스트립 한 벌이다(2026-09-26 · SYS-13) — 칸이 여섯이라 좁은 폭에서는 넘치는데, 예전에는 이
+      // 자리만 가로 스크롤로 따로 풀었다. 이제 다른 요약 줄처럼 접힌다
+      <SummaryStrip
         data-testid="session-summary"
-        className="flex items-center overflow-x-auto border-y border-border py-[13px]"
-      >
-        {entries.map(([state, n], i) => {
+        layout="inline"
+        metrics={entries.map(([state, n]) => {
           const on = selected === state;
-          const label = t(statusLabelKey('session', state));
-          // 고를 수 있는 칸은 **셀 것이 있는** 칸뿐이다
+          // 고를 수 있는 칸은 **셀 것이 있는** 칸뿐이다 — onSelect 를 주지 않는 화면(개요 카드)은 모두 잠긴다
           const selectable = onSelect !== undefined && n > 0;
-          // 물러서는 이유는 둘인데 결과는 하나다 — 두 클래스가 겹치지 않게 여기서 합친다
-          const dimmed = n === 0 || (onSelect !== undefined && selected !== null && !on);
-          return (
-            <button
-              key={state}
-              type="button"
-              data-testid={`session-filter-${state}`}
-              data-selected={on}
-              aria-pressed={on}
-              // 고를 수 없으면 단추처럼 굴지 않는다 — 누를 수 있어 보이는데 안 눌리는 것이
-              // 가장 나쁘다. onSelect 를 주지 않는 화면(개요 카드)이 그 자리다.
-              disabled={!selectable}
-              onClick={() => onSelect?.(on ? null : state)}
-              className={cn(
-                'flex shrink-0 items-center gap-[9px] pr-[30px] transition-opacity',
-                i < entries.length - 1 && 'mr-[30px] border-r border-border',
-                selectable && 'cursor-pointer hover:opacity-100',
-                // 고른 것만 온전히 보이고 나머지는 물러선다 — 선택이 색이 아니라 **대비**로 읽힌다
-                dimmed && 'opacity-45',
-              )}
-            >
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'size-[7px] shrink-0 rounded-full',
-                  // 점은 **세션 → 토큰 → 점** 한 길이다 — 따로 든 표에서 stale 이 회색이었다(배지는 빨강 · SYS-07)
-                  statusDot(SESSION_TOKEN, state),
-                )}
-              />
-              <span className="text-[20px] leading-none font-[650] tracking-[-0.02em] tabular-nums">
-                {n}
-              </span>
-              <span className={cn('text-sm', on ? 'text-text' : 'text-text-mute')}>{label}</span>
-            </button>
-          );
+          return {
+            label: t(statusLabelKey('session', state)),
+            value: n,
+            testId: `session-filter-${state}`,
+            // 점은 **세션 → 토큰 → 점** 한 길이다 — 따로 든 표에서 stale 이 회색이었다(배지는 빨강 · SYS-07)
+            dot: statusDot(SESSION_TOKEN, state),
+            toggle: {
+              pressed: on,
+              onToggle: () => onSelect?.(on ? null : state),
+              disabled: !selectable,
+            },
+            // 물러서는 이유는 둘인데 결과는 하나다 — 셀 것이 없거나, 다른 칸을 골랐다
+            dimmed: n === 0 || (onSelect !== undefined && selected !== null && !on),
+          };
         })}
-      </div>
+      />
     )
   );
 }
