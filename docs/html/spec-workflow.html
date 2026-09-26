@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.16 (2026-09-26)</span>
+      <span>버전 v0.17 (2026-09-26)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -195,7 +195,7 @@
   <h3>1.3 구현 축 — Requirement 상태도</h3>
 
   <div class="diagram">
-    <svg viewBox="0 0 860 200" role="img" aria-label="Requirement 구현 축 상태도: unimplemented에서 in_progress, implemented, verified로 전이하며 CR MODIFIED 시 강등">
+    <svg viewBox="0 0 860 170" role="img" aria-label="Requirement 구현 축 상태도: 네 상태는 작업과 증적에서 파생된다. 앞으로 가는 간선 셋과, 착수 취소와 새 파생 작업 착수로 되돌아가는 간선 둘">
       <defs>
         <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
@@ -206,46 +206,49 @@
       <text x="99" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">unimplemented</text>
 
       <line x1="174" y1="73" x2="242" y2="73" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar2)"/>
-      <text x="208" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">파생 Task claimed</text>
+      <text x="208" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">파생 작업 착수</text>
 
       <rect x="246" y="48" width="150" height="50" rx="10" fill="var(--info-soft)" stroke="var(--info)"/>
       <text x="321" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">in_progress</text>
 
       <line x1="396" y1="73" x2="464" y2="73" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar2)"/>
-      <text x="430" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">Task done + Evidence</text>
+      <text x="430" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">전부 done + 증적</text>
 
       <rect x="468" y="48" width="150" height="50" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
       <text x="543" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">implemented</text>
 
       <line x1="618" y1="73" x2="686" y2="73" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#ar2)"/>
-      <text x="652" y="38" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">QA 검증 + 테스트 증적</text>
+      <text x="652" y="30" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">서명된 test 증적</text>
+      <text x="652" y="42" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">· 열린 critical 0</text>
 
       <rect x="690" y="48" width="146" height="50" rx="10" fill="var(--ok-soft)" stroke="var(--ok)"/>
       <text x="763" y="79" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">verified</text>
 
-      <path d="M763,98 C763,138 543,138 543,98" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
-      <text x="653" y="148" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">회귀 실패</text>
+      <path d="M300,98 C300,136 120,136 120,98" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+      <text x="210" y="150" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">착수 취소 · done 없음</text>
 
-      <path d="M543,98 C543,180 321,180 321,98" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
-      <text x="432" y="190" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">CR MODIFIED 강등</text>
+      <path d="M522,98 C522,136 342,136 342,98" fill="none" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+      <text x="432" y="150" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">새 파생 작업 착수</text>
     </svg>
-    <div class="cap">그림 2. 구현 축 — Requirement 상태도(D-02 ②). <code>verified</code>에서도 CR MODIFIED로 직접 강등된다.</div>
+    <div class="cap">그림 2. 구현 축 — Requirement 상태도(D-02 ②). 간선은 파생의 조건이고, 점선은 파생이 되돌리는 두 경우다. 구현 축의 그림은 여기 하나다(2026-09-26).</div>
   </div>
 
   <p>이 축의 값은 <b>사람이 손으로 찍지 않는다.</b> 서버가 관계 그래프에서 파생한다(D-03).</p>
+  <p><b>구현 축의 그림은 여기 하나다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 그림과 <a href="data-model.html">3.3</a> §1.4 가 거꾸로 가는 간선을 서로 다르게 그리고 있었다 — 여기는 <code>verified → implemented: 회귀 실패</code>, 저기는 <code>implemented → unimplemented: 증적 stale 판정</code> — 둘 다 첫 커밋 그대로였고, 코드는 어느 쪽도 하지 않았다. 대신 코드는 두 그림에 없는 되돌림 둘을 하고 있었다. 정한 것은 셋이다. ① 구현 축의 상태도와 파생 규칙은 <b>이 절이 정본</b>이고 3.3 은 링크한다(상태 어휘의 정본은 그대로 <a href="pain-points.html">1.2</a> D-02). ② 간선은 사건("CR MODIFIED")이 아니라 <b>조건</b>("무엇이 참이면")으로 적는다 — 파생 값에 사건 간선을 그리면 같은 조건을 만드는 다른 길이 전부 빠진다. 그래서 코드가 하던 되돌림 둘(착수 취소 · 새 파생 작업 착수)을 그린다. ③ <code>증적 stale → unimplemented</code> 는 걷는다 — done 작업이 하나라도 있으면 아래 규칙표는 미구현을 내지 않는다. 낡은 증적은 <b>증적에서 빠질</b> 뿐이다(파생과 커버리지가 이미 거른다 — 그 값을 세우는 판정은 아직 없다). <code>회귀 실패 → implemented</code> 는 서버가 테스트 결과를 받지 않아 판정할 수 없다 — <b>재검토 트리거</b>: CI 결과를 받게 되면(FR-10 · Phase 2) 최근 실행 결과를 따로 두고 파생의 입력에 넣는다. 요구사항 관리 도구들이 테스트 결과를 최근 실행에서 계산해 워크플로 상태와 따로 두는 것과 같은 모양이다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>Requirement 상태</th><th>파생 규칙</th></tr></thead>
     <tbody>
-      <tr><td><code>unimplemented</code></td><td>연결된 Task가 없거나 전부 <code>backlog</code>/<code>ready</code></td></tr>
-      <tr><td><code>in_progress</code></td><td>파생 Task 중 하나 이상이 <code>claimed</code>/<code>in_progress</code>/<code>in_review</code></td></tr>
-      <tr><td><code>implemented</code></td><td>파생 Task 전부 <code>done</code> <b>그리고</b> Evidence(코드 경로·커밋·PR) 1건 이상 연결</td></tr>
+      <tr><td><code>unimplemented</code></td><td>연결된 Task가 없거나, 착수된 것도 <code>done</code> 인 것도 없다(전부 <code>backlog</code>/<code>ready</code>/<code>blocked</code>)</td></tr>
+      <tr><td><code>in_progress</code></td><td>파생 Task 중 하나 이상이 <code>claimed</code>/<code>in_progress</code>/<code>in_review</code> — <b>또는</b> <code>done</code> 이 있지만 아직 전부가 아니거나 증적이 없다</td></tr>
+      <tr><td><code>implemented</code></td><td>파생 Task 전부 <code>done</code> <b>그리고</b> Evidence(코드 경로·커밋·PR·리뷰 — 낡은 것은 빼고) 1건 이상 연결</td></tr>
       <tr><td><code>verified</code></td><td><code>implemented</code> + 검증자가 서명한 Evidence(<code>kind=test</code> · <code>verified_by</code>) 1건 이상, 그 요구사항에 open <code>critical</code> finding 0</td></tr>
     </tbody>
   </table></div>
 
   <blockquote><p><b><code>verified</code> 의 범위는 요구사항이다</b>(2026-09-07 구현). 표가 적은 "해당 커밋 범위" 는 커밋과 발견을 잇는 축이 Phase 2 라 아직 없다 — 지금은 그 요구사항에 열린 <code>critical</code> 이 없는지를 본다. 강등도 하지 않는다: 이미 <code>verified</code> 인 행은 내리지 않으므로 발견 하나가 열릴 때마다 검증 사실이 지워졌다 붙는 일이 없다.</p></blockquote>
 
+  <p><b>문장이 바뀐 요구사항</b>은 지금 값을 그대로 둔다 — 새 버전 승인은 요구사항 행의 문장만 고친다(2026-09-26). 재작업이 필요하면 그 요구사항에 작업을 붙인다: 그 착수가 위 그림의 <code>implemented → in_progress</code> 다(done 은 되살리지 않는다). 검증 서명을 그 문장에 묶는 일 — 문장이 바뀌면 검증이 풀린다 — 은 같은 검토에서 정했고 다음 변경에서 들어온다(<a href="backlog.html">4.8</a> §1.4).</p>
   <p>clemvion이 <code>CCH-SE-02</code>를 놓친 사각 — "문서는 implemented인데 그 안의 한 요구사항은 미구현" — 은 상태의 단위를 요구사항으로 내리는 것만으로 사라진다.</p>
 
   <h3>1.4 Task 축 — 실행 상태도</h3>
@@ -333,7 +336,7 @@
       <tr><td>클레임</td><td>변화 없음</td><td><code>unimplemented → in_progress</code></td><td><code>ready → claimed</code></td></tr>
       <tr><td>Task 완료</td><td>변화 없음</td><td><code>in_progress → implemented</code> (Evidence 조건)</td><td><code>in_progress</code>·<code>in_review → done</code></td></tr>
       <tr><td>QA 검증</td><td>변화 없음</td><td><code>implemented → verified</code></td><td>변화 없음</td></tr>
-      <tr><td>CR 승인(MODIFIED)</td><td>새 버전 <code>approved</code>, 이전 <code>superseded</code></td><td>해당 REQ <code>verified/implemented → in_progress</code></td><td>관련 Task 재개 또는 신설</td></tr>
+      <tr><td>CR 승인(MODIFIED)</td><td>새 버전 <code>approved</code>, 이전 <code>superseded</code></td><td>문장만 바뀐다 — 값은 작업·증적에서 다시 파생된다(§1.3)</td><td>재검증 Task 신설(완료 Task 는 되살리지 않는다 — done 은 최종)</td></tr>
     </tbody>
   </table></div>
 
@@ -355,7 +358,7 @@
       <tr><td>Task 클레임·리스 갱신</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
       <tr><td>리뷰 제출(ReviewSession)</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
       <tr><td>finding 해결 판정</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>○ <code>fixed</code>만</td></tr>
-      <tr><td>Requirement <code>verified</code> 전이</td><td>●</td><td>—</td><td>—</td><td>—</td><td>●</td><td>—</td><td>—</td></tr>
+      <tr><td>검증 서명(<code>kind=test</code> 증적 — <code>verified</code> 는 서버가 파생한다 · §1.3)</td><td>●</td><td>—</td><td>—</td><td>—</td><td>●</td><td>—</td><td>—</td></tr>
       <tr><td><b>게이트 면제(BYPASS)</b></td><td>●</td><td>○ 스펙 계열</td><td>—</td><td>○ 코드 계열</td><td>—</td><td>—</td><td><b>불가</b></td></tr>
       <tr><td>게이트 정책·위험도 임계 편집</td><td>●</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
       <tr><td>알림 구독 규칙 편집(본인)</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td></tr>
@@ -601,8 +604,8 @@
     <thead><tr><th>델타</th><th>문서 축</th><th>구현 축(Requirement)</th><th>Task 축</th><th>알림 티어</th></tr></thead>
     <tbody>
       <tr><td><b>ADDED</b></td><td>새 버전 approved, 이전 superseded</td><td>새 REQ <code>unimplemented</code></td><td>파생 Task <code>backlog</code> 자동 제안(위임 명세 초안 포함)</td><td>standard</td></tr>
-      <tr><td><b>MODIFIED</b></td><td>동일</td><td><code>implemented</code>/<code>verified</code> → <code>in_progress</code> 강등</td><td>완료 Task는 재검증 Task 신설, 진행 중 Task는 <b>재브리핑 필요</b> 플래그(<code>task.rebrief_required_at</code> 세팅 + <code>task.rebrief_required</code> 이벤트 — 실물은 <a href="data-model.html">데이터 모델</a> §2.4)</td><td>high (클레임 보유 세션에는 critical)</td></tr>
-      <tr><td><b>REMOVED</b></td><td>동일</td><td>REQ <code>deprecated</code></td><td>미착수 파생 Task는 취소 제안, 진행 중이면 즉시 중단 확인 요청</td><td>critical</td></tr>
+      <tr><td><b>MODIFIED</b></td><td>동일</td><td>문장이 바뀐다 — 값은 파생 그대로(§1.3 · 재검증 Task 가 착수되면 <code>in_progress</code>)</td><td>완료 Task는 재검증 Task 신설, 진행 중 Task는 <b>재브리핑 필요</b> 플래그(<code>task.rebrief_required_at</code> 세팅 + <code>task.rebrief_required</code> 이벤트 — 실물은 <a href="data-model.html">데이터 모델</a> §2.4)</td><td>high (클레임 보유 세션에는 critical)</td></tr>
+      <tr><td><b>REMOVED</b></td><td>동일</td><td>REQ 묘비(<code>removed_in_version_id</code>) — 목록·커버리지에서 빠지고 값은 남는다</td><td>미착수 파생 Task는 취소 제안, 진행 중이면 즉시 중단 확인 요청</td><td>critical</td></tr>
     </tbody>
   </table></div>
 

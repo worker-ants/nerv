@@ -93,7 +93,7 @@ export const NERV_EVENT = {
   GATE_FAILOPEN: 'gate.failopen',
 
   // ── 증적 (P1) ────────────────────────────────────────────────────────────
-  /** ★ EP-REQ-03 · GitHub 웹훅 수집 — 증적이 붙어도 impl_status 는 자동으로 오르지 않는다 */
+  /** ★ EP-REQ-03 · GitHub 웹훅 수집 — 요구사항에 붙은 증적은 구현 축을 다시 파생한다(REQ-API-141) */
   EVIDENCE_ADDED: 'evidence.added',
 
   // ── 임포트·알림 ──────────────────────────────────────────────────────────
