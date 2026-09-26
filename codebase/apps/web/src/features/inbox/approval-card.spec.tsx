@@ -11,7 +11,7 @@ import {
   createRouter,
 } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApprovalCard, subjectFallback, waitedLabel } from './approval-card.js';
+import { ApprovalCard, bulkBlockText, subjectFallback, waitedLabel } from './approval-card.js';
 import { setDecisionGraceForTesting } from './decision-grace.js';
 import { RealtimeProvider } from '../../lib/realtime.js';
 
@@ -342,5 +342,20 @@ describe('제목 없는 대상의 이름 (REQ-WEB-133)', () => {
   it('모르는 종류만 "(제목 없음)" 이다 — 아는 것을 그리로 흘리지 않는다', () => {
     expect(subjectFallback(ko, 'nonsense')).toBe(ko('inbox.card.untitled'));
     expect(subjectFallback(ko, undefined)).toBe(ko('inbox.card.untitled'));
+  });
+});
+
+/** 일괄 승인에서 빠지는 이유(REQ-WEB-182 · REQ-API-163) — 서버가 준 값을 문장으로 바꾼다 */
+describe('일괄에서 빠지는 이유', () => {
+  it('일괄 전용의 둘은 그 이유를, 단건으로도 못 누르면 그 이유를 말한다', () => {
+    expect(bulkBlockText(ko, { bulk_block_reason: 'bulk_quorum' })).toContain('두 사람의 승인');
+    expect(bulkBlockText(ko, { bulk_block_reason: 'bulk_gate_bypass' })).toContain('게이트 면제');
+    expect(bulkBlockText(ko, { bulk_block_reason: 'author', can_approve_reason: 'author' })).toBe(
+      ko('inbox.card.cannot_approve.author'),
+    );
+  });
+
+  it('이유가 없는 옛 응답은 일반 문장으로 물러선다', () => {
+    expect(bulkBlockText(ko, {})).toBe(ko('inbox.bulk.blocked.not_eligible'));
   });
 });

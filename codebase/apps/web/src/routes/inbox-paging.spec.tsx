@@ -121,13 +121,13 @@ describe('받은 요청의 쪽 넘김 (REQ-API-166)', () => {
     expect(screen.queryByTestId('inbox-more')).toBeNull();
   });
 
-  it('이어 받은 카드도 일괄 선택에 든다 — "보이는 항목 모두 선택" 가 그 뜻이다 (REQ-WEB-181)', async () => {
+  it('이어 받은 카드도 일괄 선택에 든다 — "보이는 항목" 이 그 뜻이다 (REQ-WEB-181)', async () => {
     renderAt('/inbox');
     await waitFor(() => expect(screen.getAllByTestId('approval-card')).toHaveLength(3));
     fireEvent.click(screen.getByTestId('inbox-more'));
     await waitFor(() => expect(screen.getAllByTestId('approval-card')).toHaveLength(5));
 
-    // 선택 바는 하나라도 골라야 선다 — [보이는 것 전체] 는 그 바 안에 있다
+    // 선택 바는 하나라도 골라야 나타난다 — [보이는 항목 선택] 은 그 바 안에 있다
     fireEvent.click(screen.getAllByTestId('bulk-select')[0]!);
     await waitFor(() => expect(screen.getByTestId('bulk-bar')).toBeDefined());
     fireEvent.click(screen.getByTestId('bulk-select-all'));

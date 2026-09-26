@@ -61,7 +61,7 @@ When you resolve a review finding, the field for choosing a spec takes two keys.
 | `c`       | Write a comment                     |
 | `z`       | Undo before it is sent (within 5 s) |
 | `x`       | Add to or remove from the selection |
-| `⇧X`      | Select everything visible           |
+| `⇧X`      | Select visible (up to 50)           |
 | `⇧A`      | Approve the selection               |
 | `⇧R`      | Reject the selection                |
 | `Esc`     | Clear the selection                 |

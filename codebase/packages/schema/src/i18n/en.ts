@@ -105,7 +105,6 @@ export const en = {
   'error.approval.not_found': 'Approval item not found.',
   'error.approval.not_in_role_queue': 'This approval belongs to the {role} queue.',
   'error.approval.bulk_not_eligible': 'This item cannot be approved in bulk. Decide it on its own.',
-  'error.approval.bulk_limit': 'You can decide up to {max} items at once.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.auth.admin_only': 'Only admins can do this.',
   'error.auth.org_admin_only':
@@ -1219,8 +1218,10 @@ export const en = {
   'inbox.bulk.item_failed': 'Couldn’t process: {reason}',
   'inbox.bulk.partial': 'Decided {n}, {failed} left.',
   'inbox.bulk.reason': 'Rejection reason (recorded on every item)',
+  'inbox.bulk.limit':
+    'You can select up to {max} at a time. Decide these first, then select the rest.',
   'inbox.bulk.reject': 'Reject selected',
-  'inbox.bulk.select_all': 'Select all visible',
+  'inbox.bulk.select_all': 'Select visible (up to {max})',
   'inbox.bulk.select_card': 'Add to bulk decision',
   'inbox.bulk.selected': '{count} selected',
   'inbox.bulk.skipped': '{count} can’t be bulk-approved and will be skipped',
