@@ -157,7 +157,7 @@ function FeedRow({
       className={cn(
         'flex items-center gap-2.5 text-sm',
         variant === 'airy'
-          ? 'rounded-nerv px-2 py-[9px]'
+          ? 'rounded-nerv px-2 py-2'
           : 'border-b border-border py-1.5 last:border-0',
         nested && 'pl-8',
       )}
@@ -167,7 +167,7 @@ function FeedRow({
         <span
           data-testid="event-actor-agent"
           title={[actor, machine].filter((v) => v !== null && v !== '').join(' — ')}
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] bg-status-agent-soft text-2xs font-medium text-status-agent"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-nerv-sm bg-status-agent-soft text-2xs font-medium text-status-agent"
         >
           AI<span className="sr-only"> {t('project.actor.agent')}</span>
         </span>
@@ -176,7 +176,7 @@ function FeedRow({
       ) : (
         <span
           aria-hidden="true"
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-[5px] bg-bg-sunken text-2xs text-text-mute"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-nerv-sm bg-bg-sunken text-2xs text-text-mute"
         >
           ·
         </span>

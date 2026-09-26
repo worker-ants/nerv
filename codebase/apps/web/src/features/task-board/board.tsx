@@ -350,7 +350,7 @@ export function TaskBoard(): React.JSX.Element {
           (`sr-only` — `position: absolute`)는 가장 가까운 위치 잡힌 조상을 기준으로 서는데, 이 상자가 그것이
           아니면 기준은 `body` 가 되고 `overflow-x-auto` 가 그 글자를 자르지 못한다 — 폰 폭에서 화면 밖 레인의
           글자가 문서를 가로로 806px 밀었다 */}
-      <div ref={lanesRef} className="relative -mx-6 flex gap-[22px] overflow-x-auto px-6 pb-2">
+      <div ref={lanesRef} className="relative -mx-6 flex gap-5 overflow-x-auto px-6 pb-2">
         {lanes.map((lane) => (
           <Lane
             key={lane}
@@ -561,7 +561,7 @@ function Lane({
           data-testid={`lane-toggle-${lane}`}
           aria-expanded={!collapsed}
           onClick={() => setCollapsed(!collapsed)}
-          className="flex w-full items-center gap-[7px] px-1 pb-2.5 text-left"
+          className="flex w-full items-center gap-2 px-1 pb-2.5 text-left"
         >
           <span
             aria-hidden="true"
@@ -578,7 +578,7 @@ function Lane({
             {all.length}
             {more ? '+' : ''}
           </span>
-          <span aria-hidden="true" className="ml-auto text-[10px] text-text-ghost">
+          <span aria-hidden="true" className="ml-auto text-3xs text-text-ghost">
             {collapsed ? '▸' : '▾'}
           </span>
         </button>
@@ -600,7 +600,7 @@ function Lane({
           ))}
           {all.length === 0 && query.data !== undefined && readyEmpty === undefined && (
             // 시안의 빈 레인: 점선 상자 — "없는 것"과 "아직 안 온 것"을 가른다
-            <li className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-faint">
+            <li className="rounded-nerv border border-dashed border-border p-3 text-center text-sm text-text-faint">
               {t('tasks.empty_column')}
             </li>
           )}
@@ -609,7 +609,7 @@ function Lane({
           {all.length === 0 && query.data !== undefined && readyEmpty !== undefined && (
             <li
               data-testid="ready-empty"
-              className="rounded-[7px] border border-dashed border-border p-3 text-center text-sm text-text-faint"
+              className="rounded-nerv border border-dashed border-border p-3 text-center text-sm text-text-faint"
             >
               <p>{t('tasks.ready_empty')}</p>
               {(readyEmpty.blocked > 0 || readyEmpty.backlog > 0) && (
@@ -702,7 +702,7 @@ function TaskCard({
     // 만져지는 것만 알린다 — 주의가 필요한 카드만 왼쪽 2px 룰로 스스로 튄다.
     <article
       className={cn(
-        'group rounded-[7px] border-l-2 py-2.5 pr-[11px] pl-2.5 transition-colors hover:bg-bg-sunken',
+        'group rounded-nerv border-l-2 py-2.5 pr-3 pl-2.5 transition-colors hover:bg-bg-sunken',
         needsAttention ? 'border-l-status-waiting' : 'border-l-transparent',
       )}
     >

@@ -639,9 +639,9 @@ export function SpecTree({
           data-holds-active={holdsActive}
           {...(holdsActive ? { title: t('specs.holds_active') } : {})}
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text data-[holds-active=true]:font-medium data-[holds-active=true]:text-text',
+            'flex min-w-0 flex-1 items-center gap-1.5 rounded-nerv pr-1 text-text-mute data-[active=true]:bg-bg-active data-[active=true]:font-medium data-[active=true]:text-text data-[holds-active=true]:font-medium data-[holds-active=true]:text-text',
             // 시안: 사이드바 트리는 26px 줄에 13px 글자 — nav(29px)보다 반 단 조밀하다
-            variant === 'rail' ? 'h-[26px] text-[13px]' : 'py-1 text-sm',
+            variant === 'rail' ? 'h-6.5 text-sm' : 'py-1 text-sm',
             // 보관한 것은 목록에 있어도 **같은 무게가 아니다** — 켜서 찾아온 사람에게만 보인다
             node.archived_at != null ? 'text-text-faint' : undefined,
           )}
@@ -825,7 +825,7 @@ export function SpecTree({
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder={t('specs.tree_filter')}
-            className="h-[27px] w-full text-sm"
+            className="h-control-sm w-full text-sm"
           />
         </div>
       )}

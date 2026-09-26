@@ -645,7 +645,7 @@ function SpecDetail(): React.JSX.Element {
             ))}
           </nav>
         )}
-        <div className="mb-[7px] flex flex-wrap items-center gap-[7px]">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <StatusBadge
             token={
               (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
@@ -747,7 +747,7 @@ function SpecDetail(): React.JSX.Element {
           {String(detail.data?.['title'] ?? spec)}
         </h1>
         {/* 곁줄 — 이 문서의 이력·무게가 한 줄로 요약된다(시안: 승인자 · 파생 · 역참조) */}
-        <div className="mt-2 mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-[22px] text-sm text-text-mute">
+        <div className="mt-2 mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-5 text-sm text-text-mute">
           <Byline detail={viewed ?? detail.data} backlinks={backlinks.length} t={t} />
         </div>
 
@@ -1171,7 +1171,7 @@ function SpecDetail(): React.JSX.Element {
                   data-testid={`rail-tab-${key}`}
                   onClick={() => setRailTab(key)}
                   className={cn(
-                    'flex shrink-0 items-center gap-[5px] border-b-2 px-[11px] pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
+                    'flex shrink-0 items-center gap-1 border-b-2 px-2.5 pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
                     railTab === key
                       ? 'border-text font-semibold text-text'
                       : 'border-transparent text-text-faint hover:text-text',
@@ -1517,7 +1517,7 @@ function RelationRow({
       to="/p/$proj/specs/$spec"
       params={{ proj, spec: String(relation['key']) }}
       search={baseline === undefined ? {} : { baseline }}
-      className="flex items-start gap-[9px] rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
+      className="flex items-start gap-2 rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
     >
       {/* 방향 표식(시안): 들어오는 것은 조용히, 나가는 것은 물들여서 */}
       <span

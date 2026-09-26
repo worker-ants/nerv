@@ -798,7 +798,7 @@ function GraphLegend({
           {/* 영역은 동그라미가 아니라 상자로 선다 — 표식도 상자여야 한다 */}
           <span
             aria-hidden="true"
-            className="size-2 shrink-0 rounded-[2px] border border-border-strong bg-bg-sunken"
+            className="size-2 shrink-0 rounded-xs border border-border-strong bg-bg-sunken"
           />
           {t('specs.type.area')}
         </span>
@@ -836,7 +836,7 @@ function ConnectionRow({
     <button
       type="button"
       onClick={() => onOpen(connection.node.key)}
-      className="flex w-full items-start gap-[9px] rounded-nerv px-1.5 py-1.5 text-left transition-colors hover:bg-bg-hover"
+      className="flex w-full items-start gap-2 rounded-nerv px-1.5 py-1.5 text-left transition-colors hover:bg-bg-hover"
     >
       {/* 방향 표식은 레일과 같다 — 들어오는 것은 조용히, 나가는 것은 물들여서 */}
       <span

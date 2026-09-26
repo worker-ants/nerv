@@ -99,7 +99,7 @@ export function Modal({
   const { onKeyDown } = useModal(true, panelRef, onClose, initialFocus);
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-text/20 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-text/20 p-4 backdrop-blur-xs"
       onClick={onClose}
       onKeyDown={onKeyDown}
     >

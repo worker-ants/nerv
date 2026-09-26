@@ -339,7 +339,8 @@ describe('본문의 스크롤 상자 (REQ-WEB-156)', () => {
     // `sticky` 는 margin 상자를 가둔다 — 제목에 `mt` 가 남으면 붙었을 때 그만큼
     // 틈이 생기고, 그 틈으로 흐르는 본문이 비쳐 지나간다
     expect(title.className).not.toMatch(/\bmt-/);
-    expect(title.previousElementSibling?.className).toContain('mb-[7px]');
+    // 위 여백은 메타 줄의 `mb-*` 가 든다(값은 척도 — 2026-09-26 에 7px → `mb-2`)
+    expect(title.previousElementSibling?.className).toMatch(/\bmb-\d/);
   });
 });
 
