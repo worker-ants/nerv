@@ -55,8 +55,10 @@ function ttlOf(toast: Omit<Toast, 'id'>): number {
 }
 
 export interface RealtimeValue {
-  /** 'connected' | 'connecting' | 'disconnected' — 배너 1단계의 근거 */
+  /** 'connected' | 'connecting' | 'disconnected' — 헤더 연결 표시의 근거(REQ-WEB-002) */
   state: ConnectionState;
+  /** 실시간이 끊긴 시각(ms) — 헤더의 연결 표시가 "언제 끊겼나" 를 말한다. 붙어 있으면 null */
+  disconnectedSince: number | null;
   /** REST 자체가 죽었나 — 배너 2단계(오프라인)로 격상한다(NFR-05) */
   offline: boolean;
   setOffline: (offline: boolean) => void;
@@ -124,6 +126,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
   translate.current = t;
   const queryClient = useQueryClient();
   const [state, setState] = useState<ConnectionState>('connecting');
+  // 끊긴 **처음** 시각만 남긴다 — 다시 붙으려다 실패가 거듭돼도 "언제 끊겼나" 는 처음 끊긴 때다
+  const [disconnectedSince, setDisconnectedSince] = useState<number | null>(null);
   const [offlineSince, setOfflineSince] = useState<number | null>(null);
   const offline = offlineSince !== null;
   // 켜질 때의 시각만 남긴다 — 오프라인인 동안 실패가 거듭돼도 "받은 시각" 은 처음 끊긴 때다
@@ -238,6 +242,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
       onEvent,
       onStateChange: (next) => {
         setState(next);
+        setDisconnectedSince((since) =>
+          next === 'disconnected' ? (since ?? Date.now()) : next === 'connected' ? null : since,
+        );
         // 재연결 = 전체 재조회. replay 가 없으므로 끊긴 동안의 변화는 이 한 번으로 따라잡는다.
         if (next === 'connected' && wasConnected.current) {
           void queryClient.invalidateQueries();
@@ -281,6 +288,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
   const value = useMemo<RealtimeValue>(
     () => ({
       state,
+      disconnectedSince,
       offline,
       setOffline,
       offlineSince,
@@ -293,6 +301,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }): R
     }),
     [
       state,
+      disconnectedSince,
       offline,
       setOffline,
       offlineSince,
@@ -316,22 +325,31 @@ export function useWriteLock(): string | null {
 }
 
 /**
- * 배너 문구 — 2단계다(§1.3).
- *   ① WS 끊김(REST 정상): 폴백 폴링으로 계속 돈다
- *   ② 플랫폼 끊김(REST 실패): 캐시된 읽기 전용으로 격상 — 쓰기는 버튼이 스스로 잠근다(`writeLock` · REQ-WEB-235).
- *      언제 받은 내용인지를 말한다 — "캐시된" 만으로는 그 캐시가 1분 전인지 한 시간 전인지 모른다
+ * 헤더의 연결 표시 — 무엇을 세우나(§1.3 · 2026-09-26 사람 결정 D8 · REQ-WEB-002).
+ *   `ws`      실시간만 끊겼다(REST 는 닿는다) — 호박 점. 폴백 폴링으로 일은 계속되고 쓰기도 된다
+ *   `offline` 플랫폼에 닿지 않는다 — 회색 ⚠. 배너가 함께 선다(`connectionBanner`)
+ *   null      붙어 있거나 아직 붙는 중이다 — 아무것도 세우지 않는다
+ *
+ * 실시간만 끊긴 것을 전폭 배너로 알리던 동안, 폴링으로 멀쩡히 도는 화면이 한 줄 밀리고 매번 호박색 띠가 섰다 —
+ * 배너는 "아무것도 저장되지 않는다" 는 오프라인 하나에 남긴다(그때는 쓰기가 잠긴다).
+ */
+export function connectionMark(state: ConnectionState, offline: boolean): 'ws' | 'offline' | null {
+  if (offline) return 'offline';
+  return state === 'disconnected' ? 'ws' : null;
+}
+
+/**
+ * 배너 문구 — **오프라인에만 선다**(2026-09-26 개정 · D8). 실시간만 끊긴 단계는 헤더의 표시다(`connectionMark`).
+ * 쓰기는 버튼이 스스로 잠근다(`writeLock` · REQ-WEB-235). 언제 받은 내용인지를 말한다 — "캐시된" 만으로는 그 캐시가
+ * 1분 전인지 한 시간 전인지 모른다
  */
 export function connectionBanner(
   t: Translator,
-  state: ConnectionState,
   offline: boolean,
   offlineSince: number | null = null,
 ): string | null {
-  if (offline) {
-    const since = new Date(offlineSince ?? Date.now());
-    const time = `${String(since.getHours()).padStart(2, '0')}:${String(since.getMinutes()).padStart(2, '0')}`;
-    return t('realtime.offline', { time });
-  }
-  if (state === 'disconnected') return t('realtime.ws_down');
-  return null;
+  if (!offline) return null;
+  const since = new Date(offlineSince ?? Date.now());
+  const time = `${String(since.getHours()).padStart(2, '0')}:${String(since.getMinutes()).padStart(2, '0')}`;
+  return t('realtime.offline', { time });
 }

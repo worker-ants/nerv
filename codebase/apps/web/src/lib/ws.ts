@@ -58,6 +58,10 @@ export function connectNervSocket(handlers: NervSocketHandlers): Socket {
     for (const room of joined) socket.emit('join', { room });
   });
   socket.on('disconnect', () => handlers.onStateChange('disconnected'));
+  // **처음부터 닿지 않는 것도 끊김이다**(2026-09-26 · REQ-WEB-002). 한 번도 붙지 못하면 `disconnect` 는 오지 않고
+  // `connect_error` 만 거듭 온다 — 이것을 듣지 않던 동안 실시간 서버가 처음부터 죽어 있으면 상태가 "붙는 중" 에
+  // 머물러, 폴링은 도는데 헤더(예전에는 배너)는 아무 말도 하지 않았다
+  socket.on('connect_error', () => handlers.onStateChange('disconnected'));
   // 서버의 거절 사유. socket.io 의 connect_error 는 예약어라 서버가 쓸 수 없어
   // 별도 이름으로 온다(@nerv/schema WS_ERROR_EVENT).
   socket.on(WS_ERROR_EVENT, () => handlers.onStateChange('disconnected'));

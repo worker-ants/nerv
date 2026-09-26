@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.68 (2026-09-26)</span>
+      <span>버전 v1.69 (2026-09-26)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -135,7 +135,7 @@
   </table></div>
 
 <pre><code>apps/web/src/routes/
-  __root.tsx                 앱 셸: 전역 헤더 · 연결 상태 배너 · 토스트 아웃렛
+  __root.tsx                 앱 셸: 전역 헤더(연결 표시) · 오프라인 배너 · 토스트 아웃렛
   login.tsx                  /login
   signup.tsx                 /signup      가입(셸 밖)
   invite.$token.tsx          /invite/:token  초대 링크(셸 밖·공개)
@@ -166,7 +166,7 @@
 
   <h3>1.3 앱 셸 레이아웃</h3>
 
-  <p>모든 라우트가 공유하는 셸이다 — 전역 헤더 · 조건부 연결 상태 배너 · <b>사이드바(모든 화면)</b> · 라우트 아웃렛 · 토스트 스택. 아래 목업은 프로젝트 화면(<code>/p/clemvion/tasks</code>)에 진입한 상태다 — 조직 범위 화면이면 같은 열에서 어느 프로젝트도 펼쳐지지 않는다(2026-09-25 개정 — 사람 결정 D1 · REQ-WEB-225).</p>
+  <p>모든 라우트가 공유하는 셸이다 — 전역 헤더(조건부 연결 표시) · 조건부 오프라인 배너 · <b>사이드바(모든 화면)</b> · 라우트 아웃렛 · 토스트 스택. 아래 목업은 프로젝트 화면(<code>/p/clemvion/tasks</code>)에 진입한 상태다 — 조직 범위 화면이면 같은 열에서 어느 프로젝트도 펼쳐지지 않는다(2026-09-25 개정 — 사람 결정 D1 · REQ-WEB-225).</p>
 
   <div class="wf">
     <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/p/clemvion/tasks</div></div>
@@ -177,13 +177,14 @@
       <span style="color:var(--text-mute)">clemvion</span><span style="color:var(--text-faint)">/</span>
       <b>작업</b>
       <span class="marker">1</span>
-      <span class="wf-input" style="margin-left:auto">🔍 전역 검색 ⌘K</span>
+      <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn)"></span>실시간 끊김</span><span class="marker">5</span>
+      <span class="wf-input">🔍 전역 검색 ⌘K</span>
       <span class="wf-btn ghost" style="font-weight:700">?</span>
       <span class="wf-avatar">지</span>
     </div>
 
     <div style="display:flex;align-items:center;gap:8px;padding:6px 14px;font-size:12px;background:var(--warn-soft);border-bottom:1px solid color-mix(in srgb, var(--warn) 40%, var(--border))">
-      ⚠️ 실시간 갱신 중단 — 폴링으로 갱신 중 <span class="sub" style="color:var(--text-faint)">(조건부 — WS 끊김 · 오프라인 · 게이트 fail-open)</span>
+      ⚠ 오프라인 — 보이는 내용은 14:05 에 받은 것이고 쓰기는 잠깁니다 <span class="sub" style="color:var(--text-faint)">(조건부 — 서버에 닿지 않음 · 게이트 fail-open)</span>
       <span class="marker" style="margin-left:auto">5</span>
     </div>
 
@@ -224,13 +225,13 @@
   <div class="table-wrap"><table>
     <thead><tr><th>셸 요소</th><th>명세</th></tr></thead>
     <tbody>
-      <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>지금 자리를 말한다: 로고 · <code>조직 / 프로젝트 / 화면</code></b>(브레드크럼 — 2026-09-25 개정 · 사람 결정 D1 · REQ-WEB-225). 조직은 글자이고(헤더에서 <code>/</code> 로 가는 길은 로고 하나다 — 2026-08-30), 프로젝트는 그 개요로 가는 링크, 화면은 <code>aria-current</code> 다. 스펙·작업·세션 상세면 끝에 그 키가 서고 화면 이름은 그 목록으로 가는 링크다(2026-09-25 · REQ-WEB-228). 오른쪽은 전역 검색 · 도움말 <code>?</code> · 사용자 메뉴. <b>고르는 자리(조직 ▾ · 프로젝트 ▾ · [프로젝트] 링크)는 사이드바로 내려갔다</b> — 2026-08-24 의 "소속 두 축이 헤더에 순서대로 선다"(REQ-WEB-069)를 개정한다. 좁은 화면(<code>md</code> 미만)에서는 [☰]와 받은 요청·알림 글리프가 더 선다(REQ-WEB-164)</td></tr>
+      <tr><td><span class="marker">1</span> 전역 헤더</td><td><b>지금 자리를 말한다: 로고 · <code>조직 / 프로젝트 / 화면</code></b>(브레드크럼 — 2026-09-25 개정 · 사람 결정 D1 · REQ-WEB-225). 조직은 글자이고(헤더에서 <code>/</code> 로 가는 길은 로고 하나다 — 2026-08-30), 프로젝트는 그 개요로 가는 링크, 화면은 <code>aria-current</code> 다. 스펙·작업·세션 상세면 끝에 그 키가 서고 화면 이름은 그 목록으로 가는 링크다(2026-09-25 · REQ-WEB-228). 오른쪽은 전역 검색 · 도움말 <code>?</code> · 사용자 메뉴. <b>고르는 자리(조직 ▾ · 프로젝트 ▾ · [프로젝트] 링크)는 사이드바로 내려갔다</b> — 2026-08-24 의 "소속 두 축이 헤더에 순서대로 선다"(REQ-WEB-069)를 개정한다. 좁은 화면(<code>md</code> 미만)에서는 [☰]와 받은 요청·알림 글리프가 더 선다(REQ-WEB-164). 검색 앞에는 <b>연결 표시</b>가 조건부로 선다(아래 행 · 2026-09-26 · REQ-WEB-002)</td></tr>
       <tr><td><span class="marker">2</span> 사이드바 — 조직 · 전역</td><td>열의 머리는 <b>조직 전환기</b>다("조직" 이름표 · 다른 조직 · 조직 관리). 그 아래 <b>전역 구역</b> — 홈 · 받은 요청 · 알림. 조직을 가로지르는 자리들이라 프로젝트 목록 <b>위</b>에 선다(2026-08-23 에 시안의 "받은 요청을 프로젝트 사이드바로" 를 받지 않은 이유 — 조직 전역이지 프로젝트 소속이 아니다 — 는 그대로 지킨다). 받은 요청·알림 숫자 배지는 WebSocket으로 갱신(FR-11 · FR-12 · NFR-02). 받은 요청 배지는 <b>내 결정을 기다리는 것만</b> 센다(spec-workflow §6.6 원칙 3) — 그중 <b>내가 누를 수 있는 것</b>이다(<code>actionable_total</code> · 2026-09-24 사람 결정 D2 · REQ-WEB-217). 알림 배지는 안 읽은 <b>중요</b> 수다(REQ-WEB-149). 두 배지는 <b>모든 조직</b>을 센다(REQ-WEB-193)</td></tr>
       <tr><td><span class="marker">3</span> 사이드바 — 프로젝트</td><td>지금 조직의 프로젝트가 한 줄씩 서고 <b>라우트의 프로젝트만 펼친다</b>: 이름(그 개요로 가는 링크 — NAV-05) · 개요·스펙·작업·세션·리뷰 탭(리뷰 탭은 Phase 2 로 계획했으나 2026-08-23 에 열렸다 — <b>활성 링크 + 열린 critical 배지</b>다, §2.6a) — 스펙 트리는 여기 없다(2026-09-25 개정 · REQ-WEB-226 — 아래 둘째 열 행). 조직 범위 화면(홈·받은 요청·알림·설정·도움말)에서는 <b>아무것도 펼치지 않고</b> 기억한 프로젝트에 "최근" 표식만 단다 — 2026-09-24 의 "프로젝트 선택" · 드롭다운 "최근"(REQ-WEB-193)이 지키려던 것(그 화면이 한 프로젝트의 것처럼 읽히지 않는다)을 구조가 지킨다. 펼친 프로젝트의 메뉴 끝에는 <b>[설정]</b> — 그 프로젝트를 실은 게이트 정책(<code>/settings/gates?project=</code> — 2026-09-25 · REQ-WEB-227). 목록 끝에 [프로젝트 관리 · 새 프로젝트](조직 admin 이 아니면 [프로젝트 관리]). 2026-08-24 의 "하나뿐일 때도 select 로 둔다" 는 목록이 늘 서는 구조로 개정했다(2026-09-25 · D1)</td></tr>
       <tr><td><span class="marker">4</span> 사이드바 — 설정 · 도움말</td><td>열의 바닥. 설정 화면에서는 <b>[설정] 아래에 범위로 묶인 설정 항목이 펼쳐진다</b>(조직 · 프로젝트 · 나 — 2026-09-25 · REQ-WEB-227). 도움말의 차례는 여기 펼쳐지지 않는다 — <b>둘째 열이다</b>(2026-09-25 개정 — 사람 지시 · REQ-WEB-232 · §2.10). 도움말이 아닌 화면에서는 [도움말] 아래가 "이 화면 도움말" 한 줄이다. <b>항목이 열보다 많으면 열 전체가 한 상자로 흐른다</b>(2026-09-25 — 사람 보고 · REQ-WEB-232) — 바닥 블록은 남는 자리가 있을 때만 바닥에 붙는다. <b>좁은 화면(<code>md</code> 미만)에서는 열 전체가 같은 한 벌로 헤더 [☰]가 여는 서랍이다</b>(2026-09-21 · REQ-WEB-164)</td></tr>
       <tr><td>스펙 트리 — 둘째 열</td><td><b>스펙 상세(<code>/p/:proj/specs/:spec</code>)에서만 선다</b>(2026-09-25 개정 — 사람 결정 D1 · OBS-01 · REQ-WEB-226). 사이드바와 본문 사이의 열이고 S3 좌측 트리와 같은 컴포넌트다(ui-wireframes §2.3 (1)). 셸이 세우므로 문서를 옮겨도(상세가 불러오는 동안에도) 펼침·스크롤이 남는다. 머리에 <b>제목·키로 거르기</b> 칸 — 문서 검색은 ⌘K 의 일이다. 넓은 화면(<code>xl</code> 이상)에서는 제자리에 서고 [접기]로 접으면 그 상태가 이 브라우저에 남는다. 좁으면 띠의 단추가 여는 겹침 패널이다 — <code>Esc</code>·문서를 고르면 닫힌다(REQ-WEB-164 의 서랍과 같은 규칙 · 두 벌을 그리지 않는다). <b>스펙 목록에는 서지 않는다</b> — 목록 본문의 전수 트리가 이 열의 전체 화면 판이라(§2.4), 세우면 같은 트리가 한 화면에 두 번 선다. 2026-09-25 까지는 사이드바의 마지막 블록이었다 — 작업·세션·리뷰 화면에서도 열의 대부분을 차지했다</td></tr>
       <tr><td>도움말 차례 — 둘째 열</td><td>**도움말(<code>/help/*</code>)에서만 선다<b>(2026-09-25 — 사람 지시 · REQ-WEB-232). 스펙 트리 열과 </b>같은 뼈대**다(<code>side-column.tsx</code>): 넓으면(<code>lg</code> 이상) 사이드바와 본문 사이에 서고 머리의 단추로 접으며 접은 것을 기억한다(<code>nerv.manual-column</code> — 스펙 트리 열과 따로), 좁으면 왼쪽 가장자리의 띠가 여는 겹침 패널이다(장을 고르거나 <code>Esc</code> 면 닫힌다). 장이 열의 높이보다 많으면 목록만 흐른다</td></tr>
-      <tr><td><span class="marker">5</span> 연결 상태 배너</td><td>2단계로 구분한다. ① WS 끊김(REST 정상): 배너 "실시간 갱신 중단 — 폴링으로 갱신 중" + 폴백 폴링 전환(REQ-WEB-002 · ui-wireframes §4.2). ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 회색 배너 "오프라인 — 보이는 내용은 HH:MM 에 받은 것이고 쓰기는 잠깁니다. 복구 시 자동 동기화"로 격상(NFR-05 · ui-wireframes §3.4). <b>두 단계는 모양으로 갈린다</b> — ① 호박색 ●, ② 회색 ⚠(2026-09-25 · REQ-WEB-235 — 같은 한 줄이던 동안 "폴링으로 계속 도는 중" 과 "아무것도 저장되지 않음" 을 가를 수 없었다). ② 동안 쓰기 단추는 스스로 잠긴다. 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
+      <tr><td><span class="marker">5</span> 연결 표시 · 오프라인 배너</td><td><b>두 단계는 알리는 무게가 다르다</b>(2026-09-26 개정 — 사람 결정 D8 · REQ-WEB-002 · REQ-WEB-235). ① 실시간만 끊김(REST 정상): 전폭 배너가 아니라 <b>헤더의 연결 표시</b> — 검색 앞의 호박 점과 "실시간 끊김"(좁은 화면은 점만 보이고 글자는 보조기기에 남는다) + 폴백 폴링 전환(15초 · ui-wireframes §4.2). 누르면 "목록은 15초마다 새로 받습니다. 쓰기는 그대로 됩니다 — 다시 연결되면 보던 화면을 모두 새로 받습니다" 와 끊긴 시각을 말하고(<code>Esc</code> 로 닫혀 표시로 돌아간다), 보조기기에는 늘 있는 알림 자리로 한 번 알린다. 처음부터 한 번도 붙지 못한 것(<code>connect_error</code>)도 끊김이다. ② 플랫폼 연결 끊김(REST 실패 = <code>NERV_UNAVAILABLE</code>): 헤더의 표시가 회색 ⚠ "오프라인" 으로 바뀌고 <b>전폭 회색 배너</b>가 함께 선다 — "오프라인 — 보이는 내용은 HH:MM 에 받은 것이고 쓰기는 잠깁니다. 복구 시 자동 동기화"(NFR-05 · ui-wireframes §3.4). ② 동안 쓰기 단추는 스스로 잠긴다. 실시간만 끊긴 것까지 배너로 알리던 동안(2026-09-25 까지) 폴링으로 멀쩡히 도는 화면이 한 줄 밀리고, 쓰기가 되는데 경고처럼 읽혔다 — 배너는 아무것도 저장되지 않는 단계 하나에 남긴다. 재연결 시 활성 화면 쿼리 전부 무효화 — 이벤트 유실 허용, 진실은 DB(D-14)</td></tr>
       <tr><td><span class="marker">6</span> 토스트 스택</td><td><code>claim.conflict_warn</code> 겹침 경고, 승인 처리 후 "처리됨" 트레일(3분 유지 — ui-wireframes §4.1 · <b>무엇을</b> 처리했는지 적는다), 남이 바꾼 문서의 알림(그 문서로 가는 링크 · 같은 문서는 한 장). 톤마다 기호·색 줄·보조기기 알림이 다르고, 수명은 종류가 정하며, 셋까지 보인다(REQ-WEB-197). <b>되돌리기 링크는 두지 않는다</b> — 무를 길은 보내기 <b>전에</b> 준다(카드가 5초 들고 있다 · 2026-09-25 사람 결정 D7 · §2.7 · REQ-WEB-237). 서버의 결정 철회 경로는 만들지 않았다 — 감사·게이트의 뜻이 무거워 따로 정한다</td></tr>
     </tbody>
   </table></div>
@@ -429,7 +430,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td><code>NERV_APPROVAL_REQUIRED</code></td><td>"승인 대기 항목이 생성됨" 안내 + 받은 요청 딥링크</td></tr>
       <tr><td><code>NERV_HUMAN_ONLY</code></td><td>(에이전트 전용 코드 — 웹에서는 도달하지 않음. 도달 시 일반 에러 카드)</td></tr>
       <tr><td><code>NERV_RATE_LIMIT</code></td><td>재시도 대기 안내(Retry-After 존중)</td></tr>
-      <tr><td><code>NERV_UNAVAILABLE</code></td><td>연결 상태 배너 격상 + 폴백 폴링</td></tr>
+      <tr><td><code>NERV_UNAVAILABLE</code></td><td>헤더 표시 ⚠ 오프라인 + 오프라인 배너 + 폴백 폴링</td></tr>
     </tbody>
   </table></div>
 
@@ -452,9 +453,9 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
       <tr><td>REQ-WEB-001</td><td>WHEN 비인증 사용자가 <code>/login</code> 외 경로에 접근하면 THE SYSTEM SHALL <code>/login</code>으로 리다이렉트하고 로그인 성공 시 원래 경로로 복귀시킨다</td></tr>
-      <tr><td>REQ-WEB-002</td><td>WHEN WebSocket 연결이 끊기면 THE SYSTEM SHALL 3초 이내에 연결 상태 배너를 표시하고 폴백 폴링으로 전환하며, 재연결 시 활성 화면의 쿼리를 전부 무효화한다</td></tr>
+      <tr><td>REQ-WEB-002</td><td>WHEN WebSocket 연결이 끊기거나 처음부터 붙지 못하면(REST 는 닿는다) THE SYSTEM SHALL 3초 이내에 헤더에 연결 표시(호박 점 + "실시간 끊김" — 좁은 화면은 점만 보이고 글자는 보조기기에 남는다)를 세우고 보조기기에 한 번 알리며 폴백 폴링으로 전환하고, 전폭 배너는 세우지 않는다. WHEN 그 표시를 누르면 THE SYSTEM SHALL 폴링 주기 · 쓰기는 된다는 사실 · 끊긴 시각을 말하고, Esc 로 닫으면 표시로 포커스를 돌린다. WHEN 다시 붙으면 THE SYSTEM SHALL 활성 화면의 쿼리를 전부 무효화하고 표시를 거둔다(2026-09-26 개정 — 사람 결정 D8 · 예전: 3초 이내에 연결 상태 배너)</td></tr>
       <tr><td>REQ-WEB-003</td><td>(2026-09-25 개정 — 사유가 키보드·보조기기에도 닿는다) WHEN 사용자에게 권한이 없는 동작 버튼이 렌더링되면 THE SYSTEM SHALL 버튼을 숨기지 않고 잠그며 필요 역할을 사유로 보인다 (예: "이 전이는 <code>qa</code>(및 <code>admin</code>) 역할만 가능"). WHERE 사유가 있으면 THE SYSTEM SHALL 그 버튼을 포커스가 남는 잠금(<code>aria-disabled</code>)으로 두고 사유를 설명(<code>aria-describedby</code>)과 hover·포커스의 말풍선으로 보인다 — hover 에만 뜨는 <code>title</code> 로 두지 않는다</td></tr>
-      <tr><td>REQ-WEB-235</td><td>WHILE 플랫폼에 닿지 않는(오프라인) 동안 THE SYSTEM SHALL 쓰기 동작의 버튼(주 단추 · 파괴 확정 · 결재 · 작업 전이)을 오프라인이라는 사유와 함께 잠그고, 연결 배너를 실시간만 끊긴 단계와 다른 모양(회색 · ⚠)으로 그리며 화면의 내용을 언제 받았는지 말한다. WHEN 다시 닿으면 THE SYSTEM SHALL 잠금을 풀되 그 버튼을 다시 만들지 않는다 — 풀리는 순간 키보드 포커스가 사라지지 않는다</td></tr>
+      <tr><td>REQ-WEB-235</td><td>WHILE 플랫폼에 닿지 않는(오프라인) 동안 THE SYSTEM SHALL 쓰기 동작의 버튼(주 단추 · 파괴 확정 · 결재 · 작업 전이)을 오프라인이라는 사유와 함께 잠그고, 헤더의 연결 표시를 회색 ⚠ "오프라인" 으로 바꾸고 전폭 회색 배너를 세우며(실시간만 끊긴 단계는 배너가 아니다 — REQ-WEB-002 · 2026-09-26 개정) 화면의 내용을 언제 받았는지 말한다. WHEN 다시 닿으면 THE SYSTEM SHALL 잠금을 풀되 그 버튼을 다시 만들지 않는다 — 풀리는 순간 키보드 포커스가 사라지지 않는다</td></tr>
       <tr><td>REQ-WEB-004</td><td>WHEN <code>project:{id}</code> 룸에서 화면 관련 이벤트를 수신하면 THE SYSTEM SHALL 5초 이내에 해당 쿼리를 재조회해 화면에 반영한다(NFR-02)</td></tr>
       <tr><td>REQ-WEB-164</td><td>WHERE 사이드바가 서지 않는 폭(<code>md</code> 미만)이면 THE SYSTEM SHALL 사이드바(모든 화면 — 2026-09-25 개정 · REQ-WEB-225)를 헤더 [☰]가 여는 <b>서랍</b>으로 세우고 — 사이드바와 <b>같은 한 벌</b>이다(두 벌이면 트리의 펼침 상태가 갈린다) — 서랍 안의 링크를 따라가거나 <code>Esc</code>·뒷막을 누르면, 또는 폭이 <code>md</code> 이상이 되면 닫는다. WHILE 그 폭인 동안 THE SYSTEM SHALL 헤더의 항목을 겹침 없이 한 줄에 들이되 <b>받은 요청·알림의 숫자 배지는 헤더에 남기고</b>, 접은 것(도움말)은 서랍 안에 둔다</td></tr>
       <tr><td>REQ-WEB-224</td><td>WHEN 셸에서 첫 <code>Tab</code> 을 누르면 THE SYSTEM SHALL 본문으로 건너뛰는 링크를 보이고 그것이 본문(<code>&lt;main&gt;</code>)에 포커스를 준다. WHEN 셸 메뉴(사이드바의 조직 · 헤더의 도움말·사용자 — 2026-09-25 개정 · REQ-WEB-225)를 열면 THE SYSTEM SHALL 단추에 열림을 알리고(<code>aria-expanded</code>) 첫 항목으로 포커스를 옮기며, WHEN <code>Esc</code> 이거나 포커스가 메뉴 밖으로 나가면 THE SYSTEM SHALL 닫고 <code>Esc</code> 면 연 단추로 포커스를 돌려준다. WHILE 모달이 열려 있는 동안 THE SYSTEM SHALL <code>aria-modal</code> 로 알리고 <code>Tab</code> 을 안에 가두며 <code>Esc</code> 로 닫고, WHEN 닫히면 THE SYSTEM SHALL 연 자리로 포커스를 돌려준다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 본문을 키보드로 닿는 링크로 두고 안 읽음을 글자로 알리며, hover 에서만 드러나는 조작은 포커스와 터치에서도 드러낸다. WHEN 스펙 트리를 그리면 THE SYSTEM SHALL 트리 전체를 <code>Tab</code> 한 칸으로 두고 화살표·Home·End 로 줄을 옮기고 가지를 접고 편다</td></tr>
