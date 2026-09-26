@@ -1,38 +1,38 @@
-A session is **one agent, running now**. The session monitor answers "what is going on".
+A session is **one agent that is running right now**. The session monitor shows what is going on.
 
 ## Reading the monitor
 
-The list is on the left; the **activity rail** for the selected session is on the right. Pick a row and its activity streams right there — a monitor that makes you navigate elsewhere to see why something stalled is not a monitor. On a narrow screen the rail folds away; open **Details** on the card to see the activity there — **the detail screen draws the same thing as the rail** (what it did, the activity, run collapsing, raw payloads, [Load earlier activity]). Moving to a narrow screen does not cost you anything you could see.
+The session list is on the left, and the **activity rail** for the selected session is on the right. Select a row and that session's activity appears on the same screen. A monitor should not make you go to another screen to find out why a session stalled. On a narrow screen, the rail collapses. Open **Details** on the card to see the activity instead. **The detail screen shows the same content as the rail**: **What it did**, **Activity**, collapsed runs, expandable raw payloads, and [Load earlier activity]. You see no less on a narrow screen.
 
-Each session carries whose machine it is on, which agent is running (`claude-code` · `codex` · `web` · `other`), and which task it has claimed. `other` is where a session that did not name its kind lands. That task key **takes you to the task screen** — the same on the card, the rail, and the current task and claim history on the session screen; pressing the link inside a card does not count as picking the card.
+Each session shows the machine it runs on and who owns it, which agent is running (`claude-code` · `codex` · `web` · `other`), and which task it has claimed. A session that connects without declaring its kind appears as `other`. Click the task key to **open the task's detail page**. This works the same everywhere: on the card, in the rail, and in the current task and claim history on the session detail page. Clicking a link inside a card does not select the card.
 
-The card carries four more things — the **remaining lease** (it changes colour under two minutes, meaning the work is about to be reclaimed), when the last heartbeat was, the `+N −M` this session has changed, and the scope it declared (hover to unfold it). The lease runs 30 minutes, on the **same clock** as a task claim's lease.
+The card also shows four more things: the **time left on the lease** (it changes color under two minutes, which means the claim is about to be reclaimed), when the last heartbeat arrived, the `+N −M` changes this session has made, and its declared scope (hover to expand it). The lease lasts 30 minutes and uses the **same timer** as the task claim.
 
-**A session waiting for input** says what it is waiting for — the title of the open question, or an approval — and **[Open in inbox ↗]** takes you straight to that card. **A session holding no task** names the task it last held (**Reclaimed** if its lease ran out), and a stale session's note names the reclaimed task. With no sessions at all, **Open the install guide · Issue a token** show you how to connect one.
+**A session waiting for input** shows what it is waiting for. If a question is open, you see its title. Otherwise, it shows that it is waiting for approval. **[Open in inbox ↗]** takes you straight to the matching card in the inbox. **A session with no claimed task** shows the task it last had (**Reclaimed** if its lease ran out). A `stale` session's note also shows the key of the reclaimed task. If there are no sessions at all, **Open the install guide** and **Issue a token** links appear.
 
-The list does not arrive all at once. When there is more, **[Load more]** sits below it, and pressing it **appends** the next page — the rows you were already looking at stay put. The counts in the summary above are independent of the filter and the page: they count the **whole project**, because the summary is the whole picture and the list is a slice of it.
+The list does not load all at once. If there are more sessions, **[Load more]** appears below the list. Clicking it **appends** the next page below, and the rows you were already looking at stay where they are. The counts in the summary above the list cover the **whole project**, whatever the filter or page. The summary shows the whole picture, and the list shows part of it.
 
-**The state filter and the session open in the rail stay in the address** — you can pass on "look at this session" as the address itself, and reloading keeps the same session open. Changing the state filter clears the picked session.
+**The state filter and the session open in the rail are kept in the URL.** To show someone a session, share the URL. Reloading the page keeps the same session open. Changing the state filter deselects the session.
 
 ### Machines with the plugin on
 
-**`Plugin on N / M hosts`** above the list counts, among the machines that opened a Claude Code session in the last 30 days, how many have the NERV plugin on. Press it to unfold one line per machine — **On (version) · Off**, whose machine it is, and when it was last seen — with **machines that are off at the top**.
+**`Plugin on: N / M machines`** above the list counts how many machines have the NERV plugin on, out of the machines that opened a Claude Code session in the last 30 days. Click it to expand a list of those machines. Each row shows **On** with the plugin version, or **Off**, along with whose machine it is and when it was last seen. **Machines that are off are listed first.**
 
-- **Each machine is judged by its most recent session.** A machine that had the plugin on and then turned it off counts as off.
-- **A machine that is off came in over MCP only, without the plugin.** It can still claim work, but with no hooks its sessions leave no activity or branch on this screen. If a session looks oddly empty, look here first. To turn it on, see [Installing the plugin](/help/install).
-- **Codex is not counted.** The plugin belongs to Claude Code, so Codex running without it is normal.
-- This works **from plugin 0.3.2**. Older versions do not report themselves and show as off — update with `/plugin marketplace update` and the next session shows as on.
+- **Each machine's state comes from its most recent session.** A machine where the plugin was turned on and then off shows as off.
+- **A machine that is off connected over MCP only, without the plugin.** It can still claim tasks, but without hooks, its sessions leave no activity or branch on this screen. If a session looks unusually empty, check here first. To turn the plugin on, see [Installing the plugin](/help/install).
+- **Codex is not counted.** The plugin is for Claude Code, so it is normal for Codex to run without it.
+- This check works **from plugin 0.3.2** on. Older versions do not report their version, so they show as off. Update with `/plugin marketplace update`, and the machine shows as on from its next session.
 
 ## Statuses
 
-| Status           | Meaning                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `pending`        | Getting ready to start                                                                                                               |
-| `active`         | Running                                                                                                                              |
-| `awaiting_input` | **Waiting on a person** — a question is up, or a review request or `critical` downgrade this session raised is waiting on a decision |
-| `complete`       | Finished                                                                                                                             |
-| `error`          | Ended in failure                                                                                                                     |
-| `stale`          | No word for over 30 minutes                                                                                                          |
+| Status           | Meaning                                                                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pending`        | Getting ready to start                                                                                                                        |
+| `active`         | Running                                                                                                                                       |
+| `awaiting_input` | **Waiting for a person.** A question is open, or a review request or `critical` downgrade request from this session is waiting for a decision |
+| `complete`       | Finished                                                                                                                                      |
+| `error`          | Ended in failure                                                                                                                              |
+| `stale`          | No response for over 30 minutes                                                                                                               |
 
 ```mermaid
 stateDiagram-v2
@@ -57,52 +57,52 @@ stateDiagram-v2
     live --> failed: Fails
 ```
 
-`stale` does not mean "failed", it means **"unknown"**. The machine may have slept, the network may have dropped, the process may have died — the screen cannot tell which, so it says only what it knows.
+`stale` does not mean the session failed. It means its **state is unknown**. The machine may have gone to sleep, the network may have dropped, or the process may have died. There is no way to tell which, so the screen shows only what is confirmed.
 
-The consequence is certain, though — **when a session goes `stale`, the task it held is reclaimed and returns to `ready`.** The card says so.
+The result, however, is certain: **when a session goes `stale`, the task it had claimed is reclaimed and returns to `ready`.** The card shows this too.
 
 ## Activity
 
-Opening a session shows the rail in **two layers**. Above is **what it did** (what is in progress, and is it stuck); below is the **tool log**. That order exists because the first question here is not the name of a tool.
+When you open a session, the rail has **two sections**. The top section shows **what it did** (what it is working on, and whether it is stuck). The bottom section is the **tool log**. They are in this order because, on this screen, which tool ran is not the first thing you want to know.
 
-**The tool log is not everything.** What the default hooks stream is the four that change files or run commands — `Write`, `Edit`, `MultiEdit`, `Bash`. Reads, searches and `nerv_*` calls leave no line. Read it as: what was changed is here, what was looked at is not.
+**The tool log does not record every tool call.** The default hooks send only the **four tools that edit files or run commands**: `Write`, `Edit`, `MultiEdit`, `Bash`. Reads, searches and `nerv_*` tool calls are not recorded. In other words, the log shows what was changed, but not what was looked at.
 
-Five kinds flow through it: `thought` · `action` (a tool ran) · `elicitation` (asking a person) · `response` · `error`. Hooks in the agent send this stream — where hooks are unavailable, the agent posts the events itself.
+There are five kinds of activity: `thought` (reasoning), `action` (a tool ran), `elicitation` (asking a person), `response` (an answer), and `error`. The agent's hooks send the activity. Where hooks are unavailable, the agent posts the events itself.
 
-Two things make it readable.
+Two things make the log easier to read.
 
-- **Runs of the same tool collapse** (`×12`). A different tool in between means a different phase, so those are not merged.
-- **Failures never collapse.** Hidden inside a group, the marker made to stand out loses its point.
+- **Consecutive runs of the same tool are collapsed into one** (`×12`). If a different tool runs in between, it counts as a separate phase and is not merged.
+- **Failures are never collapsed.** Each one stays visible on its own. Inside a group, the marker meant to flag a failure would be useless.
 
-The list arrives most recent first, one page at a time. When there is more before it, **[Load earlier activity]** sits at the top of the list, and pressing it **prepends** the older entries. Keep pressing and you can walk a long session all the way back to its start.
+Activity loads newest first, one page at a time. If there is earlier activity, **[Load earlier activity]** appears at the top of the list. Clicking it **adds** the older entries above. Keep clicking to go all the way back to the start of a long session.
 
-Expanding a line shows the **raw payload** (tool input and response). Raw payloads are visible **only to the session's owner and to admins** — secrets are masked at ingest, but masking is never perfect, so the audience is narrowed too.
+Expand a row to see the **raw payload** (tool input and response). Only **the session's owner and admins** can see raw payloads. Secrets are masked when they are stored, but masking is never perfect, so access is restricted as well.
 
-Everyone else sees the title, the outcome, the tool name and the **body**. The raw payload is the only thing withheld — which means the instructions and stop reasons below are **visible to every project member.**
+Other members see the title, whether it succeeded, the tool name and the **body**. Only the raw payload is hidden. This means **the instructions and stop reasons described below are visible to every project member.**
 
-The **summary strip** at the top is both a count and a filter — press a number and only sessions in that state remain. **Six states hold their place**: a state with nothing in it still shows, dimmed, as `0`, and a `0` cannot be pressed because there is nothing to show (in a project with no sessions at all, a single line says so instead of six zeros). Drawing only what exists would leave you unable to tell "no errors" from "no such state", and the columns would move around from one visit to the next.
+The **summary strip** at the top shows counts and also works as a filter. Click a number to show only the sessions in that state. **All six states are always shown.** A state with no sessions shows a dimmed `0` (in a project with no sessions at all, a single "No sessions" line appears instead of six zeros). A `0` cannot be clicked, because there are no sessions to filter. If only states with sessions were shown, you could not tell whether there are zero errors or whether the error state does not exist. The positions would also shift from visit to visit, so you would have to look for the one you want each time.
 
 ## Instructions and stopping
 
-Under **Intervene** on the card are two buttons — [Send instruction] and [Stop]. **Both are for the session's owner and for admins only.** On someone else's session they are **disabled from the start**, with the reason spelled out beside them — so you never write out a stop reason and only then get refused. An agent token cannot do either — this is a person's move.
+The **Intervene** section on the card has two buttons: [Send instruction] and [Stop]. **Only the session's owner and admins can use them.** On someone else's session, the buttons are **disabled from the start**, and the reason is shown next to them. That way, you never write out a stop reason only to be refused. An agent token cannot do either. Only a person can.
 
-**Send instruction** tells a running agent to change direction. It does not interrupt immediately — it rides along on the agent's next **heartbeat**. The same instruction is never delivered twice.
+**Send instruction** asks a running agent to change direction. The instruction does not interrupt the agent right away. It is delivered with the agent's next **heartbeat** to the server. The same instruction is never delivered twice.
 
-**There is one condition on delivery.** Only a session **holding a task** sends heartbeats. So a session with no claim — writing specs, already finished with its task, or `stale` — **never receives the instruction.** The screen opens the input box for those sessions anyway, so if nothing happens after you send, first check whether that session is holding a task.
+**Delivery has one condition.** Only a session **with a claimed task** sends heartbeats. So a session without a claim **does not receive instructions**. This includes a session that is only writing specs, one that has already released its task, and a `stale` session. The input box is still available on these sessions. If nothing happens after you send an instruction, first check whether the session has a claimed task.
 
-The heartbeat interval is not a timer either. The agent approximates it at tool calls and work boundaries, so while one long piece of work runs it arrives later than that. **"Within a minute" is the best case, not the worst.**
+Heartbeats do not arrive on a precise timer. The agent checks whether the interval has passed when it calls a tool or moves to the next unit of work, and sends a heartbeat then. So while one long piece of work is running, the heartbeat arrives later. **"Within a minute" is the best case, not the worst case.**
 
-**Stop** does not deliver an instruction — it **reclaims the work now**. The most common reason to press it is that the session is already dead and cannot heartbeat, and waiting for delivery in that case would do nothing at all.
+**Stop** does not deliver an instruction. It **reclaims the claim immediately**. The most common reason to click it is that the session has already died and cannot send heartbeats. In that case, waiting for an instruction to be delivered would do nothing.
 
-Stopping is not one press: a confirmation appears and **a reason is required**. Leave it empty and the button stays disabled. The reason field is **separate from the instruction field**, so an instruction you were typing does not become the reason, and cancelling leaves the instruction as it was. Esc closes it. Give a reason, confirm, and the claim is released — the task returns to `ready`.
+Stopping takes more than one click. A confirmation dialog opens, and **a reason is required**. While the reason is empty, the confirm button stays disabled. The reason field is **separate from the instruction field**. An instruction you were typing does not become the reason, and if you cancel, the instruction field keeps what you wrote. Press Esc to close the dialog. Enter a reason and confirm, and the claim is released. The task returns to `ready`.
 
 ## Questions
 
-An agent raises a question wherever it cannot decide. There are two urgencies.
+An agent raises a question when it cannot decide on its own. There are two urgency levels.
 
-- `blocking` — it will not proceed until answered. The session goes to `awaiting_input`.
-- `normal` — it keeps going while it waits.
+- `blocking` — the agent does not continue until it gets an answer. The session goes to `awaiting_input`.
+- `normal` — the agent keeps working while it waits for an answer.
 
-**Review requests (T2/T3) and `critical` downgrades park a session the same way.** Decide in the inbox and that session picks the result up on its next heartbeat and carries on — unless something else is still pending for it (an unanswered question, another undecided request), in which case it keeps waiting.
+**A session that submits a review request (T2/T3) or a `critical` downgrade request also stops and waits for a decision.** When you decide in the inbox, the session receives the result on its next heartbeat and continues. If it still has other pending items (an unanswered question, or another request without a decision), it keeps waiting.
 
-Questions arrive **as cards in the inbox** (see [Inbox and notifications](/help/inbox)). Write an answer and that session picks up where it left off.
+Questions arrive **as cards in the inbox** (see [Inbox and notifications](/help/inbox)). Once you answer, the session picks up where it left off.

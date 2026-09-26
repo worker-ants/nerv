@@ -1,63 +1,63 @@
-Connect an agent and Claude Code or Codex will read your specs, claim tasks, and report live on what it is doing. Five things get connected: **MCP tools, hooks, skills, the statusline and a subagent**.
+Once you connect an agent, Claude Code or Codex can read your specs, claim tasks, and report what it is doing in real time. The connection has five parts: **MCP tools, hooks, skills, the statusline, and a subagent**.
 
-This chapter explains **how the pieces fit together**. The procedure for actually connecting one is in [Installing the plugin](/help/install).
+This chapter explains **how these parts work together**. For the steps to connect an agent, see [Installing the plugin](/help/install).
 
 ## What gets connected
 
-- **MCP tools** — the channel an agent reads and writes NERV through. The server is named `nerv` and the tools are `nerv_*`.
-- **Hooks** — they stream what the agent is doing onto the sessions screen. Where hooks are unavailable the agent posts the events itself.
-- **Skills** — procedures you invoke, like `/nerv:next`. They carry "what to do in what order".
-- **The statusline** — puts your current claim, remaining lease and declared-scope overlaps on the prompt line.
-- **A subagent** — `nerv-spec-writer`, a narrow agent whose only job is drafting specs.
+- **MCP tools** — agents use these to read from and write to NERV. The server is named `nerv`, and the tools are named `nerv_*`.
+- **Hooks** — report what the agent is doing to the Sessions screen. Where hooks aren't available, the agent sends these events itself.
+- **Skills** — procedures you invoke, such as `/nerv:next`. Each one defines what to do and in what order.
+- **The statusline** — shows your current claim, the time left on its lease, and declared-scope overlaps on the prompt line.
+- **A subagent** — `nerv-spec-writer`, a dedicated agent that only drafts specs.
 
-Permissions come from the **token, not the skill.** A skill is convenience and resolution; it cannot get around a server gate.
+**The token, not the skill, decides what an agent is allowed to do.** A skill makes a procedure easier to follow and spells out the details, but it cannot bypass a server gate.
 
 ## Tokens and scopes
 
-What an agent may do is decided by **the token** (issuing one is step 1 of [Installing the plugin](/help/install)).
+What an agent can do depends on **its token**. Issuing one is step 1 of [Installing the plugin](/help/install).
 
-- The token value is shown **once, right after issuing**. Copy it there and then.
-- The **My tokens** list under Settings → Tokens shows your tokens from **every organization** together. If you are in more than one organization, the project column says which one it belongs to, as "organization / project".
-- Scopes are written `resource:action`, and there are **ten**: `spec:read` · `spec:draft` · `spec:meta` · `spec:evidence` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
-- **`spec:evidence` exists for CI.** It can only attach PR and test evidence to a requirement — a build pipeline's token needs nothing else. It cannot touch drafts or tasks.
-- **Project settings, archive and restore cannot be done with a token**, not even with the admin role. Lowering a gate policy carries the same weight as bypassing a gate, so a person does it on the web.
-- **`spec:approve` and `approval:decide` cannot be granted to a token.** They are **visible but locked** on the issuing screen. Dropping them from the list would leave the question "why can't a token approve?" unanswered anywhere on screen; something visible and unpickable teaches the rule. Approval is something a person does.
-- **Answering a question, bypassing a gate and reading the inbox cannot be done with a token either**, not even with the admin role. An agent answering its own question is the same as having no human gate at all. A person answers, in the inbox on the web.
-- A token can never be broader than the role. The role at issue time is the ceiling.
-- The list records last use and last host. If you see a host you do not recognise, revoke it right there.
+- The token value is shown **only once, right after it is issued**. Copy it right away.
+- The **My tokens** list under Settings → Agent tokens shows your tokens from **all organizations**. If you belong to more than one organization, the Project column shows "organization / project", so you can tell which organization each token belongs to.
+- Scopes are written as `resource:action`. There are **ten**: `spec:read` · `spec:draft` · `spec:meta` · `spec:evidence` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
+- **`spec:evidence` is for CI.** It can only attach PR and test evidence to requirements. It cannot touch drafts or tasks. A token for a build pipeline needs only this scope.
+- **A token cannot change a project's settings, archive it, or restore it.** This applies even with the admin role. Lowering a gate policy is as serious as bypassing a gate, so a person does it directly on the web.
+- **`spec:approve` and `approval:decide` cannot be granted to a token.** On the token issuing screen, both are **visible but locked**. If they were removed from the list, nothing on the screen would explain why a token can't approve. Showing them without letting you select them makes the rule clear at a glance. Approval is always done by a person.
+- **A token also cannot answer questions, bypass a gate, or read the inbox.** The admin role is no exception. If an agent could answer its own questions, there would be no human gate at all. A person answers questions in the Inbox on the web.
+- A token can never have broader scopes than your role allows. Your role at the time the token is issued sets the upper limit.
+- The list records when each token was last used and from which host. If you see a host you don't recognize, revoke that token right away.
 
 ## Skills
 
-| Skill            | What it does                                    |
-| ---------------- | ----------------------------------------------- |
-| `/nerv:next`     | Recommend and claim the next task               |
-| `/nerv:spec`     | Write a spec draft or change request            |
-| `/nerv:impl`     | The implementation procedure for a claimed task |
-| `/nerv:question` | Raise a question and wait for the answer        |
-| `/nerv:review`   | Submit reviews and dispose of findings          |
+| Skill            | What it does                                           |
+| ---------------- | ------------------------------------------------------ |
+| `/nerv:next`     | Recommend and claim the next task                      |
+| `/nerv:spec`     | Write a spec draft or a change request                 |
+| `/nerv:impl`     | Follow the implementation procedure for a claimed task |
+| `/nerv:question` | Ask a question and wait for the answer                 |
+| `/nerv:review`   | Submit reviews and resolve findings                    |
 
 ## Tool tiers
 
-Every tool carries a risk tier.
+Every tool has a risk tier.
 
-- **A1** — reads. Called without approval.
-- **A2** — writes, within a reversible range.
-- **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`) and lowering a `critical` live here. A3 tools appear on no skill's pre-approved list. **The decision comes back on the requesting session's next heartbeat** — approve, reject or comment alike, so that session knows what to do next.
+- **A1** — reads. The agent calls these without approval.
+- **A2** — writes. Only reversible changes belong in this tier.
+- **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`) and downgrading a `critical` finding are in this tier. No skill lists an A3 tool among the tools it may call without approval. **The decision is delivered to the requesting session on its next heartbeat.** This applies to approvals, rejections, and comments alike, so the session knows what to do next.
 
 ## Importing documents
 
-Use the CLI to bring an existing repository's documents in as specs and tasks.
+Use the CLI to import an existing repository's documents as specs and tasks.
 
 ```
 nerv import <spec|plan|review|docs|rebuild-map> --root <path> --project <slug> [--apply]
 ```
 
-There are five modes — `spec`, `plan`, `review` and `docs` move things in; `rebuild-map` rebuilds the mapping table for what has already moved.
+There are five modes. `spec`, `plan`, `review`, and `docs` import documents, and `rebuild-map` rebuilds the mapping table for items that were already imported.
 
-**Always name a profile.** With neither `--profile` nor `--profile-file`, the CLI quietly falls back to a default one — reading your documents by another repository's rules, so the result goes wrong quietly.
+**Always specify a profile.** If you omit both `--profile` and `--profile-file`, the CLI silently uses a default profile. Your documents are then read by another repository's rules, and it is hard to notice when the results are wrong.
 
-To use `--apply` you need a server and a token (`--server` and `--token`, or `NERV_SERVER` and `NERV_TOKEN`). Without them it is refused.
+To use `--apply`, you must specify a server and a token (`--server` and `--token`, or `NERV_SERVER` and `NERV_TOKEN`). Without them, the command is refused.
 
-Without `--apply` this is a **dry run**: it writes nothing and produces a report. The report states how many items were read, how many converted, and **what was skipped and why**, line by line. A person reads that report and then adds `--apply`.
+Without `--apply`, the command runs as a **dry run**: it writes nothing and only prints a report. The report lists how many items were read and how many were converted, and it shows **what was skipped and why**, line by line. Check the report first, then run the command again with `--apply`.
 
-Re-running the same command is safe — what is already in is not created again, and only links that were empty get filled.
+Running the same command again is safe. Items that were already imported are not created again, and only empty links are filled in.

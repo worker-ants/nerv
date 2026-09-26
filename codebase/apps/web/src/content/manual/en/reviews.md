@@ -1,76 +1,76 @@
-The review center collects the **findings** raised against code and specs. A review is what a machine noticed before a person read it; what to fix is a person's call.
+The review center is where you see the **findings** about your code and specs in one place. A review is the result of an agent checking the work before a person reads it. A person decides what to fix.
 
 ## Review sessions and findings
 
-One review run is one **review session**, and findings live inside it. There are four kinds of review.
+Each review run is one **review session**, and its findings belong to that session. There are four kinds of review.
 
-| Kind            | What it looks at                                   |
+| Kind            | What it checks                                     |
 | --------------- | -------------------------------------------------- |
 | `code`          | The code change itself                             |
 | `consistency`   | Whether documents and code contradict each other   |
 | `spec_coverage` | Whether what the spec asked for was actually built |
-| `merge`         | The last check before merging                      |
+| `merge`         | The final check before merging                     |
 
-These four are set when a review is **filed**, and they never appear on screen — they are not an axis the queue filters on.
+The kind is set when a review is **submitted**. It doesn't appear on screen, and you can't filter the queue by it.
 
-A session goes `running` → `complete`. The input it looked at — branch and commit — is attached to the session.
+A session moves from `running` to `complete`. It also records which input it reviewed (branch and commit).
 
-**File the same change twice under the same kind and there is still one session** — no new one is made; another report joins it. What separates them is the report (the reviewer), not the session, and a round goes up when the branch moves and the change itself differs. So **the same point stays one finding across rounds**, and the card says how many times it was observed and in which recent round.
+**If the same change is submitted twice under the same kind, there is still only one session.** No new session is created; another report is added to the existing one. A different reviewer also adds a report, not a session. The round number goes up when new commits on the branch change the diff. As a result, **the same issue stays a single finding across rounds.** The card shows how many times it was seen and the most recent round, in the form "seen N× · latest round M".
 
 ## Severity and resolution
 
-Findings carry one of three severities: `critical` · `warning` · `info`. `open` is the **state** nobody has touched yet; the **resolutions** are four.
+A finding has one of three severities: `critical`, `warning` or `info`. `open` is the **state** of a finding that nobody has acted on yet. There are four **resolutions**:
 
-- **Fixed** (`fixed`) — the code was changed. Record the commit hash with it.
-- **Spec fix** (`spec_change`) — the **document** was wrong, not the code. Pick which spec version resolved it (no need to memorise version numbers — choose from the list).
-- **Dismissed** (`dismissed`) — the finding was wrong, or is not a problem in this context.
-- **Won't fix** (`wont_fix`) — a real problem, but not one being fixed now. Leave the reason and it leaves the queue — **if it should be fixed later, promote it to a task instead** (below).
+- **Fixed** (`fixed`) — The code was changed. Record the commit hash with it.
+- **Spec fix** (`spec_change`) — The code was right and the **document** was wrong. Pick from the list which version of which spec resolved it. You don't need to remember version numbers.
+- **Dismissed** (`dismissed`) — The finding is wrong, or it isn't a problem in this context.
+- **Won't fix** (`wont_fix`) — The problem is real, but it won't be fixed now. Record a reason, and the finding is removed from the queue. **If it should be fixed later, add it as a task instead** (see below).
 
-`spec_change` exists for honesty. Recording a documentation fix as `fixed` claims the code was changed; recording it as `dismissed` claims it was a false positive. Neither is true. When someone later asks "what resolved these findings", this distinction is the answer.
+`spec_change` exists to keep the record honest. Resolving a documentation fix as `fixed` would mean the code was changed. Resolving it as `dismissed` would mean the finding was a false positive. Neither is true. When you later need to know how these findings were resolved, this distinction gives you the answer.
 
-**Findings take comments.** They live on the **finding rail** on the right, not on the card — pick a finding in the queue and it opens. **On a narrow screen it opens under that card instead of on a rail** — the place changes, what you see does not. Beside the comments the rail carries the category, the symbol, the full path, review times and the **reason for the resolution**, and the button that **promotes a finding to a task** is there too: what cannot be fixed now moves to the backlog. Once promoted, that button becomes **a link to the task it created**, and the toast carries [Open] as well. Promoting a finding again does not create another task; it tells you **which task** it already is. Cards in the queue also name the task a finding **came from** (Task {key}) and the task it **was promoted to** (→ {key}); both take you to that task.
+**You can comment on findings.** Comments are on the **finding rail** on the right, not on the card. Select a finding in the queue to open the rail. **On a narrow screen, it opens below that card instead.** Only the position changes; the content is the same. Along with the comments, the rail shows the category, symbol, full path, review time and the **rationale for the resolution**. The **[Add as task]** button is on the rail too. Use it to move a finding you can't fix now into the backlog. Once the finding is added, the button is replaced by **a link to the new task**, and the toast also has an [Open] button. If you try to add the same finding again, no new task is created. Instead, you see **which task** it was already added as. Queue cards also show the task a finding **came from** (Task {key}) and the task it **was added as** (→ {key}). Click either one to go to that task.
 
-**Resolve where you read.** The four resolutions sit at the top of the rail; pressing one opens the form for the reason **inside the rail** and puts the cursor in the reason box. Pressing a resolution on a queue card opens the rail on that finding with the form there too — so you write it looking at the full text and the comments. Hover over a button to see what that resolution asks for (a commit hash · the corrected spec · a reason).
+**Resolve a finding where you read it.** The four resolution buttons are at the top of the rail. Clicking one opens the rationale form **inside the rail** and moves the cursor to the rationale field. Clicking a resolution button on a queue card also opens the rail on that finding, with the form in the rail. That way you can write the rationale while reading the full text and the comments. Hover over a button to see what that resolution requires (a commit hash, the corrected spec or a rationale).
 
-**You can pick with the keyboard too.** A card's title is a button — `Tab` to it and press `Enter` — and outside a text box `j`/`k` move through the queue one card at a time. Rows on the sessions screen have the name as a button as well.
+**You can also select findings with the keyboard.** A card's title is a button: press `Tab` to reach it and `Enter` to select it. Outside a text field, `j` and `k` move through the queue one card at a time. On the sessions screen, each row's name is also a button.
 
-Resolutions and comments alike are made by roles holding `review:resolve` — admin, planner and qa. **Saying something and closing it take the same permission.** **Promoting to a task is a different permission** (`task:update`) — developers can do it too. A button you lack the permission for says why when you hover it or reach it with `Tab`.
+Only roles with the `review:resolve` scope (admin, planner and qa) can resolve findings or comment on them. **Commenting on a finding and closing it take the same scope.** **Adding a finding as a task takes a different scope** (`task:update`), so developers can do it too. If you lack the scope for a button, hover over it or reach it with `Tab` to see why it's unavailable.
 
-**Lowering a `critical` is a person's decision.** When an agent tries to move a `critical` finding to `dismissed` or `wont_fix`, it is not applied on the spot — an **approval card** is created instead. There is deliberately no quiet path for making a severe problem disappear.
+**Only a person can dismiss a `critical` finding or mark it won't fix.** When an agent tries to resolve a `critical` finding as `dismissed` or `wont_fix`, the change isn't applied right away. An **approval card** is created instead. This way, a serious problem can't be removed without anyone noticing.
 
 ## What needs fixing
 
-Severity says how urgent a finding is; **area** says what needs fixing. There are four.
+Severity shows how urgent a finding is. **Area** shows what needs fixing. There are four areas.
 
-- `Codebase` — the implementation is wrong. Fix the code and its tests.
-- `Spec` — the specification is wrong, or has drifted from the implementation. Fix the document; these usually close as `spec_change`.
-- `Task` — the task definition, its declared scope or its delegation brief is the problem. Fix the task.
-- `Process` — a convention, gate or tool: the way of working itself.
+- `Code` — The implementation is wrong. Fix the code and its tests.
+- `Spec` — The spec is wrong or has drifted from the implementation. Fix the document. These findings usually close as `spec_change`.
+- `Task` — The problem is in the task definition, its declared scope or its delegation brief. Fix the task itself.
+- `Process` — The problem is in the way of working, such as a convention, a gate or a tool.
 
-When an agent does not send this value, **the server infers it from what the finding points at**, and the card then says `inferred`. Where you see that mark, read the finding before trusting the classification — the mark exists so a guess never reads as a fact.
+When an agent doesn't send this value, **the server infers the area from what the finding points to** and marks the card `inferred`. When you see that mark, read the finding before you trust its area. The mark is there so that a guess never looks like a fact.
 
 ## Filters
 
-Narrow the list with the filters in the **left column** — **severity, area, status**, plus **tag** when tagged findings exist. The number beside each value tells you in advance how many match (on a narrow screen the filters move above the list).
+Narrow the queue with the filters in the **left column**: **Severity**, **Area** and **Status**, plus **Tags** when some findings are tagged. The number next to each value shows how many findings match under the current filters. On a narrow screen, the filters move above the list.
 
-**The default shows only `open`.** That is why a finding you have disposed of is not there; change the status filter to see it. Open a single finding by link from elsewhere and, if it falls outside the default, the screen **drops the status filter once by itself** — so following a link never lands you on an empty page.
+**By default, only `Open` findings are shown.** That's why findings you've resolved don't appear. To see them, change the status filter. If you open a finding from a link on another screen and it doesn't match the default filter, **the status filter is cleared automatically, once**. That way, following a link never lands you on an empty screen.
 
-**The filters you set and the finding you picked stay in the address.** Hand over the address narrowed to "open critical findings about the spec" and the other person sees the same queue; reloading or going back does not drop them. Changing a filter clears the picked finding. To pass on a single finding, use **[Copy link]** at the top of the rail — no need to copy the short id by hand.
+**The filters you apply and the finding you select are kept in the URL.** For example, if you share a URL narrowed to area `Spec`, severity `critical` and status `Open`, the recipient sees the same queue. Reloading the page or going back keeps the filters. Changing a filter clears the selected finding. To share a single finding, use **[Copy link]** at the top of the rail. You don't need to copy the short id by hand.
 
-**You can also arrive by branch.** Pressing the branch on a task's review row or in the gate table opens the review center filtered to **that branch's findings only**, with "Showing findings from branch … only." above the list next to **[Clear the branch filter]**. The counts beside the filters are counted within that branch too. The branch is the one from the round in which a finding was **last observed**.
+**You can also arrive from a branch link.** Click a branch in the review row of a task's detail page, or in the gate table, and the review center opens with **only that branch's findings**. Above the list, "Showing findings from branch … only." appears with a **[Clear the branch filter]** button. The counts next to the filters also cover that branch only. A finding belongs to the branch of the round in which it was **last observed**.
 
-**The status filter has no `spec_change` value.** A finding closed by fixing the spec is stored as `fixed`; what it was resolved with is written on the rail.
+When the list reaches its limit and is cut short, you see **M of N**. When there are no results, an empty-state message appears in place of that line.
 
-When the list hits its ceiling and is cut short, the screen states **M of N**. On a result of zero that line gives way to the empty-state message instead.
+**The status filter has no `spec_change` value.** A finding closed by fixing the spec is listed under `Fixed`, and the rail shows what resolved it.
 
 ## Gate coverage
 
-A gate is the rule that decides whether a change may go out. **One row is one branch**, carrying the reviews that covered it, the resolved ratio and the verdict — a rule that checks nothing is only stamping things as passed. The last 20 branches are shown. Press a branch name to go to that branch's findings.
+A gate is the rule that decides whether a change can ship. In the table, **each row is one branch** and shows the reviews that covered it, the share of findings resolved and the verdict. If no review actually checked the branch, the gate is only stamping it as passed, whatever its rules say. The table shows up to the 20 most recent branches. Click a branch name to go to that branch's findings.
 
-**The table reports the verdict; it does not block yet.** Enforcement belongs to a later stage, so a red verdict stops nothing today — the screen says as much above the table.
+**The table shows the verdict, but it doesn't block merges yet.** Blocking comes in a later stage, so a red verdict doesn't stop anything today. This is also noted above the table.
 
-For a branch that was bypassed, **who bypassed it, when and why** unfolds beneath its row. That a bypass never happens quietly is itself the job of this table.
+For a waived branch (a gate bypass), **who waived it, when and why** appears under its row. Making sure a bypass never goes unnoticed is part of this table's job too.
 
 ## The sidebar badge
 
-The number on the review item of the expanded project in the left column is the count of **open `critical`** findings. A number you only learn by opening a screen is a number nobody knows before opening it.
+In the left sidebar, the number next to **Review** under the expanded project is the count of **open `critical`** findings. If you could see this number only by opening the review center, nobody would know it until they opened it. That's why it's shown in the sidebar.
