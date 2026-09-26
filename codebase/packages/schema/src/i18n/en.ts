@@ -558,6 +558,13 @@ export const en = {
   'spec.requirements.counts': '{tasks} tasks · {evidence} evidence',
   'spec.requirements.ears_help': 'EARS pattern guide',
   'spec.requirements.derive_task': 'Create a task from this requirement',
+  'spec.requirements.reverify': 'Needs re-verification',
+  'spec.requirements.reverify_hint':
+    'The statement changed, so the earlier verification no longer covers it',
+  'spec.requirements.reaffirm': 'Confirm no impact',
+  'spec.requirements.reaffirm_confirm':
+    'You sign that the earlier test ({locator}) still holds for the changed statement. The signature is recorded.',
+  'spec.requirements.reaffirmed': 'Signed {ref} again',
   'spec.requirements.derive_disabled': 'Not an approved version — cannot derive',
   'spec.requirements.empty': 'The approved version of this document has no requirement lines.',
   'spec.requirements.empty_draft':
@@ -1333,6 +1340,7 @@ export const en = {
   'project.coverage.alt':
     '{verified} verified and {implemented} implemented of {total} requirements',
   'project.metric.empty_promises': 'Empty promises',
+  'project.metric.reverify_required': 'Needs re-verification',
   'project.metric.evidence_missing': 'Missing evidence',
   'project.metric.implemented': 'Implemented',
   'project.metric.total': 'Requirements',

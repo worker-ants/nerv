@@ -52,6 +52,7 @@ function ProjectOverview(): React.JSX.Element {
   const verified = Number(totals['verified'] ?? 0);
   const missing = Number(totals['evidence_missing'] ?? 0);
   const empty = Number(totals['empty_promises'] ?? 0);
+  const reverify = Number(totals['reverify_required'] ?? 0);
 
   return (
     <PageBody wide>
@@ -107,6 +108,12 @@ function ProjectOverview(): React.JSX.Element {
               label={t('project.metric.empty_promises')}
               value={empty}
               tone={empty > 0 ? 'danger' : undefined}
+            />
+            {/* 문장이 바뀌어 검증이 풀린 것 — 검증률에서 빠진 까닭을 여기서 말한다(REQ-WEB-241) */}
+            <Metric
+              label={t('project.metric.reverify_required')}
+              value={reverify}
+              tone={reverify > 0 ? 'waiting' : undefined}
             />
           </dl>
         </Card>

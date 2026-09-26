@@ -190,17 +190,18 @@ Requirements in a spec body are extracted and carry their own implementation sta
 
 The agent takes the number from the server, so nobody counts them by hand. **Requirement rows are created from these lines when the document is approved** — which is why the Requirements tab of a draft that was never approved is empty. Lines that break the format show up as warnings in the pre-review.
 
-**Progress** on the project screen counts these statuses. Of its five numbers, the last two are the point of the screen.
+**Progress** on the project screen counts these statuses. Of its six numbers, the last three are the point of the screen.
 
-| Number               | What it counts                                            |
-| -------------------- | --------------------------------------------------------- |
-| Requirements         | Every live requirement                                    |
-| Implemented          | `implemented` or `verified`                               |
-| Verified             | `verified`                                                |
-| **Missing evidence** | Called `implemented` with **no evidence attached at all** |
-| **Empty promises**   | Still unimplemented with **no task taking it on**         |
+| Number                    | What it counts                                                                   |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| Requirements              | Every live requirement                                                           |
+| Implemented               | `implemented` or `verified`                                                      |
+| Verified                  | `verified`                                                                       |
+| **Missing evidence**      | Called `implemented` with **no evidence attached at all**                        |
+| **Empty promises**        | Still unimplemented with **no task taking it on**                                |
+| **Needs re-verification** | The verified statement changed, so **the earlier signature no longer covers it** |
 
-**Missing evidence** is "you said it was done and there is nothing to show"; **empty promises** is "you wrote it down and nobody took it". You bring the first down by attaching evidence, the second by making a task and linking it to the requirement (see [Tasks](/help/tasks)).
+**Missing evidence** is "you said it was done and there is nothing to show"; **empty promises** is "you wrote it down and nobody took it". You bring the first down by attaching evidence, the second by making a task and linking it to the requirement (see [Tasks](/help/tasks)). **Needs re-verification** is explained below.
 
 **Which requirement it is, you read on the document.** The project screen's numbers only say how many. The **Requirements** tab on the right of a spec lists that document's requirements one per line, each with its derived-task and evidence counts — and a line where both are zero stands out in **red**. Below it, **Derived tasks** shows the work that came out of this document and is still moving (`ready`, `in_progress`, `blocked`); [See all on the board] opens the task board with the same filter applied.
 
@@ -220,6 +221,10 @@ Priority starts at `must`, because the EARS line in the body does not carry one.
 **All done with no evidence stays `in_progress`** — to say it is finished, attach something to show. **Verifying means QA or an admin leaving a test record**: nobody raises the status by hand; when that signature exists the server marks the requirement `verified`. Once verified, it does not drop when a finding opens. A test record attached by an agent is not a signature.
 
 **Status can also go back.** When a task is released and nothing is started any more, it returns to `unimplemented`; when a new task starts on an implemented requirement, it returns to `in_progress` — both because that is where the work now stands. Evidence whose target has disappeared does not count. Values that came in through the importer stay as they are until a task is linked to that requirement.
+
+**When the statement changes, the verification is released.** A verification signature is for the statement as it was. When a new version changes a requirement's statement, the earlier signature does not cover the new one, so `verified` goes back to `implemented` and the Requirements tab shows **Needs re-verification**. A change of whitespace or formatting alone (bold and the like) does not count.
+
+A person clears the mark. QA or an admin signs a new test record, or — if the earlier test still holds for the changed statement — presses **[Confirm no impact]** to sign that same test again. It asks once what you are signing, and the signature is recorded. A test attached by an agent is not a signature and cannot clear the mark.
 
 The document header also carries a **references updated** badge: it lights when a document this one points at has moved ahead of the version you are reading, and it names which one. It is the server's judgement, not the screen's guess.
 

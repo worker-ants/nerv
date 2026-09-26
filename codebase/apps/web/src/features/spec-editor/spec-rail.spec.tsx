@@ -6,7 +6,7 @@
 
 import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createMemoryHistory,
@@ -114,6 +114,79 @@ describe('요구사항 패널', () => {
         .closest('a')
         ?.getAttribute('href'),
     ).toBe('/help/specs');
+  });
+});
+
+describe('다시 검증 필요 (REQ-WEB-241 · 2026-09-26 사람 결정)', () => {
+  // 검증 서명은 그 문장에 대한 것이다 — 새 버전이 문장을 바꾸면 검증이 풀리고 이 표시가 선다.
+  // 해제는 사람만: qa·admin 이 같은 테스트에 다시 서명(영향 없음 확인)하거나 새 테스트에 서명한다
+  const REVERIFY = {
+    id: 'r-9',
+    ref: 'REQ-PAY-004',
+    statement_md: 'WHEN 결제가 실패하면 THE SYSTEM SHALL 5회까지 다시 시도한다',
+    priority: 'must',
+    impl_status: 'implemented',
+    task_count: 1,
+    evidence_count: 2,
+    reverify_required: true,
+    reverify_locator: 'e2e/payment-retry.spec.ts',
+  };
+  const posted: { url: string; body: unknown }[] = [];
+
+  function stubRoutes(roles: string[]): void {
+    posted.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo, init?: RequestInit) => {
+        const url = String(input);
+        if (init?.method === 'POST') {
+          posted.push({ url, body: JSON.parse(String(init.body ?? '{}')) });
+          return Promise.resolve(
+            new Response(JSON.stringify({ verified: true }), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        }
+        const json = url.includes('/requirements')
+          ? [REVERIFY]
+          : url.includes('/me')
+            ? {
+                id: 'u-1',
+                display_name: '규아',
+                memberships: [{ org_slug: 'nerv', project_slug: 'clemvion', roles }],
+              }
+            : { items: [], memberships: [] };
+        return Promise.resolve(
+          new Response(JSON.stringify(json), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }),
+    );
+  }
+
+  it('표시와 까닭을 보이고, qa 는 영향 없음 확인으로 같은 테스트에 다시 서명한다', async () => {
+    stubRoutes(['qa']);
+    await withProviders(<RequirementPanel projectSlug="clemvion" specKey="SPC-PAY-001" />);
+    const line = await screen.findByTestId('reverify-required');
+    expect(line.textContent).toContain('다시 검증 필요');
+    expect(line.textContent).toContain('문장이 바뀌어');
+    fireEvent.click(await screen.findByTestId('reaffirm'));
+    // 되돌릴 수 없는 서명이라 한 번 묻는다 — 무엇에 서명하는지(앞선 테스트)를 말한다
+    expect(document.body.textContent).toContain('e2e/payment-retry.spec.ts');
+    fireEvent.click(screen.getByRole('button', { name: '영향 없음 확인' }));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]?.url).toContain('/projects/clemvion/requirements/REQ-PAY-004/evidence');
+    expect(posted[0]?.body).toEqual({ kind: 'test', locator: 'e2e/payment-retry.spec.ts' });
+  });
+
+  it('서명할 수 없는 역할에는 단추가 없다 — 표시만 선다(에이전트·developer 의 테스트는 서명이 아니다)', async () => {
+    stubRoutes(['developer']);
+    await withProviders(<RequirementPanel projectSlug="clemvion" specKey="SPC-PAY-001" />);
+    await screen.findByTestId('reverify-required');
+    expect(screen.queryByTestId('reaffirm')).toBeNull();
   });
 });
 

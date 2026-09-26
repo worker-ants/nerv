@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.52 · 2026-09-25 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.53 · 2026-09-26 · HTML 파생본: [database.html](../html/database.html)
 >
+> v0.53 변경(2026-09-26 — 검증 서명은 그 문장에 대한 것이다, **사람 결정** · 구현 축 상태도 검토): **§2 `requirement.statement_changed_at`(`0033`).** 승인이 요구사항 문장을 바꾼 시각 — 그보다 앞선 서명은 지금 문장을 보증하지 않는다([4.4](api.md) REQ-API-190).
+
 > v0.52 변경(2026-09-25 — 비밀번호 재설정 메일, **사람 결정 D10**): **새 요구사항 없음 · 스키마 변경 없음 · §2.16 주석 한 줄 · §2.17 두 문장.** 아웃박스의 셋째 종류 `reset_password` 가 처음 쓰인다([4.4](api.md) REQ-API-187) — 처음부터 세 값으로 만들어 둔 까닭이 여기서 돈다. 곁들여 낡은 서술 둘을 고친다: `auth_verification` 주석이 "메일 발송은 Phase 2" 라 적고 있었고(2026-09-22 부터 보낸다), §2.17 이 "지금 쓰는 것은 `invite` 하나다" 라 적고 있었다(가입 확인도 같은 날부터 쓴다). 로케일 규칙에 한 갈래를 더한다 — 가입 확인·재설정은 **요청한 화면의 언어**다.
 
 > v0.51 변경(2026-09-24 — 초대를 거절할 수 없었다, **사람 결정**): **새 요구사항 없음 · §2.2 `invitation.declined_at` · §2.12 부분 unique 조건 · 마이그레이션 0032.** 초대받은 사람이 거절한 시각이다([4.4](api.md) REQ-API-178). 회수(`revoked_at`)와 가르는 이유는 **누가 끝냈는가**가 달라서다 — 한 열에 담으면 admin 은 자기가 거둔 적 없는 초대가 "회수됨" 인 것을 본다. 대기 중 초대의 부분 unique 에도 넣는다: 거절한 초대가 자리를 차지하면 마음을 바꾼 사람을 다시 부를 수 없다.
@@ -368,7 +370,8 @@ CREATE TABLE requirement (                   -- 구현 추적의 단위(D-03)
   introduced_in_version_id uuid NOT NULL REFERENCES spec_version(id),
   current_version_id       uuid NOT NULL REFERENCES spec_version(id),
   removed_in_version_id    uuid REFERENCES spec_version(id),  -- 묘비. 이력은 지우지 않는다
-  verified_at              timestamptz,
+  verified_at              timestamptz,       -- verified 가 된 시각(풀리면 비운다)
+  statement_changed_at     timestamptz,       -- 승인이 문장을 바꾼 시각(0033) — 앞선 서명은 지금 문장을 보증하지 않는다
   created_at               timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT requirement_ref_uq UNIQUE (project_id, ref)
 );

@@ -554,6 +554,13 @@ export const ko = {
   'spec.requirements.counts': '파생 Task {tasks} · 증적 {evidence}',
   'spec.requirements.ears_help': 'EARS 문형 안내',
   'spec.requirements.derive_task': '이 요구사항으로 작업 만들기',
+  // 문장이 바뀌어 검증이 풀린 요구사항(2026-09-26 · REQ-WEB-241)
+  'spec.requirements.reverify': '다시 검증 필요',
+  'spec.requirements.reverify_hint': '문장이 바뀌어 앞선 검증 서명이 지금 문장을 보증하지 않습니다',
+  'spec.requirements.reaffirm': '영향 없음 확인',
+  'spec.requirements.reaffirm_confirm':
+    '앞선 테스트({locator})가 바뀐 문장에도 맞다고 서명합니다. 서명은 기록으로 남습니다.',
+  'spec.requirements.reaffirmed': '{ref} 에 다시 서명했습니다',
   'spec.requirements.derive_disabled': '승인본이 아니라 파생할 수 없습니다',
   'spec.requirements.empty': '이 문서의 승인본에는 요구사항 줄이 없습니다.',
   'spec.requirements.empty_draft':
@@ -1313,6 +1320,7 @@ export const ko = {
   'project.coverage': '구현 현황',
   'project.coverage.alt': '요구사항 {total}건 중 검증 {verified}건 · 구현 {implemented}건',
   'project.metric.empty_promises': '빈 약속',
+  'project.metric.reverify_required': '다시 검증 필요',
   'project.metric.evidence_missing': '증적 결손',
   'project.metric.implemented': '구현',
   'project.metric.total': '요구사항',

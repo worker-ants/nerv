@@ -165,7 +165,17 @@ export const requirement = pgTable(
       .references(() => specVersion.id),
     /** 묘비 — 이력은 지우지 않는다 */
     removedInVersionId: uuid('removed_in_version_id').references(() => specVersion.id),
+    /** `verified` 가 된 시각 — 검증이 풀리면 비운다(2026-09-26 · REQ-API-190) */
     verifiedAt: ts('verified_at'),
+    /**
+     * **문장이 마지막으로 바뀐 시각**(2026-09-26 사람 결정 · spec-workflow §1.3 · REQ-API-190).
+     *
+     * 검증 서명은 그 문장에 대한 것이다. 새 버전 승인이 요구사항 문장을 바꿔도 `verified` 가
+     * 그대로 남아, 검증 배지가 아무도 확인하지 않은 문장을 보증했다. 서명(`evidence.created_at`)이
+     * 이 시각보다 앞서면 지금 문장을 보증하지 않는다 — 검증이 풀리고 "다시 검증 필요" 가 선다.
+     * NULL 은 들어온 뒤로 문장이 바뀐 적이 없다는 뜻이다. 공백·서식만 바뀐 것은 바뀐 것으로 치지 않는다.
+     */
+    statementChangedAt: ts('statement_changed_at'),
     createdAt: createdAt(),
   },
   (t) => [
