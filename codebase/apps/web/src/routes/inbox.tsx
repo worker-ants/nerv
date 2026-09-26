@@ -7,12 +7,23 @@
 // 열지 않고 누르는 조작이라, 이 화면이 지키는 것이 셋 있다: ① 선택할 수 있는 것은 서버가
 // 저위험이라 판정한 것뿐이고(`can_bulk_approve`) ② 누르기 전에 **무엇을 승인하는지 나열**하며
 // ③ 지나가지 못한 건은 목록에 남아 이유를 말한다.
+//
+// **한 번에 고르는 수에는 상한이 있다**(2026-09-26 · 사람 결정). 상한은 서버의 것이고
+// (`BULK_DECISION_LIMIT`) 화면은 그 값을 읽어 더 고르지 못하게 한다. 예전에는 [모두 선택]이
+// 보이는 것을 전부 골라, 51건부터는 요청 전체가 형식 오류로 돌아왔다 — 사람에게는
+// "요청 본문이 스키마와 맞지 않습니다" 한 줄만 보였다.
 
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApprovalCard, inView, subjectFallback } from '../features/inbox/approval-card.js';
+import { BULK_DECISION_LIMIT } from '@nerv/schema';
+import {
+  ApprovalCard,
+  bulkBlockText,
+  inView,
+  subjectFallback,
+} from '../features/inbox/approval-card.js';
 import type { CardFailure } from '../features/inbox/approval-card.js';
 import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
@@ -116,6 +127,8 @@ function InboxScreen(): React.JSX.Element {
   const selectable = state === 'pending' ? cards.filter(selectableCard) : [];
   const chosen = selectable.filter((card) => selected.has(String(card['id'])));
   const approvable = chosen.filter(bulkApprovable);
+  /** 더 고를 수 없다 — 고른 것이 상한에 닿았다 */
+  const atLimit = selected.size >= BULK_DECISION_LIMIT;
   // 승인은 저위험만, 거절은 고른 것 전부 — 확인 패널이 이 목록을 그대로 나열한다
   const targets = confirming === 'approve' ? approvable : chosen;
 
@@ -123,9 +136,16 @@ function InboxScreen(): React.JSX.Element {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
-      else next.add(id);
+      // 상한에서는 더 넣지 않는다 — 체크박스는 잠겨 있지만 `x` 키는 그 잠금을 거치지 않는다
+      else if (next.size < BULK_DECISION_LIMIT) next.add(id);
       return next;
     });
+
+  /** **보이는 순서대로 상한까지** — 위에서부터 훑어 온 순서가 사람이 본 순서다 */
+  const selectAll = (): void =>
+    setSelected(
+      new Set(selectable.slice(0, BULK_DECISION_LIMIT).map((card) => String(card['id']))),
+    );
 
   const clearSelection = (): void => {
     setSelected(new Set());
@@ -236,7 +256,7 @@ function InboxScreen(): React.JSX.Element {
         if (card !== undefined && selectableCard(card) && inView(cardAt(cursor)))
           toggle(String(card['id']));
       }
-      if (e.key === 'X') setSelected(new Set(selectable.map((card) => String(card['id']))));
+      if (e.key === 'X') selectAll();
       if (e.key === 'A') openConfirm('approve');
       if (e.key === 'R') openConfirm('reject');
       if (e.key === 'Escape') clearSelection();
@@ -274,6 +294,7 @@ function InboxScreen(): React.JSX.Element {
         selectable={state === 'pending' && selectableCard(card)}
         selected={selected.has(String(card['id']))}
         onToggle={toggle}
+        {...(atLimit ? { selectLockedBy: 'bulk-limit' } : {})}
         {...(failures.has(String(card['id']))
           ? { failure: failures.get(String(card['id'])) as CardFailure }
           : {})}
@@ -385,6 +406,12 @@ function InboxScreen(): React.JSX.Element {
           <span data-testid="bulk-approvable" className="text-text-mute">
             {t('inbox.bulk.approvable', { count: approvable.length })}
           </span>
+          {/* 잠긴 체크박스의 까닭 — 카드의 체크박스가 이 문장을 가리킨다(aria-describedby) */}
+          {atLimit && (
+            <span id="bulk-limit" data-testid="bulk-limit" className="text-status-waiting">
+              {t('inbox.bulk.limit', { max: BULK_DECISION_LIMIT })}
+            </span>
+          )}
           <Button
             size="sm"
             variant="primary"
@@ -403,16 +430,15 @@ function InboxScreen(): React.JSX.Element {
           >
             {t('inbox.bulk.reject')}
           </Button>
-          {/* **보이는 것 전체**다 — 목록은 100건에서 끊기고 커서가 없다(EP-APR-01).
-              "조건에 맞는 전부" 를 만들지 않는 이유가 그것이다: 보지 않은 것을 고르게
-              하는 손잡이가 된다 */}
+          {/* **보이는 것에서, 위에서부터 상한까지**다. "조건에 맞는 전부" 를 만들지 않는 것은
+              보지 않은 것을 고르게 하는 손잡이가 되기 때문이다 */}
           <button
             type="button"
             data-testid="bulk-select-all"
-            onClick={() => setSelected(new Set(selectable.map((card) => String(card['id']))))}
+            onClick={selectAll}
             className="ml-auto text-text-mute hover:text-text"
           >
-            {t('inbox.bulk.select_all')}
+            {t('inbox.bulk.select_all', { max: BULK_DECISION_LIMIT })}
           </button>
           <button
             type="button"
@@ -443,10 +469,24 @@ function InboxScreen(): React.JSX.Element {
               : t('inbox.bulk.confirm_reject', { count: targets.length })}
           </p>
           <p className="mt-0.5 text-2xs text-text-faint">{t('inbox.bulk.confirm_hint')}</p>
+          {/* **빠지는 것과 그 까닭**(REQ-WEB-182). 수만 적으면 사람은 어느 것이 왜 빠졌는지
+              카드를 하나씩 열어 봐야 한다 — 서버가 카드마다 이유를 준다(REQ-API-163) */}
           {confirming === 'approve' && chosen.length > approvable.length && (
-            <p data-testid="bulk-skipped" className="mt-1 text-2xs text-status-waiting">
-              {t('inbox.bulk.skipped', { count: chosen.length - approvable.length })}
-            </p>
+            <div data-testid="bulk-skipped" className="mt-1 text-2xs text-status-waiting">
+              <p>{t('inbox.bulk.skipped', { count: chosen.length - approvable.length })}</p>
+              <ul data-testid="bulk-skipped-list" className="mt-0.5 flex flex-col gap-0.5">
+                {chosen
+                  .filter((card) => !bulkApprovable(card))
+                  .map((card) => (
+                    <li key={String(card['id'])} className="flex gap-2">
+                      <span className="shrink-0 font-mono">
+                        {String(card['spec_key'] ?? card['task_key'] ?? '')}
+                      </span>
+                      <span className="min-w-0 flex-1">{bulkBlockText(t, card)}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
           )}
           <ul
             data-testid="bulk-list"

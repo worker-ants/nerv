@@ -85,11 +85,11 @@ Use the **checkbox** on the left of a pending card to select several cards and a
 
 **Rejection applies to everything you selected**, because only approval is restricted. A bulk rejection still **requires a reason**, and that one reason is recorded on every item.
 
-Pressing the button does not send anything right away. It first **lists what you are about to decide**. Because you are deciding without opening each body, this list is the scope of what you agreed to.
+Pressing the button does not send anything right away. It first **lists what you are about to decide**. Because you are deciding without opening each body, this list is the scope of what you agreed to. For a bulk approval, the cards that will be skipped are listed below it with the reason for each (needs two approvers, a gate exemption request, or a document you cannot approve).
 
 **Items that could not be processed stay in the list.** This happens when the body changed after you opened the card, when someone else already decided it, or when you do not have permission to decide it. Those cards stay selected with the reason shown on each card, and the toast reads `Decided 7, 2 left.` One blocked item does not stop the rest.
 
-You can select up to **50** at a time. [Select all visible] selects only what is **on screen right now**.
+You can select up to **50** at a time. Once you have 50, the checkboxes on the other cards are locked and the selection bar says why. [Select visible (up to 50)] selects what is **on screen right now**, from the top, up to 50. Decide those first, then select the rest.
 
 **The list does not load all at once.** Use **[Load more]** at the bottom to load the rest. The count at the top and the badge are counted by the server, regardless of how many items have loaded, and they count **only what you can act on** (the collapsed group above is not counted). The Pending tab shows **the requests that have waited longest first**, so anything you load next is always less urgent. You never have to scroll to the bottom to find something urgent.
 
@@ -105,7 +105,7 @@ Decided cards move to the **Decided** tab. This tab shows only **what you decide
 | `c`       | Jump to the comment box                            |
 | `z`       | Undo before it sends (within five seconds)         |
 | `x`       | Add this card to, or remove it from, the selection |
-| `⇧X`      | Select all visible                                 |
+| `⇧X`      | Select visible (up to 50)                          |
 | `⇧A`      | Approve the selection                              |
 | `⇧R`      | Reject the selection                               |
 | `Esc`     | Clear the selection                                |

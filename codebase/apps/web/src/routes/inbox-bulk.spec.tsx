@@ -82,11 +82,14 @@ const CARDS = [
   self_requested: false,
 }));
 
+/** 대기 목록 — 상한 검사만 50건 넘게 갈아 끼운다 */
+let pending: Record<string, unknown>[] = CARDS;
 let posted: { url: string; body: Record<string, unknown> }[] = [];
 /** 일괄 응답 — 검사마다 갈아 끼운다(전건 성공 / 부분 실패) */
 let bulkResponse: Record<string, unknown> = { ok: true, decided: 2, failed: 0, results: [] };
 
 beforeEach(() => {
+  pending = CARDS;
   posted = [];
   bulkResponse = { ok: true, decided: 2, failed: 0, results: [] };
   vi.stubGlobal(
@@ -105,7 +108,7 @@ beforeEach(() => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ items: CARDS, next_cursor: null, total: CARDS.length }),
+          json: async () => ({ items: pending, next_cursor: null, total: pending.length }),
         };
       }
       if (u.includes('/approvals?state=decided')) {
@@ -192,6 +195,10 @@ describe('REQ-WEB-182 — 누르기 전에 무엇을 승인하는지 나열한�
     // 나열되지 않은 것은 승인되지 않는다 — 목록이 곧 동의의 범위다
     expect(list.textContent).not.toContain('SPC-C');
     expect(screen.getByTestId('bulk-skipped').textContent).toContain('1건');
+    // **어느 것이 왜 빠지는지**까지 — 서버가 카드마다 준 이유다(`bulk_block_reason`)
+    const skipped = screen.getByTestId('bulk-skipped-list');
+    expect(skipped.textContent).toContain('SPC-C');
+    expect(skipped.textContent).toContain('두 사람의 승인이 필요합니다');
   });
 
   it('확인을 지나야 서버가 불린다 — 선택은 결정이 아니다', async () => {
@@ -261,5 +268,71 @@ describe('REQ-WEB-183 — 지나가지 못한 건은 남아서 이유를 말한�
     expect(failure.textContent).toContain('카드를 연 뒤 내용이 바뀌었습니다.');
     // 남은 한 건만 선택에 남는다 — 목록이 통째로 비면 전부 처리됐다는 거짓말이 된다
     await waitFor(() => expect(screen.getByTestId('bulk-bar').textContent).toContain('1건 선택'));
+  });
+});
+
+/**
+ * **한 번에 고르는 수에는 상한이 있다**(2026-09-26 · 사람 결정). 상한은 서버의 것이고
+ * (`BULK_DECISION_LIMIT`), 예전에는 [모두 선택]이 보이는 것을 전부 골라 51건부터는 요청 전체가
+ * 형식 오류("요청 본문이 스키마와 맞지 않습니다")로 돌아왔다.
+ */
+describe('REQ-WEB-181 — 한 번에 50건까지', () => {
+  const many = Array.from({ length: 55 }, (_, i) => ({
+    ...(CARDS[0] as Record<string, unknown>),
+    id: `m${String(i).padStart(2, '0')}`,
+    spec_key: `SPC-M${String(i).padStart(2, '0')}`,
+    content_hash: `hash-m${i}`,
+  }));
+
+  it('[보이는 항목 선택]은 위에서부터 50건만 고르고, 나머지 체크박스는 까닭과 함께 잠긴다', async () => {
+    pending = many;
+    renderInbox();
+    await waitFor(() => expect(screen.getAllByTestId('bulk-select')).toHaveLength(55));
+    fireEvent.click(screen.getAllByTestId('bulk-select')[0] as HTMLElement);
+    fireEvent.click(screen.getByTestId('bulk-select-all'));
+
+    expect(screen.getByTestId('bulk-bar').textContent).toContain('50건 선택');
+    expect(screen.getByTestId('bulk-limit').textContent).toContain('한 번에 50건까지');
+    const boxes = screen.getAllByTestId('bulk-select') as HTMLInputElement[];
+    expect(boxes.slice(0, 50).every((box) => box.checked)).toBe(true);
+    // 잠긴 칸도 포커스는 받는다 — 까닭을 읽을 수 있어야 한다
+    for (const box of boxes.slice(50)) {
+      expect(box.checked).toBe(false);
+      expect(box.getAttribute('aria-disabled')).toBe('true');
+      expect(box.getAttribute('aria-describedby')).toBe('bulk-limit');
+    }
+    // 잠긴 칸을 눌러도 고르지 않는다
+    fireEvent.click(boxes[52] as HTMLElement);
+    expect(screen.getByTestId('bulk-bar').textContent).toContain('50건 선택');
+  });
+
+  it('보내는 것도 50건이다 — 서버의 상한을 넘기지 않는다', async () => {
+    pending = many;
+    bulkResponse = { ok: true, decided: 50, failed: 0, results: [] };
+    renderInbox();
+    await waitFor(() => expect(screen.getAllByTestId('bulk-select')).toHaveLength(55));
+    fireEvent.click(screen.getAllByTestId('bulk-select')[0] as HTMLElement);
+    fireEvent.click(screen.getByTestId('bulk-select-all'));
+    fireEvent.click(screen.getByTestId('bulk-approve'));
+    fireEvent.click(await screen.findByTestId('bulk-submit'));
+
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect((posted[0]?.body['items'] as unknown[]).length).toBe(50);
+  });
+
+  it('하나를 풀면 다시 고를 수 있다', async () => {
+    pending = many;
+    renderInbox();
+    await waitFor(() => expect(screen.getAllByTestId('bulk-select')).toHaveLength(55));
+    fireEvent.click(screen.getAllByTestId('bulk-select')[0] as HTMLElement);
+    fireEvent.click(screen.getByTestId('bulk-select-all'));
+    fireEvent.click(screen.getAllByTestId('bulk-select')[0] as HTMLElement);
+
+    expect(screen.queryByTestId('bulk-limit')).toBeNull();
+    const boxes = screen.getAllByTestId('bulk-select') as HTMLInputElement[];
+    expect(boxes[52]?.getAttribute('aria-disabled')).toBeNull();
+    fireEvent.click(boxes[52] as HTMLElement);
+    expect(screen.getByTestId('bulk-bar').textContent).toContain('50건 선택');
+    expect(screen.getByTestId('bulk-limit')).toBeTruthy();
   });
 });

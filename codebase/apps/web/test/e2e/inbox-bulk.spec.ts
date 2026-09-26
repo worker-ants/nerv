@@ -119,8 +119,12 @@ test('체크박스로 고른 둘을 한 번에 승인한다 — T3 는 확인 �
   await expect(page.getByTestId('bulk-list')).toContainText(BULK_A);
   await expect(page.getByTestId('bulk-list')).toContainText(BULK_B);
   await expect(page.getByTestId('bulk-list')).not.toContainText(T3);
-  // 빠진 건이 있으면 **그 사실도 누르기 전에** 말한다
-  await expect(page.getByTestId('bulk-skipped')).toHaveText('일괄 승인할 수 없는 1건은 빠집니다');
+  // 빠진 건이 있으면 **그 사실과 까닭을 누르기 전에** 말한다 — 까닭은 서버가 카드마다 준 것이다
+  await expect(page.getByTestId('bulk-skipped')).toContainText(
+    '일괄 승인할 수 없는 1건은 빠집니다',
+  );
+  await expect(page.getByTestId('bulk-skipped-list')).toContainText(T3);
+  await expect(page.getByTestId('bulk-skipped-list')).toContainText('두 사람의 승인이 필요합니다');
 
   await page.getByTestId('bulk-submit').click();
 

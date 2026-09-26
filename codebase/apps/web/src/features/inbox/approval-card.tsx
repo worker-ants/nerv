@@ -246,6 +246,46 @@ function CardLink({
   );
 }
 
+/**
+ * **왜 못 누르는가**(2026-09-07 · REQ-WEB-145). 서버가 이유를 함께 준다 —
+ * 화면은 그것을 문장으로 바꾸기만 한다. 이유 없는 잠긴 단추는 고장 난 화면으로 읽힌다.
+ */
+export function cannotApproveText(t: Translator, card: Record<string, unknown>): string | null {
+  switch (card['can_approve_reason']) {
+    case 'author':
+      return t('inbox.card.cannot_approve.author');
+    case 'session_owner':
+      return t('inbox.card.cannot_approve.session_owner');
+    case 'missing_role':
+    case 'not_in_role_queue':
+      return t('inbox.card.cannot_approve.missing_role');
+    case 'already_approved':
+      return t('inbox.card.cannot_approve.already_approved');
+    case 'not_assignee':
+      return t('inbox.card.cannot_approve.not_assignee');
+    case 'self_requested':
+      return t('inbox.card.self_requested');
+    default:
+      // 서버가 이유를 주지 않는 옛 응답 — 예전 문구로 물러선다
+      return card['self_requested'] === true ? t('inbox.card.self_requested') : null;
+  }
+}
+
+/**
+ * **일괄 승인에서 왜 빠지는가**(REQ-WEB-182 · REQ-API-163). 서버가 카드마다 이유를 준다 —
+ * 단건으로도 못 누르는 이유가 먼저이고, 그다음이 일괄 전용의 둘(정족수 2 · 게이트 면제)이다.
+ */
+export function bulkBlockText(t: Translator, card: Record<string, unknown>): string {
+  switch (card['bulk_block_reason']) {
+    case 'bulk_quorum':
+      return t('inbox.bulk.blocked.quorum');
+    case 'bulk_gate_bypass':
+      return t('inbox.bulk.blocked.gate_bypass');
+    default:
+      return cannotApproveText(t, card) ?? t('inbox.bulk.blocked.not_eligible');
+  }
+}
+
 /** 일괄 결정에서 이 카드가 못 지나간 이유(REQ-WEB-183) — 서버가 준 것을 그대로 싣는다 */
 export interface CardFailure {
   kind: string | null;
@@ -268,6 +308,11 @@ export interface ApprovalCardProps {
   selectable?: boolean;
   selected?: boolean;
   onToggle?: (id: string) => void;
+  /**
+   * 더 고를 수 없다 — 한 번에 고르는 수에 상한이 있다(BULK_DECISION_LIMIT). 고른 카드는 풀 수
+   * 있어야 하므로 **고르지 않은 카드만** 잠긴다. 값은 그 까닭을 적은 요소의 id 다.
+   */
+  selectLockedBy?: string;
   /** 방금 일괄에서 실패한 카드 — 왜 안 됐는지 카드가 말한다 */
   failure?: CardFailure;
 }
@@ -280,6 +325,7 @@ export function ApprovalCard({
   selectable,
   selected,
   onToggle,
+  selectLockedBy,
   failure,
 }: ApprovalCardProps): React.JSX.Element {
   const t = useT();
@@ -311,32 +357,10 @@ export function ApprovalCard({
     typeof card['can_approve'] === 'boolean'
       ? card['can_approve']
       : card['self_requested'] !== true;
-  /**
-   * **왜 못 누르는가**(2026-09-07 · REQ-WEB-145). 서버가 이유를 함께 준다 —
-   * 화면은 그것을 문장으로 바꾸기만 한다. 이유 없는 잠긴 단추는 고장 난 화면으로 읽힌다.
-   */
-  const lockReason = ((): string | null => {
-    if (canApprove || isQuestion) return null;
-    const reason = card['can_approve_reason'];
-    switch (reason) {
-      case 'author':
-        return t('inbox.card.cannot_approve.author');
-      case 'session_owner':
-        return t('inbox.card.cannot_approve.session_owner');
-      case 'missing_role':
-      case 'not_in_role_queue':
-        return t('inbox.card.cannot_approve.missing_role');
-      case 'already_approved':
-        return t('inbox.card.cannot_approve.already_approved');
-      case 'not_assignee':
-        return t('inbox.card.cannot_approve.not_assignee');
-      case 'self_requested':
-        return t('inbox.card.self_requested');
-      default:
-        // 서버가 이유를 주지 않는 옛 응답 — 예전 문구로 물러선다
-        return card['self_requested'] === true ? t('inbox.card.self_requested') : null;
-    }
-  })();
+  // 왜 못 누르는가 — 서버가 준 이유를 문장으로 바꾼다(`cannotApproveText`)
+  const lockReason = canApprove || isQuestion ? null : cannotApproveText(t, card);
+  /** 고르지 않은 카드만 잠긴다 — 고른 것은 풀 수 있어야 한다 */
+  const selectLocked = selectLockedBy !== undefined && selected !== true;
   const id = String(card['id']);
   const context = questionContext(card);
   // 선택지는 서버가 jsonb 로 준다 — 배열이 아니면 없는 것으로 본다(카드 하나가 목록을 죽이지 않게)
@@ -570,8 +594,16 @@ export function ApprovalCard({
             data-testid="bulk-select"
             aria-label={t('inbox.bulk.select_card')}
             checked={selected === true}
-            onChange={() => onToggle?.(id)}
-            className="size-3.5 shrink-0 accent-status-action"
+            // **잠겨도 포커스는 남는다**(REQ-WEB-235와 같은 잠금) — `disabled` 로 두면 키보드와
+            // 화면 낭독기가 그 칸을 건너뛰어, 왜 못 고르는지 들을 자리가 없다
+            {...(selectLocked ? { 'aria-disabled': true, 'aria-describedby': selectLockedBy } : {})}
+            onChange={() => {
+              if (!selectLocked) onToggle?.(id);
+            }}
+            className={cn(
+              'size-3.5 shrink-0 accent-status-action',
+              selectLocked && 'cursor-not-allowed opacity-50',
+            )}
           />
         )}
         <StatusBadge

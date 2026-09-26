@@ -5,8 +5,9 @@
 // 2026-09-26 에 그런 키가 74개였다(웹 본문 편집을 없앤 뒤의 34개 · 홈·인박스·세션 개편 뒤의
 // 40개). 번역하는 사람은 그 문장을 계속 고치고, 읽는 사람은 그런 화면이 있다고 믿는다.
 // 같은 날 **쓰이지 않는 키가 결함을 가리키던 자리**도 셋 나왔다: CLI 리포트가 `cli.report.counts`
-// 와 같은 문장을 한국어로 박아 두어 영어 리포트에 그 줄만 한국어였고(고쳤다), 받은 요청의 일괄
-// 결정에 쓰려던 문구 셋은 한 번도 연결되지 않았다(아래 `PENDING`).
+// 와 같은 문장을 한국어로 박아 두어 영어 리포트에 그 줄만 한국어였고, 받은 요청의 일괄 결정에
+// 쓰려던 문구 셋(상한 · 일괄에서 빠지는 이유 둘)이 한 번도 연결되지 않아 51건부터는 형식 오류만
+// 보였다. 둘 다 고쳤다 — 지우기 전에 **왜 아무도 안 부르는지**부터 본다.
 //
 // 판정: 키가 제품 소스에 따옴표째(`'k'`·`"k"`·`` `k` ``) 나오거나, 아래 `DYNAMIC` 의 접두사로
 // 시작하면 쓰인다. 테스트 파일은 세지 않는다 — 테스트만 부르는 문구는 사용자가 보지 못한다.
@@ -64,13 +65,7 @@ const DYNAMIC: readonly { prefix: string; values?: readonly string[]; where: str
  * **연결되지 않은 문구** — 지우면 안 되고 아직 부르는 곳도 없는 키. 사유가 곧 할 일이고,
  * 연결하면 아래 검사가 이 목록에서 빼라고 실패한다.
  */
-const PENDING: Readonly<Record<string, string>> = {
-  'error.approval.bulk_limit':
-    '일괄 결정이 상한(BULK_DECISION_LIMIT)을 넘기면 zod 의 .max() 에 걸려 일반 형식 오류(error.request.schema)로 나간다 — 받은 요청에서 [모두 선택] 으로 51건 이상을 고르면 그 문장만 보인다',
-  'inbox.bulk.blocked.quorum':
-    '서버가 카드마다 일괄에서 빠지는 이유(bulk_block_reason · REQ-API-163)를 주는데 화면이 읽지 않는다 — 고른 카드가 왜 승인 가능 수에서 빠졌는지 보이지 않는다',
-  'inbox.bulk.blocked.gate_bypass': '위와 같다 — bulk_gate_bypass',
-};
+const PENDING: Readonly<Record<string, string>> = {};
 
 const SOURCE_EXT = /\.(ts|tsx|mts|mjs)$/;
 const SKIP_DIR = new Set(['node_modules', 'dist', 'test', 'coverage']);
