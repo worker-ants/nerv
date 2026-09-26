@@ -53,6 +53,26 @@
 - `superseded` — 더 새 승인 버전이 나왔습니다. 문서는 남지만 기준은 옮겨 갔습니다.
 - `deprecated` — 더 쓰지 않습니다.
 
+```mermaid
+stateDiagram-v2
+    accTitle: 스펙 버전의 상태 흐름
+    direction TB
+    state "초안 (draft)" as draft
+    state "검토 중 (in_review)" as in_review
+    state "승인됨 (approved)" as approved
+    state "대체됨 (superseded)" as superseded
+    state "폐기됨 (deprecated)" as deprecated
+    [*] --> draft: 문서 만들기
+    draft --> in_review: 검토 요청
+    in_review --> draft: 거절 · 코멘트
+    draft --> approved: 자동 통과 (T0·T1)
+    in_review --> approved: 결재 승인 (T2·T3)
+    approved --> superseded: 새 버전이 승인됨
+    approved --> deprecated: 폐기
+```
+
+그림은 **버전 하나**의 흐름입니다. 승인본은 고치지 않습니다. 새 버전(초안)을 만들어 검토를 받고, 그 버전이 승인되면 앞 버전이 **대체됨**이 됩니다. 등급이 낮은 문서(T0·T1)는 검토 요청을 누르면 결재 없이 바로 승인됩니다(아래 "검사와 제출").
+
 **초안은 어떻게 보나.** 셋 중 하나입니다.
 
 1. 목록 위의 **상태** 선택기에서 `초안` 을 고릅니다 — 주소에 남으니 링크로 건네도 됩니다.
@@ -219,6 +239,23 @@ claude "/nerv:spec edit SPC-CWC-007"
 | `in_progress`   | 하나라도 **쥐어졌거나** 진행 중 — 또는 끝난 것이 있지만 아직 다 끝나지 않음        |
 | `implemented`   | 전부 `done` **이고** 증적이 하나 이상                                              |
 | `verified`      | `implemented` 이고 QA·admin 이 서명한 테스트 증적이 있으며 열린 `critical` 이 없음 |
+
+```mermaid
+stateDiagram-v2
+    accTitle: 요구사항의 구현 상태 흐름
+    direction TB
+    state "미구현 (unimplemented)" as unimplemented
+    state "구현 중 (in_progress)" as in_progress
+    state "구현됨 (implemented)" as implemented
+    state "검증됨 (verified)" as verified
+    [*] --> unimplemented: 문서 승인
+    unimplemented --> in_progress: 작업 착수
+    in_progress --> unimplemented: 착수 취소
+    in_progress --> implemented: 작업 모두 완료 + 증적
+    implemented --> in_progress: 새 작업 착수
+    implemented --> verified: QA·admin 서명
+    verified --> implemented: 문장이 바뀜
+```
 
 **전부 끝났는데 증적이 없으면 `in_progress` 에 머뭅니다** — 됐다고 하려면 보일 것을 붙여야 합니다. **검증은 QA·admin 이 테스트 증적을 남기는 것입니다**: 누가 상태를 올리는 것이 아니라, 그 서명이 있으면 서버가 `verified` 로 올립니다. 한번 검증된 요구사항은 발견이 열려도 내려가지 않습니다. 에이전트가 붙인 테스트 증적은 서명이 아닙니다.
 

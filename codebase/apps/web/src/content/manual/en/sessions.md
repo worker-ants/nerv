@@ -34,6 +34,29 @@ The list does not arrive all at once. When there is more, **[Load more]** sits b
 | `error`          | Ended in failure                                                                                                                     |
 | `stale`          | No word for over 30 minutes                                                                                                          |
 
+```mermaid
+stateDiagram-v2
+    accTitle: Status flow of an agent session
+    direction TB
+    state "Pending (pending)" as pending
+    state "Complete (complete)" as complete
+    state "Error (error)" as failed
+    state "Stale (stale)" as stale
+    state "Connected session" as live {
+        state "Active (active)" as active
+        state "Awaiting input (awaiting_input)" as waiting
+        [*] --> active
+        active --> waiting: Waits for a person
+        waiting --> active: Gets an answer
+    }
+    [*] --> pending: Session connects
+    pending --> live: Starts
+    live --> stale: Silent 30 min
+    stale --> live: Resumed
+    live --> complete: Ends normally
+    live --> failed: Fails
+```
+
 `stale` does not mean "failed", it means **"unknown"**. The machine may have slept, the network may have dropped, the process may have died — the screen cannot tell which, so it says only what it knows.
 
 The consequence is certain, though — **when a session goes `stale`, the task it held is reclaimed and returns to `ready`.** The card says so.

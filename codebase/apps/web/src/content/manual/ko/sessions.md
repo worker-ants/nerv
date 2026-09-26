@@ -34,6 +34,29 @@
 | `error`          | 실패로 끝났습니다                                                                                             |
 | `stale`          | 30분 넘게 소식이 없습니다                                                                                     |
 
+```mermaid
+stateDiagram-v2
+    accTitle: 에이전트 세션의 상태 흐름
+    direction TB
+    state "대기 (pending)" as pending
+    state "종료 (complete)" as complete
+    state "오류 (error)" as failed
+    state "무응답 (stale)" as stale
+    state "연결된 세션" as live {
+        state "활동 중 (active)" as active
+        state "응답 대기 (awaiting_input)" as waiting
+        [*] --> active
+        active --> waiting: 사람을 기다림
+        waiting --> active: 답을 받음
+    }
+    [*] --> pending: 세션 연결
+    pending --> live: 시작
+    live --> stale: 30분 무소식
+    stale --> live: 재개
+    live --> complete: 정상 종료
+    live --> failed: 실패
+```
+
 `stale`은 "실패"가 아니라 "**모른다**"입니다. 기계가 잠들었거나 네트워크가 끊겼거나 프로세스가 죽었을 수 있고, 화면은 그중 무엇인지 알 수 없으므로 아는 것만 말합니다.
 
 다만 결과는 확실합니다 — **`stale` 이 되면 그 세션이 쥐고 있던 작업은 회수되어 `ready` 로 돌아갑니다.** 카드도 그렇게 적습니다.

@@ -49,6 +49,8 @@ const SHOTS: [string, string][] = [
   // 설치 장은 다른 장에 없는 것을 인다(값 카드·복사 단추 · REQ-WEB-165) — 한 장만 찍으면
   // 그 둘은 그림에 없다. 이 저장소가 좁은 폭에서 배운 것과 같은 이유다.
   ['/help/install', 'manual-install'],
+  // 상태도는 그림이다(2026-09-26 · REQ-WEB-243) — 스펙 장에 둘(문서 · 구현)이 있다
+  ['/help/specs', 'manual-specs'],
 ];
 
 const SHOT_DIR = process.env['NERV_SHOT_DIR'] ?? '/tmp/nerv-shots';

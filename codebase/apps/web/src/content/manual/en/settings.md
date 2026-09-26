@@ -66,6 +66,22 @@ Click **[+ Invite]**, pick an email, a role and **what it applies to**, and you 
 - Sent one by mistake? **Revoke** it from the list. You are asked once more, and the link stops working at once. Revoking keeps the record, because who invited whom is part of the audit trail.
 - Each invitation in the list is **Pending · Accepted · Revoked · Declined · Expired**. **Declined** means the invited person turned it down; you can invite them again.
 
+```mermaid
+stateDiagram-v2
+    accTitle: Status flow of an invitation
+    direction TB
+    state "Pending" as pending
+    state "Accepted" as accepted
+    state "Declined" as declined
+    state "Revoked" as revoked
+    state "Expired" as expired
+    [*] --> pending: Create an invitation
+    pending --> accepted: The invitee accepts
+    pending --> declined: The invitee declines
+    pending --> revoked: The sender revokes it
+    pending --> expired: 7 days pass
+```
+
 The invited person sees the invitation as a card on **Home, Getting started and Notifications**, and can accept it right there. **Someone without an account has to sign up and confirm their email before they can accept** (on a server that can send email; the steps are under "Creating an account" in [Getting started](/help/start)).
 
 The card shows **when it expires** ("Expires in 3 days"), and an unwanted invitation can be dismissed with **[Decline]**. You are asked once more, and after declining you need a new invitation to join. **Declining an invitation to a project notifies the person who sent it**; clicking that notification opens the Invitations tab (an organization-wide invitation sends no notification and only shows as **Declined** in the sent list). Accepting an invitation that gives you your first membership opens **Get started**, which shows your role and what to do next.

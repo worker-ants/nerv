@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.77 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.78 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v1.78 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **도움말의 상태 흐름을 그림으로** 한 줄([4.5](screens.md) REQ-WEB-243). 스토리 수·`done` 수는 그대로다.
+
 > v1.77 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **설정의 조직과 프로젝트를 나누고 멤버와 초대를 탭으로** 한 줄([4.5](screens.md) REQ-WEB-242). 스토리 수·`done` 수는 그대로다.
 
 > v1.76 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **`user_guide:` 도 증적이 된다** 한 줄([4.7](importer.md) REQ-IMP-033). 스토리 수·`done` 수는 그대로다.
@@ -588,6 +590,7 @@ referenced_by:
 | `code:` glob 이 증적이 된다 — 경로 실존 검사 · 한 줄 목록 | `apps/cli/src/parse/scan.ts`(`RepoIndex` — 저장소를 한 번 걷고 glob 의 고정 접두로 좁혀 맞춘다) · `apps/cli/src/run.ts`(`codeEvidenceOf`) · `apps/cli/src/parse/frontmatter.ts`(한 줄 목록) · `apps/cli/src/report/index.ts`(`code-glob-no-match`) · `packages/schema/src/zod/import.ts`(증적의 `stale`) · `apps/api/src/modules/import/import.service.ts`(적재) · L1 `parse.spec.ts` · L2 `import.spec.ts` | CLI 가 `code:` 를 "아는 키" 로 표시해 미매핑 경고도 내지 않으면서 적재하지도 않았다 — clemvion 의 glob 691개가 조용히 버려졌다. glob 하나가 `code_path` 증적 하나이고, 아무것도 가리키지 않으면 `stale` + 수동 확인 큐다. 곁에 `code: []` 가 문자열 `"[]"` 로 읽히던 파서 결함을 고쳤다(clemvion dry-run: 미매치 0 · 원본 쓰기 0 · [4.7](importer.md) REQ-IMP-032). `user_guide:` 매핑은 같은 날 들어왔다([4.7](importer.md) REQ-IMP-033) |
 | `user_guide:` 도 증적이 된다 — 경고로만 남고 버려지던 키 | `apps/cli/src/profiles/clemvion.ts`(`user_guide: evidence.user_guide`) · `apps/cli/src/run.ts`(`userGuideEvidenceOf` · 경로 증적을 `pathEvidenceOf` 한 벌로) · `apps/cli/src/report/index.ts`(`user-guide-no-match`) · `packages/schema/src/zod/import.ts`(프로파일의 `user_guide`) · L1 `parse.spec.ts` | 표는 이 필드가 "다른 증적과 같은 검증 경로에 올라온다" 고 적는데 프로파일이 키를 몰라 `frontmatter-unmapped` 경고로만 남고 버려졌다(clemvion discord · slack · telegram). 경로 하나가 증적 하나이고 `code:` 와 같은 실존 검사를 받는다(clemvion dry-run: 미매핑 3 → 0 · 미매치 0 · [4.7](importer.md) REQ-IMP-033) |
 | 설정의 조직과 프로젝트를 나누고 멤버와 초대를 탭으로 | `apps/web/src/routes/settings/org.tsx` · `projects.tsx`(옛 `workspace.tsx` 를 나눴다 — 옛 주소는 새 주소로 보낸다) · `members.tsx`(`MembersTabs` · `?tab=invites`) · `features/settings/settings-nav.tsx` · `components/start-checklist.tsx` · `lib/event-subject.ts` · L1 `org-projects.spec.tsx` · `settings-scope.spec.tsx` | "조직·프로젝트" 한 화면이 조직 무리에만 있어서 프로젝트 목록을 프로젝트 무리에서 찾을 수 없었고, 멤버·역할 화면은 초대 구역이 멤버 표 위에 있었다(사람 지시). 조직 정보는 조직 무리에, 프로젝트 목록은 프로젝트 무리에 두고, 멤버(기본)와 초대를 탭으로 나눴다([4.5](screens.md) REQ-WEB-242) |
+| 도움말의 상태 흐름을 그림으로 | `apps/web/src/components/mermaid-diagram.tsx`(그리기 · 배율 · 전체화면을 편집기 노드뷰에서 옮겼다) · `lib/markdown.ts`(`diagrams` — 빈 자리와 원본) · `routes/help/$chapter.tsx`(포털) · 매뉴얼 ko·en 상태도 다섯 · L1 `manual-diagrams.spec.ts`(실제 mermaid 파서) · `markdown.spec.ts` · `help.spec.tsx` | 매뉴얼이 상태를 표와 글로만 설명했고, 도움말은 `mermaid` 코드블록을 코드 그대로 보였다(사람 지시). 스펙 버전 · 요구사항 구현 · 작업 · 에이전트 세션 · 초대의 상태도를 그림으로 그린다([4.5](screens.md) REQ-WEB-243) |
 
 #### 이 절은 언제 갱신되는가
 

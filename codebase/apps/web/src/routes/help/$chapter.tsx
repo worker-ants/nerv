@@ -5,12 +5,14 @@
 
 import { useLocale, useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { chapterNeighbours, findChapter } from '../../lib/manual.js';
 import { fillManualVars, useManualVars } from '../../lib/manual-vars.js';
 import { renderDoc } from '../../lib/markdown.js';
 import { COPIED_MS, InstallEnvCard } from '../../features/manual/install-env.js';
 import { EmptyState, PageBody } from '../../components/ui/primitives.js';
+import { MermaidDiagram } from '../../components/mermaid-diagram.js';
 
 export const Route = createFileRoute('/help/$chapter')({ component: ManualChapterScreen });
 
@@ -26,9 +28,29 @@ function ManualChapterScreen(): React.JSX.Element {
   const copyLabel = t('help.copy');
   // 장·언어·값이 바뀔 때만 다시 판다 — 스크롤 한 번에 문서를 다시 파싱할 이유가 없다
   const doc = useMemo(
-    () => renderDoc(fillManualVars(source, vars), { copyLabel }),
+    () => renderDoc(fillManualVars(source, vars), { copyLabel, diagrams: true }),
     [source, vars, copyLabel],
   );
+  // **상태의 흐름은 그림으로 보인다**(2026-09-26 — 사람 지시 · REQ-WEB-243). 본문은 HTML 문자열로 붙으므로
+  // 렌더러가 남긴 빈 자리(`data-diagram`)를 찾아 그 안에 다이어그램 컴포넌트를 포털로 붙인다. 본문이 바뀌면
+  // (장·언어) 자리도 새로 생기므로 다시 찾는다. 찾은 자리에는 **어느 본문의 것인지**를 함께 적어 둔다: 본문이
+  // 바뀐 직후의 한 번은 아직 옛 자리를 들고 있어서, 떨어져 나간 옛 자리에 새 장의 그림을 한 번 더 그리고
+  // 있었다(2026-09-26 실측).
+  //
+  // **본문 객체는 HTML 이 바뀔 때만 새로 만든다.** React 19 는 `dangerouslySetInnerHTML` 에 새 객체가 오면
+  // 글자가 같아도 innerHTML 을 다시 쓴다 — 그때마다 붙여 둔 그림이 지워졌다(2026-09-26 실측).
+  const bodyHtml = useMemo(() => ({ __html: doc.html }), [doc.html]);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [slots, setSlots] = useState<{ html: string; nodes: HTMLElement[] }>({
+    html: '',
+    nodes: [],
+  });
+  useLayoutEffect(() => {
+    setSlots({
+      html: doc.html,
+      nodes: [...(bodyRef.current?.querySelectorAll<HTMLElement>('[data-diagram]') ?? [])],
+    });
+  }, [doc.html]);
   const { previous, next } = chapterNeighbours(chapterId);
 
   if (chapter === undefined) {
@@ -76,6 +98,7 @@ function ManualChapterScreen(): React.JSX.Element {
         {chapterId === 'install' && <InstallEnvCard vars={vars} />}
 
         <div
+          ref={bodyRef}
           data-testid="manual-body"
           onClick={onBodyClick}
           // 앵커로 뛰면 제목이 위에 붙은 것 밑으로 숨는다 — 뛰는 자리에 그만큼 여백을 준다.
@@ -84,8 +107,16 @@ function ManualChapterScreen(): React.JSX.Element {
           // 되고, 페이지가 흐르는 좁은 화면에서는 셸 헤더가 그 자리를 덮는다.
           className="prose-nerv max-w-184 [&_h2]:scroll-mt-anchor
             md:[&_h2]:scroll-mt-6"
-          dangerouslySetInnerHTML={{ __html: doc.html }}
+          dangerouslySetInnerHTML={bodyHtml}
         />
+        {slots.html === doc.html &&
+          slots.nodes.map((slot) => {
+            const index = Number(slot.dataset['diagram']);
+            const code = doc.diagrams[index];
+            return code === undefined
+              ? null
+              : createPortal(<MermaidDiagram code={code} />, slot, `diagram-${index}`);
+          })}
 
         {/* 이전·다음 — 다 읽은 사람이 다음 장을 찾아 차례로 되돌아가지 않게 한다 */}
         <nav className="mt-10 flex gap-3 border-t border-border pt-4 text-sm">
