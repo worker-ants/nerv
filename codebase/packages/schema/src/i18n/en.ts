@@ -1813,6 +1813,12 @@ export const en = {
     'Offline — the server cannot be reached. What you see was received at {time}; writing is locked until it recovers, then it syncs on its own.',
   'realtime.offline_write': 'Offline — you can press this once the server is reachable again.',
   'realtime.ws_down': 'Live updates paused — polling instead.',
+  'realtime.ws_down_short': 'Live off',
+  'realtime.ws_down_title': 'Live updates dropped',
+  'realtime.ws_down_body':
+    'Lists refresh every {s}s. Writing still works — once reconnected, everything on screen reloads.',
+  'realtime.ws_down_since': 'Dropped {ago} · reconnecting.',
+  'realtime.offline_short': 'Offline',
   // ── 자리표시자 화면 ────────────────────────────────────────────────────────────
   // ── 나머지 — 여러 곳에서 조각으로 쓰이던 문장 ────────────────────────────────────────────
   'auth.bad_credentials': 'That email and password do not match.',

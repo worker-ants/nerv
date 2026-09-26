@@ -58,7 +58,7 @@ test('로그인 → 셸 진입 · ⌘K 퀵 스위처 (REQ-WEB-006 · REQ-WEB-040
   await expect(page.getByTestId('quick-switcher')).toHaveCount(0);
 });
 
-test('로그인 화면을 거쳐 들어와도 실시간이 붙는다 (D-14 배너가 걸린 채로 남지 않는다)', async ({
+test('로그인 화면을 거쳐 들어와도 실시간이 붙는다 (연결 표시가 걸린 채로 남지 않는다)', async ({
   page,
 }) => {
   // **저장된 세션으로 시작하지 않는다**는 것이 이 테스트의 전부다.
@@ -71,8 +71,9 @@ test('로그인 화면을 거쳐 들어와도 실시간이 붙는다 (D-14 배�
   await page.getByRole('button', { name: /로그인/ }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 
-  // 연결 배너는 끊겼을 때만 뜬다(§1.4) — 붙었으면 없어야 한다
-  await expect(page.getByTestId('connection-banner')).toHaveCount(0, { timeout: 15_000 });
+  // 실시간이 끊기면 헤더에 연결 표시가 선다(§1.3 · 2026-09-26 개정 — 배너는 오프라인에만) — 붙었으면 없어야 한다
+  await expect(page.getByTestId('connection-mark')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByTestId('connection-banner')).toHaveCount(0);
 });
 
 test('로그아웃하면 세션이 끊기고 보호 경로가 다시 막힌다', async ({ page }) => {

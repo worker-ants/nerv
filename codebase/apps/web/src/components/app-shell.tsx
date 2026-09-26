@@ -22,7 +22,13 @@ import { useT } from '../lib/i18n.js';
 import { THEMES, useTheme } from '../lib/theme.js';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
-import { connectionBanner, useRealtime } from '../lib/realtime.js';
+import {
+  connectionBanner,
+  connectionMark,
+  FALLBACK_POLL_MS,
+  useRealtime,
+} from '../lib/realtime.js';
+import { relativeTime } from '../lib/format.js';
 import { canManageScope, signOut } from '../lib/session.js';
 import { inboxActionable, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
@@ -115,12 +121,12 @@ export function AppShell({
   // 본문은 무엇이 틀렸는지 말하고(ProjectShell), 사이드바는 비킨다.
   const projectBroken = shellProject.isError && shellProject.data === undefined;
   const sidebarProject = projectBroken ? undefined : projectSlug;
-  const { state, offline, offlineSince } = useRealtime();
+  const { state, offline, offlineSince, disconnectedSince } = useRealtime();
   const me = useMe();
   const inbox = useInbox();
   const unread = useUnreadCount();
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState<'org' | 'user' | 'help' | null>(null);
+  const [menuOpen, setMenuOpen] = useState<'org' | 'user' | 'help' | 'connection' | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const sidebarStands = useMediaQuery(SIDEBAR_QUERY);
 
@@ -261,7 +267,9 @@ export function AppShell({
     return () => window.removeEventListener('keydown', onKey);
   }, [drawerOpen]);
 
-  const banner = connectionBanner(t, state, offline, offlineSince);
+  const banner = connectionBanner(t, offline, offlineSince);
+  // **실시간만 끊긴 것은 배너가 아니라 헤더의 표시다**(2026-09-26 개정 — 사람 결정 D8 · REQ-WEB-002)
+  const mark = connectionMark(state, offline);
   // **쪽 길이가 아니라 서버가 센 수다**(2026-09-24 · REQ-API-166). 목록이 커서로 나뉜 뒤로
   // 첫 쪽 길이를 세면 배지가 30 에서 멈춘다 — 배지와 목록이 어긋나면 지울 수 없는
   // 숫자가 남는다(알림 배지에서 이미 겪은 자리 · REQ-WEB-035). 그리고 **내가 누를 수 있는 것만**
@@ -445,6 +453,74 @@ export function AppShell({
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2 max-md:gap-0.5">
+          {/* **연결 표시**(2026-09-26 — 사람 결정 D8 · REQ-WEB-002). 실시간만 끊긴 동안 전폭 배너가 서면 폴링으로
+              멀쩡히 도는 화면이 한 줄 밀리고 매번 호박색 띠가 섰다 — 그 단계는 여기 작은 점이다. 누르면 무엇이 되고
+              무엇이 안 되는지 말한다. 오프라인이면 회색 ⚠ 로 바뀌고 배너가 함께 선다(쓰기가 잠기므로). 색만으로
+              말하지 않는다(REQ-WEB-033) — 글자가 곁에 서고, 좁은 화면에서는 글자가 보조기기에만 남는다 */}
+          <span role="status" data-testid="connection-live" className="sr-only">
+            {mark === 'ws' ? t('realtime.ws_down') : ''}
+          </span>
+          {mark === 'ws' && (
+            <div className="relative" data-menu-root="connection">
+              <button
+                type="button"
+                data-testid="connection-mark"
+                data-level="ws"
+                data-menu-trigger="connection"
+                aria-haspopup="true"
+                aria-expanded={menuOpen === 'connection'}
+                aria-controls="shell-menu-connection"
+                onClick={() => setMenuOpen((open) => (open === 'connection' ? null : 'connection'))}
+                className={cn(
+                  'flex h-control-sm items-center gap-1.5 rounded-nerv px-2 text-xs text-status-waiting transition-colors hover:bg-status-waiting-soft',
+                  menuOpen === 'connection' && 'bg-status-waiting-soft',
+                  'max-md:w-control-sm max-md:justify-center max-md:px-0',
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-2 shrink-0 rounded-full bg-status-waiting"
+                />
+                <span className="max-md:sr-only">{t('realtime.ws_down_short')}</span>
+              </button>
+              {menuOpen === 'connection' && (
+                <Popover
+                  align="right"
+                  id="shell-menu-connection"
+                  data-testid="connection-detail"
+                  className="w-80 px-3.5 py-3 max-md:fixed max-md:inset-x-3 max-md:top-header max-md:mt-1.5 max-md:w-auto"
+                >
+                  <p className="flex items-center gap-2 text-sm font-semibold text-text">
+                    <span
+                      aria-hidden="true"
+                      className="size-2 shrink-0 rounded-full bg-status-waiting"
+                    />
+                    {t('realtime.ws_down_title')}
+                  </p>
+                  <p className="mt-1.5 text-xs leading-[1.55] text-text-mute">
+                    {t('realtime.ws_down_body', { s: FALLBACK_POLL_MS / 1000 })}
+                  </p>
+                  {disconnectedSince !== null && (
+                    <p className="mt-1.5 text-2xs text-text-faint">
+                      {t('realtime.ws_down_since', {
+                        ago: relativeTime(t, new Date(disconnectedSince).toISOString()),
+                      })}
+                    </p>
+                  )}
+                </Popover>
+              )}
+            </div>
+          )}
+          {mark === 'offline' && (
+            <span
+              data-testid="connection-mark"
+              data-level="offline"
+              className="flex h-control-sm items-center gap-1.5 rounded-nerv bg-status-idle px-2 text-xs font-medium text-text max-md:w-control-sm max-md:justify-center max-md:px-0"
+            >
+              <span aria-hidden="true">⚠</span>
+              <span className="max-md:sr-only">{t('realtime.offline_short')}</span>
+            </span>
+          )}
           {/* **좁은 화면에서만** 받은 요청·알림이 헤더에 선다(REQ-WEB-164 — 숫자는 열기 전에 보인다). 넓으면
               사이드바의 전역 구역이 그 자리다 — 두 곳에 같은 수가 서지 않는다 */}
           {!sidebarStands && (
@@ -676,18 +752,12 @@ export function AppShell({
           role="status"
           aria-live="polite"
           data-testid="connection-banner"
-          data-level={offline ? 'offline' : 'ws'}
-          // **두 단계가 모양으로 갈린다**(2026-09-25 · UI/UX 검토 SYS-09 · D8 · REQ-WEB-235). 같은 호박색 한 줄이던
-          // 동안 "폴링으로 계속 도는 중" 과 "아무것도 저장되지 않음" 을 모양으로 가를 수 없었다 — ① 실시간만 끊김은
-          // 호박색 ● (일은 계속된다), ② 서버에 닿지 않음은 회색 ⚠ 와 쓰기 잠금(명세 §1.3 의 회색 배너)
-          className={cn(
-            'flex items-center gap-2 border-b border-border px-4 py-1.5 text-xs',
-            offline
-              ? 'bg-status-idle font-medium text-text'
-              : 'bg-status-waiting-soft text-status-waiting',
-          )}
+          data-level="offline"
+          // **배너는 오프라인 하나다**(2026-09-26 개정 — 사람 결정 D8 · REQ-WEB-235). 서버에 닿지 않으면 아무것도
+          // 저장되지 않고 쓰기가 잠긴다 — 그 무게에 맞는 전폭 회색 ⚠ 다. 실시간만 끊긴 단계는 헤더의 표시다
+          className="flex items-center gap-2 border-b border-border bg-status-idle px-4 py-1.5 text-xs font-medium text-text"
         >
-          <span aria-hidden="true">{offline ? '⚠' : '●'}</span>
+          <span aria-hidden="true">⚠</span>
           {banner}
         </div>
       )}

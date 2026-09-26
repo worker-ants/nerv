@@ -124,3 +124,15 @@ describe('룸은 연결이 기억한다', () => {
     expect(emit).not.toHaveBeenCalled();
   });
 });
+
+describe('처음부터 닿지 않는 것도 끊김이다 (2026-09-26 · REQ-WEB-002)', () => {
+  it('한 번도 붙지 못해 connect_error 만 와도 disconnected 로 알린다 — "붙는 중" 에 머물지 않는다', () => {
+    const states: string[] = [];
+    connectNervSocket({ onEvent: () => undefined, onStateChange: (s) => states.push(s) });
+    handlers.get('connect_error')?.(new Error('websocket error'));
+    expect(states).toEqual(['disconnected']);
+    // 붙으면 붙었다고 알린다
+    handlers.get('connect')?.();
+    expect(states).toEqual(['disconnected', 'connected']);
+  });
+});
