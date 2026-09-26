@@ -181,7 +181,7 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 ```
 
-**`config.toml` 에는 토큰을 적지 않습니다.** `bearer_token_env_var`에 적힌 대로 `NERV_TOKEN` 환경변수에서 토큰을 읽습니다. 이 값은 2단계에서 정한 위치(`.nerv/env` 또는 셸)에서 가져옵니다. Codex 는 `.claude/settings.local.json` 을 읽지 않으므로, Codex 를 쓴다면 `.nerv/env` 에 둡니다.
+**`config.toml` 에는 토큰을 적지 않습니다.** `bearer_token_env_var`에 적힌 대로 `NERV_TOKEN` 환경변수에서 토큰을 읽습니다. Codex 는 `.claude/settings.local.json` 을 읽지 않고, `.nerv/env` 의 값도 MCP 인증에는 쓰이지 않습니다(2단계 참고). 그래서 Codex 를 쓴다면 `NERV_TOKEN` 을 셸 환경변수로 둡니다.
 
 Claude Code는 아직 `AGENTS.md`를 자동으로 읽지 않습니다. 같은 저장소에서 두 에이전트를 모두 쓴다면 `CLAUDE.md`에 아래 한 줄을 넣습니다.
 

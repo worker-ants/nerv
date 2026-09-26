@@ -1,18 +1,18 @@
-A task is one piece of work split out of an approved spec. People and agents look at the same board.
+A task is a single piece of work that comes from an approved spec. People and agents work from the same board.
 
 ## The board and its lanes
 
-Lanes are task statuses.
+Each lane on the board is a task status.
 
-| Screen name (value)         | Meaning                        |
-| --------------------------- | ------------------------------ |
-| Backlog (`backlog`)         | Not up for work yet            |
-| Ready (`ready`)             | **Can be picked up right now** |
-| Claimed (`claimed`)         | Someone has taken it           |
-| In progress (`in_progress`) | Being worked on                |
-| In review (`in_review`)     | Waiting for review (optional)  |
-| Done (`done`)               | Finished                       |
-| Blocked (`blocked`)         | Stuck — with a stated reason   |
+| Name on screen (value)      | Meaning                             |
+| --------------------------- | ----------------------------------- |
+| Backlog (`backlog`)         | Not ready to be worked on yet       |
+| Ready (`ready`)             | **Can be picked up now**            |
+| Claimed (`claimed`)         | Someone has claimed it              |
+| In progress (`in_progress`) | Being worked on                     |
+| In review (`in_review`)     | Waiting for review (optional)       |
+| Done (`done`)               | Finished                            |
+| Blocked (`blocked`)         | Stuck (the reason is shown with it) |
 
 ```mermaid
 stateDiagram-v2
@@ -42,112 +42,115 @@ stateDiagram-v2
     done --> [*]
 ```
 
-The diagram shows only the common paths. Moving back (to Ready or Backlog) and the rules for who may move what are in the sections below. **Done cannot be undone.**
+The diagram shows only the common paths. Moving a task back (to Ready or Backlog) and the rules for who can do what are covered in the sections below. **Done cannot be undone.**
 
-Screens speak in **names** — board lanes, the task screen, sessions and a spec's derived-task list all use the same names. The value in brackets is the identifier the API, the CLI and agents use.
+Screens show each status by its **name**. Board lanes, the task screen, sessions, and a spec's derived-task list all use the same names. The value in parentheses is the identifier that the API, the CLI, and agents use.
 
-**A board card says whose work it is and who is running it.** The assignee shows only as an initials circle, but hovering shows the name and a screen reader reads it. When an agent session is running the task a small **AI** mark appears; press it to go to that session. Priority shows as a chip **for P0 and P1 only** — on every card it would not be a signal. The source spec key also takes you to that spec.
+**Board cards show whose work it is and who is running it.** The assignee appears only as an initials circle, but hovering over it shows the name, and screen readers read the name aloud. When an agent session is running the task, a small **AI** mark appears. Click it to go to that session. Priority appears as a chip **for P0 and P1 only**, because a chip on every card would no longer stand out. Clicking the source spec key takes you to that spec.
 
-`in_review` is an **optional** step. Use it on a shared board when you want "the work is out, nobody has checked it yet" to be visible. Going straight from `in_progress` to `done` is fine — what actually gates completion is the evidence and the spec impact, not the lane.
+`in_review` is an **optional** step. Use it on a shared board when you want to show which work has been delivered but not yet checked. You can also move a task straight from `in_progress` to `done`. Whether a task can be completed depends on its evidence and spec impact, not on the lanes it passed through.
 
-**A blocked reason is picked from four** — waiting on an answer, a dependency broke, conflicts with the base spec, something outside the repo. It is not a free-text box: when the same situation is written differently by different people, **counting how many tasks are blocked stops being true.** Anything more to say goes in a comment or a question.
+**You pick a blocked reason from four options**: Waiting for an answer · Broken dependency · Conflicts with the base spec · External factor. There is no free-text reason. If different people describe the same situation in different words, **counts of blocked tasks by reason become inaccurate.** Anything else you want to add goes in a comment or a question.
 
-Board cards and the task screen show that reason **by those four names**. A task blocked before the vocabulary existed (prior to 2026-09-06) still carries whatever sentence was typed then, and **that sentence is shown as written** — an old reason is not hidden.
+Board cards and the task screen show the reason **using those four names**. A reason typed as free text before the list existed (before 2026-09-06) is **shown exactly as it was written**. Old reasons are not hidden.
 
-The screen for a blocked task also shows **what would unblock it**: whatever is still holding it (an open question, an unfinished dependency, a superseded base spec) appears as a link, and once nothing is left you get a **Can be unblocked now** badge. The badge does not unblock it for you — press **[Unblock]** at the top of the task screen. The task goes back to **In progress** if someone holds it, otherwise to **Ready** (or **Backlog** if the brief is empty). While something is still holding it the button is locked and says why. When the reason is `Something outside the repo`, the server cannot judge it, so a person confirms with **[Check and unblock]**.
+**The screen for a blocked task also shows what would unblock it.** Anything still blocking the task (an open question, an unfinished dependency, a superseded base spec) appears as a link. Once everything is resolved, a **Can be unblocked now** badge appears. The badge does not unblock the task for you. Click **[Unblock]** at the top of the task screen. The task returns to **In progress** if someone has claimed it, and to **Ready** otherwise (or to **Backlog** if the delegation brief is empty). While anything is still blocking the task, the button is disabled and shows why. When the reason is `External factor`, the server cannot evaluate it, so a person checks it and then unblocks the task with **[Check and unblock]**.
 
-**Four kinds of people can move a task to done** — whoever holds its active claim, the assignee, a planner, or an admin. Agents are stricter: without **a live claim of their own** they cannot call `in progress`, `in review` or `done`. The refusal says whether the task can be claimed again, so the agent knows whether to pick it back up or stop and report. `claimed` is not a lane you move into — claiming is the only way in.
+**Four kinds of people can move a task to done**: whoever has the active claim on it, the assignee, a planner, or an admin. Agents follow a stricter rule. An agent can move a task to `in progress`, `in review`, or `done` only while **its own claim is still active**. The rejection response includes whether the task can be claimed again, so the agent can decide whether to pick it back up or stop. You cannot move a task into the `claimed` lane by changing its status. The only way in is to claim it.
 
-**Sending a task back to ready is also a judgement.** The four parts of the delegation brief must be filled in and every blocking task must be finished (a task imported with "source had no delegation brief" in those fields counts as **empty**). If an active claim is held, **release it or stop the session first** before moving the task back to ready or backlog.
+**Moving a task back to ready is checked too.** The four parts of the delegation brief must be filled in, and every task it depends on must be finished. (If an imported task has "source had no delegation brief" in those fields, they **count as empty**.) If there is an active claim, **release the claim or stop the session first**, and then move the task back to ready or backlog.
 
-**Show backlog is on by default.** A task is always created in `backlog` and only moves to `ready` once the four parts of the delegation brief are filled in, so a task you just created lives in that lane. **If you filled in all four when creating it, press [Move to ready] on its card** — creating alone does not queue it; pressing it has the server check the four parts and the dependencies, then queue it. A card with parts missing shows **[Fill it in]** instead. Turn **Show backlog** off to see only what is flowing; that choice stays in the address (`?backlog=0`). The summary strip at the top (`ready` · `in progress` · `mine` · `blocked`) is there so you can read the state without reading the whole board.
+**Show backlog is on by default.** A task is always created in `backlog` and moves to `ready` only after the four parts of the delegation brief are filled in. That is why a task you just created appears in the backlog lane. **If you filled in all four parts when you created it, click [Move to ready] on its card.** Creating a task does not put it in the queue. When you press the button, the server checks the four parts and the dependencies, and then queues the task. A card with an incomplete brief shows a **[Fill it in ▸]** button instead. To see only the work that is moving, turn off **Show backlog**. The setting is kept in the URL (`?backlog=0`). The summary strip at the top (**Ready** · **In progress** · **Mine** · **Blocked**) lets you check the state without scanning the whole board.
 
-**Filters in force are shown above the board.** Filter with the **Spec** and **Assignee** pickers above the summary strip; when you arrive through a filtered link — like "Derived tasks → See all" on a spec — the pickers show that value. As soon as any filter is set, **Filtered** appears beside them — the summary numbers and the lanes then count **only matching tasks**. **[Clear filters]** removes the spec, assignee and agent filters and leaves show-backlog and show-archived as they were. Press the **mine** number in the summary strip to keep only tasks assigned to you. Every filter stays in the address (`?spec=` · `?assignee=`), so you can hand it on as is.
+**Active filters are shown above the board.** Use the **Spec** and **Assignee** filters above the summary strip to narrow down the tasks. If you arrive through a filtered link, such as "Derived tasks → See all on the board" on a spec, the filters show that value. When any filter is set, **Filtered** appears next to them, and the summary counts and the lanes include **only matching tasks**. **[Clear filters]** removes the spec, assignee, and agent filters, and leaves Show backlog and Show archived as they are. Click the **Mine** count in the summary strip to see only tasks assigned to you. All filters are kept in the URL (`?spec=` · `?assignee=`), so you can share the URL as it is.
 
-**A lane does not arrive all at once.** A lane whose count carries `+` has more behind it: **+N more** at the bottom unfolds what has arrived, then **Load more** fetches the next batch — even a long lane, like done with the archive shown, can be read to the end. **When the ready lane is empty**, it says what to do next — **See N blocked** (to the blocked lane) and **Fill N in backlog** (to the backlog lane, switching it on if it is off).
+**Lanes do not load all their cards at once.** A `+` after a lane's count means the lane has more cards. At the bottom of the lane, **+N more** expands the cards that are already loaded, and **Load more** fetches the next batch. This way you can read even a long lane to the end, such as Done with Show archived turned on. **When the Ready lane is empty**, it shows what to do next: **See N blocked** (goes to the Blocked lane) and **Fill in N backlog tasks** (goes to the Backlog lane, and turns on Show backlog if it is off).
 
 ## The task screen opens over the board
 
-Clicking a card opens the task **as a sheet on the right of the board** — the board stays behind it. Your filters, collapsed lanes and expanded "+N more" stay as they were, and clicking another card behind switches the sheet to that task. On a narrow screen the sheet covers the whole screen.
+Clicking a card opens the task **in a sheet on the right side of the board**. The board stays open behind it. Your filters, collapsed lanes, and expanded "+N more" lists stay as they were, and clicking another card behind the sheet switches the sheet to that task. On a narrow screen, the sheet covers the whole screen.
 
-- **Close** with the **✕** at the top of the sheet or `Esc`. The board's filters live in the address, so closing does not drop them.
-- `j` · `k` move to the **next and previous task in the same lane**. The top of the sheet shows where you are, like "2 of 5 in the lane" — handy for going through blocked cards one after another.
-- `Esc`, `j` and `k` do nothing while the cursor is in an input.
-- The task's address (`/p/…/tasks/CLV-T-…`) is unchanged, so you can pass it on as a link. Opening it shows the sheet with the board behind.
+- **Close** the sheet with the **✕** at its top or with `Esc`. The board's filters are kept in the URL, so closing the sheet does not clear them.
+- `j` · `k` move to the **next and previous task in the same lane**. The top of the sheet shows your position, such as "2 of 5 in the lane". This is handy when you go through several blocked cards in a row.
+- `Esc`, `j`, and `k` do nothing while the cursor is in an input field.
+- The task's URL (`/p/…/tasks/CLV-T-…`) stays the same when the task opens in a sheet, so you can share it as a link. Opening that URL shows the sheet with the board behind it.
 
 ## The next step is at the top of the task screen
 
-The buttons to the right of the task title are **the door from the current status to the next one**.
+The buttons to the right of the task title **move the task from its current status to the next one**.
 
-| Now         | Button at the top                                                                     |
-| ----------- | ------------------------------------------------------------------------------------- |
-| Backlog     | **[Move to ready]** when all four parts are filled, **[Fill in the brief]** otherwise |
-| Ready       | **[Claim]**                                                                           |
-| Claimed     | **[Start work]** · [Finish…]                                                          |
-| In progress | **[Request review]** · [Finish…]                                                      |
-| In review   | **[Finish…]**                                                                         |
-| Blocked     | **[Unblock]** ([Check and unblock] when the server cannot judge the reason)           |
+| Current status | Button at the top                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| Backlog        | **[Move to ready]** when all four parts are filled in, **[Fill in the brief]** otherwise |
+| Ready          | **[Claim]**                                                                              |
+| Claimed        | **[Start work]** · [Finish…]                                                             |
+| In progress    | **[Request review]** · [Finish…]                                                         |
+| In review      | **[Finish…]**                                                                            |
+| Blocked        | **[Unblock]** ([Check and unblock] when the server cannot evaluate the reason)           |
 
-**Buttons you cannot press still show** — locked, with the reason on hover or when you `Tab` to them (which roles can · someone else holds it · the block is not cleared yet). [Claim] appears only on **Ready** tasks — except a task held only by an expired lease, where pressing it reclaims that claim. On a backlog or blocked task it used to be a button that got refused.
+**Buttons you cannot use are still shown, but disabled.** Hover over one or move to it with `Tab` to see why (which roles can use it · someone else has claimed the task · something is still blocking it). [Claim] appears only on **Ready** tasks. The exception is a task whose only claim has an expired lease. Clicking [Claim] there reclaims the expired claim and claims the task for you. The button used to appear on backlog and blocked tasks too, but pressing it there was refused.
 
-**The header shows the assignee and the runner together.** **Assignee {name}** is the person responsible for the work; **Running on {host} ▸** is the agent session holding the task right now — press it to go to that session. They can be different: people set the assignee, while the runner is whoever holds the claim.
+**The top of the task screen shows both the assignee and the runner.** **Assignee {name}** is the person responsible for the work. **Running on {host} ▸** is the agent session that has claimed the task and is running it now. Click it to go to that session. The assignee and the runner can be different: people set the assignee, while the runner is whoever has the claim.
 
-**The finish form opens when you press [Finish…] or when the task is Claimed, In progress or In review.** The spec impact **starts with nothing chosen** — "none" is a choice too, so [Move to done] is locked until you pick. Choose "some" and it turns on only once you write which spec should change and how. If no evidence is attached, the form says so before you press — the done gate requires evidence. Marking a task blocked happens in its own **Mark as blocked** card, where you pick the reason.
+**The finish form opens when you click [Finish…], or when the task is Claimed, In progress, or In review.** Spec impact **starts with nothing selected**. You have to choose **No spec impact** explicitly too, so [Move to done] stays disabled until you make a choice. If you choose **Has impact**, the button is enabled only after you write which spec should change and how. If no evidence is attached, a notice appears before you press the button, because the done gate requires evidence. To mark a task as blocked, pick a reason in the separate **Mark as blocked** card.
 
 ## The four parts of a brief
 
-A task becomes `ready` only when four things are filled in.
+A task can become `ready` only when these four parts are filled in.
 
 1. **Goal** — what counts as done
-2. **Output format** — what has to be handed back (a PR, a document, a patch)
-3. **Tools and sources** — what to read, and what to do it with
+2. **Output format** — what has to be delivered (a PR, a document, a patch)
+3. **Tools and sources** — what to refer to, and what to use
 4. **Boundaries** — what must not be touched
 
-If any of them is empty the task cannot be claimed. **Large work takes one more step** — four or more tasks from the same spec version, or a version graded T3, need **plan approval** before they start (see [Inbox](/help/inbox)). **The base spec version is not one of the four** — when it is set the agent reads that version, and a task without one still reaches `ready`. Agents are instructed not to guess the missing part but to **raise a question** — work started on a guess only reveals the guess was wrong at the end.
+If any part is empty, the task cannot be claimed. **Large work needs one more step.** When four or more tasks come from the same spec version, or the version is graded T3, the work needs **plan approval** before it starts (see [Inbox](/help/inbox)). **The base spec version is not one of the four parts.** If a base version is set, the agent reads that version. Without one, the task can still move to `ready`. Agents are instructed to **ask a question** instead of guessing what goes in an empty part. When work starts from a guess, you only find out the guess was wrong after the work is finished.
 
-**Tasks are derived from approved versions.** On a spec's requirement row, [Create a task from this requirement] opens the new-task form with the source filled in. Opening the form directly lets you pick spec, version and requirement — and the version list shows **approved versions only** (work derived from an unapproved document stands on a promise nobody agreed to yet). The source is optional, but with it set that requirement's implementation status follows this task.
+**Tasks are created from approved versions.** On a requirement row in a spec, [Create a task from this requirement] opens the new-task form with the source already filled in. If you open the form directly, you can pick the spec, version, and requirement in the form, and **the version list shows approved versions only**. A task created from an unapproved document would be based on content that nobody has agreed to yet. The source is optional. If you set it, that requirement's implementation status follows this task's progress.
 
-**The brief is edited on the task screen.** **[Edit]** on the brief card opens the form in place. Empty parts and import placeholders ("source had no delegation brief") are marked **❌**. In the form those parts open **blank**, with "Missing from the source — needs filling in" shown faintly. Only the parts you fill are saved; a part left blank stays as it was — so you can change just the title. After saving, the screen names the parts that are still empty. A part that already had content cannot be cleared. The rebrief badge has an [Edit] beside it too — when the basis moves, the instructions need reading again. **Planners, developers, admins and qa create tasks; planners, developers and admins edit the brief** (qa turns findings into tasks but does not write briefs). Anyone who cannot sees [+ New task], [Fill it in] and [Edit] locked — so nobody fills in the whole form only to be refused.
+**You edit the brief on the task screen.** Click **[Edit]** on the brief card to open the form in place. Empty parts and import placeholders ("source had no delegation brief") are marked with **❌**. In the form, those parts open **blank**, with "Missing from the source (needs to be filled in)" shown in faint text. Only the parts you fill in are saved, and parts you leave blank stay unchanged, so you can edit just the title. After you save, the parts that are still empty are listed by name. A part that already had content cannot be cleared. The **Re-check instructions** badge also has an [Edit] button next to it, because when the base version changes, the instructions need to be read again. **Planners, developers, admins, and qa can create tasks, and planners, developers, and admins can edit the brief** (qa turns findings into tasks but does not write briefs). People without permission see [+ New task], [Fill it in ▸], and [Edit] disabled, so nobody fills in the whole form only to have it refused.
 
-The task screen shows that basis in human terms: the requirement's stable ID and sentence, the active claim's remaining lease and declared scope, and the reviews that covered this task (open criticals in red). All three take you there — the requirement to the **Requirements** tab of its spec, **[View session ▸]** on the claim row to the session holding that claim, and the branch on a review row to the review center filtered to **that branch's findings only**.
+The task screen also shows the basis for the task in readable form: the requirement's stable ID and text, the active claim's remaining lease and declared scope, and the reviews that covered this task (open critical findings in red). All three link to the related screen. The requirement goes to the **Requirements** tab of its spec. **[View session ▸]** on the claim row goes to the session that has the claim. The branch on a review row goes to the review center, filtered to **that branch's findings only**.
 
 ## Claims and leases
 
-Taking a task is a **claim**. A claim carries a 30-minute lease, and the session sends a heartbeat every 60 seconds to keep it alive.
+Taking on a task is called a **claim**. A claim has a 30-minute lease, and the session sends a heartbeat every 60 seconds to renew it.
 
-- If heartbeats stop, the lease expires and the task returns to `ready`. This is what stops a dead session from holding work forever.
-- Two sessions touching the same declared scope register as an **overlap** — but not always a refusal. There are three grades. **Block** happens only when two sessions declare the **same spec document**, and only then is the second claim refused. **Warn** covers documents joined up or down the spec tree, and two tasks from the same requirement; **info** is anything else that grazes. Neither one stops anyone. **Overlapping file paths alone do not block**: refusing every overlap would let one large module serialise the whole project. **A block notifies whoever claimed first** — the blocked session sees the refusal immediately, but the person who needs to know that scopes are colliding is the one already holding the claim.
-- **You can take and drop work from the web too.** Press [Claim] at the top of the task detail and it is yours — the scope is this task's source spec, and no files are declared. To drop it, pick one of two: **[Hand off]** means someone should pick it up next, **[Abandon]** means you are stopping. They are stored as different reasons, so "why did you put it down" has an answer later. **[Abandon] asks once more** — the task goes back to `ready`.
-- A claim is usually released by **whoever holds it** — the agent releases it when it finishes or gives up (`nerv_task_release`). To stop work someone else holds, **Stop** their session: the claim is released on the spot and the task returns to `ready`.
-- **A task in progress that nobody holds can be sent back.** When a `claimed` or `in progress` task has no active claim, the screen offers [Send back to ready] or [Send back to backlog] — the first when the four parts of the delegation brief are filled in, the second when they are not (imported tasks usually are not). Imported tasks sat in that state for a long time: invisible to the queue and impossible to claim, so nobody ever saw them. If an active claim is held, release it or stop the session first.
-- The server allows more than the screen offers — **an admin can release someone else's claim**, and planners and admins can move someone else's task between lanes. Only the door is missing.
+- If the heartbeats stop, the lease expires and the task returns to `ready`. This keeps an unresponsive session from keeping a task forever.
+- When two sessions touch the same declared scope, it counts as an **overlap**, but not every overlap is refused. There are three grades. **Block** applies only when two sessions declare the **same spec document**, and only then is the second claim refused. **Warn** applies to documents connected above or below each other in the spec tree, and to two tasks from the same requirement. **Info** covers any other partial overlap. Warn and info only notify people. They do not stop the claim. **Overlapping file paths alone do not block a claim.** If every overlap were blocked, one large module would force the whole project to work on one task at a time. **When a claim is blocked, the session that claimed first is notified.** The blocked session gets the rejection right away, but the one that needs to know the scopes are colliding is the session that claimed first.
+- **You can also claim and release work from the web.** Click [Claim] at the top of the task screen to claim the task right away. The declared scope is this task's source spec, and no files are declared. To release the claim, choose one of two options. **[Hand off]** means someone else should pick up the work next. **[Abandon]** means you are stopping the work. The two are recorded as different reasons, so you can later see why the claim was released. **[Abandon] asks you to confirm** because the task goes back to `ready`.
+- A claim is usually released by **whoever claimed it**. An agent releases its own claim when it finishes or gives up (`nerv_task_release`). To stop work that someone else has claimed, **Stop** their session from the session screen. The claim is released immediately and the task returns to `ready`.
+- **An in-progress task that nobody has claimed can be sent back.** When a `claimed` or `in progress` task has no active claim, the screen shows [Send back to ready] or [Send back to backlog]. The first appears when the four parts of the delegation brief are filled in. The second appears when they are not, which is usually the case for imported tasks. Imported in-progress tasks used to stay in that state for a long time. They did not appear in the queue and could not be claimed, so nobody could pick them up. If there is an active claim, release it or stop the session first.
+- The server allows more than the screen offers. **An admin can release someone else's claim**, and planners and admins can change the status of a task that someone else has claimed. The screen does not offer these actions.
 
 ## Done, and the archive window
 
-Finished tasks stay on the board for **seven days** and then drop out of the list. **Show archived** brings the older ones back.
+Finished tasks stay on the board for **seven days** and then drop out of the list. Turn on **Show archived** to also see tasks that were completed more than seven days ago.
 
-This is not a status — it is a **window computed from the completion time**. Archived tasks are not deleted, and their addresses still work.
+The archive window is not a status. It is **a period calculated from the completion time**. Archived tasks are not deleted, and you can still open them by URL.
 
-**`done` cannot be undone.** A request to move a finished task into another lane is refused — completion is a state closed over evidence and spec impact, and reopening it is a new decision. When work remains, **make a new task**.
+**`done` cannot be undone.** Requests to move a finished task to another lane are refused. Completing a task closes it with its evidence and spec impact, so reopening it would be a new decision. If work remains, **create a new task**.
 
 ## Click the evidence
 
-The **Evidence** list on a task is the record that something was put up to be seen. Entries that have somewhere to go **open in a new tab** when you click them — a PR goes to the address recorded on it, a commit or a code path goes to that spot in the project repository, and a review goes to that finding in the review center. The new tab matters because you may be filling in a transition to done on this screen; leaving in the same tab loses the spec impact and evidence you typed.
+The **Evidence** list on the task screen records the material attached to show what the task produced. Items that link somewhere **open in a new tab** when you click them. A PR opens the URL recorded for it, a commit or code path opens that location in the project repository, and a review opens that finding in the review center. They open in a new tab because you may be filling in the finish form on this screen. If you leave the page in the same tab, you lose the spec impact and evidence you entered.
 
-**Evidence that carries its own repository goes there instead.** Evidence attached by CI records which repository it came from, so in a project that uses several repositories the link lands in the repository that actually holds the commit. When it is not recorded, the project's repository URL is used.
+**Evidence with its own repository opens in that repository.** Evidence attached by CI records which repository it came from. In a project that uses several repositories, the link therefore opens the repository that contains the commit. If no repository is recorded, the project's repository URL is used.
 
-**User-guide evidence opens a chapter of this manual.** Write the chapter name (`tasks`) or the whole address (`/help/tasks`) and that chapter opens — a name that is not a chapter stays as text.
+**User guide evidence opens a chapter of this manual.** Enter a chapter name (`tasks`) or the full path (`/help/tasks`) to open that chapter. A name that does not match a chapter is shown as plain text.
 
-**Some rows are not clickable.** Test names are written differently in every repository, so we do not guess where they lead — leaving them as text is more honest than a link to the wrong place. Commits and code paths need the **project repository URL**; when it is empty those rows stay as text and the screen says why.
+**Some items are not clickable.** Test names are written differently in every repository, so NERV does not guess where they should link. Plain text is better than a link to the wrong place. Commits and code paths **need a repository URL on the project**. When it is empty, those items are shown as plain text, with a note explaining why.
 
 ## Requirement links
 
-A task can point at the requirement it implemented. What that link moves is one number on the project screen — **empty promises**, the count of unimplemented requirements no task has taken on. Without links that number is not zero but at its **maximum**.
+A task can link to the requirement it implements. This link affects only one metric on the project screen: **No task**, the number of unimplemented requirements that no task has taken on. Without links, that number is not zero but at its **maximum**.
 
-The implemented and verified bars are a different axis: they are counted from the requirement's own implementation status (see "Requirements and coverage" in the specs chapter).
+The implemented and verified bars are separate. They are calculated from each requirement's own implementation status (see "Requirements" in the specs chapter).
 
-## When the baseline goes stale
+## When the base version goes stale
 
-If the spec version a task is briefed against becomes `superseded`, the task card says so. That is as far as the marker goes — **there is no door in the screen for changing a task's base version afterwards.**
+If the spec version a task is based on becomes `superseded`, the task card gets a **Re-check instructions** badge, and the basis row in the task details shows **Re-check instructions** too. You have two options:
 
-So there are two ways forward: finish against the current baseline and carry the difference into another task, or **make a new task** against the new version. The screen asks you to choose; it does not choose for you.
+- Click **[Update basis]**. This moves the basis to the latest approved version and clears the flag. The delegation brief stays as it is, so update it to match the new spec. **[Edit]** next to it takes you to the brief.
+- Finish the task against its current base version, and put the difference into a **new task**.
+
+A person makes this choice. The screen does not choose for you. Only planner, developer, and admin can click [Update basis].

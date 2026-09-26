@@ -175,7 +175,7 @@ describe('재설정 메일 — /api/auth/request-password-reset (REQ-API-187)', 
     expect(res.statusCode).toBe(200);
     const mail = await resetMail(email);
     expect(mail.locale).toBe('en');
-    expect(mail.subject).toBe('[NERV] Link to set a new password');
+    expect(mail.subject).toBe('[NERV] Reset your password');
     // 수명은 상수에서 온다 — 본문이 말하는 숫자와 토큰의 실제 수명이 같아야 한다
     expect(mail.body).toContain('60 minutes');
     expect(mail.callback).toBe(`${WEB}/reset-password`);

@@ -36,7 +36,7 @@ describe('번역기', () => {
   it('리포트 문구도 값이 들어간다', () => {
     setLocaleForTesting('en');
     expect(t()('cli.reason.plan_total', { expected: 10, actual: 7 })).toBe(
-      'plan_total mismatch — expected 10, got 7',
+      'plan_total mismatch: expected 10, got 7',
     );
   });
 });
