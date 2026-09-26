@@ -177,67 +177,28 @@ describe('요약 줄은 한 벌이다', () => {
 });
 
 /**
- * **임의 px 장부**(REQ-WEB-045). 장부 밖의 파일에는 `[Npx]` 가 없어야 하고, 장부의 파일은 적힌 수와 **같아야**
- * 한다 — 줄였으면 장부도 줄인다(늘어난 수는 실패다). 2026-09-26 에 셸 · 홈 · 프리미티브 · 사이드바 줄 · 세션 요약 줄을
- * 토큰(`h-control-sm` · `h-nav-row` · `text-3xs` · `text-metric` · `rounded-nerv*`)과 척도로 접어 109곳이 51곳이 됐고,
- * 같은 날 간격 · 반경 · 글자 · 흐림 31곳을 척도로 접어 20곳이 됐다(장부 아티팩트의 PR 1 — 한 곳에 1~2px 이하가 움직였다).
- * 이어서 머리글자 칸 세 벌(A · 9곳)을 한 부품(`GlyphChip`)으로 모아 11곳이 됐다(PR 2).
- * 상태 배지 모양(B · 4곳)을 척도로 접어 7곳이 됐다(PR 3 — 배지가 1px 낮아졌다 · 점은 원). 남은 것은 레이아웃 폭(C)이다.
+ * **임의 px 은 없다**(REQ-WEB-045 — 2026-09-26 에 장부가 비었다). 화면마다 손으로 적은 `[Npx]` 가 21개 파일 109곳이었다.
+ * 같은 날 다섯 번에 나눠 접었다 — 셸 · 홈 · 공용 부품 · 사이드바 줄 · 세션 요약 줄을 토큰(`h-control-sm` · `h-nav-row` ·
+ * `text-3xs` · `text-metric` · `rounded-nerv*`)으로(109 → 51) · 간격 · 반경 · 글자 · 흐림을 척도로(→ 20) · 머리글자 칸 세 벌을
+ * `GlyphChip` 으로(→ 11) · 상태 배지를 척도로(→ 7) · 레이아웃 폭을 척도 수로(→ 0 — 사람 결정: 값 그대로, 이름은 붙이지 않는다).
+ * 그동안은 파일마다 남은 수를 적은 장부가 늘어나는 것만 막았고, 이제는 한 곳도 새로 들어오지 못한다.
+ * 주석 속의 `[Npx]` 도 센다 — 옛 값을 적을 때는 "18px 칸" 처럼 풀어 쓴다.
  */
-const LEDGER: Record<string, number> = {
-  // C — 최소 높이 · 안내 폭 · 옆 패널 폭
-  'features/spec-graph/graph.tsx': 3,
-  // C — 레인 폭
-  'features/task-board/board.tsx': 1,
-  // C — 장 안 목차 폭
-  'routes/help/$chapter.tsx': 1,
-  // C — 리뷰 레일 폭
-  'routes/p.$proj/reviews.index.tsx': 1,
-  // C — 세션 상세 레일 폭
-  'routes/p.$proj/sessions.index.tsx': 1,
-};
-
-describe('임의 px 은 줄기만 한다 (REQ-WEB-045)', () => {
-  const counted = Object.fromEntries(
-    sources()
-      .map((file): [string, number] => [
+describe('임의 px 이 없다 (REQ-WEB-045)', () => {
+  it('어느 소스에도 `[Npx]` 가 없다 — 크기·간격은 토큰과 척도로 쓴다', () => {
+    const offenders = sources()
+      .map((file): [string, string[]] => [
         rel(file),
-        (readFileSync(file, 'utf8').match(/\[-?\d+(?:\.\d+)?px\]/g) ?? []).length,
+        readFileSync(file, 'utf8').match(/\S*\[-?\d+(?:\.\d+)?px\]/g) ?? [],
       ])
-      .filter(([, n]) => n > 0),
-  );
-
-  it('장부 밖의 파일에는 임의 px 이 없다 — 새로 쓰는 화면은 토큰과 척도로 쓴다', () => {
-    expect(Object.keys(counted).filter((file) => !(file in LEDGER))).toEqual([]);
+      .filter(([, found]) => found.length > 0)
+      .map(([file, found]) => `${file}: ${found.join(' ')}`);
+    expect(offenders).toEqual([]);
   });
 
-  it('장부의 파일은 적힌 수와 같다 — 늘면 실패, 줄였으면 장부를 줄인다', () => {
-    const drift = Object.entries(LEDGER)
-      .filter(([file, n]) => (counted[file] ?? 0) !== n)
-      .map(([file, n]) => `${file}: 장부 ${n} · 실제 ${counted[file] ?? 0}`);
-    expect(drift).toEqual([]);
-  });
-
-  it('접은 파일은 장부에 없다 — 셸 · 홈 · 프리미티브 · 사이드바 줄 · 세션 요약 줄 · 피드 · 트리 · 창 뒤판', () => {
-    for (const file of [
-      'components/app-shell.tsx',
-      'routes/index.tsx',
-      'components/ui/primitives.tsx',
-      'components/nav-styles.ts',
-      'features/session-monitor/session-board.tsx',
-      'features/session-monitor/activity-rail.tsx',
-      'components/event-feed.tsx',
-      'components/spec-tree.tsx',
-      'components/relation-tabs.tsx',
-      'components/quick-switcher.tsx',
-      'components/ui/modal.tsx',
-      'routes/inbox.tsx',
-      'features/session-monitor/activity-timeline.tsx',
-      'routes/p.$proj/specs.$spec.tsx',
-      'components/status-badge.tsx',
-    ]) {
-      expect(LEDGER[file]).toBeUndefined();
-      expect(counted[file]).toBeUndefined();
-    }
+  it('레이아웃 폭은 값 그대로 척도 수다 — 명세가 적은 폭(그래프 패널 288px)이 움직이지 않았다', () => {
+    const graph = readFileSync(join(SRC, 'features/spec-graph/graph.tsx'), 'utf8');
+    // 명세 §2.4a "패널이 열리면 캔버스가 288px 좁아진다" — 72 × 4px
+    expect(graph).toContain('w-72 shrink-0 flex-col');
   });
 });

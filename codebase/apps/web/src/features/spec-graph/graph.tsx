@@ -562,7 +562,7 @@ export function SpecGraph({
        작용하는데 페이지 행으로 두면 영구히 세로를 먹고(실측: 조종기 35px + 안내 23px),
        트리·표 탭에서는 아무 일도 안 하면서 자리만 지켰다. 지도 도구는 지도 위에 있다. */
     <div className="flex min-h-0 flex-1 gap-2">
-      <div className="relative min-h-[380px] min-w-0 flex-1">
+      <div className="relative min-h-95 min-w-0 flex-1">
         <div
           ref={container}
           data-testid="spec-graph"
@@ -637,7 +637,7 @@ export function SpecGraph({
         {helpOpen && (
           <div
             data-testid="graph-help-panel"
-            className="absolute top-14 left-2 z-10 max-w-[420px] rounded-nerv border border-border bg-bg-elev px-3 py-2.5 text-xs leading-[1.6] text-text-mute shadow-popover"
+            className="absolute top-14 left-2 z-10 max-w-105 rounded-nerv border border-border bg-bg-elev px-3 py-2.5 text-xs leading-[1.6] text-text-mute shadow-popover"
           >
             {/* **읽는 법이 먼저다.** 조작은 만져 보면 알게 되지만 색과 크기는 그림에서
                 읽어 낼 수 없다 — 범례가 한 줄로 말하는 것을 여기서 끝까지 적는다(크기에
@@ -665,7 +665,7 @@ export function SpecGraph({
       {selectedNode !== undefined && (
         <aside
           data-testid="graph-panel"
-          className="flex w-[288px] shrink-0 flex-col overflow-y-auto rounded-nerv border border-border bg-bg-elev"
+          className="flex w-72 shrink-0 flex-col overflow-y-auto rounded-nerv border border-border bg-bg-elev"
         >
           {/* 머리에 고른 문서의 이름. **이름 자체가 문 이다** — 이동은 여기서만 일어난다 */}
           <header className="sticky top-0 z-10 border-b border-border bg-bg-elev px-3 py-2.5">

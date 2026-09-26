@@ -481,7 +481,7 @@ function ReviewCenter(): React.JSX.Element {
           // 페이지가 흐른다는 전제 위의 임시 방편이었다 — 붙일 것이 없는 자리의 `sticky` 는
           // 아무 일도 하지 않는다. 스크롤을 바깥 `aside` 가 아니라 **카드에** 두는 이유는
           // 테두리까지 함께 흘러 올라가지 않게 하기 위해서다.
-          <aside data-testid="review-rail" className="hidden w-[340px] shrink-0 xl:block xl:h-full">
+          <aside data-testid="review-rail" className="hidden w-85 shrink-0 xl:block xl:h-full">
             <div className="rounded-nerv border border-border bg-bg-elev px-4 py-3.5 xl:h-full xl:overflow-x-hidden xl:overflow-y-auto">
               <FindingRail
                 finding={selected}
