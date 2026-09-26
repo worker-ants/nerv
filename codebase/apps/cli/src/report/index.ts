@@ -151,10 +151,14 @@ export function renderMarkdown(report: ImportReport): string {
     '',
     t()('cli.report.source', { root: report.root }) +
       (report.rootCommit === null ? '' : ` (\`${report.rootCommit}\`)`),
-    `- 스캔 ${report.scanned}건 · 변환 ${report.converted}건 · 자동 변환율 ${(conversionRate(report) * 100).toFixed(1)}%`,
+    t()('cli.report.counts', {
+      scanned: report.scanned,
+      converted: report.converted,
+      rate: (conversionRate(report) * 100).toFixed(1),
+    }),
     ...(report.unchanged === undefined
       ? []
-      : [`- 무변경 ${report.unchanged}건 — 본문을 다시 보내지 않았다(§3.4)`]),
+      : [t()('cli.report.unchanged', { count: report.unchanged })]),
     '',
   ];
 

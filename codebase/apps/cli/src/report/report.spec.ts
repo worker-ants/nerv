@@ -97,6 +97,23 @@ describe('리포트', () => {
   it('실패가 없으면 "없음" 이라고 적는다 — 빈 표를 두지 않는다', () => {
     expect(renderMarkdown(base)).toContain('없음');
   });
+
+  // **집계 두 줄이 한국어로 박혀 있었다** — 카탈로그에 같은 문장(`cli.report.counts`)이 있었는데
+  // 코드가 그것을 부르지 않아, 영어 로케일의 리포트도 그 두 줄만 한국어였다
+  it('집계 줄도 로케일을 따른다', () => {
+    const report = { ...base, unchanged: 4 };
+    expect(renderMarkdown(report)).toContain('- 스캔 135건 · 변환 133건 · 자동 변환율 98.5%');
+    expect(renderMarkdown(report)).toContain('- 무변경 4건');
+    setLocaleForTesting('en');
+    try {
+      const md = renderMarkdown(report);
+      expect(md).toContain('- Scanned 135, converted 133, automatic conversion rate 98.5%');
+      expect(md).toContain('- Unchanged 4');
+      expect(md).not.toMatch(/[가-힣]/);
+    } finally {
+      setLocaleForTesting('ko');
+    }
+  });
 });
 
 /**
