@@ -30,7 +30,7 @@ import { useT } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
-import { Button } from '../../components/ui/primitives.js';
+import { Button, GlyphChip } from '../../components/ui/primitives.js';
 import { LABEL_FONT_SIZE, LABEL_MIN_ZOOMED, declutterLabels, runLayout } from './layout.js';
 
 cytoscape.use(fcose);
@@ -839,17 +839,16 @@ function ConnectionRow({
       className="flex w-full items-start gap-2 rounded-nerv px-1.5 py-1.5 text-left transition-colors hover:bg-bg-hover"
     >
       {/* 방향 표식은 레일과 같다 — 들어오는 것은 조용히, 나가는 것은 물들여서 */}
-      <span
-        aria-hidden="true"
+      <GlyphChip
         className={cn(
-          'mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[10px] font-semibold',
+          'mt-px',
           incoming === true
             ? 'bg-bg-sunken text-text-mute'
             : 'bg-status-action-soft text-status-action',
         )}
       >
         {incoming === true ? '↓' : '↑'}
-      </span>
+      </GlyphChip>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm leading-[1.45] text-text">
           {connection.node.title}

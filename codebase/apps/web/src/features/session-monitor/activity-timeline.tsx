@@ -19,7 +19,7 @@ import {
 } from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
-import { Button, Skeleton } from '../../components/ui/primitives.js';
+import { Button, GlyphChip, Skeleton } from '../../components/ui/primitives.js';
 import { relativeTime } from './format.js';
 import { cn } from '../../lib/utils.js';
 
@@ -215,16 +215,10 @@ function ActivityRow({
 
   return (
     <li className="relative flex gap-3" data-testid="activity-row">
-      <div className="flex w-[18px] shrink-0 flex-col items-center">
-        <span
-          aria-hidden="true"
-          className={cn(
-            'inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
-            failed ? MARK['error']!.tone : mark.tone,
-          )}
-        >
+      <div className="flex w-4.5 shrink-0 flex-col items-center">
+        <GlyphChip shape="round" className={failed ? MARK['error']!.tone : mark.tone}>
           {failed ? '!' : mark.glyph}
-        </span>
+        </GlyphChip>
         {!last && <span className="min-h-2 w-px flex-1 bg-border" />}
       </div>
       <div className="min-w-0 flex-1 pb-3">
