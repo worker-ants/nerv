@@ -7,14 +7,15 @@
 //
 // 이 파일이 지키는 것은 두 가지이고, **둘이 서로 반대 방향이라 함께 봐야 한다**:
 //   ① 브라우저가 스스로 부르는 자리(`<img src>`·`<a href>`)에는 오리진이 붙는다
-//   ② 본문(md)에 남는 주소에는 붙지 않는다 — 문서를 배치에 묶지 않는다(REQ-API-089)
+//   ② 본문(md)에 남는 주소에는 붙지 않는다 — 문서를 배치에 묶지 않는다(REQ-API-089).
+//      본문에 넣는 쪽은 에이전트라(REQ-WEB-173) 여기서는 그 주소를 그리고 되쓰는 일만 본다
 
 import { Editor } from '@tiptap/react';
 import { LocaleProvider } from '../../lib/i18n.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RealtimeProvider } from '../../lib/realtime.js';
 import { resetRuntimeConfigForTesting } from '../../lib/config.js';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('socket.io-client', () => ({
@@ -44,19 +45,14 @@ afterEach(() => {
   cleanup();
 });
 
-function renderPanel(onInsert: (snippet: string) => void): void {
+function renderPanel(): void {
   vi.stubGlobal('fetch', async () => ({ ok: true, status: 200, json: async () => items }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <LocaleProvider locale="ko">
       <QueryClientProvider client={client}>
         <RealtimeProvider>
-          <AttachmentPanel
-            projectSlug="sudoku"
-            specKey="SPC-A"
-            canEdit={false}
-            onInsert={onInsert}
-          />
+          <AttachmentPanel projectSlug="sudoku" specKey="SPC-A" canEdit={false} />
         </RealtimeProvider>
       </QueryClientProvider>
     </LocaleProvider>,
@@ -65,7 +61,7 @@ function renderPanel(onInsert: (snippet: string) => void): void {
 
 describe('첨부 패널의 주소', () => {
   it('브라우저가 부르는 주소에는 API 오리진이 붙는다', async () => {
-    renderPanel(() => undefined);
+    renderPanel();
     await waitFor(() => expect(screen.getAllByTestId('attachment')).toHaveLength(2));
     const [image, pdf] = screen.getAllByTestId('attachment') as HTMLElement[];
 
@@ -81,19 +77,6 @@ describe('첨부 패널의 주소', () => {
         .getByText('리포트.pdf')
         .getAttribute('href'),
     ).toBe(`${API}/api/v1/projects/sudoku/attachments/a-2`);
-  });
-
-  it('본문에 넣는 주소에는 붙지 않는다 — 문서는 배치에 묶이지 않는다', async () => {
-    const inserted: string[] = [];
-    renderPanel((snippet) => inserted.push(snippet));
-    await waitFor(() => expect(screen.getAllByTestId('attachment')).toHaveLength(2));
-    const rows = screen.getAllByTestId('attachment');
-    fireEvent.click(within(rows[0] as HTMLElement).getByTestId('attach-insert'));
-    fireEvent.click(within(rows[1] as HTMLElement).getByTestId('attach-insert'));
-
-    expect(inserted[0]).toBe('![시안.png](/api/v1/projects/sudoku/attachments/a-1)');
-    expect(inserted[1]).toBe('[리포트.pdf](/api/v1/projects/sudoku/attachments/a-2)');
-    for (const snippet of inserted) expect(snippet).not.toContain(API);
   });
 });
 

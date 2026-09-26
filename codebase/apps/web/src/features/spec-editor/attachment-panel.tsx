@@ -3,8 +3,8 @@
 // **시안이 문서 밖에 있으면 문서가 아니다.** 지금까지 시안은 슬랙이나 외부 링크로 떠돌았고,
 // 그 링크는 스펙의 버전과 무관하게 바뀌었다 — "이 버전이 말하는 화면" 을 나중에 되짚을 수 없다.
 //
-// 올린 뒤에 **본문에 넣는 길을 같은 자리에 둔다**: 파일만 매달고 끝나면 문서를 읽는 사람은
-// 그 그림을 못 본다. 붙여넣을 마크다운을 한 번에 넣어 준다.
+// 본문에 넣는 일은 여기 없다 — 웹은 본문을 고치지 않고 에이전트가 쓴다(REQ-WEB-173).
+// 패널은 올리고, 미리 보고, 받고, 지운다.
 
 import { useRef, useState } from 'react';
 import { useApiError } from '../../lib/api-errors.js';
@@ -26,13 +26,10 @@ export function AttachmentPanel({
   projectSlug,
   specKey,
   canEdit,
-  onInsert,
 }: {
   projectSlug: string;
   specKey: string;
   canEdit: boolean;
-  /** 본문에 넣기 — 편집 중일 때만 온다 */
-  onInsert?: ((markdown: string) => void) | undefined;
 }): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
@@ -121,7 +118,7 @@ export function AttachmentPanel({
         {items.map((item) => {
           const id = String(item['id']);
           // **본문에 남는 주소와 브라우저가 부르는 주소가 다르다.** 서버가 주는 주소는
-          // 상대 경로이고(REQ-API-089) 본문(md)에는 그대로 들어간다 — 절대 주소를 박으면
+          // 상대 경로이고(REQ-API-089) 에이전트가 본문(md)에 그대로 넣는다 — 절대 주소를 박으면
           // 그 문서가 이 배치에 묶인다. 대신 화면이 **자기가 부를 때만** 오리진을 붙인다:
           // `<img src>`·`<a href>` 는 `apiFetch` 를 타지 않아, 상대 경로면 브라우저가
           // 화면이 뜬 오리진으로 해소한다 — 호스트를 가른 배치에는 그쪽에 API 가 없다
@@ -153,27 +150,9 @@ export function AttachmentPanel({
                   {item['is_agent'] === true ? '🤖' : '👤'} {String(item['uploaded_by'] ?? '')}
                 </span>
               </div>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {onInsert !== undefined && (
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    data-testid="attach-insert"
-                    onClick={() =>
-                      // **그림이 아닌 것은 링크다**(2026-09-07 · 사람 결정). 삽입 단추가
-                      // 모든 파일에 이미지 문법을 넣어, PDF·CSV 를 삽입하면 본문에 깨진
-                      // 이미지 자리가 생겼다 — 누른 사람은 자기가 잘못 올렸다고 읽는다.
-                      onInsert(
-                        isImage
-                          ? `![${String(item['filename'])}](${path})`
-                          : `[${String(item['filename'])}](${path})`,
-                      )
-                    }
-                  >
-                    {t('spec.attach.insert')}
-                  </Button>
-                )}
-                {canEdit && (
+              {/* 지우기만 남았다 — 편집할 수 없으면 줄 자체를 두지 않는다 */}
+              {canEdit && (
+                <div className="mt-1 flex flex-wrap gap-1.5">
                   <ConfirmAction
                     testIdBase="attach-remove"
                     message={t('spec.attach.remove_confirm', {
@@ -197,8 +176,8 @@ export function AttachmentPanel({
                       </Button>
                     )}
                   />
-                )}
-              </div>
+                </div>
+              )}
             </li>
           );
         })}
