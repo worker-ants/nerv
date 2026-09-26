@@ -6,12 +6,17 @@
 // 세우는 까닭은 장을 옮겨도 이 라우트는 그대로라 열이 다시 그려지지 않기 때문이다(접음·스크롤이 남는다).
 
 import { createFileRoute, Outlet, useParams } from '@tanstack/react-router';
+import { useRef } from 'react';
 import { ManualColumn } from '../../features/manual/manual-column.js';
+import { useScrollTopOn } from '../../lib/scroll-top.js';
 
 export const Route = createFileRoute('/help')({ component: ManualShell });
 
 function ManualShell(): React.JSX.Element {
   const { chapter } = useParams({ strict: false });
+  // 장을 옮기면 본문은 처음부터 — 차례(둘째 열)는 제자리에 남는다(REQ-WEB-244)
+  const contentRef = useRef<HTMLDivElement>(null);
+  useScrollTopOn(contentRef, chapter);
   return (
     // **본문이 자기 상자 안에서 흐른다**(2026-09-08 — 사람 지시 · REQ-WEB-157). S3 와 같은
     // 규약이다(§2.4 · REQ-WEB-156): 스크롤 상자가 페이지면 차례 위에서 굴린 바퀴가
@@ -29,7 +34,11 @@ function ManualShell(): React.JSX.Element {
           (예전에는 좁으면 차례가 없었다 · NAV-14 — 그 길은 그대로 남는다) */}
       <ManualColumn activeChapter={chapter} />
       {/* 흐르는 것은 이 칸이다 — 차례는 제 열에서 제자리에 선다 */}
-      <div data-testid="manual-content" className="min-w-0 flex-1 md:h-full md:overflow-y-auto">
+      <div
+        ref={contentRef}
+        data-testid="manual-content"
+        className="min-w-0 flex-1 md:h-full md:overflow-y-auto"
+      >
         <Outlet />
       </div>
     </div>

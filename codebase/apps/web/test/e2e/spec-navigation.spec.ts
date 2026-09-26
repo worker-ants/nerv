@@ -213,6 +213,67 @@ test('본문을 내려도 페이지와 레일은 제자리다 — 흐르는 것�
   expect(moved.titleGap).toBeLessThanOrEqual(1);
 });
 
+// ── 다른 문서로 옮기면 처음부터 (REQ-WEB-244 · 2026-09-26 사람 보고) ──────────
+//
+// 본문과 레일은 문서를 옮겨도 그대로 남는 상자다. 되돌리는 열쇠는 **문서**다 — 레일 탭 ·
+// 본문 탭 · 버전은 주소(`?rail=` 등)를 바꾸지만 같은 문서 안의 이동이라, 거기서 되돌리면
+// 레일 탭을 누를 때마다 읽던 본문이 맨 위로 튄다(라우터의 전역 설정을 쓰지 않은 이유다).
+test('다른 스펙으로 옮기면 본문과 레일이 처음부터 — 레일 탭은 읽던 자리를 지킨다', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/p/clemvion/specs/SPC-CWC-007');
+  const body = page.getByTestId('spec-body');
+  await expect(body).toBeVisible({ timeout: 15000 });
+  const tree = page.getByTestId('spec-tree').first();
+
+  // **한 번 본 문서로 돌아가는 길**이 이 결함의 자리다. 처음 여는 문서는 받는 동안 골격을
+  // 거치며 상자가 새로 서서 원래도 처음부터 열렸다 — 받아 둔 문서는 곧바로 그려져 상자가
+  // 그대로 남고, 그때 앞 문서를 읽던 깊이가 따라왔다. 그래서 012 를 한 번 열어 받아 두고 돌아온다
+  await tree.getByText('세션 복원 API').first().click();
+  await expect(page).toHaveURL(/SPC-CWC-012/);
+  await expect(page.getByTestId('spec-title')).toContainText('세션 복원', { timeout: 15000 });
+  await tree.getByText('웹챗 위젯 임베드').first().click();
+  await expect(page).toHaveURL(/SPC-CWC-007/);
+  await expect(page.getByTestId('spec-title')).toContainText('웹챗 위젯', { timeout: 15000 });
+
+  // 레일은 `rail-head` 를 든 상자다(위 테스트와 같은 것을 집는다)
+  const rail = page.getByTestId('rail-head').locator('xpath=..');
+
+  // 시드 문서는 짧다 — 높이를 만들어 준 뒤 내린다. 채움은 **상자 자신에** 단다: 문서가 바뀌면
+  // 안쪽 목록은 새로 그려져 거기 단 채움이 사라지고, 그러면 내용이 짧아진 상자를 브라우저가
+  // 스스로 0 으로 당겨 이 검사가 고친 것 없이도 지나간다. 레일은 세로 flex 라 줄어들지 않게 한다
+  for (const box of [body, rail]) {
+    await box.evaluate((el) => {
+      const filler = document.createElement('div');
+      filler.style.height = '3000px';
+      filler.style.flexShrink = '0';
+      el.appendChild(filler);
+      el.scrollTop = 500;
+    });
+  }
+  const scrolled = (box: typeof body): Promise<number> =>
+    box.evaluate((el) => Math.round(el.scrollTop));
+  const overflows = (box: typeof body): Promise<number> =>
+    box.evaluate((el) => el.scrollHeight - el.clientHeight);
+  expect(await scrolled(body)).toBeGreaterThan(0);
+  expect(await scrolled(rail)).toBeGreaterThan(0);
+
+  // 같은 문서 안의 이동 — 주소는 바뀌어도 본문은 읽던 자리다
+  await page.getByTestId('rail-tab-versions').click();
+  await expect(page).toHaveURL(/rail=versions/);
+  expect(await scrolled(body)).toBeGreaterThan(0);
+
+  // 다른 문서(받아 둔 것) — 둘 다 처음부터
+  await tree.getByText('세션 복원 API').first().click();
+  await expect(page).toHaveURL(/SPC-CWC-012/);
+  await expect.poll(() => scrolled(body)).toBe(0);
+  await expect.poll(() => scrolled(rail)).toBe(0);
+  // 전제 — 두 상자는 여전히 흐를 수 있다(짧아져서 0 이 된 것이 아니다)
+  expect(await overflows(body)).toBeGreaterThan(0);
+  expect(await overflows(rail)).toBeGreaterThan(0);
+});
+
 // 다이어그램 배율 — REQ-WEB-172 (2026-09-22 사람 보고)
 //
 // **jsdom 으로는 잡을 수 없다.** 검사하는 것이 "확대하면 넘친 만큼 스크롤할 수 있는가" 라
