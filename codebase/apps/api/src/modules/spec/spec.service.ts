@@ -48,7 +48,7 @@ import { AttachmentService } from './attachment.service.js';
  */
 const INCLUDE_VALUES = ['tasks', 'comments', 'attachments'] as const;
 import { EventService } from '../event/event.service.js';
-import { decideGate, inferAxes } from './gate-tier.js';
+import { decideGate, gateEventPayload, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
@@ -1081,7 +1081,8 @@ export class SpecService {
         isAgent: input.sessionId != null,
         fromState: 'draft',
         toState: 'in_review',
-        payload: { gate_tier: gate.tier, gate_score: gate.score },
+        // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188)
+        payload: gateEventPayload(gate),
       });
 
       if (gate.autoPass) {
@@ -1132,7 +1133,9 @@ export class SpecService {
           actorSessionId: input.sessionId ?? null,
           isAgent: input.sessionId != null,
           payload: {
-            gate_tier: gate.tier,
+            // 카드가 티어 곁에 근거를 그린다(§6.4 · REQ-API-188) — 배지만으로는 왜 사람이
+            // 불렸는지 모른다
+            ...gateEventPayload(gate),
             required_approvers: cards.slots,
             // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
             // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다

@@ -247,6 +247,7 @@ export const en = {
   'inbox.card.correct.finding_returned': 'If the agent asks again, a new card appears.',
   'inbox.card.correct.bypass': 'A bypass stays on record — withdrawing it is a new decision.',
   'inbox.card.to_session': 'Open session',
+  'inbox.card.gate_score': 'Four-axis score {score}',
   'inbox.scope_all':
     'Requests from every organization you belong to — each row says which organization and project it belongs to.',
   'inbox.subject.change_request': 'Change request',
@@ -342,6 +343,10 @@ export const en = {
   'gate.reason.retry_threshold': 'retry threshold exceeded → tier +1',
   'gate.reason.recent_rollback': 'rollback within 30 days → tier +1',
   'gate.reason.first_version': "the document's first approved version → tier +1",
+  'gate.axis.side_effect': 'side effects',
+  'gate.axis.sensitivity': 'sensitivity',
+  'gate.axis.reversibility': 'reversibility',
+  'gate.axis.blast_radius': 'blast radius',
   'check.link_unknown':
     'A link points at {key}, which does not exist in this project — a typo, or a document not written yet.',
   'check.no_relations':

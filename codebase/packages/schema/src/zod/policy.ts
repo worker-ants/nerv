@@ -20,7 +20,7 @@ export const GatePolicySchema = z
       .object({
         /** 4축 합산 점수의 T1/T2/T3 진입 경계 — 기본 0~1=T0 · 2~3=T1 · 4~5=T2 · 6+=T3 */
         tier_boundaries: z.array(z.number().int().min(0)).length(3).default([2, 4, 6]),
-        /** 재시도 임계·롤백 이력에 의한 티어 +1 (spec-workflow §2.4 동적 강화) */
+        /** 티어 +1 — 지금 세는 신호는 첫 승인 버전 하나다 (spec-workflow §2.4 동적 강화) */
         dynamic_escalation: z.boolean().default(true),
       })
       .strict()

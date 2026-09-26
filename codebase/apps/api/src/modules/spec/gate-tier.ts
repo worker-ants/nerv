@@ -1,4 +1,4 @@
-import { text } from '@nerv/schema';
+import { text, type GateAxis, type GateSignal } from '@nerv/schema';
 // 스펙 변경 게이트 티어 T0~T3 — 정본: docs/03-proposal/spec-workflow.md §2.4 (D-06)
 //
 // **자동 통과 경로는 필수 기능이다.** SDD 에 대한 대표적 비판이 "버그 하나 고치는 데 16개
@@ -29,8 +29,17 @@ export interface GateDecision {
   requiredApprovers: number;
   /** 사전 승인 없이 approved 로 갈 수 있는가 */
   autoPass: boolean;
-  /** 왜 이 티어인가 — 승인 카드가 산출 근거를 보여야 한다(§6.4) */
+  /** 왜 이 티어인가 — 에이전트가 받는 한 줄(제출 응답). 카탈로그 문장이라 저장하지 않는다 */
   rationale: string;
+  /**
+   * **산출 근거를 구조로 남긴다**(2026-09-26 · REQ-API-188). 승인 카드가 티어 곁에 근거를 보여야
+   * 하는데(§6.4) 근거는 위의 한 줄 문자열뿐이었고 저장되지 않아, 카드는 배지만 그렸다 — 첫 승인
+   * 버전 가산으로 T2 가 된 문서도 사람에게는 이유 없이 T2 였다. 축별 점수와 발동한 신호를
+   * 이벤트에 싣고 화면이 자기 말로 그린다.
+   */
+  axes: GateAxes;
+  /** 티어를 올린 신호 — 발동한 것만, 판정 순서대로 */
+  signals: GateSignal[];
 }
 
 /** 동적 강화 사유 — 액션 위험도만이 아니라 세션의 신뢰도도 티어를 올린다(§2.4). */
@@ -89,21 +98,17 @@ export function decideGate(
   let tier = tierOf(score, policy.boundaries);
 
   const reasons: string[] = [`4축 합계 ${score}점`];
+  const fired: GateSignal[] = [];
   // 동적 강화를 끈 프로젝트에서는 신호를 세지 않는다(`gate_policy.dynamic_escalation`).
   // 끄는 선택지를 화면에 두고 값은 무시하면, 끈 사람은 껐다고 믿는다.
   if (policy.dynamicEscalation !== false) {
-    if (signals.repeatedFailures === true) {
-      tier = escalate(tier);
-      reasons.push(text('gate.reason.retry_threshold'));
-    }
-    if (signals.recentRollback === true) {
-      tier = escalate(tier);
-      reasons.push(text('gate.reason.recent_rollback'));
-    }
-    if (signals.firstApprovedVersion === true) {
-      tier = escalate(tier);
-      reasons.push(text('gate.reason.first_version'));
-    }
+    if (signals.repeatedFailures === true) fired.push('retry_threshold');
+    if (signals.recentRollback === true) fired.push('recent_rollback');
+    if (signals.firstApprovedVersion === true) fired.push('first_version');
+  }
+  for (const signal of fired) {
+    tier = escalate(tier);
+    reasons.push(text(`gate.reason.${signal}`));
   }
 
   return {
@@ -114,6 +119,32 @@ export function decideGate(
     // 남는 등급이고, 되돌리기 창은 두지 않는다(2026-09-02 사람 결정 · §2.4).
     autoPass: tier === 'T0' || tier === 'T1',
     rationale: reasons.join(' · '),
+    axes,
+    signals: fired,
+  };
+}
+
+/**
+ * 판정을 **이벤트에 싣는 모양**(2026-09-26 · REQ-API-188) — `spec.submitted` 와 `approval.requested`
+ * 가 같은 모양을 쓴다. 키는 `@nerv/schema` 의 `GATE_AXES`·`GATE_SIGNALS` 이고, 받은 요청 카드가
+ * 결재 요청 이벤트에서 그대로 읽는다(`approval.service` 의 `gate_*` 칸).
+ */
+export function gateEventPayload(gate: GateDecision): {
+  gate_tier: GateTier;
+  gate_score: number;
+  gate_axes: Record<GateAxis, number>;
+  gate_signals: GateSignal[];
+} {
+  return {
+    gate_tier: gate.tier,
+    gate_score: gate.score,
+    gate_axes: {
+      side_effect: gate.axes.sideEffect,
+      sensitivity: gate.axes.sensitivity,
+      reversibility: gate.axes.reversibility,
+      blast_radius: gate.axes.blastRadius,
+    },
+    gate_signals: gate.signals,
   };
 }
 

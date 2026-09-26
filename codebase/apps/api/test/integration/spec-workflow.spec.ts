@@ -220,6 +220,28 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
     expect(submitted.status).toBe('in_review');
     expect(submitted.approval_id).not.toBeNull();
     expect(submitted.gate.rationale).toContain('첫 승인 버전');
+
+    // **근거가 카드까지 간다**(2026-09-26 · REQ-API-188 · §6.4) — 제출 이벤트와 결재 요청
+    // 이벤트가 축별 점수와 신호를 싣고, 받은 요청 카드가 그것을 읽는다. 배지만 있던 동안
+    // 이 T2 는 사람에게 이유 없이 T2 였다
+    const reason = {
+      gate_tier: 'T2',
+      gate_score: 3,
+      gate_axes: { side_effect: 2, sensitivity: 1, reversibility: 0, blast_radius: 0 },
+      gate_signals: ['first_version'],
+    };
+    const { rows: submittedEvents } = await pool.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM event WHERE type = 'spec.submitted' AND subject_id = $1`,
+      [draft['spec_version_id']],
+    );
+    expect(submittedEvents[0]?.payload).toEqual(reason);
+    const { items } = await approvals.inbox({
+      projectId,
+      userId: reviewer,
+      actor: person(reviewer),
+    });
+    const card = items.find((item) => item['spec_key'] === key);
+    expect(card).toMatchObject(reason);
   });
 
   it('둘째 버전부터는 축이 정한 대로다 — 가산은 문서당 한 번이다', async () => {

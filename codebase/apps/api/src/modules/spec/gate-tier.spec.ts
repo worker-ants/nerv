@@ -4,7 +4,8 @@
 // 자동 통과가 없으면 워터폴 비판을 실현하고, 강화 게이트가 없으면 승인이 형식이 된다.
 
 import { describe, expect, it } from 'vitest';
-import { decideGate, escalate, inferAxes, scoreOf, tierOf } from './gate-tier.js';
+import { GATE_AXES } from '@nerv/schema';
+import { decideGate, escalate, gateEventPayload, inferAxes, scoreOf, tierOf } from './gate-tier.js';
 import type { GateAxes } from './gate-tier.js';
 
 const axes = (s: number, m: number, r: number, b: number): GateAxes => ({
@@ -119,6 +120,41 @@ describe('동적 강화 — 세션 신뢰도도 티어를 올린다', () => {
 
   it('판정 근거를 항상 남긴다 — 승인 카드가 산출 근거를 보여야 한다(§6.4)', () => {
     expect(decideGate(axes(1, 1, 1, 1)).rationale).toContain('4축 합계 4점');
+  });
+});
+
+describe('산출 근거를 구조로 남긴다 (2026-09-26 · REQ-API-188)', () => {
+  // 근거는 한 줄 문자열뿐이었고 저장되지 않았다 — 카드는 배지만 그렸고, 첫 승인 버전 가산으로
+  // T2 가 된 문서도 사람에게는 이유 없이 T2 였다. 축별 점수와 발동한 신호를 판정이 들고 나온다.
+  it('축별 점수와 발동한 신호를 판정 순서대로 싣는다', () => {
+    const decision = decideGate(axes(2, 1, 0, 0), { firstApprovedVersion: true });
+    expect(decision.axes).toEqual(axes(2, 1, 0, 0));
+    expect(decision.signals).toEqual(['first_version']);
+    const both = decideGate(axes(0, 0, 0, 0), {
+      firstApprovedVersion: true,
+      repeatedFailures: true,
+    });
+    expect(both.signals).toEqual(['retry_threshold', 'first_version']);
+  });
+
+  it('끈 프로젝트에서는 신호가 없다 — 올리지 않은 것을 올렸다고 적지 않는다', () => {
+    const off = decideGate(
+      axes(2, 1, 0, 0),
+      { firstApprovedVersion: true },
+      { dynamicEscalation: false },
+    );
+    expect(off.signals).toEqual([]);
+  });
+
+  it('이벤트에 싣는 모양 — 키는 GATE_AXES · GATE_SIGNALS 다', () => {
+    const payload = gateEventPayload(decideGate(axes(2, 1, 0, 1), { firstApprovedVersion: true }));
+    expect(payload).toEqual({
+      gate_tier: 'T3',
+      gate_score: 4,
+      gate_axes: { side_effect: 2, sensitivity: 1, reversibility: 0, blast_radius: 1 },
+      gate_signals: ['first_version'],
+    });
+    expect(Object.keys(payload.gate_axes)).toEqual([...GATE_AXES]);
   });
 });
 
