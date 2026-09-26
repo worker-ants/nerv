@@ -114,7 +114,7 @@ function ManualChapterScreen(): React.JSX.Element {
           (2026-09-08 · REQ-WEB-157). 이 목차가 보이는 폭(`xl`)은 본문이 자기 안에서
           흐르는 폭(`md`)보다 넓으므로, 여기서 셸 헤더를 기준으로 붙일 일은 없다. */}
       {doc.headings.length > 1 && (
-        <aside className="sticky top-0 hidden h-fit w-[196px] shrink-0 py-11 pr-6 xl:block">
+        <aside className="sticky top-0 hidden h-fit w-49 shrink-0 py-11 pr-6 xl:block">
           <p className="mb-2 text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase">
             {t('help.on_this_page')}
           </p>

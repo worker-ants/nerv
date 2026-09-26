@@ -547,7 +547,7 @@ function Lane({
     <section
       data-testid={`column-${lane}`}
       className={cn(
-        'flex w-[268px] shrink-0 flex-col',
+        'flex w-67 shrink-0 flex-col',
         halted && 'rounded-nerv bg-status-danger-soft/30 p-2',
       )}
     >
