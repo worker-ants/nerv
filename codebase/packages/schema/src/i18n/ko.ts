@@ -112,6 +112,7 @@ export const ko = {
   'error.approval.not_assignee': '지정된 승인자가 아닙니다.',
   'error.approval.not_found': '승인 항목을 찾을 수 없습니다.',
   'error.approval.not_in_role_queue': '{role} 역할이 결재할 항목입니다.',
+  'error.approval.bulk_limit': '한 번에 {max}건까지 결정할 수 있습니다.',
   'error.approval.bulk_not_eligible': '일괄 승인할 수 없는 항목입니다. 한 건씩 결정하세요.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
   'error.auth.admin_only': 'admin 만 할 수 있습니다.',

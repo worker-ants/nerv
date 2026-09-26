@@ -122,7 +122,8 @@ export const ApprovalBulkDecisionInput = z
           .strict(),
       )
       .min(1)
-      .max(BULK_DECISION_LIMIT),
+      // 넘기면 이 문장으로 답한다 — 일반 형식 오류로는 무엇을 줄여야 하는지 알 수 없다(parseBody)
+      .max(BULK_DECISION_LIMIT, 'error.approval.bulk_limit'),
   })
   .strict();
 

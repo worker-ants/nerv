@@ -49,6 +49,14 @@ export interface Message {
   readonly values?: PlaceholderValues;
 }
 
+/**
+ * 이 문자열이 카탈로그의 키인가 — **밖에서 온 문자열**(zod 이슈의 메시지 등)을 키로 믿기 전에 묻는다.
+ * 모르는 문자열을 키로 넘기면 번역기가 그 문자열을 그대로 돌려줘, 사람에게 키 원문이 보인다.
+ */
+export function isMessageKey(value: string): value is MessageKey {
+  return Object.hasOwn(ko, value);
+}
+
 export function msg<K extends MessageKey>(key: K, ...args: ArgsFor<(typeof ko)[K]>): Message {
   const values = args[0];
   return values === undefined ? { key } : { key, values };

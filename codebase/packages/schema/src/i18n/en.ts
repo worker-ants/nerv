@@ -104,6 +104,7 @@ export const en = {
   'error.approval.not_assignee': 'You are not the designated approver.',
   'error.approval.not_found': 'Approval item not found.',
   'error.approval.not_in_role_queue': 'This approval belongs to the {role} queue.',
+  'error.approval.bulk_limit': 'You can decide up to {max} items at once.',
   'error.approval.bulk_not_eligible': 'This item cannot be approved in bulk. Decide it on its own.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.auth.admin_only': 'Only admins can do this.',
