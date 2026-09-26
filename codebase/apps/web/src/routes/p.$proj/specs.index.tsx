@@ -283,12 +283,7 @@ function SpecListScreen(): React.JSX.Element {
   return (
     <PageBody
       wide
-      className={cn(
-        'flex flex-col',
-        viewportLocked
-          ? 'h-[calc(100dvh-var(--spacing-header))]'
-          : 'min-h-[calc(100dvh-var(--spacing-header))]',
-      )}
+      className={cn('flex flex-col', viewportLocked ? 'h-below-header' : 'min-h-below-header')}
     >
       <PageHeader
         title={t('specs.title')}

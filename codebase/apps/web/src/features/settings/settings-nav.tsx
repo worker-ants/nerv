@@ -149,7 +149,7 @@ export function SettingsNav({
         <div key={group.key} className="flex flex-col gap-0.5">
           <p
             data-testid={`settings-group-${group.key}`}
-            className="px-2 pt-1.5 text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase"
+            className="px-2 pt-1.5 text-2xs font-semibold tracking-label text-text-faint uppercase"
           >
             {t(group.label)}
           </p>

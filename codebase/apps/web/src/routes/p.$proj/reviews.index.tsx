@@ -266,10 +266,7 @@ function ReviewCenter(): React.JSX.Element {
     // 가운데 칸이 `flex-1`(basis 0)이라 머리가 줄어들 압력을 받지 않는다. 묶는 것은
     // **2열이 되는 폭(`lg`)부터**다: 1열에서 칸을 각각 가두면 스크롤이 두 겹이 되고,
     // 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 보이지 않는다.
-    <PageBody
-      wide
-      className="lg:flex lg:h-[calc(100dvh-var(--spacing-header))] lg:flex-col lg:overflow-hidden"
-    >
+    <PageBody wide className="lg:flex lg:h-below-header lg:flex-col lg:overflow-hidden">
       <PageHeader title={t('reviews.title')} />
       <SummaryStrip className="mb-5 lg:shrink-0" metrics={summary} />
 

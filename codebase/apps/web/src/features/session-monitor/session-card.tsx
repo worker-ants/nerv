@@ -92,7 +92,7 @@ export function SessionCard({
         <div className="mt-0.5 text-2xs text-text-faint">{card.agent_type}</div>
       </div>
 
-      <div className="shrink-0 @2xl:w-[5.5rem]">
+      <div className="shrink-0 @2xl:w-22">
         <StatusBadge token={token} label={t(statusLabelKey('session', card.state))} />
       </div>
 

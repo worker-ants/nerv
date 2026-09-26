@@ -11,4 +11,4 @@ export const NAV_ITEM =
 export const NAV_ACTIVE = 'bg-bg-active font-medium text-text';
 
 /** 열의 구역 이름 — 트리 머리와 같은 크기여야 한 덩어리로 읽힌다 */
-export const RAIL_LABEL = 'text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase';
+export const RAIL_LABEL = 'text-2xs font-semibold tracking-label text-text-faint uppercase';

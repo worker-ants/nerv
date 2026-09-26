@@ -12,8 +12,19 @@ const twMerge = extendTailwindMerge({
   extend: {
     theme: {
       radius: ['nerv-sm', 'nerv', 'nerv-lg'],
-      spacing: ['control-sm', 'control', 'nav-row', 'header', 'sidebar', 'content'],
+      spacing: [
+        'control-sm',
+        'control',
+        'nav-row',
+        'header',
+        'sidebar',
+        'content',
+        'below-header',
+        'anchor',
+      ],
       text: ['3xs', 'metric'],
+      tracking: ['heading', 'label'],
+      'font-weight': ['strong'],
     },
   },
 });

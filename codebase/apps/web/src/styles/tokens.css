@@ -108,6 +108,15 @@
   --text-3xl: 2.0625rem; /* 33px — 문서 제목 */
   --text-3xl--line-height: 1.16;
 
+  /* 자간 세 단 · 굵기 하나(2026-09-26 — 임의 값 장부 · 사람 결정). 화면마다 −0.026 부터 +0.07em 까지 열 가지를
+   * 손으로 적었다. 큰 제목·숫자는 Tailwind 의 `tracking-tight`(−0.025em) · 구역·카드 제목은 `tracking-heading` ·
+   * 대문자 라벨은 `tracking-label`. 행간은 토큰을 더하지 않는다 — 한 줄 제목은 `leading-snug`, 문단은 글자 크기
+   * 토큰의 행간(적지 않는다), 안내 말풍선은 `leading-relaxed` 다. */
+  --tracking-heading: -0.01em;
+  --tracking-label: 0.06em;
+  /* 가변 글꼴의 650 — 요약 숫자 · 홈 구역 제목 · 문서 본문 제목(.prose-nerv h1~h4)이 쓴다 */
+  --font-weight-strong: 650;
+
   --font-sans:
     'Pretendard', 'Pretendard Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system,
     BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -123,6 +132,11 @@
   /* 사이드바 한 줄의 높이 — 항목이 많아도 줄 간격이 같다 */
   --spacing-nav-row: 1.8125rem;
   --spacing-content: 60rem;
+  /* 헤더 아래를 채우는 칸의 높이 — 아홉 자리가 계산식을 각자 적었고 둘만 100vh 였다(폰 주소창이 접히고 펴질 때
+   * 그 둘만 다른 높이). 이제 한 이름이다 */
+  --spacing-below-header: calc(100dvh - var(--spacing-header));
+  /* 제목으로 뛸 때 헤더에 가리지 않게 남기는 위 여백 */
+  --spacing-anchor: calc(var(--spacing-header) + 1.5rem);
 
   /* ── 움직임 ─────────────────────────────────────────────────────────────
    * 결정 유예의 막대(REQ-WEB-237) — 들고 있는 5초가 줄어드는 것을 글자 대신 보인다.

@@ -203,7 +203,7 @@ describe('폭의 상한 (2026-09-08 · 사람 지시)', () => {
     await waitFor(() => expect(screen.queryByTestId('rail-tabs')).not.toBeNull());
     const body = screen.getByTestId('spec-body');
     expect(body.className).toContain('min-w-0');
-    expect(body.className).toContain('lg:min-w-[26rem]');
+    expect(body.className).toContain('lg:min-w-104');
   });
 });
 
@@ -305,7 +305,7 @@ describe('본문의 스크롤 상자 (REQ-WEB-156)', () => {
   it('격자가 화면 높이를 쥐고, 행이 내용만큼 자라지 않는다', async () => {
     await waitFor(() => expect(screen.queryByTestId('spec-body')).not.toBeNull());
     const grid = screen.getByTestId('spec-body').parentElement;
-    expect(grid?.className).toContain('lg:h-[calc(100dvh-var(--spacing-header))]');
+    expect(grid?.className).toContain('lg:h-below-header');
     // 암시 행은 `auto` 라 내용만큼 자란다 — 높이만 잡으면 안쪽 스크롤이 서지 않는다
     expect(grid?.className).toContain('lg:grid-rows-[minmax(0,1fr)]');
     expect(grid?.className).toContain('lg:overflow-hidden');

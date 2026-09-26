@@ -286,7 +286,7 @@ function MembersTab(): React.JSX.Element {
               <Th className="w-28">{t('settings.members.name')}</Th>
               <Th>{t('settings.members.email')}</Th>
               <Th className="w-32">{t('settings.members.scope')}</Th>
-              <Th className="w-[23rem]">{t('settings.members.role')}</Th>
+              <Th className="w-92">{t('settings.members.role')}</Th>
               <Th className="w-32" />
             </>
           }

@@ -69,7 +69,7 @@ function ManualChapterScreen(): React.JSX.Element {
   return (
     <div className="flex">
       <PageBody>
-        <h1 className="mb-5 text-2xl font-bold tracking-[-0.02em]">{t(chapter.titleKey)}</h1>
+        <h1 className="mb-5 text-2xl font-bold tracking-tight">{t(chapter.titleKey)}</h1>
 
         {/* 설치 장만 값 카드를 인다 — 본문의 자리표시자를 채운 값이 어디서 왔는지를
             말하는 자리다(§2.10 · REQ-WEB-165). 다른 장에는 채울 값이 없다. */}
@@ -82,7 +82,7 @@ function ManualChapterScreen(): React.JSX.Element {
           // 그 "위에 붙은 것" 이 폭에 따라 다르다(2026-09-08 · REQ-WEB-157): 본문이 자기
           // 상자 안에서 흐르는 폭(`md`)에서는 상자 위가 곧 헤더 아래라 페이지 여백만큼이면
           // 되고, 페이지가 흐르는 좁은 화면에서는 셸 헤더가 그 자리를 덮는다.
-          className="prose-nerv max-w-[46rem] [&_h2]:scroll-mt-[calc(var(--spacing-header)+1.5rem)]
+          className="prose-nerv max-w-184 [&_h2]:scroll-mt-anchor
             md:[&_h2]:scroll-mt-6"
           dangerouslySetInnerHTML={{ __html: doc.html }}
         />
@@ -115,7 +115,7 @@ function ManualChapterScreen(): React.JSX.Element {
           흐르는 폭(`md`)보다 넓으므로, 여기서 셸 헤더를 기준으로 붙일 일은 없다. */}
       {doc.headings.length > 1 && (
         <aside className="sticky top-0 hidden h-fit w-49 shrink-0 py-11 pr-6 xl:block">
-          <p className="mb-2 text-2xs font-semibold tracking-[0.07em] text-text-faint uppercase">
+          <p className="mb-2 text-2xs font-semibold tracking-label text-text-faint uppercase">
             {t('help.on_this_page')}
           </p>
           <ul className="flex flex-col gap-1.5">

@@ -87,7 +87,7 @@ function HomeScreen(): React.JSX.Element {
     <div className="mx-auto w-full max-w-5xl px-6 pt-11 pb-10 md:px-10">
       {/* 날짜 → 인사말. 인사말이 곧 요약이다 — 결정이 없으면 그렇게 말한다 */}
       <div className="text-sm text-text-faint">{today}</div>
-      <h1 className="mt-2 text-[1.9375rem] leading-[1.18] font-bold tracking-[-0.026em]">
+      <h1 className="mt-2 text-3xl font-bold tracking-tight">
         {me.data === undefined ? (
           t('home.title_anon')
         ) : inboxFailed ? (
@@ -97,7 +97,7 @@ function HomeScreen(): React.JSX.Element {
           <span
             data-testid="greeting-skeleton"
             aria-label={t('common.loading')}
-            className="inline-block h-[1em] w-2/3 max-w-[28rem] animate-pulse rounded-nerv bg-bg-sunken align-middle"
+            className="inline-block h-[1em] w-2/3 max-w-md animate-pulse rounded-nerv bg-bg-sunken align-middle"
           />
         ) : waiting === 0 ? (
           t('home.greeting_clear', { name })
@@ -122,7 +122,7 @@ function HomeScreen(): React.JSX.Element {
 
       <section className="mt-8" data-testid="today-strip">
         <div className="mb-1 flex items-baseline gap-2">
-          <span className="text-lg font-[650] tracking-[-0.012em]">{t('home.waiting_on_you')}</span>
+          <span className="text-lg font-strong tracking-heading">{t('home.waiting_on_you')}</span>
           {waiting > 0 && (
             <span className="text-sm text-text-faint">
               {t('home.waiting_count', { count: waiting })}
@@ -177,7 +177,7 @@ function HomeScreen(): React.JSX.Element {
           <section className="min-w-0 flex-1">
             {/* **어느 프로젝트의 활동인지** 말한다(REQ-WEB-193) — 한 프로젝트의 흐름인데 제목만 보면
               조직 전체의 것처럼 읽혔다 */}
-            <div className="mb-2.5 text-lg font-[650] tracking-[-0.012em]">
+            <div className="mb-2.5 text-lg font-strong tracking-heading">
               {primary === undefined
                 ? t('home.recent_activity')
                 : t('home.recent_activity_in', { project: String(primary['name']) })}
@@ -197,7 +197,7 @@ function HomeScreen(): React.JSX.Element {
               세션이 멈췄는지 무엇이 위험한지를 프로젝트를 바꿔 가며 열어 봐야 알았다. 명세(§2.2 "내 프로젝트
               카드")와 시안(ui-wireframes §2.1)은 처음부터 목록이었다. 커버리지는 개요(S2)가 갖는다 */}
           <section data-testid="home-projects" className="w-full shrink-0 md:w-72">
-            <div className="mb-2.5 text-lg font-[650] tracking-[-0.012em]">
+            <div className="mb-2.5 text-lg font-strong tracking-heading">
               {t('home.my_projects')}
             </div>
             <ul className="overflow-hidden rounded-nerv-lg border border-border">
@@ -272,7 +272,7 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
               `subjectFallback` 로 같은 자리를 메우고 있었다 — 판정이 아니라 **표기**라 그 함수를
               여기서도 쓴다. **순서도 카드와 같다**(REQ-WEB-204): 예전에는 질문의 본문을 제목 자리에
               두어, 누르고 도착한 카드가 같은 요청을 다른 말(제목)로 불렀다 */}
-          <span className="block truncate text-base leading-[1.45] font-medium tracking-[-0.008em]">
+          <span className="block truncate text-base leading-snug font-medium tracking-heading">
             {String(
               card['title'] ??
                 card['spec_title'] ??

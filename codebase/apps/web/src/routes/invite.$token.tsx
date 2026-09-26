@@ -108,7 +108,7 @@ function InviteScreen(): React.JSX.Element {
         {invite !== undefined && (
           <>
             {/* 카드와 **같은 문장**이다 — 어디로 부르는지가 문장 안에 있다(REQ-WEB-192) */}
-            <p className="text-base leading-[1.45] font-medium tracking-[-0.008em]">
+            <p className="text-base leading-snug font-medium tracking-heading">
               {invitationSentence(t, invite)}
             </p>
             {/* 이메일은 서버가 가려서 준다 — 토큰을 주운 사람에게 초대받은 사람이

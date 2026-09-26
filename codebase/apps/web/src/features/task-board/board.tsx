@@ -569,7 +569,7 @@ function Lane({
           />
           {/* `statusLabelKey` 는 **키**를 준다 — 번역을 거치지 않으면 화면에
                       `status.task.ready` 가 그대로 찍힌다(실측 2026-08-23) */}
-          <span className="text-sm font-semibold tracking-[-0.005em] text-text">
+          <span className="text-sm font-semibold tracking-heading text-text">
             {t(statusLabelKey('task', lane))}
           </span>
           {/* 한 페이지를 채웠으면 **뒤에 더 있다**는 뜻이다 — 그냥 30 이라고
@@ -714,7 +714,7 @@ function TaskCard({
           params={{ proj, task: String(task['key']) }}
           // 걸어 둔 필터를 **물고 간다** — 시트 뒤의 보드가 같은 모양으로 남는다(REQ-WEB-213)
           search={(prev: TaskBoardSearch) => boardFilters(prev)}
-          className="min-w-0 flex-1 text-base leading-[1.42] font-medium tracking-[-0.008em] hover:text-link"
+          className="min-w-0 flex-1 text-base leading-snug font-medium tracking-heading hover:text-link"
         >
           {String(task['title'])}
         </Link>
@@ -774,7 +774,7 @@ function TaskCard({
             label={String(task['priority'])}
           />
         )}
-        <span className="font-mono tracking-[-0.02em] text-text-faint">{String(task['key'])}</span>
+        <span className="font-mono tracking-tight text-text-faint">{String(task['key'])}</span>
         {/* 어느 스펙에서 나온 일인가 — 흐리게, 누르면 그 스펙으로 */}
         {typeof task['spec_key'] === 'string' && (
           <EntityLink
