@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.23 · 2026-09-26 · HTML 파생본: [importer.html](../html/importer.html)
+> 문서 버전 v0.24 · 2026-09-26 · HTML 파생본: [importer.html](../html/importer.html)
+>
+> v0.24 변경(2026-09-26 — `user_guide:` 가 경고로만 남고 버려졌다): **REQ-IMP-033 신설 · §2.3 `user_guide:` 행 · §4.1 한 행 · 프로파일 예시 한 줄.** 표는 이 필드가 "다른 증적과 같은 검증 경로에 올라온다" 고 적는데 프로파일이 키를 몰라 `frontmatter-unmapped` 로만 남았다(clemvion 세 편). 경로 하나가 `user_guide` 증적 하나이고, `code:` 와 같은 실존 검사를 받아 미매치는 `stale` + `user-guide-no-match`(manual)다. clemvion dry-run: 미매핑 경고 3 → 0 · 미매치 0.
 >
 > v0.23 변경(2026-09-26 — `code:` glob 이 아무 말 없이 사라졌다): **REQ-IMP-032 신설 · §2.3 `code:` 행.** 이 키는 CLI 가 "아는 키" 로 표시해 미매핑 경고도 내지 않으면서 적재하지도 않았다 — clemvion 의 glob 691개가 조용히 버려졌다. glob 하나를 `code_path` 증적 하나로 싣고, 경로 실존 검사에서 아무것도 가리키지 않으면 `stale=true` + `code-glob-no-match`(manual)로 올린다. 곁에 frontmatter 의 한 줄 목록(`code: []`)이 문자열 `"[]"` 로 읽히던 것을 고쳤다. clemvion `5b458b1ec` dry-run: glob 691 · 미매치 0 · 원본 쓰기 0.
 >
@@ -135,6 +137,7 @@ frontmatter:                 # 원본 필드 → NERV 필드 (§2.3)
     spec-only:   { doc: approved,   impl: unimplemented }
     archived:    { doc: deprecated, impl: unimplemented }
   code: evidence.code_path
+  user_guide: evidence.user_guide   # 2026-09-26 · REQ-IMP-033
   pending_plans: requirement.pending_task_links
 requirement:
   id_pattern: "[A-Z]+-[A-Z]+-\d+"        # §2.5 휴리스틱
@@ -201,7 +204,7 @@ task:                        # plan 프로파일(P1) — §2.6
 | `status:` 5값 | **2축 분해** — 문서 축 `spec_version.status` + 구현 축 `requirement.impl_status` | 아래 분해 표 |
 | `code:` glob 목록 | `evidence(kind='code_path', locator=glob)` 다중 행 | glob당 1행. `source='human'`(실행자 위임), `stale=false`로 적재 후 **경로 실존 검사**를 돌려 미매치 glob은 `stale=true` + 수동 확인 큐 — "stale glob은 본 가드만으로 검출 불가"(R-1)라던 자기 인정 약점을 임포트 직후 값으로 드러낸다. **2026-09-26 구현**(REQ-IMP-032): 원본 저장소를 보는 쪽이 CLI 뿐이라 검사도 CLI 가 하고 계약의 `stale` 로 싣는다. 경로는 스캔 뿌리 기준이고 glob 문법은 스캔과 같다(Next.js 의 `[slug]` 는 글자 그대로). 증적은 스펙 버전에 붙어 구현 축의 파생에는 들지 않는다. 본문이 그대로인 문서는 재실행에서 다시 보내지 않으므로, 그 사이 사라진 경로는 다음 본문 변경 때 드러난다 |
 | `pending_plans:` | `task(source_requirement_id=…, status≠done)` 링크 | P0 시점에는 Task가 없으므로 경로를 매니페스트의 미해소 목록에 적어 두고, **P1 plan 임포트가 해소**한다. 요구사항 단위 지정이 불가능한 항목은 Task의 `source_spec_version_id`만 세팅하고 수동 확인 큐로 |
-| `user_guide:` | `evidence(kind='user_guide')` | 가드 미적용(R-10)이던 필드가 다른 증적과 같은 검증 경로에 올라온다 |
+| `user_guide:` | `evidence(kind='user_guide')` | 가드 미적용(R-10)이던 필드가 다른 증적과 같은 검증 경로에 올라온다. **2026-09-26 구현**(REQ-IMP-033): 경로 하나가 증적 한 행이고, `code:` 와 같은 실존 검사를 받는다 — 미매치는 `stale=true` + `user-guide-no-match` |
 | 요구사항 표(`NAV-WF-01` 등) | `requirement` 행 | §2.5 |
 | 요구사항 표 ✅ 마크 | **폐기** | 커버리지는 관계에서 계산한다(D-03). 131개 대 0개로 이미 갈라진 수동 표기를 데이터로 승격하지 않는다 |
 | `## Overview` / 본문 / `## Rationale` | `spec_version.body_md` 안에 그대로 | §2.4 — 3섹션 규약은 본문 규약으로 유지, 위치 불변 |
@@ -502,6 +505,7 @@ CLI 는 **서버 없이도 돈다**(dry-run 은 `--server` 없이 완주한다 �
 | REQ-IMP-029 | WHEN `--profile-file` 이 YAML 을 가리키면 THE SYSTEM SHALL 프로파일이 실제로 쓰는 부분집합 — 중첩 맵 · 블록 리스트(`- item`) · **따옴표 없는 인라인 맵·배열** · 스칼라 — 을 읽고, 그 밖의 문법은 조용히 넘기지 않고 `profile-invalid` 로 중단한다. WHILE §1.4 가 프로파일 예시를 보여 주는 동안 THE SYSTEM SHALL 그 예시가 실제로 읽히는지를 L1 이 확인한다 — 문서가 보여 주는 대로 쓴 사람은 자기 파일이 잘못됐다고 읽는다 | §1.4 예시 파싱 1건 · 인라인 맵·배열·블록 리스트 3건 · 범위 밖 던지기 1건 |
 | REQ-IMP-030 | WHEN 스펙을 적재하고 매니페스트를 쓰면 THE SYSTEM SHALL 본문 해시와 **선두 frontmatter 블록의 해시를 따로** 적고, 프로파일이 `preserve` 로 선언한 키의 값과 **모르는 키의 이름**을 함께 남긴다(`frontmatter-unmapped` warn). WHEN 선두 블록이 `---` 로 열렸는데 닫히지 않으면 THE SYSTEM SHALL `frontmatter-unparsable` 로 그 파일을 빼고 계속한다 — 조용히 본문으로 읽으면 원본의 고정 ID 를 잃는다. WHERE 프로파일이 `status_default` 를 선언하면 THE SYSTEM SHALL `status` 없는 문서에 그 값을 쓴다 | 해시 둘·보존·미매핑 1건 · nerv-docs 규칙 넷 |
 | REQ-IMP-032 | WHEN 스펙 frontmatter 가 `code:` glob 목록을 선언하고 프로파일이 그것을 `evidence.code_path` 로 옮기면 THE SYSTEM SHALL glob 하나마다 `code_path` 증적을 싣고, WHEN 그 glob 이 스캔 뿌리에서 아무 파일·디렉터리도 가리키지 않으면(`.git`·`node_modules` 제외) THE SYSTEM SHALL 그 증적을 `stale=true` 로 싣고 `code-glob-no-match`(manual)를 리포트에 올린다. WHEN frontmatter 값이 한 줄 목록(`[]` · `[a, b]`)이면 THE SYSTEM SHALL 그것을 목록으로 읽는다 |
+| REQ-IMP-033 | WHEN 스펙 frontmatter 가 `user_guide:` 경로 목록을 선언하고 프로파일이 그것을 `evidence.user_guide` 로 옮기면 THE SYSTEM SHALL 경로 하나마다 `user_guide` 증적을 싣고, WHEN 그 경로가 스캔 뿌리에서 아무것도 가리키지 않으면 THE SYSTEM SHALL 그 증적을 `stale=true` 로 싣고 `user-guide-no-match`(manual)를 리포트에 올린다 |
 | REQ-IMP-022 | WHEN 서버가 표시 키를 발급하면 THE SYSTEM SHALL 데이터 모델 §5.1 형식(`<project.key>-<타입>-<base32 6자>`)을 쓴다 — 생성 경로가 달라도 같다(§2.6b) |
 
 ### 3.6 실행 주체 — 운영자 절차 (2026-09-06 개정 · 래퍼 스킬을 걷었다)
@@ -556,6 +560,7 @@ MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 �
 | `adr-candidate` | manual | Rationale 단독 결정 문서(§2.2) |
 | `link-unresolved` | manual | 상대링크 해소 실패(§2.4) |
 | `code-glob-no-match` | manual | `code:` glob 실존 검사 미매치 — `evidence.stale=true`(§2.3) |
+| `user-guide-no-match` | manual | `user_guide:` 경로 실존 검사 미매치 — `evidence.stale=true`(§2.3) |
 | `pending-plan-unresolved` | manual | `pending_plans` 경로가 아직 Task로 해소되지 않음(P0에서는 전건 발생, P1에서 해소) |
 | `owner-unmapped` | manual | `--owner-map`에 없는 owner 라벨 — assignee NULL 적재(§2.6) |
 | `blocked-reason-unknown` | manual | 원본의 막힘 사유가 어휘 4종(`BLOCKED_REASONS`) 밖 — NULL 적재. 임포터·MCP·웹이 각자 다른 문자열을 넣으면 화면의 막힘 필터가 사실을 못 센다(4.4 REQ-API-117) |

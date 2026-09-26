@@ -283,5 +283,61 @@ describe('code: glob 의 실존 검사 (§2.3 · REQ-IMP-032)', () => {
         { kind: 'code_path', locator: 'codebase/backend/src/auth/auth.controller.ts', stale: true },
       ]);
     });
+
+    it('user_guide: 도 같은 실존 검사를 받는다 — 경고로만 남고 버려지던 키다 (REQ-IMP-033)', async () => {
+      const root = repo();
+      mkdirSync(join(root, 'docs'), { recursive: true });
+      writeFileSync(join(root, 'docs', 'slack.mdx'), '');
+      mkdirSync(join(root, 'spec'), { recursive: true });
+      writeFileSync(
+        join(root, 'spec', 'slack.md'),
+        [
+          '---',
+          'id: slack',
+          'status: implemented',
+          'user_guide:',
+          '  - docs/slack.mdx',
+          '  - docs/slack.en.mdx',
+          '---',
+          '',
+          '# 슬랙',
+          '',
+        ].join('\n'),
+      );
+      const profilePath = join(root, 'profile.json');
+      writeFileSync(
+        profilePath,
+        JSON.stringify({
+          profile: 'guide-test',
+          version: 1,
+          scan: { spec: ['spec/**/*.md'], plan: [], exclude: [] },
+          tree: { area_from_directory: false, leaf_type: 'feature', overrides: {} },
+          frontmatter: {
+            id: 'spec.key',
+            status_map: { implemented: { doc: 'approved', impl: 'implemented' } },
+            user_guide: 'evidence.user_guide',
+            preserve: [],
+          },
+          requirement: { id_pattern: '[A-Z]+-[A-Z]+-\\d+' },
+          task: { status_map: {}, unstarted_sentinel: '(unstarted)' },
+        }),
+      );
+      const report = await runImport({
+        command: 'spec',
+        root,
+        project: 'p',
+        apply: false,
+        batchSize: 50,
+        reportDir: join(root, 'report'),
+        mapPath: join(root, 'map.json'),
+        profileFile: profilePath,
+      });
+      // 이제 아는 키다 — "적재되지도 보존되지도 않는다" 는 경고가 사라진다
+      expect(report.entries.filter((e) => e.rule === 'frontmatter-unmapped')).toEqual([]);
+      const missing = report.entries.filter((e) => e.rule === 'user-guide-no-match');
+      expect(missing.map((e) => [e.disposition, e.reason.includes('docs/slack.en.mdx')])).toEqual([
+        ['manual', true],
+      ]);
+    });
   });
 });

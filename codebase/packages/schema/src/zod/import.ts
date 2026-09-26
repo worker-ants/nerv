@@ -50,6 +50,8 @@ export const importProfileSchema = z.object({
     /** 원본 status 1축 → 문서 축 × 구현 축 2축 분해(importer.md §2.3) */
     status_map: z.record(z.string(), z.object({ doc: z.string(), impl: z.string() })),
     code: z.string().optional(),
+    /** 사용 안내 문서 경로 → `user_guide` 증적(importer.md §2.3 · REQ-IMP-033) */
+    user_guide: z.string().optional(),
     pending_plans: z.string().optional(),
     /**
      * 원본에 `status` 가 없을 때 쓸 문서 축 값(importer.md §5.1).

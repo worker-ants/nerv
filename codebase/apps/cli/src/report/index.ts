@@ -48,6 +48,7 @@ export const RULES = {
   'done-at-unrecovered': 'manual',
   'area-body-missing': 'manual',
   'code-glob-no-match': 'manual',
+  'user-guide-no-match': 'manual',
   'review-tableless': 'manual',
   // warn — 아무것도 잘못되지 않았다. **종료 코드를 올리지 않는다**
   'dist-mismatch': 'warn',
