@@ -84,7 +84,7 @@ function HomeScreen(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1000px] px-6 pt-11 pb-10 md:px-10">
+    <div className="mx-auto w-full max-w-5xl px-6 pt-11 pb-10 md:px-10">
       {/* 날짜 → 인사말. 인사말이 곧 요약이다 — 결정이 없으면 그렇게 말한다 */}
       <div className="text-sm text-text-faint">{today}</div>
       <h1 className="mt-2 text-[1.9375rem] leading-[1.18] font-bold tracking-[-0.026em]">
@@ -121,7 +121,7 @@ function HomeScreen(): React.JSX.Element {
       </div>
 
       <section className="mt-8" data-testid="today-strip">
-        <div className="mb-1 flex items-baseline gap-[9px]">
+        <div className="mb-1 flex items-baseline gap-2">
           <span className="text-lg font-[650] tracking-[-0.012em]">{t('home.waiting_on_you')}</span>
           {waiting > 0 && (
             <span className="text-sm text-text-faint">
@@ -172,7 +172,7 @@ function HomeScreen(): React.JSX.Element {
       {/* **프로젝트가 없으면 활동도 상태도 없다** — 예전에는 빈 자리에 "알림이 없습니다." 가 떴다
           (활동은 알림이 아니다). 첫 걸음은 위의 체크리스트·안내가 말한다(REQ-WEB-205) */}
       {primary !== undefined && (
-        <div className="mt-[38px] flex flex-col gap-10 md:flex-row md:gap-11">
+        <div className="mt-10 flex flex-col gap-10 md:flex-row md:gap-11">
           {/* 최근 활동 — 결정을 끝낸 사람이 흐름을 따라잡는 곳 */}
           <section className="min-w-0 flex-1">
             {/* **어느 프로젝트의 활동인지** 말한다(REQ-WEB-193) — 한 프로젝트의 흐름인데 제목만 보면
@@ -196,11 +196,11 @@ function HomeScreen(): React.JSX.Element {
               헤더가 고른 **한 프로젝트**의 상태만 비추던 자리다 — 프로젝트 셋에 속한 사람은 나머지 둘에서
               세션이 멈췄는지 무엇이 위험한지를 프로젝트를 바꿔 가며 열어 봐야 알았다. 명세(§2.2 "내 프로젝트
               카드")와 시안(ui-wireframes §2.1)은 처음부터 목록이었다. 커버리지는 개요(S2)가 갖는다 */}
-          <section data-testid="home-projects" className="w-full shrink-0 md:w-[292px]">
+          <section data-testid="home-projects" className="w-full shrink-0 md:w-72">
             <div className="mb-2.5 text-lg font-[650] tracking-[-0.012em]">
               {t('home.my_projects')}
             </div>
-            <ul className="overflow-hidden rounded-[9px] border border-border">
+            <ul className="overflow-hidden rounded-nerv-lg border border-border">
               {scope.projects.map((project) => (
                 <ProjectRow
                   key={String(project['id'])}
@@ -247,7 +247,7 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
         to="/inbox"
         search={{ focus: String(card['id']) }}
         className={cn(
-          'flex items-center gap-[13px] border-b border-l-2 border-b-border py-3.5 pr-3 pl-2.5 transition-colors hover:bg-bg-sunken',
+          'flex items-center gap-3 border-b border-l-2 border-b-border py-3.5 pr-3 pl-2.5 transition-colors hover:bg-bg-sunken',
           blocking
             ? 'border-l-status-waiting'
             : isQuestion
@@ -258,7 +258,7 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
         <span
           aria-hidden="true"
           className={cn(
-            'inline-flex size-[26px] shrink-0 items-center justify-center rounded-[7px] text-sm',
+            'inline-flex size-7 shrink-0 items-center justify-center rounded-nerv text-sm',
             isQuestion
               ? 'bg-status-waiting-soft text-status-waiting'
               : 'bg-status-action-soft text-status-action',
@@ -303,7 +303,7 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
         {/* 기다린 시간은 **카드와 같은 말과 같은 색**이다 — 한 시간 넘으면 호박색(REQ-WEB-204) */}
         <span
           className={cn(
-            'w-[64px] shrink-0 text-right text-xs',
+            'w-16 shrink-0 text-right text-xs',
             Number(card['waiting_seconds'] ?? 0) >= 3600
               ? 'font-medium text-status-waiting'
               : 'text-text-faint',
@@ -339,7 +339,7 @@ function ProjectRow({
     <li
       data-testid="home-project"
       data-current={current || undefined}
-      className="border-b border-border px-3.5 py-[11px] last:border-b-0 data-[current=true]:bg-bg-sunken"
+      className="border-b border-border px-3.5 py-3 last:border-b-0 data-[current=true]:bg-bg-sunken"
     >
       <Link
         to="/p/$proj"

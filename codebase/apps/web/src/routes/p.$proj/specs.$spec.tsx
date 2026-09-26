@@ -816,8 +816,9 @@ function SpecDetail(): React.JSX.Element {
                 status: t(statusLabelKey('spec', String(newerVersion['status']))),
               })}
             </span>
-            <button
-              type="button"
+            <Button
+              size="xs"
+              variant="subtle"
               data-testid="spec-newer-open"
               onClick={() =>
                 void navigate({
@@ -828,13 +829,14 @@ function SpecDetail(): React.JSX.Element {
                   }),
                 })
               }
-              className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 text-2xs text-text"
+              className="bg-bg-elev text-text"
             >
               {t('spec.newer_open', { n: Number(newerVersion['version_no']) })}
-            </button>
+            </Button>
             {Number.isFinite(versionNo) && (
-              <button
-                type="button"
+              <Button
+                size="xs"
+                variant="subtle"
                 data-testid="spec-newer-diff"
                 onClick={() =>
                   void navigate({
@@ -845,10 +847,10 @@ function SpecDetail(): React.JSX.Element {
                     }),
                   })
                 }
-                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 text-2xs text-text"
+                className="bg-bg-elev text-text"
               >
                 {t('spec.newer_diff', { from: versionNo, to: Number(newerVersion['version_no']) })}
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -930,8 +932,9 @@ function SpecDetail(): React.JSX.Element {
         {compare !== null && (
           <>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
+              <Button
+                size="xs"
+                variant="subtle"
                 data-testid="diff-close"
                 // 닫는 것은 **비교만** 내려놓는다 — 레일·기준선·본문 보기는 보던 그대로다(SPEC-03)
                 onClick={() =>
@@ -941,10 +944,9 @@ function SpecDetail(): React.JSX.Element {
                     replace: true,
                   })
                 }
-                className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
               >
                 ← {t('spec.diff.close')}
-              </button>
+              </Button>
             </div>
             <VersionDiff
               diff={diff.data}
@@ -976,8 +978,9 @@ function SpecDetail(): React.JSX.Element {
               <span data-testid="version-view-banner">
                 {t('spec.version_view', { n: viewing })}
               </span>
-              <button
-                type="button"
+              <Button
+                size="xs"
+                variant="subtle"
                 data-testid="version-view-close"
                 onClick={() =>
                   void navigate({
@@ -986,10 +989,10 @@ function SpecDetail(): React.JSX.Element {
                     replace: true,
                   })
                 }
-                className="rounded-nerv-sm border border-border bg-bg-elev px-2 py-0.5 text-2xs"
+                className="bg-bg-elev text-text"
               >
                 {t('spec.version_current')}
-              </button>
+              </Button>
             </div>
             <div onClick={onDocClick}>
               <SpecEditor key={`v${String(viewing)}`} value={pastBody} />
@@ -1325,11 +1328,13 @@ function SpecDetail(): React.JSX.Element {
                         글자였을 뿐이라, "무엇이 바뀌었나" 를 화면에서 물을 수 없었다.
                         누르면 **직전과의 차이**(가장 흔한 물음), 옆이 그 버전 전문이다. */}
                   <div className="mt-0.5 ml-10 flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
+                    <Button
+                      size="xs"
+                      variant="subtle"
                       data-testid={`diff-open-${String(v['version_no'])}`}
                       disabled={Number(v['version_no']) <= 1}
-                      title={Number(v['version_no']) <= 1 ? t('spec.diff.no_previous') : undefined}
+                      // 첫 버전은 견줄 것이 없다 — 그 까닭을 키보드에도 말한다(`title` 은 마우스에만 닿는다)
+                      disabledReason={t('spec.diff.no_previous')}
                       // 다른 축(레일·기준선·본문 보기)은 **물고 간다**(SPEC-03) — 비교를 열 때마다
                       // 레일이 관계 탭으로 튀어, 다른 쌍을 보려면 버전 탭을 다시 눌러야 했다
                       onClick={() =>
@@ -1341,12 +1346,12 @@ function SpecDetail(): React.JSX.Element {
                           }),
                         })
                       }
-                      className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text disabled:opacity-40"
                     >
                       {t('spec.diff.open')}
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="subtle"
                       data-testid={`version-open-${String(v['version_no'])}`}
                       onClick={() =>
                         void navigate({
@@ -1357,10 +1362,9 @@ function SpecDetail(): React.JSX.Element {
                           }),
                         })
                       }
-                      className="rounded-nerv-sm border border-border px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
                     >
                       {t('spec.version.open')}
-                    </button>
+                    </Button>
                   </div>
                   {/* **무엇을 왜 바꿨나** — 이 줄이 없으면 목록은 번호와 배지뿐이고,
                         draft 는 덮어써지므로 되짚을 diff 도 없다(api.md §2.2) */}

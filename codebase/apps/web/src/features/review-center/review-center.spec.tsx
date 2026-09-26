@@ -453,6 +453,16 @@ describe('스펙 정정으로 닫기 (REQ-WEB-117)', () => {
  * 권한이 있는데 누를 수 없었다.** 지적을 받은 사람이 그것을 자기 백로그로 넘기지 못하면
  * 옮기는 일이 처분 권한을 가진 세 역할에게 몰린다.
  */
+/**
+ * 권한 때문에 못 누르는 단추는 **포커스가 남는 잠금**이다(`aria-disabled` + 까닭 · REQ-WEB-003 · 2026-09-26).
+ * 예전에는 `disabled` + `title` 이라 까닭이 마우스에만 닿았다
+ */
+function lockedFor(button: HTMLElement): string | null {
+  return button.getAttribute('aria-disabled') === 'true'
+    ? button.getAttribute('data-reason')
+    : null;
+}
+
 describe('승격은 처분과 다른 축이다 (07)', () => {
   it('developer 는 처분은 못 해도 승격은 한다', async () => {
     roles = ['developer'];
@@ -460,10 +470,10 @@ describe('승격은 처분과 다른 축이다 (07)', () => {
     fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
     const rail = await screen.findByTestId('finding-rail');
 
-    expect(within(rail).getByTestId('promote-task').hasAttribute('disabled')).toBe(false);
-    // 처분 쪽은 그대로 잠겨 있어야 한다 — 한쪽을 열면서 다른 쪽까지 열지 않았다
+    expect(lockedFor(within(rail).getByTestId('promote-task'))).toBeNull();
+    // 처분 쪽은 그대로 잠겨 있어야 한다 — 한쪽을 열면서 다른 쪽까지 열지 않았다. 잠긴 까닭을 말한다
     const cards = screen.getAllByTestId('finding-card');
-    expect(within(cards[0]!).getByTestId('resolve-fixed').hasAttribute('disabled')).toBe(true);
+    expect(lockedFor(within(cards[0]!).getByTestId('resolve-fixed'))).toContain('review:resolve');
   });
 
   it('viewer 는 둘 다 못 한다 — `task:update` 가 없는 역할이다', async () => {
@@ -472,7 +482,7 @@ describe('승격은 처분과 다른 축이다 (07)', () => {
     fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
     const rail = await screen.findByTestId('finding-rail');
 
-    expect(within(rail).getByTestId('promote-task').hasAttribute('disabled')).toBe(true);
+    expect(lockedFor(within(rail).getByTestId('promote-task'))).toContain('task:update');
   });
 });
 

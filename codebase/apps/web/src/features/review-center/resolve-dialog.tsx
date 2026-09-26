@@ -135,14 +135,14 @@ export function ResolveDialog({
                 {specKey}
               </span>
             )}
-            <button
-              type="button"
+            <Button
+              size="xs"
+              variant="subtle"
               data-testid="resolve-spec-pick"
               onClick={() => setPicking(!picking)}
-              className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
             >
               {t('reviews.resolve.spec_pick')}
-            </button>
+            </Button>
             {/* 고르는 길은 본문 링크와 **같은 고르개**다 — 두 벌을 두면 하나는 언젠가 낡는다 */}
             {picking && (
               <SpecLinkPicker

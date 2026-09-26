@@ -4,10 +4,10 @@
 // 같은 목록이 화면마다 다른 모양이 된다 — 한 번 익힌 "지금 여기" 표시를 다른 열에서 다시 익히게 된다.
 
 /** 항목 — 활성 표시는 배경 + 굵기다. 색만으로 구분하지 않는다(REQ-WEB-033) */
-// 시안의 nav 는 29px 줄에 13.5px 글자다 — 손가락이 아니라 눈으로 고르는 목록이라
+// 시안의 nav 는 29px 줄(`--spacing-nav-row`)이다 — 손가락이 아니라 눈으로 고르는 목록이라
 // 빽빽해도 되고, 빽빽해야 트리와 한 덩어리로 읽힌다(시안 대조 2026-08-23).
 export const NAV_ITEM =
-  'group flex h-[29px] items-center gap-2 rounded-[5px] px-2 text-base text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
+  'group flex h-nav-row items-center gap-2 rounded-nerv px-2 text-base text-text-mute transition-colors hover:bg-bg-hover hover:text-text';
 export const NAV_ACTIVE = 'bg-bg-active font-medium text-text';
 
 /** 열의 구역 이름 — 트리 머리와 같은 크기여야 한 덩어리로 읽힌다 */

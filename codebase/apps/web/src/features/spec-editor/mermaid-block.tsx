@@ -37,6 +37,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { useTheme } from '../../lib/theme.js';
 import { useModal } from '../../components/ui/modal.js';
+import { Button } from '../../components/ui/primitives.js';
 
 /** 같은 페이지에 여럿이 있어도 id 가 겹치지 않게 — mermaid 는 id 로 DOM 을 잡는다 */
 let seq = 0;
@@ -151,16 +152,17 @@ function MermaidControls({
         −
       </button>
       {/* 지금 배율을 **숫자로** 적는다 — 몇 번 눌렀는지 세게 하지 않는다 */}
-      <button
-        type="button"
+      <Button
+        size="xs"
+        variant="subtle"
         data-testid="mermaid-zoom-fit"
         aria-label={t('spec.mermaid_zoom_fit')}
         title={t('spec.mermaid_zoom_fit')}
         onClick={() => onScale(1)}
-        className="rounded-nerv-sm border border-border bg-bg-elev px-1.5 py-0.5 text-2xs text-text-mute tabular-nums hover:border-border-strong hover:text-text"
+        className="bg-bg-elev tabular-nums"
       >
         {Math.round(scale * 100)}%
-      </button>
+      </Button>
       <button
         type="button"
         data-testid="mermaid-zoom-in"
@@ -285,16 +287,17 @@ export function MermaidBlock(props: NodeViewProps): React.JSX.Element {
             full={false}
           />
         )}
-        <button
-          type="button"
+        <Button
+          size="xs"
+          variant="subtle"
           data-testid="mermaid-toggle"
           aria-pressed={showCode}
           title={showCode ? t('spec.mermaid_figure_title') : t('spec.mermaid_code_title')}
           onClick={() => setShowCode((on) => !on)}
-          className="rounded-nerv-sm border border-border bg-bg-elev px-1.5 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
+          className="bg-bg-elev"
         >
           {showCode ? t('spec.mermaid_figure') : t('spec.mermaid_code')}
-        </button>
+        </Button>
       </div>
 
       {failed && !showCode && (

@@ -738,15 +738,15 @@ export function ApprovalCard({
           카드가 보여준 것과 승인되는 것이 같아야 한다(§2.3). */}
       {!(compact ?? false) && !isQuestion && subjectLink?.to === '/p/$proj/specs/$spec' && (
         <div className="mt-2">
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="toggle-body"
             aria-expanded={showBody}
             onClick={() => setShowBody(!showBody)}
-            className="rounded-nerv-sm border border-border px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text"
           >
             {showBody ? t('inbox.card.hide_body') : t('inbox.card.show_body')}
-          </button>
+          </Button>
           {showBody && (
             <div
               data-testid="subject-body"

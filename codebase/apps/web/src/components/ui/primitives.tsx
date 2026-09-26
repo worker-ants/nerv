@@ -62,7 +62,7 @@ export function PageHeader({
           {meta}
         </div>
         {description !== undefined && (
-          <p className="mt-[7px] text-base leading-[1.55] text-text-mute">{description}</p>
+          <p className="mt-2 text-base leading-[1.55] text-text-mute">{description}</p>
         )}
       </div>
       {actions !== undefined && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
@@ -186,14 +186,17 @@ export function Kbd({ children }: { children: React.ReactNode }): React.JSX.Elem
   );
 }
 
-export type ButtonVariant = 'primary' | 'default' | 'ghost' | 'danger' | 'danger-solid';
-export type ButtonSize = 'sm' | 'md';
+export type ButtonVariant = 'primary' | 'default' | 'ghost' | 'subtle' | 'danger' | 'danger-solid';
+export type ButtonSize = 'xs' | 'sm' | 'md';
 
 const VARIANT: Record<ButtonVariant, string> = {
   // 화면당 하나면 충분하다 — 여러 개면 무엇이 주 행동인지 사라진다
   primary: 'bg-status-action text-on-status hover:opacity-90 border border-transparent',
   default: 'border border-border bg-bg-elev text-text hover:bg-bg-hover',
   ghost: 'border border-transparent text-text-mute hover:bg-bg-hover hover:text-text',
+  // 줄 안의 작은 조작(발견의 [해소…] · 첨부의 [삭제] · 다이어그램의 [확대]) — 테두리만 있고 바탕은 곁의 면을 따른다.
+  // 스무 자리가 이 글자열을 손으로 베껴 쓰던 동안 그 단추들에는 잠긴 까닭도 오프라인 잠금도 없었다(REQ-WEB-235)
+  subtle: 'border border-border text-text-mute hover:border-border-strong hover:text-text',
   danger: 'border border-border text-status-danger hover:bg-status-danger-soft',
   // **확인의 실행 단추다** — 되돌리기 어려운 일을 한 번 더 물은 뒤에만 선다(confirm-action.tsx).
   // 이 칠이 없던 동안 세션 중단은 클래스를 덮어써 빨갛게 칠했다
@@ -201,9 +204,11 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  // 시안의 두 단뿐이다: 보조 27px(12.5px 글자) · 주 행동 30px(13px 글자)
-  sm: 'h-[27px] px-[11px] text-sm gap-1',
-  md: 'h-[30px] px-[13px] text-[13px] gap-1.5',
+  // 시안의 두 단이다: 보조 27px · 주 행동 30px(`--spacing-control-sm` · `--spacing-control`)
+  sm: 'h-control-sm px-3 text-sm gap-1',
+  md: 'h-control px-3.5 text-sm gap-1.5',
+  // 줄 안의 작은 조작 — 높이를 글자가 정하고, 모서리·굵기는 곁의 배지와 같다
+  xs: 'h-auto px-2 py-0.5 text-2xs gap-1 rounded-nerv-sm font-normal',
 };
 
 /**
@@ -341,7 +346,7 @@ export function CountBadge({
     <span
       {...(testId === undefined ? {} : { 'data-testid': testId })}
       className={cn(
-        'ml-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-[5px] text-2xs font-semibold',
+        'ml-1 inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold',
         TOKEN_CLASS[tone],
         className,
       )}
@@ -712,7 +717,7 @@ export function Avatar({
   let hash = 0;
   for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)!) >>> 0;
   const box = {
-    sm: 'h-[18px] w-[18px] text-2xs',
+    sm: 'size-4.5 text-2xs',
     md: 'h-6 w-6 text-2xs',
     lg: 'h-7.5 w-7.5 text-xs',
   };
@@ -747,6 +752,19 @@ export interface SummaryMetric {
   href?: string;
   /** 그 자리의 뷰 상태 — 보드의 "내 담당" 은 `?assignee=<나>` 로 간다(REQ-WEB-221) */
   search?: Record<string, unknown>;
+  /**
+   * 상태의 색을 나르는 점(`statusDot`) — 있으면 숫자는 중립을 지킨다. 숫자까지 물들이면 줄이 신호등이 된다
+   * (세션 줄 · 2026-08-23 시안)
+   */
+  dot?: string;
+  /**
+   * 누르면 거르는 칸 — 켠 칸은 `aria-pressed`. 셀 것이 없어 고를 수 없는 칸은 `disabled` 로 선다
+   * (누를 수 있어 보이는데 안 눌리는 것이 가장 나쁘다)
+   */
+  toggle?: { pressed: boolean; onToggle: () => void; disabled?: boolean };
+  /** 물러선 칸 — 0 이거나 다른 칸을 골랐을 때. 고른 것이 색이 아니라 **대비**로 읽힌다 */
+  dimmed?: boolean;
+  testId?: string;
 }
 
 /**
@@ -754,15 +772,22 @@ export interface SummaryMetric {
  *
  * 화면 맨 위에 큰 숫자 몇 개를 두는 이유는 스캔 순서다. 목록부터 그리면 사람은 항목을
  * 세면서 전체를 짐작해야 하고, 그 짐작이 화면을 볼 때마다 반복된다.
+ *
+ * **한 벌이다**(2026-09-26 — UI/UX 검토 SYS-13). 세션 모니터는 같은 줄을 따로 짜서(점 + 큰 숫자 + 라벨 · 누르면
+ * 거름) 좁은 폭의 넘침을 자기만 가로 스크롤로 풀고, 칸 여백·숫자 크기가 작업 보드·리뷰 센터와 1px 씩 달랐다.
+ * 줄의 모양(`layout`)과 칸의 성격(링크 · 거름 · 표시)만 고르고 나머지는 여기 한 곳이 정한다.
  */
 export function SummaryStrip({
   metrics,
   actions,
+  layout = 'stacked',
   className,
   ...rest
 }: {
   metrics: readonly SummaryMetric[];
   actions?: React.ReactNode;
+  /** `stacked` — 라벨 위 숫자(작업 보드 · 리뷰 센터) · `inline` — 점 · 숫자 · 라벨을 한 줄에(세션) */
+  layout?: 'stacked' | 'inline';
   className?: string;
 } & React.HTMLAttributes<HTMLDivElement>): React.JSX.Element {
   const tone = {
@@ -776,40 +801,82 @@ export function SummaryStrip({
     <div
       // **좁으면 접힌다**(2026-09-25 — UI/UX 검토 SYS-13). 줄바꿈 없는 한 줄이던 동안 폰 폭의 작업 보드에서 지표 넷과
       // 필터 셋이 문서를 가로로 17px 밀었고 필터가 잘렸다. 칸 사이 여백도 좁은 폭에서 줄인다
-      className={cn(
-        'flex flex-wrap items-center gap-y-3 border-y border-border py-[13px]',
-        className,
-      )}
+      className={cn('flex flex-wrap items-center gap-y-3 border-y border-border py-3', className)}
       {...rest}
     >
       {metrics.map((m, i) => {
-        const body = (
-          <>
-            <span className="text-2xs font-semibold tracking-[0.06em] text-text-faint uppercase">
-              {m.label}
-            </span>
-            <span
+        const number = (
+          <span
+            className={cn(
+              'text-metric font-[650] tracking-[-0.02em] tabular-nums',
+              // 점이 색을 나르면 숫자는 중립이다
+              m.dot === undefined ? tone[m.tone ?? 'default'] : 'text-text',
+            )}
+          >
+            {m.value}
+          </span>
+        );
+        const body =
+          layout === 'inline' ? (
+            <>
+              {m.dot !== undefined && (
+                <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', m.dot)} />
+              )}
+              {number}
+              <span
+                className={cn(
+                  'text-sm',
+                  m.toggle?.pressed === true ? 'text-text' : 'text-text-mute',
+                )}
+              >
+                {m.label}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-2xs font-semibold tracking-[0.06em] text-text-faint uppercase">
+                {m.label}
+              </span>
+              {number}
+            </>
+          );
+        const shell = cn(
+          layout === 'inline' ? 'flex shrink-0 items-center gap-2' : 'flex flex-col gap-1',
+          'pr-8 max-md:pr-4',
+          i < metrics.length - 1 && 'mr-8 border-r border-border max-md:mr-4',
+          m.dimmed === true && 'opacity-45',
+        );
+        const testId = m.testId === undefined ? {} : { 'data-testid': m.testId };
+        if (m.toggle !== undefined) {
+          const { pressed, onToggle, disabled } = m.toggle;
+          return (
+            <button
+              key={m.label}
+              type="button"
+              {...testId}
+              data-selected={pressed}
+              aria-pressed={pressed}
+              disabled={disabled}
+              onClick={onToggle}
               className={cn(
-                'text-[21px] leading-none font-[650] tracking-[-0.02em] tabular-nums',
-                tone[m.tone ?? 'default'],
+                shell,
+                'text-left transition-opacity',
+                disabled !== true && 'cursor-pointer hover:opacity-100',
               )}
             >
-              {m.value}
-            </span>
-          </>
-        );
-        const shell = cn(
-          'flex flex-col gap-[3px] pr-8 max-md:pr-4',
-          i < metrics.length - 1 && 'mr-8 border-r border-border max-md:mr-4',
-        );
+              {body}
+            </button>
+          );
+        }
         return m.href === undefined ? (
-          <div key={m.label} className={shell}>
+          <div key={m.label} {...testId} className={shell}>
             {body}
           </div>
         ) : (
           <Link
             key={m.label}
             to={m.href}
+            {...testId}
             {...(m.search === undefined ? {} : { search: m.search })}
             className={cn(shell, 'group')}
           >

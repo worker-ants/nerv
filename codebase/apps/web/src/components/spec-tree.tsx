@@ -21,7 +21,7 @@ import { rows, useSpecTree } from '../lib/queries.js';
 import { StatusBadge } from './status-badge.js';
 import { cn } from '../lib/utils.js';
 import { relativeTime } from '../lib/format.js';
-import { Input } from './ui/primitives.js';
+import { Button, Input } from './ui/primitives.js';
 import { SPEC_VERSION_TOKEN, statusDot } from './status-token.js';
 import { SpecStartCard } from './spec-start-card.js';
 import type { StatusToken } from './status-badge.js';
@@ -778,28 +778,30 @@ export function SpecTree({
           )}
           {hasBranches && (
             <>
-              <button
-                type="button"
+              <Button
+                size="xs"
+                variant="subtle"
                 data-testid="tree-expand-all"
                 aria-label={t('specs.expand_all')}
                 title={t('specs.expand_all')}
                 disabled={allOpen}
                 onClick={() => setOpen(defaultExpanded(nodes))}
-                className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute enabled:hover:bg-bg-active enabled:hover:text-text disabled:text-text-ghost"
+                className="shrink-0"
               >
                 <FoldAll collapsed />
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                size="xs"
+                variant="subtle"
                 data-testid="tree-collapse-all"
                 aria-label={t('specs.collapse_all')}
                 title={t('specs.collapse_all')}
                 disabled={noneOpen}
                 onClick={() => setOpen(new Set())}
-                className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute enabled:hover:bg-bg-active enabled:hover:text-text disabled:text-text-ghost"
+                className="shrink-0"
               >
                 <FoldAll collapsed={false} />
-              </button>
+              </Button>
             </>
           )}
           {/* **수는 둘이다.** 총계만 적으면 트리는 141 을 약속하고 106 만 지킨다.

@@ -59,10 +59,10 @@ const HEADER_LINK =
 
 /** 글리프 칸 — 시안은 15px 고정 폭에 흐린 색, **활성일 때만 강조색**이다 */
 const NAV_GLYPH =
-  'inline-flex w-[15px] shrink-0 text-text-faint group-[.bg-bg-active]:text-status-action';
+  'inline-flex w-4 shrink-0 text-text-faint group-[.bg-bg-active]:text-status-action';
 
 /** 좁은 화면에서 글자 대신 서는 한 칸짜리 단추 */
-const ICON_BUTTON = 'max-md:size-[27px] max-md:justify-center max-md:px-0';
+const ICON_BUTTON = 'max-md:size-control-sm max-md:justify-center max-md:px-0';
 
 /** [☰] 가 여는 것이 무엇인지 `aria-controls` 가 가리킨다 — 서랍은 화면에 하나뿐이다 */
 const NAV_ID = 'nerv-nav';
@@ -340,11 +340,11 @@ export function AppShell({
           <Link
             to="/"
             title={t('shell.home')}
-            className="mr-1 flex shrink-0 items-center gap-[7px] px-1 text-sm font-semibold tracking-[-0.01em] max-md:mr-0"
+            className="mr-1 flex shrink-0 items-center gap-2 px-1 text-sm font-semibold tracking-[-0.01em] max-md:mr-0"
           >
             <span
               aria-hidden="true"
-              className="inline-flex size-[15px] items-center justify-center rounded-[4px] bg-status-action text-[10px] font-bold text-on-status"
+              className="inline-flex size-4 items-center justify-center rounded-nerv-sm bg-status-action text-3xs font-bold text-on-status"
             >
               N
             </span>
@@ -469,7 +469,7 @@ export function AppShell({
                   count={pending}
                   tone="action"
                   testId="inbox-badge"
-                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[10px]"
+                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-4 max-md:min-w-4 max-md:px-1 max-md:text-3xs"
                 />
               </Link>
               <Link
@@ -487,7 +487,7 @@ export function AppShell({
                   count={unreadCount}
                   tone="waiting"
                   testId="notification-badge"
-                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-[15px] max-md:min-w-[15px] max-md:px-[4px] max-md:text-[10px]"
+                  className="max-md:absolute max-md:-top-0.5 max-md:-right-1 max-md:ml-0 max-md:h-4 max-md:min-w-4 max-md:px-1 max-md:text-3xs"
                 />
               </Link>
             </>
@@ -499,9 +499,9 @@ export function AppShell({
             onClick={() => setSwitcherOpen(true)}
             aria-label={t('common.search')}
             className={cn(
-              'flex h-[27px] w-52 items-center gap-[7px] rounded-nerv bg-bg-sunken px-[9px] text-sm text-text-faint transition-colors hover:bg-bg-hover',
+              'flex h-control-sm w-52 items-center gap-2 rounded-nerv bg-bg-sunken px-2.5 text-sm text-text-faint transition-colors hover:bg-bg-hover',
               // 좁은 화면에는 ⌘K 도 없고 입력창 모양을 지킬 폭도 없다 — 글리프 한 칸이다
-              'max-md:w-[27px] max-md:justify-center max-md:bg-transparent max-md:px-0',
+              'max-md:w-control-sm max-md:justify-center max-md:bg-transparent max-md:px-0',
             )}
           >
             {/* 이모지 돋보기는 색을 갖고 와 헤더에서 저 혼자 튄다 — 시안은 흐린 선화다 */}
@@ -538,7 +538,7 @@ export function AppShell({
               onClick={() => setMenuOpen((open) => (open === 'help' ? null : 'help'))}
               className={cn(
                 HEADER_LINK,
-                'flex size-[27px] items-center justify-center px-0 text-text-faint max-md:hidden',
+                'flex size-control-sm items-center justify-center px-0 text-text-faint max-md:hidden',
               )}
             >
               <span aria-hidden="true">?</span>
@@ -700,7 +700,7 @@ export function AppShell({
           data-testid="nav-drawer-backdrop"
           aria-label={t('shell.close_menu')}
           onClick={() => setDrawerOpen(false)}
-          className="fixed top-header right-0 bottom-0 left-0 z-30 bg-text/20 backdrop-blur-[2px] md:hidden"
+          className="fixed top-header right-0 bottom-0 left-0 z-30 bg-text/20 backdrop-blur-xs md:hidden"
         />
       )}
 
@@ -740,7 +740,7 @@ export function AppShell({
                 data-testid="nav-drawer-close"
                 aria-label={t('shell.close_menu')}
                 onClick={() => setDrawerOpen(false)}
-                className={cn(HEADER_LINK, 'flex size-[27px] items-center justify-center px-0')}
+                className={cn(HEADER_LINK, 'flex size-control-sm items-center justify-center px-0')}
               >
                 <span aria-hidden="true">✕</span>
               </button>
@@ -760,11 +760,11 @@ export function AppShell({
                 aria-controls="shell-menu-org"
                 aria-label={t('shell.org_label', { name: currentOrg.name ?? currentOrg.slug })}
                 onClick={() => setMenuOpen((open) => (open === 'org' ? null : 'org'))}
-                className="flex w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
+                className="flex w-full items-center gap-2 rounded-nerv px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
               >
                 <span
                   aria-hidden="true"
-                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-text text-[10px] font-bold text-bg uppercase"
+                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-nerv-sm bg-text text-3xs font-bold text-bg uppercase"
                 >
                   {(currentOrg.name ?? currentOrg.slug).slice(0, 1)}
                 </span>
@@ -900,7 +900,7 @@ export function AppShell({
                       >
                         <span
                           aria-hidden="true"
-                          className="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-status-done text-[10px] font-bold text-on-status uppercase"
+                          className="inline-flex size-4 shrink-0 items-center justify-center rounded-nerv-sm bg-status-done text-3xs font-bold text-on-status uppercase"
                         >
                           {slug.slice(0, 1)}
                         </span>
