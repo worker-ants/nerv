@@ -64,6 +64,8 @@ export const clemvionProfile: ImportProfile = {
       archived: { doc: 'deprecated', impl: 'unimplemented' },
     },
     code: 'evidence.code_path',
+    // 사용 안내 문서(ko·en 쌍) — 가드 밖이던 필드가 코드 경로와 같은 실존 검사를 받는다(§2.3)
+    user_guide: 'evidence.user_guide',
     pending_plans: 'requirement.pending_task_links',
     // clemvion frontmatter 에는 되돌릴 때만 필요한 값이 없다 — 전부 NERV 필드로 옮겨진다
     preserve: [],

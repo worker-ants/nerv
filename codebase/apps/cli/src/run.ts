@@ -829,7 +829,10 @@ function convert(
     doc_status: (status?.doc ?? 'draft') as ImportSpecItem['doc_status'],
     sort_key: sortKeyOf(basename(file.path)),
     requirements: requirementsOf(file, body, profile, status?.impl ?? 'unimplemented', entries),
-    evidence: codeEvidenceOf(file, frontmatter, profile, repo, entries),
+    evidence: [
+      ...codeEvidenceOf(file, frontmatter, profile, repo, entries),
+      ...userGuideEvidenceOf(file, frontmatter, profile, repo, entries),
+    ],
   };
 }
 
@@ -849,22 +852,53 @@ function codeEvidenceOf(
   entries: ReportEntry[],
 ): ImportSpecItem['evidence'] {
   if (profile.frontmatter.code !== 'evidence.code_path') return [];
-  const raw = frontmatter['code'];
-  const globs = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw])
-    .map((glob) => glob.trim())
-    .filter((glob) => glob !== '');
-  return globs.map((glob) => {
-    const stale = !repo.exists(glob);
-    if (stale) {
-      entries.push({
-        file: file.path,
-        line: null,
-        rule: 'code-glob-no-match',
-        reason: t()('cli.reason.code_glob_no_match', { glob }),
-        disposition: 'manual',
-      });
-    }
-    return { kind: 'code_path', locator: glob, stale };
+  return pathEvidenceOf(file, frontmatter['code'], 'code_path', repo, entries, (glob) => ({
+    rule: 'code-glob-no-match',
+    reason: t()('cli.reason.code_glob_no_match', { glob }),
+  }));
+}
+
+/**
+ * **`user_guide:` → `user_guide` 증적**(importer.md §2.3 · REQ-IMP-033 · 2026-09-26).
+ *
+ * clemvion 규약에서 이 필드는 가드 밖이었다(R-10) — 안내 문서가 사라져도 아무도 몰랐다. 표는
+ * "다른 증적과 같은 검증 경로에 올라온다" 고 적는데, 프로파일이 이 키를 몰라 `frontmatter-unmapped`
+ * 경고로만 남고 버려졌다(discord · slack · telegram 세 편). 코드 경로와 같은 실존 검사를 받는다.
+ */
+function userGuideEvidenceOf(
+  file: ScannedFile,
+  frontmatter: Record<string, string | string[]>,
+  profile: ImportProfile,
+  repo: RepoIndex,
+  entries: ReportEntry[],
+): ImportSpecItem['evidence'] {
+  if (profile.frontmatter.user_guide !== 'evidence.user_guide') return [];
+  return pathEvidenceOf(file, frontmatter['user_guide'], 'user_guide', repo, entries, (path) => ({
+    rule: 'user-guide-no-match',
+    reason: t()('cli.reason.user_guide_no_match', { path }),
+  }));
+}
+
+/** 경로 목록 → 증적 — 한 항목이 한 행이고, 아무것도 가리키지 않으면 `stale` + 수동 확인이다 */
+function pathEvidenceOf(
+  file: ScannedFile,
+  raw: string | string[] | undefined,
+  kind: 'code_path' | 'user_guide',
+  repo: RepoIndex,
+  entries: ReportEntry[],
+  missing: (locator: string) => {
+    rule: 'code-glob-no-match' | 'user-guide-no-match';
+    reason: string;
+  },
+): ImportSpecItem['evidence'] {
+  const locators = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw])
+    .map((locator) => locator.trim())
+    .filter((locator) => locator !== '');
+  return locators.map((locator) => {
+    const stale = !repo.exists(locator);
+    if (stale)
+      entries.push({ file: file.path, line: null, disposition: 'manual', ...missing(locator) });
+    return { kind, locator, stale };
   });
 }
 
@@ -1399,6 +1433,7 @@ function preservedOf(
     'status',
     ...preserve,
     ...(profile.frontmatter.code === undefined ? [] : ['code']),
+    ...(profile.frontmatter.user_guide === undefined ? [] : ['user_guide']),
     ...(profile.frontmatter.pending_plans === undefined ? [] : ['pending_plans']),
   ]);
   const kept: Record<string, string | string[]> = {};

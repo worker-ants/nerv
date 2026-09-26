@@ -41,6 +41,8 @@ export const en = {
     'Settle the implementation status per requirement — this value was copied from the document status',
   'cli.hint.code_glob_no_match':
     'If the files moved, fix `code:` in the source; if the implementation is gone, review the implementation status',
+  'cli.hint.user_guide_no_match':
+    'If the guide moved, fix `user_guide:` in the source; if it is gone, rewrite it or drop it from the list',
   'cli.hint.map_conflict': 'Run `nerv import rebuild-map` to rebuild the manifest, then run again',
   'cli.hint.pending_plan_unresolved': 'Run again once that plan has loaded as a Task',
   'cli.hint.plan_many_refs': 'Name the single requirement this plan implements in its body',
@@ -1951,6 +1953,8 @@ export const en = {
   'cli.reason.impl_status_doc_copied':
     "Copied from the document's status — the impl status of {count} requirements needs confirming one by one",
   'cli.reason.code_glob_no_match': 'The `code:` glob matches no file — loaded as stale ({glob})',
+  'cli.reason.user_guide_no_match':
+    'No document at the `user_guide:` path — loaded as stale ({path})',
   'cli.reason.req_id_duplicate':
     'Second definition of the same ref — only the first row is loaded ({ref})',
   'cli.reason.req_priority_missing': 'Priority not stated — loaded as NULL ({ref})',
