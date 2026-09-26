@@ -124,7 +124,6 @@ export const en = {
   'error.attachment.not_found': 'Attachment not found.',
   'error.attachment.not_uploaded':
     'The file has not been uploaded yet. Upload it to the given URL, then commit.',
-  'error.attachment.storage_off': 'Attachment storage is not configured.',
   'error.auth.missing': 'Not signed in.',
   'error.auth.no_role': 'Your role could not be determined.',
   'error.auth.project_mismatch':
@@ -139,7 +138,6 @@ export const en = {
     'This route has no permission set. This is a server configuration error.',
   'error.auth.scope_missing': 'Missing scope: {scope}',
   'error.auth.self_approve': 'Requesters cannot approve their own requests.',
-  'error.auth.self_approve_spec': 'Authors cannot approve their own specs.',
   'error.auth.self_approve_author': 'Authors cannot approve their own draft.',
   'error.auth.self_approve_session_owner':
     'Your session wrote this draft. Someone else must approve it.',
@@ -548,7 +546,6 @@ export const en = {
   'signup.name': 'Name',
   'signup.submit': 'Sign up',
   'signup.submitting': 'Creating…',
-  'signup.title': 'Sign up',
   'spec.byline.approved_by': 'Approved by {name}',
   'spec.byline.approved_when': 'Approved by {name} {when}',
   'spec.byline.backlinks': '{count} backlinks',
@@ -734,7 +731,6 @@ export const en = {
   'error.spec.baseline_not_found': 'No baseline by that name.',
   'error.spec.not_found': 'Spec not found.',
   'error.spec.requirement_not_found': 'Requirement not found.',
-  'error.spec.not_in_review': 'Not in review.',
   'error.spec.parent_archived': 'The parent spec is archived.',
   'error.spec.title_required': 'A title is required.',
   'error.spec.version_missing': 'The requested version does not exist.',
@@ -783,7 +779,6 @@ export const en = {
   'mcp.tool.first_call': 'The first tool call after a session starts',
   'mcp.tool.gather_context': 'Gathering context, checking for duplicates',
   'mcp.tool.hookless_fallback': 'Fallback for environments without hooks',
-  'mcp.tool.map_relations': 'Mapping relations, analyzing impact',
   'mcp.tool.on_transition': 'On a status change (moving to done is checked by the server gate)',
   'mcp.tool.request_review': 'Requesting human review once a draft is done',
   'mcp.tool.session_end': 'Ending a session, switching tasks, stopping',
@@ -873,8 +868,6 @@ export const en = {
   'common.cancel': 'Cancel',
   'common.loading': 'Loading…',
   'common.close': 'Close',
-  'common.comment': 'Comment',
-  'common.dash': '—',
   'common.none': 'None.',
   'common.not_yet': 'Nothing yet.',
   'common.project': 'Project',
@@ -1083,9 +1076,6 @@ export const en = {
   'help.env.example': 'example',
   'help.env.hint':
     'Values marked “example” aren’t known yet. The rest are this server’s actual values, so use them as they are.',
-  'help.env.init': 'Setup command',
-  'help.env.init_hint':
-    'Run it once in your working repository. The command prompts for the token separately, so it stays out of your shell history.',
   'help.env.project': 'Project',
   'help.env.role': 'Your role',
   'help.env.server': 'NERV server address',
@@ -1114,7 +1104,6 @@ export const en = {
   'invite.copy': 'Copy link',
   'invite.email': 'Email',
   'invite.expired': 'Expired',
-  'invite.expires_days': 'Expires in {days} days',
   'invite.for_email': 'Invited account: {email}',
   'invite.mailed': 'Email sent. You can also copy the link below.',
   'invite.sent_at': 'sent {when}',
@@ -1131,7 +1120,6 @@ export const en = {
   'invite.revoked': 'Revoked',
   'invite.declined': 'Declined',
   'invite.decline': 'Decline',
-  'invite.declining': 'Declining…',
   'invite.decline_confirm':
     'Decline this invitation? To join later you will need a new invitation.',
   'invite.declined_toast': 'Declined the invitation to {org}.',
@@ -1156,8 +1144,6 @@ export const en = {
   'start.agent': 'Connect an agent (issue a token and install the plugin)',
   'start.done': 'Done',
   'start.dismiss': 'Dismiss',
-  'home.no_projects_admin':
-    'This organization has no projects yet. Specs and tasks live inside a project.',
   'home.create_project': 'Create a project',
   'home.no_activity': 'No activity yet.',
   'shell.project_manage': 'Manage projects',
@@ -1210,20 +1196,10 @@ export const en = {
   'onboarding.token_link': 'Settings › Agent tokens ▸',
   // ── S1 홈 대시보드 (screens.md §2.2) ─────────────────────────────────────────
   'home.inbox_all': 'All {count} in the inbox ▸',
-  'home.lead': 'Only the items here need your decision. Agents are handling the rest.',
   'home.my_projects': 'Your projects',
-  'home.no_notifications': 'No notifications.',
   'home.no_projects': 'You are not in any project yet.',
   'home.nothing_waiting': 'Nothing is waiting on you right now.',
-  'home.recent_notifications': 'Recent notifications',
   'home.see_decided': 'See what you recently handled ▸',
-  'home.stat.approvals': 'Waiting for approval',
-  'home.stat.approvals_hint': 'Things you have to decide',
-  'home.stat.projects': 'Your projects',
-  'home.stat.projects_hint': 'Projects you are a member of',
-  'home.stat.questions': 'Questions to answer',
-  'home.stat.questions_hint': 'Questions from agents that are stuck',
-  'home.title': 'Here’s your day, {name}',
   'home.title_anon': 'Home',
   'home.waiting_on_you': 'Today',
   // ── S7 받은 요청 (screens.md §2.7) ────────────────────────────────────────────
@@ -1250,9 +1226,6 @@ export const en = {
   'inbox.bulk.skipped': '{count} can’t be bulk-approved and will be skipped',
   'inbox.bulk.submit': 'Confirm',
   'inbox.card.answer_placeholder': 'Your answer',
-  'inbox.card.approval': 'Approval',
-  'inbox.card.approve': 'Approve',
-  'inbox.card.comment': 'Comment',
   'inbox.card.comment_placeholder': 'Comment (required to reject)',
   'inbox.card.decided': '{subject}: {decision} recorded.',
   'inbox.card.delivered': 'Delivered to session {host}/{agent}',
@@ -1265,7 +1238,6 @@ export const en = {
   'inbox.card.question': 'Question',
   'inbox.card.reason_required':
     'A reason is required to reject. It’s sent to the requester and recorded in the audit log.',
-  'inbox.card.reject': 'Reject',
   'inbox.card.show_body': 'Show content',
   'inbox.card.hide_body': 'Hide content',
   'inbox.card.body_failed': 'Could not load the content.',
@@ -1284,7 +1256,6 @@ export const en = {
   'inbox.card.self_requested': 'You requested this, so someone else must approve it.',
   'inbox.card.self_requested_admin':
     'You requested this. As an admin, you can decide it yourself (recorded in the audit log).',
-  'inbox.card.self_requested_title': 'You cannot approve work you requested',
   'inbox.card.send_answer': 'Send answer',
   'inbox.card.untitled': '(untitled)',
   'inbox.count_decided': '{count} decided',
@@ -1312,7 +1283,6 @@ export const en = {
   'notif.empty_hint':
     'Approval results, blocked tasks, unresponsive sessions and comments appear here.',
   'notif.lead': 'These already happened. Items that need your decision are in the inbox.',
-  'notif.mark_read': 'Mark read',
   'notif.read': 'Read',
   'notif.title': 'Notifications',
   'notif.unread': 'Unread',
@@ -1335,7 +1305,6 @@ export const en = {
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '{count} active sessions',
   'project.actor.agent': 'Agent',
-  'project.actor.human': 'Human',
   'project.coverage': 'Implementation status',
   'project.coverage.alt':
     '{verified} verified and {implemented} implemented of {total} requirements',
@@ -1385,7 +1354,6 @@ export const en = {
   'specs.column.hide': 'Hide spec tree',
   'specs.tree_label': 'Spec tree',
   // ── S3 스펙 상세 (screens.md §2.4·§3) ───────────────────────────────────────
-  'spec.backlinks': 'Referenced by {count}',
   'spec.backlinks_hint': 'Documents affected when you change this one',
   'spec.badge_superseded': 'Superseded',
   'spec.check_title': 'Pre-submit check:',
@@ -1448,7 +1416,6 @@ export const en = {
   'spec.baseline_pinned': 'pinned',
   'spec.baseline_unpinned': 'outside baseline · latest',
   'spec.recheck': 'A referenced document changed. Re-check this content',
-  'spec.submit_blocked': 'The pre-submit check found a blocker. Fix the marked location first',
   'spec.submit_done': 'Review requested.',
   'spec.submit_review': 'Request review',
   'spec.versions': 'Versions',
@@ -1549,7 +1516,6 @@ export const en = {
   'tasks.filter.backlog': 'Show backlog',
   'tasks.filter.archived': 'Show archived',
   'tasks.filter.archived_title': 'Also show tasks completed more than {days} days ago',
-  'tasks.blocked_lane': 'Blocked · {count}',
   'tasks.more': 'Load more',
   'tasks.lease': 'lease {remaining}',
   'tasks.new': '+ New task',
@@ -1566,11 +1532,7 @@ export const en = {
   'session.back_to_board': '← Session board',
   'session.branch': 'branch',
   'session.claim_history': 'Claim history',
-  'session.heartbeat': 'heartbeat',
-  'session.lease_remaining': 'lease left',
-  'session.meta.branch': 'Branch',
   'session.meta.current_task': 'Current task',
-  'session.meta.diff': 'diff',
   'session.meta.model': 'Model',
   'session.meta.tokens': 'Tokens',
   'session.meta.worktree': 'Worktree',
@@ -1600,7 +1562,6 @@ export const en = {
   'sessions.title': 'Session monitor',
   'steer.confirm_body':
     'The active claim is reclaimed immediately and the task returns to ready. Your reason is kept on the session timeline, so it is clear why the session stopped.',
-  'steer.confirm_dialog': 'Confirm stopping the session',
   'steer.confirm_stop': 'Stop session',
   'steer.confirm_title': 'Stop this session',
   'steer.finished': 'This session has ended',
@@ -1831,7 +1792,6 @@ export const en = {
   'auth.bad_credentials': 'Incorrect email or password.',
   'auth.sign_in_failed': 'Sign-in failed.',
   'inbox.card.keys': 'a approve · r reject · c comment',
-  'inbox.keys': '{move} move · {approve} approve · {reject} reject · {comment} comment',
   'realtime.conflict_blocked': 'Claim blocked due to a declared scope overlap.',
   'realtime.spec_approved': '{subject} was approved.',
   'realtime.spec_changed': '{subject} just changed.',
@@ -1885,10 +1845,8 @@ export const en = {
   'graph.tab.graph': 'Relations',
   'graph.tab.tree': 'Tree',
   // ── 스펙 트리 조작 ────────────────────────────────────────────────────────────
-  'specs.children_count': '{n}',
   'specs.col.backlinks': 'Referenced by',
   'specs.col.path': 'Path',
-  'specs.col.requirements': 'Requirements',
   'specs.col.status': 'Status',
   'specs.col.title': 'Title',
   'specs.col.type': 'Type',
@@ -1960,6 +1918,7 @@ export const en = {
   'cli.report.none': 'None.',
   'cli.report.source': '- Source: `{root}`',
   'cli.report.title': '# Import report — {profile}',
+  'cli.report.unchanged': '- Unchanged {count}: the body was not sent again (§3.4)',
   'cli.usage':
     'Usage: nerv import <spec|plan|review|docs|rebuild-map> --root <path> --project <slug> [--apply]',
 } satisfies Catalog<typeof ko>;
