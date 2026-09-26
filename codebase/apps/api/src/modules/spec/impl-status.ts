@@ -61,7 +61,8 @@ type Queryable = Pick<NervDb, 'execute'>;
 export function evidenceExistsSql(reqAlias = 'r'): SQL {
   const ref = sql.raw(`${reqAlias}.id`);
   // 낡은 증적(`stale` — 가리키는 대상이 사라졌다)은 세지 않는다(2026-09-26 · spec-workflow §1.3).
-  // 지금은 그 값을 세우는 판정이 없지만, 생기는 날 파생이 알아서 `in_progress` 를 낸다
+  // 지금 그 값을 세우는 것은 임포터의 경로 실존 검사뿐이고(REQ-IMP-032) 그 증적은 스펙 버전에
+  // 붙어 여기 들지 않는다 — 요구사항·작업의 증적을 판정하는 쪽이 생기면 파생이 알아서 `in_progress` 를 낸다
   return sql`EXISTS (
     SELECT 1 FROM evidence e
      WHERE (e.requirement_id = ${ref}

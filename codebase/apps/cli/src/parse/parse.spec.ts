@@ -3,10 +3,14 @@
 // 임포터의 값은 "≥95% 자동 변환 + 실패 전건 목록화"(성공 기준 0-6)에 있다. 그 둘 다
 // 파싱의 정확성에 달려 있고, 특히 **실패를 조용히 삼키지 않는 것**이 핵심이다.
 
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { runImport } from '../run.js';
 import { parseFrontmatter, splitStatus } from './frontmatter.js';
 import { extractRequirements } from './requirements.js';
-import { globToRegExp, matchesAny } from './scan.js';
+import { globToRegExp, matchesAny, RepoIndex } from './scan.js';
 
 describe('frontmatter (§2.3)', () => {
   it('본문은 원문 그대로 남긴다 — 원문 보존이 제1규칙이다(§2.4)', () => {
@@ -19,6 +23,14 @@ describe('frontmatter (§2.3)', () => {
   it('목록 값을 배열로 읽는다', () => {
     const raw = '---\npending_plans:\n  - plan/a.md\n  - plan/b.md\n---\n본문';
     const { frontmatter } = parseFrontmatter(raw);
+    expect(frontmatter['pending_plans']).toEqual(['plan/a.md', 'plan/b.md']);
+  });
+
+  it('한 줄 목록도 목록이다 — `code: []` 가 문자열 "[]" 로 읽혀 없는 경로 하나가 됐다', () => {
+    const { frontmatter } = parseFrontmatter(
+      '---\ncode: []\npending_plans: [plan/a.md, "plan/b.md"]\n---\n본문',
+    );
+    expect(frontmatter['code']).toEqual([]);
     expect(frontmatter['pending_plans']).toEqual(['plan/a.md', 'plan/b.md']);
   });
 
@@ -140,5 +152,136 @@ describe('glob 매칭 (§2.1 스캔)', () => {
     const path = 'spec/channel/api-catalog/gen.md';
     expect(matchesAny(path, include)).toBe(true);
     expect(matchesAny(path, exclude)).toBe(true);
+  });
+});
+
+/**
+ * **`code:` glob 은 증적이고, 가리키는 것이 없으면 낡았다**(§2.3 · REQ-IMP-032 · 2026-09-26).
+ *
+ * 이 키는 "아는 키" 로 표시돼 미매핑 경고도 나지 않으면서 적재되지도 않았다 — clemvion 의
+ * glob 691개가 아무 말 없이 사라졌다. 저장소는 한 번만 걷고, glob 문법은 스캔과 같다.
+ */
+describe('code: glob 의 실존 검사 (§2.3 · REQ-IMP-032)', () => {
+  function repo(): string {
+    const root = mkdtempSync(join(tmpdir(), 'nerv-code-'));
+    for (const path of [
+      'codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx',
+      'codebase/frontend/public/logo-dark.svg',
+      'codebase/backend/src/auth/auth.service.ts',
+      'node_modules/pkg/index.js',
+    ]) {
+      mkdirSync(join(root, path, '..'), { recursive: true });
+      writeFileSync(join(root, path), '');
+    }
+    return root;
+  }
+
+  it('파일·디렉터리·glob 을 찾는다 — Next.js 경로의 대괄호는 글자 그대로다', () => {
+    const index = new RepoIndex(repo());
+    expect(index.exists('codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx')).toBe(true);
+    expect(index.exists('codebase/frontend/public/logo*.svg')).toBe(true);
+    expect(index.exists('codebase/backend/src/**')).toBe(true);
+    expect(index.exists('codebase/backend/src/auth/')).toBe(true);
+    expect(index.exists('./codebase/backend/**/*.service.ts')).toBe(true);
+  });
+
+  it('아무것도 가리키지 않으면 없다 — node_modules 안은 보지 않는다', () => {
+    const index = new RepoIndex(repo());
+    expect(index.exists('codebase/frontend/src/app/(main)/w/[slug]/removed/page.tsx')).toBe(false);
+    expect(index.exists('codebase/backend/src/**/*.controller.ts')).toBe(false);
+    expect(index.exists('node_modules/pkg/*.js')).toBe(false);
+  });
+
+  describe('스펙 패스가 싣는다', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('glob 하나가 code_path 증적 하나이고, 미매치는 stale 로 싣고 수동 확인에 올린다', async () => {
+      const root = repo();
+      mkdirSync(join(root, 'spec'), { recursive: true });
+      writeFileSync(
+        join(root, 'spec', 'auth.md'),
+        [
+          '---',
+          'id: auth',
+          'status: implemented',
+          'code:',
+          '  - codebase/backend/src/auth/auth.service.ts',
+          '  - codebase/backend/src/auth/auth.controller.ts',
+          '---',
+          '',
+          '# 인증',
+          '',
+        ].join('\n'),
+      );
+      const profilePath = join(root, 'profile.json');
+      writeFileSync(
+        profilePath,
+        JSON.stringify({
+          profile: 'code-test',
+          version: 1,
+          scan: { spec: ['spec/**/*.md'], plan: [], exclude: [] },
+          tree: { area_from_directory: false, leaf_type: 'feature', overrides: {} },
+          frontmatter: {
+            id: 'spec.key',
+            status_map: { implemented: { doc: 'approved', impl: 'implemented' } },
+            code: 'evidence.code_path',
+            preserve: [],
+          },
+          requirement: { id_pattern: '[A-Z]+-[A-Z]+-\\d+' },
+          task: { status_map: {}, unstarted_sentinel: '(unstarted)' },
+        }),
+      );
+      const batches: { items: { evidence: unknown[] }[] }[] = [];
+      vi.stubGlobal('fetch', async (url: string, init: { body?: string }) => {
+        const body = JSON.parse(init.body ?? '{}') as { items?: { source_path: string }[] };
+        if (url.endsWith('/import/preflight')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: (body.items ?? []).map((i) => ({
+                source_path: i.source_path,
+                natural_key: 'auth',
+                state: 'new',
+                spec_id: null,
+                version_no: null,
+              })),
+            }),
+          };
+        }
+        if (url.endsWith('/import/specs')) batches.push(body as never);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: (body.items ?? []).map((i) => ({ source_path: i.source_path, status: 'ok' })),
+          }),
+        };
+      });
+      const report = await runImport({
+        command: 'spec',
+        root,
+        project: 'p',
+        apply: true,
+        batchSize: 50,
+        reportDir: join(root, 'report'),
+        mapPath: join(root, 'map.json'),
+        profileFile: profilePath,
+        server: 'http://stub',
+        token: 'nerv_x',
+      });
+      const missing = report.entries.filter((e) => e.rule === 'code-glob-no-match');
+      expect(missing).toHaveLength(1);
+      expect(missing[0]?.disposition).toBe('manual');
+      expect(missing[0]?.reason).toContain('auth.controller.ts');
+      // 골격 배치와 본문 배치가 같은 항목을 싣는다 — 본문 배치의 것을 본다
+      const document = batches.filter((b) => (b as { kind?: string }).kind === 'document');
+      expect(document.flatMap((b) => b.items.flatMap((i) => i.evidence))).toEqual([
+        { kind: 'code_path', locator: 'codebase/backend/src/auth/auth.service.ts', stale: false },
+        { kind: 'code_path', locator: 'codebase/backend/src/auth/auth.controller.ts', stale: true },
+      ]);
+    });
   });
 });

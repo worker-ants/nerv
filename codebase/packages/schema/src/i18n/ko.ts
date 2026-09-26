@@ -47,6 +47,8 @@ export const ko = {
   'cli.hint.id_collision': '두 문서 중 하나의 고정 ID 를 바꾼다 — 같은 키로는 둘 다 적재할 수 없다',
   'cli.hint.impl_status_doc_copied':
     '요구사항 단위로 구현 상태를 확정한다 — 문서 status 를 그대로 복사한 값이다',
+  'cli.hint.code_glob_no_match':
+    '파일이 옮겨졌으면 원본 `code:` 를 고치고, 구현이 사라졌으면 구현 상태를 다시 본다',
   'cli.hint.map_conflict': '`nerv import rebuild-map` 으로 매니페스트를 되짓고 다시 돌린다',
   'cli.hint.pending_plan_unresolved': '그 계획이 Task 로 적재된 뒤 다시 돌린다',
   'cli.hint.plan_many_refs': '무엇을 구현한 것인지 계획 본문에 요구사항 하나로 적는다',
@@ -1919,6 +1921,8 @@ export const ko = {
   'cli.reason.plan_total': 'plan_total 불일치 — 기대 {expected} · 실제 {actual}',
   'cli.reason.impl_status_doc_copied':
     '문서 status 복사값 — 요구사항 {count}건의 구현 상태를 건별로 확정해야 한다',
+  'cli.reason.code_glob_no_match':
+    '`code:` glob 이 아무 파일도 가리키지 않는다 — stale 로 적재({glob})',
   'cli.reason.req_id_duplicate': '같은 ref 의 두 번째 정의 — 첫 행만 적재({ref})',
   'cli.reason.req_priority_missing': '우선순위 미표기 — NULL 로 적재({ref})',
   'cli.reason.reference_doc': '참고 문서',
