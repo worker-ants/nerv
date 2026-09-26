@@ -79,7 +79,7 @@ Gate policy is **per project**, not one set for the whole organization. **Pick t
 Gates decide what a spec change has to go through, according to **how risky it is**. Tiers run T0–T3, and the tier follows from the sum of four risk axes: side effects, sensitivity, reversibility and blast radius.
 
 - **Tier boundaries** — the scores at which T1, T2 and T3 begin, in **three fields**. Lower them and more changes pass through a person. They must be whole numbers from 0 with T1 ≤ T2 ≤ T3; otherwise the screen says so below the fields before you save. The summary below redraws, as you type, **each tier's score range and what it requires** (passes automatically · one person approves · two people from different roles approve).
-- **Dynamic escalation** — three signals raise the tier by one: retries past the threshold, a recent rollback, and **a document's first approved version**. The first two mean something already slipped here; the third means this promise is arriving for the first time.
+- **Dynamic escalation** — today one signal raises the tier by one: **a document's first approved version**, meaning this promise is arriving for the first time. The spec also lists retries past the threshold and a recent rollback, but the server does not count those two yet — turning this on does not raise the tier for them.
 
 **A new document that establishes requirements goes past a person once.** A newly created spec has no earlier version to revert to and nothing referencing it yet, so it scores low. Left alone, a document that establishes new requirements would be approved without a person ever seeing it. So the first version alone gets the extra step. From the second version on, the score decides.
 

@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.69 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.70 · 2026-09-26 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v1.70 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **보낸 결정을 바로잡는 길** 한 줄([4.5](screens.md) REQ-WEB-239). 스토리 수·`done` 수는 그대로다.
+
 > v1.69 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **T3 가 한 사람의 승인으로 확정됐다** 한 줄([4.4](api.md) REQ-API-133 · 134 · 140). 스토리 수·`done` 수는 그대로다.
 
 > v1.68 변경(2026-09-26 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **px 가 아닌 임의 값** 한 줄([4.5](screens.md) REQ-WEB-238). 스토리 수·`done` 수는 그대로다.
@@ -564,6 +566,7 @@ referenced_by:
 | 임의 px 장부가 비었다 — 레이아웃 폭(장부 PR 4) | `features/spec-graph/graph.tsx`(`min-h-95` · `max-w-105` · `w-72`) · `features/task-board/board.tsx`(`w-67`) · `routes/p.$proj/sessions.index.tsx`(`w-93`) · `routes/p.$proj/reviews.index.tsx`(`w-85`) · `routes/help/$chapter.tsx`(`w-49`) · L1 `primitives-one-set.spec.tsx`(장부 검사 → 임의 px 0 검사) | 레이아웃 폭 일곱을 값 그대로 척도 수로 옮겼다 — 사람 결정(장부의 결정 1): 이름은 붙이지 않는다. 109곳이던 임의 px 이 0 이 됐고, 검사는 이제 한 곳도 새로 들이지 않는다([4.5](screens.md) REQ-WEB-238 · REQ-WEB-045). |
 | px 가 아닌 임의 값 — 자간 · 행간 · 굵기 · 글자 · 헤더 아래 높이 · rem 폭 · z | `apps/web/src/styles/tokens.css`(`--tracking-heading`·`--tracking-label` · `--font-weight-strong` · `--spacing-below-header`·`--spacing-anchor`) · `lib/utils.ts`(`cn` 이 새 이름을 안다) · 60곳(`components/*` · `features/*` · `routes/*`) · L1 `primitives-one-set.spec.tsx`(괄호 값 허용 목록 검사 · 너무 넓지 않은지) · 이름만 바뀐 단언 다섯(`help.spec` · `spec-rail.spec` · `review-center.spec`) | px 가 0 이 된 뒤 괄호 속에 95곳이 남았다. 장부(아티팩트)에서 사람이 권장안 넷을 고르고 한 PR 로 60곳을 접었다 — 자간 세 단 · 행간 규칙 하나 · 굵기 토큰 · 홈 인사 33px. "화면 높이 − 헤더" 아홉 가운데 둘만 100vh 이던 것도 함께 고쳤다. 남긴 35곳만 검사가 허용한다([4.5](screens.md) REQ-WEB-238). |
 | T3 가 한 사람의 승인으로 확정됐다 — 정족수 라운드 · 결정자 · 세션 깨움 | `apps/api/src/modules/spec/spec.service.ts`(`ensurePendingApproval` — 재사용 슬롯을 이번 라운드로 다시 찍는다) · `modules/approval/approval-policy.ts`(`quorumSql` · `quorumColumnsSql` · `notAlreadyApprovedSql` — 결정한 사람으로 센다) · `modules/approval/approval.service.ts`(한 사람 한 번 · 세션 깨움의 닫힌 라운드 · `pendingDecisionsFor` 의 결정자) · L2 `approval.spec.ts`(세 건) | 결정 철회 검토(아티팩트)가 결정 경로를 훑다 실측했다 — 두 슬롯 중 하나만 거절된 T3 문서를 다시 내면 새 슬롯 하나의 승인으로 확정됐다(REQ-API-140 위반 · 일괄 승인 자격도 열렸다). 곁에 결정자를 지정자로 세던 것 · 거절 뒤 세션이 깨지 않던 것 · 역채널의 결정자 이름([4.4](api.md) REQ-API-133 · 134 · 140). |
+| 보낸 결정을 바로잡는 길 — 처리됨 카드의 한 줄 · 답한 뒤 세션으로 | `apps/web/src/features/inbox/approval-card.tsx`(`CorrectionPath` — 대상·결정별 한 줄과 대상 링크 · 답·결정 토스트의 세션 링크) · `apps/api/src/modules/approval/approval.service.ts`(질문 카드의 `session_id`) · `packages/schema` i18n(`inbox.card.correct.*` · `inbox.card.to_session` · 동적 강화 안내) · 매뉴얼 ko·en(받은 요청 · 설정) · L1 `correction-path.spec.tsx` · L2 `approval.spec.ts` | 결정 철회 검토(아티팩트)의 사람 결정 — 철회 API 는 만들지 않고, 바로잡는 길을 화면에 둔다. 곁에 명세의 어긋남 넷을 닫았다: §6.4 그림에 남은 걷은 되돌리기 · 코멘트가 문서를 초안으로 돌린다는 사실 · 동적 강화가 세는 신호는 첫 승인 버전 하나 · "따로 정한다" 를 결정과 재검토 트리거로([4.5](screens.md) REQ-WEB-239 · [3.5](../03-proposal/spec-workflow.md) §2.4). 남은 것: 재시도 임계·롤백 이력 신호를 정의해 켤지 걷을지(사람 결정) |
 
 #### 이 절은 언제 갱신되는가
 

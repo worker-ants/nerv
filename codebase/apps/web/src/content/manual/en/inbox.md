@@ -51,6 +51,14 @@ An approval card offers three things: **approve, reject, comment**. **A rejectio
 
 **A decision goes out five seconds after you press it.** When you approve, reject, comment or answer a question (options included), the card does not send it at once: it shows what it is about to send and an **[Undo]** button. Press [Undo] or `z` before the bar underneath runs out and nothing is sent — the buttons come back. That is the only way to take a decision back: **once sent, it cannot be undone** (an approval has already moved the document and the notifications have already gone out). While it waits the comment box is read-only — what goes out is what you had written when you pressed. Leave for another screen in the meantime and the decision goes out straight away; close or reload the window and the browser asks first. Bulk decisions do not wait five seconds — their confirmation list has already asked once.
 
+**After sending, correct with a new decision.** There is no way to take a decision back — a decision moves the document and wakes the agent the moment you press it, so what already happened would stay either way. Instead, each card on the **Processed** tab carries a one-line way to correct it, with a link to its subject.
+
+- **An approved spec** — leave a comment on the document, or once it is approved, make a new draft and get it approved again. An approved body never changes.
+- **A rejected or commented spec** — the document went back to draft. Its author revises and resubmits it, and two-person approval counts again from zero.
+- **An approved plan** — it does not come back once given. To stop the work, stop its session or release the claim.
+- **An approved critical downgrade** — a resolution can't be changed. Raise a new finding if it needs another look.
+- **An answer you sent** — the agent receives it right away. If you answered wrongly, press **[Open session]** on the delivered notice and send that session an instruction that sets it straight.
+
 **What is yours is usually not yours to approve.** A card is yours in any of three ways: you **requested** it, you **wrote** the draft, or **your session** wrote it. Having someone else submit it changes nothing: what this guards against is **passing your own work through yourself**, and looking only at the requester lets one favour walk around that. Two exceptions:
 
 - **admin** — a human admin signing their own judgement is a different act. An org-level admin counts too.
