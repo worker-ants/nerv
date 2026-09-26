@@ -2320,6 +2320,24 @@ export class SpecService {
       }
     }
 
+    // **남아 있는 슬롯은 이번 라운드의 슬롯이다**(2026-09-26 · REQ-API-140). T3 의 두 슬롯 중 하나만 거절되면
+    // 문서는 초안으로 가고 다른 슬롯은 결정 없이 남는다. 다시 제출하면 그 슬롯을 재사용하는데, 요청 시각이 옛
+    // 라운드의 것이라 정족수가 "이번 라운드에 요청된 슬롯" 을 셀 때 빠졌다 — 필요 수가 1 이 되어 새 슬롯 하나의
+    // 승인으로 문서가 확정됐다(L2 실측 · 결정 철회 검토). 재사용하는 순간 이번 제출의 요청으로 다시 찍는다 —
+    // 제출과 같은 트랜잭션의 `now()` 라 `submitted_at` 과 같다. 대기 시간 · 요청자도 이번 제출의 것이 된다.
+    if (existing.length > 0) {
+      await tx.execute(sql`
+        UPDATE approval
+           SET requested_at = now(),
+               requested_by_user_id = ${input.requestedByUserId},
+               requested_by_session_id = ${input.requestedBySessionId}
+         WHERE id IN (${sql.join(
+           existing.map((row) => sql`${row.id}`),
+           sql`, `,
+         )})
+      `);
+    }
+
     let first = existing[0]?.id ?? null;
     const created: { id: string; role: string | null }[] = [];
     for (let i = existing.length; i < required; i += 1) {

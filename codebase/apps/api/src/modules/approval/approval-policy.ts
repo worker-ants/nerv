@@ -98,7 +98,7 @@ export function notAlreadyApprovedSql(userId: string): SQL {
   return sql`NOT EXISTS (
     SELECT 1 FROM approval prev
      WHERE prev.subject_type = a.subject_type AND prev.subject_id = a.subject_id
-       AND prev.decision = 'approve' AND prev.assignee_user_id = ${userId}
+       AND prev.decision = 'approve' AND prev.decided_by_user_id = ${userId}
        AND NOT prev.is_bypass
        AND (sv.submitted_at IS NULL OR prev.decided_at > sv.submitted_at)
   )`;
@@ -260,6 +260,10 @@ export function selfKindOf(
  * 그 시각보다 앞이라 자연히 빠진다 — 정족수 테이블을 따로 두지 않는 이유가 그것이다.
  *
  * 면제(`is_bypass`)는 세지 않는다. 면제는 게이트를 지나가는 것이지 승인이 아니다.
+ *
+ * **사람은 결정한 사람으로 센다**(2026-09-26). 예전에는 `assignee_user_id` 를 셌는데, 그 칸은 결정 전에 지정된
+ * 사람이 있으면 그 사람이 남는다(`COALESCE`) — admin 이 남에게 지정된 카드를 누르면 지정자가 승인한 것으로
+ * 세였다. 스펙 슬롯은 지금 지정 없이 서므로 드러나지 않았지만, "서로 다른 사용자" 는 누른 사람의 수다.
  */
 export function quorumSql(subjectId: string, submittedAt: string | null): SQL {
   const round =
@@ -269,7 +273,7 @@ export function quorumSql(subjectId: string, submittedAt: string | null): SQL {
                   OR q.decided_at >= ${submittedAt}::timestamptz)`;
   return sql`
     SELECT count(*)::int AS required,
-           count(DISTINCT q.assignee_user_id) FILTER (WHERE q.decision = 'approve')::int AS given
+           count(DISTINCT q.decided_by_user_id) FILTER (WHERE q.decision = 'approve')::int AS given
       FROM approval q
      WHERE q.subject_type = 'spec_version' AND q.subject_id = ${subjectId}
        AND NOT q.is_bypass${round}
@@ -283,7 +287,7 @@ export function quorumSql(subjectId: string, submittedAt: string | null): SQL {
 export function quorumColumnsSql(): SQL {
   return sql`
     ${approvalsRequiredExpr()} AS approvals_required,
-    COALESCE((SELECT count(DISTINCT q.assignee_user_id)::int FROM approval q
+    COALESCE((SELECT count(DISTINCT q.decided_by_user_id)::int FROM approval q
                WHERE q.subject_type = a.subject_type AND q.subject_id = a.subject_id
                  AND q.decision = 'approve' AND NOT q.is_bypass
                  AND (sv.submitted_at IS NULL OR q.decided_at >= sv.submitted_at)), 0) AS approvals_given`;

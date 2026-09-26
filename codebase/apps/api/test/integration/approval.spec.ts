@@ -835,6 +835,89 @@ describe('T3 정족수 (REQ-API-140)', () => {
     });
     expect(again.quorum).toMatchObject({ given: 1, required: 2, satisfied: false });
   });
+
+  /**
+   * **한 슬롯만 거절된 뒤 다시 내도 두 사람이다**(2026-09-26 — 결정 철회 검토에서 실측).
+   *
+   * 두 슬롯 중 하나만 거절되면 다른 슬롯은 결정 없이 남고, 다시 제출하면 그 슬롯을 재사용한다. 요청 시각이 옛
+   * 라운드의 것이라 정족수가 그것을 빼고 **필요 수 1** 로 세어, 새 슬롯 하나의 승인으로 문서가 확정됐다.
+   */
+  it('한 슬롯만 거절된 뒤 다시 내도 두 사람이 필요하다 — 남은 슬롯은 새 라운드의 슬롯이다', async () => {
+    const { versionId } = await t3Submitted('SPC-QUORUM-RS');
+    const [first, second] = await slots(versionId);
+    await approvals.decide({
+      actor: person(developer),
+      projectId,
+      approvalId: second!.id,
+      userId: developer,
+      decision: 'reject',
+      comment: '범위를 좁혀야 한다',
+    });
+    expect(await statusOfVersion(versionId)).toBe('draft');
+
+    await specs.submitReview({
+      projectId,
+      specVersionId: versionId,
+      userId: planner,
+      roles: ['planner'],
+    });
+    const fresh = await slots(versionId);
+    expect(fresh).toHaveLength(2);
+    // 남은 슬롯을 재사용했다 — 그리고 그 요청 시각은 이번 제출의 것이다
+    expect(fresh.map((s) => s.id)).toContain(first!.id);
+    const { rows: stamp } = await pool.query<{ ok: boolean }>(
+      `SELECT a.requested_at >= sv.submitted_at AS ok
+         FROM approval a JOIN spec_version sv ON sv.id = a.subject_id WHERE a.id = $1`,
+      [first!.id],
+    );
+    expect(stamp[0]?.ok).toBe(true);
+
+    const newSlot = fresh.find((s) => s.id !== first!.id)!;
+    const one = await approvals.decide({
+      actor: person(developer),
+      projectId,
+      approvalId: newSlot.id,
+      userId: developer,
+      decision: 'approve',
+    });
+    expect(one.quorum).toMatchObject({ given: 1, required: 2, satisfied: false });
+    expect(await statusOfVersion(versionId)).toBe('in_review');
+
+    const two = await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: first!.id,
+      userId: reviewer,
+      decision: 'approve',
+    });
+    expect(two.quorum).toMatchObject({ given: 2, required: 2, satisfied: true });
+    expect(await statusOfVersion(versionId)).toBe('approved');
+  });
+
+  it('거절로 라운드가 닫히면 요청 세션이 깨어난다 — 결정 없이 남은 형제 슬롯이 붙잡지 않는다', async () => {
+    const { versionId } = await t3Submitted('SPC-QUORUM-WK');
+    const [, second] = await slots(versionId);
+    await pool.query(`UPDATE approval SET requested_by_session_id = $1 WHERE subject_id = $2`, [
+      sessionId,
+      versionId,
+    ]);
+    await pool.query(`UPDATE agent_session SET state = 'awaiting_input' WHERE id = $1`, [
+      sessionId,
+    ]);
+    await approvals.decide({
+      actor: person(developer),
+      projectId,
+      approvalId: second!.id,
+      userId: developer,
+      decision: 'reject',
+      comment: '다시',
+    });
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.state).toBe('active');
+  });
 });
 
 describe('내 큐만 온다 (REQ-API-137)', () => {
@@ -1289,6 +1372,38 @@ describe('승인은 요청한 세션에게 돌아간다 (REQ-API-133·134)', () 
       approval_id: approvalId,
       subject_type: 'plan',
       decision: 'approve',
+    });
+  });
+
+  it('역채널의 결정자는 누른 사람이다 — admin 이 남에게 지정된 카드를 결정해도', async () => {
+    const admin = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'chief@example.com','대표2','active')`,
+      [admin],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       VALUES ($1,(SELECT org_id FROM project WHERE id = $2),$2,$3,'admin')`,
+      [newId(), projectId, admin],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: planner,
+      requestedBySessionId: sessionId,
+      assigneeUserId: reviewer,
+    });
+    await approvals.decide({
+      actor: person(admin),
+      projectId,
+      approvalId: approval_id,
+      userId: admin,
+      decision: 'approve',
+    });
+    const pending = await approvals.pendingDecisionsFor(sessionId);
+    expect(pending.find((p) => p['approval_id'] === approval_id)).toMatchObject({
+      decided_by: '대표2',
     });
   });
 
