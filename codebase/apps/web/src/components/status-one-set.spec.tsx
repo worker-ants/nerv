@@ -176,11 +176,12 @@ describe('다시 갈라지지 않는다 — 소스를 센다', () => {
   });
 
   it('상태 배지를 손으로 베낀 알약이 없다 — 배지의 모양은 status-badge.tsx 에만 있다', () => {
+    // 표지는 배지의 모양 줄이다 — 2026-09-26 척도로 접은 뒤의 것(모서리 · 글자 · 행간 · 굵기)과 그 전의 것(반 픽셀) 둘 다
+    const pill =
+      /rounded-nerv-sm[^"'`]*text-2xs[^"'`]*leading-normal[^"'`]*font-medium|rounded-\[5px\][^"'`]*px-2[^"'`]*py-\[2\.5px\]/;
     const offenders = sources(SRC)
       .filter((file) => !file.endsWith('status-badge.tsx'))
-      .filter((file) =>
-        /rounded-\[5px\][^"'`]*px-2[^"'`]*py-\[2\.5px\]/.test(readFileSync(file, 'utf8')),
-      )
+      .filter((file) => pill.test(readFileSync(file, 'utf8')))
       .map((file) => file.slice(SRC.length + 1));
     expect(offenders).toEqual([]);
   });

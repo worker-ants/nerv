@@ -182,11 +182,9 @@ describe('요약 줄은 한 벌이다', () => {
  * 토큰(`h-control-sm` · `h-nav-row` · `text-3xs` · `text-metric` · `rounded-nerv*`)과 척도로 접어 109곳이 51곳이 됐고,
  * 같은 날 간격 · 반경 · 글자 · 흐림 31곳을 척도로 접어 20곳이 됐다(장부 아티팩트의 PR 1 — 한 곳에 1~2px 이하가 움직였다).
  * 이어서 머리글자 칸 세 벌(A · 9곳)을 한 부품(`GlyphChip`)으로 모아 11곳이 됐다(PR 2).
- * 남은 것은 부류마다 한 PR 이다 — 상태 배지 모양(B) · 레이아웃 폭(C).
+ * 상태 배지 모양(B · 4곳)을 척도로 접어 7곳이 됐다(PR 3 — 배지가 1px 낮아졌다 · 점은 원). 남은 것은 레이아웃 폭(C)이다.
  */
 const LEDGER: Record<string, number> = {
-  // B — 배지의 모양은 `status-one-set.spec.tsx` 가 베낀 알약을 찾는 표지다 — 함께 옮긴다
-  'components/status-badge.tsx': 4,
   // C — 최소 높이 · 안내 폭 · 옆 패널 폭
   'features/spec-graph/graph.tsx': 3,
   // C — 레인 폭
@@ -236,6 +234,7 @@ describe('임의 px 은 줄기만 한다 (REQ-WEB-045)', () => {
       'routes/inbox.tsx',
       'features/session-monitor/activity-timeline.tsx',
       'routes/p.$proj/specs.$spec.tsx',
+      'components/status-badge.tsx',
     ]) {
       expect(LEDGER[file]).toBeUndefined();
       expect(counted[file]).toBeUndefined();

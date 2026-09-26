@@ -411,7 +411,9 @@ export function SpecTree({
     if (scrollRequest === 0) return undefined;
     const frame = requestAnimationFrame(() => {
       if (activeRef.current !== null) {
-        activeRef.current.scrollIntoView({ block: 'nearest' });
+        // 다른 자리처럼 없으면 부르지 않는다 — jsdom 에는 이 메서드가 없고, 부하가 높아 프레임이 검사 뒤에 돌면
+        // 끝난 검사 밖에서 예외가 났다(2026-09-26 preflight · load 50 · where-am-i.spec 뒤)
+        activeRef.current.scrollIntoView?.({ block: 'nearest' });
         return;
       }
       const viewport = viewportRef.current;

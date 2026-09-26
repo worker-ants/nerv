@@ -20,6 +20,12 @@ describe('StatusBadge', () => {
 
   it('상태 dot 은 장식이라 스크린리더에서 감춘다 — 의미는 라벨이 진다', () => {
     const { container } = render(<StatusBadge token="ok" label="approved" />);
-    expect(container.querySelector('[aria-hidden="true"]')?.textContent).toBe('●');
+    const dot = container.querySelector('[aria-hidden="true"]');
+    // 글자 ● 가 아니라 원이다(2026-09-26) — 색은 배지 글자색을 그대로 받는다
+    expect(dot?.getAttribute('data-dot')).toBe('');
+    expect(dot?.className).toContain('rounded-full');
+    expect(dot?.className).toContain('bg-current');
+    expect(dot?.textContent).toBe('');
+    expect(container.querySelector('span')?.textContent).toBe('approved');
   });
 });
