@@ -267,6 +267,13 @@
       "when": 1790510249810,
       "tag": "0037_notification_batch",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790511547852,
+      "tag": "0038_notification_fold",
+      "breakpoints": true
     }
   ]
 }

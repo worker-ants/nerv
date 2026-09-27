@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.19 · 2026-09-27 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.20 · 2026-09-27 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.20 변경(2026-09-27 — 쌓여 있는 안 읽은 알림을 접는다, **사람 결정 G2**): **§2.9 한 칸.** `notification.state` 의 `archived` 에 뜻을 준다 — 묶음에 접혀 목록에서 빠진 줄이다. 지우지 않는다.
 >
 > v0.19 변경(2026-09-27 — 보통 알림을 묶는다, **사람 결정 G2**): **§1 엔티티 하나 · §2.9 열 넷과 표 하나.** `notification` 에 앱 안 묶음의 키 · 건수 · 마지막 시각 · 열림을 두고, 묶음에 든 이벤트를 `notification_batch_event` 에 적는다. 도메인 엔티티가 34종이 된다.
 >
@@ -697,7 +699,7 @@ clemvion의 `code:` glob이 남긴 교훈이 `stale` 컬럼에 들어 있다. �
 | `project_id` · `user_id` · `event_id` | uuid FK | |
 | `importance` | enum | `immediate / digest` — 승인 요청은 즉시, 상태 변화는 묶음 |
 | `channel` | enum | `inapp / slack / email` |
-| `state` | enum | `unread / read / archived` |
+| `state` | enum | `unread / read / archived` — `archived` 는 묶음에 접혀 목록에서 빠진 줄이다(2026-09-27 · `0038` — 그 이벤트는 남긴 줄의 묶음에 든다) |
 | `digest_batch_id` | uuid NULL | 메일 다이제스트 묶음(Phase 2 — 쓰는 곳이 없다) |
 | `batch_key` | text NULL | 앱 안 묶음의 키(spec-workflow §6.3) — 보통 알림만. 같은 사람 · 같은 키의 열린 줄에 더한다(2026-09-27 · 사람 결정 G2) |
 | `batch_size` · `last_at` | int · timestamptz | 묶음에 든 수 · 마지막으로 더해진 시각(목록의 순서) |

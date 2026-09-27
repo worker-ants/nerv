@@ -533,7 +533,10 @@ export class NotificationService {
     });
     const stateFilter =
       input.state == null
-        ? sql``
+        ? // **묶음에 접힌 줄은 빼고 본다**(2026-09-27 · REQ-API-225 · 마이그레이션 0038). 쌓여 있던 안 읽은
+          // 보통 알림을 묶음으로 접을 때 나머지 줄을 지우지 않고 `archived` 로 두었다 — 그 이벤트는 남긴
+          // 줄의 묶음에 들어 있다. `state=archived` 로 물으면 그 줄들이 나온다
+          sql` AND n.state <> 'archived'`
         : // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
           sql` AND n.state = ${assertVocab([input.state], notificationState.enumValues, 'state')[0]}::notification_state`;
     const importanceFilter =

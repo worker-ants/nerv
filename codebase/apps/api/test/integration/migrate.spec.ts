@@ -493,6 +493,121 @@ describe('0031 — 이미 닫힌 요청의 알림을 닫는다', () => {
 });
 
 /**
+ * **쌓여 있는 안 읽은 보통 알림을 묶음으로 접는다**(2026-09-27 · 사람 결정 G2 · REQ-DB-031).
+ *
+ * 앱 안 묶음(0037)은 앞으로 올 알림부터 묶어서, 그 전에 쌓인 안 읽은 알림은 한 건이 한 줄인 채로
+ * 남았다. 같은 규칙으로 접되 **지우지 않는다** — 나머지 줄은 `archived` 로 목록에서 빠지고, 그 이벤트는
+ * 남긴 줄의 묶음에 든다. 이미 열린 묶음이 있으면 거기로 모인다(열린 묶음은 키마다 하나다).
+ */
+describe('0038 — 쌓여 있는 안 읽은 보통 알림을 묶음으로 접는다', () => {
+  it('같은 대상의 안 읽은 줄은 한 줄로 모이고 나머지는 지우지 않고 뺀다 — 읽은 · 중요 알림은 그대로다', async () => {
+    const fresh = await createScratchDb('nerv_fold');
+    try {
+      await runMigrations(fresh.url);
+      const result = await withClient(fresh.url, async (client) => {
+        const { userId, projectId } = await seedTenancy(client);
+        const [specA, specB, specC] = [randomUUID(), randomUUID(), randomUUID()];
+        let minute = 0;
+        const notify = async (
+          type: string,
+          subjectId: string,
+          opts: { state?: 'unread' | 'read'; importance?: 'digest' | 'immediate' } = {},
+        ): Promise<string> => {
+          minute += 1;
+          const eventId = randomUUID();
+          await client.query(
+            `INSERT INTO event (id, project_id, type, subject_type, subject_id, occurred_at)
+             VALUES ($1,$2,$3,'spec',$4, now() - interval '1 day' + ($5 || ' minutes')::interval)`,
+            [eventId, projectId, type, subjectId, String(minute)],
+          );
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO notification (id, project_id, user_id, event_id, importance, state,
+                                       created_at, last_at)
+             VALUES ($1,$2,$3,$4,$5::notification_importance,$6::notification_state,
+                     now() - interval '1 day' + ($7 || ' minutes')::interval,
+                     now() - interval '1 day' + ($7 || ' minutes')::interval)`,
+            [
+              id,
+              projectId,
+              userId,
+              eventId,
+              opts.importance ?? 'digest',
+              opts.state ?? 'unread',
+              String(minute),
+            ],
+          );
+          return id;
+        };
+        const R = NERV_EVENT.SPEC_RECHECK_REQUESTED;
+        const a = [await notify(R, specA), await notify(R, specA), await notify(R, specA)];
+        const readA = await notify(R, specA, { state: 'read' });
+        const b = await notify(R, specB);
+        const approved = await notify(NERV_EVENT.SPEC_APPROVED, specA, { importance: 'immediate' });
+        const c = [await notify(R, specC), await notify(R, specC)];
+        // 0037 뒤의 파생이 이미 연 묶음 — 접을 줄은 여기로 모인다
+        const openC = await notify(R, specC);
+        await client.query(
+          `UPDATE notification SET batch_key = $2, batch_open = true WHERE id = $1`,
+          [openC, `spec:${specC}:recheck`],
+        );
+        await client.query(
+          `INSERT INTO notification_batch_event (notification_id, event_id, user_id)
+           SELECT id, event_id, user_id FROM notification WHERE id = $1`,
+          [openC],
+        );
+
+        const sql = readFileSync(join(migrationsFolder(), '0038_notification_fold.sql'), 'utf8');
+        await client.query(sql);
+        await client.query(sql); // 멱등 — 두 번째는 0건이다
+
+        const { rows } = await client.query<{
+          id: string;
+          state: string;
+          batch_key: string | null;
+          batch_size: number;
+          batch_open: boolean;
+          first: boolean;
+        }>(
+          `SELECT n.id, n.state::text AS state, n.batch_key, n.batch_size, n.batch_open,
+                  n.created_at = (SELECT min(created_at) FROM notification WHERE id = ANY($2)) AS first
+             FROM notification n WHERE n.id = ANY($1)`,
+          [[...a, readA, b, approved, ...c, openC], a],
+        );
+        const at = (id: string) => {
+          const r = rows.find((row) => row.id === id);
+          return r === undefined
+            ? undefined
+            : `${r.state}${r.batch_key === null ? '' : ` ×${String(r.batch_size)}`}${r.batch_open ? ' open' : ''}`;
+        };
+        return {
+          a: a.map(at),
+          aFirst: rows.find((r) => r.id === a[2])?.first,
+          readA: at(readA),
+          b: at(b),
+          approved: at(approved),
+          c: c.map(at),
+          openC: at(openC),
+        };
+      });
+
+      expect(result).toEqual({
+        // 가장 최근 줄이 묶음이 되고, 처음 시각은 가장 오래된 줄의 것이다
+        a: ['archived', 'archived', 'unread ×3 open'],
+        aFirst: true,
+        readA: 'read',
+        b: 'unread ×1 open',
+        approved: 'unread',
+        c: ['archived', 'archived'],
+        openC: 'unread ×3 open',
+      });
+    } finally {
+      await fresh.drop();
+    }
+  });
+});
+
+/**
  * **뒤처진 스키마를 이름으로 말한다**(REQ-CB-056 · 2026-09-24 실측).
  *
  * 개발 DB 가 31건 중 27건에서 멈춘 채 api 가 떠 있었고, 없는 칸을 읽는 질의마다 500 이

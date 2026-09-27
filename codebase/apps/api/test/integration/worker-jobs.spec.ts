@@ -580,6 +580,29 @@ describe('앱 안 묶음 — 같은 대상은 읽을 때까지 한 줄 (REQ-API-
     ]);
   });
 
+  it('묶음에 접힌 줄(archived)은 목록에서 빠지고, state=archived 로 물으면 나온다 (REQ-API-225)', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const w = await world('bat7');
+    const target = await w.spec('BAT7-TARGET');
+    const because = await w.spec('BAT7-CAUSE');
+    await w.recheck(target, because);
+    const notifications = new NotificationService(drizzle(poolA));
+    await notifications.route();
+    const [row] = await rowsOf(w.watcher, w.projectId);
+    await poolA.query(
+      `UPDATE notification SET state = 'archived', batch_open = false WHERE id = $1`,
+      [row?.id],
+    );
+    const all = await notifications.list({ userId: w.watcher, project: w.projectId });
+    expect(all.items).toEqual([]);
+    const archived = await notifications.list({
+      userId: w.watcher,
+      project: w.projectId,
+      state: 'archived',
+    });
+    expect(archived.items.map((n) => n['id'])).toEqual([row?.id]);
+  });
+
   /**
    * 두 파생이 같은 사람 · 같은 키에 겹쳐 더해도 열린 줄은 하나이고, 건수는 이벤트 수와 같다 — 실제
    * Postgres 에서 겹쳐 돌린다(동시성은 mock 으로 보지 않는다 · AGENTS.md 구현 규약 4).
