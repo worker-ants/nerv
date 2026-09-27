@@ -29,7 +29,14 @@ import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
 import { useApiError } from '../lib/api-errors.js';
 import { queryKeys } from '../lib/query-keys.js';
-import { inboxActionable, inboxCards, inboxTotal, lockedCard, useInbox } from '../lib/queries.js';
+import {
+  inboxActionable,
+  inboxCards,
+  inboxTotal,
+  lockedCard,
+  useInbox,
+  useInboxScopes,
+} from '../lib/queries.js';
 import type { Row } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
@@ -43,21 +50,57 @@ import {
   Textarea,
 } from '../components/ui/primitives.js';
 import { ScopeBadge } from '../components/scope-badge.js';
+import { ScopeRail, scopeName } from '../features/inbox/scope-rail.js';
+import type { ScopeRailRow, ScopeSelection } from '../features/inbox/scope-rail.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
+/** 받은 요청의 주소 — 탭 · 착지할 카드 · 범위(REQ-WEB-256) */
+export interface InboxSearch {
+  state?: 'pending' | 'decided';
+  focus?: string;
+  /** 조직 slug — `project` 없이 오면 그 조직의 프로젝트 전부다 */
+  org?: string;
+  /** 프로젝트 slug — `org` 가 그 조직을 정한다 */
+  project?: string;
+}
+
+const text = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+
 export const Route = createFileRoute('/inbox')({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { state?: 'pending' | 'decided'; focus?: string } => ({
-    ...(search['state'] === 'decided' ? { state: 'decided' as const } : {}),
-    // **그 카드로 착지한다**(2026-09-24 — UI/UX 검토 · REQ-WEB-204). 홈의 오늘 할 일 · 알림 ·
-    // 에이전트가 건넨 `web_url` 이 모두 맨 `/inbox` 라, 사람은 방금 누른 요청을 목록에서 다시 찾았다
-    ...(typeof search['focus'] === 'string' && search['focus'] !== ''
-      ? { focus: search['focus'] }
-      : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>): InboxSearch => {
+    const focus = text(search['focus']);
+    const org = text(search['org']);
+    const project = text(search['project']);
+    return {
+      ...(search['state'] === 'decided' ? { state: 'decided' as const } : {}),
+      // **그 카드로 착지한다**(2026-09-24 — UI/UX 검토 · REQ-WEB-204). 홈의 오늘 할 일 · 알림 ·
+      // 에이전트가 건넨 `web_url` 이 모두 맨 `/inbox` 라, 사람은 방금 누른 요청을 목록에서 다시 찾았다
+      ...(focus === undefined ? {} : { focus }),
+      ...(org === undefined ? {} : { org }),
+      ...(project === undefined ? {} : { project }),
+    };
+  },
   component: InboxScreen,
 });
+
+/** 범위와 탭을 주소로 — 칸의 링크와 탭이 같은 모양을 쓴다 */
+function inboxSearchOf(scope: ScopeSelection, state?: 'pending' | 'decided'): InboxSearch {
+  return {
+    ...(state === 'decided' ? { state } : {}),
+    ...(scope.org === undefined ? {} : { org: scope.org }),
+    ...(scope.project === undefined ? {} : { project: scope.project }),
+  };
+}
+
+function inboxHref(search: InboxSearch): string {
+  const params = new URLSearchParams();
+  if (search.state !== undefined) params.set('state', search.state);
+  if (search.org !== undefined) params.set('org', search.org);
+  if (search.project !== undefined) params.set('project', search.project);
+  const query = params.toString();
+  return `/inbox${query === '' ? '' : `?${query}`}`;
+}
 
 /** 서버가 준 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(EP-APR-06) */
 interface BulkResult {
@@ -84,8 +127,24 @@ function bulkApprovable(card: Row): boolean {
 
 function InboxScreen(): React.JSX.Element {
   const t = useT();
-  const { state = 'pending', focus } = Route.useSearch();
-  const inbox = useInbox(state);
+  const { state = 'pending', focus, org, project } = Route.useSearch();
+  /**
+   * **범위**(2026-09-27 · 사람 결정 N1 · REQ-WEB-256). 받은 요청은 하나이고(FR-14), 칸이 그 목록을
+   * 조직 · 프로젝트 하나로 좁힌다. 헤더 배지는 그대로 모든 조직을 센다(REQ-WEB-193).
+   */
+  const scope: ScopeSelection = {
+    ...(org === undefined ? {} : { org }),
+    ...(project === undefined ? {} : { project }),
+  };
+  const inbox = useInbox(state, scope);
+  const scopes = useInboxScopes();
+  const railRows: ScopeRailRow[] = (scopes.data?.items ?? []).map((r) => ({
+    ...r,
+    urgent: 0,
+    count: r.actionable,
+  }));
+  const scopeLabel = scopeName(railRows, scope);
+  const navigateTo = Route.useNavigate();
   const [cursor, setCursor] = useState(0);
   /** 착지한 카드 — 잠깐 강조한다 */
   const [landed, setLanded] = useState<string | null>(null);
@@ -307,7 +366,9 @@ function InboxScreen(): React.JSX.Element {
       <PageHeader
         title={t('inbox.title')}
         // 모든 조직에서 모인다 — 줄마다 어느 조직·프로젝트의 일인지 적혀 있다(REQ-WEB-192·193)
-        description={t('inbox.scope_all')}
+        description={
+          scopeLabel === null ? t('inbox.scope_all') : t('inbox.scope_one', { scope: scopeLabel })
+        }
         actions={
           // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
           // **앱 안에서 옮긴다**(REQ-WEB-204) — `<a href>` 라 누를 때마다 앱 전체가 다시 로드되고
@@ -320,7 +381,8 @@ function InboxScreen(): React.JSX.Element {
           >
             <Link
               to="/inbox"
-              search={{}}
+              // 탭을 바꿔도 범위는 그대로다 — 탭과 범위는 따로 고르는 두 칸이다
+              search={inboxSearchOf(scope)}
               // 링크는 스스로 `aria-current` 를 단다 — 기본 비교는 쿼리를 **부분**으로 봐서, 빈 쿼리의
               // [대기 중]이 `?state=decided` 에서도 "지금 여기" 라고 말했다. 쿼리까지 같아야 여기다
               activeOptions={{ exact: true }}
@@ -335,7 +397,7 @@ function InboxScreen(): React.JSX.Element {
             </Link>
             <Link
               to="/inbox"
-              search={{ state: 'decided' }}
+              search={inboxSearchOf(scope, 'decided')}
               activeOptions={{ exact: true }}
               aria-current={state === 'decided' ? 'page' : undefined}
               data-testid="inbox-tab-decided"
@@ -357,272 +419,294 @@ function InboxScreen(): React.JSX.Element {
         }
       />
 
-      <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-text-faint">
-        {/* 키 이름은 번역하지 않는다 — 키보드에 새겨진 글자다. 그 옆의 말만 번역한다 */}
-        <span>
-          <Kbd>j</Kbd> <Kbd>k</Kbd> {t('inbox.key.move')}
-        </span>
-        <span>
-          <Kbd>a</Kbd> {t('inbox.key.approve')}
-        </span>
-        <span>
-          <Kbd>r</Kbd> {t('inbox.key.reject')}
-        </span>
-        <span>
-          <Kbd>c</Kbd> {t('inbox.key.comment')}
-        </span>
-        <span>
-          <Kbd>⌘↵</Kbd> {t('inbox.key.send')}
-        </span>
-        <span>
-          <Kbd>z</Kbd> {t('inbox.key.undo')}
-        </span>
-        {state === 'pending' && (
-          <>
-            <span>
-              <Kbd>x</Kbd> {t('inbox.key.select')}
-            </span>
-            <span>
-              <Kbd>⇧A</Kbd> <Kbd>⇧R</Kbd> {t('inbox.key.bulk')}
-            </span>
-          </>
+      {/* **조직 · 프로젝트 칸 | 목록**(2026-09-27 · 사람 결정 N1 · REQ-WEB-256). 알림 센터와 같은 칸이다 —
+          수는 내가 누를 수 있는 결정의 수다(REQ-WEB-217). 좁은 폭에서는 목록 위의 칩 줄이 된다 */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {railRows.length > 0 && (
+          <ScopeRail
+            rows={railRows}
+            selected={scope}
+            heading={t('notif.scope.heading')}
+            allLabel={t('notif.scope.all')}
+            urgentTitle={() => ''}
+            countTitle={(count) => t('inbox.count_pending', { count })}
+            hrefFor={(next) => inboxHref(inboxSearchOf(next, state))}
+            onSelect={(next) => void navigateTo({ search: inboxSearchOf(next, state) })}
+          />
         )}
-        {/* 키가 **어느 카드에** 꽂히는지 — 강조된(왼쪽 띠) 카드다. 누르거나 칸에 들어가면 그 카드가 된다 */}
-        <span className="text-text-faint">{t('inbox.key.applies')}</span>
-      </p>
-
-      {missing !== null && <FocusMissing id={missing} />}
-
-      {/* **선택 바는 고른 것이 있을 때만 선다.** 늘 떠 있으면 일괄이 기본 조작으로 읽히고,
-          받은 요청의 기본은 한 건씩 보는 것이다(그것이 이 화면의 존재 이유다) */}
-      {chosen.length > 0 && (
-        <div
-          data-testid="bulk-bar"
-          className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv border border-border-strong bg-bg-elev px-3 py-2 text-xs"
-        >
-          <span className="font-medium">{t('inbox.bulk.selected', { count: chosen.length })}</span>
-          {/* **승인 가능 수를 따로 보인다** — 고른 것과 승인되는 것이 다를 수 있고,
-              그 차이를 누른 뒤에 알게 하면 안 된다 */}
-          <span data-testid="bulk-approvable" className="text-text-mute">
-            {t('inbox.bulk.approvable', { count: approvable.length })}
-          </span>
-          {/* 잠긴 체크박스의 까닭 — 카드의 체크박스가 이 문장을 가리킨다(aria-describedby) */}
-          {atLimit && (
-            <span id="bulk-limit" data-testid="bulk-limit" className="text-status-waiting">
-              {t('inbox.bulk.limit', { max: BULK_DECISION_LIMIT })}
+        <div className="min-w-0 flex-1">
+          <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-text-faint">
+            {/* 키 이름은 번역하지 않는다 — 키보드에 새겨진 글자다. 그 옆의 말만 번역한다 */}
+            <span>
+              <Kbd>j</Kbd> <Kbd>k</Kbd> {t('inbox.key.move')}
             </span>
-          )}
-          <Button
-            size="sm"
-            variant="primary"
-            data-testid="bulk-approve"
-            disabled={approvable.length === 0 || bulk.isPending}
-            onClick={() => openConfirm('approve')}
-          >
-            {t('inbox.bulk.approve')}
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            data-testid="bulk-reject"
-            disabled={bulk.isPending}
-            onClick={() => openConfirm('reject')}
-          >
-            {t('inbox.bulk.reject')}
-          </Button>
-          {/* **보이는 것에서, 위에서부터 상한까지**다. "조건에 맞는 전부" 를 만들지 않는 것은
-              보지 않은 것을 고르게 하는 손잡이가 되기 때문이다 */}
-          <button
-            type="button"
-            data-testid="bulk-select-all"
-            onClick={selectAll}
-            className="ml-auto text-text-mute hover:text-text"
-          >
-            {t('inbox.bulk.select_all', { max: BULK_DECISION_LIMIT })}
-          </button>
-          <button
-            type="button"
-            data-testid="bulk-clear"
-            onClick={clearSelection}
-            className="text-text-mute hover:text-text"
-          >
-            {t('inbox.bulk.clear')}
-          </button>
-        </div>
-      )}
-
-      {/* **무엇을 승인하는지 나열한다.** 본문을 열지 않고 결정하는 조작이라, 이 목록이
-          남은 유일한 "무엇을 승인하는가" 다(spec-workflow §6.4 — 원문 우선의 최소치) */}
-      {confirming !== null && (
-        <form
-          data-testid="bulk-confirm"
-          className="mb-2 rounded-nerv border border-border bg-bg-elev p-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (confirming === 'reject' && reason.trim() === '') return;
-            bulk.mutate(confirming);
-          }}
-        >
-          <p className="text-2xs font-semibold text-text">
-            {confirming === 'approve'
-              ? t('inbox.bulk.confirm_approve', { count: targets.length })
-              : t('inbox.bulk.confirm_reject', { count: targets.length })}
-          </p>
-          <p className="mt-0.5 text-2xs text-text-faint">{t('inbox.bulk.confirm_hint')}</p>
-          {/* **빠지는 것과 그 까닭**(REQ-WEB-182). 수만 적으면 사람은 어느 것이 왜 빠졌는지
-              카드를 하나씩 열어 봐야 한다 — 서버가 카드마다 이유를 준다(REQ-API-163) */}
-          {confirming === 'approve' && chosen.length > approvable.length && (
-            <div data-testid="bulk-skipped" className="mt-1 text-2xs text-status-waiting">
-              <p>{t('inbox.bulk.skipped', { count: chosen.length - approvable.length })}</p>
-              <ul data-testid="bulk-skipped-list" className="mt-0.5 flex flex-col gap-0.5">
-                {chosen
-                  .filter((card) => !bulkApprovable(card))
-                  .map((card) => (
-                    <li key={String(card['id'])} className="flex gap-2">
-                      <span className="shrink-0 font-mono">
-                        {String(card['spec_key'] ?? card['task_key'] ?? '')}
-                      </span>
-                      <span className="min-w-0 flex-1">{bulkBlockText(t, card)}</span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-          <ul
-            data-testid="bulk-list"
-            className="mt-2 max-h-56 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-xs"
-          >
-            {targets.map((card) => (
-              <li key={String(card['id'])} className="flex gap-2 py-0.5">
-                <span className="shrink-0 font-mono text-text-mute">
-                  {String(card['spec_key'] ?? card['task_key'] ?? '')}
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {String(card['title'] ?? card['spec_title'] ?? '')}
-                </span>
-                <ScopeBadge
-                  className="shrink-0"
-                  orgSlug={card['org_slug']}
-                  orgName={card['org_name']}
-                  projectSlug={card['project_slug']}
-                  projectName={card['project_name']}
-                />
-              </li>
-            ))}
-          </ul>
-          {/* **거절 사유는 일괄에도 필수다**(REQ-WEB-022) — 전 건에 같은 사유가 남는다 */}
-          {confirming === 'reject' && (
-            <label className="mt-2 block text-2xs text-text-mute">
-              {t('inbox.bulk.reason')}
-              <Textarea
-                data-testid="bulk-reason"
-                rows={2}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="mt-1"
-              />
-            </label>
-          )}
-          <div className="mt-2 flex gap-2">
-            <Button
-              type="submit"
-              size="sm"
-              variant={confirming === 'approve' ? 'primary' : 'danger'}
-              data-testid="bulk-submit"
-              disabled={
-                bulk.isPending ||
-                targets.length === 0 ||
-                (confirming === 'reject' && reason.trim() === '')
-              }
-            >
-              {t('inbox.bulk.submit')}
-            </Button>
-            <Button type="button" size="sm" onClick={() => setConfirming(null)}>
-              {t('inbox.bulk.cancel')}
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {inbox.isLoading && <Skeleton rows={3} className="[&>div]:h-24" />}
-      {/* 실패는 빈 받은 요청이 아니다(REQ-WEB-198) — 그렇게 그리면 결재가 쌓인 채 "없다" 가 된다 */}
-      {failedWithoutData(inbox) && (
-        <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />
-      )}
-
-      {/* **탭마다 제목이 다르다**(2026-09-24 · REQ-WEB-208). 처리됨 탭이 비어도 "지금 당신을 기다리는 항목이
-          없습니다" 라고 적어 탭과 맞지 않았다. 대기가 비면 최근 처리 셋을 붙인다(ui-wireframes §3.4) —
-          방금 한 일이 어디 갔는지가 빈 목록의 다음 질문이다 */}
-      {inbox.data !== undefined && openCards.length === 0 && (
-        <EmptyState
-          icon="✓"
-          title={state === 'pending' ? t('home.nothing_waiting') : t('inbox.empty_decided')}
-          hint={state === 'pending' ? t('inbox.empty_pending_hint') : t('inbox.empty_decided_hint')}
-          action={
-            state === 'pending' ? (
-              <RecentDecided />
-            ) : (
-              <Link to="/inbox" className="text-sm text-link hover:underline">
-                {t('inbox.see_pending')} ▸
-              </Link>
-            )
-          }
-        />
-      )}
-
-      <div ref={listRef}>
-        <ul className="flex flex-col gap-2">
-          {openCards.map((card, index) => renderCard(card, index))}
-        </ul>
-
-        {/* **다른 사람의 결정을 기다리는 것**은 끝에 접어 둔다(REQ-WEB-217). 이유는 카드마다 그대로
-            적힌다(REQ-WEB-145) — 묶음은 그 카드를 치우는 것이 아니라 순서를 정하는 것이다 */}
-        {inLockedZone && (
-          <section data-testid="inbox-locked" className="mt-5">
-            <button
-              type="button"
-              data-testid="inbox-locked-toggle"
-              aria-expanded={showLocked}
-              onClick={() => setShowLocked((open) => !open)}
-              className="flex items-center gap-1.5 text-sm text-text-mute hover:text-text"
-            >
-              <span aria-hidden="true" className="w-3 text-2xs">
-                {showLocked ? '▾' : '▸'}
-              </span>
-              {t('inbox.locked_group', { count: lockedTotal })}
-            </button>
-            {showLocked && (
+            <span>
+              <Kbd>a</Kbd> {t('inbox.key.approve')}
+            </span>
+            <span>
+              <Kbd>r</Kbd> {t('inbox.key.reject')}
+            </span>
+            <span>
+              <Kbd>c</Kbd> {t('inbox.key.comment')}
+            </span>
+            <span>
+              <Kbd>⌘↵</Kbd> {t('inbox.key.send')}
+            </span>
+            <span>
+              <Kbd>z</Kbd> {t('inbox.key.undo')}
+            </span>
+            {state === 'pending' && (
               <>
-                <p className="mt-1 mb-2 pl-4.5 text-2xs text-text-faint">
-                  {t('inbox.locked_hint')}
-                </p>
-                <ul className="flex flex-col gap-2">
-                  {lockedCards.map((card, i) => renderCard(card, openCards.length + i))}
-                </ul>
+                <span>
+                  <Kbd>x</Kbd> {t('inbox.key.select')}
+                </span>
+                <span>
+                  <Kbd>⇧A</Kbd> <Kbd>⇧R</Kbd> {t('inbox.key.bulk')}
+                </span>
               </>
             )}
-          </section>
-        )}
-      </div>
+            {/* 키가 **어느 카드에** 꽂히는지 — 강조된(왼쪽 띠) 카드다. 누르거나 칸에 들어가면 그 카드가 된다 */}
+            <span className="text-text-faint">{t('inbox.key.applies')}</span>
+          </p>
 
-      {/* **이게 전부가 아니면 그렇게 말한다**(REQ-API-166). 예전에는 100건에서 말없이
+          {missing !== null && <FocusMissing id={missing} />}
+
+          {/* **선택 바는 고른 것이 있을 때만 선다.** 늘 떠 있으면 일괄이 기본 조작으로 읽히고,
+          받은 요청의 기본은 한 건씩 보는 것이다(그것이 이 화면의 존재 이유다) */}
+          {chosen.length > 0 && (
+            <div
+              data-testid="bulk-bar"
+              className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv border border-border-strong bg-bg-elev px-3 py-2 text-xs"
+            >
+              <span className="font-medium">
+                {t('inbox.bulk.selected', { count: chosen.length })}
+              </span>
+              {/* **승인 가능 수를 따로 보인다** — 고른 것과 승인되는 것이 다를 수 있고,
+              그 차이를 누른 뒤에 알게 하면 안 된다 */}
+              <span data-testid="bulk-approvable" className="text-text-mute">
+                {t('inbox.bulk.approvable', { count: approvable.length })}
+              </span>
+              {/* 잠긴 체크박스의 까닭 — 카드의 체크박스가 이 문장을 가리킨다(aria-describedby) */}
+              {atLimit && (
+                <span id="bulk-limit" data-testid="bulk-limit" className="text-status-waiting">
+                  {t('inbox.bulk.limit', { max: BULK_DECISION_LIMIT })}
+                </span>
+              )}
+              <Button
+                size="sm"
+                variant="primary"
+                data-testid="bulk-approve"
+                disabled={approvable.length === 0 || bulk.isPending}
+                onClick={() => openConfirm('approve')}
+              >
+                {t('inbox.bulk.approve')}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                data-testid="bulk-reject"
+                disabled={bulk.isPending}
+                onClick={() => openConfirm('reject')}
+              >
+                {t('inbox.bulk.reject')}
+              </Button>
+              {/* **보이는 것에서, 위에서부터 상한까지**다. "조건에 맞는 전부" 를 만들지 않는 것은
+              보지 않은 것을 고르게 하는 손잡이가 되기 때문이다 */}
+              <button
+                type="button"
+                data-testid="bulk-select-all"
+                onClick={selectAll}
+                className="ml-auto text-text-mute hover:text-text"
+              >
+                {t('inbox.bulk.select_all', { max: BULK_DECISION_LIMIT })}
+              </button>
+              <button
+                type="button"
+                data-testid="bulk-clear"
+                onClick={clearSelection}
+                className="text-text-mute hover:text-text"
+              >
+                {t('inbox.bulk.clear')}
+              </button>
+            </div>
+          )}
+
+          {/* **무엇을 승인하는지 나열한다.** 본문을 열지 않고 결정하는 조작이라, 이 목록이
+          남은 유일한 "무엇을 승인하는가" 다(spec-workflow §6.4 — 원문 우선의 최소치) */}
+          {confirming !== null && (
+            <form
+              data-testid="bulk-confirm"
+              className="mb-2 rounded-nerv border border-border bg-bg-elev p-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (confirming === 'reject' && reason.trim() === '') return;
+                bulk.mutate(confirming);
+              }}
+            >
+              <p className="text-2xs font-semibold text-text">
+                {confirming === 'approve'
+                  ? t('inbox.bulk.confirm_approve', { count: targets.length })
+                  : t('inbox.bulk.confirm_reject', { count: targets.length })}
+              </p>
+              <p className="mt-0.5 text-2xs text-text-faint">{t('inbox.bulk.confirm_hint')}</p>
+              {/* **빠지는 것과 그 까닭**(REQ-WEB-182). 수만 적으면 사람은 어느 것이 왜 빠졌는지
+              카드를 하나씩 열어 봐야 한다 — 서버가 카드마다 이유를 준다(REQ-API-163) */}
+              {confirming === 'approve' && chosen.length > approvable.length && (
+                <div data-testid="bulk-skipped" className="mt-1 text-2xs text-status-waiting">
+                  <p>{t('inbox.bulk.skipped', { count: chosen.length - approvable.length })}</p>
+                  <ul data-testid="bulk-skipped-list" className="mt-0.5 flex flex-col gap-0.5">
+                    {chosen
+                      .filter((card) => !bulkApprovable(card))
+                      .map((card) => (
+                        <li key={String(card['id'])} className="flex gap-2">
+                          <span className="shrink-0 font-mono">
+                            {String(card['spec_key'] ?? card['task_key'] ?? '')}
+                          </span>
+                          <span className="min-w-0 flex-1">{bulkBlockText(t, card)}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+              <ul
+                data-testid="bulk-list"
+                className="mt-2 max-h-56 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-xs"
+              >
+                {targets.map((card) => (
+                  <li key={String(card['id'])} className="flex gap-2 py-0.5">
+                    <span className="shrink-0 font-mono text-text-mute">
+                      {String(card['spec_key'] ?? card['task_key'] ?? '')}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {String(card['title'] ?? card['spec_title'] ?? '')}
+                    </span>
+                    <ScopeBadge
+                      className="shrink-0"
+                      orgSlug={card['org_slug']}
+                      orgName={card['org_name']}
+                      projectSlug={card['project_slug']}
+                      projectName={card['project_name']}
+                    />
+                  </li>
+                ))}
+              </ul>
+              {/* **거절 사유는 일괄에도 필수다**(REQ-WEB-022) — 전 건에 같은 사유가 남는다 */}
+              {confirming === 'reject' && (
+                <label className="mt-2 block text-2xs text-text-mute">
+                  {t('inbox.bulk.reason')}
+                  <Textarea
+                    data-testid="bulk-reason"
+                    rows={2}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    className="mt-1"
+                  />
+                </label>
+              )}
+              <div className="mt-2 flex gap-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant={confirming === 'approve' ? 'primary' : 'danger'}
+                  data-testid="bulk-submit"
+                  disabled={
+                    bulk.isPending ||
+                    targets.length === 0 ||
+                    (confirming === 'reject' && reason.trim() === '')
+                  }
+                >
+                  {t('inbox.bulk.submit')}
+                </Button>
+                <Button type="button" size="sm" onClick={() => setConfirming(null)}>
+                  {t('inbox.bulk.cancel')}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {inbox.isLoading && <Skeleton rows={3} className="[&>div]:h-24" />}
+          {/* 실패는 빈 받은 요청이 아니다(REQ-WEB-198) — 그렇게 그리면 결재가 쌓인 채 "없다" 가 된다 */}
+          {failedWithoutData(inbox) && (
+            <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />
+          )}
+
+          {/* **탭마다 제목이 다르다**(2026-09-24 · REQ-WEB-208). 처리됨 탭이 비어도 "지금 당신을 기다리는 항목이
+          없습니다" 라고 적어 탭과 맞지 않았다. 대기가 비면 최근 처리 셋을 붙인다(ui-wireframes §3.4) —
+          방금 한 일이 어디 갔는지가 빈 목록의 다음 질문이다 */}
+          {inbox.data !== undefined && openCards.length === 0 && (
+            <EmptyState
+              icon="✓"
+              title={state === 'pending' ? t('home.nothing_waiting') : t('inbox.empty_decided')}
+              hint={
+                state === 'pending' ? t('inbox.empty_pending_hint') : t('inbox.empty_decided_hint')
+              }
+              action={
+                state === 'pending' ? (
+                  <RecentDecided />
+                ) : (
+                  <Link to="/inbox" className="text-sm text-link hover:underline">
+                    {t('inbox.see_pending')} ▸
+                  </Link>
+                )
+              }
+            />
+          )}
+
+          <div ref={listRef}>
+            <ul className="flex flex-col gap-2">
+              {openCards.map((card, index) => renderCard(card, index))}
+            </ul>
+
+            {/* **다른 사람의 결정을 기다리는 것**은 끝에 접어 둔다(REQ-WEB-217). 이유는 카드마다 그대로
+            적힌다(REQ-WEB-145) — 묶음은 그 카드를 치우는 것이 아니라 순서를 정하는 것이다 */}
+            {inLockedZone && (
+              <section data-testid="inbox-locked" className="mt-5">
+                <button
+                  type="button"
+                  data-testid="inbox-locked-toggle"
+                  aria-expanded={showLocked}
+                  onClick={() => setShowLocked((open) => !open)}
+                  className="flex items-center gap-1.5 text-sm text-text-mute hover:text-text"
+                >
+                  <span aria-hidden="true" className="w-3 text-2xs">
+                    {showLocked ? '▾' : '▸'}
+                  </span>
+                  {t('inbox.locked_group', { count: lockedTotal })}
+                </button>
+                {showLocked && (
+                  <>
+                    <p className="mt-1 mb-2 pl-4.5 text-2xs text-text-faint">
+                      {t('inbox.locked_hint')}
+                    </p>
+                    <ul className="flex flex-col gap-2">
+                      {lockedCards.map((card, i) => renderCard(card, openCards.length + i))}
+                    </ul>
+                  </>
+                )}
+              </section>
+            )}
+          </div>
+
+          {/* **이게 전부가 아니면 그렇게 말한다**(REQ-API-166). 예전에는 100건에서 말없이
           잘렸고, 그 상한이 **오래 기다린 쪽**을 잘랐다 — 화면이 존재하는 이유를 뒤집는
           자리였다(실측 2026-09-24: 120건 중 가장 오래 기다린 20건이 통째로 빠졌다).
           일괄 선택은 **보이는 것 전체**를 뜻하므로(REQ-WEB-181) 더 받아 온 것까지
           자연히 포함된다 — 보지 않은 것을 고르게 하는 손잡이를 만들지 않는다. */}
-      {/* 잠긴 구역에 닿은 뒤의 남은 쪽은 모두 잠긴 카드다 — 묶음을 접어 둔 동안은 더 받지 않는다 */}
-      {inbox.hasNextPage === true && (!inLockedZone || showLocked) && (
-        <div className="mt-3 flex justify-center">
-          <Button
-            variant="ghost"
-            data-testid="inbox-more"
-            disabled={inbox.isFetchingNextPage}
-            onClick={() => void inbox.fetchNextPage()}
-          >
-            {inbox.isFetchingNextPage ? t('common.loading') : t('tasks.more')}
-          </Button>
+          {/* 잠긴 구역에 닿은 뒤의 남은 쪽은 모두 잠긴 카드다 — 묶음을 접어 둔 동안은 더 받지 않는다 */}
+          {inbox.hasNextPage === true && (!inLockedZone || showLocked) && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="ghost"
+                data-testid="inbox-more"
+                disabled={inbox.isFetchingNextPage}
+                onClick={() => void inbox.fetchNextPage()}
+              >
+                {inbox.isFetchingNextPage ? t('common.loading') : t('tasks.more')}
+              </Button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </PageBody>
   );
 }

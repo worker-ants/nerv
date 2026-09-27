@@ -251,6 +251,7 @@ export const en = {
   'inbox.card.gate_score': 'Risk score {score}',
   'inbox.scope_all':
     'Requests from all your organizations. Each row shows its organization and project.',
+  'inbox.scope_one': 'Requests in {scope}. Pick another project or all organizations on the left.',
   'inbox.subject.change_request': 'Change request',
   'inbox.subject.finding': 'Review finding resolution request',
   'inbox.subject.gate_bypass': 'Gate bypass request',
@@ -1352,6 +1353,7 @@ export const en = {
   'notif.elsewhere_important': '{count} important in other projects',
   'shell.notifications_counts':
     'Notifications (all organizations) · {important} important · {unread} unread',
+  'shell.project_decisions': '{count} requests for you to decide in {name}',
   'inbox.locked_group': '{count} waiting on someone else',
   'inbox.locked_hint':
     'You requested, wrote or already approved these, so someone else approves them. To withdraw a request, reject it here.',
@@ -1380,6 +1382,7 @@ export const en = {
   'project.waiting.label': 'Waiting',
   'project.waiting.none': 'Nothing in this project is waiting on you right now.',
   'project.waiting.approvals': '{count} for your decision',
+  'project.waiting.notifications': '{count} important notifications',
   'project.waiting.sessions': '{count} sessions waiting for a reply',
   'project.waiting.critical': '{count} open critical',
   'project.no_sessions_hint_post': ', it shows up here.',

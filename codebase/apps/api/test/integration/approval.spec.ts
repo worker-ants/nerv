@@ -2187,6 +2187,73 @@ describe('REQ-API-211~213 알림과 받은 요청의 범위', () => {
 });
 
 /**
+ * **받은 요청도 조직 · 프로젝트로 좁혀 본다**(2026-09-27 · 사람 결정 N1 · N2 · REQ-API-217·218).
+ * 칸의 수 · 사이드바의 수와 목록이 같은 조건을 봐야 "3건이라더니 목록에는 2건" 이 생기지 않는다.
+ */
+describe('REQ-API-217·218 받은 요청의 범위', () => {
+  it('범위별 결정 수의 합계가 목록의 total · actionable_total 과 같다', async () => {
+    const versionId = await makeSpecVersion('범위 합계', 'in_review');
+    await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: planner,
+    });
+    await questions.create({ projectId, sessionId, title: '범위 합계 질문' });
+    for (let i = 0; i < 2; i += 1) {
+      await pool.query(
+        `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+         VALUES ($1,$2,'plan',$3,$4)`,
+        [newId(), projectId, newId(), planner],
+      );
+    }
+    for (const userId of [reviewer, planner]) {
+      const scopes = await approvals.inboxScopes({ actor: person(userId), userId });
+      const inbox = await approvals.inboxGlobal({ actor: person(userId), userId });
+      expect(scopes.total).toEqual({ pending: inbox.total, actionable: inbox.actionable_total });
+      const row = scopes.items.find((r) => r['project_id'] === projectId);
+      expect(row).toMatchObject({ org_slug: 'nerv', project_slug: 'clemvion' });
+    }
+    // planner 는 자기가 요청한 것을 승인할 수 없다 — 수에는 있지만 누를 수 있는 수에서는 빠진다
+    const mine = await approvals.inboxScopes({ actor: person(planner), userId: planner });
+    const row = mine.items.find((r) => r['project_id'] === projectId)!;
+    expect(Number(row['pending'])).toBeGreaterThan(Number(row['actionable']));
+  });
+
+  it('결정할 것이 없는 프로젝트도 0 으로 온다 — 칸에서 사라지지 않는다', async () => {
+    const scopes = await approvals.inboxScopes({ actor: person(reviewer), userId: reviewer });
+    expect(scopes.items.find((r) => r['project_id'] === projectId)).toMatchObject({
+      pending: 0,
+      actionable: 0,
+    });
+  });
+
+  it('org 만 주면 그 조직의 프로젝트 전부다 — 속하지 않은 조직은 거절이다 (REQ-API-217)', async () => {
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+       VALUES ($1,$2,'plan',$3,$4)`,
+      [newId(), projectId, newId(), reviewer],
+    );
+    const whole = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    const byOrg = await approvals.inboxGlobal({
+      actor: person(planner),
+      userId: planner,
+      org: 'nerv',
+    });
+    expect(byOrg.total).toBe(whole.total);
+    await expect(
+      approvals.inboxGlobal({ actor: person(planner), userId: planner, org: 'nowhere' }),
+    ).rejects.toMatchObject({ details: { kind: 'not_found', field: 'org' } });
+  });
+
+  it('에이전트는 범위별 수도 볼 수 없다 — 받은 요청은 사람 전용이다 (REQ-API-123)', async () => {
+    await expect(
+      approvals.inboxScopes({ actor: agent(planner), userId: planner }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.HUMAN_ONLY });
+  });
+});
+
+/**
  * **처리됨 탭은 "내가 결정한 것" 에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
  *
  * 한 `WHERE` 절이 두 탭을 겸하는 동안 이 탭은 **결정이 문서를 움직인 순간 그 기록을

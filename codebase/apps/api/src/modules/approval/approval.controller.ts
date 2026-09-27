@@ -211,6 +211,16 @@ export class ApprovalInboxController {
     });
   }
 
+  /**
+   * EP-APR-07 — 범위별 결정 수(2026-09-27 · REQ-API-218). **`:id` 보다 먼저** 선언한다 — 뒤에 두면
+   * `scopes` 가 결재 id 로 읽힌다.
+   */
+  @Get('scopes')
+  scopes(@Req() req: ProjectRequest): Promise<unknown> {
+    const actor = globalActor(req);
+    return this.approvals.inboxScopes({ actor, userId: actor.userId });
+  }
+
   /** EP-APR-02 */
   @Get(':id')
   detail(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
