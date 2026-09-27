@@ -280,29 +280,29 @@ describe('겹치는 이름 (2026-09-22 · 사람 보고)', () => {
 });
 
 describe('이름이 그려지는 배율', () => {
-  it('9px 글자가 8px 로 찍히는 배율이다 — 스타일과 같은 값을 쓴다', () => {
+  it('배율 0.5 다 — 스타일과 배치가 같은 값을 쓴다 (2026-09-27 · 사람 결정)', () => {
     // 이 수가 배치의 판정("이름의 자리를 잡아 둘까")과 화면의 판정("이름을 그릴까")을
     // 한 곳에서 잇는다. 두 벌로 적으면 한쪽만 바뀌는 날 둘이 어긋난다.
-    expect(LABEL_ZOOM).toBeCloseTo(8 / 9, 10);
+    expect(LABEL_ZOOM).toBe(0.5);
   });
 });
 
 describe('읽히는 크기 (2026-09-27 · REQ-WEB-095)', () => {
   // cytoscape 의 `min-zoomed-font-size` 는 픽셀 비율을 곱하고 2 의 거듭제곱으로 올려 판정해서,
-  // Retina 에서는 배율 0.25 만 넘어도 4px 짜리 이름을 그렸다. 판정은 CSS 픽셀 하나로 한다.
-  it('9px 이름은 배율 0.889 부터, 고른 문서(11px)는 그보다 낮은 배율부터 읽힌다', () => {
-    expect(labelReadable(0.88)).toBe(false);
-    expect(labelReadable(0.89)).toBe(true);
-    expect(labelReadable(0.5)).toBe(false);
-    expect(labelReadable(0.73, PICKED_FONT_SIZE)).toBe(true);
-    expect(labelReadable(0.72, PICKED_FONT_SIZE)).toBe(false);
+  // Retina 에서는 배율 0.25 만 넘어도 이름을 그렸다. 판정은 화면 종류와 무관한 배율 하나로 한다.
+  it('9px 이름은 배율 0.5 부터, 고른 문서(11px)는 그보다 낮은 배율부터 그린다', () => {
+    expect(labelReadable(0.49)).toBe(false);
+    expect(labelReadable(0.5)).toBe(true);
+    expect(labelReadable(0.3)).toBe(false);
+    expect(labelReadable(0.41, PICKED_FONT_SIZE)).toBe(true);
+    expect(labelReadable(0.4, PICKED_FONT_SIZE)).toBe(false);
   });
 
   it('배율은 문턱을 넘나들 때만 답을 바꾼다 — 확대하는 동안 매 장면 다시 세지 않는다', () => {
-    expect(labelZoomState(0.4)).toBe(labelZoomState(0.6));
-    expect(labelZoomState(0.6)).not.toBe(labelZoomState(0.8));
-    expect(labelZoomState(0.8)).not.toBe(labelZoomState(0.95));
-    expect(labelZoomState(1.2)).toBe(labelZoomState(3));
+    expect(labelZoomState(0.2)).toBe(labelZoomState(0.35));
+    expect(labelZoomState(0.35)).not.toBe(labelZoomState(0.45));
+    expect(labelZoomState(0.45)).not.toBe(labelZoomState(0.6));
+    expect(labelZoomState(0.6)).toBe(labelZoomState(3));
   });
 });
 
