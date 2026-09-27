@@ -28,7 +28,7 @@ Go to **Settings → Agent tokens → Issue a new token.** Give the token a name
 - Scopes start with the **[Recommended]** preset. It includes the scopes an agent needs for the five skills (next · spec · impl · question · review): `spec:read` · `spec:draft` · `task:claim` · `task:update` · `review:submit` · `agent-session:launch`. Any of these that your role lacks is left out when the token is issued (a locked scope is never added without your knowledge). To grant a different set, switch to **[Custom]** and check or uncheck the boxes. Under each scope's name, **one line describes what it allows**.
 - **Do not remove `agent-session:launch`.** `nerv_bootstrap` requires this scope, so without it you cannot even start steps 4 and 5 below. This is the most common mistake when trimming scopes with [Custom].
 - **A token's scopes never exceed your role.** Scopes your role does not have appear **dimmed and locked**. For example, `review:resolve` belongs only to the admin, planner, and qa roles, so it is locked for a `developer`. Locked scopes stay in the list for the same reason the human-only scopes do: you should be able to see on screen why you cannot grant them.
-- If your role later gains more permissions, **tokens you have already issued reflect the change immediately.** You don't need to reissue them.
+- When your role changes, **tokens you have already issued follow it immediately.** A scope your role loses stops working in the token right away. However, a scope that was left out at issue time because your role lacked it is not added later, even if your role gains it. To get that scope, issue a new token.
 - The checkboxes for `spec:approve` and `approval:decide` are locked. Approval is something only a person can do, so it cannot be granted to a token.
 
 ## 2. Environment variables
@@ -51,7 +51,7 @@ Go to **Settings → Agent tokens → Issue a new token.** Give the token a name
 
 This file is **git-ignored by default**, so the token is not committed. Each repository can have its own values, and you don't have to touch your shell profile.
 
-### `.nerv/env` — for Codex (not used yet)
+### `.nerv/env` — for Codex (not needed yet)
 
 **If you only use Claude Code, the file above is all you need.** Don't keep the values in two places. If the two copies differ, which value applies depends on the situation.
 
@@ -65,7 +65,7 @@ NERV_TOKEN=<the token from step 1>
 
 **Values that are already set are never overwritten.** Settings on a company-managed machine and values already in your shell always take precedence. Only variables whose names start with `NERV_` are read.
 
-> This file supports Codex only **halfway**. Notifications and hooks work because the plugin's scripts read the file directly. However, Codex's MCP authentication accepts only the _name_ of an environment variable, so the values in this file don't apply to it. Codex support is still in progress.
+> **Codex does not use this file yet.** Codex's MCP authentication accepts only the _name_ of an environment variable, so the values in this file don't apply to it. Sending Codex notifications to NERV is also turned off for now, because the server has nowhere to receive them yet. Codex support is still in progress.
 
 ### If you use only one project on this machine
 
@@ -238,15 +238,15 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and walks you 
 
 ## When it does not work
 
-| Symptom                                   | Usual cause                                                                                                                                                                                             |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nerv` missing from `/mcp`                | You did not restart after installing, or the repository has no `.mcp.json`. Run the command in 3-A once                                                                                                 |
-| Cannot connect to the server              | A typo in `url`, or you are outside the internal network. Compare it with the address on the card at the top of this chapter                                                                            |
-| `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Agent tokens                                                                                                                     |
-| `NERV_FORBIDDEN`, missing scope           | The token lacks a required scope, or the role it was issued under cannot do that                                                                                                                        |
-| Tools work but the project is not visible | **That token was issued in a different project.** A token's project is set when it is issued, and no header can change it. Issue a new token in the project you want                                    |
-| `project_mismatch`                        | `X-NERV-Project` and the token's project differ. The error message shows both values, so fix whichever is wrong                                                                                         |
-| No session card appears                   | The hook could not connect to the server. Check `NERV_TOKEN`, `NERV_SERVER`, and `curl`. Hooks fail without showing an error                                                                            |
-| Requesting review just fails              | It is an A3 tool, so a person has to click it in the web app (see [Inbox](/help/inbox))                                                                                                                 |
-| `NERV_RATE_LIMIT`                         | Too many requests. The limit is 300 requests per minute per token, and 120 per session for hooks. Wait for the `retry_after_s` in the response. Don't try to get around the limit with parallel retries |
-| The session goes `stale`                  | Heartbeats stopped. After 30 minutes, the claim is reclaimed (see [Sessions](/help/sessions))                                                                                                           |
+| Symptom                                   | Usual cause                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nerv` missing from `/mcp`                | You did not restart after installing, or the repository has no `.mcp.json`. Run the command in 3-A once                                                                                                                                                                                        |
+| Cannot connect to the server              | A typo in `url`, or you are outside the internal network. Compare it with the address on the card at the top of this chapter                                                                                                                                                                   |
+| `NERV_UNAUTHENTICATED`                    | `NERV_TOKEN` is empty or was revoked. Issue a new one under Settings → Agent tokens                                                                                                                                                                                                            |
+| `NERV_FORBIDDEN`, missing scope           | The token lacks a required scope, or your current role cannot do that                                                                                                                                                                                                                          |
+| Tools work but the project is not visible | **That token was issued in a different project.** A token's project is set when it is issued, and no header can change it. Issue a new token in the project you want                                                                                                                           |
+| `project_mismatch`                        | `X-NERV-Project` and the token's project differ. The error message shows both values, so fix whichever is wrong                                                                                                                                                                                |
+| No session card appears                   | The hook could not connect to the server. Check `NERV_TOKEN`, `NERV_SERVER`, and `curl`. Hooks fail without showing an error                                                                                                                                                                   |
+| Requesting review just fails              | It is an A3 tool, so a person has to allow every call (see [Agents](/help/agents)). When the terminal asks whether to allow the tool, allow it. In a headless run there is no one to allow it, so the call is denied. Once the request is up, the decision is made in the [Inbox](/help/inbox) |
+| `NERV_RATE_LIMIT`                         | Too many requests. The limit is 300 requests per minute per token, and 120 requests per minute per session for hooks. Wait for the `retry_after_s` in the response. Don't try to get around the limit with parallel retries                                                                    |
+| The session goes `stale`                  | Heartbeats stopped. After 30 minutes, the claim is reclaimed (see [Sessions](/help/sessions))                                                                                                                                                                                                  |

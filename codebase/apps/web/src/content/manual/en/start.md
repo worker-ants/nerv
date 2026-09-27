@@ -44,7 +44,7 @@ When an agent gets stuck, it can send a person a **question** at any time. Quest
 
 **If the left column has more items than fit, you can scroll it.** With many projects, or with the settings items expanded, scroll over the left column to reach the end. No item is hidden out of reach.
 
-Home, Inbox, Notifications, and Settings cover the whole organization, so their addresses do not include a project. On these screens, **no project is expanded**. Expanding the project you viewed last would make the whole screen look like it belonged to that project. Instead, the project you viewed last has **"Recent"** next to its name in the list, so you can get back to it in one click. Places that show a single project's content, such as "Recent activity" on Home, include the project name in their title. **When there are no projects**, the list shows "No projects yet". Organization admins see **[Manage or add projects]** below it, which opens the projects page with the form already open. Everyone else sees **[Manage projects]**. If the organization has no projects and you are not an admin, Home lists the organization admins you can ask.
+Home, Inbox, Notifications, and Settings cover the whole organization, so their addresses do not include a project. On these screens, **no project is expanded**. Expanding the project you viewed last would make the whole screen look like it belonged to that project. Instead, the project you viewed last has **"Recent"** next to its name in the list, so you can get back to it in one click. Places that show a single project's content, such as "Recent activity" on Home, include the project name in their title. **When there are no projects**, the list shows "No projects yet". Organization admins see **[Manage or add projects]** below it, which opens the projects page with the form already open. Everyone else sees **[Manage projects]**. If the organization has no projects and you are not an admin, Home shows "You are not in any project yet." with the names of the organization admins. Ask one of them to create a project or add you to one.
 
 **The header shows where you are** as `organization / project / screen`. Click the project name to go to its overview. You choose organizations and projects in the left column. When you open a single spec, task, or session, **its key** is added at the end (`… / Specs / SPC-CWC-007`). Click the screen name to go back to the list. **The browser tab title also starts with the key and title**, so you can tell tabs apart when several documents are open.
 
@@ -74,14 +74,14 @@ On a narrow screen, the left column moves into a **drawer that you open with [�
 | `planner`   | Write, **submit others' drafts**, and **approve** specs of any type; baselines, metadata, resolving findings                              |
 | `designer`  | Comment on specs and edit drafts; claim and work on tasks. Can create only **design** specs. **Assigned approvals** on `design` documents |
 | `developer` | Same as above, but can create **convention** and **adr** specs. **Assigned approvals** on those two types                                 |
-| `qa`        | Same as above, plus **resolving findings**. **Assigned approvals** on `feature` documents                                                 |
+| `qa`        | Same as designer, but creates no specs, plus **resolving findings**. **Assigned approvals** on `feature` documents                        |
 | `viewer`    | Read + **comment**                                                                                                                        |
 
 **“Assigned approvals” apply only when the card names that discipline.** A designer does not approve every `design` document. The card goes to them only when a T3 document names its second approver by that discipline (see [Inbox](/help/inbox)).
 
 **Each role can create different spec types.** admin and planner have no limit, designer can create `design`, and developer can create `convention` and `adr`. qa creates no specs, because what qa produces is a **review**. **Even a viewer can comment.** Raising a point is a way of taking part and needs no special permission, so `spec:read` is enough. **Resolving** (closing) a comment is done by the five roles that can write drafts.
 
-**Resolving a review finding** (fixed, dismissed, or won't fix) is limited to admin, planner, and qa. A developer receives findings and fixes them but does not close them.
+**Resolving a review finding** (fixed, spec fix, dismissed, or won't fix) is limited to admin, planner, and qa. A developer receives findings and fixes them but does not close them.
 
 One person can be `admin` in the organization and `developer` on a project. **Multiple roles combine**: you get the permissions of both.
 
@@ -117,7 +117,7 @@ On the sign-in screen, click **"Forgot your password?"** just below the password
 - **The screen shows the same message even when no account uses that address.** This keeps anyone from using this screen to find out whether an account exists. If no email arrives, check your spam folder, then check that it is the address you signed up with.
 - **Setting a new password signs you out on every device**, including this browser. Anyone who knew the old password loses access at that point.
 - **An expired or already used link** shows **"This link cannot be used"** and **[Get a new reset link]** instead of the form, so you find out before you enter a password.
-- **Reset also works for an account whose email is not confirmed yet.** Setting a password through the emailed link proves the address is yours, so you are signed in right away without waiting for a confirmation email.
+- **Reset also works for an account whose email is not confirmed yet.** Setting a password through the emailed link proves the address is yours, so you can sign in with the new password right away, without waiting for a confirmation email.
 - **Reset requests have the same limit as signing in (10 per minute).** If you go over it, a message appears in the form.
 - **On a server that does not send email** (`NERV_MAIL_HOST` is empty), you cannot reset your password here. Submitting the form shows **"Contact the server operator."** This keeps you from waiting for an email that will never arrive.
 

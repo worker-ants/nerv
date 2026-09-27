@@ -92,7 +92,7 @@ The buttons to the right of the task title **move the task from its current stat
 
 **The top of the task screen shows both the assignee and the runner.** **Assignee {name}** is the person responsible for the work. **Running on {host} ▸** is the agent session that has claimed the task and is running it now. Click it to go to that session. The assignee and the runner can be different: people set the assignee, while the runner is whoever has the claim.
 
-**The finish form opens when you click [Finish…], or when the task is Claimed, In progress, or In review.** Spec impact **starts with nothing selected**. You have to choose **No spec impact** explicitly too, so [Move to done] stays disabled until you make a choice. If you choose **Has impact**, the button is enabled only after you write which spec should change and how. If no evidence is attached, a notice appears before you press the button, because the done gate requires evidence. To mark a task as blocked, pick a reason in the separate **Mark as blocked** card.
+**The finish form is already open when the task is Claimed, In progress, or In review.** Clicking [Finish…] takes you to it. Spec impact **starts with nothing selected**. You have to choose **No spec impact** explicitly too, so [Move to done] stays disabled until you make a choice. If you choose **Has impact**, the button is enabled only after you write which spec should change and how. If no evidence is attached, a notice appears before you press the button, because the done gate requires evidence. To mark a task as blocked, pick a reason in the separate **Mark as blocked** card.
 
 ## The four parts of a brief
 
@@ -119,7 +119,7 @@ Taking on a task is called a **claim**. A claim has a 30-minute lease, and the s
 - When two sessions touch the same declared scope, it counts as an **overlap**, but not every overlap is refused. There are three grades. **Block** applies only when two sessions declare the **same spec document**, and only then is the second claim refused. **Warn** applies to documents connected above or below each other in the spec tree, and to two tasks from the same requirement. **Info** covers any other partial overlap. Warn and info only notify people. They do not stop the claim. **Overlapping file paths alone do not block a claim.** If every overlap were blocked, one large module would force the whole project to work on one task at a time. **When a claim is blocked, the session that claimed first is notified.** The blocked session gets the rejection right away, but the one that needs to know the scopes are colliding is the session that claimed first.
 - **You can also claim and release work from the web.** Click [Claim] at the top of the task screen to claim the task right away. The declared scope is this task's source spec, and no files are declared. To release the claim, choose one of two options. **[Hand off]** means someone else should pick up the work next. **[Abandon]** means you are stopping the work. The two are recorded as different reasons, so you can later see why the claim was released. **[Abandon] asks you to confirm** because the task goes back to `ready`.
 - A claim is usually released by **whoever claimed it**. An agent releases its own claim when it finishes or gives up (`nerv_task_release`). To stop work that someone else has claimed, **Stop** their session from the session screen. The claim is released immediately and the task returns to `ready`.
-- **An in-progress task that nobody has claimed can be sent back.** When a `claimed` or `in progress` task has no active claim, the screen shows [Send back to ready] or [Send back to backlog]. The first appears when the four parts of the delegation brief are filled in. The second appears when they are not, which is usually the case for imported tasks. Imported in-progress tasks used to stay in that state for a long time. They did not appear in the queue and could not be claimed, so nobody could pick them up. If there is an active claim, release it or stop the session first.
+- **A Claimed or In progress task with no active claim can be sent back.** When a `claimed` or `in progress` task has no active claim, the screen shows [Send back to ready] or [Send back to backlog]. The first appears when the four parts of the delegation brief are filled in. The second appears when they are not, which is usually the case for imported tasks. Imported in-progress tasks used to stay in that state for a long time. They did not appear in the queue and could not be claimed, so nobody could pick them up. If there is an active claim, release it or stop the session first.
 - The server allows more than the screen offers. **An admin can release someone else's claim**, and planners and admins can change the status of a task that someone else has claimed. The screen does not offer these actions.
 
 ## Done, and the archive window
@@ -142,9 +142,9 @@ The **Evidence** list on the task screen records the material attached to show w
 
 ## Requirement links
 
-A task can link to the requirement it implements. This link affects only one metric on the project screen: **No task**, the number of unimplemented requirements that no task has taken on. Without links, that number is not zero but at its **maximum**.
+A task can link to the requirement it implements (the task's source requirement). **No task** on the project screen is the number of unimplemented requirements that no task is linked to. So without any links, **No task** equals the number of unimplemented requirements.
 
-The implemented and verified bars are separate. They are calculated from each requirement's own implementation status (see "Requirements" in the specs chapter).
+The implemented and verified bar is calculated from each requirement's implementation status. The server also derives that status from the progress of the linked tasks (see "Requirements" in the specs chapter).
 
 ## When the base version goes stale
 

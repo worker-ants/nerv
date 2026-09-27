@@ -1,4 +1,4 @@
-The inbox collects **only what is waiting on your decision**. If it counted background activity too, people would soon ignore the badge, and a badge nobody looks at is as good as no badge.
+The inbox collects **only what is waiting on your decision**. If it also counted things that don't need your decision, people would soon ignore the badge, and a badge nobody looks at is as good as no badge.
 
 ## Kinds of card
 
@@ -35,13 +35,13 @@ When an agent runs into something it must not decide on its own, it **stops** an
 
 When you answer, the session **resumes immediately.**
 
-**Not every question stops an agent.** There are two urgency levels, `blocking` and `normal`. The session stops only for `blocking`; with `normal`, it keeps working while it waits for your answer. A `blocking` question has a **Blocking** mark in its header (the same mark as in the Today list on Home). **Review requests and `critical` downgrades raised by an agent pause the session the same way.** Once you decide, that session receives the result on its next heartbeat.
+**Not every question stops an agent.** There are two urgency levels, `blocking` and `normal`. The session stops only for `blocking`; with `normal`, it keeps working while it waits for your answer. A `blocking` question has a **Blocking** mark in its header (the same mark as in the Today list on Home). **When an agent raises a review request or a `critical` downgrade, its session pauses the same way.** A `critical` downgrade card is created only when an agent asks for one. Once you decide, that session receives the result on its next heartbeat.
 
 ## Deciding
 
 **The default queue is admins and planners.** If a card names a **discipline**, that discipline can decide it too. This applies to the second approver on a T3 document (designer for `design`, qa for `feature`, developer for `convention` and `adr`). **Anyone who can read a question can answer it.**
 
-**The inbox only shows what is waiting on you.** Cards used to be visible to every member, so people without the right to decide mistook them for their own work. Now a card is visible only to the assignee, that discipline, the default queue and admins.
+**The inbox only shows what is waiting on you.** Cards used to be visible to every member, so people without the right to decide mistook them for their own work. Now an approval card is visible only to its assignee, that discipline and the default queue. Admins, including organization-wide admins, see every approval card, even one assigned to someone else or to a discipline.
 
 **The most sensitive documents need two approvers.** A top-tier (T3) document is approved only when **two different people** approve it, and the second approver comes from the discipline that owns that document type. The card shows how many of the required approvals are in, such as `1/2`. After the first approval, **the document is still in review**, and approving tells you it is not final yet. One person cannot fill both seats.
 
@@ -53,7 +53,7 @@ An approval card has three buttons: **Approve, Reject and Comment**. **A rejecti
 
 **A decision is sent five seconds after you press it.** When you approve, reject, comment or answer a question (including by picking an option), nothing is sent right away. Instead, the card shows what it is about to send and an **[Undo]** button. Click [Undo] or `z` within those five seconds, while the bar below shrinks, and nothing is sent; the original buttons come back. This is the only way to cancel a decision. **Once sent, a decision cannot be undone** (an approval has already changed the document's status, and the notifications have already gone out). While you wait, the comment box is read-only. What is sent is the text as it was when you pressed the button. If you move to another screen in the meantime, the decision is sent right away. If you try to close or reload the window, the browser asks you to confirm first. Bulk decisions skip the five-second wait, because you already confirmed them once in the confirmation list.
 
-**After a decision is sent, correct it with a new decision.** There is no way to withdraw a sent decision. A decision changes the document's status and reaches the agent the moment you press it, so withdrawing it would not undo what already happened. Instead, each card on the **Decided** tab has a one-line note on how to correct it, with a link to its subject.
+**After a decision is sent, correct it with a new decision.** There is no way to withdraw a sent decision. The moment a decision is sent, the document's status changes, and the decision is passed on to the agent. Withdrawing it would not undo what already happened. Instead, each card on the **Decided** tab has a one-line note on how to correct it, with a link to its subject.
 
 - **An approved spec** — leave a comment on the document, or, if it is already approved, create a new draft and get it approved again. An approved body never changes.
 - **A rejected or commented spec** — the document went back to draft. When its author revises and resubmits it, the two-person approval count starts again from zero.
@@ -87,7 +87,7 @@ Use the **checkbox** on the left of a pending card to select several cards and a
 
 Pressing the button does not send anything right away. It first **lists what you are about to decide**. Because you are deciding without opening each body, this list is the scope of what you agreed to. For a bulk approval, the cards that will be skipped are listed below it with the reason for each (needs two approvers, a gate exemption request, or a document you cannot approve).
 
-**Items that could not be processed stay in the list.** This happens when the body changed after you opened the card, when someone else already decided it, or when you do not have permission to decide it. Those cards stay selected with the reason shown on each card, and the toast reads `Decided 7, 2 left.` One blocked item does not stop the rest.
+**Items that could not be processed stay in the list.** This happens when the body changed after the list was loaded, when someone else already decided it, or when you do not have permission to decide it. Those cards stay selected with the reason shown on each card, and the toast reads `Decided 7, 2 left.` One blocked item does not stop the rest.
 
 You can select up to **50** at a time. Once you have 50, the checkboxes on the other cards are locked and the selection bar says why. [Select visible (up to 50)] selects what is **on screen right now**, from the top, up to 50. Decide those first, then select the rest.
 
@@ -130,7 +130,7 @@ Shortcuts do nothing while the cursor is in a text field, because typing `a` in 
 
 ## Notifications
 
-**The badge counts only important notifications.** Notifications come in two grades, and the number on **[Notifications]** in the left column is the count of unread **Important** notifications. Without this split, the few truly urgent ones would be buried under hundreds of background events.
+**The badge counts only important notifications.** Notifications come in two grades, and the number on **[Notifications]** in the left column is the count of unread **Important** notifications. Without this split, the few truly urgent ones would be buried under hundreds of other notifications.
 
 | Grade         | Notifications                                                                                                                                                                                                                                         |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

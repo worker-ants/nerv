@@ -101,12 +101,12 @@ Tasks can have a baseline too. The agent working on such a task then reads the s
 
 ## Comparing versions
 
-The **Versions** tab in the rail shows the **eight most recent** versions. The number next to the tab name is the total, so for a document with more than eight versions the two numbers differ. You can do two things here.
+The **Versions** tab in the rail first shows the **eight most recent** versions. The number next to the tab name is the total. If a document has more than eight versions, click **[Show N older versions]** at the end of the list to see the rest. You can do two things here.
 
 - **Compare with previous** — one click shows the changes from the version just before.
 - **Pick any two** — choose any two versions in the **from** and **to** selects at the top of the comparison view.
 
-While comparing, you see the **changes** instead of the editor. Added or removed requirements come first, and line-by-line body changes follow. That is the order in which reviewers actually check.
+While comparing, you see the **changes** instead of the body. Added or removed requirements come first, and line-by-line body changes follow. That is the order in which reviewers actually check.
 
 **What you see is kept in the URL.** `?v=3` shows version 3 in full (read-only), and `?diff=v2..v3` shows the changes between two versions. Copy the URL and the other person sees the same screen, so there is no need to say "look at the third paragraph". Opening a comparison, switching to another pair, or closing it **keeps the rail tab and the baseline** as they were.
 
@@ -133,7 +133,7 @@ Attachments are also served through the server, so only **members of the project
 A ` ```mermaid ` code block in the body **is displayed as a diagram.** You don't need ASCII art. The syntax is plain [mermaid](https://mermaid.js.org).
 
 - **The diagram is the default**, on approved documents and drafts alike.
-- **[Code]** at the top right of the block shows the source, which you can edit there. **[Diagram]** switches back.
+- **[Code]** at the top right of the block shows the source. **[Diagram]** switches back.
 - If the syntax is wrong, the code is shown instead, with **a notice that the diagram couldn't be rendered**. You never get an empty spot with neither a diagram nor text.
 - **You can zoom in.** Use `−` and `+` at the top right to change the scale, and click the number between them to reset it to 100%. If a diagram is wider than the column, scroll it in place.
 - **Full screen** (`⤡`) shows only the diagram, using the whole window. It is not a new tab, so closing it returns you to where you were reading. The scale is kept separately for the body and for full screen.
@@ -143,7 +143,7 @@ A ` ```mermaid ` code block in the body **is displayed as a diagram.** You don't
 
 **You don't edit the body on the web.** The web is where you read, decide, and add attachments and comments. Agents write the body.
 
-The [Continue in a terminal] card below the document has the command you need. Copy it and paste it into a terminal, and the agent opens that document and continues writing.
+The [Continue in a terminal] card at the bottom of the rail has the command you need. Copy it and paste it into a terminal, and the agent opens that document and continues writing.
 
 ```text
 claude "/nerv:spec edit SPC-CWC-007"
@@ -202,7 +202,7 @@ Instead of a comment count, the confirmation dialog before submitting shows **ho
 
 Requirements in a spec body are extracted, and each one tracks its own implementation status: `unimplemented` → `in_progress` → `implemented` → `verified`. Priorities are `must` · `should` · `could`.
 
-**Each requirement is one line in the body.** There is a single format: `- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>`. The sentence starts with WHEN, WHILE or IF.
+**Each requirement is one line in the body.** The format is `- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>`. Only the opening word varies: WHEN, WHILE or IF.
 
 ```text
 - REQ-CWC-031 WHEN a visitor opens the widget for the first time THE SYSTEM SHALL restore the previous conversation
@@ -257,7 +257,7 @@ stateDiagram-v2
     verified --> implemented: The statement changes
 ```
 
-**If all tasks are done but there is no evidence, the status stays `in_progress`.** To call it finished, attach something to show. **Verification comes from a test record left by QA or an admin.** Nobody raises the status by hand. When that signature exists, the server marks the requirement `verified`. Once verified, it does not drop when a finding opens. A test record attached by an agent does not count as a signature.
+**If all tasks are done but there is no evidence, the status stays `in_progress`.** To call it finished, attach something to show. **Verification comes from a test record left by QA or an admin.** Nobody raises the status by hand. When that signature exists, the server marks the requirement `verified`. Open `critical` findings are checked only when the requirement is about to become `verified`. Once verified, it does not drop when a finding opens later. A test record attached by an agent does not count as a signature.
 
 **Status can also go back.** If a claim is released and no task is in progress any more, it returns to `unimplemented`. If a new task starts on an implemented requirement, it returns to `in_progress`. Both reflect where the work currently stands. Evidence whose target no longer exists does not count. Status values that came in through the importer stay as they are until a task is linked to that requirement.
 
