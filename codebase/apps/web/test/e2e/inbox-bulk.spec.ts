@@ -98,7 +98,7 @@ test('체크박스로 고른 둘을 한 번에 승인한다 — T3 는 확인 �
   await page.goto('/inbox');
   await expect(page.getByTestId('approval-card').first()).toBeVisible({ timeout: 15000 });
 
-  // 저위험 둘을 고른다 — 선택 바는 고른 것이 있을 때만 선다
+  // 저위험 둘을 고른다
   await card(page, BULK_A).getByTestId('bulk-select').check();
   await card(page, BULK_B).getByTestId('bulk-select').check();
   await expect(page.getByTestId('bulk-bar')).toBeVisible();
@@ -142,7 +142,8 @@ test('체크박스로 고른 둘을 한 번에 승인한다 — T3 는 확인 �
   await expect(page.locator('[data-testid="approval-card"][data-kind="approval"]')).toHaveCount(2);
 
   // 고른 것이 전부 지나갔으니 선택도 비었다 — 실패한 것만 선택에 남는다(REQ-WEB-183)
-  await expect(page.getByTestId('bulk-bar')).toHaveCount(0);
+  // 선택 바는 늘 보인다(2026-09-27 · REQ-WEB-261) — 선택이 비었는지를 본다
+  await expect(page.getByTestId('bulk-bar')).toHaveAttribute('data-selected', '0');
   await expect(page.getByTestId('bulk-failure')).toHaveCount(0);
 
   // **사라진 것은 어디로 갔는지가 화면에 있어야 한다**(REQ-WEB-184). 승인이 문서를

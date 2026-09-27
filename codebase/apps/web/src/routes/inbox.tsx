@@ -206,6 +206,25 @@ function InboxScreen(): React.JSX.Element {
       new Set(selectable.slice(0, BULK_DECISION_LIMIT).map((card) => String(card['id']))),
     );
 
+  /**
+   * **일괄 승인할 수 있는 것만 고른다**(2026-09-27 · 사람 결정 B2 · REQ-WEB-261). 보이는 카드 가운데 서버가
+   * 일괄 승인 가능하다고 판정한 것(`can_bulk_approve`)을 위에서부터 상한까지 — 판정은 서버의 것이다.
+   */
+  const selectApprovable = (): void =>
+    setSelected(
+      new Set(
+        selectable
+          .filter(bulkApprovable)
+          .slice(0, BULK_DECISION_LIMIT)
+          .map((card) => String(card['id'])),
+      ),
+    );
+  /** 고르기 전에 보이는 수 — 보이는 카드 가운데 일괄 승인할 수 있는 것 */
+  const visibleApprovable = selectable.filter(bulkApprovable).length;
+  /** 고를 수 있는 것을 다 골랐다(상한까지) — 줄 맨 앞의 칸이 차고, 누르면 모두 푼다 */
+  const allChosen =
+    chosen.length > 0 && chosen.length >= Math.min(selectable.length, BULK_DECISION_LIMIT);
+
   const clearSelection = (): void => {
     setSelected(new Set());
     setConfirming(null);
@@ -326,7 +345,17 @@ function InboxScreen(): React.JSX.Element {
     // 전부 이 넷에서 파생한다. 빠뜨리면 ⇧A 가 **한 번 전의 선택**을 승인한다.
   }, [cards, cursor, state, selected]);
 
+  /**
+   * **누른 카드로는 화면을 옮기지 않는다**(2026-09-27). 누르는 순간(pointerdown) 커서가 옮겨지고 아래
+   * 효과가 화면을 굴리면, 떼는 자리(pointerup)가 다른 요소가 되어 클릭이 사라진다 — 카드 일부가 화면
+   * 밖일 때 체크박스 · 단추를 눌러도 아무 일이 없었다. 누른 카드는 이미 보이므로 키로 옮길 때만 굴린다
+   */
+  const movedByPointer = useRef(false);
   useEffect(() => {
+    if (movedByPointer.current) {
+      movedByPointer.current = false;
+      return;
+    }
     const el = cardAt(cursor);
     // 레이아웃이 없는 환경(테스트)에는 이 함수가 없다 — 없으면 옮기지 않는다
     if (el instanceof HTMLElement) el.scrollIntoView?.({ block: 'nearest' });
@@ -340,7 +369,13 @@ function InboxScreen(): React.JSX.Element {
       data-landed={landed === String(card['id']) || undefined}
       // **누르거나 들어간 카드가 커서다**(REQ-WEB-204). j/k 로만 옮겨지던 동안, 다른 카드의
       // [본문 보기]를 누르고 a 를 치면 커서가 남아 있던 카드가 승인됐다
-      onPointerDownCapture={() => setCursor(index)}
+      onPointerDownCapture={() => {
+        // 커서가 바뀔 때만 표시한다 — 그대로면 효과가 돌지 않아 표시가 다음 키 이동까지 남는다
+        if (index !== cursor) {
+          movedByPointer.current = true;
+          setCursor(index);
+        }
+      }}
       onFocusCapture={() => setCursor(index)}
       // 포커스는 **왼쪽 띠**다. 링을 두르면 카드가 떠 보이고, j/k 로 훑을 때
       // 카드가 하나씩 튀어오르는 것처럼 읽힌다
@@ -471,32 +506,80 @@ function InboxScreen(): React.JSX.Element {
 
           {missing !== null && <FocusMissing id={missing} />}
 
-          {/* **선택 바는 고른 것이 있을 때만 선다.** 늘 떠 있으면 일괄이 기본 조작으로 읽히고,
-          받은 요청의 기본은 한 건씩 보는 것이다(그것이 이 화면의 존재 이유다) */}
-          {chosen.length > 0 && (
+          {/* **선택 바는 늘 보인다**(2026-09-27 · 사람 결정 B1 · REQ-WEB-261). 예전에는 카드의 작은 체크박스를
+          먼저 눌러야 이 바가 나타나, 일괄 승인 · 거절이 없는 기능처럼 보였다(와이어프레임 3.6 §2.7 은 처음부터
+          목록 위에 [일괄 ☐]을 그렸다). 한 건씩 보는 것이 기본이라는 원칙은 그대로다 — 고르기 전에는 두 단추가
+          잠기고 까닭을 보여 주며, 누른 뒤에도 확인 단계가 대상을 모두 나열한다(REQ-WEB-182) */}
+          {selectable.length > 0 && (
             <div
               data-testid="bulk-bar"
-              className="mb-2 flex flex-wrap items-center gap-2 rounded-nerv border border-border-strong bg-bg-elev px-3 py-2 text-xs"
+              data-selected={chosen.length}
+              className={cn(
+                'mb-2 flex flex-wrap items-center gap-2 rounded-nerv border px-3 py-2 text-xs',
+                chosen.length > 0
+                  ? 'border-border-strong bg-bg-elev'
+                  : 'border-border bg-bg-sunken',
+              )}
             >
-              <span className="font-medium">
-                {t('inbox.bulk.selected', { count: chosen.length })}
-              </span>
+              {/* **보이는 것에서, 위에서부터 상한까지**다. "조건에 맞는 전부" 를 만들지 않는 것은
+              보지 않은 것을 고르게 하는 손잡이가 되기 때문이다. 일부만 골랐으면 반쯤 찬 칸이고,
+              누르면 상한까지 채운다. 다 골랐으면 누르면 모두 푼다 */}
+              <label className="flex cursor-pointer items-center gap-2 font-medium">
+                <input
+                  type="checkbox"
+                  data-testid="bulk-select-all"
+                  aria-label={t('inbox.bulk.select_all', { max: BULK_DECISION_LIMIT })}
+                  checked={allChosen}
+                  ref={(el) => {
+                    if (el !== null) el.indeterminate = chosen.length > 0 && !allChosen;
+                  }}
+                  onChange={() => (allChosen ? clearSelection() : selectAll())}
+                  className="size-4 shrink-0 accent-status-action"
+                />
+                {chosen.length > 0
+                  ? t('inbox.bulk.selected', { count: chosen.length })
+                  : t('inbox.bulk.select_all', { max: BULK_DECISION_LIMIT })}
+              </label>
               {/* **승인 가능 수를 따로 보인다** — 고른 것과 승인되는 것이 다를 수 있고,
-              그 차이를 누른 뒤에 알게 하면 안 된다 */}
-              <span data-testid="bulk-approvable" className="text-text-mute">
-                {t('inbox.bulk.approvable', { count: approvable.length })}
-              </span>
+              그 차이를 누른 뒤에 알게 하면 안 된다. 고르기 전에는 보이는 카드에서 센다 */}
+              {chosen.length > 0 ? (
+                <span data-testid="bulk-approvable" className="text-text-mute">
+                  {t('inbox.bulk.approvable', { count: approvable.length })}
+                </span>
+              ) : (
+                <span data-testid="bulk-idle" className="text-text-mute">
+                  {t('inbox.bulk.idle', {
+                    count: selectable.length,
+                    approvable: visibleApprovable,
+                  })}
+                </span>
+              )}
               {/* 잠긴 체크박스의 까닭 — 카드의 체크박스가 이 문장을 가리킨다(aria-describedby) */}
               {atLimit && (
                 <span id="bulk-limit" data-testid="bulk-limit" className="text-status-waiting">
                   {t('inbox.bulk.limit', { max: BULK_DECISION_LIMIT })}
                 </span>
               )}
+              {/* **일괄 승인할 수 있는 것만 고른다**(2026-09-27 · 사람 결정 B2). 보이는 카드에서만,
+              위에서부터 상한까지다 — 확인 단계가 다시 나열하므로 보지 않은 것을 승인하게 되지 않는다 */}
+              {visibleApprovable > 0 &&
+                approvable.length < Math.min(visibleApprovable, BULK_DECISION_LIMIT) && (
+                  <button
+                    type="button"
+                    data-testid="bulk-select-approvable"
+                    onClick={selectApprovable}
+                    className="text-text-mute underline-offset-2 hover:text-text hover:underline"
+                  >
+                    {t('inbox.bulk.select_approvable')}
+                  </button>
+                )}
+              <span className="flex-1" />
               <Button
                 size="sm"
                 variant="primary"
                 data-testid="bulk-approve"
                 disabled={approvable.length === 0 || bulk.isPending}
+                disabledReason={chosen.length === 0 ? t('inbox.bulk.pick_first') : undefined}
                 onClick={() => openConfirm('approve')}
               >
                 {t('inbox.bulk.approve')}
@@ -505,29 +588,22 @@ function InboxScreen(): React.JSX.Element {
                 size="sm"
                 variant="danger"
                 data-testid="bulk-reject"
-                disabled={bulk.isPending}
+                disabled={chosen.length === 0 || bulk.isPending}
+                disabledReason={chosen.length === 0 ? t('inbox.bulk.pick_first') : undefined}
                 onClick={() => openConfirm('reject')}
               >
                 {t('inbox.bulk.reject')}
               </Button>
-              {/* **보이는 것에서, 위에서부터 상한까지**다. "조건에 맞는 전부" 를 만들지 않는 것은
-              보지 않은 것을 고르게 하는 손잡이가 되기 때문이다 */}
-              <button
-                type="button"
-                data-testid="bulk-select-all"
-                onClick={selectAll}
-                className="ml-auto text-text-mute hover:text-text"
-              >
-                {t('inbox.bulk.select_all', { max: BULK_DECISION_LIMIT })}
-              </button>
-              <button
-                type="button"
-                data-testid="bulk-clear"
-                onClick={clearSelection}
-                className="text-text-mute hover:text-text"
-              >
-                {t('inbox.bulk.clear')}
-              </button>
+              {chosen.length > 0 && (
+                <button
+                  type="button"
+                  data-testid="bulk-clear"
+                  onClick={clearSelection}
+                  className="text-text-mute hover:text-text"
+                >
+                  {t('inbox.bulk.clear')}
+                </button>
+              )}
             </div>
           )}
 

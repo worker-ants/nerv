@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.01 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.02 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.02 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **받은 요청의 선택 바**를 적는다(사람 결정 B1 · B2).
 >
 > v2.01 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **프로젝트별 알림 수준**을 적는다. 알림을 프로젝트별로 보는 작업(사람 결정 N1~N4)의 마지막 줄이다.
 >
@@ -658,6 +660,7 @@ referenced_by:
 | 알림의 조직 · 프로젝트 칸 | 서버 `common/member-scope.ts`(`scopeFilterSql`) · `notification.service.ts`(좁힌 목록 · 범위별 수 · 범위 안 모두 읽음) · `event.controller.ts`(EP-NTF-05) · 마이그레이션 `0034_notification_scope` · 화면 `features/inbox/scope-rail.tsx` · `routes/notifications.tsx` · 매뉴얼 ko·en(받은 요청 장의 알림 절) · L1 `notifications-scope.spec.tsx` · L2 `rest-surface.spec.ts` · L3 `notifications-scope.spec.ts` | 사람 요청과 사람 결정 N1 · N4. 알림이 모든 조직을 한 목록에 모아, 한 프로젝트의 알림만 보거나 처리할 방법이 없었다([4.4 API 명세](api.md) REQ-API-214~216 · [4.5 화면 명세](screens.md) REQ-WEB-253~255 · [4.3 데이터베이스](database.md) REQ-DB-027). 남은 것: 받은 요청의 칸과 프로젝트 안의 진입점(N2) · 프로젝트별 받는 수준(N3) |
 | 받은 요청의 조직 · 프로젝트 칸과 프로젝트 안의 진입점 | 서버 `approval.service.ts`(`inboxConditions` 한 벌 · `inboxScopes` · `org` 범위) · `approval.controller.ts`(EP-APR-07) · 화면 `routes/inbox.tsx`(같은 칸) · `components/app-shell.tsx`(프로젝트 줄의 결정 수) · 개요 · 홈 · ⌘K(좁힌 주소) · 매뉴얼 ko·en(시작 · 받은 요청 · 단축키) · L1 `inbox-scope.spec.tsx` · L2 `approval.spec.ts` · `rest-surface.spec.ts` · L3 `inbox-scope.spec.ts` | 사람 결정 N1 · N2. 받은 요청을 한 프로젝트로 좁혀 볼 수 없었고, 개요 · 홈의 수를 누르면 거르지 않은 목록이 열렸다([4.4 API 명세](api.md) REQ-API-217·218 · [4.5 화면 명세](screens.md) REQ-WEB-256~258). 남은 것: 프로젝트별 받는 수준(N3) |
 | 프로젝트별 알림 수준 — 모두 · 중요만 · 알리지 않음 | 스키마 `notification_preference` · `notification_level`(마이그레이션 `0035`) · 서버 `notification.service.ts`(파생이 수준을 본다 · `setLevel` · 범위별 수의 `level`) · `event.controller.ts`(EP-NTF-06) · 화면 `features/inbox/notification-level.tsx`(알림 센터 · 내 계정) · 칸의 표시 · 매뉴얼 ko·en(받은 요청 · 설정) · L1 `notification-level.spec.tsx` · L2 `approval.spec.ts` · `rest-surface.spec.ts` | 사람 결정 N3. 알림을 끄거나 줄일 방법이 없어서, 한 종류가 안 읽은 알림 대부분을 차지해도 할 수 있는 것은 [모두 읽음]뿐이었다([4.4 API 명세](api.md) REQ-API-219·220 · [4.5 화면 명세](screens.md) REQ-WEB-259·260 · [4.3 데이터베이스](database.md) REQ-DB-028). 남은 것: 보통 등급 다이제스트(명세 §6.2의 5분 묶음 — 묶는 작업이 없다) |
+| 받은 요청의 선택 바를 늘 보인다 — 고르기 전의 수 · 승인 가능한 것만 고르기 | 화면 `routes/inbox.tsx`(선택 바 · 3상태 칸 · 승인 가능한 것만 고르기 · 누른 카드로는 화면을 굴리지 않는다) · `features/inbox/approval-card.tsx`(체크박스 둘레) · 문구 `inbox.bulk.idle` · `inbox.bulk.pick_first` · `inbox.bulk.select_approvable` · 매뉴얼 ko·en(받은 요청) · L1 `inbox-bulk.spec.tsx` · L3 `inbox-bulk.spec.ts` | 사람 결정 B1 · B2. 선택 바가 카드를 고른 뒤에야 나타나서 일괄 승인 · 거절이 없는 기능처럼 보였다([4.5 화면 명세](screens.md) REQ-WEB-181 · REQ-WEB-261). 카드 일부가 화면 밖일 때 체크박스 · 단추를 누르면 커서를 옮기며 화면이 먼저 굴러 클릭이 사라지던 결함도 함께 고쳤다. 서버는 바뀌지 않았다 |
 
 #### 이 절은 언제 갱신되는가
 
