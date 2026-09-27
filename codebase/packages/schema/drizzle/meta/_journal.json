@@ -239,6 +239,13 @@
       "when": 1790410586222,
       "tag": "0033_requirement_statement_changed",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790503106192,
+      "tag": "0034_notification_scope",
+      "breakpoints": true
     }
   ]
 }

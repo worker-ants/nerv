@@ -175,18 +175,31 @@ export function useNotifications(
    * §2.9 의 둘째 필터). 한 세그먼트에서 셋(전체·중요·안 읽음) 중 하나를 고른다(REQ-WEB-218).
    */
   filter?: 'important' | 'unread',
+  /**
+   * **범위**(2026-09-27 · 사람 결정 N1 · REQ-WEB-253) — 조직 하나 또는 프로젝트 하나(`org` 는 slug 의
+   * 한정자). 비우면 모든 조직이다. 서버가 같은 목록을 같은 조건으로 좁힌다(REQ-API-214).
+   */
+  scope: NotificationScope = {},
 ): UseInfiniteQueryResult<InfiniteData<{ items: Row[]; next_cursor: string | null }>> {
   const refetchInterval = useLivePolling();
   return useInfiniteQuery({
     // 거르는 축이 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다. `'list'` 를 끼우는 이유 —
     // 안 읽은 **수**의 키가 `[...myNotifications(), 'unread']` 라, 목록 키가 같은 모양이면
     // 목록과 수가 한 캐시 칸을 다투게 된다
-    queryKey: [...queryKeys.myNotifications(), 'list', filter ?? 'all'],
+    queryKey: [
+      ...queryKeys.myNotifications(),
+      'list',
+      filter ?? 'all',
+      scope.org ?? '',
+      scope.project ?? '',
+    ],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       if (pageParam !== null) params.set('before', String(pageParam));
       if (filter === 'important') params.set('importance', 'immediate');
       if (filter === 'unread') params.set('state', 'unread');
+      if (scope.org !== undefined) params.set('org', scope.org);
+      if (scope.project !== undefined) params.set('project', scope.project);
       const query = params.toString();
       return apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/me/notifications${query === '' ? '' : `?${query}`}`,
@@ -194,6 +207,58 @@ export function useNotifications(
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
+    refetchInterval,
+  });
+}
+
+/** 알림 목록을 좁히는 범위 — 조직 slug 와 프로젝트 slug(REQ-WEB-253) */
+export interface NotificationScope {
+  org?: string;
+  project?: string;
+}
+
+/** 범위 칸의 한 줄 — 내가 속한 프로젝트 하나와 그 안의 안 읽은 수(EP-NTF-05) */
+export interface NotificationScopeRow {
+  org_slug: string;
+  org_name: string;
+  project_slug: string;
+  project_name: string;
+  unread: number;
+  immediate: number;
+}
+
+/**
+ * **범위별 안 읽은 수**(2026-09-27 · REQ-API-215 · REQ-WEB-253). 불러온 쪽만 세면 "더 보기" 뒤의
+ * 알림이 빠진다 — 서버가 센다. 알림이 없는 프로젝트도 0 으로 온다.
+ */
+export function useNotificationScopes(): UseQueryResult<{
+  items: NotificationScopeRow[];
+  total: { unread: number; immediate: number };
+}> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.myNotifications(), 'scopes'],
+    queryFn: async () => {
+      const body = await apiFetch<{
+        items?: unknown;
+        total?: { unread?: number; immediate?: number };
+      }>('/me/notifications/scopes');
+      const items = rows(body.items).map((r) => ({
+        org_slug: String(r['org_slug'] ?? ''),
+        org_name: String(r['org_name'] ?? r['org_slug'] ?? ''),
+        project_slug: String(r['project_slug'] ?? ''),
+        project_name: String(r['project_name'] ?? r['project_slug'] ?? ''),
+        unread: Number(r['unread'] ?? 0),
+        immediate: Number(r['immediate'] ?? 0),
+      }));
+      return {
+        items,
+        total: {
+          unread: Number(body.total?.unread ?? 0),
+          immediate: Number(body.total?.immediate ?? 0),
+        },
+      };
+    },
     refetchInterval,
   });
 }

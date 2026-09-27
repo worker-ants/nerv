@@ -12,7 +12,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
 import { queryKeys } from '../lib/query-keys.js';
-import { rows, useNotifications, useUnreadCount } from '../lib/queries.js';
+import { rows, useNotificationScopes, useNotifications, useUnreadCount } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
 import {
@@ -36,20 +36,54 @@ import {
   Skeleton,
 } from '../components/ui/primitives.js';
 import { ScopeBadge } from '../components/scope-badge.js';
+import { ScopeRail, scopeName, scopeTotals } from '../features/inbox/scope-rail.js';
+import type { ScopeRailRow, ScopeSelection } from '../features/inbox/scope-rail.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
-/** 알림 센터의 주소 — 거르는 칸이 여기 산다(REQ-WEB-218) */
+/** 알림 센터의 주소 — 거르는 칸과 범위가 여기 산다(REQ-WEB-218 · REQ-WEB-253) */
 export interface NotificationSearch {
   filter?: 'important' | 'unread';
+  /** 조직 slug — `project` 없이 오면 그 조직의 프로젝트 전부다 */
+  org?: string;
+  /** 프로젝트 slug — `org` 가 그 조직을 정한다(slug 는 조직 안에서만 유일하다) */
+  project?: string;
 }
 
+const text = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+
 export const Route = createFileRoute('/notifications')({
-  validateSearch: (search: Record<string, unknown>): NotificationSearch =>
-    search['filter'] === 'important' || search['filter'] === 'unread'
-      ? { filter: search['filter'] }
-      : {},
+  validateSearch: (search: Record<string, unknown>): NotificationSearch => {
+    const org = text(search['org']);
+    const project = text(search['project']);
+    return {
+      ...(search['filter'] === 'important' || search['filter'] === 'unread'
+        ? { filter: search['filter'] }
+        : {}),
+      ...(org === undefined ? {} : { org }),
+      ...(project === undefined ? {} : { project }),
+    };
+  },
   component: NotificationScreen,
 });
+
+/** 범위와 거름을 주소로 — 칸의 링크와 필터가 같은 모양을 쓴다 */
+function searchOf(scope: ScopeSelection, filter?: 'important' | 'unread'): NotificationSearch {
+  return {
+    ...(filter === undefined ? {} : { filter }),
+    ...(scope.org === undefined ? {} : { org: scope.org }),
+    ...(scope.project === undefined ? {} : { project: scope.project }),
+  };
+}
+
+function hrefOfSearch(search: NotificationSearch): string {
+  const params = new URLSearchParams();
+  if (search.filter !== undefined) params.set('filter', search.filter);
+  if (search.org !== undefined) params.set('org', search.org);
+  if (search.project !== undefined) params.set('project', search.project);
+  const query = params.toString();
+  return `/notifications${query === '' ? '' : `?${query}`}`;
+}
 
 /** 알림이 데려갈 곳 — 경로와 **뷰 상태**(피드와 같은 모양이다 · lib/event-subject.ts) */
 export type NotificationTarget = EventTarget;
@@ -90,14 +124,35 @@ function NotificationScreen(): React.JSX.Element {
    * 때만" 서는 머리 안에 있던 동안, 거른 채 [모두 읽음]을 누르면 토글째 사라지고 목록은 걸러진
    * 채 갇혔다 — 돌아갈 단추도, 걸려 있다는 표시도 없었다(HUB-X3).
    */
-  const { filter } = Route.useSearch();
-  const notifications = useNotifications(filter);
+  const { filter, org, project } = Route.useSearch();
+  /**
+   * **범위**(2026-09-27 · 사람 결정 N1 · REQ-WEB-253). 목록은 하나이고, 칸이 그 목록을 조직 · 프로젝트
+   * 하나로 좁힌다. 헤더 배지는 그대로 모든 조직을 센다(REQ-WEB-193).
+   */
+  const scope: ScopeSelection = {
+    ...(org === undefined ? {} : { org }),
+    ...(project === undefined ? {} : { project }),
+  };
+  const scoped = org !== undefined || project !== undefined;
+  const notifications = useNotifications(filter, scope);
   const unreadCount = useUnreadCount();
+  const scopes = useNotificationScopes();
+  const railRows: ScopeRailRow[] = (scopes.data?.items ?? []).map((r) => ({
+    ...r,
+    urgent: r.immediate,
+    count: r.unread,
+  }));
+  const scopeLabel = scopeName(railRows, scope);
   const navigate = useNavigate();
   const { pushToast } = useRealtime();
   const router = useRouter();
   const { orgSlug } = useScope();
   const queryClient = useQueryClient();
+
+  // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 목록은 50 에서 끝나지 않는다
+  const items = (notifications.data?.pages ?? []).flatMap((page) => rows(page.items));
+  // 목록은 새것부터다 — 맨 앞이 이 화면이 본 가장 새 알림이다([모두 읽음]의 기준 시각)
+  const newestSeen = typeof items[0]?.['created_at'] === 'string' ? items[0]['created_at'] : null;
 
   const markRead = useMutation({
     mutationFn: (id: string) => apiFetch(`/me/notifications/${id}/read`, { method: 'POST' }),
@@ -108,9 +163,21 @@ function NotificationScreen(): React.JSX.Element {
    * 일괄 읽음(REQ-WEB-137). 한 건씩 지우는 것이 유일한 길이면 **지울 수 없는 배지**가
    * 되고, 지울 수 없는 배지는 곧 읽지 않는 배지가 된다 — 실측 2026-09-04: 695건.
    */
+  /**
+   * **보이는 범위만 읽음으로 바꾼다**(2026-09-27 · 사람 결정 N4 · REQ-WEB-254). 범위와 "중요" 거름을
+   * 함께 보내고, 받아 온 가장 새 알림의 시각을 기준으로 둔다 — 누르는 사이에 온 알림은 본 적이
+   * 없으므로 그대로 남는다. 모든 조직 · 전체에서 누르면 예전과 같다.
+   */
   const markAllRead = useMutation({
     mutationFn: () =>
-      apiFetch<{ ok: true; marked: number }>('/me/notifications/read-all', { method: 'POST' }),
+      apiFetch<{ ok: true; marked: number }>('/me/notifications/read-all', {
+        method: 'POST',
+        body: {
+          ...scope,
+          ...(filter === 'important' ? { importance: 'immediate' } : {}),
+          ...(newestSeen === null ? {} : { until: newestSeen }),
+        },
+      }),
     onSuccess: (result) => {
       // 배지 키가 알림 키의 하위라(`[...myNotifications(), 'unread']`) 상위 하나면 둘 다 간다
       void queryClient.invalidateQueries({ queryKey: queryKeys.myNotifications() });
@@ -123,8 +190,6 @@ function NotificationScreen(): React.JSX.Element {
     },
   });
 
-  // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 목록은 50 에서 끝나지 않는다
-  const items = (notifications.data?.pages ?? []).flatMap((page) => rows(page.items));
   /**
    * **잇달아 같은 알림은 한 줄로 접는다**(2026-09-24 · HUB-08 · REQ-WEB-210). 같은 문서의 재확인
    * 요청이나 코멘트가 연달아 오면 똑같은 줄이 여러 번 쌓였다 — "×N" 을 누르면 펼쳐진다.
@@ -235,14 +300,17 @@ function NotificationScreen(): React.JSX.Element {
             {t('feed.repeat', { count: members.length })}
           </button>
         )}
-        {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192) */}
-        <ScopeBadge
-          className="max-w-[40%] shrink-0"
-          orgSlug={n['org_slug']}
-          orgName={n['org_name']}
-          projectSlug={n['project_slug']}
-          projectName={n['project_name']}
-        />
+        {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192).
+            프로젝트 하나로 좁혔으면 모든 줄이 같으므로 빼고, 그 이름은 머리가 한 번 말한다(REQ-WEB-253) */}
+        {project === undefined && (
+          <ScopeBadge
+            className="max-w-[40%] shrink-0"
+            orgSlug={n['org_slug']}
+            orgName={n['org_name']}
+            projectSlug={n['project_slug']}
+            projectName={n['project_name']}
+          />
+        )}
         <span className="hidden w-28 shrink-0 truncate text-right text-xs text-text-faint md:inline">
           {String(n['actor_name'] ?? '')}
           {n['is_agent'] === true ? ' 🤖' : ''}
@@ -275,14 +343,34 @@ function NotificationScreen(): React.JSX.Element {
   };
   // **배지는 받아 온 것이 아니라 진짜 수를 센다**(2026-09-03). 예전에는 로드된 50건 안에서
   // 세어 "읽지 않음 50" 을 보이면서 헤더는 479 를 보였다 — 같은 화면이 두 수를 말했다.
-  const unread = unreadCount.data?.count ?? 0;
-  const immediate = unreadCount.data?.immediate ?? 0;
+  const global = {
+    count: unreadCount.data?.count ?? 0,
+    immediate: unreadCount.data?.immediate ?? 0,
+  };
+  // 범위 안의 수 — 모든 조직이면 배지와 같은 수, 좁혔으면 칸의 줄을 더한 수다(둘 다 서버가 센다)
+  const inside = scoped ? scopeTotals(railRows, scope) : null;
+  const unread = inside === null ? global.count : inside.count;
+  const immediate = inside === null ? global.immediate : inside.urgent;
+  // 좁혀 보는 동안 다른 범위의 중요 알림을 놓치지 않게 한 줄로 알린다(REQ-WEB-255)
+  const elsewhere = inside === null ? 0 : Math.max(0, global.immediate - inside.urgent);
+  // 버튼이 바꿀 수 — 보이는 것과 같아야 한다(N4)
+  const clearable = filter === 'important' ? immediate : unread;
+  const readAllLabel =
+    scopeLabel === null
+      ? filter === 'important'
+        ? t('notif.read_all_important', { count: clearable })
+        : t('notif.read_all')
+      : filter === 'important'
+        ? t('notif.read_all_scoped_important', { scope: scopeLabel, count: clearable })
+        : t('notif.read_all_scoped', { scope: scopeLabel, count: clearable });
 
   return (
     <PageBody>
       <PageHeader
         title={t('notif.title')}
-        description={t('notif.scope_all')}
+        description={
+          scopeLabel === null ? t('notif.scope_all') : t('notif.scope_one', { scope: scopeLabel })
+        }
         actions={
           <Segmented
             label={t('notif.filter.label')}
@@ -295,7 +383,8 @@ function NotificationScreen(): React.JSX.Element {
             onChange={(value) =>
               void navigate({
                 to: '/notifications',
-                search: value === 'all' ? {} : { filter: value },
+                // 범위는 그대로 둔다 — 거름과 범위는 따로 고르는 두 칸이다
+                search: searchOf(scope, value === 'all' ? undefined : value),
                 replace: true,
               })
             }
@@ -303,7 +392,7 @@ function NotificationScreen(): React.JSX.Element {
           />
         }
         meta={
-          unread > 0 ? (
+          clearable > 0 || unread > 0 ? (
             <span className="flex items-center gap-2">
               <StatusBadge token="waiting" label={t('notif.unread_badge', { count: unread })} />
               {/* **중요**한 수는 따로 센다 — 그것이 헤더 배지가 세는 값이다(REQ-WEB-149). 이름은
@@ -316,15 +405,17 @@ function NotificationScreen(): React.JSX.Element {
                 />
               )}
               {/* 수 바로 옆이다 — 그 수를 보고 누르는 단추라 목록 밖에 두면 찾지 못한다 */}
-              <Button
-                size="sm"
-                variant="ghost"
-                data-testid="mark-all-read"
-                disabled={markAllRead.isPending}
-                onClick={() => markAllRead.mutate()}
-              >
-                {t('notif.read_all')}
-              </Button>
+              {clearable > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  data-testid="mark-all-read"
+                  disabled={markAllRead.isPending}
+                  onClick={() => markAllRead.mutate()}
+                >
+                  {readAllLabel}
+                </Button>
+              )}
             </span>
           ) : undefined
         }
@@ -335,54 +426,86 @@ function NotificationScreen(): React.JSX.Element {
       <div className="mb-4">
         <InvitationCards heading={false} />
       </div>
-      {/* 이 한 줄이 알림과 받은 요청의 경계다 — 목록 옆에 두어야 목록을 보며 읽는다 */}
-      <p className="mb-1.5 text-2xs text-text-faint">{t('notif.lead')}</p>
-      {notifications.isLoading && <Skeleton rows={5} />}
-      {failedWithoutData(notifications) && (
-        <ErrorState error={notifications.error} onRetry={() => void notifications.refetch()} />
-      )}
-      {notifications.data !== undefined && items.length === 0 && (
-        <EmptyState
-          icon="○"
-          title={t(
-            filter === 'important'
-              ? 'notif.empty_important'
-              : filter === 'unread'
-                ? 'notif.empty_unread'
-                : 'notif.empty',
+      {/* **범위 칸 | 목록**(2026-09-27 · 사람 결정 N1 · REQ-WEB-253). 좁은 폭에서는 칸이 목록 위의
+          칩 줄이 된다. 내가 속한 프로젝트가 하나도 없으면(초대만 받은 사람) 칸을 그리지 않는다 */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {railRows.length > 0 && (
+          <ScopeRail
+            rows={railRows}
+            selected={scope}
+            heading={t('notif.scope.heading')}
+            allLabel={t('notif.scope.all')}
+            urgentTitle={(count) => t('notif.immediate_badge', { count })}
+            countTitle={(count) => t('notif.unread_badge', { count })}
+            hrefFor={(next) => hrefOfSearch(searchOf(next, filter))}
+            onSelect={(next) =>
+              void navigate({ to: '/notifications', search: searchOf(next, filter) })
+            }
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          {/* 이 한 줄이 알림과 받은 요청의 경계다 — 목록 옆에 두어야 목록을 보며 읽는다 */}
+          <p className="mb-1.5 text-2xs text-text-faint">{t('notif.lead')}</p>
+          {elsewhere > 0 && (
+            <p className="mb-1.5 text-xs">
+              <Link
+                to="/notifications"
+                search={searchOf({}, 'important')}
+                data-testid="notif-elsewhere"
+                className="text-link hover:underline"
+              >
+                {t('notif.elsewhere_important', { count: elsewhere })} ▸
+              </Link>
+            </p>
           )}
-          hint={t('notif.empty_hint')}
-          action={
-            <Link to="/inbox" className="text-sm text-link hover:underline">
-              {t('notif.empty_action')} ▸
-            </Link>
-          }
-        />
-      )}
-      <ul className="flex flex-col">
-        {groups.map((group) => {
-          const headId = String(group.head['id']);
-          const expanded = open.has(headId);
-          // 머리 줄은 **무리 전체**를 대표한다 — 읽음도 이동도 묶음 단위다(HUB-08).
-          // 펼친 뒤의 나머지 줄은 저마다 한 건이다
-          return [
-            renderRow(group.head, group.rows, expanded),
-            ...(expanded ? group.rows.slice(1).map((n) => renderRow(n, [n], false, true)) : []),
-          ];
-        })}
-      </ul>
-      {notifications.hasNextPage === true && (
-        <div className="mt-3 flex justify-center">
-          <Button
-            variant="ghost"
-            data-testid="notif-more"
-            disabled={notifications.isFetchingNextPage}
-            onClick={() => void notifications.fetchNextPage()}
-          >
-            {t('tasks.more')}
-          </Button>
+          {notifications.isLoading && <Skeleton rows={5} />}
+          {failedWithoutData(notifications) && (
+            <ErrorState error={notifications.error} onRetry={() => void notifications.refetch()} />
+          )}
+          {notifications.data !== undefined && items.length === 0 && (
+            <EmptyState
+              icon="○"
+              title={t(
+                filter === 'important'
+                  ? 'notif.empty_important'
+                  : filter === 'unread'
+                    ? 'notif.empty_unread'
+                    : 'notif.empty',
+              )}
+              hint={t('notif.empty_hint')}
+              action={
+                <Link to="/inbox" className="text-sm text-link hover:underline">
+                  {t('notif.empty_action')} ▸
+                </Link>
+              }
+            />
+          )}
+          <ul className="flex flex-col">
+            {groups.map((group) => {
+              const headId = String(group.head['id']);
+              const expanded = open.has(headId);
+              // 머리 줄은 **무리 전체**를 대표한다 — 읽음도 이동도 묶음 단위다(HUB-08).
+              // 펼친 뒤의 나머지 줄은 저마다 한 건이다
+              return [
+                renderRow(group.head, group.rows, expanded),
+                ...(expanded ? group.rows.slice(1).map((n) => renderRow(n, [n], false, true)) : []),
+              ];
+            })}
+          </ul>
+          {notifications.hasNextPage === true && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="ghost"
+                data-testid="notif-more"
+                disabled={notifications.isFetchingNextPage}
+                onClick={() => void notifications.fetchNextPage()}
+              >
+                {t('tasks.more')}
+              </Button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </PageBody>
   );
 }

@@ -65,5 +65,10 @@ export const notification = pgTable(
     readAt: ts('read_at'),
     createdAt: createdAt(),
   },
-  (t) => [index('notification_inbox').on(t.userId, t.state, t.createdAt.desc())],
+  (t) => [
+    index('notification_inbox').on(t.userId, t.state, t.createdAt.desc()),
+    // 범위별 수와 범위 안의 [모두 읽음](2026-09-27 · REQ-DB-027 · REQ-API-214·216) — 위 인덱스는
+    // 프로젝트를 몰라, 프로젝트마다 안 읽은 수를 세려면 그 사람의 알림 전부를 훑어야 했다
+    index('notification_scope').on(t.userId, t.projectId, t.state),
+  ],
 );

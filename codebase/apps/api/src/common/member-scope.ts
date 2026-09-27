@@ -78,3 +78,39 @@ export async function resolveMemberProject(
   }
   return only;
 }
+
+/**
+ * 모든 조직을 가로지르는 목록을 **범위 하나로 좁히는 조건**(2026-09-27 · 사람 결정 N1 · REQ-API-214).
+ *
+ * `project` 가 있으면 그 프로젝트 하나(`org` 는 slug 의 한정자), `org` 만 있으면 그 조직의 프로젝트
+ * 전부, 둘 다 없으면 좁히지 않는다. 속하지 않은 조직은 없는 조직과 같은 답이다. 돌려주는 조각은
+ * `p` 로 JOIN 한 프로젝트에 붙이는 ` AND …` 다 — 모든 조직 목록과 **같은 질의를 좁힌 것**이어야
+ * 한다(REQ-API-167: 프로젝트 받은 요청을 두 번 구현했다가 둘이 갈라졌다).
+ */
+export async function scopeFilterSql(
+  db: NervDb,
+  userId: string,
+  ref: { project?: string | null; org?: string | null },
+): Promise<SQL> {
+  const project = ref.project?.trim() ?? '';
+  const org = ref.org?.trim() ?? '';
+  if (project !== '') {
+    const picked = await resolveMemberProject(db, userId, { project, org });
+    return sql` AND p.id = ${picked.id}`;
+  }
+  if (org === '') return sql``;
+  const { rows } = await db.execute<{ id: string }>(sql`
+    SELECT o.id FROM organization o
+     WHERE o.slug = ${org}
+       AND EXISTS (SELECT 1 FROM membership m WHERE m.user_id = ${userId} AND m.org_id = o.id)
+  `);
+  const only = rows[0];
+  if (only === undefined) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.org.not_found'), {
+      kind: 'not_found',
+      field: 'org',
+      org,
+    });
+  }
+  return sql` AND p.org_id = ${only.id}`;
+}

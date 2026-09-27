@@ -10,6 +10,8 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
   EVENTS_CHANNEL,
+  msg,
+  NERV_ERROR,
   NERV_EVENT,
   NERV_EVENT_PHASE2,
   newId,
@@ -23,7 +25,8 @@ import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
-import { memberOfProjectSql } from '../../common/member-scope.js';
+import { memberOfProjectSql, scopeFilterSql } from '../../common/member-scope.js';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import { requestAlreadyClosed } from './request-notifications.js';
 import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
 import { ValkeyService } from './valkey.service.js';
@@ -389,7 +392,17 @@ export class NotificationService {
      * 묻혔다(FR-12 가 배지에 요구하는 것이 정확히 그 구별이다).
      */
     importance?: string | null;
+    /**
+     * **범위로 좁힌다**(2026-09-27 · 사람 결정 N1 · REQ-API-214). 프로젝트(slug 또는 UUID ·
+     * `org` 가 slug 의 한정자) 또는 조직 하나 — 없으면 지금처럼 모든 조직이다.
+     */
+    project?: string | null;
+    org?: string | null;
   }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
+    const scopeFilter = await scopeFilterSql(this.db, input.userId, {
+      project: input.project ?? null,
+      org: input.org ?? null,
+    });
     const stateFilter =
       input.state == null
         ? sql``
@@ -451,7 +464,7 @@ export class NotificationService {
    LEFT JOIN "user" adu ON adu.id = ap.decided_by_user_id
    LEFT JOIN question qq ON qq.id = e.subject_id AND e.subject_type = 'question'
    LEFT JOIN "user" qdu ON qdu.id = qq.answered_by_user_id
-       WHERE n.user_id = ${input.userId}${stateFilter}${importanceFilter}${beforeFilter}
+       WHERE n.user_id = ${input.userId}${stateFilter}${importanceFilter}${beforeFilter}${scopeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL
          -- **지금 멤버인 프로젝트의 알림만**(2026-09-27 · REQ-API-211). 행은 만들 때의 멤버에게
@@ -498,13 +511,44 @@ export class NotificationService {
    * 프로젝트의 알림까지 읽음으로 바꿔서, 돌려준 건수가 배지 수보다 컸고 프로젝트를 되살리면
    * 그 알림이 이미 읽혀 있었다.
    */
-  async markAllRead(input: { userId: string }): Promise<{ ok: true; marked: number }> {
+  async markAllRead(input: {
+    userId: string;
+    /** 범위 — 목록과 같은 뜻이다(REQ-API-214) */
+    project?: string | null;
+    org?: string | null;
+    /** 화면의 "중요" 필터 — 보이는 것만 바꾼다(2026-09-27 · 사람 결정 N4 · REQ-API-216) */
+    importance?: string | null;
+    /**
+     * 기준 시각 — 화면이 받은 가장 새 알림의 시각. 그 뒤에 온 알림은 그대로 둔다: 누르는 사이에
+     * 온 알림까지 바꾸면 사람은 본 적 없는 알림을 잃는다. 알아볼 수 없는 값은 400 이다.
+     */
+    until?: string | null;
+  }): Promise<{ ok: true; marked: number }> {
+    const scopeFilter = await scopeFilterSql(this.db, input.userId, {
+      project: input.project ?? null,
+      org: input.org ?? null,
+    });
+    const importanceFilter =
+      input.importance == null
+        ? sql``
+        : sql` AND n.importance = ${assertVocab([input.importance], notificationImportance.enumValues, 'importance')[0]}::notification_importance`;
+    let untilFilter = sql``;
+    if (input.until != null) {
+      const at = cursorTimestamp(input.until);
+      if (at === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+          kind: 'invalid_input',
+          field: 'until',
+        });
+      }
+      untilFilter = sql` AND n.created_at <= ${at}::timestamptz`;
+    }
     const { rows } = await this.db.execute<{ id: string }>(sql`
       UPDATE notification n SET state = 'read', read_at = now()
         FROM project p
        WHERE n.user_id = ${input.userId} AND n.state = 'unread'
          AND p.id = n.project_id AND p.archived_at IS NULL
-         AND ${memberOfProjectSql(input.userId)}
+         AND ${memberOfProjectSql(input.userId)}${scopeFilter}${importanceFilter}${untilFilter}
       RETURNING n.id
     `);
     return { ok: true, marked: rows.length };
@@ -535,5 +579,48 @@ export class NotificationService {
          AND ${memberOfProjectSql(userId)}
     `);
     return { count: rows[0]?.n ?? 0, immediate: rows[0]?.immediate ?? 0 };
+  }
+
+  /**
+   * EP-NTF-05 — **범위별 안 읽은 수**(2026-09-27 · 사람 결정 N1 · REQ-API-215).
+   *
+   * 알림 화면의 범위 칸이 조직 → 프로젝트마다 이 수를 보인다. 불러온 쪽만 세면 "더 보기" 뒤의
+   * 알림이 빠지므로 서버가 센다(REQ-WEB-131 · 185). **알림이 없는 프로젝트도 0 으로 넣는다** —
+   * 내가 속한 프로젝트가 칸에서 사라지면 "그 프로젝트의 알림은 어디서 보나" 를 다시 찾게 된다.
+   * 조건은 목록 · 배지와 같다(보관 · 멤버십) — 합계가 EP-NTF-04 와 같아야 한다.
+   */
+  async scopes(userId: string): Promise<{
+    items: Record<string, unknown>[];
+    total: { unread: number; immediate: number };
+  }> {
+    const { rows } = await this.db.execute<{
+      org_slug: string;
+      org_name: string;
+      project_id: string;
+      project_slug: string;
+      project_name: string;
+      unread: number;
+      immediate: number;
+    }>(sql`
+      SELECT o.slug AS org_slug, o.name AS org_name,
+             p.id AS project_id, p.slug AS project_slug, p.name AS project_name,
+             count(n.id)::int AS unread,
+             count(n.id) FILTER (WHERE n.importance = 'immediate')::int AS immediate
+        FROM project p
+        JOIN organization o ON o.id = p.org_id
+   LEFT JOIN notification n
+          ON n.project_id = p.id AND n.user_id = ${userId} AND n.state = 'unread'
+       WHERE p.archived_at IS NULL
+         AND ${memberOfProjectSql(userId)}
+       GROUP BY o.slug, o.name, p.id, p.slug, p.name
+       ORDER BY o.slug, p.name, p.slug
+    `);
+    return {
+      items: rows,
+      total: {
+        unread: rows.reduce((sum, r) => sum + r.unread, 0),
+        immediate: rows.reduce((sum, r) => sum + r.immediate, 0),
+      },
+    };
   }
 }

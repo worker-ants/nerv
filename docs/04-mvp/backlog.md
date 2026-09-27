@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.98 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.99 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.99 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **알림의 조직 · 프로젝트 칸**을 적는다. 윗줄의 "남은 것" 가운데 알림 쪽이다.
 >
 > v1.98 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **알림 범위 결함 셋 — 멤버십 · 보관 · 조직**을 적는다.
 >
@@ -649,6 +651,7 @@ referenced_by:
 | 버전 기준 — 승인본 · 최신 · 기준선 | 서버 `apps/api/src/modules/spec/spec-basis.ts`(판정 한 곳) · `spec.service.ts`(트리 · 그래프 · 문서 한 건) · `search.service.ts`(검색 기준) · `embedding.service.ts`(in_review 임베딩) · 화면 `lib/view-basis.ts` · `ViewBasisSelect` · `SpecTree`(`v4 초안` 표시 · `새 버전 진행 중` 필터) · 상세의 안내 둘 · 매뉴얼 ko·en · L1 `spec-view-basis.spec.tsx` · L2 `spec-domain.spec.ts` · `rest-surface.spec.ts` | 사람 보고와 사람 결정 V1~V4. 목록이 문서마다 최신 승인본만 읽어서 승인본 위의 초안은 목록 · 트리 · 그래프 어디에도 없었고 상태 필터 "초안" 에도 걸리지 않았다. 검색도 기준을 고른다(사람 요청). 그전에는 키워드와 의미 검색이 서로 다른 버전을 봤다([4.4 API 명세](api.md) REQ-API-193~196 · [4.5 화면 명세](screens.md) REQ-WEB-248~251). MCP 도구와 스킬의 버전 기준은 다음 줄에서 이어졌다 |
 | MCP 도구의 읽는 기준 — 기준선으로 개발하기와 그 뒤의 문서 고치기 | 서버 `spec-basis.ts`(선택자 넷 · 작업의 기준 `taskBasisOf`) · `spec.service.ts`(`read_as` · 편집 기준 · 읽은 버전의 요구사항 · `include` 의 `links`·`versions`·`baselines` · `diff_from` · 검토 중 개정판이 있으면 새 초안 거절) · `search.service.ts`(`task` · `version_no` · 맞은 청크의 스니펫) · `spec-relation.service.ts`(최신 버전 지문) · `task.service.ts`(기준선 작업의 큐 · 핀 검사 · 재브리핑 거절 · 기준선 옮기기) · `session.service.ts`(부트스트랩의 `spec_key`·`version_no`) · `spec.tools.ts` · 서버 안내문 · 화면 작업 상세의 기준선 선택기 · 스킬 넷 · `nerv-spec-writer` · Codex 초안(플러그인 0.3.5) · 매뉴얼 ko·en · L1 `task-next-door.spec.tsx` · L2 `spec-domain.spec.ts` · `claim.spec.ts` · `spec-workflow.spec.ts` · `mcp.spec.ts` · `rest-surface.spec.ts` | 사람 요청과 사람 결정 M1~M15(M4 · M7 · M9 · M11 · M12 · M13 은 권장안). 도구가 읽는 기준을 고를 수 없어서, 스펙을 고치는 에이전트는 열린 초안을 찾지 못했고 구현하는 에이전트는 기준선의 주변 문서를 스킬 문장으로만 맞췄다([4.4 API 명세](api.md) REQ-API-197~210 · [4.5 화면 명세](screens.md) REQ-WEB-252 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.2 · §3.6) |
 | 알림 범위 결함 셋 — 멤버십 · 보관 · 조직 | 서버 `apps/api/src/common/member-scope.ts`(멤버십 식 · 프로젝트 인자 풀기 한 곳) · `notification.service.ts`(목록 · 수 · 읽음 · 모두 읽음) · `approval.service.ts`(EP-APR-01 `project` · `org`) · L2 `approval.spec.ts` | 점검(알림 프로젝트별 보기 조사). 프로젝트에서 빠진 사람이 그 프로젝트의 알림을 계속 봤고, [모두 읽음]이 보관한 프로젝트의 알림까지 바꿨고, 받은 요청의 `project` 가 두 조직의 같은 slug 를 함께 걸렀다([4.4 API 명세](api.md) REQ-API-211~213). 남은 것: 알림 · 받은 요청의 범위 칸과 프로젝트별 받는 수준(사람 결정 N1~N4 · 다음 PR 셋) |
+| 알림의 조직 · 프로젝트 칸 | 서버 `common/member-scope.ts`(`scopeFilterSql`) · `notification.service.ts`(좁힌 목록 · 범위별 수 · 범위 안 모두 읽음) · `event.controller.ts`(EP-NTF-05) · 마이그레이션 `0034_notification_scope` · 화면 `features/inbox/scope-rail.tsx` · `routes/notifications.tsx` · 매뉴얼 ko·en(받은 요청 장의 알림 절) · L1 `notifications-scope.spec.tsx` · L2 `rest-surface.spec.ts` · L3 `notifications-scope.spec.ts` | 사람 요청과 사람 결정 N1 · N4. 알림이 모든 조직을 한 목록에 모아, 한 프로젝트의 알림만 보거나 처리할 방법이 없었다([4.4 API 명세](api.md) REQ-API-214~216 · [4.5 화면 명세](screens.md) REQ-WEB-253~255 · [4.3 데이터베이스](database.md) REQ-DB-027). 남은 것: 받은 요청의 칸과 프로젝트 안의 진입점(N2) · 프로젝트별 받는 수준(N3) |
 
 #### 이 절은 언제 갱신되는가
 
