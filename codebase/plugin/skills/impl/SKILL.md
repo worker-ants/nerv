@@ -117,8 +117,10 @@ allowed-tools:
   게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
 - **`in_progress`·`in_review`·`done` 은 살아 있는 내 클레임이 있을 때만 부른다.**
   `NERV_LEASE_EXPIRED`(`details.kind` 가 `no_active_claim` 또는 `lease_expired`)가 오면
-  `details.reclaimable` 을 본다 — `true` 면 `nerv_task_claim` 으로 다시 잡고 이어 가고,
-  `false` 면 그 Task 는 지금 잡을 수 없으므로 산출물만 제출하고 사람에게 보고한다.
+  `details.reclaimable` 을 본다 — `true` 면 `nerv_task_claim` 으로 다시 잡고 이어 간다.
+  클레임을 잃은 `claimed`·`in_progress`·`in_review` 는 **상태 그대로** 돌아온다(응답의
+  `reclaimed: true` · `status`). `in_review` 였으면 `ready` 로 되돌리지 않고 곧바로 `done` 으로 간다.
+  `false` 면 남의 세션이 그 Task 를 잡고 있으므로 산출물만 제출하고 사람에게 보고한다.
 - `ready` 로 되돌리는 것도 판정을 지난다 — 위임 명세 4요소가 비어 있거나(`missing`)
   선행 작업이 남아 있으면(`pending`) 거부된다. 활성 클레임이 걸린 Task 는 `ready`·
   `backlog` 로 옮기기 전에 `nerv_task_release` 로 먼저 놓는다(`release_required`).

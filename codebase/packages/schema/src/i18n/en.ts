@@ -1054,6 +1054,8 @@ export const en = {
   'task.next.finish': 'Finish…',
   'task.next.reclaim_hint':
     'An expired claim is still attached. Claiming reclaims it and assigns the task to you',
+  'task.next.reclaim_keep_hint':
+    'Nobody holds this task. Claiming it picks it up in its current state',
   'task.next.to_ready': 'Move to ready',
   'task.next.to_ready_hint':
     'The server checks the four brief elements and dependencies, then queues it',

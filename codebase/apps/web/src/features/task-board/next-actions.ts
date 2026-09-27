@@ -82,14 +82,24 @@ export function nextActions(state: TaskState, t: Translator): NextAction[] {
     label: t('task.next.finish'),
     disabled: state.canFinish ? null : t('task.done_needs_claim'),
   });
-  const claim = (primary: boolean, reclaim: boolean): NextAction => ({
+  /**
+   * [클레임] — `ready` 이거나, 아무도 쥐지 않은 `claimed`·`in_progress` 를 되찾을 때(서버 `claimInTx`).
+   * 리스가 지난 클레임이 걸려 있으면 그것을 회수하고 잡는다는 안내, 클레임이 아예 없으면 **지금 상태 그대로**
+   * 다시 맡는다는 안내다(2026-09-28 · 사람 결정 · REQ-API-228).
+   */
+  const claim = (primary: boolean, hint: 'expired' | 'orphan' | null): NextAction => ({
     kind: 'claim',
     primary,
     label: t('task.claim'),
     disabled: claimBlock,
-    ...(reclaim ? { hint: t('task.next.reclaim_hint') } : {}),
+    ...(hint === 'expired'
+      ? { hint: t('task.next.reclaim_hint') }
+      : hint === 'orphan'
+        ? { hint: t('task.next.reclaim_keep_hint') }
+        : {}),
   });
-  // 아무도 쥐지 않은 진행 중 — 다시 잡을 길이 없어 사람이 되돌린다. 4요소가 비면 backlog 다
+  // 아무도 쥐지 않은 작업을 큐로 되돌린다 — 되찾기(위)와 함께 남긴다: 이어 할 사람이 없으면 큐가 맞다.
+  // 4요소가 비면 backlog 다
   const revert = (primary: boolean): NextAction => ({
     kind: 'revert',
     primary,
@@ -120,10 +130,12 @@ export function nextActions(state: TaskState, t: Translator): NextAction[] {
             },
           ];
     case 'ready':
-      return [claim(true, false)];
+      return [claim(true, null)];
     case 'claimed':
       if (state.liveClaim === 'none') {
-        return state.expiredClaim ? [claim(true, true), finish(false)] : [revert(true)];
+        return state.expiredClaim
+          ? [claim(true, 'expired'), finish(false)]
+          : [claim(true, 'orphan'), revert(false)];
       }
       return [
         {
@@ -146,7 +158,9 @@ export function nextActions(state: TaskState, t: Translator): NextAction[] {
         },
         finish(false),
         ...(state.liveClaim === 'none'
-          ? [state.expiredClaim ? claim(false, true) : revert(false)]
+          ? state.expiredClaim
+            ? [claim(false, 'expired')]
+            : [claim(false, 'orphan'), revert(false)]
           : []),
       ];
     case 'in_review':

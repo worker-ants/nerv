@@ -335,6 +335,17 @@ export const TASK_TRANSITION_TARGETS = [
 export const TASK_LEASE_BOUND_TARGETS = ['in_progress', 'in_review', 'done'] as const;
 
 /**
+ * **되찾을 수 있는 상태**(2026-09-28 · 사람 결정 · 4.4 REQ-API-228).
+ *
+ * 살아 있는 클레임이 없으면 이 상태의 Task 는 `ready` 와 같은 규칙으로 다시 잡힌다 — **상태는 그대로 두고
+ * 새 클레임만 연다**. 리스 회수는 `claimed`·`in_progress` 만 `ready` 로 되돌리므로, 리뷰까지 마친
+ * `in_review` 가 클레임을 잃으면(리스 만료 · 세션 종료 · 인계) 세션은 `done` 으로 갈 수도 다시 잡을 수도
+ * 없었다 — 서버는 `reclaimable: true` 라고 답하고 클레임은 `not_ready` 로 거절했다. `blocked` 는 빠진다:
+ * 해소 조건을 먼저 본다(`blocked_resolution`).
+ */
+export const TASK_RECLAIMABLE_STATUSES = ['claimed', 'in_progress', 'in_review'] as const;
+
+/**
  * **위임 명세 4요소가 실제로 채워졌는가**(2026-09-07 · REQ-API-131).
  *
  * 빈 문자열만 보면 안 된다. 임포터는 원본에 위임 명세가 없을 때 자리표시자를 넣는데

@@ -77,6 +77,21 @@ describe('다음 행동 표', () => {
     expect(revert?.target).toBe('backlog');
   });
 
+  it('아무도 쥐지 않은 claimed·진행 중은 [클레임]으로 상태 그대로 되찾는다 — 되돌리기도 남는다 (REQ-API-228)', () => {
+    const claimed = nextActions(state({ status: 'claimed', liveClaim: 'none' }), t);
+    expect(claimed.map((a) => [a.kind, a.primary])).toEqual([
+      ['claim', true],
+      ['revert', false],
+    ]);
+    expect(claimed[0]?.hint).toContain('지금 상태 그대로');
+    expect(kinds({ status: 'in_progress', liveClaim: 'none', canFinish: true })).toEqual([
+      'request_review',
+      'finish',
+      'claim',
+      'revert',
+    ]);
+  });
+
   it('리스가 지난 클레임만 걸려 있으면 [클레임]으로 되찾는다', () => {
     const claim = primary({ status: 'claimed', liveClaim: 'none', expiredClaim: true });
     expect(claim?.kind).toBe('claim');

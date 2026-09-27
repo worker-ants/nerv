@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.97 · 2026-09-27 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.98 · 2026-09-28 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.98 변경(2026-09-28 — 아무도 쥐지 않은 작업도 다시 맡는다, **사람 결정**): **REQ-WEB-144 개정.** 활성 클레임이 없는 `claimed`·`진행 중` 작업의 다음 행동에 [클레임]을 앞에 둔다 — 서버가 상태 그대로 되찾는다([4.4](api.md) REQ-API-228). 이어 할 사람이 없을 때를 위해 되돌리기 단추는 그대로 둔다.
 >
 > v1.97 변경(2026-09-27 — 빼기의 확인이 서버가 센 수를 적는다, **사람 결정 P2**): **REQ-WEB-263 개정 · §2.8 데이터 소스 한 칸 · 한 구절.** 멤버 표의 빼기 · 내보내기가 서버 경로 하나(EP-MBR-06 · 07)를 부른다. 확인은 서버의 미리보기(EP-MBR-05)가 센 지울 역할 · 폐기할 토큰 · 담당자를 비울 작업 · 그대로 두는 클레임과 지정된 결재의 수를 적고, 받기 전에는 실행을 잠근다.
 >
@@ -1673,7 +1675,7 @@ export const TaskCreateInput = z
 | REQ-WEB-017 | WHEN `claimed`/`in_progress` 카드를 렌더링하면 THE SYSTEM SHALL `lease_expires_at` 기준 리스 잔여를 카운트다운으로 표시하고, 잔여 2분 미만이면 호박색으로 전환한다(D-04) |
 | REQ-WEB-018 | WHEN 서버가 상태 전이를 거부하면 THE SYSTEM SHALL 카드를 원 위치로 되돌리고 거부 사유를 툴팁으로 표시한다(FR-10) |
 | REQ-WEB-036 | WHEN `rebrief_required_at`이 세팅된 Task를 렌더링하면 THE SYSTEM SHALL 보드 카드와 상세 패널에 재브리핑 배지(기준 버전 → 최신 approved 버전)를 표시하고, 위임 명세 재확인·기준 버전 갱신(EP-TASK-05) 경로를 제공한다 |
-| REQ-WEB-144 | WHILE 작업이 `claimed`·`in_progress` 이고 활성 클레임이 없는 동안 THE SYSTEM SHALL [준비됨으로 되돌리기] 또는 [백로그로 되돌리기] 단추를 보이고(위임 명세 4요소가 차 있으면 앞, 비어 있으면 뒤 — 임포트 자리표시자는 미충족이다), WHEN 호출자가 활성 클레임 보유자·담당자·planner·admin 이 아니면 THE SYSTEM SHALL [완료로 전이] 를 숨기지 않고 비활성화하며 사유를 툴팁으로 표기한다(REQ-WEB-003) |
+| REQ-WEB-144 | WHILE 작업이 `claimed`·`in_progress` 이고 활성 클레임이 없는 동안 THE SYSTEM SHALL [클레임](지금 상태 그대로 되찾는다 · 2026-09-28 · [4.4](api.md) REQ-API-228)과 [준비됨으로 되돌리기] 또는 [백로그로 되돌리기] 단추를 보이고(위임 명세 4요소가 차 있으면 앞, 비어 있으면 뒤 — 임포트 자리표시자는 미충족이다), WHEN 호출자가 활성 클레임 보유자·담당자·planner·admin 이 아니면 THE SYSTEM SHALL [완료로 전이] 를 숨기지 않고 비활성화하며 사유를 툴팁으로 표기한다(REQ-WEB-003) |
 | REQ-WEB-145 | WHEN 승인 단추가 비활성이면 THE SYSTEM SHALL 서버가 준 `can_approve_reason` 에 맞는 사유 문구를 카드와 툴팁에 표기한다(작성자·작성 세션 소유자·역할 없음·이미 승인함·지정 아님·자기 요청) | 이유마다 다른 문구 · 누를 수 있으면 문구 없음 |
 | REQ-WEB-146 | WHILE 필요 승인자가 둘 이상인 카드가 보이는 동안 THE SYSTEM SHALL `{given}/{required}` 배지와 직군 큐를 표기하고, WHEN 승인 응답의 `quorum.satisfied` 가 거짓이면 THE SYSTEM SHALL 아직 확정되지 않았음을 알린다 | 1/2 배지 · 한 명이면 배지 없음 · 미충족 토스트 |
 | REQ-WEB-147 | WHEN 사용자가 승인본의 요구사항 줄에서 [이 요구사항으로 작업 만들기]를 누르면 THE SYSTEM SHALL 그 출처를 주소에 실어 [새 작업] 폼을 열고 출처를 고정 표기하며, WHILE 폼을 직접 열었으면 THE SYSTEM SHALL 스펙·**승인본 버전**·요구사항 피커를 제공한다(선택). WHERE 보고 있는 버전이 승인본이 아니면 THE SYSTEM SHALL 파생 링크 대신 사유를 표기한다 | 주소로 연 폼은 출처 고정 · 승인본만 목록에 · 생성에만 싣고 수정에는 싣지 않는다 |

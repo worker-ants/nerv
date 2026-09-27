@@ -1043,6 +1043,8 @@ export const ko = {
   'task.next.finish': '완료…',
   'task.next.reclaim_hint':
     '점유 시간이 끝난 클레임이 남아 있습니다. 클레임하면 그 클레임을 회수하고 새로 맡습니다',
+  'task.next.reclaim_keep_hint':
+    '아무도 맡고 있지 않습니다. 클레임하면 지금 상태 그대로 다시 맡습니다',
   'task.next.to_ready': '준비됨으로 올리기',
   'task.next.to_ready_hint': '서버가 위임 명세 네 가지와 선행 작업을 확인한 뒤 큐에 올립니다',
   'task.next.fill_brief': '위임 명세 채우기',
