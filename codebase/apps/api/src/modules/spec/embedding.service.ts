@@ -101,40 +101,10 @@ export class EmbeddingService {
   constructor(@InjectDb() private readonly db: NervDb) {}
 
   /**
-   * 본문을 헤딩 단위로 쪼갠다. 헤딩 앞의 도입부는 `_intro` 앵커를 받는다 —
-   * 버리면 문서 첫머리(대개 그 문서가 무엇인지 말하는 자리)가 검색에서 사라진다.
+   * 본문을 헤딩 단위로 쪼갠다 — 규칙은 `chunkMarkdown` 한 곳이다(검색의 스니펫도 같은 청크를 쓴다).
    */
   chunk(bodyMd: string): Chunk[] {
-    const lines = bodyMd.split('\n');
-    const chunks: Chunk[] = [];
-    let anchor = '_intro';
-    let buffer: string[] = [];
-
-    const flush = (): void => {
-      const text = buffer.join('\n').trim();
-      if (text !== '') chunks.push({ anchor, text });
-      buffer = [];
-    };
-
-    for (const line of lines) {
-      const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
-      if (heading !== null) {
-        flush();
-        anchor = slugify(heading[2] ?? '');
-        buffer.push(line);
-        continue;
-      }
-      buffer.push(line);
-    }
-    flush();
-
-    // 같은 제목이 두 번 나오면 앵커가 충돌한다 — 뒤쪽에 순번을 붙여 유일하게 만든다.
-    const seen = new Map<string, number>();
-    return chunks.map((c) => {
-      const count = (seen.get(c.anchor) ?? 0) + 1;
-      seen.set(c.anchor, count);
-      return count === 1 ? c : { ...c, anchor: `${c.anchor}-${count}` };
-    });
+    return chunkMarkdown(bodyMd);
   }
 
   /** 인덱싱 대상 — 스펙별 최신 approved + 현재 draft · in_review(규칙 ③). */
@@ -289,3 +259,43 @@ export class EmbeddingService {
  * `headingSlug` 다 — 화면이 본문의 앵커로 데려가려면 같은 함수를 써야 한다(REQ-WEB-215).
  */
 export const slugify = headingSlug;
+
+/**
+ * 본문을 헤딩 단위로 쪼갠다. 헤딩 앞의 도입부는 `_intro` 앵커를 받는다 —
+ * 버리면 문서 첫머리(대개 그 문서가 무엇인지 말하는 자리)가 검색에서 사라진다.
+ *
+ * **색인과 검색이 같은 함수를 쓴다**(2026-09-27 · REQ-API-208). 의미 검색 결과의 스니펫이 맞은
+ * 청크가 아니라 본문 앞 240자였다 — 앵커가 가리키는 절을 되짚으려면 같은 규칙으로 쪼개야 한다.
+ */
+export function chunkMarkdown(bodyMd: string): Chunk[] {
+  const lines = bodyMd.split('\n');
+  const chunks: Chunk[] = [];
+  let anchor = '_intro';
+  let buffer: string[] = [];
+
+  const flush = (): void => {
+    const text = buffer.join('\n').trim();
+    if (text !== '') chunks.push({ anchor, text });
+    buffer = [];
+  };
+
+  for (const line of lines) {
+    const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+    if (heading !== null) {
+      flush();
+      anchor = slugify(heading[2] ?? '');
+      buffer.push(line);
+      continue;
+    }
+    buffer.push(line);
+  }
+  flush();
+
+  // 같은 제목이 두 번 나오면 앵커가 충돌한다 — 뒤쪽에 순번을 붙여 유일하게 만든다.
+  const seen = new Map<string, number>();
+  return chunks.map((c) => {
+    const count = (seen.get(c.anchor) ?? 0) + 1;
+    seen.set(c.anchor, count);
+    return count === 1 ? c : { ...c, anchor: `${c.anchor}-${count}` };
+  });
+}

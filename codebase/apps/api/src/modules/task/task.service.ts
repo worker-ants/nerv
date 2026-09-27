@@ -173,8 +173,10 @@ export class TaskService {
          -- 위임 명세 4요소 — CHECK 가 이미 막지만 질의에서도 확인한다(방어적)
          AND t.goal_md IS NOT NULL AND t.output_format_md IS NOT NULL
          AND t.tools_sources_md IS NOT NULL AND t.boundaries_md IS NOT NULL
-         -- 기준 버전이 있으면 승인된 것이어야 한다
-         AND (t.source_spec_version_id IS NULL OR sv.status = 'approved')
+         -- 기준 버전이 있으면 승인된 것이어야 한다. **기준선으로 개발하는 작업은 남긴다**
+         -- (2026-09-27 사람 결정 M9 · REQ-API-210) — 세트가 약속이라, 핀 문서에 새 승인본이 나와도
+         -- "그 세트로 개발한다" 는 그대로다. 예전에는 큐에서 조용히 빠져 찾을 길이 없었다
+         AND (t.source_spec_version_id IS NULL OR sv.status = 'approved' OR t.baseline_id IS NOT NULL)
          -- 선행 의존(blocks)이 전부 done
          AND NOT EXISTS (
            SELECT 1 FROM task_dependency d
@@ -370,9 +372,13 @@ export class TaskService {
              -- 그리던 자리다 — 요구사항의 고정 ID(REQ-…)가 사람이 아는 이름이다.
              r.ref AS source_requirement_ref, r.statement_md AS source_requirement_statement,
              -- 상세 머리가 **담당**을 이름으로 말한다(REQ-API-180) — 목록은 싣는데 상세는 id 뿐이었다
-             au.display_name AS assignee_name
+             au.display_name AS assignee_name,
+             -- **기준선 이름**(M8 · REQ-API-204) — id 만 주던 동안 nerv_spec_get(baseline)으로
+             -- 옮길 값이 없었다(그 인자는 이름을 받는다)
+             bl.name AS baseline
         FROM task t
    LEFT JOIN "user" au ON au.id = t.assignee_user_id
+   LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN requirement r ON r.id = t.source_requirement_id
@@ -561,6 +567,11 @@ export class TaskService {
         kind: 'missing_title',
       });
     }
+    // **기준 버전과 기준선이 같은 것을 가리키는가**(2026-09-27 사람 결정 M9 · REQ-API-210). 출처 문서가
+    // 그 세트에 있는데 다른 버전을 기준으로 삼으면, 대상 문서와 주변 문서의 시점이 처음부터 섞인다
+    if (baselineId !== null && input.sourceSpecVersionId != null) {
+      await this.assertPinMatches(baselineId, input.baseline ?? '', input.sourceSpecVersionId);
+    }
     return this.events.transact(async (tx, emit) => {
       const taskId = newId();
       // 표시 키는 데이터 모델 §5.1 형식이다(`CLV-T-7QF3K2`). 이전 표기(`TSK-` + 16진 4자)는
@@ -611,6 +622,8 @@ export class TaskService {
     dependsOnKeys?: string[] | null;
     /** 기준 버전을 최신 승인본으로 옮기고 재브리핑 플래그를 지운다(REQ-API-121) */
     rebrief?: boolean | null;
+    /** 새 기준선으로 옮긴다 · `null` 이면 푼다(M9 · REQ-API-210). 없으면 그대로다 */
+    baseline?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
@@ -626,8 +639,10 @@ export class TaskService {
         output_format_md: string | null;
         tools_sources_md: string | null;
         boundaries_md: string | null;
+        baseline_id: string | null;
       }>(sql`
-        SELECT id, status::text AS status, goal_md, output_format_md, tools_sources_md, boundaries_md
+        SELECT id, status::text AS status, goal_md, output_format_md, tools_sources_md, boundaries_md,
+               baseline_id
           FROM task WHERE project_id = ${input.projectId} AND key = ${input.taskKey} FOR UPDATE
       `);
       const task = rows[0];
@@ -635,6 +650,21 @@ export class TaskService {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
           kind: 'not_found',
           task: input.taskKey,
+        });
+      }
+
+      // **기준선으로 개발하는 작업은 재브리핑하지 않는다**(2026-09-27 사람 결정 M9 · REQ-API-210).
+      // 재브리핑은 기준 버전만 최신 승인본으로 옮기고 기준선은 그대로 둬서, 대상 문서는 지금 것이고
+      // 주변 문서는 옛 세트가 됐다. 세트째 옮기는 것이 답이다 — 같은 요청에서 기준선을 풀면 받는다
+      const staysOnBaseline =
+        input.baseline === undefined
+          ? task.baseline_id !== null
+          : input.baseline !== null && input.baseline !== '';
+      if (input.rebrief === true && staysOnBaseline) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.rebrief_baseline'), {
+          kind: 'rebrief_baseline_task',
+          field: 'rebrief',
+          use: 'baseline',
         });
       }
 
@@ -677,6 +707,34 @@ export class TaskService {
                        AND v.status = 'approved'
                      ORDER BY v.version_no DESC LIMIT 1),
                    t.source_spec_version_id),
+                 rebrief_required_at = NULL,
+                 updated_at = now()
+           WHERE t.id = ${task.id}
+        `);
+      }
+
+      /**
+       * **기준선을 옮긴다**(M9 · REQ-API-210) — 세트와 기준 버전이 함께 간다. 출처 문서가 새 세트에
+       * 있으면 그 핀이 기준 버전이 되고, 없으면 기준 버전은 그대로다. 옮기면 재브리핑 표시도 지운다:
+       * 새 세트를 고른 사람은 그 세트를 읽고 고른 것이다. `null` 이면 기준선을 푼다.
+       */
+      if (input.baseline !== undefined) {
+        const nextBaselineId =
+          input.baseline === null || input.baseline === ''
+            ? null
+            : await this.baselineIdOf(input.projectId, input.baseline);
+        await tx.execute(sql`
+          UPDATE task t
+             SET baseline_id = ${nextBaselineId},
+                 source_spec_version_id = CASE
+                   WHEN ${nextBaselineId}::uuid IS NULL THEN t.source_spec_version_id
+                   ELSE coalesce(
+                     (SELECT i.spec_version_id FROM spec_baseline_item i
+                       WHERE i.baseline_id = ${nextBaselineId}::uuid
+                         AND i.spec_id = (SELECT sv.spec_id FROM spec_version sv
+                                           WHERE sv.id = t.source_spec_version_id)),
+                     t.source_spec_version_id)
+                 END,
                  rebrief_required_at = NULL,
                  updated_at = now()
            WHERE t.id = ${task.id}
@@ -1366,6 +1424,8 @@ export class TaskService {
         JOIN spec_version sv ON sv.id = t.source_spec_version_id
         JOIN spec s ON s.id = sv.spec_id
        WHERE c.id = ${claimId} AND c.status = 'active'
+         -- 기준선으로 개발하는 작업은 세트가 약속이라 기준 드리프트가 아니다(M9 · REQ-API-210)
+         AND t.baseline_id IS NULL
          AND (sv.status = 'superseded' OR t.rebrief_required_at IS NOT NULL)
     `);
     return rows;
@@ -1944,6 +2004,45 @@ export class TaskService {
       });
     }
     return id;
+  }
+
+  /**
+   * 출처 문서가 그 기준선에 있으면 그 핀이 곧 기준 버전이어야 한다(M9 · REQ-API-210).
+   * 세트에 없는 문서(기준선 뒤에 만든 것)는 비교할 핀이 없어 통과한다.
+   */
+  private async assertPinMatches(
+    baselineId: string,
+    baselineName: string,
+    sourceVersionId: string,
+  ): Promise<void> {
+    const { rows } = await this.db.execute<{
+      given_no: number | null;
+      pinned_id: string | null;
+      pinned_no: number | null;
+    }>(sql`
+      SELECT gv.version_no AS given_no, i.spec_version_id AS pinned_id, pv.version_no AS pinned_no
+        FROM spec_version gv
+   LEFT JOIN spec_baseline_item i ON i.baseline_id = ${baselineId} AND i.spec_id = gv.spec_id
+   LEFT JOIN spec_version pv ON pv.id = i.spec_version_id
+       WHERE gv.id = ${sourceVersionId}
+    `);
+    const row = rows[0];
+    if (row === undefined || row.pinned_id === null || row.pinned_id === sourceVersionId) return;
+    throw new NervError(
+      NERV_ERROR.PRECONDITION,
+      msg('error.task.baseline_pin_mismatch', {
+        given: row.given_no ?? '?',
+        baseline: baselineName,
+        pinned: row.pinned_no ?? '?',
+      }),
+      {
+        kind: 'baseline_pin_mismatch',
+        field: 'source_spec_version_id',
+        baseline: baselineName,
+        given_version_no: row.given_no,
+        pinned_version_no: row.pinned_no,
+      },
+    );
   }
 
   private async projectKeyOf(

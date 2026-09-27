@@ -5,7 +5,7 @@
 // E03-S01·E03-S04 가 얹는다.
 
 import { Injectable } from '@nestjs/common';
-import { msg, NERV_ERROR } from '@nerv/schema';
+import { msg, NERV_ERROR, SPEC_VIEW_BASES } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { csv } from '../../common/query-vocab.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
@@ -43,6 +43,10 @@ export class SpecTools implements NervToolProvider {
           status: { type: 'string', description: 'mcp.arg.spec_status_filter' },
           type: { type: 'string', description: 'mcp.arg.spec_type_filter' },
           baseline: { type: 'string', description: 'mcp.arg.baseline_tree' },
+          // **버전 기준 · 작업 기준**(2026-09-27 사람 결정 M1 · M7 · REQ-API-197 · 203). 쓰다 만 문서를
+          // 찾는 스펙 작성 흐름은 `basis: latest` 로, 구현 흐름은 `task` 로 본다. 서로 배타다
+          basis: { type: 'string', enum: [...SPEC_VIEW_BASES], description: 'mcp.arg.basis' },
+          task: { type: 'string', description: 'mcp.arg.task_basis_tree' },
           // 관계까지 필요하면 여기서 함께 받는다 — 별도 도구를 만들지 않는 이유는
           // "구조를 달라"는 한 가지 요청이기 때문이다(도구 15종 고정 — scope.md §4.2)
           include_relations: { type: 'boolean', default: false },
@@ -71,6 +75,8 @@ export class SpecTools implements NervToolProvider {
         const type = typeof input['type'] === 'string' ? input['type'] : null;
         const types = type === null ? null : csv(type);
         const baseline = typeof input['baseline'] === 'string' ? input['baseline'] : null;
+        const basis = typeof input['basis'] === 'string' ? input['basis'] : null;
+        const task = typeof input['task'] === 'string' ? input['task'] : null;
 
         // 계층(root·depth)과 관계(around·hops)는 **다른 축**이다. 섞어 받으면 "어느 쪽이
         // 이겼나"를 매번 물어야 하고, 그 물음이 생기는 순간 좁히기의 값어치가 사라진다.
@@ -121,8 +127,10 @@ export class SpecTools implements NervToolProvider {
             hops: hops ?? 1,
             // **기준선은 관계 축과 함께 간다**(2026-09-05 · REQ-API-090). 좁히기 축이
             // 아니라 스냅샷 선택자라 배타 목록에 넣지 않는다 — 넣지도 나르지도 않아
-            // 조용히 버려지던 것이 이 자리다.
+            // 조용히 버려지던 것이 이 자리다. 버전 기준 · 작업 기준도 같은 선택자다
             baseline,
+            basis,
+            task,
           });
           // 관계를 청하지 않았으면 간선은 싣지 않는다 — 중심 지정은 좁히기지 관계 요청이 아니다
           return withRelations ? near : { nodes: near.nodes };
@@ -136,6 +144,8 @@ export class SpecTools implements NervToolProvider {
               statuses,
               types,
               baseline,
+              basis,
+              task,
             }),
           };
         }
@@ -146,6 +156,8 @@ export class SpecTools implements NervToolProvider {
           statuses,
           types,
           baseline,
+          basis,
+          task,
         });
       },
     },
@@ -275,6 +287,10 @@ export class SpecTools implements NervToolProvider {
           // **이 요구사항 주변에서 찾아라** — 고정 ID(`REQ-…`)든 UUID 든 받는다(§1.4b).
           // 없는 요구사항은 빈 결과가 아니라 거절이다: 빈 결과는 오타를 사실로 만든다.
           requirement_id: { type: 'string', description: 'mcp.arg.requirement_scope' },
+          // **어느 버전의 본문에서 찾을까**(M1 · M7 · REQ-API-195 · 197 · 203) — 트리와 같은 선택자다
+          basis: { type: 'string', enum: [...SPEC_VIEW_BASES], description: 'mcp.arg.basis' },
+          baseline: { type: 'string', description: 'mcp.arg.baseline_search' },
+          task: { type: 'string', description: 'mcp.arg.task_basis_tree' },
         },
         required: ['q'],
       },
@@ -290,6 +306,9 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['requirement_id'] === 'string'
             ? { requirementRef: input['requirement_id'] }
             : {}),
+          ...(typeof input['basis'] === 'string' ? { basis: input['basis'] } : {}),
+          ...(typeof input['baseline'] === 'string' ? { baseline: input['baseline'] } : {}),
+          ...(typeof input['task'] === 'string' ? { task: input['task'] } : {}),
         });
         // 스니펫도 본문에서 잘라 온 사용자 생성 텍스트다 — 한 경로만 감싸면 나머지가 구멍이다
         return wrapSnippets(found);
@@ -306,34 +325,62 @@ export class SpecTools implements NervToolProvider {
         properties: {
           // 키·UUID 둘 다 받는다(§1.4b) — 도구마다 기준이 다르면 에이전트가 실패로 배운다
           spec_id: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
-          version: { type: 'integer' },
+          // **선택자 넷 — 하나만 준다**(REQ-API-196 · 197 · 203). 판정은 서비스 한 곳이다(D-05)
+          version: { type: 'integer', description: 'mcp.arg.version' },
           // **주변 문서를 그 세트로 읽는다**(REQ-API-087 · spec-workflow §3.6).
           // Task 가 기준선 맥락이면 `nerv_task_next` 응답이 이 이름을 실어 준다.
           baseline: { type: 'string', description: 'mcp.arg.baseline' },
+          // 스펙 수정 흐름은 `latest`(열린 초안 · 검토 중 개정판)로 읽는다(M1)
+          basis: { type: 'string', enum: [...SPEC_VIEW_BASES], description: 'mcp.arg.basis' },
+          // 구현 흐름은 작업의 기준으로 읽는다(M7) — 출처 문서면 기준 버전, 아니면 작업 기준선
+          task: { type: 'string', description: 'mcp.arg.task_basis' },
           // 곁들여 실을 것 — `requirements` 는 늘 실리므로 여기서는 나머지만 고른다.
           // 목록 밖 값은 400 이다: 조용히 버리면 호출자가 그 기능이 **없다**고 결론짓는다
           // (실사용 보고 2026-09-04 — `include:["attachments"]` 가 ok:true 로 사라졌다).
-          include: { type: 'array', items: { enum: ['tasks', 'comments', 'attachments'] } },
+          include: {
+            type: 'array',
+            description: 'mcp.arg.spec_include',
+            items: {
+              enum: ['tasks', 'comments', 'attachments', 'links', 'versions', 'baselines'],
+            },
+          },
+          // **이 버전과 견줄 쪽**(M11 · REQ-API-207) — 도구를 늘리지 않고 여기서 비교까지 받는다
+          diff_from: {
+            type: 'object',
+            description: 'mcp.arg.diff_from',
+            properties: {
+              basis: { type: 'string', enum: ['approved'] },
+              version: { type: 'integer' },
+              baseline: { type: 'string' },
+            },
+          },
         },
         required: ['spec_id'],
       },
       handler: async (input, ctx) => {
-        const version = typeof input['version'] === 'number' ? input['version'] : null;
-        const baseline = typeof input['baseline'] === 'string' ? input['baseline'] : null;
-        // 배타 — REST 와 같은 규칙이다(§1.4b). 판정은 한 곳에 있어야 하지만 두 표면의
-        // 인자 모양이 달라(쿼리 문자열 · JSON) 검사는 각자 하고 규칙만 공유한다.
-        if (version !== null && baseline !== null) {
-          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_xor_baseline'), {
-            kind: 'invalid_input',
-            field: 'baseline',
-          });
-        }
+        // 선택자의 배타(버전 · 기준선 · 기준 · 작업)는 서비스 한 곳이 판정한다 — 예전에는 표면마다
+        // 따로 검사했다(REQ-API-196)
+        const diffFrom =
+          typeof input['diff_from'] === 'object' && input['diff_from'] !== null
+            ? (input['diff_from'] as Record<string, unknown>)
+            : null;
         const spec = await this.specs.get({
           projectId: ctx.projectId,
           specKey: String(input['spec_id'] ?? ''),
-          versionNo: version,
-          baseline,
+          versionNo: typeof input['version'] === 'number' ? input['version'] : null,
+          baseline: typeof input['baseline'] === 'string' ? input['baseline'] : null,
+          basis: typeof input['basis'] === 'string' ? input['basis'] : null,
+          task: typeof input['task'] === 'string' ? input['task'] : null,
           include: Array.isArray(input['include']) ? (input['include'] as string[]) : null,
+          ...(diffFrom === null
+            ? {}
+            : {
+                diffFrom: {
+                  basis: typeof diffFrom['basis'] === 'string' ? diffFrom['basis'] : null,
+                  version: typeof diffFrom['version'] === 'number' ? diffFrom['version'] : null,
+                  baseline: typeof diffFrom['baseline'] === 'string' ? diffFrom['baseline'] : null,
+                },
+              }),
         });
         return wrapUserText(spec);
       },

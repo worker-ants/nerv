@@ -24,3 +24,42 @@ export async function readerHash(db: Tx | NervDb, specId: string): Promise<strin
   `);
   return rows[0]?.content_hash ?? null;
 }
+
+export interface VersionRef extends Record<string, unknown> {
+  id: string;
+  version_no: number;
+  status: string;
+  content_hash: string;
+}
+
+/**
+ * 읽는 사람이 보게 되는 버전 **그 자체**(번호 · 상태 · 지문) — `readerHash` 와 같은 규칙이다.
+ * 오류가 "그 버전을 다시 읽으라" 고 말하려면 지문만으로는 모자란다(REQ-API-199).
+ */
+export async function readerVersion(db: Tx | NervDb, specId: string): Promise<VersionRef | null> {
+  const { rows } = await db.execute<VersionRef>(sql`
+    SELECT sv.id, sv.version_no, sv.status::text AS status,
+           encode(sv.content_hash, 'hex') AS content_hash
+      FROM spec s
+      JOIN spec_version sv ON sv.id = coalesce(
+            (SELECT a.id FROM spec_version a
+              WHERE a.spec_id = s.id AND a.status = 'approved'
+              ORDER BY a.version_no DESC LIMIT 1),
+            s.current_version_id)
+     WHERE s.id = ${specId}
+  `);
+  return rows[0] ?? null;
+}
+
+/**
+ * 번호가 가장 큰 버전 — 최신 기준으로 읽은 사람이 받은 버전이다(REQ-API-193).
+ * 관계 선언은 이 지문도 받는다(2026-09-27 사람 결정 M13 · REQ-API-205).
+ */
+export async function latestVersion(db: Tx | NervDb, specId: string): Promise<VersionRef | null> {
+  const { rows } = await db.execute<VersionRef>(sql`
+    SELECT id, version_no, status::text AS status, encode(content_hash, 'hex') AS content_hash
+      FROM spec_version WHERE spec_id = ${specId}
+     ORDER BY version_no DESC LIMIT 1
+  `);
+  return rows[0] ?? null;
+}

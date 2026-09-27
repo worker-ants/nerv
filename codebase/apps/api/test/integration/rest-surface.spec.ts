@@ -1602,6 +1602,19 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
       ((found.body as Record<string, unknown>)['items'] as { key: string }[]).map((i) => i.key),
     ).toContain('SPC-BASIS');
 
+    // 작업의 기준으로도 읽는다(REQ-API-203) — 출처 문서면 기준 버전
+    const v1 = await pool.query<{ id: string }>(
+      `SELECT id FROM spec_version WHERE spec_id = $1 AND version_no = 1`,
+      [specId],
+    );
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id)
+       VALUES ($1,$2,'TSK-rest-basis','기준','backlog',$3)`,
+      [newId(), projectId, v1.rows[0]?.id],
+    );
+    const byTask = await call('GET', `${base}/SPC-BASIS?task=TSK-rest-basis`);
+    expect(byTask.body).toMatchObject({ version_no: 1, read_as: 'task_basis' });
+
     const both = await call('GET', `${base}/SPC-BASIS?basis=latest&v=1`);
     expect(both.status).toBe(400);
     expect((both.body as Record<string, unknown>)['details']).toMatchObject({ field: 'basis' });

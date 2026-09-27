@@ -115,7 +115,7 @@ A **baseline** gives that set a name and freezes it.
 - **If a version was approved after the baseline, the document page tells you.** A notice above the body says "A version was approved after baseline R1: v5", with **[Open v5]** and **[v2→v5 changes]** buttons. The list shows the set as it is, so it has no such marker.
 - **You can also change or clear the baseline from the document.** While you read by a baseline, the Version basis selector appears at the top of the document. Pick **Approved** to go back to the latest approved versions. The same set stays selected when you move to another document from the tree, the table, the graph, a relation row in the rail, or the left sidebar.
 
-Tasks can have a baseline too. The agent working on such a task then reads the surrounding documents at that set's versions.
+Tasks can have a baseline too. The agent working on such a task then reads the surrounding documents at that set's versions. To move such a task to newer versions, change its baseline (see "Tasks built on a baseline" in the [Tasks](/help/tasks) chapter).
 
 ## Comparing versions
 
@@ -204,7 +204,9 @@ When a person does decide, authors cannot approve their own specs. The exception
 
 **The author, a planner or an admin can request review.** If someone else submits it, that person becomes the requester, but the author still cannot approve it. The server checks all three: the requester, the author, and the owner of the session that wrote it.
 
-Agents also start the next version of an approved document. Running `/nerv:spec edit <key>` opens a new draft on top of the approved version.
+Agents also start the next version of an approved document. Running `/nerv:spec edit <key>` opens a new draft on top of the approved version. If a draft already exists, it continues that draft.
+
+**While a version is in review, no new draft can be started.** Once the review ends, work continues from the approved version, or from the same version if it was rejected and returned to draft. This keeps a document from having two drafts. In that case the agent does not edit and points you to the approval card instead.
 
 ## Comments
 

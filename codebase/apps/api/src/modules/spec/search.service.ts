@@ -17,7 +17,9 @@ import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { EmbeddingClient } from './embedding.client.js';
-import { baselineIdOf, resolveBasis, versionOfSpec } from './spec-basis.js';
+import { baselineIdOf, resolveBasis, taskBasisOf, versionOfSpec } from './spec-basis.js';
+import { chunkMarkdown } from './embedding.service.js';
+import { requirementsOf } from './spec-delta.js';
 
 /** RRF 상수 — 순위 역수 합의 완충항. 60 은 원논문 기본값이고 여기서 튜닝 대상이 아니다. */
 const RRF_K = 60;
@@ -50,6 +52,8 @@ export interface SearchHit extends Record<string, unknown> {
   title: string;
   type: string;
   doc_status: string | null;
+  /** 그 결과가 읽은 버전의 번호(2026-09-27 · M12 · REQ-API-208) — 스니펫이 어느 버전의 문장인지 */
+  version_no: number | null;
   anchor: string | null;
   snippet: string;
   score: number;
@@ -133,9 +137,28 @@ export class SearchService {
      */
     basis?: string | null;
     baseline?: string | null;
+    /** 작업의 기준선에서 찾는다(M7 · REQ-API-203) — 기준선이 없는 작업이면 승인본이다 */
+    task?: string | null;
   }): Promise<SearchResult> {
-    const basis = resolveBasis({ basis: input.basis ?? null, baseline: input.baseline ?? null });
-    const baselineName = input.baseline == null || input.baseline === '' ? null : input.baseline;
+    const basis = resolveBasis({
+      basis: input.basis ?? null,
+      baseline: input.baseline ?? null,
+      task: input.task ?? null,
+    });
+    const baselineName =
+      input.task != null && input.task !== ''
+        ? (await taskBasisOf(this.db, input.projectId, input.task)).baseline
+        : input.baseline == null || input.baseline === ''
+          ? null
+          : input.baseline;
+    // **기준선과 상태 필터는 함께 받지 않는다**(M12 · REQ-API-208) — 트리와 같은 판정이다
+    if (baselineName !== null && input.statuses != null && input.statuses.length > 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.status_with_baseline'), {
+        kind: 'invalid_input',
+        field: 'status',
+        conflict: ['status', input.task != null && input.task !== '' ? 'task' : 'baseline'],
+      });
+    }
     const baselineId =
       baselineName === null ? null : await baselineIdOf(this.db, input.projectId, baselineName);
     const pick: Pick = { ...versionOfSpec(basis, baselineId), baselineId };
@@ -204,7 +227,7 @@ export class SearchService {
         ? scopedToSpec
         : await this.filterByReference(input.projectId, scopedToSpec, input.references);
 
-    const items = referenced.slice(0, limit);
+    const items = await this.pinnedRequirementText(referenced.slice(0, limit), pick);
 
     // ⑤ 관계 확장 — 별도 그룹이다. "언급되지 않았지만 걸려 있는 스펙"을 에이전트가 컨텍스트에
     //    넣을 수 있게 하되, 질의 일치가 아니므로 본 랭킹에는 섞지 않는다.
@@ -230,20 +253,20 @@ export class SearchService {
 
     const { rows } = await this.db.execute<SearchHit>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type,
-             sv.status::text AS doc_status, NULL::text AS anchor,
+             sv.status::text AS doc_status, sv.version_no, NULL::text AS anchor,
              left(coalesce(sv.body_md, ''), 200) AS snippet, 'spec' AS kind
         FROM spec s
    LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
        WHERE s.project_id = ${projectId} AND s.key = ${id}${pick.member}
        UNION ALL
-      SELECT s.id, s.key, s.title, s.type::text, sv.status::text, r.ref AS anchor,
+      SELECT s.id, s.key, s.title, s.type::text, sv.status::text, sv.version_no, r.ref AS anchor,
              r.statement_md AS snippet, 'requirement' AS kind
         FROM requirement r
         JOIN spec s ON s.id = r.spec_id
    LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
        WHERE r.project_id = ${projectId} AND r.ref = ${id}${this.requirementAlive(pick)}${pick.member}
        UNION ALL
-      SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::text,
+      SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::int, NULL::text,
              left(coalesce(t.body_md, ''), 200), 'task' AS kind
         FROM task t
        WHERE t.project_id = ${projectId} AND t.key = ${id}
@@ -262,7 +285,7 @@ export class SearchService {
     const { rows } = await this.db.execute<SearchHit & { rank: number }>(sql`
       WITH scored AS (
         SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type,
-               sv.status::text AS doc_status, NULL::text AS anchor,
+               sv.status::text AS doc_status, sv.version_no, NULL::text AS anchor,
                left(coalesce(sv.body_md, ''), 240) AS snippet,
                GREATEST(
                  ts_rank(to_tsvector('simple', coalesce(sv.body_md, '')), plainto_tsquery('simple', ${query})),
@@ -274,7 +297,7 @@ export class SearchService {
      LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
          WHERE s.project_id = ${projectId}${archived}${pick.member}
         UNION ALL
-        SELECT s.id, s.key, s.title, s.type::text, sv.status::text, r.ref AS anchor,
+        SELECT s.id, s.key, s.title, s.type::text, sv.status::text, sv.version_no, r.ref AS anchor,
                r.statement_md AS snippet, similarity(r.statement_md, ${query}) AS rank
           FROM requirement r
           JOIN spec s ON s.id = r.spec_id
@@ -295,11 +318,10 @@ export class SearchService {
   ): Promise<SearchHit[]> {
     const archived = includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
     const literal = `[${embedding.join(',')}]`;
-    const { rows } = await this.db.execute<SearchHit>(sql`
+    const { rows } = await this.db.execute<SearchHit & { body_md: string | null }>(sql`
       SELECT DISTINCT ON (s.id)
              s.id AS spec_id, s.key, s.title, s.type::text AS type,
-             sv.status::text AS doc_status, e.anchor,
-             left(coalesce(sv.body_md, ''), 240) AS snippet,
+             sv.status::text AS doc_status, sv.version_no, e.anchor, sv.body_md,
              1 - (e.embedding <=> ${literal}::vector) AS score
         FROM spec_chunk_embedding e
         JOIN spec_version sv ON sv.id = e.spec_version_id
@@ -311,9 +333,50 @@ export class SearchService {
        ORDER BY s.id, e.embedding <=> ${literal}::vector
        LIMIT ${limit}
     `);
+    // **스니펫은 맞은 청크다**(M12 · REQ-API-208) — 예전에는 본문 앞 240자였다. 색인과 같은 규칙으로
+    // 다시 쪼개 앵커의 절을 꺼낸다(청크 문장은 저장하지 않는다 — 지문과 벡터만 있다)
     return rows
-      .map((r) => ({ ...r, matched_by: ['vector'] }))
+      .map(({ body_md: body, ...r }) => {
+        const chunk = chunkMarkdown(body ?? '').find((c) => c.anchor === r.anchor);
+        return {
+          ...r,
+          snippet: (chunk?.text ?? body ?? '').slice(0, 240),
+          matched_by: ['vector'],
+        };
+      })
       .sort((a, b) => Number(b.score) - Number(a.score));
+  }
+
+  /**
+   * **기준선 검색의 요구사항 문장은 그 세트가 묶은 버전의 문장이다**(M12 · REQ-API-208).
+   *
+   * 요구사항 행은 승인할 때마다 최신 문장으로 덮인다 — 기준선에 살아 있던 행만 남겨도(아래) 문장은
+   * 지금 것이었다. 핀 버전 본문에서 같은 고정 ID 의 줄을 찾아 바꾼다. 본문에 없으면 그대로 둔다.
+   */
+  private async pinnedRequirementText(items: SearchHit[], pick: Pick): Promise<SearchHit[]> {
+    if (pick.baselineId === null) return items;
+    const reqLike = /^[A-Z]+-[A-Z]+-\d+$/;
+    const specIds = [
+      ...new Set(
+        items.filter((i) => i.anchor !== null && reqLike.test(i.anchor)).map((i) => i.spec_id),
+      ),
+    ];
+    if (specIds.length === 0) return items;
+    const { rows } = await this.db.execute<{ spec_id: string; body_md: string }>(sql`
+      SELECT i.spec_id, sv.body_md FROM spec_baseline_item i
+        JOIN spec_version sv ON sv.id = i.spec_version_id
+       WHERE i.baseline_id = ${pick.baselineId}
+         AND i.spec_id IN (${sql.join(
+           specIds.map((id) => sql`${id}::uuid`),
+           sql`, `,
+         )})
+    `);
+    const statements = new Map(rows.map((r) => [r.spec_id, requirementsOf(r.body_md ?? '')]));
+    return items.map((item) => {
+      if (item.anchor === null || !reqLike.test(item.anchor)) return item;
+      const statement = statements.get(item.spec_id)?.get(item.anchor);
+      return statement === undefined ? item : { ...item, snippet: statement };
+    });
   }
 
   /**
@@ -415,7 +478,7 @@ export class SearchService {
     );
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT DISTINCT s.id AS spec_id, s.key, s.title, s.type::text AS type,
-             sv.status::text AS doc_status, r.kind::text AS via_kind
+             sv.status::text AS doc_status, sv.version_no, r.kind::text AS via_kind
         FROM spec_relation r
         JOIN spec s ON s.id = CASE WHEN r.from_spec_id IN (${ids}) THEN r.to_spec_id ELSE r.from_spec_id END
    LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}

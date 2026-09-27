@@ -62,6 +62,12 @@ export const TaskUpdateInput = z
      * **재브리핑의 뜻은 기준을 옮기는 것**이다.
      */
     rebrief: z.literal(true).nullish(),
+    /**
+     * **기준선을 옮긴다**(2026-09-27 사람 결정 M9 · REQ-API-210). 기준선으로 개발하는 작업은 기준 버전만
+     * 옮기는 재브리핑을 받지 않는다 — 세트가 섞이기 때문이다. 새 기준선 이름을 주면 작업의 기준선과
+     * (출처 문서가 그 세트에 있으면) 기준 버전이 함께 옮겨 간다. `null` 은 기준선을 푼다.
+     */
+    baseline: z.string().nullish(),
   })
   .strict();
 

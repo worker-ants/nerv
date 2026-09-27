@@ -612,6 +612,13 @@ export const ko = {
   'task.basis': '근거: 이 작업이 필요한 이유',
   'task.basis.dependencies': '의존',
   'task.basis.rebrief': '지시 재확인',
+  'task.basis.baseline': '기준선',
+  'task.basis.baseline_move': '기준선 바꾸기',
+  'task.basis.baseline_clear': '기준선 풀기',
+  'task.basis.baseline_hint':
+    '기준선으로 개발하는 작업은 재브리핑 대신 기준선을 바꿉니다. 문서가 새 기준선에 있으면 그 버전이 기준 버전이 됩니다.',
+  'task.basis.baseline_moved': '기준선을 바꿨습니다.',
+  'task.basis.rebrief_use_baseline': '기준선을 바꾸면 이 표시가 지워집니다.',
   'task.basis.rebrief_action': '기준 갱신',
   'task.basis.rebrief_ok': '기준 버전을 최신 승인 버전으로 바꿨습니다',
   'task.basis.rebrief_required': '기준 스펙이 바뀌었습니다. 지시를 다시 확인하세요',
@@ -688,7 +695,21 @@ export const ko = {
     '디자인 시안·산출물을 스펙에 붙일 때. **이 도구를 두 번 부르고, 그 사이에 파일을 직접 올린다**: ① filename·content_type으로 부르면 upload_url을 준다 → ② 그 주소에 파일을 PUT 한다(헤더는 Content-Type만) → ③ attachment_id만 넣어 다시 불러 확정한다. 확정 응답의 url이 파일을 받는 주소다. 파일 내용을 이 도구의 인자로 넣지 않는다',
   'mcp.arg.attachment_id': '둘째 단계. 파일을 올린 뒤 이것만 넣어 다시 부른다(확정)',
   'mcp.arg.baseline':
-    '기준선 이름 — 그 세트가 이 문서에 묶어 둔 버전을 읽는다. version과 함께 줄 수 없다',
+    '기준선 이름 — 그 세트가 이 문서에 묶어 둔 버전을 읽는다. basis · version · task와 함께 줄 수 없다',
+  'mcp.arg.basis':
+    '버전 기준 — approved(기본 · 최신 승인본) 또는 latest(번호가 가장 큰 버전 · 승인본 위의 초안과 검토 중 포함). version · baseline · task와 함께 줄 수 없다',
+  'mcp.arg.version':
+    '버전 번호 — 그 버전을 읽는다(REST의 v). basis · baseline · task와 함께 줄 수 없고, 없는 번호는 거절이다',
+  'mcp.arg.task_basis':
+    '작업 키 또는 UUID — 그 작업의 기준으로 읽는다. 출처 문서면 기준 버전, 아니면 작업 기준선이 묶은 버전, 둘 다 아니면 최신 승인본이고 read_as로 알린다',
+  'mcp.arg.task_basis_tree':
+    '작업 키 또는 UUID — 그 작업의 기준선이 담은 문서만 담을 때의 버전으로 준다. 기준선이 없는 작업이면 승인본이다',
+  'mcp.arg.baseline_search':
+    '기준선 이름 — 그 세트가 담은 문서만, 묶어 둔 버전의 본문에서 찾는다. status와 함께 줄 수 없다',
+  'mcp.arg.diff_from':
+    '이 버전과 견줄 쪽 하나를 객체로 준다(basis:approved · version:번호 · baseline:이름). 응답의 diff에 요구사항 변화와 본문 줄 차이가 온다',
+  'mcp.arg.spec_include':
+    '곁들여 받을 것 — tasks · comments · attachments · links(읽은 버전 본문이 가리키는 문서를 같은 기준으로) · versions(버전 목록) · baselines(이 문서를 담은 기준선)',
   'mcp.arg.baseline_tree':
     '기준선 이름 — 주면 그 세트가 담은 문서만, 담을 때의 버전으로 온다(세트 밖은 오지 않는다)',
   'mcp.arg.base_hash':
@@ -720,7 +741,16 @@ export const ko = {
   'error.spec.stale_body':
     '그사이 본문이 바뀌었습니다. 다시 읽고 바뀐 본문에 수정 내용을 반영하세요(같은 본문으로 다시 보내면 다른 사람의 수정을 덮어씁니다).',
   'error.spec.version_xor_baseline': '버전과 기준선은 함께 지정할 수 없습니다.',
-  'error.spec.basis_exclusive': '보기 기준(basis)은 버전이나 기준선과 함께 지정할 수 없습니다.',
+  'error.spec.basis_exclusive':
+    '버전 기준(basis) · 버전 · 기준선 · 작업(task) 가운데 하나만 지정할 수 있습니다.',
+  'error.spec.status_with_baseline':
+    '기준선으로 읽을 때는 상태 필터를 함께 지정할 수 없습니다. 기준선에 담긴 문서는 담을 때 모두 승인본이었습니다.',
+  'error.spec.in_review_pending':
+    '검토 중인 버전(v{n})이 있어 새 초안을 만들 수 없습니다. 결재가 끝나거나 거절되어 초안으로 돌아오면 그 위에서 이어 쓰세요.',
+  'error.task.rebrief_baseline':
+    '기준선으로 개발하는 작업은 기준 버전만 옮길 수 없습니다. 작업의 기준선을 새 기준선으로 바꾸세요.',
+  'error.task.baseline_pin_mismatch':
+    '기준 버전(v{given})이 기준선 {baseline}에 담긴 버전(v{pinned})과 다릅니다. 기준선의 버전으로 만들거나 기준선을 빼세요.',
   'error.spec.wrapped_body':
     '본문이 `<nerv:spec …>` 태그로 감싸여 있습니다. 태그 안쪽 내용만 보내세요.',
   'error.attachment.not_text':
@@ -765,6 +795,8 @@ export const ko = {
   'mcp.instructions.scope':
     '클레임할 때 scope(spec_ids·file_globs)를 선언한다. 다른 세션과 겹치면 경고하거나 막는다.',
   'mcp.instructions.what': 'NERV — 스펙을 기준으로 에이전트와 협업하는 플랫폼.',
+  'mcp.instructions.spec_basis':
+    '스펙은 흐름마다 기준을 골라 읽는다. 구현은 nerv_spec_get의 task로, 스펙 수정은 basis=latest로 읽고 응답의 read_as로 무엇을 읽었는지 확인한다.',
   'mcp.tool.after_fix': '수정 커밋 후 또는 판단 후',
   'mcp.tool.after_review': '리뷰를 마친 직후(파일로 커밋하지 않는다)',
   'mcp.tool.after_comment': '코멘트 반영 직후',

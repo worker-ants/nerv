@@ -68,6 +68,12 @@ export interface ActiveClaimSummary extends Record<string, unknown> {
   source_spec_version_id: string | null;
   baseline_id: string | null;
   baseline: string | null;
+  /**
+   * 출처 문서의 키와 기준 버전 번호(2026-09-27 · M8 · REQ-API-204) — `nerv_spec_get` 은 버전 UUID 를
+   * 받지 않아, 재개한 세션이 이 응답만으로는 기준 버전을 읽을 수 없었다
+   */
+  spec_key: string | null;
+  version_no: number | null;
 }
 
 /** 세션 추정의 후보 한 줄 — 여럿일 때 에이전트가 고를 수 있도록 신원을 함께 준다 */
@@ -1040,9 +1046,12 @@ export class SessionService {
     const { rows: claims } = await this.db.execute<ActiveClaimSummary>(sql`
       SELECT c.id AS claim_id, c.task_id, t.key AS task_key,
              c.lease_expires_at::text AS lease_expires_at,
-             t.source_spec_version_id, t.baseline_id, bl.name AS baseline
+             t.source_spec_version_id, t.baseline_id, bl.name AS baseline,
+             s.key AS spec_key, sv.version_no
         FROM claim c JOIN task t ON t.id = c.task_id
         LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
+        LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
+        LEFT JOIN spec s ON s.id = sv.spec_id
        WHERE c.agent_session_id = ${sessionId} AND c.status = 'active'
        ORDER BY c.acquired_at
     `);

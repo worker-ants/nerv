@@ -1078,6 +1078,50 @@ describe('E09-S07 재브리핑·참조 전파 (§3.3)', () => {
     expect(events.rows[0]?.n).toBe(1);
   });
 
+  it('기준선으로 개발하는 작업에는 재브리핑 표시를 하지 않는다 — 세트가 약속이다 (M9)', async () => {
+    const first = await newDraft('SPC-BASIS-BL', '# v1');
+    await specs.submitReview({ projectId, specVersionId: first.versionId, userId: planner });
+    const baselineId = newId();
+    await pool.query(
+      `INSERT INTO spec_baseline (id, project_id, name, created_by_user_id) VALUES ($1,$2,'R-BL',$3)`,
+      [baselineId, projectId, planner],
+    );
+    await pool.query(
+      `INSERT INTO spec_baseline_item (baseline_id, spec_id, spec_version_id) VALUES ($1,$2,$3)`,
+      [baselineId, first.specId, first.versionId],
+    );
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id, baseline_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'TSK-basis-bl','기준선','in_progress',$3,$4,'목표','PR','도구','경계')`,
+      [taskId, projectId, first.versionId, baselineId],
+    );
+
+    const second = await specs.draftUpsert({
+      baseHash: await hashOf(first.specId),
+      roles: ['planner'],
+      projectId,
+      specId: first.specId,
+      bodyMd: '# v2',
+      userId: planner,
+    });
+    await specs.submitReview({
+      projectId,
+      specVersionId: second['spec_version_id'] as string,
+      userId: planner,
+    });
+
+    const { rows } = await pool.query<{ rebrief_required_at: Date | null }>(
+      `SELECT rebrief_required_at FROM task WHERE id = $1`,
+      [taskId],
+    );
+    expect(rows[0]?.rebrief_required_at).toBeNull();
+    await pool.query(`DELETE FROM task WHERE id = $1`, [taskId]);
+    await pool.query(`DELETE FROM spec_baseline_item WHERE baseline_id = $1`, [baselineId]);
+    await pool.query(`DELETE FROM spec_baseline WHERE id = $1`, [baselineId]);
+  });
+
   it('승인은 참조하는 문서에 재검토 신호를 보낸다', async () => {
     const target = await newDraft('SPC-TARGET');
     const source = await newDraft('SPC-SOURCE');

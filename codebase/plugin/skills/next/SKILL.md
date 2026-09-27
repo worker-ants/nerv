@@ -36,43 +36,47 @@ allowed-tools:
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
+     활성 클레임 줄에 `task_key`·`spec_key`·`version_no`·`baseline` 이 있으니 6단계를 그대로 한다.
    - 응답을 `.nerv/cache/context-pack.json` 에 Write 한다 — 서버에 연결되지 않을 때 규약과 정책을
      읽을 유일한 사본이다.
 2. **다른 클레임을 가지고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
 3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
-   **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·기준선, 권장 scope가 실려 있다.
+   **기준 SpecVersion**(`spec_key`·`version_no` — 이 Task가 파생된 버전)·기준선(`baseline`)이 들어 있다.
    - 4요소 중 하나라도 비어 있으면 그 Task는 클레임하지 않는다. `nerv_question_create`로
      빈 요소를 지목해 에스컬레이션한다(/nerv:question 규약).
    - **`handoff_note`가 있으면 먼저 읽는다.** 앞사람이 이 작업을 내려놓으며 남긴 인수인계다
      — 어디까지 했고 무엇이 막혔는지가 거기 있다. 읽지 않고 시작하면 그 사람이 이미
      해 본 것을 되풀이한다.
-4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(응답의 권장
-   scope에서 시작하되 실제 건드릴 범위로 좁힌다). `idempotency_key` 포함.
+4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(후보의 출처 문서와
+   실제로 건드릴 파일로 정한다 — 넓게 잡으면 남의 작업과 겹친다). `idempotency_key` 포함.
    (브랜치·워크트리는 **훅이 git에게 직접 물어** 세션에 채운다 — 도구 인자로 실을 필요가 없고, 클레임은 받지 않는다.) 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
 5. **겹침 응답 처리.**
    - 경고(겹침 있으나 허용): 상대 세션의 사용자·hostname·scope를 사용자에게 보여주고,
      계속할지 확인받는다.
    - `NERV_CONFLICT_SCOPE`: 클레임 실패다. 응답 details의 상대 정보를 보고하고
      다음 후보로 이동한다. 후보가 없으면 `nerv_question_create`.
-6. **기준 버전으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상
-   `nerv_spec_get`(`spec_id=<후보의 spec_key>`, `version=<후보의 version_no>`)으로 한다 —
-   기본값(최신 approved)에 의존하지 않는다. 두 값은 후보 응답에 실려 온다.
-   응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
-   agent-integration §2.4).
+6. **작업의 기준으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상 **작업을 넘겨** 한다 —
+   `nerv_spec_get`(`spec_id`=<읽을 스펙>, `task`=<작업 키>). 서버가 작업의 기준을 판정한다:
+   출처 문서면 기준 버전(`read_as: "task_basis"`), 아니면 작업 기준선이 묶은 버전
+   (`"task_baseline"`), 기준선에도 없거나 기준선이 없는 작업이면 최신 승인본(`"approved_fallback"`)
+   이다. 기본값(최신 승인본)에 기대지 않는다 — 내 문서만 그때 것이고 주변 문서는 지금 것이 된다.
+   - **`read_as` 를 확인한다.** `approved_fallback` 으로 읽은 문서는 그 사실을 작업 노트에 남긴다
+     (기준선에 없는 문서이거나, 기준선 없는 작업의 주변 문서다).
    - **읽은 본문은 `.nerv/cache/specs/<spec_key>@v<version_no>.md` 에 Write 한다.** 버전을
      파일 이름에 박는 이유는 그것이 캐시를 안전하게 만들기 때문이다 — 최신으로 읽은 것은
      캐시하지 않는다(다음에 읽을 때 그 사이 바뀌었을 수 있고, 파일 이름은 그것을 말하지 못한다).
-   - **후보에 `baseline`이 실려 있으면 주변 문서도 그 세트로 읽는다** —
-     `nerv_spec_get`(`spec_id=<참조할 스펙>`, `baseline=<그 이름>`). 기준 버전은 이 문서
-     하나의 버전이고, 기준선은 **그 문서가 참조하는 문서들까지 포함한 세트**다. 세트 없이
-     주변 문서를 최신으로 읽으면 내 문서만 그때 것이고 나머지는 지금 것이 된다.
-     `version`과 `baseline`은 함께 줄 수 없다(둘 다 주면 거절된다).
-     **트리도 그 세트로 본다** — `nerv_spec_tree`(`baseline=<그 이름>`)는 그 세트가 담은
-     문서만, 담을 때의 버전으로 준다. 세트 없이 트리를 보면 그 뒤에 만들어진 문서가 섞여
-     들어와, 그 세트에 있는 문서인 줄 알고 참조하게 된다.
-   - 응답의 `baseline_pinned`가 `false`면 **그 세트에 없는 문서**다(나중에 만들어진 것).
-     최신 버전을 받은 것이므로 그 사실을 알고 읽는다.
+   - **주변 문서는 출처 문서가 링크한 것부터** 읽는다 — `nerv_spec_get`(`spec_id`, `task`,
+     `include`=["links"])의 `links` 가 그 버전 본문이 가리키는 문서와 같은 기준으로 본 버전이다.
+     관계 그래프는 버전이 없어 초안의 링크까지 섞여 있다.
+   - **트리도 작업의 기준으로 본다** — `nerv_spec_tree`(`task`=<작업 키>)는 작업 기준선이 담은
+     문서만, 담을 때의 버전으로 준다. 기준선 트리에는 `status` 를 함께 주지 않는다(거절된다 —
+     세트는 담을 때 모두 승인본이었다). 검색도 `nerv_spec_search`(`q`, `task`)로 한다.
+   - 출처 문서의 `basis_superseded` 는 기준선이 **없는** 작업일 때만 사람에게 보고한다. 기준선으로
+     개발하는 작업은 세트가 약속이라, 핀 버전이 밀려난 것은 드리프트가 아니다.
+   - **옛 서버와 섞일 때.** 응답에 `read_as` 가 없거나 `ignored_args` 에 `task` 가 있으면 그 서버는
+     작업 기준을 모른다 — 출처 문서는 `nerv_spec_get`(`spec_id`=<spec_key>, `version`=<version_no>),
+     주변 문서와 트리는 `baseline`=<그 이름>으로 읽는다(`version` 과 `baseline` 은 함께 주지 않는다).
 7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
    없으면 저장소 규약대로 새 브랜치를 만든다. 이후 /nerv:impl 규약으로 구현을 시작한다
    (하트비트 60초 주기 — 첫 하트비트는 클레임 직후 바로 보낸다).

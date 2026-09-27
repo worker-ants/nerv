@@ -600,6 +600,46 @@ describe('E03-S03 P0 도구 — 작업 흐름', () => {
   });
 
   /**
+   * **읽는 기준이 도구까지 온다**(2026-09-27 사람 결정 M1 · M7 · REQ-API-197 · 203). 서비스가 받아도
+   * 도구 스키마 · 핸들러가 나르지 않으면 인자는 `ignored_args` 로 버려지고 승인본이 온다.
+   */
+  it('nerv_spec_get · tree · search 가 basis 와 task 를 받는다 — 무엇으로 읽었는지 돌려준다', async () => {
+    const approved = await makeSpecVersion('SPC-MCP-BASIS', 'approved', 1);
+    const draftId = newId();
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,2,'draft','# 다음 버전 전용 어휘', decode('0b','hex'), $3)`,
+      [draftId, approved.specId, userId],
+    );
+    const latest = await callTool('nerv_spec_get', { spec_id: approved.key, basis: 'latest' });
+    expect(latest).toMatchObject({ version_no: 2, read_as: 'latest', edit_base_version_no: 2 });
+    expect(latest['ignored_args']).toBeUndefined();
+
+    const taskKey = 'TSK-mcp-basis';
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id)
+       VALUES ($1,$2,$3,'기준','backlog',$4)`,
+      [newId(), projectId, taskKey, approved.id],
+    );
+    const byTask = await callTool('nerv_spec_get', { spec_id: approved.key, task: taskKey });
+    expect(byTask).toMatchObject({ version_no: 1, read_as: 'task_basis', task: taskKey });
+
+    const tree = await callTool('nerv_spec_tree', { root: approved.key, basis: 'latest' });
+    expect((tree['nodes'] as { version_no: number }[])[0]?.version_no).toBe(2);
+    const found = await callTool('nerv_spec_search', { q: '다음 버전 전용 어휘', basis: 'latest' });
+    expect(found).toMatchObject({ basis: 'latest' });
+    expect(found['ignored_args']).toBeUndefined();
+
+    // 선택자는 하나만 — 도구도 서비스의 판정을 그대로 돌려준다
+    const { body } = await rpc('tools/call', {
+      name: 'nerv_spec_get',
+      arguments: { spec_id: approved.key, version: 1, basis: 'latest' },
+    });
+    expect(JSON.stringify(body)).toContain('basis');
+  });
+
+  /**
+   * **경계가 실물이 된다**(2026-09-07 · REQ-API-153).  /**
    * **경계가 실물이 된다**(2026-09-07 · REQ-API-153).
    *
    * 문서 세 곳과 스킬 다섯이 2026-08 부터 "본문은 `<nerv:spec … trust="untrusted">` 안에

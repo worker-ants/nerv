@@ -72,7 +72,17 @@ allowed-tools:
 
 `content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 넣지 않는다: 견줄 버전이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
 
-`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그러면 남의 글을 덮어쓴다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
+`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그러면 남의 글을 덮어쓴다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. **다시 읽을 곳은 오류가 준다** — details 의 `reread`(`tool`·`args`)를 그대로 부르면 서버가 견준 그 버전(`current_version_no`)이 온다. 기본으로 다시 읽으면 승인본이 와서 같은 거절이 되풀이된다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
+
+## 무엇을 기준으로 읽나 — 고칠 문서는 최신이다
+
+`nerv_spec_get` 의 기본은 **최신 승인본**이다. 승인본 위에 초안(또는 검토 중인 개정판)이 있으면 기본으로 읽은 본문은 **고칠 대상이 아니다.** 고칠 문서는 `basis: "latest"` 로 읽는다 — 번호가 가장 큰 버전이 온다. 주변 문서는 합의된 것(기본 · 승인본)으로 읽고, 겹치는 개정이 있는지 볼 때만 `latest` 로 읽는다.
+
+- 응답의 **`read_as`** 가 무엇으로 읽었는지(`approved`·`latest`·`version`·`baseline`)다. `edit_base_version_no` 는 저장이 견줄 버전이다 — 읽은 버전의 번호와 같아야 그 `content_hash` 가 `base_hash` 로 통한다.
+- **`edit_blocked_by` 가 있으면 고치지 않는다.** 검토 중인 개정판(`version_no`·`approval_id`)이 있다는 뜻이고, 그동안 새 초안은 `in_review_pending` 으로 거절된다. 결재가 끝나거나 거절되어 초안으로 돌아올 때까지 기다리고, 사람에게 그 결재를 알린다.
+- 승인본과 무엇이 달라졌는지는 `diff_from`(`basis: "approved"`)으로 같은 호출에서 받는다 — 응답의 `diff` 에 요구사항 변화와 본문 줄 차이가 온다(400줄에서 자르면 `body_diff_truncated`). 기준선과 견줄 때는 `diff_from`(`baseline: "<이름>"`)이다.
+- 요구사항은 **읽은 버전의 것**이다 — 최신 승인본이 아닌 버전을 읽으면 `requirements_source: "version_body"` 이고 그 본문에서 뽑은 줄이 온다(`in_current` 가 지금 살아 있는 요구사항인지 말한다).
+- **옛 서버와 섞일 때.** 응답에 `read_as` 가 없거나 `ignored_args` 에 `basis` 가 있으면 그 서버는 버전 기준을 모른다 — 승인본이 온 것이다. 초안은 `version` 으로 읽는다(번호는 저장 응답의 `version_no` 나 웹 주소의 `?v=` 에 있다).
 
 ## 무엇을 왜 바꿨는지 남긴다
 
@@ -87,7 +97,7 @@ allowed-tools:
 정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
 
 - 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind, base_hash}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
-- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 넣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
+- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 넣는다. 기본(승인본)으로 읽든 `basis: "latest"` 로 읽든 받는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
 - 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`·`base_hash`, 되돌릴 때 `remove: true`)를 쓴다. 지울 때는 `base_hash` 를 요구하지 않는다.
 
 ## 다이어그램은 mermaid 로 그린다
@@ -139,10 +149,13 @@ allowed-tools:
    `around`(중심 스펙)와 `hops`(그 중심에서 몇 간선까지 · 기본 1)로 좁히고, 간선까지 받으려면
    `include_relations: true` 를 준다. `around` 는 `root`·`depth` 와 다른 축이고 조상을 포함하지 않는다.
    검색에서 **이미 어떤 문서를 알고 그것을 가리키는 쪽을 찾을 때**는 `references`(스펙 키)를 쓴다.
-   **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
-   그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
-   답이다). 걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** —
-   후보로 세는 것은 `matched` 가 참인 것뿐이다.
+   **쓰다 만 것을 먼저 본다** — `nerv_spec_tree`(`basis`=`latest`, `status`=`draft,in_review`)로
+   끝나지 않은 문서를 훑고, 그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**
+   (`key_taken` 때와 같은 답이다). **`basis: "latest"` 를 빼면 승인본 위에서 고치는 중인 문서가
+   빠진다** — 기본은 문서마다 최신 승인본의 상태를 보기 때문이다. 중복 확인도 같다:
+   `nerv_spec_search`(`q`, `basis`=`latest`)는 초안 · 검토 중인 본문까지 찾는다.
+   걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** — 후보로 세는 것은
+   `matched` 가 참인 것뿐이다.
 2. 사람과 트리 위치(`parent_id`)·`type`·`title`을 합의한 뒤 본문을 작성한다.
    자리 후보는 `nerv_spec_tree`(`type: "vision,area"`)로 **뼈대만** 보면 한눈에 든다 —
    `area` 는 본문 없이 자리를 잡는 종류라, 141편짜리 프로젝트도 뼈대는 17편이다.
@@ -155,9 +168,11 @@ allowed-tools:
    그리고 **무엇이 바뀌었는지**다.
 
 ### edit — 초안 이어쓰기·피드백 반영
-1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments"]`)로
-   최신 본문과 open 코멘트를 읽는다. **`include` 의 어휘는 `tasks`·`comments`·`attachments`
-   셋뿐이고 그 밖의 값은 400 이다** — 요구사항은 늘 실려 오므로 달라고 하지 않는다.
+1. `nerv_spec_get`(`spec_id`, `basis`=`latest`, `include=["comments"]`)로
+   고칠 본문(열린 초안, 없으면 최신 승인본)과 open 코멘트를 읽는다. 응답의 `version_no` ·
+   `doc_status` 를 사람에게 알리고, **`edit_blocked_by` 가 있으면 여기서 멈춘다**(위 "무엇을
+   기준으로 읽나"). **`include` 의 어휘는 `tasks`·`comments`·`attachments`·`links`·`versions`·
+   `baselines` 여섯이고 그 밖의 값은 400 이다** — 요구사항은 늘 포함되므로 달라고 하지 않는다.
    응답의 `content_hash` 를 `base_hash` 로 쓴다 —
    **저장에 넣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
    아는 사실이라 묻지 않는다.
@@ -204,8 +219,9 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
    **성공 응답이 `status: in_review` 와 `approval_id`·`web_url`(받은 요청)이다** — 이 도구는
    `NERV_APPROVAL_REQUIRED` 를 내지 않는다. 결정을 기다리는 동안 이 세션은 `awaiting_input`
    이고, 결과는 두 길로 온다: /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided`,
-   아니면 `nerv_spec_get`(`spec_id`)의 `status`(approved 또는 draft 로 복귀). 승인을 읽는
-   도구는 없다. 그동안 다른 작업을 시작하지 않는다.
+   아니면 `nerv_spec_get`(`spec_id`, `version`=<제출한 버전 번호>)의 `doc_status`(approved,
+   또는 거절되어 draft 로 복귀). **버전 번호를 넣는다** — 빼면 기본(이전 승인본)이 와서 거절된
+   개정판도 approved 로 읽힌다. 승인을 읽는 도구는 없다. 그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존
    pending Approval을 재사용하므로 받은 요청 카드가 중복 생성되지 않는다.
 
@@ -213,8 +229,9 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
-| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — nerv_spec_get 의 `content_hash` 를 넣어 다시 부른다 |
+| NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — details 의 `reread` 대로 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문 · `current_version_no` · web_url 이 온다 |
+| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — details 의 `reread` 대로 읽고 그 `content_hash` 를 넣어 다시 부른다 |
+| NERV_PRECONDITION `in_review_pending` | 검토 중인 개정판(`version_no`)이 있어 새 초안을 만들 수 없다 — details 의 `approval_id`·`web_url` 을 사람에게 알리고 기다린다. 거절되면 그 버전이 초안으로 돌아오니 그 위에서 잇는다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 이 스킬의 도구는 내지 않는다 — 오면 `approval_id` 를 사람에게 보고하고 멈춘다 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |

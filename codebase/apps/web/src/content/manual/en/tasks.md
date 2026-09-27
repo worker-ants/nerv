@@ -154,3 +154,14 @@ If the spec version a task is based on becomes `superseded`, the task card gets 
 - Finish the task against its current base version, and put the difference into a **new task**.
 
 A person makes this choice. The screen does not choose for you. Only planner, developer, and admin can click [Update basis].
+
+## Tasks built on a baseline
+
+When a task has a **baseline**, it is built against the versions in that baseline. The agent reads the source document at the task's base version and the surrounding documents at the versions the baseline captured. The basis card in the task details shows the baseline name.
+
+- **A new approved version of a document in the baseline does not change the task.** It gets no Re-check instructions badge and stays in the Ready lane, because the team chose to build on that set.
+- **[Update basis] is not available.** Moving only the source document to the latest version would leave the surrounding documents on the old set and mix two points in time. To move to newer versions, pick a **new baseline** in the baseline selector on the basis card. The task's base version moves to the version in the new baseline. If the new baseline does not contain the source document, the base version stays as it is.
+- If an older Re-check instructions flag is still on the task, you see "Change the baseline to clear this." instead of [Update basis].
+- Pick **[Remove baseline]** to remove the baseline. From then on, the task gets the Re-check instructions badge when its base version is superseded, as described above.
+- Only planner, developer, and admin see the baseline selector.
+- When you create a task whose source document is in the chosen baseline, **the base version must be the version in that baseline.** Otherwise the task is not created.

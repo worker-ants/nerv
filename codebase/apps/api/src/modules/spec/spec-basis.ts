@@ -22,16 +22,99 @@ export function resolveBasis(input: {
   basis?: string | null;
   baseline?: string | null;
   versionNo?: number | null;
+  task?: string | null;
 }): SpecViewBasis {
-  if (input.basis == null || input.basis === '') return 'approved';
-  const [basis] = assertVocab([input.basis], SPEC_VIEW_BASES, 'basis') as [SpecViewBasis];
-  if ((input.baseline != null && input.baseline !== '') || input.versionNo != null) {
-    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.basis_exclusive'), {
+  const selector = resolveSelector(input);
+  return selector.kind === 'latest' ? 'latest' : 'approved';
+}
+
+/**
+ * **무엇으로 읽는가** — 선택자는 넷이고 하나만 준다(REQ-API-196 · 203).
+ *
+ * `basis`(승인본 · 최신) · `version`(REST 의 `v`) · `baseline` · `task`(작업의 기준 — 2026-09-27
+ * 사람 결정 M7). 넷은 모두 "어느 버전을 읽는가" 에 대한 답이라 둘을 함께 받으면 어느 쪽이 이겼는지
+ * 매번 물어야 한다. 예전에는 버전과 기준선의 배타를 표면(컨트롤러 · 도구)이 각자 검사했다 — 판정은
+ * 여기 한 곳이다(D-05).
+ */
+export type SpecSelector =
+  | { kind: 'approved' }
+  | { kind: 'latest' }
+  | { kind: 'version'; versionNo: number }
+  | { kind: 'baseline'; name: string }
+  | { kind: 'task'; task: string };
+
+export function resolveSelector(input: {
+  basis?: string | null;
+  baseline?: string | null;
+  versionNo?: number | null;
+  task?: string | null;
+}): SpecSelector {
+  const basis =
+    input.basis == null || input.basis === ''
+      ? null
+      : (assertVocab([input.basis], SPEC_VIEW_BASES, 'basis')[0] as SpecViewBasis);
+  const baseline = input.baseline == null || input.baseline === '' ? null : input.baseline;
+  const task = input.task == null || input.task === '' ? null : input.task;
+  const versionNo = input.versionNo ?? null;
+  // 예전부터 있던 한 쌍은 예전 오류 그대로다 — 부르는 쪽이 이미 그 모양을 안다
+  if (versionNo !== null && baseline !== null && basis === null && task === null) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_xor_baseline'), {
       kind: 'invalid_input',
-      field: 'basis',
+      field: 'baseline',
     });
   }
-  return basis;
+  const given = [
+    ...(basis !== null ? ['basis'] : []),
+    ...(versionNo !== null ? ['version'] : []),
+    ...(baseline !== null ? ['baseline'] : []),
+    ...(task !== null ? ['task'] : []),
+  ];
+  if (given.length > 1) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.basis_exclusive'), {
+      kind: 'invalid_input',
+      field: basis !== null ? 'basis' : 'task',
+      conflict: given,
+    });
+  }
+  if (task !== null) return { kind: 'task', task };
+  if (baseline !== null) return { kind: 'baseline', name: baseline };
+  if (versionNo !== null) return { kind: 'version', versionNo };
+  return basis === 'latest' ? { kind: 'latest' } : { kind: 'approved' };
+}
+
+/** 작업이 가리키는 기준 — 출처 문서와 그 버전, 기준선(REQ-API-203) */
+export interface TaskBasis extends Record<string, unknown> {
+  task_id: string;
+  task_key: string;
+  source_spec_id: string | null;
+  source_version_id: string | null;
+  source_version_no: number | null;
+  baseline_id: string | null;
+  baseline: string | null;
+}
+
+/** 작업을 키 또는 UUID 로 찾아 그 기준을 읽는다. 없는 작업은 거절이다(빈 결과가 아니다) */
+export async function taskBasisOf(db: NervDb, projectId: string, ref: string): Promise<TaskBasis> {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref);
+  const { rows } = await db.execute<TaskBasis>(sql`
+    SELECT t.id AS task_id, t.key AS task_key, sv.spec_id AS source_spec_id,
+           t.source_spec_version_id AS source_version_id, sv.version_no AS source_version_no,
+           t.baseline_id, bl.name AS baseline
+      FROM task t
+ LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
+ LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
+     WHERE t.project_id = ${projectId}
+       AND ${uuid ? sql`t.id = ${ref}::uuid` : sql`t.key = ${ref}`}
+  `);
+  const found = rows[0];
+  if (found === undefined) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
+      kind: 'not_found',
+      field: 'task',
+      task: ref,
+    });
+  }
+  return found;
 }
 
 /** 그 이름의 기준선 id — 없는 이름은 기본값으로 떨어뜨리지 않고 거절한다(REQ-API-082 의 규율) */

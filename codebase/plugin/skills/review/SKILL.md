@@ -6,6 +6,10 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_review_submit
   - mcp__nerv__nerv_finding_resolve
   - mcp__plugin_nerv_nerv__nerv_finding_resolve
+  - mcp__nerv__nerv_task_get
+  - mcp__plugin_nerv_nerv__nerv_task_get
+  - mcp__nerv__nerv_spec_get
+  - mcp__plugin_nerv_nerv__nerv_spec_get
   - Bash(nerv-outbox:*)
   - Read(.nerv/**)
   - Write(.nerv/**)
@@ -23,6 +27,10 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
+   **어느 작업의 리뷰인지 알면 그 작업의 기준으로 대조한다** — `nerv_task_get`(`task_id`)으로
+   출처 문서(`spec_key`)를 확인하고 `nerv_spec_get`(`spec_id`, `task`)으로 읽는다. 최신 승인본으로
+   대조하면 작업이 약속하지 않은 문장으로 지적하게 된다. 지적의 `spec_version_id` 는 그 응답의
+   `version_id` 다.
 3. **`nerv_review_submit`** — `reviewer{role, risk}`, `summary`, `findings[]`.
    - **어느 작업의 리뷰인지 알면 `task_id` 를 넣는다.** 그것이 리뷰를 Task 에 잇는 유일한 인자다 —
      빠지면 서버는 이 리뷰가 무엇에 대한 것인지 알 길이 없다.
