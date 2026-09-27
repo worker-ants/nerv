@@ -210,7 +210,7 @@ describe('REQ-WEB-163 — 알림이 뷰 상태까지 싣는다', () => {
     });
   });
 
-  it('반려 알림도 같은 축이다 — 무엇을 고쳐야 하는지가 diff 에 있다', () => {
+  it('거절 알림도 같은 축이다 — 무엇을 고쳐야 하는지가 diff 에 있다', () => {
     expect(deepLinkFor(spec({ event_type: NERV_EVENT.SPEC_REJECTED, version_no: 2 }))).toEqual({
       to: '/p/clemvion/specs/SPC-CWC-007',
       search: { diff: 'v1..v2' },

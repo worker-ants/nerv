@@ -61,7 +61,7 @@ describe('리포트', () => {
           file: 'spec/a.md',
           line: 12,
           rule: 'req-id-duplicate',
-          reason: 'status_map 에 없는 값: weird',
+          reason: 'status_map에 없는 값: weird',
           disposition: 'manual',
         },
       ],
@@ -69,7 +69,7 @@ describe('리포트', () => {
     expect(md).toContain('spec/a.md');
     expect(md).toContain('| 12 |');
     expect(md).toContain('수동 확인');
-    expect(md).toContain('status_map 에 없는 값');
+    expect(md).toContain('status_map에 없는 값');
   });
 
   it('예상 집계 비교표를 싣는다 (REQ-IMP-016)', () => {

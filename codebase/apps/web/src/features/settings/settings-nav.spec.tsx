@@ -131,12 +131,14 @@ describe('설정의 항목은 범위로 묶인다 (SET-06)', () => {
     );
   });
 
-  it('연동은 Phase 2 — 항목만 비활성으로 보인다', async () => {
+  it('연동은 항목만 비활성으로 보이고 "준비 중"이 붙는다 — 화면에 "Phase 2"를 쓰지 않는다', async () => {
     mount('/settings/members');
     const nav = await railNav();
     const integrations = within(nav).getByText('연동').closest('[aria-disabled]');
     expect(integrations?.getAttribute('aria-disabled')).toBe('true');
     expect(integrations?.tagName).not.toBe('A');
+    expect(integrations?.textContent).toContain('준비 중');
+    expect(integrations?.textContent).not.toContain('Phase');
   });
 
   it('조직 admin 이 아니면 조직 전체 토큰을 그리지 않는다 (REQ-WEB-168)', async () => {

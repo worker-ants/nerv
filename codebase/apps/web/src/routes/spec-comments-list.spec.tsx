@@ -220,17 +220,17 @@ describe('코멘트 — 누가·언제·어느 버전에, 앵커는 고른다 (S
     expect(screen.queryByText('끝난 지적')).toBeNull();
     fireEvent.click(screen.getByTestId('comments-resolved-toggle'));
     expect(await screen.findByText('끝난 지적')).toBeTruthy();
-    expect(screen.getByText(/지민 이\(가\) 해결함/)).toBeTruthy();
+    expect(screen.getByText(/지민이\(가\) 해결함/)).toBeTruthy();
   });
 
-  it('가리키던 헤딩이 사라진 코멘트는 "앵커 유실" 로 머리에 모은다', async () => {
+  it('가리키던 헤딩이 사라진 코멘트는 "앵커 유실"로 머리에 모은다', async () => {
     renderAt('/p/clemvion/specs/SPC-X?rail=comments');
     const lost = await screen.findByTestId('comments-lost');
     expect(lost.textContent).toContain('옛 절에 달았다');
     expect(lost.textContent).not.toContain('여기가 모호하다');
   });
 
-  it('앵커는 본문의 헤딩과 요구사항에서 고른다 — slug 를 손으로 적지 않는다', async () => {
+  it('앵커는 본문의 헤딩과 요구사항에서 고른다 — slug를 손으로 적지 않는다', async () => {
     renderAt('/p/clemvion/specs/SPC-X?rail=comments');
     const select = (await screen.findByTestId('comment-anchor-select')) as HTMLSelectElement;
     await waitFor(() => expect(select.querySelectorAll('option').length).toBeGreaterThan(3));
@@ -264,7 +264,7 @@ describe('스펙 목록 — 머리의 상태별 수 · 동결 역할 · 행의 �
     );
   });
 
-  it('동결은 planner·admin 의 것이다 — 아닌 사람에게는 잠긴 채 이유를 보인다', async () => {
+  it('동결은 planner·admin의 것이다 — 아닌 사람에게는 잠긴 채 이유를 보인다', async () => {
     roles = ['developer'];
     renderAt('/p/clemvion/specs');
     const freeze = (await screen.findByTestId('freeze-baseline')) as HTMLButtonElement;

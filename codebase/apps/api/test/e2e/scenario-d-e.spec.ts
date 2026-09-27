@@ -311,7 +311,7 @@ describe.skipIf(!AVAILABLE)('시나리오 E — 임포터 전수 (성공 기준 
     // 실패 전건 목록화 — **파일과 사유**가 함께 있어야 한다(§4.1). 실패를 세기만 하는
     // 리포트는 "무엇을 고쳐야 하는지"에 답하지 못한다
     expect(report).toContain('spec/widget/broken.md');
-    expect(report).toContain('status_map 에 없는 값');
+    expect(report).toContain('status_map에 없는 값');
   });
 
   /** `--apply` 한 벌 — 매니페스트 경로까지 같은 것을 쓴다(§3.3) */

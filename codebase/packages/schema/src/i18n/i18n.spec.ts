@@ -188,10 +188,33 @@ describe('말투 — 사람이 보는 화면은 합쇼체다', () => {
     expect(haera.test('프로젝트마다 따로입니다')).toBe(false);
   });
 
-  it('설계 문서의 말이 화면에 새지 않는다 — 결정 번호 · "MVP"', () => {
-    // "(D-08)" 을 읽은 사람은 그 뜻을 찾을 곳이 없다 — 이유는 문장으로 말한다
-    const leak = /\bD-\d{2}\b|\bMVP\b/;
+  it('설계 문서의 말이 화면에 새지 않는다 — 결정 번호 · "MVP" · "Phase N"', () => {
+    // "(D-08)" 을 읽은 사람은 그 뜻을 찾을 곳이 없다 — 이유는 문장으로 말한다.
+    // 로드맵 단계("Phase 2")도 같다. 화면에는 "준비 중"으로 쓴다(2026-09-27 사람 결정 · §3.1 표).
+    const leak = /\bD-\d{2}\b|\bMVP\b|\bPhase \d\b/;
     expect(screen.filter(([, value]) => leak.test(value)).map(([key]) => key)).toEqual([]);
+    const enScreen = Object.entries(en).filter(
+      ([key]) => !AGENT_PREFIXES.some((prefix) => key.startsWith(prefix)),
+    );
+    expect(enScreen.filter(([, value]) => leak.test(value)).map(([key]) => key)).toEqual([]);
+  });
+
+  it('코드 · 영문 · 자리표시자 뒤의 조사를 띄우지 않는다 — "{name}을(를)" · "admin만" (§3.5)', () => {
+    // 2026-09-27 사람 결정 · 용어 사전 §3.5. 규칙이 없던 동안 "admin 만"과 "admin만"이 섞였다.
+    // 에이전트가 받는 키도 같다 — 한국어 띄어쓰기는 읽는 쪽과 상관없다.
+    const particles =
+      '은|는|이|가|을|를|의|에|에서|에게|와|과|로|으로|도|만|까지|부터|처럼|보다|이다|이고|이며|이면|인|입니다|이나|나|이라|라|이라는|라는|에는|에도|에서는|로는|으로는|이어야|여야';
+    const spaced = new RegExp(
+      `(?:\`[^\`]+\`|(?<![A-Za-z0-9])[A-Za-z0-9][A-Za-z0-9._+#/-]*|[}"”」]) (?:${particles})(?=$|[\\s.,)!?:·'"(」])`,
+    );
+    expect(
+      Object.entries(ko)
+        .filter(([, value]) => spaced.test(value))
+        .map(([key]) => key),
+    ).toEqual([]);
+    expect(spaced.test('{name} 을(를) 지웠습니다.')).toBe(true);
+    expect(spaced.test('admin 만 볼 수 있습니다.')).toBe(true);
+    expect(spaced.test('v2 이상에서')).toBe(false);
   });
 
   it('예외로 둔 견본은 실제로 해라체다 — 고쳐지면 예외도 걷는다', () => {

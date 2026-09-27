@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7 이 정본이다.
 >
-> 문서 버전 v0.78 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.79 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.79 변경(2026-09-27 — 낡은 문단 하나): **새 요구사항 없음 · §3.3 한 문단 · 배달되는 파일 변경 없음.** `.nerv/env`가 Codex를 "절반만" 지원한다는 문단은 2026-09-04 기준이었다. 2026-09-07에 템플릿의 `notify` 줄을 주석으로 막은 뒤로(§5.2) 이 파일은 Codex에서 쓰이지 않는다. 문단을 사실대로 고쳤다.
 >
 > v0.78 변경(2026-09-27 — 효과를 쟀다 · 검사기 오탐 하나): **새 요구사항 없음 · §7.2 · §7.7 · `ko-style` 0.1.1 → 0.1.2.** `claude plugin eval` 사례 셋(`evals/` · 배포하지 않는다)으로 켠 실행과 끈 실행을 비교했다(평균 차이 +0.04 · §7.7). 짧은 요청에서는 모델이 이미 대부분 규칙대로 쓴다. 검사기가 "0.3.4" 나 `plugin.json` 의 점을 문장 끝으로 읽어 커밋 제목의 "제목 — 부제" 를 짝 없는 줄표로 잡던 것을 고쳤다. 문장 부호 뒤가 공백 · 닫는 기호 · 글 끝일 때만 문장을 끊는다. `claude plugin validate --strict` 가 통과하도록 매니페스트에 `author` 를 더했다.
 >
@@ -1246,7 +1248,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 
 마지막 줄이 중요하다. **같은 `${VAR}` 문법인데 플러그인이 제공한 것만 프로젝트 환경을 못 본다.** 그래서 서버 주소·토큰처럼 **프로젝트마다 다른 값을 쓰는 MCP 설정은 프로젝트가 갖는다** — 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이다.
 
-**`.nerv/env` 는 Codex 를 절반만 덮는다**(2026-09-04 확인). Codex 의 notify·훅은 우리 포워더를 부르고 그 스크립트가 파일을 직접 읽으므로 덮인다. 그러나 **MCP 인증은 그 경로로 덮이지 않는다** — `bearer_token_env_var`·`env_http_headers` 는 **환경변수의 이름만** 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env` 를 읽는 주체가 없다.
+**`.nerv/env`는 지금 Codex에서 쓰이지 않는다**(2026-09-04 확인 · 2026-09-27 정정). 처음 설계는 Codex의 notify가 우리 포워더를 부르고, 포워더가 이 파일을 직접 읽는 것이었다. 그런데 notify를 받을 엔드포인트가 서버에 없어서 템플릿의 `notify` 줄은 주석으로 막아 두었고(§5.2 · 2026-09-07), Codex용 훅 매핑도 아직 없다(§5.1 표). **MCP 인증도 이 파일로 채워지지 않는다.** `bearer_token_env_var`·`env_http_headers`는 환경변수의 이름만 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env`를 읽는 프로그램이 없다. 그래서 Codex에서는 `NERV_TOKEN`을 셸 환경에 둔다(`plugin/codex/README.md`).
 
 **다만 길이 하나 있을 수 있다**: Codex 원격 MCP 설정에 **`http_headers_helper`** 키가 있다([2.4 연동 기술](../02-research/integration-tech.md) §3.1). 이름대로 명령이 헤더를 만들어 주는 자리라면 그 명령이 `.nerv/env` 를 읽어 토큰을 실을 수 있다 — Claude Code 의 `headersHelper` 와 같은 모양이다. **의미론을 실측하지 않았으므로 된다고 적지 않는다**(Phase 2 실측 항목).
 

@@ -166,7 +166,7 @@ async function issue(): Promise<void> {
 }
 
 describe('토큰 — 기본은 권장 묶음, 발급 뒤에는 연결 3단계', () => {
-  it('그대로 발급하면 권장 묶음이 나간다 — agent-session:launch 가 들어 있다', async () => {
+  it('그대로 발급하면 권장 묶음이 나간다 — agent-session:launch가 들어 있다', async () => {
     renderAt('/settings/tokens');
     await issue();
     await waitFor(() => expect(posted.some((p) => p.url === '/me/tokens')).toBe(true));
@@ -174,7 +174,7 @@ describe('토큰 — 기본은 권장 묶음, 발급 뒤에는 연결 3단계', 
     expect(sent).toEqual([...AGENT_RECOMMENDED_SCOPES]);
   });
 
-  it('원문 카드는 토큰 · 플러그인 설치 · 설치 캐시 경로의 nerv-init 을 차례로 준다', async () => {
+  it('원문 카드는 토큰 · 플러그인 설치 · 설치 캐시 경로의 nerv-init을 차례로 준다', async () => {
     renderAt('/settings/tokens');
     await issue();
     const card = await screen.findByTestId('issued-token');
@@ -194,7 +194,7 @@ describe('토큰 — 기본은 권장 묶음, 발급 뒤에는 연결 3단계', 
     );
   });
 
-  it('그 토큰이 처음 쓰이면 "연결됨 · 기계" 로 바뀐다', async () => {
+  it('그 토큰이 처음 쓰이면 "연결됨 · 기계"로 바뀐다', async () => {
     tokens = [
       {
         id: 'tok-1',
@@ -243,7 +243,7 @@ describe('세션 카드 — 기다리는 것과 한 일', () => {
     ];
     renderAt('/p/clemvion/sessions');
     expect((await screen.findByTestId('session-last-task')).textContent).toContain('회수됨');
-    expect(screen.getByText(/CLV-T-AAA 의 클레임은 회수됐습니다/)).toBeTruthy();
+    expect(screen.getByText(/CLV-T-AAA의 클레임은 회수됐습니다/)).toBeTruthy();
   });
 
   it('세션이 하나도 없으면 에이전트를 붙이는 길을 준다', async () => {

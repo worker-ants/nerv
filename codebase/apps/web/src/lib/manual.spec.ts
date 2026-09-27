@@ -18,6 +18,14 @@ import { renderDoc } from './markdown.js';
 
 const LOCALES = ['ko', 'en'] as const;
 
+/** 앞말(코드 · 영문 · 숫자 · 자리표시자 · 닫는 따옴표 · 글자로 끝나는 굵은 글씨)과 조사 사이의 빈칸 */
+const PARTICLES =
+  '은|는|이|가|을|를|의|에|에서|에게|와|과|로|으로|도|만|까지|부터|처럼|보다|이다|이고|이며|이면|인|입니다|이나|나|이라|라|이라는|라는|에는|에도|에서는|로는|으로는|이어야|여야';
+const SPACED_PARTICLE = new RegExp(
+  `(?:\`[^\`\\n]+\`|(?<![A-Za-z0-9])[A-Za-z0-9][A-Za-z0-9._+#/-]*|[}"”」]|[가-힣A-Za-z0-9]\\*\\*) (?:${PARTICLES})(?=$|[\\s.,)!?:·'"(」])`,
+  'g',
+);
+
 describe('매뉴얼 목차', () => {
   /**
    * **id 의 정본은 `manual-chapters.ts` 다**(2026-09-10 · REQ-WEB-161). 본문 없이 목록만
@@ -86,6 +94,25 @@ describe('매뉴얼 목차', () => {
       }
     }
     expect(leaked).toEqual([]);
+  });
+
+  /**
+   * **조사는 앞말에 붙인다. 코드 · 영문 뒤에서도 같다**(2026-09-27 · 사람 결정 · 용어 사전 §3.5).
+   * 규칙이 없던 동안 한 장 안에서도 "`nerv` 이고"와 "`nerv`이고"가 섞였다. 굵은 글씨가 부호나
+   * 기호로 끝나는 자리("**[검토 요청]** 을")만 띄운다. 붙이면 위 검사가 잡는 별표가 남는다.
+   */
+  it('코드 · 영문 뒤의 조사를 띄우지 않는다 (용어 사전 §3.5)', () => {
+    const spaced: string[] = [];
+    for (const chapter of MANUAL_CHAPTERS) {
+      let fence = false;
+      for (const line of chapter.body.ko.split('\n')) {
+        if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+        if (fence) continue;
+        for (const match of line.matchAll(SPACED_PARTICLE))
+          spaced.push(`${chapter.id}: ${match[0]}`);
+      }
+    }
+    expect(spaced).toEqual([]);
   });
 
   it('이전·다음은 순환하지 않는다 — 끝에서 처음으로 돌아가면 끝이라는 것을 모른다', () => {

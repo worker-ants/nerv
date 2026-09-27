@@ -70,7 +70,8 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     items: [
       { to: '/settings/projects', label: 'settings.tab.projects' },
       { to: '/settings/gates', label: 'settings.tab.gates' },
-      // 명세의 연동 탭은 Phase 2 다 — **항목만 비활성으로 둔다**(§2.8). 아예 빼면 찾는 사람이 헤맨다
+      // 명세의 연동 탭은 Phase 2다. **항목만 비활성으로 두고 "준비 중"을 붙인다**(§2.8). 아예 빼면 찾는 사람이 헤맨다.
+      // 화면에는 "Phase 2" 대신 "준비 중"으로 쓴다. 설계 문서의 말은 화면에 두지 않는다(용어 사전 §3.1)
       { to: null, label: 'settings.tab.integrations' },
     ],
   },
@@ -132,7 +133,7 @@ export function SettingsNav({
                   aria-disabled="true"
                   className="shrink-0 px-1 pb-2 text-sm whitespace-nowrap text-text-ghost"
                 >
-                  {t(item.label)} · {t('shell.nav.phase2')}
+                  {t(item.label)} · {t('shell.nav.coming_soon')}
                 </span>
               ) : (
                 <Link key={item.to} to={item.to} className={TAB}>
@@ -170,7 +171,7 @@ export function SettingsNav({
                 )}
               >
                 <span className="flex-1 truncate">{t(item.label)}</span>
-                <span className="shrink-0 text-2xs">{t('shell.nav.phase2')}</span>
+                <span className="shrink-0 text-2xs">{t('shell.nav.coming_soon')}</span>
               </span>
             ) : (
               <Link

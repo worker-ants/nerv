@@ -100,7 +100,8 @@ export const en = {
   'error.approval.already_approved':
     'You already approved this document. The second approval must come from someone else.',
   'error.approval.already_decided': 'This item has already been decided.',
-  'error.approval.content_changed': 'The content changed after you opened this card.',
+  'error.approval.content_changed':
+    'The content changed after you loaded it. Check the new version and decide again.',
   'error.approval.not_assignee': 'You are not the designated approver.',
   'error.approval.not_found': 'Approval item not found.',
   'error.approval.not_in_role_queue': 'This approval belongs to the {role} queue.',
@@ -884,7 +885,7 @@ export const en = {
   'shell.language': 'Language',
   'shell.menu': 'Menu',
   'shell.nav.overview': 'Overview',
-  'shell.nav.phase2': 'Phase 2',
+  'shell.nav.coming_soon': 'Coming soon',
   'shell.nav.review': 'Review',
   'shell.nav.sessions': 'Sessions',
   'shell.nav.specs': 'Specs',
@@ -1797,7 +1798,7 @@ export const en = {
   'realtime.conflict_blocked': 'Claim blocked due to a declared scope overlap.',
   'realtime.spec_approved': '{subject} was approved.',
   'realtime.spec_changed': '{subject} just changed.',
-  'realtime.spec_rejected': '{subject} was sent back.',
+  'realtime.spec_rejected': '{subject} was rejected.',
   'realtime.spec_submitted': '{subject} was submitted for review.',
   'realtime.conflict_warn': 'Another session has already claimed this declared scope.',
   'specs.empty': 'No specs yet.',

@@ -193,7 +193,7 @@ describe('멤버 표 — 역할은 그 줄의 범위에 쓴다', () => {
   });
 });
 
-describe('프로젝트 admin 은 자기 프로젝트만 (REQ-API-169)', () => {
+describe('프로젝트 admin은 자기 프로젝트만 (REQ-API-169)', () => {
   it('조직 전체 줄은 잠기고 자기 프로젝트 줄은 열린다', async () => {
     me = PROJECT_ADMIN;
     renderAt('/settings/members');
@@ -203,7 +203,7 @@ describe('프로젝트 admin 은 자기 프로젝트만 (REQ-API-169)', () => {
     await waitFor(() =>
       expect((within(own).getByTestId('role-qa') as HTMLButtonElement).disabled).toBe(false),
     );
-    expect(screen.getByText(/조직 전체 줄은 조직 admin 만/)).toBeDefined();
+    expect(screen.getByText(/조직 전체 줄은 조직 admin만/)).toBeDefined();
   });
 
   it('초대 범위에 조직 전체가 없고 자기 프로젝트만 있다', async () => {
@@ -272,7 +272,7 @@ describe('게이트 정책 — 고치는 프로젝트를 화면이 고른다', (
 });
 
 describe('온보딩 — 역할의 범위와 다음 행동', () => {
-  it('developer 는 작업 보드로 간다고 말한다 — 문구와 링크가 같은 곳을 가리킨다', async () => {
+  it('developer는 작업 보드로 간다고 말한다 — 문구와 링크가 같은 곳을 가리킨다', async () => {
     me = {
       id: 'u-3',
       display_name: '도현',
@@ -307,7 +307,7 @@ describe('멤버 표는 사람마다 한 묶음 (REQ-WEB-194 · 결정 2)', () =
     expect(scopes.slice(0, 2)).toEqual(['조직 전체', '스도쿠sudoku']);
   });
 
-  it('프로젝트 줄은 조직 전체 역할을 "상속" 으로 보인다 — 꺼진 칩이면 그 권한이 없는 것처럼 읽힌다', async () => {
+  it('프로젝트 줄은 조직 전체 역할을 "상속"으로 보인다 — 꺼진 칩이면 그 권한이 없는 것처럼 읽힌다', async () => {
     members = GROUPED_MEMBERS;
     renderAt('/settings/members');
     await screen.findByText('도현');
