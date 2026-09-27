@@ -45,6 +45,7 @@ import {
 } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
+import { memberOfProjectSql, resolveMemberProject } from '../../common/member-scope.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
@@ -314,7 +315,13 @@ export class ApprovalService {
     userId: string;
     /** 어휘는 `APPROVAL_INBOX_STATES` — 판정은 아래에서 한다(REQ-API-126) */
     state?: string | null;
-    projectSlug?: string | null;
+    /**
+     * 사람이 고른 프로젝트 — slug 또는 UUID. slug 는 조직 안에서만 유일하므로 `org` 로 좁힌다
+     * (2026-09-27 · REQ-API-213). 내가 속한 프로젝트 가운데 하나로 풀리지 않으면 거절이다.
+     */
+    project?: string | null;
+    /** `project` 의 조직 한정자(REQ-API-152 와 같은 뜻) */
+    org?: string | null;
     /**
      * 프로젝트를 **id 로** 좁힌다 — 프로젝트 소속 받은 요청(EP-APR-05)이 이 축으로 들어온다.
      * slug 와 나란히 두는 이유: 전역 표면은 사람이 고른 slug 를 받고, 프로젝트 표면은
@@ -425,12 +432,19 @@ export class ApprovalService {
              ${canBulkApproveSql(input.userId)},
              ${bulkBlockReasonSql(input.userId)},
              encode(sv.content_hash, 'hex') AS content_hash,`;
-    const projectFilter =
-      input.projectSlug != null
-        ? sql` AND p.slug = ${input.projectSlug}`
-        : input.projectId != null
-          ? sql` AND p.id = ${input.projectId}`
-          : sql``;
+    // **slug 만으로 거르지 않는다**(2026-09-27 · REQ-API-213). `p.slug = …` 는 두 조직의 같은
+    // 이름을 함께 걸렀다 — 내가 속한 프로젝트 하나로 푼 뒤 id 로 거른다
+    const pickedId =
+      input.projectId ??
+      (input.project == null || input.project.trim() === ''
+        ? null
+        : (
+            await resolveMemberProject(this.db, input.userId, {
+              project: input.project,
+              org: input.org ?? null,
+            })
+          ).id);
+    const projectFilter = pickedId === null ? sql`` : sql` AND p.id = ${pickedId}`;
     /**
      * FROM 과 WHERE 를 조각으로 뽑는다 — 목록과 **총계가 같은 조건을 봐야** 하기 때문이다.
      *
@@ -441,11 +455,7 @@ export class ApprovalService {
         JOIN project p ON p.id = a.project_id
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN agent_session owner ON owner.id = sv.author_session_id`;
-    const memberOfProject = sql`EXISTS (
-           SELECT 1 FROM membership m
-            WHERE m.user_id = ${input.userId} AND m.org_id = p.org_id
-              AND (m.project_id IS NULL OR m.project_id = p.id)
-         )`;
+    const memberOfProject = memberOfProjectSql(input.userId);
     const approvalWhere = sql`WHERE ${stateFilter}${projectFilter}
          -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
          -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를

@@ -2015,6 +2015,178 @@ describe('보관한 프로젝트는 결정 목록에서도 빠진다 (2026-08-27
 });
 
 /**
+ * **알림은 지금 볼 수 있는 프로젝트의 것만**(2026-09-27 점검 · REQ-API-211~213).
+ *
+ * 알림 행은 만들 때의 멤버에게 남는다. 목록과 수가 받는 사람만 보았으므로, 프로젝트에서
+ * 빠진 사람이 그 프로젝트의 스펙 키와 제목을 계속 읽었다. [모두 읽음]은 보관한 프로젝트까지
+ * 읽음으로 바꿨고, 받은 요청의 `project` 는 두 조직의 같은 slug 를 함께 걸렀다.
+ */
+describe('REQ-API-211~213 알림과 받은 요청의 범위', () => {
+  /** 이 프로젝트에 안 읽은 알림 n 건을 그 사람 앞으로 만든다 */
+  async function notify(userId: string, n: number, project = projectId): Promise<string[]> {
+    const ids: string[] = [];
+    for (let i = 0; i < n; i += 1) {
+      const eventId = newId();
+      const id = newId();
+      await pool.query(
+        `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+         VALUES ($1,$2,now(),'spec.approved',$3,false,'spec_version',$4)`,
+        [eventId, project, planner, newId()],
+      );
+      await pool.query(
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance)
+         VALUES ($1,$2,$3,$4,'immediate')`,
+        [id, project, userId, eventId],
+      );
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  it('프로젝트에서 빠지면 그 프로젝트의 알림이 목록 · 수 · 읽음에서 함께 빠진다 (REQ-API-211)', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const leaver = newId();
+    const membershipId = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'떠난 사람','active')`,
+      [leaver, `leaver-${leaver}@example.com`],
+    );
+    const { rows: org } = await pool.query<{ org_id: string }>(
+      `SELECT org_id FROM project WHERE id = $1`,
+      [projectId],
+    );
+    const join = (): Promise<unknown> =>
+      pool.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'developer')`,
+        [membershipId, org[0]?.org_id, projectId, leaver],
+      );
+    await join();
+    const [first] = await notify(leaver, 3);
+    expect((await notifications.list({ userId: leaver })).items).toHaveLength(3);
+    expect((await notifications.unreadCount(leaver)).count).toBe(3);
+
+    await pool.query(`DELETE FROM membership WHERE id = $1`, [membershipId]);
+    // 키와 제목이 보이던 자리다 — 행은 남아도 보이지 않아야 한다
+    expect((await notifications.list({ userId: leaver })).items).toHaveLength(0);
+    expect((await notifications.unreadCount(leaver)).count).toBe(0);
+    await notifications.markRead({ userId: leaver, notificationId: first! });
+    expect((await notifications.markAllRead({ userId: leaver })).marked).toBe(0);
+    const { rows: still } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM notification WHERE user_id = $1 AND state = 'unread'`,
+      [leaver],
+    );
+    expect(still[0]?.n).toBe(3);
+
+    // 다시 들어오면 돌아온다 — 지운 것이 아니라 보지 못하게 한 것이다
+    await join();
+    expect((await notifications.unreadCount(leaver)).count).toBe(3);
+    expect((await notifications.markAllRead({ userId: leaver })).marked).toBe(3);
+  });
+
+  it('조직 전체 멤버는 그 조직 모든 프로젝트의 알림을 본다 — 경계를 세우면서 신호를 끄지 않는다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    const orgWide = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'조직 전체','active')`,
+      [orgWide, `org-${orgWide}@example.com`],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, NULL, $2, 'planner' FROM project WHERE id = $3`,
+      [newId(), orgWide, projectId],
+    );
+    await notify(orgWide, 2);
+    expect((await notifications.unreadCount(orgWide)).count).toBe(2);
+    expect((await notifications.list({ userId: orgWide })).items).toHaveLength(2);
+  });
+
+  it('[모두 읽음]은 보관한 프로젝트의 알림을 건드리지 않는다 — 배지와 같은 범위다 (REQ-API-212)', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await notify(reviewer, 2);
+    await pool.query(`UPDATE project SET archived_at = now() WHERE id = $1`, [projectId]);
+    try {
+      expect((await notifications.unreadCount(reviewer)).count).toBe(0);
+      expect((await notifications.markAllRead({ userId: reviewer })).marked).toBe(0);
+    } finally {
+      await pool.query(`UPDATE project SET archived_at = NULL WHERE id = $1`, [projectId]);
+    }
+    // 되살리면 읽지 않은 채로 돌아온다 — 예전에는 이미 읽혀 있었다
+    expect((await notifications.unreadCount(reviewer)).count).toBe(2);
+  });
+
+  it('받은 요청의 project 는 조직과 함께 풀린다 — 같은 slug 두 조직 (REQ-API-213)', async () => {
+    const twinOrg = newId();
+    const twinProject = newId();
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'twin','쌍둥이')`, [
+      twinOrg,
+    ]);
+    // 같은 slug(clemvion)를 다른 조직에 — slug 는 조직 안에서만 유일하다
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'clemvion','TWN','clemvion')`,
+      [twinProject, twinOrg],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
+      [newId(), twinOrg, twinProject, planner],
+    );
+    try {
+      for (const [project, n] of [
+        [projectId, 2],
+        [twinProject, 1],
+      ] as const) {
+        for (let i = 0; i < n; i += 1) {
+          await pool.query(
+            `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+             VALUES ($1,$2,'plan',$3,$4)`,
+            [newId(), project, newId(), reviewer],
+          );
+        }
+      }
+      const inbox = (ref: {
+        project?: string;
+        org?: string;
+      }): ReturnType<typeof approvals.inboxGlobal> =>
+        approvals.inboxGlobal({ actor: person(planner), userId: planner, ...ref });
+
+      // 조직 없이 slug 만 — 둘 다 내 프로젝트라 하나로 풀리지 않는다. 예전에는 셋이 다 왔다
+      await expect(inbox({ project: 'clemvion' })).rejects.toMatchObject({
+        details: { kind: 'ambiguous_project', field: 'project', orgs: ['nerv', 'twin'] },
+      });
+      expect((await inbox({ project: 'clemvion', org: 'nerv' })).total).toBe(2);
+      expect((await inbox({ project: 'clemvion', org: 'twin' })).total).toBe(1);
+      expect((await inbox({ project: twinProject })).total).toBe(1);
+      // 없는 프로젝트 · 속하지 않은 프로젝트는 빈 목록이 아니라 거절이다(§1.4e)
+      await expect(inbox({ project: 'nowhere' })).rejects.toMatchObject({
+        details: { kind: 'not_found', field: 'project' },
+      });
+      await expect(
+        approvals.inboxGlobal({
+          actor: person(reviewer),
+          userId: reviewer,
+          project: 'clemvion',
+          org: 'twin',
+        }),
+      ).rejects.toMatchObject({ details: { kind: 'not_found', field: 'project' } });
+      // 하나뿐이면 맨 slug 로도 된다 — reviewer 는 nerv 의 clemvion 만 알고, 그 두 건이 온다
+      expect(
+        (
+          await approvals.inboxGlobal({
+            actor: person(reviewer),
+            userId: reviewer,
+            project: 'clemvion',
+          })
+        ).total,
+      ).toBe(2);
+    } finally {
+      await pool.query(`DELETE FROM approval WHERE project_id = $1`, [twinProject]);
+      await pool.query(`DELETE FROM membership WHERE project_id = $1`, [twinProject]);
+      await pool.query(`DELETE FROM project WHERE id = $1`, [twinProject]);
+      await pool.query(`DELETE FROM organization WHERE id = $1`, [twinOrg]);
+    }
+  });
+});
+
+/**
  * **처리됨 탭은 "내가 결정한 것" 에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
  *
  * 한 `WHERE` 절이 두 탭을 겸하는 동안 이 탭은 **결정이 문서를 움직인 순간 그 기록을

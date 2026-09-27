@@ -23,6 +23,7 @@ import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
+import { memberOfProjectSql } from '../../common/member-scope.js';
 import { requestAlreadyClosed } from './request-notifications.js';
 import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
 import { ValkeyService } from './valkey.service.js';
@@ -453,6 +454,9 @@ export class NotificationService {
        WHERE n.user_id = ${input.userId}${stateFilter}${importanceFilter}${beforeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL
+         -- **지금 멤버인 프로젝트의 알림만**(2026-09-27 · REQ-API-211). 행은 만들 때의 멤버에게
+         -- 남아서, 프로젝트에서 빠진 사람이 그 프로젝트의 키와 제목을 계속 읽었다
+         AND ${memberOfProjectSql(input.userId)}
        ORDER BY n.created_at DESC, n.id DESC
        LIMIT ${limit + 1}
     `);
@@ -470,9 +474,13 @@ export class NotificationService {
 
   /** EP-NTF-02 — 읽음 처리. 남의 알림을 읽음 처리할 수 없게 user_id 를 조건에 둔다. */
   async markRead(input: { userId: string; notificationId: string }): Promise<{ ok: true }> {
+    // 목록에 보이지 않는 알림은 읽음 처리도 하지 않는다 — 셋(목록 · 수 · 처리)이 같은 범위를 본다(REQ-API-211)
     await this.db.execute(sql`
-      UPDATE notification SET state = 'read', read_at = now()
-       WHERE id = ${input.notificationId} AND user_id = ${input.userId} AND state = 'unread'
+      UPDATE notification n SET state = 'read', read_at = now()
+        FROM project p
+       WHERE n.id = ${input.notificationId} AND n.user_id = ${input.userId} AND n.state = 'unread'
+         AND p.id = n.project_id AND p.archived_at IS NULL
+         AND ${memberOfProjectSql(input.userId)}
     `);
     return { ok: true };
   }
@@ -485,12 +493,19 @@ export class NotificationService {
    *
    * 몇 건을 읽었는지 돌려준다 — 화면이 "몇 개를 치웠다" 를 말할 수 있어야 사람이 방금
    * 무슨 일이 일어났는지 안다. 조용히 0 이 되는 목록은 사고처럼 보인다.
+   *
+   * **목록 · 배지와 같은 범위만 바꾼다**(2026-09-27 · REQ-API-212). 보관한 프로젝트와 빠진
+   * 프로젝트의 알림까지 읽음으로 바꿔서, 돌려준 건수가 배지 수보다 컸고 프로젝트를 되살리면
+   * 그 알림이 이미 읽혀 있었다.
    */
   async markAllRead(input: { userId: string }): Promise<{ ok: true; marked: number }> {
     const { rows } = await this.db.execute<{ id: string }>(sql`
-      UPDATE notification SET state = 'read', read_at = now()
-       WHERE user_id = ${input.userId} AND state = 'unread'
-      RETURNING id
+      UPDATE notification n SET state = 'read', read_at = now()
+        FROM project p
+       WHERE n.user_id = ${input.userId} AND n.state = 'unread'
+         AND p.id = n.project_id AND p.archived_at IS NULL
+         AND ${memberOfProjectSql(input.userId)}
+      RETURNING n.id
     `);
     return { ok: true, marked: rows.length };
   }
@@ -516,6 +531,8 @@ export class NotificationService {
         FROM notification notif
         JOIN project p ON p.id = notif.project_id
        WHERE notif.user_id = ${userId} AND notif.state = 'unread' AND p.archived_at IS NULL
+         -- 목록과 같은 조건이다(REQ-API-211) — 빠진 프로젝트의 알림을 세면 지울 수 없는 수가 남는다
+         AND ${memberOfProjectSql(userId)}
     `);
     return { count: rows[0]?.n ?? 0, immediate: rows[0]?.immediate ?? 0 };
   }
