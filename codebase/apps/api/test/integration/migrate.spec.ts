@@ -62,7 +62,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
       );
       return rows.map((r) => r.table_name);
     });
-    // 34 도메인 엔티티 + 인프라 5종(엔티티 아님):
+    // 35 도메인 엔티티 + 인프라 5종(엔티티 아님):
     //   spec_chunk_embedding(§2.15) · auth_session·auth_account·auth_verification(§2.16)
     //   · email_outbox(§2.17 — 2026-09-22. 보내고 나면 치우는 발송 큐다)
     // 30번째는 `invitation` 이다(2026-08-27 · 사람 결정 — 조직 초대)
@@ -71,9 +71,11 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     // 33번째는 `idempotency_key` 다(2026-09-02 — api.md §1.5 의 저장소. REST 헤더와 MCP
     //   입력이 같은 행을 본다)
     // 34번째는 `notification_preference` 다(2026-09-27 · 사람 결정 N3 — 프로젝트별 알림 수준 · 0035)
-    expect(names).toHaveLength(39);
+    // 35번째는 `notification_batch_event` 다(2026-09-27 · 사람 결정 G2 — 앱 안 묶음에 든 이벤트 · 0037)
+    expect(names).toHaveLength(40);
     expect(names).toContain('idempotency_key');
     expect(names).toContain('notification_preference');
+    expect(names).toContain('notification_batch_event');
     expect(names).toContain('spec_chunk_embedding');
     expect(names).toContain('email_outbox');
     expect(names).toEqual(

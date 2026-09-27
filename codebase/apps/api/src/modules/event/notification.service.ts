@@ -32,6 +32,7 @@ import {
   scopeFilterSql,
 } from '../../common/member-scope.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { isUniqueViolation } from '../../common/db-error.js';
 import { requestAlreadyClosed } from './request-notifications.js';
 import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
 import { ValkeyService } from './valkey.service.js';
@@ -69,6 +70,35 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
 
 export function tierOf(type: string): ImportanceTier | null {
   return NOTIFICATION_CATALOG[type as NervEventName] ?? null;
+}
+
+/**
+ * **배치 키**(spec-workflow §6.3 · 2026-09-27 사람 결정 G2 · G3 · REQ-API-223).
+ *
+ * 보통 등급만 묶는다 — 중요 알림(승인 요청 · 스펙 승인 · 세션 무응답 …)은 헤더 배지가 세는 것이라,
+ * 묶으면 몇 건이 왔는지 흐려진다. 같은 사람에게 같은 키가 오면 새 줄을 만들지 않고 열린 묶음에
+ * 더한다. 키가 없으면(`null`) 한 건이 한 줄이다.
+ */
+export function batchKeyOf(event: {
+  type: string;
+  project_id: string;
+  subject_id: string;
+}): string | null {
+  if (tierOf(event.type) !== 'standard') return null;
+  switch (event.type) {
+    case NERV_EVENT.SPEC_RECHECK_REQUESTED:
+      return `spec:${event.subject_id}:recheck`;
+    case NERV_EVENT.SPEC_COMMENT_ADDED:
+      return `spec:${event.subject_id}:comments`;
+    case NERV_EVENT_PHASE2.FINDING_COMMENTED:
+      return `finding:${event.subject_id}:comments`;
+    case NERV_EVENT.TASK_READY:
+      return `project:${event.project_id}:ready`;
+    case NERV_EVENT.INVITATION_DECLINED:
+      return `invitation:${event.subject_id}`;
+    default:
+      return null;
+  }
 }
 
 /** 한 실행이 넘기는 페이지 상한 — 밀린 이력이 길어도 한 틱이 무한히 돌지 않게 한다 */
@@ -130,6 +160,8 @@ export class NotificationService {
                e.occurred_at::text AS occurred_at
           FROM event e
          WHERE NOT EXISTS (SELECT 1 FROM notification n WHERE n.event_id = e.id)
+           -- 묶음에 더해진 이벤트는 그 줄의 event_id 가 아니다(줄은 마지막 이벤트를 가리킨다) — 여기서 본다
+           AND NOT EXISTS (SELECT 1 FROM notification_batch_event b WHERE b.event_id = e.id)
            ${at == null ? sql`` : sql`AND e.occurred_at > ${at}`}
          ORDER BY e.occurred_at
          LIMIT ${limit}
@@ -149,23 +181,15 @@ export class NotificationService {
           // **사람이 고른 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-219). 고른 수준 밖의 알림은
           // 버리지 않고 읽음으로 넣는다 — 닫힌 요청과 같은 방식이다. 받은 요청에는 닿지 않는다
           const quiet = await this.quietRecipients(event.project_id, recipients, importance);
+          const batchKey = batchKeyOf(event);
           const loud: string[] = [];
           for (const userId of recipients) {
             const read = closed || quiet.has(userId);
-            // **한 이벤트 · 한 사람 · 한 행**(2026-09-27 · REQ-API-222 · REQ-DB-029). 위의 `NOT EXISTS` 는
-            // 읽는 순간의 판단이라, 파생이 겹치면 둘 다 "없다" 고 보고 같은 알림을 두 번 넣을 수 있었다.
-            // 유일 인덱스가 둘째 행을 막고, 여기서는 들어간 행만 세고 알린다
-            const { rows: inserted } = await this.db.execute<{ id: string }>(sql`
-              INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state,
-                                        read_at)
-              VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
-                      ${importance}::notification_importance,
-                      'inapp', ${read ? 'read' : 'unread'}::notification_state,
-                      ${read ? sql`now()` : sql`NULL`})
-              ON CONFLICT (event_id, user_id) DO NOTHING
-              RETURNING id
-            `);
-            if (inserted.length === 0) continue;
+            const added =
+              batchKey === null
+                ? await this.insertOne(event, userId, importance, read)
+                : await this.addToBatch(event, userId, importance, read, batchKey);
+            if (!added) continue;
             if (!read) loud.push(userId);
             created += 1;
           }
@@ -188,6 +212,87 @@ export class NotificationService {
     if (input.since == null) this.cursor = cursor;
     if (created > 0) this.logger.log(`알림 ${created}건 파생`);
     return created;
+  }
+
+  /**
+   * 묶지 않는 알림 — 한 건이 한 줄이다.
+   *
+   * **한 이벤트 · 한 사람 · 한 행**(2026-09-27 · REQ-API-222 · REQ-DB-029). `route` 의 `NOT EXISTS` 는
+   * 읽는 순간의 판단이라, 파생이 겹치면 둘 다 "없다" 고 보고 같은 알림을 두 번 넣을 수 있었다.
+   * 유일 인덱스가 둘째 행을 막고, 여기서는 들어갔는지를 돌려준다.
+   */
+  private async insertOne(
+    event: { id: string; project_id: string },
+    userId: string,
+    importance: 'immediate' | 'digest',
+    read: boolean,
+  ): Promise<boolean> {
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, read_at)
+      VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
+              ${importance}::notification_importance,
+              'inapp', ${read ? 'read' : 'unread'}::notification_state,
+              ${read ? sql`now()` : sql`NULL`})
+      ON CONFLICT (event_id, user_id) DO NOTHING
+      RETURNING id
+    `);
+    return rows.length > 0;
+  }
+
+  /**
+   * **열린 묶음에 더한다**(2026-09-27 · 사람 결정 G2 · REQ-API-223 · REQ-DB-030).
+   *
+   * 같은 사람 · 같은 키의 열린 줄이 있으면 건수를 올리고 맨 위로 올린다(`last_at`). 줄은 마지막
+   * 이벤트를 가리킨다 — 누가 · 언제가 가장 최근의 것이다. 없으면 새 줄을 연다. 열린 줄은 키마다
+   * 하나라(`notification_open_batch`) 파생이 겹쳐도 둘째는 같은 줄에 더해진다.
+   *
+   * **상태가 다른 열린 줄은 닫고 새로 연다.** 수준 밖이라 읽음으로 들어온 묶음(REQ-API-219)에 안 읽은
+   * 알림을 더하면 읽은 줄이 다시 안 읽음이 되고, 반대면 조용해야 할 알림이 배지에 잡힌다.
+   *
+   * 이벤트를 묶음에 적는 것(`notification_batch_event`)이 멱등 키다. 같은 이벤트가 이미 이 사람의
+   * 묶음에 있으면 유일 위반으로 트랜잭션 전체가 되돌아가 건수도 오르지 않는다.
+   */
+  private async addToBatch(
+    event: { id: string; project_id: string },
+    userId: string,
+    importance: 'immediate' | 'digest',
+    read: boolean,
+    batchKey: string,
+  ): Promise<boolean> {
+    const state = read ? 'read' : 'unread';
+    try {
+      await this.db.transaction(async (tx) => {
+        await tx.execute(sql`
+          UPDATE notification SET batch_open = false
+           WHERE user_id = ${userId} AND batch_key = ${batchKey} AND batch_open
+             AND state <> ${state}::notification_state
+        `);
+        const { rows } = await tx.execute<{ id: string }>(sql`
+          INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state,
+                                    read_at, batch_key, batch_size, last_at, batch_open)
+          VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
+                  ${importance}::notification_importance,
+                  'inapp', ${state}::notification_state, ${read ? sql`now()` : sql`NULL`},
+                  ${batchKey}, 1, now(), true)
+          ON CONFLICT (user_id, batch_key) WHERE batch_open DO UPDATE
+             SET batch_size = notification.batch_size + 1,
+                 last_at = now(),
+                 event_id = EXCLUDED.event_id
+          RETURNING id
+        `);
+        const id = rows[0]?.id;
+        if (id === undefined) throw new Error(`묶음 줄을 열지 못했다 — key=${batchKey}`);
+        await tx.execute(sql`
+          INSERT INTO notification_batch_event (notification_id, event_id, user_id)
+          VALUES (${id}, ${event.id}, ${userId})
+        `);
+      });
+      return true;
+    } catch (err) {
+      // 이미 이 사람의 묶음에 든 이벤트다(겹친 파생) — 되돌렸으므로 건수도 그대로다
+      if (isUniqueViolation(err)) return false;
+      throw err;
+    }
   }
 
   /**
@@ -435,19 +540,20 @@ export class NotificationService {
       input.importance == null
         ? sql``
         : sql` AND n.importance = ${assertVocab([input.importance], notificationImportance.enumValues, 'importance')[0]}::notification_importance`;
-    // **커서는 (created_at, id) 다**(§1.6 · REQ-API-124). 예전 주석은 "같은 시각의 행을
-    // 건너뛸 수 있지만 감수한다" 였는데, REQ-API-083 이 이 목록에도 "겹치지도 빠뜨리지도
+    // **커서는 (last_at, id) 다**(§1.6 · REQ-API-124 · 2026-09-27 REQ-API-224). 예전 주석은 "같은 시각의
+    // 행을 건너뛸 수 있지만 감수한다" 였는데, REQ-API-083 이 이 목록에도 "겹치지도 빠뜨리지도
     // 않는 다음 쪽" 을 이미 약속하고 있었다 — 감수는 요구사항과 어긋난 채였다.
-    // 한 이벤트가 여러 수신자에게 파생되면 같은 `created_at` 이 여럿이다.
+    // 한 이벤트가 여러 수신자에게 파생되면 같은 시각이 여럿이다. 순서는 **마지막으로 더해진 시각**이다 —
+    // 묶음에 알림이 더해지면 그 줄이 맨 위로 온다(묶지 않은 알림은 만든 시각과 같다).
     const cursor = decodeCursor(input.before ?? undefined);
     const cursorAt = cursorTimestamp(cursor?.[0]);
     const cursorRowId = cursorId(cursor?.[1]);
     const legacyAt = cursor === null ? cursorTimestamp(input.before) : null;
     const beforeFilter =
       cursorAt !== null && cursorRowId !== null
-        ? sql` AND (n.created_at, n.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
+        ? sql` AND (n.last_at, n.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
         : legacyAt !== null
-          ? sql` AND n.created_at < ${legacyAt}::timestamptz`
+          ? sql` AND n.last_at < ${legacyAt}::timestamptz`
           : sql``;
     const limit = Math.min(input.limit ?? 50, 200);
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
@@ -458,6 +564,10 @@ export class NotificationService {
              -- 일부가 어느 쪽 부등호에도 걸리지 않는 창에 빠져 **영영 나오지 않는다**.
              n.created_at::text AS created_at,
              n.read_at, n.event_id,
+             -- **묶음**(2026-09-27 · 사람 결정 G2 · REQ-API-224). 몇 건이 이 줄에 들었는지 · 처음(created_at)과
+             -- 마지막(last_at) · 무엇 때문인지(최근 10건). 묶지 않은 알림은 1 · 같은 두 시각 · 빈 목록이다
+             n.batch_key, n.batch_size, n.last_at::text AS last_at,
+             coalesce(bc.causes, '[]'::json) AS batch_causes,
              e.type AS event_type, e.subject_type::text AS subject_type, e.subject_id,
              e.to_state, e.is_agent, e.occurred_at,
              u.display_name AS actor_name,
@@ -487,13 +597,29 @@ export class NotificationService {
    LEFT JOIN "user" adu ON adu.id = ap.decided_by_user_id
    LEFT JOIN question qq ON qq.id = e.subject_id AND e.subject_type = 'question'
    LEFT JOIN "user" qdu ON qdu.id = qq.answered_by_user_id
+   -- 원인은 **묶음 줄에만** 모은다 — 최근 10건과, 재검토면 원인 문서 · 작업 준비면 그 작업의 키
+   LEFT JOIN LATERAL (
+     SELECT json_agg(c ORDER BY c.occurred_at DESC) AS causes
+       FROM (
+         SELECT ce.id AS event_id, ce.occurred_at, cu.display_name AS actor_name, ce.is_agent,
+                cs.key AS because_key, ct.key AS task_key
+           FROM notification_batch_event be
+           JOIN event ce ON ce.id = be.event_id
+      LEFT JOIN "user" cu ON cu.id = ce.actor_user_id
+      LEFT JOIN spec cs ON cs.id = (ce.payload ->> 'because_of')::uuid
+      LEFT JOIN task ct ON ct.id = ce.subject_id AND ce.subject_type = 'task'
+          WHERE be.notification_id = n.id
+          ORDER BY ce.occurred_at DESC
+          LIMIT 10
+       ) c
+   ) bc ON n.batch_key IS NOT NULL
        WHERE n.user_id = ${input.userId}${stateFilter}${importanceFilter}${beforeFilter}${scopeFilter}
          -- 보관한 프로젝트의 알림은 숨긴다 — 딥링크가 닿는 곳이 목록에서 치운 자리다
          AND p.archived_at IS NULL
          -- **지금 멤버인 프로젝트의 알림만**(2026-09-27 · REQ-API-211). 행은 만들 때의 멤버에게
          -- 남아서, 프로젝트에서 빠진 사람이 그 프로젝트의 키와 제목을 계속 읽었다
          AND ${memberOfProjectSql(input.userId)}
-       ORDER BY n.created_at DESC, n.id DESC
+       ORDER BY n.last_at DESC, n.id DESC
        LIMIT ${limit + 1}
     `);
     // 한 건 더 받아 **다음 쪽이 있는지**를 안다 — 총계를 세면 매 요청이 전량 스캔이다
@@ -503,7 +629,7 @@ export class NotificationService {
       items,
       next_cursor:
         rows.length > limit && last !== undefined
-          ? encodeCursor([String(last['created_at']), String(last['id'])])
+          ? encodeCursor([String(last['last_at']), String(last['id'])])
           : null,
     };
   }
@@ -512,7 +638,7 @@ export class NotificationService {
   async markRead(input: { userId: string; notificationId: string }): Promise<{ ok: true }> {
     // 목록에 보이지 않는 알림은 읽음 처리도 하지 않는다 — 셋(목록 · 수 · 처리)이 같은 범위를 본다(REQ-API-211)
     await this.db.execute(sql`
-      UPDATE notification n SET state = 'read', read_at = now()
+      UPDATE notification n SET state = 'read', read_at = now(), batch_open = false
         FROM project p
        WHERE n.id = ${input.notificationId} AND n.user_id = ${input.userId} AND n.state = 'unread'
          AND p.id = n.project_id AND p.archived_at IS NULL
@@ -564,10 +690,12 @@ export class NotificationService {
           field: 'until',
         });
       }
-      untilFilter = sql` AND n.created_at <= ${at}::timestamptz`;
+      // 묶음은 **마지막으로 더해진 시각**으로 본다(2026-09-27 · REQ-API-224) — 화면이 받은 뒤에 더해진
+      // 알림이 있는 줄은 그 사람이 아직 보지 못한 것을 담고 있다
+      untilFilter = sql` AND n.last_at <= ${at}::timestamptz`;
     }
     const { rows } = await this.db.execute<{ id: string }>(sql`
-      UPDATE notification n SET state = 'read', read_at = now()
+      UPDATE notification n SET state = 'read', read_at = now(), batch_open = false
         FROM project p
        WHERE n.user_id = ${input.userId} AND n.state = 'unread'
          AND p.id = n.project_id AND p.archived_at IS NULL

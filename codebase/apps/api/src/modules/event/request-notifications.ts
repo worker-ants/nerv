@@ -26,7 +26,7 @@ export async function closeRequestNotifications(
   subjectId: string,
 ): Promise<number> {
   const { rows } = await tx.execute<{ id: string }>(sql`
-    UPDATE notification n SET state = 'read', read_at = now()
+    UPDATE notification n SET state = 'read', read_at = now(), batch_open = false
       FROM event e
      WHERE e.id = n.event_id
        AND e.type = ${REQUEST_OPENING_EVENTS[subjectType]}

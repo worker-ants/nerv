@@ -260,6 +260,13 @@
       "when": 1790509750106,
       "tag": "0036_notification_event_user",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790510249810,
+      "tag": "0037_notification_batch",
+      "breakpoints": true
     }
   ]
 }

@@ -357,6 +357,256 @@ describe('알림 라우팅은 창에 막히지 않는다 (REQ-API-064 계열)', 
   });
 });
 
+/**
+ * **앱 안 묶음**(2026-09-27 · 사람 결정 G1 · G2 · G3 · REQ-API-223·224 · REQ-DB-030).
+ *
+ * 보통 등급 알림은 같은 사람 · 같은 배치 키면 읽을 때까지 한 줄에 더한다. 로컬 실측(2026-09-27): 참조 스펙
+ * 재검토 알림 1,590행이 대상 문서로 묶으면 36줄이다. 여기서 보는 것은 규칙 넷과 겹친 파생이다.
+ */
+describe('앱 안 묶음 — 같은 대상은 읽을 때까지 한 줄 (REQ-API-223·224)', () => {
+  interface World {
+    projectId: string;
+    actor: string;
+    watcher: string;
+    spec: (key: string) => Promise<string>;
+    recheck: (target: string, because: string, at?: number) => Promise<string>;
+  }
+
+  async function world(tag: string): Promise<World> {
+    const orgId = newId();
+    const projectId = newId();
+    const actor = newId();
+    const watcher = newId();
+    await poolA.query(`INSERT INTO organization (id, slug, name) VALUES ($1,$2,'묶음')`, [
+      orgId,
+      `${tag}-${orgId.slice(-6)}`,
+    ]);
+    await poolA.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'묶음')`,
+      [projectId, orgId, `${tag}-${projectId.slice(-6)}`, `B${projectId.slice(-3).toUpperCase()}`],
+    );
+    for (const id of [actor, watcher]) {
+      await poolA.query(
+        `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,$3,'active')`,
+        [id, `${id.slice(-6)}-${tag}@example.com`, id === actor ? '지민' : '서연'],
+      );
+      await poolA.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
+        [newId(), orgId, projectId, id],
+      );
+    }
+    let seq = 0;
+    return {
+      projectId,
+      actor,
+      watcher,
+      spec: async (key) => {
+        const id = newId();
+        // 주인 역할이 없으면 기본 큐(admin · planner)로 간다 — watcher 가 받는다
+        await poolA.query(
+          `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+          [id, projectId, key],
+        );
+        return id;
+      },
+      recheck: async (target, because, at) => {
+        const id = newId();
+        seq += 1;
+        await poolA.query(
+          `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, payload, occurred_at)
+           VALUES ($1,$2,$3,'spec',$4,$5,$6, now() + ($7 || ' milliseconds')::interval)`,
+          [
+            id,
+            projectId,
+            NERV_EVENT.SPEC_RECHECK_REQUESTED,
+            target,
+            actor,
+            JSON.stringify({ because_of: because }),
+            at ?? seq,
+          ],
+        );
+        return id;
+      },
+    };
+  }
+
+  async function rowsOf(
+    userId: string,
+    projectId: string,
+  ): Promise<
+    {
+      id: string;
+      state: string;
+      batch_key: string | null;
+      batch_size: number;
+      batch_open: boolean;
+    }[]
+  > {
+    const { rows } = await poolA.query(
+      `SELECT id, state::text AS state, batch_key, batch_size, batch_open
+         FROM notification WHERE user_id = $1 AND project_id = $2
+        ORDER BY last_at DESC, id DESC`,
+      [userId, projectId],
+    );
+    return rows;
+  }
+
+  it('같은 대상의 재검토 요청은 한 줄에 더해지고, 원인과 건수를 준다 — 대상이 다르면 다른 줄이다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const w = await world('bat1');
+    const target = await w.spec('BAT-TARGET');
+    const other = await w.spec('BAT-OTHER');
+    const causes = [await w.spec('BAT-VISION'), await w.spec('BAT-AREA'), await w.spec('BAT-ROOM')];
+    for (const because of causes) await w.recheck(target, because);
+    await w.recheck(other, causes[0] as string);
+
+    const notifications = new NotificationService(drizzle(poolA));
+    await notifications.route();
+
+    const rows = await rowsOf(w.watcher, w.projectId);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => [r.batch_key, r.batch_size, r.state, r.batch_open])).toEqual([
+      [`spec:${other}:recheck`, 1, 'unread', true],
+      [`spec:${target}:recheck`, 3, 'unread', true],
+    ]);
+    // 행위자는 받지 않는다(REQ-API-221)
+    expect(await rowsOf(w.actor, w.projectId)).toEqual([]);
+
+    // 목록은 줄마다 건수와 원인을 준다 — 원인은 최근 것부터, 재검토면 원인 문서의 키다
+    const page = await notifications.list({ userId: w.watcher, project: w.projectId });
+    const line = page.items.find((n) => n['batch_key'] === `spec:${target}:recheck`);
+    expect(line?.['batch_size']).toBe(3);
+    expect((line?.['batch_causes'] as { because_key: string }[]).map((c) => c.because_key)).toEqual(
+      ['BAT-ROOM', 'BAT-AREA', 'BAT-VISION'],
+    );
+    // 배지는 줄을 센다
+    expect((await notifications.unreadCount(w.watcher)).count).toBeGreaterThanOrEqual(2);
+  });
+
+  it('읽으면 묶음이 닫히고, 다음 알림은 새 줄로 시작한다 — 새 줄은 맨 위다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const w = await world('bat2');
+    const target = await w.spec('BAT2-TARGET');
+    const because = await w.spec('BAT2-CAUSE');
+    await w.recheck(target, because);
+    await w.recheck(target, because);
+    const notifications = new NotificationService(drizzle(poolA));
+    await notifications.route();
+    const [first] = await rowsOf(w.watcher, w.projectId);
+    expect(first?.batch_size).toBe(2);
+
+    await notifications.markRead({ userId: w.watcher, notificationId: String(first?.id) });
+    await w.recheck(target, because, 10_000);
+    await notifications.route();
+
+    const rows = await rowsOf(w.watcher, w.projectId);
+    expect(rows.map((r) => [r.state, r.batch_size, r.batch_open])).toEqual([
+      ['unread', 1, true],
+      ['read', 2, false],
+    ]);
+  });
+
+  it('수준 밖이라 읽음으로 들어온 알림도 묶이고, 수준을 되돌리면 안 읽은 새 줄이 열린다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const w = await world('bat3');
+    const target = await w.spec('BAT3-TARGET');
+    const because = await w.spec('BAT3-CAUSE');
+    const notifications = new NotificationService(drizzle(poolA));
+    await poolA.query(
+      `INSERT INTO notification_preference (user_id, project_id, level) VALUES ($1,$2,'important')`,
+      [w.watcher, w.projectId],
+    );
+    await w.recheck(target, because);
+    await w.recheck(target, because);
+    await notifications.route();
+    expect((await rowsOf(w.watcher, w.projectId)).map((r) => [r.state, r.batch_size])).toEqual([
+      ['read', 2],
+    ]);
+
+    // 모두 받기로 되돌린다 — 읽은 줄이 다시 안 읽음이 되지 않는다
+    await poolA.query(`DELETE FROM notification_preference WHERE user_id = $1`, [w.watcher]);
+    await w.recheck(target, because, 10_000);
+    await notifications.route();
+    expect(
+      (await rowsOf(w.watcher, w.projectId)).map((r) => [r.state, r.batch_size, r.batch_open]),
+    ).toEqual([
+      ['unread', 1, true],
+      ['read', 2, false],
+    ]);
+  });
+
+  it('중요 알림은 묶지 않는다 — 한 건이 한 줄이다 (사람 결정 G3)', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const w = await world('bat4');
+    const version = newId();
+    for (let i = 0; i < 3; i += 1) {
+      await poolA.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
+         VALUES ($1,$2,$3,'spec_version',$4,$5, now() + ($6 || ' milliseconds')::interval)`,
+        [newId(), w.projectId, NERV_EVENT.SPEC_APPROVED, version, w.actor, i],
+      );
+    }
+    await new NotificationService(drizzle(poolA)).route();
+    const rows = await rowsOf(w.watcher, w.projectId);
+    expect(rows.map((r) => [r.batch_key, r.batch_size])).toEqual([
+      [null, 1],
+      [null, 1],
+      [null, 1],
+    ]);
+  });
+
+  it('[모두 읽음]은 화면이 받은 뒤에 더해진 묶음을 남긴다 — 기준은 마지막 시각이다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const w = await world('bat5');
+    const target = await w.spec('BAT5-TARGET');
+    const because = await w.spec('BAT5-CAUSE');
+    const notifications = new NotificationService(drizzle(poolA));
+    await w.recheck(target, because);
+    await notifications.route();
+    const seen = await notifications.list({ userId: w.watcher, project: w.projectId });
+    const until = String(seen.items[0]?.['last_at']);
+
+    // 화면이 목록을 받은 뒤 같은 묶음에 하나가 더해졌다
+    await w.recheck(target, because, 10_000);
+    await notifications.route();
+    const result = await notifications.markAllRead({
+      userId: w.watcher,
+      project: w.projectId,
+      until,
+    });
+    expect(result.marked).toBe(0);
+    expect((await rowsOf(w.watcher, w.projectId)).map((r) => [r.state, r.batch_size])).toEqual([
+      ['unread', 2],
+    ]);
+  });
+
+  /**
+   * 두 파생이 같은 사람 · 같은 키에 겹쳐 더해도 열린 줄은 하나이고, 건수는 이벤트 수와 같다 — 실제
+   * Postgres 에서 겹쳐 돌린다(동시성은 mock 으로 보지 않는다 · AGENTS.md 구현 규약 4).
+   */
+  it('파생이 겹쳐도 열린 묶음은 하나이고 건수는 이벤트 수와 같다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const w = await world('bat6');
+    const target = await w.spec('BAT6-TARGET');
+    const because = await w.spec('BAT6-CAUSE');
+    const events = 30;
+    for (let i = 0; i < events; i += 1) await w.recheck(target, because);
+
+    await Promise.all([
+      new NotificationService(drizzle(poolA)).route(),
+      new NotificationService(drizzle(poolB)).route(),
+    ]);
+
+    const rows = await rowsOf(w.watcher, w.projectId);
+    expect(rows.map((r) => [r.batch_size, r.batch_open])).toEqual([[events, true]]);
+    const { rows: members } = await poolA.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM notification_batch_event WHERE notification_id = $1`,
+      [rows[0]?.id],
+    );
+    expect(members[0]?.n).toBe(events);
+  });
+});
+
 describe('월 파티션 — 두 달 뒤에 멈추지 않는다 (REQ-DB-021)', () => {
   /** 그 달의 event 파티션이 있는가 */
   async function hasPartition(monthsFromNow: number): Promise<boolean> {

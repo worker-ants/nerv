@@ -60,6 +60,14 @@ interface PgFailure {
 }
 
 /**
+ * 이 예외가 유일 위반인가 — 겹친 쓰기를 "이미 있다" 로 받아야 하는 자리가 쓴다(알림 묶음의 파생 ·
+ * 2026-09-27 · api.md REQ-API-223). 사슬을 펴는 것은 아래와 같다.
+ */
+export function isUniqueViolation(exception: unknown): boolean {
+  return pgFailureOf(exception)?.code === '23505';
+}
+
+/**
  * 원인 사슬에서 Postgres 오류를 찾는다.
  *
  * drizzle 이 드라이버 오류를 감싸므로 맨 위 예외만 보면 SQL 전문만 보인다 — 그 사고는

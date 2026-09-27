@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.18 · 2026-09-27 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.19 · 2026-09-27 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.19 변경(2026-09-27 — 보통 알림을 묶는다, **사람 결정 G2**): **§1 엔티티 하나 · §2.9 열 넷과 표 하나.** `notification` 에 앱 안 묶음의 키 · 건수 · 마지막 시각 · 열림을 두고, 묶음에 든 이벤트를 `notification_batch_event` 에 적는다. 도메인 엔티티가 34종이 된다.
 >
 > v0.18 변경(2026-09-27 — 프로젝트마다 알림을 받는 수준, **사람 결정 N3**): **§1 엔티티 하나 · §2.9 표 하나.** `notification_preference` — 사람이 프로젝트마다 고른 알림 수준([4.3 데이터베이스](../04-mvp/database.md) REQ-DB-028). 계수 문장이 발송 큐 `email_outbox` 를 빠뜨리고 있어 함께 고쳤다(도메인 33 + 부속 6 = 39).
 >
@@ -164,8 +166,9 @@ erDiagram
 | 31 | 발견 코멘트 | `finding_comment` | 발견 하나에 달리는 스레드(2026-09-01 · `0010_finding_comment`) | FR-09 |
 | 32 | 조직 초대 | `invitation` | 조직 가입 초대 링크와 만료(2026-08-27 · `0006_invitation`) | P8 |
 | 33 | 알림 수준 | `notification_preference` | 사람이 프로젝트마다 고른 알림 수준 — 모두 · 중요만 · 알리지 않음(2026-09-27 · `0035_notification_preference`) | FR-12 |
+| 34 | 알림 묶음 항목 | `notification_batch_event` | 앱 안 묶음 줄에 든 이벤트 — 원인을 보이고 파생의 멱등 키가 된다(2026-09-27 · `0037_notification_batch`) | FR-12 |
 
-위 **33종이 도메인 엔티티**이고, 여기에 **부속 6종**이 더해져 테이블은 **39개**다 — [4.3 데이터베이스 스키마](../04-mvp/database.md)의 `CREATE TABLE` 개수와 같다. 부속은 better-auth 가 소유하는 셋(`auth_session`·`auth_account`·`auth_verification`) · 재생성 가능한 검색 인덱스(`spec_chunk_embedding` — §5.3) · 요청 배관(`idempotency_key` — 주체가 프로젝트가 아니라 자격증명이라 `project_id` 조차 없다) · 발송 큐(`email_outbox` — 2026-09-22)이다.
+위 **34종이 도메인 엔티티**이고, 여기에 **부속 6종**이 더해져 테이블은 **40개**다 — [4.3 데이터베이스 스키마](../04-mvp/database.md)의 `CREATE TABLE` 개수와 같다. 부속은 better-auth 가 소유하는 셋(`auth_session`·`auth_account`·`auth_verification`) · 재생성 가능한 검색 인덱스(`spec_chunk_embedding` — §5.3) · 요청 배관(`idempotency_key` — 주체가 프로젝트가 아니라 자격증명이라 `project_id` 조차 없다) · 발송 큐(`email_outbox` — 2026-09-22)이다.
 
 > **33 → 32**(2026-09-07 정정). 이 표는 33행이었고 그 33번째가 `activity_summary` 였는데, 그것은 **테이블이 아니라 `agent_session` 의 jsonb 열**이다(`0012` — 보존 잡이 Activity 원문을 지우기 전에 도구별 횟수를 접어 두는 자리이고, 의미는 §2.5 의 필드표에 있다). 열을 엔티티로 세면 두 가지가 함께 틀린다 — 엔티티 수와, 그 수에서 빼기로 계산하던 부속 수다. 4.3 은 반대 방향으로 틀려 있었다(`idempotency_key` 를 도메인으로 세고 `spec_chunk_embedding` 을 인프라로 셌다): **32 + 5 = 37** 로 두 문서를 맞췄다.
 >
@@ -695,8 +698,19 @@ clemvion의 `code:` glob이 남긴 교훈이 `stale` 컬럼에 들어 있다. �
 | `importance` | enum | `immediate / digest` — 승인 요청은 즉시, 상태 변화는 묶음 |
 | `channel` | enum | `inapp / slack / email` |
 | `state` | enum | `unread / read / archived` |
-| `digest_batch_id` | uuid NULL | 다이제스트 묶음 |
+| `digest_batch_id` | uuid NULL | 메일 다이제스트 묶음(Phase 2 — 쓰는 곳이 없다) |
+| `batch_key` | text NULL | 앱 안 묶음의 키(spec-workflow §6.3) — 보통 알림만. 같은 사람 · 같은 키의 열린 줄에 더한다(2026-09-27 · 사람 결정 G2) |
+| `batch_size` · `last_at` | int · timestamptz | 묶음에 든 수 · 마지막으로 더해진 시각(목록의 순서) |
+| `batch_open` | bool | 더할 수 있는 묶음인가 — 사람이 읽으면 닫힌다 |
 | `delivered_at` · `read_at` | timestamptz | |
+
+**`notification_batch_event`**(2026-09-27 · 사람 결정 G2)
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `notification_id` · `event_id` | uuid · 복합 PK | 어느 묶음 줄에 어느 이벤트가 들었나(`event_id` 는 논리 FK) |
+| `user_id` | uuid | `(event_id, user_id)` 유일 — 한 이벤트는 한 사람에게 한 묶음에만 든다 |
+| `added_at` | timestamptz | |
 
 **`notification_preference`**(2026-09-27 · 사람 결정 N3)
 
