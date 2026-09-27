@@ -134,3 +134,26 @@ export const QuestionAnswerInput = z
     answer_md: z.string().nullish(),
   })
   .strict();
+
+/**
+ * **[모두 읽음]의 범위**(2026-09-27 · 사람 결정 N4 · REQ-API-216) — 화면이 보고 있는 것만 바꾼다.
+ *
+ * 예전에는 화면의 필터와 상관없이 내 알림 전부를 읽음으로 바꿨다. 범위 칸이 생기면 사람이 보는
+ * 것과 바뀌는 것이 더 크게 벌어진다. 모두 비우면 예전과 같다(모든 조직의 안 읽은 알림 전부).
+ */
+export const NotificationReadAllInput = z
+  .object({
+    /** 프로젝트 slug 또는 UUID — slug 는 `org` 로 좁힌다(REQ-API-213 과 같은 규칙) */
+    project: z.string().min(1).nullish(),
+    /** 조직 slug — `project` 없이 오면 그 조직의 프로젝트 전부다 */
+    org: z.string().min(1).nullish(),
+    /** 등급(`immediate` · `digest`) — 화면의 "중요" 필터 */
+    importance: z.string().min(1).nullish(),
+    /**
+     * 기준 시각 — 화면이 받은 가장 새 알림의 `created_at`. 그 뒤에 온 알림은 그대로 둔다. 누르는
+     * 사이에 온 알림까지 읽음으로 바꾸면 사람은 본 적 없는 알림을 잃는다.
+     */
+    until: z.string().min(1).nullish(),
+  })
+  .strict();
+export type NotificationReadAllInput = z.infer<typeof NotificationReadAllInput>;

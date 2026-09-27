@@ -1289,6 +1289,95 @@ describe('받은 요청·알림·커버리지 표면', () => {
     expect((res.body as Record<string, unknown>)['marked']).toBe(0);
   });
 
+  /**
+   * **범위로 좁혀 보고 그 범위만 처리한다**(2026-09-27 · 사람 결정 N1 · N4 · REQ-API-214~216).
+   * 범위별 수 · 좁힌 목록 · 범위 안의 [모두 읽음]이 목록 · 배지와 같은 조건을 써야 칸의 수와
+   * 목록이 어긋나지 않는다.
+   */
+  it('범위별 수 · 좁힌 목록 · 범위 안의 모두 읽음이 같은 조건을 쓴다 (REQ-API-214~216)', async () => {
+    await call('POST', '/api/v1/me/notifications/read-all', { payload: {} });
+    const seed = async (importance: string, secondsAgo: number): Promise<void> => {
+      const eventId = newId();
+      await pool.query(
+        `INSERT INTO event (id, project_id, occurred_at, type, is_agent, subject_type, subject_id, payload)
+         VALUES ($1,$2, now(), 'session.stale', false, 'agent_session', $3, '{}'::jsonb)`,
+        [eventId, projectId, newId()],
+      );
+      await pool.query(
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at)
+         VALUES ($1,$2,$3,$4,$5::notification_importance,'inapp','unread', now() - ($6 || ' seconds')::interval)`,
+        [newId(), projectId, adminId, eventId, importance, String(secondsAgo)],
+      );
+    };
+    await seed('immediate', 180);
+    await seed('immediate', 120);
+    await seed('digest', 60);
+
+    // 범위별 수 — 알림이 있는 프로젝트의 줄과, 합계가 배지 수와 같다
+    const scopes = (await call('GET', '/api/v1/me/notifications/scopes')).body as {
+      items: Record<string, unknown>[];
+      total: { unread: number; immediate: number };
+    };
+    expect(scopes.items.find((r) => r['project_slug'] === 'clemvion')).toMatchObject({
+      org_slug: 'nerv',
+      unread: 3,
+      immediate: 2,
+    });
+    const badge = (await call('GET', '/api/v1/me/notifications/unread-count')).body as {
+      count: number;
+      immediate: number;
+    };
+    expect(scopes.total).toEqual({ unread: badge.count, immediate: badge.immediate });
+
+    // 좁힌 목록 — 모든 조직 목록을 같은 조건으로 좁힌 것이다
+    const narrowed = (
+      await call('GET', '/api/v1/me/notifications?project=clemvion&org=nerv&state=unread')
+    ).body as { items: Record<string, unknown>[] };
+    expect(narrowed.items).toHaveLength(3);
+    expect(new Set(narrowed.items.map((n) => n['project_slug']))).toEqual(new Set(['clemvion']));
+    expect(
+      (
+        (await call('GET', '/api/v1/me/notifications?org=nerv&state=unread')).body as {
+          items: unknown[];
+        }
+      ).items,
+    ).toHaveLength(3);
+    // 모르는 범위는 빈 목록이 아니라 거절이다(§1.4e)
+    expect((await call('GET', '/api/v1/me/notifications?project=nowhere')).status).toBe(409);
+    expect((await call('GET', '/api/v1/me/notifications?org=nowhere')).status).toBe(409);
+
+    // 기준 시각 앞의 중요 알림만 — 누르는 사이에 온 것은 그대로다(REQ-API-216)
+    const { rows: cut } = await pool.query<{ at: string }>(
+      `SELECT (now() - interval '150 seconds')::text AS at`,
+    );
+    const first = await call('POST', '/api/v1/me/notifications/read-all', {
+      payload: { project: 'clemvion', org: 'nerv', importance: 'immediate', until: cut[0]?.at },
+    });
+    expect((first.body as Record<string, unknown>)['marked']).toBe(1);
+    // 보이는 것만 바꾼다 — 중요 필터로 누르면 보통 알림은 남는다(사람 결정 N4)
+    const second = await call('POST', '/api/v1/me/notifications/read-all', {
+      payload: { project: 'clemvion', importance: 'immediate' },
+    });
+    expect((second.body as Record<string, unknown>)['marked']).toBe(1);
+    expect(
+      ((await call('GET', '/api/v1/me/notifications/unread-count')).body as { count: number })
+        .count,
+    ).toBe(1);
+
+    // 알아볼 수 없는 값은 400 이다 — 조용히 전부 읽음으로 바꾸지 않는다
+    expect(
+      (
+        await call('POST', '/api/v1/me/notifications/read-all', {
+          payload: { until: 'yesterday' },
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await call('POST', '/api/v1/me/notifications/read-all', { payload: { scope: 'all' } }))
+        .status,
+    ).toBe(400);
+  });
+
   it('이벤트 피드는 사람/에이전트를 구분해 싣는다 (FR-16 · D-08)', async () => {
     await call('POST', '/api/v1/projects/clemvion/tasks', { payload: { title: '이벤트용' } });
     const res = await call('GET', '/api/v1/projects/clemvion/events');

@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v1.90 (2026-09-27)</span>
+      <span>버전 v1.91 (2026-09-27)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1980,11 +1980,49 @@ export const ApprovalDecisionInput = z
     <li><span class="marker">4</span><span><b>무엇에 대한 알림인가</b>(2026-09-24 · REQ-WEB-210) — 행은 [라벨] [키 v버전] [제목] … 으로 대상을 말한다. 결재 요청·질문 알림은 키도 제목도 없이 "승인 요청" 만 반복했다(<a href="api.html">4.4</a> REQ-API-181). 같은 종류·대상의 알림이 잇달아 오면 <b>한 줄로 접어 ×N</b> 을 붙이고, ×N 을 누르면 펼친다 — 머리 줄을 누르면 묶음을 함께 읽는다. 결재·질문 알림은 스펙 키를 실어도 <b>그 카드</b>로 간다(REQ-WEB-204).</span></li>
   </ul>
 
+  <p><b>좁혀 본 알림 센터</b>(2026-09-27 · 사람 결정 N1 · REQ-WEB-253). 왼쪽 칸이 같은 목록을 조직 · 프로젝트 하나로 좁힌다.</p>
+
+  <div class="wf">
+    <div class="wf-chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.nerv.example.com/notifications?org=default&amp;project=sudoku&amp;filter=important</div></div>
+    <div class="wf-body">
+      <div class="wf-side">
+        <div class="wf-nav-group">조직 · 프로젝트 <span class="marker">5</span></div>
+        <div class="wf-nav-item">모든 조직 <span class="badge blocked">15</span> 226</div>
+        <div class="wf-nav-item"><b>Default</b> <span class="badge blocked">15</span> 217</div>
+        <div class="wf-nav-item">&nbsp;&nbsp;clemvion <span class="badge blocked">3</span> 3</div>
+        <div class="wf-nav-item on">&nbsp;&nbsp;sudoku <span class="badge blocked">12</span> 214</div>
+        <div class="wf-nav-item"><b>Acme</b> 9</div>
+        <div class="wf-nav-item">&nbsp;&nbsp;web-console 9</div>
+      </div>
+      <div class="wf-main">
+        <div class="wf-topbar">
+          <span class="ttl">알림</span>
+          <span class="wf-btn ghost">전체</span><span class="wf-btn ghost" style="font-weight:700;color:var(--accent-text)">중요</span><span class="wf-btn ghost">안 읽음</span>
+        </div>
+        <div class="wf-row"><span class="sub">Default / sudoku의 알림입니다.</span></div>
+        <div class="wf-row"><span class="badge blocked">중요 12건</span><span class="wf-btn ghost">Default / sudoku 중요 알림 12건 모두 읽음</span><span class="marker">6</span></div>
+        <div class="wf-row"><span class="grow">다른 프로젝트에 중요 알림 3건 ▸</span><span class="marker">7</span></div>
+        <div class="wf-panel">
+          <div class="wf-row"><span class="wf-dot on"></span><span>✅</span><span class="grow"><code>SPC-SUD-012</code> v4가 승인됨 — 승인 지민</span><span class="sub">2분 전</span></div>
+          <div class="wf-row"><span class="wf-dot on"></span><span>⚠️</span><span class="grow">세션 <code>S-7a1c</code> 응답 없음</span><span class="sub">3분 전</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ul class="wf-legend">
+    <li><span class="marker">5</span><span><b>조직 · 프로젝트 칸</b> — 맨 위는 모든 조직이고, 그 아래에 내가 속한 프로젝트가 조직별로 있다(조직이 하나면 조직 줄은 없다). 줄마다 붉은 수는 안 읽은 중요 알림, 회색 수는 안 읽은 전체다 — 서버가 센다(<a href="api.html">4.4</a> REQ-API-215). 알림이 없는 프로젝트도 남고, 보관한 프로젝트는 빠진다. 줄은 좁힌 주소를 가진 링크다. 좁은 폭에서는 목록 위의 칩 줄이 된다. 좁혀 보는 동안 줄의 조직 · 프로젝트 표시(<code>ScopeBadge</code>)는 빠진다(REQ-WEB-253).</span></li>
+    <li><span class="marker">6</span><span><b>보이는 범위만 [모두 읽음]</b> — 고른 조직 · 프로젝트와 "중요" 거름이 모두 적용되고, 단추 이름이 범위와 건수를 적는다. 화면이 받은 가장 새 알림의 시각을 함께 보내 누르는 사이에 온 알림은 그대로 둔다(REQ-WEB-254 · 사람 결정 N4).</span></li>
+    <li><span class="marker">7</span><span><b>다른 범위의 소식</b> — 좁혀 보는 동안 다른 프로젝트에 안 읽은 중요 알림이 있으면 한 줄로 알리고, 누르면 모든 조직의 중요 알림으로 돌아간다. 헤더 배지는 계속 모든 조직의 수다(REQ-WEB-255 · REQ-WEB-193).</span></li>
+  </ul>
+
   <div class="table-wrap"><table>
     <thead><tr><th>화면 요소</th><th>데이터 소스</th><th>비고</th></tr></thead>
     <tbody>
       <tr><td>알림 피드</td><td>EP-NTF-01 <code>GET /api/v1/me/notifications</code> (state: unread/read, 커서)</td><td><code>notification</code> 파생 규칙·읽음 상태는 <a href="data-model.html">data-model</a> §2.9</td></tr>
       <tr><td>읽음 처리</td><td>EP-NTF-02 <code>POST /api/v1/me/notifications/{id}/read</code></td><td>단건 — 행 클릭 시 자동 호출</td></tr>
+      <tr><td>조직 · 프로젝트 칸</td><td>EP-NTF-05 <code>GET /api/v1/me/notifications/scopes</code></td><td>줄마다 안 읽은 수와 중요 수 — 합계는 헤더 배지와 같은 조건이다(REQ-WEB-253)</td></tr>
+      <tr><td>모두 읽음</td><td>EP-NTF-03 <code>POST /api/v1/me/notifications/read-all</code> (<code>NotificationReadAllInput</code>)</td><td>보이는 범위 · 거름 · 기준 시각만 — 비우면 모든 조직 전부(REQ-WEB-254)</td></tr>
     </tbody>
   </table></div>
 
@@ -2000,6 +2038,9 @@ export const ApprovalDecisionInput = z
       <tr><td>REQ-WEB-034</td><td>WHEN 알림 행을 클릭하면 THE SYSTEM SHALL 해당 알림을 읽음 처리(EP-NTF-02)한 뒤 대상 딥링크로 이동한다</td></tr>
       <tr><td>REQ-WEB-163</td><td>WHEN 스펙 버전을 대상으로 하는 알림(승인·거절)의 행을 클릭하면 THE SYSTEM SHALL 그 버전과 직전의 차이를 <code>?diff=vN-1..vN</code> 로 열고, WHERE 직전 버전이 없으면(v1) 아무 뷰 상태도 붙이지 않는다. WHEN <code>spec.comment_added</code> 알림의 행을 클릭하면 THE SYSTEM SHALL <code>subject_type</code> 이 <code>spec</code> 인 것만 <code>?rail=comments</code> 로 열고, <code>spec_version</code> 인 것(리뷰 결정 코멘트 — 코멘트 행이 없다)은 문서 본문으로 보낸다. WHEN 스펙 상세가 <code>?rail=&lt;탭&gt;</code> 을 받으면 THE SYSTEM SHALL 그 탭을 펴고, 어휘 밖 값이면 기본 탭(관계)으로 떨어진다</td></tr>
       <tr><td>REQ-WEB-218</td><td>WHILE 알림 센터를 보는 동안 THE SYSTEM SHALL 거르는 칸 [전체 · 중요 · 안 읽음]을 안 읽은 수와 무관하게 늘 보이고 고른 값을 주소(<code>?filter=</code>)에 두며, 등급 이름은 <b>중요</b>로 부른다(REQ-WEB-149). WHEN [모두 읽음]이 끝나면 THE SYSTEM SHALL 읽은 건수를 알린다. WHEN 목록이 비면 THE SYSTEM SHALL 거른 칸에 맞는 빈 상태를 보이고, 알림을 만들지 않는 활동(작업 완료 등)을 약속하지 않는다. WHILE 안 읽은 알림이 있으면 THE SYSTEM SHALL 헤더의 알림 링크 이름에 중요 수와 안 읽은 수를 함께 적는다 — 배지가 없는데 알림 화면은 "읽지 않음 126" 인 까닭이 읽혀야 한다</td></tr>
+      <tr><td>REQ-WEB-253</td><td>WHILE 알림 센터를 보는 동안 THE SYSTEM SHALL 왼쪽에 조직 · 프로젝트 칸(모든 조직 → 조직 → 내가 속한 프로젝트, 줄마다 안 읽은 중요 수와 안 읽은 전체 수 — <a href="api.html">4.4</a> EP-NTF-05)을 보이고, WHEN 줄을 고르면 THE SYSTEM SHALL 같은 목록을 그 범위로 좁혀(EP-NTF-01 <code>org</code> · <code>project</code>) 주소(<code>?org=</code> · <code>?project=</code>)에 남기며 [전체 · 중요 · 안 읽음] 거름은 그대로 둔다. WHILE 프로젝트 하나로 좁혀 보는 동안 THE SYSTEM SHALL 줄의 조직 · 프로젝트 표시를 빼고 머리에 그 범위를 한 번 적는다. 헤더 배지는 모든 조직의 수 그대로다(REQ-WEB-193 · 2026-09-27 사람 결정 N1)</td></tr>
+      <tr><td>REQ-WEB-254</td><td>WHEN [모두 읽음]을 누르면 THE SYSTEM SHALL 고른 범위와 "중요" 거름, 화면이 받은 가장 새 알림의 시각(<code>until</code>)을 함께 보내 보이는 알림만 읽음으로 바꾸고(REQ-API-216), 단추 이름에 범위와 건수를 적는다(예: "sudoku 중요 알림 12건 모두 읽음" — 모든 조직 · 전체면 "모두 읽음"). 예전에는 필터와 상관없이 전부를 바꿨다(2026-09-27 사람 결정 N4)</td></tr>
+      <tr><td>REQ-WEB-255</td><td>WHILE 조직이나 프로젝트 하나로 좁혀 보는 동안 다른 범위에 안 읽은 중요 알림이 있으면 THE SYSTEM SHALL 목록 위에 "다른 프로젝트에 중요 알림 N건"을 한 줄로 보이고, 누르면 모든 조직의 중요 알림으로 돌아간다 — 좁혀 보는 동안 다른 프로젝트의 급한 일을 놓치지 않게 한다</td></tr>
       <tr><td>REQ-WEB-035</td><td>WHEN <code>notification.created</code>를 수신하거나 읽음 처리가 완료되면 THE SYSTEM SHALL 5초 이내에 헤더 알림 배지 수를 안읽음 목록 수와 일치시킨다(NFR-02)</td></tr>
     </tbody>
   </table></div>

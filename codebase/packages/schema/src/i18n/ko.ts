@@ -1329,6 +1329,14 @@ export const ko = {
   'notif.empty_important': '중요한 알림이 없습니다.',
   'notif.empty_unread': '안 읽은 알림이 없습니다.',
   'notif.read_all_done': '{count}건을 읽음으로 표시했습니다.',
+  'notif.scope_one':
+    '{scope}의 알림입니다. 왼쪽 칸에서 다른 프로젝트나 모든 조직을 고를 수 있습니다.',
+  'notif.scope.heading': '조직 · 프로젝트',
+  'notif.scope.all': '모든 조직',
+  'notif.read_all_important': '중요 알림 {count}건 모두 읽음',
+  'notif.read_all_scoped': '{scope} 알림 {count}건 모두 읽음',
+  'notif.read_all_scoped_important': '{scope} 중요 알림 {count}건 모두 읽음',
+  'notif.elsewhere_important': '다른 프로젝트에 중요 알림 {count}건',
   'shell.notifications_counts': '알림 — 모든 조직 · 중요 {important} · 읽지 않음 {unread}',
   // 받은 요청의 잠긴 카드 — 배지는 내가 누를 수 있는 것만 센다(2026-09-24 사람 결정 D2 · REQ-WEB-217)
   'inbox.locked_group': '다른 사람의 결정을 기다리는 것 {count}건',

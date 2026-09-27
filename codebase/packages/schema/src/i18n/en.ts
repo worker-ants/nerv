@@ -1342,6 +1342,14 @@ export const en = {
   'notif.empty_important': 'No important notifications.',
   'notif.empty_unread': 'No unread notifications.',
   'notif.read_all_done': 'Marked {count} as read.',
+  'notif.scope_one':
+    'Notifications in {scope}. Pick another project or all organizations on the left.',
+  'notif.scope.heading': 'Organizations and projects',
+  'notif.scope.all': 'All organizations',
+  'notif.read_all_important': 'Mark {count} important as read',
+  'notif.read_all_scoped': 'Mark {count} in {scope} as read',
+  'notif.read_all_scoped_important': 'Mark {count} important in {scope} as read',
+  'notif.elsewhere_important': '{count} important in other projects',
   'shell.notifications_counts':
     'Notifications (all organizations) · {important} important · {unread} unread',
   'inbox.locked_group': '{count} waiting on someone else',

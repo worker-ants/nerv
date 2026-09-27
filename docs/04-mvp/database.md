@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.54 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.55 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.55 변경(2026-09-27 — 알림을 프로젝트별로 센다, **사람 결정 N1**): **REQ-DB-027 신설 · §2.12 인덱스 한 줄 · 마이그레이션 `0034`.** 알림 화면의 조직 · 프로젝트 칸이 프로젝트마다 안 읽은 수를 세고, [모두 읽음]이 고른 프로젝트 안에서만 바꾼다([4.4 API 명세](api.md) REQ-API-215·216). 있던 인덱스는 프로젝트를 몰랐다. 열은 바꾸지 않는다.
 >
 > v0.54 변경(2026-09-27 — 검토 요청을 보내면 임베딩이 지워졌다): **REQ-DB-017 개정 · §2.15 규칙 1.** 임베딩 대상에 in_review 버전을 더했다. 빠져 있던 동안 검토 요청을 보내는 순간 그 버전의 청크가 지워져, 최신 기준 검색([4.4 API 명세](api.md) REQ-API-195)이 검토 중인 문서를 의미로 찾지 못했고 거절되면 같은 본문을 다시 임베딩했다.
 >
@@ -961,6 +963,7 @@ CREATE INDEX approval_decided ON approval (project_id, decided_by_user_id) WHERE
 CREATE INDEX event_project_time ON event (project_id, occurred_at DESC);           -- 피드
 CREATE INDEX event_subject      ON event (subject_type, subject_id, occurred_at);  -- 감사(§4.8)
 CREATE INDEX notification_inbox ON notification (user_id, state, created_at DESC); -- 보조: 수신함
+CREATE INDEX notification_scope ON notification (user_id, project_id, state);  -- 보조: 조직 · 프로젝트 칸의 수와 범위 안 모두 읽음(REQ-DB-027)
 CREATE INDEX question_open ON question (project_id, status);                       -- 보조: 열린 질문 수
 CREATE INDEX evidence_requirement ON evidence (requirement_id) WHERE NOT stale;    -- 보조: 커버리지(§4.1)
 ```
@@ -1226,6 +1229,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-024 | WHEN 메일을 보내야 하는 일이 생기면 THE SYSTEM SHALL 그 일을 만든 트랜잭션 안에서 `email_outbox` 에 행을 넣고, 발송은 워커가 따로 수행한다 — 표면은 SMTP 를 기다리지 않는다 |
 | REQ-DB-025 | WHILE 발송 설정(`NERV_MAIL_HOST`)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다 |
 | REQ-DB-026 | WHEN 발송이 실패하면 THE SYSTEM SHALL 지수 백오프로 다시 시도하고, 상한을 넘으면 행을 **지우지 않고** 실패 시각과 사유를 남긴다 |
+| REQ-DB-027 | WHEN 알림 행이 저장되면 THE SYSTEM SHALL `(user_id, project_id, state)` 인덱스(`notification_scope` · 마이그레이션 `0034`)로 그 사람의 프로젝트별 안 읽은 수와 범위 안 [모두 읽음]을 그 사람의 알림 전부를 훑지 않고 처리할 수 있게 한다([4.4 API 명세](api.md) REQ-API-215·216 · 2026-09-27) |
 
 ---
 
