@@ -38,8 +38,9 @@ describe('테이블 선언 (database.md §2)', () => {
   // 한다: 초대받은 사람이 아직 가입하지 않았으면 membership 을 만들 수 없고, 만료·회수는
   // 상태를 가진 것만이 가질 수 있다.
   // 2026-09-27 · 33 → 34: `notification_preference` 신설(마이그레이션 0035 · 사람 결정 N3 · REQ-DB-028)
-  it('34종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 5(리뷰) + 3(이벤트) + 1(멱등)', () => {
-    expect(declaredTables).toHaveLength(34);
+  // 2026-09-27 · 34 → 35: `notification_batch_event` 신설(마이그레이션 0037 · 사람 결정 G2 · REQ-DB-030)
+  it('35종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 5(리뷰) + 4(이벤트) + 1(멱등)', () => {
+    expect(declaredTables).toHaveLength(35);
   });
 
   it('이름이 data-model 의 테이블 표와 1:1 이다', () => {
@@ -60,6 +61,7 @@ describe('테이블 선언 (database.md §2)', () => {
       'invitation',
       'membership',
       'notification',
+      'notification_batch_event',
       'notification_preference',
       'organization',
       'project',
@@ -89,8 +91,8 @@ describe('테이블 선언 (database.md §2)', () => {
 
   it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16 · §2.17)', () => {
     const all = allTables.map((t) => getTableName(t));
-    // 34 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
-    expect(all).toHaveLength(39);
+    // 35 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
+    expect(all).toHaveLength(40);
     for (const infra of NON_ENTITY_TABLES) {
       expect(all).toContain(infra);
       expect(tableNames).not.toContain(infra);

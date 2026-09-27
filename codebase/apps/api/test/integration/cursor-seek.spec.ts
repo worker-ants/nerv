@@ -176,6 +176,7 @@ describe('알림 목록 — 한 이벤트가 여러 수신자에게 파생될 �
     // 이벤트 피드와 같은 이유로 **같은 ms 안에 동률 한 쌍과 µs 만 다른 셋**을 함께 둔다:
     // 예전에는 다섯이 모두 정각이라 µs 가 잘려도 값이 그대로여서 이 검사가 통과했다.
     // 파생 알림은 `created_at` 기본값이 `now()`(트랜잭션 시각)라 실제로 이 모양이 된다.
+    // 커서 열은 `last_at` 이다(2026-09-27 · REQ-API-224) — 묶지 않은 알림은 두 시각이 같으므로 둘 다 못 박는다.
     const createdAt = [
       '2026-09-07 00:00:00.123456+00',
       '2026-09-07 00:00:00.123456+00', // 앞 행과 정확히 같다 — 갈리는 것은 `id` 뿐이다
@@ -184,14 +185,15 @@ describe('알림 목록 — 한 이벤트가 여러 수신자에게 파생될 �
       '2026-09-07 00:00:00.123459+00',
     ];
     await pool.query(
-      `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at)
-       SELECT gen_random_uuid(), $1, $2, e.id, 'immediate', 'inapp', 'unread', e.at
+      `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at,
+                                 last_at)
+       SELECT gen_random_uuid(), $1, $2, e.id, 'immediate', 'inapp', 'unread', e.at, e.at
          FROM unnest($3::uuid[], $4::timestamptz[]) AS e(id, at)`,
       [projectId, userId, eventIds, createdAt],
     );
     const { rows: shape } = await pool.query<{ ms: number; us: number }>(
-      `SELECT count(DISTINCT date_trunc('milliseconds', created_at))::int AS ms,
-              count(DISTINCT created_at)::int AS us
+      `SELECT count(DISTINCT date_trunc('milliseconds', last_at))::int AS ms,
+              count(DISTINCT last_at)::int AS us
          FROM notification WHERE user_id = $1`,
       [userId],
     );

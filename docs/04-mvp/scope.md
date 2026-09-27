@@ -7,6 +7,7 @@ referenced_by:
   - 03-proposal/architecture.md
   - 03-proposal/data-model.md
   - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md
   - 04-mvp/codebase.md
@@ -24,7 +25,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 **22종**(P0 8 + P1 14 · 카탈로그 24종 — 리뷰 2종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.37 · 2026-09-27 · HTML 파생본: [scope.html](../html/scope.html)
+> 문서 버전 v0.38 · 2026-09-27 · HTML 파생본: [scope.html](../html/scope.html)
+>
+> v0.38 변경(2026-09-27 — 보통 알림을 묶는다, **사람 결정 G1**): **FR-12 행 한 구절 · 범위 조정.** FR-12 의 다이제스트 가운데 **앱 안 묶음**만 MVP 로 옮긴다. 새 채널 없이 알림 행을 묶는 일이고, 로컬 실측에서 안 읽은 알림의 90%가 한 종류(참조 스펙 재검토)였다. Slack · 메일 다이제스트는 그대로 Phase 2 다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5 결정 기록).
 >
 > v0.37 변경(2026-09-27 — 두 번째 플러그인, **사람 결정**): **§4.3 한 문단.** 한국어 문체 플러그인 `ko-style` 을 nerv 와 같은 마켓플레이스에 둔다([4.6 플러그인](plugin.md) §7). 스킬 범위 표(패키지 5종)는 그대로이고, 선택 설치라 FR 범위도 그대로다. 곁들여 파생본의 이 절이 "SKILL.md 4종 · `.mcp.json`" 이라 적어 원본(5종 · `.mcp.json` 은 패키지에 없다)과 달랐던 것을 맞췄다.
 >
@@ -254,7 +257,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR-09 | 리뷰 수집 | ○ | ○ | ○ | — | ReviewSession→Finding→Resolution 은 Phase 2 로 계획했으나 **2026-08-23 이후 전부 들어왔다**(§5 착수 기록) — 서버·도구·REST 7종·S6 리뷰 센터 화면·`/nerv:review` 스킬(패키지에 배포됨)·소급 임포터까지. 남은 것은 게이트의 리뷰 커버리지 조건이다(FR-10 행) |
 | FR-10 | 게이트 판정 API | ◐ | ○ | ◐ | Task `done` 전이 조건 판정 | 리뷰 커버리지 조건·커밋 범위 판정은 Phase 2 |
 | FR-11 | 받은 요청(Inbox) | ◐ | ○ | ◐ | 스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트 | CR·에스컬레이션 카드(5유형 완성)는 Phase 2 |
-| FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack·다이제스트는 Phase 2. **알림의 메일 채널도 Phase 2 다** — 2026-09-22 에 들어온 SMTP 는 가입 인증과 초대 메일이고(§2.1 발신 행), 알림을 메일로 보내는 것은 중요도·수신 설정이 함께 필요한 별개의 일이다 |
+| FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack · 메일 다이제스트는 Phase 2. **앱 안 묶음은 MVP 다**(2026-09-27 사람 결정 G1 — 보통 알림을 같은 대상마다 읽을 때까지 한 줄로 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5). **알림의 메일 채널도 Phase 2 다** — 2026-09-22 에 들어온 SMTP 는 가입 인증과 초대 메일이고(§2.1 발신 행), 알림을 메일로 보내는 것은 중요도·수신 설정이 함께 필요한 별개의 일이다 |
 | FR-13 | 증적·커버리지 | ◐ | ○ | ◐ | PR·커밋 웹훅 수신, Task↔PR 링크 | 커버리지 계산·대시보드는 Phase 2 |
 | FR-14 | 멀티테넌시 | ● | ◐ | ● | Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정) | — |
 | FR-15 | 에이전트 연동 | ◐ | ◐ | ◐ | MCP tools P0 8종 + P1 14종 = **22종**(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + statusline — `.mcp.json` 은 담지 않는다, 2026-09-04 REQ-PLG-001 개정), 훅 수집기 | Codex 완전 지원·`AGENTS.md` 배포·OAuth 2.1은 Phase 2(§5) |

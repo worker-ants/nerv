@@ -77,6 +77,43 @@ function searchOf(scope: ScopeSelection, filter?: 'important' | 'unread'): Notif
   };
 }
 
+/** 묶음 줄의 원인 한 건(2026-09-27 · api.md REQ-API-224) */
+interface BatchCause {
+  event_id: string;
+  occurred_at: string | null;
+  actor_name: string | null;
+  is_agent: boolean | null;
+  /** 재검토 요청이면 바뀐 문서의 키 */
+  because_key: string | null;
+  /** 작업 준비면 그 작업의 키 */
+  task_key: string | null;
+}
+
+/**
+ * **서버가 센 묶음의 크기**(2026-09-27 · 사람 결정 G2 · REQ-WEB-262). 보통 알림은 같은 대상이면 서버가
+ * 읽을 때까지 한 줄에 더한다 — 화면이 불러온 줄 안에서 세던 수가 아니라 전체 수다. 묶지 않은 줄은 1
+ */
+const batchSize = (n: EventRow): number =>
+  typeof n['batch_key'] === 'string' && typeof n['batch_size'] === 'number' ? n['batch_size'] : 1;
+
+const batchCauses = (n: EventRow): BatchCause[] =>
+  Array.isArray(n['batch_causes']) ? (n['batch_causes'] as BatchCause[]) : [];
+
+/** 원인 한 건의 이름 — 재검토면 바뀐 문서, 작업 준비면 그 작업, 그 밖(코멘트)이면 남긴 사람 */
+const causeName = (c: BatchCause): string =>
+  c.because_key ?? c.task_key ?? `${c.actor_name ?? '—'}${c.is_agent === true ? ' 🤖' : ''}`;
+
+/** 줄에 붙는 한 줄 — 서로 다른 이름을 셋까지 적고, 더 있으면 "등" 을 붙인다 */
+function causeLine(t: ReturnType<typeof useT>, n: EventRow): string | null {
+  if (batchSize(n) <= 1) return null;
+  const names = [...new Set(batchCauses(n).map(causeName))];
+  if (names.length === 0) return null;
+  const list = names.slice(0, 3).join(' · ');
+  return names.length > 3 || batchSize(n) > batchCauses(n).length
+    ? t('notif.batch.more', { list })
+    : list;
+}
+
 function hrefOfSearch(search: NotificationSearch): string {
   const params = new URLSearchParams();
   if (search.filter !== undefined) params.set('filter', search.filter);
@@ -164,8 +201,15 @@ function NotificationScreen(): React.JSX.Element {
 
   // 받아 온 쪽들을 이어 붙인다 — 커서가 있으므로 목록은 50 에서 끝나지 않는다
   const items = (notifications.data?.pages ?? []).flatMap((page) => rows(page.items));
-  // 목록은 새것부터다 — 맨 앞이 이 화면이 본 가장 새 알림이다([모두 읽음]의 기준 시각)
-  const newestSeen = typeof items[0]?.['created_at'] === 'string' ? items[0]['created_at'] : null;
+  // 목록은 새것부터다 — 맨 앞이 이 화면이 본 가장 새 알림이다([모두 읽음]의 기준 시각). 순서는
+  // **마지막으로 더해진 시각**이라(2026-09-27 · REQ-API-224) 기준도 그 값이다
+  const head = items[0];
+  const newestSeen =
+    typeof head?.['last_at'] === 'string'
+      ? head['last_at']
+      : typeof head?.['created_at'] === 'string'
+        ? head['created_at']
+        : null;
 
   const markRead = useMutation({
     mutationFn: (id: string) => apiFetch(`/me/notifications/${id}/read`, { method: 'POST' }),
@@ -207,7 +251,13 @@ function NotificationScreen(): React.JSX.Element {
    * **잇달아 같은 알림은 한 줄로 접는다**(2026-09-24 · HUB-08 · REQ-WEB-210). 같은 문서의 재확인
    * 요청이나 코멘트가 연달아 오면 똑같은 줄이 여러 번 쌓였다 — "×N" 을 누르면 펼쳐진다.
    */
-  const groups = collapseRepeats(items, (n) => `${eventType(n)}|${String(n['subject_id'] ?? '')}`);
+  // 서버가 묶은 줄(REQ-WEB-262)은 이웃과 접지 않는다 — 그 줄이 이미 묶음이고, 읽은 묶음과 새 묶음은
+  // 따로 읽는 두 줄이다
+  const groups = collapseRepeats(items, (n) =>
+    typeof n['batch_key'] === 'string'
+      ? `batch|${String(n['id'])}`
+      : `${eventType(n)}|${String(n['subject_id'] ?? '')}`,
+  );
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const toggle = (id: string): void =>
     setOpen((prev) => {
@@ -226,6 +276,12 @@ function NotificationScreen(): React.JSX.Element {
     const type = eventType(n);
     const subject = eventSubject(n);
     const unreadIds = members.filter((m) => m['state'] === 'unread').map((m) => String(m['id']));
+    // 서버가 묶은 줄은 그 수를, 화면이 접은 무리는 무리의 줄 수를 보인다
+    const batched = typeof n['batch_key'] === 'string';
+    const repeat = batched ? batchSize(n) : members.length;
+    const repeatLabel = batched
+      ? t('notif.batch.label', { count: repeat })
+      : t('feed.repeat_label', { count: repeat });
     const state = unreadIds.length > 0 ? 'unread' : 'read';
     const target = deepLinkFor(n);
     const href = hrefOf(target);
@@ -288,6 +344,12 @@ function NotificationScreen(): React.JSX.Element {
           )}
           {/* **처리된 요청은 그렇다고 말한다**(REQ-WEB-204 · REQ-API-176). 누가 먼저 처리해도
               행은 여전히 "승인 요청" 이라, 누르면 이미 없는 카드를 찾아갔다 */}
+          {/* **무엇 때문에**(2026-09-27 · REQ-WEB-262) — 묶음에 든 원인(바뀐 문서 · 준비된 작업 · 남긴 사람) */}
+          {causeLine(t, n) !== null && (
+            <span data-testid="notification-causes" className="ml-2 text-xs text-text-faint">
+              {causeLine(t, n)}
+            </span>
+          )}
           {typeof n['resolution'] === 'string' && (
             <span data-testid="notification-resolved" className="ml-2 text-xs text-text-faint">
               {t('notif.resolved', {
@@ -297,20 +359,20 @@ function NotificationScreen(): React.JSX.Element {
             </span>
           )}
         </a>
-        {members.length > 1 && (
+        {repeat > 1 && (
           <button
             type="button"
             data-testid="notification-repeat"
             aria-expanded={expanded}
-            aria-label={t('feed.repeat_label', { count: members.length })}
-            title={t('feed.repeat_label', { count: members.length })}
+            aria-label={repeatLabel}
+            title={repeatLabel}
             onClick={(e) => {
               e.stopPropagation(); // 펼치기는 이동이 아니다
               toggle(String(n['id']));
             }}
             className="shrink-0 rounded-nerv-sm px-1 text-xs text-text-faint tabular-nums hover:bg-bg-active hover:text-text"
           >
-            {t('feed.repeat', { count: members.length })}
+            {t('feed.repeat', { count: repeat })}
           </button>
         )}
         {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192).
@@ -517,6 +579,41 @@ function NotificationScreen(): React.JSX.Element {
               const expanded = open.has(headId);
               // 머리 줄은 **무리 전체**를 대표한다 — 읽음도 이동도 묶음 단위다(HUB-08).
               // 펼친 뒤의 나머지 줄은 저마다 한 건이다
+              // 서버가 묶은 줄은 펼치면 **원인**을 보인다(최근 10건) — 줄은 하나이고 읽음도 하나다
+              if (typeof group.head['batch_key'] === 'string') {
+                const causes = batchCauses(group.head);
+                const older = batchSize(group.head) - causes.length;
+                return [
+                  renderRow(group.head, group.rows, expanded),
+                  ...(expanded
+                    ? [
+                        ...causes.map((c) => (
+                          <li
+                            key={`${headId}:${c.event_id}`}
+                            data-testid="notification-cause"
+                            className="flex items-center gap-3 border-b border-border py-1.5 pr-2 pl-7 text-xs text-text-mute"
+                          >
+                            <span className="min-w-0 flex-1 truncate">{causeName(c)}</span>
+                            <span className="w-16 shrink-0 text-right text-text-faint">
+                              {relativeTime(t, c.occurred_at)}
+                            </span>
+                          </li>
+                        )),
+                        ...(older > 0
+                          ? [
+                              <li
+                                key={`${headId}:older`}
+                                data-testid="notification-cause-older"
+                                className="border-b border-border py-1.5 pr-2 pl-7 text-xs text-text-faint"
+                              >
+                                {t('notif.batch.older', { count: older })}
+                              </li>,
+                            ]
+                          : []),
+                      ]
+                    : []),
+                ];
+              }
               return [
                 renderRow(group.head, group.rows, expanded),
                 ...(expanded ? group.rows.slice(1).map((n) => renderRow(n, [n], false, true)) : []),

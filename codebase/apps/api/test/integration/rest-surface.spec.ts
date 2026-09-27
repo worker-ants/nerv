@@ -306,8 +306,10 @@ describe('EP-NTF-01 — 알림은 50 에서 끝나지 않는다', () => {
         [eventId, projectId, String(i), newId()],
       );
       await pool.query(
-        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at)
-         VALUES ($1,$2,$3,$4,'immediate','inapp','unread', now() - ($5 || ' minutes')::interval)`,
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at,
+                                   last_at)
+         VALUES ($1,$2,$3,$4,'immediate','inapp','unread', now() - ($5 || ' minutes')::interval,
+                 now() - ($5 || ' minutes')::interval)`,
         [newId(), projectId, adminId, eventId, String(i)],
       );
     }
@@ -1304,8 +1306,10 @@ describe('받은 요청·알림·커버리지 표면', () => {
         [eventId, projectId, newId()],
       );
       await pool.query(
-        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at)
-         VALUES ($1,$2,$3,$4,$5::notification_importance,'inapp','unread', now() - ($6 || ' seconds')::interval)`,
+        // 묶지 않은 알림은 만든 시각과 마지막 시각이 같다(2026-09-27 · REQ-API-224 — 목록과 기준 시각이 last_at 을 본다)
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state, created_at, last_at)
+         VALUES ($1,$2,$3,$4,$5::notification_importance,'inapp','unread',
+                 now() - ($6 || ' seconds')::interval, now() - ($6 || ' seconds')::interval)`,
         [newId(), projectId, adminId, eventId, importance, String(secondsAgo)],
       );
     };
