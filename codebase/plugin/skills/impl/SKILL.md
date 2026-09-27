@@ -57,12 +57,17 @@ allowed-tools:
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.
   - `basis_superseded`(기준 버전이 밀려났다 — `spec_key`·`basis_version_no`·`latest_version_no`
     가 함께 온다) → **임의로 최신 버전으로 갈아타지 않는다.** `nerv_spec_get`(`spec_id`,
-    `version=<latest_version_no>`)로 새 버전을 읽어 내 Requirement 가 MODIFIED/REMOVED 인지 본다.
+    `version=<latest_version_no>`, `diff_from`)로 새 버전을 읽고, `diff_from` 에는 기준 버전
+    (`version: <basis_version_no>`)을 준다. 응답의 `diff.requirements` 가 요구사항마다
+    `added`·`modified`·`removed` 를 말한다 — 내 Requirement 가 `modified`·`removed` 인지 본다.
+    요구사항은 **읽은 버전의 것**이라(`requirements_source`) 두 버전을 따로 읽어 견줘도 된다.
     읽은 본문은 `.nerv/cache/specs/<spec_key>@v<latest_version_no>.md` 에도 Write 한다.
     그렇다면 `nerv_task_update`(`status=blocked`, `blocked_reason=spec_conflict`) 또는
     /nerv:question 으로 확인을 구하고, 아니면 기준 버전대로 계속 진행하며 사람의 재브리핑을
     기다린다(agent-integration §2.4). **이 항목은 사라지지 않는다** — 전달되면 끝나는 답변과
     달리 기준 드리프트는 사람이 재브리핑할 때까지 남는 **상태**라 매 하트비트에 다시 온다.
+    기준선으로 개발하는 작업에는 이 항목이 오지 않는다 — 세트가 약속이고, 옮기는 것은 사람이
+    기준선째 옮긴다. 구현 중에 스펙을 더 읽을 때도 /nerv:next 6단계처럼 `task` 를 넘긴다.
 - statusline 이 읽을 요약을 `.nerv/cache/claim.json` 에 **응답의 키 이름 그대로** 기록한다.
   값의 출처가 응답마다 다르다: `task_id`·`claim_id` 는 **클레임 응답**에서, `status` 는 마지막
   `nerv_task_update` 응답에서, `lease_expires_at`·`scope_overlaps` 는 **하트비트 응답**에서 —

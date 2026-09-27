@@ -89,6 +89,8 @@ export class SpecController {
     @Query('baseline') baseline?: string,
     // 보기 기준(`approved` · `latest`) — 판정은 서비스가 한다(REQ-API-193)
     @Query('basis') basis?: string,
+    // 작업의 기준선으로 본다(REQ-API-203)
+    @Query('task') task?: string,
   ): Promise<SpecTreeNode[]> {
     return this.specs.tree({
       projectId: projectOf(req),
@@ -104,6 +106,7 @@ export class SpecController {
         type === undefined || type === '' ? null : type.split(',').map((value) => value.trim()),
       baseline: baseline === undefined || baseline === '' ? null : baseline,
       basis: basis === undefined || basis === '' ? null : basis,
+      task: task === undefined || task === '' ? null : task,
     });
   }
 
@@ -118,6 +121,7 @@ export class SpecController {
     @Query('include_archived') includeArchived?: string,
     @Query('baseline') baseline?: string,
     @Query('basis') basis?: string,
+    @Query('task') task?: string,
   ): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     return this.specs.graph({
       projectId: projectOf(req),
@@ -125,6 +129,7 @@ export class SpecController {
       // 표·그래프도 같은 세트를 봐야 한다 — 탭을 옮겼다고 목록이 달라지면 그것이 혼동이다
       baseline: baseline === undefined || baseline === '' ? null : baseline,
       basis: basis === undefined || basis === '' ? null : basis,
+      task: task === undefined || task === '' ? null : task,
     });
   }
 
@@ -146,6 +151,7 @@ export class SpecController {
     @Query('requirement_id') requirementId?: string,
     @Query('basis') basis?: string,
     @Query('baseline') baseline?: string,
+    @Query('task') task?: string,
   ): Promise<unknown> {
     return this.searches.search({
       projectId: projectOf(req),
@@ -160,6 +166,7 @@ export class SpecController {
       ...(requirementId === undefined ? {} : { requirementRef: requirementId }),
       ...(basis === undefined || basis === '' ? {} : { basis }),
       ...(baseline === undefined || baseline === '' ? {} : { baseline }),
+      ...(task === undefined || task === '' ? {} : { task }),
     });
   }
 
@@ -203,8 +210,9 @@ export class SpecController {
     @Query('include') include?: string,
     @Query('baseline') baseline?: string,
     @Query('basis') basis?: string,
+    @Query('task') task?: string,
   ): Promise<Record<string, unknown>> {
-    assertVersionXorBaseline(version, baseline);
+    // 선택자(v · baseline · basis · task)의 배타는 서비스 한 곳이 판정한다(REQ-API-196 · 203)
     return this.specs.get({
       projectId: projectOf(req),
       specKey: spec,
@@ -215,8 +223,9 @@ export class SpecController {
         include === undefined || include === ''
           ? null
           : include.split(',').map((name) => name.trim()),
-      // `v` · `baseline` 과 배타 — 서비스가 거절한다(REQ-API-193)
+      // `v` · `baseline` · `task` 와 배타 — 서비스가 거절한다(REQ-API-196)
       basis: basis === undefined || basis === '' ? null : basis,
+      task: task === undefined || task === '' ? null : task,
     });
   }
 
@@ -701,17 +710,6 @@ export class SpecController {
  * 값어치가 사라진다 — 기준선은 "이 세트를 읽었다" 를 보장하는 장치이기 때문이다.
  * 우선순위를 정해 조용히 하나를 이기게 두는 쪽이 더 나쁘다.
  */
-function assertVersionXorBaseline(version?: string, baseline?: string): void {
-  const hasVersion = version !== undefined && version !== '';
-  const hasBaseline = baseline !== undefined && baseline !== '';
-  if (hasVersion && hasBaseline) {
-    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_xor_baseline'), {
-      kind: 'invalid_input',
-      field: 'baseline',
-    });
-  }
-}
-
 function projectOf(req: ProjectRequest): string {
   const projectId = req.nervProjectId;
   if (projectId === undefined) {

@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>5종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.79 (2026-09-27)</span>
+      <span>버전 v0.80 (2026-09-27)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -81,7 +81,7 @@
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 같은 마켓플레이스에는 2026-09-27 부터 <b>문체 플러그인 <code>ko-style</code></b> 이 하나 더 있다. NERV 서버와 무관하게 동작하는 별도 패키지라 이 절의 구조 밖이고, 정본은 §7 이다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.4
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.5
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -102,7 +102,7 @@
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;nerv&quot;,
   &quot;description&quot;: &quot;NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다&quot;,
-  &quot;version&quot;: &quot;0.3.4&quot;,
+  &quot;version&quot;: &quot;0.3.5&quot;,
   &quot;license&quot;: &quot;Apache-2.0&quot;
 }</code></pre>
 
@@ -183,43 +183,47 @@ allowed-tools:
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
+     활성 클레임 줄에 `task_key`·`spec_key`·`version_no`·`baseline` 이 있으니 6단계를 그대로 한다.
    - 응답을 `.nerv/cache/context-pack.json` 에 Write 한다 — 서버에 연결되지 않을 때 규약과 정책을
      읽을 유일한 사본이다.
 2. **다른 클레임을 가지고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
 3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
-   **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·기준선, 권장 scope가 실려 있다.
+   **기준 SpecVersion**(`spec_key`·`version_no` — 이 Task가 파생된 버전)·기준선(`baseline`)이 들어 있다.
    - 4요소 중 하나라도 비어 있으면 그 Task는 클레임하지 않는다. `nerv_question_create`로
      빈 요소를 지목해 에스컬레이션한다(/nerv:question 규약).
    - **`handoff_note`가 있으면 먼저 읽는다.** 앞사람이 이 작업을 내려놓으며 남긴 인수인계다
      — 어디까지 했고 무엇이 막혔는지가 거기 있다. 읽지 않고 시작하면 그 사람이 이미
      해 본 것을 되풀이한다.
-4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(응답의 권장
-   scope에서 시작하되 실제 건드릴 범위로 좁힌다). `idempotency_key` 포함.
+4. **클레임.** `nerv_task_claim` — 입력: `task_id`, `scope{spec_ids,file_globs}`(후보의 출처 문서와
+   실제로 건드릴 파일로 정한다 — 넓게 잡으면 남의 작업과 겹친다). `idempotency_key` 포함.
    (브랜치·워크트리는 **훅이 git에게 직접 물어** 세션에 채운다 — 도구 인자로 실을 필요가 없고, 클레임은 받지 않는다.) 응답의 `claim_id`·`lease_expires_at`을 기록한다(리스 TTL 기본 30분, 하트비트로 갱신).
 5. **겹침 응답 처리.**
    - 경고(겹침 있으나 허용): 상대 세션의 사용자·hostname·scope를 사용자에게 보여주고,
      계속할지 확인받는다.
    - `NERV_CONFLICT_SCOPE`: 클레임 실패다. 응답 details의 상대 정보를 보고하고
      다음 후보로 이동한다. 후보가 없으면 `nerv_question_create`.
-6. **기준 버전으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상
-   `nerv_spec_get`(`spec_id=&lt;후보의 spec_key&gt;`, `version=&lt;후보의 version_no&gt;`)으로 한다 —
-   기본값(최신 approved)에 의존하지 않는다. 두 값은 후보 응답에 실려 온다.
-   응답에 `basis_superseded`가 있으면 그 사실을 사람에게 보고한다(기준 버전 규약 —
-   agent-integration §2.4).
+6. **작업의 기준으로 컨텍스트 로드.** 구현 컨텍스트의 스펙 읽기는 항상 **작업을 넘겨** 한다 —
+   `nerv_spec_get`(`spec_id`=&lt;읽을 스펙&gt;, `task`=&lt;작업 키&gt;). 서버가 작업의 기준을 판정한다:
+   출처 문서면 기준 버전(`read_as: "task_basis"`), 아니면 작업 기준선이 묶은 버전
+   (`"task_baseline"`), 기준선에도 없거나 기준선이 없는 작업이면 최신 승인본(`"approved_fallback"`)
+   이다. 기본값(최신 승인본)에 기대지 않는다 — 내 문서만 그때 것이고 주변 문서는 지금 것이 된다.
+   - **`read_as` 를 확인한다.** `approved_fallback` 으로 읽은 문서는 그 사실을 작업 노트에 남긴다
+     (기준선에 없는 문서이거나, 기준선 없는 작업의 주변 문서다).
    - **읽은 본문은 `.nerv/cache/specs/&lt;spec_key&gt;@v&lt;version_no&gt;.md` 에 Write 한다.** 버전을
      파일 이름에 박는 이유는 그것이 캐시를 안전하게 만들기 때문이다 — 최신으로 읽은 것은
      캐시하지 않는다(다음에 읽을 때 그 사이 바뀌었을 수 있고, 파일 이름은 그것을 말하지 못한다).
-   - **후보에 `baseline`이 실려 있으면 주변 문서도 그 세트로 읽는다** —
-     `nerv_spec_get`(`spec_id=&lt;참조할 스펙&gt;`, `baseline=&lt;그 이름&gt;`). 기준 버전은 이 문서
-     하나의 버전이고, 기준선은 **그 문서가 참조하는 문서들까지 포함한 세트**다. 세트 없이
-     주변 문서를 최신으로 읽으면 내 문서만 그때 것이고 나머지는 지금 것이 된다.
-     `version`과 `baseline`은 함께 줄 수 없다(둘 다 주면 거절된다).
-     **트리도 그 세트로 본다** — `nerv_spec_tree`(`baseline=&lt;그 이름&gt;`)는 그 세트가 담은
-     문서만, 담을 때의 버전으로 준다. 세트 없이 트리를 보면 그 뒤에 만들어진 문서가 섞여
-     들어와, 그 세트에 있는 문서인 줄 알고 참조하게 된다.
-   - 응답의 `baseline_pinned`가 `false`면 **그 세트에 없는 문서**다(나중에 만들어진 것).
-     최신 버전을 받은 것이므로 그 사실을 알고 읽는다.
+   - **주변 문서는 출처 문서가 링크한 것부터** 읽는다 — `nerv_spec_get`(`spec_id`, `task`,
+     `include`=["links"])의 `links` 가 그 버전 본문이 가리키는 문서와 같은 기준으로 본 버전이다.
+     관계 그래프는 버전이 없어 초안의 링크까지 섞여 있다.
+   - **트리도 작업의 기준으로 본다** — `nerv_spec_tree`(`task`=&lt;작업 키&gt;)는 작업 기준선이 담은
+     문서만, 담을 때의 버전으로 준다. 기준선 트리에는 `status` 를 함께 주지 않는다(거절된다 —
+     세트는 담을 때 모두 승인본이었다). 검색도 `nerv_spec_search`(`q`, `task`)로 한다.
+   - 출처 문서의 `basis_superseded` 는 기준선이 **없는** 작업일 때만 사람에게 보고한다. 기준선으로
+     개발하는 작업은 세트가 약속이라, 핀 버전이 밀려난 것은 드리프트가 아니다.
+   - **옛 서버와 섞일 때.** 응답에 `read_as` 가 없거나 `ignored_args` 에 `task` 가 있으면 그 서버는
+     작업 기준을 모른다 — 출처 문서는 `nerv_spec_get`(`spec_id`=&lt;spec_key&gt;, `version`=&lt;version_no&gt;),
+     주변 문서와 트리는 `baseline`=&lt;그 이름&gt;으로 읽는다(`version` 과 `baseline` 은 함께 주지 않는다).
 7. **작업 브랜치 준비.** 클레임 응답·위임 명세에 브랜치가 지정돼 있으면 그 브랜치로,
    없으면 저장소 규약대로 새 브랜치를 만든다. 이후 /nerv:impl 규약으로 구현을 시작한다
    (하트비트 60초 주기 — 첫 하트비트는 클레임 직후 바로 보낸다).
@@ -319,7 +323,17 @@ allowed-tools:
 
 `content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 넣지 않는다: 견줄 버전이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
 
-`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그러면 남의 글을 덮어쓴다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
+`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그러면 남의 글을 덮어쓴다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. **다시 읽을 곳은 오류가 준다** — details 의 `reread`(`tool`·`args`)를 그대로 부르면 서버가 견준 그 버전(`current_version_no`)이 온다. 기본으로 다시 읽으면 승인본이 와서 같은 거절이 되풀이된다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
+
+## 무엇을 기준으로 읽나 — 고칠 문서는 최신이다
+
+`nerv_spec_get` 의 기본은 **최신 승인본**이다. 승인본 위에 초안(또는 검토 중인 개정판)이 있으면 기본으로 읽은 본문은 **고칠 대상이 아니다.** 고칠 문서는 `basis: "latest"` 로 읽는다 — 번호가 가장 큰 버전이 온다. 주변 문서는 합의된 것(기본 · 승인본)으로 읽고, 겹치는 개정이 있는지 볼 때만 `latest` 로 읽는다.
+
+- 응답의 **`read_as`** 가 무엇으로 읽었는지(`approved`·`latest`·`version`·`baseline`)다. `edit_base_version_no` 는 저장이 견줄 버전이다 — 읽은 버전의 번호와 같아야 그 `content_hash` 가 `base_hash` 로 통한다.
+- **`edit_blocked_by` 가 있으면 고치지 않는다.** 검토 중인 개정판(`version_no`·`approval_id`)이 있다는 뜻이고, 그동안 새 초안은 `in_review_pending` 으로 거절된다. 결재가 끝나거나 거절되어 초안으로 돌아올 때까지 기다리고, 사람에게 그 결재를 알린다.
+- 승인본과 무엇이 달라졌는지는 `diff_from`(`basis: "approved"`)으로 같은 호출에서 받는다 — 응답의 `diff` 에 요구사항 변화와 본문 줄 차이가 온다(400줄에서 자르면 `body_diff_truncated`). 기준선과 견줄 때는 `diff_from`(`baseline: "&lt;이름&gt;"`)이다.
+- 요구사항은 **읽은 버전의 것**이다 — 최신 승인본이 아닌 버전을 읽으면 `requirements_source: "version_body"` 이고 그 본문에서 뽑은 줄이 온다(`in_current` 가 지금 살아 있는 요구사항인지 말한다).
+- **옛 서버와 섞일 때.** 응답에 `read_as` 가 없거나 `ignored_args` 에 `basis` 가 있으면 그 서버는 버전 기준을 모른다 — 승인본이 온 것이다. 초안은 `version` 으로 읽는다(번호는 저장 응답의 `version_no` 나 웹 주소의 `?v=` 에 있다).
 
 ## 무엇을 왜 바꿨는지 남긴다
 
@@ -334,7 +348,7 @@ allowed-tools:
 정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
 
 - 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind, base_hash}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
-- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 넣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
+- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 넣는다. 기본(승인본)으로 읽든 `basis: "latest"` 로 읽든 받는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
 - 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`·`base_hash`, 되돌릴 때 `remove: true`)를 쓴다. 지울 때는 `base_hash` 를 요구하지 않는다.
 
 ## 다이어그램은 mermaid 로 그린다
@@ -386,10 +400,13 @@ allowed-tools:
    `around`(중심 스펙)와 `hops`(그 중심에서 몇 간선까지 · 기본 1)로 좁히고, 간선까지 받으려면
    `include_relations: true` 를 준다. `around` 는 `root`·`depth` 와 다른 축이고 조상을 포함하지 않는다.
    검색에서 **이미 어떤 문서를 알고 그것을 가리키는 쪽을 찾을 때**는 `references`(스펙 키)를 쓴다.
-   **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
-   그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
-   답이다). 걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** —
-   후보로 세는 것은 `matched` 가 참인 것뿐이다.
+   **쓰다 만 것을 먼저 본다** — `nerv_spec_tree`(`basis`=`latest`, `status`=`draft,in_review`)로
+   끝나지 않은 문서를 훑고, 그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**
+   (`key_taken` 때와 같은 답이다). **`basis: "latest"` 를 빼면 승인본 위에서 고치는 중인 문서가
+   빠진다** — 기본은 문서마다 최신 승인본의 상태를 보기 때문이다. 중복 확인도 같다:
+   `nerv_spec_search`(`q`, `basis`=`latest`)는 초안 · 검토 중인 본문까지 찾는다.
+   걸러낸 결과에는 자리를 지키러 온 **조상이 `matched: false` 로 섞여 있다** — 후보로 세는 것은
+   `matched` 가 참인 것뿐이다.
 2. 사람과 트리 위치(`parent_id`)·`type`·`title`을 합의한 뒤 본문을 작성한다.
    자리 후보는 `nerv_spec_tree`(`type: "vision,area"`)로 **뼈대만** 보면 한눈에 든다 —
    `area` 는 본문 없이 자리를 잡는 종류라, 141편짜리 프로젝트도 뼈대는 17편이다.
@@ -402,9 +419,11 @@ allowed-tools:
    그리고 **무엇이 바뀌었는지**다.
 
 ### edit — 초안 이어쓰기·피드백 반영
-1. `nerv_spec_get`(`spec_id`, `version`, `include=["comments"]`)로
-   최신 본문과 open 코멘트를 읽는다. **`include` 의 어휘는 `tasks`·`comments`·`attachments`
-   셋뿐이고 그 밖의 값은 400 이다** — 요구사항은 늘 실려 오므로 달라고 하지 않는다.
+1. `nerv_spec_get`(`spec_id`, `basis`=`latest`, `include=["comments"]`)로
+   고칠 본문(열린 초안, 없으면 최신 승인본)과 open 코멘트를 읽는다. 응답의 `version_no` ·
+   `doc_status` 를 사람에게 알리고, **`edit_blocked_by` 가 있으면 여기서 멈춘다**(위 "무엇을
+   기준으로 읽나"). **`include` 의 어휘는 `tasks`·`comments`·`attachments`·`links`·`versions`·
+   `baselines` 여섯이고 그 밖의 값은 400 이다** — 요구사항은 늘 포함되므로 달라고 하지 않는다.
    응답의 `content_hash` 를 `base_hash` 로 쓴다 —
    **저장에 넣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
    아는 사실이라 묻지 않는다.
@@ -451,8 +470,9 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
    **성공 응답이 `status: in_review` 와 `approval_id`·`web_url`(받은 요청)이다** — 이 도구는
    `NERV_APPROVAL_REQUIRED` 를 내지 않는다. 결정을 기다리는 동안 이 세션은 `awaiting_input`
    이고, 결과는 두 길로 온다: /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided`,
-   아니면 `nerv_spec_get`(`spec_id`)의 `status`(approved 또는 draft 로 복귀). 승인을 읽는
-   도구는 없다. 그동안 다른 작업을 시작하지 않는다.
+   아니면 `nerv_spec_get`(`spec_id`, `version`=&lt;제출한 버전 번호&gt;)의 `doc_status`(approved,
+   또는 거절되어 draft 로 복귀). **버전 번호를 넣는다** — 빼면 기본(이전 승인본)이 와서 거절된
+   개정판도 approved 로 읽힌다. 승인을 읽는 도구는 없다. 그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존
    pending Approval을 재사용하므로 받은 요청 카드가 중복 생성되지 않는다.
 
@@ -460,8 +480,9 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
-| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — nerv_spec_get 의 `content_hash` 를 넣어 다시 부른다 |
+| NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — details 의 `reread` 대로 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문 · `current_version_no` · web_url 이 온다 |
+| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — details 의 `reread` 대로 읽고 그 `content_hash` 를 넣어 다시 부른다 |
+| NERV_PRECONDITION `in_review_pending` | 검토 중인 개정판(`version_no`)이 있어 새 초안을 만들 수 없다 — details 의 `approval_id`·`web_url` 을 사람에게 알리고 기다린다. 거절되면 그 버전이 초안으로 돌아오니 그 위에서 잇는다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 이 스킬의 도구는 내지 않는다 — 오면 `approval_id` 를 사람에게 보고하고 멈춘다 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
@@ -543,12 +564,17 @@ allowed-tools:
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.
   - `basis_superseded`(기준 버전이 밀려났다 — `spec_key`·`basis_version_no`·`latest_version_no`
     가 함께 온다) → **임의로 최신 버전으로 갈아타지 않는다.** `nerv_spec_get`(`spec_id`,
-    `version=&lt;latest_version_no&gt;`)로 새 버전을 읽어 내 Requirement 가 MODIFIED/REMOVED 인지 본다.
+    `version=&lt;latest_version_no&gt;`, `diff_from`)로 새 버전을 읽고, `diff_from` 에는 기준 버전
+    (`version: &lt;basis_version_no&gt;`)을 준다. 응답의 `diff.requirements` 가 요구사항마다
+    `added`·`modified`·`removed` 를 말한다 — 내 Requirement 가 `modified`·`removed` 인지 본다.
+    요구사항은 **읽은 버전의 것**이라(`requirements_source`) 두 버전을 따로 읽어 견줘도 된다.
     읽은 본문은 `.nerv/cache/specs/&lt;spec_key&gt;@v&lt;latest_version_no&gt;.md` 에도 Write 한다.
     그렇다면 `nerv_task_update`(`status=blocked`, `blocked_reason=spec_conflict`) 또는
     /nerv:question 으로 확인을 구하고, 아니면 기준 버전대로 계속 진행하며 사람의 재브리핑을
     기다린다(agent-integration §2.4). **이 항목은 사라지지 않는다** — 전달되면 끝나는 답변과
     달리 기준 드리프트는 사람이 재브리핑할 때까지 남는 **상태**라 매 하트비트에 다시 온다.
+    기준선으로 개발하는 작업에는 이 항목이 오지 않는다 — 세트가 약속이고, 옮기는 것은 사람이
+    기준선째 옮긴다. 구현 중에 스펙을 더 읽을 때도 /nerv:next 6단계처럼 `task` 를 넘긴다.
 - statusline 이 읽을 요약을 `.nerv/cache/claim.json` 에 **응답의 키 이름 그대로** 기록한다.
   값의 출처가 응답마다 다르다: `task_id`·`claim_id` 는 **클레임 응답**에서, `status` 는 마지막
   `nerv_task_update` 응답에서, `lease_expires_at`·`scope_overlaps` 는 **하트비트 응답**에서 —
@@ -744,6 +770,10 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_review_submit
   - mcp__nerv__nerv_finding_resolve
   - mcp__plugin_nerv_nerv__nerv_finding_resolve
+  - mcp__nerv__nerv_task_get
+  - mcp__plugin_nerv_nerv__nerv_task_get
+  - mcp__nerv__nerv_spec_get
+  - mcp__plugin_nerv_nerv__nerv_spec_get
   - Bash(nerv-outbox:*)
   - Read(.nerv/**)
   - Write(.nerv/**)
@@ -761,6 +791,10 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
+   **어느 작업의 리뷰인지 알면 그 작업의 기준으로 대조한다** — `nerv_task_get`(`task_id`)으로
+   출처 문서(`spec_key`)를 확인하고 `nerv_spec_get`(`spec_id`, `task`)으로 읽는다. 최신 승인본으로
+   대조하면 작업이 약속하지 않은 문장으로 지적하게 된다. 지적의 `spec_version_id` 는 그 응답의
+   `version_id` 다.
 3. **`nerv_review_submit`** — `reviewer{role, risk}`, `summary`, `findings[]`.
    - **어느 작업의 리뷰인지 알면 `task_id` 를 넣는다.** 그것이 리뷰를 Task 에 잇는 유일한 인자다 —
      빠지면 서버는 이 리뷰가 무엇에 대한 것인지 알 길이 없다.
@@ -1433,7 +1467,7 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
     <thead><tr><th>#</th><th>단계</th><th>명령/행동</th><th>확인 방법</th></tr></thead>
     <tbody>
       <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 <b>[권장]</b> 묶음이 기본이다(<code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>agent-session:launch</code> — <code>AGENT_RECOMMENDED_SCOPES</code> · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 <code>review:resolve</code> 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
-      <tr><td>2</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>/plugin install nerv@nerv</code> → 재시작. <b>그 주소로 설치가 안 되면</b>(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — <code>add worker-ants/nerv</code>, 설치 명령은 그대로다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.3.4 활성 표시</td></tr>
+      <tr><td>2</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>/plugin install nerv@nerv</code> → 재시작. <b>그 주소로 설치가 안 되면</b>(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — <code>add worker-ants/nerv</code>, 설치 명령은 그대로다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.3.5 활성 표시</td></tr>
       <tr><td>3</td><td>설정</td><td>작업 저장소에서 <code>nerv-init</code> 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. <b>이미 있는 값은 덮지 않는다</b>(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다</td><td><code>.mcp.json</code>·<code>.claude/settings.local.json</code>·<code>.gitignore</code> 셋이 서고, 재시작 뒤 <code>/mcp</code> 에 <code>nerv</code> connected</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
       <tr><td>5</td><td>첫 부트스트랩</td><td><code>/nerv:next</code> 실행(스킬이 <code>nerv_bootstrap</code>부터 호출한다)</td><td>응답에 <code>session_id</code>·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다</td></tr>

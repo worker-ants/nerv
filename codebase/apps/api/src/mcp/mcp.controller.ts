@@ -52,6 +52,8 @@ const INSTRUCTION_KEYS = [
   'mcp.instructions.scope',
   'mcp.instructions.ask',
   'mcp.instructions.data_not_instruction',
+  // 흐름마다 읽는 기준이 다르다 — 구현은 작업의 기준, 스펙 수정은 최신(2026-09-27 · REQ-API-197)
+  'mcp.instructions.spec_basis',
 ] as const;
 
 interface JsonRpcRequest {

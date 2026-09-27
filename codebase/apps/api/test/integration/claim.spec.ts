@@ -11,7 +11,7 @@ import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ClaimService } from '../../src/modules/task/claim.service.js';
 import { EventService } from '../../src/modules/event/event.service.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
@@ -1748,5 +1748,163 @@ describe('막힘의 해소 조건 (REQ-API-118)', () => {
     const res = await resolutionOf(await blockedTask('CLV-T-BLK005', 'external'));
     expect(res['satisfied']).toBeNull();
     expect(res['pending']).toEqual([]);
+  });
+});
+
+/**
+ * **기준선으로 개발하는 작업**(2026-09-27 사람 결정 M9 · REQ-API-210 · M8 REQ-API-204).
+ *
+ * 재브리핑은 기준 버전만 최신 승인본으로 옮기고 기준선은 그대로 둬서 대상 문서와 주변 문서의 시점이
+ * 섞였다. 작업을 만들 때도 둘이 맞는지 보지 않았고, 핀 문서에 새 승인본이 나오면 큐에서 조용히 빠졌다.
+ */
+describe('기준선 작업 — 세트째 옮긴다 (REQ-API-210)', () => {
+  let v1 = '';
+  let v2 = '';
+  let r1 = '';
+  let r2 = '';
+  let doc = '';
+
+  beforeEach(async () => {
+    // 이 묶음만의 문서 — 앞 묶음들이 SPC-CWC-007 에 버전과 요구사항을 남겨 둔다.
+    // SPC-BL-TASK: v1(대체됨) → v2(승인). R1 은 v1 을, R2 는 v2 를 묶었다
+    doc = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','SPC-BL-TASK','기준선 작업')`,
+      [doc, projectId],
+    );
+    v1 = newId();
+    v2 = newId();
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$3,1,'superseded','# v1', decode('01','hex'), $4),
+              ($2,$3,2,'approved','# v2', decode('02','hex'), $4)`,
+      [v1, v2, doc, hana],
+    );
+    await pool.query(`UPDATE spec SET current_version_id = $1 WHERE id = $2`, [v2, doc]);
+    r1 = newId();
+    r2 = newId();
+    await pool.query(
+      `INSERT INTO spec_baseline (id, project_id, name, created_by_user_id)
+       VALUES ($1,$3,'R1',$4), ($2,$3,'R2',$4)`,
+      [r1, r2, projectId, hana],
+    );
+    await pool.query(
+      `INSERT INTO spec_baseline_item (baseline_id, spec_id, spec_version_id)
+       VALUES ($1,$3,$4), ($2,$3,$5)`,
+      [r1, r2, doc, v1, v2],
+    );
+  });
+
+  afterEach(async () => {
+    await pool.query(
+      `DELETE FROM claim WHERE task_id IN (SELECT id FROM task WHERE source_spec_version_id IN ($1,$2))`,
+      [v1, v2],
+    );
+    await pool.query(`DELETE FROM task WHERE source_spec_version_id IN ($1,$2)`, [v1, v2]);
+    await pool.query(`DELETE FROM spec_baseline_item WHERE baseline_id IN ($1,$2)`, [r1, r2]);
+    await pool.query(`DELETE FROM spec_baseline WHERE id IN ($1,$2)`, [r1, r2]);
+    await pool.query(`UPDATE spec SET current_version_id = NULL WHERE id = $1`, [doc]);
+    await pool.query(`DELETE FROM spec_version WHERE spec_id = $1`, [doc]);
+    await pool.query(`DELETE FROM spec WHERE id = $1`, [doc]);
+  });
+
+  async function baselineTask(
+    key: string,
+    versionId: string,
+    baselineId: string | null,
+  ): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id, baseline_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,$3,'ready',$4,$5,'목표','PR 1건','nerv_spec_get','경계')`,
+      [id, projectId, key, versionId, baselineId],
+    );
+    return id;
+  }
+
+  it('핀 문서에 새 승인본이 나와도 기준선 작업은 큐에 남는다 — 기준선 없는 작업은 빠진다', async () => {
+    const onSet = await baselineTask('CLV-T-BL0001', v1, r1);
+    const loose = await baselineTask('CLV-T-BL0002', v1, null);
+    const ids = (await tasks.next({ projectId })).map((c) => c.id);
+    expect(ids).toContain(onSet);
+    expect(ids).not.toContain(loose);
+  });
+
+  it('만들 때 기준 버전이 기준선의 핀과 다르면 거절한다', async () => {
+    await expect(
+      tasks.create({
+        projectId,
+        title: '어긋난 기준',
+        sourceSpecVersionId: v2,
+        baseline: 'R1',
+        userId: hana,
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'baseline_pin_mismatch', given_version_no: 2, pinned_version_no: 1 },
+    });
+    const ok = await tasks.create({
+      projectId,
+      title: '맞는 기준',
+      sourceSpecVersionId: v1,
+      baseline: 'R1',
+      userId: hana,
+    });
+    expect(ok['status']).toBe('backlog');
+  });
+
+  it('재브리핑은 거절하고, 새 기준선으로 옮기면 기준 버전도 그 세트의 핀으로 간다', async () => {
+    const id = await baselineTask('CLV-T-BL0003', v1, r1);
+    await pool.query(`UPDATE task SET rebrief_required_at = now() WHERE id = $1`, [id]);
+    await expect(
+      tasks.update({ projectId, taskKey: 'CLV-T-BL0003', rebrief: true, userId: hana }),
+    ).rejects.toMatchObject({ details: { kind: 'rebrief_baseline_task', use: 'baseline' } });
+
+    await tasks.update({ projectId, taskKey: 'CLV-T-BL0003', baseline: 'R2', userId: hana });
+    const moved = await tasks.get({ projectId, taskKey: 'CLV-T-BL0003' });
+    // 작업 조회가 기준선 **이름**을 준다(M8) — nerv_spec_get(baseline) 으로 그대로 옮길 값이다
+    expect(moved).toMatchObject({
+      baseline: 'R2',
+      basis_version_no: 2,
+      rebrief_required_at: null,
+    });
+
+    // 기준선을 푸는 같은 요청에서는 재브리핑을 받는다
+    await tasks.update({
+      projectId,
+      taskKey: 'CLV-T-BL0003',
+      baseline: null,
+      rebrief: true,
+      userId: hana,
+    });
+    expect((await tasks.get({ projectId, taskKey: 'CLV-T-BL0003' }))['baseline']).toBeNull();
+  });
+
+  it('기준선 작업은 하트비트에 기준 드리프트를 싣지 않는다 — 세트가 약속이다', async () => {
+    const id = await baselineTask('CLV-T-BL0004', v1, r1);
+    const claim = await tasks.claim(claimInput(id, sessionHana, hana));
+    const beat = await tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana) });
+    expect(beat.pending.map((p) => (p as Record<string, unknown>)['kind'])).not.toContain(
+      'basis_superseded',
+    );
+  });
+
+  it('재개한 세션의 부트스트랩이 기준 문서의 키와 버전 번호를 준다 (M8)', async () => {
+    const id = await baselineTask('CLV-T-BL0005', v1, r1);
+    await tasks.claim(claimInput(id, sessionHana, hana));
+    const boot = await sessions.bootstrap({
+      projectId,
+      userId: hana,
+      agentType: 'claude-code',
+      hostname: 'mac-07',
+      resumeSessionId: sessionHana,
+    });
+    expect((boot['active_claims'] as Record<string, unknown>[])[0]).toMatchObject({
+      task_key: 'CLV-T-BL0005',
+      spec_key: 'SPC-BL-TASK',
+      version_no: 1,
+      baseline: 'R1',
+    });
   });
 });

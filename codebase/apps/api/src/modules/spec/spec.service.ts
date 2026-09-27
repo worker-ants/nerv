@@ -48,14 +48,25 @@ import { AttachmentService } from './attachment.service.js';
  * `include` 가 받는 값(REQ-API-081 · REQ-API-088). 목록 밖은 400 으로 거절한다 —
  * 조용히 버리면 호출자는 그 기능이 **없다**고 결론짓는다(실사용 보고 2026-09-04).
  */
-const INCLUDE_VALUES = ['tasks', 'comments', 'attachments'] as const;
+const INCLUDE_VALUES = [
+  'tasks',
+  'comments',
+  'attachments',
+  // 2026-09-27 사람 결정 M10 · M11 · M15 — 읽은 버전의 링크 · 버전 목록 · 이 문서를 담은 기준선
+  'links',
+  'versions',
+  'baselines',
+] as const;
+
+/** `diff_from` 의 본문 줄 차이 상한 — 넘으면 자르고 `body_diff_truncated` 로 알린다(REQ-API-207) */
+const DIFF_LINE_CAP = 400;
 import { EventService } from '../event/event.service.js';
 import { decideGate, gateEventPayload, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
-import { readerHash } from './reader-hash.js';
+import { readerVersion } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
 import { recomputeImplStatus } from './impl-status.js';
 import { neighborhood, pruneTree } from './spec-tree.js';
@@ -64,9 +75,11 @@ import {
   VERSION_SUMMARY_COLUMNS,
   baselineIdOf,
   resolveBasis,
+  resolveSelector,
+  taskBasisOf,
   versionOfSpec,
 } from './spec-basis.js';
-import { SpecRelationService } from './spec-relation.service.js';
+import { SpecRelationService, extractLinkedKeys } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
@@ -287,14 +300,38 @@ export class SpecService {
      * 버전을 읽어 **승인본 위의 초안**이 상태와 번호에 그대로 나온다. 기준선과 함께 받지 않는다.
      */
     basis?: string | null;
+    /**
+     * 작업의 기준선으로 본다(M7 · REQ-API-203) — 기준선이 없는 작업이면 승인본이다.
+     * `basis` · `baseline` 과 배타다.
+     */
+    task?: string | null;
   }): Promise<SpecTreeNode[]> {
-    const basis = resolveBasis({ basis: input.basis ?? null, baseline: input.baseline ?? null });
+    const basis = resolveBasis({
+      basis: input.basis ?? null,
+      baseline: input.baseline ?? null,
+      task: input.task ?? null,
+    });
+    const baselineName =
+      input.task != null && input.task !== ''
+        ? (await taskBasisOf(this.db, input.projectId, input.task)).baseline
+        : (input.baseline ?? null);
+    // **기준선과 상태 필터는 함께 받지 않는다**(2026-09-27 사람 결정 M12 · REQ-API-208). 기준선이 묶은
+    // 버전은 시간이 지나면 "대체됨" 이 되어, `status=approved` 로 거르면 세트의 문서가 조용히 빠졌다.
+    // 세트는 담을 때 전부 승인본이었으므로 거를 뜻도 없다(화면은 이미 필터를 숨긴다).
+    if (baselineName != null && input.statuses != null && input.statuses.length > 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.status_with_baseline'), {
+        kind: 'invalid_input',
+        field: 'status',
+        conflict: ['status', input.task != null && input.task !== '' ? 'task' : 'baseline'],
+      });
+    }
     const archived = input.includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
 
     // **기준선은 세트다.** 고르면 그 세트가 담은 문서만, 담을 때의 버전으로 보여야 한다 —
     // 그 뒤에 만들어진 문서가 섞이면 그것은 기준선이 아니라 "지금"이다(2026-09-05 사람 지적).
     // 4.5 §2.4 (4)는 처음부터 그렇게 적고 있었고 목록만 그것을 따르지 않았다.
-    const baselineId = input.baseline == null ? null : await this.baselineId(input);
+    const baselineId =
+      baselineName == null ? null : await this.baselineId({ ...input, baseline: baselineName });
     // 버전도 그 세트의 것이다 — 제목·자리는 지금 것이지만 "어느 판인가"는 스냅샷을 따른다.
     // 기준선이 없으면 보기 기준이 정한다(승인본 · 최신 — REQ-API-193)
     const { versionId, member: pinned } = versionOfSpec(basis, baselineId);
@@ -369,12 +406,15 @@ export class SpecService {
     baseline?: string | null;
     /** 보기 기준 — 트리와 같은 뜻이다(REQ-API-193) */
     basis?: string | null;
+    /** 작업의 기준선 — 트리와 같은 뜻이다(REQ-API-203) */
+    task?: string | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const graph = await this.graph({
       projectId: input.projectId,
       ...(input.includeArchived === undefined ? {} : { includeArchived: input.includeArchived }),
       ...(input.baseline == null ? {} : { baseline: input.baseline }),
       ...(input.basis == null ? {} : { basis: input.basis }),
+      ...(input.task == null ? {} : { task: input.task }),
     });
     const near = neighborhood(graph, input.around, input.hops);
     if (near === null) {
@@ -405,6 +445,8 @@ export class SpecService {
     baseline?: string | null;
     /** 보기 기준 — 표 · 그래프도 목록과 같은 버전을 읽는다(REQ-API-193) */
     basis?: string | null;
+    /** 작업의 기준선(REQ-API-203) */
+    task?: string | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const nodes = await this.tree(input);
     const visible = new Set(nodes.map((node) => node.id));
@@ -430,8 +472,8 @@ export class SpecService {
     /**
      * 기준선 이름 — 그 세트가 이 스펙에 묶어 둔 버전을 읽는다(REQ-API-087).
      *
-     * `versionNo` 와 **배타**다. 둘을 섞으면 "어느 쪽이 이겼나" 를 매번 물어야 하고,
-     * 그 물음이 생기는 순간 기준선의 값어치가 사라진다 — 컨트롤러·도구가 거부한다.
+     * 선택자(`basis` · `versionNo` · `baseline` · `task`)는 **하나만** 받는다 — 판정은
+     * `resolveSelector` 한 곳이다(REQ-API-196 · 203).
      */
     baseline?: string | null;
     /**
@@ -443,55 +485,90 @@ export class SpecService {
     include?: readonly string[] | null;
     /**
      * 보기 기준(REQ-API-193) — `latest` 면 번호가 가장 큰 버전을 읽는다(승인본 위의 초안 · 검토 중).
-     * `versionNo` · `baseline` 과 배타다. 셋은 모두 "어느 버전인가" 에 대한 답이다.
      */
     basis?: string | null;
+    /**
+     * **작업의 기준으로 읽는다**(2026-09-27 사람 결정 M7 · REQ-API-203). 그 작업의 출처 문서면 기준
+     * 버전을, 아니면 작업 기준선이 묶은 버전을, 기준선에도 없으면 최신 승인본을 읽고 무엇으로 읽었는지
+     * `read_as` 로 알린다. 구현 흐름의 스킬 넷이 같은 규칙을 문장으로 되풀이하던 것을 여기 한 곳에 둔다.
+     */
+    task?: string | null;
+    /**
+     * **이 버전과 무엇을 견줄까**(M11 · REQ-API-207) — 셋 중 하나: 최신 승인본(`basis: 'approved'`) ·
+     * 버전 번호 · 기준선 이름. 초안을 고치는 쪽이 "승인본 · 기준선에서 무엇이 바뀌었나" 를 도구 하나로 본다.
+     */
+    diffFrom?: {
+      basis?: string | null;
+      version?: number | null;
+      baseline?: string | null;
+    } | null;
   }): Promise<Record<string, unknown>> {
-    const basis = resolveBasis({
+    const selector = resolveSelector({
       basis: input.basis ?? null,
       baseline: input.baseline ?? null,
       versionNo: input.versionNo ?? null,
+      task: input.task ?? null,
     });
-    // **기본은 최신 approved 다**(EP-SPEC-03 · REQ-WEB-011). current_version_id 를 그냥 주면
-    // 초안이 기본 화면에 뜨고, 그러면 "승인된 것"과 "쓰는 중인 것"의 구분이 화면에서 사라진다
-    // — 문서 축 분리(D-02)의 요점이 거기다. 승인본이 아직 없는 새 스펙만 draft 로 떨어진다.
+    // 어휘는 먼저 본다 — 읽고 나서 거절하면 그 사이의 조회가 헛일이다
+    const include = new Set(assertVocab(input.include ?? [], INCLUDE_VALUES, 'include'));
+
     // **버전이 없는 노드도 문서다.** 임포터의 골격 배치는 디렉터리에서 area 노드를 만들고
     // 본문 파일이 없으면 버전 행을 만들지 않는다 — 그런 노드가 트리에는 보이는데
     // `nerv_spec_get` 은 **"스펙을 찾을 수 없습니다"** 라고 답했다(실측 2026-08-30:
     // clemvion `channel-web-chat` — 자식 둘을 거느린 영역이 도구로는 읽히지 않았다).
-    // 그건 "없다"가 아니라 "아직 본문이 없다"이므로 LEFT JOIN 으로 노드를 돌려준다.
-    // **핀을 먼저 해석한다.** 두 가지를 한 번에 얻는다 — 그 이름의 기준선이 있는가,
-    // 그리고 그것이 이 문서를 담고 있는가.
-    //
-    // 없는 이름을 조용히 기본값으로 떨어뜨리면 사람은 그 세트를 읽었다고 믿는다 — 이
-    // 저장소가 이미 겪은 실패 모양이다(REQ-API-082: "조용한 무시가 500 보다 나쁘다").
-    // 반면 **이름은 맞는데 그 세트에 이 문서가 없는 것**은 오류가 아니다: 나중에 만들어진
-    // 문서가 그렇다. 그때는 기본으로 떨어지되 응답이 그 사실을 말한다.
+    // 그건 "없다"가 아니라 "아직 본문이 없다"이므로 문서를 먼저 찾고 버전은 LEFT JOIN 한다.
+    const { rows: found } = await this.db.execute<{ id: string; key: string }>(sql`
+      SELECT s.id, s.key FROM spec s
+       WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
+    `);
+    const specRow = found[0];
+    if (specRow === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+        kind: 'not_found',
+        spec: input.specKey,
+      });
+    }
+    const specId = specRow.id;
+
+    // **무엇으로 읽는가** — 선택자를 버전 하나로 푼다. 기준선(작업의 기준선 포함)에 이 문서가
+    // 없으면 오류가 아니다: 나중에 만들어진 문서가 그렇다. 그때는 최신 승인본으로 떨어지되
+    // `read_as: 'approved_fallback'` · `baseline_pinned: false` 로 그 사실을 말한다 — 없는 이름을
+    // 조용히 기본으로 떨어뜨리면 사람은 그 세트를 읽었다고 믿는다(REQ-API-082).
     let pinnedVersionId: string | null = null;
-    if (input.baseline != null) {
-      const { rows: found } = await this.db.execute<{ id: string }>(sql`
-        SELECT id FROM spec_baseline
-         WHERE project_id = ${input.projectId} AND name = ${input.baseline}
-      `);
-      if (found[0] === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.baseline_not_found'), {
-          kind: 'invalid_input',
-          field: 'baseline',
-          unknown: [input.baseline],
-        });
-      }
+    let readAs: string = selector.kind;
+    let baselineName: string | null = null;
+    let taskKey: string | null = null;
+    const pinOf = async (baselineId: string): Promise<string | null> => {
       const { rows: pin } = await this.db.execute<{ spec_version_id: string }>(sql`
-        SELECT i.spec_version_id
-          FROM spec_baseline_item i
-          JOIN spec s ON s.id = i.spec_id
-         WHERE i.baseline_id = ${found[0].id} AND ${specMatch(input.specKey)}
+        SELECT spec_version_id FROM spec_baseline_item
+         WHERE baseline_id = ${baselineId} AND spec_id = ${specId}
       `);
-      pinnedVersionId = pin[0]?.spec_version_id ?? null;
+      return pin[0]?.spec_version_id ?? null;
+    };
+    if (selector.kind === 'baseline') {
+      baselineName = selector.name;
+      pinnedVersionId = await pinOf(await baselineIdOf(this.db, input.projectId, selector.name));
+      readAs = pinnedVersionId === null ? 'approved_fallback' : 'baseline';
+    } else if (selector.kind === 'task') {
+      const basis = await taskBasisOf(this.db, input.projectId, selector.task);
+      taskKey = basis.task_key;
+      baselineName = basis.baseline;
+      if (basis.source_spec_id === specId && basis.source_version_id !== null) {
+        pinnedVersionId = basis.source_version_id;
+        readAs = 'task_basis';
+      } else if (basis.baseline_id !== null) {
+        pinnedVersionId = await pinOf(basis.baseline_id);
+        readAs = pinnedVersionId === null ? 'approved_fallback' : 'task_baseline';
+      } else {
+        // 기준선 없는 작업의 주변 문서 — 그 시점으로 되돌려 읽을 방법이 도구에는 없다.
+        // 최신 승인본으로 읽고, 그렇게 읽었다는 사실을 준다(스킬이 기록한다)
+        readAs = 'approved_fallback';
+      }
     }
 
-    // 기본(최신 approved) · 버전 지정 · **기준선 핀** 세 갈래다.
-    //
-    // 핀이 없으면 기본으로 떨어진다 — 위에서 해석한 그대로다(`baseline_pinned: false`).
+    // **기본은 최신 approved 다**(EP-SPEC-03 · REQ-WEB-011). current_version_id 를 그냥 주면
+    // 초안이 기본 화면에 뜨고, 그러면 "승인된 것"과 "쓰는 중인 것"의 구분이 화면에서 사라진다
+    // — 문서 축 분리(D-02)의 요점이 거기다. 승인본이 아직 없는 새 스펙만 draft 로 떨어진다.
     const latestApproved = sql`coalesce(
       (SELECT a.id FROM spec_version a
         WHERE a.spec_id = s.id AND a.status = 'approved'
@@ -500,9 +577,9 @@ export class SpecService {
     const pick =
       pinnedVersionId !== null
         ? sql`sv.id = ${pinnedVersionId}`
-        : input.versionNo != null
-          ? sql`sv.spec_id = s.id AND sv.version_no = ${input.versionNo}`
-          : basis === 'latest'
+        : selector.kind === 'version'
+          ? sql`sv.spec_id = s.id AND sv.version_no = ${selector.versionNo}`
+          : selector.kind === 'latest'
             ? sql`sv.id = ${LATEST_VERSION_ID}`
             : sql`sv.id = ${latestApproved}`;
 
@@ -527,27 +604,23 @@ export class SpecService {
         FROM spec s
    LEFT JOIN spec_version sv ON ${pick}
    LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
-       WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
+       WHERE s.id = ${specId}
     `);
-    const spec = rows[0];
-    if (spec === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+    const spec = rows[0] as Record<string, unknown>;
+
+    // **없는 버전은 거절이다**(M6 · REQ-API-202). LEFT JOIN 이라 문서 행만 오고 본문이 빈 문자열로
+    // 채워졌다 — "그 버전은 비어 있다" 로 읽히는 조용한 성공이었다(§1.4e)
+    if (selector.kind === 'version' && spec['version_id'] == null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_missing'), {
         kind: 'not_found',
-        spec: input.specKey,
+        field: 'version',
+        version: selector.versionNo,
+        latest_version_no: spec['latest_version_no'] ?? null,
       });
     }
 
-    const { rows: requirements } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT ref, statement_md, priority::text AS priority, impl_status::text AS impl_status
-        FROM requirement WHERE spec_id = ${spec['spec_id'] as string} AND removed_in_version_id IS NULL
-       ORDER BY ref
-    `);
-
-    // **모르는 값은 조용히 버리지 않는다**(REQ-API-082 와 같은 규율). 실사용 보고
-    // 2026-09-04: `include:["attachments"]` 를 보내면 `ok:true` 가 오는데 응답에 첨부가
-    // 없었다 — 에이전트는 "이 배포에는 첨부를 되읽을 경로가 없다" 고 결론지었다.
-    // 있는데 못 쓴 것과 없는 것을 구별할 수 없으면 사람은 없는 쪽을 믿는다.
-    const include = new Set(assertVocab(input.include ?? [], INCLUDE_VALUES, 'include'));
+    const body = typeof spec['body_md'] === 'string' ? spec['body_md'] : '';
+    const { requirements, source: requirementsSource } = await this.requirementsFor(spec, body);
 
     // **파생 Task 는 요청해야 온다.** 화면의 영향 미리보기가 이 값을 세는데 응답에 없어
     // 언제나 "0건" 이라 말했다(실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 최대 29건).
@@ -557,21 +630,55 @@ export class SpecService {
             SELECT t.id, t.key, t.title, t.status::text AS status
               FROM task t
               JOIN spec_version sv ON sv.id = t.source_spec_version_id
-             WHERE t.project_id = ${input.projectId} AND sv.spec_id = ${spec['spec_id'] as string}
+             WHERE t.project_id = ${input.projectId} AND sv.spec_id = ${specId}
              ORDER BY t.created_at DESC
           `)
         ).rows
       : undefined;
 
     const comments = include.has('comments')
-      ? await this.comments.list({ projectId: input.projectId, specKey: String(spec['key']) })
+      ? await this.comments.list({ projectId: input.projectId, specKey: specRow.key })
       : undefined;
 
     // 첨부는 **매달았는지 확인할 길**이다. 에이전트가 `nerv_spec_attach` 로 올릴 수는
     // 있는데 되읽을 수 없으면 "올렸다" 를 스스로 검증하지 못한다(실사용 보고 2026-09-04).
     const attachments = include.has('attachments')
-      ? await this.attachments.list({ projectId: input.projectId, specKey: String(spec['key']) })
+      ? await this.attachments.list({ projectId: input.projectId, specKey: specRow.key })
       : undefined;
+
+    // **읽은 버전 본문의 링크**(M10 · REQ-API-206) — 관계 표는 버전이 없고 초안을 저장할 때마다
+    // 바뀐다. 기준선으로 구현하는 쪽이 "이 버전이 실제로 가리키는 문서" 를 같은 기준으로 읽게 한다.
+    const links = include.has('links')
+      ? await this.linksOf(input.projectId, specRow.key, body, readAs, baselineName)
+      : undefined;
+
+    // **버전 목록**(M11 · REQ-API-207) — 거절로 돌아온 초안 · 검토 중 개정판을 에이전트가 찾는 길이다
+    const versions = include.has('versions')
+      ? await this.versions({ projectId: input.projectId, specKey: specRow.key })
+      : undefined;
+
+    // **이 문서를 담은 기준선**(M15 · REQ-API-209) — 기준선 뒤의 수정이 어느 세트와 멀어지는지 본다
+    const baselines = include.has('baselines')
+      ? (
+          await this.db.execute<Record<string, unknown>>(sql`
+            SELECT b.name, sv.version_no, sv.status::text AS status
+              FROM spec_baseline_item i
+              JOIN spec_baseline b ON b.id = i.baseline_id
+              JOIN spec_version sv ON sv.id = i.spec_version_id
+             WHERE i.spec_id = ${specId}
+             ORDER BY b.created_at
+          `)
+        ).rows
+      : undefined;
+
+    const diff =
+      input.diffFrom == null
+        ? undefined
+        : await this.diffFromRead(input.projectId, specRow.key, specId, spec, input.diffFrom);
+
+    // **초안 저장이 견줄 버전**(M2 · REQ-API-198). 번호만 준다 — 지문을 주면 읽지 않은 버전의 지문을
+    // 그대로 `base_hash` 로 보내는 길이 열려 비교-교환(§1.4g)이 뜻을 잃는다.
+    const editBase = await this.editBaseOf(specId);
 
     // **참조 갱신은 이벤트가 안다**(REQ-WEB-037 · 2026-09-03). 화면은 "앞선 버전이 있으면"
     // 으로 판정하고 있었는데 그것은 **모든 초안에서 참이라** 배지가 늘 켜져 있었다
@@ -585,33 +692,236 @@ export class SpecService {
    LEFT JOIN spec src ON src.id = (e.payload ->> 'because_of')::uuid
        WHERE e.project_id = ${input.projectId}
          AND e.type = ${NERV_EVENT.SPEC_RECHECK_REQUESTED}
-         AND e.subject_id = ${spec['spec_id'] as string}
+         AND e.subject_id = ${specId}
          AND e.occurred_at > ${spec['updated_at'] as string}
     `);
 
     return {
       ...spec,
       // 본문이 없는 노드는 빈 본문이다 — null 을 그대로 흘리면 화면이 "null" 을 쓴다
-      body_md: spec['body_md'] ?? '',
+      body_md: body,
       requirements,
+      // **요구사항이 어디서 왔나**(M5 · REQ-API-201) — 최신 승인본을 읽었으면 지금의 행이고,
+      // 옛 버전 · 기준선 · 초안을 읽었으면 그 버전 본문에서 뽑은 것이다
+      requirements_source: requirementsSource,
       ...(tasks === undefined ? {} : { tasks }),
       ...(comments === undefined ? {} : { comments }),
       ...(attachments === undefined ? {} : { attachments }),
+      ...(links === undefined ? {} : { links }),
+      ...(versions === undefined ? {} : { versions }),
+      ...(baselines === undefined ? {} : { baselines }),
+      ...(diff === undefined ? {} : { diff }),
       // 배지가 무엇 때문에 켜졌는지까지 준다 — "낡았다" 만으로는 어디를 볼지 모른다
       recheck: { count: recheck[0]?.n ?? 0, specs: recheck[0]?.keys ?? [] },
       // 기준 버전이 이미 지나간 버전이면 표시한다 — 재브리핑의 신호다(§2.4)
       basis_superseded: spec['superseded_by_version_id'] != null,
+      // **무엇으로 읽었나**(M2 · REQ-API-198) — 늘 준다. 옛 서버는 이 필드가 없다(스킬의 호환 문장)
+      read_as: readAs,
+      ...editBase,
       // 보기 기준을 명시했으면 되돌려 준다 — 받은 쪽이 무엇으로 읽었는지 확인할 수 있게
-      ...(input.basis == null || input.basis === '' ? {} : { basis }),
+      ...(input.basis == null || input.basis === ''
+        ? {}
+        : { basis: selector.kind === 'latest' ? 'latest' : 'approved' }),
+      ...(taskKey === null ? {} : { task: taskKey }),
       // **그 세트가 이 문서를 담고 있었는가.** 담고 있지 않으면 최신 approved 로 떨어지는데,
       // 그 사실을 말하지 않으면 읽는 쪽은 기준선을 읽었다고 믿는다.
-      ...(input.baseline == null
+      ...(baselineName === null
         ? {}
         : {
-            baseline: input.baseline,
-            baseline_pinned: pinnedVersionId !== null,
+            baseline: baselineName,
+            baseline_pinned: readAs === 'baseline' || readAs === 'task_baseline',
           }),
     };
+  }
+
+  /**
+   * **읽은 버전의 요구사항**(2026-09-27 · M5 · REQ-API-201).
+   *
+   * 요구사항 행은 승인할 때마다 최신 승인본의 문장으로 덮인다. 그래서 옛 버전 · 기준선 · 초안을
+   * 읽어도 요구사항은 늘 최신 승인본의 것이었고, 구현 스킬의 "새 버전에서 내 요구사항이 바뀌었나"
+   * 판정은 두 번 읽어도 같은 목록을 받아 늘 "변화 없음" 이었다. 최신 승인본을 읽었을 때만 행을
+   * 주고, 그 밖에는 그 버전 본문에서 뽑는다. 구현 상태는 고정 ID 로 지금 행과 잇는다.
+   */
+  private async requirementsFor(
+    spec: Record<string, unknown>,
+    body: string,
+  ): Promise<{ requirements: Record<string, unknown>[]; source: 'current_rows' | 'version_body' }> {
+    const { rows: current } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT ref, statement_md, priority::text AS priority, impl_status::text AS impl_status,
+             removed_in_version_id
+        FROM requirement WHERE spec_id = ${spec['spec_id'] as string}
+       ORDER BY ref
+    `);
+    const readsRows =
+      spec['version_id'] == null ||
+      (spec['approved_version_no'] != null && spec['version_no'] === spec['approved_version_no']);
+    if (readsRows) {
+      return {
+        requirements: current
+          .filter((r) => r['removed_in_version_id'] == null)
+          .map(({ removed_in_version_id: _removed, ...r }) => r),
+        source: 'current_rows',
+      };
+    }
+    const byRef = new Map(current.map((r) => [String(r['ref']), r]));
+    return {
+      requirements: [...requirementsOf(body)].map(([ref, statement]) => {
+        const row = byRef.get(ref);
+        return {
+          ref,
+          statement_md: statement,
+          priority: row?.['priority'] ?? null,
+          impl_status: row?.['impl_status'] ?? null,
+          // 지금 살아 있는 요구사항인가 — 기준선에만 있던 것 · 초안에서 새로 적은 것은 거짓이다
+          in_current: row !== undefined && row['removed_in_version_id'] == null,
+        };
+      }),
+      source: 'version_body',
+    };
+  }
+
+  /**
+   * 초안 저장이 견줄 버전 — 열린 초안, 없으면 읽는 사람의 기본(최신 승인본)(REQ-API-198).
+   * 검토 중인 개정판이 있고 열린 초안이 없으면 저장이 막힌다(M4 · REQ-API-200) — 그 사실을 준다.
+   */
+  private async editBaseOf(specId: string): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.execute<{
+      version_no: number;
+      status: string;
+      approval_id: string | null;
+    }>(sql`
+      SELECT sv.version_no, sv.status::text AS status,
+             (SELECT a.id FROM approval a
+               WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id AND a.decision IS NULL
+               ORDER BY a.requested_at DESC LIMIT 1) AS approval_id
+        FROM spec_version sv
+       WHERE sv.spec_id = ${specId} AND sv.status IN ('draft', 'in_review')
+       ORDER BY (sv.status = 'draft') DESC, sv.version_no DESC
+       LIMIT 1
+    `);
+    const open = rows[0];
+    if (open?.status === 'draft') {
+      return { edit_base_version_no: open.version_no, edit_base_status: 'draft' };
+    }
+    if (open?.status === 'in_review') {
+      return {
+        edit_base_version_no: null,
+        edit_base_status: null,
+        edit_blocked_by: { version_no: open.version_no, approval_id: open.approval_id },
+      };
+    }
+    const reader = await readerVersion(this.db, specId);
+    return {
+      edit_base_version_no: reader?.version_no ?? null,
+      edit_base_status: reader?.status ?? null,
+    };
+  }
+
+  /**
+   * 읽은 버전 본문이 링크로 가리키는 문서들 — 이 문서를 읽은 **같은 기준**으로 본 버전(REQ-API-206).
+   * 기준선(작업의 기준선 포함)으로 읽었으면 그 세트의 버전, 최신이면 최신, 그 밖에는 최신 승인본이다.
+   */
+  private async linksOf(
+    projectId: string,
+    selfKey: string,
+    body: string,
+    readAs: string,
+    baselineName: string | null,
+  ): Promise<Record<string, unknown>[]> {
+    const keys = extractLinkedKeys(body, selfKey);
+    if (keys.length === 0) return [];
+    const baselineId =
+      baselineName === null ? null : await baselineIdOf(this.db, projectId, baselineName);
+    const latestApproved = sql`coalesce(
+      (SELECT a.id FROM spec_version a
+        WHERE a.spec_id = s.id AND a.status = 'approved'
+        ORDER BY a.version_no DESC LIMIT 1),
+      s.current_version_id)`;
+    const pin =
+      baselineId === null
+        ? sql`NULL::uuid`
+        : sql`(SELECT i.spec_version_id FROM spec_baseline_item i
+                WHERE i.baseline_id = ${baselineId} AND i.spec_id = s.id)`;
+    const version =
+      baselineId !== null
+        ? sql`coalesce(${pin}, ${latestApproved})`
+        : readAs === 'latest'
+          ? LATEST_VERSION_ID
+          : latestApproved;
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT s.key, s.title, sv.version_no, sv.status::text AS doc_status,
+             (${pin}) IS NOT NULL AS in_baseline
+        FROM spec s
+   LEFT JOIN spec_version sv ON sv.id = ${version}
+       WHERE s.project_id = ${projectId} AND s.key IN (${sql.join(
+         keys.map((k) => sql`${k}`),
+         sql`, `,
+       )})
+    `);
+    const byKey = new Map(rows.map((r) => [String(r['key']), r]));
+    return keys.map((key) => {
+      const row = byKey.get(key);
+      if (row === undefined) return { key, missing: true };
+      const { in_baseline: inBaseline, ...rest } = row;
+      return baselineId === null ? rest : { ...rest, in_baseline: inBaseline === true };
+    });
+  }
+
+  /**
+   * 읽은 버전과 견줄 버전의 차이(M11 · REQ-API-207) — EP-SPEC-06 과 같은 계산이다(D-05).
+   * 본문 줄 차이는 400줄에서 자르고 잘랐다고 말한다 — 컨텍스트 예산은 에이전트의 것이다.
+   */
+  private async diffFromRead(
+    projectId: string,
+    specKey: string,
+    specId: string,
+    spec: Record<string, unknown>,
+    from: { basis?: string | null; version?: number | null; baseline?: string | null },
+  ): Promise<Record<string, unknown>> {
+    const given = [
+      ...(from.basis != null && from.basis !== '' ? ['basis'] : []),
+      ...(from.version != null ? ['version'] : []),
+      ...(from.baseline != null && from.baseline !== '' ? ['baseline'] : []),
+    ];
+    if (given.length !== 1 || (from.basis != null && from.basis !== 'approved')) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'diff_from',
+        allowed: ['basis:approved', 'version:<n>', 'baseline:<name>'],
+      });
+    }
+    let fromNo: number | null;
+    if (from.version != null) fromNo = from.version;
+    else if (from.baseline != null) {
+      const baselineId = await baselineIdOf(this.db, projectId, from.baseline);
+      const { rows } = await this.db.execute<{ version_no: number }>(sql`
+        SELECT sv.version_no FROM spec_baseline_item i
+          JOIN spec_version sv ON sv.id = i.spec_version_id
+         WHERE i.baseline_id = ${baselineId} AND i.spec_id = ${specId}
+      `);
+      fromNo = rows[0]?.version_no ?? null;
+      if (fromNo === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_missing'), {
+          kind: 'not_found',
+          field: 'diff_from.baseline',
+          baseline: from.baseline,
+        });
+      }
+    } else {
+      fromNo = typeof spec['approved_version_no'] === 'number' ? spec['approved_version_no'] : null;
+      if (fromNo === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_missing'), {
+          kind: 'not_found',
+          field: 'diff_from.basis',
+        });
+      }
+    }
+    const toNo = typeof spec['version_no'] === 'number' ? spec['version_no'] : null;
+    const diff = await this.diff({ projectId, specKey, fromVersionNo: fromNo, toVersionNo: toNo });
+    const lines = Array.isArray(diff['body_diff']) ? (diff['body_diff'] as unknown[]) : [];
+    return lines.length > DIFF_LINE_CAP
+      ? { ...diff, body_diff: lines.slice(0, DIFF_LINE_CAP), body_diff_truncated: true }
+      : diff;
   }
 
   /**
@@ -788,15 +1098,73 @@ export class SpecService {
               takeover: input.takeover === true,
             });
 
+      // **검토 중인 개정판이 있으면 새 초안을 만들지 않는다**(2026-09-27 사람 결정 M4 · REQ-API-200).
+      // 예전에는 열린 초안이 없으면 승인본의 지문과 견줘, 검토 중인 개정판을 건너뛴 새 초안이 경고 없이
+      // 생겼고(계보는 그 개정판을 가리켰다) 개정판이 거절되면 초안이 둘이 됐다. "가변 구간은 초안
+      // 하나" 라는 문서 축의 규칙대로, 결재가 끝나거나 거절되어 초안으로 돌아오면 그 위에서 잇는다.
+      if (isExisting && draft === null) {
+        const { rows: reviewing } = await tx.execute<{
+          version_no: number;
+          approval_id: string | null;
+        }>(sql`
+          SELECT sv.version_no,
+                 (SELECT a.id FROM approval a
+                   WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id
+                     AND a.decision IS NULL
+                   ORDER BY a.requested_at DESC LIMIT 1) AS approval_id
+            FROM spec_version sv
+           WHERE sv.spec_id = ${specId} AND sv.status = 'in_review'
+           ORDER BY sv.version_no DESC LIMIT 1
+        `);
+        const pending = reviewing[0];
+        if (pending !== undefined) {
+          throw new NervError(
+            NERV_ERROR.PRECONDITION,
+            msg('error.spec.in_review_pending', { n: pending.version_no }),
+            {
+              kind: 'in_review_pending',
+              version_no: pending.version_no,
+              approval_id: pending.approval_id,
+              web_url:
+                pending.approval_id === null
+                  ? await this.webUrl(tx, input.projectId, specId, pending.version_no)
+                  : this.inboxUrl(pending.approval_id),
+            },
+          );
+        }
+      }
+
       // **비교-교환**(§1.4g). 부른 쪽이 말하는 것은 **"어느 내용을 보고 썼는가" 하나**다.
       // "어느 행에서 갈라졌는가"(계보)는 서버가 아는 사실이라 묻지 않는다 — 예전에는
       // `base_version` 으로 물었는데, 초안은 같은 행을 덮어쓰므로 그 답은 아무것도 막지
       // 못했다(실측에서 세 세션이 다 성공하고 둘이 글을 잃었다).
-      const current = isExisting
-        ? draft !== null
-          ? draft.content_hash
-          : await readerHash(tx, specId)
-        : null;
+      const currentVersion = !isExisting
+        ? null
+        : draft !== null
+          ? {
+              version_no: Number(draft.version_no),
+              status: 'draft',
+              content_hash: draft.content_hash,
+            }
+          : await readerVersion(tx, specId);
+      const current = currentVersion?.content_hash ?? null;
+      // **다시 읽을 곳을 함께 준다**(M3 · REQ-API-199). 오류에 버전 번호가 없어서, 스킬대로 "다시 읽기"
+      // 를 하면 기본(승인본)을 또 받았다 — 초안이 있는 문서에서는 같은 거절이 되풀이됐다.
+      const rereadAt = async (): Promise<Record<string, unknown>> =>
+        currentVersion === null
+          ? {}
+          : {
+              current_version_no: currentVersion.version_no,
+              current_status: currentVersion.status,
+              reread: {
+                tool: 'nerv_spec_get',
+                args: {
+                  spec_id: await this.keyOfSpec(tx, specId),
+                  version: currentVersion.version_no,
+                },
+              },
+              web_url: await this.webUrl(tx, input.projectId, specId, currentVersion.version_no),
+            };
       // **지킬 내용이 있을 때만 지문을 요구한다.** 예전 조건은 "기존 스펙이면"이었는데,
       // 임포터의 골격 노드는 스펙 행만 있고 버전이 없다 — 견줄 지문이 없는데 지문을
       // 요구하니 에이전트는 얻을 수 없는 값을 내놓아야 했고(그 문서의 get 은 "없다"고
@@ -806,16 +1174,17 @@ export class SpecService {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_hash_required'), {
             kind: 'base_hash_required',
             current_hash: current,
+            ...(await rereadAt()),
           });
         }
         if (input.baseHash !== current) {
           // 재시도가 아니라 **다시 읽고 다시 얹는 것**이 답이다 — 같은 본문으로 다시 부르면
-          // 그건 덮어쓰기다. 그래서 현재 지문과 딥링크를 함께 준다.
+          // 그건 덮어쓰기다. 그래서 현재 지문과 그 버전을 다시 읽는 호출을 함께 준다.
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.stale_body'), {
             kind: 'stale_body',
             current_hash: current,
             received: input.baseHash,
-            web_url: await this.webUrl(tx, input.projectId, specId),
+            ...(await rereadAt()),
           });
         }
       }
@@ -1485,7 +1854,8 @@ export class SpecService {
              sv.author_user_id, sv.approved_by_user_id, sv.submitted_at, sv.approved_at,
              sv.created_at
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
-       WHERE s.project_id = ${input.projectId} AND s.key = ${input.specKey}
+       -- 키든 UUID 든 받는다(§1.4b) — \`nerv_spec_get\` 의 \`include: ["versions"]\` 가 이것을 부른다
+       WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
        ORDER BY sv.version_no DESC
     `);
     return rows;
@@ -2419,10 +2789,13 @@ export class SpecService {
         toState: 'superseded',
       });
 
-      // 기준 버전이 지나간 Task 에 재브리핑 플래그를 세운다(spec-workflow §3.3)
+      // 기준 버전이 지나간 Task 에 재브리핑 플래그를 세운다(spec-workflow §3.3). **기준선으로 개발하는
+      // 작업은 빼놓는다**(2026-09-27 사람 결정 M9 · REQ-API-210) — 세트가 약속이라 재브리핑을 받지
+      // 않고, 옮기려면 기준선째 옮긴다. 표시만 남기면 해소할 방법이 없는 배지가 된다
       const { rows: rebriefed } = await tx.execute<{ id: string }>(sql`
         UPDATE task SET rebrief_required_at = now()
          WHERE source_spec_version_id = ${old.id} AND status NOT IN ('done', 'blocked')
+           AND baseline_id IS NULL
         RETURNING id
       `);
       for (const task of rebriefed) {

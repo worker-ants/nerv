@@ -124,6 +124,8 @@ export class TaskController {
       assigneeUserId: input.assignee_user_id ?? null,
       dependsOnKeys: input.depends_on ?? null,
       rebrief: input.rebrief ?? null,
+      // 없으면 그대로, `null` · 빈 문자열이면 푼다 — 둘을 가르려고 `??` 로 접지 않는다
+      ...(input.baseline === undefined ? {} : { baseline: input.baseline }),
     });
   }
 

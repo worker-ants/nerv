@@ -617,6 +617,13 @@ export const en = {
   'task.basis': 'Basis: why this task exists',
   'task.basis.dependencies': 'Depends on',
   'task.basis.rebrief': 'Re-check instructions',
+  'task.basis.baseline': 'Baseline',
+  'task.basis.baseline_move': 'Change baseline',
+  'task.basis.baseline_clear': 'Remove baseline',
+  'task.basis.baseline_hint':
+    'A task developed against a baseline changes its baseline instead of being re-briefed. If the document is in the new baseline, that version becomes the basis version.',
+  'task.basis.baseline_moved': 'Baseline changed.',
+  'task.basis.rebrief_use_baseline': 'Change the baseline to clear this.',
   'task.basis.rebrief_action': 'Update basis',
   'task.basis.rebrief_ok': 'Updated the basis to the latest approved version',
   'task.basis.rebrief_required': 'The basis spec changed. Re-check the instructions',
@@ -703,7 +710,21 @@ export const en = {
   'mcp.arg.baseline_tree':
     'Baseline name. Returns only the documents in that baseline, at their baseline versions (nothing outside it)',
   'mcp.arg.baseline':
-    'Baseline name. Reads the version of this document pinned in that baseline. Cannot be combined with version',
+    'Baseline name. Reads the version of this document pinned in that baseline. Cannot be combined with basis, version or task',
+  'mcp.arg.basis':
+    'Version basis: approved (default, the latest approved version) or latest (the highest-numbered version, including drafts and versions in review on top of the approved one). Cannot be combined with version, baseline or task',
+  'mcp.arg.version':
+    'Version number. Reads that version (v on REST). Cannot be combined with basis, baseline or task. A missing number is rejected',
+  'mcp.arg.task_basis':
+    "Task key or UUID. Reads by that task's basis: the basis version for its source document, otherwise the version pinned in the task's baseline, otherwise the latest approved version. read_as tells which",
+  'mcp.arg.task_basis_tree':
+    "Task key or UUID. Returns only the documents in the task's baseline, at the pinned versions. Without a baseline the task reads approved versions",
+  'mcp.arg.baseline_search':
+    'Baseline name. Searches only the documents in that baseline, in the pinned versions. Cannot be combined with status',
+  'mcp.arg.diff_from':
+    'One side to compare this version with, as an object: basis:approved, version:number or baseline:name. The response diff has the requirement changes and the line diff',
+  'mcp.arg.spec_include':
+    'Extras to include: tasks, comments, attachments, links (documents the read version links to, read the same way), versions (the version list), baselines (baselines that contain this document)',
   'mcp.arg.base_hash':
     'Content hash of the body you read (content_hash from nerv_spec_get). Required when editing an existing document',
   'mcp.arg.blocking':
@@ -735,7 +756,15 @@ export const en = {
     "The body has changed since you read it. Read it again and reapply your edit (resending the same body would overwrite someone else's changes).",
   'error.spec.version_xor_baseline': 'Version and baseline cannot be given together.',
   'error.spec.basis_exclusive':
-    'The view basis (basis) cannot be given together with a version or a baseline.',
+    'Give only one of the version basis (basis), a version, a baseline or a task.',
+  'error.spec.status_with_baseline':
+    'A status filter cannot be combined with a baseline. Every document in a baseline was approved when it was captured.',
+  'error.spec.in_review_pending':
+    'A version is in review (v{n}), so a new draft cannot be started. Continue once the decision is made, or when it returns to draft after a rejection.',
+  'error.task.rebrief_baseline':
+    "A task developed against a baseline can't move only its basis version. Move the task to a new baseline instead.",
+  'error.task.baseline_pin_mismatch':
+    'The basis version (v{given}) differs from the version in baseline {baseline} (v{pinned}). Use the baseline version, or leave out the baseline.',
   'error.spec.wrapped_body':
     'The body is wrapped in a `<nerv:spec …>` tag. Send only the content inside the tag.',
   'error.attachment.not_text':
@@ -779,6 +808,8 @@ export const en = {
   'mcp.instructions.scope':
     'Declare a scope (spec_ids, file_globs) when you claim. Overlap with another session triggers a warning or a block.',
   'mcp.instructions.what': 'NERV: a platform for spec-driven development with agents.',
+  'mcp.instructions.spec_basis':
+    'Read specs by the basis your flow needs. Implementation reads with the task argument of nerv_spec_get, spec edits read with basis=latest, and read_as in the response tells what was read.',
   'mcp.tool.after_fix': 'After the fix commit or decision',
   'mcp.tool.after_review': 'Right after a review (instead of committing files)',
   'mcp.tool.after_comment': 'Right after addressing comments',

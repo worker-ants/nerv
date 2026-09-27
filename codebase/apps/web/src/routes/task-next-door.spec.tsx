@@ -95,6 +95,19 @@ beforeEach(() => {
           json: async () => ({ items: lanes[status] ?? [], next_cursor: null }),
         };
       }
+      if (u.includes('/baselines')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [
+              { id: 'b1', name: 'R1', item_count: 3 },
+              { id: 'b2', name: 'R2', item_count: 4 },
+            ],
+            total: 2,
+          }),
+        };
+      }
       if (u.includes('/tasks/')) return { ok: true, status: 200, json: async () => detail };
       return {
         ok: true,
@@ -358,5 +371,56 @@ describe('수정 폼 — 비어 있던 칸 (REQ-WEB-202 · 안 C)', () => {
     save();
     expect(await screen.findByText(ko['task.form.err.goal'])).toBeDefined();
     expect(patches()).toHaveLength(0);
+  });
+});
+
+/**
+ * **기준선 작업은 재브리핑 대신 기준선을 바꾼다**(2026-09-27 사람 결정 M9 · REQ-WEB-252). 재브리핑은
+ * 기준 버전만 최신 승인본으로 옮겨, 대상 문서는 지금 것이고 주변 문서는 옛 세트가 됐다.
+ */
+describe('기준선 작업 — 세트째 옮긴다 (REQ-WEB-252)', () => {
+  it('근거 칸에 기준선이 보이고, 편집할 수 있으면 다른 기준선으로 옮긴다', async () => {
+    roles = ['planner'];
+    detail = task({ baseline: 'R1', spec_key: 'SPC-A', basis_version_no: 1 });
+    await renderDetail();
+    expect(screen.getByTestId('task-baseline').textContent).toBe('R1');
+    const select = (await screen.findByTestId('task-baseline-move')) as HTMLSelectElement;
+    await waitFor(() => expect(select.textContent).toContain('R2'));
+    fireEvent.change(select, { target: { value: 'R2' } });
+    await waitFor(() =>
+      expect(posted).toContainEqual(
+        expect.objectContaining({ method: 'PATCH', body: { baseline: 'R2' } }),
+      ),
+    );
+  });
+
+  it('기준선 풀기는 null 을 보낸다 — 그다음부터는 재브리핑을 받는다', async () => {
+    roles = ['planner'];
+    detail = task({ baseline: 'R1' });
+    await renderDetail();
+    fireEvent.change(await screen.findByTestId('task-baseline-move'), { target: { value: '' } });
+    await waitFor(() =>
+      expect(posted).toContainEqual(
+        expect.objectContaining({ method: 'PATCH', body: { baseline: null } }),
+      ),
+    );
+  });
+
+  it('재브리핑 표시가 남은 기준선 작업은 [기준 갱신] 대신 기준선을 바꾸라고 알린다', async () => {
+    roles = ['planner'];
+    detail = task({ baseline: 'R1', rebrief_required_at: '2026-09-27T00:00:00Z' });
+    await renderDetail();
+    expect(screen.getByTestId('rebrief-required')).toBeTruthy();
+    expect(screen.queryByTestId('rebrief')).toBeNull();
+    expect(screen.getByTestId('rebrief-use-baseline').textContent).toBe(
+      ko['task.basis.rebrief_use_baseline'],
+    );
+  });
+
+  it('기준선이 없는 작업은 "없음" 이고 바꾸는 선택기가 없다', async () => {
+    roles = ['planner'];
+    await renderDetail();
+    expect(screen.getByTestId('task-baseline').textContent).toBe(ko['common.none']);
+    expect(screen.queryByTestId('task-baseline-move')).toBeNull();
   });
 });

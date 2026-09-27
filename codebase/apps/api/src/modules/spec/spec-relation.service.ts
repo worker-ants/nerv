@@ -17,7 +17,7 @@ import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
-import { readerHash } from './reader-hash.js';
+import { latestVersion, readerHash } from './reader-hash.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 
@@ -146,6 +146,9 @@ export class SpecRelationService {
     // 잘못 넣은 관계를 지우려는 사람은 대개 그 문서가 바뀌었기 때문에 지운다.
     if (!input.remove) {
       const current = await readerHash(this.db, toId);
+      // **최신 버전의 지문도 받는다**(2026-09-27 사람 결정 M13 · REQ-API-205). 대상을 최신 기준으로
+      // 읽고(승인본 위의 초안) 판단한 관계도 "읽고 내린 판단" 이다. 둘 중 하나와 맞으면 된다
+      const latest = (await latestVersion(this.db, toId))?.content_hash ?? null;
       if (input.baseHash == null || input.baseHash === '') {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.base_hash_required'), {
           kind: 'relation_base_hash_required',
@@ -153,11 +156,18 @@ export class SpecRelationService {
           targets: [{ to: input.toKey, current_hash: current }],
         });
       }
-      if (current !== null && input.baseHash !== current) {
+      if (current !== null && input.baseHash !== current && input.baseHash !== latest) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.relation.stale_target'), {
           kind: 'stale_relation_target',
           field: 'base_hash',
-          targets: [{ to: input.toKey, current_hash: current, received: input.baseHash }],
+          targets: [
+            {
+              to: input.toKey,
+              current_hash: current,
+              ...(latest !== null && latest !== current ? { latest_hash: latest } : {}),
+              received: input.baseHash,
+            },
+          ],
         });
       }
     }
@@ -294,10 +304,17 @@ export class SpecRelationService {
       // 판단"이다 — 읽지 않고 선언한 `refines` 는 그래프에 거짓을 심는다. 본문을 안 고치고
       // 관계만 바꾸는 저장이 허용되는 만큼, 그 경로가 검사 없는 뒷문이 되면 안 된다.
       const current = await readerHash(tx, toId);
+      // 최신 버전의 지문도 받는다 — 위 `declare` 와 같은 판정이다(M13 · REQ-API-205)
+      const latest = (await latestVersion(tx, toId))?.content_hash ?? null;
       if (entry.baseHash == null || entry.baseHash === '') {
         missing.push({ to: entry.to, current_hash: current });
-      } else if (current !== null && entry.baseHash !== current) {
-        stale.push({ to: entry.to, current_hash: current, received: entry.baseHash });
+      } else if (current !== null && entry.baseHash !== current && entry.baseHash !== latest) {
+        stale.push({
+          to: entry.to,
+          current_hash: current,
+          ...(latest !== null && latest !== current ? { latest_hash: latest } : {}),
+          received: entry.baseHash,
+        });
       }
       wanted.push({ toId, kind: entry.kind, to: entry.to });
     }

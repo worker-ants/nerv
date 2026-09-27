@@ -36,6 +36,7 @@ import {
   taskStatusText,
 } from '../../lib/format.js';
 import { DelegationForm } from '../../features/task-board/delegation-form.js';
+import { useBaselines } from '../../features/spec-editor/baseline-controls.js';
 import { nextActions } from '../../features/task-board/next-actions.js';
 import type { NextAction, TransitionTarget } from '../../features/task-board/next-actions.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -222,6 +223,25 @@ function TaskDetail(): React.JSX.Element {
     },
     onError: onApiError,
   });
+
+  /**
+   * **기준선을 바꾼다**(2026-09-27 사람 결정 M9 · REQ-WEB-252). 기준선으로 개발하는 작업은 기준 버전만
+   * 옮기는 재브리핑을 받지 않는다 — 대상 문서만 새 것이 되고 주변 문서는 옛 세트로 남기 때문이다.
+   * 세트째 옮기면 출처 문서의 기준 버전도 새 세트의 버전으로 간다. 빈 값은 기준선을 푼다.
+   */
+  const moveBaseline = useMutation({
+    mutationFn: (name: string | null) =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/tasks/${String(data['id'])}`, {
+        method: 'PATCH',
+        body: { baseline: name },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.task(task) });
+      pushToast({ tone: 'ok', message: t('task.basis.baseline_moved') });
+    },
+    onError: onApiError,
+  });
+  const baselines = rows(useBaselines(proj).data);
 
   const release = useMutation({
     mutationFn: (reason: 'handoff' | 'abandon') =>
@@ -472,6 +492,41 @@ function TaskDetail(): React.JSX.Element {
                   </span>
                 )}
               </Element>
+              {/* **기준선**(2026-09-27 사람 결정 M9 · REQ-WEB-252). 기준선으로 개발하는 작업은 그 세트가
+                약속이라 재브리핑 대신 기준선을 바꾼다. 서버가 이름을 준다(REQ-API-204) */}
+              <Element label={t('task.basis.baseline')}>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span data-testid="task-baseline">
+                    {typeof data['baseline'] === 'string' ? (
+                      <Mono>{data['baseline']}</Mono>
+                    ) : (
+                      t('common.none')
+                    )}
+                  </span>
+                  {typeof data['baseline'] === 'string' && canEditBrief && (
+                    <select
+                      data-testid="task-baseline-move"
+                      aria-label={t('task.basis.baseline_move')}
+                      className="rounded-nerv border border-border bg-bg-elev px-1.5 py-0.5 text-xs"
+                      value={data['baseline']}
+                      disabled={moveBaseline.isPending}
+                      onChange={(e) =>
+                        moveBaseline.mutate(e.target.value === '' ? null : e.target.value)
+                      }
+                    >
+                      {baselines.map((b) => (
+                        <option key={String(b['id'])} value={String(b['name'])}>
+                          {String(b['name'])}
+                        </option>
+                      ))}
+                      <option value="">{t('task.basis.baseline_clear')}</option>
+                    </select>
+                  )}
+                </span>
+                {typeof data['baseline'] === 'string' && (
+                  <p className="mt-1 text-xs text-text-faint">{t('task.basis.baseline_hint')}</p>
+                )}
+              </Element>
               {/* **UUID 는 사람이 아는 이름이 아니다**(2026-09-07 · REQ-WEB-148). 서버가
                 고정 ID(REQ-…)와 문장을 함께 실어 준다 — 원문을 그리면 사람은 그것이 무엇을
                 가리키는지 알 수 없고, 그래서 근거 칸이 있어도 근거가 되지 않았다. */}
@@ -529,22 +584,30 @@ function TaskDetail(): React.JSX.Element {
                     </span>
                     {/* **배지를 해소하는 문**(2026-09-06 · REQ-API-121). 오래 배지만 있고
                       그것을 끄는 길이 없었다 — 기준을 최신 승인본으로 옮기고 플래그를
-                      지운다. "봤다" 표시가 아니라 **기준을 옮기는 것**이 재브리핑의 뜻이다. */}
-                    <Button
-                      size="sm"
-                      data-testid="rebrief"
-                      disabled={rebrief.isPending || !canEditBrief}
-                      onClick={() => rebrief.mutate()}
-                      disabledReason={
-                        canEditBrief
-                          ? undefined
-                          : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
-                      }
-                      title={canEditBrief ? t('task.basis.rebrief_title') : undefined}
-                      requiresOnline
-                    >
-                      {t('task.basis.rebrief_action')}
-                    </Button>
+                      지운다. "봤다" 표시가 아니라 **기준을 옮기는 것**이 재브리핑의 뜻이다.
+                      기준선으로 개발하는 작업은 서버가 재브리핑을 거절한다 — 기준선을 바꾸면
+                      표시가 지워진다(2026-09-27 사람 결정 M9 · REQ-WEB-252) */}
+                    {typeof data['baseline'] === 'string' ? (
+                      <span data-testid="rebrief-use-baseline" className="text-xs text-text-mute">
+                        {t('task.basis.rebrief_use_baseline')}
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        data-testid="rebrief"
+                        disabled={rebrief.isPending || !canEditBrief}
+                        onClick={() => rebrief.mutate()}
+                        disabledReason={
+                          canEditBrief
+                            ? undefined
+                            : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
+                        }
+                        title={canEditBrief ? t('task.basis.rebrief_title') : undefined}
+                        requiresOnline
+                      >
+                        {t('task.basis.rebrief_action')}
+                      </Button>
+                    )}
                     {/* 기준이 옮겨 가면 지시도 다시 읽어야 한다 — 고칠 곳이 **같은 화면에** 있다 */}
                     {canEditBrief && (
                       <Button

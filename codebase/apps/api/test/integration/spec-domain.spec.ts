@@ -73,6 +73,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  // 작업이 먼저다 — 작업이 기준선을 가리킬 수 있다(REQ-API-203 의 테스트가 그렇게 만든다)
+  await pool.query('DELETE FROM claim');
+  await pool.query('DELETE FROM task');
   await pool.query('UPDATE spec SET current_version_id = NULL');
   await pool.query('DELETE FROM spec_baseline_item');
   await pool.query('DELETE FROM spec_baseline');
@@ -1286,6 +1289,8 @@ describe('EP-SPEC-06 버전 diff', () => {
       specVersionId: first['spec_version_id'] as string,
       userId: planner,
     });
+    // 검토 중인 버전 위에는 새 초안을 만들 수 없다(M4 · REQ-API-200) — 승인된 뒤 다음 버전을 쓴다
+    await approve(first['spec_version_id'] as string);
     await specs.draftUpsert({
       roles: ['planner'],
       projectId,
@@ -1574,5 +1579,305 @@ describe('REQ-API-193~196 보기 기준', () => {
     );
     const targets = await embeddings.indexableVersions(projectId);
     expect(targets.map((t) => t.id)).toEqual(expect.arrayContaining([one.v1, one.v2]));
+  });
+});
+
+/**
+ * **MCP 의 두 쓰임 — 기준선 기준 개발 · 기준선 이후 문서 수정**(2026-09-27 사람 결정 · M1~M15 ·
+ * REQ-API-197~209). 도구는 같은 서비스를 부르므로 판정은 여기서 본다(D-05).
+ */
+describe('REQ-API-197~209 읽는 기준과 편집 기준', () => {
+  /** 승인된 v1 위에 v2 초안 */
+  async function withDraft(key: string, v1Body: string, v2Body: string) {
+    const first = await draft(key, v1Body);
+    await approve(first.versionId);
+    const next = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: first.specId,
+      bodyMd: v2Body,
+      baseHash: await hashOf(first.specId),
+      userId: planner,
+    });
+    return { specId: first.specId, v1: first.versionId, v2: String(next['spec_version_id']) };
+  }
+  async function toInReview(versionId: string): Promise<void> {
+    await pool.query(
+      `UPDATE spec_version
+          SET status = 'in_review', edit_lease_user_id = NULL, edit_lease_session_id = NULL,
+              edit_lease_expires_at = NULL
+        WHERE id = $1`,
+      [versionId],
+    );
+  }
+
+  it('무엇으로 읽었는지(read_as)와 초안 저장이 견줄 버전을 늘 준다 (M2)', async () => {
+    await withDraft('SPC-RA-1', '# v1', '# v2');
+    const plain = await specs.get({ projectId, specKey: 'SPC-RA-1' });
+    expect(plain).toMatchObject({
+      read_as: 'approved',
+      version_no: 1,
+      edit_base_version_no: 2,
+      edit_base_status: 'draft',
+    });
+    expect(plain['edit_base_hash']).toBeUndefined();
+    expect((await specs.get({ projectId, specKey: 'SPC-RA-1', versionNo: 1 }))['read_as']).toBe(
+      'version',
+    );
+    expect((await specs.get({ projectId, specKey: 'SPC-RA-1', basis: 'latest' }))['read_as']).toBe(
+      'latest',
+    );
+  });
+
+  it('검토 중인 개정판이 있으면 편집 기준 대신 그 결재를 알리고, 새 초안은 거절한다 (M4)', async () => {
+    const one = await withDraft('SPC-IR-1', '# v1', '# v2');
+    await toInReview(one.v2);
+    const read = await specs.get({ projectId, specKey: 'SPC-IR-1' });
+    expect(read).toMatchObject({ edit_base_version_no: null, edit_blocked_by: { version_no: 2 } });
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId: one.specId,
+        bodyMd: '# v3',
+        baseHash: String(read['content_hash']),
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'in_review_pending', version_no: 2 },
+    });
+  });
+
+  it('stale_body 는 지금 버전 번호와 그 버전을 다시 읽는 호출을 준다 (M3)', async () => {
+    const one = await withDraft('SPC-SB-1', '# v1', '# v2');
+    const approvedHash = String(
+      (await specs.get({ projectId, specKey: 'SPC-SB-1' }))['content_hash'],
+    );
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId: one.specId,
+        bodyMd: '# 고친 v2',
+        baseHash: approvedHash,
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({
+      details: {
+        kind: 'stale_body',
+        current_version_no: 2,
+        current_status: 'draft',
+        reread: { tool: 'nerv_spec_get', args: { spec_id: 'SPC-SB-1', version: 2 } },
+      },
+    });
+  });
+
+  it('요구사항은 읽은 버전의 것이다 — 최신 승인본이면 행, 그 밖에는 그 버전 본문 (M5)', async () => {
+    const one = await withDraft(
+      'SPC-RQ-1',
+      '# v1\n\nREQ-RQ-001 WHEN 가 THE SYSTEM SHALL 나 한다',
+      '# v2\n\nREQ-RQ-001 WHEN 가 THE SYSTEM SHALL 다르게 한다\n\nREQ-RQ-002 WHEN 다 THE SYSTEM SHALL 라 한다',
+    );
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, introduced_in_version_id,
+                                current_version_id, impl_status)
+       VALUES ($1,$2,$3,'REQ-RQ-001','WHEN 가 THE SYSTEM SHALL 나 한다',$4,$4,'implemented')`,
+      [newId(), projectId, one.specId, one.v1],
+    );
+    const plain = await specs.get({ projectId, specKey: 'SPC-RQ-1' });
+    expect(plain['requirements_source']).toBe('current_rows');
+    expect((plain['requirements'] as { ref: string }[]).map((r) => r.ref)).toEqual(['REQ-RQ-001']);
+
+    const latest = await specs.get({ projectId, specKey: 'SPC-RQ-1', basis: 'latest' });
+    expect(latest['requirements_source']).toBe('version_body');
+    expect(latest['requirements']).toEqual([
+      {
+        ref: 'REQ-RQ-001',
+        statement_md: 'WHEN 가 THE SYSTEM SHALL 다르게 한다',
+        priority: null,
+        impl_status: 'implemented',
+        in_current: true,
+      },
+      {
+        ref: 'REQ-RQ-002',
+        statement_md: 'WHEN 다 THE SYSTEM SHALL 라 한다',
+        priority: null,
+        impl_status: null,
+        in_current: false,
+      },
+    ]);
+  });
+
+  it('없는 버전 번호는 빈 본문이 아니라 거절이다 (M6)', async () => {
+    await withDraft('SPC-VM-1', '# v1', '# v2');
+    await expect(specs.get({ projectId, specKey: 'SPC-VM-1', versionNo: 9 })).rejects.toMatchObject(
+      {
+        details: { kind: 'not_found', field: 'version', version: 9, latest_version_no: 2 },
+      },
+    );
+  });
+
+  it('작업의 기준으로 읽는다 — 출처 문서는 기준 버전, 주변은 기준선, 세트 밖은 최신 승인본 (M7)', async () => {
+    const a = await draft('SPC-TK-A', '# A v1');
+    await approve(a.versionId);
+    const b = await draft('SPC-TK-B', '# B v1');
+    await approve(b.versionId);
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'R-TK',
+      userId: planner,
+      specVersionIds: [a.versionId, b.versionId],
+    });
+    // 기준선 뒤에 B 의 v2 가 승인되고, 세트 밖의 C 가 생겼다
+    const b2 = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: b.specId,
+      bodyMd: '# B v2',
+      baseHash: await hashOf(b.specId),
+      userId: planner,
+    });
+    await pool.query(`UPDATE spec_version SET status = 'superseded' WHERE id = $1`, [b.versionId]);
+    await approve(String(b2['spec_version_id']));
+    const c = await draft('SPC-TK-C', '# C v1');
+    await approve(c.versionId);
+    const taskKey = 'CLV-T-TKBAS1';
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id, baseline_id)
+       VALUES ($1,$2,$3,'기준선 작업','backlog',$4,(SELECT id FROM spec_baseline WHERE name = 'R-TK'))`,
+      [newId(), projectId, taskKey, a.versionId],
+    );
+
+    expect(await specs.get({ projectId, specKey: 'SPC-TK-A', task: taskKey })).toMatchObject({
+      read_as: 'task_basis',
+      version_no: 1,
+      task: taskKey,
+    });
+    expect(await specs.get({ projectId, specKey: 'SPC-TK-B', task: taskKey })).toMatchObject({
+      read_as: 'task_baseline',
+      version_no: 1,
+      baseline: 'R-TK',
+      baseline_pinned: true,
+    });
+    expect(await specs.get({ projectId, specKey: 'SPC-TK-C', task: taskKey })).toMatchObject({
+      read_as: 'approved_fallback',
+      baseline_pinned: false,
+    });
+    // 트리 · 검색도 작업의 기준선으로 본다
+    const tree = await specs.tree({ projectId, task: taskKey });
+    expect(tree.map((n) => n.key).sort()).toEqual(['SPC-TK-A', 'SPC-TK-B']);
+    expect(tree.find((n) => n.key === 'SPC-TK-B')?.version_no).toBe(1);
+    expect(await search.search({ projectId, query: 'B', task: taskKey })).toMatchObject({
+      basis: 'baseline',
+      baseline: 'R-TK',
+    });
+    // 선택자는 하나만
+    await expect(
+      specs.get({ projectId, specKey: 'SPC-TK-A', task: taskKey, basis: 'latest' }),
+    ).rejects.toMatchObject({ details: { field: 'basis', conflict: ['basis', 'task'] } });
+  });
+
+  it('기준선과 상태 필터는 함께 받지 않는다 — 트리와 검색 둘 다 (M12)', async () => {
+    const one = await draft('SPC-ST-1', '# v1');
+    await approve(one.versionId);
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'R-ST',
+      userId: planner,
+      specVersionIds: [one.versionId],
+    });
+    const rejected = { details: { kind: 'invalid_input', field: 'status' } };
+    await expect(
+      specs.tree({ projectId, baseline: 'R-ST', statuses: ['approved'] }),
+    ).rejects.toMatchObject(rejected);
+    await expect(
+      search.search({ projectId, query: 'v1', baseline: 'R-ST', statuses: ['approved'] }),
+    ).rejects.toMatchObject(rejected);
+    // 결과마다 읽은 버전의 번호가 있다
+    const found = await search.search({ projectId, query: 'SPC-ST-1' });
+    expect(found.items[0]).toMatchObject({ key: 'SPC-ST-1', version_no: 1 });
+  });
+
+  it('링크 · 버전 목록 · 담은 기준선 · 비교를 한 번에 받는다 (M10 · M11 · M15)', async () => {
+    const target = await draft('SPC-LK-T', '# 대상');
+    await approve(target.versionId);
+    const one = await withDraft(
+      'SPC-LK-1',
+      '# v1\n\n[대상](SPC-LK-T)',
+      '# v2\n\n[대상](SPC-LK-T) · [없는 문서](SPC-LK-NONE)\n\n새 문단',
+    );
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'R-LK',
+      userId: planner,
+      specVersionIds: [one.v1, target.versionId],
+    });
+    const read = await specs.get({
+      projectId,
+      specKey: 'SPC-LK-1',
+      basis: 'latest',
+      include: ['links', 'versions', 'baselines'],
+      diffFrom: { basis: 'approved' },
+    });
+    // 키 순서다(extractLinkedKeys 가 정렬해 준다)
+    expect(read['links']).toEqual([
+      { key: 'SPC-LK-NONE', missing: true },
+      { key: 'SPC-LK-T', title: 'SPC-LK-T', version_no: 1, doc_status: 'approved' },
+    ]);
+    expect((read['versions'] as { version_no: number }[]).map((v) => v.version_no)).toEqual([2, 1]);
+    expect(read['baselines']).toEqual([{ name: 'R-LK', version_no: 1, status: 'approved' }]);
+    expect(read['diff']).toMatchObject({ from: { version_no: 1 }, to: { version_no: 2 } });
+
+    // 기준선으로 읽으면 링크도 그 세트의 버전이고, 세트에 있는지 함께 온다
+    const pinned = await specs.get({
+      projectId,
+      specKey: 'SPC-LK-1',
+      baseline: 'R-LK',
+      include: ['links'],
+    });
+    expect(pinned['links']).toEqual([
+      {
+        key: 'SPC-LK-T',
+        title: 'SPC-LK-T',
+        version_no: 1,
+        doc_status: 'approved',
+        in_baseline: true,
+      },
+    ]);
+    await expect(
+      specs.get({ projectId, specKey: 'SPC-LK-1', diffFrom: { basis: 'approved', version: 1 } }),
+    ).rejects.toMatchObject({ details: { field: 'diff_from' } });
+  });
+
+  it('관계는 대상의 최신 버전 지문으로도 선언된다 (M13)', async () => {
+    const target = await withDraft('SPC-RL-T', '# 대상 v1', '# 대상 v2');
+    await draft('SPC-RL-S', '# 쪽');
+    const latestHash = String(
+      (await specs.get({ projectId, specKey: 'SPC-RL-T', basis: 'latest' }))['content_hash'],
+    );
+    const declared = await relations.declare({
+      projectId,
+      fromKey: 'SPC-RL-S',
+      toKey: 'SPC-RL-T',
+      kind: 'refines',
+      remove: false,
+      baseHash: latestHash,
+    });
+    expect(declared).toBeDefined();
+    void target;
+    await expect(
+      relations.declare({
+        projectId,
+        fromKey: 'SPC-RL-S',
+        toKey: 'SPC-RL-T',
+        kind: 'depends_on',
+        remove: false,
+        baseHash: 'deadbeef',
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'stale_relation_target' } });
   });
 });

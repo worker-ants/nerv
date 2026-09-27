@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.20 · 2026-09-27 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.21 · 2026-09-27 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.21 변경(2026-09-27 — 초안이 둘이 되고, 기준선 작업의 세트가 섞였다, **사람 결정**): **§1.2 전이표 한 칸 · 한 단락 · §3.3 한 단락 · §3.6 규칙표 한 행 · §4.2 판정식 한 줄.** ① 검토 중인 버전이 있으면 새 초안을 만들지 않는다 — 가변 구간은 문서마다 하나다([4.4](../04-mvp/api.md) REQ-API-200). ② 기준선으로 개발하는 작업은 재브리핑하지 않고 기준선째 옮기며, 핀 문서에 새 승인본이 나와도 ready 큐에 남는다(REQ-API-210).
 >
 > v0.20 변경(2026-09-27 — 낱말 하나, 사람 결정): **새 결정 없음 · §3.5 한 낱말.** CR이 끝나는 방식의 하나를 "반려"에서 "거절"로 적는다. 화면 · 도움말 · [용어 사전](../glossary.md) §2.5가 모두 "거절"을 쓴다.
 >
@@ -93,9 +95,11 @@ stateDiagram-v2
 
 SpecVersion은 **불변 스냅샷**이다. 가변인 구간은 `draft` 하나뿐이며, `in_review` 진입 시점에 본문이 동결되고 content hash가 확정된다. 승인된 버전을 고치는 유일한 경로는 변경 요청(CR)으로 새 draft 버전을 만드는 것이다(§3). 이것이 clemvion의 "latest-only 본문 + 이력은 git" 사상을 계승하면서, 사라졌던 승인 축을 되살리는 방법이다.
 
+**가변 구간은 문서마다 하나다**(2026-09-27 사람 결정). 검토 중인(`in_review`) 버전이 있으면 새 초안을 만들지 않는다 — 결재가 끝나거나, 거절되어 그 버전이 `draft` 로 돌아오면 그 위에서 이어 쓴다. 예전에는 열린 초안이 없으면 승인본의 지문과 견줘, 검토 중인 개정판을 건너뛴 초안이 경고 없이 생겼고 개정판이 거절되면 초안이 둘이 됐다. REST(EP-SPEC-08)와 `nerv_spec_draft_upsert` 가 같은 규칙이다([4.4](../04-mvp/api.md) REQ-API-200).
+
 | 전이 | 트리거 | 서버 가드(전이 조건) | 실행 권한 | 발생 이벤트 |
 | --- | --- | --- | --- | --- |
-| `→ draft` | 스펙 생성, `nerv_spec_draft_upsert` | 상위 스펙 노드 존재, 타입(vision/area/feature/design/convention/adr) 유효 | planner · designer · developer · admin · agent(위임) | `spec.draft_created` |
+| `→ draft` | 스펙 생성, `nerv_spec_draft_upsert` | 상위 스펙 노드 존재, 타입(vision/area/feature/design/convention/adr) 유효, 기존 문서의 새 버전이면 그 문서에 `in_review` 버전이 없을 것(2026-09-27) | planner · designer · developer · admin · agent(위임) | `spec.draft_created` |
 | `draft → in_review` | 제출, `nerv_spec_submit_review` | 사전 검토 BLOCK 없음(§2.1), 요구사항 블록 파싱 성공, 필수 리뷰어 산출 가능 | 작성자 본인 또는 planner | `spec.submitted` |
 | `in_review → draft` | reject / 수정 요청 | 리뷰어 1인 이상의 `reject` 결정 | 지정 리뷰어 | `spec.rejected` |
 | `in_review → approved` | approve | 필수 리뷰어 **전원** 승인, 지시자≠승인자(§2.3), 게이트 티어 충족(§2.4) | 지정 승인자(항상 사람) | `spec.approved` |
@@ -374,6 +378,8 @@ CR 승인은 세 축을 동시에 움직인다. 서버가 아래 규칙으로 �
 
 **재브리핑 플래그의 수명.** 서버가 세운 `rebrief_required_at`은 자동으로 사라지지 않는다 — 사람이 위임 명세 4요소를 새 버전 기준으로 재확인하고 Task의 기준 버전(`source_spec_version_id`)을 최신 approved로 갱신하는 순간 해제된다. 재브리핑 전까지 세션의 구현 컨텍스트는 **기존 기준 버전**이다 — 서버가 조용히 최신 버전을 먹이는 일은 없다([에이전트 연동 설계](agent-integration.md) §2.4 기준 버전 규약). S4 카드에는 재브리핑 배지가 뜬다([4.5 화면 명세](../04-mvp/screens.md)).
 
+**기준선으로 개발하는 작업은 재브리핑하지 않는다**(2026-09-27 사람 결정 · [4.4](../04-mvp/api.md) REQ-API-210). 작업에 기준선이 있으면 "그 세트로 개발한다" 가 약속이라, 기준 버전만 최신 approved 로 옮기면 대상 문서는 지금 것이고 주변 문서는 옛 세트가 된다. 그래서 승인이 그런 작업에 재브리핑 플래그를 남기지 않고, 재브리핑 요청은 거절된다. 세트를 옮기려면 사람이 작업의 기준선을 새 기준선으로 바꾼다 — 기준 버전도 그 세트의 핀으로 함께 간다(§3.6).
+
 **참조 문서 전파(문서 간 영향).** 위 표는 같은 문서 안의 Requirement·Task까지만 움직인다. 문서 A의 새 버전이 승인되면 서버는 `spec_relation`의 **역방향** — A를 `references`/`depends_on`/`duplicates`로 참조하는 문서들 — 을 재검토 후보로 산출해 `spec.recheck_requested` 이벤트를 만들고(§6.3, 대상 문서 `owner_role`에게 standard 알림), 그 문서의 S3 상태 패널에 "참조 스펙에 앞선 버전 존재" 배지를 세운다. clemvion의 "네 문서가 각자 필드를 열거"·"모방한 쪽이 맞고 원본이 틀렸다" 사고의 재발 방지 장치다. 승인 트리거로 cross-spec 검사기(§2.1)를 그 문서들에 비동기 실행하는 것은 Phase 2다 — MVP는 배지 + 알림까지.
 
 ### 3.4 SPEC-DRIFT 역류 경로
@@ -406,6 +412,7 @@ CR은 자체 수명 상태(`open / in_review / approved / rejected / withdrawn`)
 | 구성 | 스펙당 approved SpecVersion 1개 핀. draft·in_review는 담을 수 없다(생성 시 서버 검증) |
 | 불변 | 생성 후 항목 집합은 바뀌지 않는다. 세트를 바꾸려면 새 기준선 — approved 스냅샷 불변과 같은 원리다 |
 | 소비 | Task 파생 시 `baseline` 인자로 맥락을 고정하고(`task.baseline_id`), 에이전트·웹은 `nerv_spec_get(baseline=…)`·`?baseline=` 조회로 그 세트 그대로 읽는다(2026-09-04 구현 — 4.4 REQ-API-087). 그 세트에 없는 문서는 최신으로 떨어지되 `baseline_pinned:false` 로 말한다. 핀 대상이 나중에 superseded 되어도 기준선 조회 결과는 변하지 않는다 |
+| 기준선 작업 | 작업에 기준선이 있으면 **재브리핑 대신 기준선을 바꾼다** — 기준선과 기준 버전이 함께 옮겨 가고(출처 문서가 새 세트에 없으면 기준 버전은 그대로), 재브리핑 표시는 지워진다. 핀 문서에 새 승인본이 나와도 ready 큐에 남고 기준 드리프트를 만들지 않는다. 작업을 만들 때 출처 문서가 그 세트에 있으면 기준 버전은 그 핀이어야 한다. 구현 세션은 `nerv_spec_get(task=…)` 로 출처 문서의 기준 버전과 주변 문서의 핀을 함께 읽는다(2026-09-27 사람 결정 · [4.4](../04-mvp/api.md) REQ-API-203·210) |
 | 시각 절단과의 관계 | 특정 시각의 approved 집합은 `approved_at`으로 파생 가능하다(as-of manifest — [4.4](../04-mvp/api.md)). 기준선은 시각 절단이 아니라 **큐레이션된 이름 있는 동결**이다 |
 
 기준선은 문서 축 상태 머신을 건드리지 않는다 — superseded 전이·CR 흐름은 그대로 돌고, 기준선은 그 위에 얹힌 읽기 기준일 뿐이다. 요구공학의 baseline("합의·검토·승인된 요구사항 집합의 시점 스냅샷")을 문서 1건이 아니라 프로젝트 세트에 적용한 것이며, §2.5 "승인의 유통기한"(content hash 기준 결정)과 함께 "무엇을 기준으로 만들었나"라는 질문을 어느 축에서든 답할 수 있게 한다.
@@ -432,7 +439,7 @@ CR은 자체 수명 상태(`open / in_review / approved / rejected / withdrawn`)
 ```
 ready(task) ⟺
       task.status == 'backlog'
-  AND task.spec_version.status == 'approved'
+  AND (task.spec_version.status == 'approved' OR task.baseline_id IS NOT NULL)
   AND 위임_명세_4요소_충족(task)
   AND ∀ d ∈ TaskDependency(task): d.status == 'done'
   AND (task.plan_approval_required ⇒ task.plan_approval.decision == 'approve')
@@ -440,6 +447,8 @@ ready(task) ⟺
 ```
 
 ready 큐는 우선순위·기한·담당 후보로 정렬된 **질의 결과**다. 문서가 아니다. clemvion에서 백로그 조망을 담당하던 인덱스 문서가 부패해 삭제된 뒤 "사람 머리 + audit 도구 출력"에 의존하게 된 것, 그리고 34개 in-progress plan 중 15개만 `priority`를 선언했던 실측이 이 설계의 근거다.
+
+**기준선으로 개발하는 작업은 핀 버전이 superseded 가 되어도 ready 다**(2026-09-27 사람 결정 · [4.4](../04-mvp/api.md) REQ-API-210). 세트가 약속이라 핀 문서의 새 승인본이 그 작업을 낡게 만들지 않는다 — 예전에는 큐에서 조용히 빠져 찾을 방법이 없었다. 기준선이 없는 작업은 그대로 재브리핑을 기다린다(§3.3).
 
 ### 4.3 클레임과 리스 (D-04 · FR-06)
 
