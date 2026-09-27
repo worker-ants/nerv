@@ -351,11 +351,15 @@ describe('Codex 초안 2종 (REQ-PLG-010)', () => {
    *
    * 이름은 일부러 다르다: 루트는 `nerv`(GitHub·서버와 같은 마켓플레이스의 두 전송로),
    * 플러그인 안쪽은 `nerv-internal`(개발용) — 그래야 개발자가 둘을 동시에 등록할 수 있다.
+   *
+   * **루트 카탈로그에는 플러그인이 둘이다**(2026-09-27 · 4.6 §7). 문체 플러그인 `ko-style` 이
+   * 같은 마켓플레이스에 있고, 그 항목의 정합은 `ko-style/ko-style.spec.ts` 가 본다. 여기서는
+   * nerv 항목이 **첫째**인지까지 본다 — 서버 카탈로그도 같은 순서다(REQ-API-192).
    */
   it.each([
-    ['codebase/plugin/.claude-plugin/marketplace.json', './', 'nerv-internal'],
-    ['.claude-plugin/marketplace.json', './codebase/plugin', 'nerv'],
-  ])('%s 가 plugin.json 과 같은 이름·버전을 말한다', (rel, source, marketplaceName) => {
+    ['codebase/plugin/.claude-plugin/marketplace.json', './', 'nerv-internal', 1],
+    ['.claude-plugin/marketplace.json', './codebase/plugin', 'nerv', 2],
+  ])('%s 가 plugin.json 과 같은 이름·버전을 말한다', (rel, source, marketplaceName, count) => {
     const manifest = JSON.parse(readShipped('.claude-plugin/plugin.json')) as {
       name: string;
       version: string;
@@ -365,7 +369,7 @@ describe('Codex 초안 2종 (REQ-PLG-010)', () => {
       plugins: { name: string; version: string; source: unknown }[];
     };
     expect(catalog.name).toBe(marketplaceName);
-    expect(catalog.plugins).toHaveLength(1);
+    expect(catalog.plugins).toHaveLength(count);
     expect(catalog.plugins[0]?.name).toBe(manifest.name);
     expect(catalog.plugins[0]?.version).toBe(manifest.version);
     // 상대경로는 **마켓플레이스 루트** 기준이다 — 루트 카탈로그는 저장소 루트에서 센다.
@@ -376,14 +380,20 @@ describe('Codex 초안 2종 (REQ-PLG-010)', () => {
    * 루트 카탈로그가 가리키는 곳에 **실제로 플러그인이 있는가.** 경로가 틀리면 `add` 는
    * 성공하고 `install` 만 실패한다 — 두 단계가 갈라지는 자리라 파일만 보고는 모른다.
    */
-  it('루트 카탈로그의 source 가 실재하는 플러그인을 가리킨다', () => {
+  it('루트 카탈로그의 source 가 모두 실재하는 플러그인을 가리킨다', () => {
     const catalog = JSON.parse(
       readFileSync(join(repoRoot, '.claude-plugin/marketplace.json'), 'utf8'),
-    ) as { plugins: { source: string }[] };
-    const target = join(repoRoot, catalog.plugins[0]!.source);
-    expect(existsSync(join(target, '.claude-plugin', 'plugin.json'))).toBe(true);
-    // `../` 로 마켓플레이스 루트 밖을 가리키지 않는다(플러그인 마켓플레이스 문서의 제약)
-    expect(catalog.plugins[0]!.source.includes('..')).toBe(false);
+    ) as { plugins: { name: string; source: string }[] };
+    for (const entry of catalog.plugins) {
+      const target = join(repoRoot, entry.source);
+      const found = JSON.parse(
+        readFileSync(join(target, '.claude-plugin', 'plugin.json'), 'utf8'),
+      ) as { name: string };
+      // 이름까지 같아야 한다 — 다른 플러그인을 가리키면 설치 명령이 엉뚱한 것을 받는다
+      expect(found.name).toBe(entry.name);
+      // `../` 로 마켓플레이스 루트 밖을 가리키지 않는다(플러그인 마켓플레이스 문서의 제약)
+      expect(entry.source.includes('..')).toBe(false);
+    }
   });
 
   it('NERV 저장소 자신에게는 `.codex/config.toml` 을 두지 않는다', () => {

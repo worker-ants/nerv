@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// 플러그인 아카이브를 만든다 — `plugin/` → `plugin-dist/nerv-<version>.zip` (4.6 §3.5)
+// 플러그인 아카이브를 만든다 — `plugin/` · `ko-style/` → `plugin-dist/<이름>-<버전>.zip` (4.6 §3.5 · §7)
 //
 // 서버가 이 파일을 `/plugin/<이름>-<버전>.zip` 으로 서빙하고 기동 시 sha256 을 계산한다
-// (`modules/plugin/plugin.service.ts`). 여기서 지켜야 할 것이 셋이다.
+// (`modules/plugin/plugin.service.ts`). 카탈로그의 항목은 `plugins.json` 이 정한다 — 이 스크립트가
+// 묶은 플러그인의 매니페스트 목록이다(2026-09-27 · 플러그인이 둘이 됐다). 지켜야 할 것이 셋이다.
 //
 //   ① **실행 비트.** `bin/nerv-hook-forward`·`bin/nerv-outbox`·`bin/nerv-init` 은 훅이나
 //      사람이 직접 실행한다.
@@ -21,11 +22,13 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SOURCE = join(ROOT, 'plugin');
+/** 묶을 플러그인 — 순서가 카탈로그 순서다. 앞의 것이 NERV 플랫폼 연동이다. */
+const SOURCES = ['plugin', 'ko-style'].map((dir) => join(ROOT, dir));
 const OUT_DIR = resolve(process.argv[2] ?? join(ROOT, 'plugin-dist'));
 
 /** 패키지에 들어가지 않는 것 — 개발 부산물과 저장소 전용 파일이다. */
-const EXCLUDE = new Set(['node_modules', 'plugin-package.spec.ts', 'package.json', '.DS_Store']);
+const EXCLUDE = new Set(['node_modules', 'package.json', '.DS_Store']);
+const EXCLUDE_PATTERN = /\.spec\.ts$/;
 
 // ── zip 원시 구조 ────────────────────────────────────────────────────────────
 
@@ -49,10 +52,10 @@ function crc32(buf) {
 const DOS_TIME = 0;
 const DOS_DATE = 0x0021;
 
-function collect(dir, base = SOURCE) {
+function collect(dir, base) {
   const out = [];
   for (const name of readdirSync(dir).sort()) {
-    if (EXCLUDE.has(name)) continue;
+    if (EXCLUDE.has(name) || EXCLUDE_PATTERN.test(name)) continue;
     const full = join(dir, name);
     const st = statSync(full);
     if (st.isDirectory()) out.push(...collect(full, base));
@@ -61,14 +64,14 @@ function collect(dir, base = SOURCE) {
   return out;
 }
 
-function build(entries) {
+function build(source, entries) {
   const locals = [];
   const central = [];
   let offset = 0;
 
   for (const entry of entries) {
     const name = Buffer.from(entry.path.split('\\').join('/'), 'utf8');
-    const raw = readFileSync(join(SOURCE, entry.path));
+    const raw = readFileSync(join(source, entry.path));
     const deflated = deflateRawSync(raw, { level: 9 });
     // 압축이 원본보다 크면 그대로 담는다(method 0) — 작은 파일에서 실제로 일어난다.
     const stored = deflated.length >= raw.length;
@@ -129,23 +132,31 @@ function build(entries) {
 
 // ── 실행 ─────────────────────────────────────────────────────────────────────
 
-const manifest = JSON.parse(readFileSync(join(SOURCE, '.claude-plugin', 'plugin.json'), 'utf8'));
-const entries = collect(SOURCE);
-if (entries.length === 0) {
-  console.error('plugin/ 이 비어 있습니다.');
-  process.exit(1);
-}
-
-const zip = build(entries);
 mkdirSync(OUT_DIR, { recursive: true });
 // 버전이 오르면 옛 zip 이 옆에 남는다 — 어느 것이 현재인지 말해 주는 것이 없으면
-// 사람도 스크립트도 잘못된 파일을 집는다. 이 디렉터리는 **지금 것 하나**만 갖는다.
+// 사람도 스크립트도 잘못된 파일을 집는다. 이 디렉터리는 **지금 것**만 갖는다.
+// 옛 단일 매니페스트(`plugin.json`)도 지운다 — 서버는 이제 `plugins.json` 만 읽는다.
 for (const stale of readdirSync(OUT_DIR)) {
-  if (/^.+-\d+\.\d+\.\d+\.zip$/.test(stale)) rmSync(join(OUT_DIR, stale));
+  if (/^.+-\d+\.\d+\.\d+\.zip$/.test(stale) || stale === 'plugin.json')
+    rmSync(join(OUT_DIR, stale));
 }
-const target = join(OUT_DIR, `${manifest.name}-${manifest.version}.zip`);
-writeFileSync(target, zip);
-// 서버가 이름을 짓지 않아도 되게 매니페스트도 옆에 둔다 — 이미지에 plugin/ 전체는 없다.
-writeFileSync(join(OUT_DIR, 'plugin.json'), JSON.stringify(manifest, null, 2) + '\n');
 
-console.log(`${relative(ROOT, target)} · 파일 ${entries.length}개 · ${zip.length}바이트`);
+const index = [];
+for (const source of SOURCES) {
+  const manifest = JSON.parse(readFileSync(join(source, '.claude-plugin', 'plugin.json'), 'utf8'));
+  const entries = collect(source, source);
+  if (entries.length === 0) {
+    console.error(`${relative(ROOT, source)}/ 가 비어 있습니다.`);
+    process.exit(1);
+  }
+  const zip = build(source, entries);
+  const archive = `${manifest.name}-${manifest.version}.zip`;
+  writeFileSync(join(OUT_DIR, archive), zip);
+  index.push({ ...manifest, archive });
+  console.log(
+    `${relative(ROOT, join(OUT_DIR, archive))} · 파일 ${entries.length}개 · ${zip.length}바이트`,
+  );
+}
+
+// 서버가 이름을 짓지 않아도 되게 매니페스트 목록을 옆에 둔다 — 이미지에 플러그인 소스는 없다.
+writeFileSync(join(OUT_DIR, 'plugins.json'), JSON.stringify(index, null, 2) + '\n');

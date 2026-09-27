@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>5종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.74 (2026-09-26)</span>
+      <span>버전 v0.75 (2026-09-27)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -69,6 +69,7 @@
       <li><a href="#sec-4">사람 온보딩 절차</a></li>
       <li><a href="#sec-5">Codex — MVP 경계</a></li>
       <li><a href="#sec-6">수용 기준 (REQ-PLG-*)</a></li>
+      <li><a href="#sec-7">문체 플러그인 ko-style</a></li>
       <li><a href="#sec-ref">참고 자료</a></li>
     </ol>
   </div>
@@ -77,7 +78,7 @@
 
   <h3>1.1 구조 — agent-integration §3.1의 MVP 절단면</h3>
 
-  <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
+  <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 같은 마켓플레이스에는 2026-09-27 부터 <b>문체 플러그인 <code>ko-style</code></b> 이 하나 더 있다. NERV 서버와 무관하게 동작하는 별도 패키지라 이 절의 구조 밖이고, 정본은 §7 이다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
   .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.3
@@ -1277,7 +1278,8 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
   <p>서버가 자기 카탈로그와 아카이브를 준다. 계약 정본은 <a href="api.html">4.4 API 명세</a> §2.11(EP-PLG-01·02 · REQ-API-086)이고, 여기서는 <b>왜 그리고 어떻게 쓰는가</b>를 적는다.</p>
 
   <pre><code>/plugin marketplace add https://api.nerv.example.com/plugin/marketplace.json
-/plugin install nerv@nerv</code></pre>
+/plugin install nerv@nerv
+/plugin install ko-style@nerv      # 선택 — 한국어 문체 플러그인(§7)</code></pre>
 
   <p><b>이것이 기본 경로다</b>(2026-09-21 · 사람 지시). 매뉴얼의 설치 장도 이 두 줄을 먼저 보이고, 그 자리에는 이 배치의 주소가 채워져 나간다(<a href="screens.html">4.5</a> REQ-WEB-165).</p>
 
@@ -1304,13 +1306,15 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
   <div class="table-wrap"><table>
     <thead><tr><th>파일</th><th>마켓플레이스 이름</th><th><code>source</code></th></tr></thead>
     <tbody>
-      <tr><td><code>.claude-plugin/marketplace.json</code>(저장소 루트)</td><td><code>nerv</code></td><td><code>./codebase/plugin</code></td></tr>
+      <tr><td><code>.claude-plugin/marketplace.json</code>(저장소 루트)</td><td><code>nerv</code></td><td><code>./codebase/plugin</code> · <code>./codebase/ko-style</code></td></tr>
       <tr><td><code>codebase/plugin/.claude-plugin/marketplace.json</code></td><td><code>nerv-internal</code></td><td><code>./</code></td></tr>
-      <tr><td>서버가 만드는 응답(파일 아님)</td><td><code>nerv</code></td><td><code>archive</code> + 절대 URL</td></tr>
+      <tr><td>서버가 만드는 응답(파일 아님)</td><td><code>nerv</code></td><td><code>archive</code> + 절대 URL(플러그인마다 하나)</td></tr>
     </tbody>
   </table></div>
 
   <p>GitHub 과 서버가 <b>같은 이름</b>인 것은 같은 마켓플레이스의 두 전송로이기 때문이다 — 어느 쪽으로 받아도 설치 명령이 같다(둘을 <b>동시에</b> 등록할 수는 없다). 로컬 경로만 이름이 다른 것은 개발자가 그것과 원격 하나를 함께 두고 견주기 때문이다. 셋이 갈리지 않는 것은 <code>plugin-package.spec.ts</code> 가 지킨다.</p>
+
+  <p><b>플러그인이 둘이다</b>(2026-09-27 · §7). 저장소 루트 카탈로그와 서버 카탈로그는 <code>nerv</code> 와 <code>ko-style</code> 을 이 순서로 담는다. 로컬 경로 카탈로그(<code>nerv-internal</code>)는 nerv 개발용이라 <code>nerv</code> 만 담고, <code>ko-style</code> 은 <code>claude --plugin-dir codebase/ko-style</code> 로 시험한다. 서버는 패커가 묶은 매니페스트 목록(<code>plugin-dist/plugins.json</code>)에서 항목을 만들고 아카이브가 빠진 플러그인은 목록에서 뺀다(<a href="api.html">4.4 API</a> REQ-API-192).</p>
 
   <p><b>저장소 루트에 <code>.claude-plugin/</code> 을 두는 것이 REQ-CB-015 와 어긋나지 않는다.</b> 그 규약이 막는 것은 <b>애플리케이션 코드</b>가 <code>codebase/</code> 밖으로, <b>배포 산출물</b>이 <code>deploy/</code> 밖으로 나가는 것이고, 루트에는 "세 구역과 규약·메타 파일" 을 허용한다. <code>.claude-plugin/</code> 은 저장소가 도구에게 자기를 설명하는 매니페스트이고 그 자리에는 이미 <code>.claude/</code>·<code>.github/</code> 가 있다 — 네 번째 구역이 아니라 그 옆자리다.</p>
 
@@ -1320,12 +1324,12 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
 
   <p><b>버전을 올리지 않으면 아무도 갱신받지 못한다.</b> Claude Code 는 카탈로그의 <code>version</code> 이 바뀔 때만 새 아카이브를 받는다 — zip 을 바꾸고 <code>plugin/.claude-plugin/plugin.json</code> 의 <code>version</code> 을 그대로 두면 이미 설치한 사람은 <b>캐시된 사본을 계속 쓴다. 오류도 경고도 없이.</b> 그래서 릴리스의 첫 줄은 언제나 버전이다.</p>
 
-  <p><b>아카이브는 빌드 산출물이다.</b> <code>pnpm pack:plugin</code>(= <code>node scripts/pack-plugin.mjs</code>)이 <code>plugin/</code> 을 <code>plugin-dist/&lt;이름&gt;-&lt;버전&gt;.zip</code> 으로 묶고, 이미지 빌드가 같은 명령을 돌려 <code>/app/plugin-dist</code> 에 심는다(<code>NERV_PLUGIN_DIST</code>). 커밋하지 않는다.</p>
+  <p><b>아카이브는 빌드 산출물이다.</b> <code>pnpm pack:plugin</code>(= <code>node scripts/pack-plugin.mjs</code>)이 <code>plugin/</code> · <code>ko-style/</code> 을 플러그인마다 <code>plugin-dist/&lt;이름&gt;-&lt;버전&gt;.zip</code> 으로 묶고 매니페스트 목록 <code>plugins.json</code> 을 옆에 쓰며(2026-09-27 — 전에는 <code>plugin.json</code> 하나였다), 이미지 빌드가 같은 명령을 돌려 <code>/app/plugin-dist</code> 에 심는다(<code>NERV_PLUGIN_DIST</code>). 커밋하지 않는다.</p>
 
   <ul>
     <li><b>실행 비트.</b> <code>bin/nerv-hook-forward</code>·<code>bin/nerv-outbox</code> 는 훅이 직접 실행한다. zip 이 모드를 잃으면 <b>설치는 성공하고 훅만 조용히 죽는다</b> — <code>SessionStart</code> 주입도 <code>Stop</code> 게이트도 사라지는데 아무도 오류를 보지 못한다. 그래서 유닉스 모드를 zip 의 external attributes 에 싣고, 그 자리를 L2 가 본다.</li>
     <li><b>결정성.</b> 타임스탬프를 고정해 같은 소스가 같은 바이트를 낸다. 정확성에 필요하진 않지만 "패키지가 실제로 바뀌었나"에 답할 수 있게 된다.</li>
-    <li><b>패키지에 안 들어가는 것.</b> <code>plugin-package.spec.ts</code>·<code>package.json</code>·<code>node_modules/</code> 는 저장소 전용이다.</li>
+    <li><b>패키지에 안 들어가는 것.</b> <code>*.spec.ts</code>·<code>package.json</code>·<code>node_modules/</code> 는 저장소 전용이다.</li>
   </ul>
 
   <p><b>무인증이다.</b> 인증 헤더를 붙이는 <code>headersHelper</code> 는 관리형 settings 에 등록한 마켓플레이스에만 걸리고, 사람이 <code>/plugin marketplace add &lt;url&gt;</code> 로 직접 치는 경로에는 붙지 않는다 — 손으로 설치하는 길을 남기려면 공개여야 한다. 패키지에 비밀은 없다: 서버 주소는 들어가지만 <b>토큰은 <code>.nerv/env</code> 에 있고 그것은 패키지가 아니다</b>(§3.3).</p>
@@ -1361,6 +1365,8 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
   </table>
 
   <p><b>사람이 잊는 자리라 기계가 막는다.</b> <code>scripts/check-plugin-version.mjs</code> 가 base 와 견주어 <i>패키지가 바뀌었는데 버전이 그대로면</i> PR 을 실패시킨다(CI check 잡). 테스트·<code>package.json</code> 같은 배포되지 않는 파일은 세지 않는다 — 배달되지 않는 것은 버전을 요구하지 않는다.</p>
+
+  <p><b>플러그인마다 따로 오른다</b>(2026-09-27 · §7). <code>ko-style</code> 은 자기 <code>plugin.json</code> 을 정본으로 저장소 루트 카탈로그 · <code>package.json</code> · README 제목을 맞추고(REQ-PLG-026), <code>check-plugin-version.mjs</code> 는 두 디렉터리를 따로 본다. 문체 규칙 한 줄을 고쳤다고 nerv 의 버전을 올리지 않는다.</p>
 
   <p><b>갱신은 그래도 사람이 시작한다.</b> 버전을 올려도 쓰는 쪽이 <code>/plugin marketplace update</code> 를 부르기 전까지는 옛 사본이다. 버전은 <i>덮어쓸 근거</i>를 만들 뿐 밀어 넣지 않는다 — 그래서 서버·GitHub 어느 경로든 <b>버전을 올리는 것이 유일한 배달 신호</b>다.</p>
 
@@ -1567,6 +1573,129 @@ log_user_prompt = false</code></pre>
       <tr><td><b>REQ-PLG-013</b></td><td>WHEN 플러그인이 설치되면 THE SYSTEM SHALL <code>.gitignore</code>에 <code>.nerv/</code>를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다</td><td>설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측. <code>.gitignore</code> 쪽은 <code>bin/nerv-init</code> 이 실행한다(§3.7)</td></tr>
       <tr><td><b>REQ-PLG-018</b></td><td>WHEN 사람이 작업 저장소에서 <code>bin/nerv-init</code> 을 실행하면 THE SYSTEM SHALL <code>.mcp.json</code>·<code>.claude/settings.local.json</code> 의 <code>env</code>(<code>NERV_SERVER</code>·<code>NERV_PROJECT</code>·<code>NERV_TOKEN</code>)·<code>.gitignore</code> 의 <code>.nerv/</code> 중 <b>없는 것만</b> 만들고, 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다. WHILE 세션이 시작되는 동안 THE SYSTEM SHALL <code>--check</code> 로 덜 된 설정을 보고하되 <b>아무것도 쓰지 않고</b>, 설정의 흔적(<code>.mcp.json</code> 의 <code>nerv</code>·<code>.nerv/</code>·<code>NERV_*</code>)이 하나도 없는 저장소에서는 침묵한다</td><td>L1(<code>plugin-package.spec.ts</code>) — 임시 저장소 넷에서 실제 실행: 빈 저장소(파일 셋 생성) · 남의 <code>settings.local.json</code>(다른 키·기존 값 보존) · 다시 실행(멱등) · 흔적 없는 저장소의 <code>--check</code>(출력 0바이트)</td></tr>
       <tr><td><b>REQ-PLG-019</b></td><td>WHEN 세션을 만드는 훅(<code>session</code>)을 보내면 THE SYSTEM SHALL 포워더 옆 <code>plugin.json</code> 의 <code>version</code> 을 <code>X-NERV-Plugin</code> 헤더로 싣고, 다른 훅에는 싣지 않는다</td><td>L1(<code>plugin-package.spec.ts</code>) — <code>curl</code> 을 가로채 실제 실행: <code>session</code> 은 <code>plugin.json</code> 과 같은 값 · <code>tool</code>·<code>stop</code>·<code>session-end</code> 는 헤더 없음</td></tr>
+      <tr><td><b>REQ-PLG-020</b></td><td>WHEN 세션이나 서브에이전트가 시작되면 THE SYSTEM SHALL <code>ko-style</code> 규칙 요약(공통 규칙과 저장소 <code>.ko-style.json</code> 의 팀 어휘 · 글 종류별 말투)을 <code>additionalContext</code> 로 넣고 4,000자를 넘기지 않는다. WHILE 기계에 node 가 없는 동안 THE SYSTEM SHALL 미리 만든 요약(<code>hooks/digest.json</code>)만 넣고 자동 검사가 돌지 않는다는 사실을 적는다. WHEN 저장소 설정이 <code>"enabled": false</code> 이거나 <code>KO_STYLE_DISABLE=1</code> 이면 THE SYSTEM SHALL 아무것도 하지 않는다</td><td>L1(<code>ko-style.spec.ts</code>) — <code>hooks/run.sh</code> 를 실제로 실행: 요약 길이 · 팀 어휘와 말투 포함 · node 가 없는 PATH · 끈 저장소</td></tr>
+      <tr><td><b>REQ-PLG-021</b></td><td>WHEN 문체 규칙을 더하거나 고치면 THE SYSTEM SHALL 규칙마다 걸려야 할 예문(<code>examples.bad</code>)과 걸리지 않아야 할 예문(<code>examples.good</code>)을 두고 모든 예문이 그대로 판정되는지 검사한다. WHILE 검사하는 동안 THE SYSTEM SHALL 활용형을 한글 경계에서만 잡고, 코드 · 링크 주소 · URL · 따옴표 안(인용)을 검사하지 않으며, 입력을 NFC 로 정규화한다</td><td>L1 — 공통 규칙과 이 저장소 팀 어휘의 예문 전부 · 가림 · NFD · "머리말" 같은 한글 경계</td></tr>
+      <tr><td><b>REQ-PLG-022</b></td><td>WHILE 규칙 표(<code>rules/core.json</code>)가 바뀌는 동안 THE SYSTEM SHALL 모델이 읽는 글(SKILL.md 의 규칙 표 · <code>hooks/digest.json</code>)을 그 표에서 생성하고(<code>ko-lint.mjs sync</code>) 손으로 고친 사본을 두지 않는다</td><td>L1 — 생성 결과와 파일이 같은가 · SKILL.md 가 스스로 걸리지 않는가</td></tr>
+      <tr><td><b>REQ-PLG-023</b></td><td>WHEN 에이전트가 <code>git commit</code> · <code>gh pr create</code> · <code>gh pr edit</code> 를 실행하려 하면 THE SYSTEM SHALL 메시지(heredoc · <code>-m</code> · <code>-F</code> · <code>--title</code> · <code>--body</code>)를 검사해 차단 · 경고 규칙에 걸리면 이유와 함께 한 번 거부하고, 같은 메시지로 다시 실행하면 통과시킨다</td><td>L1 — 거부한 뒤 같은 메시지 재실행은 통과 · 깨끗한 메시지와 다른 명령은 출력 없음</td></tr>
+      <tr><td><b>REQ-PLG-024</b></td><td>WHEN 에이전트가 글 종류(<code>surfaces</code>)에 드는 파일을 Write · Edit 로 고치면 THE SYSTEM SHALL <b>새로 쓴 줄만</b> 검사해 걸린 표현을 <code>decision:"block"</code> 과 이유로 돌려준다(Edit 는 바뀐 문자열, Write 는 커밋된 내용과 달라진 줄). 어느 글 종류에도 들지 않거나 <code>ignore</code> 에 든 파일은 검사하지 않는다</td><td>L1 — 이전부터 있던 문장 제외 · Write 비교 · 제외 경로</td></tr>
+      <tr><td><b>REQ-PLG-025</b></td><td>WHEN 답변이 끝나면 THE SYSTEM SHALL 한국어 답변을 검사해 걸린 표현을 사용자에게 한 줄로 알리고(<code>systemMessage</code>) 다음 요청 때 모델에게 알린 뒤 지운다. 답변을 다시 쓰게 하지 않는다. WHERE 저장소 설정이 <code>reply.mode: "rewrite"</code> 이면 THE SYSTEM SHALL 한 번만 다시 쓰게 하고 <code>stop_hook_active</code> 동안에는 막지 않는다</td><td>L1 — 알림 → 다음 요청에 알림 → 지움 · rewrite · 영어 답변과 <code>off</code> 는 보지 않음</td></tr>
+      <tr><td><b>REQ-PLG-026</b></td><td>WHEN <code>ko-style</code> 의 배포 파일이 바뀌면 THE SYSTEM SHALL 그 플러그인의 <code>plugin.json</code> <code>version</code> 을 올리고 저장소 루트 카탈로그 · <code>package.json</code> · README 제목을 같은 값으로 맞춘다(nerv 와 버전을 따로 간다). WHILE 패키지를 만드는 동안 THE SYSTEM SHALL 스킬에 Agent Skills 표준 필드만 쓰고, 최상위 <code>bin/</code> 을 두지 않고, 훅을 <code>sh hooks/run.sh</code> 로 부른다</td><td>L1(<code>ko-style.spec.ts</code>) + <code>check-plugin-version.mjs</code>(플러그인마다)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="sec-7">7. 문체 플러그인 <code>ko-style</code> (2026-09-27 신설 — 사람 결정)</h2>
+
+  <p>한국어 문장 규약(<a href="glossary.html">용어 사전</a> §3.4 · <a href="../../AGENTS.md">AGENTS.md</a> 「한국어 문장 규약」)을 NERV 사용자도 설치해 쓸 수 있게 만든 두 번째 플러그인이다. NERV 서버 없이 동작하고, NERV 플러그인과 같은 마켓플레이스에서 받는다(§3.5).</p>
+
+  <pre><code class="language-bash">/plugin install ko-style@nerv</code></pre>
+
+  <h3>7.1 결정 — 따로 두고, 결과물은 검사하고, 대화는 알리기만 한다</h3>
+
+  <p>2026-09-27 사람 결정이다. 제안의 권장안을 그대로 따르되 배포는 서버 카탈로그까지 한 번에 한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>결정</th><th>내용</th><th>까닭</th></tr></thead>
+    <tbody>
+      <tr><td>담는 곳</td><td>nerv 와 <b>별도 플러그인</b> <code>ko-style</code> 을 같은 마켓플레이스에 둔다</td><td>문체 규칙 한 줄을 고칠 때마다 nerv 의 버전(REQ-PLG-017)과 §2 바이트 대조가 함께 바뀌지 않게 한다. 서버를 쓰지 않는 팀도 설치할 수 있다</td></tr>
+      <tr><td>대화 답변</td><td><b>알리기만</b> 한다. 답변을 다시 쓰게 하지 않는다</td><td>답변은 화면에 표시된 뒤에만 검사할 수 있다. 다시 쓰게 하면 같은 답이 두 번 나온다</td></tr>
+      <tr><td>검사 범위</td><td><b>새로 쓴 줄만</b> 검사한다</td><td><code>docs/</code> 에 §3.4 표현이 이미 836곳(표면형으로 센 대략값) 있다. §3.4 의 적용 규칙("새로 쓰는 문장은 처음부터")과 같다</td></tr>
+      <tr><td>배포</td><td>git 카탈로그와 <b>서버 카탈로그 둘 다</b>(§3.5 · <a href="api.html">4.4 API</a> REQ-API-192)</td><td>밖으로 나갈 수 없는 망에서는 서버 경로뿐이다</td></tr>
+      <tr><td>Codex</td><td><b>스킬 호환부터</b> 한다. 매니페스트와 훅은 실측한 뒤에 더한다(§7.6)</td><td>Codex 는 관리형이 아닌 훅을 사람이 신뢰 처리해야 실행하고, 주입 상한이 약 2,500토큰이다</td></tr>
+      <tr><td>이 저장소</td><td>프로젝트 범위로 켠다(<code>.claude/settings.json</code> 의 <code>enabledPlugins</code>)</td><td>이 저장소에서 일하는 세션이 같은 검사를 받는다. <code>extraKnownMarketplaces</code> 는 두지 않는다. 기계마다 <code>nerv</code> 마켓플레이스가 서버 URL 이거나 GitHub 이라서 선언끼리 부딪친다</td></tr>
+      <tr><td>이름</td><td><code>ko-style</code> — 명령은 <code>/ko-style:check</code> · <code>/ko-style:init</code></td><td>짧다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>왜 이 통로들인가.</b> 플러그인은 <code>CLAUDE.md</code> 를 배포할 수 없고(플러그인 루트의 파일은 읽히지 않는다), 플러그인 <code>settings.json</code> 은 <code>agent</code> · <code>subagentStatusLine</code> 만 반영한다. 그래서 모든 답변에 적용되는 통로는 SessionStart 훅의 <code>additionalContext</code>(필드당 10,000자) 하나다. Anthropic 공식 마켓플레이스의 explanatory-output-style 플러그인도 같은 방식이다. 스킬은 호출될 때만 본문을 읽으므로 규칙집과 사람이 부르는 명령을 담는다. 출력 스타일은 한 번에 하나만 켤 수 있어서 쓰지 않는다. <code>userConfig</code> 는 2.1.207 부터 프로젝트 settings 에서 읽히지 않아 팀이 함께 쓰는 값을 담을 수 없다. 팀 설정은 저장소 파일(<code>.ko-style.json</code> · §7.5)에 둔다.</p>
+
+  <h3>7.2 구성</h3>
+
+  <pre><code>codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.0
+  .claude-plugin/plugin.json          # 매니페스트
+  hooks/hooks.json                    # 훅 여섯 (§7.4)
+  hooks/run.sh                        # 훅 진입점 — 필요 없으면 node 를 띄우지 않는다
+  hooks/digest.json                   # node 가 없을 때의 세션 요약 (생성물)
+  skills/ko-style/SKILL.md            # 규칙과 예문 — 모델이 한국어 글을 쓸 때 읽는다
+  skills/ko-style/rules/core.json     # 공통 규칙 표 — 이 플러그인의 정본 데이터
+  skills/ko-style/scripts/ko-lint.mjs # 검사기 — 훅 · CI · 사람이 같은 판정을 쓴다 (의존성 없음)
+  skills/check/SKILL.md               # /ko-style:check
+  skills/init/SKILL.md                # /ko-style:init
+  README.md
+  ko-style.spec.ts                    # L1 — 배포하지 않는다</code></pre>
+
+  <p>**최상위 <code>bin/</code> 을 두지 않는다.** claude.ai 와 Cowork 는 <code>bin/</code> 이 있는 플러그인을 설치하지 않는다. 검사기를 스킬 폴더 안에 두었으므로 스킬 폴더 하나만 복사해도(Codex 의 <code>.agents/skills</code>) 규칙과 검사기가 함께 간다. **훅은 <code>sh hooks/run.sh &lt;이벤트&gt;</code> 로 부른다.** zip 이 실행 비트를 잃어도 돈다.</p>
+
+  <h3>7.3 규칙 — 세 층과 정본</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>층</th><th>정본</th><th>무엇</th><th>기본 강도</th></tr></thead>
+    <tbody>
+      <tr><td>규범</td><td><code>rules/core.json</code></td><td>이중 피동 · "필요로 하다" · 무생물 주어의 사람 동작 · 짝 없는 줄표처럼 국립국어원 「공공언어 바로 쓰기」, 2015 문장 부호 규정, Microsoft 한국어 스타일 가이드, 쿠버네티스 한글화 가이드에 근거가 있는 것</td><td>차단 · 경고 · 참고</td></tr>
+      <tr><td>AI 말투</td><td><code>rules/core.json</code></td><td>"A가 아니라 B" 되풀이, 연결 어미 뒤 쉼표. 빈도로만 판단한다(KatFishNet: 연결 어미 뒤 쉼표가 있는 문장은 사람 글 4.1% · LLM 글 19.8%)</td><td>한 글에서 횟수와 문장 비율이 함께 넘을 때만 경고</td></tr>
+      <tr><td>팀 어휘</td><td>사람이 읽는 정본은 <a href="glossary.html">용어 사전</a> §3.4 · 검사기가 읽는 사본은 저장소의 <code>.ko-style.json</code></td><td>§3.4 표의 열다섯 행</td><td>팀이 정한다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>강도.</b> 차단(<code>block</code>)은 커밋 · PR 을 한 번 거부하고, 문서를 저장한 뒤에는 고치라고 요구한다. 경고(<code>warn</code>)도 훅이 알린다. 참고(<code>hint</code>)는 사람이 부르는 <code>/ko-style:check</code> 에서만 보인다. "~에 대해" · "~을 통해" 같은 표현은 사람 글에도 흔해서 훅이 알리면 과하게 고치게 된다(im-not-ai 의 측정에서는 사람이 2~3배 더 썼다).</p>
+
+  <p><b>예문이 규칙을 증명한다</b>(REQ-PLG-021). 규칙마다 걸려야 할 예문과 걸리지 않아야 할 예문을 적고 L1 이 전부 돌린다. 한국어는 조사 · 어미가 붙어 쓰여서 부분 문자열로 찾으면 "머리말" · "닿소리"까지 잡고, 양쪽에 한글 경계를 걸면 "머리를"을 놓친다. 그래서 막을 활용형을 모두 적고(<code>avoid</code>), 뜻이 여럿인 동사는 앞에 올 말(<code>when</code>)이 맞을 때만 잡는다.</p>
+
+  <p><b>검사하지 않는 자리.</b> 코드 블록 · 인라인 코드 · 링크 주소 · URL · frontmatter, 그리고 따옴표 안이다. 따옴표 안은 대개 다른 글을 인용한 것이다. 쓰지 않는 표현을 설명하는 문서(이 절, 용어 사전 §3.4)가 그 표현을 인용하면서 걸리지 않게 한다. 입력은 NFC 로 정규화한다(macOS 에서 생기는 NFD 텍스트는 <code>[가-힣]</code> 범위에 걸리지 않는다).</p>
+
+  <p><b>모델이 읽는 글은 규칙 표에서 만든다</b>(REQ-PLG-022). SKILL.md 의 규칙 표와 <code>hooks/digest.json</code> 은 <code>ko-lint.mjs sync</code> 가 <code>rules/core.json</code> 에서 생성하고, 어긋나면 L1 이 잡는다. 규칙집을 손으로 두 벌 맞추면 어긋난다.</p>
+
+  <h3>7.4 훅 — 무엇을 언제 검사하나</h3>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>이벤트</th><th>하는 일</th><th>강제 수준</th></tr></thead>
+    <tbody>
+      <tr><td>SessionStart(<code>startup</code> · <code>resume</code> · <code>clear</code> · <code>compact</code>) · SubagentStart</td><td>규칙 요약을 <code>additionalContext</code> 로 넣는다. 공통 규칙에 저장소의 팀 어휘와 글 종류별 말투를 더하고 4,000자를 넘지 않는다</td><td>안내</td></tr>
+      <tr><td>PreToolUse(<code>Bash</code>)</td><td><code>git commit</code> · <code>gh pr create</code> · <code>gh pr edit</code> 의 메시지를 검사한다. 걸리면 <code>permissionDecision:"deny"</code> 로 한 번 거부하고, <b>같은 메시지로 다시 실행하면 통과시킨다</b></td><td>거부(한 번)</td></tr>
+      <tr><td>PostToolUse(<code>Write</code> · <code>Edit</code> · <code>MultiEdit</code>)</td><td>글 종류에 드는 파일에서 <b>새로 쓴 줄만</b> 검사해 <code>decision:"block"</code> 과 이유를 돌려준다</td><td>수정 요구</td></tr>
+      <tr><td>Stop</td><td>한국어 답변을 검사해 사용자에게 한 줄로 알린다(<code>systemMessage</code>)</td><td>알림</td></tr>
+      <tr><td>UserPromptSubmit</td><td>직전 답변에서 걸린 표현이 있으면 모델에게 알린다</td><td>안내</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>같은 메시지를 두 번 내면 통과시키는 이유.</b> 인용 · 고유명사 · 예문처럼 그대로 둬야 하는 경우를 모델이 판단할 방법이 이것뿐이다. 이 방법이 없으면 오탐 하나가 커밋을 계속 막는다. 거부한 메시지의 해시는 <code>${CLAUDE_PLUGIN_DATA}</code> 에 최근 50개만 남긴다.</p>
+
+  <p><b>훅은 세션을 멈추지 않는다.</b> 어떤 이유로든 실패하면 exit 0 으로 끝난다. node 가 없으면 검사 훅은 넘어가고 SessionStart 는 미리 만든 요약만 넣으며, 요약에 그 사실을 적는다. <code>KO_STYLE_DISABLE=1</code> 이면 모든 훅이 멈춘다.</p>
+
+  <p><b>대화 답변은 알리기만 한다</b>(REQ-PLG-025). Stop 훅이 막으면 이미 표시된 답변 뒤에 고친 답변이 한 번 더 나온다. 기본은 알림이고, 저장소가 <code>reply.mode: "rewrite"</code> 를 고르면 한 번만 다시 쓰게 한다. <code>stop_hook_active</code> 동안은 막지 않으므로 연속 8번 차단 상한에 기대지 않는다.</p>
+
+  <h3>7.5 저장소 설정 <code>.ko-style.json</code></h3>
+
+  <p>팀 어휘와 글 종류별 말투는 플러그인이 아니라 <b>저장소에 커밋하는 파일</b>에 둔다. 플러그인은 버전을 올려야 사용자에게 반영되지만 이 파일은 커밋하면 팀 전체에 바로 적용된다. 검사기는 작업 폴더에서 위로 올라가며 이 파일을 찾고 git 저장소 루트에서 멈춘다. 파일이 없으면 <code>*.md</code> 를 공통 규칙으로만 검사하고 말투는 강제하지 않는다. 만드는 절차는 <code>/ko-style:init</code> 스킬에 있다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>키</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><code>surfaces[]</code></td><td>글 종류 — <code>name</code> · <code>files</code>(glob) · <code>tone</code>(<code>hapsyo</code> · <code>haeyo</code> · <code>haera</code> · <code>off</code>) · <code>dash</code>(<code>check</code> · <code>off</code>) · <code>quotes</code>(<code>skip</code> · <code>check</code>). 파일은 처음 맞는 종류로 검사하고, 어느 종류에도 들지 않으면 검사하지 않는다</td></tr>
+      <tr><td><code>commit</code> · <code>reply</code></td><td>커밋 메시지 · PR 본문과 대화 답변의 <code>tone</code> · <code>dash</code>. <code>reply.mode</code> 는 <code>notify</code> · <code>rewrite</code> · <code>off</code> 다</td></tr>
+      <tr><td><code>ignore</code> · <code>disable</code></td><td>검사하지 않을 경로 · 끌 규칙 ID</td></tr>
+      <tr><td><code>team[]</code> · <code>teamSrc</code></td><td>팀 어휘 — 규칙마다 <code>id</code> · <code>name</code> · <code>avoid</code>(활용형 전부) 또는 <code>pattern</code> · <code>when</code> · <code>use</code> · <code>examples</code>. <code>teamSrc</code> 는 걸린 표현을 알릴 때 적는 근거다</td></tr>
+      <tr><td><code>enabled</code></td><td><code>false</code> 면 이 저장소에서 모든 훅이 멈춘다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>NERV 저장소의 설정</b>(저장소 루트 <code>.ko-style.json</code>). 글 종류를 넷으로 정한다. 매뉴얼 ko 는 합쇼체이고 줄표를 검사한다. 화면 문구 카탈로그 <code>ko.ts</code> 는 줄표만 검사한다(말투는 <code>i18n.spec.ts</code> 가 키별로 이미 본다). 스킬과 에이전트 지침은 해라체다. 명세는 말투와 줄표를 보지 않는다(§3.4 가 명세의 말투를 정하지 않는다). 줄표 규칙을 매뉴얼과 화면 문구에만 거는 것은 §3.4 의 "화면과 도움말에서는" 범위를 따른 것이다. 팀 어휘 <code>KO-V-01</code>~<code>KO-V-15</code> 는 §3.4 표의 행과 하나씩 대응하고, 두 쪽 ID 가 같은지 L1 이 확인한다.</p>
+
+  <h3>7.6 Codex</h3>
+
+  <p><b>스킬은 그대로 읽힌다.</b> SKILL.md 는 Agent Skills 표준의 여섯 필드(<code>name</code> · <code>description</code> · <code>license</code> · <code>compatibility</code> · <code>metadata</code> · <code>allowed-tools</code>)만 쓰므로 Codex(<code>.agents/skills</code>)도 같은 파일을 읽는다. 스킬 폴더에 규칙 표와 검사기가 함께 있어서 그 폴더만 복사하면 된다. 스킬 본문의 <code>${CLAUDE_SKILL_DIR}</code> 는 Codex 에서 치환되지 않으므로 "이 SKILL.md 가 있는 폴더의 <code>scripts/ko-lint.mjs</code>" 도 함께 적었다.</p>
+
+  <p><b>훅과 매니페스트는 아직이다.</b> Codex 문서는 Claude 호환 매니페스트와 <code>hooks/hooks.json</code> 을 읽고 플러그인 훅에 <code>CLAUDE_PLUGIN_ROOT</code> 도 설정한다고 적는다. 하지만 관리형이 아닌 훅은 사람이 <code>/hooks</code> 에서 신뢰 처리해야 실행되고, <code>additionalContext</code> 의 기본 상한이 약 2,500토큰이다. 두 가지를 실측한 뒤에 더한다. 두 매니페스트를 함께 둔 폴더를 Codex 가 문제없이 읽는가, Codex 의 Stop 입력에 마지막 답변 필드가 있는가.</p>
+
+  <h3>7.7 확인하지 못한 것</h3>
+
+  <p>2026-09-27 에 이 기계의 <code>claude</code> CLI 로그인이 만료돼 모델을 부르는 실측을 하지 못했다. 설계는 아래가 어느 쪽으로 판명돼도 동작하게 잡았다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>무엇</th><th>설계가 기대지 않는 방법</th></tr></thead>
+    <tbody>
+      <tr><td>SessionStart 로 넣은 요약이 서브에이전트에도 적용되는가</td><td>SubagentStart 훅이 따로 넣는다</td></tr>
+      <tr><td>훅의 <code>if: "Edit(**/*.md)"</code> 가 Write 에도 적용되는가</td><td><code>if</code> 를 쓰지 않고 경로 판단을 검사기 안에서 한다</td></tr>
+      <tr><td><code>claude plugin eval</code> 로 잰 효과(켠 실행과 끈 실행의 차이)</td><td>아직 사례가 없다 — <a href="backlog.html">4.8 백로그</a> E12-S07 의 남은 것</td></tr>
     </tbody>
   </table></div>
 
@@ -1602,6 +1731,20 @@ log_user_prompt = false</code></pre>
   <p class="src"><a href="https://learn.chatgpt.com/docs/config-file/config-advanced">Codex 고급 설정: notify·OTel — learn.chatgpt.com</a> (2026-08-13 확인): <code>notify</code>·<code>[otel]</code>·<code>approval_policy</code>/<code>sandbox_mode</code>(§5.2).</p>
   <p class="src"><a href="https://agents.md/">AGENTS.md — agents.md</a> (2026-08-13 확인): 크로스툴 지침 오픈 포맷(§5.3).</p>
   <p class="src"><a href="https://github.com/anthropics/claude-code/issues/6235">Claude Code AGENTS.md 미지원 이슈 #6235</a> (2026-05 기준 open): CLAUDE.md의 <code>@AGENTS.md</code> import 우회(§5.3).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/plugins/components">Add components to a plugin — Claude Code Docs</a> (2026-09-27 확인): 플러그인 루트의 <code>CLAUDE.md</code> 는 읽히지 않는다 · 최상위 <code>bin/</code> 이 있으면 claude.ai · Cowork 가 설치하지 않는다(§7.1 · §7.2).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/plugins-reference">Plugin manifest reference — Claude Code Docs</a> (2026-09-27 확인): 플러그인 <code>settings</code> 는 <code>agent</code> · <code>subagentStatusLine</code> 만 반영한다 · <code>${CLAUDE_PLUGIN_DATA}</code>(§7.1 · §7.4).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/hooks-guide">Hooks guide — Claude Code Docs</a> (2026-09-27 확인): Stop 훅의 연속 8번 차단 상한과 <code>stop_hook_active</code>(§7.4).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/output-styles">Output styles — Claude Code Docs</a> (2026-09-27 확인): 출력 스타일은 한 번에 하나만 켠다(§7.1).</p>
+  <p class="src"><a href="https://code.claude.com/docs/en/changelog">Claude Code changelog</a> (2026-09-27 확인): 2.1.207 부터 프로젝트 settings 의 <code>pluginConfigs</code> 를 읽지 않는다(§7.1).</p>
+  <p class="src"><a href="https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/plugins/explanatory-output-style/hooks-handlers/session-start.sh">explanatory-output-style 플러그인의 SessionStart 훅</a> (2026-09-27 확인): 지침을 <code>additionalContext</code> 로 넣는 공식 예(§7.1).</p>
+  <p class="src"><a href="https://agentskills.io/specification">Agent Skills specification — agentskills.io</a> (2026-09-27 확인): SKILL.md 표준 필드 여섯(§7.6).</p>
+  <p class="src"><a href="https://learn.chatgpt.com/docs/build-skills">Codex: Build skills — learn.chatgpt.com</a> (2026-09-27 확인): <code>.agents/skills</code> 경로(§7.6).</p>
+  <p class="src"><a href="https://www.korean.go.kr/front/etcData/etcDataView.do?mn_id=&amp;etc_seq=699&amp;pageIndex=1">국립국어원 「(개정판) 한눈에 알아보는 공공언어 바로 쓰기」</a> (2026-09-27 확인): 번역 투 표현과 무생물 주어의 능동문(§7.3).</p>
+  <p class="src"><a href="https://www.korean.go.kr/nkview/nklife/2014_4/24_0413.pdf">문장 부호 개정안 해설(2014) — 새국어생활</a> (2026-09-27 확인): 줄표 · 쌍점의 용법(§7.3).</p>
+  <p class="src"><a href="https://download.microsoft.com/download/5/b/6/5b62389f-4e3b-4c77-bc18-94efba2fa7bb/kor-kor-StyleGuide.pdf">Microsoft 한국어 스타일 가이드</a> (2026-09-27 확인): "수행"·"가지다" 직역 · "-세요"(§7.3).</p>
+  <p class="src"><a href="https://kubernetes.io/ko/docs/contribute/localization_ko/">쿠버네티스 한글화 가이드</a> (2026-09-27 확인): 문서는 평어체 · 이중 피동(§7.3).</p>
+  <p class="src"><a href="https://arxiv.org/abs/2503.00032">KatFishNet (ACL 2025) — arXiv 2503.00032</a> (2026-09-27 확인): LLM 한국어의 연결 어미 뒤 쉼표 비율(§7.3).</p>
+  <p class="src"><a href="https://github.com/epoko77-ai/im-not-ai">im-not-ai — GitHub</a> (2026-09-27 확인): 사람 글 대조 측정 · 규칙집을 한 벌에서 생성한 교훈(§7.3).</p>
 
   <h3>clemvion 실측 근거 (정본 재인용)</h3>
   <ul>

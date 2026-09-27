@@ -1,4 +1,4 @@
-// 플러그인 내용이 바뀌었으면 버전도 올랐는가 (REQ-PLG-017 · 4.6 §3.6)
+// 플러그인 내용이 바뀌었으면 버전도 올랐는가 — 플러그인마다 (REQ-PLG-017 · REQ-PLG-026 · 4.6 §3.6 · §7)
 //
 // **버전이 곧 배달이다.** 설치된 플러그인은 `plugin.json` 의 `version` 이 오를 때만
 // 새 사본을 받는다 — 같은 버전이면 스킬을 고쳐도 이미 설치한 사람은 옛 판을 계속
@@ -17,11 +17,21 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..', '..'); // 저장소 루트
-const PLUGIN_DIR = 'codebase/plugin';
-const MANIFEST = `${PLUGIN_DIR}/.claude-plugin/plugin.json`;
 
-/** 배달되지 않는 것들 — 테스트·문서는 패키지에 들어가지 않으므로 버전을 요구하지 않는다 */
-const NOT_SHIPPED = [/\.spec\.ts$/, /^codebase\/plugin\/package\.json$/];
+/**
+ * 배포되는 플러그인 — 2026-09-27 부터 둘이다(4.6 §7). 버전은 플러그인마다 따로 오른다:
+ * 문체 규칙 한 줄을 고쳤다고 NERV 연동 플러그인의 버전을 올릴 이유는 없다.
+ */
+const PLUGINS = [
+  { dir: 'codebase/plugin', also: '카탈로그 둘·README·매뉴얼(ko·en)도 같이 맞춘다(4.6 §3.6)' },
+  {
+    dir: 'codebase/ko-style',
+    also: '저장소 루트 카탈로그·package.json·README 도 같이 맞춘다(4.6 §7)',
+  },
+];
+
+/** 배달되지 않는 것들 — 테스트·워크스페이스 표기는 패키지에 들어가지 않으므로 버전을 요구하지 않는다 */
+const NOT_SHIPPED = [/\.spec\.ts$/, /^codebase\/[^/]+\/package\.json$/];
 
 const base = process.argv[2];
 if (base === undefined || base === '') {
@@ -31,52 +41,59 @@ if (base === undefined || base === '') {
 
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
 
-// **커밋한 것과 아직 커밋하지 않은 것을 함께 본다**(2026-09-07 정정).
-//
-// 예전에는 `base...HEAD` 만 봤다 — 커밋 범위라 **작업 트리의 변경이 보이지 않는다.**
-// `preflight` 는 보통 커밋 **전에** 돌므로, 로컬에서는 초록이고 CI 에서만 빨간 자리가
-// 생겼다(실측 2026-09-07: `plugin/README.md` 를 고치고 버전을 안 올린 채 초록을 봤다).
-// 규약 7 이 "로컬 초록이 CI 초록을 뜻하지 않는다" 고 적은 그 부류이고, 여기서는 그 차이를
-// 없앨 수 있다: CI 에는 커밋되지 않은 변경이 없으므로 합집합은 CI 에서 같은 답을 준다.
-const changed = [
-  ...git('diff', '--name-only', `${base}...HEAD`, '--', PLUGIN_DIR).split('\n'),
-  ...git('diff', '--name-only', base, '--', PLUGIN_DIR).split('\n'),
-].filter(
-  (f, at, all) => f !== '' && all.indexOf(f) === at && !NOT_SHIPPED.some((re) => re.test(f)),
-);
+let failed = false;
+for (const { dir, also } of PLUGINS) {
+  const manifestPath = `${dir}/.claude-plugin/plugin.json`;
 
-if (changed.length === 0) {
-  console.log('플러그인 패키지 변경 없음');
-  process.exit(0);
-}
+  // **커밋한 것과 아직 커밋하지 않은 것을 함께 본다**(2026-09-07 정정).
+  //
+  // 예전에는 `base...HEAD` 만 봤다 — 커밋 범위라 **작업 트리의 변경이 보이지 않는다.**
+  // `preflight` 는 보통 커밋 **전에** 돌므로, 로컬에서는 초록이고 CI 에서만 빨간 자리가
+  // 생겼다(실측 2026-09-07: `plugin/README.md` 를 고치고 버전을 안 올린 채 초록을 봤다).
+  // 규약 7 이 "로컬 초록이 CI 초록을 뜻하지 않는다" 고 적은 그 부류이고, 여기서는 그 차이를
+  // 없앨 수 있다: CI 에는 커밋되지 않은 변경이 없으므로 합집합은 CI 에서 같은 답을 준다.
+  const changed = [
+    ...git('diff', '--name-only', `${base}...HEAD`, '--', dir).split('\n'),
+    ...git('diff', '--name-only', base, '--', dir).split('\n'),
+  ].filter(
+    (f, at, all) => f !== '' && all.indexOf(f) === at && !NOT_SHIPPED.some((re) => re.test(f)),
+  );
 
-const versionAt = (ref) => {
-  try {
-    return JSON.parse(git('show', `${ref}:${MANIFEST}`)).version;
-  } catch {
-    return null; // 그 시점에 파일이 없었다 = 신설. 아래에서 통과한다.
+  if (changed.length === 0) {
+    console.log(`${dir}: 플러그인 패키지 변경 없음`);
+    continue;
   }
-};
 
-const before = versionAt(base);
-// **지금 파일의 버전**을 본다 — 변경 감지가 작업 트리를 보므로 버전도 같은 시점을 봐야
-// 한다. `HEAD:` 로 읽으면 "README 는 고쳤고 버전도 올렸는데 아직 커밋 전" 인 상태가
-// 실패로 나온다. CI 에서는 체크아웃이 곧 HEAD 라 답이 같다.
-const after = JSON.parse(readFileSync(resolve(ROOT, MANIFEST), 'utf8')).version;
+  const versionAt = (ref) => {
+    try {
+      return JSON.parse(git('show', `${ref}:${manifestPath}`)).version;
+    } catch {
+      return null; // 그 시점에 파일이 없었다 = 신설. 아래에서 통과한다.
+    }
+  };
 
-if (before === null || before !== after) {
-  console.log(`플러그인 ${before ?? '(신설)'} → ${after} · 변경 ${changed.length}건`);
-  process.exit(0);
+  const before = versionAt(base);
+  // **지금 파일의 버전**을 본다 — 변경 감지가 작업 트리를 보므로 버전도 같은 시점을 봐야
+  // 한다. `HEAD:` 로 읽으면 "README 는 고쳤고 버전도 올렸는데 아직 커밋 전" 인 상태가
+  // 실패로 나온다. CI 에서는 체크아웃이 곧 HEAD 라 답이 같다.
+  const after = JSON.parse(readFileSync(resolve(ROOT, manifestPath), 'utf8')).version;
+
+  if (before === null || before !== after) {
+    console.log(`${dir}: 플러그인 ${before ?? '(신설)'} → ${after} · 변경 ${changed.length}건`);
+    continue;
+  }
+
+  failed = true;
+  console.error(
+    [
+      `${dir}: 플러그인 패키지가 바뀌었는데 버전이 ${after} 그대로다.`,
+      '',
+      ...changed.map((f) => `  ${f}`),
+      '',
+      '설치된 쪽은 같은 버전이면 새 사본을 받지 않는다 — 고친 내용이 세션에 적용되지 않는다.',
+      `${manifestPath} 의 version 을 올리고, ${also}`,
+      '',
+    ].join('\n'),
+  );
 }
-
-console.error(
-  [
-    `플러그인 패키지가 바뀌었는데 버전이 ${after} 그대로다.`,
-    '',
-    ...changed.map((f) => `  ${f}`),
-    '',
-    '설치된 쪽은 같은 버전이면 새 사본을 받지 않는다 — 고친 내용이 세션에 닿지 않는다.',
-    `${MANIFEST} 의 version 을 올리고, 카탈로그 둘·README·매뉴얼(ko·en)도 같이 맞춘다(4.6 §3.6).`,
-  ].join('\n'),
-);
-process.exit(1);
+process.exit(failed ? 1 : 0);

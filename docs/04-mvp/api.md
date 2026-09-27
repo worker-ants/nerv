@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **24종**(2026-09-05 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 24종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.74 · 2026-09-27 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.75 · 2026-09-27 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.75 변경(2026-09-27 — 플러그인이 둘이 됐다, **사람 결정**): **REQ-API-192 신설 · EP-PLG-01·02 응답 칸.** 한국어 문체 플러그인 `ko-style` 이 nerv 와 같은 마켓플레이스에 들어왔다([4.6 플러그인](plugin.md) §7). 서버 카탈로그는 이 배포가 묶은 플러그인마다 항목을 하나씩 두고(`nerv` 먼저), 항목마다 자기 아카이브를 가리킨다. 외부망이 막힌 배치에서는 서버 경로가 유일한 설치 경로라 git 카탈로그만 고치면 그 사용자는 받을 수 없었다.
 >
 > v1.74 변경(2026-09-27 — 같은 데이터가 요청마다 다른 순서로 올 수 있었다): **새 요구사항 없음 · EP-SPEC-19 응답 칸.** 관계 그래프의 간선을 (from_id, to_id, kind) 순으로 준다. 배치는 입력 순서만 달라도 그림이 바뀐다(시드를 고정하고 간선만 섞어도 노드가 평균 143px 움직였다 · [4.5](screens.md) REQ-WEB-245).
 
@@ -1387,8 +1389,8 @@ basis_superseded: false
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-PLG-01 | `GET /plugin/marketplace.json` | **무인증** | — | 마켓플레이스 카탈로그(`name`·`owner`·`plugins[]`). 플러그인 소스는 `{source:"archive", url, sha256}` 이고 `url` 은 **`NERV_API_URL` 로 만든 절대 주소**다 | — |
-| EP-PLG-02 | `GET /plugin/{name}-{version}.zip` | **무인증** | — | `application/zip`. 이름이 이 배포의 것과 다르면 `NERV_PRECONDITION`(`kind:'not_found'`) | — |
+| EP-PLG-01 | `GET /plugin/marketplace.json` | **무인증** | — | 마켓플레이스 카탈로그(`name`·`owner`·`plugins[]`). `plugins[]` 는 이 배포가 묶은 플러그인마다 한 항목이다(`nerv` · `ko-style` · REQ-API-192). 플러그인 소스는 `{source:"archive", url, sha256}` 이고 `url` 은 **`NERV_API_URL` 로 만든 절대 주소**다 | — |
+| EP-PLG-02 | `GET /plugin/{name}-{version}.zip` | **무인증** | — | `application/zip`. 이름이 이 배포가 묶은 아카이브 중 어느 것과도 다르면 `NERV_PRECONDITION`(`kind:'not_found'`) | — |
 
 **왜 서버가 카탈로그를 만드는가.** git 마켓플레이스는 모두에게 같은 파일을 준다. 그래서 서버 주소가 예시값이 아닌 배치는 받은 뒤에 고쳐야 했고, 실측된 유일한 실사용 설치가 `.mcp.json` 을 손으로 다시 쓰고 훅 6종을 갈아 끼웠다([4.6](plugin.md) v0.29). **패키지가 배포 가능한 물건이 아니면 사람은 포크한다.** 서버가 만들면 주소는 언제나 그 서버의 것이고, 플러그인이 말하는 MCP 리비전·도구 이름·훅 엔드포인트가 **그 서버의 것임이 구조적으로 보장된다.**
 
@@ -1396,7 +1398,7 @@ basis_superseded: false
 
 **상대경로를 쓰지 않는다.** URL 로 받은 카탈로그는 그 파일 하나만 내려받으므로 `./` 는 가리킬 대상이 없다. git 경로용 카탈로그(`plugin/.claude-plugin/marketplace.json`)만 상대경로를 쓰고, 두 카탈로그의 이름·버전이 갈라지지 않는 것은 테스트가 지킨다.
 
-**`version` 은 갱신 신호다.** Claude Code 는 카탈로그의 `version` 문자열이 바뀔 때만 새 아카이브를 받는다 — zip 을 바꾸고 이 값을 그대로 두면 이미 설치한 사람은 **캐시된 사본을 계속 쓴다. 오류도 경고도 없이.** 그래서 값의 정본은 `plugin/.claude-plugin/plugin.json` 하나이고, 카탈로그는 거기서 파생한다.
+**`version` 은 갱신 신호다.** Claude Code 는 카탈로그의 `version` 문자열이 바뀔 때만 새 아카이브를 받는다 — zip 을 바꾸고 이 값을 그대로 두면 이미 설치한 사람은 **캐시된 사본을 계속 쓴다. 오류도 경고도 없이.** 그래서 값의 정본은 플러그인마다 자기 `.claude-plugin/plugin.json` 하나이고, 카탈로그는 거기서 파생한다.
 
 **`sha256` 은 서버가 기동 시 자기가 서빙할 파일에서 계산한다.** 빌드가 계산해 넘기면 그 값과 실제 파일이 어긋날 수 있고, 어긋나면 설치가 조용히 실패한다. 대가는 분명히 해 둔다 — 같은 출처가 파일과 해시를 함께 주므로 이것은 **전송 오류 검출이지 공급망 보증이 아니다.** 신뢰 경계는 컨테이너 이미지다.
 
@@ -1633,6 +1635,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-189 | WHEN 스펙 버전을 제출하면 THE SYSTEM SHALL 사람이 그 스펙을 마지막으로 승인한 뒤에 `e2e-fail-3x` 로 올라온 에스컬레이션(질문의 `escalate` · 발견 처분의 `escalate_reason`) 가운데 그 스펙을 가리키거나 그 스펙에서 파생된 작업의 것이거나 제출한 세션의 것이 있으면 재시도 신호(`retry_threshold`)를 세우고 가장 최근의 것 하나를 `gate_evidence` 로 싣는다. WHILE 신호가 여럿이면 THE SYSTEM SHALL 티어를 한 단계만 올리고, WHEN 그 결재가 승인되면 THE SYSTEM SHALL 제출 때의 티어를 기록한다 — 다시 계산하지 않는다 |
 | REQ-API-190 | WHEN 스펙 버전의 승인이 요구사항 문장을 바꾸면(공백·서식 기호만 다른 것은 제외) THE SYSTEM SHALL 그 요구사항에 문장이 바뀐 시각(`statement_changed_at`)을 남기고 구현 축을 다시 파생하며, WHILE 서명된 `test` 증적이 모두 그 시각보다 앞서는 동안 THE SYSTEM SHALL 그 요구사항을 `verified` 로 두지 않고 목록·상세·커버리지에 `reverify_required` 를 싣는다. WHEN qa·admin 이 그 요구사항에 `test` 증적을 서명해 올리면(EP-REQ-03 — 앞선 테스트에 다시 서명하는 "영향 없음 확인" 포함) THE SYSTEM SHALL 다시 파생해 표시를 거두고, `verified` 가 된 시각을 `verified_at` 에 남긴다(풀리면 비운다) |
 | REQ-API-191 | WHEN 요청 본문이 zod 스키마를 어기고 어긴 규칙에 카탈로그 키가 달려 있으면(예: `ApprovalBulkDecisionInput.items` 의 `.max(BULK_DECISION_LIMIT, 'error.approval.bulk_limit')`) THE SYSTEM SHALL 봉투의 `message` 를 그 문구로 만들고 상한·하한을 자리표시자 `{max}`·`{min}` 에 넣는다 — 400 과 `details.issues` 는 그대로다. WHEN 어긴 규칙에 키가 없거나 그 문자열이 카탈로그에 없으면 THE SYSTEM SHALL 예전 문구(`error.request.schema`)로 답한다 — zod 의 기본 영어 문장은 봉투에 싣지 않는다 |
+| REQ-API-192 | WHEN 마켓플레이스 카탈로그를 만들면 THE SYSTEM SHALL 이 배포가 묶은 플러그인(`plugin-dist/plugins.json`)마다 항목을 하나씩 두고 묶은 순서(`nerv` 먼저)를 지키며, 항목마다 그 플러그인의 아카이브를 가리키고 그 바이트의 `sha256` 을 함께 준다. WHEN 한 플러그인의 아카이브가 없으면 THE SYSTEM SHALL 그 항목만 빼고, 모두 없으면 REQ-API-086 대로 거절한다. WHEN 요청한 아카이브 이름이 묶은 것 중 어느 것과도 다르면 THE SYSTEM SHALL `NERV_PRECONDITION`(`kind:'not_found'`)으로 거절한다 |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다 · `decided_by` 는 결정한 사람이다 — 지정자가 아니다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재 — 검토 중이 아닌 문서에 결정 없이 남은 슬롯은 빼고)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |

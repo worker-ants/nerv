@@ -18,7 +18,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.76 · 2026-09-26 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.77 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.77 변경(2026-09-27 — 플러그인이 둘이 됐다, **사람 결정**): **새 요구사항 없음 · §1 트리 · §5.1 명령 표.** 한국어 문체 플러그인 `codebase/ko-style/`(워크스페이스 `@nerv/ko-style`)과 그 저장소 설정 `.ko-style.json`, 프로젝트 범위 활성화 `.claude/settings.json` 을 트리에 더한다([4.6 플러그인](plugin.md) §7). `pnpm pack:plugin` 은 플러그인마다 zip 을 만들고 매니페스트 목록 `plugins.json` 을 쓴다(전에는 `plugin.json` 하나 · [4.4 API](api.md) REQ-API-192).
 >
 > v1.76 변경(2026-09-26 — 적어 둔 약속을 코드가 지키지 않았다): **새 요구사항 없음 · §3.4 한 문장.** "zod 스키마의 검증 메시지는 키를 담는다" 고 적었지만 요청 본문 검사는 어떤 위반이든 같은 한 줄로 답했다. 이제 그 문장대로 동작한다([4.4](api.md) REQ-API-191).
 
@@ -190,6 +192,8 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
   AGENTS.md                     # 에이전트 공통 작업 규약 (Codex·Claude Code 공용)
   .claude-plugin/               # 마켓플레이스 카탈로그 — Claude Code 가 **저장소 루트에서만** 찾는다
                                 #   (REQ-CB-015 의 "저장소 메타 파일" — 배치 원칙의 예외가 아니라 그 정의 안이다)
+  .ko-style.json                # 한국어 문체 검사 설정 — 글 종류별 말투 · 팀 어휘(용어 사전 §3.4 의 사본) (4.6 §7.5)
+  .claude/settings.json         # 이 저장소에서 ko-style 플러그인을 켠다(enabledPlugins) — 마켓플레이스는 선언하지 않는다
   .github/workflows/ci.yml      # §4.5 전문 — 같은 이유로 저장소 루트다
   lychee.toml                   # 외부 URL 생존 검사 설정 — 야간 link-check 잡이 읽는다(관리 규약의 근거 규율)
   .dockerignore                 # 이미지 빌드 컨텍스트(= 저장소 루트) 제외 목록 (§5.3·§6.1)
@@ -197,7 +201,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
   docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 스펙 임포터 §5)
   codebase/                     # ★ 구현 코드 전체 = 모노레포 루트 (REQ-CB-015)
     package.json                # 워크스페이스 스크립트 허브 (§5.1 명령 표)
-    pnpm-workspace.yaml         # packages: ["plugin", "apps/*", "packages/*"]
+    pnpm-workspace.yaml         # packages: ["plugin", "ko-style", "apps/*", "packages/*"]
     pnpm-lock.yaml
     .nvmrc                      # Node LTS 핀 — 로컬·CI·이미지가 같은 값을 쓴다 (REQ-CB-002)
     tsconfig.base.json          # strict 공통 옵션 (§4.1)
@@ -215,7 +219,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
                                 #     `plugin/plugin-package.spec.ts` · REQ-CB-048)
       check-env-table.mjs       #   §5.2 전표와 코드가 읽는 변수가 맞는가
       check-doc-links.mjs       #   문서 간 링크·역참조·맨 참조·절 실재 (REQ-CB-030) — `--fix` 가 역참조를 다시 쓴다
-      pack-plugin.mjs           #   플러그인 zip — 이미지 빌드가 /plugin-dist 에 심는다 (§6.1)
+      pack-plugin.mjs           #   플러그인 zip(플러그인마다) + plugins.json — 이미지 빌드가 /plugin-dist 에 심는다 (§6.1)
       dev.mjs · e2e-stack.mjs   #   개발 루프 · E2E 전용 스택(세션별 포트)
       install-hooks.mjs         #   pre-push 훅 설치 (옵트인 — 게이트가 아니다)
     apps/
@@ -248,6 +252,11 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
       bin/                      #   nerv-hook-forward(토큰 주입 폴백) · nerv-outbox(오프라인 큐)
       statusline/               #   nerv-statusline.sh — 네트워크 왕복 없음 (4.6 §3.2)
       plugin-package.spec.ts    #   문서 전문 대조 테스트 (REQ-PLG-001·003·006·008)
+    ko-style/                   # @nerv/ko-style — 한국어 문체 플러그인 (4.6 §7 · 2026-09-27)
+      .claude-plugin/           #   plugin.json — 버전은 nerv 와 따로 오른다
+      hooks/                    #   hooks.json · run.sh(진입점) · digest.json(node 없을 때의 요약 · 생성물)
+      skills/                   #   ko-style(규칙 표 rules/core.json · 검사기 scripts/ko-lint.mjs) · check · init
+      ko-style.spec.ts          #   예문 · 생성물 · 훅 실행 테스트 (REQ-PLG-020~026)
   deploy/                         # ★ 배포 산출물 — 저장소 루트 (REQ-CB-015, 2026-08-22 개정)
     compose/
       docker-compose.yml        # §5.3 전문 — 로컬·소규모 자가호스팅 정본
@@ -1000,7 +1009,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `pnpm build` | 전 워크스페이스 일괄 + **`pnpm pack:plugin`**(플러그인 zip — 이미지가 `/plugin-dist` 에 심는다) |
 | `pnpm test` / `pnpm lint` / `pnpm typecheck` | L1 전량 / eslint / `tsc -b`(솔루션 파일) |
 | `pnpm format` / `pnpm format:check` | prettier 쓰기 / 검사(CI 가 부른다 — REQ-CB-028) |
-| `pnpm pack:plugin` | `plugin-dist/<이름>-<버전>.zip` + `plugin.json` 생성 |
+| `pnpm pack:plugin` | 플러그인마다 `plugin-dist/<이름>-<버전>.zip` + 매니페스트 목록 `plugins.json` 생성(nerv · ko-style) |
 | `pnpm db:generate` | `@nerv/schema`에서 `drizzle-kit generate` — 마이그레이션 SQL 생성 |
 | `pnpm db:migrate` | 마이그레이션 적용(`migrate.ts`) — compose·k8s와 같은 코드 경로. **빌드 산출물(`apps/api/dist/migrate.js`)을 실행한다** — 첫 실행 전 `pnpm build`(§5.1) |
 | `pnpm e2e:up` | **E2E 전용 스택** 기동 — 세션별 포트를 잡고(대역 19000~19999 · §4.3) 마이그레이션·시드까지 끝난 뒤 배정된 주소를 출력한다 |

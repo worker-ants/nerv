@@ -18,3 +18,9 @@ plugin/.claude-plugin/plugin.json
 plugin/statusline/
 # codex/ 도 그대로 배포되는 실물이다 — 사람이 복사해 쓰는 템플릿이라 포매터가 손댈 자리가 아니다
 plugin/codex/
+
+# ko-style 의 규칙 표 · 스킬 · 훅은 배포되는 실물이고, SKILL.md 의 규칙 표와 hooks/digest.json 은
+# rules/core.json 에서 생성한다(ko-lint.mjs sync). 포매터가 표를 다시 정렬하면 생성물 대조 테스트가 깨진다.
+ko-style/skills/
+ko-style/hooks/
+ko-style/.claude-plugin/plugin.json

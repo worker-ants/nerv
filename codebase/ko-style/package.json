@@ -1,0 +1,15 @@
+{
+  "name": "@nerv/ko-style",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "ko-style Claude Code 플러그인 — 한국어 문체 검사 (docs/04-mvp/plugin.md §7 정본)",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}
