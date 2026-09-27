@@ -40,8 +40,8 @@ export class PluginController {
   /**
    * EP-PLG-02 — 아카이브.
    *
-   * 이름에 버전이 들어 있지만 **서빙되는 것은 언제나 이 이미지가 담은 하나**다. 다른 버전을
-   * 요청하면 404 다 — 없는 버전에 옛 파일을 주는 것보다 없다고 말하는 편이 낫다.
+   * 이름에 버전이 들어 있지만 **서빙되는 것은 언제나 이 이미지가 담은 것**이다(플러그인마다 하나).
+   * 다른 버전을 요청하면 404 다 — 없는 버전에 옛 파일을 주는 것보다 없다고 말하는 편이 낫다.
    */
   @Get(':filename')
   @Public()
@@ -49,9 +49,8 @@ export class PluginController {
     @Param('filename') filename: string,
     @Res({ passthrough: true }) reply: RawReply,
   ): Promise<Buffer> {
-    const archive = await this.plugins.archive();
+    const archive = await this.plugins.archive(filename);
     if (archive === null) throw missing();
-    if (filename !== archive.filename) throw missing();
 
     // **content-type 은 검사를 통과한 뒤에 건다.** 라우트 데코레이터(`@Header`)로 걸면
     // 던져진 에러에도 `application/zip` 이 붙어 Fastify 가 봉투를 직렬화하지 못한다 —

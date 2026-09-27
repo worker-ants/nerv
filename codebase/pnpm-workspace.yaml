@@ -1,7 +1,9 @@
 packages:
   # 플러그인은 빌드 산출물이 아니라 배포되는 파일 묶음이다 — 워크스페이스로 두는 이유는
-  # 문서 대조 테스트(REQ-PLG-001)를 `pnpm test` 한 줄에 태우기 위해서다.
+  # 문서 대조 테스트(REQ-PLG-001)와 문체 플러그인의 예문 · 훅 테스트(REQ-PLG-021~026)를
+  # `pnpm test` 한 줄에 태우기 위해서다.
   - plugin
+  - ko-style
   - 'apps/*'
   - 'packages/*'
 

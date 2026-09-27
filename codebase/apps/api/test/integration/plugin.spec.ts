@@ -45,10 +45,22 @@ afterAll(async () => {
   delete process.env['NERV_WEB_URL'];
 });
 
-function manifest(): { name: string; version: string } {
+function manifest(dir = 'plugin'): { name: string; version: string } {
   return JSON.parse(
-    readFileSync(join(WORKSPACE, 'plugin', '.claude-plugin', 'plugin.json'), 'utf8'),
+    readFileSync(join(WORKSPACE, dir, '.claude-plugin', 'plugin.json'), 'utf8'),
   ) as { name: string; version: string };
+}
+
+/** 아카이브의 중앙 디렉터리에서 파일 이름을 읽는다 */
+function zipNames(buf: Buffer): string[] {
+  const names: string[] = [];
+  let i = buf.indexOf(Buffer.from('PK\x01\x02', 'binary'));
+  while (i >= 0) {
+    const nameLen = buf.readUInt16LE(i + 28);
+    names.push(buf.subarray(i + 46, i + 46 + nameLen).toString('utf8'));
+    i = buf.indexOf(Buffer.from('PK\x01\x02', 'binary'), i + 4);
+  }
+  return names;
 }
 
 interface Catalog {
@@ -131,6 +143,38 @@ describe('EP-PLG-01 — 마켓플레이스 카탈로그', () => {
   });
 });
 
+/**
+ * REQ-API-192 — 플러그인이 둘이다(2026-09-27 · nerv · ko-style). 이 배포가 묶은 플러그인마다
+ * 카탈로그 항목이 하나씩 있고, 항목마다 자기 아카이브를 가리킨다. 한쪽만 서빙되면 외부망이
+ * 막힌 사용자는 그 플러그인을 받을 길이 없다.
+ */
+describe('REQ-API-192 — 카탈로그는 묶은 플러그인을 모두 담는다', () => {
+  it('nerv 가 먼저고 ko-style 이 뒤에 있다 — 두 이름 모두 plugin.json 이 정본이다', async () => {
+    const body = await catalog();
+    expect(body.plugins.map((p) => p.name)).toEqual([manifest().name, manifest('ko-style').name]);
+    expect(body.plugins[1]?.version).toBe(manifest('ko-style').version);
+  });
+
+  it('ko-style 아카이브가 서빙되고, sha256 이 그 바이트의 해시다', async () => {
+    const body = await catalog();
+    const entry = body.plugins.find((p) => p.name === 'ko-style');
+    const url = new URL(entry?.source.url ?? '');
+    expect(url.pathname).toBe(`/plugin/ko-style-${manifest('ko-style').version}.zip`);
+    const zip = await app.inject({ method: 'GET', url: url.pathname });
+    expect(zip.statusCode).toBe(200);
+    expect(createHash('sha256').update(zip.rawPayload).digest('hex')).toBe(entry?.source.sha256);
+
+    const names = zipNames(Buffer.from(zip.rawPayload));
+    expect(names).toContain('.claude-plugin/plugin.json');
+    expect(names).toContain('hooks/run.sh');
+    expect(names).toContain('skills/ko-style/scripts/ko-lint.mjs');
+    expect(names).toContain('skills/ko-style/rules/core.json');
+    // 저장소 전용 파일은 패키지에 들어가지 않는다
+    expect(names).not.toContain('ko-style.spec.ts');
+    expect(names).not.toContain('package.json');
+  });
+});
+
 describe('EP-PLG-02 — 아카이브', () => {
   it('다른 이름을 요구하면 404 다 — 없는 버전에 옛 파일을 주지 않는다', async () => {
     const res = await app.inject({ method: 'GET', url: '/plugin/nerv-9.9.9.zip' });
@@ -181,15 +225,7 @@ describe('EP-PLG-02 — 아카이브', () => {
       method: 'GET',
       url: new URL(body.plugins[0]?.source.url ?? '').pathname,
     });
-    const buf = Buffer.from(zip.rawPayload);
-
-    const names: string[] = [];
-    let i = buf.indexOf(Buffer.from('PK\x01\x02', 'binary'));
-    while (i >= 0) {
-      const nameLen = buf.readUInt16LE(i + 28);
-      names.push(buf.subarray(i + 46, i + 46 + nameLen).toString('utf8'));
-      i = buf.indexOf(Buffer.from('PK\x01\x02', 'binary'), i + 4);
-    }
+    const names = zipNames(Buffer.from(zip.rawPayload));
     expect(names).toContain('.claude-plugin/plugin.json');
     expect(names).toContain('hooks/hooks.json');
     // 저장소 전용 파일은 패키지에 들어가지 않는다

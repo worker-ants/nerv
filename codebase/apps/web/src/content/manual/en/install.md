@@ -155,6 +155,29 @@ To write it by hand, use the content below (together with the environment variab
 
 **On a company-managed machine, skip this step.** The managed settings have already registered the marketplace and enabled the plugin, and `NERV_SERVER` and `NERV_PROJECT` come from them too. You only need steps 1, 2, 4, and 5.
 
+### Korean writing-style plugin (optional)
+
+The same marketplace also has **`ko-style`, a Korean writing-style plugin**. It finds translationese, metaphors that give objects human actions, double passives, and mixed speech levels in the Korean your agent writes, and asks the agent to fix them. It works without a connection to the NERV server.
+
+```text
+/plugin install ko-style@nerv
+```
+
+Once installed, it works like this.
+
+| When                             | What it does                                                        |
+| -------------------------------- | ------------------------------------------------------------------- |
+| A session starts                 | Gives the agent a summary of the rules                              |
+| Before a commit or PR is created | Checks the message and turns it back once if something needs fixing |
+| Right after a document is saved  | Checks only the newly written lines and asks for fixes              |
+| After a reply                    | Shows a one-line notice if something needs fixing                   |
+
+If a flagged phrase has to stay as it is, such as a quotation or a proper noun, the agent runs the same message again. The second attempt goes through.
+
+Put your team's terms and the speech level for each kind of text in `.ko-style.json` at the repository root. Run `/ko-style:init` and the agent looks through the repository and creates this file for you. To check what you just wrote, run `/ko-style:check`. To turn it off in one repository, add `"enabled": false` to that repository's `.ko-style.json`.
+
+**The checks need node.** Without node, the agent still gets the rule summary, but the checks are skipped.
+
 ## 3-B. Connect Codex
 
 Codex has no plugin format. Instead, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.

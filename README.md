@@ -28,6 +28,7 @@
 | `apps/cli` | `nerv import …` — 프로파일 기반 스펙 임포터. 컨테이너가 아니라 **원본 체크아웃이 있는 장비에 설치되는 클라이언트**다 |
 | `packages/schema` | 타입·상수의 단일 정본 — drizzle 테이블 · zod · 이벤트 이름 · 에러 코드 · 문구 카탈로그. 상수를 다른 곳에 하드코딩하지 않는다 |
 | `plugin` | Claude Code 플러그인 — 스킬 5종(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`) · hooks(기본은 `command` 변형) · statusline · Codex 초안. **`.mcp.json` 은 담지 않는다** — 서버 주소·토큰은 프로젝트마다 다르고 플러그인은 여러 프로젝트가 공유하는 물건이라, 그 파일은 쓰는 쪽 저장소가 갖는 템플릿이다(REQ-PLG-001) |
+| `ko-style` | 한국어 문체 플러그인 — 번역투 · 어색한 비유 · 말투 섞임을 찾는 검사기와 훅 · 스킬. NERV 서버 없이 동작하고 같은 마켓플레이스에서 받는다. 이 저장소의 규칙은 루트 `.ko-style.json`([4.6 플러그인](docs/04-mvp/plugin.md) §7) |
 
 ## 빠른 시작
 

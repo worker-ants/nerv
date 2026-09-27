@@ -21,8 +21,12 @@ export function pluginDistDir(): string {
   return resolve(here, '..', '..', '..', '..', '..', 'plugin-dist');
 }
 
-export function pluginManifestPath(): string {
-  return join(pluginDistDir(), 'plugin.json');
+/**
+ * 묶은 플러그인의 매니페스트 목록 — `scripts/pack-plugin.mjs` 가 쓴다. 플러그인이 둘이 된 뒤로
+ * (2026-09-27 · nerv · ko-style) 카탈로그 항목은 이 목록에서 온다.
+ */
+export function pluginIndexPath(): string {
+  return join(pluginDistDir(), 'plugins.json');
 }
 
 /** 이름은 매니페스트가 정한다(`<name>-<version>.zip`) — 이 함수는 자리만 안다. */

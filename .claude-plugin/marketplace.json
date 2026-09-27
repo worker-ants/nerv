@@ -1,5 +1,5 @@
 {
-  "$comment": "GitHub 경로의 카탈로그. Claude Code 는 이 파일을 저장소 루트에서만 찾으므로 플러그인 본체(codebase/plugin)를 상대경로로 가리킨다. 정본: docs/04-mvp/plugin.md §3.5.",
+  "$comment": "GitHub 경로의 카탈로그. Claude Code 는 이 파일을 저장소 루트에서만 찾으므로 플러그인 본체(codebase/plugin · codebase/ko-style)를 상대경로로 가리킨다. 정본: docs/04-mvp/plugin.md §3.5 · §7.",
   "name": "nerv",
   "owner": {
     "name": "NERV",
@@ -11,6 +11,12 @@
       "source": "./codebase/plugin",
       "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
       "version": "0.3.3"
+    },
+    {
+      "name": "ko-style",
+      "source": "./codebase/ko-style",
+      "description": "한국어 문체 검사 — 번역투·어색한 비유·말투 섞임을 찾아 고치게 한다",
+      "version": "0.1.0"
     }
   ]
 }
