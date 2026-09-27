@@ -12,7 +12,7 @@ import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
 import { relativeTime } from '../../lib/format.js';
@@ -44,7 +44,7 @@ import {
 } from '../../components/ui/primitives.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ReadOnlyNotice, scopeAdmins } from '../../components/read-only-notice.js';
-import { ConfirmAction } from '../../components/ui/confirm-action.js';
+import { ConfirmAction, ConfirmBar } from '../../components/ui/confirm-action.js';
 
 /**
  * 같은 사람·같은 소속의 멤버십을 **한 줄로 묶는다**. 서버는 부여마다 행을 주므로
@@ -246,7 +246,7 @@ function MembersTab(): React.JSX.Element {
    * 실패하면 거기서 멈추고 표를 다시 읽어, 무엇이 남았는지를 표가 말한다.
    */
   const offboard = useMutation({
-    mutationFn: async (input: { membershipIds: string[]; tokenIds: string[] }) => {
+    mutationFn: async (input: { membershipIds: string[]; tokenIds: string[]; done: string }) => {
       for (const id of input.tokenIds) {
         await apiFetch(`/me/tokens/${id}`, { method: 'DELETE' });
       }
@@ -258,9 +258,29 @@ function MembersTab(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'members'] });
       void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'tokens'] });
     },
-    onSuccess: () => pushToast({ tone: 'ok', message: t('settings.members.offboard_done') }),
+    onSuccess: (_result, input) => pushToast({ tone: 'ok', message: input.done }),
     onError: onApiError,
   });
+
+  /**
+   * **열린 나가는 확인 — 한 번에 하나**(2026-09-27 · 사람 결정 P1 · REQ-WEB-263). 확인은 누른 줄 아래에 표
+   * 너비 전체로 펼친다 — 이름 칸 · 동작 칸은 좁아서 무엇이 지워지는지 적을 자리가 없다. 취소하면 누른 단추로
+   * 포커스가 돌아온다.
+   */
+  const [exiting, setExiting] = useState<ExitTarget | null>(null);
+  const exitTriggers = useRef(new Map<string, HTMLButtonElement>());
+  const exitKey = (target: ExitTarget): string => `${target.kind}:${target.rowKey}`;
+  const closeExit = (): void => {
+    const key = exiting === null ? null : exitKey(exiting);
+    setExiting(null);
+    if (key !== null) window.requestAnimationFrame(() => exitTriggers.current.get(key)?.focus());
+  };
+  const bindTrigger =
+    (target: ExitTarget) =>
+    (el: HTMLButtonElement | null): void => {
+      if (el === null) exitTriggers.current.delete(exitKey(target));
+      else exitTriggers.current.set(exitKey(target), el);
+    };
 
   return (
     <section>
@@ -316,7 +336,7 @@ function MembersTab(): React.JSX.Element {
           }
         >
           {groupByPerson(groupByMember(memberRows)).flatMap((person) =>
-            person.scopes.map((m, index) => (
+            person.scopes.flatMap((m, index) => [
               <Tr
                 key={m.key}
                 // 묶음의 경계를 선으로 — 한 사람의 줄들이 한눈에 한 덩어리로 읽힌다
@@ -325,6 +345,29 @@ function MembersTab(): React.JSX.Element {
                 {/* 이름·이메일은 묶음의 첫 줄에만 — 같은 사람을 줄마다 다시 적으면 다른 사람처럼 읽힌다 */}
                 <Td className="font-medium">
                   {index === 0 && <span data-testid="member-person">{person.display_name}</span>}
+                  {/* **조직에서 내보내기는 이름 아래**(2026-09-27 · 사람 결정 P1 · REQ-WEB-263) — 사람 전체에 대한
+                      조작이라 사람 칸에 둔다. 범위를 이름에 넣는다: "내보내기" 만으로는 데이터 내보내기로도 읽힌다 */}
+                  {index === 0 && orgAdmin && (
+                    <div className="mt-1">
+                      <Button
+                        ref={bindTrigger({ kind: 'org', rowKey: m.key, userId: person.user_id })}
+                        size="xs"
+                        variant="danger"
+                        data-testid="member-offboard"
+                        disabled={person.user_id === myId || lastOrgAdmin(person.user_id)}
+                        disabledReason={t(
+                          person.user_id === myId
+                            ? 'settings.members.offboard_self'
+                            : 'settings.members.last_org_admin',
+                        )}
+                        onClick={() =>
+                          setExiting({ kind: 'org', rowKey: m.key, userId: person.user_id })
+                        }
+                      >
+                        {t('settings.members.offboard')}
+                      </Button>
+                    </div>
+                  )}
                 </Td>
                 <Td className="text-text-mute">{index === 0 ? person.email : ''}</Td>
                 <Td className="text-text-mute">
@@ -427,21 +470,49 @@ function MembersTab(): React.JSX.Element {
                   </div>
                 </Td>
                 <Td className="text-right">
-                  <MemberExit
-                    person={person}
-                    row={m}
-                    first={index === 0}
-                    orgAdmin={orgAdmin}
-                    canEditRow={canEdit(m.project_slug)}
-                    isSelf={person.user_id === myId}
-                    lastAdmin={lastOrgAdmin(person.user_id)}
-                    tokens={rows(orgTokens.data)}
-                    pending={offboard.isPending}
-                    onConfirm={(input) => offboard.mutate(input)}
-                  />
+                  {/* **줄마다 판정한다**(2026-09-27 · 사람 결정 P1 · REQ-WEB-263). 역할 칩과 같은 규칙 — 조직 admin 이면
+                      모든 프로젝트 줄, 아니면 자기가 admin 인 프로젝트 줄이다. 예전에는 조직 admin 이면 여기서 끝나서,
+                      프로젝트 admin 을 겸한 사람에게 이 단추가 나오지 않았다(권한이 넓을수록 할 일이 적었다) */}
+                  {m.project_slug !== null && canEdit(m.project_slug) && (
+                    <Button
+                      ref={bindTrigger({ kind: 'project', rowKey: m.key, userId: person.user_id })}
+                      size="sm"
+                      variant="subtle"
+                      data-testid="member-remove-project"
+                      disabled={person.user_id === myId}
+                      disabledReason={t('settings.members.remove_self')}
+                      onClick={() =>
+                        setExiting({ kind: 'project', rowKey: m.key, userId: person.user_id })
+                      }
+                    >
+                      {t(
+                        person.orgRoles.length > 0
+                          ? 'settings.members.clear_project_roles'
+                          : 'settings.members.remove_from_project',
+                      )}
+                    </Button>
+                  )}
                 </Td>
-              </Tr>
-            )),
+              </Tr>,
+              ...(exiting !== null && exiting.rowKey === m.key
+                ? [
+                    <ExitConfirmRow
+                      key={`${m.key}:exit`}
+                      plan={exitPlan(t, exiting.kind, person, m, orgAdmin, rows(orgTokens.data))}
+                      pending={offboard.isPending}
+                      onCancel={closeExit}
+                      onConfirm={(plan) => {
+                        setExiting(null);
+                        offboard.mutate({
+                          membershipIds: plan.membershipIds,
+                          tokenIds: plan.tokenIds,
+                          done: plan.done,
+                        });
+                      }}
+                    />,
+                  ]
+                : []),
+            ]),
           )}
         </Table>
       )}
@@ -517,73 +588,127 @@ function MembersTabs({
   );
 }
 
+/** 나가는 확인의 대상 — 조직에서 내보내기 또는 한 프로젝트에서 빼기 */
+interface ExitTarget {
+  kind: 'org' | 'project';
+  /** 확인 줄을 그 아래에 펼치는 줄 */
+  rowKey: string;
+  userId: string;
+}
+
+/** 확인이 적는 것과 실행이 지우는 것 — 한 곳에서 정한다(적은 수와 지운 수가 어긋나지 않게) */
+interface ExitPlan {
+  testIdBase: string;
+  message: string;
+  detail: string;
+  confirmLabel: string;
+  done: string;
+  membershipIds: string[];
+  tokenIds: string[];
+}
+
 /**
- * 한 줄의 나가는 문 — 조직 admin 에게는 묶음의 첫 줄에 **[내보내기…]**(모든 범위 + 토큰),
- * 프로젝트 admin 에게는 자기 프로젝트 줄에 **[이 프로젝트에서 빼기]**(그 줄의 역할 전부).
- * 자기 자신과 조직의 마지막 admin 은 비활성 + 사유다(REQ-WEB-003).
+ * **무엇을 지우는지 정한다**(2026-09-27 · 사람 결정 P1 · P3 · REQ-WEB-263).
+ *
+ * - 조직에서 내보내기: 그 사람의 멤버십 전부와 살아 있는 토큰(REQ-WEB-201).
+ * - 프로젝트에서 빼기: 그 줄의 역할. **조직 전체 역할이 있으면** 지워도 그 프로젝트를 계속 본다 — 권한은
+ *   합집합이고 한 프로젝트만 막는 규칙은 없다. 그래서 "역할 지우기" 로 부르고 그 사실을 적는다(P3).
+ * - **그 조직의 마지막 소속**이면 빼는 것이 곧 조직에서 나가는 것이다. 조직 admin 이면 내보내기와 같게
+ *   토큰도 끊는다 — 프로젝트 admin 은 조직 토큰 표를 읽지 못해 역할만 지운다(서버가 끊는 것은 다음 단계).
  */
-function MemberExit({
-  person,
-  row,
-  first,
-  orgAdmin,
-  canEditRow,
-  isSelf,
-  lastAdmin,
-  tokens,
-  pending,
-  onConfirm,
-}: {
-  person: MemberGroup;
-  row: MemberRow;
-  first: boolean;
-  orgAdmin: boolean;
-  canEditRow: boolean;
-  isSelf: boolean;
-  lastAdmin: boolean;
-  tokens: readonly Record<string, unknown>[];
-  pending: boolean;
-  onConfirm: (input: { membershipIds: string[]; tokenIds: string[] }) => void;
-}): React.JSX.Element | null {
-  const t = useT();
-  if (orgAdmin) {
-    if (!first) return null;
+function exitPlan(
+  t: ReturnType<typeof useT>,
+  kind: ExitTarget['kind'],
+  person: MemberGroup,
+  row: MemberRow,
+  orgAdmin: boolean,
+  tokens: readonly Record<string, unknown>[],
+): ExitPlan {
+  const name = person.display_name;
+  if (kind === 'org' || row.project_slug === null) {
     const ids = membershipIds(person.scopes);
     const tokenIds = liveTokensOf(tokens, person.user_id);
-    return (
-      <ConfirmAction
-        label={t('settings.members.offboard')}
-        testId="member-offboard"
-        disabled={isSelf || lastAdmin}
-        title={t(isSelf ? 'settings.members.offboard_self' : 'settings.members.last_org_admin')}
-        message={t('settings.members.offboard_confirm', { name: person.display_name })}
-        detail={t('settings.members.offboard_detail', {
-          memberships: ids.length,
-          tokens: tokenIds.length,
-        })}
-        confirmLabel={t('settings.members.offboard_run')}
-        pending={pending}
-        onConfirm={() => onConfirm({ membershipIds: ids, tokenIds })}
-      />
-    );
+    return {
+      testIdBase: 'member-offboard',
+      message: t('settings.members.offboard_confirm', { name }),
+      detail: t('settings.members.offboard_detail', {
+        memberships: ids.length,
+        tokens: tokenIds.length,
+      }),
+      confirmLabel: t('settings.members.offboard_run'),
+      done: t('settings.members.offboard_done'),
+      membershipIds: ids,
+      tokenIds,
+    };
   }
-  if (row.project_slug === null || !canEditRow) return null;
+  const project = row.project_name ?? row.project_slug;
   const ids = membershipIds([row]);
+  if (person.orgRoles.length > 0) {
+    return {
+      testIdBase: 'member-remove-project',
+      message: t('settings.members.clear_project_roles_confirm', {
+        name,
+        project,
+        roles: ids.length,
+      }),
+      detail: t('settings.members.clear_project_roles_detail', {
+        project,
+        org_roles: person.orgRoles.join(' · '),
+      }),
+      confirmLabel: t('settings.members.clear_project_roles_run'),
+      done: t('settings.members.clear_project_roles_done'),
+      membershipIds: ids,
+      tokenIds: [],
+    };
+  }
+  const last = person.scopes.length === 1;
+  const tokenIds = last && orgAdmin ? liveTokensOf(tokens, person.user_id) : [];
+  return {
+    testIdBase: 'member-remove-project',
+    message: last
+      ? t('settings.members.remove_last_confirm', { name, project })
+      : t('settings.members.remove_from_project_confirm', { name, project }),
+    detail:
+      last && orgAdmin
+        ? t('settings.members.offboard_detail', {
+            memberships: ids.length,
+            tokens: tokenIds.length,
+          })
+        : t('settings.members.remove_from_project_detail', { roles: ids.length }),
+    confirmLabel: t('settings.members.remove_from_project_run', { project }),
+    done: t('settings.members.remove_from_project_done', { name, project }),
+    membershipIds: ids,
+    tokenIds,
+  };
+}
+
+/** 누른 줄 아래에 표 너비 전체로 펼치는 확인 — 확인 한 모양(screens.md §1.5)의 상자 꼴이다 */
+function ExitConfirmRow({
+  plan,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  plan: ExitPlan;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (plan: ExitPlan) => void;
+}): React.JSX.Element {
   return (
-    <ConfirmAction
-      label={t('settings.members.remove_from_project')}
-      testId="member-remove-project"
-      disabled={isSelf}
-      title={t('settings.members.offboard_self')}
-      message={t('settings.members.remove_from_project_confirm', {
-        name: person.display_name,
-        project: row.project_name ?? row.project_slug,
-      })}
-      detail={t('settings.members.remove_from_project_detail', { roles: ids.length })}
-      confirmLabel={t('settings.members.remove_from_project')}
-      pending={pending}
-      onConfirm={() => onConfirm({ membershipIds: ids, tokenIds: [] })}
-    />
+    <Tr className="hover:bg-transparent">
+      <Td colSpan={5} className="pb-3">
+        <ConfirmBar
+          block
+          message={plan.message}
+          detail={plan.detail}
+          confirmLabel={plan.confirmLabel}
+          pending={pending}
+          testIdBase={plan.testIdBase}
+          onCancel={onCancel}
+          onConfirm={() => onConfirm(plan)}
+        />
+      </Td>
+    </Tr>
   );
 }
 
