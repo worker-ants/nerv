@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.79 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.80 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.80 변경(2026-09-27): **새 요구사항 없음 · §3.2 상수 하나.** `SPEC_VIEW_BASES`(버전 기준 어휘 — [4.4 API 명세](api.md) REQ-API-193).
 >
 > v1.79 변경(2026-09-27 — eval 사례): **새 요구사항 없음 · §1 트리 한 줄.** `codebase/ko-style/evals/`(`claude plugin eval` 사례)를 더한다. 패키지에 들어가지 않고(`pack-plugin.mjs`), 버전 게이트도 세지 않으며(`check-plugin-version.mjs`), 결과 폴더는 `.gitignore` 에 있다. 채점 정규식이 YAML 작은따옴표 문자열이라 서식 검사에서 뺐다(`.prettierignore`).
 >
@@ -496,6 +498,7 @@ apps/api/src/
       mirror.controller.ts      # markdown 미러 — 버전 프리픽스 없이 불변 (§2.8)
       reader-hash.ts            # 읽은 것의 지문 — base_hash 의 재료 (§1.4g)
       search.service.ts         # 하이브리드 검색 — ID 직행 · 렉시컬 · 벡터 RRF (§2.2b)
+      spec-basis.ts             # 버전 기준(승인본 · 최신 · 기준선) — 트리 · 문서 · 검색이 같은 판정을 쓴다
       spec-check.service.ts     # 사전 검토 — 제출 게이트의 근거를 미리 보인다
       spec-comment.service.ts
       spec-delta.ts             # 요구사항 델타 추출 — 저장 응답과 승인이 같은 함수를 쓴다
@@ -652,6 +655,7 @@ packages/schema/
 | `WS_ERROR_EVENT` | `'nerv:error'` | WebSocket 오류 프레임 이름 — 웹과 게이트웨이가 같은 리터럴을 봐야 한다 |
 | `DISPLAY_KEY_PATTERN` | 정규식 리터럴 | 본문에서 Task·Spec 키를 알아보는 패턴 — 화면의 자동 링크와 서버의 참조 추출이 같은 것을 쓴다 |
 | `SEED_ORG_SLUG` | `'default'` | 개발 시드의 조직 slug — **재적재 안전장치가 이 값으로 자기 시드를 알아본다**([4.3](database.md) §4) |
+| `SPEC_VIEW_BASES` | `['approved', 'latest']` | 스펙을 읽는 버전 기준 — 트리 · 그래프 · 문서 한 건 · 검색이 같은 어휘를 쓴다. 기준선 · 버전 번호와 배타([4.4 API 명세](api.md) REQ-API-193 · 196) |
 
 | ID | 요구(EARS) |
 | --- | --- |

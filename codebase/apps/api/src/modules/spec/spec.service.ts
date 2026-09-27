@@ -59,6 +59,13 @@ import { readerHash } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
 import { recomputeImplStatus } from './impl-status.js';
 import { neighborhood, pruneTree } from './spec-tree.js';
+import {
+  LATEST_VERSION_ID,
+  VERSION_SUMMARY_COLUMNS,
+  baselineIdOf,
+  resolveBasis,
+  versionOfSpec,
+} from './spec-basis.js';
 import { SpecRelationService } from './spec-relation.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
 
@@ -79,6 +86,14 @@ export interface SpecTreeNode extends Record<string, unknown> {
   updated_at: string | null;
   /** 열린 코멘트 수 — 리뷰어가 먼저 볼 문서를 고르는 재료다(REQ-API-183) */
   open_comments: number;
+  /**
+   * **보기 기준과 상관없이** 함께 주는 세 값(2026-09-27 · REQ-API-194). 승인본으로 읽는 줄이
+   * "이 문서 위에 v4 초안이 있다" 를 표시하려면 가장 새 버전과 최신 승인본의 번호가 필요하다.
+   * 버전이 없는 노드(임포터의 골격)는 셋 다 null 이다.
+   */
+  latest_version_no: number | null;
+  latest_status: string | null;
+  approved_version_no: number | null;
 }
 
 export interface DraftUpsertInput {
@@ -240,19 +255,7 @@ export class SpecService {
     projectId: string;
     baseline?: string | null;
   }): Promise<string> {
-    const { rows } = await this.db.execute<{ id: string }>(sql`
-      SELECT id FROM spec_baseline
-       WHERE project_id = ${input.projectId} AND name = ${input.baseline ?? ''}
-    `);
-    const found = rows[0]?.id;
-    if (found === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.baseline_not_found'), {
-        kind: 'invalid_input',
-        field: 'baseline',
-        unknown: [input.baseline],
-      });
-    }
-    return found;
+    return baselineIdOf(this.db, input.projectId, input.baseline ?? '');
   }
 
   /**
@@ -279,24 +282,23 @@ export class SpecService {
     types?: readonly string[] | null;
     /** 기준선 이름 — 주면 **그 세트가 담은 문서만**, 그때 핀된 버전으로 준다(REQ-API-098) */
     baseline?: string | null;
+    /**
+     * 보기 기준 — `approved`(기본) · `latest`(REQ-API-193). `latest` 면 줄마다 번호가 가장 큰
+     * 버전을 읽어 **승인본 위의 초안**이 상태와 번호에 그대로 나온다. 기준선과 함께 받지 않는다.
+     */
+    basis?: string | null;
   }): Promise<SpecTreeNode[]> {
+    const basis = resolveBasis({ basis: input.basis ?? null, baseline: input.baseline ?? null });
     const archived = input.includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
 
     // **기준선은 세트다.** 고르면 그 세트가 담은 문서만, 담을 때의 버전으로 보여야 한다 —
     // 그 뒤에 만들어진 문서가 섞이면 그것은 기준선이 아니라 "지금"이다(2026-09-05 사람 지적).
     // 4.5 §2.4 (4)는 처음부터 그렇게 적고 있었고 목록만 그것을 따르지 않았다.
     const baselineId = input.baseline == null ? null : await this.baselineId(input);
-    const pinned =
-      baselineId === null
-        ? sql``
-        : sql` AND EXISTS (SELECT 1 FROM spec_baseline_item i
-                            WHERE i.baseline_id = ${baselineId} AND i.spec_id = s.id)`;
-    // 버전도 그 세트의 것이다 — 제목·자리는 지금 것이지만 "어느 판인가"는 스냅샷을 따른다
-    const version =
-      baselineId === null
-        ? sql`sv.id = s.current_version_id`
-        : sql`sv.id = (SELECT i.spec_version_id FROM spec_baseline_item i
-                        WHERE i.baseline_id = ${baselineId} AND i.spec_id = s.id)`;
+    // 버전도 그 세트의 것이다 — 제목·자리는 지금 것이지만 "어느 판인가"는 스냅샷을 따른다.
+    // 기준선이 없으면 보기 기준이 정한다(승인본 · 최신 — REQ-API-193)
+    const { versionId, member: pinned } = versionOfSpec(basis, baselineId);
+    const version = sql`sv.id = ${versionId}`;
 
     const { rows } = await this.db.execute<SpecTreeNode>(sql`
       SELECT s.id, s.key, s.title, s.type::text AS type, s.parent_id, s.sort_key,
@@ -305,7 +307,8 @@ export class SpecService {
              -- 행(§2.4 — 타입·상태·현재 버전·최근 갱신·열린 코멘트 수) 중 뒤의 둘이 응답에 없었다
              coalesce(sv.updated_at, sv.created_at) AS updated_at,
              (SELECT count(*)::int FROM spec_comment c
-               WHERE c.spec_id = s.id AND c.status = 'open') AS open_comments
+               WHERE c.spec_id = s.id AND c.status = 'open') AS open_comments,
+             ${VERSION_SUMMARY_COLUMNS}
         FROM spec s
    LEFT JOIN spec_version sv ON ${version}
        WHERE s.project_id = ${input.projectId}${archived}${pinned}
@@ -364,11 +367,14 @@ export class SpecService {
      * 두 커밋 뒤에 다시 만든 것이다.
      */
     baseline?: string | null;
+    /** 보기 기준 — 트리와 같은 뜻이다(REQ-API-193) */
+    basis?: string | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const graph = await this.graph({
       projectId: input.projectId,
       ...(input.includeArchived === undefined ? {} : { includeArchived: input.includeArchived }),
       ...(input.baseline == null ? {} : { baseline: input.baseline }),
+      ...(input.basis == null ? {} : { basis: input.basis }),
     });
     const near = neighborhood(graph, input.around, input.hops);
     if (near === null) {
@@ -397,6 +403,8 @@ export class SpecService {
     statuses?: readonly string[] | null;
     types?: readonly string[] | null;
     baseline?: string | null;
+    /** 보기 기준 — 표 · 그래프도 목록과 같은 버전을 읽는다(REQ-API-193) */
+    basis?: string | null;
   }): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     const nodes = await this.tree(input);
     const visible = new Set(nodes.map((node) => node.id));
@@ -433,7 +441,17 @@ export class SpecService {
      * `requirements` 는 늘 실린다 — 옵션으로 두면 기존 호출이 조용히 얇아진다.
      */
     include?: readonly string[] | null;
+    /**
+     * 보기 기준(REQ-API-193) — `latest` 면 번호가 가장 큰 버전을 읽는다(승인본 위의 초안 · 검토 중).
+     * `versionNo` · `baseline` 과 배타다. 셋은 모두 "어느 버전인가" 에 대한 답이다.
+     */
+    basis?: string | null;
   }): Promise<Record<string, unknown>> {
+    const basis = resolveBasis({
+      basis: input.basis ?? null,
+      baseline: input.baseline ?? null,
+      versionNo: input.versionNo ?? null,
+    });
     // **기본은 최신 approved 다**(EP-SPEC-03 · REQ-WEB-011). current_version_id 를 그냥 주면
     // 초안이 기본 화면에 뜨고, 그러면 "승인된 것"과 "쓰는 중인 것"의 구분이 화면에서 사라진다
     // — 문서 축 분리(D-02)의 요점이 거기다. 승인본이 아직 없는 새 스펙만 draft 로 떨어진다.
@@ -482,9 +500,11 @@ export class SpecService {
     const pick =
       pinnedVersionId !== null
         ? sql`sv.id = ${pinnedVersionId}`
-        : input.versionNo == null
-          ? sql`sv.id = ${latestApproved}`
-          : sql`sv.spec_id = s.id AND sv.version_no = ${input.versionNo}`;
+        : input.versionNo != null
+          ? sql`sv.spec_id = s.id AND sv.version_no = ${input.versionNo}`
+          : basis === 'latest'
+            ? sql`sv.id = ${LATEST_VERSION_ID}`
+            : sql`sv.id = ${latestApproved}`;
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type, s.archived_at,
@@ -500,7 +520,10 @@ export class SpecService {
              -- 무엇인지 알아야 한다. 결정되지 않은 가장 최근 것 하나다
              (SELECT a.id FROM approval a
                WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id AND a.decision IS NULL
-               ORDER BY a.requested_at DESC LIMIT 1) AS pending_approval_id
+               ORDER BY a.requested_at DESC LIMIT 1) AS pending_approval_id,
+             -- **어느 버전을 읽었든 이 문서의 가장 새 버전과 최신 승인본**(REQ-API-194). 초안을 읽는
+             -- 쪽은 "승인본은 v3" 을, 기준선으로 읽는 쪽은 "그 뒤에 승인된 v5" 를 알아야 한다
+             ${VERSION_SUMMARY_COLUMNS}
         FROM spec s
    LEFT JOIN spec_version sv ON ${pick}
    LEFT JOIN "user" u ON u.id = sv.approved_by_user_id
@@ -578,6 +601,8 @@ export class SpecService {
       recheck: { count: recheck[0]?.n ?? 0, specs: recheck[0]?.keys ?? [] },
       // 기준 버전이 이미 지나간 버전이면 표시한다 — 재브리핑의 신호다(§2.4)
       basis_superseded: spec['superseded_by_version_id'] != null,
+      // 보기 기준을 명시했으면 되돌려 준다 — 받은 쪽이 무엇으로 읽었는지 확인할 수 있게
+      ...(input.basis == null || input.basis === '' ? {} : { basis }),
       // **그 세트가 이 문서를 담고 있었는가.** 담고 있지 않으면 최신 approved 로 떨어지는데,
       // 그 사실을 말하지 않으면 읽는 쪽은 기준선을 읽었다고 믿는다.
       ...(input.baseline == null

@@ -1,4 +1,4 @@
-// 기준선 선택기와 동결 다이얼로그 (REQ-WEB-135·136 · screens.md §2.4)
+// 버전 기준 선택기와 기준선 동결 다이얼로그 (REQ-WEB-135·136·248 · screens.md §2.4)
 //
 // **이 화면이 없어서 기준선이 0개였다**(실측 2026-09-04). 테이블도 엔드포인트 넷도
 // 2026-08 부터 있었고 L2 도 있었는데, 사람이 만들 진입점이 웹에 없었다. 서버에 기능이
@@ -13,6 +13,7 @@ import { rows as asRows } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
 import { Button, Input } from '../../components/ui/primitives.js';
 import { Modal } from '../../components/ui/modal.js';
+import { viewBasisFromKey, viewBasisKey, type ViewBasis } from '../../lib/view-basis.js';
 
 export interface Baseline {
   id: string;
@@ -33,48 +34,53 @@ export function useBaselines(projectSlug: string): ReturnType<typeof useQuery<Ba
 }
 
 /**
- * 선택기 — 고른 값은 **주소에 남는다**(뷰 상태 규약, ui-wireframes §1.4).
+ * **버전 기준 선택기**(2026-09-27 사람 결정 V1 · REQ-WEB-248) — 승인본(기본) · 최신 · 기준선들.
  *
- * 링크로 건네면 상대도 같은 기준으로 본다. 그것이 기준선의 요점이다 — "내가 본 그 세트"를
- * 말로 설명하지 않아도 되는 것.
+ * 기준선 선택기였던 것을 넓혔다. 목록은 문서마다 최신 승인본만 읽어서 승인본 위의 초안은 어디에도
+ * 없었고, 그것을 보려면 문서를 하나씩 열어야 했다. 셋은 모두 "어느 버전을 읽는가" 에 대한 답이라
+ * 한 선택기에서 고른다(서버도 함께 받지 않는다 — REQ-API-196). 고른 값은 **주소에 남는다**(뷰 상태
+ * 규약, ui-wireframes §1.4) — 링크로 건네면 상대도 같은 기준으로 본다.
+ *
+ * 기준선이 하나도 없어도 그린다. 최신은 기준선과 상관없이 늘 고를 수 있다.
  */
-export function BaselineSelect({
+export function ViewBasisSelect({
   projectSlug,
   value,
   onChange,
 }: {
   projectSlug: string;
-  value: string | null;
-  onChange: (name: string | null) => void;
-}): React.JSX.Element | null {
+  value: ViewBasis;
+  onChange: (next: ViewBasis) => void;
+}): React.JSX.Element {
   const t = useT();
   const baselines = useBaselines(projectSlug);
   // **배열이 아닌 응답에 화면이 죽지 않는다.** 목록 하나가 이상해서 스펙 화면 전체가
   // 빈 화면이 되는 것은 어떤 경우에도 맞지 않는다 — 저장소의 `rows()` 규율이 그것이다.
   const rows = asRows(baselines.data);
 
-  // 하나도 없으면 선택기를 그리지 않는다 — 고를 것이 없는 드롭다운은 자리만 먹는다.
-  // [동결] 버튼은 목록 툴바에 따로 있으므로 그래도 보인다 — 첫 개를 만들 길이 있어야 한다.
-  if (rows.length === 0) return null;
-
   return (
     <label
       className="flex items-center gap-1.5 text-xs whitespace-nowrap text-text-mute"
-      title={t('specs.baseline_hint')}
+      title={t('specs.basis_hint')}
     >
-      {t('specs.baseline')}
+      {t('specs.basis')}
       <select
-        data-testid="baseline-select"
+        data-testid="basis-select"
         className="rounded-nerv border border-border bg-bg-elev px-1.5 py-1 text-xs"
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+        value={viewBasisKey(value)}
+        onChange={(e) => onChange(viewBasisFromKey(e.target.value))}
       >
-        <option value="">{t('specs.baseline_current')}</option>
-        {rows.map((b) => (
-          <option key={String(b['id'])} value={String(b['name'])}>
-            {String(b['name'])} ({Number(b['item_count'] ?? 0)})
-          </option>
-        ))}
+        <option value="">{t('specs.basis_approved')}</option>
+        <option value={viewBasisKey({ latest: true })}>{t('specs.basis_latest')}</option>
+        {rows.length > 0 && (
+          <optgroup label={t('specs.basis_baselines')}>
+            {rows.map((b) => (
+              <option key={String(b['id'])} value={viewBasisKey({ baseline: String(b['name']) })}>
+                {String(b['name'])} ({Number(b['item_count'] ?? 0)})
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
     </label>
   );

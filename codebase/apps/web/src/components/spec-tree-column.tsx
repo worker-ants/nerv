@@ -14,6 +14,7 @@ import { useT } from '../lib/i18n.js';
 import { SideColumn } from './side-column.js';
 import { SpecTree } from './spec-tree.js';
 import type { ProjectId } from '../lib/query-keys.js';
+import type { ViewBasis } from '../lib/view-basis.js';
 
 /** 열이 제자리에 서는 폭 — 사이드바(15rem)·열(16rem)·본문(26rem 바닥)·레일(17rem)이 함께 드는 가장 좁은 폭이다 */
 const COLUMN_QUERY = '(min-width: 80rem)';
@@ -23,12 +24,13 @@ export function SpecTreeColumn({
   projectSlug,
   projectId,
   activeKey,
-  baseline,
+  view,
 }: {
   projectSlug: string;
   projectId?: ProjectId | undefined;
   activeKey: string | undefined;
-  baseline?: string | undefined;
+  /** 버전 기준 — 옆 문서로 옮겨도 같은 기준으로 읽는다(REQ-WEB-248) */
+  view?: ViewBasis | undefined;
 }): React.JSX.Element {
   const t = useT();
   return (
@@ -48,7 +50,7 @@ export function SpecTreeColumn({
           variant="rail"
           activeKey={activeKey}
           heading={t('shell.spec_tree')}
-          baseline={baseline}
+          view={view}
           titleFilter
           headerAction={headerAction}
         />

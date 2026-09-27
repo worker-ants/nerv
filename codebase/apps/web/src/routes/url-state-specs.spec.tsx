@@ -206,7 +206,7 @@ describe('기준선을 상세까지 물고 간다 (SPEC-06 · REQ-WEB-135)', () 
 
   it('상세에서 기준선을 풀 수 있다 — 목록으로 나가지 않고', async () => {
     const history = renderAt('/p/clemvion/specs/SPC-CWC-007?baseline=R1&rail=versions');
-    const select = await screen.findByTestId('baseline-select');
+    const select = await screen.findByTestId('basis-select');
     fireEvent.change(select, { target: { value: '' } });
     await waitFor(() => expect(params(history).get('baseline')).toBeNull());
     expect(params(history).get('rail')).toBe('versions');

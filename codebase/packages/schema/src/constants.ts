@@ -40,6 +40,17 @@ export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 export const ATTACHMENT_READ_MAX_BYTES = 32 * 1024;
 
 /**
+ * 스펙을 읽는 **보기 기준** — `approved`(기본) · `latest`(2026-09-27 사람 결정 · REQ-API-193).
+ *
+ * `approved` 는 문서마다 최신 승인본(승인본이 없으면 초안)이고, `latest` 는 문서마다 번호가 가장
+ * 큰 버전이다(초안 · 검토 중 포함). 기준선(`baseline`)과 버전 번호(`v`)는 이 값과 함께 받지
+ * 않는다. 셋은 모두 "어느 버전을 읽는가" 에 대한 답이라 둘을 함께 주면 어느 쪽이 이겼는지를
+ * 매번 물어야 한다. 정본: docs/04-mvp/api.md EP-SPEC-01 · 02 · 03 · 19
+ */
+export const SPEC_VIEW_BASES = ['approved', 'latest'] as const;
+export type SpecViewBasis = (typeof SPEC_VIEW_BASES)[number];
+
+/**
  * 하트비트 주기 — 60초.
  * `nerv_task_heartbeat` 의 응답은 서버→세션 역채널을 겸한다.
  * 정본: docs/03-proposal/agent-integration.md §2.3

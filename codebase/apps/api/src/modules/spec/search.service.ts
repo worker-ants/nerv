@@ -9,7 +9,7 @@
 // 호출 시점이 "컨텍스트 수집·중복 확인"이다. 검색 품질이 곧 중복 스펙 방지(FR-01) 품질이다.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { msg, NERV_ERROR, specType, specVersionStatus } from '@nerv/schema';
 import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -17,6 +17,7 @@ import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
 import { EmbeddingClient } from './embedding.client.js';
+import { baselineIdOf, resolveBasis, versionOfSpec } from './spec-basis.js';
 
 /** RRF 상수 — 순위 역수 합의 완충항. 60 은 원논문 기본값이고 여기서 튜닝 대상이 아니다. */
 const RRF_K = 60;
@@ -68,6 +69,20 @@ export interface SearchResult extends Record<string, unknown> {
   /** 상위 결과의 1-hop 관계 확장 — 본 랭킹에 섞지 않는다(§2.2b ⑤) */
   related: Record<string, unknown>[];
   degraded: string | null;
+  /**
+   * **어느 버전의 본문에서 찾았나**(2026-09-27 · REQ-API-195). `approved` · `latest` 이거나,
+   * 기준선이면 `baseline` 과 그 이름이다. 결과만 받은 쪽은 이것 없이는 승인본을 찾았는지
+   * 초안을 찾았는지 알 수 없다.
+   */
+  basis: 'approved' | 'latest' | 'baseline';
+  baseline?: string;
+}
+
+/** 이번 검색이 문서마다 읽는 버전 — 단계마다 같은 판정을 쓴다 */
+interface Pick {
+  versionId: SQL;
+  member: SQL;
+  baselineId: string | null;
 }
 
 @Injectable()
@@ -108,17 +123,41 @@ export class SearchService {
      * 만든다(`around` 와 같은 규율).
      */
     requirementRef?: string | null;
+    /**
+     * **어느 버전의 본문에서 찾을까**(2026-09-27 · 사람 결정 · REQ-API-195). 목록 · 트리와 같은
+     * 어휘다 — `approved`(기본) · `latest`, 또는 기준선 이름. 셋은 배타다.
+     *
+     * 예전에는 한 검색 안에서 기준이 섞였다: 렉시컬은 `current_version_id`(승인본)를, 벡터는
+     * 임베딩이 있는 모든 버전(승인본 + 초안)을 봐서 같은 문서가 초안의 스니펫과 초안 상태로
+     * 나오기도 했다. 이제 세 단계가 모두 **같은 버전**을 본다.
+     */
+    basis?: string | null;
+    baseline?: string | null;
   }): Promise<SearchResult> {
+    const basis = resolveBasis({ basis: input.basis ?? null, baseline: input.baseline ?? null });
+    const baselineName = input.baseline == null || input.baseline === '' ? null : input.baseline;
+    const baselineId =
+      baselineName === null ? null : await baselineIdOf(this.db, input.projectId, baselineName);
+    const pick: Pick = { ...versionOfSpec(basis, baselineId), baselineId };
+    const echo =
+      baselineName === null ? { basis } : { basis: 'baseline' as const, baseline: baselineName };
+
     const query = input.query.trim();
     const limit = Math.min(input.limit ?? 10, 50);
-    if (query === '') return { items: [], related: [], degraded: null };
+    if (query === '') return { items: [], related: [], degraded: null, ...echo };
 
     // ① ID 직행 — 고정 ID 는 전문 검색을 거치지 않는다. 사람도 에이전트도 ID 를 칠 때는
     //    "찾아줘"가 아니라 "열어줘"라는 뜻이다.
-    const direct = await this.byStableId(input.projectId, query);
+    const direct = await this.byStableId(input.projectId, query, pick);
 
     // ② 렉시컬 — FTS(영문·ID 토큰) + trgm(한국어 조사 변형). 둘은 서로의 사각을 덮는다.
-    const lexical = await this.lexical(input.projectId, query, limit * 3, input.includeArchived);
+    const lexical = await this.lexical(
+      input.projectId,
+      query,
+      limit * 3,
+      pick,
+      input.includeArchived,
+    );
 
     // ③ 벡터 — 무응답이면 건너뛴다. 검색은 조정 경로가 아니라 fail-open 이 맞다(D-14의 정신).
     const vectors = await this.embedding.embedOrNull([query]);
@@ -126,7 +165,7 @@ export class SearchService {
     const semantic =
       vectors === null || vectors[0] === undefined
         ? []
-        : await this.vector(input.projectId, vectors[0], limit * 3, input.includeArchived);
+        : await this.vector(input.projectId, vectors[0], limit * 3, pick, input.includeArchived);
 
     // ④ RRF 병합 — 점수 정규화 없이 **순위만** 쓴다. 렉시컬 점수와 코사인 거리는 단위가 달라
     //    가중합이 성립하지 않는다. 순위 역수 합은 그 비교를 아예 피한다.
@@ -172,9 +211,10 @@ export class SearchService {
     const related = await this.expandRelations(
       input.projectId,
       items.map((i) => i.spec_id),
+      pick,
     );
 
-    return { items, related, degraded };
+    return { items, related, degraded, ...echo };
   }
 
   // ── 단계별 ────────────────────────────────────────────────────────────────
@@ -184,7 +224,7 @@ export class SearchService {
    * 메시지에서 본 키(`CLV-T-ZWHNB0`)를 그대로 치는 것이 이 경로의 가장 흔한 쓰임인데
    * 그때까지 task 는 어느 열도 보지 않았다.
    */
-  private async byStableId(projectId: string, query: string): Promise<SearchHit[]> {
+  private async byStableId(projectId: string, query: string, pick: Pick): Promise<SearchHit[]> {
     const id = query.trim().toUpperCase();
     if (!KEY_SHAPE_RE.test(id)) return [];
 
@@ -193,15 +233,15 @@ export class SearchService {
              sv.status::text AS doc_status, NULL::text AS anchor,
              left(coalesce(sv.body_md, ''), 200) AS snippet, 'spec' AS kind
         FROM spec s
-   LEFT JOIN spec_version sv ON sv.id = s.current_version_id
-       WHERE s.project_id = ${projectId} AND s.key = ${id}
+   LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
+       WHERE s.project_id = ${projectId} AND s.key = ${id}${pick.member}
        UNION ALL
       SELECT s.id, s.key, s.title, s.type::text, sv.status::text, r.ref AS anchor,
              r.statement_md AS snippet, 'requirement' AS kind
         FROM requirement r
         JOIN spec s ON s.id = r.spec_id
-   LEFT JOIN spec_version sv ON sv.id = s.current_version_id
-       WHERE r.project_id = ${projectId} AND r.ref = ${id} AND r.removed_in_version_id IS NULL
+   LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
+       WHERE r.project_id = ${projectId} AND r.ref = ${id}${this.requirementAlive(pick)}${pick.member}
        UNION ALL
       SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::text,
              left(coalesce(t.body_md, ''), 200), 'task' AS kind
@@ -215,6 +255,7 @@ export class SearchService {
     projectId: string,
     query: string,
     limit: number,
+    pick: Pick,
     includeArchived?: boolean,
   ): Promise<SearchHit[]> {
     const archived = includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
@@ -230,15 +271,15 @@ export class SearchService {
                  similarity(left(coalesce(sv.body_md, ''), 4000), ${query})
                ) AS rank
           FROM spec s
-     LEFT JOIN spec_version sv ON sv.id = s.current_version_id
-         WHERE s.project_id = ${projectId}${archived}
+     LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
+         WHERE s.project_id = ${projectId}${archived}${pick.member}
         UNION ALL
         SELECT s.id, s.key, s.title, s.type::text, sv.status::text, r.ref AS anchor,
                r.statement_md AS snippet, similarity(r.statement_md, ${query}) AS rank
           FROM requirement r
           JOIN spec s ON s.id = r.spec_id
-     LEFT JOIN spec_version sv ON sv.id = s.current_version_id
-         WHERE r.project_id = ${projectId} AND r.removed_in_version_id IS NULL${archived}
+     LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
+         WHERE r.project_id = ${projectId}${this.requirementAlive(pick)}${archived}${pick.member}
       )
       SELECT * FROM scored WHERE rank > 0.02 ORDER BY rank DESC LIMIT ${limit}
     `);
@@ -249,6 +290,7 @@ export class SearchService {
     projectId: string,
     embedding: number[],
     limit: number,
+    pick: Pick,
     includeArchived?: boolean,
   ): Promise<SearchHit[]> {
     const archived = includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
@@ -262,13 +304,32 @@ export class SearchService {
         FROM spec_chunk_embedding e
         JOIN spec_version sv ON sv.id = e.spec_version_id
         JOIN spec s ON s.id = sv.spec_id
-       WHERE s.project_id = ${projectId}${archived}
+       WHERE s.project_id = ${projectId}${archived}${pick.member}
+         -- **그 기준이 읽는 버전의 청크만**(REQ-API-195). 임베딩은 최신 승인본 · 초안 · 검토 중에만
+         -- 있다(REQ-DB-017) — 기준선이 묶은 옛 승인본은 청크가 없어 렉시컬로만 찾는다
+         AND sv.id = ${pick.versionId}
        ORDER BY s.id, e.embedding <=> ${literal}::vector
        LIMIT ${limit}
     `);
     return rows
       .map((r) => ({ ...r, matched_by: ['vector'] }))
       .sort((a, b) => Number(b.score) - Number(a.score));
+  }
+
+  /**
+   * 요구사항 행이 이 기준에서 살아 있는가.
+   *
+   * 요구사항 행은 **승인 때** 만들어진다. 그래서 승인본 · 최신 기준에서는 지금 살아 있는 행이고
+   * (초안의 EARS 문장은 아직 행이 아니다), 기준선에서는 **그 세트가 묶은 버전에 살아 있던 행**이다 —
+   * 기준선 뒤에 생긴 요구사항이 기준선 검색에 나오면 그 세트가 그것을 담았다고 읽힌다.
+   */
+  private requirementAlive(pick: Pick): SQL {
+    if (pick.baselineId === null) return sql` AND r.removed_in_version_id IS NULL`;
+    return sql` AND (SELECT iv.version_no FROM spec_version iv WHERE iv.id = r.introduced_in_version_id)
+                    <= (SELECT pv.version_no FROM spec_version pv WHERE pv.id = ${pick.versionId})
+                AND (r.removed_in_version_id IS NULL
+                     OR (SELECT rv.version_no FROM spec_version rv WHERE rv.id = r.removed_in_version_id)
+                        > (SELECT pv.version_no FROM spec_version pv WHERE pv.id = ${pick.versionId}))`;
   }
 
   /**
@@ -345,6 +406,7 @@ export class SearchService {
   private async expandRelations(
     projectId: string,
     specIds: string[],
+    pick: Pick,
   ): Promise<Record<string, unknown>[]> {
     if (specIds.length === 0) return [];
     const ids = sql.join(
@@ -356,11 +418,11 @@ export class SearchService {
              sv.status::text AS doc_status, r.kind::text AS via_kind
         FROM spec_relation r
         JOIN spec s ON s.id = CASE WHEN r.from_spec_id IN (${ids}) THEN r.to_spec_id ELSE r.from_spec_id END
-   LEFT JOIN spec_version sv ON sv.id = s.current_version_id
+   LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
        WHERE r.project_id = ${projectId}
          AND (r.from_spec_id IN (${ids}) OR r.to_spec_id IN (${ids}))
          AND s.id NOT IN (${ids})
-         AND s.archived_at IS NULL
+         AND s.archived_at IS NULL${pick.member}
        ORDER BY s.key
        LIMIT 20
     `);

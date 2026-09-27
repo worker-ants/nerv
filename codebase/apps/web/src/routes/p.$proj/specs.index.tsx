@@ -19,7 +19,7 @@ const SpecTable = lazy(async () => ({
 }));
 import { useQuery } from '@tanstack/react-query';
 import { SpecTree } from '../../components/spec-tree.js';
-import { BaselineSelect, FreezeDialog } from '../../features/spec-editor/baseline-controls.js';
+import { FreezeDialog, ViewBasisSelect } from '../../features/spec-editor/baseline-controls.js';
 
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
@@ -42,6 +42,14 @@ import {
 } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
+import {
+  NEWER_STATUS,
+  hasNewerVersion,
+  viewBasisKey,
+  viewBasisQuery,
+  viewBasisSearch,
+  type ViewBasis,
+} from '../../lib/view-basis.js';
 
 export const Route = createFileRoute('/p/$proj/specs/')({
   // 보관 보기는 **뷰 상태**라 주소에 남는다(§2.4 (3)) — 링크로 건네면 상대도 같은 목록을 본다
@@ -50,6 +58,7 @@ export const Route = createFileRoute('/p/$proj/specs/')({
   ): {
     archived?: true;
     baseline?: string;
+    basis?: 'latest';
     focus?: string;
     layout?: number;
     q?: string;
@@ -68,6 +77,12 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     // 고른 기준선도 **뷰 상태**다 — 링크로 건네면 상대도 같은 세트를 본다(REQ-WEB-135)
     ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
       ? { baseline: search['baseline'] }
+      : {}),
+    // **최신으로 읽기**도 뷰 상태다(2026-09-27 · REQ-WEB-248). 기준선과 배타라 기준선이 있으면 버린다 —
+    // 기본(승인본)은 적지 않는다(REQ-WEB-163)
+    ...(search['basis'] === 'latest' &&
+    !(typeof search['baseline'] === 'string' && search['baseline'] !== '')
+      ? { basis: 'latest' as const }
       : {}),
     // 상태 필터도 마찬가지다(§2.4 (3) · REQ-WEB-138) — "초안만 모아 둔 목록" 을 링크로 건넨다.
     // 쉼표 목록인 것은 서버 질의(EP-SPEC-01 `?status=`)와 같은 모양이라 옮겨 적기 쉬워서다.
@@ -109,6 +124,9 @@ interface SearchResult {
   items: Record<string, unknown>[];
   related: Record<string, unknown>[];
   degraded: string | null;
+  /** 어느 버전의 본문에서 찾았나(REQ-API-195) */
+  basis?: 'approved' | 'latest' | 'baseline';
+  baseline?: string;
 }
 
 function SpecListScreen(): React.JSX.Element {
@@ -118,6 +136,7 @@ function SpecListScreen(): React.JSX.Element {
   const {
     archived = false,
     baseline,
+    basis,
     focus,
     layout,
     q,
@@ -129,6 +148,9 @@ function SpecListScreen(): React.JSX.Element {
   const view: SpecView = rawView === 'table' || rawView === 'graph' ? rawView : 'tree';
   const statuses = status === undefined ? [] : status.split(',').filter((value) => value !== '');
   const types = type === undefined ? [] : type.split(',').filter((value) => value !== '');
+  /** 버전 기준 — 목록 · 표 · 그래프 · 검색 · 상세가 모두 이것으로 읽는다(REQ-WEB-248) */
+  const viewBasis: ViewBasis =
+    baseline !== undefined ? { baseline } : basis === 'latest' ? { latest: true } : {};
   /**
    * 뷰 상태는 **서로를 지우지 않는다** — 하나를 바꿀 때 나머지를 그대로 싣는다.
    *
@@ -138,6 +160,7 @@ function SpecListScreen(): React.JSX.Element {
   const searchWith = (patch: {
     archived?: boolean;
     baseline?: string | null;
+    basis?: 'latest' | null;
     focus?: string | null;
     layout?: number | null;
     q?: string | null;
@@ -147,6 +170,7 @@ function SpecListScreen(): React.JSX.Element {
   }): {
     archived?: true;
     baseline?: string;
+    basis?: 'latest';
     focus?: string;
     layout?: number;
     q?: string;
@@ -157,6 +181,13 @@ function SpecListScreen(): React.JSX.Element {
     const pick = (next: string | null | undefined, now: string | undefined): string | undefined =>
       next === undefined ? now : (next ?? undefined);
     const nextBaseline = pick(patch.baseline, baseline);
+    // 기준선과 최신은 배타다 — 기준선이 남으면 최신은 버린다
+    const nextBasis =
+      nextBaseline !== undefined && nextBaseline !== ''
+        ? undefined
+        : patch.basis === undefined
+          ? basis
+          : (patch.basis ?? undefined);
     const nextQuery = pick(patch.q, q);
     const nextStatus = pick(patch.status, status);
     const nextType = pick(patch.type, type);
@@ -172,6 +203,7 @@ function SpecListScreen(): React.JSX.Element {
     return {
       ...((patch.archived ?? archived) ? { archived: true as const } : {}),
       ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
+      ...(nextBasis === undefined ? {} : { basis: nextBasis }),
       ...(nextQuery === undefined || nextQuery === '' ? {} : { q: nextQuery }),
       ...(nextStatus === undefined || nextStatus === '' ? {} : { status: nextStatus }),
       ...(nextType === undefined || nextType === '' ? {} : { type: nextType }),
@@ -188,8 +220,8 @@ function SpecListScreen(): React.JSX.Element {
       search: searchWith({ view: next }),
       replace: true,
     });
-  /** 상세로 갈 때도 **고른 기준선을 물고 간다**(REQ-WEB-135 — "상세까지 물고 간다") */
-  const detailSearch = baseline === undefined ? {} : { baseline };
+  /** 상세로 갈 때도 **고른 기준을 넘긴다**(REQ-WEB-135 · 248) */
+  const detailSearch = viewBasisSearch(viewBasis);
   const project = useProject(proj);
   // 입력 중인 글자는 화면의 것이고, **보낸 검색어는 주소의 것**이다. 링크가 가리키는 것은
   // 누가 무엇을 타이핑하던 중인지가 아니라 어떤 결과를 보라는 것이다.
@@ -203,16 +235,18 @@ function SpecListScreen(): React.JSX.Element {
   const [freezing, setFreezing] = useState(false);
 
   const search = useQuery({
-    queryKey: ['project', proj, 'search', submitted, archived],
+    // **검색도 고른 기준의 본문에서 찾는다**(2026-09-27 사람 결정 · REQ-WEB-250 · REQ-API-195)
+    queryKey: ['project', proj, 'search', submitted, archived, viewBasisKey(viewBasis)],
     queryFn: () =>
       apiFetch<SearchResult>(
-        `/projects/${proj}/specs/search?q=${encodeURIComponent(submitted)}&include_archived=${String(archived)}`,
+        `/projects/${proj}/specs/search?q=${encodeURIComponent(submitted)}&include_archived=${String(archived)}` +
+          viewBasisQuery(viewBasis),
       ),
     enabled: submitted.trim() !== '',
   });
 
   const projectId = project.data?.['id'];
-  const graph = useSpecGraph(proj, asProjectId(projectId), archived, baseline);
+  const graph = useSpecGraph(proj, asProjectId(projectId), archived, viewBasis);
   const me = useMe();
   const { orgSlug } = useScope(proj);
   const canFreeze = rolesInProject(me.data, orgSlug, proj).some(
@@ -223,6 +257,8 @@ function SpecListScreen(): React.JSX.Element {
     value,
     (graph.data?.nodes ?? []).filter((n) => n.doc_status === value).length,
   ]).filter(([, count]) => count > 0);
+  /** 승인본 위에 새 버전이 진행 중인 문서 수(REQ-WEB-249) — 기준과 상관없이 같은 수다 */
+  const newerCount = (graph.data?.nodes ?? []).filter(hasNewerVersion).length;
 
   // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
   // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
@@ -271,6 +307,8 @@ function SpecListScreen(): React.JSX.Element {
             <option value="draft,in_review">
               {`${t('status.spec.draft')} + ${t('status.spec.in_review')}`}
             </option>
+            {/* 줄의 상태가 아니라 줄 위의 버전이다 — 승인본 위의 초안 · 검토 중(REQ-WEB-249) */}
+            <option value={NEWER_STATUS}>{t('specs.status_newer')}</option>
             {SPEC_STATUSES.map((value) => (
               <option key={value} value={value}>
                 {t(statusLabelKey('spec', value))}
@@ -351,16 +389,21 @@ function SpecListScreen(): React.JSX.Element {
                 2026-09-03 에 이 자리에 문을 둔 이유(REQ-WEB-043 — "읽을 수는 있는데 시작할 수
                 없는 화면")는 **그때 웹이 유일한 손이었기 때문**이고, 지금은 터미널 경로가
                 그 손이다(§2.4 산문). */}
-            {/* 기준선 — 고르면 목록·상세가 그 세트의 버전을 읽는다(REQ-WEB-135).
-             **이 자리가 없어서 실사용 기준선이 0개였다**(실측 2026-09-04) */}
-            <BaselineSelect
+            {/* 버전 기준 — 승인본 · 최신 · 기준선(REQ-WEB-135 · 248). 목록 · 상세 · 검색이 그 버전을 읽는다.
+             **기준선 자리가 없어서 실사용 기준선이 0개였다**(실측 2026-09-04) */}
+            <ViewBasisSelect
               projectSlug={proj}
-              value={baseline ?? null}
-              onChange={(name) =>
+              value={viewBasis}
+              onChange={(next) =>
                 void navigate({
                   to: '/p/$proj/specs',
                   params: { proj },
-                  search: searchWith({ baseline: name }),
+                  search: searchWith({
+                    baseline: next.baseline ?? null,
+                    basis: next.latest === true ? 'latest' : null,
+                    // 기준선으로 가면 상태 필터는 뜻이 없다(세트는 전부 승인본이다)
+                    ...(next.baseline === undefined ? {} : { status: null, type: null }),
+                  }),
                 })
               }
             />
@@ -426,41 +469,70 @@ function SpecListScreen(): React.JSX.Element {
       {/* **지금 무엇이 몇 건인가**(2026-09-24 · SPEC-13 · REQ-WEB-216 · REQ-WEB-056). "초안이 몇 건, 검토 중이
           몇 건인가" 는 트리를 훑어야 답이 나왔다. 누르면 그 상태로 거른 트리다(상태 필터는 트리의 것이다 —
           REQ-WEB-140). 기준선으로 보는 동안은 전부 승인본이라 말할 것이 없다 */}
-      {submitted.trim() === '' && baseline === undefined && statusCounts.length > 0 && (
-        <div
-          data-testid="spec-status-summary"
-          role="group"
-          aria-label={t('specs.status_summary')}
-          className="mb-3 flex flex-wrap items-center gap-1.5 text-xs"
-        >
-          {statusCounts.map(([value, count]) => {
-            const on = status === value;
-            return (
+      {submitted.trim() === '' &&
+        baseline === undefined &&
+        (statusCounts.length > 0 || newerCount > 0) && (
+          <div
+            data-testid="spec-status-summary"
+            role="group"
+            aria-label={t('specs.status_summary')}
+            className="mb-3 flex flex-wrap items-center gap-1.5 text-xs"
+          >
+            {statusCounts.map(([value, count]) => {
+              const on = status === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  data-testid={`spec-status-${value}`}
+                  aria-pressed={on}
+                  onClick={() =>
+                    void navigate({
+                      to: '/p/$proj/specs',
+                      params: { proj },
+                      search: searchWith({ status: on ? null : value, view: 'tree' }),
+                    })
+                  }
+                  className={cn(
+                    'rounded-nerv-sm border px-2 py-0.5 tabular-nums',
+                    on
+                      ? 'border-border-strong bg-bg-active font-medium text-text'
+                      : 'border-border text-text-mute hover:text-text',
+                  )}
+                >
+                  {t(statusLabelKey('spec', value))} {count}
+                </button>
+              );
+            })}
+            {/* **새 버전 진행 중**(2026-09-27 사람 결정 V3 · REQ-WEB-249). 승인본 위에 초안 · 검토 중이 있는
+              문서다 — 누르면 최신으로 읽고 그 문서들만 남긴다. 상태별 수는 줄의 상태를 세므로 여기 들지 않았다 */}
+            {newerCount > 0 && (
               <button
-                key={value}
                 type="button"
-                data-testid={`spec-status-${value}`}
-                aria-pressed={on}
+                data-testid="spec-status-newer"
+                aria-pressed={status === NEWER_STATUS}
                 onClick={() =>
                   void navigate({
                     to: '/p/$proj/specs',
                     params: { proj },
-                    search: searchWith({ status: on ? null : value, view: 'tree' }),
+                    search:
+                      status === NEWER_STATUS
+                        ? searchWith({ status: null })
+                        : searchWith({ basis: 'latest', status: NEWER_STATUS, view: 'tree' }),
                   })
                 }
                 className={cn(
-                  'rounded-nerv-sm border px-2 py-0.5 tabular-nums',
-                  on
-                    ? 'border-border-strong bg-bg-active font-medium text-text'
-                    : 'border-border text-text-mute hover:text-text',
+                  'rounded-nerv-sm border border-dashed px-2 py-0.5 tabular-nums',
+                  status === NEWER_STATUS
+                    ? 'border-status-waiting bg-status-waiting-soft font-medium text-status-waiting'
+                    : 'border-status-waiting text-status-waiting hover:bg-status-waiting-soft',
                 )}
               >
-                {t(statusLabelKey('spec', value))} {count}
+                {t('specs.status_newer')} {newerCount}
               </button>
-            );
-          })}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
       {search.data?.degraded !== null && search.data?.degraded !== undefined && (
         // degrade 를 숨기지 않는다 — 결과가 왜 얕은지 모르면 사람은 검색을 탓한다(REQ-API-026)
@@ -485,7 +557,7 @@ function SpecListScreen(): React.JSX.Element {
                 statuses={statuses}
                 types={types}
                 controls={treeControls}
-                baseline={baseline}
+                view={viewBasis}
               />
             </Card>
           ) : graph.data === undefined ? (
@@ -496,7 +568,7 @@ function SpecListScreen(): React.JSX.Element {
                 nodes={graph.data.nodes}
                 edges={graph.data.edges}
                 projectSlug={proj}
-                baseline={baseline}
+                view={viewBasis}
               />
             </Suspense>
           ) : graph.data.edges.length === 0 ? (
@@ -546,6 +618,17 @@ function SpecListScreen(): React.JSX.Element {
             <SectionTitle>
               {t('specs.results', { count: search.data?.items.length ?? 0 })}
             </SectionTitle>
+            {/* **어느 버전의 본문에서 찾았는지 적는다**(REQ-WEB-250). 결과만 보고는 승인본에서 찾았는지
+                초안까지 찾았는지 알 수 없다. 바꾸려면 위의 [버전 기준]을 고른다 */}
+            {search.data?.basis !== undefined && (
+              <p data-testid="search-basis" className="mb-2 text-2xs text-text-faint">
+                {search.data.basis === 'baseline'
+                  ? t('specs.search_basis_baseline', { name: search.data.baseline ?? '' })
+                  : search.data.basis === 'latest'
+                    ? t('specs.search_basis_latest')
+                    : t('specs.search_basis_approved')}
+              </p>
+            )}
             {search.isFetching && <Skeleton rows={3} />}
             <ul className="flex flex-col gap-2">
               {(search.data?.items ?? []).map((hit) => (

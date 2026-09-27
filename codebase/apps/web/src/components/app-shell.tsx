@@ -45,6 +45,7 @@ import { NAV_ACTIVE, NAV_ITEM, RAIL_LABEL } from './nav-styles.js';
 import { CountBadge, MenuItem, Popover } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
+import { readViewBasis, viewBasisFromKey, viewBasisKey } from '../lib/view-basis.js';
 
 /**
  * 사이드바가 서는 폭 — Tailwind `md`(48rem)와 **같은 값 하나**다. 서랍의 `md:` 클래스와
@@ -217,14 +218,13 @@ export function AppShell({
 
   // 도움말의 "이 화면" 항목 — 짚어 줄 장이 없으면 그 항목을 아예 안 보인다(manual.ts)
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  // 지금 보는 **기준선** — 사이드바 트리도 같은 세트를 읽고 그것을 물고 상세로 간다(REQ-WEB-135 · SPEC-06).
-  // 넘기지 않으면 기준선으로 읽던 사람이 사이드바에서 옆 문서를 누르는 순간 최신 승인본으로 떨어졌다
-  const viewBaseline = useRouterState({
-    select: (s) => {
-      const value = (s.location.search as Record<string, unknown>)['baseline'];
-      return typeof value === 'string' && value !== '' ? value : undefined;
-    },
+  // 지금 보는 **버전 기준** — 둘째 열 트리도 같은 기준으로 읽고 그것을 상세까지 넘긴다(REQ-WEB-135 · 248 · SPEC-06).
+  // 넘기지 않으면 기준선으로 읽던 사람이 둘째 열에서 옆 문서를 누르는 순간 최신 승인본으로 떨어졌다.
+  // 값은 문자열 하나로 고른다 — 객체를 고르면 렌더마다 새 값이라 트리가 다시 그려진다
+  const viewKey = useRouterState({
+    select: (s) => viewBasisKey(readViewBasis(s.location.search as Record<string, unknown>)),
   });
+  const view = useMemo(() => viewBasisFromKey(viewKey), [viewKey]);
   const contextChapter = chapterForRoute(pathname);
 
   // 탭 제목이 범위를 말한다(REQ-WEB-194) — 탭을 여럿 열어 두면 어느 것이 어디인지 제목뿐이다.
@@ -1133,7 +1133,7 @@ export function AppShell({
             projectSlug={sidebarProject}
             projectId={asProjectId(shellProject.data?.['id'])}
             activeKey={activeSpecKey}
-            baseline={viewBaseline}
+            view={view}
           />
         )}
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">

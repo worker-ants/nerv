@@ -17,7 +17,8 @@ import {
 } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { BaselineSelect } from '../../features/spec-editor/baseline-controls.js';
+import { ViewBasisSelect } from '../../features/spec-editor/baseline-controls.js';
+import { isApprovedBasis, viewBasisSearch, type ViewBasis } from '../../lib/view-basis.js';
 import { MetaDialog } from '../../features/spec-editor/meta-dialog.js';
 import { SpecEditor } from '../../features/spec-editor/editor.js';
 import {
@@ -85,7 +86,14 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
    */
   validateSearch: (
     search: Record<string, unknown>,
-  ): { v?: number; diff?: string; baseline?: string; rail?: RailTab; body?: BodyTab } => ({
+  ): {
+    v?: number;
+    diff?: string;
+    baseline?: string;
+    basis?: 'latest';
+    rail?: RailTab;
+    body?: BodyTab;
+  } => ({
     ...(typeof search['v'] === 'string' || typeof search['v'] === 'number'
       ? { v: Number(search['v']) }
       : {}),
@@ -103,9 +111,20 @@ export const Route = createFileRoute('/p/$proj/specs/$spec')({
     ...(typeof search['baseline'] === 'string' && search['baseline'] !== ''
       ? { baseline: search['baseline'] }
       : {}),
+    // **최신으로 읽기**도 목록에서 물고 온다(2026-09-27 · REQ-WEB-248). 기준선과 배타다
+    ...(search['basis'] === 'latest' &&
+    !(typeof search['baseline'] === 'string' && search['baseline'] !== '')
+      ? { basis: 'latest' as const }
+      : {}),
   }),
   component: SpecDetailGate,
 });
+
+/** 주소의 두 인자(`baseline` · `basis`)를 버전 기준 하나로 */
+function viewBasisOf(search: { baseline?: string; basis?: 'latest' }): ViewBasis {
+  if (search.baseline !== undefined) return { baseline: search.baseline };
+  return search.basis === 'latest' ? { latest: true } : {};
+}
 
 /** `v2..v3` — 양쪽 다 있어야 한 쌍이다 */
 const DIFF_RE = /^v(\d+)\.\.v(\d+)$/;
@@ -157,7 +176,7 @@ const VERSION_CAP = 8;
 function SpecDetailGate(): React.JSX.Element {
   const t = useT();
   const { proj, spec } = Route.useParams();
-  const detail = useSpec(proj, spec, Route.useSearch().baseline);
+  const detail = useSpec(proj, spec, viewBasisOf(Route.useSearch()));
   // 탭 제목과 헤더 끝이 **이 문서**를 말한다(REQ-WEB-228) — 받아 오는 동안·없는 문서여도 키는 안다
   useTitleDetail({
     key: spec,
@@ -198,7 +217,7 @@ function SpecDetail(): React.JSX.Element {
   const onApiError = useApiError();
   const me = useMe();
   const { orgSlug, project: scopeProject } = useScope(proj);
-  const detail = useSpec(proj, spec, Route.useSearch().baseline);
+  const detail = useSpec(proj, spec, viewBasisOf(Route.useSearch()));
   // **연 문서를 최근에 남긴다**(REQ-WEB-223) — ⌘K 에서 고른 것만 쌓이던 "최근 방문" 이 진짜 방문이 된다
   useRememberVisit(
     detail.data === undefined
@@ -223,6 +242,9 @@ function SpecDetail(): React.JSX.Element {
   const attachments = useSpecAttachments(proj, spec);
 
   const search = Route.useSearch();
+  /** 버전 기준 — 옆 문서 · 조상 · 관계로 옮겨도 이 기준을 넘긴다(REQ-WEB-248) */
+  const viewBasis = viewBasisOf(search);
+  const basisSearch = viewBasisSearch(viewBasis);
   const navigate = useNavigate();
   const compare = parseDiff(search.diff);
   // `?v=` 가 **기본 버전**을 가리키면 그것은 "다른 버전 보기" 가 아니라 기본 화면이다 — 에이전트가
@@ -485,7 +507,7 @@ function SpecDetail(): React.JSX.Element {
    * 좁은 화면에서는 그 열이 띠 뒤에 접혀 있어 위치를 알 길이 없었다. 트리 열과 **같은 캐시**를 읽는다 — 새 요청이
    * 없다(프로젝트 축 · 같은 기준선).
    */
-  const specTree = useSpecTree(proj, projectUuid, false, search.baseline);
+  const specTree = useSpecTree(proj, projectUuid, false, viewBasis);
   const treeNodes = rows(specTree.data) as unknown as TreeNode[];
   const ancestors = ancestorsOf(treeNodes, spec)
     .map((id) => treeNodes.find((node) => node.id === id))
@@ -591,6 +613,44 @@ function SpecDetail(): React.JSX.Element {
     (newest['status'] === 'draft' || newest['status'] === 'in_review')
       ? newest
       : null;
+  /**
+   * **이 문서의 최신 승인본 번호**(REQ-API-194) — 어느 기준으로 읽었든 서버가 함께 준다. 아래 두 안내가
+   * 이것으로 판정한다(2026-09-27 · REQ-WEB-251). 승인된 적 없는 문서는 null 이다.
+   */
+  const approvedNo =
+    typeof detail.data?.['approved_version_no'] === 'number'
+      ? Number(detail.data['approved_version_no'])
+      : null;
+  // 최신으로 읽는데 승인본보다 새 버전을 보고 있다 — 지금 안내의 반대 방향이다
+  const aboveApproved =
+    viewBasis.latest === true &&
+    viewing === null &&
+    approvedNo !== null &&
+    Number.isFinite(versionNo) &&
+    versionNo > approvedNo
+      ? approvedNo
+      : null;
+  // 기준선으로 읽는데 그 세트가 묶은 버전 뒤에 승인된 버전이 있다(사람 결정 V4 — 상세에만 알린다)
+  const approvedAfterBaseline =
+    viewBasis.baseline !== undefined &&
+    detail.data?.['baseline_pinned'] === true &&
+    viewing === null &&
+    approvedNo !== null &&
+    Number.isFinite(versionNo) &&
+    approvedNo > versionNo
+      ? approvedNo
+      : null;
+  /** 안내의 두 단추 — 그 버전을 열거나, 두 버전의 차이를 연다 */
+  const openVersion = (n: number): void =>
+    void navigate({ to: '.', search: ({ diff: _diff, ...rest }) => ({ ...rest, v: n }) });
+  const openDiff = (from: number, to: number): void =>
+    void navigate({
+      to: '.',
+      search: ({ v: _v, ...rest }) => ({
+        ...rest,
+        diff: `v${String(Math.min(from, to))}..v${String(Math.max(from, to))}`,
+      }),
+    });
 
   return (
     // 3열 중 **좌측 트리는 셸이 세우는 둘째 열이다**(§1.3 · REQ-WEB-226 — `SpecTreeColumn`). 문서를 옮기는
@@ -650,7 +710,7 @@ function SpecDetail(): React.JSX.Element {
                 <Link
                   to="/p/$proj/specs/$spec"
                   params={{ proj, spec: node.key }}
-                  search={search.baseline === undefined ? {} : { baseline: search.baseline }}
+                  search={basisSearch}
                   className="rounded-nerv-sm hover:text-text hover:underline"
                 >
                   {node.title}
@@ -696,17 +756,19 @@ function SpecDetail(): React.JSX.Element {
               }
             />
           )}
-          {/* **여기서 바꾸거나 풀 수 있어야 한다**(2026-09-24 · SPEC-06). 배지는 말할 뿐이라, 최신으로
-              돌아가려면 목록으로 나가 다시 골라야 했다. 기준선으로 읽는 동안에만 선다 */}
-          {search.baseline !== undefined && (
-            <BaselineSelect
+          {/* **여기서 바꾸거나 풀 수 있어야 한다**(2026-09-24 · SPEC-06 · REQ-WEB-248). 배지만 있으면
+              기본으로 돌아가려면 목록으로 나가 다시 골라야 했다. 기준선 · 최신으로 읽는 동안에만 보인다 */}
+          {!isApprovedBasis(viewBasis) && (
+            <ViewBasisSelect
               projectSlug={proj}
-              value={search.baseline}
-              onChange={(name) =>
+              value={viewBasis}
+              onChange={(next) =>
                 void navigate({
                   to: '.',
-                  search: ({ baseline: _baseline, ...rest }) =>
-                    name === null ? rest : { ...rest, baseline: name },
+                  search: ({ baseline: _baseline, basis: _basis, v: _v, ...rest }) => ({
+                    ...rest,
+                    ...viewBasisSearch(next),
+                  }),
                   replace: true,
                 })
               }
@@ -866,6 +928,68 @@ function SpecDetail(): React.JSX.Element {
                 {t('spec.newer_diff', { from: versionNo, to: Number(newerVersion['version_no']) })}
               </Button>
             )}
+          </div>
+        )}
+
+        {/* **최신으로 읽는 동안 승인본은 따로 있다**(2026-09-27 · REQ-WEB-251). 초안을 기준으로 착각하지
+            않게 승인본의 번호와 그리로 가는 단추를 함께 보여 준다 */}
+        {aboveApproved !== null && (
+          <div
+            data-testid="spec-latest-basis"
+            className="mb-3 flex flex-wrap items-center gap-2 rounded-nerv border border-status-waiting/40 bg-status-waiting-soft px-3 py-1.5 text-sm text-status-waiting"
+          >
+            <span className="min-w-0 flex-1">{t('spec.latest_basis', { n: aboveApproved })}</span>
+            <Button
+              size="xs"
+              variant="subtle"
+              data-testid="spec-latest-open-approved"
+              onClick={() => openVersion(aboveApproved)}
+              className="bg-bg-elev text-text"
+            >
+              {t('spec.newer_open', { n: aboveApproved })}
+            </Button>
+            <Button
+              size="xs"
+              variant="subtle"
+              data-testid="spec-latest-diff"
+              onClick={() => openDiff(aboveApproved, versionNo)}
+              className="bg-bg-elev text-text"
+            >
+              {t('spec.newer_diff', { from: aboveApproved, to: versionNo })}
+            </Button>
+          </div>
+        )}
+        {/* **기준선 뒤에 승인된 버전이 있다**(2026-09-27 사람 결정 V4 · REQ-WEB-251). 기준선으로 읽는 사람이
+            그 뒤의 승인본을 보려면 기준을 풀고 다시 찾아야 했다. 목록은 세트를 그대로 보여 주고, 여기서만 알린다 */}
+        {approvedAfterBaseline !== null && (
+          <div
+            data-testid="spec-baseline-newer"
+            className="mb-3 flex flex-wrap items-center gap-2 rounded-nerv border border-status-action/30 bg-status-action-soft px-3 py-1.5 text-sm text-status-action"
+          >
+            <span className="min-w-0 flex-1">
+              {t('spec.baseline_newer', {
+                name: viewBasis.baseline ?? '',
+                n: approvedAfterBaseline,
+              })}
+            </span>
+            <Button
+              size="xs"
+              variant="subtle"
+              data-testid="spec-baseline-newer-open"
+              onClick={() => openVersion(approvedAfterBaseline)}
+              className="bg-bg-elev text-text"
+            >
+              {t('spec.newer_open', { n: approvedAfterBaseline })}
+            </Button>
+            <Button
+              size="xs"
+              variant="subtle"
+              data-testid="spec-baseline-newer-diff"
+              onClick={() => openDiff(versionNo, approvedAfterBaseline)}
+              className="bg-bg-elev text-text"
+            >
+              {t('spec.newer_diff', { from: versionNo, to: approvedAfterBaseline })}
+            </Button>
           </div>
         )}
 
@@ -1241,7 +1365,7 @@ function SpecDetail(): React.JSX.Element {
                   search={{
                     view: 'graph',
                     focus: spec,
-                    ...(search.baseline === undefined ? {} : { baseline: search.baseline }),
+                    ...basisSearch,
                   }}
                   data-testid="rail-graph-link"
                   className="ml-auto shrink-0 text-2xs text-link hover:underline"
@@ -1279,7 +1403,7 @@ function SpecDetail(): React.JSX.Element {
                       key={relationKey(r)}
                       relation={r}
                       proj={proj}
-                      baseline={search.baseline}
+                      view={viewBasis}
                       t={t}
                     />
                   ))}
@@ -1299,7 +1423,7 @@ function SpecDetail(): React.JSX.Element {
                     key={relationKey(r)}
                     relation={r}
                     proj={proj}
-                    baseline={search.baseline}
+                    view={viewBasis}
                     t={t}
                   />
                 ))}
@@ -1516,13 +1640,13 @@ function relationKey(r: Record<string, unknown>): string {
 function RelationRow({
   relation,
   proj,
-  baseline,
+  view,
   t,
 }: {
   relation: Record<string, unknown>;
   proj: string;
-  /** 보던 기준선 — 이웃 문서도 같은 세트로 읽는다(REQ-WEB-135 · SPEC-06) */
-  baseline: string | undefined;
+  /** 보던 버전 기준 — 이웃 문서도 같은 기준으로 읽는다(REQ-WEB-135 · 248 · SPEC-06) */
+  view: ViewBasis;
   t: ReturnType<typeof useT>;
 }): React.JSX.Element {
   const incoming = relation['direction'] === 'in';
@@ -1530,7 +1654,7 @@ function RelationRow({
     <Link
       to="/p/$proj/specs/$spec"
       params={{ proj, spec: String(relation['key']) }}
-      search={baseline === undefined ? {} : { baseline }}
+      search={viewBasisSearch(view)}
       className="flex items-start gap-2 rounded-nerv px-2 py-2 transition-colors hover:bg-bg-hover"
     >
       {/* 방향 표식(시안): 들어오는 것은 조용히, 나가는 것은 물들여서 */}

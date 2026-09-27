@@ -19,7 +19,7 @@ An `area` can serve only as a group, with no body of its own. For every other ty
 
 **When you open a document, a spec tree column appears next to the sidebar.** It shows **every document, expanded**. If a list showed only some documents, you could not tell a missing document from a collapsed one. The `141 / 141` at the top of the tree means **visible / total**. When you collapse a branch, the first number drops, so you know that some documents are hidden.
 
-**The top of the spec list shows how many documents are in each status** (draft · in review · approved …). Click a status to open the tree filtered to it, and click it again to clear the filter. Each row in the full tree ends with **the current version · last updated · 💬 open comments**, so you can pick the documents that need work from the rows alone. Only planners and admins can use **[Create baseline]**. For other roles, the button is disabled and the reason is shown.
+**The top of the spec list shows how many documents are in each status** (draft · in review · approved …). Click a status to open the tree filtered to it, and click it again to clear the filter. Each row in the full tree ends with **the current version · last updated · 💬 open comments**, so you can pick the documents that need work from the rows alone. When a document has a newer version (a draft or a version in review) on top of its approved one, its row ends with a marker such as **v4 Draft**. Click it to open that version. The number of such documents appears at the top as **New version in progress N**, and clicking it shows only those documents. Only planners and admins can use **[Create baseline]**. For other roles, the button is disabled and the reason is shown.
 
 The **chevron** in front of a branch collapses or expands that branch. Branches above the document you are viewing can be collapsed too. When one of them is collapsed, a **blue dot** appears before its title to show that your document is inside it. When you move to another document, the path to it expands again.
 
@@ -37,7 +37,7 @@ To see all documents, go to **Specs** in the left menu. That screen is the **com
 
 Both the tree tab and the table tab show `Showing N of M`. When the two numbers differ, the difference is the number of documents that are collapsed or filtered out by **Filter by title or key**. This screen has no separate tree column, because its tree is the full-screen version of that column.
 
-The **Status** selector above the list shows only the documents in a given status, such as `Draft`, `In review`, or `Draft + In review`. What remains is **the documents in that status and their ancestors**. The ancestors don't match the filter. They remain **to show where each document belongs**, because without its parent you cannot tell where a document fits. A branch with no matching documents drops out entirely. The chosen status **stays in the URL, so a link shows someone else the same list.** The `of M` is the project's total document count and is not affected by the filter.
+The **Status** selector above the list shows only the documents in a given status, such as `Draft`, `In review`, or `Draft + In review`. The status is that of the version the **Version basis** selector reads. With the default (Approved), `Draft` finds only documents that were never approved. To also find drafts on top of an approved version, switch **Version basis** to **Latest** or choose `New version in progress`. What remains is **the documents in that status and their ancestors**. The ancestors don't match the filter. They remain **to show where each document belongs**, because without its parent you cannot tell where a document fits. A branch with no matching documents drops out entirely. The chosen status **stays in the URL, so a link shows someone else the same list.** The `of M` is the project's total document count and is not affected by the filter.
 
 The **Type** selector next to it works the same way. Choose `Skeleton (vision + area)` to keep only the documents that **define the structure**, so you can see the shape of the tree at a glance. A project with 141 documents has a skeleton of 17. This helps when you decide where a new document belongs. If you set both selectors, only documents that match **both** remain.
 
@@ -73,15 +73,32 @@ stateDiagram-v2
 
 The diagram shows the flow of **a single version**. An approved version is never edited. Instead, you create a new version (a draft) and send it for review. When that version is approved, the previous one becomes **superseded**. Low-tier documents (T0·T1) are approved as soon as you request review, with no approval step (see "Checks and submission" below).
 
-**There are three ways to see a draft.**
+**There are four ways to see a draft.**
 
-1. Pick `Draft` in the **Status** selector above the list. The choice stays in the URL, so you can share the link.
-2. **A document that has never been approved** opens on its draft.
-3. A document with a new draft on top of an approved version opens on the approved version. In that case, pick the draft in the **Versions** tab of the rail. That list shows every version, whatever its status. Picking one changes the URL to `?v=4`, which you can share as is.
+1. Switch **Version basis** above the list to **Latest (incl. drafts)**. Each document then shows its newest version, so drafts and versions in review on top of an approved version appear in the list. Choose `Draft` in the status selector to keep only drafts. See "Version basis" below for details.
+2. Even with the default (Approved), a row whose document has a newer version on top of the approved one ends with a marker such as **v4 Draft**. Click it to open that version.
+3. **A document that has never been approved** shows its draft even with the default.
+4. Once a document is open, you can pick any version in the **Versions** tab of the rail. That list shows every version, whatever its status. Picking one changes the URL to `?v=4`, which you can share as is.
 
 The badge at the top shows the status of the version you are viewing. If you are viewing a `superseded` version, a notice about that appears first, because reading an outdated document as if it were current is the most common mistake. If you open another version with `?v=`, the badge, version, pre-submit check, [Request review] and comments **all reflect that version**. If you are viewing the approved version and a newer draft exists, a banner above the body shows that there is a newer draft, with **[Open vN]** and **[vM→vN changes]** buttons. Links from an agent, approval cards in the Inbox, and a task's source-spec link open **that specific version**.
 
 **The row under the title shows your next step.** A draft shows **[Request review]**. A document in review shows **[Open in the Inbox]**, because the decision is made on that card. An approved version shows **[Create a task]**, which opens a form for creating a task from that version (this also works for documents without requirements). The chips next to it show the **open comment count** and the **requirement count**. Clicking a chip opens that tab in the right rail. **[Hand off to an agent]** takes you to the [Continue in a terminal] card at the bottom of the rail.
+
+## Version basis — approved, latest or a baseline
+
+The **Version basis** selector above the list sets which version of each document you read. The list, tree, table, relations graph, document pages and search all follow it.
+
+| Version basis             | Version read for each document                                            |
+| ------------------------- | ------------------------------------------------------------------------- |
+| **Approved** (default)    | The latest approved version, or the draft if it was never approved        |
+| **Latest (incl. drafts)** | The highest-numbered version, including drafts and versions in review     |
+| A baseline name           | Only the documents in that baseline, at the captured versions (see below) |
+
+- The choice stays in the URL (`?basis=latest`, `?baseline=R1`), so anyone you send the link to reads the same versions. The default (Approved) adds nothing to the URL.
+- The choice is kept when you move to another document from the tree, the table, the relations graph, a relation row in the rail or the tree column next to a document. A version you pick in the rail's Versions tab (`?v=3`) applies only to that document.
+- While you read Latest or a baseline, the Version basis selector also appears at the top of the document. Pick **Approved** there to go back to the default.
+- When you read Latest and the version you see is newer than the approved one, a notice above the body says **"The approved version of this document is v3"**, with **[Open v3]** and **[v3→v4 changes]** buttons. The status badge also shows that version's status (Draft, In review), so you don't mistake a draft for the settled version.
+- **Search follows the same choice.** With Approved it searches approved text, with Latest it also searches drafts and versions in review, and with a baseline it searches the versions in that baseline. The results say which versions were searched. Requirements are created when a document is approved, so requirements that exist only in a draft don't appear in the results.
 
 ## Baselines — reading the set as it was
 
@@ -91,11 +108,12 @@ A **baseline** gives that set a name and freezes it.
 
 - Create one with **[Create baseline]** above the list (planners and admins). It captures the latest approved version of every spec at that moment.
 - **You cannot change a baseline after creating it.** To change the set, create a new baseline. That way, a given baseline gives the same result whenever you look at it.
-- Pick a baseline in the **baseline selector**, and **the list switches to that set**: only the documents in it, at the versions it captured. Documents created after the baseline do not appear (if they did, you might think they were part of the set). The choice stays in the URL and is kept when you open a document, so **anyone you send the link to sees the same set.**
+- Pick a baseline in the **Version basis** selector, and **the list switches to that set**: only the documents in it, at the versions it captured. Documents created after the baseline do not appear (if they did, you might think they were part of the set). The choice stays in the URL and is kept when you open a document, so **anyone you send the link to sees the same set.**
 - While a baseline is selected, **the status and type filters are hidden**. Everything in the set is approved, so there is nothing to filter.
-- When no baseline is selected, the selector shows **No baseline**. Each document then shows its latest approved version, or **its current version (the draft) if it has never been approved**.
+- With **Approved** (the default), each document shows its latest approved version, or **its current version (the draft) if it has never been approved**.
 - A badge at the top of the document shows which set you are reading. If the set does not include this document (because it was created later), you see the latest version marked **outside baseline**. You are never shown a different version without notice.
-- **You can also change or clear the baseline from the document.** While you read by a baseline, a baseline selector appears at the top of the document. Pick **No baseline** to go back to the latest versions. The same set stays selected when you move to another document from the tree, the table, the graph, a relation row in the rail, or the left sidebar.
+- **If a version was approved after the baseline, the document page tells you.** A notice above the body says "A version was approved after baseline R1: v5", with **[Open v5]** and **[v2→v5 changes]** buttons. The list shows the set as it is, so it has no such marker.
+- **You can also change or clear the baseline from the document.** While you read by a baseline, the Version basis selector appears at the top of the document. Pick **Approved** to go back to the latest approved versions. The same set stays selected when you move to another document from the tree, the table, the graph, a relation row in the rail, or the left sidebar.
 
 Tasks can have a baseline too. The agent working on such a task then reads the surrounding documents at that set's versions.
 

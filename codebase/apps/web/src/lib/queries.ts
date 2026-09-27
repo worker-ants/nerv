@@ -12,6 +12,7 @@ import type { ProjectId } from './query-keys.js';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
 import type { Me } from './session.js';
+import { viewBasisKey, viewBasisQuery, type ViewBasis } from './view-basis.js';
 
 export type Row = Record<string, unknown>;
 
@@ -233,17 +234,22 @@ export function useSpecTree(
    *
    * 기준선은 세트다. 그 뒤에 만들어진 문서가 목록에 섞이면 그것은 기준선이 아니라
    * "지금" 이고, 보는 사람은 그 세트가 그 문서를 담고 있다고 읽는다.
+   *
+   * 기준선이 없으면 승인본(기본) 또는 최신이다(2026-09-27 · REQ-WEB-248).
    */
-  baseline?: string,
+  view: ViewBasis = {},
 ): UseQueryResult<Row[]> {
-  const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
-    // 세트가 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다
-    queryKey: [...queryKeys.projectSpecTree(projectId ?? PENDING_PROJECT), includeArchived, pin],
+    // 기준이 다르면 **다른 목록**이라 캐시 키가 갈라져야 한다
+    queryKey: [
+      ...queryKeys.projectSpecTree(projectId ?? PENDING_PROJECT),
+      includeArchived,
+      viewBasisKey(view),
+    ],
     queryFn: () =>
       apiFetch<Row[]>(
         `/projects/${slug}/specs/tree?include_archived=${String(includeArchived)}` +
-          (pin === '' ? '' : `&baseline=${encodeURIComponent(pin)}`),
+          viewBasisQuery(view),
       ),
     // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
     enabled: projectId !== undefined,
@@ -256,21 +262,16 @@ export function useSpecTree(
  * 재조회와 화면 재진입으로 갱신된다. 두 축을 억지로 잇지 않는 편이 낫다: 봉투에 key 를
  * 실으면 이름 변경이 이벤트 계약을 깨고, 화면이 UUID 를 쓰면 URL 이 사람이 못 읽는 것이 된다.
  */
-export function useSpec(slug: string, specKey: string, baseline?: string): UseQueryResult<Row> {
+export function useSpec(slug: string, specKey: string, view: ViewBasis = {}): UseQueryResult<Row> {
   return useQuery({
-    // 기준선이 다르면 **다른 버전**이라 캐시 키가 갈라져야 한다 — 같은 키로 두면
+    // 기준이 다르면 **다른 버전**이라 캐시 키가 갈라져야 한다 — 같은 키로 두면
     // 세트를 바꿔도 앞서 읽은 버전이 그대로 보인다
-    queryKey: [...queryKeys.spec(specKey), baseline ?? null],
+    queryKey: [...queryKeys.spec(specKey), viewBasisKey(view) || null],
     // **`include=tasks` 를 붙이는 이유**: 영향 미리보기가 파생 Task 수를 세는데, 서버는
     // 요청해야 그것을 싣는다(EP-SPEC-03). 붙이지 않던 동안 그 줄은 언제나 "0건" 이었다 —
     // 실측 2026-09-03: 파생 Task 를 가진 스펙 86개, 한 스펙 최대 29건이 0으로 보였다.
     queryFn: () =>
-      apiFetch<Row>(
-        `/projects/${slug}/specs/${specKey}?include=tasks` +
-          (baseline === undefined || baseline === ''
-            ? ''
-            : `&baseline=${encodeURIComponent(baseline)}`),
-      ),
+      apiFetch<Row>(`/projects/${slug}/specs/${specKey}?include=tasks` + viewBasisQuery(view)),
     // 고르기 전에는 부르지 않는다 — 빈 키로 나가면 `/specs/` 가 되어 404 가 온다
     enabled: specKey !== '',
   });
@@ -334,16 +335,19 @@ export function useSpecGraph(
   slug: string,
   projectId: ProjectId | undefined,
   includeArchived = false,
-  /** 표·그래프도 같은 세트를 본다 — 탭을 옮겼다고 목록이 달라지면 그것이 혼동이다 */
-  baseline?: string,
+  /** 표·그래프도 같은 기준으로 읽는다 — 탭을 옮겼다고 목록이 달라지면 그것이 혼동이다 */
+  view: ViewBasis = {},
 ): UseQueryResult<SpecGraph> {
-  const pin = baseline === undefined || baseline === '' ? '' : baseline;
   return useQuery({
-    queryKey: [...queryKeys.projectSpecGraph(projectId ?? PENDING_PROJECT), includeArchived, pin],
+    queryKey: [
+      ...queryKeys.projectSpecGraph(projectId ?? PENDING_PROJECT),
+      includeArchived,
+      viewBasisKey(view),
+    ],
     queryFn: () =>
       apiFetch<SpecGraph>(
         `/projects/${slug}/specs/graph?include_archived=${String(includeArchived)}` +
-          (pin === '' ? '' : `&baseline=${encodeURIComponent(pin)}`),
+          viewBasisQuery(view),
       ),
     enabled: projectId !== undefined,
   });

@@ -1411,3 +1411,168 @@ describe('E04 기준선 — 목록은 그 세트가 담은 것만', () => {
     });
   });
 });
+
+/**
+ * **보기 기준 — 승인본 · 최신 · 기준선**(2026-09-27 사람 결정 · REQ-API-193~196).
+ *
+ * 목록이 `current_version_id`(최신 승인본)만 읽어서, 승인된 문서 위에 에이전트가 쓴 v2 초안은
+ * 목록 · 트리 · 그래프 어디에도 나오지 않았고 상태 필터 "초안" 에도 걸리지 않았다(사람 보고).
+ */
+describe('REQ-API-193~196 보기 기준', () => {
+  /** 승인된 v1 위에 v2 초안이 있는 문서 하나 */
+  async function approvedWithDraft(
+    key: string,
+  ): Promise<{ specId: string; v1: string; v2: string }> {
+    const first = await draft(key, '# 규칙\n\n스도쿠 기본 규칙');
+    await approve(first.versionId);
+    const next = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: first.specId,
+      bodyMd: '# 규칙\n\n변형 규칙 킬러케이지 합계',
+      baseHash: await hashOf(first.specId),
+      userId: planner,
+    });
+    return { specId: first.specId, v1: first.versionId, v2: String(next['spec_version_id']) };
+  }
+
+  it('기본(승인본)은 지금과 같고, 줄마다 가장 새 버전과 최신 승인본 번호가 함께 온다 (REQ-API-194)', async () => {
+    await approvedWithDraft('SPC-VB-1');
+    const [row] = await specs.tree({ projectId, root: 'SPC-VB-1' });
+    expect(row).toMatchObject({
+      version_no: 1,
+      doc_status: 'approved',
+      latest_version_no: 2,
+      latest_status: 'draft',
+      approved_version_no: 1,
+    });
+  });
+
+  it('최신 기준이면 승인본 위의 초안이 줄의 버전과 상태가 되고, 상태 필터 "초안" 에 걸린다 (REQ-API-193)', async () => {
+    await approvedWithDraft('SPC-VB-2');
+    const [row] = await specs.tree({ projectId, root: 'SPC-VB-2', basis: 'latest' });
+    expect(row).toMatchObject({ version_no: 2, doc_status: 'draft', approved_version_no: 1 });
+
+    const draftsNow = await specs.tree({ projectId, statuses: ['draft'] });
+    expect(draftsNow.filter((n) => n.matched !== false).map((n) => n.key)).not.toContain(
+      'SPC-VB-2',
+    );
+    const draftsLatest = await specs.tree({ projectId, statuses: ['draft'], basis: 'latest' });
+    expect(draftsLatest.map((n) => n.key)).toContain('SPC-VB-2');
+
+    // 그래프 · 표도 같은 버전을 읽는다
+    const graph = await specs.graph({ projectId, basis: 'latest' });
+    expect(graph.nodes.find((n) => n.key === 'SPC-VB-2')?.version_no).toBe(2);
+  });
+
+  it('승인된 적 없는 문서는 두 기준이 같고, 최신 승인본 번호는 null 이다', async () => {
+    await draft('SPC-VB-NEW', '# 새 문서');
+    const [plain] = await specs.tree({ projectId, root: 'SPC-VB-NEW' });
+    const [latest] = await specs.tree({ projectId, root: 'SPC-VB-NEW', basis: 'latest' });
+    expect(plain).toMatchObject({ version_no: 1, doc_status: 'draft', approved_version_no: null });
+    expect(latest).toMatchObject({ version_no: 1, doc_status: 'draft' });
+  });
+
+  it('문서 한 건도 최신 기준으로 읽고, 승인본 번호와 기준을 함께 돌려준다', async () => {
+    await approvedWithDraft('SPC-VB-GET');
+    const plain = await specs.get({ projectId, specKey: 'SPC-VB-GET' });
+    expect(plain).toMatchObject({ version_no: 1, doc_status: 'approved', latest_version_no: 2 });
+    expect(plain['basis']).toBeUndefined();
+
+    const latest = await specs.get({ projectId, specKey: 'SPC-VB-GET', basis: 'latest' });
+    expect(latest).toMatchObject({
+      version_no: 2,
+      doc_status: 'draft',
+      approved_version_no: 1,
+      latest_version_no: 2,
+      basis: 'latest',
+    });
+    expect(String(latest['body_md'])).toContain('킬러케이지');
+  });
+
+  it('보기 기준은 기준선 · 버전 번호와 함께 받지 않고, 어휘 밖 값은 거절한다 (REQ-API-196)', async () => {
+    const one = await approvedWithDraft('SPC-VB-X');
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'R-VB-X',
+      userId: planner,
+      specVersionIds: [one.v1],
+    });
+    const exclusive = { code: NERV_ERROR.PRECONDITION, details: { field: 'basis' } };
+    await expect(
+      specs.tree({ projectId, basis: 'latest', baseline: 'R-VB-X' }),
+    ).rejects.toMatchObject(exclusive);
+    await expect(
+      specs.get({ projectId, specKey: 'SPC-VB-X', basis: 'latest', versionNo: 1 }),
+    ).rejects.toMatchObject(exclusive);
+    await expect(
+      search.search({ projectId, query: '규칙', basis: 'approved', baseline: 'R-VB-X' }),
+    ).rejects.toMatchObject(exclusive);
+    await expect(specs.tree({ projectId, basis: 'newest' })).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'basis', unknown: ['newest'] },
+    });
+  });
+
+  it('검색은 고른 기준의 본문에서 찾고, 무엇으로 찾았는지 돌려준다 (REQ-API-195)', async () => {
+    await approvedWithDraft('SPC-VB-S');
+    const plain = await search.search({ projectId, query: '킬러케이지' });
+    expect(plain.basis).toBe('approved');
+    expect(plain.items.map((i) => i.key)).not.toContain('SPC-VB-S');
+
+    const latest = await search.search({ projectId, query: '킬러케이지', basis: 'latest' });
+    expect(latest.basis).toBe('latest');
+    const hit = latest.items.find((i) => i.key === 'SPC-VB-S');
+    expect(hit?.doc_status).toBe('draft');
+    expect(hit?.snippet).toContain('킬러케이지');
+  });
+
+  it('기준선 검색은 그 세트의 문서와 버전에서만 찾는다 — 뒤에 생긴 요구사항도 빠진다', async () => {
+    const inSet = await approvedWithDraft('SPC-VB-BL');
+    const outside = await draft('SPC-VB-OUT', '# 규칙\n\n세트 밖 문서의 규칙');
+    await approve(outside.versionId);
+    await baselines.create({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      name: 'R-VB-S',
+      userId: planner,
+      specVersionIds: [inSet.v1],
+    });
+    // 기준선 뒤에 v2 를 승인하고, 그 버전에서 요구사항이 새로 생겼다고 친다
+    await pool.query(`UPDATE spec_version SET status = 'superseded' WHERE id = $1`, [inSet.v1]);
+    await approve(inSet.v2);
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, introduced_in_version_id, current_version_id)
+       VALUES ($1, $2, $3, 'REQ-VB-OLD', '규칙 검사는 행마다 한다', $4, $5),
+              ($6, $2, $3, 'REQ-VB-NEW', '규칙 검사는 케이지마다 한다', $5, $5)`,
+      [newId(), projectId, inSet.specId, inSet.v1, inSet.v2, newId()],
+    );
+
+    const pinned = await search.search({ projectId, query: '규칙', baseline: 'R-VB-S' });
+    expect(pinned).toMatchObject({ basis: 'baseline', baseline: 'R-VB-S' });
+    expect(pinned.items.map((i) => i.key)).not.toContain('SPC-VB-OUT');
+    const doc = pinned.items.find((i) => i.key === 'SPC-VB-BL' && i.anchor === null);
+    expect(doc?.snippet).toContain('스도쿠 기본 규칙');
+    const refs = pinned.items.map((i) => i.anchor).filter((a) => a !== null);
+    expect(refs).toContain('REQ-VB-OLD');
+    expect(refs).not.toContain('REQ-VB-NEW');
+
+    const now = await search.search({ projectId, query: '규칙' });
+    expect(now.items.map((i) => i.anchor)).toEqual(
+      expect.arrayContaining(['REQ-VB-OLD', 'REQ-VB-NEW']),
+    );
+  });
+
+  it('검토 중인 버전도 임베딩 대상이다 — 검토 요청으로 청크가 지워지지 않는다 (REQ-DB-017)', async () => {
+    const one = await approvedWithDraft('SPC-VB-IR');
+    await pool.query(
+      `UPDATE spec_version
+          SET status = 'in_review', edit_lease_user_id = NULL, edit_lease_session_id = NULL,
+              edit_lease_expires_at = NULL
+        WHERE id = $1`,
+      [one.v2],
+    );
+    const targets = await embeddings.indexableVersions(projectId);
+    expect(targets.map((t) => t.id)).toEqual(expect.arrayContaining([one.v1, one.v2]));
+  });
+});
