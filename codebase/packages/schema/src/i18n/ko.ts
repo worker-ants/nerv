@@ -992,14 +992,20 @@ export const ko = {
   'settings.members.self_admin_off': '끄기',
   'settings.members.offboard': '조직에서 내보내기…',
   'settings.members.offboard_confirm': '{name}을(를) 조직에서 내보냅니다.',
-  'settings.members.offboard_detail':
-    '멤버십 {memberships}개를 지우고 유효한 토큰 {tokens}개를 폐기합니다. 되돌리려면 다시 초대해야 합니다.',
   'settings.members.offboard_run': '조직에서 내보내기',
   'settings.members.offboard_done': '내보냈습니다.',
   'settings.members.offboard_self': '자기 자신은 내보낼 수 없습니다.',
+  'settings.members.exit.roles': '역할 {n}개를 지웁니다.',
+  'settings.members.exit.tokens': '살아 있는 토큰 {n}개를 폐기합니다.',
+  'settings.members.exit.tasks': '맡은 작업 {n}건의 담당자를 비웁니다.',
+  'settings.members.exit.claims':
+    '진행 중 클레임 {n}건은 그대로 둡니다. 세션이 이어지지 못하면 리스가 끝날 때 풀립니다.',
+  'settings.members.exit.approvals':
+    '이 사람에게 지정된 결재 {n}건은 그대로 둡니다. admin이 대신 결정할 수 있습니다.',
+  'settings.members.exit.counting': '지울 것을 세는 중입니다…',
+  'settings.members.exit.count_failed': '지울 것을 세지 못했습니다. 빼기는 할 수 있습니다.',
   'settings.members.remove_from_project': '이 프로젝트에서 빼기…',
   'settings.members.remove_from_project_confirm': '{name}을(를) {project}에서 뺍니다.',
-  'settings.members.remove_from_project_detail': '이 프로젝트의 역할 {roles}개를 지웁니다.',
   'settings.members.remove_from_project_run': '{project}에서 빼기',
   'settings.members.remove_from_project_done': '{name}을(를) {project}에서 뺐습니다.',
   'settings.members.remove_last_confirm':

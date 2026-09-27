@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.07 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.08 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.08 변경(2026-09-27 — 스토리 없이 들어온 구현 하나, **사람 결정 P2**): §1.4 셋째 표에 **빼기의 확인과 서버 경로(화면)**를 적는다.
 >
 > v2.07 변경(2026-09-27 — 스토리 없이 들어온 구현 하나, **사람 결정 P2**): §1.4 셋째 표에 **한 번에 빼기(서버)**를 적는다.
 >
@@ -676,6 +678,7 @@ referenced_by:
 | 쌓여 있는 안 읽은 보통 알림 접기 | 마이그레이션 `0038_notification_fold`(데이터) · 서버 `notification.service.ts`(목록이 `archived` 를 뺀다) · L2 `migrate.spec.ts` · `worker-jobs.spec.ts` | 사람 결정 G2. 앱 안 묶음 전에 쌓인 안 읽은 알림을 같은 규칙으로 접는다 — 지우지 않는다(로컬 실측: 922행 → 37줄 · [4.3 데이터베이스](database.md) REQ-DB-031 · [4.4 API 명세](api.md) REQ-API-225). 남은 것: 메일 다이제스트(G4 — 따로 정한다) |
 | 한 프로젝트에서만 빼기 — 화면(조직 admin 에게도 프로젝트 줄의 빼기) | 화면 `routes/settings/members.tsx`(줄마다 판정 · 이름 아래 [조직에서 내보내기…] · 표 너비의 확인 줄 · 겹친 역할 · 마지막 소속) · `components/ui/primitives.tsx`(`Td` 의 `colSpan`) · 문구 `settings.members.*` · 매뉴얼 ko·en(설정) · L1 `member-exit.spec.tsx` | 사람 결정 P1 · P3. 조직 admin 분기가 먼저 끝나 프로젝트 admin 권한이 가려졌다([4.5 화면 명세](screens.md) REQ-WEB-201 · REQ-WEB-263). 남은 것: 서버가 한 번에 빼는 경로(토큰 · 담당 작업 · 미리보기 — 사람 결정 P2)와 확인 단계의 수 |
 | 한 번에 빼기 — 서버(미리보기 · 한 프로젝트에서 · 조직에서) | 서버 `auth.service.ts`(`memberRemovalPreview` · `removeMember` — 판정은 `removalScope` 한 곳) · `auth.controller.ts`(EP-MBR-05~07) · 문구 `error.membership.self_removal` · L2 `member-removal.spec.ts` | 사람 결정 P2 · P3. 화면이 삭제를 하나씩 불러 부분 실패가 남았고, 프로젝트 admin 은 토큰을 끊지 못했다([4.4 API 명세](api.md) REQ-API-226·227). 남은 것: 화면이 이 경로와 미리보기의 수를 쓰게 바꾸기 |
+| 빼기의 확인과 서버 경로 — 화면 | 화면 `routes/settings/members.tsx`(미리보기 EP-MBR-05 로 수를 적음 · 빼기 EP-MBR-06 · 07 하나를 부름 · 토큰 · 멤버십을 하나씩 부르던 코드 삭제) · 문구 `settings.members.exit.*` · 매뉴얼 ko·en(설정) · L1 `member-exit.spec.tsx` · `irreversible.spec.tsx` | 사람 결정 P2. 한 프로젝트에서만 빼기 제안의 마지막 단계다([4.5 화면 명세](screens.md) REQ-WEB-263 · [4.4 API 명세](api.md) REQ-API-226·227) |
 
 #### 이 절은 언제 갱신되는가
 
