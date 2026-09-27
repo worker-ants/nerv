@@ -194,6 +194,8 @@ export class ApprovalInboxController {
     @Query('project') project?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    // slug 는 조직 안에서만 유일하다 — 같은 이름이 두 조직에 있으면 이것으로 좁힌다(REQ-API-213)
+    @Query('org') org?: string,
   ): Promise<unknown> {
     const actor = globalActor(req);
     const userId = actor.userId;
@@ -202,7 +204,8 @@ export class ApprovalInboxController {
       actor,
       userId,
       state: state ?? null,
-      projectSlug: project ?? null,
+      project: project ?? null,
+      org: org ?? null,
       cursor: cursor ?? null,
       limit: limit ?? null,
     });
