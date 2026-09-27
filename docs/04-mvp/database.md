@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 40개**다 — 도메인 34 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.58 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.59 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.59 변경(2026-09-27 — 쌓여 있는 안 읽은 알림을 접는다, **사람 결정 G2**): **REQ-DB-031 신설 · 마이그레이션 `0038`(데이터).** 앱 안 묶음(0037)은 앞으로 올 알림부터 묶어, 그 전에 쌓인 안 읽은 보통 알림은 한 건이 한 줄인 채로 남았다. 같은 규칙으로 접되 지우지 않는다 — 나머지 줄은 `archived` 로 목록에서 빠지고 그 이벤트는 남긴 줄의 묶음에 든다.
 >
 > v0.58 변경(2026-09-27 — 보통 알림을 묶는다, **사람 결정 G1 · G2 · G3**): **REQ-DB-030 신설 · §2.10 열 넷과 테이블 하나 · §2.12 인덱스 셋 · 마이그레이션 `0037`.** `notification` 에 `batch_key` · `batch_size` · `last_at` · `batch_open`, 묶음에 든 이벤트 `notification_batch_event`. 열린 묶음은 키마다 하나이고(`notification_open_batch`), 한 이벤트는 한 사람에게 한 묶음에만 든다. 목록 인덱스는 마지막 시각 순으로 바꿨다. 도메인 테이블이 34종이 된다.
 >
@@ -1268,6 +1270,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-028 | WHEN 사람이 프로젝트의 알림 수준을 고르면 THE SYSTEM SHALL `notification_preference(user_id, project_id)` 한 행에 `notification_level`(`all` · `important` · `none`)을 두고, `all` 이면 행을 두지 않는다. 사람이나 프로젝트가 지워지면 그 행도 지운다(ON DELETE CASCADE). 파생 워커는 이 행으로 읽음 상태를 정한다([4.4 API 명세](api.md) REQ-API-219·220 · 2026-09-27) |
 | REQ-DB-029 | WHEN 알림 행이 저장되면 THE SYSTEM SHALL `(event_id, user_id)` 유일 인덱스(`notification_event_user` · 마이그레이션 `0036`)로 한 이벤트에서 한 사람에게 알림이 한 행임을 보장한다. 파생이 겹치거나 다시 돌아도 둘째 행은 들어가지 않는다([4.4 API 명세](api.md) REQ-API-222 · 2026-09-27) |
 | REQ-DB-030 | WHEN 보통 알림이 묶이면 THE SYSTEM SHALL `notification` 에 `batch_key` · `batch_size` · `last_at` · `batch_open` 을 두고, `(user_id, batch_key) WHERE batch_open` 유일 인덱스(`notification_open_batch`)로 열린 묶음을 키마다 하나로 지키며, 묶음에 든 이벤트를 `notification_batch_event` 에 적어 `(event_id, user_id)` 유일로 한 이벤트가 한 사람에게 한 묶음에만 들게 한다. 목록 인덱스(`notification_inbox`)는 `last_at` 순이다. 있던 알림의 `last_at` 은 `created_at` 으로 채운다(마이그레이션 `0037` · [4.4 API 명세](api.md) REQ-API-223·224 · 2026-09-27) |
+| REQ-DB-031 | WHEN 마이그레이션 `0038` 이 돌면 THE SYSTEM SHALL 안 읽은 보통 알림 가운데 아직 묶음이 아닌 줄을 사람 · 배치 키마다 접는다 — 이미 열린(안 읽은) 묶음이 있으면 거기에, 없으면 가장 최근 줄을 묶음으로 삼아 모든 줄의 이벤트를 `notification_batch_event` 에 적고, 건수와 처음 · 마지막 시각을 넓힌다. 나머지 줄은 **지우지 않고** `archived` 로 둔다. 읽은 알림과 중요 알림은 건드리지 않고, 다시 돌려도 0건이다(로컬 실측 2026-09-27: 안 읽은 922행 → 37줄 · [4.4 API 명세](api.md) REQ-API-225 · 2026-09-27) |
 
 ---
 
