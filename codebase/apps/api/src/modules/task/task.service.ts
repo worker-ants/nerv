@@ -18,6 +18,7 @@ import {
   isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
   TASK_LEASE_BOUND_TARGETS,
+  TASK_RECLAIMABLE_STATUSES,
   TASK_TRANSITION_TARGETS,
   TASK_DONE_WINDOW_DAYS,
   taskPriority,
@@ -76,6 +77,13 @@ export interface ClaimResult {
   warnings: Overlap[];
   /** 같은 세션의 재호출이면 기존 클레임을 그대로 돌려준다(멱등, 리스 연장 없음) */
   replayed: boolean;
+  /**
+   * **되찾았는가**(2026-09-28 · REQ-API-228) — 클레임을 잃은 `claimed`·`in_progress`·`in_review` 를 상태 그대로
+   * 다시 잡았으면 참이다. 그때 `status` 가 이어 갈 자리다(`in_review` 면 곧바로 `done` 으로 갈 수 있다).
+   */
+  reclaimed: boolean;
+  /** 클레임 뒤 Task 의 상태 — 새로 잡으면 `claimed`, 되찾으면 원래 상태 */
+  status: string;
 }
 
 /** 전이 판정이 읽는 활성 클레임 한 행 — 보유자·세션·리스 만료 여부만 본다. */
@@ -1117,6 +1125,8 @@ export class TaskService {
           leaseExpiresAt: existing.lease_expires_at,
           warnings: [],
           replayed: true,
+          reclaimed: false,
+          status: task.status,
         };
       }
 
@@ -1133,7 +1143,15 @@ export class TaskService {
         sql`SELECT status::text AS status FROM task WHERE id = ${taskId}`,
       );
       const status = fresh[0]?.status ?? task.status;
-      if (status !== 'ready') {
+      // **되찾기**(2026-09-28 · 사람 결정 · REQ-API-228). 살아 있는 클레임이 없는 `claimed`·`in_progress`·
+      // `in_review` 는 상태 그대로 다시 잡는다. 회수가 `in_review` 를 되돌리지 않아서, 리뷰까지 마친 Task 가
+      // 클레임을 잃으면 세션은 `done` 으로도 못 가고(`no_active_claim`) 다시 잡지도 못했다(`not_ready`) —
+      // 서버는 `reclaimable: true` 라고 답하면서 클레임을 거절했다. 살아 있는 클레임이 남아 있으면(남의 세션)
+      // 지금처럼 `not_ready` 다. 위의 회수가 만료된 것을 이미 닫았으므로 남은 활성 클레임은 살아 있다.
+      const reclaim =
+        (TASK_RECLAIMABLE_STATUSES as readonly string[]).includes(status) &&
+        (await this.activeClaimOf(tx, taskId)) === undefined;
+      if (status !== 'ready' && !reclaim) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_ready', { status }), {
           kind: 'not_ready',
           status,
@@ -1161,13 +1179,14 @@ export class TaskService {
         });
       }
 
-      // 4) 조건부 전이 — 경쟁에서 진 세션은 여기서 0행으로 판별된다
+      // 4) 조건부 전이 — 경쟁에서 진 세션은 여기서 0행으로 판별된다. 되찾기는 상태를 그대로 두고 위임
+      // 세션만 바꾼다(같은 Task 의 활성 클레임은 하나 — `claim_task_active_uq` 가 겹친 되찾기를 막는다)
       const { rows: updated } = await tx.execute<{ id: string }>(sql`
         UPDATE task
-           SET status = 'claimed',
+           SET status = ${reclaim ? sql`status` : sql`'claimed'`},
                assignee_user_id = COALESCE(assignee_user_id, ${input.userId}),
                delegate_session_id = ${input.sessionId}
-         WHERE id = ${taskId} AND status = 'ready'
+         WHERE id = ${taskId} AND status = ${status}::task_status
         RETURNING id
       `);
       if (updated.length === 0) {
@@ -1196,8 +1215,9 @@ export class TaskService {
         actorUserId: input.userId,
         actorSessionId: input.sessionId,
         isAgent: input.sessionId !== null,
-        fromState: 'ready',
-        toState: 'claimed',
+        fromState: status,
+        toState: reclaim ? status : 'claimed',
+        ...(reclaim ? { payload: { reclaimed: true } } : {}),
       });
 
       // warn 은 통과시키되 양쪽 세션·담당자에게 알린다(§4.4 단계 3 이후)
@@ -1219,6 +1239,8 @@ export class TaskService {
         leaseExpiresAt: claim.leaseExpiresAt,
         warnings: overlaps.filter((o) => o.severity !== 'block'),
         replayed: false,
+        reclaimed: reclaim,
+        status: reclaim ? status : 'claimed',
       };
     });
   }
@@ -1465,13 +1487,16 @@ export class TaskService {
     // planner·admin 은 남의 작업도 정리할 수 있다(전표의 "담당자·planner·admin")
     const privileged = (input.roles ?? []).some((r) => r === 'planner' || r === 'admin');
     const leaseBound = (TASK_LEASE_BOUND_TARGETS as readonly string[]).includes(target);
-    // **되찾을 수 있는가**(REQ-API-005 의 `reclaimable` 실물). 살아 있는 클레임이 없고,
-    // 다시 잡으면 잡히는 상태여야 참이다 — 지금 `ready` 이거나, 만료된 리스가 걸려 있어
-    // `claim()` 이 그것을 회수하고 잡을 수 있는 경우다(그 회수는 클레임의 첫 단계다).
-    // 클레임 없이 `in_progress` 인 고아 Task 는 **거짓**이다: 다시 잡을 길이 없고 사람이
-    // 되돌려야 한다. 모델은 이 한 값으로 "이어 갈까 접을까" 를 정한다.
+    // **되찾을 수 있는가**(REQ-API-005 의 `reclaimable` 실물). 살아 있는 클레임이 없고, 다시 잡으면 잡히는
+    // 상태여야 참이다 — `ready` 이거나 되찾을 수 있는 상태(`TASK_RECLAIMABLE_STATUSES` · REQ-API-228)다.
+    // **`claim()` 과 같은 규칙을 본다**(2026-09-28). 예전 식(`ready` 이거나 만료된 리스가 걸려 있으면 참)은
+    // 회수가 `in_review` 를 되돌리지 않는다는 것을 몰라서, `in_review` 에서 리스가 만료된 세션에 참이라고
+    // 답하고 클레임은 `not_ready` 로 거절했다. 모델은 이 한 값으로 "이어 갈까 접을까" 를 정한다.
     const live = claim !== undefined && !claim.expired;
-    const reclaimable = !live && (task.status === 'ready' || claim !== undefined);
+    const reclaimable =
+      !live &&
+      (task.status === 'ready' ||
+        (TASK_RECLAIMABLE_STATUSES as readonly string[]).includes(task.status));
 
     if (input.sessionId != null && leaseBound) {
       const mineAndLive =

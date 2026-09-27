@@ -193,7 +193,12 @@ export class TaskTools implements NervToolProvider {
           lease_expires_at: result.leaseExpiresAt.toISOString(),
           warnings: result.warnings,
           replayed: result.replayed,
-          next_actions: ['nerv_task_heartbeat'],
+          // **되찾았으면 이어 갈 자리를 알려 준다**(2026-09-28 · REQ-API-228) — `in_review` 면 곧바로 done 이다
+          reclaimed: result.reclaimed,
+          status: result.status,
+          next_actions: result.reclaimed
+            ? ['nerv_task_heartbeat', 'nerv_task_update']
+            : ['nerv_task_heartbeat'],
         };
       },
     },

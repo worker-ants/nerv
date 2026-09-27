@@ -832,6 +832,123 @@ describe('작업 상세가 싣는 것 (REQ-API-142)', () => {
   });
 });
 
+/**
+ * **되찾기 — 상태 그대로 다시 잡는다**(2026-09-28 · 사람 결정 · REQ-API-228).
+ *
+ * 리스 회수는 `claimed`·`in_progress` 만 `ready` 로 되돌린다. 그래서 리뷰까지 마친 `in_review` 가 클레임을
+ * 잃으면 세션은 `done` 으로 갈 수 없었고(`no_active_claim` · `lease_expired`), 서버가 `reclaimable: true` 라고
+ * 답한 경우에도 `nerv_task_claim` 은 `not_ready` 로 거절했다 — 다른 프로젝트에서 실제로 겪은 일이다(`ready`
+ * 로 되돌리고 다시 거쳐야 했다). 살아 있는 클레임이 없는 `claimed`·`in_progress`·`in_review` 는 상태 그대로
+ * 다시 잡힌다.
+ */
+describe('되찾기 — 상태 그대로 다시 잡는다 (REQ-API-228)', () => {
+  const act = (sessionId: string, userId: string) => ({
+    projectId,
+    userId,
+    sessionId,
+    isAdmin: false,
+  });
+  const done = (taskId: string, sessionId: string, userId: string) =>
+    tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId,
+      sessionId,
+      specImpact: { none: true },
+      evidence: [{ kind: 'pr', locator: 'https://pr/41' }],
+    });
+  const toReview = async (taskId: string): Promise<string> => {
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    for (const status of ['in_progress', 'in_review'] as const) {
+      await tasks.transition({ projectId, taskId, status, userId: hana, sessionId: sessionHana });
+    }
+    return claim.claimId;
+  };
+
+  it('in_review 에서 리스가 만료된 세션은 되찾아 곧바로 done 으로 간다', async () => {
+    const taskId = await makeTask('CLV-T-RC0001');
+    const claimId = await toReview(taskId);
+    await pool.query(
+      `UPDATE claim SET lease_expires_at = now() - interval '1 minute' WHERE id=$1`,
+      [claimId],
+    );
+    await expect(done(taskId, sessionHana, hana)).rejects.toMatchObject({
+      details: { kind: 'lease_expired', reclaimable: true },
+    });
+    // 예전에는 여기서 `not_ready`(in_review) 로 거절됐다 — `reclaimable: true` 와 어긋났다
+    const again = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    expect(again).toMatchObject({ reclaimed: true, status: 'in_review' });
+    await done(taskId, sessionHana, hana);
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('done');
+    // 되찾기도 기록된다 — 같은 상태 사이의 클레임이다
+    const { rows } = await pool.query<{ from_state: string; to_state: string; payload: unknown }>(
+      `SELECT from_state, to_state, payload FROM event
+        WHERE type = $1 AND subject_id = $2 ORDER BY occurred_at DESC LIMIT 1`,
+      [NERV_EVENT.TASK_CLAIMED, taskId],
+    );
+    expect(rows[0]).toMatchObject({
+      from_state: 'in_review',
+      to_state: 'in_review',
+      payload: { reclaimed: true },
+    });
+  });
+
+  it('in_review 에서 인계한 Task 는 다른 세션이 되찾는다 — 상태는 in_review 그대로다', async () => {
+    const taskId = await makeTask('CLV-T-RC0002');
+    const claimId = await toReview(taskId);
+    await tasks.release({
+      claimId,
+      reason: 'handoff',
+      userId: hana,
+      actor: act(sessionHana, hana),
+    });
+    await expect(done(taskId, sessionDohyun, dohyun)).rejects.toMatchObject({
+      details: { kind: 'no_active_claim', reclaimable: true },
+    });
+    const taken = await tasks.claim(claimInput(taskId, sessionDohyun, dohyun));
+    expect(taken).toMatchObject({ reclaimed: true, status: 'in_review' });
+    await done(taskId, sessionDohyun, dohyun);
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('done');
+  });
+
+  it('살아 있는 남의 클레임이 걸려 있으면 되찾지 못한다 — 지금처럼 not_ready 다', async () => {
+    const taskId = await makeTask('CLV-T-RC0003');
+    await toReview(taskId);
+    await expect(done(taskId, sessionDohyun, dohyun)).rejects.toMatchObject({
+      details: { kind: 'no_active_claim', reclaimable: false },
+    });
+    await expect(tasks.claim(claimInput(taskId, sessionDohyun, dohyun))).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'not_ready', status: 'in_review' },
+    });
+  });
+
+  it('두 세션이 같은 고아를 동시에 되찾아도 활성 클레임은 하나다', async () => {
+    const taskId = await makeTask('CLV-T-RC0004');
+    const claimId = await toReview(taskId);
+    await tasks.release({
+      claimId,
+      reason: 'handoff',
+      userId: hana,
+      actor: act(sessionHana, hana),
+    });
+    const results = await Promise.allSettled([
+      tasks.claim(claimInput(taskId, sessionHana, hana)),
+      tasks.claim(claimInput(taskId, sessionDohyun, dohyun)),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      await count(
+        `SELECT count(*)::int AS n FROM claim WHERE task_id='${taskId}' AND status='active'`,
+      ),
+    ).toBe(1);
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe(
+      'in_review',
+    );
+  });
+});
+
 describe('전이의 문지기 (REQ-API-129~132)', () => {
   it('세션은 자기 클레임 없이 done 으로 못 간다 — 다시 잡을 수 있다고 알려 준다', async () => {
     const taskId = await makeTask('CLV-T-GK0001');
@@ -877,7 +994,8 @@ describe('전이의 문지기 (REQ-API-129~132)', () => {
     });
   });
 
-  it('고아 in_progress 는 되찾을 수 없다고 답한다 — 사람이 되돌려야 하는 자리다', async () => {
+  it('클레임 없는 in_progress 는 되찾을 수 있다고 답하고, 실제로 상태 그대로 되찾힌다 (REQ-API-228)', async () => {
+    // 예전에는 "사람이 되돌려야 하는 자리" 라며 거짓(false)이었다 — 되찾기가 들어오면서 이 고아도 다시 잡힌다
     const taskId = await makeTask('CLV-T-GK0003', { status: 'in_progress' });
     await expect(
       tasks.transition({
@@ -889,7 +1007,12 @@ describe('전이의 문지기 (REQ-API-129~132)', () => {
         specImpact: { none: true },
         evidence: [{ kind: 'pr', locator: 'https://pr/8' }],
       }),
-    ).rejects.toMatchObject({ details: { kind: 'no_active_claim', reclaimable: false } });
+    ).rejects.toMatchObject({ details: { kind: 'no_active_claim', reclaimable: true } });
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    expect(claim).toMatchObject({ reclaimed: true, status: 'in_progress', replayed: false });
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe(
+      'in_progress',
+    );
   });
 
   it('사람의 done 은 넷에게만 열린다 — 담당자·클레임 보유자·planner·admin', async () => {
