@@ -1,4 +1,4 @@
-# ko-style v0.1.1
+# ko-style v0.1.2
 
 한국어 문체 플러그인이다. 번역투, 사물에 사람의 동작을 붙이는 비유, 이중 피동, 줄표로 길게 잇는 문장, 말투 섞임을 찾아 고치게 한다. NERV 서버 없이도 동작한다. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md) §7** 이고, 두 쪽이 다르면 문서가 맞고 여기가 결함이다.
 
@@ -32,4 +32,5 @@ NERV 플러그인과 같은 마켓플레이스에 있다.
 1. `skills/ko-style/rules/core.json` 을 고친다. 규칙마다 `examples.bad`(걸려야 할 예문)와 `examples.good`(걸리지 않아야 할 예문)을 적는다.
 2. `node skills/ko-style/scripts/ko-lint.mjs sync` 로 `SKILL.md` 의 규칙 표와 `hooks/digest.json` 을 다시 만든다.
 3. `pnpm --filter @nerv/ko-style test` — 예문 · 생성물 · 훅 입출력을 확인한다.
+   효과는 `claude plugin eval . --allow-tools Write Edit --scaffold` 로 잰다(`evals/` · 플러그인을 켠 실행과 끈 실행을 비교한다 · 모델을 부르므로 사용량이 든다). `evals/` 는 패키지에 들어가지 않는다.
 4. `.claude-plugin/plugin.json` 의 `version` 을 올리고 저장소 루트 `.claude-plugin/marketplace.json` · `package.json` · 이 README 제목을 맞춘다. **같은 버전이면 설치한 쪽은 옛 사본을 계속 쓴다.**

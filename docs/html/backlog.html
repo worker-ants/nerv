@@ -53,7 +53,7 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.</p>
     <div class="meta-line">
-      <span>버전 v1.92 (2026-09-27)</span>
+      <span>버전 v1.93 (2026-09-27)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 14 · 스토리 62 · E2E 시나리오 5</span>
       <span class="refs">참조하는 문서: <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -124,7 +124,7 @@
       <tr><td>E06-S06</td><td>degrade 경로·1024차원 검증</td><td><b>3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정</b>(<a href="api.html">4.4 API</a>가 임베딩 p95 를 아직 보류로 둔다)</td></tr>
       <tr><td>E06-S07</td><td>command 폴백이 기본 변형으로 배포됨</td><td>기록된 근거는 훅 <code>url</code> 의 <code>${VAR}</code> <b>미</b>확장이지 <b><code>headers</code> 확장 자체의 실측이 아니다</b>(<a href="plugin.html">4.6 플러그인</a> §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다)</td></tr>
       <tr><td>E09-S03</td><td>지시자≠승인자 차단</td><td><b>리뷰어 자동 지정</b> — <code>ApprovalService.request()</code> 를 부르는 곳이 <code>assigneeUserId</code> 를 넘기지 않아 결재 카드는 언제나 <code>assignee_user_id = NULL</code> 로 만들어진다(그 열이 채워지는 것은 결재 시점의 <code>COALESCE</code> 뿐이라 <i>지정</i>이 아니라 <i>기록</i>이다)</td></tr>
-      <tr><td>E12-S07</td><td>플러그인 본체(규칙 표 · 검사기 · 훅 여섯 · 스킬 셋) · git · 서버 카탈로그 · 이 저장소 설정(<code>.ko-style.json</code> · <code>.claude/settings.json</code>) · L1(<code>ko-style.spec.ts</code>) · L2(<code>plugin.spec.ts</code>) · CI 게이트(<code>check-ko-style.mjs</code> · REQ-CB-058)</td><td>**<code>claude plugin eval</code> 사례<b> — 모델을 부르는 실측이라 CLI 로그인이 만료된 채로는 돌리지 못했다 · </b>Codex 매니페스트 · 훅** — 실측 뒤(<a href="plugin.html">4.6</a> §7.6)</td></tr>
+      <tr><td>E12-S07</td><td>플러그인 본체(규칙 표 · 검사기 · 훅 여섯 · 스킬 셋) · git · 서버 카탈로그 · 이 저장소 설정(<code>.ko-style.json</code> · <code>.claude/settings.json</code>) · L1(<code>ko-style.spec.ts</code>) · L2(<code>plugin.spec.ts</code>) · CI 게이트(<code>check-ko-style.mjs</code> · REQ-CB-058) · <code>claude plugin eval</code> 사례 셋(<code>evals/</code> · 평균 차이 +0.04 — <a href="plugin.html">4.6</a> §7.7)</td><td><b>Codex 매니페스트 · 훅</b> — 실측 뒤(<a href="plugin.html">4.6</a> §7.6)</td></tr>
     </tbody>
   </table>
 

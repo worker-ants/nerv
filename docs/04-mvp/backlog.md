@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.92 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.93 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.93 변경(2026-09-27 — E12-S07 의 남은 것 하나 더): **E12-S07 은 여전히 부분.** `claude plugin eval` 사례 셋이 들어왔고 효과를 쟀다(평균 차이 +0.04 · [4.6 플러그인](plugin.md) §7.7). 남은 것은 Codex 매니페스트 · 훅이다.
 >
 > v1.92 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **플러그인 스킬 문구 정리**를 적는다. 사용자의 에이전트가 읽는 스킬 파일에 용어 사전 §3.4 표현이 35곳 남아 있었다.
 >
@@ -450,7 +452,7 @@ referenced_by:
 | E06-S06 | degrade 경로·1024차원 검증 | **3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정**([4.4 API](api.md)가 임베딩 p95 를 아직 보류로 둔다) |
 | E06-S07 | command 폴백이 기본 변형으로 배포됨 | 기록된 근거는 훅 `url` 의 `${VAR}` **미**확장이지 **`headers` 확장 자체의 실측이 아니다**([4.6 플러그인](plugin.md) §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다) |
 | E09-S03 | 지시자≠승인자 차단 | **리뷰어 자동 지정** — `ApprovalService.request()` 를 부르는 곳이 `assigneeUserId` 를 넘기지 않아 결재 카드는 언제나 `assignee_user_id = NULL` 로 만들어진다(그 열이 채워지는 것은 결재 시점의 `COALESCE` 뿐이라 *지정*이 아니라 *기록*이다) |
-| E12-S07 | 플러그인 본체(규칙 표 · 검사기 · 훅 여섯 · 스킬 셋) · git · 서버 카탈로그 · 이 저장소 설정(`.ko-style.json` · `.claude/settings.json`) · L1(`ko-style.spec.ts`) · L2(`plugin.spec.ts`) · CI 게이트(`check-ko-style.mjs` · REQ-CB-058) | **`claude plugin eval` 사례** — 모델을 부르는 실측이라 CLI 로그인이 만료된 채로는 돌리지 못했다 · **Codex 매니페스트 · 훅** — 실측 뒤([4.6](plugin.md) §7.6) |
+| E12-S07 | 플러그인 본체(규칙 표 · 검사기 · 훅 여섯 · 스킬 셋) · git · 서버 카탈로그 · 이 저장소 설정(`.ko-style.json` · `.claude/settings.json`) · L1(`ko-style.spec.ts`) · L2(`plugin.spec.ts`) · CI 게이트(`check-ko-style.mjs` · REQ-CB-058) · `claude plugin eval` 사례 셋(`evals/` · 평균 차이 +0.04 — [4.6](plugin.md) §7.7) | **Codex 매니페스트 · 훅** — 실측 뒤([4.6](plugin.md) §7.6) |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
 

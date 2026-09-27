@@ -204,10 +204,16 @@ function skipIgnored(text, masked) {
   return out.slice(0, masked.length);
 }
 
-/** 문장으로 나눈다 — 마침표·물음표·느낌표, 줄 끝의 쌍점, 줄바꿈에서 끊는다 */
+/**
+ * 문장으로 나눈다 — 마침표·물음표·느낌표와 줄바꿈에서 끊는다.
+ *
+ * **문장 부호 뒤가 공백 · 닫는 괄호 · 따옴표 · 글 끝일 때만 끊는다.** "0.3.4" 나 `plugin.json` 의 점을
+ * 문장 끝으로 읽으면 "플러그인 0.3.4" 앞의 줄표가 "문장 끝의 짝 없는 줄표" 로 잡힌다(2026-09-27 실측 —
+ * 커밋 제목 "…고친다 — 플러그인 0.3.4").
+ */
 export function sentencesOf(text) {
   const out = [];
-  const re = /[^\n.?!]*(?:[.?!]+|(?=\n)|$)/g;
+  const re = /(?:[^\n.?!]|[.?!](?=[^\s"'」』)\]]))*(?:[.?!]+|(?=\n)|$)/g;
   let m;
   while ((m = re.exec(text))) {
     if (m[0].length === 0) {

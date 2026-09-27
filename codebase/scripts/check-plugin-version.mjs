@@ -30,8 +30,12 @@ const PLUGINS = [
   },
 ];
 
-/** 배달되지 않는 것들 — 테스트·워크스페이스 표기는 패키지에 들어가지 않으므로 버전을 요구하지 않는다 */
-const NOT_SHIPPED = [/\.spec\.ts$/, /^codebase\/[^/]+\/package\.json$/];
+/** 배달되지 않는 것들 — 테스트·워크스페이스 표기·eval 사례는 패키지에 들어가지 않으므로 버전을 요구하지 않는다 */
+const NOT_SHIPPED = [
+  /\.spec\.ts$/,
+  /^codebase\/[^/]+\/package\.json$/,
+  /^codebase\/[^/]+\/evals\//,
+];
 
 const base = process.argv[2];
 if (base === undefined || base === '') {

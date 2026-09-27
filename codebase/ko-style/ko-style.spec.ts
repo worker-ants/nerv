@@ -154,6 +154,13 @@ describe('말투 · 줄표 · 빈도 — 문장 단위 규칙', () => {
     ).not.toContain('KO-P-01');
   });
 
+  it('숫자와 파일 이름의 점은 문장 끝이 아니다 — "플러그인 0.3.4" 앞의 줄표는 제목 — 부제다', () => {
+    expect(ids('fix: 스킬 문구를 고친다 — 플러그인 0.3.4')).not.toContain('KO-P-01');
+    expect(ids('설정 — plugin.json 과 README')).not.toContain('KO-P-01');
+    expect(ids('§3.4 표를 고친다 — 뜻은 그대로다.')).toContain('KO-P-01');
+    expect(toneOf('버전을 0.3.4 로 올린다.')).toBe('haera');
+  });
+
   it('빈도 규칙은 비율도 본다 — 긴 글의 쉼표 몇 개는 사람도 쓴다', () => {
     const plain = Array.from({ length: 40 }, (_, i) => `${i}번 항목을 확인했다.`).join(' ');
     const three = '늘었지만, 그대로다. 바꿨는데, 같았다. 확인해서, 올렸다.';

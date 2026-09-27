@@ -24,3 +24,5 @@ plugin/codex/
 ko-style/skills/
 ko-style/hooks/
 ko-style/.claude-plugin/plugin.json
+# eval 사례의 채점 정규식은 YAML 작은따옴표 문자열이다 — 큰따옴표로 바뀌면 \s 같은 이스케이프가 깨진다
+ko-style/evals/

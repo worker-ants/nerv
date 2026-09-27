@@ -30,3 +30,5 @@ nerv-import-report/
 
 # 플러그인 아카이브는 빌드 산출물이다(scripts/pack-plugin.mjs)
 plugin-dist/
+# 문체 플러그인 eval 결과 — 돌릴 때마다 생긴다(claude plugin eval)
+ko-style/evals/results/

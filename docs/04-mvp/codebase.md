@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.78 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.79 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.79 변경(2026-09-27 — eval 사례): **새 요구사항 없음 · §1 트리 한 줄.** `codebase/ko-style/evals/`(`claude plugin eval` 사례)를 더한다. 패키지에 들어가지 않고(`pack-plugin.mjs`), 버전 게이트도 세지 않으며(`check-plugin-version.mjs`), 결과 폴더는 `.gitignore` 에 있다. 채점 정규식이 YAML 작은따옴표 문자열이라 서식 검사에서 뺐다(`.prettierignore`).
 >
 > v1.78 변경(2026-09-27 — 새로 쓴 한국어 문장을 CI 가 본다, **사람 결정**): **REQ-CB-058 신설 · 게이트 일곱 → 여덟 · §4.5 · §5.1.** 한국어 문장 규약([용어 사전](../glossary.md) §3.4)을 문체 플러그인 `ko-style` 의 검사기로 확인한다([4.6 플러그인](plugin.md) §7). 새로 쓴 줄만 보고, AI 말투 층은 알리기만 한다 — 최근 PR 넷(#157~#160)의 새 줄에서 걸린 것이 그 층뿐이었고 §3.4 가 정한 규칙이 아니다. 그대로 둘 줄은 `ko-style-ignore: <이유>` 로 뺀다.
 >
@@ -260,6 +262,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
       .claude-plugin/           #   plugin.json — 버전은 nerv 와 따로 오른다
       hooks/                    #   hooks.json · run.sh(진입점) · digest.json(node 없을 때의 요약 · 생성물)
       skills/                   #   ko-style(규칙 표 rules/core.json · 검사기 scripts/ko-lint.mjs) · check · init
+      evals/                    #   claude plugin eval 사례 — 켠 실행과 끈 실행을 비교한다(배포하지 않는다)
       ko-style.spec.ts          #   예문 · 생성물 · 훅 실행 테스트 (REQ-PLG-020~026)
   deploy/                         # ★ 배포 산출물 — 저장소 루트 (REQ-CB-015, 2026-08-22 개정)
     compose/

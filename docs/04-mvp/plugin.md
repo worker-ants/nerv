@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7 이 정본이다.
 >
-> 문서 버전 v0.77 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.78 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.78 변경(2026-09-27 — 효과를 쟀다 · 검사기 오탐 하나): **새 요구사항 없음 · §7.2 · §7.7 · `ko-style` 0.1.1 → 0.1.2.** `claude plugin eval` 사례 셋(`evals/` · 배포하지 않는다)으로 켠 실행과 끈 실행을 비교했다(평균 차이 +0.04 · §7.7). 짧은 요청에서는 모델이 이미 대부분 규칙대로 쓴다. 검사기가 "0.3.4" 나 `plugin.json` 의 점을 문장 끝으로 읽어 커밋 제목의 "제목 — 부제" 를 짝 없는 줄표로 잡던 것을 고쳤다. 문장 부호 뒤가 공백 · 닫는 기호 · 글 끝일 때만 문장을 끊는다. `claude plugin validate --strict` 가 통과하도록 매니페스트에 `author` 를 더했다.
 >
 > v0.77 변경(2026-09-27 — 스킬이 쓰지 않는 말을 가르치고 있었다): **새 요구사항 없음 · §2 스킬 다섯의 문구 · 패키지 0.3.3 → 0.3.4.** 사용자의 에이전트가 매번 읽는 스킬 파일에 [용어 사전](../glossary.md) §3.4 의 표현이 35곳(`ko-style` 검사기로 셌다) 있었다. 뜻과 도구 · 인자 · 에러 코드는 그대로 두고 말만 고쳤다. 곁들여 파생본의 스킬 사본 둘(`spec` · `question`)이 원본보다 뒤져 있던 것을 원본으로 다시 채웠다. md ↔ html 검사는 코드 블록 안쪽을 보지 않아서 드러나지 않았다.
 >
@@ -1709,7 +1711,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 ### 7.2 구성
 
 ```text
-codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.1
+codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.2
   .claude-plugin/plugin.json          # 매니페스트
   hooks/hooks.json                    # 훅 여섯 (§7.4)
   hooks/run.sh                        # 훅 진입점 — 필요 없으면 node 를 띄우지 않는다
@@ -1720,6 +1722,7 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
   skills/check/SKILL.md               # /ko-style:check
   skills/init/SKILL.md                # /ko-style:init
   README.md
+  evals/                              # claude plugin eval 사례 셋 — 배포하지 않는다 (§7.7)
   ko-style.spec.ts                    # L1 — 배포하지 않는다
 ```
 
@@ -1779,15 +1782,25 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 
 **훅과 매니페스트는 아직이다.** Codex 문서는 Claude 호환 매니페스트와 `hooks/hooks.json` 을 읽고 플러그인 훅에 `CLAUDE_PLUGIN_ROOT` 도 설정한다고 적는다. 하지만 관리형이 아닌 훅은 사람이 `/hooks` 에서 신뢰 처리해야 실행되고, `additionalContext` 의 기본 상한이 약 2,500토큰이다. 두 가지를 실측한 뒤에 더한다. 두 매니페스트를 함께 둔 폴더를 Codex 가 문제없이 읽는가, Codex 의 Stop 입력에 마지막 답변 필드가 있는가.
 
-### 7.7 확인하지 못한 것
+### 7.7 효과 측정과 확인하지 못한 것
 
-2026-09-27 에 이 기계의 `claude` CLI 로그인이 만료돼 모델을 부르는 실측을 하지 못했다. 설계는 아래가 어느 쪽으로 판명돼도 동작하게 잡았다.
+**효과를 쟀다**(2026-09-27 · `claude plugin eval` · Claude Code 2.1.283 · 모델 `claude-opus-5-5`). 사례 셋(`evals/`)을 플러그인을 켠 실행과 끈 실행으로 세 번씩 돌렸다(18회 · 약 1.04달러). 채점은 모두 정규식이라 판정 모델을 부르지 않는다.
+
+| 사례 | 무엇을 보나 | 켬 | 끔 |
+| --- | --- | --- | --- |
+| `help-paragraph` | 영어 메모를 도움말 문단으로 옮긴다. 세션 요약만 적용된다 | 1.00 | 1.00 |
+| `doc-file` | 문서 파일에 쓴다. 저장 직후 검사가 적용된다 | 1.00 | 0.89 |
+| `team-vocab` | 저장소 설정의 팀 어휘(`.ko-style.json`)가 있는 작업 폴더에서 변경 기록을 쓴다 | 1.00 | 1.00 |
+
+평균 차이는 +0.04 다. 끈 실행이 틀린 것은 한 번뿐이었다(`doc-file` 에서 파일에 번역투를 썼다). **짧은 요청에서는 모델이 이미 대부분 규칙대로 쓴다.** 이 저장소에서 문제가 된 표현("싣는다" · "배선" 같은 것)은 긴 세션에서 같은 비유가 쌓이며 퍼졌다. 사례 하나짜리 측정으로는 그 상황을 재현하지 못한다. 그래서 이 플러그인의 값은 긴 세션의 흐름을 바로잡는 요약과 결과물을 막는 훅 · CI 에 있다고 본다. 켠 실행마다 세션 요약이 실제로 들어갔는지는 `summary-injected` 채점기(켠 실행에서만 센다)가 확인한다.
+
+**아직 확인하지 못한 것.** 설계는 아래가 어느 쪽으로 판명돼도 동작하게 잡았다.
 
 | 무엇 | 설계가 기대지 않는 방법 |
 | --- | --- |
 | SessionStart 로 넣은 요약이 서브에이전트에도 적용되는가 | SubagentStart 훅이 따로 넣는다 |
 | 훅의 `if: "Edit(**/*.md)"` 가 Write 에도 적용되는가 | `if` 를 쓰지 않고 경로 판단을 검사기 안에서 한다 |
-| `claude plugin eval` 로 잰 효과(켠 실행과 끈 실행의 차이) | 아직 사례가 없다 — [4.8 백로그](backlog.md) E12-S07 의 남은 것 |
+| 긴 세션에서 말투가 흐트러지는 정도와 그때의 효과 | 사례 하나짜리 eval 로는 재현하지 못했다. 대화 기록을 이어 쓰는 사례(`context.history_file`)로 잴 수 있다 |
 
 ---
 
