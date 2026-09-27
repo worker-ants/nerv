@@ -11,19 +11,12 @@
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
 import { relativeTime } from '../../lib/format.js';
-import {
-  rows,
-  useMe,
-  useMembers,
-  useOrgInvitations,
-  useOrgTokens,
-  useProjects,
-} from '../../lib/queries.js';
+import { rows, useMe, useMembers, useOrgInvitations, useProjects } from '../../lib/queries.js';
 import { canManageScope } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -132,26 +125,6 @@ export function groupByPerson(members: MemberRow[]): MemberGroup[] {
   return [...out.values()];
 }
 
-/** 이 사람의 멤버십 행 id 전부 — 한 범위 줄의 것만 고르려면 `scopes` 를 좁혀 넘긴다 */
-function membershipIds(scopes: readonly MemberRow[]): string[] {
-  return scopes.flatMap((m) => Object.values(m.idByRole));
-}
-
-/** 살아 있는 토큰 — 폐기·만료된 것은 이미 끊겼다 */
-function liveTokensOf(tokens: readonly Record<string, unknown>[], userId: string): string[] {
-  return tokens
-    .filter(
-      (token) =>
-        token['owner_id'] === userId &&
-        token['revoked_at'] === null &&
-        !(
-          typeof token['expires_at'] === 'string' &&
-          new Date(token['expires_at']).getTime() <= Date.now()
-        ),
-    )
-    .map((token) => String(token['id']));
-}
-
 export const Route = createFileRoute('/settings/members')({
   // 멤버가 기본 탭이라 주소에 적지 않는다 — `?tab=invites` 만 있다
   validateSearch: (search: Record<string, unknown>): { tab?: 'invites' } =>
@@ -184,8 +157,6 @@ function MembersTab(): React.JSX.Element {
   // admin 에게도 잠긴 구역이 먼저 번쩍인다(REQ-WEB-198 과 같은 부류)
   const projectList = useProjects(orgSlug);
   const inviteKnown = me.data !== undefined && projectList.data !== undefined;
-  // 내보낼 때 그 사람의 토큰도 함께 끊는다 — 조직 전체 토큰 표는 조직 admin 만 읽는다(REQ-API-172)
-  const orgTokens = useOrgTokens(orgSlug, orgAdmin);
   const myId = me.data?.id;
   /** 조직 admin 인 사람 — **한 명이면 그 사람의 admin 은 뗄 수 없다**(REQ-API-174) */
   const orgAdminIds = new Set(
@@ -236,24 +207,19 @@ function MembersTab(): React.JSX.Element {
   });
 
   /**
-   * **내보내기**(2026-09-24 — UI/UX 검토 · REQ-WEB-201). 떠난 사람을 표에서 내보낼 길이 없었다 —
-   * 칩을 하나씩 끄면 마지막 칩이 "마지막 역할은 뗄 수 없습니다" 로 잠겼고, 매뉴얼은 "멤버 자체를
-   * 지웁니다" 라고 적었지만 그 단추는 어디에도 없었다. 그 사람의 토큰도 끊는다 — 멤버십이 없으면
-   * 토큰의 권한은 이미 0 이지만(권한은 사람의 부분집합이다 · D-08), 살아 있는 토큰이 표에 남으면
-   * 끊긴 것인지 아무도 모른다.
-   *
-   * 한 번에 지우는 서버 경로는 없다 — 있는 두 문(EP-MBR-04 · EP-TOK-03)을 차례로 부른다. 중간에
-   * 실패하면 거기서 멈추고 표를 다시 읽어, 무엇이 남았는지를 표가 말한다.
+   * **빼기는 서버가 한 번에 한다**(2026-09-27 · 사람 결정 P2 · REQ-WEB-263 · api.md REQ-API-227). 예전에는 화면이
+   * 토큰 폐기(EP-TOK-03)와 멤버십 삭제(EP-MBR-04)를 하나씩 불러서, 중간에 실패하면 일부만 지워진 채로 남았고
+   * 프로젝트 admin 은 조직 토큰 표를 읽지 못해 토큰을 끊지 못했다. 이제 한 트랜잭션(EP-MBR-06 · 07)이 멤버십 ·
+   * 더는 볼 수 없게 된 프로젝트의 토큰 · 맡은 작업의 담당자를 함께 정리한다.
    */
-  const offboard = useMutation({
-    mutationFn: async (input: { membershipIds: string[]; tokenIds: string[]; done: string }) => {
-      for (const id of input.tokenIds) {
-        await apiFetch(`/me/tokens/${id}`, { method: 'DELETE' });
-      }
-      for (const id of input.membershipIds) {
-        await apiFetch(`/memberships/${id}`, { method: 'DELETE' });
-      }
-    },
+  const removeMember = useMutation({
+    mutationFn: (input: { userId: string; project: string | null; done: string }) =>
+      apiFetch(
+        input.project === null
+          ? `/orgs/${orgSlug ?? ''}/members/${input.userId}`
+          : `/orgs/${orgSlug ?? ''}/members/${input.userId}/projects/${encodeURIComponent(input.project)}`,
+        { method: 'DELETE' },
+      ),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'members'] });
       void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'tokens'] });
@@ -498,14 +464,17 @@ function MembersTab(): React.JSX.Element {
                 ? [
                     <ExitConfirmRow
                       key={`${m.key}:exit`}
-                      plan={exitPlan(t, exiting.kind, person, m, orgAdmin, rows(orgTokens.data))}
-                      pending={offboard.isPending}
+                      orgSlug={orgSlug ?? ''}
+                      target={exiting}
+                      person={person}
+                      row={m}
+                      pending={removeMember.isPending}
                       onCancel={closeExit}
                       onConfirm={(plan) => {
                         setExiting(null);
-                        offboard.mutate({
-                          membershipIds: plan.membershipIds,
-                          tokenIds: plan.tokenIds,
+                        removeMember.mutate({
+                          userId: person.user_id,
+                          project: plan.project,
                           done: plan.done,
                         });
                       }}
@@ -596,104 +565,149 @@ interface ExitTarget {
   userId: string;
 }
 
-/** 확인이 적는 것과 실행이 지우는 것 — 한 곳에서 정한다(적은 수와 지운 수가 어긋나지 않게) */
+/** 서버가 센 것 — 확인 단계가 그대로 적는다(EP-MBR-05 · api.md REQ-API-226) */
+interface RemovalPreview {
+  roles: string[];
+  org_roles: string[];
+  keeps_access: boolean;
+  left_org: boolean;
+  tokens: number;
+  tasks: number;
+  active_claims: number;
+  assigned_approvals: number;
+}
+
+/** 확인이 적는 것과 실행이 부르는 것 */
 interface ExitPlan {
   testIdBase: string;
   message: string;
   detail: string;
   confirmLabel: string;
   done: string;
-  membershipIds: string[];
-  tokenIds: string[];
+  /** 빼는 프로젝트(slug) — 없으면 조직에서 내보내기 */
+  project: string | null;
 }
 
 /**
- * **무엇을 지우는지 정한다**(2026-09-27 · 사람 결정 P1 · P3 · REQ-WEB-263).
+ * **무엇을 지우는지 적는다**(2026-09-27 · 사람 결정 P1 · P2 · P3 · REQ-WEB-263).
  *
- * - 조직에서 내보내기: 그 사람의 멤버십 전부와 살아 있는 토큰(REQ-WEB-201).
- * - 프로젝트에서 빼기: 그 줄의 역할. **조직 전체 역할이 있으면** 지워도 그 프로젝트를 계속 본다 — 권한은
- *   합집합이고 한 프로젝트만 막는 규칙은 없다. 그래서 "역할 지우기" 로 부르고 그 사실을 적는다(P3).
- * - **그 조직의 마지막 소속**이면 빼는 것이 곧 조직에서 나가는 것이다. 조직 admin 이면 내보내기와 같게
- *   토큰도 끊는다 — 프로젝트 admin 은 조직 토큰 표를 읽지 못해 역할만 지운다(서버가 끊는 것은 다음 단계).
+ * 수는 서버의 미리보기가 센 것이다 — 빼기와 같은 판정이라 적은 수와 지운 수가 어긋나지 않는다. 미리보기가
+ * 오기 전에는 화면이 아는 것(조직 전체 역할 · 마지막 소속)으로 문장을 고르고 수 대신 "세는 중" 을 적는다.
+ * - 조직 전체 역할이 남으면 지워도 그 프로젝트를 계속 본다 — "역할 지우기" 로 부르고 그 사실을 적는다(P3).
+ * - 그 조직의 마지막 소속이면 빼는 것이 곧 조직에서 나가는 것이다.
+ * - 진행 중 클레임 · 지정된 결재는 그대로 두고 수만 알린다(P2 A).
  */
 function exitPlan(
   t: ReturnType<typeof useT>,
   kind: ExitTarget['kind'],
   person: MemberGroup,
   row: MemberRow,
-  orgAdmin: boolean,
-  tokens: readonly Record<string, unknown>[],
+  preview: { data: RemovalPreview | undefined; failed: boolean },
 ): ExitPlan {
   const name = person.display_name;
+  const p = preview.data;
+  const lines: string[] = [];
+  const counts = (): void => {
+    if (p === undefined) {
+      lines.push(
+        t(preview.failed ? 'settings.members.exit.count_failed' : 'settings.members.exit.counting'),
+      );
+      return;
+    }
+    lines.push(t('settings.members.exit.roles', { n: p.roles.length }));
+    if (p.tokens > 0) lines.push(t('settings.members.exit.tokens', { n: p.tokens }));
+    if (p.tasks > 0) lines.push(t('settings.members.exit.tasks', { n: p.tasks }));
+    if (p.active_claims > 0) lines.push(t('settings.members.exit.claims', { n: p.active_claims }));
+    if (p.assigned_approvals > 0) {
+      lines.push(t('settings.members.exit.approvals', { n: p.assigned_approvals }));
+    }
+  };
   if (kind === 'org' || row.project_slug === null) {
-    const ids = membershipIds(person.scopes);
-    const tokenIds = liveTokensOf(tokens, person.user_id);
+    counts();
     return {
       testIdBase: 'member-offboard',
       message: t('settings.members.offboard_confirm', { name }),
-      detail: t('settings.members.offboard_detail', {
-        memberships: ids.length,
-        tokens: tokenIds.length,
-      }),
+      detail: lines.join(' '),
       confirmLabel: t('settings.members.offboard_run'),
       done: t('settings.members.offboard_done'),
-      membershipIds: ids,
-      tokenIds,
+      project: null,
     };
   }
   const project = row.project_name ?? row.project_slug;
-  const ids = membershipIds([row]);
-  if (person.orgRoles.length > 0) {
+  const keeps = p?.keeps_access ?? person.orgRoles.length > 0;
+  const left = p?.left_org ?? person.scopes.length === 1;
+  counts();
+  if (keeps) {
+    lines.push(
+      t('settings.members.clear_project_roles_detail', {
+        project,
+        org_roles: (p?.org_roles ?? person.orgRoles).join(' · '),
+      }),
+    );
     return {
       testIdBase: 'member-remove-project',
       message: t('settings.members.clear_project_roles_confirm', {
         name,
         project,
-        roles: ids.length,
+        roles: p?.roles.length ?? row.roles.length,
       }),
-      detail: t('settings.members.clear_project_roles_detail', {
-        project,
-        org_roles: person.orgRoles.join(' · '),
-      }),
+      detail: lines.join(' '),
       confirmLabel: t('settings.members.clear_project_roles_run'),
       done: t('settings.members.clear_project_roles_done'),
-      membershipIds: ids,
-      tokenIds: [],
+      project: row.project_slug,
     };
   }
-  const last = person.scopes.length === 1;
-  const tokenIds = last && orgAdmin ? liveTokensOf(tokens, person.user_id) : [];
   return {
     testIdBase: 'member-remove-project',
-    message: last
+    message: left
       ? t('settings.members.remove_last_confirm', { name, project })
       : t('settings.members.remove_from_project_confirm', { name, project }),
-    detail:
-      last && orgAdmin
-        ? t('settings.members.offboard_detail', {
-            memberships: ids.length,
-            tokens: tokenIds.length,
-          })
-        : t('settings.members.remove_from_project_detail', { roles: ids.length }),
+    detail: lines.join(' '),
     confirmLabel: t('settings.members.remove_from_project_run', { project }),
     done: t('settings.members.remove_from_project_done', { name, project }),
-    membershipIds: ids,
-    tokenIds,
+    project: row.project_slug,
   };
 }
 
-/** 누른 줄 아래에 표 너비 전체로 펼치는 확인 — 확인 한 모양(screens.md §1.5)의 상자 꼴이다 */
+/**
+ * 누른 줄 아래에 표 너비 전체로 펼치는 확인 — 확인 한 모양(screens.md §1.5)의 상자 꼴이다. 열리면 서버의
+ * 미리보기(EP-MBR-05)를 받아 수를 적고, 받기 전에는 실행을 잠근다(세지 못했으면 수 없이 뺄 수 있다).
+ */
 function ExitConfirmRow({
-  plan,
+  orgSlug,
+  target,
+  person,
+  row,
   pending,
   onCancel,
   onConfirm,
 }: {
-  plan: ExitPlan;
+  orgSlug: string;
+  target: ExitTarget;
+  person: MemberGroup;
+  row: MemberRow;
   pending: boolean;
   onCancel: () => void;
   onConfirm: (plan: ExitPlan) => void;
 }): React.JSX.Element {
+  const t = useT();
+  const project = target.kind === 'project' ? row.project_slug : null;
+  const preview = useQuery({
+    // 멤버 키 아래라 빼기 · 역할 변경 뒤의 무효화가 함께 간다
+    queryKey: ['org', orgSlug, 'members', target.userId, 'removal', project],
+    queryFn: () =>
+      apiFetch<RemovalPreview>(
+        `/orgs/${orgSlug}/members/${target.userId}/removal${
+          project === null ? '' : `?project=${encodeURIComponent(project)}`
+        }`,
+      ),
+    staleTime: 0,
+    retry: false,
+  });
+  const plan = exitPlan(t, target.kind, person, row, {
+    data: preview.data,
+    failed: preview.isError,
+  });
   return (
     <Tr className="hover:bg-transparent">
       <Td colSpan={5} className="pb-3">
@@ -702,7 +716,7 @@ function ExitConfirmRow({
           message={plan.message}
           detail={plan.detail}
           confirmLabel={plan.confirmLabel}
-          pending={pending}
+          pending={pending || (preview.data === undefined && !preview.isError)}
           testIdBase={plan.testIdBase}
           onCancel={onCancel}
           onConfirm={() => onConfirm(plan)}

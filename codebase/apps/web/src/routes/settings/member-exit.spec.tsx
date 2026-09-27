@@ -84,6 +84,25 @@ const SUDOKU_ADMIN = {
 let me: unknown = GEHRIG;
 let sent: string[] = [];
 
+/** 서버의 미리보기(EP-MBR-05) — 사람 · 범위마다 센 것 */
+const preview = (over: Record<string, unknown>) => ({
+  roles: ['viewer'],
+  org_roles: [],
+  keeps_access: false,
+  left_org: false,
+  tokens: 0,
+  tasks: 0,
+  active_claims: 0,
+  assigned_approvals: 0,
+  ...over,
+});
+const PREVIEWS: Record<string, unknown> = {
+  'u-j?project=sudoku': preview({ tokens: 1, tasks: 2, active_claims: 1, assigned_approvals: 1 }),
+  'u-g?project=sudoku': preview({ roles: ['admin'], org_roles: ['admin'], keeps_access: true }),
+  'u-e?project=ncoser': preview({ left_org: true, tokens: 1 }),
+  'u-j': preview({ roles: ['viewer', 'viewer'], left_org: true, tokens: 1 }),
+};
+
 beforeEach(() => {
   localStorage.clear();
   me = GEHRIG;
@@ -96,6 +115,14 @@ beforeEach(() => {
       if (method !== 'GET') {
         sent.push(`${method} ${path.replace(/^.*\/api\/v1/, '')}`);
         return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }
+      const removal = /\/members\/([^/]+)\/removal(\?.*)?$/.exec(path);
+      if (removal !== null) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => PREVIEWS[`${removal[1] ?? ''}${removal[2] ?? ''}`],
+        };
       }
       const json = path.endsWith('/members')
         ? MEMBERS
@@ -199,10 +226,16 @@ describe('빼기 전에 무엇이 지워지는지 적는다', () => {
     fireEvent.click(within(await rowOf('제이엠', 'sudoku')).getByTestId('member-remove-project'));
     const box = await screen.findByTestId('member-remove-project-confirming');
     expect(box.textContent).toContain('제이엠을(를) sudoku에서 뺍니다.');
-    expect(box.textContent).toContain('이 프로젝트의 역할 1개를 지웁니다.');
+    // 수는 서버의 미리보기가 센 것이다 — 정리하는 것과 그대로 두는 것을 함께 적는다(사람 결정 P2)
+    await waitFor(() => expect(box.textContent).toContain('역할 1개를 지웁니다.'));
+    expect(box.textContent).toContain('살아 있는 토큰 1개를 폐기합니다.');
+    expect(box.textContent).toContain('맡은 작업 2건의 담당자를 비웁니다.');
+    expect(box.textContent).toContain('진행 중 클레임 1건은 그대로 둡니다.');
+    expect(box.textContent).toContain('이 사람에게 지정된 결재 1건은 그대로 둡니다.');
     expect(sent).toEqual([]);
     fireEvent.click(screen.getByTestId('member-remove-project-confirm'));
-    await waitFor(() => expect(sent).toEqual(['DELETE /memberships/j2']));
+    // 한 트랜잭션의 서버 경로 하나다 — 토큰 · 멤버십을 화면이 하나씩 부르지 않는다
+    await waitFor(() => expect(sent).toEqual(['DELETE /orgs/default/members/u-j/projects/sudoku']));
   });
 
   it('조직 전체 역할이 있으면 "역할 지우기" 이고, 계속 볼 수 있다고 적는다 (사람 결정 P3)', async () => {
@@ -213,21 +246,58 @@ describe('빼기 전에 무엇이 지워지는지 적는다', () => {
     fireEvent.click(button);
     const box = await screen.findByTestId('member-remove-project-confirming');
     expect(box.textContent).toContain('gehrig의 sudoku 역할 1개를 지웁니다.');
+    // 계속 보므로 토큰 · 작업은 건드리지 않는다 — 서버의 미리보기가 그렇게 센다(P3)
+    await waitFor(() => expect(box.textContent).toContain('역할 1개를 지웁니다.'));
+    expect(box.textContent).not.toContain('폐기합니다');
     expect(box.textContent).toContain(
       '조직 전체 역할(admin)이 있어 sudoku을(를) 계속 볼 수 있습니다.',
     );
     fireEvent.click(screen.getByTestId('member-remove-project-confirm'));
-    await waitFor(() => expect(sent).toEqual(['DELETE /memberships/g2']));
+    await waitFor(() => expect(sent).toEqual(['DELETE /orgs/default/members/u-g/projects/sudoku']));
   });
 
-  it('그 조직의 마지막 소속이면 조직에서도 나간다고 적고, 조직 admin 이면 토큰도 끊는다', async () => {
+  it('그 조직의 마지막 소속이면 조직에서도 나간다고 적고, 서버가 센 토큰 수를 적는다', async () => {
     renderAt('/settings/members');
     fireEvent.click(within(await rowOf('에체스', 'ncoser')).getByTestId('member-remove-project'));
     const box = await screen.findByTestId('member-remove-project-confirming');
     expect(box.textContent).toContain('빼면 조직에서도 나갑니다.');
-    await waitFor(() => expect(box.textContent).toContain('유효한 토큰 1개'));
+    await waitFor(() => expect(box.textContent).toContain('살아 있는 토큰 1개를 폐기합니다.'));
     fireEvent.click(screen.getByTestId('member-remove-project-confirm'));
-    await waitFor(() => expect(sent).toEqual(['DELETE /me/tokens/t-e', 'DELETE /memberships/e1']));
+    await waitFor(() => expect(sent).toEqual(['DELETE /orgs/default/members/u-e/projects/ncoser']));
+  });
+
+  it('조직에서 내보내기도 서버 경로 하나다 — 확인이 서버가 센 수를 적는다', async () => {
+    renderAt('/settings/members');
+    fireEvent.click(within(await rowOf('제이엠', 'coser')).getByTestId('member-offboard'));
+    const box = await screen.findByTestId('member-offboard-confirming');
+    expect(box.textContent).toContain('제이엠을(를) 조직에서 내보냅니다.');
+    await waitFor(() => expect(box.textContent).toContain('역할 2개를 지웁니다.'));
+    fireEvent.click(screen.getByTestId('member-offboard-confirm'));
+    await waitFor(() => expect(sent).toEqual(['DELETE /orgs/default/members/u-j']));
+  });
+
+  it('미리보기를 받기 전에는 실행이 잠기고 "세는 중" 을 적는다', async () => {
+    let release: (() => void) | undefined;
+    const inner = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        if (String(url).includes('/removal')) {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        return inner(url as string, init);
+      }),
+    );
+    renderAt('/settings/members');
+    fireEvent.click(within(await rowOf('제이엠', 'sudoku')).getByTestId('member-remove-project'));
+    const box = await screen.findByTestId('member-remove-project-confirming');
+    expect(box.textContent).toContain('지울 것을 세는 중입니다…');
+    const confirm = screen.getByTestId('member-remove-project-confirm') as HTMLButtonElement;
+    expect(confirm.disabled || confirm.getAttribute('aria-disabled') === 'true').toBe(true);
+    release?.();
+    await waitFor(() => expect(box.textContent).toContain('역할 1개를 지웁니다.'));
   });
 
   it('취소하면 누른 단추로 돌아온다 — 아무것도 보내지 않는다', async () => {

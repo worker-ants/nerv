@@ -137,6 +137,23 @@ beforeEach(() => {
         sent.push({ method, url: path, body: JSON.parse(String(init?.body ?? '{}')) });
         return { ok: true, status: 200, json: async () => ({ ok: true }) };
       }
+      // 빼기의 미리보기(EP-MBR-05) — 서버가 센 수를 확인 단계가 그대로 적는다
+      if (path.includes('/removal')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            roles: ['planner', 'developer'],
+            org_roles: [],
+            keeps_access: false,
+            left_org: true,
+            tokens: 1,
+            tasks: 0,
+            active_claims: 0,
+            assigned_approvals: 0,
+          }),
+        };
+      }
       const json = path.endsWith('/members')
         ? MEMBERS
         : path.includes('/invitations')
@@ -204,22 +221,25 @@ describe('토큰 폐기는 누가 끊기는지 말하고 한 번 묻는다 (REQ-
 });
 
 describe('떠난 사람을 내보낸다 (REQ-WEB-201)', () => {
-  it('[내보내기…]는 그 사람의 모든 멤버십을 지우고 살아 있는 토큰을 끊는다 — 토큰이 먼저', async () => {
+  it('[조직에서 내보내기…]는 서버 경로 하나로 멤버십 전부와 살아 있는 토큰을 정리한다 (REQ-WEB-263)', async () => {
     renderAt('/settings/members');
     const row = await firstRowOf('유나');
     fireEvent.click(within(row).getByTestId('member-offboard'));
-    // 토큰 표가 오면 몇 개를 끊는지 말한다 — 확인 막대는 그 수를 따라 다시 그린다
+    // 몇 개를 지우고 끊는지는 서버의 미리보기가 센다 — 적은 수와 지운 수가 같은 판정이다
     await waitFor(() =>
-      expect(screen.getByTestId('member-offboard-confirming').textContent).toContain('토큰 1개'),
+      expect(screen.getByTestId('member-offboard-confirming').textContent).toContain(
+        '살아 있는 토큰 1개를 폐기합니다.',
+      ),
     );
-    expect(screen.getByTestId('member-offboard-confirming').textContent).toContain('멤버십 2개');
+    expect(screen.getByTestId('member-offboard-confirming').textContent).toContain(
+      '역할 2개를 지웁니다.',
+    );
     expect(sent).toHaveLength(0);
     fireEvent.click(screen.getByTestId('member-offboard-confirm'));
-    await waitFor(() => expect(sent).toHaveLength(3));
-    expect(sent.map((s) => `${s.method} ${s.url.replace(/^.*\/api\/v1/, '')}`)).toEqual([
-      'DELETE /me/tokens/t-yuna',
-      'DELETE /memberships/m-yuna-1',
-      'DELETE /memberships/m-yuna-2',
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // 예전에는 토큰 폐기와 멤버십 삭제를 화면이 하나씩 불러, 중간에 실패하면 일부만 지워졌다
+    expect(sent.map((x) => `${x.method} ${x.url.replace(/^.*\/api\/v1/, '')}`)).toEqual([
+      'DELETE /orgs/default/members/u-2',
     ]);
   });
 

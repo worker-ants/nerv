@@ -1002,14 +1002,21 @@ export const en = {
   'settings.members.self_admin_off': 'Turn off',
   'settings.members.offboard': 'Remove from organization…',
   'settings.members.offboard_confirm': 'Remove {name} from the organization.',
-  'settings.members.offboard_detail':
-    'Deletes {memberships} memberships and revokes {tokens} active tokens. To undo, invite them again.',
   'settings.members.offboard_run': 'Remove from organization',
   'settings.members.offboard_done': 'Removed.',
   'settings.members.offboard_self': 'You cannot remove yourself.',
+  'settings.members.exit.roles': 'Deletes {n} roles.',
+  'settings.members.exit.tokens': 'Revokes {n} active tokens.',
+  'settings.members.exit.tasks': 'Unassigns {n} tasks.',
+  'settings.members.exit.claims':
+    'Leaves {n} active claims in place. They are released when their lease runs out if the session cannot continue.',
+  'settings.members.exit.approvals':
+    'Leaves {n} approvals assigned to this person in place. An admin can decide them instead.',
+  'settings.members.exit.counting': 'Counting what will be removed…',
+  'settings.members.exit.count_failed':
+    'Could not count what will be removed. You can still remove.',
   'settings.members.remove_from_project': 'Remove from this project…',
   'settings.members.remove_from_project_confirm': 'Remove {name} from {project}.',
-  'settings.members.remove_from_project_detail': 'Deletes {roles} roles in this project.',
   'settings.members.remove_from_project_run': 'Remove from {project}',
   'settings.members.remove_from_project_done': 'Removed {name} from {project}.',
   'settings.members.remove_last_confirm':
