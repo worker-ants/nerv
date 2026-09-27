@@ -70,6 +70,13 @@ export interface GraphNode {
   parent_id: string | null;
   doc_status: string | null;
   archived_at?: string | null;
+  /**
+   * 가장 새 버전의 번호 · 상태와 최신 승인본 번호(REQ-API-194) — 기준과 상관없이 온다.
+   * 승인본으로 읽는 줄이 "위에 v4 초안이 있다" 를 표시하는 재료다(REQ-WEB-249)
+   */
+  latest_version_no?: number | null;
+  latest_status?: string | null;
+  approved_version_no?: number | null;
 }
 export interface GraphEdge {
   from_id: string;

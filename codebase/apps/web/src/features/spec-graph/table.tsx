@@ -15,6 +15,7 @@ import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { Mono, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { GraphEdge, GraphNode } from './graph.js';
+import { viewBasisSearch, type ViewBasis } from '../../lib/view-basis.js';
 
 type SortKey = 'title' | 'type' | 'status' | 'backlinks';
 
@@ -22,8 +23,8 @@ export interface SpecTableProps {
   nodes: readonly GraphNode[];
   edges: readonly GraphEdge[];
   projectSlug: string;
-  /** 목록이 고른 기준선 — 상세로 물고 간다(REQ-WEB-135) */
-  baseline?: string | undefined;
+  /** 목록이 고른 버전 기준 — 상세까지 넘긴다(REQ-WEB-135 · 248) */
+  view?: ViewBasis | undefined;
 }
 
 /** 뿌리까지의 제목 경로 — 표에는 계층이 없으니 경로가 그 자리를 대신한다 */
@@ -43,7 +44,7 @@ export function SpecTable({
   nodes,
   edges,
   projectSlug,
-  baseline,
+  view = {},
 }: SpecTableProps): React.JSX.Element {
   const t = useT();
   const [sort, setSort] = useState<SortKey>('title');
@@ -120,7 +121,7 @@ export function SpecTable({
               <Link
                 to="/p/$proj/specs/$spec"
                 params={{ proj: projectSlug, spec: node.key }}
-                search={baseline === undefined ? {} : { baseline }}
+                search={viewBasisSearch(view)}
                 className={cn(
                   'font-medium hover:text-link',
                   node.archived_at != null ? 'text-text-faint' : undefined,

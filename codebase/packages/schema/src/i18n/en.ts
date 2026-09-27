@@ -413,6 +413,8 @@ export const en = {
   'spec.newer_version': 'A newer version exists: v{n} ({status})',
   'spec.newer_open': 'Open v{n}',
   'spec.newer_diff': 'v{from}→v{to} changes',
+  'spec.latest_basis': 'Reading the latest version. The approved version of this document is v{n}.',
+  'spec.baseline_newer': 'A version was approved after baseline {name}: v{n}',
   'spec.check.level.block': 'Blocking',
   'spec.check.level.warning': 'Warning',
   'spec.check.level.info': 'Note',
@@ -576,10 +578,18 @@ export const en = {
   'spec.requirements.format':
     '- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>',
   'spec.requirements.no_priority': 'no priority',
-  'specs.baseline': 'Baseline',
-  'specs.baseline_current': 'No baseline',
-  'specs.baseline_hint':
-    'A baseline sets which version of each document you see. Without one, each document shows its latest approved version (or its current version if it was never approved). With one, you see only the documents in that baseline, at the versions it captured.',
+  'specs.basis': 'Version basis',
+  'specs.basis_approved': 'Approved',
+  'specs.basis_latest': 'Latest (incl. drafts)',
+  'specs.basis_baselines': 'Baselines',
+  'specs.basis_hint':
+    'Choose which version of each document the list, document pages and search read. Approved (default) shows the latest approved version, or the draft if the document was never approved. Latest also shows drafts and versions in review on top of the approved one. A baseline shows only the documents it captured, at those versions.',
+  'specs.status_newer': 'New version in progress',
+  'specs.row_newer_title': 'A newer version exists on top of the approved one. Click to open v{n}.',
+  'specs.search_basis_approved': 'Searched approved versions.',
+  'specs.search_basis_latest':
+    'Searched the latest versions, including drafts and versions in review.',
+  'specs.search_basis_baseline': 'Searched the versions in baseline {name}.',
   'specs.freeze': 'Create baseline',
   'specs.status_filter': 'Status',
   'specs.status_filter_all': 'All',
@@ -724,6 +734,8 @@ export const en = {
   'error.spec.stale_body':
     "The body has changed since you read it. Read it again and reapply your edit (resending the same body would overwrite someone else's changes).",
   'error.spec.version_xor_baseline': 'Version and baseline cannot be given together.',
+  'error.spec.basis_exclusive':
+    'The view basis (basis) cannot be given together with a version or a baseline.',
   'error.spec.wrapped_body':
     'The body is wrapped in a `<nerv:spec …>` tag. Send only the content inside the tag.',
   'error.attachment.not_text':

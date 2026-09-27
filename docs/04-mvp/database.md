@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.53 · 2026-09-26 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.54 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.54 변경(2026-09-27 — 검토 요청을 보내면 임베딩이 지워졌다): **REQ-DB-017 개정 · §2.15 규칙 1.** 임베딩 대상에 in_review 버전을 더했다. 빠져 있던 동안 검토 요청을 보내는 순간 그 버전의 청크가 지워져, 최신 기준 검색([4.4 API 명세](api.md) REQ-API-195)이 검토 중인 문서를 의미로 찾지 못했고 거절되면 같은 본문을 다시 임베딩했다.
 >
 > v0.53 변경(2026-09-26 — 검증 서명은 그 문장에 대한 것이다, **사람 결정** · 구현 축 상태도 검토): **§2 `requirement.statement_changed_at`(`0033`).** 승인이 요구사항 문장을 바꾼 시각 — 그보다 앞선 서명은 지금 문장을 보증하지 않는다([4.4](api.md) REQ-API-190).
 
@@ -1121,7 +1123,7 @@ CREATE INDEX spec_chunk_embedding_hnsw
 
 운영 규칙(집행 주체는 워커 `embedding.job` — [4.2](codebase.md) §2.2):
 
-1. **인덱싱 대상은 최신 버전만** — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 버전 검색은 렉시컬로 충분).
+1. **인덱싱 대상은 최신 버전만** — 스펙별 최신 approved 버전 + 현재 draft · in_review 버전(in_review 는 2026-09-27 에 더했다 — REQ-DB-017). supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 버전 검색은 렉시컬로 충분).
 2. **갱신 트리거** — draft 저장 커밋·승인·임포트 배치 후 이벤트를 워커가 소비해 청크 해시 비교 후 변경분만 임베딩한다. approved 본문은 불변이므로 버전당 최대 1회다.
 3. **모델 교체** — `model` 컬럼이 다른 행을 새로 쓰고, 전량 재임베딩 완료 후 구 모델 행을 드랍한다(검색은 단일 모델만 질의).
 
@@ -2020,7 +2022,7 @@ COMMIT;
 | REQ-DB-014 | WHEN 마이그레이션이 완료되면 THE SYSTEM SHALL `pg_trgm`·`vector` 확장과 §2.12의 trigram GIN 3종·§2.15의 HNSW 인덱스를 카탈로그에서 조회 가능하게 한다 | 마이그레이션 후 `pg_extension`·`pg_indexes` 조회 |
 | REQ-DB-015 | WHEN 같은 (spec_version_id, anchor, model)로 임베딩이 재기록되면 THE SYSTEM SHALL 유니크 제약으로 중복 행을 차단하고, `spec_version` 삭제 시 임베딩 행을 CASCADE로 제거한다 | 중복 INSERT 1건 + 버전 삭제 후 잔존 행 0 확인 |
 | REQ-DB-016 | WHEN 한국어 질의(예: "위젯")로 trigram 검색을 실행하면 THE SYSTEM SHALL 조사 변형 본문("위젯을 처음 열면")을 포함한 행을 반환한다 — `simple` FTS 단독으로는 매칭되지 않는 케이스가 통과 기준이다 | 조사 변형 3케이스 질의 |
-| REQ-DB-017 | WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 버전의 `spec_chunk_embedding` 행을 제거해 스펙당 인덱싱 버전을 최신 approved + 현재 draft 2개 이하로 유지한다 | supersede 후 행 수 확인 |
+| REQ-DB-017 | WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 버전의 `spec_chunk_embedding` 행을 제거해 스펙당 인덱싱 버전을 최신 approved 와 현재 draft · in_review 로 유지한다(2026-09-27 개정 — in_review 를 더했다. 빠져 있던 동안 검토 요청을 보내면 그 버전의 청크가 지워져, 최신 기준 검색([4.4](api.md) REQ-API-195)이 검토 중인 문서를 의미로 찾지 못했다) | supersede 후 행 수 확인 |
 
 **한 사람이 한 소속에서 역할을 여럿 가진다(2026-08-23 — `0003_multi_role`).** 근거는 실측이다: clemvion 의 `owner:` 라벨에 `planner/developer`·`project-planner + developer` 같은 복합 표기가 20건 있다. 겸직이 예외가 아니라 흔한 형태인데 모델이 담지 못해 임포트에서 배정 87건이 미결로 갔다.
 

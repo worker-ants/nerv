@@ -1566,6 +1566,46 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
     expect(bad.status).toBe(400);
     expect((bad.body as Record<string, unknown>)['code']).toBe(NERV_ERROR.PRECONDITION);
   });
+
+  /**
+   * **보기 기준이 네 표면 모두에 전달된다**(2026-09-27 · REQ-API-193~196). 서비스 판정은
+   * spec-domain.spec.ts 가 보고, 여기서는 질의 인자가 버려지지 않는지만 본다 — 인자를
+   * 읽지 않는 표면은 조용히 승인본을 돌려주고, 부른 쪽은 최신을 받았다고 믿는다.
+   */
+  it('basis=latest 가 트리 · 그래프 · 문서 · 검색까지 전달되고, v 와 함께면 400 이다', async () => {
+    const { specId } = await seedSpec('SPC-BASIS', { title: '보기기준문서' });
+    await pool.query(`UPDATE spec_version SET status = 'approved' WHERE spec_id = $1`, [specId]);
+    const v2 = newId();
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,2,'draft','# 보기기준문서\n\n다음버전전용어휘', decode('01','hex'), $3)`,
+      [v2, specId, adminId],
+    );
+    const base = '/api/v1/projects/clemvion/specs';
+
+    const tree = await call('GET', `${base}/tree?root=SPC-BASIS&basis=latest`);
+    expect((tree.body as unknown as Record<string, unknown>[])[0]).toMatchObject({
+      version_no: 2,
+      doc_status: 'draft',
+      approved_version_no: 1,
+    });
+    const graph = await call('GET', `${base}/graph?basis=latest`);
+    const node = (
+      (graph.body as Record<string, unknown>)['nodes'] as Record<string, unknown>[]
+    ).find((n) => n['key'] === 'SPC-BASIS');
+    expect(node?.['version_no']).toBe(2);
+    const doc = await call('GET', `${base}/SPC-BASIS?basis=latest`);
+    expect(doc.body).toMatchObject({ version_no: 2, basis: 'latest', approved_version_no: 1 });
+    const found = await call('GET', `${base}/search?q=다음버전전용어휘&basis=latest`);
+    expect(found.body).toMatchObject({ basis: 'latest' });
+    expect(
+      ((found.body as Record<string, unknown>)['items'] as { key: string }[]).map((i) => i.key),
+    ).toContain('SPC-BASIS');
+
+    const both = await call('GET', `${base}/SPC-BASIS?basis=latest&v=1`);
+    expect(both.status).toBe(400);
+    expect((both.body as Record<string, unknown>)['details']).toMatchObject({ field: 'basis' });
+  });
 });
 
 /**

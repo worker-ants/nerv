@@ -256,8 +256,8 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
     }
   });
 
-  it('기준선 선택기의 기본값은 "기준선 없음" 이다 — "현재" 는 목록을 거른다는 인상을 줬다', async () => {
-    // 선택기는 기준선이 하나라도 있어야 그려진다(고를 것이 없는 드롭다운은 자리만 먹는다)
+  it('버전 기준 선택기의 기본값은 승인본이고, 최신과 기준선을 함께 고른다 (REQ-WEB-248)', async () => {
+    // 예전의 기준선 선택기는 "기준선 없음" 이 기본이었다 — 이제 기준선은 버전 기준의 한 갈래다
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: unknown) => ({
@@ -276,8 +276,15 @@ describe('REQ-WEB-140 상단 배치 — 트리도 표·그래프와 같다', () 
     );
     await renderList('/p/demo/specs');
     await vi.waitFor(() => {
-      expect(screen.getByTestId('baseline-select').textContent).toContain('기준선 없음');
+      expect(screen.getByTestId('basis-select').textContent).toContain('R1');
     });
+    const select = screen.getByTestId('basis-select') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      '승인본',
+      '최신 (초안 포함)',
+      'R1 (3)',
+    ]);
   });
 
   it('기준선을 고르면 성질 필터를 그리지 않는다 — 그 세트는 전부 승인본이다', async () => {

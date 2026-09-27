@@ -87,6 +87,8 @@ export class SpecController {
     @Query('status') status?: string,
     @Query('type') type?: string,
     @Query('baseline') baseline?: string,
+    // 보기 기준(`approved` · `latest`) — 판정은 서비스가 한다(REQ-API-193)
+    @Query('basis') basis?: string,
   ): Promise<SpecTreeNode[]> {
     return this.specs.tree({
       projectId: projectOf(req),
@@ -101,6 +103,7 @@ export class SpecController {
       types:
         type === undefined || type === '' ? null : type.split(',').map((value) => value.trim()),
       baseline: baseline === undefined || baseline === '' ? null : baseline,
+      basis: basis === undefined || basis === '' ? null : basis,
     });
   }
 
@@ -114,16 +117,21 @@ export class SpecController {
     @Req() req: ProjectRequest,
     @Query('include_archived') includeArchived?: string,
     @Query('baseline') baseline?: string,
+    @Query('basis') basis?: string,
   ): Promise<{ nodes: SpecTreeNode[]; edges: SpecGraphEdge[] }> {
     return this.specs.graph({
       projectId: projectOf(req),
       includeArchived: includeArchived === 'true',
       // 표·그래프도 같은 세트를 봐야 한다 — 탭을 옮겼다고 목록이 달라지면 그것이 혼동이다
       baseline: baseline === undefined || baseline === '' ? null : baseline,
+      basis: basis === undefined || basis === '' ? null : basis,
     });
   }
 
-  /** EP-SPEC-02 — 하이브리드. 모드 선택 파라미터가 없는 것이 의도다(§2.2b) */
+  /**
+   * EP-SPEC-02 — 하이브리드. 검색 **방식**을 고르는 파라미터는 없다(§2.2b). 어느 버전의 본문을
+   * 찾을지(`basis` · `baseline`)는 고른다 — 방식이 아니라 대상이다(REQ-API-195)
+   */
   @RequireScope('spec:read')
   @Get('specs/search')
   search(
@@ -136,6 +144,8 @@ export class SpecController {
     @Query('type') type?: string,
     @Query('status') status?: string,
     @Query('requirement_id') requirementId?: string,
+    @Query('basis') basis?: string,
+    @Query('baseline') baseline?: string,
   ): Promise<unknown> {
     return this.searches.search({
       projectId: projectOf(req),
@@ -148,6 +158,8 @@ export class SpecController {
       ...(status === undefined ? {} : { statuses: csv(status) }),
       // "이 요구사항 주변에서 찾아라" — 그 요구사항이 속한 스펙으로 좁힌다(REQ-API-110)
       ...(requirementId === undefined ? {} : { requirementRef: requirementId }),
+      ...(basis === undefined || basis === '' ? {} : { basis }),
+      ...(baseline === undefined || baseline === '' ? {} : { baseline }),
     });
   }
 
@@ -190,6 +202,7 @@ export class SpecController {
     // 쉼표로 온다 — 배열 쿼리 표기(`include[]=`)는 프록시마다 다르게 접힌다
     @Query('include') include?: string,
     @Query('baseline') baseline?: string,
+    @Query('basis') basis?: string,
   ): Promise<Record<string, unknown>> {
     assertVersionXorBaseline(version, baseline);
     return this.specs.get({
@@ -202,6 +215,8 @@ export class SpecController {
         include === undefined || include === ''
           ? null
           : include.split(',').map((name) => name.trim()),
+      // `v` · `baseline` 과 배타 — 서비스가 거절한다(REQ-API-193)
+      basis: basis === undefined || basis === '' ? null : basis,
     });
   }
 

@@ -6,8 +6,10 @@
 //      쓰므로 검색 결과에서 코멘트 위치로 바로 갈 수 있다.
 //   ② **변경분만** — chunk_hash 비교로 무변경 재임베딩을 막는다. approved 본문은 불변이라
 //      버전당 최대 1회다. 이게 없으면 저장할 때마다 문서 전체를 다시 임베딩하게 된다.
-//   ③ **최신 버전만** — 스펙별 최신 approved + 현재 draft. 과거 버전 검색은 렉시컬로 충분하고,
-//      전 버전 임베딩은 비용 대비 무가치다.
+//   ③ **최신 버전만** — 스펙별 최신 approved + 현재 draft · in_review. 과거 버전 검색은 렉시컬로
+//      충분하고, 전 버전 임베딩은 비용 대비 무가치다. in_review 는 2026-09-27 에 더했다(REQ-DB-017
+//      개정): 빠져 있던 동안 검토 요청을 보내는 순간 그 버전의 청크가 지워져, 최신 기준 검색
+//      (REQ-API-195)이 검토 중인 문서를 의미로 찾지 못했고 거절되면 같은 본문을 다시 임베딩했다.
 
 import { Injectable, Logger } from '@nestjs/common';
 import { headingSlug, newId } from '@nerv/schema';
@@ -135,7 +137,7 @@ export class EmbeddingService {
     });
   }
 
-  /** 인덱싱 대상 — 스펙별 최신 approved + 현재 draft(규칙 ③). */
+  /** 인덱싱 대상 — 스펙별 최신 approved + 현재 draft · in_review(규칙 ③). */
   async indexableVersions(
     projectId?: string | null,
   ): Promise<{ id: string; spec_id: string; key: string; body_md: string }[]> {
@@ -151,7 +153,7 @@ export class EmbeddingService {
       SELECT id, spec_id, key, body_md FROM (
         SELECT sv.id, sv.spec_id, s.key, sv.body_md
           FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
-         WHERE sv.status = 'draft'${scope}
+         WHERE sv.status IN ('draft', 'in_review')${scope}
       ) drafts
       UNION
       SELECT id, spec_id, key, body_md FROM (
@@ -274,7 +276,7 @@ export class EmbeddingService {
       DELETE FROM spec_chunk_embedding e
        WHERE e.spec_version_id IN (
          SELECT sv.id FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
-          WHERE sv.status NOT IN ('draft', 'approved')${scope}
+          WHERE sv.status NOT IN ('draft', 'in_review', 'approved')${scope}
        )
       RETURNING e.id
     `);

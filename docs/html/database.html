@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 38개</b>다 — 도메인 32 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.53 (2026-09-26)</span>
+      <span>버전 v0.54 (2026-09-27)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1056,7 +1056,7 @@ CREATE INDEX spec_chunk_embedding_hnsw
 
   <p>운영 규칙(집행 주체는 워커 <code>embedding.job</code> — <a href="codebase.html">4.2</a> §2.2):</p>
   <ol>
-    <li><b>인덱싱 대상은 최신 버전만</b> — 스펙별 최신 approved 버전 + 현재 draft 버전. supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 버전 검색은 렉시컬로 충분).</li>
+    <li><b>인덱싱 대상은 최신 버전만</b> — 스펙별 최신 approved 버전 + 현재 draft · in_review 버전(in_review 는 2026-09-27 에 더했다 — REQ-DB-017). supersede·draft 폐기 시 해당 버전 행은 삭제한다(전 버전 임베딩은 비용 대비 무가치 — 과거 버전 검색은 렉시컬로 충분).</li>
     <li><b>갱신 트리거</b> — draft 저장 커밋·승인·임포트 배치 후 이벤트를 워커가 소비해 청크 해시 비교 후 변경분만 임베딩한다. approved 본문은 불변이므로 버전당 최대 1회다.</li>
     <li><b>모델 교체</b> — <code>model</code> 컬럼이 다른 행을 새로 쓰고, 전량 재임베딩 완료 후 구 모델 행을 드랍한다(검색은 단일 모델만 질의).</li>
   </ol>
@@ -1953,7 +1953,7 @@ COMMIT;</code></pre>
     <tr><td><code>REQ-DB-014</code></td><td>WHEN 마이그레이션이 완료되면 THE SYSTEM SHALL <code>pg_trgm</code>·<code>vector</code> 확장과 §2.12의 trigram GIN 3종·§2.15의 HNSW 인덱스를 카탈로그에서 조회 가능하게 한다</td><td>마이그레이션 후 <code>pg_extension</code>·<code>pg_indexes</code> 조회</td></tr>
     <tr><td><code>REQ-DB-015</code></td><td>WHEN 같은 (spec_version_id, anchor, model)로 임베딩이 재기록되면 THE SYSTEM SHALL 유니크 제약으로 중복 행을 차단하고, <code>spec_version</code> 삭제 시 임베딩 행을 CASCADE로 제거한다</td><td>중복 INSERT 1건 + 버전 삭제 후 잔존 행 0 확인</td></tr>
     <tr><td><code>REQ-DB-016</code></td><td>WHEN 한국어 질의(예: "위젯")로 trigram 검색을 실행하면 THE SYSTEM SHALL 조사 변형 본문("위젯을 처음 열면")을 포함한 행을 반환한다 — <code>simple</code> FTS 단독으로는 매칭되지 않는 케이스가 통과 기준이다</td><td>조사 변형 3케이스 질의</td></tr>
-    <tr><td><code>REQ-DB-017</code></td><td>WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 버전의 <code>spec_chunk_embedding</code> 행을 제거해 스펙당 인덱싱 버전을 최신 approved + 현재 draft 2개 이하로 유지한다</td><td>supersede 후 행 수 확인</td></tr>
+    <tr><td><code>REQ-DB-017</code></td><td>WHEN 스펙의 새 버전이 approved되거나 draft가 폐기되면 THE SYSTEM SHALL 이전 버전의 <code>spec_chunk_embedding</code> 행을 제거해 스펙당 인덱싱 버전을 최신 approved 와 현재 draft · in_review 로 유지한다(2026-09-27 개정 — in_review 를 더했다. 빠져 있던 동안 검토 요청을 보내면 그 버전의 청크가 지워져, 최신 기준 검색(<a href="api.html">4.4</a> REQ-API-195)이 검토 중인 문서를 의미로 찾지 못했다)</td><td>supersede 후 행 수 확인</td></tr>
   </table></div>
 
   <h3>5.2 무결성 규칙 ↔ 구현 위치 전수 대조</h3>

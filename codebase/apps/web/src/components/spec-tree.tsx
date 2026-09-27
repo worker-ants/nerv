@@ -26,6 +26,13 @@ import { SPEC_VERSION_TOKEN, statusDot } from './status-token.js';
 import { SpecStartCard } from './spec-start-card.js';
 import type { StatusToken } from './status-badge.js';
 import type { ProjectId } from '../lib/query-keys.js';
+import {
+  NEWER_STATUS,
+  hasNewerVersion,
+  isApprovedBasis,
+  viewBasisSearch,
+  type ViewBasis,
+} from '../lib/view-basis.js';
 
 export interface TreeNode {
   id: string;
@@ -41,6 +48,13 @@ export interface TreeNode {
   updated_at?: string | null;
   /** 열린 코멘트 수(REQ-API-183) */
   open_comments?: number;
+  /**
+   * 가장 새 버전의 번호 · 상태와 최신 승인본 번호(REQ-API-194) — 기준과 상관없이 온다.
+   * 승인본으로 읽는 줄이 "위에 v4 초안이 있다" 를 표시하는 재료다(REQ-WEB-249)
+   */
+  latest_version_no?: number | null;
+  latest_status?: string | null;
+  approved_version_no?: number | null;
 }
 
 /** 트리가 서는 자리 — 화면 밀도가 아니라 **역할**이다(전수인가 동반자인가). */
@@ -77,8 +91,11 @@ export interface SpecTreeProps {
    * 트리의 조작 줄이 그것들의 자리다 — 그러면 머리의 동작 줄은 세 탭이 같아진다.
    */
   controls?: React.ReactNode;
-  /** 고른 기준선 — 그 세트가 담은 문서만, 그때의 버전으로 그린다(REQ-API-098) */
-  baseline?: string | undefined;
+  /**
+   * 버전 기준(REQ-WEB-248) — 기준선이면 그 세트가 담은 문서만 그때의 버전으로(REQ-API-098),
+   * 최신이면 문서마다 가장 새 버전으로 그린다. 줄을 누르면 이 기준을 상세까지 넘긴다
+   */
+  view?: ViewBasis | undefined;
   /**
    * 레일에도 **제목 거르기** 칸을 세운다(2026-09-25 — UI/UX 검토 OBS-01 · REQ-WEB-226). 스펙 화면의 둘째 열이
    * 트리의 자리가 된 뒤로 그 열의 머리가 "어디 있나" 를 좁히는 칸이다 — 문서 검색은 ⌘K 가 한다.
@@ -283,12 +300,12 @@ export function SpecTree({
   statuses,
   types,
   controls,
-  baseline,
+  view = {},
   titleFilter = false,
   headerAction,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
-  const tree = useSpecTree(projectSlug, projectId, includeArchived, baseline);
+  const tree = useSpecTree(projectSlug, projectId, includeArchived, view);
   const [filter, setFilter] = useState('');
   // null = 아직 정하지 않음. 첫 데이터가 와야 초깃값을 만들 수 있다.
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
@@ -325,7 +342,10 @@ export function SpecTree({
       nodes
         .filter(
           (n) =>
-            (wantedStatus === null || (n.doc_status !== null && wantedStatus.has(n.doc_status))) &&
+            (wantedStatus === null ||
+              (n.doc_status !== null && wantedStatus.has(n.doc_status)) ||
+              // "새 버전 진행 중" 은 줄의 상태가 아니라 줄 위의 버전이다(REQ-WEB-249)
+              (wantedStatus.has(NEWER_STATUS) && hasNewerVersion(n))) &&
             (wantedType === null || wantedType.has(n.type)),
         )
         .map((n) => n.id),
@@ -627,9 +647,9 @@ export function SpecTree({
         <Link
           to="/p/$proj/specs/$spec"
           params={{ proj: projectSlug, spec: node.key }}
-          // **고른 기준선을 상세까지 물고 간다**(REQ-WEB-135). 기준선으로 목록을 본 사람이 줄을 누르면
-          // 상세는 최신 승인본을 열었고 머리의 기준선 배지도 사라졌다(2026-09-24 · SPEC-06)
-          search={baseline === undefined ? {} : { baseline }}
+          // **고른 기준을 상세까지 넘긴다**(REQ-WEB-135 · 248). 기준선으로 목록을 본 사람이 줄을 누르면
+          // 상세는 최신 승인본을 열었고 상단의 기준선 배지도 사라졌다(2026-09-24 · SPEC-06)
+          search={viewBasisSearch(view)}
           {...(node.key === activeKey ? { ref: activeRef } : {})}
           data-tree-key={node.key}
           tabIndex={node.key === rovingKey ? 0 : -1}
@@ -718,6 +738,23 @@ export function SpecTree({
             </span>
           )}
         </Link>
+        {/* **승인본 위에 새 버전이 진행 중이다**(2026-09-27 사람 결정 V3 · REQ-WEB-249). 목록이 문서마다
+            최신 승인본만 읽어서, 에이전트가 그 위에 쓴 v4 초안은 목록 어디에도 없었다. 승인본으로 읽는
+            전수 목록에만 단다 — 최신으로 읽으면 줄 자체가 v4 이고, 기준선은 그 세트만 보여 준다(V4).
+            줄 링크 밖에 두는 것은 링크 안에 링크를 넣을 수 없어서다. 키보드는 상세의 안내가 같은 일을 한다 */}
+        {variant === 'full' && isApprovedBasis(view) && hasNewerVersion(node) && (
+          <Link
+            to="/p/$proj/specs/$spec"
+            params={{ proj: projectSlug, spec: node.key }}
+            search={{ v: Number(node.latest_version_no) }}
+            data-testid="tree-row-newer"
+            tabIndex={-1}
+            title={t('specs.row_newer_title', { n: Number(node.latest_version_no) })}
+            className="ml-1 shrink-0 rounded-nerv-sm border border-dashed border-status-waiting px-1.5 text-2xs text-status-waiting tabular-nums hover:bg-status-waiting-soft"
+          >
+            {`v${String(node.latest_version_no)} ${t(statusLabelKey('spec', String(node.latest_status)))}`}
+          </Link>
+        )}
       </div>
     );
   };

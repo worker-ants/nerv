@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.95 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.96 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.96 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **버전 기준 — 승인본 · 최신 · 기준선**을 적는다.
 >
 > v1.95 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **도움말 검토 뒤의 사람 결정 셋과 정정 셋**을 적는다.
 >
@@ -640,6 +642,7 @@ referenced_by:
 | 플러그인 스킬 문구 — 용어 사전 §3.4 표현을 정리한다 | `codebase/plugin/skills/{spec,impl,next,question,review}/SKILL.md` · `agents/nerv-spec-writer.md` · 플러그인 0.3.4 | 사용자의 에이전트가 매번 읽는 파일에 §3.4 표현이 35곳 남아 있었다(ko-style 검사기로 셌다). 뜻은 그대로 두고 말만 고쳤다. [4.6 플러그인](plugin.md) 파생본의 스킬 사본 둘(`spec` · `question`)이 원본보다 뒤져 있던 것도 함께 맞췄다 |
 | 도움말 한국어 10장 — 문장 검토와 사실 대조 | `apps/web/src/content/manual/ko/*.md`(10장 · 608곳 · 제목 20개) · `en/*.md`(사실이 틀린 곳만) · 화면 문구 `session.raw_hidden` · `spec.mermaid_code_title` | 사람 요청. 문장을 고치면서 나온 확인 항목 54건을 코드와 대조했고, 도움말이 사실과 다른 26곳을 두 언어 모두 고쳤다(자기 승인 예외의 기준 · 비밀번호 재설정 뒤 로그인 · 토큰 권한의 상한 · 게이트 판정의 색 등). 한국어 도움말의 ko-style 경고는 177건에서 0건이 됐다 |
 | 도움말 검토 뒤의 사람 결정 셋과 정정 셋 | 화면 문구 `packages/schema/src/i18n/{ko,en}.ts`(조사 붙여 쓰기 약 180곳 · `shell.nav.coming_soon` · `spec.next.rejected` · `realtime.spec_rejected` · `error.approval.content_changed`) · `apps/web/src/content/manual/ko/*.md`(조사 붙여 쓰기 약 370곳) · `features/settings/settings-nav.tsx` · L1 `i18n.spec.ts` · `manual.spec.ts` · `settings-nav.spec.tsx` | 사람 결정 셋. ① 결정의 이름을 "거절"로 통일한다([용어 사전](../glossary.md) §2.5). ② 조사는 코드 · 영문 뒤에도 붙여 쓴다(§3.5). 굵은 글씨가 부호나 기호로 끝나는 자리만 띄운다. markdown-it이 굵게 그리지 못하기 때문이다. ③ 설정의 연동 표시를 "Phase 2"에서 "준비 중"으로 바꾼다. 정정 셋: 일괄 결정에서도 맞도록 내용이 바뀌었다는 오류 문구를 "불러온 뒤"로 고쳤고, 용어 사전 §2.4 게이트의 뜻에 done 게이트를 넣었고, [4.6 플러그인](plugin.md) §3.3의 낡은 Codex 문단을 고쳤다 |
+| 버전 기준 — 승인본 · 최신 · 기준선 | 서버 `apps/api/src/modules/spec/spec-basis.ts`(판정 한 곳) · `spec.service.ts`(트리 · 그래프 · 문서 한 건) · `search.service.ts`(검색 기준) · `embedding.service.ts`(in_review 임베딩) · 화면 `lib/view-basis.ts` · `ViewBasisSelect` · `SpecTree`(`v4 초안` 표시 · `새 버전 진행 중` 필터) · 상세의 안내 둘 · 매뉴얼 ko·en · L1 `spec-view-basis.spec.tsx` · L2 `spec-domain.spec.ts` · `rest-surface.spec.ts` | 사람 보고와 사람 결정 V1~V4. 목록이 문서마다 최신 승인본만 읽어서 승인본 위의 초안은 목록 · 트리 · 그래프 어디에도 없었고 상태 필터 "초안" 에도 걸리지 않았다. 검색도 기준을 고른다(사람 요청). 그전에는 키워드와 의미 검색이 서로 다른 버전을 봤다([4.4 API 명세](api.md) REQ-API-193~196 · [4.5 화면 명세](screens.md) REQ-WEB-248~251). 남은 것: MCP 도구와 스킬의 버전 기준(별도 제안) |
 
 #### 이 절은 언제 갱신되는가
 

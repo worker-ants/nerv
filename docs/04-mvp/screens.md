@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v1.88 · 2026-09-27 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v1.89 · 2026-09-27 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v1.89 변경(2026-09-27 — 승인본 위의 초안을 찾을 길이 없었다, **사람 결정 V1~V4**): **REQ-WEB-248~251 신설 · §2.4 목록 (2)~(5) · 그림 · 상세 표 두 행.** 기준선 선택기를 **버전 기준 선택기**(승인본 · 최신 · 기준선)로 넓혔다. 승인본으로 읽는 목록에도 줄 끝에 `v4 초안` 표시와 "새 버전 진행 중 N" 을 둔다. 상세는 최신으로 읽을 때 승인본 번호를, 기준선으로 읽을 때 그 뒤에 승인된 버전을 알린다. 검색도 같은 기준을 따른다.
 >
 > v1.88 변경(2026-09-27 — 도움말 검토 뒤의 사람 결정 둘): **새 요구사항 없음 · §2.4 · §2.8 · §2.9 · REQ-WEB-163 문구.** ① 사람의 결정 셋 중 하나를 "거절"로 적는다(§2.4 다음 할 일 줄 · §2.9 · REQ-WEB-163). 화면과 도움말은 이미 "거절"이었고 명세만 "반려"였다. ② 설정에서 연동 자리의 표시는 "준비 중"이다(§2.8). 화면에는 로드맵 단계 이름("Phase 2")을 쓰지 않는다([용어 사전](../glossary.md) §3.1). 고친 줄에 있던 §3.4 표현 둘("곁에" · "싣다")도 함께 고쳤다.
 >
@@ -1041,14 +1043,14 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 ```text
 스펙 목록 — app.nerv.example.com/p/clemvion/specs
 ┌──────────────────────────────────────────────────────────────────────┐
-│ 스펙(1)  [기준선 ▾](4) [기준선 생성] [보관] [🔍 검색…]                  │
+│ 스펙(1)  [버전 기준 ▾](4) [기준선 생성] [보관] [🔍 검색…]             │
 │ ─ 트리 탭: [상태 ▾] [종류 ▾] [제목·키로 거르기] [펼치기][접기]  표시 N/전체 M ─ │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ▾ 1-product-vision                                                   │
 │    비전                vision    ✅ approved  v3   2주 전       💬 0 │
 │ ▾ 7-channel-web-chat                                            (2)  │
 │    1-widget            feature   ✅ approved  v7   4일 전       💬 1 │
-│    2-embed-v2          feature   🕐 in_review v4   2시간 전     💬 3 │
+│    2-embed-v2          feature   ✅ approved  v3   [v4 검토 중] 💬 3 │
 │    3-states            design    📝 draft     v1   1시간 전     💬 0 │
 │ ▸ 5-system (12)                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -1057,21 +1059,21 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 ```
 
 1. **목록 머리 — 만드는 문은 없다**(2026-09-22 걷음 · REQ-WEB-173). 스펙은 에이전트가 쓰고, 문서가 하나도 없으면 목록이 **시작 카드**를 보인다(REQ-WEB-208). 행 클릭은 S3 상세로.
-2. **행 = 트리 노드 + 메타** — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 `SpecTree` 공유다(D-05의 프론트 버전).
-3. **필터 결과 카운트** — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약). **상태 필터**(`?status=` · REQ-WEB-138 — 2026-09-05 신설)는 고른 상태의 문서와 **그 조상**을 남긴다: 조상을 빼면 부모 없는 줄이 생기고(실측 clemvion: draft 26건 중 17건의 부모가 draft 가 아니다) 목록의 위아래가 뜻을 잃는다. 아래에 걸린 것이 없는 가지는 통째로 빠진다. 서버에도 같은 필터가 있지만(EP-SPEC-01 `?status=` · REQ-API-092) **화면은 그것을 쓰지 않는다** — 이 화면은 이미 전 계층을 한 응답으로 받아 두었고(REQ-WEB-044), 서버에 걸러 달라고 하면 `전체 M` 을 알 방법이 사라진다. 판정 규칙은 서버와 같다. **`[타입 ▾]`**(`?type=`)도 같은 규칙이다 — `area` 는 본문 없이 자리를 잡는 종류라 `vision,area` 를 고르면 **트리의 뼈대**가 남는다(실측 clemvion 141편 → 17편). 둘을 함께 걸면 AND 다.
-4. **기준선 선택기** — EP-SPEC-11 목록 + [기준선 생성](planner·admin — EP-SPEC-12 다이얼로그). 기본 항목은 **`기준선 없음`** 이다. 고르면 `?baseline=` 쿼리로 목록이 **그 세트가 담은 문서만, 그 세트가 묶어 둔 버전으로** 렌더된다(spec-workflow §3.6 · REQ-API-098) — 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. 그 동안에는 상태·종류 필터를 그리지 않는다(세트 항목은 전부 승인본이라 거를 것이 없다). 새 라우트 없음 — 뷰 상태 쿼리다.
-5. **검색 모드** — 검색어 입력 시 트리 뷰가 결과 목록으로 전환된다(`?q=` 뷰 상태). 하이브리드 결과([4.4](api.md) §2.2b)를 **관련도 순 + 스펙 단위 그룹핑 + 매칭 앵커 스니펫**으로 표시하고, `related[]`(관계 확장 — 질의 일치가 아니라 상위 결과의 1-hop 이웃)는 **"관련 스펙" 별도 섹션**으로 구분해 섞지 않는다. `degraded: "lexical-only"` 수신 시 "의미 검색 일시 중단 — 키워드 결과만" 배너 1줄. 트리 자체를 거르는 **트리 필터**(클라이언트, 매칭 경로만 펼침)는 `/` 키로 전환 — 서버 검색과 다른 축이다.
+2. **행 = 트리 노드 + 메타** — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 `SpecTree` 공유다(D-05의 프론트 버전). 승인본 위에 새 버전(초안 · 검토 중)이 있으면 줄 끝에 `v4 검토 중` 같은 표시가 있고, 누르면 그 버전이 열린다(2026-09-27 · REQ-WEB-249).
+3. **필터 결과 카운트** — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약). **상태 필터**(`?status=` · REQ-WEB-138 — 2026-09-05 신설)는 고른 상태의 문서와 **그 조상**을 남긴다: 조상을 빼면 부모 없는 줄이 생기고(실측 clemvion: draft 26건 중 17건의 부모가 draft 가 아니다) 목록의 위아래가 뜻을 잃는다. 아래에 걸린 것이 없는 가지는 통째로 빠진다. 서버에도 같은 필터가 있지만(EP-SPEC-01 `?status=` · REQ-API-092) **화면은 그것을 쓰지 않는다** — 이 화면은 이미 전 계층을 한 응답으로 받아 두었고(REQ-WEB-044), 서버에 걸러 달라고 하면 `전체 M` 을 알 방법이 사라진다. 판정 규칙은 서버와 같다. **`[타입 ▾]`**(`?type=`)도 같은 규칙이다 — `area` 는 본문 없이 자리를 잡는 종류라 `vision,area` 를 고르면 **트리의 뼈대**가 남는다(실측 clemvion 141편 → 17편). 둘을 함께 걸면 AND 다. **`새 버전 진행 중`**(`?status=newer`)은 줄의 상태가 아니라 줄 위의 버전으로 거른다(REQ-WEB-249).
+4. **버전 기준 선택기**(2026-09-27 개정 — 사람 결정 · REQ-WEB-248) — **승인본**(기본) · **최신 (초안 포함)**(`?basis=latest`) · 기준선들(EP-SPEC-11 목록). [기준선 생성](planner·admin — EP-SPEC-12 다이얼로그)은 옆에 따로 있다. 목록이 문서마다 `current_version_id`(최신 승인본)만 읽어서 승인본 위의 초안이 어디에도 없었다(사람 보고). 최신이면 문서마다 번호가 가장 큰 버전으로 목록 · 표 · 그래프 · 검색을 그린다. 기준선을 고르면 `?baseline=` 쿼리로 목록이 **그 세트가 담은 문서만, 그 세트가 묶어 둔 버전으로** 렌더된다(spec-workflow §3.6 · REQ-API-098). 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. 기준선으로 보는 동안에는 상태 · 종류 필터를 그리지 않는다(세트 항목은 전부 승인본이라 거를 것이 없다). 셋은 배타라 선택기가 하나다(서버도 함께 받지 않는다 — [4.4](api.md) REQ-API-196). 새 라우트 없음 — 뷰 상태 쿼리다.
+5. **검색 모드** — 검색어 입력 시 트리 뷰가 결과 목록으로 전환된다(`?q=` 뷰 상태). 하이브리드 결과([4.4](api.md) §2.2b)를 **관련도 순 + 스펙 단위 그룹핑 + 매칭 앵커 스니펫**으로 표시하고, `related[]`(관계 확장 — 질의 일치가 아니라 상위 결과의 1-hop 이웃)는 **"관련 스펙" 별도 섹션**으로 구분해 섞지 않는다. `degraded: "lexical-only"` 수신 시 "의미 검색 일시 중단 — 키워드 결과만" 배너 1줄. 트리 자체를 거르는 **트리 필터**(클라이언트, 매칭 경로만 펼침)는 `/` 키로 전환 — 서버 검색과 다른 축이다. **고른 버전 기준의 본문에서 찾는다**(2026-09-27 사람 결정 · REQ-WEB-250) — 결과 위에 어느 버전에서 찾았는지 적는다.
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
-| 본문 + 메타 | EP-SPEC-03 `GET /api/v1/projects/{proj}/specs/{spec}` (`include[]`: requirements·tasks·comments) | 기본 버전은 최신 `approved` — draft는 명시 선택(`?v=`) |
+| 본문 + 메타 | EP-SPEC-03 `GET /api/v1/projects/{proj}/specs/{spec}` (`include[]`: requirements·tasks·comments) | 기본 버전은 최신 `approved` — draft는 명시 선택(`?v=`) · 버전 기준이 최신(`?basis=latest`)이면 가장 새 버전, 기준선이면 그 세트의 버전(REQ-WEB-248) |
 | 버전 목록·diff | EP-SPEC-04 `GET /api/v1/projects/{proj}/specs/{spec}/versions` · EP-SPEC-06 `GET .../specs/{spec}/diff` | `?diff=v3..v4` 뷰 상태 → EP-SPEC-06(from, to)으로 조회. 표기는 ui-wireframes §4.3 |
 | 초안 저장 | EP-SPEC-08 `PUT /api/v1/projects/{proj}/specs/{spec}/draft` (draft upsert — `base_hash` 전제조건) | `nerv_spec_draft_upsert`와 같은 서비스·같은 zod 스키마(D-05) |
 | 사전 검토 | EP-SPEC-09 `GET /api/v1/projects/{proj}/spec-versions/{ver}/check` | 5검사기 결과(warning/block + 앵커) — `nerv_spec_check`와 동일 |
 | 검토 요청 | EP-SPEC-10 `POST /api/v1/projects/{proj}/spec-versions/{ver}/submit` | `draft → in_review` — 성공 시 받은 요청 카드 생성(FR-11) |
 | 코멘트 | EP-CMT-01 `GET .../specs/{spec}/comments` · EP-CMT-02 `POST .../spec-versions/{ver}/comments` · EP-CMT-04 `POST .../comments/{id}/resolve` | 앵커: 헤딩 slug 또는 Requirement `ref`(§3.3) |
 | 우측 패널 | include 응답의 requirement 목록(`ref`·`statement_md`·`impl_status`) · 파생 task 목록 | "관련 리뷰" 패널은 Phase 2(S6) — 자리만 비활성 표시. **참조 갱신 배지**: `spec.recheck_requested` 수신 시 "참조 스펙에 앞선 버전 존재" 표시(spec-workflow §3.3 참조 문서 전파) |
-| 기준선 조회 | EP-SPEC-11 `GET .../baselines` · EP-SPEC-13 `GET .../baselines/{bl}` | 버전 피커(`VersionPicker`)에 기준선 항목 — 선택 시 그 세트에 핀된 버전을 표시(`?baseline=` 쿼리, spec-workflow §3.6) |
+| 기준선 조회 | EP-SPEC-11 `GET .../baselines` · EP-SPEC-13 `GET .../baselines/{bl}` | 버전 기준 선택기(`ViewBasisSelect`)의 기준선 항목 — 선택 시 그 세트에 핀된 버전을 표시(`?baseline=` 쿼리, spec-workflow §3.6) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → `['spec', specId]`, `spec.comment_added`·`comment.resolved` → `['spec', specId, 'comments']`, `task.*` → 파생 Task 패널.
 - **컴포넌트**: `SpecTree` · `VersionPicker` · `DiffToggle` · `SpecEditor`(TipTap — §3) · `CommentThread` · `EditLeaseBadge` · `SpecMetaDialog` · `ArchiveConfirmDialog` · `RelationPanel` · `ImpactPreview` · `QuickSwitcher`(§1.3a) · `StatusPanel` · `SubmitReviewButton` · `TerminalHandoffCard`.
@@ -1142,6 +1144,10 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | REQ-WEB-241 | WHEN 스펙 상세 요구사항 탭이 `reverify_required` 인 요구사항을 그리면 THE SYSTEM SHALL "다시 검증 필요" 표지와 까닭(문장이 바뀌어 앞선 서명이 지금 문장을 보증하지 않는다)을 보이고, WHILE 보는 사람이 서명할 수 있는 역할(`EVIDENCE_SIGNER_ROLES` — qa·admin)이면 THE SYSTEM SHALL [영향 없음 확인]을 두어 무엇에 서명하는지(앞선 테스트)를 한 번 묻고 같은 테스트에 다시 서명하게 한다. WHEN 프로젝트 개요의 구현 현황을 그리면 THE SYSTEM SHALL 다시 검증이 필요한 수를 여섯째 칸으로 보인다 |
 | REQ-WEB-216 | WHEN 스펙 코멘트를 달면 THE SYSTEM SHALL 앵커를 보는 버전의 헤딩과 요구사항에서 고르게 하고, 고를 것이 없을 때만 적어 넣게 한다. WHEN 코멘트를 그리면 THE SYSTEM SHALL 줄마다 작성자(에이전트면 기계)·시각·버전을 적고, 탭과 칩의 수는 열린 코멘트만 세며, 해결된 코멘트는 접어 두고 펼치면 해소한 사람과 함께 보이고, 가리키던 헤딩이 본문에 없는 코멘트는 "앵커 유실" 로 머리에 모은다. WHEN 코멘트 달기·해소가 실패하면 THE SYSTEM SHALL 그 사유를 보인다. WHEN 스펙 목록을 그리면 THE SYSTEM SHALL 머리에 상태별 문서 수를 보이고 누르면 그 상태로 거른 트리를 열며, [기준선 생성]은 planner·admin 이 아니면 잠근 채 이유를 보이고, 전수 트리의 행에 버전·최근 갱신·열린 코멘트 수를 적는다 |
 | REQ-WEB-166 | (2026-09-26 개정 — 웹이 본문에 주소를 넣는 조건을 뺐다. 넣는 쪽은 에이전트다 · REQ-WEB-173) WHEN 첨부를 미리보기·링크로 그리면 THE SYSTEM SHALL 서버가 준 상대 주소 앞에 **런타임 설정의 API 오리진**(`/config.json` 의 `api_url`)을 붙인다 — 화면이 뜬 오리진을 쓰지 않는다. WHEN 본문에 남은 그 주소를 그리면 THE SYSTEM SHALL 같은 오리진을 붙이되 **노드의 attrs 는 바꾸지 않는다** — 본문(md)의 주소는 상대 주소 그대로여야 문서가 배치에 묶이지 않고([4.4](api.md) REQ-API-089), md 직렬화가 attrs 를 읽으므로 왕복(§3.2 규칙 2)이 본문을 다시 쓰면 안 된다 |
+| REQ-WEB-248 | WHEN 스펙 목록에서 버전 기준을 고르면 THE SYSTEM SHALL 승인본(기본 — 주소에 남기지 않는다) · 최신(`?basis=latest`) · 기준선(`?baseline=`) 가운데 하나를 주소에 남기고, 목록 · 표 · 그래프 · 검색 · 문서 옆 트리 열 · 상세가 모두 그 기준의 버전을 읽게 한다. WHEN 트리 · 표 · 그래프 · 레일의 관계 줄 · 조상 경로 · 트리 열로 다른 문서로 옮기면 THE SYSTEM SHALL 그 기준을 함께 넘긴다(레일에서 고른 `?v=` 는 넘기지 않는다). WHILE 최신이나 기준선으로 읽는 동안 THE SYSTEM SHALL 상세 상단에도 버전 기준 선택기를 둔다 |
+| REQ-WEB-249 | WHILE 승인본으로 읽는 전수 목록에서 문서의 가장 새 버전이 초안 · 검토 중이고 최신 승인본보다 새로우면 THE SYSTEM SHALL 그 줄 끝에 `v4 초안` 같은 표시를 두고(누르면 `?v=4`) 상태별 수 옆에 "새 버전 진행 중 N" 을 둔다. WHEN 그것을 누르면 THE SYSTEM SHALL 최신으로 읽으며 그 문서만 남긴다(`?basis=latest&status=newer`). 상태 선택기에도 같은 항목을 둔다 |
+| REQ-WEB-250 | WHEN 스펙 목록에서 검색하면 THE SYSTEM SHALL 고른 버전 기준을 검색에 넘기고([4.4](api.md) REQ-API-195) 결과 위에 어느 버전의 본문에서 찾았는지 적는다 |
+| REQ-WEB-251 | WHILE 최신으로 읽으면서 최신 승인본보다 새 버전을 보는 동안 THE SYSTEM SHALL 본문 위에 승인본 번호와 [vN 보기] · [vN→vM 차이]를 보인다. WHILE 기준선으로 읽는데 그 세트가 묶은 버전 뒤에 승인된 버전이 있는 동안 THE SYSTEM SHALL 상세 본문 위에 그 번호와 같은 두 단추를 보인다. 목록에는 표시하지 않는다(사람 결정 V4 — 목록은 세트를 그대로 보여 준다) |
 
 ### 2.4b 트리 조작 (2026-08-23 정정)
 

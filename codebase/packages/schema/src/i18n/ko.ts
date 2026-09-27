@@ -413,6 +413,8 @@ export const ko = {
   'spec.newer_version': '더 새 버전이 있습니다: v{n} ({status})',
   'spec.newer_open': 'v{n} 보기',
   'spec.newer_diff': 'v{from}→v{to} 차이',
+  'spec.latest_basis': '최신 기준으로 읽고 있습니다. 이 문서의 승인본은 v{n}입니다.',
+  'spec.baseline_newer': '기준선 {name} 뒤에 승인된 버전이 있습니다: v{n}',
   'spec.check.level.block': '차단',
   'spec.check.level.warning': '경고',
   'spec.check.level.info': '참고',
@@ -573,10 +575,17 @@ export const ko = {
     '요구사항은 문서가 승인될 때 본문에서 만들어집니다. 이 문서는 아직 승인된 적이 없습니다.',
   'spec.requirements.format': '- REQ-<접두>-<번호> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다',
   'spec.requirements.no_priority': '우선순위 없음',
-  'specs.baseline': '기준선',
-  'specs.baseline_current': '기준선 없음',
-  'specs.baseline_hint':
-    '기준선은 문서를 어느 버전으로 볼지 정합니다. 고르지 않으면 문서마다 최신 승인 버전(없으면 현재 버전)을 보여 주고, 고르면 그 기준선에 담긴 문서만 당시 버전으로 보여 줍니다.',
+  'specs.basis': '버전 기준',
+  'specs.basis_approved': '승인본',
+  'specs.basis_latest': '최신 (초안 포함)',
+  'specs.basis_baselines': '기준선',
+  'specs.basis_hint':
+    '목록 · 문서 · 검색이 문서마다 어느 버전을 읽을지 고릅니다. 승인본(기본)은 최신 승인 버전을 보여 주고, 승인된 적 없는 문서는 초안을 보여 줍니다. 최신은 승인본 위의 초안과 검토 중인 버전까지 보여 줍니다. 기준선은 그 기준선에 담긴 문서만 당시 버전으로 보여 줍니다.',
+  'specs.status_newer': '새 버전 진행 중',
+  'specs.row_newer_title': '승인본 위에 새 버전이 있습니다. 누르면 v{n} 버전을 엽니다.',
+  'specs.search_basis_approved': '승인본 본문에서 찾았습니다.',
+  'specs.search_basis_latest': '최신 버전 본문에서 찾았습니다. 초안과 검토 중인 버전도 포함합니다.',
+  'specs.search_basis_baseline': '기준선 {name}에 담긴 버전에서 찾았습니다.',
   'specs.freeze': '기준선 생성',
   'specs.status_filter': '상태',
   'specs.status_filter_all': '전체',
@@ -711,6 +720,7 @@ export const ko = {
   'error.spec.stale_body':
     '그사이 본문이 바뀌었습니다. 다시 읽고 바뀐 본문에 수정 내용을 반영하세요(같은 본문으로 다시 보내면 다른 사람의 수정을 덮어씁니다).',
   'error.spec.version_xor_baseline': '버전과 기준선은 함께 지정할 수 없습니다.',
+  'error.spec.basis_exclusive': '보기 기준(basis)은 버전이나 기준선과 함께 지정할 수 없습니다.',
   'error.spec.wrapped_body':
     '본문이 `<nerv:spec …>` 태그로 감싸여 있습니다. 태그 안쪽 내용만 보내세요.',
   'error.attachment.not_text':
