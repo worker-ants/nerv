@@ -23,6 +23,7 @@ import {
 import type { Message, NervErrorCode } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import {
   DECIDER_ROLES,
   bulkBlockReasonSql,
@@ -45,7 +46,7 @@ import {
 } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
-import { memberOfProjectSql, resolveMemberProject } from '../../common/member-scope.js';
+import { memberOfProjectSql, scopeFilterSql } from '../../common/member-scope.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
@@ -309,6 +310,127 @@ export class ApprovalService {
    * 승인 3유형(스펙 승인·플랜·질문)이 한 줄에 섞여 나오고, 각 카드는 **얼마나 기다렸는지**를
    * 들고 온다 — 대기 시간이 보이지 않으면 승인은 조용히 늦어진다(P4).
    */
+  /**
+   * EP-APR-07 — **범위별 결정 수**(2026-09-27 · 사람 결정 N1 · N2 · REQ-API-218).
+   *
+   * 받은 요청의 조직 · 프로젝트 칸과 사이드바의 프로젝트 줄이 이 수를 쓴다. 예전에는 홈과 개요가
+   * 프로젝트마다 EP-APR-05 를 한 번씩 불러 `actionable_total` 을 읽었다. 대기 목록과 **같은 조건**
+   * (`inboxConditions`)을 프로젝트로 묶어 센다 — 합계가 EP-APR-01 의 `total` · `actionable_total` 과 같다.
+   * 결정할 것이 없는 프로젝트도 0 으로 준다.
+   */
+  async inboxScopes(input: { actor: Actor; userId: string }): Promise<{
+    items: Record<string, unknown>[];
+    total: { pending: number; actionable: number };
+  }> {
+    assertHuman(input.actor, 'inbox', '/inbox');
+    const { approvalFrom, approvalWhere, questionFrom, questionWhere } = this.inboxConditions(
+      input.userId,
+      false,
+      sql``,
+    );
+    const { rows } = await this.db.execute<{
+      org_slug: string;
+      org_name: string;
+      project_id: string;
+      project_slug: string;
+      project_name: string;
+      pending: number;
+      actionable: number;
+    }>(sql`
+      WITH ap AS (
+             SELECT p.id AS project_id, count(*)::int AS pending,
+                    count(*) FILTER (WHERE ${canApproveExpr(input.userId)})::int AS actionable
+               ${approvalFrom} ${approvalWhere}
+              GROUP BY p.id),
+           qs AS (
+             SELECT p.id AS project_id, count(*)::int AS pending
+               ${questionFrom} ${questionWhere}
+              GROUP BY p.id)
+      SELECT o.slug AS org_slug, o.name AS org_name,
+             p.id AS project_id, p.slug AS project_slug, p.name AS project_name,
+             (coalesce(ap.pending, 0) + coalesce(qs.pending, 0))::int AS pending,
+             -- 질문은 늘 누를 수 있다 — 총계의 actionable_total 과 같은 셈이다
+             (coalesce(ap.actionable, 0) + coalesce(qs.pending, 0))::int AS actionable
+        FROM project p
+        JOIN organization o ON o.id = p.org_id
+   LEFT JOIN ap ON ap.project_id = p.id
+   LEFT JOIN qs ON qs.project_id = p.id
+       WHERE p.archived_at IS NULL
+         AND ${memberOfProjectSql(input.userId)}
+       ORDER BY o.slug, p.name, p.slug
+    `);
+    return {
+      items: rows,
+      total: {
+        pending: rows.reduce((sum, r) => sum + r.pending, 0),
+        actionable: rows.reduce((sum, r) => sum + r.actionable, 0),
+      },
+    };
+  }
+
+  /**
+   * **받은 요청의 조건 한 벌**(2026-09-27 · REQ-API-217). 목록 · 총계 · 범위별 수(EP-APR-07)가 같은
+   * 식을 봐야 칸의 수와 목록이 어긋나지 않는다 — 손으로 두 번 적으면 언젠가 한쪽만 고쳐진다.
+   */
+  private inboxConditions(
+    userId: string,
+    decided: boolean,
+    projectFilter: SQL,
+  ): { approvalFrom: SQL; approvalWhere: SQL; questionFrom: SQL; questionWhere: SQL } {
+    const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
+    /**
+     * **두 탭은 다른 질문에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
+     *
+     * 한 `WHERE` 절이 둘을 겸하는 동안 처리됨 탭은 **결정이 문서를 움직인 순간 그 기록을
+     * 잃었다**: 승인하면 `approved`, 거절하면 `draft` 라 `sv.status = 'in_review'` 에서
+     * 함께 탈락했다. 살아남는 것은 문서를 안 움직인 것(T3 첫 승인)과 스펙이 아닌 것뿐이고,
+     * 그 줄은 **대기 탭을 위해 쓴 것**이다(거절로 draft 가 된 문서의 남은 슬롯은 대기가
+     * 아니다). 실측 2026-09-24: 넷을 결정하니 둘이 사라졌다.
+     *
+     * `eligibleSql` 도 같다 — 그것은 "이 카드가 **내 큐인가**" 를 묻는 식이라 결정된 카드에
+     * 물으면 엉뚱한 답이 나온다. 남이 낸 면제가 내 처리됨에 뜨고 내가 끝낸 것은 빠졌다.
+     * 처리됨이 답해야 하는 질문은 하나다 — **내가 결정한 것**(빈 상태 문구가 그렇게 적고,
+     * 매뉴얼도 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속한다).
+     */
+    const scopeFilter = decided
+      ? sql`a.decided_by_user_id = ${userId}`
+      : sql`${eligibleSql(userId)}
+         -- **거절로 draft 가 된 문서의 남은 슬롯은 대기가 아니다**(2026-09-07). 슬롯이
+         -- 여럿인 결재에서 하나가 reject 되면 문서는 draft 로 돌아가는데, 결정되지 않은
+         -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
+         -- 사람이 계속 결재하게 된다.
+         AND (sv.id IS NULL OR sv.status = 'in_review')`;
+    /**
+     * FROM 과 WHERE 를 조각으로 뽑는다 — 목록과 **총계가 같은 조건을 봐야** 하기 때문이다.
+     *
+     * 배지와 목록이 어긋나면 지울 수 없는 숫자가 남는다(알림 배지에서 이미 겪은 자리 ·
+     * REQ-WEB-035). 손으로 두 번 적으면 언젠가 한쪽만 고쳐진다.
+     */
+    const approvalFrom = sql`FROM approval a
+        JOIN project p ON p.id = a.project_id
+   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id`;
+    const memberOfProject = memberOfProjectSql(userId);
+    const approvalWhere = sql`WHERE ${stateFilter}${projectFilter}
+         -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
+         -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
+         -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
+         AND p.archived_at IS NULL
+         -- 대기는 **내 큐**(지정·역할 슬롯·기본 큐 · REQ-API-137) · 처리됨은 **내가 결정한 것**
+         AND ${scopeFilter}
+         AND ${memberOfProject}`;
+    const questionFrom = sql`FROM question q
+        JOIN project p ON p.id = q.project_id`;
+    const questionWhere = sql`WHERE q.status = 'open'${projectFilter}
+         -- 승인 카드와 **같은 조건**이다. 한쪽만 걸렀더니 보관한 프로젝트의 질문
+         -- 카드가 받은 요청에 그대로 남았다(실측 2026-08-27) — 받은 요청은 한 목록이므로
+         -- 두 갈래가 같은 규칙을 써야 그 목록이 한 가지 뜻을 갖는다.
+         AND p.archived_at IS NULL
+         AND ${memberOfProject}`;
+
+    return { approvalFrom, approvalWhere, questionFrom, questionWhere };
+  }
+
   async inboxGlobal(input: {
     /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
     actor: Actor;
@@ -336,29 +458,6 @@ export class ApprovalService {
     const decided =
       assertVocab([input.state ?? 'pending'], APPROVAL_INBOX_STATES, 'state')[0] === 'decided';
     const limit = pageLimit(input.limit ?? undefined);
-    const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
-    /**
-     * **두 탭은 다른 질문에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
-     *
-     * 한 `WHERE` 절이 둘을 겸하는 동안 처리됨 탭은 **결정이 문서를 움직인 순간 그 기록을
-     * 잃었다**: 승인하면 `approved`, 거절하면 `draft` 라 `sv.status = 'in_review'` 에서
-     * 함께 탈락했다. 살아남는 것은 문서를 안 움직인 것(T3 첫 승인)과 스펙이 아닌 것뿐이고,
-     * 그 줄은 **대기 탭을 위해 쓴 것**이다(거절로 draft 가 된 문서의 남은 슬롯은 대기가
-     * 아니다). 실측 2026-09-24: 넷을 결정하니 둘이 사라졌다.
-     *
-     * `eligibleSql` 도 같다 — 그것은 "이 카드가 **내 큐인가**" 를 묻는 식이라 결정된 카드에
-     * 물으면 엉뚱한 답이 나온다. 남이 낸 면제가 내 처리됨에 뜨고 내가 끝낸 것은 빠졌다.
-     * 처리됨이 답해야 하는 질문은 하나다 — **내가 결정한 것**(빈 상태 문구가 그렇게 적고,
-     * 매뉴얼도 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속한다).
-     */
-    const scopeFilter = decided
-      ? sql`a.decided_by_user_id = ${input.userId}`
-      : sql`${eligibleSql(input.userId)}
-         -- **거절로 draft 가 된 문서의 남은 슬롯은 대기가 아니다**(2026-09-07). 슬롯이
-         -- 여럿인 결재에서 하나가 reject 되면 문서는 draft 로 돌아가는데, 결정되지 않은
-         -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
-         -- 사람이 계속 결재하게 된다.
-         AND (sv.id IS NULL OR sv.status = 'in_review')`;
     /**
      * **정렬 방향이 탭마다 다르다** — 그리고 그 방향이 상한과 맞물려 결함이었다.
      *
@@ -434,44 +533,20 @@ export class ApprovalService {
              encode(sv.content_hash, 'hex') AS content_hash,`;
     // **slug 만으로 거르지 않는다**(2026-09-27 · REQ-API-213). `p.slug = …` 는 두 조직의 같은
     // 이름을 함께 걸렀다 — 내가 속한 프로젝트 하나로 푼 뒤 id 로 거른다
-    const pickedId =
-      input.projectId ??
-      (input.project == null || input.project.trim() === ''
-        ? null
-        : (
-            await resolveMemberProject(this.db, input.userId, {
-              project: input.project,
-              org: input.org ?? null,
-            })
-          ).id);
-    const projectFilter = pickedId === null ? sql`` : sql` AND p.id = ${pickedId}`;
-    /**
-     * FROM 과 WHERE 를 조각으로 뽑는다 — 목록과 **총계가 같은 조건을 봐야** 하기 때문이다.
-     *
-     * 배지와 목록이 어긋나면 지울 수 없는 숫자가 남는다(알림 배지에서 이미 겪은 자리 ·
-     * REQ-WEB-035). 손으로 두 번 적으면 언젠가 한쪽만 고쳐진다.
-     */
-    const approvalFrom = sql`FROM approval a
-        JOIN project p ON p.id = a.project_id
-   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
-   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id`;
-    const memberOfProject = memberOfProjectSql(input.userId);
-    const approvalWhere = sql`WHERE ${stateFilter}${projectFilter}
-         -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
-         -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
-         -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
-         AND p.archived_at IS NULL
-         -- 대기는 **내 큐**(지정·역할 슬롯·기본 큐 · REQ-API-137) · 처리됨은 **내가 결정한 것**
-         AND ${scopeFilter}
-         AND ${memberOfProject}`;
-    const questionFrom = sql`FROM question q
-        JOIN project p ON p.id = q.project_id`;
-    const questionWhere = sql`WHERE q.status = 'open'${projectFilter}
-         -- 승인 카드와 **같은 조건**이다. 한쪽만 걸렀더니 보관한 프로젝트의 질문
-         -- 카드가 받은 요청에 그대로 남았다(실측 2026-08-27) — 받은 요청은 한 목록이므로
-         -- 두 갈래가 같은 규칙을 써야 그 목록이 한 가지 뜻을 갖는다.
-         AND p.archived_at IS NULL
-         AND ${memberOfProject}`;
+    // `org` 만 오면 그 조직의 프로젝트 전부다(2026-09-27 · 사람 결정 N1 · REQ-API-217) — 알림 목록과
+    // 같은 함수로 좁힌다
+    const projectFilter =
+      input.projectId != null
+        ? sql` AND p.id = ${input.projectId}`
+        : await scopeFilterSql(this.db, input.userId, {
+            project: input.project ?? null,
+            org: input.org ?? null,
+          });
+    const { approvalFrom, approvalWhere, questionFrom, questionWhere } = this.inboxConditions(
+      input.userId,
+      decided,
+      projectFilter,
+    );
 
     const { rows: approvals } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,

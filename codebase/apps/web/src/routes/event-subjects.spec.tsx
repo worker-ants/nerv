@@ -276,7 +276,10 @@ describe('홈의 숫자를 누르면 그 숫자를 만든 레코드로 간다', 
     expect((await screen.findByTestId('home-project-sessions')).getAttribute('href')).toBe(
       '/p/clemvion/sessions',
     );
-    expect(screen.getByTestId('home-project-approvals').getAttribute('href')).toBe('/inbox');
+    // 그 프로젝트로 좁힌 받은 요청이다(2026-09-27 · REQ-WEB-258)
+    expect(screen.getByTestId('home-project-approvals').getAttribute('href')).toBe(
+      '/inbox?org=default&project=clemvion',
+    );
     expect(screen.getByTestId('home-project-critical').getAttribute('href')).toBe(
       '/p/clemvion/reviews?severity=critical',
     );

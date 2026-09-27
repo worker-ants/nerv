@@ -25,6 +25,8 @@ An approval card shows two more lines below its header.
 
 The inbox collects requests from **every organization and project you belong to**, so each card shows the **name of its project** on the right. If you belong to more than one organization, the organization name comes first, as in "organization / project". Items outside the current organization (shown at the top of the left column) appear in an **accent color**, so you do not mistake another organization's approval for one in the current organization. Items with no project are marked **Whole organization**. The **Today** list on Home and notifications are labeled the same way.
 
+**Use the organizations and projects column to see one project's requests.** The first row in the column on the left of the inbox, **All organizations**, is the default. Below it are the projects you belong to, grouped by organization, and each row shows **how many requests you can decide** in that project. Projects with nothing to decide stay in the list. Click a project to narrow the list to that project. The organization and project you pick are kept in the address (`?org=` · `?project=`) and stay when you switch between the **[Pending · Decided]** tabs. When the list is narrowed, `⇧X` selects only that project's cards. The **Inbox** badge in the left column still counts all organizations.
+
 ## Question cards
 
 When an agent runs into something it must not decide on its own, it **stops** and asks a question. Question cards show three more things.

@@ -256,6 +256,8 @@ export const ko = {
   // 티어 곁의 근거 한 줄(2026-09-26 · REQ-WEB-240) — 축별 점수와 신호가 뒤따른다
   'inbox.card.gate_score': '위험도 {score}점',
   'inbox.scope_all': '내가 속한 모든 조직의 받은 요청입니다. 줄마다 조직과 프로젝트가 표시됩니다.',
+  'inbox.scope_one':
+    '{scope}의 받은 요청입니다. 왼쪽 칸에서 다른 프로젝트나 모든 조직을 고를 수 있습니다.',
   'inbox.subject.change_request': '변경 요청',
   'inbox.subject.finding': '리뷰 발견 처분 요청',
   'inbox.subject.gate_bypass': '게이트 우회 요청',
@@ -1338,6 +1340,7 @@ export const ko = {
   'notif.read_all_scoped_important': '{scope} 중요 알림 {count}건 모두 읽음',
   'notif.elsewhere_important': '다른 프로젝트에 중요 알림 {count}건',
   'shell.notifications_counts': '알림 — 모든 조직 · 중요 {important} · 읽지 않음 {unread}',
+  'shell.project_decisions': '{name}에서 내가 결정할 요청 {count}건',
   // 받은 요청의 잠긴 카드 — 배지는 내가 누를 수 있는 것만 센다(2026-09-24 사람 결정 D2 · REQ-WEB-217)
   'inbox.locked_group': '다른 사람의 결정을 기다리는 것 {count}건',
   'inbox.locked_hint':
@@ -1366,6 +1369,7 @@ export const ko = {
   'project.waiting.label': '기다리는 것',
   'project.waiting.none': '지금 이 프로젝트에서 내가 결정할 항목은 없습니다.',
   'project.waiting.approvals': '내 결정 {count}건',
+  'project.waiting.notifications': '중요 알림 {count}건',
   'project.waiting.sessions': '응답 대기 세션 {count}개',
   'project.waiting.critical': '열린 critical {count}건',
   'project.no_sessions_hint_post': '로 작업을 맡으면 여기에 표시됩니다.',

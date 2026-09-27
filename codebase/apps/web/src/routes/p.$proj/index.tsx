@@ -8,7 +8,13 @@ import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
 import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
-import { useCoverage, useProject, useProjectInboxCount, useSessions } from '../../lib/queries.js';
+import {
+  useCoverage,
+  useNotificationScopes,
+  useProject,
+  useProjectInboxCount,
+  useSessions,
+} from '../../lib/queries.js';
 import { EventFeed } from '../../components/event-feed.js';
 import { cn } from '../../lib/utils.js';
 import {
@@ -36,6 +42,17 @@ function ProjectOverview(): React.JSX.Element {
    */
   const sessions = useSessions(proj, projectId, ACTIVE_SESSION_STATES.join(','));
   const inboxCount = useProjectInboxCount(proj, projectId);
+  /**
+   * **이 프로젝트의 중요 알림**(2026-09-27 · 사람 결정 N1 · REQ-WEB-258). 받은 요청 · 알림은 조직 전체의
+   * 화면이지만, 개요에서 그 프로젝트로 좁힌 목록을 바로 연다. 수는 알림 칸과 같은 값이다(EP-NTF-05).
+   */
+  const notificationScopes = useNotificationScopes();
+  const orgSlug =
+    typeof project.data?.['org_slug'] === 'string' ? project.data['org_slug'] : undefined;
+  const importantHere =
+    notificationScopes.data?.items.find(
+      (r) => r.project_slug === proj && (orgSlug === undefined || r.org_slug === orgSlug),
+    )?.immediate ?? 0;
   const totals = (coverage.data?.['totals'] ?? {}) as Record<string, number | null>;
   // 요약은 필터와 무관한 **프로젝트 전체**의 상태별 수다 — 머리의 수는 받아 온 쪽이 아니라 이것이다
   const summary = sessions.data?.summary ?? {};
@@ -68,7 +85,9 @@ function ProjectOverview(): React.JSX.Element {
         sessions.data !== undefined && (
           <WaitingLine
             proj={proj}
+            {...(orgSlug === undefined ? {} : { orgSlug })}
             approvals={inboxCount.data}
+            importantNotifications={importantHere}
             waitingSessions={waitingSessions}
             critical={Number(project.data['open_critical_findings'] ?? 0)}
           />
@@ -198,12 +217,17 @@ function ProjectOverview(): React.JSX.Element {
  */
 function WaitingLine({
   proj,
+  orgSlug,
   approvals,
+  importantNotifications,
   waitingSessions,
   critical,
 }: {
   proj: string;
+  /** 이 프로젝트의 조직 — slug 는 조직 안에서만 유일하다 */
+  orgSlug?: string;
   approvals: number;
+  importantNotifications: number;
   waitingSessions: number;
   critical: number;
 }): React.JSX.Element {
@@ -215,16 +239,36 @@ function WaitingLine({
       className="-mt-2 mb-6 flex flex-wrap items-center gap-2 text-sm"
     >
       <span className="text-xs text-text-faint">{t('project.waiting.label')}</span>
-      {approvals === 0 && waitingSessions === 0 && critical === 0 && (
-        <span className="text-xs text-text-mute">{t('project.waiting.none')}</span>
-      )}
+      {approvals === 0 &&
+        importantNotifications === 0 &&
+        waitingSessions === 0 &&
+        critical === 0 && (
+          <span className="text-xs text-text-mute">{t('project.waiting.none')}</span>
+        )}
+      {/* **그 프로젝트로 좁힌 받은 요청을 연다**(2026-09-27 · REQ-WEB-258). 거르지 않은 목록으로 가면
+          다른 프로젝트의 카드 사이에서 방금 본 "2건" 을 다시 찾아야 했다 */}
       {approvals > 0 && (
         <Link
           to="/inbox"
+          search={{ ...(orgSlug === undefined ? {} : { org: orgSlug }), project: proj }}
           data-testid="project-waiting-approvals"
           className={cn(chip, 'bg-status-action-soft text-status-action')}
         >
           {t('project.waiting.approvals', { count: approvals })}
+        </Link>
+      )}
+      {importantNotifications > 0 && (
+        <Link
+          to="/notifications"
+          search={{
+            ...(orgSlug === undefined ? {} : { org: orgSlug }),
+            project: proj,
+            filter: 'important',
+          }}
+          data-testid="project-waiting-notifications"
+          className={cn(chip, 'bg-bg-sunken text-text')}
+        >
+          {t('project.waiting.notifications', { count: importantNotifications })}
         </Link>
       )}
       {waitingSessions > 0 && (

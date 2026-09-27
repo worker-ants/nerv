@@ -233,14 +233,39 @@ export function QuickSwitcher({
               ['sessions', '/sessions', 'shell.nav.sessions'],
               ['reviews', '/reviews', 'shell.nav.review'],
             ] as const
-          ).map(([id, path, label]) => ({
-            id: `here-${id}`,
-            group: 'here' as const,
-            label: t(label),
-            sub: projectName ?? projectSlug,
-            href: `/p/${encodeURIComponent(projectSlug)}${path}`,
-            keywords: id,
-          }));
+          )
+            .map(([id, path, label]): PaletteItem => ({
+              id: `here-${id}`,
+              group: 'here' as const,
+              label: t(label),
+              sub: projectName ?? projectSlug,
+              href: `/p/${encodeURIComponent(projectSlug)}${path}`,
+              keywords: id,
+            }))
+            .concat(
+              /**
+               * **이 프로젝트의 받은 요청 · 알림**(2026-09-27 · 사람 결정 N1 · REQ-WEB-258). 두 화면은 조직
+               * 전체의 것이라 프로젝트 메뉴에 없다 — 여기서는 그 프로젝트로 좁힌 주소를 연다.
+               */
+              (
+                [
+                  ['inbox', '/inbox', 'shell.inbox'],
+                  ['notifications', '/notifications', 'shell.notifications'],
+                ] as const
+              ).map(([id, path, label]) => {
+                const params = new URLSearchParams();
+                if (orgSlug !== null) params.set('org', orgSlug);
+                params.set('project', projectSlug);
+                return {
+                  id: `here-${id}`,
+                  group: 'here' as const,
+                  label: t(label),
+                  sub: projectName ?? projectSlug,
+                  href: `${path}?${params.toString()}`,
+                  keywords: id,
+                };
+              }),
+            );
     const projects: PaletteItem[] = scope.projects.map((p) => ({
       id: `project-${String(p['slug'])}`,
       group: 'projects',

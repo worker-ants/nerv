@@ -30,7 +30,14 @@ import {
 } from '../lib/realtime.js';
 import { relativeTime } from '../lib/format.js';
 import { canManageScope, signOut } from '../lib/session.js';
-import { inboxActionable, useInbox, useMe, useUnreadCount, useProject } from '../lib/queries.js';
+import {
+  inboxActionable,
+  useInbox,
+  useMe,
+  useUnreadCount,
+  useProject,
+  useInboxScopes,
+} from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
 import { chapterForRoute } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
@@ -307,6 +314,33 @@ export function AppShell({
    * 사이드바의 프로젝트 목록 — 지금 조직의 것 전부. 라우트의 프로젝트가 목록에 아직 없으면(목록을 받기 전 ·
    * 다른 경로로 들어왔을 때) 그 하나를 앞에 세운다 — 펼칠 자리가 사라지면 탭과 트리가 함께 사라진다
    */
+  /**
+   * **프로젝트 줄의 결정 수**(2026-09-27 · 사람 결정 N2 · REQ-WEB-257). 사이드바의 프로젝트 줄 끝에 그
+   * 프로젝트에서 내가 누를 수 있는 결정 수를 둔다(0 이면 없다). 알림 수는 두지 않는다 — 결정은 놓치면
+   * 일이 멈추지만 알림은 이미 일어난 일이다(spec-workflow §6.6 원칙 3). 누르면 그 프로젝트로 좁힌
+   * 받은 요청이 열린다.
+   */
+  const inboxScopes = useInboxScopes();
+  const decisionsIn = (slug: string): number =>
+    inboxScopes.data?.items.find(
+      (r) => r.project_slug === slug && (currentOrg === null || r.org_slug === currentOrg.slug),
+    )?.actionable ?? 0;
+  const decisionsLink = (slug: string, name: string): React.JSX.Element | null => {
+    const count = decisionsIn(slug);
+    if (count === 0) return null;
+    return (
+      <Link
+        to="/inbox"
+        search={{ ...(currentOrg === null ? {} : { org: currentOrg.slug }), project: slug }}
+        data-testid={`rail-project-decisions-${slug}`}
+        title={t('shell.project_decisions', { name, count })}
+        aria-label={t('shell.project_decisions', { name, count })}
+        className="shrink-0 rounded-nerv-sm px-1 hover:bg-bg-hover"
+      >
+        <CountBadge count={count} tone="action" />
+      </Link>
+    );
+  };
   const railProjects =
     sidebarProject !== undefined && !projectRows.some((p) => p['slug'] === sidebarProject)
       ? [{ slug: sidebarProject, name: currentProject?.['name'] ?? sidebarProject }, ...projectRows]
@@ -936,12 +970,12 @@ export function AppShell({
                   const name = String(project['name'] ?? slug);
                   if (slug !== sidebarProject)
                     return (
-                      <li key={slug}>
+                      <li key={slug} className="flex items-center">
                         <Link
                           to="/p/$proj"
                           params={{ proj: slug }}
                           data-testid={`rail-project-${slug}`}
-                          className={NAV_ITEM}
+                          className={cn(NAV_ITEM, 'min-w-0 flex-1')}
                         >
                           <span aria-hidden="true" className={NAV_GLYPH}>
                             ▸
@@ -956,26 +990,30 @@ export function AppShell({
                             </span>
                           )}
                         </Link>
+                        {decisionsLink(slug, name)}
                       </li>
                     );
                   return (
                     <li key={slug} className="flex flex-col">
                       {/* 프로젝트 이름이 **그 프로젝트로 가는 링크**다(NAV-05) — 활성 표시는 아래의 [개요] 하나다 */}
-                      <Link
-                        to="/p/$proj"
-                        params={{ proj: slug }}
-                        data-testid="rail-project-current"
-                        aria-label={t('shell.project_label', { name })}
-                        className={cn(NAV_ITEM, 'font-semibold text-text')}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="inline-flex size-4 shrink-0 items-center justify-center rounded-nerv-sm bg-status-done text-3xs font-bold text-on-status uppercase"
+                      <div className="flex items-center">
+                        <Link
+                          to="/p/$proj"
+                          params={{ proj: slug }}
+                          data-testid="rail-project-current"
+                          aria-label={t('shell.project_label', { name })}
+                          className={cn(NAV_ITEM, 'min-w-0 flex-1 font-semibold text-text')}
                         >
-                          {slug.slice(0, 1)}
-                        </span>
-                        <span className="flex-1 truncate">{name}</span>
-                      </Link>
+                          <span
+                            aria-hidden="true"
+                            className="inline-flex size-4 shrink-0 items-center justify-center rounded-nerv-sm bg-status-done text-3xs font-bold text-on-status uppercase"
+                          >
+                            {slug.slice(0, 1)}
+                          </span>
+                          <span className="flex-1 truncate">{name}</span>
+                        </Link>
+                        {decisionsLink(slug, name)}
+                      </div>
                       <nav
                         aria-label={t('shell.nav.project')}
                         className="mt-0.5 ml-2 flex flex-col gap-0.5 border-l border-border pl-1.5"

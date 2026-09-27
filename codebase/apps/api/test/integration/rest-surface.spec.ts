@@ -1746,6 +1746,8 @@ describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', 
     // 2026-09-07 — 전표가 사람 전용이라 적어 두고 도메인 판정이 없던 셋(REQ-API-123).
     // 답변은 질문이 없어도 게이트가 먼저 답한다 — 그것이 검사 대상이다.
     ['GET', '/api/v1/projects/clemvion/inbox', undefined],
+    // 2026-09-27 — 범위별 결정 수도 받은 요청이다. `:id` 에 가로채이면 HUMAN_ONLY 가 아니라 결재 없음이 온다
+    ['GET', '/api/v1/approvals/scopes', undefined],
     ['POST', '/api/v1/projects/clemvion/gates/bypass', { subject_id: newId(), reason: '검사' }],
     ['POST', `/api/v1/projects/clemvion/questions/${newId()}/answer`, { answer_key: 'a' }],
   ] as const)('%s %s 는 에이전트 토큰에 HUMAN_ONLY 로 답한다', async (method, url, payload) => {

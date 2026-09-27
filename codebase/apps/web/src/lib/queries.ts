@@ -95,13 +95,25 @@ export interface InboxPage {
  */
 export function useInbox(
   state: 'pending' | 'decided' = 'pending',
+  /**
+   * **범위**(2026-09-27 · 사람 결정 N1 · REQ-WEB-256) — 알림 목록과 같은 칸이다. 비우면 모든 조직이고,
+   * 그때의 캐시 키는 예전 그대로다(헤더 배지 · 홈이 같은 칸을 본다).
+   */
+  scope: NotificationScope = {},
 ): UseInfiniteQueryResult<InfiniteData<InboxPage>> {
   const refetchInterval = useLivePolling();
+  const scoped = scope.org !== undefined || scope.project !== undefined;
   return useInfiniteQuery({
-    queryKey: [...queryKeys.inbox(), state],
+    queryKey: [
+      ...queryKeys.inbox(),
+      state,
+      ...(scoped ? [scope.org ?? '', scope.project ?? ''] : []),
+    ],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ state });
       if (pageParam !== null) params.set('cursor', String(pageParam));
+      if (scope.org !== undefined) params.set('org', scope.org);
+      if (scope.project !== undefined) params.set('project', scope.project);
       return apiFetch<InboxPage>(`/approvals?${params.toString()}`);
     },
     initialPageParam: null as string | null,
@@ -207,6 +219,53 @@ export function useNotifications(
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
+    refetchInterval,
+  });
+}
+
+/** 받은 요청 칸의 한 줄 — 내가 속한 프로젝트 하나와 그 안의 결정 수(EP-APR-07) */
+export interface InboxScopeRow {
+  org_slug: string;
+  org_name: string;
+  project_slug: string;
+  project_name: string;
+  /** 대기 중인 카드 — 내가 누를 수 없는 것 포함 */
+  pending: number;
+  /** 내가 누를 수 있는 카드 — 배지 · 칸 · 사이드바가 쓰는 수(REQ-WEB-217) */
+  actionable: number;
+}
+
+/**
+ * **범위별 결정 수**(2026-09-27 · REQ-API-218 · REQ-WEB-256 · 257). 받은 요청의 칸과 사이드바의
+ * 프로젝트 줄이 쓴다. `['inbox', …]` 접두라 결재 · 질문 이벤트가 받은 요청을 되읽을 때 함께 간다.
+ */
+export function useInboxScopes(): UseQueryResult<{
+  items: InboxScopeRow[];
+  total: { pending: number; actionable: number };
+}> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.inbox(), 'scopes'],
+    queryFn: async () => {
+      const body = await apiFetch<{
+        items?: unknown;
+        total?: { pending?: number; actionable?: number };
+      }>('/approvals/scopes');
+      return {
+        items: rows(body.items).map((r) => ({
+          org_slug: String(r['org_slug'] ?? ''),
+          org_name: String(r['org_name'] ?? r['org_slug'] ?? ''),
+          project_slug: String(r['project_slug'] ?? ''),
+          project_name: String(r['project_name'] ?? r['project_slug'] ?? ''),
+          pending: Number(r['pending'] ?? 0),
+          actionable: Number(r['actionable'] ?? 0),
+        })),
+        total: {
+          pending: Number(body.total?.pending ?? 0),
+          actionable: Number(body.total?.actionable ?? 0),
+        },
+      };
+    },
     refetchInterval,
   });
 }

@@ -205,6 +205,7 @@ function HomeScreen(): React.JSX.Element {
                 <ProjectRow
                   key={String(project['id'])}
                   project={project}
+                  orgSlug={scope.orgSlug}
                   current={project['slug'] === primarySlug}
                 />
               ))}
@@ -322,9 +323,12 @@ function TodoRow({ card }: { card: Record<string, unknown> }): React.JSX.Element
  */
 function ProjectRow({
   project,
+  orgSlug,
   current,
 }: {
   project: Record<string, unknown>;
+  /** 지금 조직 — 받은 요청을 이 프로젝트로 좁힐 때 slug 의 한정자다 */
+  orgSlug: string | null;
   /** 헤더가 고른 프로젝트 — 왼쪽 최근 활동이 비추는 그것이다 */
   current: boolean;
 }): React.JSX.Element {
@@ -359,8 +363,10 @@ function ProjectRow({
           <span className={num(sessions, 'text-status-progress')}>{sessions}</span>
         </Link>
         {/* 이 프로젝트의 **결정되지 않은 결재 전체**다 — 남의 큐까지. 내 차례는 위의 오늘 할 일이 센다 */}
+        {/* 그 프로젝트로 좁힌 받은 요청을 연다(2026-09-27 · REQ-WEB-258) */}
         <Link
           to="/inbox"
+          search={{ ...(orgSlug === null ? {} : { org: orgSlug }), project: slug }}
           data-testid="home-project-approvals"
           title={t('home.project.approvals_hint')}
           className="hover:text-link"
