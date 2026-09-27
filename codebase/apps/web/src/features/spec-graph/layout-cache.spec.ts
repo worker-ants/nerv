@@ -85,6 +85,13 @@ describe('배치 기억', () => {
     expect(readCachedLayout(`k${LAYOUT_CACHE_LIMIT}`)).not.toBeNull();
   });
 
+  it('옛 방법(fcose)의 기억은 지운다 — 새 방법의 답으로 꺼내 쓰지 않는다', () => {
+    window.localStorage.setItem('nerv.graph.layout.v1', '[{"k":"k1","p":[["a",0,0]]}]');
+    writeCachedLayout('k1', at);
+    expect(window.localStorage.getItem('nerv.graph.layout.v1')).toBeNull();
+    expect(readCachedLayout('k1')?.get('b')).toEqual({ x: 100, y: 50 });
+  });
+
   it('저장소가 막혀도 던지지 않는다 — 기억은 편의일 뿐이다', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');

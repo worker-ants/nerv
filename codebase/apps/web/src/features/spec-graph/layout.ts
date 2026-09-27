@@ -1,79 +1,53 @@
 // 관계 그래프의 배치 — 정본: docs/04-mvp/screens.md §2.4a
 //
-// **힘기반 배치 한 번으로는 영역이 서로 겹친다.** fcose 는 compound 를 알지만 영역 상자가
-// 겹치지 않는다고 보장하지 않는다. 노드를 밀고 당기는 것은 노드끼리이고, 상자는 그 결과로
-// 자식들을 감싼 자국일 뿐이다 — clemvion 실측(노드 141 · 간선 1,230)에서 영역 사이 간선이
-// 1,230 중 **801**이라, 힘은 자식들을 남의 영역 안쪽까지 끌고 간다. 그러면 상자 둘이 겹쳐
-// 그려지고, 겹친 상자는 **부모·자식으로 읽힌다.** 화면이 없는 계층을 말하는 것이다.
+// **지키는 것은 형태다**(2026-09-27 — 사람 결정 · REQ-WEB-245·247). 형태는 한 문서 주위에 어떤
+// 문서가 **어느 방향에** 있는가이다. 그림 전체가 옮겨지거나 커지고 작아지는 것은 상관없고,
+// 돌아가거나 뒤집히거나 이웃이 바뀌면 안 된다. 배치는 서버에 저장하지 않으므로 문서가 늘거나
+// 줄면 그 데이터로 **다시 계산한다** — 그래서 계산 자체가 "데이터가 조금 바뀌면 그림도 조금만
+// 바뀌는" 성질을 가져야 한다.
 //
-// 두 번째 문제는 빈자리다. 배치는 화면보다 훨씬 크게 퍼져 맞춤 배율이 **평균 0.472**
-// 였고, 그 배율에서 노드는 작고 이름은 아예 그려지지 않는다(REQ-WEB-095).
-// **빈자리는 공짜가 아니다 — 캔버스 100px 은 곧 읽을 수 있는 노드 수다**(§2.4a).
+// **fcose 로는 지킬 수 없었다**(합성 243 문서 · 3,036 관계 실측). 시드를 고정해도 문서가 하나만
+// 늘면 이웃의 방향이 평균 86° 바뀌었다 — 무작위로 다시 놓은 것과 같은 수준이다. 까닭은 셋이다.
+//   ① 첫 자리가 **모두가 함께 쓰는 난수열**에서 나온다. 문서 하나가 끼면 그 뒤 문서의 난수가
+//      모두 한 칸씩 밀려 전혀 다른 출발점에서 시작한다
+//   ② 힘 기반 배치에는 **방향을 붙잡는 것이 없다.** 돌리거나 뒤집어도 에너지가 같아서, 출발점이
+//      조금만 달라도 돌아간 답이 나온다 — 아래 ②의 답에서 fcose 를 이어 돌려도 형태 유지율이
+//      0.99 → 0.24–0.28 로 떨어졌다
+//   ③ 정리 패스가 **가장 작은 후보를 골랐다.** 줄였다가 밀어내기를 되풀이해 가장 작은 답을 고르고
+//      구멍 메우기가 상자를 다른 상자 너머로 옮겼다. 입력이 조금만 달라도 다른 후보가 뽑혀 영역의
+//      순서가 바뀌었다(0.99 → 0.70)
 //
-// 그래서 fcose 가 답을 낸 **뒤에** 한 벌 더 돈다. 이 패스가 하는 일은 세 가지다.
-//   ① **겹침 제거** — 같은 부모를 둔 형제 상자끼리만 본다. 진짜 부모·자식은 겹쳐도 되고
-//      (그것이 계층이다) 형제는 겹치면 안 된다. 상자는 통째로 움직인다 — 안쪽 배치는
-//      fcose 의 답 그대로다
-//   ② **다지기** — 중심으로 조금씩 줄였다가 다시 밀어내기를 반복하며 가장 작은 답을 고른다.
-//      균일 축소라 **누가 누구 옆에 있었는지는 그대로**다
-//   ③ **중력** — 다지고 나서도 안쪽에 남은 구멍으로 바깥 것을 끌어당긴다. 멀리 떨어진
-//      작은 영역 하나가 화면 전체의 배율을 깎는 자리를 메운다
-//   ④ **이름의 자리** — 이름이 그려질 배치에서만 이름이 차지할 자리까지 떼어 놓고,
-//      그러고도 겹치는 이름은 그리지 않는다(2026-09-22 · REQ-WEB-095 개정 · 178)
+// 그래서 세 단계로 그린다. **난수를 쓰지 않는다.**
+//   ① **기준 자리**(`referencePositions`) — 각 문서의 출발점을 자기 id 의 해시로 정한다. 영역의
+//      중심은 영역끼리의 관계 수로 작은 그림을 한 번 펴서 정하되 영역 id 의 해시 자리에 묶는다.
+//      다른 문서가 늘거나 줄어도 **한 문서의 출발점은 바뀌지 않는다**
+//   ② **관계로 다듬기**(`anchoredStress`) — 관계 거리를 화면 거리로 옮기는 스트레스 배치를 기준
+//      자리에 묶어서 푼다. 관계가 가까운 문서끼리 모이고, 묶여 있어서 돌거나 뒤집히지 않는다
+//   ③ **방향을 지키는 겹침 풀기**(`separate`) — 무리마다 고른 비율로 넓히거나 좁혀 밀도를 맞추고
+//      (방향은 그대로다), 겹친 둘은 **두 중심을 잇는 선을 따라서만** 물러난다. 먼저 넓혀 두는
+//      까닭은 겹침을 크게 풀수록 형태를 잃기 때문이다(넓히지 않고 밀기만 하면 0.84)
 //
-// 실측(clemvion · **실브라우저** 14회 평균 · 2026-09-22 · 캔버스 1,158×752): 겹친 형제
-// 상자 **33.8쌍 → 0**(영역끼리는 20.1 → 0), 맞춤 배율 **0.472 → 0.529**, 노드가 덮는
-// 면적 비율 **0.042 → 0.074**, 배치 한 번 **115ms → 224ms**. 영역으로 묶기를 껐을 때도
-// 같은 패스가 돈다 — 그쪽은 겹친 **노드** 94.8쌍이 0이 된다.
+// 실측(2026-09-27 · Node 헤드리스). 형태 유지율은 각 문서의 가까운 이웃 5개 가운데 갱신 뒤에도
+// 가까운 이웃 10개 안에, ±45° 안의 방향으로 남은 것의 비율이다.
+//   - clemvion(문서 141 · 관계 1,230)에서 가장 늦게 만든 문서 30개를 만든 순서대로 하나씩 더하면:
+//     형태 유지율 0.44 → 0.996(최악 0.18 → 0.96), 방향 변화 58° → 1.6°
+//   - 합성 243 문서 · 3,036 관계에 1개씩 60번: 0.20 → 0.999, 80° → 0.7°
+//   - 대가: clemvion 에서 관계를 반영하는 정도(스트레스)가 fcose 의 1.35배로 나쁘고 맞춤 배율은
+//     0.84배다(합성 데이터에서는 둘 다 fcose 와 같은 수준 — 0.93–1.07배). 계산은 3–4배 빠르다
 //
-// **헤드리스로 재면 이득이 부풀려진다**(같은 데이터로 0.559 → 0.792). 글꼴이 없어 라벨이
-// 0 크기로 잡히고, 그러면 영역 상자가 실제보다 훨씬 작아진다 — 숫자는 화면이 내는 것으로
-// 적는다. **최저 배율은 0.46 → 0.43 으로 나아지지 않는다**: 이 패스가 고치는 것은 매번
-// 겹치던 상자이지 최악의 배치가 아니다.
+// ── 이 파일이 여전히 지키는 것 ─────────────────────────────────────────────────────
 //
-// **이 패스는 배치를 대신하지 않는다.** 어느 영역이 어느 영역 옆에 서는지, 어느 문서가
-// 허브인지는 여전히 fcose 가 정한다. 여기서 바뀌는 것은 자리 사이의 **거리**뿐이다.
+// **형제는 겹치지 않는다**(REQ-WEB-174). 겹친 상자는 부모·자식으로 읽히고, 그것은 데이터에 없는
+// 계층이다(clemvion 실측 2026-09-22: 영역 사이 간선이 1,230 중 801 이라, 힘은 자식을 남의 영역
+// 안쪽까지 끌고 갔다). **빈자리는 공짜가 아니다** — 캔버스 100px 은 곧 읽을 수 있는 노드 수다.
 //
-// ── 이름 (2026-09-22 · 사람 보고) ───────────────────────────────────────────────
+// **이름이 그려질 배치에서만 이름의 자리를 잡아 둔다**(REQ-WEB-178). 먼저 동그라미로 떼어 놓고,
+// 그 배치의 맞춤 배율이 이름이 나타나는 배율(`LABEL_ZOOM`) 이상이면 이름을 품은 상자로 한 번 더
+// 떼어 놓는다. 그렇게 해서 배율이 그 아래로 내려가면 — 이름이 사라지는데 자리만 버린 것이므로 —
+// 앞의 답으로 되돌린다. 그러고도 겹치는 이름은 **화면**이 가린다(`declutterLabels`).
 //
-// **작은 프로젝트에서는 이름이 서로를 덮었다.** §2.4a 는 "전체 보기의 맞춤 배율은 이름이
-// 나타나는 배율(0.89)보다 낮으므로 겹칠 이름은 애초에 그려지지 않는다"고 적었는데, 그것은
-// clemvion 의 **141 노드에서만** 성립하는 전제다. 시드처럼 노드가 스물이면 맞춤 배율이 1을
-// 넘어 이름이 전부 그려지고, 이름은 노드보다 훨씬 넓어(`'text-max-width': '90px'`) 옆 문서의
-// 이름 위에 눕는다 — 정리 패스가 잎을 **동그라미 기준으로** 떼어 놓기 때문이다.
-//
-// 그래서 둘을 한다.
-//   ① **이름이 그려질 배치에서만 이름의 자리를 잡아 둔다.** 먼저 여느 때처럼 동그라미로
-//      다지고, 그 배치의 맞춤 배율이 이름이 나타나는 배율 이상이면 **이름을 품은 상자로**
-//      한 번 더 다진다. 그렇게 해서 배율이 그 아래로 내려가면 — 이름이 사라지는데 자리만
-//      버린 것이므로 — 앞의 답으로 되돌린다. 문턱은 이름이 그려지는 배율(`LABEL_ZOOM`)과 같다.
-//      (2026-09-27 — 그 배율이 0.889 에서 0.5 로 내려와, 맞춤 배율 0.53 인 clemvion 규모도 이
-//      길을 지난다. 이름의 자리를 잡느라 배율이 0.5 아래로 내려가면 앞의 답으로 되돌린다.)
-//   ② **그러고도 겹치는 이름은 그리지 않는다.** 배치가 아니라 **화면**의 일이다 — 사람이
-//      확대하면 큰 그래프에서도 이름이 나타나고 그때 다시 겹친다. 큰 것(피참조가 많은 것)
-//      부터 자리를 차지하고, 자리를 잃은 이름은 가라앉는다. 읽을 수 없는 크기를 그리지
-//      않는 것과 같은 규칙의 다른 얼굴이다(REQ-WEB-095) — **가려서 못 읽는 것도 못 읽는
-//      것이다.** 고른 문서의 이름은 언제나 이긴다.
-//
-// ── 같은 데이터는 같은 그림 (2026-09-27 · 사람 보고 · REQ-WEB-245) ──────────────────
-//
-// **열 때마다 배치가 달라서 자리를 익힐 수 없었다.** fcose 를 `randomize` 로 돌렸고 fcose 는 시드를
-// 받지 않는다(README 에 옵션이 없다 — 스펙트럴 단계가 `Math.random` 을 부른다). 같은 문서·같은
-// 관계로 두 번 열면 노드가 평균 690–880px 움직였다(합성 243 문서 · 3,036 관계). 이제 배치를 도는
-// 동안만 `Math.random` 을 **배치 번호로 정한 난수**로 바꾼다(`withSeed`). 번호는 주소에 남고
-// (`?layout=` · 기본 1) [다른 배치]가 하나씩 올린다. 정리 패스는 원래 결정적이다.
-//
-// **입력 순서도 답을 바꾼다** — 시드를 고정해도 간선 순서만 섞으면 평균 143px, 노드 순서를 섞으면
-// 741px 움직였다. 그래서 그리는 쪽(`graph.tsx`)이 노드는 id, 간선은 (from, to) 순으로 정렬해 넣는다.
-//
-// ── 빠르게 (2026-09-27 · REQ-WEB-246) ─────────────────────────────────────────────
-//
-// 정리 패스는 무리를 조금씩 줄였다가 밀어내기를 반복하는데, **더는 풀리지 않을 만큼 줄인 뒤에도**
-// 끝까지(60단계) 줄이며 그때마다 밀어내기를 반복 상한(400바퀴)까지 헛돌렸다. 합성 243 문서에서
-// 정리 패스가 돈 바퀴의 98.7%가 그렇게 끝내 풀지 못한 호출 안에 있었다(계측). 이제 두 번 잇달아
-// 못 풀면 더 줄이지 않는다. 고르는 답의 규칙(겹침 없는 것 중 가장 작은 것)은 그대로다.
-// 곁들여 반씩 물러난 뒤 남는 부동소수점 찌꺼기(1e-13px)를 겹침으로 세지 않는다 — 그 쌍은 더
-// 밀어도 값이 바뀌지 않아, 다 풀린 후보를 "겹친 채" 로 버리게 했다.
+// **같은 입력이면 같은 답이다**(REQ-WEB-245). 입력의 순서와도 무관하다 — 모든 반복을 id 순으로
+// 돈다. [다른 배치]는 해시에 섞는 번호(`?layout=`)를 바꾼다.
 import type cytoscape from 'cytoscape';
 
 /** 영역 **안에서** 형제 사이에 남기는 간격(px) — 좁힐수록 그림이 커지고, 이름은 서로를 가린다 */
@@ -84,14 +58,59 @@ const AREA_GAP = 12;
 const AREA_LABEL = 16;
 /** 영역 상자가 자식 주위에 두는 여백 — 마찬가지로 재서 쓰고, 이것은 재지 못할 때의 값이다 */
 const AREA_PAD = 12;
-/** 구멍 메우기를 몇 번 도는가 */
-const GRAVITY_PASSES = 3;
-/** 다지기가 잇달아 몇 번 풀지 못하면 더 줄이지 않는가 */
-const GIVE_UP_AFTER = 2;
-/** 겹침을 끝까지 푸는 데 쓰는 반복 상한 — 처음과 마지막에 한 번씩만 돈다 */
-const SETTLE_ITERATIONS = 2000;
 /** 맞춤 여백 — 기본값(30)보다 좁힌다. 여백은 그림이 쓸 수 있었던 픽셀이다 */
 const FIT_PADDING = 16;
+
+/**
+ * 문서가 차지하는 넓이 ÷ 무리가 차지하는 넓이 — **전체 보기의 크기와 형태 사이의 값**이다
+ * (2026-09-27 — 사람 결정 S2). 올리면 그림이 촘촘해져 문서가 크게 그려지는 대신, 겹침을 더 크게
+ * 풀어야 해서 형태가 조금씩 흔들린다. 0.25 → 0.3 에서 맞춤 배율은 5% 커지고 형태 유지율은
+ * 0.01 안쪽으로만 달라졌다(합성 243 문서 · 줄였다 밀기를 넣기 전에 쟀다).
+ */
+export const LEAF_DENSITY = 0.3;
+/** 뿌리에서 영역 상자들이 차지하는 넓이의 비율 — 상자는 속이 이미 비어 있어 더 촘촘히 둔다 */
+const AREA_DENSITY = 0.5;
+/**
+ * 그림이 겨냥하는 모양(가로 ÷ 세로). **창 크기가 아니라 고정값이다** — 캔버스 모양을 겨냥하면
+ * 창마다 다른 그림이 된다. 가로로 넓은 화면이 흔하므로 16:10 이다.
+ */
+export const TARGET_ASPECT = 1.6;
+/**
+ * 그 모양 쪽으로 얼마나 기울이는가 — 0.5 면 한 번에 가로·세로 비의 제곱근만큼 다가간다. 가로·세로를
+ * 다르게 늘여도 좌우·위아래 순서는 그대로다. 약하게(0.25) 두었더니 clemvion 에서 그림이 거의
+ * 정사각으로 남아 세로가 배율을 깎았다.
+ */
+const STRETCH_POWER = 0.5;
+/**
+ * 밀어낸 뒤 **고르게 줄였다가 다시 미는** 횟수와 한 번에 줄이는 비율. 넓혀 둔 무리를 조금 더
+ * 다지는 일이고, 예전 다지기와 달리 **후보를 고르지 않는다** — 정해진 횟수만큼 하고 끝난 자리를
+ * 쓴다. 두 번이면 clemvion 의 맞춤 배율이 0.56 → 0.64 가 되고 형태 유지율은 0.997 → 0.996 이었다.
+ * 여덟 번이면 배율은 0.67 이지만 합성 데이터에서 영역의 좌우·위아래가 한 번에 30% 까지 뒤집혔다.
+ */
+const SQUEEZE_ROUNDS = 2;
+const SQUEEZE = 0.94;
+/** 스트레스를 몇 바퀴 푸는가 — 60 이면 기준 자리에서 충분히 가라앉는다 */
+const STRESS_ROUNDS = 60;
+/** 기준 자리에 묶는 힘(1 이면 관계와 기준이 같은 무게다) — 약하면 돌아가고, 강하면 관계를 못 따른다 */
+const ANCHOR = 1;
+/** 영역끼리의 작은 그림을 해시 자리에 묶는 힘 — 영역 하나가 늘어도 나머지가 돌지 않게 더 세게 묶는다 */
+const AREA_ANCHOR = 2;
+const AREA_ROUNDS = 200;
+/** 영역끼리의 원하는 거리 = 반지름의 합 × (가까움 + 멂 × (1 − 관계의 세기)) */
+const AREA_NEAR = 1.1;
+const AREA_FAR = 1.5;
+/** 부모가 다른 두 문서는 관계 거리를 이만큼 더 멀게 본다 — 영역이 한 덩어리로 모인다 */
+const CROSS_PARENT = 1;
+/** 겹침을 끝까지 푸는 반복 상한 */
+const SPREAD_ROUNDS = 2000;
+/** 이보다 얕은 겹침은 없는 것으로 본다(px) — 화면에서 보이지 않고, 부동소수점이 남기는 크기다 */
+const OVERLAP_EPSILON = 1e-6;
+/**
+ * 기준 자리의 크기(모델 좌표) — 무리는 부모의 반지름(√잎 수에 비례) 안에, 문서는 √형제 수에 비례해
+ * 흩는다. 처음에는 뿌리의 반지름을 그래프 크기와 무관한 고정값(700)으로 두었는데, 그러면 작은
+ * 그래프일수록 무리가 필요 이상으로 흩어진다.
+ */
+const DOC_SPREAD = 30;
 
 /**
  * 문서 이름의 글자 크기와 그것을 그리기 시작하는 배율 — **정본은 여기다.**
@@ -127,72 +146,401 @@ export function labelReadable(zoom: number, fontSize = LABEL_FONT_SIZE): boolean
   return zoom * fontSize >= LABEL_MIN_ZOOMED;
 }
 
-// ── 배치 번호 → 난수 ────────────────────────────────────────────────────────────
+// ── 배치 번호와 해시 ────────────────────────────────────────────────────────────
 
 /** 기본 배치 번호 — 주소에 `?layout=` 이 없으면 이것이다 */
 export const DEFAULT_LAYOUT = 1;
 
 /**
- * 번호 하나로 정해지는 난수열(mulberry32) — 같은 번호면 같은 수가 같은 순서로 나온다.
- * 품질은 배치의 첫 자리를 흩어 놓는 데 충분하고, 무엇보다 **브라우저와 무관하게 같은 정수 연산**이다.
- */
-export function seededRandom(seed: number): () => number {
-  let state = (Math.imul(seed | 0, 0x9e3779b1) ^ 0x6d2b79f5) >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * `run` 이 도는 동안만 `Math.random` 을 번호의 난수열로 바꾼다.
+ * 글자 하나로 정해지는 [0, 1) 의 수 — FNV-1a 에 murmur3 의 마무리 섞기를 더했다.
  *
- * fcose(와 그 밑의 cose-base)는 시드를 받지 않고 `Math.random` 을 직접 부른다. 전역을 잠깐
- * 바꾸는 것은 **배치가 동기로 끝날 때만** 안전하다(`LAYOUT.animate: false`) — 비동기가 되면
- * 난수의 일부가 원래 것으로 돌아가 그림이 다시 매번 달라진다. `layout.spec.ts` 가 "같은 번호면
- * 같은 자리" 를 재서 그날을 알려 준다.
+ * 기준 자리는 **이 값 하나로만** 정해진다: 배치 번호와 자기 id 다. 공유하는 난수열이 없어서 다른
+ * 문서가 늘거나 줄어도 한 문서의 출발점은 그대로다. 브라우저와 무관한 정수 연산이다.
  */
-export function withSeed<T>(seed: number, run: () => T): T {
-  const original = Math.random;
-  Math.random = seededRandom(seed);
-  try {
-    return run();
-  } finally {
-    Math.random = original;
+export function hash01(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
   }
+  // id 는 앞부분이 같은 것이 많다(uuid v7) — 끝 글자 하나의 차이가 윗자리까지 번지게 섞는다
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+// ── 계층 ────────────────────────────────────────────────────────────────────────
+
+/**
+ * 배치가 보는 계층 — id → 부모 id(뿌리면 `null`).
+ *
+ * **영역으로 묶지 않은 그림도 같은 계층으로 기준 자리를 잡는다.** 그러면 묶기를 켜고 끌 때도
+ * 문서들이 같은 방향에 남는다. 그래서 그리는 쪽이 데이터의 부모를 건넨다 — 그림(cytoscape)의
+ * compound 는 묶기를 끄면 사라지기 때문이다. 건네지 않으면 그림의 compound 를 쓴다.
+ */
+export type LayoutTree = ReadonlyMap<string, string | null>;
+
+function treeOf(cy: cytoscape.Core): Map<string, string | null> {
+  const tree = new Map<string, string | null>();
+  cy.nodes().forEach((node) => {
+    const parent: unknown = node.data('parent');
+    tree.set(node.id(), typeof parent === 'string' ? parent : null);
+  });
+  return tree;
+}
+
+const byId = (a: cytoscape.NodeSingular, b: cytoscape.NodeSingular): number =>
+  a.id() < b.id() ? -1 : a.id() > b.id() ? 1 : 0;
+
+const byItemId = (a: { id: string }, b: { id: string }): number =>
+  a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+
+/** 잎(compound 가 아닌 노드) — **id 순**이다. 모든 반복을 이 순서로 돌아야 입력 순서와 무관하다 */
+function leavesOf(cy: cytoscape.Core): cytoscape.NodeSingular[] {
+  const leaves: cytoscape.NodeSingular[] = [];
+  cy.nodes().forEach((node) => {
+    if (!node.isParent()) leaves.push(node);
+  });
+  return leaves.sort(byId);
+}
+
+/** 계층을 오르내리는 도구 — 계층이 고리를 이루는 잘못된 입력에서도 멈춘다 */
+function hierarchy(tree: LayoutTree): {
+  parentOf: (id: string) => string | null;
+  rootOf: (id: string) => string;
+  kids: Map<string, number>;
+} {
+  const parentOf = (id: string): string | null => tree.get(id) ?? null;
+  const rootOf = (id: string): string => {
+    let at = id;
+    for (let depth = 0; depth < 64; depth += 1) {
+      const up = parentOf(at);
+      if (up === null) break;
+      at = up;
+    }
+    return at;
+  };
+  const kids = new Map<string, number>();
+  for (const parent of tree.values()) {
+    if (parent !== null) kids.set(parent, (kids.get(parent) ?? 0) + 1);
+  }
+  return { parentOf, rootOf, kids };
+}
+
+// ── ① 기준 자리 ─────────────────────────────────────────────────────────────────
+
+/**
+ * 한 부모 아래 형제 무리(영역 · 영역에 들지 않은 문서)의 중심 — 형제끼리의 관계 수로 편 작은 그림.
+ *
+ * 무리를 해시 자리에만 두면 관계가 많은 두 영역이 반대편에 놓여 영역을 건너는 선이 길어진다.
+ * 그래서 형제만의 그림(대개 열 개 안팎)을 한 번 편다. 원하는 거리는 두 무리의 반지름 합에서
+ * 시작해 관계가 약할수록 멀어지고, **해시 자리에 묶어 둔다**(`AREA_ANCHOR`) — 새 영역이 하나
+ * 생겨도 나머지가 돌지 않는다. 관계의 세기는 **두 무리의 크기에만 견준다**: 가장 많은 쌍에 견주면
+ * 그 쌍이 바뀔 때 모든 거리가 함께 바뀐다.
+ *
+ * 뿌리에서 한 번, 안쪽 영역을 거느린 영역마다 한 번 돈다. 안쪽 영역을 해시로만 흩으면 관계를
+ * 모르는 채로 놓인다 — 안쪽 영역 여덟을 둔 clemvion 에서 그렇게 했다가 관계 반영이 크게 나빴다.
+ */
+function groupCentres(
+  cy: cytoscape.Core,
+  seed: number,
+  members: readonly string[],
+  groupOf: (id: string) => string | null,
+  size: ReadonlyMap<string, number>,
+  centre: cytoscape.Position,
+  ring: number,
+): Map<string, cytoscape.Position> {
+  const ids = [...members].sort();
+  const n = ids.length;
+  const index = new Map(ids.map((id, i) => [id, i]));
+  const links = new Float64Array(n * n);
+  cy.edges().forEach((edge) => {
+    const from = groupOf(edge.source().id());
+    const to = groupOf(edge.target().id());
+    const a = from === null ? undefined : index.get(from);
+    const b = to === null ? undefined : index.get(to);
+    if (a === undefined || b === undefined || a === b) return;
+    links[a * n + b] = (links[a * n + b] ?? 0) + 1;
+    links[b * n + a] = (links[b * n + a] ?? 0) + 1;
+  });
+  const count = ids.map((id) => size.get(id) ?? 1);
+  const radius = count.map((c) => DOC_SPREAD * Math.sqrt(c));
+  const X = new Float64Array(n);
+  const Y = new Float64Array(n);
+  const AX = new Float64Array(n);
+  const AY = new Float64Array(n);
+  ids.forEach((id, i) => {
+    const r = ring * Math.sqrt(0.2 + 0.8 * hash01(`${seed}:r:${id}`));
+    const angle = 2 * Math.PI * hash01(`${seed}:a:${id}`);
+    X[i] = AX[i] = centre.x + r * Math.cos(angle);
+    Y[i] = AY[i] = centre.y + r * Math.sin(angle);
+  });
+  const want = new Float64Array(n * n);
+  const weight = new Float64Array(n * n);
+  const wsum = new Float64Array(n);
+  for (let i = 0; i < n; i += 1) {
+    for (let j = 0; j < n; j += 1) {
+      if (i === j) continue;
+      const ci = count[i] ?? 1;
+      const cj = count[j] ?? 1;
+      const s = Math.min(1, (links[i * n + j] ?? 0) / (2 * Math.sqrt(ci * cj)));
+      const d = ((radius[i] ?? 0) + (radius[j] ?? 0)) * (AREA_NEAR + AREA_FAR * (1 - s));
+      want[i * n + j] = d;
+      weight[i * n + j] = (0.2 + s) / (d * d);
+      wsum[i] = (wsum[i] ?? 0) + (0.2 + s) / (d * d);
+    }
+  }
+  for (let round = 0; round < AREA_ROUNDS && n > 1; round += 1) {
+    for (let i = 0; i < n; i += 1) {
+      const xi = X[i] ?? 0;
+      const yi = Y[i] ?? 0;
+      let sx = 0;
+      let sy = 0;
+      for (let j = 0; j < n; j += 1) {
+        if (j === i) continue;
+        const w = weight[i * n + j] ?? 0;
+        const d = want[i * n + j] ?? 0;
+        const xj = X[j] ?? 0;
+        const yj = Y[j] ?? 0;
+        const dist = Math.hypot(xi - xj, yi - yj) || 1e-6;
+        sx += w * (xj + (d * (xi - xj)) / dist);
+        sy += w * (yj + (d * (yi - yj)) / dist);
+      }
+      const hold = AREA_ANCHOR * (wsum[i] ?? 0);
+      const total = (wsum[i] ?? 0) + hold;
+      X[i] = (sx + hold * (AX[i] ?? 0)) / total;
+      Y[i] = (sy + hold * (AY[i] ?? 0)) / total;
+    }
+  }
+  return new Map(ids.map((id, i) => [id, { x: X[i] ?? 0, y: Y[i] ?? 0 }]));
 }
 
 /**
- * 배치 옵션 — 첫 그림과 [다른 배치]가 **같은 값**을 쓴다.
+ * 잎마다의 출발점 — 배치 번호 · 자기 id · 부모의 자리로만 정해진다.
  *
- * `randomize` 는 첫 자리를 흩어 놓고 시작한다는 뜻이다(엉킨 채로 시작하지 않는다). 흩는 데 쓰는
- * 난수는 배치 번호가 정하므로(`withSeed`) 같은 번호면 같은 그림이다 — [다른 배치]는 번호를 하나
- * 올려 다른 답을 본다. 밀집한 자리는 한 번 더 굴리면 풀리고, 손으로 끌어 흐트러뜨린 뒤 되돌리는
- * 길도 번호 하나다.
- *
- * **`fit` 은 끈다.** 맞추는 것은 정리 패스가 끝난 뒤의 일이고, fcose 가 먼저 맞춰 두면
- * 그 배율은 곧 버려진다.
+ * 영역의 중심은 위에서부터 정한다: 뿌리 무리를 `groupCentres` 로 펴고, 안쪽 영역을 거느린 영역마다
+ * 그 안쪽 영역들을 다시 편다(부모 중심 둘레, 부모의 반지름 안). 문서는 자기 영역 중심 둘레의 한
+ * 점(반지름 ∝ √형제 수)이다. 영역으로 묶지 않은 그림에서 영역 노드는 잎이지만 자식을 가진다 —
+ * 그때는 자기 자식들의 한가운데에 둔다.
  */
-export const LAYOUT = {
-  name: 'fcose',
-  // 밀도가 높을수록 밀어내는 힘을 키운다 — 기본값으로는 중앙에 뭉친다
-  nodeRepulsion: 9000,
-  idealEdgeLength: 90,
-  nestingFactor: 0.2,
-  animate: false,
-  randomize: true,
-  fit: false,
-} as cytoscape.LayoutOptions;
+export function referencePositions(
+  cy: cytoscape.Core,
+  seed: number = DEFAULT_LAYOUT,
+  tree: LayoutTree = treeOf(cy),
+): Map<string, cytoscape.Position> {
+  const leaves = leavesOf(cy);
+  const { parentOf, kids } = hierarchy(tree);
+  // 뿌리부터 자기까지의 길 — 무리를 나눌 때 "이 부모 바로 아래의 누구 편인가" 를 읽는다
+  const paths = new Map<string, string[]>();
+  const pathOf = (id: string): string[] => {
+    const known = paths.get(id);
+    if (known !== undefined) return known;
+    const path = [id];
+    let up = parentOf(id);
+    for (let depth = 0; up !== null && depth < 64; depth += 1) {
+      path.unshift(up);
+      up = parentOf(up);
+    }
+    paths.set(id, path);
+    return path;
+  };
+  // 무리의 크기 = 그 아래 잎의 수
+  const size = new Map<string, number>();
+  for (const leaf of leaves) {
+    for (const id of pathOf(leaf.id())) size.set(id, (size.get(id) ?? 0) + 1);
+  }
+  const children = new Map<string, string[]>();
+  for (const [id, parent] of tree) {
+    if (parent === null || !kids.has(id)) continue;
+    const list = children.get(parent) ?? [];
+    list.push(id);
+    children.set(parent, list);
+  }
+  /** `parent` 바로 아래에서 `id` 가 속한 무리(뿌리에서는 `parent` 가 `null`) */
+  const branchOf =
+    (parent: string | null) =>
+    (id: string): string | null => {
+      const path = pathOf(id);
+      if (parent === null) return path[0] ?? null;
+      const at = path.indexOf(parent);
+      return at < 0 ? null : (path[at + 1] ?? null);
+    };
+  const centres = new Map<string, cytoscape.Position>();
+  const lay = (parent: string | null, members: readonly string[]): void => {
+    if (members.length === 0) return;
+    const centre = parent === null ? { x: 0, y: 0 } : (centres.get(parent) ?? { x: 0, y: 0 });
+    const ring = DOC_SPREAD * Math.sqrt(parent === null ? leaves.length : (size.get(parent) ?? 1));
+    const placed = groupCentres(cy, seed, members, branchOf(parent), size, centre, ring);
+    for (const [id, at] of placed) centres.set(id, at);
+    for (const id of [...members].sort()) lay(id, children.get(id) ?? []);
+  };
+  lay(null, [...new Set(leaves.map((leaf) => pathOf(leaf.id())[0] ?? leaf.id()))]);
+  const out = new Map<string, cytoscape.Position>();
+  for (const leaf of leaves) {
+    const id = leaf.id();
+    const own = centres.get(id);
+    if (own !== undefined) {
+      out.set(id, own);
+      continue;
+    }
+    const parent = parentOf(id);
+    const base = (parent === null ? undefined : centres.get(parent)) ?? { x: 0, y: 0 };
+    const spread = DOC_SPREAD * Math.sqrt(parent === null ? 1 : (kids.get(parent) ?? 1));
+    const r = spread * Math.sqrt(hash01(`${seed}:lr:${id}`));
+    const angle = 2 * Math.PI * hash01(`${seed}:la:${id}`);
+    out.set(id, { x: base.x + r * Math.cos(angle), y: base.y + r * Math.sin(angle) });
+  }
+  return out;
+}
 
-/** 정리 패스가 다루는 최소 단위 — 잎 노드 하나이거나, 영역 상자 하나다 */
+// ── ② 관계로 다듬기 ─────────────────────────────────────────────────────────────
+
+/**
+ * 기준 자리에 묶은 스트레스 배치(Gansner·Koren·North 의 stress majorization 에 닻을 단 것 —
+ * Brandes·Mader 2011 이 "anchoring" 으로 견준 방법이다).
+ *
+ * 두 문서 사이의 목표 거리는 **관계 거리**(몇 번 건너 닿는가)에 길이 하나를 곱한 것이다. 부모가
+ * 다르면 한 칸 더 멀게 보고(`CROSS_PARENT`), 이어지지 않은 쌍은 가장 먼 거리보다 한 칸 더다.
+ * 길이는 기준 자리에 가장 잘 맞는 값으로 고른다 — 그래서 닻과 스트레스가 서로 다른 크기를 당기지
+ * 않는다. 풀 때마다 각 문서를 "관계가 원하는 자리" 와 "기준 자리" 의 가중 평균으로 옮긴다
+ * (Gauss–Seidel · id 순).
+ *
+ * 비용은 문서 수의 제곱이다 — 거리표가 n² 칸(Uint16)이고 한 바퀴가 n² 쌍이다. 합성 1,000 문서에서
+ * 배치 전체가 1.2초(fcose 는 2.7초)였다. 수천 문서로 가면 일부 문서만 기준으로 쓰는
+ * 희소 스트레스로 바꿔야 한다 — 4.1 §2 의 재검토 트리거("여는 데 1초 초과")가 그 신호다.
+ */
+export function anchoredStress(
+  cy: cytoscape.Core,
+  reference: ReadonlyMap<string, cytoscape.Position>,
+  tree: LayoutTree = treeOf(cy),
+): void {
+  const leaves = leavesOf(cy);
+  const n = leaves.length;
+  const ids = leaves.map((leaf) => leaf.id());
+  const X = new Float64Array(n);
+  const Y = new Float64Array(n);
+  ids.forEach((id, i) => {
+    const at = reference.get(id) ?? { x: 0, y: 0 };
+    X[i] = at.x;
+    Y[i] = at.y;
+  });
+  if (n >= 2) {
+    const AX = Float64Array.from(X);
+    const AY = Float64Array.from(Y);
+    const index = new Map(ids.map((id, i) => [id, i]));
+    const neighbours: number[][] = ids.map(() => []);
+    cy.edges().forEach((edge) => {
+      const a = index.get(edge.source().id());
+      const b = index.get(edge.target().id());
+      if (a === undefined || b === undefined || a === b) return;
+      neighbours[a]?.push(b);
+      neighbours[b]?.push(a);
+    });
+    // 관계 거리 — 문서마다 한 번씩 넓이 우선 탐색
+    const hops = new Uint16Array(n * n);
+    const row = new Int32Array(n);
+    const queue = new Int32Array(n);
+    let farthest = 0;
+    for (let s = 0; s < n; s += 1) {
+      row.fill(-1);
+      row[s] = 0;
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = s;
+      while (head < tail) {
+        const u = queue[head++] ?? 0;
+        const next = (row[u] ?? 0) + 1;
+        for (const v of neighbours[u] ?? []) {
+          if ((row[v] ?? 0) >= 0) continue;
+          row[v] = next;
+          queue[tail++] = v;
+        }
+      }
+      for (let j = 0; j < n; j += 1) {
+        const d = row[j] ?? -1;
+        hops[s * n + j] = d < 0 ? 0xffff : d;
+        if (d > farthest) farthest = d;
+      }
+    }
+    const { parentOf } = hierarchy(tree);
+    const parents = ids.map((id) => parentOf(id));
+    for (let i = 0; i < n; i += 1) {
+      for (let j = 0; j < n; j += 1) {
+        if (i === j) continue;
+        const raw = hops[i * n + j] ?? 0;
+        const d = raw === 0xffff ? farthest + 1 : raw;
+        hops[i * n + j] = d + (parents[i] === parents[j] ? 0 : CROSS_PARENT);
+      }
+    }
+    // 길이 — 기준 자리에 가장 잘 맞는 값(가중 최소제곱)
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i < n; i += 1) {
+      for (let j = i + 1; j < n; j += 1) {
+        const d = hops[i * n + j] ?? 1;
+        const w = 1 / (d * d);
+        num += w * d * Math.hypot((X[i] ?? 0) - (X[j] ?? 0), (Y[i] ?? 0) - (Y[j] ?? 0));
+        den += w * d * d;
+      }
+    }
+    const unit = den > 0 && num > 0 ? num / den : 1;
+    const wsum = new Float64Array(n);
+    for (let i = 0; i < n; i += 1) {
+      let s = 0;
+      for (let j = 0; j < n; j += 1) {
+        if (j === i) continue;
+        const d = hops[i * n + j] ?? 1;
+        s += 1 / (d * d);
+      }
+      wsum[i] = s;
+    }
+    for (let round = 0; round < STRESS_ROUNDS; round += 1) {
+      for (let i = 0; i < n; i += 1) {
+        const xi = X[i] ?? 0;
+        const yi = Y[i] ?? 0;
+        let sx = 0;
+        let sy = 0;
+        for (let j = 0; j < n; j += 1) {
+          if (j === i) continue;
+          const d = hops[i * n + j] ?? 1;
+          const w = 1 / (d * d);
+          const xj = X[j] ?? 0;
+          const yj = Y[j] ?? 0;
+          const dist = Math.hypot(xi - xj, yi - yj) || 1e-6;
+          sx += w * (xj + (unit * d * (xi - xj)) / dist);
+          sy += w * (yj + (unit * d * (yi - yj)) / dist);
+        }
+        const hold = ANCHOR * (wsum[i] ?? 0);
+        const total = (wsum[i] ?? 0) + hold;
+        X[i] = (sx + hold * (AX[i] ?? 0)) / total;
+        Y[i] = (sy + hold * (AY[i] ?? 0)) / total;
+      }
+    }
+  }
+  cy.batch(() => {
+    leaves.forEach((leaf, i) => leaf.position({ x: X[i] ?? 0, y: Y[i] ?? 0 }));
+  });
+}
+
+// ── ③ 방향을 지키는 겹침 풀기 ───────────────────────────────────────────────────
+
+/** 정리가 다루는 최소 단위 — 잎 노드 하나이거나, 영역 상자 하나다 */
 export interface PackItem {
   w: number;
   h: number;
   cx: number;
   cy: number;
+}
+
+/** 밀어내기가 다루는 조각 — 잎은 동그라미(`round`)이고 영역·이름 상자는 네모다 */
+export interface SpreadItem extends PackItem {
+  id: string;
+  round: boolean;
+  /** 영역 상자(또는 보이지 않는 무리)인가 — 속이 이미 비어 있어 더 촘촘히 둔다(`AREA_DENSITY`) */
+  box?: boolean;
 }
 
 export interface PackRect {
@@ -222,47 +570,52 @@ export function extent(items: readonly PackItem[]): PackRect {
   return { x1, y1, x2, y2, w: x2 - x1, h: y2 - y1, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
 }
 
-/** 이보다 얕은 겹침은 없는 것으로 본다(px) — 화면에서 보이지 않고, 부동소수점이 남기는 크기다 */
-const OVERLAP_EPSILON = 1e-6;
-
-function pairsOf(items: readonly PackItem[]): [PackItem, PackItem][] {
-  const pairs: [PackItem, PackItem][] = [];
-  for (const [i, a] of items.entries()) {
-    for (const b of items.slice(i + 1)) pairs.push([a, b]);
-  }
-  return pairs;
+/** 두 조각이 겹치지 않으려면 (단위 방향 ux,uy 로) 중심 사이가 얼마나 떨어져야 하는가 */
+function clearance(a: SpreadItem, b: SpreadItem, ux: number, uy: number, gap: number): number {
+  if (a.round && b.round) return (a.w + b.w) / 2 + gap;
+  const tx = Math.abs(ux) > 1e-9 ? ((a.w + b.w) / 2 + gap) / Math.abs(ux) : Infinity;
+  const ty = Math.abs(uy) > 1e-9 ? ((a.h + b.h) / 2 + gap) / Math.abs(uy) : Infinity;
+  return Math.min(tx, ty);
 }
 
 /**
- * 겹친 형제를 **짧은 쪽으로** 밀어낸다 — 둘이 반씩 물러난다.
+ * 겹친 둘을 **두 중심을 잇는 선을 따라** 반씩 물러나게 한다 — 그 쌍의 방향은 그대로다.
  *
- * 짧은 쪽으로 미는 이유는 그것이 겹침을 푸는 가장 적은 이동이기 때문이다. 옆으로 조금만
- * 비키면 될 것을 위아래로 밀면 배치가 통째로 늘어난다.
+ * 예전의 밀어내기는 짧은 축(가로 또는 세로)으로 밀었다. 이동은 가장 적지만, 비스듬히 놓인 둘을
+ * 가로로 밀면 방향이 바뀌고 입력이 조금만 달라도 미는 축이 바뀌었다. 중심이 정확히 같으면 방향이
+ * 없으므로 두 id 의 해시로 정한다(같은 입력이면 같은 답이다).
  *
  * 돌려주는 값은 **남은 가장 깊은 겹침**이다 — 0 이면 더 볼 것이 없다.
  */
-export function relax(items: readonly PackItem[], gap: number, iterations: number): number {
-  const pairs = pairsOf(items);
+export function spread(items: readonly SpreadItem[], gap: number, rounds: number): number {
   let worst = 0;
-  for (let round = 0; round < iterations; round += 1) {
+  for (let round = 0; round < rounds; round += 1) {
     worst = 0;
-    for (const [a, b] of pairs) {
-      const ox = (a.w + b.w) / 2 + gap - Math.abs(a.cx - b.cx);
-      const oy = (a.h + b.h) / 2 + gap - Math.abs(a.cy - b.cy);
-      // 반씩 물러난 뒤에도 부동소수점 찌꺼기(1e-13px)가 남아 "겹쳤다" 로 세는 일이 있다 — 그 쌍은
-      // 더 밀어도 값이 바뀌지 않아 끝나지 않고, 다지기는 그 후보를 "겹친 채" 로 버린다
-      if (ox <= OVERLAP_EPSILON || oy <= OVERLAP_EPSILON) continue;
-      const depth = Math.min(ox, oy);
-      if (depth > worst) worst = depth;
-      // 중심이 정확히 같으면 방향이 없다 — 목록 순서로 가른다(같은 입력이면 같은 답이다)
-      if (ox < oy) {
-        const away = a.cx <= b.cx ? -1 : 1;
-        a.cx += (away * ox) / 2;
-        b.cx -= (away * ox) / 2;
-      } else {
-        const away = a.cy <= b.cy ? -1 : 1;
-        a.cy += (away * oy) / 2;
-        b.cy -= (away * oy) / 2;
+    for (let i = 0; i < items.length; i += 1) {
+      const a = items[i];
+      if (a === undefined) continue;
+      for (let j = i + 1; j < items.length; j += 1) {
+        const b = items[j];
+        if (b === undefined) continue;
+        let dx = b.cx - a.cx;
+        let dy = b.cy - a.cy;
+        let d = Math.hypot(dx, dy);
+        if (d < 1e-9) {
+          const angle = 2 * Math.PI * hash01(`${a.id}|${b.id}`);
+          dx = Math.cos(angle);
+          dy = Math.sin(angle);
+          d = 0;
+        }
+        const length = Math.hypot(dx, dy);
+        const ux = dx / length;
+        const uy = dy / length;
+        const over = clearance(a, b, ux, uy, gap) - d;
+        if (over <= OVERLAP_EPSILON) continue;
+        if (over > worst) worst = over;
+        a.cx -= (ux * over) / 2;
+        a.cy -= (uy * over) / 2;
+        b.cx += (ux * over) / 2;
+        b.cy += (uy * over) / 2;
       }
     }
     if (worst === 0) break;
@@ -271,156 +624,102 @@ export function relax(items: readonly PackItem[], gap: number, iterations: numbe
 }
 
 /**
- * 겹치지 않고 갈 수 있는 만큼 중심으로 끌어당긴다 — 상자 **사이에 남은 구멍**을 메운다.
+ * 한 무리를 정리한다 — **고른 비율로** 밀도를 맞추고, 겹친 것만 중심선을 따라 떼어 놓는다.
  *
- * 다지기는 무리를 통째로 줄이므로, 한 쌍이 맞닿는 순간 나머지가 아무리 헐거워도 멈춘다.
- * 그래서 고립된 작은 영역 하나가 화면 절반을 비워 둔 채 남는다(실측: clemvion 의
- * `채널·웹챗` — 문서 둘짜리 영역이 본체에서 한참 떨어져 앉아 배율을 깎았다).
+ * 먼저 넓히는 까닭: 겹침을 크게 풀수록 형태를 잃는다. 관계로 다듬은 그림은 대개 촘촘해서(관계가
+ * 많은 그래프는 가운데로 모인다) 그대로 밀면 거의 모든 쌍이 움직인다. 고른 비율로 넓히면 방향은
+ * 하나도 바뀌지 않고, 밀어내기는 조금만 움직인다. 비율은 입력의 연속 함수라 데이터가 조금 바뀌면
+ * 조금만 바뀐다 — **후보를 여럿 만들어 고르지 않는 것**이 요점이다.
  *
- * 먼 것부터 당긴다 — 안쪽 것이 먼저 들어오면 바깥 것의 길을 막는다.
+ * 순서: 밀도 맞추기 → (`aspect` 가 있으면) 넓이를 지킨 채 그 모양 쪽으로 기울이기 → 밀어내기 →
+ * 고르게 줄였다 다시 밀기 `SQUEEZE_ROUNDS` 번 → 남은 여유를 고르게 거두기(`tighten`). 돌려주는 값은
+ * 남은 가장 깊은 겹침이다 — 0 이 아니면 밀어내기가 반복 상한 안에 풀지 못한 것이다.
  */
-export function gravitate(items: readonly PackItem[], gap: number, passes: number): void {
-  if (items.length < 2) return;
-  const clear = (self: PackItem, cx: number, cy: number): boolean => {
-    for (const other of items) {
-      if (other === self) continue;
-      const ox = (self.w + other.w) / 2 + gap - Math.abs(cx - other.cx);
-      const oy = (self.h + other.h) / 2 + gap - Math.abs(cy - other.cy);
-      if (ox > 0.001 && oy > 0.001) return false;
-    }
-    return true;
-  };
-  for (let pass = 0; pass < passes; pass += 1) {
-    const bb = extent(items);
-    const far = [...items].sort(
-      (a, b) => Math.hypot(b.cx - bb.cx, b.cy - bb.cy) - Math.hypot(a.cx - bb.cx, a.cy - bb.cy),
-    );
-    for (const it of far) {
-      const dx = bb.cx - it.cx;
-      const dy = bb.cy - it.cy;
-      let bestX = it.cx;
-      let bestY = it.cy;
-      let bestDistance = Math.hypot(dx, dy);
-      // 곧장 · 가로만 · 세로만 — 곧장 가는 길이 막혔어도 옆으로는 들어갈 수 있다
-      const ways: [number, number][] = [
-        [dx, dy],
-        [dx, 0],
-        [0, dy],
-      ];
-      for (const [vx, vy] of ways) {
-        if (vx === 0 && vy === 0) continue;
-        let lo = 0;
-        let hi = 1;
-        for (let k = 0; k < 12; k += 1) {
-          const mid = (lo + hi) / 2;
-          if (clear(it, it.cx + vx * mid, it.cy + vy * mid)) lo = mid;
-          else hi = mid;
-        }
-        const nx = it.cx + vx * lo;
-        const ny = it.cy + vy * lo;
-        const distance = Math.hypot(bb.cx - nx, bb.cy - ny);
-        if (distance < bestDistance - 0.001) {
-          bestDistance = distance;
-          bestX = nx;
-          bestY = ny;
-        }
+export function settle(
+  items: readonly SpreadItem[],
+  gap: number,
+  density: number,
+  aspect: number | null = null,
+): number {
+  if (items.length < 2) return 0;
+  const mx = items.reduce((sum, it) => sum + it.cx, 0) / items.length;
+  const my = items.reduce((sum, it) => sum + it.cy, 0) / items.length;
+  const before = extent(items);
+  // 무리가 차지해야 할 넓이 — 문서는 `density`, 상자는 `AREA_DENSITY` 로 센다. 상자를 문서처럼
+  // 세면 안쪽 영역을 거느린 영역이 텅 빈다(clemvion 실측: 안쪽 영역 여덟을 둔 영역)
+  const need = items.reduce(
+    (sum, it) => sum + (it.w * it.h) / (it.box === true ? AREA_DENSITY : density),
+    0,
+  );
+  const k = Math.sqrt(need / Math.max(1, before.w * before.h));
+  for (const it of items) {
+    it.cx = mx + (it.cx - mx) * k;
+    it.cy = my + (it.cy - my) * k;
+  }
+  if (aspect !== null) {
+    const now = extent(items);
+    if (now.w > 0 && now.h > 0) {
+      const kx = Math.pow(aspect / (now.w / now.h), STRETCH_POWER);
+      for (const it of items) {
+        it.cx = mx + (it.cx - mx) * kx;
+        it.cy = my + (it.cy - my) / kx;
       }
-      it.cx = bestX;
-      it.cy = bestY;
     }
   }
-}
-
-const snapshot = (items: readonly PackItem[]): [number, number][] =>
-  items.map((it) => [it.cx, it.cy]);
-
-function restore(items: readonly PackItem[], saved: readonly [number, number][]): void {
-  for (const [i, it] of items.entries()) {
-    const at = saved[i];
-    if (at === undefined) continue;
-    [it.cx, it.cy] = at;
+  const left = spread(items, gap, SPREAD_ROUNDS);
+  if (left > 0) return left;
+  for (let round = 0; round < SQUEEZE_ROUNDS; round += 1) {
+    const saved = items.map((it) => [it.cx, it.cy] as const);
+    const bb = extent(items);
+    for (const it of items) {
+      it.cx = bb.cx + (it.cx - bb.cx) * SQUEEZE;
+      it.cy = bb.cy + (it.cy - bb.cy) * SQUEEZE;
+    }
+    // 줄였더니 풀리지 않으면 줄이기 전으로 — 겹치지 않는 것이 작은 것보다 먼저다
+    if (spread(items, gap, SPREAD_ROUNDS) > 0) {
+      items.forEach((it, i) => {
+        const at = saved[i];
+        if (at !== undefined) [it.cx, it.cy] = at;
+      });
+      break;
+    }
   }
+  tighten(items, gap);
+  return 0;
 }
 
 /**
- * 한 무리를 정리한다 — 겹침을 없애고, 남는 빈자리를 줄이고, 캔버스 모양에 맞춘다.
- *
- * **줄였다 밀어내기를 반복한다.** 중심 쪽으로 조금 줄이면 몇 쌍이 겹치고, 그 겹침을 풀면
- * 무리는 조금 다르게 — 대개 더 촘촘하게 — 눕는다. 줄이기가 더는 이득이 없어질 때까지
- * 돌면서 **가장 좋았던 답**을 들고 나온다(줄인다고 늘 작아지지는 않는다).
- *
- * `aspect` 를 주면 캔버스 모양까지 본다. 그림이 캔버스보다 홀쭉하면 세로를 더 줄이고,
- * 그러면 밀어내기가 가로로 퍼뜨린다 — **같은 픽셀에서 그림이 커진다.**
+ * 밀어낸 뒤 남은 여유를 **고른 비율로** 거둔다 — 가장 가까운 한 쌍이 맞닿을 때까지 좁힌다.
+ * 모든 쌍의 방향이 그대로이고, 줄이는 비율은 자리의 연속 함수다(가장 빠듯한 쌍이 정한다).
  */
-export function pack(
-  items: readonly PackItem[],
-  options: { gap: number; aspect?: number | null; gravity?: number },
-): void {
-  const { gap, aspect = null, gravity = GRAVITY_PASSES } = options;
-  const n = items.length;
-  if (n < 2) return;
-  // 비용은 쌍의 수(n²)로 자란다 — 무리가 크면 횟수를 줄인다(영역으로 묶기를 끄면 141개다)
-  const steps = n > 60 ? 24 : 60;
-  const iterations = n > 60 ? 120 : 400;
-  // **재는 것은 넓이가 아니라 맞춤 배율이다.** 캔버스 모양을 알면 화면에 들어가는 배율은
-  // `min(W/너비, H/높이)` 이고, 그것을 키우는 일은 `max(너비/종횡비, 높이)` 를 줄이는 일과
-  // 같다. 넓이로 고르면 **같은 넓이의 정사각형**이 이기는데, 가로로 넓은 캔버스에서 정사각형은
-  // 좌우를 비워 둔 채로 작게 맞춰진다(실측: 종횡비 1.72 → 1.10 으로 뭉개졌다).
-  const cost = (bb: PackRect): number => {
-    if (bb.w === 0 || bb.h === 0) return 0;
-    return aspect === null ? bb.w * bb.h : Math.max(bb.w / aspect, bb.h);
-  };
-
-  // 첫 밀어내기에는 넉넉히 준다 — 한 번뿐이고, 여기서 못 푼 겹침은 **뒤의 모든 후보가
-  // 물려받는다**(밀어내기는 겹침이 없어지면 스스로 멈추므로 대개 몇 바퀴에 끝난다)
-  relax(items, gap, SETTLE_ITERATIONS);
-  let best = snapshot(items);
-  let bestCost = cost(extent(items));
-  let failures = 0;
-
-  for (let step = 0; step < steps; step += 1) {
-    const bb = extent(items);
-    let sx = 0.94;
-    let sy = 0.94;
-    if (aspect !== null && bb.h > 0) {
-      if (bb.w / bb.h < aspect) sy *= 0.94;
-      else sx *= 0.94;
+function tighten(items: readonly SpreadItem[], gap: number): void {
+  let scale = 0;
+  for (let i = 0; i < items.length; i += 1) {
+    const a = items[i];
+    if (a === undefined) continue;
+    for (let j = i + 1; j < items.length; j += 1) {
+      const b = items[j];
+      if (b === undefined) continue;
+      const d = Math.hypot(b.cx - a.cx, b.cy - a.cy);
+      if (d < 1e-9) return;
+      scale = Math.max(scale, clearance(a, b, (b.cx - a.cx) / d, (b.cy - a.cy) / d, gap) / d);
     }
-    for (const it of items) {
-      it.cx = bb.cx + (it.cx - bb.cx) * sx;
-      it.cy = bb.cy + (it.cy - bb.cy) * sy;
-    }
-    // **겹침이 남은 후보는 고르지 않는다.** 줄이면 대개 더 작아지므로, 크기만 보고 고르면
-    // "작지만 겹친" 답이 이긴다 — 이 패스가 없애려던 바로 그것이다(실측 2026-09-22:
-    // 영역으로 묶기를 끈 141개에서 겹친 쌍 169 이 그렇게 살아남았다).
-    const settled = relax(items, gap, iterations) === 0;
-    const now = cost(extent(items));
-    if (settled && now < bestCost) {
-      bestCost = now;
-      best = snapshot(items);
-    }
-    // **더 줄여도 풀리지 않으면 멈춘다**(2026-09-27). 풀지 못한 밀어내기는 반복 상한까지 헛돌고,
-    // 그 뒤의 후보는 더 줄인 것이라 더 풀기 어렵다 — 합성 243 문서에서 정리 패스가 돈 바퀴의
-    // 98.7%(343,346 중 338,800)가 끝내 풀지 못한 호출 안에 있었다. 두 번 잇달아 못 풀면 그만둔다.
-    failures = settled ? 0 : failures + 1;
-    if (failures >= GIVE_UP_AFTER) break;
   }
-  restore(items, best);
-  // 첫 밀어내기가 끝내 못 풀었으면 여기서 한 번 더 — **겹치지 않는 것이 작은 것보다 먼저다**
-  relax(items, gap, SETTLE_ITERATIONS);
-
-  // 중력은 **가장 좋은 답을 고른 뒤**에 한 번만 돈다. 중심으로 당기는 일은 상자를 넓히지
-  // 못하므로 되돌릴 이유가 없고, 이것이 메우는 것은 상자 크기가 아니라 **안쪽에 남은
-  // 구멍**이다 — 크기로 고르는 판정에는 그 구멍이 보이지 않아, 판정에 맡기면 매번 버려진다.
-  //
-  // **다지기를 한 바퀴 더 돌리는 것은 이득이 없었다**(실측 2026-09-22 · 실브라우저 8회:
-  // 맞춤 배율 0.568 → 0.531). 비용만 두 배가 된다.
-  gravitate(items, gap, gravity);
+  if (!(scale > 0 && scale < 1)) return;
+  const mx = items.reduce((sum, it) => sum + it.cx, 0) / items.length;
+  const my = items.reduce((sum, it) => sum + it.cy, 0) / items.length;
+  // 부동소수점으로 맞닿은 쌍이 1e-12 만큼 겹치지 않게 아주 조금 덜 좁힌다
+  const k = scale * (1 + 1e-9);
+  for (const it of items) {
+    it.cx = mx + (it.cx - mx) * k;
+    it.cy = my + (it.cy - my) * k;
+  }
 }
 
-/** 정리 패스가 들고 다니는 한 조각 — 잎이면 `kids` 가 없다 */
-interface GraphItem extends PackItem {
-  node: cytoscape.NodeSingular;
+/** 정리가 들고 다니는 한 조각 — 잎이면 `kids` 가 없다 */
+interface GraphItem extends SpreadItem {
+  /** 잎이면 그 노드, 영역 상자면 그 compound, 묶지 않은 그림의 보이지 않는 무리면 `null` */
+  node: cytoscape.NodeSingular | null;
   kids: GraphItem[] | null;
   /** 부모 상자 중심에서의 상대 위치 — 부모가 움직이면 따라간다 */
   rx: number;
@@ -441,13 +740,13 @@ interface GraphItem extends PackItem {
  *
  * 상자를 넓히는 것은 둘이다. ① cytoscape 가 더하는 고정 여백(기본 11.5px) ② **자식의 이름** —
  * 라벨은 노드보다 훨씬 넓고(`'text-max-width': '90px'`) 아래로 한 줄 더 내려가므로, 가장자리에
- * 선 자식의 이름이 상자를 그만큼 밀어낸다. 화면은 배율이 낮으면 이름을 그리지 않지만
+ * 놓인 자식의 이름이 상자를 그만큼 밀어낸다. 화면은 배율이 낮으면 이름을 그리지 않지만
  * (REQ-WEB-095) **상자 크기는 배율과 무관하게 그 자리를 잡아 둔다.**
  *
  * 그래서 넷을 따로 잰다. 한 값으로 뭉뚱그려 네 면에 다 주면 — 처음에 그렇게 했다 — 위아래가
  * 좌우만큼 부풀어 영역 하나가 90px 씩 커지고, 그 낭비가 열여섯 개 쌓인다(실측 2026-09-22).
- * 이름의 튀어나옴은 **자식 중 가장 심한 것**으로 잡는다: 다지고 나면 어느 자식이 가장자리에
- * 설지 달라지므로, 지금 가장자리에 선 자식만 보면 그 뒤에 상자가 모자란다.
+ * 이름의 튀어나옴은 **자식 중 가장 심한 것**으로 잡는다: 정리하고 나면 어느 자식이 가장자리에
+ * 놓일지 달라지므로, 지금 가장자리에 놓인 자식만 보면 그 뒤에 상자가 모자란다.
  */
 interface AreaInset {
   /** 좌우 — 이름은 노드 가운데에 걸리므로 양쪽이 같다 */
@@ -485,7 +784,7 @@ function insetOf(node: cytoscape.NodeSingular, withLabels: boolean): AreaInset {
   const labeled = node.boundingBox({ includeLabels: true });
   const own = box.y1 - labeled.y1 - overTop;
   const title = Number.isFinite(own) && own > 0 ? own : AREA_LABEL;
-  // **이름의 자리를 두 번 세지 않는다.** 잎이 이름을 품고 다지면 자식들의 extent 가 이미
+  // **이름의 자리를 두 번 세지 않는다.** 잎이 이름을 품고 떼어 놓으면 자식들의 extent 가 이미
   // 이름까지 덮으므로, 여기서 또 얹으면 영역 상자가 이름 한 벌만큼 헛되이 부푼다.
   const over = withLabels
     ? { x: 0, top: 0, bottom: 0 }
@@ -497,30 +796,14 @@ function insetOf(node: cytoscape.NodeSingular, withLabels: boolean): AreaInset {
   };
 }
 
-function toItem(node: cytoscape.NodeSingular, withLabels: boolean): GraphItem {
-  if (node.isParent()) {
-    const inset = insetOf(node, withLabels);
-    const kids = node.children().map((kid) => toItem(kid, withLabels));
-    // 안쪽은 정사각에 가깝게 민다(`aspect: 1`) — 길쭉한 상자는 서로 끼워 넣기 어렵고,
-    // 끼워지지 않은 상자는 옆에 빈자리를 남긴다
-    pack(kids, { gap: LEAF_GAP, aspect: 1 });
-    const bb = extent(kids);
-    const cx = bb.cx;
-    const cy = bb.cy + (inset.bottom - inset.top) / 2;
-    for (const kid of kids) {
-      kid.rx = kid.cx - cx;
-      kid.ry = kid.cy - cy;
-    }
-    const w = bb.w + 2 * inset.x;
-    const h = bb.h + inset.top + inset.bottom;
-    return { node, kids, w, h, cx, cy, rx: 0, ry: 0, ox: 0, oy: 0 };
-  }
+function leafItem(node: cytoscape.NodeSingular, withLabels: boolean): GraphItem {
   const box = node.boundingBox({ includeLabels: withLabels });
   const at = node.position();
   const cx = (box.x1 + box.x2) / 2;
   const cy = (box.y1 + box.y2) / 2;
-  // 이름 없이 잴 때는 상자가 노드에 딱 맞아 어긋남이 0 이다 — 예전 동작 그대로다
+  // 이름 없이 잴 때는 상자가 노드에 딱 맞아 어긋남이 0 이고, 노드는 동그라미로 떼어 놓는다
   return {
+    id: node.id(),
     node,
     kids: null,
     w: box.w,
@@ -531,12 +814,60 @@ function toItem(node: cytoscape.NodeSingular, withLabels: boolean): GraphItem {
     ry: 0,
     ox: at.x - cx,
     oy: at.y - cy,
+    round: !withLabels,
   };
+}
+
+/** 자식들을 정리하고 그 무리를 한 조각으로 만든다 — 자식의 자리는 무리 중심에서의 상대 위치로 들고 다닌다 */
+function groupItem(
+  id: string,
+  node: cytoscape.NodeSingular | null,
+  kids: GraphItem[],
+  inset: AreaInset,
+): GraphItem {
+  kids.sort(byItemId);
+  settle(kids, LEAF_GAP, LEAF_DENSITY);
+  const bb = extent(kids);
+  const cx = bb.cx;
+  const cy = bb.cy + (inset.bottom - inset.top) / 2;
+  for (const kid of kids) {
+    kid.rx = kid.cx - cx;
+    kid.ry = kid.cy - cy;
+  }
+  const w = bb.w + 2 * inset.x;
+  const h = bb.h + inset.top + inset.bottom;
+  return { id, node, kids, w, h, cx, cy, rx: 0, ry: 0, ox: 0, oy: 0, round: false, box: true };
+}
+
+/**
+ * 한 노드와 그 아래를 한 조각으로 — 영역 상자면 자식들을, **영역으로 묶지 않은 그림의 영역
+ * 노드**면 자기와 자기 문서들을 한 무리로 정리한다(상자는 그리지 않는다).
+ *
+ * 묶지 않은 그림을 문서 수백 개의 한 무리로 정리하면 겹침을 크게 풀어야 해서 형태를 잃고
+ * 느렸다(합성 243 문서: 형태 유지율 0.46–0.62 · 한 번에 1–2.5초). 보이지 않는 무리로 나누면
+ * 묶은 그림과 같은 성질이 되고, 묶기를 켜고 꺼도 문서들이 같은 방향에 남는다.
+ */
+function toItem(
+  node: cytoscape.NodeSingular,
+  withLabels: boolean,
+  childrenOf: ReadonlyMap<string, cytoscape.NodeSingular[]>,
+): GraphItem {
+  if (node.isParent()) {
+    const kids = node.children().map((kid) => toItem(kid, withLabels, childrenOf));
+    return groupItem(node.id(), node, kids, insetOf(node, withLabels));
+  }
+  const members = childrenOf.get(node.id());
+  if (members === undefined || members.length === 0) return leafItem(node, withLabels);
+  const kids = [
+    leafItem(node, withLabels),
+    ...members.map((kid) => toItem(kid, withLabels, childrenOf)),
+  ];
+  return groupItem(node.id(), null, kids, { x: AREA_PAD, top: AREA_PAD, bottom: AREA_PAD });
 }
 
 function place(item: GraphItem): void {
   if (item.kids === null) {
-    item.node.position({ x: item.cx + item.ox, y: item.cy + item.oy });
+    item.node?.position({ x: item.cx + item.ox, y: item.cy + item.oy });
     return;
   }
   for (const kid of item.kids) {
@@ -547,29 +878,41 @@ function place(item: GraphItem): void {
 }
 
 /**
- * fcose 의 답을 정리한다 — **형제끼리 겹치지 않게, 빈자리 없이, 캔버스 모양으로.**
+ * 관계로 다듬은 그림에서 겹침을 푼다 — **형제끼리 겹치지 않게, 방향은 그대로**(REQ-WEB-174).
  *
- * 깊은 곳부터 올라온다: 안쪽을 먼저 다져야 바깥 상자가 실제 크기로 자리를 잡는다.
- * 옮기는 것은 잎 노드의 좌표뿐이고, 영역 상자는 자식을 감싼 자국이라 따라온다.
+ * 깊은 곳부터 올라온다: 안쪽을 먼저 정리해야 바깥 상자가 실제 크기로 자리를 잡는다. 옮기는 것은
+ * 잎 노드의 좌표뿐이고, 영역 상자는 자식을 감싼 자국이라 따라온다. 뿌리에서는 그림을
+ * `TARGET_ASPECT` 쪽으로 조금 기울인다 — 창 크기를 보지 않으므로 어느 화면에서나 같은 그림이다.
  */
-export function compactAreas(cy: cytoscape.Core, aspect?: number | null, withLabels = false): void {
-  const width = cy.width();
-  const height = cy.height();
-  // 캔버스를 모르는 자리(테스트·측정 전)에서는 모양을 겨냥하지 않는다 — 겹침만 푼다
-  const target =
-    aspect !== undefined
-      ? aspect
-      : Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
-        ? (width - 2 * FIT_PADDING) / (height - 2 * FIT_PADDING)
-        : null;
-  // `filter` 를 지나면 원소 타입이 넓어진다 — 지역 함수로 좁혀서 넘긴다
-  const asItem = (node: cytoscape.NodeSingular): GraphItem => toItem(node, withLabels);
-  const roots = cy
-    .nodes()
-    .filter((node) => node.parent().empty())
-    .map(asItem);
+export function separate(
+  cy: cytoscape.Core,
+  withLabels = false,
+  tree: LayoutTree = treeOf(cy),
+): void {
+  // 그림에 없는 부모는 없는 것으로 본다 — 부모가 화면 밖이면 그 문서는 뿌리다
+  const present = (id: string | null): cytoscape.NodeSingular | null => {
+    if (id === null) return null;
+    const node = cy.getElementById(id);
+    return node.nonempty() && node.isNode() ? node : null;
+  };
+  const childrenOf = new Map<string, cytoscape.NodeSingular[]>();
+  const roots: GraphItem[] = [];
+  cy.nodes().forEach((node) => {
+    const parent = present(tree.get(node.id()) ?? null);
+    if (parent === null || node.parent().nonempty()) return;
+    const list = childrenOf.get(parent.id()) ?? [];
+    list.push(node);
+    childrenOf.set(parent.id(), list);
+  });
+  cy.nodes().forEach((node) => {
+    if (node.parent().nonempty()) return;
+    if (present(tree.get(node.id()) ?? null) !== null) return;
+    roots.push(toItem(node, withLabels, childrenOf));
+  });
   if (roots.length === 0) return;
-  pack(roots, { gap: AREA_GAP, aspect: target });
+  roots.sort(byItemId);
+  const docsOnly = roots.every((root) => root.kids === null);
+  settle(roots, docsOnly ? LEAF_GAP : AREA_GAP, LEAF_DENSITY, TARGET_ASPECT);
   cy.batch(() => {
     for (const root of roots) place(root);
   });
@@ -584,39 +927,28 @@ function fitZoomOf(cy: cytoscape.Core): number {
   return Math.min((width - 2 * FIT_PADDING) / bb.w, (height - 2 * FIT_PADDING) / bb.h);
 }
 
-const positionsOf = (cy: cytoscape.Core): Map<string, cytoscape.Position> =>
-  new Map(cy.nodes().map((node) => [node.id(), { ...node.position() }]));
-
-function putPositions(cy: cytoscape.Core, saved: Map<string, cytoscape.Position>): void {
-  cy.batch(() => {
-    cy.nodes().forEach((node) => {
-      const at = saved.get(node.id());
-      if (at !== undefined) node.position(at);
-    });
-  });
-}
-
 /**
- * 이름이 그려질 배치라면 **이름의 자리까지** 잡아 두고 다시 다진다.
+ * 이름이 그려질 배치라면 **이름의 자리까지** 잡아 두고 다시 떼어 놓는다(REQ-WEB-178).
  *
- * 순서가 이 함수의 전부다. 먼저 동그라미로 다져 보고 그 배치의 맞춤 배율이 문턱을 넘을
- * 때에만 — 즉 **이름이 실제로 그려질 때에만** — 이름을 품은 상자로 한 번 더 다진다.
- * 이름의 자리는 공짜가 아니라서(`'text-max-width': '90px'` 는 노드 지름의 서너 배다) 그리지도
- * 않을 이름 때문에 그림을 넓히면 노드만 작아진다 — 이 저장소가 "빈자리는 공짜가 아니다"
- * 라고 적은 그것이다.
+ * 순서가 이 함수의 전부다. 먼저 동그라미로 떼어 놓고 그 배치의 맞춤 배율이 문턱을 넘을 때에만 —
+ * 즉 **이름이 실제로 그려질 때에만** — 이름을 품은 상자로 한 번 더 한다. 이름의 자리는 공짜가
+ * 아니라서(`'text-max-width': '90px'` 는 노드 지름의 서너 배다) 그리지도 않을 이름 때문에 그림을
+ * 넓히면 노드만 작아진다. 자리를 잡았더니 배율이 문턱 **아래로** 내려갔다면 이름은 어차피
+ * 사라지므로 그 답을 쓰지 않는다.
  *
- * 그래서 되돌리는 길도 둔다: 이름의 자리를 잡았더니 배율이 문턱 **아래로** 내려갔다면
- * 이름은 어차피 사라지므로, 자리만 버린 그 답을 쓰지 않는다.
- *
- * **fcose 의 답에서 다시 시작한다** — 이미 다져 놓은 자리 위에서 또 다지면 두 번째 답은
- * 첫 번째의 모양을 물려받고, 그러면 무엇이 더 나은지 견주는 일이 아니게 된다.
+ * **관계로 다듬은 자리에서 다시 시작한다** — 이미 떼어 놓은 자리 위에서 또 하면 두 번째 답이
+ * 첫 번째의 넓힘을 물려받아 두 번 넓어진다.
  */
-function compactForLabels(cy: cytoscape.Core, fcoseAt: Map<string, cytoscape.Position>): void {
+function separateForLabels(
+  cy: cytoscape.Core,
+  stressAt: ReadonlyMap<string, cytoscape.Position>,
+  tree: LayoutTree,
+): void {
   if (fitZoomOf(cy) < LABEL_ZOOM) return;
-  const bareAt = positionsOf(cy);
-  putPositions(cy, fcoseAt);
-  compactAreas(cy, undefined, true);
-  if (fitZoomOf(cy) < LABEL_ZOOM) putPositions(cy, bareAt);
+  const bareAt = leafPositions(cy);
+  applyLeafPositions(cy, stressAt);
+  separate(cy, true, tree);
+  if (fitZoomOf(cy) < LABEL_ZOOM) applyLeafPositions(cy, bareAt);
 }
 
 /** 화면에 그려진 이름 하나가 차지하는 자리 — `rank` 가 클수록 먼저 자리를 잡는다 */
@@ -747,29 +1079,23 @@ export function fitAndLabel(cy: cytoscape.Core): void {
 }
 
 /**
- * 배치를 계산하고 정리한 뒤 화면에 맞춘다 — 첫 그림과 [다른 배치]가 같은 길을 지난다.
- *
- * `layoutstop` 을 기다리는 이유는 fcose 가 언제 끝났는지를 그 이벤트만 알기 때문이다.
- * `animate: false` 라 지금은 같은 턴에 끝나지만, 그 사실에 기대어 순서를 적으면
- * 옵션 한 줄이 바뀌는 날 정리 패스가 **빈 배치 위에서** 돈다.
+ * 배치를 계산하고 겹침을 푼 뒤 화면에 맞춘다 — 첫 그림과 [다른 배치]가 같은 길을 지난다.
+ * 모두 동기로 끝난다(`onDone` 은 이 함수가 돌아오기 전에 불린다).
  *
  * `onDone` 은 정리까지 끝난 잎의 자리를 받는다 — 그리는 쪽이 그것을 적어 두었다가 다음에
- * 같은 입력이면 계산을 건너뛴다(`layout-cache.ts`).
+ * 같은 입력이면 계산을 건너뛴다(`layout-cache.ts`). `tree` 는 기준 자리를 잡을 계층이다
+ * (`LayoutTree` — 주지 않으면 그림의 compound 를 쓴다).
  */
 export function runLayout(
   cy: cytoscape.Core,
   seed: number = DEFAULT_LAYOUT,
   onDone?: (positions: Map<string, cytoscape.Position>) => void,
+  tree: LayoutTree = treeOf(cy),
 ): void {
-  withSeed(seed, () => {
-    const layout = cy.layout(LAYOUT);
-    layout.one('layoutstop', () => {
-      const fcoseAt = positionsOf(cy);
-      compactAreas(cy);
-      compactForLabels(cy, fcoseAt);
-      onDone?.(leafPositions(cy));
-      fitAndLabel(cy);
-    });
-    layout.run();
-  });
+  anchoredStress(cy, referencePositions(cy, seed, tree), tree);
+  const stressAt = leafPositions(cy);
+  separate(cy, false, tree);
+  separateForLabels(cy, stressAt, tree);
+  onDone?.(leafPositions(cy));
+  fitAndLabel(cy);
 }

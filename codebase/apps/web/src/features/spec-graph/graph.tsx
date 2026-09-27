@@ -6,12 +6,12 @@
 //
 // 그래서 셋을 쓴다.
 //   ① **영역으로 묶는다** — 트리의 부모(area)를 compound 노드로 만든다. 계층과 참조를 한
-//      좌표계에 그리면 선이 영역 안/밖으로 갈리면서 구조가 드러난다(fcose 가 그것을 안다)
+//      좌표계에 그리면 선이 영역 안/밖으로 나뉘면서 구조가 드러난다
 //   ② **중심 모드** — 한 문서에서 1~2 hop 만. 전역은 지도이고 중심은 답이다
 //   ③ **차수 기반 크기** — 허브가 커서 눈에 먼저 들어오게. 색은 상태 토큰을 그대로 쓴다
-//   ④ **배치를 정리한다** — fcose 는 형제 영역이 겹치지 않는다고 보장하지 않는다. 겹친 상자는
-//      없는 계층으로 읽히므로, 배치 뒤 한 벌 더 돌려 형제끼리 밀어내고 빈자리를 다진다
-//      (`layout.ts` · 2026-09-22 사람 보고)
+//   ④ **형태를 지킨다** — 문서가 늘거나 줄어도 한 문서 주위의 이웃과 그 방향이 그대로다.
+//      배치는 id 로 정한 기준 자리에서 출발하고, 형제는 겹치지 않게 방향을 따라 떼어 놓는다
+//      (`layout.ts` · 2026-09-27 사람 결정 · REQ-WEB-247)
 //   ⑤ **범례를 세운다** — 앞의 셋은 전부 *부호*다. 부호를 읽는 표가 없으면 색과 크기는
 //      장식으로 보이고, 장식으로 보이는 것은 아무 질문에도 답하지 않는다
 //      (2026-09-22 사람 보고 · REQ-WEB-176)
@@ -23,8 +23,8 @@
 // **이동은 패널에서 이름을 누를 때만** 일어난다.
 //
 // **같은 데이터는 같은 그림이다**(2026-09-27 — 사람 보고 · REQ-WEB-245). 열 때마다 배치가
-// 달라져 자리를 익힐 수 없었다. 이제 입력을 정렬해 넣고 배치 번호(`?layout=`)로 난수를 정한다
-// (`layout.ts` `withSeed`). 그림을 부수고 새로 그리는 것은 **구조가 바뀔 때뿐**이다 — 노드 id ·
+// 달라져 자리를 익힐 수 없었다. 이제 배치는 난수를 쓰지 않고 배치 번호(`?layout=`)와 문서 id 로만
+// 정해진다(`layout.ts`). 그림을 부수고 새로 그리는 것은 **구조가 바뀔 때뿐**이다 — 노드 id ·
 // 부모 · 간선의 지문(`layout-cache.ts`)이 같으면 제목·상태만 갈아 끼운다. 에이전트가 초안을
 // 저장할 때마다 그래프 질의가 다시 오는데, 그때마다 새로 배치하던 동안 보던 그림이 눈앞에서
 // 뒤집혔다. 계산한 자리는 브라우저에 적어 두었다가 같은 입력이면 그대로 쓴다.
@@ -34,7 +34,6 @@
 // 같은 그래프를 초당 100장 넘게 그린다(합성 데이터 실측). 새 라이브러리가 아니다.
 
 import cytoscape from 'cytoscape';
-import fcose from 'cytoscape-fcose';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
@@ -52,6 +51,7 @@ import {
   labelZoomState,
   leafPositions,
   runLayout,
+  type LayoutTree,
 } from './layout.js';
 import {
   graphFingerprint,
@@ -60,8 +60,6 @@ import {
   readCachedLayout,
   writeCachedLayout,
 } from './layout-cache.js';
-
-cytoscape.use(fcose);
 
 export interface GraphNode {
   id: string;
@@ -437,17 +435,21 @@ export function SpecGraph({
     return { nodes: shownNodes, edges: shownEdges, ids };
   }, [edges, nodes, visible]);
 
-  /** 배치를 바꾸는 것만의 지문 — 이것이 같으면 그림을 부수지 않는다 */
+  /**
+   * 배치를 바꾸는 것만의 지문 — 이것이 같으면 그림을 부수지 않는다.
+   *
+   * **부모는 묶지 않아도 지문에 든다** — 기준 자리가 데이터의 영역으로 정해지기 때문이다(아래
+   * `tree`). 그 대신 묶었는지를 앞에 붙인다: 같은 데이터라도 묶은 그림과 묶지 않은 그림은 다르다.
+   */
   const fingerprint = useMemo(
     () =>
-      graphFingerprint(
+      `${grouped ? 'g' : 'f'}.${graphFingerprint(
         shown.nodes.map((n) => ({
           id: n.id,
-          parent:
-            grouped && n.parent_id !== null && shown.ids.has(n.parent_id) ? n.parent_id : null,
+          parent: n.parent_id !== null && shown.ids.has(n.parent_id) ? n.parent_id : null,
         })),
         shown.edges.map((e) => ({ from: e.from_id, to: e.to_id })),
-      ),
+      )}`,
     [grouped, shown],
   );
   // 빌드 이펙트는 지문으로만 다시 돈다 — 그 안에서 읽는 최신 데이터는 ref 로 건넨다
@@ -630,8 +632,8 @@ export function SpecGraph({
     cy.on('dragfree', 'node', () => setMoved(true));
 
     // **같은 입력이면 적어 둔 자리를 쓴다**(REQ-WEB-245) — 결정적인 배치라 새로 계산한 것과 같다.
-    // 없으면 여기서 배치한다: 생성자에 맡기지 않는 이유는 fcose 가 낸 답을 **정리해서** 써야
-    // 하기 때문이다(형제 영역 겹침 제거·다지기 · layout.ts)
+    // 없으면 여기서 배치한다. 기준 자리는 **데이터의 영역**으로 잡는다 — 묶지 않은 그림도 같은
+    // 계층을 건네야 묶기를 켜고 끌 때 문서들이 같은 방향에 남는다(`layout.ts` `LayoutTree`)
     const key = layoutCacheKey({
       fingerprint,
       seed: layout,
@@ -649,10 +651,21 @@ export function SpecGraph({
       settle(leafPositions(cy));
       fitAndLabel(cy);
     } else {
-      runLayout(cy, layout, (positions) => {
-        writeCachedLayout(key, positions);
-        settle(positions);
-      });
+      const tree: LayoutTree = new Map(
+        shownNodes.map((n) => [
+          n.id,
+          n.parent_id !== null && shownIds.has(n.parent_id) ? n.parent_id : null,
+        ]),
+      );
+      runLayout(
+        cy,
+        layout,
+        (positions) => {
+          writeCachedLayout(key, positions);
+          settle(positions);
+        },
+        tree,
+      );
     }
     zoomState = labelZoomState(cy.zoom());
     setMoved(false);

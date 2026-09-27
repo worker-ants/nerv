@@ -1,18 +1,22 @@
 // 관계 그래프의 입력 지문과 배치 기억 — 정본: docs/04-mvp/screens.md §2.4a (REQ-WEB-245)
 //
-// **지문은 배치를 바꾸는 것만 담는다.** 노드 id · 부모(영역으로 묶을 때) · 간선의 두 끝이다.
+// **지문은 배치를 바꾸는 것만 담는다.** 노드 id · 부모 · 간선의 두 끝이다(부모는 묶지 않아도 든다 —
+// 기준 자리가 데이터의 영역으로 정해진다. 묶었는지는 그리는 쪽이 지문 앞에 붙인다).
 // 제목 · 상태 · 열린 코멘트 수는 넣지 않는다 — 에이전트가 초안을 저장할 때마다 그래프 질의가
 // 다시 오는데(스펙 이벤트가 무효화한다), 그때마다 그림을 부수고 새로 배치하면 보던 자리가
 // 사라진다. 지문이 같으면 그리는 쪽은 글자와 색만 갈아 끼운다.
 //
 // **기억은 다시 계산한 것과 같다.** 배치가 결정적이므로(같은 입력 · 같은 번호 · 같은 캔버스면
-// 같은 자리 — `layout.ts` `withSeed`) 적어 둔 자리는 새로 계산할 자리와 다르지 않다. 그래서
-// 사람마다 다른 그림이 되지 않는다(§2.4a 가 서버 저장을 막은 이유가 그것이었다). 건너뛰는 것은
-// fcose 와 정리 패스다 — 합성 243 문서 · 3,036 관계에서 0.6–0.7초.
+// 같은 자리 — `layout.ts`) 적어 둔 자리는 새로 계산할 자리와 다르지 않다. 그래서 사람마다 다른
+// 그림이 되지 않는다(§2.4a 가 서버 저장을 막은 이유가 그것이었다). 건너뛰는 것은 배치 계산이다 —
+// 합성 243 문서 · 3,036 관계에서 0.1–0.3초(Node 헤드리스).
 //
 // 열쇠에 **제목**과 **캔버스 크기**가 드는 이유: 이름이 그려질 만큼 작은 그래프는 이름의 자리까지
-// 떼어 놓고(`compactForLabels`), 정리 패스는 캔버스 모양을 겨냥한다. 둘이 다르면 계산한 답도
-// 다르므로 같은 열쇠를 쓰면 안 된다.
+// 떼어 놓는데(`separateForLabels`), 그 판정이 캔버스에 맞춘 배율과 이름의 길이에 달렸다. 둘이
+// 다르면 계산한 답도 다르므로 같은 열쇠를 쓰면 안 된다.
+//
+// **배치 방법이 바뀌면 저장 이름을 바꾼다**(v1 → v2 · 2026-09-27 형태를 지키는 배치). 열쇠는
+// 입력만 담으므로, 이름이 그대로면 옛 방법으로 계산한 자리를 새 방법의 답으로 알고 꺼내 쓴다.
 
 /** 지문에 드는 노드 — 영역으로 묶지 않으면 부모는 배치에 들지 않는다 */
 export interface FingerprintNode {
@@ -66,7 +70,9 @@ export function layoutCacheKey(input: {
   return `${input.fingerprint}:${input.seed}:${Math.round(input.width)}x${Math.round(input.height)}:${titles}`;
 }
 
-const STORAGE_KEY = 'nerv.graph.layout.v1';
+const STORAGE_KEY = 'nerv.graph.layout.v2';
+/** 옛 방법(fcose)으로 계산한 기억 — 쓸 일이 없으니 적을 때 지운다 */
+const RETIRED_KEYS = ['nerv.graph.layout.v1'];
 /** 적어 두는 그림의 수 — 243 문서 한 벌이 12KB 남짓이다 */
 export const LAYOUT_CACHE_LIMIT = 8;
 
@@ -109,6 +115,7 @@ export function writeCachedLayout(
   };
   const next = [entry, ...readAll().filter((old) => old.k !== key)].slice(0, LAYOUT_CACHE_LIMIT);
   try {
+    for (const retired of RETIRED_KEYS) window.localStorage.removeItem(retired);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     // 저장소가 막혔거나 가득 찼다 — 기억은 편의일 뿐이라 다음에 다시 계산하면 된다

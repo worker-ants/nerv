@@ -11,7 +11,7 @@ import { STORAGE_STATE } from './global-setup.js';
 
 test.use({ storageState: STORAGE_STATE, locale: 'ko-KR' });
 
-const CACHE = 'nerv.graph.layout.v1';
+const CACHE = 'nerv.graph.layout.v2';
 
 async function signature(page: Page): Promise<string> {
   const graph = page.getByTestId('spec-graph');
