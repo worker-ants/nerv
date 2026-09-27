@@ -21,6 +21,8 @@ export interface ScopeRailRow {
   urgent: number;
   /** 회색 수 — 알림은 안 읽은 전체 */
   count: number;
+  /** 이름 옆의 작은 표시 — 알림은 기본이 아닌 받는 수준("중요만" · "알리지 않음" · REQ-WEB-259) */
+  tag?: string;
 }
 
 /** 고른 범위 — 조직 slug 와 프로젝트 slug. 둘 다 없으면 모든 조직이다 */
@@ -160,15 +162,19 @@ export function ScopeRail({
               .map((r) => (
                 <li key={`${r.org_slug}/${r.project_slug}`}>
                   {item(
-                    multiOrg ? (
-                      <>
-                        {/* 넓은 폭은 조직 아래에 들여 쓰므로 조직 이름이 필요 없다 */}
-                        <span className="lg:hidden">{r.org_name} / </span>
-                        {r.project_name}
-                      </>
-                    ) : (
-                      r.project_name
-                    ),
+                    <>
+                      {/* 넓은 폭은 조직 아래에 들여 쓰므로 조직 이름이 필요 없다 */}
+                      {multiOrg && <span className="lg:hidden">{r.org_name} / </span>}
+                      {r.project_name}
+                      {r.tag !== undefined && (
+                        <span
+                          data-testid={`scope-tag-${r.org_slug}-${r.project_slug}`}
+                          className="ml-1.5 text-2xs text-text-faint"
+                        >
+                          {r.tag}
+                        </span>
+                      )}
+                    </>,
                     { org: r.org_slug, project: r.project_slug },
                     { urgent: r.urgent, count: r.count },
                     `scope-project-${r.org_slug}-${r.project_slug}`,

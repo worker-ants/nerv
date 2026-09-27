@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.21 (2026-09-27)</span>
+      <span>버전 v0.22 (2026-09-27)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -1059,6 +1059,8 @@ SELECT EXISTS (
     <div class="cap">그림 6. 알림 파이프라인. 이벤트 이름은 <code>&lt;리소스&gt;.&lt;동사&gt;</code> 규약이며, 감사 로그와 같은 Event 테이블을 원천으로 한다(D-10).</div>
   </div>
 
+  <p><b>사람이 고르는 수준</b>(2026-09-27 사람 결정 N3 · <a href="api.html">4.4</a> REQ-API-219). 위 규칙으로 받는 사람이 정해진 뒤, 그 사람이 프로젝트마다 고른 수준(모두 · 중요만 · 알리지 않음)이 알림의 상태를 정한다 — 고른 수준 밖의 알림은 <b>읽음으로</b> 들어와 배지에 잡히지 않지만 기록은 남는다. 받은 요청에는 영향이 없다: 결정 요청의 정본은 알림이 아니라 받은 요청이다(§6.4).</p>
+
   <h3>6.2 중요도 티어와 채널 라우팅</h3>
 
   <div class="table-wrap"><table>
@@ -1193,7 +1195,7 @@ SELECT EXISTS (
 
   <ol>
     <li><b>가치 위계를 먼저 정한다.</b> 티어가 채널과 배칭 규칙을 결정하지, 그 반대가 아니다.</li>
-    <li><b>선호 센터를 1차 출시 범위에 넣는다.</b> 카테고리 × 채널 × 빈도 × 방해금지 시간. 선호 센터를 둔 제품은 발송량을 줄이지 않고도 수신거부가 <b>최대 30% 감소</b>한다는 실측이 있다.</li>
+    <li><b>선호 센터를 1차 출시 범위에 넣는다.</b> 카테고리 × 채널 × 빈도 × 방해금지 시간. 선호 센터를 둔 제품은 발송량을 줄이지 않고도 수신거부가 <b>최대 30% 감소</b>한다는 실측이 있다. (2026-09-27 — 채널이 인앱 하나인 동안 <b>프로젝트별 수준</b> 한 축으로 시작했다 · §6.1 · 사람 결정 N3)</li>
     <li><b>결정이 필요한 것만 받은 요청으로.</b> 나머지는 피드다. 받은 요청 배지 숫자는 "내 결정을 기다리는 것"만 센다.</li>
     <li><b>중복은 채널을 넘어 제거한다.</b> 받은 요청에서 처리된 항목은 예약된 다이제스트·Slack 발송에서 취소한다.</li>
     <li><b>에이전트 진행 상황은 알림이 아니라 화면이다.</b> 실시간이 필요한 것은 WebSocket으로 밀고(NFR-02), 사람의 개입이 필요할 때만 받은 요청 항목이 생긴다.</li>

@@ -157,3 +157,18 @@ export const NotificationReadAllInput = z
   })
   .strict();
 export type NotificationReadAllInput = z.infer<typeof NotificationReadAllInput>;
+
+/**
+ * **프로젝트의 알림 수준을 고른다**(2026-09-27 · 사람 결정 N3 · REQ-API-220). `all` 로 돌리면 행을
+ * 지운다 — 기본값을 행으로 남기지 않는다.
+ */
+export const NotificationLevelInput = z
+  .object({
+    /** 프로젝트 slug 또는 UUID — slug 는 `org` 로 좁힌다(REQ-API-213 과 같은 규칙) */
+    project: z.string().min(1),
+    org: z.string().min(1).nullish(),
+    /** 어휘는 `NOTIFICATION_LEVELS` — 판정은 서버가 한다 */
+    level: z.string().min(1),
+  })
+  .strict();
+export type NotificationLevelInput = z.infer<typeof NotificationLevelInput>;

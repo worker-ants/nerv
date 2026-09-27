@@ -15,6 +15,7 @@ import {
   NERV_EVENT,
   NERV_EVENT_PHASE2,
   newId,
+  NOTIFICATION_LEVELS,
   notificationState,
 } from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
@@ -25,7 +26,11 @@ import { InjectDb } from '../../common/database.module.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
-import { memberOfProjectSql, scopeFilterSql } from '../../common/member-scope.js';
+import {
+  memberOfProjectSql,
+  resolveMemberProject,
+  scopeFilterSql,
+} from '../../common/member-scope.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { requestAlreadyClosed } from './request-notifications.js';
 import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
@@ -140,14 +145,21 @@ export class NotificationService {
           // 그 사이 결정·답변이 먼저 나면, 닫는 쪽이 읽음으로 바꿀 행이 아직 없었다 — 그러면 처리된
           // 요청의 안 읽은 알림이 뒤늦게 생겨 배지를 올린다. 기록은 남기고 수에는 넣지 않는다
           const closed = await requestAlreadyClosed(this.db, event);
+          const importance = tier === 'critical' || tier === 'high' ? 'immediate' : 'digest';
+          // **사람이 고른 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-219). 고른 수준 밖의 알림은
+          // 버리지 않고 읽음으로 넣는다 — 닫힌 요청과 같은 방식이다. 받은 요청에는 닿지 않는다
+          const quiet = await this.quietRecipients(event.project_id, recipients, importance);
+          const loud: string[] = [];
           for (const userId of recipients) {
+            const read = closed || quiet.has(userId);
+            if (!read) loud.push(userId);
             await this.db.execute(sql`
               INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state,
                                         read_at)
               VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
-                      ${tier === 'critical' || tier === 'high' ? 'immediate' : 'digest'}::notification_importance,
-                      'inapp', ${closed ? 'read' : 'unread'}::notification_state,
-                      ${closed ? sql`now()` : sql`NULL`})
+                      ${importance}::notification_importance,
+                      'inapp', ${read ? 'read' : 'unread'}::notification_state,
+                      ${read ? sql`now()` : sql`NULL`})
             `);
             created += 1;
           }
@@ -158,7 +170,8 @@ export class NotificationService {
           //
           // 방송하는 것은 **원본 이벤트가 아니라 `notification.created`** 다. 원본을 개인
           // 룸에도 흘리면 프로젝트 룸에 이미 있는 사람이 같은 봉투를 두 번 받는다.
-          if (recipients.length > 0 && !closed) await this.announce(event, recipients);
+          // 읽음으로 넣은 사람에게는 흘리지 않는다 — 배지가 오르지 않을 알림으로 화면을 깨우지 않는다
+          if (loud.length > 0 && !closed) await this.announce(event, loud);
         }
         cursor = event.occurred_at;
       }
@@ -582,6 +595,64 @@ export class NotificationService {
   }
 
   /**
+   * 이 알림을 **읽음으로 넣을** 사람들 — 그 프로젝트의 수준이 `none` 이거나, `important` 인데 알림이
+   * 중요 등급이 아닌 사람(2026-09-27 · 사람 결정 N3 · REQ-API-219). 행이 없으면 `all` 이다.
+   */
+  private async quietRecipients(
+    projectId: string,
+    recipients: readonly string[],
+    importance: 'immediate' | 'digest',
+  ): Promise<Set<string>> {
+    if (recipients.length === 0) return new Set();
+    const { rows } = await this.db.execute<{ user_id: string; level: string }>(sql`
+      SELECT user_id, level::text AS level FROM notification_preference
+       WHERE project_id = ${projectId}
+         AND user_id IN (${sql.join(
+           recipients.map((id) => sql`${id}::uuid`),
+           sql`, `,
+         )})
+    `);
+    return new Set(
+      rows
+        .filter((r) => r.level === 'none' || (r.level === 'important' && importance === 'digest'))
+        .map((r) => r.user_id),
+    );
+  }
+
+  /**
+   * EP-NTF-06 — **프로젝트의 알림 수준을 고른다**(2026-09-27 · 사람 결정 N3 · REQ-API-220).
+   *
+   * 내가 속한 프로젝트 하나로 풀고(REQ-API-213), `all` 이면 행을 지운다 — 기본값을 행으로 남기지
+   * 않는다. 이미 받은 알림은 건드리지 않는다: 수준은 **앞으로 올 알림**의 약속이다.
+   */
+  async setLevel(input: {
+    userId: string;
+    project: string;
+    org?: string | null;
+    level: string;
+  }): Promise<{ ok: true; project_id: string; level: string }> {
+    const level = assertVocab([input.level], NOTIFICATION_LEVELS, 'level')[0]!;
+    const picked = await resolveMemberProject(this.db, input.userId, {
+      project: input.project,
+      org: input.org ?? null,
+    });
+    if (level === 'all') {
+      await this.db.execute(sql`
+        DELETE FROM notification_preference
+         WHERE user_id = ${input.userId} AND project_id = ${picked.id}
+      `);
+    } else {
+      await this.db.execute(sql`
+        INSERT INTO notification_preference (user_id, project_id, level, updated_at)
+        VALUES (${input.userId}, ${picked.id}, ${level}::notification_level, now())
+        ON CONFLICT (user_id, project_id)
+        DO UPDATE SET level = EXCLUDED.level, updated_at = now()
+      `);
+    }
+    return { ok: true, project_id: picked.id, level };
+  }
+
+  /**
    * EP-NTF-05 — **범위별 안 읽은 수**(2026-09-27 · 사람 결정 N1 · REQ-API-215).
    *
    * 알림 화면의 범위 칸이 조직 → 프로젝트마다 이 수를 보인다. 불러온 쪽만 세면 "더 보기" 뒤의
@@ -601,18 +672,23 @@ export class NotificationService {
       project_name: string;
       unread: number;
       immediate: number;
+      level: string;
     }>(sql`
       SELECT o.slug AS org_slug, o.name AS org_name,
              p.id AS project_id, p.slug AS project_slug, p.name AS project_name,
              count(n.id)::int AS unread,
-             count(n.id) FILTER (WHERE n.importance = 'immediate')::int AS immediate
+             count(n.id) FILTER (WHERE n.importance = 'immediate')::int AS immediate,
+             -- 그 프로젝트의 알림 수준(행이 없으면 all · REQ-API-220) — 칸과 설정이 같은 값을 본다
+             coalesce(pref.level::text, 'all') AS level
         FROM project p
         JOIN organization o ON o.id = p.org_id
    LEFT JOIN notification n
           ON n.project_id = p.id AND n.user_id = ${userId} AND n.state = 'unread'
+   LEFT JOIN notification_preference pref
+          ON pref.project_id = p.id AND pref.user_id = ${userId}
        WHERE p.archived_at IS NULL
          AND ${memberOfProjectSql(userId)}
-       GROUP BY o.slug, o.name, p.id, p.slug, p.name
+       GROUP BY o.slug, o.name, p.id, p.slug, p.name, pref.level
        ORDER BY o.slug, p.name, p.slug
     `);
     return {

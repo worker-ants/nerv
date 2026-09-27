@@ -37,8 +37,9 @@ describe('테이블 선언 (database.md §2)', () => {
   // 테넌시가 6종이 된 것은 `invitation` 이다(2026-08-27 · 사람 결정) — 초대는 레코드여야
   // 한다: 초대받은 사람이 아직 가입하지 않았으면 membership 을 만들 수 없고, 만료·회수는
   // 상태를 가진 것만이 가질 수 있다.
-  it('33종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 5(리뷰) + 2(이벤트) + 1(멱등)', () => {
-    expect(declaredTables).toHaveLength(33);
+  // 2026-09-27 · 33 → 34: `notification_preference` 신설(마이그레이션 0035 · 사람 결정 N3 · REQ-DB-028)
+  it('34종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 5(리뷰) + 3(이벤트) + 1(멱등)', () => {
+    expect(declaredTables).toHaveLength(34);
   });
 
   it('이름이 data-model 의 테이블 표와 1:1 이다', () => {
@@ -59,6 +60,7 @@ describe('테이블 선언 (database.md §2)', () => {
       'invitation',
       'membership',
       'notification',
+      'notification_preference',
       'organization',
       'project',
       'question',
@@ -87,8 +89,8 @@ describe('테이블 선언 (database.md §2)', () => {
 
   it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16 · §2.17)', () => {
     const all = allTables.map((t) => getTableName(t));
-    // 33 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
-    expect(all).toHaveLength(38);
+    // 34 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
+    expect(all).toHaveLength(39);
     for (const infra of NON_ENTITY_TABLES) {
       expect(all).toContain(infra);
       expect(tableNames).not.toContain(infra);
@@ -104,8 +106,9 @@ describe('enum 선언 (database.md §2.1)', () => {
 
   // 2026-09-10 · 39 → 40: `repo_host` 신설(마이그레이션 0026 · api.md REQ-API-158)
   // 2026-09-22 · 40 → 41: `email_kind` 신설(마이그레이션 0027 · database.md §2.17)
-  it('41종이다', () => {
-    expect(declaredEnums).toHaveLength(41);
+  // 2026-09-27 · 41 → 42: `notification_level` 신설(마이그레이션 0035 · REQ-DB-028)
+  it('42종이다', () => {
+    expect(declaredEnums).toHaveLength(42);
   });
 
   it('하이픈이 든 clemvion 계승 어휘를 그대로 쓴다 (data-model §2.6)', () => {

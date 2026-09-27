@@ -17,9 +17,11 @@ referenced_by:
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 38개**다 — 도메인 32 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 39개**다 — 도메인 33 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.55 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.56 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.56 변경(2026-09-27 — 프로젝트마다 알림을 받는 수준, **사람 결정 N3**): **REQ-DB-028 신설 · §2.1 enum 하나 · §2.10 테이블 하나 · 마이그레이션 `0035`.** `notification_preference`(사람 × 프로젝트 → `notification_level`). 행이 없으면 `all` 이다. 계수를 실측으로 고쳤다 — enum 은 `email_kind`(0027)를 빠뜨려 40이라 적혀 있었고, 이제 42종이다. `CREATE TABLE` 은 39개(도메인 33 + 부속 6)다.
 >
 > v0.55 변경(2026-09-27 — 알림을 프로젝트별로 센다, **사람 결정 N1**): **REQ-DB-027 신설 · §2.12 인덱스 한 줄 · 마이그레이션 `0034`.** 알림 화면의 조직 · 프로젝트 칸이 프로젝트마다 안 읽은 수를 세고, [모두 읽음]이 고른 프로젝트 안에서만 바꾼다([4.4 API 명세](api.md) REQ-API-215·216). 있던 인덱스는 프로젝트를 몰랐다. 열은 바꾸지 않는다.
 >
@@ -150,7 +152,7 @@ referenced_by:
 
 서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **33개**(도메인 32 + 부속 `idempotency_key` 1 — §2.3a·§2.3b 포함) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
-### 2.1 확장과 enum 40종
+### 2.1 확장과 enum 42종
 
 ```sql
 -- 0000_init.sql · §1 — 확장
@@ -220,6 +222,7 @@ CREATE TYPE repo_host               AS ENUM ('github', 'gitlab');  -- 주소의 
 CREATE TYPE notification_importance AS ENUM ('immediate', 'digest');
 CREATE TYPE notification_channel    AS ENUM ('inapp', 'slack', 'email');
 CREATE TYPE notification_state      AS ENUM ('unread', 'read', 'archived');
+CREATE TYPE notification_level      AS ENUM ('all', 'important', 'none'); -- 프로젝트별 받는 수준(2026-09-27 · 0035)
 ```
 
 `event.type`은 enum이 아니라 `text`다 — 이벤트 어휘(`<리소스>.<동사>`)는 열려 있고 정본은 spec-workflow §6이다. `escalate_reason`의 하이픈 값(`user-decision` · `e2e-fail-3x` · `sensitive-fix`)은 clemvion에서 5개월 검증된 ESCALATE 어휘 그대로다(data-model §2.6).
@@ -855,6 +858,16 @@ CREATE TABLE notification (
   read_at         timestamptz,
   created_at      timestamptz NOT NULL DEFAULT now()
 );
+
+-- 프로젝트마다 알림을 받는 수준(2026-09-27 · 사람 결정 N3 · 0035 · REQ-DB-028).
+-- 행이 없으면 'all' — 기본값을 행으로 채우지 않는다. 고른 수준 밖의 알림은 파생 워커가 읽음으로 넣는다.
+CREATE TABLE notification_preference (
+  user_id    uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  project_id uuid NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  level      notification_level NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, project_id)
+);
 ```
 
 ### 2.11 순환 참조 FK
@@ -1230,6 +1243,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-025 | WHILE 발송 설정(`NERV_MAIL_HOST`)이 비어 있으면 THE SYSTEM SHALL 아웃박스에 행을 넣지 않는다 — 보낼 수 없는 줄이 쌓이면 설정을 켠 날 밀린 메일이 한꺼번에 나간다 |
 | REQ-DB-026 | WHEN 발송이 실패하면 THE SYSTEM SHALL 지수 백오프로 다시 시도하고, 상한을 넘으면 행을 **지우지 않고** 실패 시각과 사유를 남긴다 |
 | REQ-DB-027 | WHEN 알림 행이 저장되면 THE SYSTEM SHALL `(user_id, project_id, state)` 인덱스(`notification_scope` · 마이그레이션 `0034`)로 그 사람의 프로젝트별 안 읽은 수와 범위 안 [모두 읽음]을 그 사람의 알림 전부를 훑지 않고 처리할 수 있게 한다([4.4 API 명세](api.md) REQ-API-215·216 · 2026-09-27) |
+| REQ-DB-028 | WHEN 사람이 프로젝트의 알림 수준을 고르면 THE SYSTEM SHALL `notification_preference(user_id, project_id)` 한 행에 `notification_level`(`all` · `important` · `none`)을 두고, `all` 이면 행을 두지 않는다. 사람이나 프로젝트가 지워지면 그 행도 지운다(ON DELETE CASCADE). 파생 워커는 이 행으로 읽음 상태를 정한다([4.4 API 명세](api.md) REQ-API-219·220 · 2026-09-27) |
 
 ---
 

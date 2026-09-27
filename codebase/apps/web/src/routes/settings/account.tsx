@@ -12,7 +12,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
-import { useMe } from '../../lib/queries.js';
+import { useMe, useNotificationScopes } from '../../lib/queries.js';
+import { levelOf, NotificationLevelControl } from '../../features/inbox/notification-level.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { authFailureText, changePassword, updateDisplayName } from '../../lib/session.js';
@@ -53,7 +54,48 @@ function AccountTab(): React.JSX.Element {
         <p className="mt-1 text-xs text-text-mute">{t('account.email_hint')}</p>
       </div>
       <PasswordSection />
+      <NotificationLevelsSection />
     </section>
+  );
+}
+
+/**
+ * **프로젝트별 알림**(2026-09-27 · 사람 결정 N3 · REQ-WEB-260). 알림 센터에서 한 프로젝트로 좁혔을 때도
+ * 고를 수 있지만, 여러 프로젝트를 한 번에 보고 고르는 자리는 여기다. 내가 속한 프로젝트가 없으면 그리지
+ * 않는다(초대만 받은 사람).
+ */
+function NotificationLevelsSection(): React.JSX.Element | null {
+  const t = useT();
+  const scopes = useNotificationScopes();
+  const rows = scopes.data?.items ?? [];
+  if (rows.length === 0) return null;
+  const multiOrg = new Set(rows.map((r) => r.org_slug)).size > 1;
+  return (
+    <div data-testid="account-notifications">
+      <SectionTitle>{t('account.notifications')}</SectionTitle>
+      <p className="mb-2 text-xs text-text-mute">{t('account.notifications_hint')}</p>
+      <Card className="flex flex-col divide-y divide-border p-0">
+        {rows.map((r) => {
+          const name = multiOrg ? `${r.org_name} / ${r.project_name}` : r.project_name;
+          return (
+            <div
+              key={`${r.org_slug}/${r.project_slug}`}
+              data-testid={`account-notification-${r.org_slug}-${r.project_slug}`}
+              className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5"
+            >
+              <span className="min-w-0 truncate text-sm">{name}</span>
+              <NotificationLevelControl
+                org={r.org_slug}
+                project={r.project_slug}
+                scope={name}
+                level={levelOf(r.level)}
+                testIdPrefix={`account-level-${r.org_slug}-${r.project_slug}`}
+              />
+            </div>
+          );
+        })}
+      </Card>
+    </div>
   );
 }
 

@@ -7,7 +7,12 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, index, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
-import { notificationChannel, notificationImportance, notificationState } from '../enums.js';
+import {
+  notificationChannel,
+  notificationImportance,
+  notificationLevel,
+  notificationState,
+} from '../enums.js';
 import { createdAt, idPk, ts } from './_columns.js';
 import { agentSession } from './session.js';
 import { project, user } from './tenancy.js';
@@ -71,4 +76,28 @@ export const notification = pgTable(
     // 프로젝트를 몰라, 프로젝트마다 안 읽은 수를 세려면 그 사람의 알림 전부를 훑어야 했다
     index('notification_scope').on(t.userId, t.projectId, t.state),
   ],
+);
+
+/**
+ * **프로젝트마다 알림을 받는 수준**(2026-09-27 · 사람 결정 N3 · REQ-DB-028 · api.md REQ-API-219·220).
+ *
+ * 알림을 끄거나 줄일 방법이 없어서, 한 프로젝트의 한 종류가 안 읽은 알림의 90%를 차지해도 사람이 할
+ * 수 있는 것은 [모두 읽음]뿐이었다(로컬 실측 2026-09-27: 1,027건 중 921건이 참조 스펙 재검토).
+ * 행이 없으면 `all` 이다 — 기본값을 행으로 채우지 않는다(멤버가 늘 때마다 행을 만들 일이 없다).
+ * 고른 수준 밖의 알림은 **버리지 않고 읽음 상태로 넣는다**(REQ-API-176 과 같은 방식) — 배지에는
+ * 잡히지 않지만 그 프로젝트를 골라 보면 기록이 남아 있다.
+ */
+export const notificationPreference = pgTable(
+  'notification_preference',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    level: notificationLevel('level').notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ name: 'notification_preference_pkey', columns: [t.userId, t.projectId] })],
 );

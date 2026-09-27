@@ -246,6 +246,13 @@
       "when": 1790503106192,
       "tag": "0034_notification_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790505423973,
+      "tag": "0035_notification_preference",
+      "breakpoints": true
     }
   ]
 }

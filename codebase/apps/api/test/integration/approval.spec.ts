@@ -2190,6 +2190,102 @@ describe('REQ-API-211~213 알림과 받은 요청의 범위', () => {
  * **받은 요청도 조직 · 프로젝트로 좁혀 본다**(2026-09-27 · 사람 결정 N1 · N2 · REQ-API-217·218).
  * 칸의 수 · 사이드바의 수와 목록이 같은 조건을 봐야 "3건이라더니 목록에는 2건" 이 생기지 않는다.
  */
+/**
+ * **프로젝트마다 알림을 받는 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-219·220). 고른 수준 밖의
+ * 알림은 버리지 않고 읽음으로 넣는다. 받은 요청은 그대로다 — 결정 요청의 정본은 받은 요청이다.
+ */
+describe('REQ-API-219·220 프로젝트별 알림 수준', () => {
+  const route = async (type: string, subjectType: string): Promise<void> => {
+    const notifications = new NotificationService(drizzle(pool));
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),$3,$4,false,$5,$6)`,
+      [newId(), projectId, type, planner, subjectType, newId()],
+    );
+    await notifications.route();
+  };
+  const states = async (userId: string): Promise<Record<string, string>> => {
+    const { rows } = await pool.query<{ importance: string; state: string }>(
+      `SELECT importance::text AS importance, state::text AS state FROM notification WHERE user_id = $1`,
+      [userId],
+    );
+    return Object.fromEntries(rows.map((r) => [r.importance, r.state]));
+  };
+
+  beforeEach(async () => {
+    await pool.query('DELETE FROM notification_preference');
+  });
+
+  it('중요만이면 보통 알림은 읽음으로 들어오고 중요 알림은 안 읽음이다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await notifications.setLevel({ userId: reviewer, project: 'clemvion', level: 'important' });
+    await route(NERV_EVENT.SPEC_APPROVED, 'spec_version'); // high → 중요
+    await route(NERV_EVENT.SPEC_RECHECK_REQUESTED, 'spec'); // standard → 보통
+    const got = await states(reviewer);
+    expect(got['immediate']).toBe('unread');
+    expect(got['digest']).toBe('read');
+    // 다른 사람은 그대로다 — 수준은 고른 사람의 것이다
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM notification WHERE user_id <> $1 AND state = 'unread'`,
+      [reviewer],
+    );
+    expect(rows[0]?.n).toBeGreaterThan(0);
+  });
+
+  it('알리지 않음이면 기록은 남고 모두 읽음이다 — 받은 요청은 그대로다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await notifications.setLevel({ userId: reviewer, project: 'clemvion', level: 'none' });
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+       VALUES ($1,$2,'plan',$3,$4)`,
+      [newId(), projectId, newId(), planner],
+    );
+    await route(NERV_EVENT.SPEC_APPROVED, 'spec_version');
+    const { rows } = await pool.query<{ n: number; unread: number }>(
+      `SELECT count(*)::int AS n, count(*) FILTER (WHERE state = 'unread')::int AS unread
+         FROM notification WHERE user_id = $1`,
+      [reviewer],
+    );
+    expect(rows[0]).toEqual({ n: 1, unread: 0 });
+    expect((await notifications.unreadCount(reviewer)).count).toBe(0);
+    // 좁혀서 "전체" 로 보면 기록이 있다
+    expect(
+      (await notifications.list({ userId: reviewer, project: 'clemvion' })).items,
+    ).toHaveLength(1);
+    // 받은 요청은 수준과 상관없다
+    const inbox = await approvals.inboxGlobal({ actor: person(reviewer), userId: reviewer });
+    expect(inbox.total).toBeGreaterThan(0);
+  });
+
+  it('모두로 돌리면 행이 지워지고, 범위별 수가 그 수준을 보인다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await notifications.setLevel({ userId: reviewer, project: 'clemvion', level: 'important' });
+    const before = await notifications.scopes(reviewer);
+    expect(before.items.find((r) => r['project_id'] === projectId)?.['level']).toBe('important');
+    await notifications.setLevel({ userId: reviewer, project: 'clemvion', level: 'all' });
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM notification_preference WHERE user_id = $1`,
+      [reviewer],
+    );
+    expect(rows[0]?.n).toBe(0);
+    expect(
+      (await notifications.scopes(reviewer)).items.find((r) => r['project_id'] === projectId)?.[
+        'level'
+      ],
+    ).toBe('all');
+  });
+
+  it('어휘 밖의 수준 · 속하지 않은 프로젝트는 거절이다', async () => {
+    const notifications = new NotificationService(drizzle(pool));
+    await expect(
+      notifications.setLevel({ userId: reviewer, project: 'clemvion', level: 'mute' }),
+    ).rejects.toMatchObject({ details: { kind: 'invalid_input', field: 'level' } });
+    await expect(
+      notifications.setLevel({ userId: reviewer, project: 'nowhere', level: 'none' }),
+    ).rejects.toMatchObject({ details: { kind: 'not_found', field: 'project' } });
+  });
+});
+
 describe('REQ-API-217·218 받은 요청의 범위', () => {
   it('범위별 결정 수의 합계가 목록의 total · actionable_total 과 같다', async () => {
     const versionId = await makeSpecVersion('범위 합계', 'in_review');

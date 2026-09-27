@@ -44,6 +44,11 @@ const DYNAMIC: readonly { prefix: string; values?: readonly string[]; where: str
     values: ['pending', 'accepted', 'revoked', 'expired', 'declined'],
     where: 'web invite.$token · settings/members — 초대 상태',
   },
+  {
+    prefix: 'notif.level.',
+    values: ['all', 'important', 'none'],
+    where: 'web features/inbox/notification-level — NOTIFICATION_LEVELS (2026-09-27)',
+  },
   { prefix: 'question.escalate.', where: 'inbox approval-card — ESCALATE_REASONS' },
   { prefix: 'review.kind.', where: 'web lib/format.ts' },
   { prefix: 'review.state.', where: 'web lib/format.ts' },
