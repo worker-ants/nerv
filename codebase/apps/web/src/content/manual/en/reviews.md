@@ -2,7 +2,7 @@ The review center is where you see the **findings** about your code and specs in
 
 ## Review sessions and findings
 
-Each review run is one **review session**, and its findings belong to that session. There are four kinds of review.
+A **review session** is the record of one change reviewed under one kind. Findings come from these sessions. There are four kinds of review.
 
 | Kind            | What it checks                                     |
 | --------------- | -------------------------------------------------- |
@@ -15,11 +15,11 @@ The kind is set when a review is **submitted**. It doesn't appear on screen, and
 
 A session moves from `running` to `complete`. It also records which input it reviewed (branch and commit).
 
-**If the same change is submitted twice under the same kind, there is still only one session.** No new session is created; another report is added to the existing one. A different reviewer also adds a report, not a session. The round number goes up when new commits on the branch change the diff. As a result, **the same issue stays a single finding across rounds.** The card shows how many times it was seen and the most recent round, in the form "seen N× · latest round M".
+**If the same change is submitted twice under the same kind, there is still only one session.** No new session is created; another report is added to the existing one. A different reviewer also adds a report, not a session. When new commits on the branch change the diff, a new session is created and the round number goes up. **The same issue stays a single finding across rounds.** Findings with the same category, file, symbol and title count as the same issue, so a shifted line number doesn't create a new finding. The card shows how many times it was seen and the most recent round, in the form "seen N× · latest round M".
 
 ## Severity and resolution
 
-A finding has one of three severities: `critical`, `warning` or `info`. `open` is the **state** of a finding that nobody has acted on yet. There are four **resolutions**:
+A finding has one of three severities: `critical`, `warning` or `info`. **Open** (`open`) is the **state** of a finding that hasn't been resolved yet. There are four **resolutions**:
 
 - **Fixed** (`fixed`) — The code was changed. Record the commit hash with it.
 - **Spec fix** (`spec_change`) — The code was right and the **document** was wrong. Pick from the list which version of which spec resolved it. You don't need to remember version numbers.
@@ -34,7 +34,7 @@ A finding has one of three severities: `critical`, `warning` or `info`. `open` i
 
 **You can also select findings with the keyboard.** A card's title is a button: press `Tab` to reach it and `Enter` to select it. Outside a text field, `j` and `k` move through the queue one card at a time. On the sessions screen, each row's name is also a button.
 
-Only roles with the `review:resolve` scope (admin, planner and qa) can resolve findings or comment on them. **Commenting on a finding and closing it take the same scope.** **Adding a finding as a task takes a different scope** (`task:update`), so developers can do it too. If you lack the scope for a button, hover over it or reach it with `Tab` to see why it's unavailable.
+Only roles with the `review:resolve` scope (admin, planner and qa) can resolve findings or comment on them. **Commenting on a finding and closing it take the same scope.** **Adding a finding as a task takes a different scope** (`task:update`), so developers and designers can do it too. If you lack the scope for a button, hover over it or reach it with `Tab` to see why it's unavailable.
 
 **Only a person can dismiss a `critical` finding or mark it won't fix.** When an agent tries to resolve a `critical` finding as `dismissed` or `wont_fix`, the change isn't applied right away. An **approval card** is created instead. This way, a serious problem can't be removed without anyone noticing.
 
@@ -65,9 +65,9 @@ When the list reaches its limit and is cut short, you see **M of N**. When there
 
 ## Gate coverage
 
-A gate is the rule that decides whether a change can ship. In the table, **each row is one branch** and shows the reviews that covered it, the share of findings resolved and the verdict. If no review actually checked the branch, the gate is only stamping it as passed, whatever its rules say. The table shows up to the 20 most recent branches. Click a branch name to go to that branch's findings.
+Gate coverage shows, for each branch, whether it has been reviewed and whether its findings have all been resolved. In the table, **each row is one branch** and shows the reviews that covered it, the share of findings resolved and the verdict. If no review actually checked the branch, the gate is only stamping it as passed, whatever its rules say. The table shows up to the 20 most recent branches. Click a branch name to go to that branch's findings.
 
-**The table shows the verdict, but it doesn't block merges yet.** Blocking comes in a later stage, so a red verdict doesn't stop anything today. This is also noted above the table.
+**The table shows the verdict, but it doesn't block merges yet.** A **Pending** verdict doesn't stop anything today. This is also noted above the table.
 
 For a waived branch (a gate bypass), **who waived it, when and why** appears under its row. Making sure a bypass never goes unnoticed is part of this table's job too.
 

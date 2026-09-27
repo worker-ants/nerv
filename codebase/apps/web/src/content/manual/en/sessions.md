@@ -1,4 +1,4 @@
-A session is **one agent that is running right now**. The session monitor shows what is going on.
+A session is **a single run of an agent**. The session monitor shows what is going on.
 
 ## Reading the monitor
 
@@ -88,9 +88,9 @@ The **Intervene** section on the card has two buttons: [Send instruction] and [S
 
 **Send instruction** asks a running agent to change direction. The instruction does not interrupt the agent right away. It is delivered with the agent's next **heartbeat** to the server. The same instruction is never delivered twice.
 
-**Delivery has one condition.** Only a session **with a claimed task** sends heartbeats. So a session without a claim **does not receive instructions**. This includes a session that is only writing specs, one that has already released its task, and a `stale` session. The input box is still available on these sessions. If nothing happens after you send an instruction, first check whether the session has a claimed task.
+**Delivery has one condition.** Only a session **with a claimed task** sends heartbeats. So a session without a claim **does not receive instructions**. This includes a session that is only writing specs, one that has already released its claim, and a `stale` session. The input box is still available on these sessions. If nothing happens after you send an instruction, first check whether the session has a claimed task.
 
-Heartbeats do not arrive on a precise timer. The agent checks whether the interval has passed when it calls a tool or moves to the next unit of work, and sends a heartbeat then. So while one long piece of work is running, the heartbeat arrives later. **"Within a minute" is the best case, not the worst case.**
+Agents are meant to send a heartbeat every minute, but not on a precise timer. The agent checks whether the interval has passed when it calls a tool or moves to the next unit of work, and sends a heartbeat then. So while one long piece of work is running, the heartbeat arrives later. **When things go smoothly, an instruction is delivered within a minute. When they don't, it can take longer.**
 
 **Stop** does not deliver an instruction. It **reclaims the claim immediately**. The most common reason to click it is that the session has already died and cannot send heartbeats. In that case, waiting for an instruction to be delivered would do nothing.
 

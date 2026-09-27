@@ -20,10 +20,10 @@ What an agent can do depends on **its token**. Issuing one is step 1 of [Install
 - The **My tokens** list under Settings → Agent tokens shows your tokens from **all organizations**. If you belong to more than one organization, the Project column shows "organization / project", so you can tell which organization each token belongs to.
 - Scopes are written as `resource:action`. There are **ten**: `spec:read` · `spec:draft` · `spec:meta` · `spec:evidence` · `task:claim` · `task:update` · `review:submit` · `review:resolve` · `agent-session:launch` · `import:write`.
 - **`spec:evidence` is for CI.** It can only attach PR and test evidence to requirements. It cannot touch drafts or tasks. A token for a build pipeline needs only this scope.
-- **A token cannot change a project's settings, archive it, or restore it.** This applies even with the admin role. Lowering a gate policy is as serious as bypassing a gate, so a person does it directly on the web.
+- **A token cannot change a project's settings, archive it, or restore it.** This applies even with the admin role. The gate policy is part of the project settings. If a token could lower it, an agent could get past a gate without a bypass. Archiving or restoring a project carries the same weight, so a person does all of these directly on the web.
 - **`spec:approve` and `approval:decide` cannot be granted to a token.** On the token issuing screen, both are **visible but locked**. If they were removed from the list, nothing on the screen would explain why a token can't approve. Showing them without letting you select them makes the rule clear at a glance. Approval is always done by a person.
 - **A token also cannot answer questions, bypass a gate, or read the inbox.** The admin role is no exception. If an agent could answer its own questions, there would be no human gate at all. A person answers questions in the Inbox on the web.
-- A token can never have broader scopes than your role allows. Your role at the time the token is issued sets the upper limit.
+- A token can never have broader scopes than your role allows. The limit is your role when the token is used, not when it was issued. If your role changes later, tokens you already issued follow it right away.
 - The list records when each token was last used and from which host. If you see a host you don't recognize, revoke that token right away.
 
 ## Skills
@@ -42,7 +42,7 @@ Every tool has a risk tier.
 
 - **A1** — reads. The agent calls these without approval.
 - **A2** — writes. Only reversible changes belong in this tier.
-- **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`) and downgrading a `critical` finding are in this tier. No skill lists an A3 tool among the tools it may call without approval. **The decision is delivered to the requesting session on its next heartbeat.** This applies to approvals, rejections, and comments alike, so the session knows what to do next.
+- **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`) and an agent closing a `critical` finding as dismissed or won't fix are in this tier. No skill lists the review request tool among the tools it may call without approval. When an agent tries to close a `critical` finding that way, the server creates an approval card and the session waits for a person's decision. **The decision is delivered to the requesting session on its next heartbeat.** This applies to approvals, rejections, and comments alike, so the session knows what to do next.
 
 ## Importing documents
 

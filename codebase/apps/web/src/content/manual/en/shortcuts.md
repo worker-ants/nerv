@@ -25,7 +25,7 @@ When the input is empty, **your pinned and recently opened items** appear at the
 
 Press the **☆** at the right end of a row to pin that document (★). Press it again to unpin it. In the recent list, a document you viewed yesterday can drop off today. **You can pin the five or six documents you open every day** so they don't get pushed out. Pins are saved **in this browser**, like the theme and the language.
 
-Inside the switcher, `Tab` moves focus only between the input and the ☆ buttons. Focus never leaves for the screen behind it. `Esc` closes the switcher wherever focus is. When it closes, you return to **where you were before you opened it**. Screen readers announce the input as a combo box with a list, and the highlighted row as the selected option.
+Inside the switcher, `Tab` moves focus only between the input and the ☆ buttons. Focus never leaves for the screen behind it. `Esc` closes the switcher wherever focus is. When it closes, focus returns to **where it was before you opened it**. Screen readers announce the input as a combo box with a list, and the highlighted row as the selected option.
 
 ## The screen by keyboard
 
@@ -70,9 +70,9 @@ These keys do nothing while the cursor is in a text field. The bulk keys are **u
 
 **On a question card, `a` and `r` do nothing.** You answer a question instead of approving or rejecting it, so only `c` (for writing the answer) works.
 
-**On a request you made yourself, `a` does nothing.** This rule stops you from approving your own work. **The same applies to a draft written by you or by your session.** The exceptions are admins and projects with fewer than two members (see [Inbox](/help/inbox)).
+**On a request you made yourself, `a` does nothing.** This rule stops you from approving your own work. **The same applies to a draft written by you or by your session.** The exceptions are admins, and cards that nobody else can approve (see [Inbox](/help/inbox)).
 
-In other cases, if your role cannot decide approvals and you press `a`, the key is not silently ignored: **the server rejects it.** **On cards in the Decided tab, neither the buttons nor the keys do anything.** Pressing `a`, `r` or `c` on a card that has already been decided has no effect (anything you can press should actually work).
+`a` also does nothing on any other card you cannot approve, for example when your role cannot decide approvals or you are not the assigned approver. The approve button is locked, and the card shows why. **On cards in the Decided tab, neither the buttons nor the keys do anything.** Pressing `a`, `r` or `c` on a card that has already been decided has no effect, because the keys work only when the matching buttons do.
 
 ## Task screen (sheet over the board)
 

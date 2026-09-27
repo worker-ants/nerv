@@ -1403,7 +1403,7 @@ export const en = {
   'spec.mermaid_fullscreen': 'Full screen',
   'spec.mermaid_fullscreen_close': 'Close full screen',
   'spec.mermaid_code': 'Code',
-  'spec.mermaid_code_title': 'Show this diagram’s source code. Edit it here.',
+  'spec.mermaid_code_title': 'Show this diagram’s source code.',
   'spec.mermaid_figure': 'Diagram',
   'spec.mermaid_figure_title': 'Render the code as a diagram again.',
   'spec.body_agent_only': 'Agents write the body. Use the command in [Continue in a terminal].',
