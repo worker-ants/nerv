@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7 이 정본이다.
 >
-> 문서 버전 v0.75 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.76 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.76 변경(2026-09-27 — 새로 쓴 한국어 문장을 CI 도 본다): **REQ-PLG-021 개정 · §7.4 한 문단 · `ko-style` 0.1.0 → 0.1.1.** 훅을 거치지 않는 문장(사람이 쓴 것 · Codex 가 쓴 것)도 check 잡이 같은 검사기로 본다([4.2 코드베이스](codebase.md) REQ-CB-058). 그대로 둘 줄을 빼는 표시 `ko-style-ignore: <이유>` 를 검사기에 더했다 — 이유가 없으면 듣지 않는다. 검사기가 바뀌었으므로 플러그인 버전을 올린다(REQ-PLG-026).
 >
 > v0.75 변경(2026-09-27 — 한국어 문장 규약을 사용자도 쓸 수 있게, **사람 결정**): **§7 신설 · REQ-PLG-020~026 신설 · 두 번째 플러그인 `ko-style` 0.1.0 · nerv 패키지는 그대로(0.3.3).** 한국어 문장 규약([용어 사전](../glossary.md) §3.4)은 이 저장소의 AGENTS.md 로만 에이전트에게 전달돼서 NERV 사용자의 에이전트는 이 규약을 받지 못했다. 규약을 규칙 표와 검사기로 만들어 별도 플러그인으로 배포한다. 커밋 메시지 · PR 본문 · 문서 파일은 훅이 새로 쓴 줄을 검사해 고치게 하고, 대화 답변은 끝난 뒤 알리기만 한다. 같은 마켓플레이스에 두므로 카탈로그 둘(저장소 루트 · 서버)이 플러그인 둘을 담는다(§3.5 · [4.4 API](api.md) REQ-API-192). 버전은 플러그인마다 따로 오른다(§3.6). 조사 근거와 선택지는 §7.1 에 있다.
 >
@@ -1671,7 +1673,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-018 | WHEN 사람이 작업 저장소에서 `bin/nerv-init` 을 실행하면 THE SYSTEM SHALL `.mcp.json`·`.claude/settings.local.json` 의 `env`(`NERV_SERVER`·`NERV_PROJECT`·`NERV_TOKEN`)·`.gitignore` 의 `.nerv/` 중 **없는 것만** 만들고, 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다. WHILE 세션이 시작되는 동안 THE SYSTEM SHALL `--check` 로 덜 된 설정을 보고하되 **아무것도 쓰지 않고**, 설정의 흔적(`.mcp.json` 의 `nerv`·`.nerv/`·`NERV_*`)이 하나도 없는 저장소에서는 침묵한다 | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 빈 저장소(파일 셋 생성) · 남의 `settings.local.json`(다른 키·기존 값 보존) · 다시 실행(멱등) · 흔적 없는 저장소의 `--check`(출력 0바이트) |
 | REQ-PLG-019 | WHEN 세션을 만드는 훅(`session`)을 보내면 THE SYSTEM SHALL 포워더 옆 `plugin.json` 의 `version` 을 `X-NERV-Plugin` 헤더로 싣고, 다른 훅에는 싣지 않는다 | L1(`plugin-package.spec.ts`) — `curl` 을 가로채 실제 실행: `session` 은 `plugin.json` 과 같은 값 · `tool`·`stop`·`session-end` 는 헤더 없음 |
 | REQ-PLG-020 | WHEN 세션이나 서브에이전트가 시작되면 THE SYSTEM SHALL `ko-style` 규칙 요약(공통 규칙과 저장소 `.ko-style.json` 의 팀 어휘 · 글 종류별 말투)을 `additionalContext` 로 넣고 4,000자를 넘기지 않는다. WHILE 기계에 node 가 없는 동안 THE SYSTEM SHALL 미리 만든 요약(`hooks/digest.json`)만 넣고 자동 검사가 돌지 않는다는 사실을 적는다. WHEN 저장소 설정이 `"enabled": false` 이거나 `KO_STYLE_DISABLE=1` 이면 THE SYSTEM SHALL 아무것도 하지 않는다 | L1(`ko-style.spec.ts`) — `hooks/run.sh` 를 실제로 실행: 요약 길이 · 팀 어휘와 말투 포함 · node 가 없는 PATH · 끈 저장소 |
-| REQ-PLG-021 | WHEN 문체 규칙을 더하거나 고치면 THE SYSTEM SHALL 규칙마다 걸려야 할 예문(`examples.bad`)과 걸리지 않아야 할 예문(`examples.good`)을 두고 모든 예문이 그대로 판정되는지 검사한다. WHILE 검사하는 동안 THE SYSTEM SHALL 활용형을 한글 경계에서만 잡고, 코드 · 링크 주소 · URL · 따옴표 안(인용)을 검사하지 않으며, 입력을 NFC 로 정규화한다 | L1 — 공통 규칙과 이 저장소 팀 어휘의 예문 전부 · 가림 · NFD · "머리말" 같은 한글 경계 |
+| REQ-PLG-021 | WHEN 문체 규칙을 더하거나 고치면 THE SYSTEM SHALL 규칙마다 걸려야 할 예문(`examples.bad`)과 걸리지 않아야 할 예문(`examples.good`)을 두고 모든 예문이 그대로 판정되는지 검사한다. WHILE 검사하는 동안 THE SYSTEM SHALL 활용형을 한글 경계에서만 잡고, 코드 · 링크 주소 · URL · 따옴표 안(인용)을 검사하지 않으며, 입력을 NFC 로 정규화한다 줄 끝에 `ko-style-ignore: <이유>` 가 있는 줄은 검사하지 않고, 이유가 없으면 듣지 않는다 | L1 — 공통 규칙과 이 저장소 팀 어휘의 예문 전부 · 가림 · NFD · "머리말" 같은 한글 경계 |
 | REQ-PLG-022 | WHILE 규칙 표(`rules/core.json`)가 바뀌는 동안 THE SYSTEM SHALL 모델이 읽는 글(SKILL.md 의 규칙 표 · `hooks/digest.json`)을 그 표에서 생성하고(`ko-lint.mjs sync`) 손으로 고친 사본을 두지 않는다 | L1 — 생성 결과와 파일이 같은가 · SKILL.md 가 스스로 걸리지 않는가 |
 | REQ-PLG-023 | WHEN 에이전트가 `git commit` · `gh pr create` · `gh pr edit` 를 실행하려 하면 THE SYSTEM SHALL 메시지(heredoc · `-m` · `-F` · `--title` · `--body`)를 검사해 차단 · 경고 규칙에 걸리면 이유와 함께 한 번 거부하고, 같은 메시지로 다시 실행하면 통과시킨다 | L1 — 거부한 뒤 같은 메시지 재실행은 통과 · 깨끗한 메시지와 다른 명령은 출력 없음 |
 | REQ-PLG-024 | WHEN 에이전트가 글 종류(`surfaces`)에 드는 파일을 Write · Edit 로 고치면 THE SYSTEM SHALL **새로 쓴 줄만** 검사해 걸린 표현을 `decision:"block"` 과 이유로 돌려준다(Edit 는 바뀐 문자열, Write 는 커밋된 내용과 달라진 줄). 어느 글 종류에도 들지 않거나 `ignore` 에 든 파일은 검사하지 않는다 | L1 — 이전부터 있던 문장 제외 · Write 비교 · 제외 경로 |
@@ -1705,7 +1707,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 ### 7.2 구성
 
 ```text
-codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.0
+codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.1
   .claude-plugin/plugin.json          # 매니페스트
   hooks/hooks.json                    # 훅 여섯 (§7.4)
   hooks/run.sh                        # 훅 진입점 — 필요 없으면 node 를 띄우지 않는다
@@ -1752,6 +1754,8 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 **훅은 세션을 멈추지 않는다.** 어떤 이유로든 실패하면 exit 0 으로 끝난다. node 가 없으면 검사 훅은 넘어가고 SessionStart 는 미리 만든 요약만 넣으며, 요약에 그 사실을 적는다. `KO_STYLE_DISABLE=1` 이면 모든 훅이 멈춘다.
 
 **대화 답변은 알리기만 한다**(REQ-PLG-025). Stop 훅이 막으면 이미 표시된 답변 뒤에 고친 답변이 한 번 더 나온다. 기본은 알림이고, 저장소가 `reply.mode: "rewrite"` 를 고르면 한 번만 다시 쓰게 한다. `stop_hook_active` 동안은 막지 않으므로 연속 8번 차단 상한에 기대지 않는다.
+
+**CI 가 새로 쓴 줄을 막는다**(2026-09-27 · [4.2 코드베이스](codebase.md) REQ-CB-058). 훅은 에이전트에게 알리는 통로라 사람이 직접 쓴 문장과 훅이 없는 도구(Codex 등)가 쓴 문장은 거치지 않는다. 그래서 check 잡이 같은 검사기로 PR 의 새 줄을 한 번 더 본다. 차단 규칙과 규범 · 팀 어휘 층의 경고에 걸리면 실패하고, AI 말투 층은 알리기만 한다. 빠지는 방법은 둘이다. 인용이면 따옴표로 감싸고, 그래도 그대로 둬야 하면 그 줄 끝에 `ko-style-ignore: <이유>` 를 단다(md 는 `<!-- ko-style-ignore: 이유 -->`). 이유가 없으면 빼 주지 않는다. 이 표시는 훅과 `/ko-style:check` 에도 똑같이 적용된다.
 
 ### 7.5 저장소 설정 `.ko-style.json`
 

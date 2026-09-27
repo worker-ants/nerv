@@ -10,6 +10,7 @@ referenced_by:
   - 04-mvp/plugin.md
   - 04-mvp/importer.md
   - 04-mvp/backlog.md
+  - glossary.md
   - README.md
   - ../README.md
   - ../AGENTS.md
@@ -18,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.77 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.78 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.78 변경(2026-09-27 — 새로 쓴 한국어 문장을 CI 가 본다, **사람 결정**): **REQ-CB-058 신설 · 게이트 일곱 → 여덟 · §4.5 · §5.1.** 한국어 문장 규약([용어 사전](../glossary.md) §3.4)을 문체 플러그인 `ko-style` 의 검사기로 확인한다([4.6 플러그인](plugin.md) §7). 새로 쓴 줄만 보고, AI 말투 층은 알리기만 한다 — 최근 PR 넷(#157~#160)의 새 줄에서 걸린 것이 그 층뿐이었고 §3.4 가 정한 규칙이 아니다. 그대로 둘 줄은 `ko-style-ignore: <이유>` 로 뺀다.
 >
 > v1.77 변경(2026-09-27 — 플러그인이 둘이 됐다, **사람 결정**): **새 요구사항 없음 · §1 트리 · §5.1 명령 표.** 한국어 문체 플러그인 `codebase/ko-style/`(워크스페이스 `@nerv/ko-style`)과 그 저장소 설정 `.ko-style.json`, 프로젝트 범위 활성화 `.claude/settings.json` 을 트리에 더한다([4.6 플러그인](plugin.md) §7). `pnpm pack:plugin` 은 플러그인마다 zip 을 만들고 매니페스트 목록 `plugins.json` 을 쓴다(전에는 `plugin.json` 하나 · [4.4 API](api.md) REQ-API-192).
 >
@@ -210,7 +213,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
     .env.example                # §5.2 전표의 실물 — 값 없는 키 목록 + 주석
     tsconfig.json               # 솔루션 파일 — CI·preflight 의 `tsc -b` 진입점
     scripts/                    # 저장소 운영 스크립트 (§5.1 명령 표가 부른다)
-      preflight.mjs             #   CI check 잡 열한 단계를 같은 순서로 (AGENTS.md 규약 7)
+      preflight.mjs             #   CI check 잡 열두 단계를 같은 순서로 (AGENTS.md 규약 7)
       check-plugin-version.mjs  #   배달되는 파일이 바뀌면 version 도 올랐는가 (REQ-PLG-017)
       check-backlog-status.mjs  #   4.8 §1.4 현황 표가 스토리와 맞는가 (REQ-CB-029)
       check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1 · REQ-CB-051)
@@ -219,6 +222,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
                                 #     `plugin/plugin-package.spec.ts` · REQ-CB-048)
       check-env-table.mjs       #   §5.2 전표와 코드가 읽는 변수가 맞는가
       check-doc-links.mjs       #   문서 간 링크·역참조·맨 참조·절 실재 (REQ-CB-030) — `--fix` 가 역참조를 다시 쓴다
+      check-ko-style.mjs        #   새로 쓴 한국어 문장이 문장 규약을 지키는가 — ko-style 검사기를 부른다 (REQ-CB-058)
       pack-plugin.mjs           #   플러그인 zip(플러그인마다) + plugins.json — 이미지 빌드가 /plugin-dist 에 심는다 (§6.1)
       dev.mjs · e2e-stack.mjs   #   개발 루프 · E2E 전용 스택(세션별 포트)
       install-hooks.mjs         #   pre-push 훅 설치 (옵트인 — 게이트가 아니다)
@@ -850,7 +854,7 @@ concurrency:                   # PR 만 취소한다 — main·야간이 서로�
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  check:                       # 매 PR — **열한 단계**. `pnpm preflight` 가 이것을 같은 순서로 비춘다
+  check:                       # 매 PR — **열두 단계**. `pnpm preflight` 가 이것을 같은 순서로 비춘다
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -877,6 +881,8 @@ jobs:
         run: node scripts/check-env-table.mjs
       - name: 문서 간 참조       # 죽은 링크 · frontmatter referenced_by · 파생본 머리 · 맨 참조(REQ-CB-030)
         run: node scripts/check-doc-links.mjs
+      - name: 한국어 문체        # 새로 쓴 줄을 ko-style 검사기로 — AI 말투 층은 알리기만 한다(REQ-CB-058)
+        run: node scripts/check-ko-style.mjs "${{ github.event.pull_request.base.sha || github.event.before }}"
       - name: schema drift     # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제
         run: pnpm db:generate && git diff --exit-code -- packages/schema/drizzle
       - run: pnpm test         # md 왕복은 레인이 둘이다 — 머지 전 레인만 전수를 본다
@@ -1004,7 +1010,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `pnpm dev:api` | **API 만** — 빌드 감시 + api(:8080) |
 | `pnpm dev:web` | **웹 만** — Vite(:5173). API 는 프록시 건너편에 있으면 된다(컨테이너든 다른 터미널이든) |
 | `pnpm dev:worker` | **워커 만** — 빌드 감시 + 워커 |
-| **`pnpm preflight`** | **push 전에 이것 하나** — CI `check` 잡 열한 단계를 같은 순서로. `--l2` 로 L2 까지(`.env` 를 스스로 읽는다), `--fast` 는 게이트 일곱을 건너뛴다(push 전에는 쓰지 않는다) |
+| **`pnpm preflight`** | **push 전에 이것 하나** — CI `check` 잡 열두 단계를 같은 순서로. `--l2` 로 L2 까지(`.env` 를 스스로 읽는다), `--fast` 는 게이트 여덟을 건너뛴다(push 전에는 쓰지 않는다) |
 | `pnpm hooks:install` | 위를 pre-push 훅으로 (옵트인 · 해제 `-u`). **훅은 게이트가 아니다** — `--no-verify` 로 우회된다 |
 | `pnpm build` | 전 워크스페이스 일괄 + **`pnpm pack:plugin`**(플러그인 zip — 이미지가 `/plugin-dist` 에 심는다) |
 | `pnpm test` / `pnpm lint` / `pnpm typecheck` | L1 전량 / eslint / `tsc -b`(솔루션 파일) |
@@ -1203,6 +1209,7 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
 | **REQ-CB-051** | WHEN check 잡이 돌면 THE SYSTEM SHALL md 와 html 의 표에서 **첫 칸이 고정 ID 인 행**을 번호로 짝지어 나머지 칸의 문장을 견주고, 닮은 정도가 **0.7 미만**이면 실패한다 — 파생본은 근거를 담은 괄호를 줄여 실을 수 있지만 **같은 번호가 다른 것을 약속해서는 안 된다**. 규약 1 의 검사는 그때까지 번호가 **있는지**만 셌고, 그 눈먼 자리에서 `REQ-CB-015` 는 파생본에서 배포 산출물을 아직 `codebase/` 에 두라 말했고(2026-08-22 개정 전 문장 — 같은 파일 §1.1 트리는 `deploy/` 라 적어 **문서가 자기와 모순했다**) `REQ-CB-021` 은 "(2026-09-22 개정)" 이라 써 놓고 개정 전 규칙을 실었다(2026-09-24 전수 대조). **게이트 수는 그대로다** — 규약 1 의 검사가 세는 것이 넷에서 다섯으로 는다 | 두 요구의 파생본 문장을 개정 전으로 되돌린 트리에서 `check-md-html.mjs` 가 0.52·0.58 로 실패한다 · 근거 괄호를 줄여 실은 행들(실측 최저 0.75)은 통과한다 |
 | **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
+| **REQ-CB-058** | WHEN check 잡이 돌면 THE SYSTEM SHALL base 와 견주어 **새로 쓴 줄**을 문체 플러그인 `ko-style` 의 검사기(`codebase/ko-style/skills/ko-style/scripts/ko-lint.mjs`)로 검사하고, 차단 규칙이나 규범 · 팀 어휘 층의 경고에 걸린 줄이 하나라도 있으면 **실패한다**(`scripts/check-ko-style.mjs`). 규칙은 저장소 루트 `.ko-style.json`([용어 사전](../glossary.md) §3.4 표의 사본)과 플러그인의 공통 규칙 표다. AI 말투 층은 알리기만 하고, 줄 끝에 `ko-style-ignore: <이유>` 가 있으면 그 줄은 보지 않는다(이유가 없으면 듣지 않는다). base 가 없으면 판정하지 않는다 |
 | **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `mc` 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
 | **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |
 | **REQ-CB-033** | WHEN 임베딩 요청을 만들면 THE SYSTEM SHALL `dimensions` 를 실을지를 **`NERV_EMBED_SEND_DIMENSIONS` 에서만** 읽고 제공자 주소로 추정하지 않는다 — 게이트웨이 뒤의 같은 모델은 주소가 다르고, 절단이 빠지면 오류 없이 다른 차원이 돌아와 **검색이 조용히 렉시컬로 degrade** 한다. WHILE 차원을 검사하는 동안 THE SYSTEM SHALL 그 값을 `@nerv/schema` 의 `EMBEDDING_DIMENSIONS`(DDL 이 쓰는 그 상수)에서 읽고 재선언하지 않는다(REQ-CB-006) |

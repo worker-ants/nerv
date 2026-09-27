@@ -107,6 +107,14 @@ describe('검사하지 않는 자리 — 코드 · 링크 · 인용', () => {
     expect(ids('이 작업은 권한을 필요로 한다.'.normalize('NFD'))).toContain('KO-N-03');
   });
 
+  it('줄 끝의 ko-style-ignore: <이유> 는 그 줄만 뺀다 — 이유가 없으면 빼지 않는다', () => {
+    const line = '이 작업은 권한을 필요로 한다.';
+    expect(ids(`${line} <!-- ko-style-ignore: 인용한 옛 문장 -->`)).not.toContain('KO-N-03');
+    expect(ids(`${line} // ko-style-ignore: 예문`)).not.toContain('KO-N-03');
+    expect(ids(`${line} <!-- ko-style-ignore: -->`)).toContain('KO-N-03');
+    expect(ids(`${line} <!-- ko-style-ignore: 예문 -->\n${line}`)).toContain('KO-N-03');
+  });
+
   it('한글 경계 — "머리말" · "전기 배선" 은 팀 어휘에 걸리지 않는다', () => {
     expect(ids('머리말에 버전을 적는다.', repoConfig)).not.toContain('KO-V-09');
     expect(ids('전기 배선을 점검한다.', repoConfig)).not.toContain('KO-V-04');

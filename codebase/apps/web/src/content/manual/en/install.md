@@ -172,7 +172,7 @@ Once installed, it works like this.
 | Right after a document is saved  | Checks only the newly written lines and asks for fixes              |
 | After a reply                    | Shows a one-line notice if something needs fixing                   |
 
-If a flagged phrase has to stay as it is, such as a quotation or a proper noun, the agent runs the same message again. The second attempt goes through.
+If a flagged phrase has to stay as it is, such as a quotation or a proper noun, the agent runs the same message again. The second attempt goes through. In a document, add `<!-- ko-style-ignore: reason -->` at the end of a line that has to stay as it is, and the check skips that line. Without a reason, the line is still checked.
 
 Put your team's terms and the speech level for each kind of text in `.ko-style.json` at the repository root. Run `/ko-style:init` and the agent looks through the repository and creates this file for you. To check what you just wrote, run `/ko-style:check`. To turn it off in one repository, add `"enabled": false` to that repository's `.ko-style.json`.
 

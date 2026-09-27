@@ -183,6 +183,27 @@ export function maskText(text, { markdown = true, quotes = true } = {}) {
   return t;
 }
 
+/**
+ * 줄 끝에 `ko-style-ignore: <이유>` 가 있으면 그 줄은 검사하지 않는다(md 는
+ * `<!-- ko-style-ignore: 이유 -->`, 코드는 `// ko-style-ignore: 이유`). **이유가 없으면 듣지 않는다** —
+ * eslint-disable 에 이유를 같은 줄에 적게 하는 것과 같은 규칙이다. 이유 없는 예외는 나중에 아무도
+ * 판단할 수 없다.
+ */
+// 주석을 닫는 기호(`-->` · `*/`)는 이유가 아니다
+export const IGNORE_MARK = /ko-style-ignore:\s*(?!-->|\*\/)\S/;
+
+function skipIgnored(text, masked) {
+  if (!text.includes('ko-style-ignore')) return masked;
+  let out = '';
+  let at = 0;
+  for (const line of text.split('\n')) {
+    const part = masked.slice(at, at + line.length);
+    out += (IGNORE_MARK.test(line) ? blank(part) : part) + '\n';
+    at += line.length + 1;
+  }
+  return out.slice(0, masked.length);
+}
+
 /** 문장으로 나눈다 — 마침표·물음표·느낌표, 줄 끝의 쌍점, 줄바꿈에서 끊는다 */
 export function sentencesOf(text) {
   const out = [];
@@ -243,7 +264,7 @@ function locate(starts, offset) {
  */
 export function lint(input, { rules, tone = 'off', dash = 'check', markdown = true, quotes = true }) {
   const text = input.normalize('NFC');
-  const masked = maskText(text, { markdown, quotes });
+  const masked = skipIgnored(text, maskText(text, { markdown, quotes }));
   const starts = lineStartsOf(text);
   const found = [];
   const push = (rule, start, end, extra) => {
