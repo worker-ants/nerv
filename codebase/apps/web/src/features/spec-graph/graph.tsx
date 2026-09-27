@@ -37,6 +37,7 @@ import cytoscape from 'cytoscape';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
+import { useTheme } from '../../lib/theme.js';
 import { cn } from '../../lib/utils.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
@@ -352,6 +353,47 @@ export function letAreasPan(cy: cytoscape.Core): void {
   cy.nodes(':parent').panify();
 }
 
+/**
+ * 이름의 투명도 — **WebGL 에서도 적용되게** 라벨 텍스처의 열쇠까지 바꾼다.
+ *
+ * WebGL 렌더러는 이름을 텍스처로 한 번 그려 두고 **스타일 열쇠가 바뀔 때만** 다시 그리는데,
+ * 이름의 투명도는 그 열쇠에 들지 않는다(cytoscape 3.34 — 열쇠는 이름 글자 · 글꼴 크기 등 · 글자색 ·
+ * 외곽선의 색과 투명도 등). 그래서 이름을 가리는 클래스(`faded` · `crowded` · `tiny`)를
+ * 붙여도 WebGL 은 보이던 이름을 그대로 그렸다 — 노드를 고르면 흐려진 문서의 이름이 또렷하게
+ * 남았고, 작아서 가려야 할 이름도 얼룩으로 찍혔다(2026-09-27 실측 · 캔버스 렌더러는 정상).
+ * 외곽선 두께가 0 이라 그림에 아무 영향이 없는 외곽선 투명도를 같은 값으로 함께
+ * 바꿔 열쇠를 달리한다 — 투명도마다 텍스처가 따로 그려진다.
+ */
+export function labelOpacity(opacity: number): {
+  'text-opacity': number;
+  'text-outline-opacity': number;
+} {
+  return { 'text-opacity': opacity, 'text-outline-opacity': opacity };
+}
+
+/**
+ * cytoscape 를 만드는 동안만 캔버스의 **실제 배경색**을 인라인 style 로 적어 둔다.
+ *
+ * WebGL 렌더러는 화살촉을 배경색과 섞어 불투명하게 칠하는데(선이 화살촉 밑으로 비치지 않게),
+ * 그 배경색을 컨테이너의 **인라인** `style.backgroundColor` 에서만, 만들 때 한 번 읽고 없으면
+ * 흰색으로 둔다(cytoscape 3.34 `getBGColor`). 이 캔버스의 배경은 클래스(`bg-bg-elev`)라 흰색으로
+ * 잡혔고, 어두운 테마에서 흐려 둔 화살촉(투명도 0.12)이 흰색에 가깝게 칠해졌다 — 노드를 고르면
+ * **관계없는 간선의 화살촉이 강조된 것처럼** 도착 노드 둘레에 남았다(2026-09-27 사람 보고).
+ * 캔버스 렌더러는 화살촉에도 투명도를 그대로 써서 이 일이 없다.
+ *
+ * 만든 뒤에는 원래대로 돌려놓는다 — 남겨 두면 테마를 바꿔도 캔버스가 옛 배경에 머문다(테마가
+ * 바뀌면 그림을 다시 만든다 · 빌드 이펙트의 `theme`).
+ */
+export function withCanvasBackground<T>(el: HTMLElement, create: () => T): T {
+  const inline = el.style.backgroundColor;
+  el.style.backgroundColor = getComputedStyle(el).backgroundColor;
+  try {
+    return create();
+  } finally {
+    el.style.backgroundColor = inline;
+  }
+}
+
 export function SpecGraph({
   nodes,
   edges,
@@ -362,6 +404,8 @@ export function SpecGraph({
   onLayoutChange,
 }: SpecGraphProps): React.JSX.Element {
   const t = useT();
+  // 색은 만들 때 토큰에서 읽는다 — 테마가 바뀌면 그림을 다시 만든다(배치는 기억에서 꺼낸다)
+  const { resolved: theme } = useTheme();
   const container = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const focus = focusKey ?? null;
@@ -464,148 +508,150 @@ export function SpecGraph({
     const degree = new Map<string, number>();
     for (const edge of shownEdges) degree.set(edge.to_id, (degree.get(edge.to_id) ?? 0) + 1);
 
-    const cy = cytoscape({
-      container: el,
-      // compound 부모는 **보이는 노드 중에서만** 잡는다 — 부모가 화면 밖이면 cytoscape 가 던진다
-      elements: [
-        ...shownNodes.map((n) => ({
-          data: {
-            id: n.id,
-            label: n.title,
-            key: n.key,
-            type: n.type,
-            weight: nodeSize(degree.get(n.id) ?? 0),
-            ...(grouped && n.parent_id !== null && shownIds.has(n.parent_id)
-              ? { parent: n.parent_id }
-              : {}),
+    const cy = withCanvasBackground(el, () =>
+      cytoscape({
+        container: el,
+        // compound 부모는 **보이는 노드 중에서만** 잡는다 — 부모가 화면 밖이면 cytoscape 가 던진다
+        elements: [
+          ...shownNodes.map((n) => ({
+            data: {
+              id: n.id,
+              label: n.title,
+              key: n.key,
+              type: n.type,
+              weight: nodeSize(degree.get(n.id) ?? 0),
+              ...(grouped && n.parent_id !== null && shownIds.has(n.parent_id)
+                ? { parent: n.parent_id }
+                : {}),
+            },
+          })),
+          ...shownEdges.map((e, i) => ({
+            data: { id: `e${i}`, source: e.from_id, target: e.to_id },
+          })),
+        ],
+        style: [
+          {
+            selector: 'node',
+            style: {
+              'background-color': (n: cytoscape.NodeSingular) =>
+                cssVar(typeColorToken(String(n.data('type')))),
+              label: 'data(label)',
+              // 글자 크기와 그리기 시작하는 배율의 정본은 `layout.ts` 다 — 배치가 "이름이
+              // 그려진다" 를 판정할 때 같은 값을 봐야 한다(두 벌이면 한쪽만 바뀐다)
+              'font-size': LABEL_FONT_SIZE,
+              color: cssVar('--color-text-mute'),
+              'text-valign': 'bottom',
+              'text-margin-y': 3,
+              // 라벨이 겹치면 아무것도 못 읽는다 — 잘라서 보여주고 전문은 클릭으로
+              'text-max-width': '90px',
+              'text-wrap': 'ellipsis',
+              // **읽을 수 없는 크기면 그리지 않는다.** 전체 보기의 기본 배율은 0.42 라
+              // 9px 라벨이 화면에는 3.8px 로 찍힌다(실측 2026-08-27 · 노드 125개). 그건
+              // 글자가 아니라 얼룩이고, 얼룩 125개가 그림을 덮으면 구조가 안 보인다.
+              // 배율 0.5 부터 이름을 그린다(2026-09-27 사람 결정 · `LABEL_ZOOM`). 가리는 일은 `.tiny` 가 한다 —
+              // cytoscape 의 `min-zoomed-font-size` 는 픽셀 비율 2 인 화면에서 배율 0.25 부터
+              // 그려 버린다(`layout.ts` `labelReadable` · 2026-09-27 실측).
+              'min-zoomed-font-size': 0,
+              width: 'data(weight)',
+              height: 'data(weight)',
+            },
           },
-        })),
-        ...shownEdges.map((e, i) => ({
-          data: { id: `e${i}`, source: e.from_id, target: e.to_id },
-        })),
-      ],
-      style: [
-        {
-          selector: 'node',
-          style: {
-            'background-color': (n: cytoscape.NodeSingular) =>
-              cssVar(typeColorToken(String(n.data('type')))),
-            label: 'data(label)',
-            // 글자 크기와 그리기 시작하는 배율의 정본은 `layout.ts` 다 — 배치가 "이름이
-            // 그려진다" 를 판정할 때 같은 값을 봐야 한다(두 벌이면 한쪽만 바뀐다)
-            'font-size': LABEL_FONT_SIZE,
-            color: cssVar('--color-text-mute'),
-            'text-valign': 'bottom',
-            'text-margin-y': 3,
-            // 라벨이 겹치면 아무것도 못 읽는다 — 잘라서 보여주고 전문은 클릭으로
-            'text-max-width': '90px',
-            'text-wrap': 'ellipsis',
-            // **읽을 수 없는 크기면 그리지 않는다.** 전체 보기의 기본 배율은 0.42 라
-            // 9px 라벨이 화면에는 3.8px 로 찍힌다(실측 2026-08-27 · 노드 125개). 그건
-            // 글자가 아니라 얼룩이고, 얼룩 125개가 그림을 덮으면 구조가 안 보인다.
-            // 배율 0.5 부터 이름을 그린다(2026-09-27 사람 결정 · `LABEL_ZOOM`). 가리는 일은 `.tiny` 가 한다 —
-            // cytoscape 의 `min-zoomed-font-size` 는 픽셀 비율 2 인 화면에서 배율 0.25 부터
-            // 그려 버린다(`layout.ts` `labelReadable` · 2026-09-27 실측).
-            'min-zoomed-font-size': 0,
-            width: 'data(weight)',
-            height: 'data(weight)',
+          {
+            selector: ':parent',
+            style: {
+              'background-opacity': 0.06,
+              'border-width': 1,
+              'border-color': cssVar('--color-border-strong'),
+              'text-valign': 'top',
+              'font-size': 11,
+              // 영역 이름은 **지도의 지명**이다 — 문서 라벨을 감춘 배율에서도 남는다.
+              // 열여섯 개뿐이라 얼룩이 되지 않고, 이것까지 지우면 어디를 보는지 알 수 없다.
+              'min-zoomed-font-size': 0,
+            },
           },
-        },
-        {
-          selector: ':parent',
-          style: {
-            'background-opacity': 0.06,
-            'border-width': 1,
-            'border-color': cssVar('--color-border-strong'),
-            'text-valign': 'top',
-            'font-size': 11,
-            // 영역 이름은 **지도의 지명**이다 — 문서 라벨을 감춘 배율에서도 남는다.
-            // 열여섯 개뿐이라 얼룩이 되지 않고, 이것까지 지우면 어디를 보는지 알 수 없다.
-            'min-zoomed-font-size': 0,
+          {
+            selector: 'edge',
+            style: {
+              width: 1,
+              'line-color': cssVar('--color-border-strong'),
+              'target-arrow-color': cssVar('--color-border-strong'),
+              'target-arrow-shape': 'triangle',
+              'arrow-scale': 0.6,
+              'curve-style': 'bezier',
+              opacity: 0.55,
+            },
           },
-        },
-        {
-          selector: 'edge',
-          style: {
-            width: 1,
-            'line-color': cssVar('--color-border-strong'),
-            'target-arrow-color': cssVar('--color-border-strong'),
-            'target-arrow-shape': 'triangle',
-            'arrow-scale': 0.6,
-            'curve-style': 'bezier',
-            opacity: 0.55,
+          {
+            selector: '.focus',
+            style: {
+              'border-width': 3,
+              'border-color': cssVar('--color-status-action'),
+            },
           },
-        },
-        {
-          selector: '.focus',
-          style: {
-            'border-width': 3,
-            'border-color': cssVar('--color-status-action'),
+          // 고른 것과 그 이웃만 남기고 나머지는 **가라앉힌다**. 지우지 않는 이유는 지도가
+          // 지도로 남아야 하기 때문이다 — 주변이 사라지면 어디를 보고 있는지 알 수 없다.
+          {
+            selector: '.faded',
+            style: { opacity: 0.12, ...labelOpacity(0) },
           },
-        },
-        // 고른 것과 그 이웃만 남기고 나머지는 **가라앉힌다**. 지우지 않는 이유는 지도가
-        // 지도로 남아야 하기 때문이다 — 주변이 사라지면 어디를 보고 있는지 알 수 없다.
-        {
-          selector: '.faded',
-          style: { opacity: 0.12, 'text-opacity': 0 },
-        },
-        // 영역 상자는 **덜** 가라앉힌다. 노드와 같이 지우면 고른 문서가 어느 영역에
-        // 있는지를 잃고, 그대로 두면 전부 흐려진 화면에서 상자만 남아 지도가 뒤집힌다.
-        {
-          selector: ':parent.faded',
-          style: { opacity: 0.4, 'text-opacity': 0.4 },
-        },
-        // **가려서 못 읽는 것도 못 읽는 것이다**(2026-09-22 · REQ-WEB-095 개정). 겹친 이름
-        // 중 자리를 잃은 쪽을 지운다 — 판정은 화면 좌표로 `declutterLabels` 가 한다.
-        // 고른 문서는 언제나 이기므로 `.picked` 와 다툴 일이 없다.
-        {
-          selector: 'node.crowded',
-          style: { 'text-opacity': 0 },
-        },
-        {
-          selector: 'node.linked',
-          style: {
-            'border-width': 2,
-            'border-color': cssVar('--color-status-action'),
-            'border-opacity': 0.65,
+          // 영역 상자는 **덜** 가라앉힌다. 노드와 같이 지우면 고른 문서가 어느 영역에
+          // 있는지를 잃고, 그대로 두면 전부 흐려진 화면에서 상자만 남아 지도가 뒤집힌다.
+          {
+            selector: ':parent.faded',
+            style: { opacity: 0.4, ...labelOpacity(0.4) },
           },
-        },
-        {
-          selector: 'edge.linked',
-          style: {
-            width: 2,
-            opacity: 1,
-            'line-color': cssVar('--color-status-action'),
-            'target-arrow-color': cssVar('--color-status-action'),
+          // **가려서 못 읽는 것도 못 읽는 것이다**(2026-09-22 · REQ-WEB-095 개정). 겹친 이름
+          // 중 자리를 잃은 쪽을 지운다 — 판정은 화면 좌표로 `declutterLabels` 가 한다.
+          // 고른 문서는 언제나 이기므로 `.picked` 와 다툴 일이 없다.
+          {
+            selector: 'node.crowded',
+            style: labelOpacity(0),
           },
-        },
-        {
-          selector: 'node.picked',
-          style: {
-            'border-width': 4,
-            'border-color': cssVar('--color-status-action'),
-            'border-opacity': 1,
-            color: cssVar('--color-text'),
-            'font-size': PICKED_FONT_SIZE,
-            'text-opacity': 1,
-            'z-index': 10,
+          {
+            selector: 'node.linked',
+            style: {
+              'border-width': 2,
+              'border-color': cssVar('--color-status-action'),
+              'border-opacity': 0.65,
+            },
           },
-        },
-        // **작아서 못 읽는 이름**은 고른 문서의 것이라도 가린다 — 그래서 `.picked` 뒤에 둔다
-        // (뒤의 규칙이 이긴다). 판정은 CSS 픽셀로 `declutterLabels` 가 한다(REQ-WEB-095)
-        {
-          selector: 'node.tiny',
-          style: { 'text-opacity': 0 },
-        },
-      ],
-      // **끄는 것은 배치이지 재배치가 아니다**(2026-08-27 — 사람 지시). 노드를 끌면 그림 위의
-      // 자리만 바뀐다: 부모도 정렬 키도 서버로 가지 않는다. 문서를 옮기는 경로는 여전히
-      // 트리 하나뿐이고, 그래프는 데이터를 쓰지 않는다는 뜻에서 읽기 전용이다.
-      // (`autoungrabify` 를 걷었다 — 영역 상자는 `panify()` 가 잡기를 끄므로 그대로 패닝이다.)
-      wheelSensitivity: 0.2,
-      // 확대·이동을 WebGL 로 그린다(REQ-WEB-246) — 지원하지 않거나 사람이 끈 브라우저는 캔버스다
-      webgl,
-    });
+          {
+            selector: 'edge.linked',
+            style: {
+              width: 2,
+              opacity: 1,
+              'line-color': cssVar('--color-status-action'),
+              'target-arrow-color': cssVar('--color-status-action'),
+            },
+          },
+          {
+            selector: 'node.picked',
+            style: {
+              'border-width': 4,
+              'border-color': cssVar('--color-status-action'),
+              'border-opacity': 1,
+              color: cssVar('--color-text'),
+              'font-size': PICKED_FONT_SIZE,
+              'text-opacity': 1,
+              'z-index': 10,
+            },
+          },
+          // **작아서 못 읽는 이름**은 고른 문서의 것이라도 가린다 — 그래서 `.picked` 뒤에 둔다
+          // (뒤의 규칙이 이긴다). 판정은 CSS 픽셀로 `declutterLabels` 가 한다(REQ-WEB-095)
+          {
+            selector: 'node.tiny',
+            style: labelOpacity(0),
+          },
+        ],
+        // **끄는 것은 배치이지 재배치가 아니다**(2026-08-27 — 사람 지시). 노드를 끌면 그림 위의
+        // 자리만 바뀐다: 부모도 정렬 키도 서버로 가지 않는다. 문서를 옮기는 경로는 여전히
+        // 트리 하나뿐이고, 그래프는 데이터를 쓰지 않는다는 뜻에서 읽기 전용이다.
+        // (`autoungrabify` 를 걷었다 — 영역 상자는 `panify()` 가 잡기를 끄므로 그대로 패닝이다.)
+        wheelSensitivity: 0.2,
+        // 확대·이동을 WebGL 로 그린다(REQ-WEB-246) — 지원하지 않거나 사람이 끈 브라우저는 캔버스다
+        webgl,
+      }),
+    );
 
     letAreasPan(cy);
     // 다시 세야 하는 때는 둘이다 — **노드를 끌었을 때**(자리가 바뀐다)와 **배율이 이름이
@@ -691,7 +737,7 @@ export function SpecGraph({
       if (frame !== 0) cancelAnimationFrame(frame);
       cy.destroy();
     };
-  }, [fingerprint, focus, grouped, layout, webgl]);
+  }, [fingerprint, focus, grouped, layout, webgl, theme]);
 
   // **구조가 같으면 글자와 색만 갈아 끼운다** — 초안 저장 · 상태 전이 · 제목 수정이 그림을
   // 부수지 않는다(REQ-WEB-245). 종류가 바뀌면 색은 스타일의 매퍼가 다시 읽는다.
