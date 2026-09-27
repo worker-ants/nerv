@@ -86,8 +86,8 @@ test('shot spec-graph', async ({ page }) => {
   await page.goto('/p/clemvion/specs');
   await page.getByTestId('view-graph').click();
   await page.getByTestId('spec-graph').waitFor();
-  // fcose 가 낸 답을 정리 패스가 한 벌 더 돈다(REQ-WEB-174·175) — 그 전에 찍으면
-  // 겹친 상자가 그림에 남는다
+  // 배치와 겹침 풀기(REQ-WEB-174·175)가 끝나고 캔버스가 그려질 때까지 기다린다 — 그 전에 찍으면
+  // 빈 캔버스나 정리 전의 그림이 남는다
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${SHOT_DIR}/spec-graph.png` });
 });

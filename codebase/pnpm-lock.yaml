@@ -175,9 +175,6 @@ importers:
       cytoscape:
         specifier: ^3.34.1
         version: 3.34.1
-      cytoscape-fcose:
-        specifier: ^2.2.0
-        version: 2.2.0(cytoscape@3.34.1)
       markdown-it:
         specifier: ^14.3.0
         version: 14.3.0

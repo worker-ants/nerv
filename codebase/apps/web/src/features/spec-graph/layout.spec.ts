@@ -1,38 +1,62 @@
-// 배치 정리 패스 — 정본: docs/04-mvp/screens.md §2.4a
+// 관계 그래프의 배치 — 정본: docs/04-mvp/screens.md §2.4a
 //
-// **여기서 지키는 것은 "형제는 겹치지 않는다" 하나다.** 겹친 상자는 화면에서 부모·자식으로
-// 읽히고, 그것은 데이터에 없는 계층이다. 눈으로는 "좀 지저분하네"로 보여서 넘어가고,
-// 넘어가면 그래프가 거짓 구조를 말하는 채로 산다.
-//
-// 배치 자체(어느 영역이 어느 영역 옆에 놓이는가)는 fcose 의 일이라 모양은 검사하지 않는다.
-// 대신 **같은 번호면 같은 자리**인지는 본다(2026-09-27 · REQ-WEB-245) — 열 때마다 그림이
-// 달라 자리를 익힐 수 없던 결함이고, 배치가 비동기로 바뀌는 날 가장 먼저 여기서 깨진다.
+// **여기서 지키는 것은 셋이다.**
+//   ① 형제는 겹치지 않는다(REQ-WEB-174) — 겹친 상자는 데이터에 없는 계층으로 읽힌다
+//   ② 같은 입력 · 같은 번호면 같은 자리다(REQ-WEB-245) — 입력의 순서와도 무관하다
+//   ③ **데이터가 조금 바뀌면 형태도 조금만 바뀐다**(REQ-WEB-247) — 문서 주위에 어떤 문서가 어느
+//      방향에 있는가. 배치를 저장하지 않으므로 문서가 늘거나 줄면 다시 계산하는데, 예전(fcose)에는
+//      문서 하나만 늘어도 이웃의 방향이 평균 86° 바뀌었다(2026-09-27 사람 보고 · 실측)
 
 import cytoscape from 'cytoscape';
-import fcose from 'cytoscape-fcose';
 import { describe, expect, it } from 'vitest';
 import {
   LABEL_ZOOM,
   PICKED_FONT_SIZE,
-  compactAreas,
+  TARGET_ASPECT,
   crowdedLabels,
   extent,
-  gravitate,
+  hash01,
   labelReadable,
   labelZoomState,
   leafPositions,
-  pack,
-  relax,
   runLayout,
-  seededRandom,
-  withSeed,
+  separate,
+  settle,
+  spread,
   type LabelBox,
+  type LayoutTree,
   type PackItem,
+  type SpreadItem,
 } from './layout.js';
 
-cytoscape.use(fcose);
+/** 테스트 데이터용 난수(mulberry32) — 같은 번호면 같은 수열이다 */
+function random(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
-const box = (cx: number, cy: number, w = 40, h = 40): PackItem => ({ cx, cy, w, h });
+const round = (id: string, cx: number, cy: number, w = 40): SpreadItem => ({
+  id,
+  cx,
+  cy,
+  w,
+  h: w,
+  round: true,
+});
+const rect = (id: string, cx: number, cy: number, w = 40, h = 40): SpreadItem => ({
+  id,
+  cx,
+  cy,
+  w,
+  h,
+  round: false,
+});
 
 /** 두 상자가 겹친 넓이 — 0 이면 떨어져 있다 */
 function overlap(a: PackItem, b: PackItem): number {
@@ -41,104 +65,114 @@ function overlap(a: PackItem, b: PackItem): number {
   return ox > 0 && oy > 0 ? ox * oy : 0;
 }
 
-function worstOverlap(items: readonly PackItem[]): number {
-  let worst = 0;
-  for (const [i, a] of items.entries())
-    for (const b of items.slice(i + 1)) worst = Math.max(worst, overlap(a, b));
-  return worst;
-}
+const angleOf = (a: PackItem, b: PackItem): number => Math.atan2(b.cy - a.cy, b.cx - a.cx);
 
-describe('밀어내기', () => {
-  it('짧은 쪽으로 민다 — 옆으로 비키면 될 것을 위아래로 밀지 않는다', () => {
-    // 가로로 10 겹치고 세로로 40 겹친다 — 가로가 짧다
-    const items = [box(0, 0), box(30, 0)];
-    relax(items, 0, 100);
-    expect(items[0]?.cy).toBe(0);
-    expect(items[1]?.cy).toBe(0);
-    expect(Math.abs((items[1]?.cx ?? 0) - (items[0]?.cx ?? 0))).toBeCloseTo(40, 5);
+describe('밀어내기 — 두 중심을 잇는 선을 따라', () => {
+  it('겹친 둘은 방향을 그대로 둔 채 물러난다', () => {
+    const items = [round('a', 0, 0), round('b', 18, 24)];
+    const before = angleOf(items[0] as PackItem, items[1] as PackItem);
+    spread(items, 0, 100);
+    const [a, b] = items as [SpreadItem, SpreadItem];
+    expect(angleOf(a, b)).toBeCloseTo(before, 9);
+    expect(Math.hypot(b.cx - a.cx, b.cy - a.cy)).toBeCloseTo(40, 6);
   });
 
-  it('간격만큼 더 벌린다 — 맞닿은 상자는 여전히 한 덩어리로 읽힌다', () => {
-    const items = [box(0, 0), box(30, 0)];
-    relax(items, 12, 100);
-    expect(Math.abs((items[1]?.cx ?? 0) - (items[0]?.cx ?? 0))).toBeCloseTo(52, 5);
+  it('간격만큼 더 벌린다 — 맞닿은 동그라미는 여전히 한 덩어리로 읽힌다', () => {
+    const items = [round('a', 0, 0), round('b', 30, 0)];
+    spread(items, 16, 100);
+    expect(Math.abs((items[1]?.cx ?? 0) - (items[0]?.cx ?? 0))).toBeCloseTo(56, 6);
+  });
+
+  it('네모는 상자로 잰다 — 가로로 나란하면 폭만큼만 떨어진다', () => {
+    const items = [rect('a', 0, 0, 80, 20), rect('b', 30, 0, 80, 20)];
+    spread(items, 12, 100);
+    expect(Math.abs((items[1]?.cx ?? 0) - (items[0]?.cx ?? 0))).toBeCloseTo(92, 6);
+    expect(items[0]?.cy).toBeCloseTo(0, 9);
   });
 
   it('겹치지 않으면 0 을 돌려주고 자리를 건드리지 않는다', () => {
-    const items = [box(0, 0), box(200, 0)];
-    expect(relax(items, 12, 100)).toBe(0);
+    const items = [round('a', 0, 0), round('b', 200, 0)];
+    expect(spread(items, 12, 100)).toBe(0);
     expect(items[0]?.cx).toBe(0);
     expect(items[1]?.cx).toBe(200);
   });
 
-  it('중심이 정확히 같아도 갈라진다 — 방향이 없으면 목록 순서로 가른다', () => {
-    const items = [box(0, 0), box(0, 0)];
-    relax(items, 8, 200);
-    expect(worstOverlap(items)).toBe(0);
-    expect(Number.isFinite(items[0]?.cx ?? NaN)).toBe(true);
+  it('중심이 정확히 같아도 갈라진다 — 방향은 두 id 로 정한다(같은 입력이면 같은 답)', () => {
+    const one = [round('a', 0, 0), round('b', 0, 0)];
+    const two = [round('a', 0, 0), round('b', 0, 0)];
+    spread(one, 8, 200);
+    spread(two, 8, 200);
+    const [a, b] = one as [SpreadItem, SpreadItem];
+    expect(Math.hypot(b.cx - a.cx, b.cy - a.cy)).toBeCloseTo(48, 6);
+    expect(one).toEqual(two);
   });
 
-  it('세 개가 한 자리에 있어도 모두 풀린다', () => {
-    const items = [box(0, 0), box(4, 2), box(-3, 1)];
-    relax(items, 6, 400);
-    expect(worstOverlap(items)).toBe(0);
+  it('0 을 돌려주면 정말로 겹친 쌍이 없다', () => {
+    const next = random(7);
+    const items = Array.from({ length: 120 }, (_, i) =>
+      rect(`r${i}`, next() * 600, next() * 400, 20 + next() * 60, 20 + next() * 40),
+    );
+    expect(spread(items, 12, 2000)).toBe(0);
+    for (const [i, a] of items.entries())
+      for (const b of items.slice(i + 1)) {
+        const ox = (a.w + b.w) / 2 + 12 - Math.abs(a.cx - b.cx);
+        const oy = (a.h + b.h) / 2 + 12 - Math.abs(a.cy - b.cy);
+        // 1e-6px 보다 얕은 겹침은 없는 것으로 본다(부동소수점 찌꺼기)
+        expect(ox > 1e-6 && oy > 1e-6).toBe(false);
+      }
   });
 });
 
-describe('다지기', () => {
-  it('겹침을 없애면서 상자를 줄인다 — 빈자리는 공짜가 아니다', () => {
-    const items = [box(0, 0), box(20, 10), box(600, 400), box(-500, 300), box(300, -450)];
-    const before = extent(items);
-    pack(items, { gap: 10 });
-    const after = extent(items);
-    expect(worstOverlap(items)).toBe(0);
-    expect(after.w * after.h).toBeLessThan(before.w * before.h);
+describe('무리 정리 — 고른 비율로 넓힌 뒤 민다', () => {
+  it('겹칠 일이 없으면 모든 쌍의 방향이 그대로다 — 후보를 골라 모양을 바꾸지 않는다', () => {
+    const items = [
+      round('a', 0, 0, 10),
+      round('b', 300, 40, 10),
+      round('c', -120, 260, 10),
+      round('d', 90, -310, 10),
+    ];
+    const before = items.flatMap((a) => items.map((b) => (a === b ? 0 : angleOf(a, b))));
+    settle(items, 16, 0.05);
+    const after = items.flatMap((a) => items.map((b) => (a === b ? 0 : angleOf(a, b))));
+    after.forEach((angle, i) => expect(angle).toBeCloseTo(before[i] ?? NaN, 9));
   });
 
-  it('캔버스 모양을 겨냥하면 그 모양에 가까워진다 — 같은 픽셀에서 그림이 커진다', () => {
-    // 홀쭉한 구름 — 캔버스는 가로로 넓으므로 이대로 맞추면 좌우가 통째로 논다
-    const scattered = (): PackItem[] => {
-      let seed = 7;
-      const next = (): number => {
-        seed = (seed * 1103515245 + 12345) % 2147483648;
-        return seed / 2147483648;
-      };
-      return Array.from({ length: 12 }, () => box(next() * 220, next() * 1300));
-    };
-    const free = scattered();
-    pack(free, { gap: 10 });
-    const wide = scattered();
-    pack(wide, { gap: 10, aspect: 1.6 });
-    const off = (items: readonly PackItem[]): number => {
+  it('촘촘한 무리는 넓혀서 푼다 — 겹침이 남지 않는다', () => {
+    const next = random(3);
+    const items = Array.from({ length: 60 }, (_, i) =>
+      round(`d${i}`, next() * 80, next() * 80, 18 + next() * 26),
+    );
+    settle(items, 16, 0.3);
+    for (const [i, a] of items.entries())
+      for (const b of items.slice(i + 1))
+        expect(Math.hypot(a.cx - b.cx, a.cy - b.cy)).toBeGreaterThan((a.w + b.w) / 2 + 16 - 1e-6);
+  });
+
+  it('모양을 겨냥하면 그쪽으로 기운다 — 좌우·위아래 순서는 그대로다', () => {
+    const tall = (): SpreadItem[] =>
+      Array.from({ length: 12 }, (_, i) => rect(`t${i}`, (i % 3) * 200, i * 150, 40, 40));
+    const free = tall();
+    settle(free, 12, 0.05);
+    const wide = tall();
+    settle(wide, 12, 0.05, TARGET_ASPECT);
+    const ratio = (items: readonly PackItem[]): number => {
       const bb = extent(items);
-      return Math.abs(bb.w / bb.h - 1.6);
+      return bb.w / bb.h;
     };
-    expect(off(wide)).toBeLessThan(off(free));
-    expect(worstOverlap(wide)).toBe(0);
+    expect(ratio(wide)).toBeGreaterThan(ratio(free));
+    for (const [i, a] of wide.entries())
+      for (const [j, b] of wide.entries()) {
+        const fa = free[i] as PackItem;
+        const fb = free[j] as PackItem;
+        expect(Math.sign(a.cx - b.cx)).toBe(Math.sign(fa.cx - fb.cx));
+        expect(Math.sign(a.cy - b.cy)).toBe(Math.sign(fa.cy - fb.cy));
+      }
   });
 
   it('하나뿐이면 아무것도 하지 않는다', () => {
-    const items = [box(17, 42)];
-    pack(items, { gap: 10, aspect: 1.6 });
-    expect(items[0]).toEqual({ cx: 17, cy: 42, w: 40, h: 40 });
-  });
-});
-
-describe('구멍 메우기', () => {
-  it('멀리 떨어진 상자를 당겨 오되 겹치지는 않는다', () => {
-    const items = [box(0, 0), box(60, 0), box(0, 60), box(60, 60), box(900, 900)];
-    const far = items[4];
-    const before = Math.hypot(far?.cx ?? 0, far?.cy ?? 0);
-    gravitate(items, 8, 3);
-    expect(Math.hypot(far?.cx ?? 0, far?.cy ?? 0)).toBeLessThan(before);
-    expect(worstOverlap(items)).toBe(0);
-  });
-
-  it('이미 맞닿아 있으면 움직이지 않는다', () => {
-    const items = [box(0, 0), box(50, 0)];
-    gravitate(items, 10, 3);
-    expect(worstOverlap(items)).toBe(0);
-    expect(Math.abs((items[1]?.cx ?? 0) - (items[0]?.cx ?? 0))).toBeGreaterThanOrEqual(50);
+    const items = [round('a', 17, 42)];
+    settle(items, 10, 0.3, TARGET_ASPECT);
+    expect(items[0]).toEqual(round('a', 17, 42));
   });
 });
 
@@ -166,7 +200,7 @@ function childrenExtent(parent: cytoscape.NodeSingular): PackItem {
 }
 
 describe('영역 상자는 형제끼리 겹치지 않는다 (2026-09-22 · 사람 보고)', () => {
-  /** 두 영역의 자식이 서로 엇갈려 앉은 배치 — 힘기반 배치가 실제로 내놓는 모양이다 */
+  /** 두 영역의 자식이 서로 엇갈려 앉은 배치 — 관계로 다듬은 그림이 실제로 내놓는 모양이다 */
   const interleaved = (): cytoscape.Core =>
     cytoscape({
       headless: true,
@@ -186,14 +220,14 @@ describe('영역 상자는 형제끼리 겹치지 않는다 (2026-09-22 · 사�
   it('엇갈려 앉은 두 영역을 갈라놓는다', () => {
     const cy = interleaved();
     expect(overlap(childrenExtent(cy.$id('p')), childrenExtent(cy.$id('q')))).toBeGreaterThan(0);
-    compactAreas(cy);
+    separate(cy);
     expect(overlap(childrenExtent(cy.$id('p')), childrenExtent(cy.$id('q')))).toBe(0);
     cy.destroy();
   });
 
   it('영역에 들지 않은 문서도 남의 상자 안에 앉지 않는다', () => {
     const cy = interleaved();
-    compactAreas(cy);
+    separate(cy);
     const loose = cy.$id('loose');
     const at = loose.position();
     const bb = loose.boundingBox({ includeLabels: false });
@@ -203,22 +237,17 @@ describe('영역 상자는 형제끼리 겹치지 않는다 (2026-09-22 · 사�
     cy.destroy();
   });
 
-  it('영역 안의 문서끼리도 겹치지 않는다 — 다지기는 붙이는 것이지 포개는 것이 아니다', () => {
+  it('영역 안의 문서끼리도 겹치지 않는다', () => {
     const cy = interleaved();
-    compactAreas(cy);
-    const inside = cy
-      .$id('p')
-      .children()
-      .map((kid) => {
-        const at = kid.position();
-        const bb = kid.boundingBox({ includeLabels: false });
-        return { cx: at.x, cy: at.y, w: bb.w, h: bb.h };
-      });
-    expect(worstOverlap(inside)).toBe(0);
+    separate(cy);
+    const inside = cy.$id('p').children();
+    const [a, b] = [inside[0], inside[1]] as [cytoscape.NodeSingular, cytoscape.NodeSingular];
+    const gap = Math.hypot(a.position().x - b.position().x, a.position().y - b.position().y);
+    expect(gap).toBeGreaterThanOrEqual(20);
     cy.destroy();
   });
 
-  it('영역으로 묶지 않아도 같은 패스가 돈다 — 겹친 노드는 읽을 수 없다', () => {
+  it('영역으로 묶지 않아도 겹치지 않는다 — 겹친 노드는 읽을 수 없다', () => {
     const cy = cytoscape({
       headless: true,
       styleEnabled: true,
@@ -229,13 +258,10 @@ describe('영역 상자는 형제끼리 겹치지 않는다 (2026-09-22 · 사�
       ],
       style: [{ selector: 'node', style: { width: 20, height: 20 } }],
     });
-    compactAreas(cy);
-    const items = cy.nodes().map((n) => {
-      const at = n.position();
-      const bb = n.boundingBox({ includeLabels: false });
-      return { cx: at.x, cy: at.y, w: bb.w, h: bb.h };
-    });
-    expect(worstOverlap(items)).toBe(0);
+    separate(cy);
+    const at = cy.nodes().map((n) => n.position());
+    for (const [i, p] of at.entries())
+      for (const q of at.slice(i + 1)) expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(20);
     cy.destroy();
   });
 });
@@ -306,105 +332,242 @@ describe('읽히는 크기 (2026-09-27 · REQ-WEB-095)', () => {
   });
 });
 
-describe('밀어내기의 끝 (2026-09-27)', () => {
-  // 반씩 물러난 뒤의 부동소수점 찌꺼기를 겹침으로 세지 않게 했고, 다지기는 잇달아 못 풀면
-  // 멈춘다 — 그래도 결과의 규칙(겹침이 없다 · 같은 입력이면 같은 답)은 그대로여야 한다
-  const crowd = (): PackItem[] => {
-    const next = seededRandom(7);
-    return Array.from({ length: 120 }, () =>
-      box(next() * 600, next() * 400, 20 + next() * 60, 20 + next() * 40),
-    );
-  };
+// ── 합성 그래프 — 243 문서 · 3,036 관계(사람이 보고한 프로젝트의 규모) ─────────────────
 
-  it('0 을 돌려주면 정말로 겹친 쌍이 없다', () => {
-    const items = crowd();
-    expect(relax(items, 12, 2000)).toBe(0);
-    for (const [i, a] of items.entries())
-      for (const b of items.slice(i + 1)) {
-        const ox = (a.w + b.w) / 2 + 12 - Math.abs(a.cx - b.cx);
-        const oy = (a.h + b.h) / 2 + 12 - Math.abs(a.cy - b.cy);
-        // 1e-6px 보다 얕은 겹침은 없는 것으로 본다(`OVERLAP_EPSILON` — 부동소수점 찌꺼기)
-        expect(ox > 1e-6 && oy > 1e-6).toBe(false);
-      }
-  });
+interface Doc {
+  id: string;
+  parent: string | null;
+}
+interface Link {
+  from: string;
+  to: string;
+}
+interface Graph {
+  docs: Doc[];
+  links: Link[];
+}
 
-  it('같은 입력이면 같은 답이다', () => {
-    const one = crowd();
-    const two = crowd();
-    pack(one, { gap: 12, aspect: 1.5 });
-    pack(two, { gap: 12, aspect: 1.5 });
-    expect(one).toEqual(two);
-  });
-});
-
-describe('같은 번호면 같은 그림 (2026-09-27 · REQ-WEB-245)', () => {
-  /** 영역 넷 · 문서 40 · 관계 120 — 번호가 같으면 자리가 같아야 한다 */
-  function graph(): cytoscape.Core {
-    const next = seededRandom(3);
-    const areas = ['a0', 'a1', 'a2', 'a3'];
-    const docs = Array.from({ length: 40 }, (_, i) => `d${String(i).padStart(2, '0')}`);
-    const edges: { data: { id: string; source: string; target: string } }[] = [];
-    for (let i = 0; i < 120; i += 1) {
-      const source = docs[Math.floor(next() * docs.length)] as string;
-      const target = docs[Math.floor(next() * docs.length)] as string;
-      if (source !== target) edges.push({ data: { id: `e${i}`, source, target } });
-    }
-    return cytoscape({
-      headless: true,
-      styleEnabled: true,
-      elements: [
-        ...areas.map((id) => ({ data: { id } })),
-        ...docs.map((id, i) => ({ data: { id, parent: areas[i % areas.length] } })),
-        ...edges,
-      ],
-      style: [{ selector: 'node', style: { width: 24, height: 24 } }],
+/** 영역 12(하나는 안쪽 영역) · 문서 · 관계 — 35% 는 같은 영역 안, 나머지는 피참조가 많은 쪽으로 */
+function synthetic(docCount: number, linkCount: number, seed: number): Graph {
+  const next = random(seed);
+  const areas: Doc[] = Array.from({ length: 12 }, (_, i) => ({
+    id: `area-${String(i).padStart(2, '0')}`,
+    parent: i === 11 ? 'area-00' : null,
+  }));
+  const docs: Doc[] = [];
+  for (let i = 0; docs.length < docCount - areas.length; i += 1) {
+    // 영역마다 크기가 다르다 — 앞의 영역일수록 크다
+    const pick = Math.min(11, Math.floor(Math.pow(next(), 1.6) * 12));
+    docs.push({
+      id: `doc-${String(i).padStart(4, '0')}`,
+      parent: `area-${String(pick).padStart(2, '0')}`,
     });
   }
+  const all = [...areas, ...docs];
+  return { docs: all, links: linksFor(all, docs, linkCount, next) };
+}
 
-  const layoutWith = (seed: number): Map<string, cytoscape.Position> => {
-    const cy = graph();
-    let done: Map<string, cytoscape.Position> | null = null;
-    runLayout(cy, seed, (positions) => {
+function linksFor(all: Doc[], docs: Doc[], count: number, next: () => number): Link[] {
+  const seen = new Set<string>();
+  const links: Link[] = [];
+  const indegree = new Map<string, number>();
+  for (let guard = 0; links.length < count && guard < count * 20; guard += 1) {
+    const from = docs[Math.floor(next() * docs.length)] as Doc;
+    const sameArea = next() < 0.35;
+    const pool = sameArea ? docs.filter((d) => d.parent === from.parent) : all;
+    // 피참조가 많을수록 또 참조된다(허브가 생긴다)
+    let to = pool[Math.floor(next() * pool.length)] as Doc;
+    const other = pool[Math.floor(next() * pool.length)] as Doc;
+    if ((indegree.get(other.id) ?? 0) > (indegree.get(to.id) ?? 0)) to = other;
+    const key = `${from.id}>${to.id}`;
+    if (from.id === to.id || seen.has(key)) continue;
+    seen.add(key);
+    indegree.set(to.id, (indegree.get(to.id) ?? 0) + 1);
+    links.push({ from: from.id, to: to.id });
+  }
+  return links;
+}
+
+/** 문서 몇 개를 더한다 — 새 문서마다 관계 12개 */
+function grow(graph: Graph, count: number, seed: number): Graph {
+  const next = random(seed);
+  const areas = graph.docs.filter((d) => d.id.startsWith('area-'));
+  const added: Doc[] = Array.from({ length: count }, (_, i) => ({
+    id: `new-${seed}-${i}`,
+    parent: (areas[Math.floor(next() * areas.length)] as Doc).id,
+  }));
+  const docs = [...graph.docs, ...added];
+  const links = [...graph.links];
+  for (const doc of added) {
+    for (const link of linksFor(docs, [doc], 12, next)) links.push(link);
+  }
+  return { docs, links };
+}
+
+/** 같은 입력 — 그리는 쪽처럼 크기를 피참조 수로 정하고, `grouped` 면 영역을 compound 로 만든다 */
+function draw(graph: Graph, grouped = true, reverse = false): cytoscape.Core {
+  const indegree = new Map<string, number>();
+  for (const link of graph.links) indegree.set(link.to, (indegree.get(link.to) ?? 0) + 1);
+  let nodes = graph.docs.map((d) => ({
+    data: {
+      id: d.id,
+      weight: 18 + Math.min(26, (indegree.get(d.id) ?? 0) * 1.6),
+      ...(grouped && d.parent !== null ? { parent: d.parent } : {}),
+    },
+  }));
+  let edges = graph.links.map((l, i) => ({ data: { id: `e${i}`, source: l.from, target: l.to } }));
+  if (reverse) {
+    nodes = [...nodes].reverse();
+    edges = [...edges].reverse();
+  }
+  return cytoscape({
+    headless: true,
+    styleEnabled: true,
+    elements: [...nodes, ...edges],
+    style: [{ selector: 'node', style: { width: 'data(weight)', height: 'data(weight)' } }],
+  });
+}
+
+const treeOf = (graph: Graph): LayoutTree => new Map(graph.docs.map((d) => [d.id, d.parent]));
+
+function layout(
+  graph: Graph,
+  seed = 1,
+  grouped = true,
+  reverse = false,
+): Map<string, cytoscape.Position> {
+  const cy = draw(graph, grouped, reverse);
+  let done: Map<string, cytoscape.Position> | null = null;
+  runLayout(
+    cy,
+    seed,
+    (positions) => {
       done = positions;
-    });
-    cy.destroy();
-    // 배치는 **같은 턴에** 끝나야 한다 — 비동기가 되면 난수의 일부가 원래 것으로 돌아간다
-    expect(done).not.toBeNull();
-    return done as unknown as Map<string, cytoscape.Position>;
+    },
+    treeOf(graph),
+  );
+  cy.destroy();
+  // 배치는 **같은 턴에** 끝난다 — 그리는 쪽은 그 자리를 곧바로 적어 둔다
+  expect(done).not.toBeNull();
+  return done as unknown as Map<string, cytoscape.Position>;
+}
+
+/**
+ * 형태 유지율 — 각 문서의 가까운 이웃 5개 가운데, 바뀐 그림에서도 가까운 이웃 10개 안에 있고
+ * 방향이 ±45° 안인 것의 비율(둘 다에 있는 문서만 센다). 그림 전체의 이동·확대는 값을 바꾸지 않고,
+ * 회전·뒤집힘·이웃의 교체가 값을 떨어뜨린다.
+ */
+function shapeKept(
+  before: ReadonlyMap<string, cytoscape.Position>,
+  after: ReadonlyMap<string, cytoscape.Position>,
+): number {
+  const ids = [...before.keys()].filter((id) => after.has(id)).sort();
+  const nearest = (
+    at: ReadonlyMap<string, cytoscape.Position>,
+    id: string,
+    k: number,
+  ): string[] => {
+    const p = at.get(id) as cytoscape.Position;
+    return ids
+      .filter((other) => other !== id)
+      .map((other) => {
+        const q = at.get(other) as cytoscape.Position;
+        return [other, Math.hypot(p.x - q.x, p.y - q.y)] as const;
+      })
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, k)
+      .map(([other]) => other);
   };
+  const angle = (at: ReadonlyMap<string, cytoscape.Position>, a: string, b: string): number => {
+    const p = at.get(a) as cytoscape.Position;
+    const q = at.get(b) as cytoscape.Position;
+    return Math.atan2(q.y - p.y, q.x - p.x);
+  };
+  let kept = 0;
+  let total = 0;
+  for (const id of ids) {
+    const later = new Set(nearest(after, id, 10));
+    for (const other of nearest(before, id, 5)) {
+      total += 1;
+      let turn = Math.abs(angle(before, id, other) - angle(after, id, other)) % (2 * Math.PI);
+      if (turn > Math.PI) turn = 2 * Math.PI - turn;
+      if (later.has(other) && turn <= Math.PI / 4) kept += 1;
+    }
+  }
+  return kept / total;
+}
+
+describe('같은 번호면 같은 그림 (2026-09-27 · REQ-WEB-245)', () => {
+  const small = synthetic(60, 240, 5);
 
   it('같은 번호로 두 번 배치하면 모든 문서가 같은 자리다', () => {
-    expect([...layoutWith(1)]).toEqual([...layoutWith(1)]);
+    expect([...layout(small)]).toEqual([...layout(small)]);
+  });
+
+  it('입력의 순서와 무관하다 — 서버가 다른 순서로 줘도 같은 그림이다', () => {
+    expect([...layout(small, 1, true, true)].sort()).toEqual([...layout(small)].sort());
   });
 
   it('번호가 다르면 다른 그림이다 — [다른 배치]의 쓸모', () => {
-    const one = layoutWith(1);
-    const two = layoutWith(2);
-    const moved = [...one].filter(([id, at]) => {
-      const other = two.get(id);
-      return other !== undefined && Math.hypot(other.x - at.x, other.y - at.y) > 1;
-    });
-    expect(moved.length).toBeGreaterThan(0);
-  });
-
-  it('배치가 끝나면 Math.random 을 돌려놓는다 — 던져도 돌려놓는다', () => {
-    const original = Math.random;
-    layoutWith(1);
-    expect(Math.random).toBe(original);
-    expect(() =>
-      withSeed(5, () => {
-        throw new Error('배치 실패');
-      }),
-    ).toThrow('배치 실패');
-    expect(Math.random).toBe(original);
+    expect(shapeKept(layout(small, 1), layout(small, 2))).toBeLessThan(0.5);
   });
 
   it('잎의 자리만 적는다 — 영역 상자는 자식을 감싼 자국이다', () => {
-    const cy = graph();
+    const cy = draw(small);
     runLayout(cy, 1);
     const at = leafPositions(cy);
-    expect(at.has('a0')).toBe(false);
-    expect(at.has('d00')).toBe(true);
+    expect(at.has('area-00')).toBe(false);
+    expect(at.has('doc-0000')).toBe(true);
     cy.destroy();
+  });
+
+  it('기준 자리는 번호와 id 로만 정해진다 — 같은 글자면 같은 수다', () => {
+    expect(hash01('1:a:doc-0001')).toBe(hash01('1:a:doc-0001'));
+    expect(hash01('1:a:doc-0001')).not.toBe(hash01('1:a:doc-0002'));
+    expect(hash01('x')).toBeGreaterThanOrEqual(0);
+    expect(hash01('x')).toBeLessThan(1);
+  });
+});
+
+describe('문서가 늘거나 줄어도 형태가 그대로다 (2026-09-27 · 사람 결정 · REQ-WEB-247)', () => {
+  // 사람이 보고한 규모. 형태 유지율 0.9 가 문턱이다 — 예전(fcose)은 0.10–0.16 이었고,
+  // 이 방법은 합성 실험에서 갱신마다 0.96–1.00 이었다.
+  const base = synthetic(243, 3036, 42);
+  const before = layout(base);
+
+  it('문서 하나를 더해도 이웃과 그 방향이 남는다', () => {
+    expect(shapeKept(before, layout(grow(base, 1, 7)))).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('문서 열 개를 더해도 남는다', () => {
+    expect(shapeKept(before, layout(grow(base, 10, 8)))).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('문서를 지워도 남는다 — 남은 문서끼리의 형태다', () => {
+    const gone = new Set(['doc-0003', 'doc-0050', 'doc-0120']);
+    const fewer = {
+      docs: base.docs.filter((d) => !gone.has(d.id)),
+      links: base.links.filter((l) => !gone.has(l.from) && !gone.has(l.to)),
+    };
+    expect(shapeKept(before, layout(fewer))).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('영역으로 묶기를 켜고 꺼도 문서들이 같은 방향에 남는다', () => {
+    expect(shapeKept(before, layout(base, 1, false))).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('겹친 문서가 없다 — 묶지 않은 그림에서도', () => {
+    for (const grouped of [true, false]) {
+      const cy = draw(base, grouped);
+      runLayout(cy, 1, undefined, treeOf(base));
+      const at: { x: number; y: number; r: number }[] = [];
+      cy.nodes().forEach((n) => {
+        if (!n.isParent()) at.push({ ...n.position(), r: Number(n.data('weight')) / 2 });
+      });
+      for (const [i, p] of at.entries())
+        for (const q of at.slice(i + 1))
+          expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(p.r + q.r);
+      cy.destroy();
+    }
   });
 });

@@ -9,8 +9,10 @@ import {
   connectionsOf,
   legendFor,
   letAreasPan,
+  labelOpacity,
   neighborhoodForTesting,
   nodeSize,
+  withCanvasBackground,
 } from './graph.js';
 
 const nodes = ['a', 'b', 'c', 'd', 'z'].map((k) => ({
@@ -175,5 +177,74 @@ describe('노드 크기 (차수 기반)', () => {
 
   it('역참조가 없어도 보이는 크기다 — 0 은 사라지는 뜻이 아니다', () => {
     expect(nodeSize(0)).toBe(18);
+  });
+});
+
+describe('WebGL 이 읽는 배경색 (2026-09-27 · 사람 보고)', () => {
+  // cytoscape 의 WebGL 렌더러는 화살촉을 배경색과 섞어 칠하는데, 그 배경색을 컨테이너의
+  // **인라인** style 에서만 읽는다(없으면 흰색). 클래스로 칠한 배경을 건네지 않으면 어두운
+  // 테마에서 흐려 둔 화살촉이 흰색으로 칠해져, 고르지 않은 간선이 강조된 것처럼 보였다.
+  it('만드는 동안에는 실제 배경색이 인라인에 있고, 만든 뒤에는 원래대로다', () => {
+    const style = document.createElement('style');
+    style.textContent = '.canvas-dark { background-color: rgb(32, 32, 32); }';
+    document.head.append(style);
+    const el = document.createElement('div');
+    el.className = 'canvas-dark';
+    document.body.append(el);
+    const seen = withCanvasBackground(el, () => el.style.backgroundColor);
+    expect(seen).toBe('rgb(32, 32, 32)');
+    expect(el.style.backgroundColor).toBe('');
+    el.remove();
+    style.remove();
+  });
+
+  it('만들다 던져도 인라인을 되돌린다 — 테마를 바꿔도 캔버스가 옛 배경에 머물지 않는다', () => {
+    const el = document.createElement('div');
+    el.style.backgroundColor = 'rgb(1, 2, 3)';
+    document.body.append(el);
+    expect(() =>
+      withCanvasBackground(el, () => {
+        throw new Error('만들기 실패');
+      }),
+    ).toThrow('만들기 실패');
+    expect(el.style.backgroundColor).toBe('rgb(1, 2, 3)');
+    el.remove();
+  });
+});
+
+describe('WebGL 에서도 가려지는 이름 (2026-09-27 · 실측)', () => {
+  // WebGL 은 이름 텍스처를 스타일 열쇠가 바뀔 때만 다시 그리는데 `text-opacity` 는 열쇠에 없다.
+  // 가리는 클래스가 열쇠에 드는 속성(외곽선 투명도 — 두께가 0 이라 보이지 않는다)도 바꿔야
+  // 흐려진 문서의 이름이 남지 않는다.
+  it('이름의 투명도와 외곽선 투명도를 같이 바꾼다', () => {
+    expect(labelOpacity(0)).toEqual({ 'text-opacity': 0, 'text-outline-opacity': 0 });
+    expect(labelOpacity(0.4)).toEqual({ 'text-opacity': 0.4, 'text-outline-opacity': 0.4 });
+  });
+
+  it('가려진 이름과 보이는 이름은 cytoscape 의 라벨 열쇠가 다르다 — 그래야 텍스처를 다시 그린다', () => {
+    const cy = cytoscape({
+      headless: true,
+      styleEnabled: true,
+      elements: [
+        { data: { id: 'a', label: '같은 이름' } },
+        { data: { id: 'b', label: '같은 이름' } },
+      ],
+      style: [
+        { selector: 'node', style: { label: 'data(label)' } },
+        { selector: '.faded', style: labelOpacity(0) },
+      ],
+    });
+    // 스타일은 늦게 계산된다 — 한 번 읽어서 열쇠를 채운다
+    const key = (id: string): unknown => {
+      const node = cy.$id(id);
+      node.style('text-opacity');
+      return (node[0] as unknown as { _private: { labelStyleKey: unknown } })._private
+        .labelStyleKey;
+    };
+    expect(key('a')).toBeDefined();
+    expect(key('a')).toBe(key('b'));
+    cy.$id('b').addClass('faded');
+    expect(key('a')).not.toBe(key('b'));
+    cy.destroy();
   });
 });

@@ -293,7 +293,9 @@ A bigger node means more documents point to it. Keep two things in mind so you d
 
 The graph controls are in the **top left of the canvas**: view scope (**Whole project** / **Around this doc**), **Group by area**, [Another layout], and a **`?`** button. The `?` button opens **How to read** (color, size, fading), **Gestures** and the **Fast rendering (WebGL)** switch. Node and edge counts are in the bottom-right corner, and the legend is in the bottom-left corner.
 
-**The same documents and relations always get the same layout.** Reload the page or have someone else open it, and each document is in the same place, so you can learn where things are. A different window size gives a slightly different layout. When an agent only changes a document's content or status, the picture stays as it is; the graph is laid out again only when documents or relations are added or removed.
+**The same documents and relations always get the same layout.** Reload the page, have someone else open it, or use a different window size, and each document is in the same place, so you can learn where things are (in a small graph whose names are drawn, the layout may shift slightly to make room for the names). When an agent only changes a document's content or status, the picture stays as it is; the graph is laid out again only when documents or relations are added or removed.
+
+**Adding or removing documents keeps the shape of the picture.** After the new layout, the documents around each document are still in the same directions, and a new document finds its place inside its own area. One new document does not scramble the places you have learned. Turning area grouping on or off also keeps documents in the same directions.
 
 **[Another layout]** shows a different arrangement, which helps untangle a knot. Each click raises the layout number by one, and the number stays in the URL, so you can share that layout as a link. When the number is not 1, **Layout N** and **[First layout]** appear next to it; [First layout] returns to the default layout.
 
