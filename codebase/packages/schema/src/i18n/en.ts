@@ -198,6 +198,7 @@ export const en = {
   'error.mcp.pat_only': 'MCP accepts personal access tokens only.',
   'error.membership.duplicate': 'Already a member with that membership scope.',
   'error.membership.not_found': 'Membership not found.',
+  'error.membership.self_removal': 'You cannot remove yourself.',
   'error.membership.last_org_admin':
     'The last organization admin cannot be removed. Make someone else an organization admin first.',
   'error.invite.accepted': 'That invitation was already accepted.',

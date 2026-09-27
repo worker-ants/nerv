@@ -202,6 +202,7 @@ export const ko = {
   'error.mcp.pat_only': 'MCP는 개인 토큰(PAT)으로만 호출할 수 있습니다.',
   'error.membership.duplicate': '이미 같은 소속의 멤버입니다.',
   'error.membership.not_found': '멤버십을 찾을 수 없습니다.',
+  'error.membership.self_removal': '자기 자신은 빼거나 내보낼 수 없습니다.',
   'error.membership.last_org_admin':
     '조직의 마지막 admin은 뺄 수 없습니다. 다른 사람을 먼저 조직 admin으로 지정하세요.',
   'error.invite.accepted': '이미 수락된 초대입니다.',

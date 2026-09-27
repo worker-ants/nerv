@@ -204,6 +204,56 @@ export class AuthController {
     return this.auth.members(org, principalOf(req).userId);
   }
 
+  /**
+   * EP-MBR-05 — 빼기 전에 무엇이 지워지는지(2026-09-27 · 사람 결정 P2 · REQ-API-226). `project` 가 없으면
+   * 조직에서 내보내기의 미리보기다
+   */
+  @Get('orgs/:org/members/:user/removal')
+  memberRemoval(
+    @Req() req: ProjectRequest,
+    @Param('org') org: string,
+    @Param('user') user: string,
+    @Query('project') project?: string,
+  ): Promise<unknown> {
+    return this.auth.memberRemovalPreview({
+      orgSlug: org,
+      targetUserId: user,
+      project: project === undefined || project === '' ? null : project,
+      actorUserId: principalOf(req).userId,
+    });
+  }
+
+  /** EP-MBR-06 — 한 프로젝트에서 빼기(한 트랜잭션 · REQ-API-227) */
+  @Delete('orgs/:org/members/:user/projects/:proj')
+  removeFromProject(
+    @Req() req: ProjectRequest,
+    @Param('org') org: string,
+    @Param('user') user: string,
+    @Param('proj') proj: string,
+  ): Promise<unknown> {
+    return this.auth.removeMember({
+      orgSlug: org,
+      targetUserId: user,
+      project: proj,
+      actorUserId: principalOf(req).userId,
+    });
+  }
+
+  /** EP-MBR-07 — 조직에서 내보내기(한 트랜잭션 · REQ-API-227) */
+  @Delete('orgs/:org/members/:user')
+  removeFromOrg(
+    @Req() req: ProjectRequest,
+    @Param('org') org: string,
+    @Param('user') user: string,
+  ): Promise<unknown> {
+    return this.auth.removeMember({
+      orgSlug: org,
+      targetUserId: user,
+      project: null,
+      actorUserId: principalOf(req).userId,
+    });
+  }
+
   /** EP-TOK-01 — 원문 없음 */
   @Get('me/tokens')
   tokens(@Req() req: ProjectRequest): Promise<unknown> {

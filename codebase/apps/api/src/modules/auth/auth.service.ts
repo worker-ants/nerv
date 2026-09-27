@@ -32,8 +32,10 @@ import type { AgentScope } from '@nerv/schema';
 import { scopesForRoles } from '@nerv/schema';
 import type { RoleScope } from '@nerv/schema';
 import { sqlArray } from '../../common/sql-array.js';
+import { looksLikeUuid } from '../../common/entity-ref.js';
 import { assertScope as assertScopeOf } from '../../common/scope-check.js';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { Inject, Optional } from '@nestjs/common';
 import { EventService } from '../event/event.service.js';
 import type { NervEventName } from '@nerv/schema';
@@ -915,6 +917,235 @@ export class AuthService {
     return { ok: true };
   }
 
+  /**
+   * EP-MBR-05 — **빼기 전에 무엇이 지워지는지**(2026-09-27 · 사람 결정 P2 · REQ-API-226).
+   *
+   * 화면의 확인 단계가 이 수를 그대로 적는다 — 적은 수와 실제로 지운 수가 어긋나지 않게, 판정은 빼기와 같은
+   * 함수(`removalScope`)가 한다. `project` 가 없으면 조직에서 내보내기의 미리보기다.
+   */
+  async memberRemovalPreview(input: {
+    orgSlug: string;
+    targetUserId: string;
+    project: string | null;
+    actorUserId: string;
+  }): Promise<MemberRemovalPreview> {
+    const target = await this.removalTarget(input);
+    const scope = await this.removalScope(this.db, target);
+    const affected = affectedProjectsSql(target.orgId, scope);
+    const [{ rows: tokens }, { rows: tasks }, { rows: claims }, { rows: approvals }] =
+      await Promise.all([
+        this.db.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n FROM api_token t
+           WHERE t.user_id = ${target.userId} AND ${liveTokenSql} AND t.project_id IN (${affected})`),
+        this.db.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n FROM task t
+           WHERE ${unassignableTaskSql(target.userId)} AND t.project_id IN (${affected})`),
+        this.db.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n FROM claim c
+           WHERE c.user_id = ${target.userId} AND c.status = 'active'
+             AND c.project_id IN (${affected})`),
+        this.db.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n FROM approval a
+           WHERE a.assignee_user_id = ${target.userId} AND a.decision IS NULL
+             AND a.project_id IN (${affected})`),
+      ]);
+    return {
+      roles: scope.roles,
+      org_roles: scope.orgRolesAfter,
+      keeps_access: scope.keepsAccess,
+      left_org: scope.leftOrg,
+      tokens: tokens[0]?.n ?? 0,
+      tasks: tasks[0]?.n ?? 0,
+      active_claims: claims[0]?.n ?? 0,
+      assigned_approvals: approvals[0]?.n ?? 0,
+    };
+  }
+
+  /**
+   * EP-MBR-06 · EP-MBR-07 — **한 번에 뺀다**(2026-09-27 · 사람 결정 P2 · REQ-API-227).
+   *
+   * 화면이 토큰 폐기(EP-TOK-03)와 멤버십 삭제(EP-MBR-04)를 하나씩 부르던 동안, 중간에 실패하면 일부만
+   * 지워진 채로 남았고 프로젝트 admin 은 조직 토큰 표를 읽지 못해 토큰을 끊지 못했다. 한 트랜잭션에서
+   * 멤버십을 지우고, 그 사람이 더는 볼 수 없게 된 프로젝트의 살아 있는 토큰을 폐기하고, 맡은 작업의
+   * 담당자를 비운다. 진행 중 클레임과 지정된 결재는 건드리지 않는다(P2 A — 돌고 있는 세션을 한쪽에서
+   * 끊지 않고, 지정된 결재는 admin 이 대신 결정할 수 있다). `project` 가 없으면 조직에서 내보내기다.
+   */
+  async removeMember(input: {
+    orgSlug: string;
+    targetUserId: string;
+    project: string | null;
+    actorUserId: string;
+  }): Promise<MemberRemovalResult> {
+    const target = await this.removalTarget(input);
+    const done = await this.db.transaction(async (tx) => {
+      // 같은 조직의 빼기 · 역할 변경이 겹쳐도 "조직 admin 이 한 명은 남는다" 가 지켜지게 조직 행을 잡는다
+      // (REQ-API-174 와 같은 자물쇠)
+      await tx.execute(
+        sql`SELECT 1 FROM organization WHERE id = ${target.orgId} FOR NO KEY UPDATE`,
+      );
+      if (target.projectId === null) await this.assertNotLastOrgAdminUser(tx, target);
+      const scope = await this.removalScope(tx, target);
+      if (scope.roles.length === 0) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
+          kind: 'not_found',
+          field: 'user',
+        });
+      }
+      const { rows: removed } = await tx.execute<{ project_id: string | null; role: string }>(sql`
+        DELETE FROM membership
+         WHERE org_id = ${target.orgId} AND user_id = ${target.userId}
+           ${target.projectId === null ? sql`` : sql`AND project_id = ${target.projectId}`}
+        RETURNING project_id, role::text AS role
+      `);
+      const affected = affectedProjectsSql(target.orgId, scope);
+      const { rows: tokens } = await tx.execute<{ project_id: string }>(sql`
+        UPDATE api_token t SET revoked_at = now()
+         WHERE t.user_id = ${target.userId} AND ${liveTokenSql} AND t.project_id IN (${affected})
+        RETURNING t.project_id
+      `);
+      const { rows: tasks } = await tx.execute<{ project_id: string }>(sql`
+        UPDATE task t SET assignee_user_id = NULL, updated_at = now()
+         WHERE ${unassignableTaskSql(target.userId)} AND t.project_id IN (${affected})
+        RETURNING t.project_id
+      `);
+      return { removed, tokens, tasks, scope };
+    });
+
+    // 감사는 커밋 뒤에 따로 낸다(이 서비스의 규칙 · `audit`). 프로젝트마다 한 건 — 이벤트는 프로젝트에 매인다
+    const projects = new Set<string>([
+      ...done.removed.flatMap((r) => (r.project_id === null ? [] : [r.project_id])),
+      ...done.tokens.map((r) => r.project_id),
+      ...done.tasks.map((r) => r.project_id),
+    ]);
+    for (const projectId of projects) {
+      await this.audit({
+        projectId,
+        type: NERV_EVENT.MEMBER_REMOVED,
+        subjectType: 'user',
+        subjectId: target.userId,
+        actorUserId: input.actorUserId,
+        payload: {
+          user_id: target.userId,
+          org_id: target.orgId,
+          scope: target.projectId === null ? 'org' : 'project',
+          roles: done.removed.filter((r) => r.project_id === projectId).map((r) => r.role),
+          tokens_revoked: done.tokens.filter((r) => r.project_id === projectId).length,
+          tasks_unassigned: done.tasks.filter((r) => r.project_id === projectId).length,
+          left_org: done.scope.leftOrg,
+        },
+      });
+    }
+    return {
+      ok: true,
+      roles: done.removed.length,
+      tokens_revoked: done.tokens.length,
+      tasks_unassigned: done.tasks.length,
+      keeps_access: done.scope.keepsAccess,
+      left_org: done.scope.leftOrg,
+    };
+  }
+
+  /**
+   * 빼기의 대상 — 조직 · (프로젝트) · 사람을 풀고 권한을 본다. 판정은 멤버십 문(EP-MBR-02~04)과 같은
+   * `assertCanManageScope` 한 곳이다: 프로젝트에서 빼기는 조직 admin 또는 그 프로젝트의 admin, 조직에서
+   * 내보내기는 조직 admin 만. 자기 자신은 뺄 수 없다.
+   */
+  private async removalTarget(input: {
+    orgSlug: string;
+    targetUserId: string;
+    project: string | null;
+    actorUserId: string;
+  }): Promise<RemovalTarget> {
+    const { rows: orgs } = await this.db.execute<{ id: string }>(
+      sql`SELECT id FROM organization WHERE slug = ${input.orgSlug}`,
+    );
+    const orgId = orgs[0]?.id;
+    if (orgId === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
+        kind: 'not_found',
+        field: 'org',
+      });
+    }
+    let projectId: string | null = null;
+    if (input.project !== null) {
+      const ref = input.project;
+      const { rows: projects } = await this.db.execute<{ id: string }>(sql`
+        SELECT id FROM project
+         WHERE org_id = ${orgId}
+           AND ${looksLikeUuid(ref) ? sql`id = ${ref}::uuid` : sql`slug = ${ref}`}
+      `);
+      projectId = projects[0]?.id ?? null;
+      if (projectId === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.project.not_found'), {
+          kind: 'not_found',
+          field: 'project',
+        });
+      }
+    }
+    await this.assertCanManageScope(input.actorUserId, orgId, projectId);
+    if (!looksLikeUuid(input.targetUserId)) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.not_found'), {
+        kind: 'not_found',
+        field: 'user',
+      });
+    }
+    if (input.targetUserId === input.actorUserId) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.self_removal'), {
+        kind: 'self_removal',
+      });
+    }
+    return { orgId, projectId, userId: input.targetUserId };
+  }
+
+  /**
+   * 빼면 무엇이 바뀌는가 — **미리보기와 빼기가 같은 판정을 쓴다**.
+   *
+   * - 조직에서 내보내기 · 마지막 소속을 빼기: 그 조직의 모든 프로젝트에서 볼 수 없게 된다.
+   * - 조직 전체 역할이 남는 프로젝트 빼기: 그 프로젝트를 계속 본다(권한은 합집합) — 역할만 지운다(P3).
+   * - 그 밖의 프로젝트 빼기: 그 프로젝트만 볼 수 없게 된다.
+   */
+  private async removalScope(
+    db: Pick<NervDb, 'execute'>,
+    target: RemovalTarget,
+  ): Promise<RemovalScope> {
+    const { rows } = await db.execute<{ project_id: string | null; role: string }>(sql`
+      SELECT project_id, role::text AS role FROM membership
+       WHERE org_id = ${target.orgId} AND user_id = ${target.userId}
+    `);
+    const inTarget = (r: { project_id: string | null }): boolean =>
+      target.projectId === null || r.project_id === target.projectId;
+    const roles = rows.filter(inTarget).map((r) => r.role);
+    const after = rows.filter((r) => !inTarget(r));
+    const orgRolesAfter = after.filter((r) => r.project_id === null).map((r) => r.role);
+    const leftOrg = after.length === 0;
+    const keepsAccess = target.projectId !== null && orgRolesAfter.length > 0;
+    return {
+      roles,
+      orgRolesAfter,
+      leftOrg,
+      keepsAccess,
+      lostProjectId: leftOrg ? 'all' : keepsAccess ? null : target.projectId,
+    };
+  }
+
+  /** 조직에서 내보내기가 그 조직의 마지막 조직 admin 을 없애게 되면 거절한다(REQ-API-174) */
+  private async assertNotLastOrgAdminUser(
+    tx: Pick<NervDb, 'execute'>,
+    target: RemovalTarget,
+  ): Promise<void> {
+    const { rows } = await tx.execute<{ mine: number; others: number }>(sql`
+      SELECT count(*) FILTER (WHERE user_id = ${target.userId})::int AS mine,
+             count(*) FILTER (WHERE user_id <> ${target.userId})::int AS others
+        FROM membership
+       WHERE org_id = ${target.orgId} AND project_id IS NULL AND role = 'admin'
+    `);
+    if ((rows[0]?.mine ?? 0) > 0 && (rows[0]?.others ?? 0) === 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.membership.last_org_admin'), {
+        kind: 'last_org_admin',
+      });
+    }
+  }
+
   /** EP-TOK-01 — **원문은 없다.** 발급 응답에서 한 번 보여준 뒤로는 어디에도 남지 않는다. */
   async tokens(userId: string): Promise<Record<string, unknown>[]> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
@@ -1431,4 +1662,66 @@ function parsePolicy<T>(
     });
   }
   return parsed.data;
+}
+
+/** 빼기의 대상 — 조직 · (프로젝트) · 사람(2026-09-27 · REQ-API-226·227) */
+interface RemovalTarget {
+  orgId: string;
+  /** 없으면 조직에서 내보내기 */
+  projectId: string | null;
+  userId: string;
+}
+
+interface RemovalScope {
+  /** 지울 역할 */
+  roles: string[];
+  /** 빼고 나서 남는 조직 전체 역할 */
+  orgRolesAfter: string[];
+  /** 그 조직의 소속이 하나도 남지 않는다 */
+  leftOrg: boolean;
+  /** 조직 전체 역할로 그 프로젝트를 계속 본다 */
+  keepsAccess: boolean;
+  /** 볼 수 없게 되는 프로젝트 — 조직 전부(`all`) · 하나 · 없음(`null`) */
+  lostProjectId: string | 'all' | null;
+}
+
+export interface MemberRemovalPreview {
+  roles: string[];
+  org_roles: string[];
+  keeps_access: boolean;
+  left_org: boolean;
+  tokens: number;
+  tasks: number;
+  active_claims: number;
+  assigned_approvals: number;
+}
+
+export interface MemberRemovalResult {
+  ok: true;
+  roles: number;
+  tokens_revoked: number;
+  tasks_unassigned: number;
+  keeps_access: boolean;
+  left_org: boolean;
+}
+
+/** 볼 수 없게 되는 프로젝트들 — 토큰 · 작업 · 클레임 · 결재를 이 안에서만 센다 */
+function affectedProjectsSql(orgId: string, scope: RemovalScope): SQL {
+  if (scope.lostProjectId === 'all')
+    return sql`SELECT p.id FROM project p WHERE p.org_id = ${orgId}`;
+  if (scope.lostProjectId === null) return sql`SELECT NULL::uuid WHERE false`;
+  return sql`SELECT ${scope.lostProjectId}::uuid`;
+}
+
+/** 살아 있는 토큰 — 폐기 · 만료된 것은 이미 끊겼다(화면의 `liveTokensOf` 와 같은 뜻) */
+const liveTokenSql = sql`t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > now())`;
+
+/**
+ * 담당자를 비울 작업 — 끝나지 않았고, **그 사람이 지금 잡고 있지 않은 것**. 잡고 있는(클레임이 살아 있는)
+ * 작업은 클레임으로 따로 센다 — 세션이 일하는 도중에 담당자만 비우면 누가 하고 있는지가 흐려진다(P2 A).
+ */
+function unassignableTaskSql(userId: string): SQL {
+  return sql`t.assignee_user_id = ${userId} AND t.status <> 'done'
+    AND NOT EXISTS (SELECT 1 FROM claim c
+                     WHERE c.task_id = t.id AND c.user_id = ${userId} AND c.status = 'active')`;
 }
