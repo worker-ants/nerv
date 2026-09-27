@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 39개**다 — 도메인 33 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.56 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.57 · 2026-09-27 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.57 변경(2026-09-27 — 알림 파생의 멱등 키, 다이제스트 검토): **REQ-DB-029 신설 · §2.12 인덱스 한 줄 · 마이그레이션 `0036`.** 알림 파생은 "알림 행이 없는 이벤트" 를 찾아 넣는데 `(event_id, user_id)` 유일 제약이 없어, 파생이 겹치면 같은 알림이 두 번 들어갈 수 있었다. 유일 인덱스 `notification_event_user` 를 둔다. 명세 [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5 의 멱등 키이고, 묶음(다음 단계)이 들어오면 더 필요해진다.
 >
 > v0.56 변경(2026-09-27 — 프로젝트마다 알림을 받는 수준, **사람 결정 N3**): **REQ-DB-028 신설 · §2.1 enum 하나 · §2.10 테이블 하나 · 마이그레이션 `0035`.** `notification_preference`(사람 × 프로젝트 → `notification_level`). 행이 없으면 `all` 이다. 계수를 실측으로 고쳤다 — enum 은 `email_kind`(0027)를 빠뜨려 40이라 적혀 있었고, 이제 42종이다. `CREATE TABLE` 은 39개(도메인 33 + 부속 6)다.
 >
@@ -977,6 +979,7 @@ CREATE INDEX event_project_time ON event (project_id, occurred_at DESC);        
 CREATE INDEX event_subject      ON event (subject_type, subject_id, occurred_at);  -- 감사(§4.8)
 CREATE INDEX notification_inbox ON notification (user_id, state, created_at DESC); -- 보조: 수신함
 CREATE INDEX notification_scope ON notification (user_id, project_id, state);  -- 보조: 조직 · 프로젝트 칸의 수와 범위 안 모두 읽음(REQ-DB-027)
+CREATE UNIQUE INDEX notification_event_user ON notification (event_id, user_id); -- 파생 멱등: 한 이벤트 · 한 사람 · 한 행(REQ-DB-029)
 CREATE INDEX question_open ON question (project_id, status);                       -- 보조: 열린 질문 수
 CREATE INDEX evidence_requirement ON evidence (requirement_id) WHERE NOT stale;    -- 보조: 커버리지(§4.1)
 ```
@@ -1244,6 +1247,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-026 | WHEN 발송이 실패하면 THE SYSTEM SHALL 지수 백오프로 다시 시도하고, 상한을 넘으면 행을 **지우지 않고** 실패 시각과 사유를 남긴다 |
 | REQ-DB-027 | WHEN 알림 행이 저장되면 THE SYSTEM SHALL `(user_id, project_id, state)` 인덱스(`notification_scope` · 마이그레이션 `0034`)로 그 사람의 프로젝트별 안 읽은 수와 범위 안 [모두 읽음]을 그 사람의 알림 전부를 훑지 않고 처리할 수 있게 한다([4.4 API 명세](api.md) REQ-API-215·216 · 2026-09-27) |
 | REQ-DB-028 | WHEN 사람이 프로젝트의 알림 수준을 고르면 THE SYSTEM SHALL `notification_preference(user_id, project_id)` 한 행에 `notification_level`(`all` · `important` · `none`)을 두고, `all` 이면 행을 두지 않는다. 사람이나 프로젝트가 지워지면 그 행도 지운다(ON DELETE CASCADE). 파생 워커는 이 행으로 읽음 상태를 정한다([4.4 API 명세](api.md) REQ-API-219·220 · 2026-09-27) |
+| REQ-DB-029 | WHEN 알림 행이 저장되면 THE SYSTEM SHALL `(event_id, user_id)` 유일 인덱스(`notification_event_user` · 마이그레이션 `0036`)로 한 이벤트에서 한 사람에게 알림이 한 행임을 보장한다. 파생이 겹치거나 다시 돌아도 둘째 행은 들어가지 않는다([4.4 API 명세](api.md) REQ-API-222 · 2026-09-27) |
 
 ---
 

@@ -223,6 +223,138 @@ describe('알림 라우팅은 창에 막히지 않는다 (REQ-API-064 계열)', 
     expect(byType.get(NERV_EVENT.SPEC_APPROVED)?.['spec_key']).toBe('VER-SPEC');
     expect(byType.get(NERV_EVENT.SPEC_RECHECK_REQUESTED)?.['spec_key']).toBe('VER-SPEC');
   });
+
+  /**
+   * **주인이 행위자뿐이면 아무에게도 보내지 않는다**(2026-09-27 · REQ-API-150 개정 · REQ-API-221).
+   * 재검토 요청에 행위자(승인한 사람)가 생기자, 그 사람을 뺀 주인 목록이 비는 경우가 생겼다. 그것을
+   * "주인이 없다" 로 읽어 기본 큐로 넘기면 승인 한 번이 admin · planner 의 목록을 채운다.
+   */
+  it('재검토 요청은 승인한 사람에게 가지 않고, 주인이 그 사람뿐이면 아무에게도 가지 않는다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const orgId = newId();
+    const projectId = newId();
+    const approver = newId();
+    const admin = newId();
+    const specId = newId();
+    await poolA.query(`INSERT INTO organization (id, slug, name) VALUES ($1,$2,'주인')`, [
+      orgId,
+      `own-${orgId.slice(-6)}`,
+    ]);
+    await poolA.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'주인')`,
+      [projectId, orgId, `own-${projectId.slice(-6)}`, `O${projectId.slice(-2).toUpperCase()}`],
+    );
+    const member = async (id: string, role: string): Promise<void> => {
+      await poolA.query(
+        `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'x','active')`,
+        [id, `${id.slice(-6)}-own@example.com`],
+      );
+      await poolA.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,$5)`,
+        [newId(), orgId, projectId, id, role],
+      );
+    };
+    await member(approver, 'qa');
+    await member(admin, 'admin');
+    await poolA.query(
+      `INSERT INTO spec (id, project_id, type, key, title, owner_role)
+       VALUES ($1,$2,'feature','OWN-SPEC','문서','qa')`,
+      [specId, projectId],
+    );
+    const recheck = async (): Promise<string> => {
+      const id = newId();
+      await poolA.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
+         VALUES ($1,$2,$3,'spec',$4,$5, now())`,
+        [id, projectId, NERV_EVENT.SPEC_RECHECK_REQUESTED, specId, approver],
+      );
+      return id;
+    };
+    const recipients = async (eventId: string): Promise<string[]> => {
+      const { rows } = await poolA.query<{ user_id: string }>(
+        `SELECT user_id FROM notification WHERE event_id = $1 ORDER BY user_id`,
+        [eventId],
+      );
+      return rows.map((r) => r.user_id);
+    };
+
+    // ① 주인 역할(qa)이 승인한 사람 하나뿐이다 — admin 에게 넘어가지 않는다
+    const alone = await recheck();
+    await new NotificationService(drizzle(poolA)).route();
+    expect(await recipients(alone)).toEqual([]);
+
+    // ② 다른 qa 가 있으면 그 사람만 받는다
+    const colleague = newId();
+    await member(colleague, 'qa');
+    const shared = await recheck();
+    await new NotificationService(drizzle(poolA)).route();
+    expect(await recipients(shared)).toEqual([colleague]);
+  });
+
+  /**
+   * **한 이벤트 · 한 사람 · 한 행**(2026-09-27 · REQ-API-222 · REQ-DB-029). 파생은 "알림 행이 없는
+   * 이벤트" 를 읽고 넣는데, 그 판단은 읽는 순간의 것이다. 두 파생을 실제 Postgres 에서 겹쳐 돌려도
+   * 행은 한 벌이다.
+   */
+  it('파생이 겹쳐 돌아도 한 이벤트에서 한 사람에게 알림은 한 행이다', async () => {
+    const { NotificationService } = await import('../../src/modules/event/notification.service.js');
+    const orgId = newId();
+    const projectId = newId();
+    const actor = newId();
+    const people = [newId(), newId(), newId()];
+    await poolA.query(`INSERT INTO organization (id, slug, name) VALUES ($1,$2,'멱등')`, [
+      orgId,
+      `idem-${orgId.slice(-6)}`,
+    ]);
+    await poolA.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'멱등')`,
+      [projectId, orgId, `idem-${projectId.slice(-6)}`, `I${projectId.slice(-2).toUpperCase()}`],
+    );
+    for (const id of [actor, ...people]) {
+      await poolA.query(
+        `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'x','active')`,
+        [id, `${id.slice(-6)}-idem@example.com`],
+      );
+      await poolA.query(
+        `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'planner')`,
+        [newId(), orgId, projectId, id],
+      );
+    }
+    const events = 40;
+    for (let i = 0; i < events; i += 1) {
+      await poolA.query(
+        `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
+         VALUES ($1,$2,$3,'spec_version',$4,$5, now() + ($6 || ' milliseconds')::interval)`,
+        [newId(), projectId, NERV_EVENT.SPEC_APPROVED, newId(), actor, i],
+      );
+    }
+
+    await Promise.all([
+      new NotificationService(drizzle(poolA)).route(),
+      new NotificationService(drizzle(poolB)).route(),
+    ]);
+
+    const { rows } = await poolA.query<{ n: number; pairs: number }>(
+      `SELECT count(*)::int AS n, count(DISTINCT (event_id, user_id))::int AS pairs
+         FROM notification WHERE project_id = $1`,
+      [projectId],
+    );
+    expect(rows[0]?.n).toBe(events * people.length);
+    expect(rows[0]?.pairs).toBe(rows[0]?.n);
+
+    // 인덱스가 직접 막는다 — 파생 경로를 거치지 않은 둘째 행도 들어가지 않는다
+    const { rows: one } = await poolA.query<{ event_id: string; user_id: string }>(
+      `SELECT event_id, user_id FROM notification WHERE project_id = $1 LIMIT 1`,
+      [projectId],
+    );
+    await expect(
+      poolA.query(
+        `INSERT INTO notification (id, project_id, user_id, event_id, importance)
+         VALUES ($1,$2,$3,$4,'immediate')`,
+        [newId(), projectId, one[0]?.user_id, one[0]?.event_id],
+      ),
+    ).rejects.toMatchObject({ code: '23505' });
+  });
 });
 
 describe('월 파티션 — 두 달 뒤에 멈추지 않는다 (REQ-DB-021)', () => {

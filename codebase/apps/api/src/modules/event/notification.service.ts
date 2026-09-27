@@ -152,15 +152,21 @@ export class NotificationService {
           const loud: string[] = [];
           for (const userId of recipients) {
             const read = closed || quiet.has(userId);
-            if (!read) loud.push(userId);
-            await this.db.execute(sql`
+            // **한 이벤트 · 한 사람 · 한 행**(2026-09-27 · REQ-API-222 · REQ-DB-029). 위의 `NOT EXISTS` 는
+            // 읽는 순간의 판단이라, 파생이 겹치면 둘 다 "없다" 고 보고 같은 알림을 두 번 넣을 수 있었다.
+            // 유일 인덱스가 둘째 행을 막고, 여기서는 들어간 행만 세고 알린다
+            const { rows: inserted } = await this.db.execute<{ id: string }>(sql`
               INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state,
                                         read_at)
               VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
                       ${importance}::notification_importance,
                       'inapp', ${read ? 'read' : 'unread'}::notification_state,
                       ${read ? sql`now()` : sql`NULL`})
+              ON CONFLICT (event_id, user_id) DO NOTHING
+              RETURNING id
             `);
+            if (inserted.length === 0) continue;
+            if (!read) loud.push(userId);
             created += 1;
           }
           // **개인 룸으로 나가는 유일한 방송**(api.md §3.3). 이것이 없던 동안 `user:{id}` 룸과
@@ -264,6 +270,10 @@ export class NotificationService {
    * 역할 큐로 흩뿌리던 동안 recheck 1,336건이 admin·planner 의 목록을 채웠고, 결정이 필요한
    * 19건이 그 안에 묻혔다. 문서에 주인 역할이 없으면(`owner_role IS NULL`) 기본 큐로 간다 —
    * 아무에게도 가지 않는 것보다 낫다.
+   *
+   * **주인이 행위자뿐이면 아무에게도 보내지 않는다**(2026-09-27 · REQ-API-150 개정). 행위자(승인한
+   * 사람 · REQ-API-221)를 뺀 결과가 비었다고 기본 큐로 넘기면, 자기 문서가 참조하는 문서를 승인할
+   * 때마다 admin · planner 의 목록이 찬다 — 주인이 없는 것과 주인이 자기뿐인 것은 다르다.
    */
   private async specOwnerTargets(event: {
     project_id: string;
@@ -278,9 +288,9 @@ export class NotificationService {
          AND (m.project_id = p.id OR m.project_id IS NULL)
          AND m.role = s.owner_role
        WHERE s.id = ${event.subject_id} AND s.owner_role IS NOT NULL
-         ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
     `);
-    return rows.length === 0 ? null : rows.map((r) => r.user_id);
+    if (rows.length === 0) return null;
+    return rows.map((r) => r.user_id).filter((id) => id !== event.actor_user_id);
   }
 
   /**

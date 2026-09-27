@@ -6,7 +6,16 @@
 // 물리 FK 를 걸 수 없고, notification 생성 경로가 워커 하나뿐이므로 무결성은 그 경로가 진다.
 
 import { sql } from 'drizzle-orm';
-import { boolean, index, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import {
   notificationChannel,
   notificationImportance,
@@ -75,6 +84,9 @@ export const notification = pgTable(
     // 범위별 수와 범위 안의 [모두 읽음](2026-09-27 · REQ-DB-027 · REQ-API-214·216) — 위 인덱스는
     // 프로젝트를 몰라, 프로젝트마다 안 읽은 수를 세려면 그 사람의 알림 전부를 훑어야 했다
     index('notification_scope').on(t.userId, t.projectId, t.state),
+    // **파생의 멱등 키**(2026-09-27 · REQ-DB-029 · api.md REQ-API-222). 워커는 "알림 행이 없는 이벤트" 를
+    // 찾아 넣는데, 그 판단은 읽는 순간의 것이라 파생이 겹치면 같은 알림이 두 번 들어갈 수 있었다
+    uniqueIndex('notification_event_user').on(t.eventId, t.userId),
   ],
 );
 

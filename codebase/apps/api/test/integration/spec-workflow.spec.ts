@@ -7,7 +7,7 @@
 // 승인 축은 clemvion 이 갖지 못했던 것이다(D-01). 그 축이 실제로 서 있는지는 "가변 구간이
 // draft 하나뿐"이라는 성질이 DB 에서 강제되는지로 판정된다.
 
-import { NERV_ERROR, newId } from '@nerv/schema';
+import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -1137,6 +1137,36 @@ describe('E09-S07 재브리핑·참조 전파 (§3.3)', () => {
       `SELECT subject_id FROM event WHERE type = 'spec.recheck_requested'`,
     );
     expect(rows.map((r) => r.subject_id)).toContain(source.specId);
+  });
+
+  /**
+   * **문서마다 한 번 · 행위자는 승인한 사람**(2026-09-27 · REQ-API-221). 관계 행마다 내던 동안 두 종류로
+   * 가리키는 문서는 같은 요청을 두 번 받았고, 행위자가 비어 승인한 사람도 자기 승인의 요청을 받았다.
+   */
+  it('두 종류로 참조해도 재검토 요청은 한 번이고, 행위자는 승인한 사람이다', async () => {
+    const target = await newDraft('SPC-TWICE');
+    const source = await newDraft('SPC-TWO-KINDS');
+    for (const kind of ['references', 'depends_on'] as const) {
+      await pool.query(
+        `INSERT INTO spec_relation (id, project_id, from_spec_id, to_spec_id, kind)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [newId(), projectId, source.specId, target.specId, kind],
+      );
+    }
+
+    // 들어오는 관계가 생기면 폭발 반경이 올라 사람의 승인이 필요하다 — 그 사람이 행위자다
+    await expect(
+      specs.submitReview({ projectId, specVersionId: target.versionId, userId: planner }),
+    ).resolves.toMatchObject({ status: 'in_review' });
+    await decideOn(target.versionId, reviewer, 'approve');
+
+    const { rows } = await pool.query<{ actor_user_id: string | null }>(
+      `SELECT actor_user_id FROM event
+        WHERE type = $1 AND subject_id = $2 AND payload ->> 'because_of' = $3`,
+      [NERV_EVENT.SPEC_RECHECK_REQUESTED, source.specId, target.specId],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.actor_user_id).toBe(reviewer);
   });
 
   /**

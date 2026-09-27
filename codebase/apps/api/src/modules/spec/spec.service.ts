@@ -2811,9 +2811,12 @@ export class SpecService {
       }
     }
 
-    // 참조 전파 — 이 스펙을 참조하는 문서에 재검토 신호(§3.3)
+    // 참조 전파 — 이 스펙을 참조하는 문서에 재검토 신호(§3.3). **문서마다 한 번**이다(2026-09-27 ·
+    // REQ-API-221) — 관계 행마다 내던 동안 두 종류(참조 · 의존)로 가리키는 문서는 같은 요청을 두 번 받았다.
+    // 행위자는 승인한 사람(자동 통과면 제출한 사람)이다 — 비어 있던 동안 "자기 행동의 알림은 보내지
+    // 않는다" 가 적용되지 않아, 승인한 사람도 자기 승인의 재검토 요청을 받았다
     const { rows: referencing } = await tx.execute<{ from_spec_id: string }>(
-      sql`SELECT from_spec_id FROM spec_relation WHERE to_spec_id = ${input.specId}`,
+      sql`SELECT DISTINCT from_spec_id FROM spec_relation WHERE to_spec_id = ${input.specId}`,
     );
     for (const ref of referencing) {
       await emit({
@@ -2821,7 +2824,9 @@ export class SpecService {
         projectId: input.projectId,
         subjectType: 'spec',
         subjectId: ref.from_spec_id,
-        isAgent: false,
+        actorUserId: input.actor.userId,
+        actorSessionId: input.actor.sessionId,
+        isAgent: input.actor.isAgent,
         payload: { because_of: input.specId },
       });
     }
