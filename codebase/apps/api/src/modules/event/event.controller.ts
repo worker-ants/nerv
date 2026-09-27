@@ -1,7 +1,7 @@
 // REST — 이벤트 피드 · 알림 (docs/04-mvp/api.md §2.7)
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { intParam } from '../../common/query-vocab.js';
-import { msg, NERV_ERROR, NotificationReadAllInput } from '@nerv/schema';
+import { msg, NERV_ERROR, NotificationLevelInput, NotificationReadAllInput } from '@nerv/schema';
 import { parseBody } from '../../common/parse-body.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
@@ -85,6 +85,20 @@ export class EventController {
   @Get('me/notifications/scopes')
   scopes(@Req() req: ProjectRequest): Promise<unknown> {
     return this.notifications.scopes(userOf(req));
+  }
+
+  /**
+   * EP-NTF-06 — 프로젝트의 알림 수준을 고른다(2026-09-27 · 사람 결정 N3 · REQ-API-220). 본인의 것만이다
+   */
+  @Put('me/notifications/level')
+  setLevel(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
+    const input = parseBody(NotificationLevelInput, body);
+    return this.notifications.setLevel({
+      userId: userOf(req),
+      project: input.project,
+      org: input.org ?? null,
+      level: input.level,
+    });
   }
 
   /** EP-NTF-02 */

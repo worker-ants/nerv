@@ -37,6 +37,7 @@ import {
 } from '../components/ui/primitives.js';
 import { ScopeBadge } from '../components/scope-badge.js';
 import { ScopeRail, scopeName, scopeTotals } from '../features/inbox/scope-rail.js';
+import { levelOf, NotificationLevelControl } from '../features/inbox/notification-level.js';
 import type { ScopeRailRow, ScopeSelection } from '../features/inbox/scope-rail.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
@@ -137,12 +138,24 @@ function NotificationScreen(): React.JSX.Element {
   const notifications = useNotifications(filter, scope);
   const unreadCount = useUnreadCount();
   const scopes = useNotificationScopes();
-  const railRows: ScopeRailRow[] = (scopes.data?.items ?? []).map((r) => ({
-    ...r,
-    urgent: r.immediate,
-    count: r.unread,
-  }));
+  const railRows: ScopeRailRow[] = (scopes.data?.items ?? []).map((r) => {
+    const level = levelOf(r.level);
+    return {
+      ...r,
+      urgent: r.immediate,
+      count: r.unread,
+      // 기본(모두)이 아니면 이름 옆에 적는다 — 수가 적은 까닭이 수준 때문일 수 있다(REQ-WEB-259)
+      ...(level === 'all' ? {} : { tag: t(`notif.level.${level}`) }),
+    };
+  });
   const scopeLabel = scopeName(railRows, scope);
+  // 프로젝트 하나로 좁혔을 때 그 프로젝트의 줄 — 받는 수준을 여기서 고른다(REQ-WEB-259)
+  const scopedRow =
+    project === undefined
+      ? undefined
+      : scopes.data?.items.find(
+          (r) => r.project_slug === project && (org === undefined || r.org_slug === org),
+        );
   const navigate = useNavigate();
   const { pushToast } = useRealtime();
   const router = useRouter();
@@ -444,6 +457,24 @@ function NotificationScreen(): React.JSX.Element {
           />
         )}
         <div className="min-w-0 flex-1">
+          {/* **이 프로젝트의 알림을 얼마나 받을지**(2026-09-27 · 사람 결정 N3 · REQ-WEB-259). 좁혀 본 그
+              자리에서 고른다 — 설정 화면까지 가지 않아도 된다. 받은 요청에는 닿지 않는다 */}
+          {scopedRow !== undefined && scopeLabel !== null && (
+            <div
+              data-testid="notif-level"
+              className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
+            >
+              <span className="text-text-mute">{t('notif.level.label')}</span>
+              <NotificationLevelControl
+                org={scopedRow.org_slug}
+                project={scopedRow.project_slug}
+                scope={scopeLabel}
+                level={levelOf(scopedRow.level)}
+                testIdPrefix="notif-level"
+              />
+              <span className="text-2xs text-text-faint">{t('notif.level.hint')}</span>
+            </div>
+          )}
           {/* 이 한 줄이 알림과 받은 요청의 경계다 — 목록 옆에 두어야 목록을 보며 읽는다 */}
           <p className="mb-1.5 text-2xs text-text-faint">{t('notif.lead')}</p>
           {elsewhere > 0 && (

@@ -21,7 +21,7 @@ export * from './task.js'; // task · task_dependency · claim · evidence
 export * from './review.js'; // review_session · reviewer_report · finding
 //                              · finding_occurrence · resolution
 export * from './approval.js'; // approval · question
-export * from './event.js'; // event · notification
+export * from './event.js'; // event · notification · notification_preference
 export * from './idempotency.js'; // idempotency_key (표면 공용 멱등 저장소 — api.md §1.5)
 
 // 도메인 엔티티가 아니다 — 재생성 가능한 검색 인덱스의 물리 테이블(database.md §2.15).

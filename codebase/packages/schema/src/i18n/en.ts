@@ -1351,6 +1351,13 @@ export const en = {
   'notif.read_all_scoped': 'Mark {count} in {scope} as read',
   'notif.read_all_scoped_important': 'Mark {count} important in {scope} as read',
   'notif.elsewhere_important': '{count} important in other projects',
+  'notif.level.label': 'Notifications from this project',
+  'notif.level.all': 'All',
+  'notif.level.important': 'Important only',
+  'notif.level.none': 'Off',
+  'notif.level.hint':
+    'Notifications outside the level you pick arrive already read and do not count toward the badge. The inbox is not affected.',
+  'notif.level.saved': '{scope} notifications: {level}',
   'shell.notifications_counts':
     'Notifications (all organizations) · {important} important · {unread} unread',
   'shell.project_decisions': '{count} requests for you to decide in {name}',
@@ -1672,6 +1679,9 @@ export const en = {
   'account.email': 'Email',
   'account.email_hint': 'This is your sign-in ID, so it cannot be changed.',
   'account.password': 'Password',
+  'account.notifications': 'Notifications by project',
+  'account.notifications_hint':
+    'Choose how many notifications to get from each project. Notifications you already have stay as they are. The inbox is not affected.',
   'account.password_current': 'Current password',
   'account.password_new': 'New password',
   'account.password_confirm': 'Confirm new password',

@@ -355,6 +355,18 @@ export function isRepoHost(value: unknown): value is RepoHost {
 export const notificationImportance = pgEnum('notification_importance', ['immediate', 'digest']);
 export const notificationChannel = pgEnum('notification_channel', ['inapp', 'slack', 'email']);
 export const notificationState = pgEnum('notification_state', ['unread', 'read', 'archived']);
+/**
+ * **프로젝트마다 알림을 받는 수준**(2026-09-27 · 사람 결정 N3 · REQ-DB-028).
+ *
+ * - `all` — 지금처럼 모두 받는다(기본 · 행이 없으면 이것이다)
+ * - `important` — 중요(`immediate`) 알림만 안 읽음으로 받고, 나머지는 읽음 상태로 남긴다
+ * - `none` — 모두 읽음 상태로 남긴다. 기록은 그 프로젝트를 골라 "전체" 로 보면 있다
+ *
+ * **받은 요청에는 닿지 않는다** — 결정 요청의 정본은 알림이 아니라 받은 요청이다.
+ */
+export const NOTIFICATION_LEVELS = ['all', 'important', 'none'] as const;
+export type NotificationLevel = (typeof NOTIFICATION_LEVELS)[number];
+export const notificationLevel = pgEnum('notification_level', NOTIFICATION_LEVELS);
 
 // ── 메일 (2026-09-22 · 사람 결정) ──────────────────────────────────────────
 /**

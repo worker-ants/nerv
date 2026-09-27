@@ -1378,6 +1378,48 @@ describe('받은 요청·알림·커버리지 표면', () => {
     ).toBe(400);
   });
 
+  /**
+   * **프로젝트의 알림 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-220) — 고르면 범위별 수가 그 수준을
+   * 보이고, 모르는 칸 · 어휘 밖의 값은 400 이다.
+   */
+  it('알림 수준을 고르면 범위별 수가 그것을 보이고, 모두로 돌리면 기본이다 (REQ-API-220)', async () => {
+    const set = await call('PUT', '/api/v1/me/notifications/level', {
+      payload: { project: 'clemvion', org: 'nerv', level: 'important' },
+    });
+    expect(set.status).toBe(200);
+    expect(set.body).toMatchObject({ ok: true, project_id: projectId, level: 'important' });
+    const scopes = (await call('GET', '/api/v1/me/notifications/scopes')).body as {
+      items: Record<string, unknown>[];
+    };
+    expect(scopes.items.find((r) => r['project_slug'] === 'clemvion')?.['level']).toBe('important');
+
+    expect(
+      (
+        await call('PUT', '/api/v1/me/notifications/level', {
+          payload: { project: 'clemvion', level: 'mute' },
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await call('PUT', '/api/v1/me/notifications/level', {
+          payload: { project: 'clemvion', level: 'none', scope: 'all' },
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await call('PUT', '/api/v1/me/notifications/level', {
+          payload: { project: 'clemvion', level: 'all' },
+        })
+      ).status,
+    ).toBe(200);
+    const after = (await call('GET', '/api/v1/me/notifications/scopes')).body as {
+      items: Record<string, unknown>[];
+    };
+    expect(after.items.find((r) => r['project_slug'] === 'clemvion')?.['level']).toBe('all');
+  });
+
   it('이벤트 피드는 사람/에이전트를 구분해 싣는다 (FR-16 · D-08)', async () => {
     await call('POST', '/api/v1/projects/clemvion/tasks', { payload: { title: '이벤트용' } });
     const res = await call('GET', '/api/v1/projects/clemvion/events');

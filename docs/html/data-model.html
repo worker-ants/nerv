@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.17 (2026-09-26)</span>
+      <span>버전 v0.18 (2026-09-27)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -302,9 +302,10 @@
       <tr><td>30</td><td>스펙 첨부</td><td><code>attachment</code></td><td>스펙 버전에 매다는 시안·문서(2026-09-01 신설 · <code>0013_attachment</code>)</td><td>FR-01</td></tr>
       <tr><td>31</td><td>발견 코멘트</td><td><code>finding_comment</code></td><td>발견 하나에 달리는 스레드(2026-09-01 · <code>0010_finding_comment</code>)</td><td>FR-09</td></tr>
       <tr><td>32</td><td>조직 초대</td><td><code>invitation</code></td><td>조직 가입 초대 링크와 만료(2026-08-27 · <code>0006_invitation</code>)</td><td>P8</td></tr>
+      <tr><td>33</td><td>알림 수준</td><td><code>notification_preference</code></td><td>사람이 프로젝트마다 고른 알림 수준 — 모두 · 중요만 · 알리지 않음(2026-09-27 · <code>0035_notification_preference</code>)</td><td>FR-12</td></tr>
     </tbody>
   </table>
-  <p>위 <b>32종이 도메인 엔티티</b>이고, 여기에 <b>부속 5종</b>이 더해져 테이블은 <b>37개</b>다 — <a href="database.html">4.3 데이터베이스 스키마</a>의 <code>CREATE TABLE</code> 개수와 같다. 부속은 better-auth 가 소유하는 셋(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>) · 재생성 가능한 검색 인덱스(<code>spec_chunk_embedding</code> — §5.3) · 요청 배관(<code>idempotency_key</code> — 주체가 프로젝트가 아니라 자격증명이라 <code>project_id</code> 조차 없다)이다.</p>
+  <p>위 <b>33종이 도메인 엔티티</b>이고, 여기에 <b>부속 6종</b>이 더해져 테이블은 <b>39개</b>다 — <a href="database.html">4.3 데이터베이스 스키마</a>의 <code>CREATE TABLE</code> 개수와 같다. 부속은 better-auth 가 소유하는 셋(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>) · 재생성 가능한 검색 인덱스(<code>spec_chunk_embedding</code> — §5.3) · 요청 배관(<code>idempotency_key</code> — 주체가 프로젝트가 아니라 자격증명이라 <code>project_id</code> 조차 없다) · 발송 큐(<code>email_outbox</code> — 2026-09-22)이다.</p>
 
   <blockquote><p><b>33 → 32</b>(2026-09-07 정정). 이 표는 33행이었고 그 33번째가 <code>activity_summary</code> 였는데, 그것은 <b>테이블이 아니라 <code>agent_session</code> 의 jsonb 열</b>이다(<code>0012</code> — 보존 잡이 Activity 원문을 지우기 전에 도구별 횟수를 접어 두는 자리이고, 의미는 §2.5 의 필드표에 있다). 열을 엔티티로 세면 두 가지가 함께 틀린다 — 엔티티 수와, 그 수에서 빼기로 계산하던 부속 수다. 4.3 은 반대 방향으로 틀려 있었다(<code>idempotency_key</code> 를 도메인으로 세고 <code>spec_chunk_embedding</code> 을 인프라로 셌다): <b>32 + 5 = 37</b> 로 두 문서를 맞췄다.</p>
   <p>(2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)</p></blockquote></div>
@@ -934,6 +935,16 @@
       <tr><td><code>state</code></td><td>enum</td><td><code>unread / read / archived</code></td></tr>
       <tr><td><code>digest_batch_id</code></td><td>uuid NULL</td><td>다이제스트 묶음</td></tr>
       <tr><td><code>delivered_at</code> · <code>read_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b><code>notification_preference</code></b>(2026-09-27 · 사람 결정 N3)</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>user_id</code> · <code>project_id</code></td><td>uuid FK · 복합 PK</td><td>누가 · 어느 프로젝트의 알림을</td></tr>
+      <tr><td><code>level</code></td><td>enum</td><td><code>all / important / none</code> — 행이 없으면 <code>all</code>. 고른 수준 밖의 알림은 읽음 상태로 파생된다(받은 요청에는 영향이 없다)</td></tr>
+      <tr><td><code>updated_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
 

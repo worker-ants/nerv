@@ -1339,6 +1339,13 @@ export const ko = {
   'notif.read_all_scoped': '{scope} 알림 {count}건 모두 읽음',
   'notif.read_all_scoped_important': '{scope} 중요 알림 {count}건 모두 읽음',
   'notif.elsewhere_important': '다른 프로젝트에 중요 알림 {count}건',
+  'notif.level.label': '이 프로젝트의 알림',
+  'notif.level.all': '모두',
+  'notif.level.important': '중요만',
+  'notif.level.none': '알리지 않음',
+  'notif.level.hint':
+    '고른 수준 밖의 알림은 읽음으로 들어와 배지에 잡히지 않습니다. 받은 요청에는 영향이 없습니다.',
+  'notif.level.saved': '{scope} 알림: {level}',
   'shell.notifications_counts': '알림 — 모든 조직 · 중요 {important} · 읽지 않음 {unread}',
   'shell.project_decisions': '{name}에서 내가 결정할 요청 {count}건',
   // 받은 요청의 잠긴 카드 — 배지는 내가 누를 수 있는 것만 센다(2026-09-24 사람 결정 D2 · REQ-WEB-217)
@@ -1655,6 +1662,9 @@ export const ko = {
   'account.email': '이메일',
   'account.email_hint': '로그인 아이디라서 바꿀 수 없습니다.',
   'account.password': '비밀번호',
+  'account.notifications': '프로젝트별 알림',
+  'account.notifications_hint':
+    '프로젝트마다 알림을 얼마나 받을지 고릅니다. 이미 받은 알림은 그대로입니다. 받은 요청에는 영향이 없습니다.',
   'account.password_current': '지금 비밀번호',
   'account.password_new': '새 비밀번호',
   'account.password_confirm': '새 비밀번호 확인',

@@ -284,6 +284,8 @@ export interface NotificationScopeRow {
   project_name: string;
   unread: number;
   immediate: number;
+  /** 그 프로젝트의 알림 수준 — 행이 없으면 `all`(2026-09-27 · 사람 결정 N3 · REQ-API-220) */
+  level: string;
 }
 
 /**
@@ -309,6 +311,7 @@ export function useNotificationScopes(): UseQueryResult<{
         project_name: String(r['project_name'] ?? r['project_slug'] ?? ''),
         unread: Number(r['unread'] ?? 0),
         immediate: Number(r['immediate'] ?? 0),
+        level: typeof r['level'] === 'string' ? r['level'] : 'all',
       }));
       return {
         items,
