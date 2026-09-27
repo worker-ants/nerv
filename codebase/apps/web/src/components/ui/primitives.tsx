@@ -598,11 +598,18 @@ export function Tr({
 export function Td({
   children,
   className,
+  colSpan,
 }: {
   children?: React.ReactNode;
   className?: string;
+  /** 줄 너비 전체를 쓰는 칸(멤버 표의 확인 줄 등) */
+  colSpan?: number;
 }): React.JSX.Element {
-  return <td className={cn('py-2 pr-3 align-middle', className)}>{children}</td>;
+  return (
+    <td colSpan={colSpan} className={cn('py-2 pr-3 align-middle', className)}>
+      {children}
+    </td>
+  );
 }
 
 /** 떠 있는 면 — 여기서만 그림자를 쓴다. */
