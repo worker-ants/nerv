@@ -1,6 +1,6 @@
 {
   "name": "ko-style",
   "description": "한국어 문체 검사 — 번역투·어색한 비유·말투 섞임을 찾아 고치게 한다",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "Apache-2.0"
 }

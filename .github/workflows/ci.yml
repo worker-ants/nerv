@@ -4,7 +4,7 @@
 # REQ-CB-015 의 "저장소 메타 파일"에 해당하며 codebase/ 배치 원칙의 예외가 아니라 그 정의 안이다.
 #
 # 잡 3종은 테스트 3계층(§4.3)과 1:1 이다.
-#   check       매 PR — lint · typecheck · 서식 · 게이트 여섯 · L1
+#   check       매 PR — lint · typecheck · 서식 · 게이트 여덟 · L1
 #   integration 매 PR — L2(실제 Postgres). 이 코드베이스의 무게중심이다
 #   e2e         매 PR + merge_group + 야간 — L3(compose 스택 상대)
 #
@@ -108,6 +108,12 @@ jobs:
       # frontmatter `referenced_by`(링크에서 계산한 역참조와 같은가) · 파생본 머리의 같은 줄 · 맨 참조.
       - name: 문서 간 참조
         run: node scripts/check-doc-links.mjs
+
+      # **새로 쓴 한국어 문장이 문장 규약을 지키는가**(AGENTS.md 「한국어 문장 규약」 · REQ-CB-058).
+      # 판정은 문체 플러그인 ko-style 의 검사기 한 곳이다 — 에이전트가 훅으로 받는 알림과 같은 규칙
+      # 표에서 나온다(4.6 §7). 새로 쓴 줄만 보고, AI 말투 층(연결 어미 뒤 쉼표 등)은 알리기만 한다.
+      - name: 한국어 문체
+        run: node scripts/check-ko-style.mjs "${{ github.event.pull_request.base.sha || github.event.before }}"
 
       - name: schema drift
         # REQ-CB-007 · REQ-CB-018 — 선언과 마이그레이션 산출물의 동반 강제.

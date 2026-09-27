@@ -53,7 +53,7 @@
     <h1>용어 사전</h1>
     <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 37개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.13 (2026-09-27)</span>
+      <span>버전 v0.14 (2026-09-27)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -307,7 +307,7 @@
     <li>쓰고 나서 소리 내어 읽었을 때 한국어 화자가 그렇게 말하지 않을 문장이면 고친다.</li>
   </ul>
   <p><b>적용.</b> 새로 쓰는 문장은 처음부터 이 표를 따른다. 이미 쓰인 화면 문구와 도움말은 재검토 PR 들에서 고친다(2026-09-26 — 사람 지시). 명세와 코드 주석은 그 자리를 고칠 때 함께 고친다.</p>
-  <p><b>검사기가 이 표를 쓴다</b>(2026-09-27). 문체 플러그인 <code>ko-style</code>(<a href="plugin.html">4.6 플러그인</a> §7)이 저장소 루트 <code>.ko-style.json</code> 의 팀 어휘(<code>KO-V-01</code>~<code>KO-V-15</code>)로 이 표를 검사한다. 커밋 메시지 · PR 본문 · 문서 파일에서 <b>새로 쓴 줄만</b> 보고, 따옴표 안의 인용은 보지 않는다. 설정 파일은 활용형과 예문을 더한 사본이고 정본은 이 표다. 행을 더하거나 바꾸면 같은 ID 로 <code>.ko-style.json</code> 도 고친다. 두 쪽 ID 가 같은지 <code>codebase/ko-style/ko-style.spec.ts</code> 가 확인한다.</p>
+  <p><b>검사기가 이 표를 쓴다</b>(2026-09-27). 문체 플러그인 <code>ko-style</code>(<a href="plugin.html">4.6 플러그인</a> §7)이 저장소 루트 <code>.ko-style.json</code> 의 팀 어휘(<code>KO-V-01</code>~<code>KO-V-15</code>)로 이 표를 검사한다. 커밋 메시지 · PR 본문 · 문서 파일에서 <b>새로 쓴 줄만</b> 보고, 따옴표 안의 인용은 보지 않는다. 설정 파일은 활용형과 예문을 더한 사본이고 정본은 이 표다. 행을 더하거나 바꾸면 같은 ID 로 <code>.ko-style.json</code> 도 고친다. 두 쪽 ID 가 같은지 <code>codebase/ko-style/ko-style.spec.ts</code> 가 확인한다. PR 에서는 CI 게이트(<a href="codebase.html">4.2 코드베이스</a> REQ-CB-058)가 새로 쓴 줄에 남은 것을 막는다. 그대로 둬야 하는 줄은 줄 끝에 <code>ko-style-ignore: &lt;이유&gt;</code> 를 단다.</p>
 
   <h2 id="sec-4">4. 적용 규칙</h2>
 
