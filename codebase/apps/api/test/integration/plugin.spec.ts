@@ -172,6 +172,8 @@ describe('REQ-API-192 — 카탈로그는 묶은 플러그인을 모두 담는�
     // 저장소 전용 파일은 패키지에 들어가지 않는다
     expect(names).not.toContain('ko-style.spec.ts');
     expect(names).not.toContain('package.json');
+    // eval 사례는 저장소에서 효과를 재는 도구다 — 설치한 쪽에 필요 없다
+    expect(names.some((n) => n.startsWith('evals/'))).toBe(false);
   });
 });
 

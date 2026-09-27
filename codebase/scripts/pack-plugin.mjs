@@ -27,7 +27,7 @@ const SOURCES = ['plugin', 'ko-style'].map((dir) => join(ROOT, dir));
 const OUT_DIR = resolve(process.argv[2] ?? join(ROOT, 'plugin-dist'));
 
 /** 패키지에 들어가지 않는 것 — 개발 부산물과 저장소 전용 파일이다. */
-const EXCLUDE = new Set(['node_modules', 'package.json', '.DS_Store']);
+const EXCLUDE = new Set(['node_modules', 'package.json', '.DS_Store', 'evals']);
 const EXCLUDE_PATTERN = /\.spec\.ts$/;
 
 // ── zip 원시 구조 ────────────────────────────────────────────────────────────

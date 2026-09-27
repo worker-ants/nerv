@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: team-vocab
+context:
+  # 작업 폴더에 팀 어휘 설정을 둔다 — `--scaffold` 로 돌릴 때만 실행된다
+  scaffold_script: scaffold.sh

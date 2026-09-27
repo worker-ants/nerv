@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>5종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.77 (2026-09-27)</span>
+      <span>버전 v0.78 (2026-09-27)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1621,7 +1621,7 @@ log_user_prompt = false</code></pre>
 
   <h3>7.2 구성</h3>
 
-  <pre><code>codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.1
+  <pre><code>codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.2
   .claude-plugin/plugin.json          # 매니페스트
   hooks/hooks.json                    # 훅 여섯 (§7.4)
   hooks/run.sh                        # 훅 진입점 — 필요 없으면 node 를 띄우지 않는다
@@ -1632,6 +1632,7 @@ log_user_prompt = false</code></pre>
   skills/check/SKILL.md               # /ko-style:check
   skills/init/SKILL.md                # /ko-style:init
   README.md
+  evals/                              # claude plugin eval 사례 셋 — 배포하지 않는다 (§7.7)
   ko-style.spec.ts                    # L1 — 배포하지 않는다</code></pre>
 
   <p>**최상위 <code>bin/</code> 을 두지 않는다.** claude.ai 와 Cowork 는 <code>bin/</code> 이 있는 플러그인을 설치하지 않는다. 검사기를 스킬 폴더 안에 두었으므로 스킬 폴더 하나만 복사해도(Codex 의 <code>.agents/skills</code>) 규칙과 검사기가 함께 간다. **훅은 <code>sh hooks/run.sh &lt;이벤트&gt;</code> 로 부른다.** zip 이 실행 비트를 잃어도 돈다.</p>
@@ -1699,16 +1700,29 @@ log_user_prompt = false</code></pre>
 
   <p><b>훅과 매니페스트는 아직이다.</b> Codex 문서는 Claude 호환 매니페스트와 <code>hooks/hooks.json</code> 을 읽고 플러그인 훅에 <code>CLAUDE_PLUGIN_ROOT</code> 도 설정한다고 적는다. 하지만 관리형이 아닌 훅은 사람이 <code>/hooks</code> 에서 신뢰 처리해야 실행되고, <code>additionalContext</code> 의 기본 상한이 약 2,500토큰이다. 두 가지를 실측한 뒤에 더한다. 두 매니페스트를 함께 둔 폴더를 Codex 가 문제없이 읽는가, Codex 의 Stop 입력에 마지막 답변 필드가 있는가.</p>
 
-  <h3>7.7 확인하지 못한 것</h3>
+  <h3>7.7 효과 측정과 확인하지 못한 것</h3>
 
-  <p>2026-09-27 에 이 기계의 <code>claude</code> CLI 로그인이 만료돼 모델을 부르는 실측을 하지 못했다. 설계는 아래가 어느 쪽으로 판명돼도 동작하게 잡았다.</p>
+  <p><b>효과를 쟀다</b>(2026-09-27 · <code>claude plugin eval</code> · Claude Code 2.1.283 · 모델 <code>claude-opus-5-5</code>). 사례 셋(<code>evals/</code>)을 플러그인을 켠 실행과 끈 실행으로 세 번씩 돌렸다(18회 · 약 1.04달러). 채점은 모두 정규식이라 판정 모델을 부르지 않는다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>사례</th><th>무엇을 보나</th><th>켬</th><th>끔</th></tr></thead>
+    <tbody>
+      <tr><td><code>help-paragraph</code></td><td>영어 메모를 도움말 문단으로 옮긴다. 세션 요약만 적용된다</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td><code>doc-file</code></td><td>문서 파일에 쓴다. 저장 직후 검사가 적용된다</td><td>1.00</td><td>0.89</td></tr>
+      <tr><td><code>team-vocab</code></td><td>저장소 설정의 팀 어휘(<code>.ko-style.json</code>)가 있는 작업 폴더에서 변경 기록을 쓴다</td><td>1.00</td><td>1.00</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>평균 차이는 +0.04 다. 끈 실행이 틀린 것은 한 번뿐이었다(<code>doc-file</code> 에서 파일에 번역투를 썼다). <b>짧은 요청에서는 모델이 이미 대부분 규칙대로 쓴다.</b> 이 저장소에서 문제가 된 표현("싣는다" · "배선" 같은 것)은 긴 세션에서 같은 비유가 쌓이며 퍼졌다. 사례 하나짜리 측정으로는 그 상황을 재현하지 못한다. 그래서 이 플러그인의 값은 긴 세션의 흐름을 바로잡는 요약과 결과물을 막는 훅 · CI 에 있다고 본다. 켠 실행마다 세션 요약이 실제로 들어갔는지는 <code>summary-injected</code> 채점기(켠 실행에서만 센다)가 확인한다.</p>
+
+  <p><b>아직 확인하지 못한 것.</b> 설계는 아래가 어느 쪽으로 판명돼도 동작하게 잡았다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>무엇</th><th>설계가 기대지 않는 방법</th></tr></thead>
     <tbody>
       <tr><td>SessionStart 로 넣은 요약이 서브에이전트에도 적용되는가</td><td>SubagentStart 훅이 따로 넣는다</td></tr>
       <tr><td>훅의 <code>if: "Edit(**/*.md)"</code> 가 Write 에도 적용되는가</td><td><code>if</code> 를 쓰지 않고 경로 판단을 검사기 안에서 한다</td></tr>
-      <tr><td><code>claude plugin eval</code> 로 잰 효과(켠 실행과 끈 실행의 차이)</td><td>아직 사례가 없다 — <a href="backlog.html">4.8 백로그</a> E12-S07 의 남은 것</td></tr>
+      <tr><td>긴 세션에서 말투가 흐트러지는 정도와 그때의 효과</td><td>사례 하나짜리 eval 로는 재현하지 못했다. 대화 기록을 이어 쓰는 사례(<code>context.history_file</code>)로 잴 수 있다</td></tr>
     </tbody>
   </table></div>
 
