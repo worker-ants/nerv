@@ -338,3 +338,83 @@ describe('REQ-WEB-181 — 한 번에 50건까지', () => {
     expect(screen.getByTestId('bulk-limit')).toBeTruthy();
   });
 });
+
+/**
+ * **선택 바는 늘 보인다**(2026-09-27 · 사람 결정 B1 · B2 · REQ-WEB-261). 카드의 작은 체크박스를 먼저 눌러야
+ * 단추가 나타나서 일괄 승인 · 거절이 없는 기능처럼 보였다. 고르기 전에는 두 단추가 잠기고 까닭을 보여 준다.
+ */
+describe('REQ-WEB-261 — 고르기 전에도 선택 바가 보인다', () => {
+  it('고르기 전에 수를 말하고, 두 단추는 까닭과 함께 잠겨 있다', async () => {
+    renderInbox();
+    await waitFor(() => expect(screen.getAllByTestId('approval-card').length).toBe(4));
+    const bar = screen.getByTestId('bulk-bar');
+    expect(bar.getAttribute('data-selected')).toBe('0');
+    // 승인 카드 셋 · 그중 T3 하나는 일괄 승인에서 빠진다
+    expect(screen.getByTestId('bulk-idle').textContent).toBe(
+      '고를 수 있는 카드 3건 · 일괄 승인 가능 2건',
+    );
+    for (const id of ['bulk-approve', 'bulk-reject']) {
+      const button = screen.getByTestId(id);
+      expect(button.getAttribute('aria-disabled')).toBe('true');
+      expect(button.getAttribute('data-reason')).toBe(
+        '먼저 카드를 고르세요. 카드의 체크박스나 x 키로 고릅니다.',
+      );
+    }
+  });
+
+  it('맨 앞의 칸은 모두 고르고, 다 골랐으면 모두 푼다 — 일부만 골랐으면 반쯤 찬 칸이다', async () => {
+    renderInbox();
+    await waitFor(() => expect(screen.getAllByTestId('approval-card').length).toBe(4));
+    fireEvent.click(screen.getAllByTestId('bulk-select')[0] as HTMLElement);
+    const head = screen.getByTestId('bulk-select-all') as HTMLInputElement;
+    await waitFor(() => expect(head.indeterminate).toBe(true));
+    fireEvent.click(head);
+    await waitFor(() => expect(screen.getByTestId('bulk-bar').textContent).toContain('3건 선택'));
+    expect(head.checked).toBe(true);
+    fireEvent.click(head);
+    await waitFor(() =>
+      expect(screen.getByTestId('bulk-bar').getAttribute('data-selected')).toBe('0'),
+    );
+  });
+
+  it('승인 가능한 것만 고르면 T3 는 빠지고, 일괄 승인이 곧바로 열린다 (사람 결정 B2)', async () => {
+    renderInbox();
+    await waitFor(() => expect(screen.getAllByTestId('approval-card').length).toBe(4));
+    fireEvent.click(screen.getByTestId('bulk-select-approvable'));
+    await waitFor(() => expect(screen.getByTestId('bulk-bar').textContent).toContain('2건 선택'));
+    expect(screen.getByTestId('bulk-approvable').textContent).toContain('승인 가능 2건');
+    expect(screen.getByTestId('bulk-approve').getAttribute('aria-disabled')).toBeNull();
+    // 다 골랐으니 이 단추는 더 할 일이 없다
+    expect(screen.queryByTestId('bulk-select-approvable')).toBeNull();
+  });
+
+  it('카드의 체크박스는 감싼 영역을 눌러도 골라진다 — 14px 칸 하나가 전부가 아니다', async () => {
+    renderInbox();
+    await waitFor(() => expect(screen.getAllByTestId('approval-card').length).toBe(4));
+    fireEvent.click(screen.getAllByTestId('bulk-select-area')[0] as HTMLElement);
+    await waitFor(() => expect(screen.getByTestId('bulk-bar').textContent).toContain('1건 선택'));
+  });
+
+  /**
+   * 누르는 순간 커서가 옮겨지고 화면이 굴러가면, 떼는 자리가 다른 요소가 되어 클릭이 사라진다. 선택 바가
+   * 늘 보이면서 카드가 아래로 밀리자 L3 에서 드러났다 — 카드 일부가 화면 밖이면 체크박스를 눌러도 아무 일이 없었다
+   */
+  it('누른 카드로는 화면을 굴리지 않고, 키로 옮길 때만 굴린다', async () => {
+    const scroll = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scroll;
+    try {
+      renderInbox();
+      await waitFor(() => expect(screen.getAllByTestId('approval-card').length).toBe(4));
+      scroll.mockClear();
+      const second = screen.getAllByTestId('bulk-select')[1] as HTMLElement;
+      fireEvent.pointerDown(second);
+      await waitFor(() => expect(second.closest('li')?.getAttribute('data-active')).toBe('true'));
+      expect(scroll).not.toHaveBeenCalled();
+      fireEvent.keyDown(window, { key: 'j' });
+      await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+});

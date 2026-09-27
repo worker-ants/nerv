@@ -78,6 +78,8 @@ Both exceptions are recorded in the audit log, including which of the three case
 
 Use the **checkbox** on the left of a pending card to select several cards and approve or reject them at once. Question cards and decided cards have no checkbox. A question needs an answer rather than an approval, and a decided card is already a record.
 
+The Pending tab always shows the **selection bar** above the list. Before you select anything, it shows only counts, as in `12 cards you can select · 9 can be approved in bulk`, and **[Approve selected]** and **[Reject selected]** are disabled (hover over them to see that you need to select cards first). You can also click around a card's checkbox, not only the box itself. **[Select only approvable]** selects only the visible cards that can be approved in bulk.
+
 **What you select and what actually gets approved can differ.** That is why the selection bar shows two numbers, as in `3 selected · 2 can be approved`. Two kinds of item are left out of bulk approval:
 
 - **Documents that need two approvers (T3)** — the point of this gate is that two different people review the document. Approving it in a batch reduces the review to a formality.
@@ -91,7 +93,7 @@ Pressing the button does not send anything right away. It first **lists what you
 
 **Items that could not be processed stay in the list.** This happens when the body changed after the list was loaded, when someone else already decided it, or when you do not have permission to decide it. Those cards stay selected with the reason shown on each card, and the toast reads `Decided 7, 2 left.` One blocked item does not stop the rest.
 
-You can select up to **50** at a time. Once you have 50, the checkboxes on the other cards are locked and the selection bar says why. [Select visible (up to 50)] selects what is **on screen right now**, from the top, up to 50. Decide those first, then select the rest.
+You can select up to **50** at a time. Once you have 50, the checkboxes on the other cards are locked and the selection bar says why. The box at the start of the selection bar (Select visible) selects what is **on screen right now**, from the top, up to 50. When only some cards are selected, the box is half filled; once everything is selected, pressing it again clears the selection. Decide those first, then select the rest.
 
 **The list does not load all at once.** Use **[Load more]** at the bottom to load the rest. The count at the top and the badge are counted by the server, regardless of how many items have loaded, and they count **only what you can act on** (the collapsed group above is not counted). The Pending tab shows **the requests that have waited longest first**, so anything you load next is always less urgent. You never have to scroll to the bottom to find something urgent.
 

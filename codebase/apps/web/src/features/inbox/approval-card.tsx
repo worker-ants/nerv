@@ -586,25 +586,37 @@ export function ApprovalCard({
       )}
     >
       <header className="flex flex-wrap items-center gap-2 text-sm">
+        {/* **누르기 쉽게**(2026-09-27 · REQ-WEB-261). 14px 칸 하나가 전부라 일괄 선택이 있는 줄도
+            몰랐다 — 칸을 감싼 영역 전체가 누르는 자리다. 잠김과 까닭은 칸이 그대로 가진다 */}
         {/* **선택은 결정이 아니다.** 체크박스는 일괄에 넣는 표시일 뿐이라 여기서 아무것도
             움직이지 않는다 — 움직이는 것은 아래 확인 패널을 지난 뒤다(REQ-WEB-181) */}
         {selectable === true && (
-          <input
-            type="checkbox"
-            data-testid="bulk-select"
-            aria-label={t('inbox.bulk.select_card')}
-            checked={selected === true}
-            // **잠겨도 포커스는 남는다**(REQ-WEB-235와 같은 잠금) — `disabled` 로 두면 키보드와
-            // 화면 낭독기가 그 칸을 건너뛰어, 왜 못 고르는지 들을 자리가 없다
-            {...(selectLocked ? { 'aria-disabled': true, 'aria-describedby': selectLockedBy } : {})}
-            onChange={() => {
-              if (!selectLocked) onToggle?.(id);
-            }}
+          <label
+            data-testid="bulk-select-area"
             className={cn(
-              'size-3.5 shrink-0 accent-status-action',
-              selectLocked && 'cursor-not-allowed opacity-50',
+              '-my-1 -ml-1.5 flex shrink-0 items-center self-stretch rounded-nerv-sm px-1.5',
+              selectLocked ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-bg-hover',
             )}
-          />
+          >
+            <input
+              type="checkbox"
+              data-testid="bulk-select"
+              aria-label={t('inbox.bulk.select_card')}
+              checked={selected === true}
+              // **잠겨도 포커스는 남는다**(REQ-WEB-235와 같은 잠금) — `disabled` 로 두면 키보드와
+              // 화면 낭독기가 그 칸을 건너뛰어, 왜 못 고르는지 들을 자리가 없다
+              {...(selectLocked
+                ? { 'aria-disabled': true, 'aria-describedby': selectLockedBy }
+                : {})}
+              onChange={() => {
+                if (!selectLocked) onToggle?.(id);
+              }}
+              className={cn(
+                'size-3.5 shrink-0 accent-status-action',
+                selectLocked && 'cursor-not-allowed opacity-50',
+              )}
+            />
+          </label>
         )}
         <StatusBadge
           token={isQuestion ? 'waiting' : 'action'}
