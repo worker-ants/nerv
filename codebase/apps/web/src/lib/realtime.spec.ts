@@ -35,7 +35,7 @@ describe('배너는 오프라인에만 선다 (REQ-WEB-235)', () => {
   it('오프라인이면 언제 받은 내용인지를 말한다 — "캐시된" 만으로는 1분 전인지 한 시간 전인지 모른다', () => {
     expect(connectionBanner(ko, true)).toContain('오프라인');
     expect(connectionBanner(ko, true, new Date(2026, 8, 25, 9, 5).getTime())).toContain(
-      '09:05 에 받은 것',
+      '09:05에 받은 것',
     );
   });
 

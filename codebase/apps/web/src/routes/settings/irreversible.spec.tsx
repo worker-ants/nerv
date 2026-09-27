@@ -233,17 +233,17 @@ describe('떠난 사람을 내보낸다 (REQ-WEB-201)', () => {
 });
 
 describe('조직의 마지막 admin (REQ-WEB-201 · REQ-API-174)', () => {
-  it('유일한 조직 admin 의 admin 칩은 잠기고, 왜 잠겼는지 말한다', async () => {
+  it('유일한 조직 admin의 admin 칩은 잠기고, 왜 잠겼는지 말한다', async () => {
     renderAt('/settings/members');
     const row = await firstRowOf('관리자');
     const chip = within(row).getByTestId('role-admin') as HTMLButtonElement;
     await waitFor(() => expect(chip.disabled).toBe(true));
     expect(chip.title).toBe(
-      '이 조직의 마지막 admin 입니다. 다른 사람을 먼저 조직 admin 으로 지정하세요.',
+      '이 조직의 마지막 admin입니다. 다른 사람을 먼저 조직 admin으로 지정하세요.',
     );
   });
 
-  it('누를 수 있는 칩에는 "admin 만 가능" 을 달지 않는다', async () => {
+  it('누를 수 있는 칩에는 "admin만 가능"을 달지 않는다', async () => {
     renderAt('/settings/members');
     const row = await firstRowOf('유나');
     const chip = within(row).getByTestId('role-qa') as HTMLButtonElement;
@@ -251,7 +251,7 @@ describe('조직의 마지막 admin (REQ-WEB-201 · REQ-API-174)', () => {
     expect(chip.title).toBe('');
   });
 
-  it('다른 admin 이 있으면 내 admin 칩은 끄기 전에 한 번 묻는다', async () => {
+  it('다른 admin이 있으면 내 admin 칩은 끄기 전에 한 번 묻는다', async () => {
     MEMBERS.push({
       id: 'm-yuna-admin',
       role: 'admin',
@@ -281,7 +281,7 @@ describe('조직의 마지막 admin (REQ-WEB-201 · REQ-API-174)', () => {
 });
 
 describe('바꿀 수 없는 사람에게 — 숨기지 않고, 누구에게 부탁할지 (REQ-WEB-201)', () => {
-  it('초대 구역이 보이고 단추는 잠기며, 안내가 조직 admin 의 이름을 댄다', async () => {
+  it('초대 구역이 보이고 단추는 잠기며, 안내가 조직 admin의 이름을 댄다', async () => {
     me = DEVELOPER;
     renderAt('/settings/members?tab=invites');
     const invite = (await screen.findByTestId('invite-new')) as HTMLButtonElement;

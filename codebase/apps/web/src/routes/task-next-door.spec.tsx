@@ -138,7 +138,7 @@ const transitions = (): unknown[] =>
   posted.filter((p) => p.url.endsWith('/transition')).map((p) => p.body['status']);
 
 describe('작업 상세 — 상태가 머리의 단추를 정한다 (REQ-WEB-202)', () => {
-  it('4요소가 찬 backlog 는 [준비됨으로 올리기]로 큐에 올린다 — 완료 폼은 펼치지 않는다', async () => {
+  it('4요소가 찬 backlog는 [준비됨으로 올리기]로 큐에 올린다 — 완료 폼은 펼치지 않는다', async () => {
     await renderDetail();
     expect(screen.queryByTestId('done-gate')).toBeNull();
     const toReady = await screen.findByTestId('next-to_ready');
@@ -160,7 +160,7 @@ describe('작업 상세 — 상태가 머리의 단추를 정한다 (REQ-WEB-202
     await waitFor(() => expect(transitions()).toEqual(['ready']));
   });
 
-  it('내가 잡은 작업은 [진행 시작]으로 옮긴다 — claimed 에서 멈추지 않는다', async () => {
+  it('내가 잡은 작업은 [진행 시작]으로 옮긴다 — claimed에서 멈추지 않는다', async () => {
     detail = task({
       status: 'claimed',
       claims: [{ id: 'c-1', status: 'active', user_id: ME, lease_expires_at: LATER }],
@@ -170,23 +170,23 @@ describe('작업 상세 — 상태가 머리의 단추를 정한다 (REQ-WEB-202
     await waitFor(() => expect(transitions()).toEqual(['in_progress']));
   });
 
-  it('backlog 에서는 [클레임]이 서지 않는다 — 누르면 not_ready 로 거절되던 단추', async () => {
+  it('backlog에서는 [클레임]이 서지 않는다 — 누르면 not_ready로 거절되던 단추', async () => {
     await renderDetail();
     expect(screen.queryByTestId('claim-task')).toBeNull();
   });
 
-  it('viewer 에게 [클레임]은 잠기고, 누가 할 수 있는지 말한다', async () => {
+  it('viewer에게 [클레임]은 잠기고, 누가 할 수 있는지 말한다', async () => {
     roles = ['viewer'];
     detail = task({ status: 'ready' });
     await renderDetail();
     const claim = screen.getByTestId('claim-task') as HTMLButtonElement;
     expect(isLocked(claim)).toBe(true);
-    expect(reasonOf(claim)).toMatch(/^이 조작은 .*developer.* 만 할 수 있습니다$/);
+    expect(reasonOf(claim)).toMatch(/^이 조작은 .*developer.*만 할 수 있습니다$/);
   });
 });
 
 describe('완료 게이트 — 스펙 영향은 고르지 않은 채 시작한다 (REQ-WEB-202)', () => {
-  it('고르기 전에는 완료가 잠기고, "있음" 이면 메모가 있어야 한다', async () => {
+  it('고르기 전에는 완료가 잠기고, "있음"이면 메모가 있어야 한다', async () => {
     roles = ['planner'];
     detail = task({ status: 'in_progress' });
     await renderDetail();
@@ -196,7 +196,7 @@ describe('완료 게이트 — 스펙 영향은 고르지 않은 채 시작한�
     fireEvent.click(screen.getByTestId('spec-impact-some'));
     expect(isLocked(done)).toBe(true);
     fireEvent.change(screen.getByTestId('spec-impact-note'), {
-      target: { value: 'SPC-A 의 경계 절' },
+      target: { value: 'SPC-A의 경계 절' },
     });
     expect(done.disabled).toBe(false);
     // 붙은 증적이 없다는 것은 누르기 전에 말한다
@@ -214,12 +214,12 @@ describe('위임 명세는 그 자리에서 고친다 (REQ-WEB-202)', () => {
     expect(await screen.findByTestId('delegation-form')).toBeDefined();
   });
 
-  it('designer 에게 [고치기]는 잠긴다 — 폼을 다 채운 뒤 403 을 받지 않게 (REQ-WEB-203)', async () => {
+  it('designer에게 [고치기]는 잠긴다 — 폼을 다 채운 뒤 403을 받지 않게 (REQ-WEB-203)', async () => {
     roles = ['designer'];
     await renderDetail();
     const edit = screen.getByTestId('brief-edit') as HTMLButtonElement;
     expect(isLocked(edit)).toBe(true);
-    expect(reasonOf(edit)).toBe('이 조작은 planner · developer · admin 만 할 수 있습니다');
+    expect(reasonOf(edit)).toBe('이 조작은 planner · developer · admin만 할 수 있습니다');
   });
 });
 
@@ -254,7 +254,7 @@ describe('작업 보드 — 문과 역할 (REQ-WEB-202 · 203)', () => {
     expect(posted[0]?.url).toMatch(/\/tasks\/task-1\/transition$/);
   });
 
-  it('빈 카드에는 [채우기]만 — 절대 눌리지 않던 "ready 전이" 는 없다', async () => {
+  it('빈 카드에는 [채우기]만 — 절대 눌리지 않던 "ready 전이"는 없다', async () => {
     lanes = { backlog: [{ ...task(), delegation_complete: false }] };
     renderAt('/p/clemvion/tasks');
     const card = (await screen.findByTestId('ready-blocked')).closest('article') as HTMLElement;
@@ -262,7 +262,7 @@ describe('작업 보드 — 문과 역할 (REQ-WEB-202 · 203)', () => {
     expect(within(card).queryByText('ready 전이')).toBeNull();
   });
 
-  it('designer 에게 [+ 새 작업]은 잠기고 qa 에게 [채우기]는 잠긴다 — 서버 가드와 같은 목록', async () => {
+  it('designer에게 [+ 새 작업]은 잠기고 qa에게 [채우기]는 잠긴다 — 서버 가드와 같은 목록', async () => {
     roles = ['designer'];
     renderAt('/p/clemvion/tasks');
     const create = (await screen.findByTestId('task-new')) as HTMLButtonElement;

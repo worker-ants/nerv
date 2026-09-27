@@ -54,7 +54,7 @@ function renderBadge(props: ScopeBadgeProps): void {
 const badge = () => screen.getByTestId('scope-badge');
 
 describe('ScopeBadge', () => {
-  it('이름을 그린다 — slug 는 주소의 것이다', async () => {
+  it('이름을 그린다 — slug는 주소의 것이다', async () => {
     renderBadge({
       orgSlug: 'default',
       orgName: 'Default',
@@ -99,7 +99,7 @@ describe('ScopeBadge', () => {
     await waitFor(() => expect(badge().textContent).toBe('조직 전체'));
   });
 
-  it('slug 를 곁들이는 자리(토큰)에서는 흐린 보조로', async () => {
+  it('slug를 곁들이는 자리(토큰)에서는 흐린 보조로', async () => {
     renderBadge({ projectSlug: 'clemvion', projectName: 'Clemvion', withSlug: true });
     await waitFor(() => expect(badge().textContent).toBe('Clemvionclemvion'));
   });
@@ -120,7 +120,7 @@ describe('초대 문장 — 어디로 부르는지가 문장 안에 있다', () 
   it('조직 전체 초대', () => {
     renderSentence({ org_name: 'Acme', role: 'planner', project_slug: null });
     expect(screen.getByTestId('sentence').textContent).toBe(
-      'Acme 에서 조직 전체에 planner 역할로 초대했습니다.',
+      'Acme에서 조직 전체에 planner 역할로 초대했습니다.',
     );
   });
 
@@ -132,7 +132,7 @@ describe('초대 문장 — 어디로 부르는지가 문장 안에 있다', () 
       project_name: 'Acme 웹',
     });
     expect(screen.getByTestId('sentence').textContent).toBe(
-      'Acme 에서 Acme 웹 프로젝트에 developer 역할로 초대했습니다.',
+      'Acme에서 Acme 웹 프로젝트에 developer 역할로 초대했습니다.',
     );
   });
 });

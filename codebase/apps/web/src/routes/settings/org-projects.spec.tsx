@@ -93,14 +93,14 @@ afterEach(() => {
 beforeEach(() => localStorage.clear());
 
 describe('권한 — 겸직은 합집합이다', () => {
-  it('프로젝트에서 planner 여도 조직 admin 이면 고칠 수 있다', () => {
+  it('프로젝트에서 planner여도 조직 admin이면 고칠 수 있다', () => {
     // `primaryMembership` 은 프로젝트 소속을 먼저 고른다 — 그 한 행만 보면 조직
     // admin 인 사람이 조직 설정에서 잠긴다(실측 2026-08-24).
     expect(rolesInOrg(ME as never, 'default')).toContain('admin');
     expect(rolesInOrg(ME as never, 'other')).toEqual([]);
   });
 
-  it('admin 이면 안내 배너를 띄우지 않는다', async () => {
+  it('admin이면 안내 배너를 띄우지 않는다', async () => {
     stub([{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion', archived_at: null }]);
     await renderTab();
     expect(screen.queryByTestId('read-only-notice')).toBeNull();
@@ -218,7 +218,7 @@ describe('지금 조직은 한 곳에서 정한다 (REQ-WEB-076)', () => {
   });
 });
 
-describe('새 프로젝트 — 이름에서 slug·key 를 만들어 준다', () => {
+describe('새 프로젝트 — 이름에서 slug·key를 만들어 준다', () => {
   it('셋을 손으로 채우게 하지 않는다', async () => {
     stub([]);
     await renderTab(false);
@@ -329,7 +329,7 @@ describe('프로젝트의 저장소 주소 (REQ-WEB-160)', () => {
     });
   });
 
-  it('비어 있던 값도 칸에 `null` 이라고 적히지 않는다', async () => {
+  it('비어 있던 값도 칸에 `null`이라고 적히지 않는다', async () => {
     stubWithPatch({ ...PROJECT, repo_url: null, default_branch: null });
     await renderTab();
     fireEvent.click(screen.getByTestId('project-edit'));
@@ -338,7 +338,7 @@ describe('프로젝트의 저장소 주소 (REQ-WEB-160)', () => {
     expect((screen.getByTestId('project-default-branch') as HTMLInputElement).value).toBe('');
   });
 
-  it('지운 값은 빈 문자열로 나간다 — 서버가 그것을 "비운다" 로 읽는다(REQ-API-157)', async () => {
+  it('지운 값은 빈 문자열로 나간다 — 서버가 그것을 "비운다"로 읽는다(REQ-API-157)', async () => {
     const { sent } = stubWithPatch(PROJECT);
     await renderTab();
     fireEvent.click(screen.getByTestId('project-edit'));
@@ -393,7 +393,7 @@ describe('저장소 종류 (REQ-WEB-162)', () => {
     expect(sent[0]).toMatchObject({ repo_host: 'gitlab' });
   });
 
-  it('값이 없는 옛 프로젝트는 github 으로 선다 — 오늘 되던 링크가 깨지지 않는다', async () => {
+  it('값이 없는 옛 프로젝트는 github으로 선다 — 오늘 되던 링크가 깨지지 않는다', async () => {
     stubWithPatch({ ...PROJECT, repo_host: undefined });
     await renderTab();
     fireEvent.click(screen.getByTestId('project-edit'));
@@ -405,7 +405,7 @@ describe('저장소 종류 (REQ-WEB-162)', () => {
 //
 // 조직 이름·삭제·새 프로젝트가 "조직 어디서든 admin" 으로 열려 있어, 한 프로젝트의 admin 이
 // 조직 이름을 바꿀 수 있었다. 프로젝트 줄은 그 프로젝트의 admin 도 고친다(EP-PRJ-04·05).
-describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () => {
+describe('프로젝트 admin은 자기 프로젝트 줄만 (REQ-API-171)', () => {
   const PROJECT_ADMIN = {
     id: 'u-2',
     display_name: '지민',
@@ -440,7 +440,7 @@ describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () =
     );
     expect(isLocked(screen.getByTestId('org-delete'))).toBe(true);
     expect(
-      screen.getByText('조직 이름을 바꾸거나 조직을 삭제하는 일은 조직 admin 만 할 수 있습니다.'),
+      screen.getByText('조직 이름을 바꾸거나 조직을 삭제하는 일은 조직 admin만 할 수 있습니다.'),
     ).toBeDefined();
   });
 
@@ -450,8 +450,8 @@ describe('프로젝트 admin 은 자기 프로젝트 줄만 (REQ-API-171)', () =
     // **숨기지 않는다**(REQ-WEB-003) — 비활성 + 사유
     const create = screen.getByTestId('project-new') as HTMLButtonElement;
     expect(isLocked(create)).toBe(true);
-    expect(reasonOf(create)).toBe('새 프로젝트는 조직 admin 만 만들 수 있습니다.');
-    expect(screen.getByText(/프로젝트의 이름·저장소·보관은 그 프로젝트의 admin 도/)).toBeDefined();
+    expect(reasonOf(create)).toBe('새 프로젝트는 조직 admin만 만들 수 있습니다.');
+    expect(screen.getByText(/프로젝트의 이름·저장소·보관은 그 프로젝트의 admin도/)).toBeDefined();
   });
 
   it('자기 프로젝트 줄은 열리고 남의 프로젝트 줄은 잠긴다', async () => {

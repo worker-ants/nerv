@@ -255,7 +255,7 @@ describe('REQ-WEB-183 — 지나가지 못한 건은 남아서 이유를 말한�
           id: 'a2',
           ok: false,
           kind: 'stale_approval',
-          message: '카드를 연 뒤 내용이 바뀌었습니다.',
+          message: '불러온 뒤 내용이 바뀌었습니다. 바뀐 내용을 확인하고 다시 결정하세요.',
         },
       ],
     };
@@ -265,7 +265,9 @@ describe('REQ-WEB-183 — 지나가지 못한 건은 남아서 이유를 말한�
     fireEvent.click(await screen.findByTestId('bulk-submit'));
 
     const failure = await screen.findByTestId('bulk-failure');
-    expect(failure.textContent).toContain('카드를 연 뒤 내용이 바뀌었습니다.');
+    expect(failure.textContent).toContain(
+      '불러온 뒤 내용이 바뀌었습니다. 바뀐 내용을 확인하고 다시 결정하세요.',
+    );
     // 남은 한 건만 선택에 남는다 — 목록이 통째로 비면 전부 처리됐다는 거짓말이 된다
     await waitFor(() => expect(screen.getByTestId('bulk-bar').textContent).toContain('1건 선택'));
   });

@@ -1,7 +1,7 @@
 **Settings are grouped by what they apply to.**
 
 - **Organization**: General · Members and roles · Organization tokens
-- **Project**: Projects · Gate policy · Integrations (planned for Phase 2, disabled for now)
+- **Project**: Projects · Gate policy · Integrations (not available yet, marked **Coming soon**)
 - **You · all organizations**: My account · Agent tokens
 
 On a wide screen, this list appears under **[Settings]** in the left column. On a narrow screen, it runs across the top of the settings screen. The top of the screen shows **which organization's settings** you are viewing. Clicking [Settings] opens the first item, **General**.

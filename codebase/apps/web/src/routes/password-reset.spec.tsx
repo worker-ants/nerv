@@ -125,7 +125,7 @@ describe('/forgot-password', () => {
     });
     fireEvent.click(screen.getByTestId('forgot-submit'));
     const panel = await screen.findByTestId('forgot-sent');
-    expect(panel.textContent).toContain('jimin@example.com 로 가입한 계정이 있으면');
+    expect(panel.textContent).toContain('jimin@example.com 주소로 가입한 계정이 있으면');
     expect(panel.textContent).toContain('60분');
     expect(screen.queryByTestId('forgot-email')).toBeNull();
     expect(sent).toHaveLength(1);
