@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7 이 정본이다.
 >
-> 문서 버전 v0.76 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.77 · 2026-09-27 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.77 변경(2026-09-27 — 스킬이 쓰지 않는 말을 가르치고 있었다): **새 요구사항 없음 · §2 스킬 다섯의 문구 · 패키지 0.3.3 → 0.3.4.** 사용자의 에이전트가 매번 읽는 스킬 파일에 [용어 사전](../glossary.md) §3.4 의 표현이 35곳(`ko-style` 검사기로 셌다) 있었다. 뜻과 도구 · 인자 · 에러 코드는 그대로 두고 말만 고쳤다. 곁들여 파생본의 스킬 사본 둘(`spec` · `question`)이 원본보다 뒤져 있던 것을 원본으로 다시 채웠다. md ↔ html 검사는 코드 블록 안쪽을 보지 않아서 드러나지 않았다.
 >
 > v0.76 변경(2026-09-27 — 새로 쓴 한국어 문장을 CI 도 본다): **REQ-PLG-021 개정 · §7.4 한 문단 · `ko-style` 0.1.0 → 0.1.1.** 훅을 거치지 않는 문장(사람이 쓴 것 · Codex 가 쓴 것)도 check 잡이 같은 검사기로 본다([4.2 코드베이스](codebase.md) REQ-CB-058). 그대로 둘 줄을 빼는 표시 `ko-style-ignore: <이유>` 를 검사기에 더했다 — 이유가 없으면 듣지 않는다. 검사기가 바뀌었으므로 플러그인 버전을 올린다(REQ-PLG-026).
 >
@@ -138,7 +140,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.3
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.4
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -161,7 +163,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "license": "Apache-2.0"
 }
 ```
@@ -243,9 +245,9 @@ allowed-tools:
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
-   - 응답을 `.nerv/cache/context-pack.json` 에 Write 한다 — 서버가 닿지 않을 때 규약과 정책을
+   - 응답을 `.nerv/cache/context-pack.json` 에 Write 한다 — 서버에 연결되지 않을 때 규약과 정책을
      읽을 유일한 사본이다.
-2. **다른 클레임을 쥐고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
+2. **다른 클레임을 가지고 있는데 작업을 전환하려면** 먼저 `nerv_task_release`(`claim_id`,
    `reason=handoff`, `state_note`에 현재 상태 요약)로 내려놓는다. 한 세션 한 클레임이 원칙이다.
 3. **후보 조회.** `nerv_task_next` — 입력: `project`, `limit`. 응답의 각 후보에는 **위임 명세 4요소**(목표 · 산출물 형식 · 도구/출처 · 경계)와
    **기준 SpecVersion**(id·version_no — 이 Task가 파생된 버전)·기준선, 권장 scope가 실려 있다.
@@ -379,16 +381,16 @@ allowed-tools:
 
 없으면 무슨 일이 있었는지: 세 세션이 같은 초안을 동시에 고쳤을 때 **셋 다 성공하고 본문에는 하나만 남았다** — 둘은 오류도 경고도 없이 자기 글을 잃었다(실측 2026-08-30).
 
-`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 싣지 않는다: 견줄 버전이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
+`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 넣지 않는다: 견줄 버전이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
 
-`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그건 남의 글을 덮어쓰는 것이다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
+`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그러면 남의 글을 덮어쓴다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
 
 ## 무엇을 왜 바꿨는지 남긴다
 
 **초안은 덮어써진다.** 승인 전까지는 같은 버전을 고쳐 쓰므로 나중에 되짚을 diff 가 없다 —
 저장하는 그 순간이 "무엇이 바뀌었나"를 말할 수 있는 유일한 시점이다.
 
-- `change_summary` 를 **매 저장에 싣는다.** 한 줄이어도 된다. 싣지 않으면 앞의 요약이 그대로
+- `change_summary` 를 **매 저장에 넣는다.** 한 줄이어도 된다. 넣지 않으면 앞의 요약이 그대로
   남으므로 새 저장이 옛 요약을 달고 있게 된다.
 - 응답의 `delta` 는 요구사항(added·modified·removed)과 줄 수다. **사람에게 그대로 보고한다** —
   에이전트가 무엇을 고쳤다고 말하는 것과 서버가 실제로 받은 것이 다르면 그 자리에서 드러난다.
@@ -396,7 +398,7 @@ allowed-tools:
 정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
 
 - 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind, base_hash}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
-- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 싣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
+- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 넣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
 - 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`·`base_hash`, 되돌릴 때 `remove: true`)를 쓴다. 지울 때는 `base_hash` 를 요구하지 않는다.
 
 ## 다이어그램은 mermaid 로 그린다
@@ -414,7 +416,7 @@ allowed-tools:
 
 **디자인 시안이 문서 밖에 있으면 문서가 아니다.** 외부 링크는 스펙의 버전과 무관하게 바뀌므로, "이 버전이 말하는 화면" 을 나중에 되짚을 수 없다.
 
-`nerv_spec_attach` 는 **두 번 부르고, 그 사이에 파일을 직접 올린다**(도구 호출 둘 + PUT 하나 = 세 걸음). 도구가 파일을 나르지 않는 이유는 응답에 그것을 싣지 않기 위해서다 — base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다.
+`nerv_spec_attach` 는 **두 번 부르고, 그 사이에 파일을 직접 올린다**(도구 호출 둘 + PUT 하나 = 세 걸음). 도구로 파일을 보내지 않는 이유는 응답에 파일을 담지 않기 위해서다 — base64 를 담으면 그 세션의 컨텍스트 예산이 그것으로 찬다.
 
 1. `nerv_spec_attach`(`spec_id`, `filename`, `content_type`) → `upload_url` 과 `attachment_id` 를 받는다.
 2. 그 주소에 파일을 그대로 `PUT` 한다(헤더는 `Content-Type` 만).
@@ -446,7 +448,7 @@ allowed-tools:
    응답의 목록은 각각 `nodes`·`items` 다.
    **전역 그래프는 크다**(clemvion 실측 141노드·1,253간선) — 어느 문서의 주변만 보면 될 때는
    `around`(중심 스펙)와 `hops`(그 중심에서 몇 간선까지 · 기본 1)로 좁히고, 간선까지 받으려면
-   `include_relations: true` 를 준다. `around` 는 `root`·`depth` 와 다른 축이고 조상을 싣지 않는다.
+   `include_relations: true` 를 준다. `around` 는 `root`·`depth` 와 다른 축이고 조상을 포함하지 않는다.
    검색에서 **이미 어떤 문서를 알고 그것을 가리키는 쪽을 찾을 때**는 `references`(스펙 키)를 쓴다.
    **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
    그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
@@ -468,12 +470,12 @@ allowed-tools:
    최신 본문과 open 코멘트를 읽는다. **`include` 의 어휘는 `tasks`·`comments`·`attachments`
    셋뿐이고 그 밖의 값은 400 이다** — 요구사항은 늘 실려 오므로 달라고 하지 않는다.
    응답의 `content_hash` 를 `base_hash` 로 쓴다 —
-   **저장에 싣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
+   **저장에 넣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
    아는 사실이라 묻지 않는다.
 2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_hash`,
    `body_markdown`, `change_summary`, `idempotency_key`) 호출. 초안 편집 리스는 이 호출이
    성공하는 순간 자동 획득·갱신된다(TTL 30분 — Task 클레임 리스와 같은 상수).
-   **리스 보유자는 세션이다** — 같은 사람의 다른 세션이나 웹 탭이 쥐고 있으면 자동 인계되지
+   **리스 보유자는 세션이다** — 같은 사람의 다른 세션이나 웹 탭이 가지고 있으면 자동 인계되지
    않고 `NERV_DRAFT_LEASED` 가 온다. 상대가 죽은 세션이라 응답하지 않으면 `takeover: true` 로
    이어받는다(뺏어도 본문은 `base_hash` 가 지킨다 — 리스는 신호이고 지문이 자물쇠다).
 3. **제목·부모·타입은 이 호출로 바꾸지 못한다.** 기존 문서에 현재와 다른 값을 실으면
@@ -481,7 +483,7 @@ allowed-tools:
    대상이라 사람이 웹에서 바꾼다(EP-SPEC-15). 그 셋을 정할 수 있는 것은 **새 문서를 만들
    때뿐**이다(위 create 2). 옮기거나 이름을 바꿔야 한다고 판단했으면 **본문만 저장하고,
    무엇을 어디로 옮겨야 하는지를 사람에게 말한다** — 409 응답의 `web_url` 이 그 문서의
-   자리다. 애초에 그 셋은 기존 문서를 고칠 때 **싣지 않는 것**이 맞다.
+   자리다. 애초에 그 셋은 기존 문서를 고칠 때 **넣지 않는 것**이 맞다.
 4. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
    사람에게 보여준다.
 5. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
@@ -523,18 +525,18 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | 코드 | 대응 |
 | --- | --- |
 | NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
-| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 안 실었다 — nerv_spec_get 의 `content_hash` 를 실어 다시 부른다 |
+| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — nerv_spec_get 의 `content_hash` 를 넣어 다시 부른다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 이 스킬의 도구는 내지 않는다 — 오면 `approval_id` 를 사람에게 보고하고 멈춘다 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉. **단 `details.kind` 가 `storage_unconfigured` 면 큐잉하지 않는다** — 서버에 스토리지 설정이 없다는 뜻이라 재시도로 풀리지 않는다. `details.missing` 의 환경변수를 사람에게 그대로 전한다 |
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
-| NERV_PRECONDITION `wrapped_body` | 읽은 본문을 **포장째** 저장하려 했다 — `<nerv:spec …>` 경계는 표시이지 본문이 아니다. 경계 안쪽만 실어 다시 부른다 |
-| NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 실어 보낸다 |
+| NERV_PRECONDITION `wrapped_body` | 읽은 본문을 **포장째** 저장하려 했다 — `<nerv:spec …>` 경계는 표시이지 본문이 아니다. 경계 안쪽만 넣어 다시 부른다 |
+| NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 넣어 보낸다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
 | NERV_PRECONDITION `key_taken` | 그 키를 이미 쓰는 문서가 있다 — details 의 `web_url`·`archived` 를 보고 **그 문서를 읽고 이어 쓴다**(보관 상태면 복구가 먼저다). 키를 조금 바꿔 새로 만들지 않는다 |
-| NERV_PRECONDITION `relation_base_hash_required` | 관계를 선언하면서 상대 문서의 지문을 안 실었다 — details 의 `targets` 가 어느 문서인지 준다. 그 문서를 nerv_spec_get 으로 읽고 `content_hash` 를 실어 다시 부른다 |
+| NERV_PRECONDITION `relation_base_hash_required` | 관계를 선언하면서 상대 문서의 지문을 넣지 않았다 — details 의 `targets` 가 어느 문서인지 준다. 그 문서를 nerv_spec_get 으로 읽고 `content_hash` 를 넣어 다시 부른다 |
 | NERV_PRECONDITION `stale_relation_target` | 상대 문서가 그 사이 바뀌었다 — 다시 읽고 **관계가 여전히 맞는지 확인한 뒤** 새 지문으로 부른다. 지문만 갈아 끼우는 것은 확인이 아니다 |
 
 ## 금지
@@ -577,7 +579,7 @@ allowed-tools:
 
 # /nerv:impl — 구현 루프
 
-전제: /nerv:next 로 유효한 클레임(`claim_id`)을 이미 쥐고 있다. 없으면 /nerv:next 부터.
+전제: /nerv:next 로 유효한 클레임(`claim_id`)을 이미 가지고 있다. 없으면 /nerv:next 부터.
 
 ## 하트비트 규약 (이 스킬의 핵심)
 
@@ -587,7 +589,7 @@ allowed-tools:
   다음 행동 전에 하트비트를 먼저 보낸다.** 첫 하트비트는 클레임 직후다.
 - **한 번의 행동이 60초를 훌쩍 넘을 것을 알면** 클레임·하트비트에 `lease_seconds` 로 리스를
   조정한다(기본이자 **상한**이 1800초 — 그보다 큰 값은 거절된다. 상한을 넘겨 달라고 하는 것은
-  자동 회수까지의 시간을 늘리는 일이라 조정 규칙을 바꾸는 것이다). 리스를 쥐고 있는 동안은
+  자동 회수까지의 시간을 늘리는 일이라 조정 규칙을 바꾸는 것이다). 리스를 가지고 있는 동안은
   남에게 그만큼 잠긴다 — 끝나면 `nerv_task_release` 로 곧바로 놓는다.
 - 하트비트 응답은 리스 연장(`lease_expires_at` 갱신)이자 **서버 → 세션 유일 보장 채널**이다.
   응답의 `pending`을 즉시 처리한다:
@@ -726,9 +728,9 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 
 `escalate` 값은 다음 중 하나다: `user-decision`(사람이 정해야 할 제품 결정) /
 `spec`(스펙 공백·모순 발견) / `infra`(인프라·환경 문제) / `e2e-fail-3x`(같은 실패 3회
-반복) / `sensitive-fix`(보안·데이터에 닿는 수정). 이 목록에 해당하면 추측하지 않고 질문한다.
+반복) / `sensitive-fix`(보안·데이터와 관련된 수정). 이 목록에 해당하면 추측하지 않고 질문한다.
 
-`e2e-fail-3x` 는 스펙 게이트에도 닿는다. 그 신고가 가리키는 스펙(`context.spec_id` 이거나
+`e2e-fail-3x` 는 스펙 게이트에도 적용된다. 그 신고가 가리키는 스펙(`context.spec_id` 이거나
 `task_id` 가 그 스펙에서 파생된 작업)과 이 세션이 다음에 내는 스펙 제출은 티어가 한 단계 올라,
 사람이 그 스펙을 승인하기 전까지 자동 통과하지 않는다. 그러니 숨기지 않는다 — 같은 실패가 세 번이면
 올리고 출처를 단다.
@@ -833,9 +835,9 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
 3. **`nerv_review_submit`** — `reviewer{role, risk}`, `summary`, `findings[]`.
-   - **어느 작업의 리뷰인지 알면 `task_id` 를 싣는다.** 그것이 리뷰를 Task 에 잇는 유일한 인자다 —
+   - **어느 작업의 리뷰인지 알면 `task_id` 를 넣는다.** 그것이 리뷰를 Task 에 잇는 유일한 인자다 —
      빠지면 서버는 이 리뷰가 무엇에 대한 것인지 알 길이 없다.
-   - `kind` 는 `code`(기본)·`consistency`·`spec_coverage`·`merge` 다. 코드가 아니라 문서 정합을
+   - `kind` 는 `code`(기본)·`consistency`·`spec_coverage`·`merge` 다. 코드 대신 문서 정합을
      본 라운드면 `consistency` 로 밝힌다 — 게이트의 커버리지 판정이 종류를 본다.
    - `severity`는 `critical`/`warning`/`info` 셋뿐이다. **막아야 하는 것만 critical**이다 — 전부 critical이면 게이트가 의미를 잃는다.
    - **`body`와 `suggestion`을 채운다.** 제목은 손잡이일 뿐이라, 그것만으로는 사람이
@@ -844,7 +846,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
    - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다.
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
-     비워 두면 서버가 짚은 대상으로 유추하고 화면에 "추론됨"이라 적히므로, 아는 것은 직접 적는다.
+     비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
 4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 전부)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다.
 
 발견이 0건이어도 제출한다. "봤고 문제가 없었다"는 라운드가 있어야 게이트가 그것을 통과로 읽는다.
@@ -857,12 +859,12 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.
-- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음 할 일은 그 발견을 다시 집는 것이 아니라 하트비트로 사람의 답을 기다리는 것이다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
+- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음에는 그 발견을 다시 집지 말고 하트비트로 사람의 답을 기다린다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
 - 근거는 어느 처분에나 필수다. 사유 없이 쌓인 유예 목록은 곧 잊힌 목록이 된다.
 
 ### critical 하향은 사람의 몫이다 (A3)
 
-`critical` 발견을 `dismissed`/`wont_fix`로 옮기는 호출은 `NERV_APPROVAL_REQUIRED`로 되돌아오고, 서버가 승인 카드를 만든다. **그때 할 일은 재시도가 아니라 사람에게 알리는 것이다** — 응답의 `approval_id`와 함께 "critical 하향에 승인이 필요하다"를 보고하고 멈춘다. 카드가 열려 있는 동안 이 세션은 `awaiting_input` 이고, **결정은 하트비트 `pending` 의 `approval_decided`(`subject_type: finding`)로 온다** — `approve` 면 같은 호출을 같은 인자로 다시 부르고, `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다.
+`critical` 발견을 `dismissed`/`wont_fix`로 옮기는 호출은 `NERV_APPROVAL_REQUIRED`로 되돌아오고, 서버가 승인 카드를 만든다. **그때는 재시도하지 않고 사람에게 알린다** — 응답의 `approval_id`와 함께 "critical 하향에 승인이 필요하다"를 보고하고 멈춘다. 카드가 열려 있는 동안 이 세션은 `awaiting_input` 이고, **결정은 하트비트 `pending` 의 `approval_decided`(`subject_type: finding`)로 온다** — `approve` 면 같은 호출을 같은 인자로 다시 부르고, `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다.
 
 이 게이트가 있는 이유는 실측이다: clemvion에서 checker의 CRITICAL을 `BLOCK: NO`로 하향한 모순이 732건 중 24건(3.3%) 관측됐다. 에이전트가 자기 리뷰의 심각도를 스스로 낮출 수 있으면 게이트는 형식이 된다.
 
@@ -870,7 +872,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`가 무엇이 빠졌는지 말한다. 채워서 재호출 |
+| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`에 빠진 항목이 적혀 있다. 채워서 재호출 |
 | NERV_APPROVAL_REQUIRED | critical 하향 — 재시도하지 않는다. `approval_id`와 함께 사람에게 보고하고 멈춘다 |
 | NERV_FORBIDDEN | `review:resolve` 미보유 — 처분은 이 역할의 일이 아니다. 제출까지만 하고 보고한다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
@@ -1513,7 +1515,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 **[권장]** 묶음이 기본이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `agent-session:launch` — `AGENT_RECOMMENDED_SCOPES` · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다 | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.3 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.4 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |

@@ -24,9 +24,9 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
 3. **`nerv_review_submit`** — `reviewer{role, risk}`, `summary`, `findings[]`.
-   - **어느 작업의 리뷰인지 알면 `task_id` 를 싣는다.** 그것이 리뷰를 Task 에 잇는 유일한 인자다 —
+   - **어느 작업의 리뷰인지 알면 `task_id` 를 넣는다.** 그것이 리뷰를 Task 에 잇는 유일한 인자다 —
      빠지면 서버는 이 리뷰가 무엇에 대한 것인지 알 길이 없다.
-   - `kind` 는 `code`(기본)·`consistency`·`spec_coverage`·`merge` 다. 코드가 아니라 문서 정합을
+   - `kind` 는 `code`(기본)·`consistency`·`spec_coverage`·`merge` 다. 코드 대신 문서 정합을
      본 라운드면 `consistency` 로 밝힌다 — 게이트의 커버리지 판정이 종류를 본다.
    - `severity`는 `critical`/`warning`/`info` 셋뿐이다. **막아야 하는 것만 critical**이다 — 전부 critical이면 게이트가 의미를 잃는다.
    - **`body`와 `suggestion`을 채운다.** 제목은 손잡이일 뿐이라, 그것만으로는 사람이
@@ -35,7 +35,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
    - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다.
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
-     비워 두면 서버가 짚은 대상으로 유추하고 화면에 "추론됨"이라 적히므로, 아는 것은 직접 적는다.
+     비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
 4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 전부)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다.
 
 발견이 0건이어도 제출한다. "봤고 문제가 없었다"는 라운드가 있어야 게이트가 그것을 통과로 읽는다.
@@ -48,12 +48,12 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.
-- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음 할 일은 그 발견을 다시 집는 것이 아니라 하트비트로 사람의 답을 기다리는 것이다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
+- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음에는 그 발견을 다시 집지 말고 하트비트로 사람의 답을 기다린다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
 - 근거는 어느 처분에나 필수다. 사유 없이 쌓인 유예 목록은 곧 잊힌 목록이 된다.
 
 ### critical 하향은 사람의 몫이다 (A3)
 
-`critical` 발견을 `dismissed`/`wont_fix`로 옮기는 호출은 `NERV_APPROVAL_REQUIRED`로 되돌아오고, 서버가 승인 카드를 만든다. **그때 할 일은 재시도가 아니라 사람에게 알리는 것이다** — 응답의 `approval_id`와 함께 "critical 하향에 승인이 필요하다"를 보고하고 멈춘다. 카드가 열려 있는 동안 이 세션은 `awaiting_input` 이고, **결정은 하트비트 `pending` 의 `approval_decided`(`subject_type: finding`)로 온다** — `approve` 면 같은 호출을 같은 인자로 다시 부르고, `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다.
+`critical` 발견을 `dismissed`/`wont_fix`로 옮기는 호출은 `NERV_APPROVAL_REQUIRED`로 되돌아오고, 서버가 승인 카드를 만든다. **그때는 재시도하지 않고 사람에게 알린다** — 응답의 `approval_id`와 함께 "critical 하향에 승인이 필요하다"를 보고하고 멈춘다. 카드가 열려 있는 동안 이 세션은 `awaiting_input` 이고, **결정은 하트비트 `pending` 의 `approval_decided`(`subject_type: finding`)로 온다** — `approve` 면 같은 호출을 같은 인자로 다시 부르고, `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다.
 
 이 게이트가 있는 이유는 실측이다: clemvion에서 checker의 CRITICAL을 `BLOCK: NO`로 하향한 모순이 732건 중 24건(3.3%) 관측됐다. 에이전트가 자기 리뷰의 심각도를 스스로 낮출 수 있으면 게이트는 형식이 된다.
 
@@ -61,7 +61,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`가 무엇이 빠졌는지 말한다. 채워서 재호출 |
+| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`에 빠진 항목이 적혀 있다. 채워서 재호출 |
 | NERV_APPROVAL_REQUIRED | critical 하향 — 재시도하지 않는다. `approval_id`와 함께 사람에게 보고하고 멈춘다 |
 | NERV_FORBIDDEN | `review:resolve` 미보유 — 처분은 이 역할의 일이 아니다. 제출까지만 하고 보고한다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |

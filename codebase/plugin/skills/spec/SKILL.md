@@ -70,16 +70,16 @@ allowed-tools:
 
 없으면 무슨 일이 있었는지: 세 세션이 같은 초안을 동시에 고쳤을 때 **셋 다 성공하고 본문에는 하나만 남았다** — 둘은 오류도 경고도 없이 자기 글을 잃었다(실측 2026-08-30).
 
-`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 싣지 않는다: 견줄 버전이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
+`content_hash` 가 null 로 오는 문서가 있다 — 임포터가 디렉터리에서 만든 묶음 노드(area)라 **아직 본문이 없다**. 그때는 `base_hash` 를 넣지 않는다: 견줄 버전이 없으므로 서버도 요구하지 않는다. 본문이 한 번 생기면 그다음부터는 필수다.
 
-`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그건 남의 글을 덮어쓰는 것이다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
+`stale_body` 를 받으면 **같은 본문으로 재시도하지 않는다.** 그러면 남의 글을 덮어쓴다. 절차는 하나다: 다시 읽고 → 내 변경을 그 위에 다시 얹고 → 새 지문으로 저장한다. 사람에게는 "그 사이 누가 고쳐서 다시 얹었다"고 보고한다.
 
 ## 무엇을 왜 바꿨는지 남긴다
 
 **초안은 덮어써진다.** 승인 전까지는 같은 버전을 고쳐 쓰므로 나중에 되짚을 diff 가 없다 —
 저장하는 그 순간이 "무엇이 바뀌었나"를 말할 수 있는 유일한 시점이다.
 
-- `change_summary` 를 **매 저장에 싣는다.** 한 줄이어도 된다. 싣지 않으면 앞의 요약이 그대로
+- `change_summary` 를 **매 저장에 넣는다.** 한 줄이어도 된다. 넣지 않으면 앞의 요약이 그대로
   남으므로 새 저장이 옛 요약을 달고 있게 된다.
 - 응답의 `delta` 는 요구사항(added·modified·removed)과 줄 수다. **사람에게 그대로 보고한다** —
   에이전트가 무엇을 고쳤다고 말하는 것과 서버가 실제로 받은 것이 다르면 그 자리에서 드러난다.
@@ -87,7 +87,7 @@ allowed-tools:
 정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
 
 - 저장과 함께 확정하려면 `nerv_spec_draft_upsert` 의 `relations`(`[{to, kind, base_hash}]`)를 쓴다. **주지 않으면 건드리지 않고**, 빈 배열은 전부 지운다. `references` 는 여기 넣지 못한다 — 본문의 링크가 그것의 주인이다.
-- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 싣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
+- **상대 문서의 `base_hash` 가 필수다.** 관계는 "저 문서를 읽고 내린 판단"이므로, 먼저 `nerv_spec_get` 으로 대상을 읽고 그 `content_hash` 를 넣는다. 읽지 않고 선언한 관계는 그래프에 거짓을 심는다.
 - 이미 있는 문서의 관계를 하나만 더하거나 뺄 때는 `nerv_spec_relate`(`from`·`to`·`kind`·`base_hash`, 되돌릴 때 `remove: true`)를 쓴다. 지울 때는 `base_hash` 를 요구하지 않는다.
 
 ## 다이어그램은 mermaid 로 그린다
@@ -105,7 +105,7 @@ allowed-tools:
 
 **디자인 시안이 문서 밖에 있으면 문서가 아니다.** 외부 링크는 스펙의 버전과 무관하게 바뀌므로, "이 버전이 말하는 화면" 을 나중에 되짚을 수 없다.
 
-`nerv_spec_attach` 는 **두 번 부르고, 그 사이에 파일을 직접 올린다**(도구 호출 둘 + PUT 하나 = 세 걸음). 도구가 파일을 나르지 않는 이유는 응답에 그것을 싣지 않기 위해서다 — base64 를 실으면 그 세션의 컨텍스트 예산이 그것으로 찬다.
+`nerv_spec_attach` 는 **두 번 부르고, 그 사이에 파일을 직접 올린다**(도구 호출 둘 + PUT 하나 = 세 걸음). 도구로 파일을 보내지 않는 이유는 응답에 파일을 담지 않기 위해서다 — base64 를 담으면 그 세션의 컨텍스트 예산이 그것으로 찬다.
 
 1. `nerv_spec_attach`(`spec_id`, `filename`, `content_type`) → `upload_url` 과 `attachment_id` 를 받는다.
 2. 그 주소에 파일을 그대로 `PUT` 한다(헤더는 `Content-Type` 만).
@@ -137,7 +137,7 @@ allowed-tools:
    응답의 목록은 각각 `nodes`·`items` 다.
    **전역 그래프는 크다**(clemvion 실측 141노드·1,253간선) — 어느 문서의 주변만 보면 될 때는
    `around`(중심 스펙)와 `hops`(그 중심에서 몇 간선까지 · 기본 1)로 좁히고, 간선까지 받으려면
-   `include_relations: true` 를 준다. `around` 는 `root`·`depth` 와 다른 축이고 조상을 싣지 않는다.
+   `include_relations: true` 를 준다. `around` 는 `root`·`depth` 와 다른 축이고 조상을 포함하지 않는다.
    검색에서 **이미 어떤 문서를 알고 그것을 가리키는 쪽을 찾을 때**는 `references`(스펙 키)를 쓴다.
    **쓰다 만 것을 먼저 본다** — `status: "draft,in_review"` 로 끝나지 않은 문서를 훑고,
    그중에 지금 쓰려던 것이 있으면 새로 만들지 말고 **그것을 잇는다**(`key_taken` 때와 같은
@@ -159,12 +159,12 @@ allowed-tools:
    최신 본문과 open 코멘트를 읽는다. **`include` 의 어휘는 `tasks`·`comments`·`attachments`
    셋뿐이고 그 밖의 값은 400 이다** — 요구사항은 늘 실려 오므로 달라고 하지 않는다.
    응답의 `content_hash` 를 `base_hash` 로 쓴다 —
-   **저장에 싣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
+   **저장에 넣는 전제조건은 이것 하나다.** 어느 버전에서 갈라져 나왔는가(계보)는 서버가
    아는 사실이라 묻지 않는다.
 2. 수정안을 만들어 사람에게 확인받고 `nerv_spec_draft_upsert`(`spec_id`, `base_hash`,
    `body_markdown`, `change_summary`, `idempotency_key`) 호출. 초안 편집 리스는 이 호출이
    성공하는 순간 자동 획득·갱신된다(TTL 30분 — Task 클레임 리스와 같은 상수).
-   **리스 보유자는 세션이다** — 같은 사람의 다른 세션이나 웹 탭이 쥐고 있으면 자동 인계되지
+   **리스 보유자는 세션이다** — 같은 사람의 다른 세션이나 웹 탭이 가지고 있으면 자동 인계되지
    않고 `NERV_DRAFT_LEASED` 가 온다. 상대가 죽은 세션이라 응답하지 않으면 `takeover: true` 로
    이어받는다(뺏어도 본문은 `base_hash` 가 지킨다 — 리스는 신호이고 지문이 자물쇠다).
 3. **제목·부모·타입은 이 호출로 바꾸지 못한다.** 기존 문서에 현재와 다른 값을 실으면
@@ -172,7 +172,7 @@ allowed-tools:
    대상이라 사람이 웹에서 바꾼다(EP-SPEC-15). 그 셋을 정할 수 있는 것은 **새 문서를 만들
    때뿐**이다(위 create 2). 옮기거나 이름을 바꿔야 한다고 판단했으면 **본문만 저장하고,
    무엇을 어디로 옮겨야 하는지를 사람에게 말한다** — 409 응답의 `web_url` 이 그 문서의
-   자리다. 애초에 그 셋은 기존 문서를 고칠 때 **싣지 않는 것**이 맞다.
+   자리다. 애초에 그 셋은 기존 문서를 고칠 때 **넣지 않는 것**이 맞다.
 4. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
    사람에게 보여준다.
 5. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
@@ -214,18 +214,18 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | 코드 | 대응 |
 | --- | --- |
 | NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문과 web_url 이 온다 |
-| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 안 실었다 — nerv_spec_get 의 `content_hash` 를 실어 다시 부른다 |
+| NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — nerv_spec_get 의 `content_hash` 를 넣어 다시 부른다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 이 스킬의 도구는 내지 않는다 — 오면 `approval_id` 를 사람에게 보고하고 멈춘다 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(승인·삭제 등은 도구가 존재하지 않는다) |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 .nerv/cache/, 쓰기는 .nerv/outbox/ 멱등 큐잉. **단 `details.kind` 가 `storage_unconfigured` 면 큐잉하지 않는다** — 서버에 스토리지 설정이 없다는 뜻이라 재시도로 풀리지 않는다. `details.missing` 의 환경변수를 사람에게 그대로 전한다 |
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
-| NERV_PRECONDITION `wrapped_body` | 읽은 본문을 **포장째** 저장하려 했다 — `<nerv:spec …>` 경계는 표시이지 본문이 아니다. 경계 안쪽만 실어 다시 부른다 |
-| NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 실어 보낸다 |
+| NERV_PRECONDITION `wrapped_body` | 읽은 본문을 **포장째** 저장하려 했다 — `<nerv:spec …>` 경계는 표시이지 본문이 아니다. 경계 안쪽만 넣어 다시 부른다 |
+| NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 넣어 보낸다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
 | NERV_PRECONDITION `key_taken` | 그 키를 이미 쓰는 문서가 있다 — details 의 `web_url`·`archived` 를 보고 **그 문서를 읽고 이어 쓴다**(보관 상태면 복구가 먼저다). 키를 조금 바꿔 새로 만들지 않는다 |
-| NERV_PRECONDITION `relation_base_hash_required` | 관계를 선언하면서 상대 문서의 지문을 안 실었다 — details 의 `targets` 가 어느 문서인지 준다. 그 문서를 nerv_spec_get 으로 읽고 `content_hash` 를 실어 다시 부른다 |
+| NERV_PRECONDITION `relation_base_hash_required` | 관계를 선언하면서 상대 문서의 지문을 넣지 않았다 — details 의 `targets` 가 어느 문서인지 준다. 그 문서를 nerv_spec_get 으로 읽고 `content_hash` 를 넣어 다시 부른다 |
 | NERV_PRECONDITION `stale_relation_target` | 상대 문서가 그 사이 바뀌었다 — 다시 읽고 **관계가 여전히 맞는지 확인한 뒤** 새 지문으로 부른다. 지문만 갈아 끼우는 것은 확인이 아니다 |
 
 ## 금지

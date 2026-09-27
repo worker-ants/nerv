@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v1.91 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v1.92 · 2026-09-27 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v1.92 변경(2026-09-27 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **플러그인 스킬 문구 정리**를 적는다. 사용자의 에이전트가 읽는 스킬 파일에 용어 사전 §3.4 표현이 35곳 남아 있었다.
 >
 > v1.91 변경(2026-09-27 — E12-S07 의 남은 것 하나): **E12-S07 은 여전히 부분.** CI 게이트가 들어왔다([4.2 코드베이스](codebase.md) REQ-CB-058). 남은 것은 `claude plugin eval` 사례와 Codex 매니페스트 · 훅이다.
 >
@@ -629,6 +631,7 @@ referenced_by:
 | 관계 그래프 — 같은 데이터는 같은 그림, 확대는 WebGL | `apps/web/src/features/spec-graph/`(`layout.ts` `withSeed` · 다지기 조기 종료 · 이름 문턱 · `layout-cache.ts` · `graph.tsx`) · `routes/p.$proj/specs.index.tsx`(`?layout=`) · `spec.service.ts`(간선 정렬) · 매뉴얼 ko·en · L1 `layout.spec.ts` · `layout-cache.spec.ts` · `url-state.spec.ts` · L3 `spec-graph.spec.ts` | 열 때마다 배치가 달라 자리를 익힐 수 없었고, 243 문서 · 3,036 관계에서 확대·이동이 초당 19–24장이었다(사람 보고). 배치 번호가 난수를 정하고(같은 데이터면 같은 그림 · [다른 배치]는 번호를 주소에 남긴다), 입력을 정렬하고, 구조가 바뀔 때만 다시 그리며, 계산한 자리를 브라우저에 적어 둔다. 확대·이동은 cytoscape 내장 WebGL(캔버스로 되돌리는 스위치), 이름 문턱은 CSS 픽셀로, 정리 패스는 풀리지 않는 다지기를 헛돌지 않는다([4.5](screens.md) REQ-WEB-245·246). 문서가 늘 때의 안정성은 2026-09-27 사람 결정으로 정리됐다 — 다음 줄 |
 | 관계 그래프 — 이름은 배율 0.5 부터, 배치는 저장하지 않는다 | `apps/web/src/features/spec-graph/layout.ts`(`LABEL_ZOOM` 0.5) · `graph.tsx` · L1 `layout.spec.ts` | 사람 결정 둘. ① 문서 이름을 배율 0.5 부터 그린다 — 0.889 까지 기다리면 수백 문서 규모(맞춤 배율 0.43–0.53)에서는 이름을 보려고 한참 확대해야 했다. 이름의 자리까지 잡는 정리(REQ-WEB-178)도 같은 문턱을 따른다. ② 배치는 서버에 저장하지 않고 고정 시드로 재현한다 — 서버에 지도를 두고 새 문서를 끼워 넣는 안은 검토했지만 고르지 않았다([4.5](screens.md) REQ-WEB-095 · 245) |
 | 관계 그래프 — 문서가 늘어도 형태가 그대로다 | `apps/web/src/features/spec-graph/layout.ts`(기준 자리 · 묶은 스트레스 · 방향을 지키는 겹침 풀기) · `graph.tsx`(데이터의 영역을 계층으로 건넨다) · `layout-cache.ts`(`v2`) · `package.json`(fcose 제거) · 매뉴얼 ko·en · L1 `layout.spec.ts` · `layout-cache.spec.ts` · L3 `spec-graph.spec.ts` | 사람 결정 둘(S1 fcose 를 빼고 배치를 직접 계산 · S2 밀도 0.3). 지킬 것은 거리가 아니라 형태(한 문서 주위에 어떤 문서가 어느 방향에 있는가)인데, fcose 는 시드를 고정해도 문서 하나에 형태가 무너졌다. 문서 id 로 정한 기준 자리에서 출발해 그 자리에 묶은 스트레스로 다듬고, 겹침은 두 중심을 잇는 선을 따라서만 푼다. clemvion 에서 문서를 하나씩 더할 때 형태 유지율 0.44 → 0.996 · 방향 변화 58° → 1.6°, 대가는 관계 반영 1.35배 · 맞춤 배율 0.84배([4.5](screens.md) REQ-WEB-175 · 245 · 247 · [4.1](scope.md) §2.1). 곁들여: WebGL 이 화살촉을 흰 배경과 섞어 칠해, 어두운 테마에서 노드를 고르면 관계없는 간선의 화살촉이 강조된 것처럼 보였다(사람 보고) — 만들 때 실제 배경색을 건네고(`withCanvasBackground` · L1 `graph.spec.tsx`) 테마가 바뀌면 다시 그린다. 가려야 할 이름(흐려진 문서 · 작은 이름 · 겹친 이름)도 WebGL 에서만 그대로 그려졌다 — 라벨 텍스처 열쇠에 `text-opacity` 가 없어서였고, 가리는 클래스가 외곽선 투명도도 함께 바꾼다(`labelOpacity`). 남은 것: 실브라우저에서 맞춤 배율과 여는 시간을 다시 잰다 |
+| 플러그인 스킬 문구 — 용어 사전 §3.4 표현을 정리한다 | `codebase/plugin/skills/{spec,impl,next,question,review}/SKILL.md` · `agents/nerv-spec-writer.md` · 플러그인 0.3.4 | 사용자의 에이전트가 매번 읽는 파일에 §3.4 표현이 35곳 남아 있었다(ko-style 검사기로 셌다). 뜻은 그대로 두고 말만 고쳤다. [4.6 플러그인](plugin.md) 파생본의 스킬 사본 둘(`spec` · `question`)이 원본보다 뒤져 있던 것도 함께 맞췄다 |
 
 #### 이 절은 언제 갱신되는가
 
