@@ -68,10 +68,7 @@ export function RequirementPanel({
         <code className="rounded-nerv-sm bg-bg-sunken px-1.5 py-1 font-mono text-2xs text-text-mute">
           {t('spec.requirements.format')}
         </code>
-        <Link
-          {...helpLink('specs', 'requirements')}
-          className="text-2xs text-link hover:underline"
-        >
+        <Link {...helpLink('specs', 'requirements')} className="text-2xs text-link hover:underline">
           {t('spec.requirements.ears_help')} ▸
         </Link>
       </div>

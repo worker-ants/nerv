@@ -134,7 +134,10 @@ export interface HelpTarget {
 }
 
 /** 장과 절의 짝을 타입이 본다 — `help('settings', 'gates')` */
-export function help<C extends ManualChapterId>(chapter: C, section?: ManualSectionId<C>): HelpTarget {
+export function help<C extends ManualChapterId>(
+  chapter: C,
+  section?: ManualSectionId<C>,
+): HelpTarget {
   return section === undefined ? { chapter } : { chapter, section };
 }
 

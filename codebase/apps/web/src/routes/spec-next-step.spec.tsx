@@ -226,6 +226,8 @@ describe('곁의 칩과 넘기기', () => {
     await screen.findByTestId('handoff-command');
     const copies = document.body.textContent?.match(/\/nerv:spec edit SPC-X/g) ?? [];
     expect(copies).toHaveLength(1);
-    expect(screen.getByTestId('handoff-install').getAttribute('href')).toBe('/help/install#claude-code');
+    expect(screen.getByTestId('handoff-install').getAttribute('href')).toBe(
+      '/help/install#claude-code',
+    );
   });
 });

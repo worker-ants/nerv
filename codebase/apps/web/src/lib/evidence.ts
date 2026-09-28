@@ -148,7 +148,9 @@ export function evidenceTarget(input: {
       if (!isManualChapter(chapter)) return null;
       const section = rest.split('?')[0] ?? '';
       return {
-        href: isManualSection(chapter, section) ? `/help/${chapter}#${section}` : `/help/${chapter}`,
+        href: isManualSection(chapter, section)
+          ? `/help/${chapter}#${section}`
+          : `/help/${chapter}`,
         external: false,
       };
     }

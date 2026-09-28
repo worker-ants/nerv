@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.13 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.14 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.14 변경(2026-09-28 — 스토리 없이 들어온 수정 하나, **사람 결정**): §1.4 셋째 표에 **도움말 절 연결**을 적는다.
 >
 > v2.13 변경(2026-09-28 — 스토리 없이 들어온 화면 정리 하나): §1.4 셋째 표에 **퀵 스위처 명령 · 메타 다이얼로그 칸 넷 · 그래프 휠 감도**를 적는다.
 >
@@ -694,6 +696,7 @@ referenced_by:
 | 첨부 내리기와 복원 | 스키마 `attachment.hidden_at`(마이그레이션 `0040`) · 서버 `attachment.service.ts`(`hide` · `restore` · 가리키는 버전이 있으면 내리기만 하는 `remove` · 목록의 `referenced_by_versions`) · `spec.controller.ts`(`?hidden=true` · EP-SPEC-24) · `spec.tools.ts`(`nerv_spec_attachment_hide` · 25종) · 화면 첨부 탭([내리기] · 내린 첨부 · [복원] · `spec:draft` 역할) · `spec` 스킬(플러그인 0.3.8) · 매뉴얼 ko·en(스펙) · L1 `attachment-remove.spec.tsx` · `spec-rail.spec.tsx` · L2 `attachment.spec.ts` · `mcp.spec.ts` | 사람 결정. 다른 프로젝트에서 새 시안을 올린 뒤 옛 시안을 지울 수 없어 두 시안이 함께 남았다([4.4 API 명세](api.md) REQ-API-231 · [4.5 화면 명세](screens.md) REQ-WEB-265) |
 | 첨부 백업 왕복 — 키마다 확인하고 CI 에서 실제로 돈다 | `deploy/scripts/nerv-backup.sh`(확정된 첨부의 키를 미러에서 찾는다 · 빠지면 exit 3 · k8s 사본 동일) · `nerv-restore.sh`(③ `NERV_RESTORE_BLOBS_DIR` · ⑥ 키마다 · 수단 없으면 exit 2 · `NERV_RESTORE_SKIP_BLOBS`) · `.github/workflows/ci.yml`(L2 잡에 silo 서버와 `mcli` · `NERV_TEST_S3_*` · `NERV_REQUIRE_BLOB_TOOLS`) · L2 `restore-roundtrip.spec.ts`(첨부 왕복 다섯) | 백로그 "남은 것"(MinIO 이미지 행 — 첨부 미러는 CI 에서 돌지 않는다)을 닫는다([4.2 코드베이스](codebase.md) REQ-CB-059·060) |
 | 퀵 스위처 명령 · 메타 다이얼로그 칸 넷 · 그래프 휠 감도 | `components/quick-switcher.tsx`(명령 무리 — 언어 · 테마 · 새 스펙 시작 명령 복사) · `spec-start-card.tsx`(명령 값 한 곳) · `features/spec-editor/meta-dialog.tsx`(상위 문서 트리 피커 · 정렬 키 · 주인 역할 · 바뀐 칸만) · 서버 `spec.service.ts`(상세의 `parent_key` · `sort_key` · `owner_role`) · `features/spec-graph/graph.tsx`(`wheelSensitivity` 0.2 → 0.3 · 사람 결정) · 매뉴얼 ko·en(단축키 · 스펙) · L1 `quick-switcher.spec.tsx` · `meta-dialog.spec.tsx` · L2 `spec-domain.spec.ts` | 백로그 "남은 것" 둘을 닫는다 — 퀵 스위처의 "명령" 무리(검색 행) · 메타 다이얼로그의 부모 칸 피커와 정렬 키 · owner_role(되돌릴 수 없는 조작 행). [4.5 화면 명세](screens.md) REQ-WEB-266·267 |
+| 도움말 절 연결 — 제목에 로케일 공통 이름 | `lib/markdown.ts`(`{#이름}` 앵커 · 순서는 대체 · `###`) · `lib/manual-chapters.ts`(절 이름 목록 · `help` · `helpHref` · `helpLink` · `isManualSection`) · `lib/manual.ts`(`helpForRoute` — 화면 → 장 · 절) · 매뉴얼 ko · en 20편(`##` 82 · `###` 7 에 이름 · 우회 8×2 를 절 링크로) · `routes/help/$chapter.tsx`(옛 `#sec-N` 옮기기 · `###` 앵커 여백) · `app-shell.tsx` · `quick-switcher.tsx` · 고정 링크 넷 · 토큰 발급 카드의 "이유 보기" · `lib/evidence.ts`(`user_guide` 절) · L1 `markdown.spec.ts` · `manual.spec.ts` · `help.spec.tsx` · `evidence.spec.ts` · L3 `manual.spec.ts` | 사람 결정(HA1~HA6 모두 권장안). 백로그 "남은 것"(빈 상태와 연결이 막다른 길이었다 행 — 도움말의 절 단위 연결)을 닫는다([4.5 화면 명세](screens.md) REQ-WEB-268 · REQ-WEB-161 개정) |
 
 #### 이 절은 언제 갱신되는가
 

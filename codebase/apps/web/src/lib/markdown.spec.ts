@@ -38,7 +38,9 @@ describe('renderDoc', () => {
   });
 
   it('굵은 글씨 · 코드 뒤의 이름도 떼고, `###` 은 이름이 있을 때만 앵커다', () => {
-    const doc = renderDoc('## **굵은** `코드` 제목 {#bold}\n\n### 하위 {#sub}\n\n### 이름 없는 하위\n');
+    const doc = renderDoc(
+      '## **굵은** `코드` 제목 {#bold}\n\n### 하위 {#sub}\n\n### 이름 없는 하위\n',
+    );
     expect(doc.headings[0]?.id).toBe('bold');
     expect(doc.headings[0]?.text).toBe('굵은 코드 제목');
     expect(doc.html).toContain('<h3 id="sub">하위</h3>');
