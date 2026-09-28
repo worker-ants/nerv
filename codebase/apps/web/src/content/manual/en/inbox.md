@@ -19,7 +19,7 @@ A `critical` downgrade from a review also arrives here as a card (see [Reviews](
 An approval card shows two more lines below its header.
 
 - **Request line** — shows who made the request. If an agent session raised it, the machine and agent kind appear too. If that session is **stopped until you decide**, the line shows **"A session is waiting on this"**.
-- **Target line** — shows what you are deciding. For a spec, it shows **which version** it is, the risk tier (T0–T3) and the author's **change summary**. Click **[View changes ▸]** to open the difference from the previous version. A first version has no earlier version to compare against, so it has no such link. For a plan approval, the line shows **which task** the plan is for; for a `critical` downgrade, **which finding** is being downgraded. In both cases, the key in the header links to that task or finding.
+- **Target line** — shows what you are deciding. For a spec, it shows **which version** it is, the risk tier (T0–T3) and the author's **change summary**. Click **[View changes ▸]** to open the difference from the previous version. A first version has no earlier version to compare against, so it has no such link. Click **[Show content]** to expand that version's content inside the card, rendered as on the spec screen (headings, lists, tables and diagrams). For a plan approval, the line shows **which task** the plan is for; for a `critical` downgrade, **which finding** is being downgraded. In both cases, the key in the header links to that task or finding.
 
 ### Which organization and project it belongs to {#card-scope}
 

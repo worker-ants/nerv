@@ -237,7 +237,7 @@ Requirements in a spec body are extracted, and each one tracks its own implement
 - REQ-CWC-033 IF the conversation to restore is older than 30 days THE SYSTEM SHALL start a new one
 ```
 
-Agents get the number from the server, so nobody numbers requirements by hand. **Requirement rows are created from these lines when the document is approved.** That is why the Requirements tab is empty for a draft that has never been approved. Lines that don't follow the format appear as warnings in the pre-submit check.
+Agents get the number from the server, so nobody numbers requirements by hand. **Requirement rows are created from these lines when the document is approved.** That is why the Requirements tab lists nothing for a draft that has never been approved. Instead, the top of the tab shows **the requirements the draft will create once approved**. For a draft of a document that already has an approved version, it shows **what is added, changed and removed since that version**, and **[Compare vN..vM]** opens the comparison. Lines that don't follow the format appear as warnings in the pre-submit check.
 
 **Implementation status** on the project screen shows counts for these statuses. Of its six numbers, the last three matter most.
 

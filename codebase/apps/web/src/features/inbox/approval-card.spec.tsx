@@ -204,6 +204,10 @@ describe('문서로 가는 길 (REQ-WEB-119)', () => {
 
     fireEvent.click(screen.getByTestId('toggle-body'));
     await waitFor(() => expect(screen.getByTestId('subject-body').textContent).toContain('본문'));
+    // **스펙 상세와 같은 렌더러로 그린다**(REQ-WEB-279) — `#` 이 기호째 보이지 않고 제목이 된다
+    const body = screen.getByTestId('subject-body');
+    await waitFor(() => expect(body.querySelector('h1')?.textContent).toBe('문서 규약'));
+    expect(body.textContent).not.toContain('# ');
     // **검토 중인 그 버전**을 받는다 — 카드가 보여준 것과 승인되는 것이 같아야 한다
     expect(calls.some((u) => u.includes('/specs/SUD-CONV-DOCS?v=1'))).toBe(true);
     vi.unstubAllGlobals();

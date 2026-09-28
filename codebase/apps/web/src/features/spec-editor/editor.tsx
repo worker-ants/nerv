@@ -22,6 +22,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { Markdown } from 'tiptap-markdown';
 import { useEffect } from 'react';
+import { cn } from '../../lib/utils.js';
 
 /**
  * 본문에 남은 **API 상대 주소**를 그릴 때만 이 배치의 API 오리진에 붙인다 — REQ-WEB-166.
@@ -103,6 +104,8 @@ export interface RoundTripResult {
 
 export interface SpecEditorProps {
   value: string;
+  /** 자리에 맞춘 여백 — 받은 요청의 [본문 보기]는 높이를 두지 않는다 */
+  className?: string;
 }
 
 /**
@@ -118,14 +121,16 @@ export interface SpecEditorProps {
  * 데이터에 닿을 경로가 사라졌다(scope.md §2.2 점화 기록 ② 갱신) — `roundTrip`·`normalize`
  * 는 스파이크 기록을 위해 남는다.
  */
-export function SpecEditor({ value }: SpecEditorProps): React.JSX.Element {
+export function SpecEditor({ value, className }: SpecEditorProps): React.JSX.Element {
   const editor = useEditor({ extensions: EDITOR_EXTENSIONS, content: value, editable: false });
 
   // **본문은 나중에 도착한다.** `content: value` 는 에디터를 만들 때 한 번만 읽히는데,
   // 첫 렌더에서 value 는 아직 빈 문자열이다(쿼리가 안 끝났다). 이 동기화가 없으면
   // 스펙 본문이 영영 화면에 뜨지 않는다 — 실측으로 잡은 결함이다.
   useEffect(() => {
-    if (editor === null) return;
+    // 닫힌 편집기는 건너뛴다 — Suspense 안(받은 요청의 [본문 보기])에서 숨었다 다시 붙으면 효과가 다시 도는데,
+    // 그때의 편집기는 이미 닫혀 있어 `commands` 가 던진다. 다음 렌더가 새 편집기로 다시 맞춘다
+    if (editor === null || editor.isDestroyed) return;
     const storage = editor.storage as { markdown?: { getMarkdown: () => string } };
     const current = storage.markdown?.getMarkdown() ?? '';
     if (normalize(current) === normalize(value)) return;
@@ -140,7 +145,10 @@ export function SpecEditor({ value }: SpecEditorProps): React.JSX.Element {
       editor={editor}
       data-testid="editor-content"
       // 앵커로 스크롤한 헤딩이 **고정 제목 뒤에 숨지 않게** 위 여백을 둔다(REQ-WEB-215)
-      className="prose-nerv min-h-[40vh] px-0 py-1 [&_.ProseMirror]:outline-none [&_:is(h1,h2,h3,h4,h5,h6)]:scroll-mt-28"
+      className={cn(
+        'prose-nerv min-h-[40vh] px-0 py-1 [&_.ProseMirror]:outline-none [&_:is(h1,h2,h3,h4,h5,h6)]:scroll-mt-28',
+        className,
+      )}
     />
   );
 }

@@ -11,18 +11,19 @@
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useT } from '../../lib/i18n.js';
-import { rows, useMe, useRequirements, useTaskLane } from '../../lib/queries.js';
+import { rows, useMe, useRequirements, useSpecDiff, useTaskLane } from '../../lib/queries.js';
 import { apiFetch } from '../../lib/api.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { useScope } from '../../lib/scope.js';
 import { rolesInProject } from '../../lib/session.js';
-import { Mono, Skeleton } from '../../components/ui/primitives.js';
+import { Button, Mono, Skeleton } from '../../components/ui/primitives.js';
+import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { REQUIREMENT_TOKEN } from '../../components/status-token.js';
-import { EVIDENCE_SIGNER_ROLES, statusLabelKey } from '@nerv/schema';
+import { EVIDENCE_SIGNER_ROLES, requirementsOf, statusLabelKey } from '@nerv/schema';
 import { taskStatusText } from '../../lib/format.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -36,14 +37,37 @@ export function RequirementPanel({
    * 버전에서 일을 파생하면 그 일은 아직 합의되지 않은 약속 위에 선다.
    */
   version,
+  approvedNo = null,
+  draftBody,
+  onOpenDiff,
 }: {
   projectSlug: string;
   specKey: string;
   version?: { id: string; versionNo: number; status: string };
+  /** 이 문서의 최신 승인본 번호 — 승인된 적 없으면 null */
+  approvedNo?: number | null;
+  /** 보고 있는 초안의 본문 — 승인된 적 없는 초안이 무엇을 약속하는지 센다 */
+  draftBody?: string;
+  /** 두 버전의 비교를 연다 */
+  onOpenDiff?: (from: number, to: number) => void;
 }): React.JSX.Element {
   const t = useT();
   const query = useRequirements(projectSlug, specKey);
   const items = rows(query.data);
+  // **초안이 무엇을 바꾸는지 먼저 보인다**(2026-09-28 · SPEC-14 · REQ-WEB-278). 요구사항 행은 승인될 때
+  // 만들어져서, 초안을 보는 동안 이 탭은 승인본의 약속만 보였다 — 검토를 부르기 전에 "이번에 무엇이
+  // 늘고 줄었나" 를 볼 곳이 없었다
+  const draft =
+    version !== undefined && version.status !== 'approved' ? (
+      <DraftRequirementDelta
+        projectSlug={projectSlug}
+        specKey={specKey}
+        versionNo={version.versionNo}
+        approvedNo={approvedNo}
+        draftBody={draftBody ?? ''}
+        {...(onOpenDiff === undefined ? {} : { onOpenDiff })}
+      />
+    ) : null;
   // 검증 서명을 남길 수 있는 사람만 "영향 없음 확인" 을 본다 — 서버의 서명 규칙과 같은 목록이다
   const me = useMe();
   const { orgSlug } = useScope(projectSlug);
@@ -61,87 +85,101 @@ export function RequirementPanel({
     // 보이고, 예 셋은 매뉴얼의 요구사항 절에 있다
     const neverApproved = version !== undefined && version.status !== 'approved';
     return (
-      <div data-testid="requirements-empty" className="flex flex-col gap-1.5 px-2 py-3 text-sm">
-        <p className="text-text-faint">
-          {neverApproved ? t('spec.requirements.empty_draft') : t('spec.requirements.empty')}
-        </p>
-        <code className="rounded-nerv-sm bg-bg-sunken px-1.5 py-1 font-mono text-2xs text-text-mute">
-          {t('spec.requirements.format')}
-        </code>
-        <Link {...helpLink('specs', 'requirements')} className="text-2xs text-link hover:underline">
-          {t('spec.requirements.ears_help')} ▸
-        </Link>
+      <div className="flex flex-col gap-2">
+        {draft}
+        <div data-testid="requirements-empty" className="flex flex-col gap-1.5 px-2 py-3 text-sm">
+          <p className="text-text-faint">
+            {neverApproved ? t('spec.requirements.empty_draft') : t('spec.requirements.empty')}
+          </p>
+          <code className="rounded-nerv-sm bg-bg-sunken px-1.5 py-1 font-mono text-2xs text-text-mute">
+            {t('spec.requirements.format')}
+          </code>
+          <Link
+            {...helpLink('specs', 'requirements')}
+            className="text-2xs text-link hover:underline"
+          >
+            {t('spec.requirements.ears_help')} ▸
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-1.5 px-1">
-      {items.map((r) => {
-        const tasks = Number(r['task_count'] ?? 0);
-        const evidence = Number(r['evidence_count'] ?? 0);
-        return (
-          <li key={String(r['id'])} className="flex flex-col gap-0.5 rounded-nerv px-1 py-1">
-            <div className="flex items-center gap-1.5">
-              <Mono>{String(r['ref'])}</Mono>
-              <StatusBadge
-                token={
-                  (REQUIREMENT_TOKEN[String(r['impl_status']) as keyof typeof REQUIREMENT_TOKEN] ??
-                    'idle') as StatusToken
-                }
-                label={t(statusLabelKey('requirement', String(r['impl_status'])))}
-              />
-              {/* **우선순위가 없으면 없다고 적는다** — `must` 로 채워 보이면 원본이
+    <div className="flex flex-col gap-2">
+      {draft}
+      <ul className="flex flex-col gap-1.5 px-1">
+        {items.map((r) => {
+          const tasks = Number(r['task_count'] ?? 0);
+          const evidence = Number(r['evidence_count'] ?? 0);
+          return (
+            <li key={String(r['id'])} className="flex flex-col gap-0.5 rounded-nerv px-1 py-1">
+              <div className="flex items-center gap-1.5">
+                <Mono>{String(r['ref'])}</Mono>
+                <StatusBadge
+                  token={
+                    (REQUIREMENT_TOKEN[
+                      String(r['impl_status']) as keyof typeof REQUIREMENT_TOKEN
+                    ] ?? 'idle') as StatusToken
+                  }
+                  label={t(statusLabelKey('requirement', String(r['impl_status'])))}
+                />
+                {/* **우선순위가 없으면 없다고 적는다** — `must` 로 채워 보이면 원본이
                   그렇게 선언한 것처럼 읽힌다(4.7 §2.5 규칙 4) */}
-              <span className="text-2xs text-text-faint">
-                {r['priority'] == null ? t('spec.requirements.no_priority') : String(r['priority'])}
-              </span>
-            </div>
-            <p className="line-clamp-2 text-xs text-text-mute">{String(r['statement_md'] ?? '')}</p>
-            {r['reverify_required'] === true && (
-              <ReverifyLine
-                projectSlug={projectSlug}
-                specKey={specKey}
-                requirement={r}
-                canSign={canSign}
-              />
-            )}
-            {/* **빈 약속은 눈에 띄어야 한다**(FR-13) — 0 을 회색으로 숨기면 세는 뜻이 없다 */}
-            <p
-              data-testid={tasks === 0 && evidence === 0 ? 'empty-promise' : undefined}
-              className={`text-2xs ${tasks === 0 && evidence === 0 ? 'text-status-danger' : 'text-text-faint'}`}
-            >
-              {t('spec.requirements.counts', { tasks, evidence })}
-            </p>
-            {/* **가치 사슬의 첫 고리**(REQ-WEB-147) — 약속에서 일로 가는 문이 화면에 없어,
-                웹에서 만든 Task 는 어느 요구사항도 책임지지 않았다(실측 487건 중 214건). */}
-            {version !== undefined && version.status === 'approved' ? (
-              <Link
-                data-testid="derive-task"
-                to="/p/$proj/tasks"
-                params={{ proj: projectSlug }}
-                search={{
-                  from_version: version.id,
-                  from_spec: specKey,
-                  from_version_no: String(version.versionNo),
-                  requirement: String(r['id']),
-                }}
-                className="text-2xs text-link hover:underline"
-              >
-                {/* 동사 글자지만 생성 폼으로 가는 이동이다 — ▸ 로 이동임을 보인다(사람 결정 A3) */}
-                {t('spec.requirements.derive_task')} ▸
-              </Link>
-            ) : (
-              version !== undefined && (
                 <span className="text-2xs text-text-faint">
-                  {t('spec.requirements.derive_disabled')}
+                  {r['priority'] == null
+                    ? t('spec.requirements.no_priority')
+                    : String(r['priority'])}
                 </span>
-              )
-            )}
-          </li>
-        );
-      })}
-    </ul>
+              </div>
+              <p className="line-clamp-2 text-xs text-text-mute">
+                {String(r['statement_md'] ?? '')}
+              </p>
+              {r['reverify_required'] === true && (
+                <ReverifyLine
+                  projectSlug={projectSlug}
+                  specKey={specKey}
+                  requirement={r}
+                  canSign={canSign}
+                />
+              )}
+              {/* **빈 약속은 눈에 띄어야 한다**(FR-13) — 0 을 회색으로 숨기면 세는 뜻이 없다 */}
+              <p
+                data-testid={tasks === 0 && evidence === 0 ? 'empty-promise' : undefined}
+                className={`text-2xs ${tasks === 0 && evidence === 0 ? 'text-status-danger' : 'text-text-faint'}`}
+              >
+                {t('spec.requirements.counts', { tasks, evidence })}
+              </p>
+              {/* **가치 사슬의 첫 고리**(REQ-WEB-147) — 약속에서 일로 가는 문이 화면에 없어,
+                웹에서 만든 Task 는 어느 요구사항도 책임지지 않았다(실측 487건 중 214건). */}
+              {version !== undefined && version.status === 'approved' ? (
+                <Link
+                  data-testid="derive-task"
+                  to="/p/$proj/tasks"
+                  params={{ proj: projectSlug }}
+                  search={{
+                    from_version: version.id,
+                    from_spec: specKey,
+                    from_version_no: String(version.versionNo),
+                    requirement: String(r['id']),
+                  }}
+                  className="text-2xs text-link hover:underline"
+                >
+                  {/* 동사 글자지만 생성 폼으로 가는 이동이다 — ▸ 로 이동임을 보인다(사람 결정 A3) */}
+                  {t('spec.requirements.derive_task')} ▸
+                </Link>
+              ) : (
+                version !== undefined && (
+                  <span className="text-2xs text-text-faint">
+                    {t('spec.requirements.derive_disabled')}
+                  </span>
+                )
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -255,5 +293,109 @@ export function DerivedTaskPanel({
         {t('spec.derived_tasks.all')}
       </Link>
     </div>
+  );
+}
+
+/**
+ * 초안이 요구사항을 무엇을 더하고 · 바꾸고 · 빼는가(2026-09-28 · SPEC-14 · REQ-WEB-278).
+ *
+ * 승인본이 있으면 **버전 비교(EP-SPEC-06)** 가 답한다 — 서버가 요구사항 델타를 이미 센다. 승인된 적이 없으면 비교할
+ * 버전이 없으므로 본문의 요구사항 줄을 센다(`requirementsOf` — 서버와 같은 판정). 둘 다 "승인되면 이 문서의 약속이
+ * 어떻게 되나" 에 답한다.
+ */
+function DraftRequirementDelta({
+  projectSlug,
+  specKey,
+  versionNo,
+  approvedNo,
+  draftBody,
+  onOpenDiff,
+}: {
+  projectSlug: string;
+  specKey: string;
+  versionNo: number;
+  approvedNo: number | null;
+  draftBody: string;
+  onOpenDiff?: (from: number, to: number) => void;
+}): React.JSX.Element {
+  const t = useT();
+  const base = approvedNo !== null && approvedNo < versionNo ? approvedNo : null;
+  const diff = useSpecDiff(projectSlug, specKey, base, base === null ? null : versionNo);
+  const shell = 'rounded-nerv border border-border bg-bg-sunken px-2.5 py-2 text-xs';
+
+  if (base === null) {
+    const found = [...requirementsOf(draftBody)];
+    return (
+      <section data-testid="draft-requirements" className={shell}>
+        <p className="font-medium text-text">
+          {found.length === 0
+            ? t('spec.requirements.draft_none_new')
+            : t('spec.requirements.draft_new', { count: found.length })}
+        </p>
+        {found.length > 0 && (
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {found.map(([ref, statement]) => (
+              <li key={ref} className="flex gap-2">
+                <Mono className="shrink-0">{ref}</Mono>
+                <span className="line-clamp-1 min-w-0 text-text-mute">{statement}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  }
+
+  if (diff.isLoading) return <Skeleton rows={1} />;
+  const changed = rows(diff.data?.['requirements']).filter((r) => r['delta'] !== 'unchanged');
+  const count = (kind: string): number => changed.filter((r) => r['delta'] === kind).length;
+  return (
+    <section data-testid="draft-requirements" className={shell}>
+      <p className="font-medium text-text">
+        {t('spec.requirements.draft_delta', { from: base })}{' '}
+        <span className="font-normal text-text-mute">
+          {changed.length === 0
+            ? t('spec.diff.no_requirement_change')
+            : t('spec.requirements.draft_counts', {
+                added: count('added'),
+                modified: count('modified'),
+                removed: count('removed'),
+              })}
+        </span>
+      </p>
+      {changed.length > 0 && (
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {changed.map((r) => (
+            <li key={String(r['ref'])} className="flex gap-2">
+              <span
+                className={cn(
+                  'w-10 shrink-0 font-mono text-2xs',
+                  r['delta'] === 'added' && 'text-status-ok',
+                  r['delta'] === 'removed' && 'text-status-danger',
+                  r['delta'] === 'modified' && 'text-status-waiting',
+                )}
+              >
+                {t(`spec.diff.${String(r['delta'])}` as 'spec.diff.added')}
+              </span>
+              <Mono className="shrink-0">{String(r['ref'])}</Mono>
+              <span className="line-clamp-1 min-w-0 text-text-mute">
+                {String(r['statement_md'] ?? '')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {onOpenDiff !== undefined && (
+        <Button
+          size="xs"
+          variant="subtle"
+          data-testid="draft-requirements-diff"
+          className="mt-1.5"
+          onClick={() => onOpenDiff(base, versionNo)}
+        >
+          {t('spec.requirements.draft_open_diff', { from: base, to: versionNo })}
+        </Button>
+      )}
+    </section>
   );
 }

@@ -578,6 +578,11 @@ export const en = {
   'spec.requirements.empty': 'The approved version of this document has no requirements.',
   'spec.requirements.empty_draft':
     "Requirements are created from the body when the document is approved. This document hasn't been approved yet.",
+  'spec.requirements.draft_delta': 'Requirement changes since v{from}',
+  'spec.requirements.draft_counts': '{added} added · {modified} changed · {removed} removed',
+  'spec.requirements.draft_new': 'Approving this draft creates {count} requirements',
+  'spec.requirements.draft_none_new': 'This draft has no requirement lines yet',
+  'spec.requirements.draft_open_diff': 'Compare v{from}..v{to}',
   'spec.requirements.format':
     '- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>',
   'spec.requirements.no_priority': 'no priority',
