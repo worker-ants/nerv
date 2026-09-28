@@ -587,6 +587,11 @@ export class SpecService {
 
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type, s.archived_at,
+             -- **메타의 지금 값**(2026-09-28 · REQ-WEB-267). 메타 다이얼로그가 부모 · 정렬 키 ·
+             -- 주인 역할을 고치게 하려면 지금 무엇인지부터 보여야 한다 — 없던 동안 부모 칸은
+             -- 빈 입력이었고 정렬 키 · 주인 역할은 칸 자체가 없었다
+             (SELECT p.key FROM spec p WHERE p.id = s.parent_id) AS parent_key,
+             s.sort_key, s.owner_role::text AS owner_role,
              sv.id AS version_id, sv.version_no, sv.status::text AS doc_status, sv.body_md,
              -- **읽은 내용의 지문**. 다음 저장이 이것을 base_hash 로 되돌려 주면 서버는
              -- "그 사이 아무도 안 바꿨다"를 확인할 수 있다(§1.4g — 비교-교환)

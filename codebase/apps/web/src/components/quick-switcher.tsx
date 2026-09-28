@@ -12,19 +12,28 @@
 // 고정 · 최근 · **이동**(홈·받은 요청·알림·설정 넷·도움말) · **이 프로젝트**(개요~리뷰) · **프로젝트** ·
 // 문서(프로젝트 안에서만 — EP-SPEC-02). 정적 무리는 화면에서 걸러 요청을 늘리지 않는다.
 //
+// **명령 무리**(2026-09-28 · REQ-WEB-266) — 가는 곳이 아니라 **하는 일**이다: 언어 · 테마 전환과
+// 새 스펙 시작 명령 복사. 사용자 메뉴를 열어 찾던 일을 여기서 끝낸다. 스펙은 웹에서 만들지 않으므로
+// (REQ-WEB-173) "새 스펙" 은 시작 카드와 같은 명령을 복사한다 — 할 수 없는 역할에게는 보이지 않는다.
+//
 // 최근 방문·핀은 localStorage 다 — 뷰 상태 등급이고 서버 동기화는 Phase 2(§1.3a).
 
-import { statusLabelKey } from '@nerv/schema';
-import { useT } from '../lib/i18n.js';
+import { LOCALES, scopesForRoles, statusLabelKey } from '@nerv/schema';
+import { LOCALE_LABEL, useLocale, useT } from '../lib/i18n.js';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { helpForRoute } from '../lib/manual.js';
 import { helpHref } from '../lib/manual-chapters.js';
+import { useMe } from '../lib/queries.js';
+import { useRealtime } from '../lib/realtime.js';
 import { inOrgHref, useScope } from '../lib/scope.js';
+import { rolesInProject } from '../lib/session.js';
+import { THEMES, useTheme } from '../lib/theme.js';
 import { cn } from '../lib/utils.js';
 import { StatusBadge } from './status-badge.js';
 import { useModal } from './ui/modal.js';
+import { NEW_SPEC_COMMAND } from './spec-start-card.js';
 import { SPEC_VERSION_TOKEN } from './status-token.js';
 import type { StatusToken } from './status-badge.js';
 
@@ -124,7 +133,7 @@ function hrefOfHit(hit: SwitcherHit): string {
   return `/p/${slug}/specs/${key}${anchor}`;
 }
 
-type Group = 'pinned' | 'recent' | 'docs' | 'here' | 'go' | 'projects';
+type Group = 'pinned' | 'recent' | 'docs' | 'here' | 'go' | 'commands' | 'projects';
 
 interface PaletteItem {
   id: string;
@@ -133,6 +142,8 @@ interface PaletteItem {
   /** 줄 오른쪽의 흐린 말 — 프로젝트 이름·경로 */
   sub?: string;
   href: string;
+  /** 명령 줄이면 할 일 — 있으면 `href` 로 가지 않고 이것을 부른다 */
+  run?: () => void;
   /** 문서 줄이면 그 문서 — 고정 단추와 상태 배지가 선다 */
   hit?: SwitcherHit;
   /** 화면 언어와 무관하게 맞는 말(경로 낱말) */
@@ -158,6 +169,14 @@ export function QuickSwitcher({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const scope = useScope(projectSlug);
   const orgSlug = scope.orgSlug;
+  const me = useMe();
+  const { locale, setLocale } = useLocale();
+  const { theme, setTheme } = useTheme();
+  const { pushToast } = useRealtime();
+  // 새 스펙은 초안을 쓸 수 있는 사람의 일이다 — 서버 가드와 같은 값(`spec:draft`)을 본다
+  const canDraft =
+    projectSlug !== undefined &&
+    scopesForRoles(rolesInProject(me.data, orgSlug, projectSlug)).has('spec:draft');
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<SwitcherHit[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -268,6 +287,44 @@ export function QuickSwitcher({
                 };
               }),
             );
+    const commands: PaletteItem[] = [
+      ...(canDraft
+        ? [
+            {
+              id: 'cmd-new-spec',
+              group: 'commands' as const,
+              label: t('switcher.cmd.new_spec'),
+              sub: NEW_SPEC_COMMAND,
+              href: '',
+              keywords: 'new spec create',
+              run: () => {
+                void navigator.clipboard
+                  ?.writeText(NEW_SPEC_COMMAND)
+                  .then(() =>
+                    pushToast({ tone: 'ok', message: t('switcher.cmd.new_spec_copied') }),
+                  );
+              },
+            },
+          ]
+        : []),
+      // 지금 것은 빼고 나머지를 보인다 — 이미 켜진 것을 고르는 줄은 할 일이 없다
+      ...LOCALES.filter((code) => code !== locale).map((code) => ({
+        id: `cmd-locale-${code}`,
+        group: 'commands' as const,
+        label: t('switcher.cmd.locale', { name: LOCALE_LABEL[code] }),
+        href: '',
+        keywords: `language locale ${code}`,
+        run: () => setLocale(code),
+      })),
+      ...THEMES.filter((name) => name !== theme).map((name) => ({
+        id: `cmd-theme-${name}`,
+        group: 'commands' as const,
+        label: t('switcher.cmd.theme', { name: t(`theme.${name}`) }),
+        href: '',
+        keywords: `theme ${name}`,
+        run: () => setTheme(name),
+      })),
+    ];
     const projects: PaletteItem[] = scope.projects.map((p) => ({
       id: `project-${String(p['slug'])}`,
       group: 'projects',
@@ -286,6 +343,7 @@ export function QuickSwitcher({
         ...recent.map((h, i) => docItem('recent', h, i)),
         ...here,
         ...go,
+        ...commands,
         ...projects,
       ];
     }
@@ -304,8 +362,30 @@ export function QuickSwitcher({
         i,
       ),
     );
-    return [...docs, ...here.filter(matches), ...go.filter(matches), ...projects.filter(matches)];
-  }, [q, hits, pins, orgSlug, scope.projects, projectSlug, projectName, pathname, t]);
+    return [
+      ...docs,
+      ...here.filter(matches),
+      ...go.filter(matches),
+      ...commands.filter(matches),
+      ...projects.filter(matches),
+    ];
+  }, [
+    q,
+    hits,
+    pins,
+    orgSlug,
+    scope.projects,
+    projectSlug,
+    projectName,
+    pathname,
+    t,
+    canDraft,
+    locale,
+    setLocale,
+    theme,
+    setTheme,
+    pushToast,
+  ]);
 
   // 목록이 줄면 커서를 끌어온다 — 커서가 목록 밖에 남으면 Enter 가 아무 일도 하지 않는다
   useEffect(() => {
@@ -337,6 +417,10 @@ export function QuickSwitcher({
     (item: PaletteItem) => {
       if (item.hit !== undefined) rememberVisit(item.hit);
       onClose();
+      if (item.run !== undefined) {
+        item.run();
+        return;
+      }
       // 다른 조직의 기록이면 조직을 바꾸고 그 자리로 간다(REQ-WEB-199)
       router.history.push(inOrgHref(item.hit?.org_slug, item.href, orgSlug));
     },
@@ -351,6 +435,7 @@ export function QuickSwitcher({
     docs: t('switcher.group.docs'),
     here: t('switcher.group.here', { project: projectName ?? projectSlug ?? '' }),
     go: t('switcher.group.go'),
+    commands: t('switcher.group.commands'),
     projects: t('switcher.group.projects'),
   };
   const optionId = (index: number): string => `${listId}-opt-${index}`;

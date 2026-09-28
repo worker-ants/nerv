@@ -172,6 +172,26 @@ describe('EP-SPEC-15 owner_role (2026-09-03)', () => {
     expect(rows[0]).toMatchObject({ owner_role: 'designer', title: '소유자가 있는 문서' });
   });
 
+  it('상세가 메타의 지금 값을 준다 — 메타 다이얼로그가 그것을 보인다 (REQ-WEB-267)', async () => {
+    await draft('SPC-META-P', '# 부모');
+    await draft('SPC-META-C', '# 자식');
+    await specs.updateMeta({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-META-C',
+      userId: planner,
+      parentKey: 'SPC-META-P',
+      sortKey: '030',
+      ownerRole: 'qa',
+    });
+    const got = await specs.get({ projectId, specKey: 'SPC-META-C', basis: 'latest' });
+    expect(got).toMatchObject({ parent_key: 'SPC-META-P', sort_key: '030', owner_role: 'qa' });
+
+    // 맨 위의 문서는 부모가 없다 · 주인 역할을 정하지 않았으면 없다
+    const top = await specs.get({ projectId, specKey: 'SPC-META-P', basis: 'latest' });
+    expect(top).toMatchObject({ parent_key: null, owner_role: null });
+  });
+
   it('어휘 밖의 역할은 400 이다 — 500 이 아니다', async () => {
     await draft('SPC-OWNER-BAD', '# 소유');
     await expect(

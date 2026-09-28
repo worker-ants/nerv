@@ -19,7 +19,8 @@ import { ConnectAgentLinks } from './connect-agent-links.js';
 import { CopyButton } from './copy-button.js';
 import { helpLink } from '../lib/manual-chapters.js';
 
-const NEW_SPEC_COMMAND = 'claude "/nerv:spec new"';
+/** 새 스펙을 시작하는 명령 — 이 카드와 ⌘K 의 명령 무리가 같은 값을 쓴다 */
+export const NEW_SPEC_COMMAND = 'claude "/nerv:spec new"';
 
 export function SpecStartCard({ projectSlug }: { projectSlug: string }): React.JSX.Element {
   const t = useT();

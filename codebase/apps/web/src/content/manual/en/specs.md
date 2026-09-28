@@ -15,6 +15,8 @@ The tree on the left shows how your specs are organized. There are six document 
 
 An `area` can serve only as a group, with no body of its own. For every other type, the body is the document.
 
+**You move or rename a document in the Document info window** (the ⋯ menu at the top of the document · planners and admins). It has four fields: **Title**; **Parent document**, which you pick from the tree (the current parent is shown above it, and you can't pick the document itself or its descendants; pick **Top level** to detach it from its parent); **Sort key**, which orders siblings under the same parent character by character; and **Owner role**, whose members get a recheck request when a document this one references changes (if it isn't set, the default roles get it, and once set it can't be cleared). Moving or renaming keeps versions, relations and comments intact. [Save] stays disabled until you change a field.
+
 ## Where you can see all of them {#all-specs}
 
 **When you open a document, a spec tree column appears next to the sidebar.** It shows **every document, expanded**. If a list showed only some documents, you could not tell a missing document from a collapsed one. The `141 / 141` at the top of the tree means **visible / total**. When you collapse a branch, the first number drops, so you know that some documents are hidden.

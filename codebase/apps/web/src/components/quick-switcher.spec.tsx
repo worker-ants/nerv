@@ -1,13 +1,14 @@
 // E08-S09 — 전역 퀵 스위처 ⌘K (screens.md §1.3a · REQ-WEB-040)
 
 import { LocaleProvider } from '../lib/i18n.js';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readList, rememberVisit, togglePin } from './quick-switcher.js';
 import { routeTree } from '../routeTree.gen';
 import { RealtimeProvider } from '../lib/realtime.js';
+import { resetThemeForTesting } from '../lib/theme.js';
 
 vi.mock('socket.io-client', () => ({
   io: () => ({
@@ -209,5 +210,104 @@ describe('핀 — 자주 가는 곳은 밀려나지 않는다 (05)', () => {
     await waitFor(() => {
       expect(readList('nerv.quickswitcher.pins')).toEqual([]);
     });
+  });
+});
+
+/**
+ * **명령 무리**(2026-09-28 · REQ-WEB-266). 가는 곳이 아니라 하는 일이다 — 언어·테마를 바꾸려면
+ * 사용자 메뉴를 열어야 했고, 새 스펙을 시작하는 명령은 빈 트리의 시작 카드에만 있었다.
+ */
+describe('명령 무리 (REQ-WEB-266)', () => {
+  function stubRoles(roles: string[]): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const path = String(url);
+        const json = path.includes('/me')
+          ? {
+              id: 'u-1',
+              display_name: '지민',
+              memberships: [
+                { org_slug: 'default', org_name: 'default', project_slug: 'clemvion', roles },
+              ],
+            }
+          : { items: [], summary: {}, memberships: [], count: 0 };
+        return { ok: true, status: 200, json: async () => json };
+      }),
+    );
+  }
+
+  function renderApp(): void {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({ initialEntries: ['/p/clemvion/tasks'] }),
+    });
+    render(
+      <LocaleProvider locale="ko">
+        <QueryClientProvider client={client}>
+          <RealtimeProvider>
+            <RouterProvider router={router} />
+          </RealtimeProvider>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  const input = (): HTMLElement =>
+    within(screen.getByTestId('quick-switcher')).getByRole('combobox');
+
+  async function openSwitcher(): Promise<void> {
+    await screen.findByText('NERV');
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    await screen.findByTestId('quick-switcher');
+  }
+
+  afterEach(() => {
+    resetThemeForTesting();
+    localStorage.clear();
+  });
+
+  it('초안을 쓸 수 있는 사람은 새 스펙 시작 명령을 복사한다', async () => {
+    stubRoles(['designer']);
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderApp();
+    await openSwitcher();
+    const option = await screen.findByText('새 스펙 시작 명령 복사');
+    fireEvent.click(option);
+    expect(writeText).toHaveBeenCalledWith('claude "/nerv:spec new"');
+    // 명령은 창을 닫는다 — 어디로 가지 않는다
+    expect(screen.queryByTestId('quick-switcher')).toBeNull();
+  });
+
+  it('viewer 에게는 새 스펙 명령이 없다 — 할 수 없는 일을 내밀지 않는다', async () => {
+    stubRoles(['viewer']);
+    renderApp();
+    await openSwitcher();
+    await waitFor(() => expect(screen.getByTestId('switcher-group-commands')).toBeTruthy());
+    expect(screen.queryByText('새 스펙 시작 명령 복사')).toBeNull();
+  });
+
+  it('치면 거르고 Enter 로 테마를 바꾼다 — 지금 테마는 보이지 않는다', async () => {
+    stubRoles(['viewer']);
+    renderApp();
+    await openSwitcher();
+    fireEvent.change(input(), { target: { value: '테마' } });
+    const group = await screen.findByTestId('switcher-group-commands');
+    // 기본은 시스템이다 — 고를 것은 밝게·어둡게 둘이다
+    expect(group.textContent).toContain('테마: 어둡게');
+    expect(group.textContent).not.toContain('테마: 시스템');
+    fireEvent.change(input(), { target: { value: '어둡게' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+  });
+
+  it('언어를 바꾸면 화면 말이 바로 바뀐다', async () => {
+    stubRoles(['viewer']);
+    renderApp();
+    await openSwitcher();
+    fireEvent.click(await screen.findByText('언어: English'));
+    await waitFor(() => expect(document.documentElement.lang).toBe('en'));
   });
 });
