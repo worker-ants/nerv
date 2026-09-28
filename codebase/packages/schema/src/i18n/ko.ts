@@ -1953,6 +1953,9 @@ export const ko = {
   'mail.digest.important': '[중요]',
   'mail.digest.footer':
     '매일 {hour}시({timezone})에 보내는 NERV 메일 요약입니다. 받는 시각을 바꾸거나 끄려면 여기서 합니다: {url}',
+  'mail.digest.unsubscribe': '로그인 없이 바로 끄기: {url}',
+  'error.digest.unsubscribe_expired':
+    '이 링크는 만료됐습니다. 내 계정에서 메일 요약을 끌 수 있습니다.',
   'mail.reset.subject': '[NERV] 비밀번호를 새로 정하는 링크입니다',
   'mail.reset.body':
     '{name} 님,\n\n비밀번호를 새로 정해 달라는 요청을 받았습니다. 아래 주소를 열어 새 비밀번호를 정하세요.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다. 새 비밀번호를 정하면 모든 기기에서 로그아웃됩니다.\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 링크를 열어 새 비밀번호를 정하지 않으면 비밀번호는 바뀌지 않습니다.',

@@ -32,6 +32,7 @@ export class MailJob {
           subject: mail.subject,
           text: mail.body_text,
           html: mail.body_html,
+          headers: mail.headers,
         });
         await this.outbox.markSent(mail);
         sent += 1;

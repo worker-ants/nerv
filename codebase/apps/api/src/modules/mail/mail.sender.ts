@@ -22,6 +22,8 @@ export interface OutgoingMail {
   subject: string;
   text: string;
   html?: string | null;
+  /** 더 붙일 머리글 — 알림 메일 요약의 `List-Unsubscribe` 등 */
+  headers?: Record<string, string> | null;
 }
 
 @Injectable()
@@ -61,6 +63,8 @@ export class MailSender {
       subject: mail.subject,
       text: mail.text,
       ...(mail.html === null || mail.html === undefined ? {} : { html: mail.html }),
+      // `List-Unsubscribe-Post` 는 nodemailer 의 `list` 옵션에 없어 머리글로 직접 단다
+      ...(mail.headers === null || mail.headers === undefined ? {} : { headers: mail.headers }),
     });
   }
 }

@@ -24,6 +24,7 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { apiUrlFromEnv, webUrlFromEnv } from '../../common/origins.js';
 import { mailEnabled } from './mail.config.js';
+import { hashUnsubscribeToken, unsubscribeApiUrl } from './unsubscribe-link.js';
 import { resetPasswordLink, verifyEmailLink } from './verify-link.js';
 
 /** 워커가 집어 가는 한 줄 */
@@ -37,6 +38,8 @@ export interface DueMail extends Record<string, unknown> {
   ref_type: string | null;
   ref_id: string | null;
   attempts: number;
+  /** 더 붙일 머리글 — 알림 메일 요약의 끄는 링크 등(REQ-DB-035) */
+  headers: Record<string, string> | null;
 }
 
 @Injectable()
@@ -167,13 +170,29 @@ export class MailOutbox {
    */
   async enqueueDigest(
     tx: NervDb,
-    input: { email: string; locale: Locale; subject: string; body: string; userId: string },
+    input: {
+      email: string;
+      locale: Locale;
+      subject: string;
+      body: string;
+      userId: string;
+      /** 로그인 없이 끄는 링크의 토큰 원문 — 해시만 남기고, 머리글에 끄는 주소를 단다(EM8 · RFC 8058) */
+      unsubscribeToken: string;
+    },
   ): Promise<string> {
     const id = newId();
+    const headers = {
+      'List-Unsubscribe': `<${unsubscribeApiUrl(input.unsubscribeToken)}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      // 자동으로 만든 메일이다 — 부재중 자동 응답이 답하지 않게 한다(RFC 3834 §5)
+      'Auto-Submitted': 'auto-generated',
+    };
     await tx.execute(sql`
-      INSERT INTO email_outbox (id, kind, to_email, locale, subject, body_text, ref_type, ref_id)
+      INSERT INTO email_outbox (id, kind, to_email, locale, subject, body_text, ref_type, ref_id,
+                                headers, unsubscribe_token_hash)
       VALUES (${id}, 'notification_digest', ${input.email}, ${input.locale},
-              ${input.subject}, ${input.body}, 'user', ${input.userId})
+              ${input.subject}, ${input.body}, 'user', ${input.userId},
+              ${JSON.stringify(headers)}::jsonb, ${hashUnsubscribeToken(input.unsubscribeToken)})
     `);
     return id;
   }
@@ -202,7 +221,7 @@ export class MailOutbox {
         FROM due
        WHERE o.id = due.id
       RETURNING o.id, o.kind::text AS kind, o.to_email, o.subject,
-                o.body_text, o.body_html, o.ref_type, o.ref_id, o.attempts
+                o.body_text, o.body_html, o.ref_type, o.ref_id, o.attempts, o.headers
     `);
     return rows;
   }

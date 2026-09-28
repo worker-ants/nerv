@@ -1975,6 +1975,9 @@ export const en = {
   'mail.digest.important': '[Important]',
   'mail.digest.footer':
     'This is your NERV email digest, sent daily at {hour}:00 ({timezone}). To change the time or turn it off: {url}',
+  'mail.digest.unsubscribe': 'Turn it off without signing in: {url}',
+  'error.digest.unsubscribe_expired':
+    'This link has expired. You can turn off the email digest in My account.',
   'mail.reset.subject': '[NERV] Reset your password',
   'mail.reset.body':
     'Hi {name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n{url}\n\nThe link can be used once within {minutes} minutes. Setting a new password signs you out on all devices.\n\nIf you did not request this, you can delete this email. Your password will not change unless a new one is set through this link.',
