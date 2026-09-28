@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.22 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.23 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.23 변경(2026-09-28 — 리뷰어 자동 지정, **사람 결정**): **E09-S03 을 `done` 으로(부분 → 완료).** 남은 것으로 적었던 "리뷰어 자동 지정"은 역할 큐로 충분하다고 정했다 — 결재는 역할의 멤버가 받고 승인 수는 정족수가 센다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.2 결정 기록). §1.4 표의 E09 가 12 · 부분 0, 합계는 71 · 5 가 된다.
 >
 > v2.22 변경(2026-09-28 — 스토리 없이 들어온 수정 하나, **사람 결정**): §1.4 셋째 표에 **행위자 표기 한 벌**을 적는다.
 >
@@ -489,13 +491,13 @@ referenced_by:
 | E06 스파이크 + 확인·실측 | 3 | 4 | `test/integration/spike-realtime.spec.ts` · `apps/web/.spike/tiptap-roundtrip.md` |
 | E07 spec 임포터 v0 | 5 | — | `apps/cli/src/profiles/` · `report/index.ts` · `modules/import/import.controller.ts` |
 | E08 웹 화면 | 10 | — | `routes/p.$proj/specs.$spec.tsx`(버전 diff · 영향 미리보기) · `steer-panel.tsx` · `quick-switcher.tsx` · `task-derive.spec.tsx` · `spec-scale.spec.tsx` |
-| E09 스펙 워크플로우·승인 게이트 | 11 | 1 | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
+| E09 스펙 워크플로우·승인 게이트 | 12 | — | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
 | E10 기획자 터미널 경로 | 4 | — | `spec.service.ts`(`NERV_DRAFT_LEASED`·takeover) · `spec-comment.service.ts` |
 | E11 plan 임포터 | 2 | — | `apps/cli/src/parse/plan.ts` · `apps/cli/src/run.ts` |
 | E12 플러그인 v1 + 훅 수집기 | 6 | 1 | `ko-style/`(문체 플러그인) · `plugin/skills/`(6종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` · `plugin-coverage.spec.ts`(활성화 현황) |
 | E13 받은 요청·질문·알림 | 3 | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
 | E14 운영·연동 | 4 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
-| **합계** | **70** | **6** | `backlog` 0 |
+| **합계** | **71** | **5** | `backlog` 0 |
 
 §5 의 **E2E 수용 시나리오 A~F 도 여섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts` · `scenario-f-journey.spec.ts`(2026-09-07 신설 — 그전까지 A~C 는 클레임까지만 태웠고 그 **이후**의 계약은 L2 조각들만 봤다).
 
@@ -509,7 +511,6 @@ referenced_by:
 | E06-S04 | 리비전 협상·병행 서빙 코드 | Claude Code·Codex **두 클라이언트 실측 리포트** |
 | E06-S06 | degrade 경로·1024차원 검증 | **3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정**([4.4 API](api.md)가 임베딩 p95 를 아직 보류로 둔다) |
 | E06-S07 | command 폴백이 기본 변형으로 배포됨 | 기록된 근거는 훅 `url` 의 `${VAR}` **미**확장이지 **`headers` 확장 자체의 실측이 아니다**([4.6 플러그인](plugin.md) §3.1이 아직 "1차 문서에서 확인 못함"이라 적는다) |
-| E09-S03 | 지시자≠승인자 차단 | **리뷰어 자동 지정** — `ApprovalService.request()` 를 부르는 곳이 `assigneeUserId` 를 넘기지 않아 결재 카드는 언제나 `assignee_user_id = NULL` 로 만들어진다(그 열이 채워지는 것은 결재 시점의 `COALESCE` 뿐이라 *지정*이 아니라 *기록*이다) |
 | E12-S07 | 플러그인 본체(규칙 표 · 검사기 · 훅 여섯 · 스킬 셋) · git · 서버 카탈로그 · 이 저장소 설정(`.ko-style.json` · `.claude/settings.json`) · L1(`ko-style.spec.ts`) · L2(`plugin.spec.ts`) · CI 게이트(`check-ko-style.mjs` · REQ-CB-058) · `claude plugin eval` 사례 셋(`evals/` · 평균 차이 +0.04 — [4.6](plugin.md) §7.7) | **Codex 매니페스트 · 훅** — 실측 뒤([4.6](plugin.md) §7.6) |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
