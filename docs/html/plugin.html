@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>5종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v0.83 (2026-09-28)</span>
+      <span>버전 v0.84 (2026-09-28)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -81,7 +81,7 @@
   <p>플러그인 하나로 스킬·훅·MCP 설정·statusline을 함께 배포한다. 같은 마켓플레이스에는 2026-09-27 부터 <b>문체 플러그인 <code>ko-style</code></b> 이 하나 더 있다. NERV 서버와 무관하게 동작하는 별도 패키지라 이 절의 구조 밖이고, 정본은 §7 이다. 전체 구조는 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §3.1이 정본이고, 아래는 그중 <b>MVP(P0+P1)에 실제로 배포되는 절단면</b>이다. 주석 <code>(P2)</code>가 붙은 항목은 Phase 2에 추가되며 v0.1 패키지에 포함되지 않는다.</p>
 
 <pre><code>nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.8
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.9
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -102,7 +102,7 @@
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;nerv&quot;,
   &quot;description&quot;: &quot;NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다&quot;,
-  &quot;version&quot;: &quot;0.3.8&quot;,
+  &quot;version&quot;: &quot;0.3.9&quot;,
   &quot;license&quot;: &quot;Apache-2.0&quot;
 }</code></pre>
 
@@ -118,7 +118,7 @@
       <tr><td><code>.mcp.json</code></td><td>❌ 제외 — 대신 <b><code>bin/nerv-init</code> 이 저장소에 만든다</b>(2026-09-20 · §3.7)</td><td><b>쓰는 쪽 저장소가 갖는다</b>(2026-09-04) — 서버 주소·토큰이 프로젝트별 값이고, 플러그인이 제공한 것은 그 프로젝트의 <code>env</code> 를 읽지 못한다(§3.3). 전문은 §3.3 템플릿. <b>담을 수 없는 것과 손으로 만들어야 하는 것은 다르다</b> — 파일 대신 그 파일을 쓰는 스크립트를 담는다</td></tr>
       <tr><td><code>bin/nerv-init</code> (+ SessionStart 감지)</td><td>✅ 포함(2026-09-20)</td><td>설치 뒤 남던 손작업 셋(<code>.mcp.json</code>·<code>env</code>·<code>.gitignore</code>)을 한 명령으로 옮긴다. <b>이미 있는 값은 덮지 않고</b>, 훅은 감지만 하고 쓰지 않는다(§3.7 · REQ-PLG-018)</td></tr>
       <tr><td>statusline</td><td>✅ 포함</td><td>서버 사실의 로컬 투영 — 네트워크 왕복 없음</td></tr>
-      <tr><td><code>bin/nerv-hook-forward</code></td><td>✅ 포함</td><td>훅 헤더 <code>${NERV_TOKEN}</code> 확장이 실측 불가로 판명될 때의 폴백 경로(Phase 0 실측 항목)</td></tr>
+      <tr><td><code>bin/nerv-hook-forward</code></td><td>✅ 포함</td><td>기본 변형의 훅 전송기(§3.1). http 변형도 SessionStart 는 이것을 쓴다 — Claude Code 가 SessionStart 의 http 훅을 건너뛰기 때문이다(2026-09-28 실측 · E06-S07)</td></tr>
       <tr><td>서브에이전트 <code>nerv-spec-writer</code></td><td>✅ 포함</td><td>스펙 초안 전용 — 코드 쓰기 도구 미보유 역할 분리</td></tr>
       <tr><td>서브에이전트 <code>nerv-code-reviewer</code>·<code>nerv-consistency-checker</code></td><td>❌ P2</td><td>리뷰 수집이 P2</td></tr>
       <tr><td>Codex 온보딩 번들 자동 생성·hooks/notify 매핑</td><td>❌ P2</td><td>§5 — 초안 파일만 제공, 완전 지원은 Phase 2</td></tr>
@@ -958,9 +958,9 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 
   <p>각 훅의 용도(등록·Activity 적재·게이트 조회·정리)와 응답 의미론은 정본 표(<a href="agent-integration.html">3.4</a> §3.3)를 따른다. ingest 엔드포인트의 요청/응답 계약은 <a href="api.html">4.4 API 명세</a>가 정의한다.</p>
 
-  <div class="callout warn"><span class="ico">⚠️</span><div class="body">
-    <b class="title">Phase 0 실측 항목 — 훅 헤더의 <code>${NERV_TOKEN}</code> 확장</b>
-    <p><code>.mcp.json</code>의 <code>${VAR}</code> 확장은 공식 지원이 확인되지만 훅 <code>headers</code>에서의 동작은 1차 문서에서 확인하지 못했다(정본의 §3.3 주의와 동일). 확장이 안 되면 위 6개 항목의 <code>type:"http"</code>를 <code>type:"command"</code> + <code>bin/nerv-hook-forward</code>(토큰 주입 래퍼)로 바꾼 변형 hooks.json을 배포한다 — Codex 포워더와 같은 바이너리라 추가 비용이 없다. 이 실측은 <a href="backlog.html">4.8 백로그</a> E06-S06으로 등재되어 있다.</p>
+  <div class="callout decision"><span class="ico">✅</span><div class="body">
+    <b class="title">실측 기록 — 훅 헤더의 <code>${NERV_TOKEN}</code> 확장</b>
+    <p>2026-09-28 · E06-S07 · Claude Code 2.1.283. 로컬 에코 서버가 받은 헤더를 그대로 적었다. ① <code>headers</code> 의 <code>${VAR}</code> 와 <code>$VAR</code> 는 <b>확장된다</b> — 그 이름이 <code>allowedEnvVars</code> 에 있을 때만이다. 목록에 없으면 빈 문자열이 되어 <code>Bearer</code> 만 간다. ② 값은 셸 환경에서도, settings 의 <code>env</code>(<code>nerv-init</code> 이 쓰는 <code>.claude/settings.local.json</code>)에서도 읽는다. ③ <code>${VAR:-기본값}</code> 은 <b>확장되지 않고 글자 그대로 간다</b> — <code>.mcp.json</code> 과 다르다. ④ <code>url</code> 은 확장되지 않는다. 경로에 쓰면 글자 그대로 간다. 포트에 쓰면 훅이 아예 돌지 않는다. ⑤ <b>SessionStart 의 http 훅은 돌지 않는다</b> — 오류 없이 건너뛰고 디버그 로그에만 <code>HTTP hooks are not supported for SessionStart</code> 가 남는다(Setup 도 같다). 공식 문서에는 이 제한이 없다. 나머지 다섯 이벤트(PostToolUse · SubagentStart · SubagentStop · Stop · SessionEnd)는 확장된 토큰으로 도착했다. <b>판정: 헤더 확장은 되므로 폴백이 강제되지는 않는다.</b> 기본을 command 로 둔 결정(2026-09-03 · 아래)은 그대로 둔다. http 변형은 ⑤ 때문에 SessionStart 만 command 로 바꾼다(REQ-PLG-027).</p>
   </div></div>
 
   <div class="callout warn"><span class="ico">⚠️</span><div class="body">
@@ -972,24 +972,19 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
   <p><b>기본을 바꾼 이유</b>(2026-09-03 · 사람 결정). 실측: 실제로 도는 유일한 설치가 <code>.mcp.json</code> 을 손으로 다시 쓰고 훅 6종을 손으로 갈아 끼웠다 — <b>패키지가 배포 가능한 물건이 아니면 사람은 포크한다.</b> 그래서 <code>hooks/hooks.json</code>(기본)은 이제 <code>bin/nerv-hook-forward</code> 를 거치는 command 변형이고, http 변형은 <code>hooks/hooks.http.json</code> 으로 남는다.</p>
   <p>근거 셋. ① 훅 <code>url</code> 은 <code>${VAR}</code> 확장을 받지 않으므로 http 변형은 서버 주소가 파일에 박힌다. ② <b><code>async</code> 는 command 전용 필드다</b>(공식 문서 확인) — http 훅은 전부 동기라 <code>PostToolUse</code> 가 <b>매 도구 호출마다</b> 최대 <code>timeout</code> 만큼 기다린다. ③ 포워더에는 <code>hostname -s</code> 폴백이 있다.</p>
   <p><b>대가는 하나다.</b> <code>allowedHttpHookUrls</code>(<a href="agent-integration.html">3.4</a> §6.4)는 http 훅에만 걸리므로 기본 변형의 훅을 덮지 않는다 — command 훅의 동등한 통제는 공식 문서에 없다. 그 성질이 필요한 조직은 http 변형을 쓰거나 <b>관리형 settings 로 훅 정의 자체를 내린다</b>(<code>hooks</code> 키는 관리형 파일에서도 유효하다). 후자가 더 강하다.</p>
+  <p><b>http 변형도 SessionStart 는 command 다</b>(2026-09-28 실측 · REQ-PLG-027). Claude Code 는 SessionStart 의 http 훅을 건너뛴다(위 실측 기록 ⑤). 그래서 이 변형으로는 세션이 등록되지 않았다. 서버는 등록되지 않은 세션의 훅을 버리므로(<code>resolveSession</code> 이 <code>null</code>) <b>이 변형으로 설치한 곳에는 아무것도 기록되지 않았다.</b> 이제 세션 등록만은 기본 변형과 같은 <code>nerv-hook-forward session</code> 으로 보낸다. 대가: 세션 등록 주소는 <code>allowedHttpHookUrls</code> 가 덮지 않는다 — 관리형 예시에서도 그 주소를 뺐다. 대신 이 변형에서도 <code>X-NERV-Plugin</code>(REQ-PLG-019)과 <code>hostname -s</code> 폴백이 적용된다.</p>
   <p>덧붙여 <b>"셸을 실행하지 않는다" 는 위안은 어느 변형에도 없었다</b> — http 변형의 SessionStart 에도 <code>bin/nerv-outbox flush</code> 가 command 훅으로 이미 들어 있다. 바뀐 것은 위험의 종류가 아니라 범위다.</p>
   <pre>{
-  &quot;$comment&quot;: &quot;http 변형 — allowedHttpHookUrls 로 훅 URL 을 묶어야 할 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가는 4.6 §3.1 이 적는다.&quot;,
+  &quot;$comment&quot;: &quot;http 변형 — allowedHttpHookUrls 로 훅 URL 을 묶어야 할 때 이 파일을 hooks/hooks.json 자리에 둔다. SessionStart 만은 command 다 — Claude Code 는 SessionStart 의 http 훅을 건너뛴다(E06-S07 실측). 대가는 4.6 §3.1 이 적는다.&quot;,
   &quot;hooks&quot;: {
     &quot;SessionStart&quot;: [
       {
         &quot;matcher&quot;: &quot;startup|resume|clear|compact|fork&quot;,
         &quot;hooks&quot;: [
           {
-            &quot;type&quot;: &quot;http&quot;,
-            &quot;url&quot;: &quot;https://api.nerv.example.com/ingest/hooks/session&quot;,
-            &quot;headers&quot;: {
-              &quot;Authorization&quot;: &quot;Bearer ${NERV_TOKEN}&quot;,
-              &quot;X-NERV-Project&quot;: &quot;${NERV_PROJECT}&quot;,
-              &quot;X-NERV-Host&quot;: &quot;${NERV_HOSTNAME}&quot;,
-              &quot;X-NERV-Agent&quot;: &quot;claude-code&quot;
-            },
-            &quot;allowedEnvVars&quot;: [&quot;NERV_TOKEN&quot;, &quot;NERV_PROJECT&quot;, &quot;NERV_HOSTNAME&quot;],
+            &quot;$comment&quot;: &quot;http 로 두면 조용히 건너뛰어 세션이 등록되지 않는다 — 뒤의 훅이 전부 버려진다(4.6 §3.1).&quot;,
+            &quot;type&quot;: &quot;command&quot;,
+            &quot;command&quot;: &quot;\&quot;${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\&quot; session&quot;,
             &quot;timeout&quot;: 5
           },
           {
@@ -1073,7 +1068,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
       }
     ]
   }
-}</code></pre>
+}</pre>
 
   <h3>3.2 statusline — 서버 사실의 로컬 투영</h3>
 
@@ -1221,7 +1216,7 @@ printf '  %s · ctx %s%%%s\n' \
 
 <p><code>.nerv/env</code> 의 규칙 셋: <b>이미 있는 값을 덮지 않는다</b>(위 표의 강한 자리가 이긴다) · <b><code>NERV_*</code> 만 읽는다</b>(저장소에 굴러다니는 파일이 <code>PATH</code> 를 갈아 끼우지 못하게) · 없으면 조용히 지나간다(프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다). 파일은 <code>.nerv/</code> 아래라 이미 <code>.gitignore</code> 대상이다(REQ-PLG-013).</p>
 
-  <p>곁가지로 이것이 <b>미해결 실측 하나를 덜 위험하게</b> 만든다: 훅 <code>headers</code> 의 <code>${NERV_TOKEN}</code> 확장이 되는지가 아직 확인되지 않았는데(§3.1 주의 · 백로그), 폴백인 <code>bin/nerv-hook-forward</code> 는 <code>.nerv/env</code> 를 직접 읽으므로 확장 여부와 무관하다.</p>
+  <p><b>훅 헤더 확장과의 관계</b>(2026-09-28 실측 · §3.1). http 훅의 <code>headers</code> 는 셸 환경과 settings 의 <code>env</code> 에서 값을 읽고 <code>.nerv/env</code> 는 읽지 않는다 — 그 파일은 포워더(<code>bin/nerv-hook-forward</code>)만 읽는다. 그래서 http 변형을 쓰는 곳은 토큰을 <code>.claude/settings.local.json</code> 의 <code>env</code>(<code>nerv-init</code> 이 쓰는 자리)나 셸 환경에 둔다. 기본 변형은 어느 자리에 있어도 된다.</p>
 
   <p><code>bin/nerv-env.sh</code> 전문:</p>
 
@@ -1483,7 +1478,7 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
     <thead><tr><th>#</th><th>단계</th><th>명령/행동</th><th>확인 방법</th></tr></thead>
     <tbody>
       <tr><td>1</td><td>PAT 발급</td><td>웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 <b>[권장]</b> 묶음이 기본이다(<code>spec:read</code> <code>spec:draft</code> <code>task:claim</code> <code>task:update</code> <code>review:submit</code> <code>agent-session:launch</code> — <code>AGENT_RECOMMENDED_SCOPES</code> · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 <code>review:resolve</code> 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — <code>spec:approve</code>·<code>approval:decide</code>는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다</td><td>토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성</td></tr>
-      <tr><td>2</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>/plugin install nerv@nerv</code> → 재시작. <b>그 주소로 설치가 안 되면</b>(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — <code>add worker-ants/nerv</code>, 설치 명령은 그대로다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.3.8 활성 표시</td></tr>
+      <tr><td>2</td><td>플러그인 설치</td><td>Claude Code에서 <code>/plugin marketplace add https://&lt;서버&gt;/plugin/marketplace.json</code> → <code>/plugin install nerv@nerv</code> → 재시작. <b>그 주소로 설치가 안 되면</b>(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — <code>add worker-ants/nerv</code>, 설치 명령은 그대로다(§3.5 표)</td><td><code>/plugin</code> 목록에 <code>nerv</code> v0.3.9 활성 표시</td></tr>
       <tr><td>3</td><td>설정</td><td>작업 저장소에서 <code>nerv-init</code> 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. <b>이미 있는 값은 덮지 않는다</b>(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다</td><td><code>.mcp.json</code>·<code>.claude/settings.local.json</code>·<code>.gitignore</code> 셋이 서고, 재시작 뒤 <code>/mcp</code> 에 <code>nerv</code> connected</td></tr>
       <tr><td>4</td><td>연결 확인</td><td>프로젝트 저장소에서 Claude Code 실행 → <code>/mcp</code></td><td><code>nerv</code> 서버 connected, <code>nerv_*</code> 도구 목록 표시</td></tr>
       <tr><td>5</td><td>첫 부트스트랩</td><td><code>/nerv:next</code> 실행(스킬이 <code>nerv_bootstrap</code>부터 호출한다)</td><td>응답에 <code>session_id</code>·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다</td></tr>
@@ -1641,6 +1636,7 @@ log_user_prompt = false</code></pre>
       <tr><td><b>REQ-PLG-024</b></td><td>WHEN 에이전트가 글 종류(<code>surfaces</code>)에 드는 파일을 Write · Edit 로 고치면 THE SYSTEM SHALL <b>새로 쓴 줄만</b> 검사해 걸린 표현을 <code>decision:"block"</code> 과 이유로 돌려준다(Edit 는 바뀐 문자열, Write 는 커밋된 내용과 달라진 줄). 어느 글 종류에도 들지 않거나 <code>ignore</code> 에 든 파일은 검사하지 않는다</td><td>L1 — 이전부터 있던 문장 제외 · Write 비교 · 제외 경로</td></tr>
       <tr><td><b>REQ-PLG-025</b></td><td>WHEN 답변이 끝나면 THE SYSTEM SHALL 한국어 답변을 검사해 걸린 표현을 사용자에게 한 줄로 알리고(<code>systemMessage</code>) 다음 요청 때 모델에게 알린 뒤 지운다. 답변을 다시 쓰게 하지 않는다. WHERE 저장소 설정이 <code>reply.mode: "rewrite"</code> 이면 THE SYSTEM SHALL 한 번만 다시 쓰게 하고 <code>stop_hook_active</code> 동안에는 막지 않는다</td><td>L1 — 알림 → 다음 요청에 알림 → 지움 · rewrite · 영어 답변과 <code>off</code> 는 보지 않음</td></tr>
       <tr><td><b>REQ-PLG-026</b></td><td>WHEN <code>ko-style</code> 의 배포 파일이 바뀌면 THE SYSTEM SHALL 그 플러그인의 <code>plugin.json</code> <code>version</code> 을 올리고 저장소 루트 카탈로그 · <code>package.json</code> · README 제목을 같은 값으로 맞춘다(nerv 와 버전을 따로 간다). WHILE 패키지를 만드는 동안 THE SYSTEM SHALL 스킬에 Agent Skills 표준 필드만 쓰고, 최상위 <code>bin/</code> 을 두지 않고, 훅을 <code>sh hooks/run.sh</code> 로 부른다</td><td>L1(<code>ko-style.spec.ts</code>) + <code>check-plugin-version.mjs</code>(플러그인마다)</td></tr>
+      <tr><td><b>REQ-PLG-027</b></td><td>WHERE 조직이 http 변형(<code>hooks/hooks.http.json</code>)을 쓰면 THE SYSTEM SHALL 세션을 등록하는 SessionStart 훅만은 command(<code>nerv-hook-forward session</code>)로 보낸다 — Claude Code 는 SessionStart 의 http 훅을 건너뛴다. WHILE http 훅의 <code>headers</code> 에 환경변수를 쓰는 동안 THE SYSTEM SHALL 그 이름을 모두 <code>allowedEnvVars</code> 에 두고 <code>${VAR:-기본값}</code> 문법을 쓰지 않는다(2026-09-28 · E06-S07 실측)</td><td>L1(<code>plugin-package.spec.ts</code>) — http 변형의 SessionStart 에 http 훅이 없다 · 헤더에 쓴 변수가 모두 <code>allowedEnvVars</code> 에 있다 · <code>:-</code> 가 없다 · 관리형 예시의 <code>allowedHttpHookUrls</code> 가 http 훅 주소와 같다</td></tr>
     </tbody>
   </table></div>
 

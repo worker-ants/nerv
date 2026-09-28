@@ -53,7 +53,7 @@
     <h1>Claude Code/Codex 연동 기술 — 표면 목록과 NERV 결선도</h1>
     <p class="lead">Claude Code는 훅 31종·MCP 클라이언트·스킬·서브에이전트·플러그인·헤드리스·Agent SDK·OTel까지 여덟 개의 공식 연동 표면을 열어두고 있고, 그중 <code>type:"http"</code> 훅 하나만으로 세션 전 생명주기를 래퍼 스크립트 없이 NERV 수집 엔드포인트로 직접 POST할 수 있다. Codex도 거의 대칭이지만 <b>MCP의 resources·prompts·elicitation을 소비하지 못하고, 마켓플레이스급 일괄 배포 체계가 없으며, cloud 태스크 생성 API가 문서화되어 있지 않다</b> — 이 격차가 D-05의 tools-first 설계를 강제한다. FR-15와 D-05의 1차 근거.</p>
     <div class="meta-line">
-      <span>버전 v0.4 (2026-09-20)</span>
+      <span>버전 v0.5 (2026-09-28)</span>
       <span>원본: <code>docs/02-research/integration-tech.md</code></span>
       <span>1차 소스: 웹 딥리서치 노트 1건(공식 문서 26개 출처, 확인일 2026-08-13)</span>
       <span class="refs">참조하는 문서: <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="plugin.html">4.6</a> · <a href="index.html">개요</a></span>
@@ -280,7 +280,7 @@
 
   <div class="callout note"><span class="ico">📝</span><div class="body">
     <b class="title">확인 필요</b>
-    <p>위 예시의 키(<code>type</code>·<code>url</code>·<code>headers</code>·<code>matcher</code>·<code>async</code>)는 공식 문서에서 확인한 것이지만, <code>${NERV_TOKEN}</code> 형태의 환경변수 확장은 <code>.mcp.json</code>에 대해서만 명시적으로 문서화되어 있다. 훅 헤더의 토큰 주입 방식(환경변수 확장 vs 관리형 설정 고정값)은 플러그인 v1 구현 시 실측 확인 항목이다.</p>
+    <p>위 예시의 키(<code>type</code>·<code>url</code>·<code>headers</code>·<code>matcher</code>·<code>async</code>)는 공식 문서에서 확인한 것이지만, <code>${NERV_TOKEN}</code> 형태의 환경변수 확장은 <code>.mcp.json</code>에 대해서만 명시적으로 문서화되어 있다. 훅 헤더의 토큰 주입 방식(환경변수 확장 vs 관리형 설정 고정값)은 플러그인 v1 구현 시 실측 확인 항목이다. <b>2026-09-28 실측으로 닫았다</b> — 훅 헤더는 <code>allowedEnvVars</code> 에 있는 변수만 확장하고 <code>${VAR:-기본값}</code> 은 확장하지 않는다. SessionStart 의 http 훅은 돌지 않는다. 결과는 <a href="plugin.html">4.6 플러그인</a> §3.1에 있다.</p>
   </div></div>
 
   <p>조직 통제 측면에서는 <code>allowedHttpHookUrls</code> 설정으로 <b>HTTP 훅이 POST할 수 있는 URL을 허용목록으로 제한</b>할 수 있다. NERV 엔드포인트만 열어두면 훅이 임의 외부로 세션 데이터를 유출하는 경로를 원천 차단한다(NFR-03).</p>
@@ -806,7 +806,7 @@ exit 0</code></pre>
   <ol>
     <li><b>클라우드 세션의 관측 공백</b> — Claude Code on the web과 Codex cloud는 로컬 훅이 없다. AgentSession에 <code>execution_env</code>(local/cloud) 필드를 두고 클라우드 세션은 저해상도(생성·PR·완료)로만 추적한다고 명시한다.</li>
     <li><b>Codex cloud 태스크 생성 API 부재</b> — NERV가 Codex 클라우드 작업을 프로그래매틱하게 띄울 방법이 문서화되어 있지 않다. GitHub 이슈/PR <code>@codex</code> 멘션이 사실상의 API다.</li>
-    <li><b>훅 헤더의 토큰 주입 방식</b>과 <b><code>extraKnownMarketplaces</code> 값 스키마</b>는 문서에서 형태까지 확인하지 못했다 — Phase 0 PoC의 실측 항목.</li>
+    <li><b>훅 헤더의 토큰 주입 방식</b>과 <b><code>extraKnownMarketplaces</code> 값 스키마</b>는 문서에서 형태까지 확인하지 못했다 — Phase 0 PoC의 실측 항목. 훅 헤더 쪽은 2026-09-28 실측으로 닫았다(<a href="plugin.html">4.6 플러그인</a> §3.1).</li>
     <li><b>MCP 리비전 전환기</b> — 클라이언트마다 협상 리비전이 다르므로 이중 서빙 기간이 필요하고, 이 기간의 버그는 "무설정 로그인"의 신뢰를 직접 깎는다.</li>
     <li><b>벤더 API 변화</b> — 훅 이벤트 목록과 OTel 스키마는 버전마다 늘어난다. 어댑터 계층을 두고 미지 이벤트는 원본 JSON을 그대로 보존(schema-on-read)한다.</li>
   </ol>
