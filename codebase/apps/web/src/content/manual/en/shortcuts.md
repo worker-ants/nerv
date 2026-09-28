@@ -2,13 +2,14 @@
 
 `⌘K` (`Ctrl+K` on Windows and Linux) opens the quick switcher. Results are grouped as follows.
 
-| Group                   | What is in it                                                                                                                                                    |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Pinned** · **Recent** | Documents you pinned, and specs and tasks you opened recently (only while the input is empty)                                                                    |
-| **This project**        | Overview · Specs · Tasks · Sessions · Reviews · Inbox · Notifications (when you are inside a project; the inbox and notifications open narrowed to this project) |
-| **Go to**               | Home · Inbox · Notifications · the five settings pages · Help · Help for this screen                                                                             |
-| **Projects**            | Projects in the current organization                                                                                                                             |
-| **Documents**           | Specs, requirements and tasks that match your search (inside a project only)                                                                                     |
+| Group                   | What is in it                                                                                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pinned** · **Recent** | Documents you pinned, and specs and tasks you opened recently (only while the input is empty)                                                                                                              |
+| **This project**        | Overview · Specs · Tasks · Sessions · Reviews · Inbox · Notifications (when you are inside a project; the inbox and notifications open narrowed to this project)                                           |
+| **Go to**               | Home · Inbox · Notifications · the five settings pages · Help · Help for this screen                                                                                                                       |
+| **Commands**            | Switch language or theme (the current one is not listed) · copy the command to start a new spec (roles that can write drafts, inside a project). Picking one closes the switcher and applies it right away |
+| **Projects**            | Projects in the current organization                                                                                                                                                                       |
+| **Documents**           | Specs, requirements and tasks that match your search (inside a project only)                                                                                                                               |
 
 Typing narrows every group to the items whose names match. For example, type "tokens" to find the **Agent tokens** page in settings, or type a project's name to find that project. English words (`inbox` · `settings` · `tokens`) work in either interface language. **Paste a stable ID** to jump straight to that document, requirement or task (tasks can be found by key only). Picking a requirement opens its spec's requirements tab. Picking a matching heading opens that section.
 

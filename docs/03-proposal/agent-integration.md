@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **25종**(2026-09-28)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.34 · 2026-09-28 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.35 · 2026-09-28 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.35 변경(2026-09-28 — 파생본의 요약이 원본과 달랐다): **새 요구사항 없음.** html 파생본의 요약이 "도구 22종(2026-09-02 실측)" 과 옛 문장으로 남아 있었다 — ID 가 없는 자리라 CI 대조가 보지 못한다. 원본(md)의 요약으로 다시 만든다.
 >
 > v0.34 변경(2026-09-28 — 옛 시안을 치울 길이 없었다, **사람 결정**): **§2.2 A2 · A4 행 · §2.3 도구 한 행(25종째).** `nerv_spec_attachment_hide` 를 더한다. **내리기만 한다** — 파일은 남아 지난 버전 본문의 그림이 그대로 보이고 사람이 복원할 수 있으니 A2 다. 파일 삭제는 A4 그대로 도구로 주지 않는다([4.4 API 명세](../04-mvp/api.md) REQ-API-231).
 >
