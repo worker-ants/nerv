@@ -98,7 +98,7 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     await app.init();
   });
 
-  it('MVP 23종 + 리뷰 2종을 수집한다 (P0 8 · P1 15 · P2 2)', () => {
+  it('MVP 23종 + 리뷰 3종을 수집한다 (P0 8 · P1 15 · P2 3)', () => {
     const registry = app.get(ToolRegistry);
     // **Phase 별로 센다.** 총계만 보면 "MVP 가 몇 종"이라는 사실이 수 안에서 사라지고,
     // 다음에 Phase 3 도구가 들어올 때 무엇이 늘었는지 이 테스트가 답하지 못한다.
@@ -112,10 +112,12 @@ describe('ToolRegistry — modules/**/*.tools.ts 수집', () => {
     // 없었다. **답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐**이라 세션에 길이 필요하다).
     // 2026-09-28 — 15(`nerv_spec_attachment_hide`: 시안을 바꾼 에이전트가 옛 시안을 치울 수
     // 없어 두 시안이 나란히 남았다. 내리기만 하고 파일을 지우는 것은 사람이 한다 — A4).
+    // 2026-09-28 — P2 가 3(`nerv_finding_list`: 제출 응답의 이월 발견을 50건으로 자르면서, 나머지를
+    // 에이전트가 읽을 길을 뒀다 — 사람 결정 D4 · REQ-API-242).
     expect(registry.list().filter((t) => t.phase === 'P0')).toHaveLength(8);
     expect(registry.list().filter((t) => t.phase === 'P1')).toHaveLength(15);
-    expect(registry.list().filter((t) => t.phase === 'P2')).toHaveLength(2);
-    expect(registry.size).toBe(25);
+    expect(registry.list().filter((t) => t.phase === 'P2')).toHaveLength(3);
+    expect(registry.size).toBe(26);
   });
 
   it('P0 8종의 이름이 카탈로그와 일치한다', () => {

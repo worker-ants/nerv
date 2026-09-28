@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 **조정(충돌 제거) → 가시성(세션·커버리지) → 거버넌스(승인·게이트) → 고도화**로 고정하고, Phase 0 PoC(2~3주) · Phase 1 MVP(4~6주) · Phase 2(4~6주) · Phase 3+(착수 조건 기반)로 나눈다. 각 Phase는 기간·범위(FR 번호)·산출물과 함께 **수치로 된 종료 조건**을 갖고, 그 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다(예: Phase 0은 두 호스트·세 세션 동시 작업에서 중복 클레임 0건). clemvion 이관은 D-12에 따라 **기계 산출물 먼저 → 스펙 → 사람 워크플로우 → 실시간**의 순서로 진행하며, 대상 규모는 `spec/` 384 md · `plan/` 450 md · `review/` 13,777 md(131MB)다. 마지막으로 도입 실패·규약 미준수·플랫폼 다운·리뷰 피로·벤더 API 변화 다섯 가지 리스크에 각각 계측 신호와 완화 수단을 붙였다.
 >
-> 문서 버전 v0.10 · 2026-09-28 · HTML 파생본: [roadmap.html](../html/roadmap.html)
+> 문서 버전 v0.11 · 2026-09-28 · HTML 파생본: [roadmap.html](../html/roadmap.html)
+>
+> v0.11 변경(2026-09-28 — 도구 수): 현황의 카탈로그 수를 26종(P0 8 · P1 15 · P2 3)으로 고친다 — 읽기 도구 `nerv_finding_list` 가 더해졌다([4.4 API 명세](../04-mvp/api.md) REQ-API-242).
 >
 > v0.10 변경(2026-09-28 — 도구 수): 현황의 카탈로그 수를 25종(P0 8 · P1 15 · P2 2)으로 고친다 — `nerv_spec_attachment_hide` 가 들어왔다([4.4 API 명세](../04-mvp/api.md) REQ-API-231).
 >
@@ -233,7 +235,7 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 ### 3.3 산출물
 
 1. 웹앱(Vite + React SPA) — S1·S2·S3·S4·S5·S7·S8(멤버·역할, 에이전트 토큰 탭).
-2. API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(P1 에 7종을 더하는 계획이었다: `nerv_spec_draft_upsert` · `nerv_spec_check` · `nerv_spec_comment_resolve` · `nerv_spec_submit_review` · `nerv_task_update` · `nerv_question_create` · `nerv_session_event`). **현황은 카탈로그 25종**(P0 8 · P1 15 · P2 2 — 2026-09-28 실측).
+2. API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(P1 에 7종을 더하는 계획이었다: `nerv_spec_draft_upsert` · `nerv_spec_check` · `nerv_spec_comment_resolve` · `nerv_spec_submit_review` · `nerv_task_update` · `nerv_question_create` · `nerv_session_event`). **현황은 카탈로그 26종**(P0 8 · P1 15 · P2 3 — 2026-09-28 실측).
 3. **NERV 플러그인 v1**(Claude Code) — 스킬·서브에이전트·훅·statusline + 관리형 settings 배포 가이드. (`.mcp.json` 은 번들하지 않는다 — 2026-09-04 개정.)
 4. 훅 수집기 — `type:"http"` 이벤트 수신 엔드포인트(세션 등록·활동 스트림 자동화).
 5. plan 임포터 + owner 자유 텍스트 → 사용자 계정 수동 매핑 테이블.
@@ -288,7 +290,7 @@ Phase 0의 판정은 아래 시나리오 1회(90분)의 이벤트 로그로 한�
 
 ### 4.3 산출물
 
-1. `nerv_review_submit` · `nerv_finding_resolve` 도구와 fingerprint 알고리즘 명세 + `/nerv:review` 스킬 추가. **셋 다 2026-08-23 에 앞당겨 들어왔다**([4.1 범위](../04-mvp/scope.md) §5 착수 기록) — 카탈로그는 그 뒤로도 자라 2026-09-28 실측 **25종**, 스킬은 **6종**이다.
+1. `nerv_review_submit` · `nerv_finding_resolve` 도구와 fingerprint 알고리즘 명세 + `/nerv:review` 스킬 추가. **셋 다 2026-08-23 에 앞당겨 들어왔다**([4.1 범위](../04-mvp/scope.md) §5 착수 기록) — 카탈로그는 그 뒤로도 자라 2026-09-28 실측 **26종**, 스킬은 **6종**이다.
 2. 게이트 판정 API + git forge 머지 게이트 연동(훅 미설치 클론·타 호스트 push 구멍을 서버가 막는다).
 3. S6 리뷰 센터 · 커버리지 대시보드 · S8 연동·게이트 정책 탭.
 4. Codex 온보딩 번들(`AGENTS.md` · `.codex/config.toml` · `hooks.json`) — SKILL.md는 오픈 표준이라 양쪽 재사용.

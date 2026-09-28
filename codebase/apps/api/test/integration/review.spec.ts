@@ -17,6 +17,8 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
+import { ReviewTools } from '../../src/modules/review/review.tools.js';
+import type { ToolContext } from '../../src/mcp/tool-context.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { createScratchDb } from './helpers.js';
@@ -1241,6 +1243,69 @@ describe('제출의 세션 · Task (REQ-API-238)', () => {
       [body.review_session_id],
     );
     expect(rows[0]!.agent_session_id).toBe(agentSessionId);
+  });
+});
+
+/**
+ * 이월 발견의 상한과 나머지 (2026-09-28 · 사람 결정 D4 · REQ-API-242). 예전에는 프로젝트의 열린 발견을 LIMIT 없이
+ * 전부 돌려줘서 실측 18,653건이 매 제출 응답에 실렸다. 앞의 50건과 총수 · 커서를 주고, 나머지는 발견 목록
+ * (REST EP-REV-03 · MCP nerv_finding_list)에서 같은 커서로 이어 읽는다.
+ */
+describe('이월 발견의 상한과 나머지 (REQ-API-242)', () => {
+  const many = (n: number, severity: 'critical' | 'warning' | 'info') =>
+    Array.from({ length: n }, (_, i) => ({
+      severity,
+      title: `${severity} 지적 ${i}`,
+      body_md: '본문',
+      file: `src/f${severity}${i}.ts`,
+      line: i + 1,
+      category: 'security',
+    }));
+
+  it('앞의 50건 · 총수 · 커서를 준다 — 커서로 이어 읽으면 빠짐도 겹침도 없다', async () => {
+    const result = await reviews.submit(
+      submitInput({ findings: [...many(3, 'critical'), ...many(52, 'warning')] }),
+    );
+    expect(result.carried_over).toHaveLength(50);
+    expect(result.carried_over_total).toBe(55);
+    expect(result.carried_over_next_cursor).not.toBeNull();
+    // critical 이 먼저 온다 — 목록과 같은 순서다
+    expect(result.carried_over.slice(0, 3).every((f) => f.severity === 'critical')).toBe(true);
+    // 뜻은 그대로다 — 프로젝트에 열린 critical 이 있으면 참
+    expect(result.block).toBe(true);
+
+    const rest = await reviews.findings({
+      projectId,
+      status: ['open'],
+      cursor: result.carried_over_next_cursor,
+    });
+    const ids = [
+      ...result.carried_over.map((f) => f.id),
+      ...rest.items.map((f) => String(f['id'])),
+    ];
+    expect(rest.items).toHaveLength(5);
+    expect(new Set(ids).size).toBe(55);
+  });
+
+  it('다 담기면 커서가 없다', async () => {
+    const result = await reviews.submit(submitInput({ findings: many(2, 'info') }));
+    expect(result.carried_over_total).toBe(2);
+    expect(result.carried_over_next_cursor).toBeNull();
+    expect(result.block).toBe(false);
+  });
+
+  it('nerv_finding_list 가 같은 커서로 나머지를 준다 — 에이전트의 길이다', async () => {
+    const result = await reviews.submit(submitInput({ findings: many(53, 'warning') }));
+    const tool = app.get(ReviewTools).tools.find((t) => t.name === 'nerv_finding_list');
+    const ctx = { projectId, sessionId: null, principal: { userId } } as unknown as ToolContext;
+    const page = (await tool!.handler(
+      { cursor: result.carried_over_next_cursor, limit: 10 },
+      ctx,
+    )) as { items: { id: string }[]; next_cursor: string | null };
+    expect(page.items).toHaveLength(3);
+    expect(page.next_cursor).toBeNull();
+    const seen = new Set(result.carried_over.map((f) => f.id));
+    expect(page.items.every((f) => !seen.has(f.id))).toBe(true);
   });
 });
 

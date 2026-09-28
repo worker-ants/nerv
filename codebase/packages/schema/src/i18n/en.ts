@@ -322,6 +322,15 @@ export const en = {
     'evidence when the fix was a spec correction: the spec_version_id saved by that fix',
   'mcp.arg.escalate_reason':
     "Why this goes to a human. Required for an escalated resolution; uses the same values as a question's escalate.",
+  'mcp.arg.finding_status_filter':
+    'Comma list (open, fixed, dismissed, wont_fix). Defaults to open',
+  'mcp.arg.finding_severity_filter': 'Comma list (critical, warning, info)',
+  'mcp.arg.finding_area_filter': 'Comma list (codebase, spec, task, process)',
+  'mcp.arg.finding_tag_filter':
+    'Comma list. A finding matches if it has any of the tags (spec_drift and so on)',
+  'mcp.arg.finding_branch_filter': 'Only findings last observed in a review of this branch',
+  'mcp.arg.finding_cursor':
+    'The next_cursor of the previous response, or carried_over_next_cursor from nerv_review_submit',
   'mcp.arg.commit_sha': 'commit that fixed the code (evidence); required for fixed',
   'error.review.empty_comment': 'Comments cannot be empty.',
   'error.spec.base_hash_required':
@@ -826,6 +835,8 @@ export const en = {
   'mcp.tool.after_review': 'Right after a review (instead of committing files)',
   'mcp.tool.after_comment': 'Right after addressing comments',
   'mcp.tool.after_draft': 'Any time after saving a draft and before submitting',
+  'mcp.tool.before_resolve':
+    "When picking findings to resolve (the rest of a submit response, or a branch's findings)",
   'mcp.tool.before_claim': 'Just before claiming',
   'mcp.tool.before_impl': 'Before starting implementation, before review',
   'mcp.tool.declare_relation': 'Declaring a relation after reading the documents',

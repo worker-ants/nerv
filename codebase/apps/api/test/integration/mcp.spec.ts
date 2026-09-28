@@ -180,7 +180,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     }
   });
 
-  it('tools/list 가 25종을 노출한다 — MVP 23(P0 8 + P1 15) + 리뷰 2(P2)', async () => {
+  it('tools/list 가 26종을 노출한다 — MVP 23(P0 8 + P1 15) + 리뷰 3(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
     // 카탈로그와 MVP 를 섞지 않는다 — 리뷰 수집(FR-09) 2종이 Phase 2 에서 위에 얹혔다.
@@ -188,7 +188,9 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     // (`nerv_spec_attach`), 09-04 에 21(`nerv_spec_attachment_read`), 09-05 에 22
     // (`nerv_question_cancel` — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다), 09-28 에 23
     // (`nerv_spec_attachment_hide` — 시안을 바꾸면 옛 시안을 내린다. 지우는 것은 사람이다).
-    expect(tools).toHaveLength(25);
+    // 2026-09-28 — 리뷰가 3(`nerv_finding_list` — 제출 응답에 담기지 않은 이월 발견을 읽는다 · REQ-API-242)
+    expect(tools).toHaveLength(26);
+    expect(tools.map((t) => t.name)).toContain('nerv_finding_list');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_attachment_hide');
     expect(tools.map((t) => t.name)).toContain('nerv_question_cancel');
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
@@ -219,7 +221,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     const used = new Set(tools.map((t) => String(t._meta?.['nerv/scope'])));
 
     for (const scope of REST_ONLY_SCOPES) expect(used.has(scope)).toBe(false);
-    // 남은 일곱이 도구 25종을 덮는다 — 어휘 10 에서 REST 축 3 을 뺀 수와 정확히 같다
+    // 남은 일곱이 도구 26종을 덮는다 — 어휘 10 에서 REST 축 3 을 뺀 수와 정확히 같다
     expect(used.size).toBe(AGENT_SCOPES.length - REST_ONLY_SCOPES.length);
     for (const scope of used) expect(AGENT_SCOPES as readonly string[]).toContain(scope);
   });

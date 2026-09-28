@@ -250,6 +250,13 @@ export const PAGE_LIMIT_MAX = 100;
  */
 export const FINDING_PAGE_LIMIT_DEFAULT = 50;
 export const FINDING_PAGE_LIMIT_MAX = 200;
+
+/**
+ * 리뷰 제출 응답의 `carried_over` 상한(2026-09-28 · 사람 결정 D4 · REQ-API-242). 이월된 발견은 프로젝트의 열린
+ * 발견 전부라, 실측 18,653건이면 매 제출 응답이 수 MB 가 되어 에이전트가 읽지 못했다. 나머지는
+ * `carried_over_next_cursor` 로 발견 목록(EP-REV-03 · `nerv_finding_list`)에서 이어 읽는다.
+ */
+export const CARRIED_OVER_LIMIT = 50;
 export const GATE_BRANCH_LIMIT_DEFAULT = 20;
 export const GATE_BRANCH_LIMIT_MAX = 200;
 

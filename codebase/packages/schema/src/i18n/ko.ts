@@ -323,6 +323,13 @@ export const ko = {
   'mcp.arg.resolution_spec_version': '스펙을 고쳐 해결했을 때의 근거. 고친 저장의 spec_version_id',
   'mcp.arg.escalate_reason':
     '사람에게 넘기는 이유. escalated 처분이면 필수이고, 질문의 escalate와 같은 값을 쓴다.',
+  'mcp.arg.finding_status_filter': '쉼표 목록(open · fixed · dismissed · wont_fix). 생략하면 open',
+  'mcp.arg.finding_severity_filter': '쉼표 목록(critical · warning · info)',
+  'mcp.arg.finding_area_filter': '쉼표 목록(codebase · spec · task · process)',
+  'mcp.arg.finding_tag_filter': '쉼표 목록 — 태그 하나라도 맞으면 나온다(spec_drift 등)',
+  'mcp.arg.finding_branch_filter': '그 브랜치의 리뷰에서 마지막으로 관찰된 발견만',
+  'mcp.arg.finding_cursor':
+    '앞 응답의 next_cursor, 또는 nerv_review_submit 응답의 carried_over_next_cursor',
   'mcp.arg.commit_sha': '코드를 고쳐 해결했을 때의 근거 커밋. fixed이면 필수다',
   'error.review.empty_comment': '빈 코멘트는 남길 수 없습니다.',
   'error.spec.base_hash_required':
@@ -814,6 +821,8 @@ export const ko = {
   'mcp.tool.after_review': '리뷰를 마친 직후(파일로 커밋하지 않는다)',
   'mcp.tool.after_comment': '코멘트 반영 직후',
   'mcp.tool.after_draft': '초안 저장 후·제출 전 아무 때나',
+  'mcp.tool.before_resolve':
+    '처리할 발견을 고를 때(제출 응답에 담기지 않은 나머지 · 브랜치의 발견)',
   'mcp.tool.before_claim': '클레임 직전',
   'mcp.tool.before_impl': '구현 착수 전, 리뷰 전',
   'mcp.tool.declare_relation': '문서를 읽고 관계를 선언할 때',
