@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.25 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.26 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.26 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **디스크 미러의 경로 이탈 막기**를 적는다.
 >
 > v2.25 변경(2026-09-28 — 훅 헤더 확장 실측): **E06-S07 을 `done` 으로(부분 → 완료).** 남은 것으로 적었던 "`headers` 확장 자체의 실측" 을 했다 — `allowedEnvVars` 에 있으면 확장되고 `${VAR:-기본값}` 과 `url` 은 확장되지 않는다. 판정 리포트는 [4.6 플러그인](plugin.md) §3.1 의 실측 기록이다. 실측 중에 http 변형의 SessionStart 훅이 돌지 않는 결함을 찾아 같은 변경에서 고쳤다(REQ-PLG-027).
 >
@@ -726,6 +728,7 @@ referenced_by:
 | 글자처럼 보이는 단추 — 하와 모양 통일 · 허용 목록 | 전체 화면 트리 [모두 펼치기]·[모두 접기] · [보고 있는 문서로] → `Button xs subtle` · 다음 할 일 줄의 칩 넷 → `Button xs subtle` · [받은 요청에서 열기]·[작업 만들기] → `buttonClass`(주 단추 크기 통일) · 작업 보드 필터 토글 → `Button xs subtle` · 내린 첨부 · 다른 사람의 결정을 기다리는 묶음 → `Disclosure` · 시작 체크리스트 [닫기] · 표 제목 · 도움말 이전/다음 장 → 링크색 · 레인 캐럿 · 레일 탭 글자 한 단 · 빈 레인 이동 ▸ · 문구 `tasks.ready_empty.backlog`("채우기" → "보기") · L1 장부 45 → 0 · 이유를 적은 허용 목록 31곳 | 사람 결정 A1~A7의 마지막 묶음([4.5 화면 명세](screens.md) REQ-WEB-271 개정). 장부가 비었다. 남은 것은 관례라 두는 자리이고, 이유를 댈 수 없는 새 자리는 L1 이 막는다 |
 | 행위자 표기 한 벌 — 사람은 머리글자 원, 에이전트는 AI 칸 | `components/actor-mark.tsx`(`ActorMark` — 작은 칸은 `GlyphChip`) · 활동 피드 · 작업 카드의 실행 표식 · 알림 줄의 행위자 칸 · 알림 묶음 원인(`(AI)`) · 리뷰 발견 코멘트 · 첨부 올린 사람 · 스펙 코멘트 작성자 · 문구 `actor.agent` · `actor.delegated_by`(`project.actor.agent` 삭제) · 매뉴얼 ko·en(시작) · L1 `actor-mark.spec.tsx`(화면 코드에 🤖/👤 없음) | 사람 결정(추천안). 같은 구분이 다섯 모양이었고, 이모지는 OS 마다 그림이 다르고 읽는 도구가 그림 이름을 읽었다([4.5 화면 명세](screens.md) REQ-WEB-277 · §4.3) |
 | 초안의 요구사항 변경 미리보기 · 결재 카드의 본문 렌더링 | `packages/schema/src/requirement-lines.ts`(`requirementsOf` — API 의 `spec-delta.ts` 에서 옮김) · `features/spec-editor/requirement-panel.tsx`(`DraftRequirementDelta` — 승인본이 있으면 EP-SPEC-06, 없으면 본문 줄) · `routes/p.$proj/specs.$spec.tsx`(승인본 번호 · 본문 · 비교 열기) · `features/inbox/approval-card.tsx`([본문 보기] → `SpecEditor` 를 펼칠 때 받음) · `editor.tsx`(`className` · 닫힌 편집기는 건너뜀) · 문구 `spec.requirements.draft_*` · 매뉴얼 ko·en(받은 요청 · 스펙) · L1 `draft-requirements.spec.tsx` · `approval-card.spec.tsx` | 백로그의 남은 것 둘을 닫는다 — 초안의 요구사항 델타 미리보기(SPEC-14 ①의 뒤)와 받은 요청의 [본문 보기]를 스펙 상세의 렌더러로([4.5 화면 명세](screens.md) REQ-WEB-278 · 279) |
+| 디스크 미러의 경로 이탈 막기(보안) | `apps/api/src/common/safe-path.ts`(신설 — `safePathSegment` · `resolveInside`) · `worker/jobs/export.job.ts`(slug · 키를 한 칸으로) · `spec.service.ts`(`llms.txt` 링크) · L1 `safe-path.spec.ts` · L2 `mirror-retention.spec.ts` | 스펙 키 · slug 에 형식 검사가 없어 `../` 가 든 키가 `NERV_EXPORT_DIR` 밖에 파일을 썼다. clemvion 요청 검토 중 찾은 것이다([4.4 API 명세](api.md) REQ-API-235) |
 
 #### 이 절은 언제 갱신되는가
 

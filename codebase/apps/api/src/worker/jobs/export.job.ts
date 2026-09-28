@@ -8,10 +8,10 @@
 // 그것을 어떻게 배포할지(git push·오브젝트 스토리지·정적 호스팅)는 운영의 선택이다.
 import { Injectable, Logger } from '@nestjs/common';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
+import { resolveInside, safePathSegment } from '../../common/safe-path.js';
 import { SpecService } from '../../modules/spec/spec.service.js';
 
 export interface ExportReport {
@@ -46,11 +46,13 @@ export class ExportJob {
 
     let files = 0;
     for (const project of projects) {
-      const dir = join(root, project.slug);
-      await mkdir(join(dir, 'specs'), { recursive: true });
+      // **slug 와 키는 경로의 한 칸으로만 쓴다**(2026-09-28 · REQ-API-235). 둘 다 형식 검사가 없어서
+      // `../` 가 든 값이 그대로 들어가면 이 폴더 밖에 파일이 써졌다
+      const dir = resolveInside(root, safePathSegment(project.slug));
+      await mkdir(resolveInside(dir, 'specs'), { recursive: true });
 
       await writeFile(
-        join(dir, 'llms.txt'),
+        resolveInside(dir, 'llms.txt'),
         await this.specs.llmsTxt({ projectId: project.id, projectName: project.name }),
         'utf8',
       );
@@ -65,7 +67,11 @@ export class ExportJob {
           projectId: project.id,
           specKey: node.key,
         });
-        await writeFile(join(dir, 'specs', `${node.key}.md`), markdown, 'utf8');
+        await writeFile(
+          resolveInside(dir, 'specs', `${safePathSegment(node.key)}.md`),
+          markdown,
+          'utf8',
+        );
         files += 1;
       }
     }
