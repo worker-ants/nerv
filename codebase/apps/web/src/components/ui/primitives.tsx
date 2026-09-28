@@ -402,7 +402,8 @@ export function Disclosure({
   className,
 }: {
   expanded: boolean;
-  onToggle: () => void;
+  /** 누름 — 줄 전체가 링크인 자리에서는 `event.stopPropagation()` 으로 이동을 막는다 */
+  onToggle: (event: React.MouseEvent<HTMLButtonElement>) => void;
   children?: React.ReactNode;
   /** 보조기기가 읽는 이름 — 보이는 글자가 "×3" 처럼 뜻을 다 말하지 못할 때 */
   label?: string;
@@ -475,25 +476,41 @@ export function Segmented<T extends string>({
   options,
   onChange,
   testIdPrefix,
+  semantics = 'pressed',
+  className,
 }: {
   /** 무엇을 고르는 묶음인가 — 보조기기가 읽는 이름 */
   label: string;
   value: T;
-  options: readonly { value: T; label: string }[];
+  /** 글자 곁에 수를 붙이는 묶음(관계 방향)도 있어 글자는 노드를 받는다 */
+  options: readonly { value: T; label: React.ReactNode }[];
   onChange: (value: T) => void;
   testIdPrefix?: string;
+  /**
+   * `tab` — 같은 자리의 본문을 바꾸는 탭(`tablist` · `aria-selected`). 본문의 [뷰어|소스]가 그렇다.
+   * 모양은 같다 — **고르지 않은 칸도 묶음의 테두리 안에 있어야** 누를 수 있는 것으로 읽힌다(2026-09-28 · REQ-WEB-271).
+   * 언어 · 테마 · 중심 거리 · 관계 방향이 저마다 테두리 없는 원시 단추로 짜여 고르지 않은 칸은 글자뿐이었다
+   */
+  semantics?: 'pressed' | 'tab';
+  className?: string | undefined;
 }): React.JSX.Element {
+  const tab = semantics === 'tab';
   return (
     <div
-      role="group"
+      role={tab ? 'tablist' : 'group'}
       aria-label={label}
-      className="inline-flex rounded-nerv-sm border border-border p-0.5 text-xs"
+      className={cn(
+        'inline-flex rounded-nerv-sm border border-border-strong p-0.5 text-xs',
+        className,
+      )}
     >
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
-          aria-pressed={option.value === value}
+          role={tab ? 'tab' : undefined}
+          aria-pressed={tab ? undefined : option.value === value}
+          aria-selected={tab ? option.value === value : undefined}
           data-testid={testIdPrefix === undefined ? undefined : `${testIdPrefix}-${option.value}`}
           onClick={() => onChange(option.value)}
           className={cn(

@@ -2004,6 +2004,7 @@ export const en = {
   'graph.legend.size': 'Size = backlinks',
   'graph.help_more': 'More in the Specs chapter of the manual ▸',
   'graph.hops': 'Depth {n}',
+  'graph.hops_label': 'Distance from the center',
   'graph.relayout': 'Another layout',
   'graph.layout_n': 'Layout {n}',
   'graph.layout_reset': 'First layout',

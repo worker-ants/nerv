@@ -90,9 +90,10 @@ export function NextStep({
                 .querySelector('[data-testid="check-findings"]')
                 ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
             }
-            className="text-2xs text-status-danger underline-offset-2 hover:underline"
+            // 빨간 경고 문장으로만 읽혔다 — 쉴 때 밑줄과 ↓ 로 그 자리로 간다는 것을 보인다(REQ-WEB-273)
+            className="text-2xs text-status-danger underline underline-offset-2"
           >
-            {t('spec.next.blocked', { count: checkBlocks })}
+            {t('spec.next.blocked', { count: checkBlocks })} ↓
           </button>
         )}
       </>

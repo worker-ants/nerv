@@ -152,7 +152,9 @@ export function AttachmentPanel({
             type="button"
             data-testid="attach-pick"
             onClick={() => inputRef.current?.click()}
-            className="ml-1.5 text-link hover:underline"
+            // 문장 안에서 끝나는 인라인 명령이라 링크 모양으로 두되 쉴 때 밑줄을 긋는다(사람 결정 A3 · REQ-WEB-272).
+            // 터치 기기에는 끌어다 놓기가 없어 업로드의 유일한 길이다
+            className="ml-1.5 text-link underline underline-offset-2"
           >
             {t('spec.attach.pick')}
           </button>

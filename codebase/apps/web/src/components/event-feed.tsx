@@ -19,7 +19,7 @@ import { cn } from '../lib/utils.js';
 import { collapseRepeats, eventSubject, eventTarget, hrefOf } from '../lib/event-subject.js';
 import type { EventRow } from '../lib/event-subject.js';
 import { ErrorState, failedWithoutData } from './query-state.js';
-import { Avatar, EmptyState, LoadMore, Skeleton } from './ui/primitives.js';
+import { Avatar, Disclosure, EmptyState, LoadMore, Skeleton } from './ui/primitives.js';
 
 export interface EventFeedProps {
   projectSlug: string;
@@ -209,17 +209,15 @@ function FeedRow({
         {actor !== null && <span className="text-text-faint"> · {actor}</span>}
       </span>
       {count > 1 && onToggle !== undefined && (
-        <button
-          type="button"
-          data-testid="event-repeat"
-          aria-expanded={expanded}
-          aria-label={t('feed.repeat_label', { count })}
-          title={t('feed.repeat_label', { count })}
-          onClick={onToggle}
-          className="shrink-0 rounded-nerv-sm px-1 text-xs text-text-faint tabular-nums hover:bg-bg-active hover:text-text"
+        <Disclosure
+          expanded={expanded}
+          label={t('feed.repeat_label', { count })}
+          testId="event-repeat"
+          className="shrink-0 tabular-nums"
+          onToggle={() => onToggle()}
         >
           {t('feed.repeat', { count })}
-        </button>
+        </Disclosure>
       )}
       <span className="w-16 shrink-0 text-right text-xs text-text-faint">
         {relativeTime(t, typeof e['occurred_at'] === 'string' ? e['occurred_at'] : null)}

@@ -41,7 +41,7 @@ import { useTheme } from '../../lib/theme.js';
 import { cn } from '../../lib/utils.js';
 import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
-import { Button, GlyphChip } from '../../components/ui/primitives.js';
+import { Button, GlyphChip, Segmented } from '../../components/ui/primitives.js';
 import {
   DEFAULT_LAYOUT,
   LABEL_FONT_SIZE,
@@ -845,21 +845,16 @@ export function SpecGraph({
               </Button>
             )}
             {focus !== null && (
-              <span className="flex items-center gap-1">
-                {[1, 2].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setHops(n)}
-                    className={cn(
-                      'rounded-nerv-sm px-2 py-0.5',
-                      hops === n ? 'bg-bg-active font-medium' : 'text-text-mute hover:bg-bg-hover',
-                    )}
-                  >
-                    {t('graph.hops', { n })}
-                  </button>
-                ))}
-              </span>
+              <Segmented
+                label={t('graph.hops_label')}
+                testIdPrefix="graph-hops"
+                value={String(hops) as '1' | '2'}
+                onChange={(v) => setHops(Number(v))}
+                options={(['1', '2'] as const).map((n) => ({
+                  value: n,
+                  label: t('graph.hops', { n: Number(n) }),
+                }))}
+              />
             )}
             <label className="flex items-center gap-1.5 text-text-mute">
               <input

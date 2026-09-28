@@ -20,7 +20,7 @@ import { SEVERITY_TOKEN } from '../../components/status-token.js';
 import { useT } from '../../lib/i18n.js';
 import type { Row } from '../../lib/queries.js';
 import { cn } from '../../lib/utils.js';
-import { Button } from '../../components/ui/primitives.js';
+import { Button, Disclosure } from '../../components/ui/primitives.js';
 
 export interface FindingCardProps {
   finding: Row;
@@ -117,18 +117,17 @@ export function FindingCard({
           <StatusBadge token="idle" label={t(statusLabelKey('finding', status))} />
         )}
         {hasBody && (
-          <button
-            type="button"
-            data-testid="finding-toggle"
-            aria-expanded={open}
-            onClick={(e) => {
+          <Disclosure
+            expanded={open}
+            testId="finding-toggle"
+            className="shrink-0"
+            onToggle={(e) => {
               e.stopPropagation();
               setOpen(!open);
             }}
-            className="shrink-0 rounded-nerv-sm px-1 text-2xs text-text-faint hover:text-text"
           >
             {open ? t('reviews.collapse') : t('reviews.expand')}
-          </button>
+          </Disclosure>
         )}
       </div>
 

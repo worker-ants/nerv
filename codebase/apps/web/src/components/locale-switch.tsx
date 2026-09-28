@@ -6,7 +6,7 @@
 
 import { LOCALES } from '@nerv/schema';
 import { LOCALE_LABEL, useLocale, useT } from '../lib/i18n.js';
-import { cn } from '../lib/utils.js';
+import { Segmented } from './ui/primitives.js';
 
 export function LocaleSwitch({
   className,
@@ -21,24 +21,15 @@ export function LocaleSwitch({
   return (
     <div data-testid="locale-switch" className={className}>
       {labelled && <p className="mb-1 text-2xs text-text-faint">{t('shell.language')}</p>}
-      <div role="group" aria-label={t('shell.language')} className="flex gap-1">
-        {LOCALES.map((code) => (
-          <button
-            key={code}
-            type="button"
-            data-testid={`locale-${code}`}
-            aria-pressed={locale === code}
-            onClick={() => setLocale(code)}
-            className={cn(
-              'rounded-nerv-sm px-2 py-0.5 text-xs',
-              locale === code ? 'bg-bg-active font-medium' : 'text-text-mute hover:bg-bg-hover',
-            )}
-          >
-            {/* 언어 이름은 그 언어로 적는다 — 읽을 수 없는 말로 적힌 선택지는 고를 수 없다 */}
-            {LOCALE_LABEL[code]}
-          </button>
-        ))}
-      </div>
+      {/* 공용 세그먼트 — 로그인 전 화면에서는 카드 밖의 회색 글자 두 개로 보였다(REQ-WEB-271).
+          언어 이름은 그 언어로 적는다 — 읽을 수 없는 말로 적힌 선택지는 고를 수 없다 */}
+      <Segmented
+        label={t('shell.language')}
+        testIdPrefix="locale"
+        value={locale}
+        onChange={setLocale}
+        options={LOCALES.map((code) => ({ value: code, label: LOCALE_LABEL[code] }))}
+      />
     </div>
   );
 }

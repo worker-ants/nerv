@@ -644,7 +644,8 @@ function SpecListScreen(): React.JSX.Element {
                     <Card interactive padded={false} className="px-3 py-2.5">
                       <div className="flex items-center gap-2 text-sm">
                         <Mono>{String(hit['key'])}</Mono>
-                        <span className="min-w-0 flex-1 truncate font-medium">
+                        {/* 결과 카드는 여는 곳이다 — 제목을 쉴 때 링크색으로 둔다(REQ-WEB-273) */}
+                        <span className="min-w-0 flex-1 truncate font-medium text-link">
                           {String(hit['title'])}
                         </span>
                         {hit['doc_status'] !== null && (

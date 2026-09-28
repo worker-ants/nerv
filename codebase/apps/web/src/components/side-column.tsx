@@ -116,7 +116,8 @@ export function SideColumn({
       aria-label={buttonLabel}
       title={buttonLabel}
       onClick={toggle}
-      className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute hover:bg-bg-active hover:text-text"
+      // 좁은 화면에서는 트리를 여는 유일한 길이고 글자가 없다 — 테두리 칸으로 누르는 것임을 보인다(REQ-WEB-276)
+      className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm border border-border-strong text-text-mute hover:bg-bg-active hover:text-text"
     >
       <PanelIcon open={open} />
     </button>

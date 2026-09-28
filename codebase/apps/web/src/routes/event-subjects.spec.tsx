@@ -264,7 +264,7 @@ describe('활동 피드가 무엇에 일어났는지 말한다', () => {
 
   it('홈도 같은 피드다 — 대상이 서고 같은 일은 접힌다', async () => {
     renderAt('/');
-    expect((await screen.findByTestId('event-repeat')).textContent).toBe('×3');
+    expect((await screen.findByTestId('event-repeat')).textContent).toBe('▸×3');
     expect(screen.getAllByTestId('event-subject').length).toBeGreaterThan(0);
   });
 });

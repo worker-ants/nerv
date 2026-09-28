@@ -128,7 +128,8 @@ export function RequirementPanel({
                 }}
                 className="text-2xs text-link hover:underline"
               >
-                {t('spec.requirements.derive_task')}
+                {/* 동사 글자지만 생성 폼으로 가는 이동이다 — ▸ 로 이동임을 보인다(사람 결정 A3) */}
+                {t('spec.requirements.derive_task')} ▸
               </Link>
             ) : (
               version !== undefined && (

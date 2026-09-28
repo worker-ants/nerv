@@ -445,14 +445,10 @@ function BoardFilters({
           <span data-testid="board-filtered" className="text-text-faint">
             {t('tasks.filter.applied')}
           </span>
-          <button
-            type="button"
-            data-testid="filter-clear"
-            onClick={onClear}
-            className="text-link hover:underline"
-          >
+          // 필터를 푸는 명령이다 — 이동 링크의 모양이 아니라 단추다(REQ-WEB-272)
+          <Button size="xs" variant="subtle" data-testid="filter-clear" onClick={onClear}>
             {t('tasks.filter.clear')}
-          </button>
+          </Button>
         </>
       )}
     </div>

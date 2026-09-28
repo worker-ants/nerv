@@ -171,7 +171,6 @@ function InviteScreen(): React.JSX.Element {
                   )}
                   <ConfirmAction
                     label={t('invite.decline')}
-                    variant="ghost"
                     testId="invite-decline"
                     className="mt-2"
                     message={t('invite.decline_confirm')}

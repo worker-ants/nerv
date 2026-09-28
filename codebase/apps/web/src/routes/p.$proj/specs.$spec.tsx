@@ -69,9 +69,11 @@ import { cn } from '../../lib/utils.js';
 import {
   Avatar,
   Button,
+  Disclosure,
   GlyphChip,
   Mono,
   PageBody,
+  Segmented,
   Skeleton,
 } from '../../components/ui/primitives.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
@@ -1160,30 +1162,18 @@ function SpecDetail(): React.JSX.Element {
             였다 — 사람의 의도가 아니라 문서의 상태가 축이었던 것이고, 그 혼동이 초안의
             mermaid 가 코드로 보이던 결함을 만들었다(REQ-WEB-169). 이제 축은 둘뿐이다. */}
         {compare === null && viewing === null && (
-          <div
-            className="mb-2 flex items-center gap-1"
-            role="tablist"
-            aria-label={t('spec.body_tabs')}
-          >
-            {BODY_TABS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                data-testid={`body-tab-${key}`}
-                aria-selected={bodyTab === key}
-                onClick={() => setBodyTab(key)}
-                className={cn(
-                  'rounded-nerv-sm px-2 py-0.5 text-xs',
-                  bodyTab === key
-                    ? 'bg-bg-active font-medium text-text'
-                    : 'text-text-mute hover:bg-bg-hover hover:text-text',
-                )}
-              >
-                {t(key === 'viewer' ? 'spec.body_viewer' : 'spec.body_source')}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            semantics="tab"
+            label={t('spec.body_tabs')}
+            className="mb-2"
+            testIdPrefix="body-tab"
+            value={bodyTab}
+            onChange={setBodyTab}
+            options={BODY_TABS.map((key) => ({
+              value: key,
+              label: t(key === 'viewer' ? 'spec.body_viewer' : 'spec.body_source'),
+            }))}
+          />
         )}
 
         {/* **문서마다 새 편집기다.** TipTap 인스턴스가 살아남으면 문서 B 를 열어도
@@ -1524,16 +1514,16 @@ function SpecDetail(): React.JSX.Element {
               ))}
               {versionRows.length > VERSION_CAP && (
                 <li>
-                  <button
-                    type="button"
-                    data-testid="versions-more"
-                    onClick={() => setAllVersions(!showAllVersions)}
-                    className="py-1 text-left text-xs text-text-mute hover:text-text"
+                  <Disclosure
+                    expanded={showAllVersions}
+                    testId="versions-more"
+                    className="mt-1"
+                    onToggle={() => setAllVersions(!showAllVersions)}
                   >
                     {showAllVersions
                       ? t('spec.versions.less', { n: VERSION_CAP })
                       : t('spec.versions.more', { n: versionRows.length - VERSION_CAP })}
-                  </button>
+                  </Disclosure>
                 </li>
               )}
             </ul>
