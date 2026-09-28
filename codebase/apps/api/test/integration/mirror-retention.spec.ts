@@ -236,6 +236,33 @@ describe('md 미러 파일 생성 (export.job)', () => {
       delete process.env['NERV_EXPORT_DIR'];
     }
   });
+
+  // **키와 slug 는 경로의 한 칸으로만 쓴다**(2026-09-28 · REQ-API-235). 둘 다 형식 검사가 없어서
+  // `../` 가 든 키를 그대로 `join` 하면 NERV_EXPORT_DIR 밖에 파일이 써졌다
+  it('키나 slug 에 ../ 가 있어도 대상 폴더 밖에 쓰지 않는다', async () => {
+    await approvedSpec('../../escaped', '# 밖으로 나가려는 문서');
+    const parent = mkdtempSync(join(tmpdir(), 'nerv-export-parent-'));
+    const dir = join(parent, 'mirror');
+    process.env['NERV_EXPORT_DIR'] = dir;
+    try {
+      await exporter.run();
+      // 예전에는 dir/clemvion/specs/../../escaped.md = dir/escaped.md 에 썼다(키가 두 칸 올라간다)
+      expect(existsSync(join(dir, 'escaped.md'))).toBe(false);
+      expect(existsSync(join(dir, 'clemvion/specs/..%2F..%2Fescaped.md'))).toBe(true);
+      // llms.txt 의 링크도 같은 이름이다 — HTTP 로 따라가면 원래 키로 풀린다
+      expect(readFileSync(join(dir, 'clemvion/llms.txt'), 'utf8')).toContain(
+        '(./specs/..%2F..%2Fescaped.md)',
+      );
+
+      await pool.query(`UPDATE project SET slug = '../outside' WHERE id = $1`, [projectId]);
+      await exporter.run();
+      expect(existsSync(join(parent, 'outside'))).toBe(false);
+      expect(existsSync(join(dir, '..%2Foutside/llms.txt'))).toBe(true);
+    } finally {
+      await pool.query(`UPDATE project SET slug = 'clemvion' WHERE id = $1`, [projectId]);
+      delete process.env['NERV_EXPORT_DIR'];
+    }
+  });
 });
 
 async function seed(): Promise<void> {

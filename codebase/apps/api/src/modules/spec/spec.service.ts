@@ -38,6 +38,7 @@ import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { entityRef } from '../../common/entity-ref.js';
+import { safePathSegment } from '../../common/safe-path.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -2274,7 +2275,11 @@ export class SpecService {
     ];
     for (const node of nodes) {
       const status = node.doc_status === null ? 'draft' : node.doc_status;
-      lines.push(`- [${node.title}](./specs/${node.key}.md): ${node.type} · ${status}`);
+      // 링크는 디스크 미러가 쓰는 파일 이름과 같다 — 보통 키는 그대로이고, `/` 같은 글자는 `%XX` 라
+      // HTTP 경로(EP-MIR-01)로 따라가도 원래 키로 풀린다(REQ-API-235)
+      lines.push(
+        `- [${node.title}](./specs/${safePathSegment(node.key)}.md): ${node.type} · ${status}`,
+      );
     }
     return `${lines.join('\n')}\n`;
   }
