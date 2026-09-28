@@ -23,8 +23,10 @@ referenced_by:
 
 > **요약** — NERV(가칭)는 웹앱(Vite + React SPA), API + MCP 게이트웨이(NestJS), 훅 수집기, Postgres, Valkey(실시간 방송 MQ), 이벤트·알림 워커의 여섯 덩어리와 git forge·Slack 연동으로 구성된다. 가장 중요한 결정은 저장 전략(D-01)이다: **스펙과 리뷰 산출물의 단일 진실은 플랫폼 DB**이고, git에는 사람이 읽고 grep할 수 있는 **read-only markdown 미러**와 포인터만 남기며, 에이전트는 markdown으로 읽되 **쓰기는 MCP/API 한 경로로만** 한다. 근거는 추정이 아니라 실측이다 — clemvion에서 리뷰 이력 blob 60.7MB가 `.git` packed blob 바이트의 60%를 차지했고(`review/` 산출물은 markdown 13,777개·131MB), 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의 입력이 되는 자기증식 루프(한 changeset 8라운드, 마지막 라운드 프롬프트 94파일 중 86개가 이전 리뷰 산출물)가 관측됐다. 이 문서는 컴포넌트별 책임, 저장 전략, 핵심 데이터 흐름 4종(스펙 승인 · 작업 클레임 · 세션 하트비트/stale · 리뷰 수집→게이트 판정), 기술 스택(D-11) 대안 비교, 멀티테넌시·보안·성능·백업·로컬 폴백(NFR-05)까지를 구현 착수가 가능한 수준으로 기술한다.
 >
-> 문서 버전 v0.6 · 2026-09-28 · HTML 파생본: [architecture.html](../html/architecture.html)
+> 문서 버전 v0.7 · 2026-09-28 · HTML 파생본: [architecture.html](../html/architecture.html)
 
+> v0.7 변경(2026-09-28 — 작업의 기준으로 미러 읽기, clemvion 요청 N4): §2.4(a) 한 줄. 미러가 작업의 기준 버전(`?task=`)과 가장 새 버전(`?basis=latest`)으로도 읽는다([4.4 API 명세](../04-mvp/api.md) REQ-API-249).
+>
 > v0.6 변경(2026-09-28 — 미러 frontmatter 의 키, clemvion 요청 N3): §2.4(a) 한 줄. frontmatter 에 트리의 자리(부모 · 조상 · 영역)와 본문 지문이 더해졌고, 승인자를 넣는다는 옛 문장(2026-09-07 에 API 명세만 정정했다)을 바로잡았다. 키 목록의 정본은 [4.4 API 명세](../04-mvp/api.md) EP-MIR-01 이다.
 >
 > v0.5 변경(2026-09-06 — 컴포넌트 그림이 옛 인증을 적고 있었다, 정합성 대조 → 사람 지시): 구성도의 API 노드가 "REST · nerv_* tools · **OAuth 2.1**" 이었다 — 2026-08-20 인증 확정으로 MVP 는 **better-auth 세션 + PAT 2경로**이고 OAuth 2.1 은 Phase 2 다([4.1](../04-mvp/scope.md) §2.1). §7 리서치 인용의 OAuth 서술은 MCP 표준을 인용하는 자리라 그대로 둔다.
@@ -160,7 +162,7 @@ flowchart LR
 
 에이전트에게 블록 JSON이 아니라 markdown을 주는 것은 Notion이 호스티드 MCP를 만들며 내린 공식 결론이다 — 계층형 JSON은 다중 호출과 과다 토큰을 유발하는 반면 markdown은 LLM 토큰당 콘텐츠 밀도가 높다. URL에 `.md`를 붙인 클린 마크다운 미러와 루트 인덱스는 이미 표준(llms.txt v2)이며 Anthropic·OpenAI·Google이 자사 개발자 문서에 적용하고 있다.
 
-- `GET /api/projects/{p}/specs/{id}.md?version=approved` — 기본은 최신 `approved` SpecVersion, `?version=42`로 특정 스냅샷.
+- `GET /api/projects/{p}/specs/{id}.md?version=approved` — 기본은 최신 `approved` SpecVersion, `?version=42`로 특정 스냅샷. 작업의 기준 버전(`?task=`)과 가장 새 버전(`?basis=latest`)으로도 읽는다(2026-09-28 · 인자의 정본은 [4.4 API 명세](../04-mvp/api.md) EP-MIR-01).
 - 응답 frontmatter에 고정 ID·버전·문서 상태·요구사항 ID 목록과 트리의 자리(부모·조상·영역)·본문 지문을 넣어 에이전트가 인용할 수 있게 한다. 승인자는 넣지 않는다(2026-09-07 정정) — 키 목록의 정본은 [4.4 API 명세](../04-mvp/api.md) EP-MIR-01 이다. 경로·앵커가 아니라 **고정 ID로 상호참조**한다(D-09).
 - `GET /api/projects/{p}/llms.txt` — 스펙 트리 인덱스(제목 + `.md` 링크 + 한 줄 설명).
 

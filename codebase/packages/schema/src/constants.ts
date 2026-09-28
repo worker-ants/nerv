@@ -51,6 +51,26 @@ export const SPEC_VIEW_BASES = ['approved', 'latest'] as const;
 export type SpecViewBasis = (typeof SPEC_VIEW_BASES)[number];
 
 /**
+ * **무엇으로 읽었나** — 문서 조회(EP-SPEC-03 · `nerv_spec_get`)와 md 미러(EP-MIR-01)가 돌려주는 `read_as` 값
+ * (2026-09-28 · clemvion 요청 N4 · REQ-API-249). 셋의 판정은 한 곳(`resolveSelector` · `taskBasisOf`)이고 값도 여기
+ * 한 벌이다 — 미러 헤더(`X-NERV-Read-As`)와 frontmatter 를 읽는 도구가 이 목록으로 대조한다.
+ *
+ * `task_basis`(작업의 출처 문서 — 기준 버전) · `task_baseline`(작업 기준선이 묶은 버전) · `baseline`(이름으로 준 기준선)
+ * · `approved_fallback`(기준선에 이 문서가 없어 최신 승인본으로 읽음) · `approved` · `latest` · `version`.
+ * 정본: docs/04-mvp/api.md REQ-API-198 · 203 · 249
+ */
+export const SPEC_READ_AS = [
+  'approved',
+  'latest',
+  'version',
+  'baseline',
+  'task_basis',
+  'task_baseline',
+  'approved_fallback',
+] as const;
+export type SpecReadAs = (typeof SPEC_READ_AS)[number];
+
+/**
  * 하트비트 주기 — 60초.
  * `nerv_task_heartbeat` 의 응답은 서버→세션 역채널을 겸한다.
  * 정본: docs/03-proposal/agent-integration.md §2.3

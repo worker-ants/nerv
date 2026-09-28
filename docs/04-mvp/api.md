@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **26종**(2026-09-28 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.03 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.04 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.04 변경(2026-09-28 — 작업의 기준으로 미러 읽기, **clemvion 요청 N4**): **REQ-API-249 신설 · EP-MIR-01 행 · §2.8 예시.** md 미러가 `?task=` · `?basis=` 를 받아 문서 조회(`nerv_spec_get(task)`)와 같은 버전을 고르고, 무엇으로 읽었는지를 `X-NERV-Read-As` 헤더와 frontmatter 의 `read_as` · `task` 로 준다. `read_as` 값을 `@nerv/schema` 상수 한 벌(`SPEC_READ_AS`)로 옮겼다.
 >
 > v2.03 변경(2026-09-28 — 제출 응답의 라운드 범위 판정, **clemvion 요청 N2** · 사람 결정 D3 · D2a): **REQ-API-248 신설 · EP-REV-01 행.** 제출 응답의 `block` 은 프로젝트 전체의 열린 critical 이라 clemvion 처럼 열린 critical 이 남은 프로젝트에서는 어떤 제출도 참이었다. 뜻은 그대로 두고 이번 라운드만 본 `round_block` · `blocking_findings` 를 더한다 — 기준은 게이트 판정(EP-REV-08)과 같아서 열린 warning 도 막는다.
 >
@@ -1359,7 +1361,7 @@ EP-COV-01은 **계약 선점**이다 — 커버리지 계산은 P2([로드맵](.
 
 | ID | 메서드 · 경로 | 권한 | 응답 |
 | --- | --- | --- | --- |
-| EP-MIR-01 | `GET /api/projects/{p}/specs/{id}.md?version=approved` | `spec:read`(PAT 허용 — 에이전트 공용 읽기 경로) | `text/markdown` — 기본은 최신 approved SpecVersion, `?version=42`로 특정 스냅샷. frontmatter 는 **열한 키**다: 앞의 일곱 `id`(스펙 키)·`title`·`type`·`version`·`status`·`requirements`·`basis_superseded` 뒤에 `parent`(부모 키)·`ancestors`(맨 위부터 부모까지)·`area`(가장 가까운 area 조상 — 자기는 세지 않는다)·`content_hash`(본문 해시 — REST 의 그 값)가 붙는다(2026-09-28 · REQ-API-245). 문자열은 모두 JSON 문자열(= YAML 큰따옴표 문자열)이고 모르는 값은 `null` 이다. **승인자 필드는 없다**(2026-09-07 정정 — 전표가 오래 적고 있었다. 미러는 파서의 계약이라 키 이름과 목록이 곧 계약이고, 없는 키를 적어 두면 읽는 쪽이 그것을 파싱하려 든다) · 헤더 `ETag`(응답 바이트의 sha256) · `Last-Modified`(읽은 버전이 마지막으로 바뀐 때) · `Cache-Control: private, no-cache` — `If-None-Match` 가 맞으면 본문 없이 304(REQ-API-246) · 없는 키 · 없는 버전은 404, `?version` 은 `approved` 또는 1 이상의 정수(REQ-API-236) |
+| EP-MIR-01 | `GET /api/projects/{p}/specs/{id}.md?version=approved` | `spec:read`(PAT 허용 — 에이전트 공용 읽기 경로) | `text/markdown` — 기본은 최신 approved SpecVersion, `?version=42`로 특정 스냅샷, `?basis=latest` 로 가장 새 버전, `?task=<작업 키 또는 UUID>` 로 그 작업의 기준 버전(문서 조회와 같은 판정 · 선택자는 하나만 · 2026-09-28 · REQ-API-249). frontmatter 는 **열세 키**다: 앞의 일곱 `id`(스펙 키)·`title`·`type`·`version`·`status`·`requirements`·`basis_superseded` 뒤에 `parent`(부모 키)·`ancestors`(맨 위부터 부모까지)·`area`(가장 가까운 area 조상 — 자기는 세지 않는다)·`content_hash`(본문 해시 — REST 의 그 값)가 붙고(2026-09-28 · REQ-API-245), 그 뒤에 `read_as`(무엇으로 읽었나) · `task`(작업으로 읽었으면 그 키)가 붙는다(REQ-API-249). 문자열은 모두 JSON 문자열(= YAML 큰따옴표 문자열)이고 모르는 값은 `null` 이다. **승인자 필드는 없다**(2026-09-07 정정 — 전표가 오래 적고 있었다. 미러는 파서의 계약이라 키 이름과 목록이 곧 계약이고, 없는 키를 적어 두면 읽는 쪽이 그것을 파싱하려 든다) · 헤더 `ETag`(응답 바이트의 sha256) · `Last-Modified`(읽은 버전이 마지막으로 바뀐 때) · `Cache-Control: private, no-cache` · `X-NERV-Read-As` — `If-None-Match` 가 맞으면 본문 없이 304(REQ-API-246) · 없는 키 · 없는 버전은 404, `?version` 은 `approved` 또는 1 이상의 정수(REQ-API-236) |
 | EP-MIR-02 | `GET /api/projects/{p}/llms.txt` | `spec:read` | `text/plain` — 스펙 트리 인덱스(제목 + `.md` 링크 + 한 줄 설명, llms.txt v2 형식) |
 
 응답 frontmatter 예시(필드 의미는 아키텍처 §2.4 그대로 · 제목의 `: ` 가 있어도 YAML 로 그대로 읽힌다):
@@ -1377,6 +1379,8 @@ parent: "SPC-CWC"
 ancestors: ["SPC", "SPC-CWC"]
 area: "SPC-CWC"
 content_hash: "3f5a9c…"
+read_as: "approved"
+task: null
 ---
 # 임베드 위젯
 …
@@ -1769,6 +1773,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-246 | WHEN md 미러(EP-MIR-01)가 응답하면 THE SYSTEM SHALL `ETag`(응답 바이트 전체의 sha256 — `"sha256-<hex>"`) · `Last-Modified`(읽은 버전이 마지막으로 바뀐 때 — 버전이 없는 노드는 뺀다) · `Cache-Control: private, no-cache` 를 붙인다. WHEN `If-None-Match` 가 그 ETag 를 가리키면(목록 · `*` · `W/` 를 뗀 약한 비교) THE SYSTEM SHALL 본문 없이 304 로 답한다. ETag 는 frontmatter 까지 덮으므로 부모 · 제목만 바뀌어도 달라진다 — 본문만의 지문은 `content_hash` 다. 304 도 쿼터(§1.8)에서 한 번으로 센다(2026-09-28 · 사람 결정 D6 권장안) |
 | REQ-API-247 | WHEN 게이트 판정(EP-REV-08)을 물으면 THE SYSTEM SHALL (브랜치 · 종류)마다 가장 최근에 만든 세션의 커밋 — `head_sha` 를 주면 그 커밋 — 을 라운드로 삼고, 그 커밋을 본 세션 전부를 한 라운드로 판정한다. 세션이 모두 `complete` 이고 그 세션들에서 관찰된 발견(`finding_occurrence`) 가운데 열린 critical · warning 이 0 이면 `passed`, 아니면 `pending` 과 그 이유(`running` · `failed` · `open_critical` · `open_warning`)다. info 는 막지 않고 수만 준다(사람 결정 D2 = B · [3.3 데이터 모델](../03-proposal/data-model.md) §4.4). WHEN 물은 종류에 라운드가 없으면 THE SYSTEM SHALL `uncovered` 행을 준다 — 빼 버리면 통과와 구분되지 않는다. 모르는 종류 · 빠진 `branch` 는 400 이다. 발견은 프로젝트 전체에서 지문으로 합쳐지므로 다른 브랜치에서 고친 같은 지적도 `fixed` 로 보인다. `resolution.commit_sha` 가 이 브랜치의 커밋인지는 부른 쪽이 확인한다. 같은 커밋 · 같은 파일 묶음을 다른 브랜치에서 제출하면 먼저 만든 세션에 합쳐져(§2.6a 계약 2) 나중 브랜치에는 라운드가 없다 — 판정은 `uncovered` 로 막는 쪽이다(2026-09-28 · clemvion 요청 N1 · 사람 결정 D1) |
 | REQ-API-248 | WHEN 리뷰를 제출하면(EP-REV-01 · `nerv_review_submit`) THE SYSTEM SHALL 응답에 이번 라운드의 막힘을 따로 준다 — `block_scope: "round"` · `round_block`(이번 라운드에 열린 critical · warning 이 있는가) · `blocking_findings[]`(그 발견의 `id` · `severity` · `title`). 라운드와 기준은 게이트 판정(EP-REV-08 · REQ-API-247)과 같다: 세션의 브랜치 · 종류 · 커밋이 같은 세션 전부에서 관찰된 발견이다. 제출 직후 에이전트가 본 값과 CI 가 본 값이 다르면 어느 쪽을 믿을지 모른다(사람 결정 D2a). `block` 은 뜻을 바꾸지 않는다 — 프로젝트 전체의 열린 critical 이라, 열린 critical 이 하나라도 남은 프로젝트에서는 어떤 제출도 참이었다(clemvion 실측 25건 · 2026-09-28 · clemvion 요청 N2 · 사람 결정 D3) |
+| REQ-API-249 | WHEN md 미러(EP-MIR-01)가 `?task=<작업 키 또는 UUID>` 를 받으면 THE SYSTEM SHALL 문서 조회(`nerv_spec_get(task)` · EP-SPEC-03)와 같은 판정으로 버전을 고른다 — 작업의 출처 문서면 기준 버전(`task_basis`), 아니면 작업 기준선이 묶은 버전(`task_baseline`), 기준선에도 없으면 최신 승인본(`approved_fallback`). THE SYSTEM SHALL `?basis=approved|latest` 도 받고, 무엇으로 읽었는지를 헤더 `X-NERV-Read-As` 와 frontmatter 의 `read_as` · `task` 로 준다. 값은 `@nerv/schema` 의 `SPEC_READ_AS` 한 벌이다. 선택자(`version` · `basis` · `task`)를 둘 이상 주면 400, 없는 작업은 404 다(2026-09-28 · clemvion 요청 N4) — 구현 때 pull 도구와 CI 가 REST 만으로 작업의 기준 버전을 받는다 |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다 · `decided_by` 는 결정한 사람이다 — 지정자가 아니다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재 — 검토 중이 아닌 문서에 결정 없이 남은 슬롯은 빼고)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |

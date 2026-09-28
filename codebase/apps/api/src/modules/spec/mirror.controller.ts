@@ -65,13 +65,19 @@ export class MirrorController {
     @Param('spec') spec: string,
     @Query('version') version?: string,
     @Headers('if-none-match') ifNoneMatch?: string,
+    @Query('basis') basis?: string,
+    @Query('task') task?: string,
   ): Promise<string> {
-    const { markdown, updatedAt } = await this.specs.mirrorDocument({
+    const { markdown, updatedAt, readAs } = await this.specs.mirrorDocument({
       projectId: projectOf(req),
       specKey: spec,
       // 숫자가 아니면 400 이다 — `Number('abc')` 가 SQL 까지 가서 22P02 로 죽던 자리다
       versionNo: version === undefined || version === 'approved' ? null : versionOf(version),
+      // **작업의 기준으로 · 보기 기준으로 읽는다**(REQ-API-249) — 선택자는 하나만이다(둘이면 400)
+      basis: basis ?? null,
+      task: task ?? null,
     });
+    void reply.header('x-nerv-read-as', readAs);
     const etag = `"sha256-${createHash('sha256').update(markdown, 'utf8').digest('hex')}"`;
     void reply.header('etag', etag);
     if (updatedAt !== null) void reply.header('last-modified', updatedAt.toUTCString());

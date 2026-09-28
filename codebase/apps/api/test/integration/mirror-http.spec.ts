@@ -204,6 +204,8 @@ describe('md 미러의 frontmatter · ETag (REQ-API-245 · 246)', () => {
       'ancestors',
       'area',
       'content_hash',
+      'read_as',
+      'task',
     ]);
     expect(front['title']).toBe(TITLE);
     expect(front['version']).toBe(1);
@@ -266,6 +268,77 @@ describe('md 미러의 frontmatter · ETag (REQ-API-245 · 246)', () => {
       frontmatterOf(before.text)['content_hash'],
     );
     expect(frontmatterOf(after.text)['area']).toBeNull();
+  });
+});
+
+/**
+ * 작업의 기준으로 미러를 읽는다 (2026-09-28 · clemvion 요청 N4 · REQ-API-249).
+ *
+ * 구현 때 pull 도구와 CI 는 REST 만으로 작업의 기준 버전을 받는다. 판정이 한 벌이어야 한다 — 같은 작업에 대해
+ * 문서 조회(REST · `nerv_spec_get` 이 부르는 서비스)와 미러가 같은 버전을 고르는지 한 번에 본다.
+ */
+describe('md 미러의 작업 기준 (REQ-API-249)', () => {
+  const TASK = 'CLV-T-MIRTK1';
+  beforeAll(async () => {
+    // 작업은 v1 을 기준으로 만들어졌고, 그 뒤 v2 가 승인됐다
+    const { rows: v1 } = await pool.query<{ id: string; h: string }>(
+      `SELECT v.id, encode(v.content_hash, 'hex') AS h FROM spec_version v JOIN spec s ON s.id = v.spec_id
+        WHERE s.key = 'SPC-MIR-001' AND v.version_no = 1`,
+    );
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id)
+       VALUES ($1,$2,$3,'미러 작업','backlog',$4)`,
+      [newId(), projectId, TASK, v1[0]!.id],
+    );
+    const v2 = await app.get(SpecService).draftUpsert({
+      roles: ['planner'],
+      projectId,
+      specId: 'SPC-MIR-001',
+      bodyMd: '# 미러 v2\n\n바뀐 본문',
+      baseHash: v1[0]!.h,
+      userId,
+    });
+    await pool.query(`UPDATE spec_version SET status='superseded' WHERE id = $1`, [v1[0]!.id]);
+    await pool.query(
+      `UPDATE spec_version SET status='approved', approved_at=now(), approved_by_user_id=$2,
+              edit_lease_user_id=NULL, edit_lease_session_id=NULL, edit_lease_expires_at=NULL
+        WHERE id = $1`,
+      [v2['spec_version_id'], userId],
+    );
+  });
+
+  it('?task= 는 문서 조회와 같은 버전을 고르고, 무엇으로 읽었는지 헤더와 frontmatter 에 준다', async () => {
+    const plain = frontmatterOf((await get('/api/projects/clemvion/specs/SPC-MIR-001.md')).text);
+    expect(plain['version']).toBe(2);
+    expect(plain['read_as']).toBe('approved');
+    expect(plain['task']).toBeNull();
+
+    const res = await get(`/api/projects/clemvion/specs/SPC-MIR-001.md?task=${TASK}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['x-nerv-read-as']).toBe('task_basis');
+    const front = frontmatterOf(res.text);
+    expect(front['version']).toBe(1);
+    expect(front['read_as']).toBe('task_basis');
+    expect(front['task']).toBe(TASK);
+
+    const rest = await get(`/api/v1/projects/clemvion/specs/SPC-MIR-001?task=${TASK}`);
+    expect(rest.json()['version_no']).toBe(front['version']);
+    expect(rest.json()['read_as']).toBe(front['read_as']);
+    const service = await app
+      .get(SpecService)
+      .get({ projectId, specKey: 'SPC-MIR-001', task: TASK });
+    expect(service['version_no']).toBe(front['version']);
+  });
+
+  it('?basis=latest 도 받는다 — 선택자를 둘 주면 400, 없는 작업은 404 다', async () => {
+    const latest = await get('/api/projects/clemvion/specs/SPC-MIR-001.md?basis=latest');
+    expect(latest.status).toBe(200);
+    expect(frontmatterOf(latest.text)['read_as']).toBe('latest');
+
+    const both = await get(`/api/projects/clemvion/specs/SPC-MIR-001.md?version=1&task=${TASK}`);
+    expect(both.status).toBe(400);
+    const missing = await get('/api/projects/clemvion/specs/SPC-MIR-001.md?task=CLV-T-NOPE99');
+    expect(missing.status).toBe(404);
   });
 });
 

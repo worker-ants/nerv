@@ -29,7 +29,7 @@ import {
   specVersionStatus,
   text,
 } from '@nerv/schema';
-import type { GateEvidence } from '@nerv/schema';
+import type { GateEvidence, SpecReadAs } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { evidenceExistsSql, normalizedStatementSql, reverifyRequiredSql } from './impl-status.js';
@@ -542,7 +542,8 @@ export class SpecService {
     // `read_as: 'approved_fallback'` · `baseline_pinned: false` 로 그 사실을 말한다 — 없는 이름을
     // 조용히 기본으로 떨어뜨리면 사람은 그 세트를 읽었다고 믿는다(REQ-API-082).
     let pinnedVersionId: string | null = null;
-    let readAs: string = selector.kind;
+    // 작업으로 읽으면 아래에서 셋 중 하나로 정해진다 — 처음 값은 쓰이지 않는다
+    let readAs: SpecReadAs = selector.kind === 'task' ? 'approved_fallback' : selector.kind;
     let baselineName: string | null = null;
     let taskKey: string | null = null;
     const pinOf = async (baselineId: string): Promise<string | null> => {
@@ -2247,16 +2248,30 @@ export class SpecService {
     projectId: string;
     specKey: string;
     versionNo?: number | null;
+    basis?: string | null;
+    task?: string | null;
   }): Promise<string> {
     return (await this.mirrorDocument(input)).markdown;
   }
 
-  /** 미러 본문과 HTTP 캐시 헤더의 재료 — `updated_at` 은 읽은 버전이 마지막으로 바뀐 때다(REQ-API-246) */
+  /**
+   * 미러 본문과 HTTP 헤더의 재료 — `updated_at` 은 읽은 버전이 마지막으로 바뀐 때다(REQ-API-246).
+   *
+   * **어느 버전을 읽을지는 문서 조회와 같은 판정이다**(2026-09-28 · clemvion 요청 N4 · REQ-API-249) — `task` 를 주면
+   * `nerv_spec_get(task)` 와 같은 버전을 고르고, 무엇으로 읽었는지를 `read_as` 로 준다. 선택자는 하나만 받는다.
+   */
   async mirrorDocument(input: {
     projectId: string;
     specKey: string;
     versionNo?: number | null;
-  }): Promise<{ markdown: string; updatedAt: Date | null }> {
+    basis?: string | null;
+    task?: string | null;
+  }): Promise<{
+    markdown: string;
+    updatedAt: Date | null;
+    readAs: SpecReadAs;
+    task: string | null;
+  }> {
     const spec = await this.get(input);
     const requirements = (spec['requirements'] ?? []) as Record<string, unknown>[];
     const ancestors = await this.ancestorsOf(String(spec['spec_id']));
@@ -2275,10 +2290,15 @@ export class SpecService {
       ['ancestors', ancestors.map((a) => a.key)],
       ['area', area],
       ['content_hash', text(spec['content_hash'])],
+      // 무엇으로 읽었나 — 작업으로 읽었으면 그 작업의 키도(REQ-API-249)
+      ['read_as', String(spec['read_as'])],
+      ['task', text(spec['task'])],
     ]);
     return {
       markdown: `${frontmatter}${String(spec['body_md'] ?? '')}`,
       updatedAt: spec['updated_at'] == null ? null : toDate(spec['updated_at']),
+      readAs: spec['read_as'] as SpecReadAs,
+      task: text(spec['task']),
     };
   }
 
