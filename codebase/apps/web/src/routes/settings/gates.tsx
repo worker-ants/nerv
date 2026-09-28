@@ -131,6 +131,10 @@ function GatesTab(): React.JSX.Element {
   const loaded = project.data !== undefined;
   const stored = GatePolicySchema.safeParse(project.data?.['gate_policy'] ?? {});
   const policy = stored.success ? stored.data : GatePolicySchema.parse({});
+  // **읽지 못한 정책은 저장하지 않는다**(2026-09-28 · REQ-WEB-280). 저장 본문은 정책 전체를 펼쳐
+  // 보내므로, 읽지 못해 기본값으로 그린 정책을 저장하면 `done_gate` 처럼 이 화면에 없는 설정이
+  // 통째로 기본값으로 덮였다 — 서버가 이 화면보다 새 정책 모양을 쓰는 동안 그럴 수 있다
+  const unreadable = loaded && !stored.success;
   const current = policy.spec_gate.tier_boundaries;
 
   /** 고친 칸 — 손대지 않았으면 `null` 이고 저장된 값을 그린다 */
@@ -197,16 +201,18 @@ function GatesTab(): React.JSX.Element {
       }),
   ].filter((line): line is string => typeof line === 'string');
 
-  const saveBlocked = !isAdmin || slug === '' || !loaded || !valid || !changed;
+  const saveBlocked = !isAdmin || slug === '' || !loaded || unreadable || !valid || !changed;
   const saveTitle = !isAdmin
     ? t('settings.gates.admin_only_title')
     : !loaded
       ? t('settings.gates.loading_locked')
-      : !valid
-        ? t('settings.gates.invalid')
-        : !changed
-          ? t('settings.gates.nothing_changed')
-          : undefined;
+      : unreadable
+        ? t('settings.gates.unreadable_locked')
+        : !valid
+          ? t('settings.gates.invalid')
+          : !changed
+            ? t('settings.gates.nothing_changed')
+            : undefined;
 
   return (
     <section className="flex max-w-2xl flex-col gap-5">
@@ -255,6 +261,12 @@ function GatesTab(): React.JSX.Element {
           {t('settings.gates.admin_only_pre')} <code className="font-mono">admin</code>{' '}
           {t('settings.gates.admin_only_post')}
         </ReadOnlyNotice>
+      )}
+
+      {unreadable && (
+        <p role="alert" data-testid="gates-unreadable" className="text-sm text-status-danger">
+          {t('settings.gates.unreadable')}
+        </p>
       )}
 
       {failedWithoutData(project) && (

@@ -970,6 +970,9 @@ export const ko = {
   'state.not_found_item_hint': '키를 확인하거나 목록에서 찾으세요.',
   'home.greeting_failed': '{name}님, 받은 요청을 불러오지 못했습니다',
   'settings.gates.loading_locked': '정책을 불러온 뒤에 저장할 수 있습니다',
+  'settings.gates.unreadable_locked': '저장된 정책을 읽지 못해 저장을 막아 두었습니다',
+  'settings.gates.unreadable':
+    '저장된 정책을 이 화면이 읽지 못합니다. 여기서 저장하면 이 화면에 없는 설정까지 기본값으로 바뀌어서 저장을 막아 두었습니다. 서버와 화면의 버전이 같은지 확인해 주세요.',
   'spec.versions.more': '이전 버전 {n}개 더 보기',
   'spec.versions.less': '최근 {n}개만 보기',
   'settings.readonly.ask': '바꾸려면 {names}에게 요청하세요.',

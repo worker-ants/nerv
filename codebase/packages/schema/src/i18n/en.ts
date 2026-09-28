@@ -978,6 +978,10 @@ export const en = {
   'state.not_found_item_hint': 'Check the key, or find it in the list.',
   'home.greeting_failed': "{name}, we couldn't load your inbox",
   'settings.gates.loading_locked': 'You can save once the policy has loaded',
+  'settings.gates.unreadable_locked':
+    "Saving is blocked because the stored policy couldn't be read",
+  'settings.gates.unreadable':
+    "This page can't read the stored policy. Saving here would reset settings this page doesn't show, so saving is blocked. Check that the server and this page are on the same version.",
   'spec.versions.more': 'Show {n} older versions',
   'spec.versions.less': 'Show only the latest {n}',
   'settings.readonly.ask': 'To change it, ask {names}.',

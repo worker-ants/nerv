@@ -1980,6 +1980,13 @@ export class TaskService {
       sql`SELECT gate_policy FROM project WHERE id = ${projectId}`,
     );
     const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
+    if (!parsed.success) {
+      // **조용히 기본값으로 가지 않는다**(2026-09-28 · REQ-API-240) — 판정은 멈추지 않되 운영자가 알아야 한다.
+      // 보존 잡(retention.job.ts)과 같은 규율이다. 예전에는 아무 기록 없이 리뷰 조건을 끈 채 통과시켰다
+      this.logger.warn(
+        `gate_policy 가 유효하지 않습니다 — done 게이트는 기본값을 씁니다 (project=${projectId})`,
+      );
+    }
     const policy = parsed.success
       ? parsed.data.done_gate
       : { evidence_source: 'any' as const, review_coverage: false };

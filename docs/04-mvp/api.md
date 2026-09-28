@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **25종**(2026-09-28 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 25종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.96 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.97 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.97 변경(2026-09-28 — 정책을 읽지 못하면 조용히 기본값이었다): **REQ-API-240 신설.** 스펙 게이트와 done 게이트는 `gate_policy` 를 읽지 못하면 기본 정책으로 판정했다. 그 자체는 맞지만(판정이 멈추면 사람의 일이 멈춘다) 아무 기록도 남기지 않았다 — done 게이트는 리뷰 조건을 끈 채 통과시켰다. 보존 잡처럼 운영 로그에 경고를 남긴다.
 >
 > v1.96 변경(2026-09-28 — 작업 수정이 키만 받았다): **REQ-API-239 신설 · EP-TASK-05 행.** 작업 수정(EP-TASK-05)은 경로의 `{task}` 를 키로만 찾았다. 작업 상세의 [다시 브리핑] · [기준 옮기기] 는 UUID 로 보내서 두 단추가 언제나 not_found 였다. 다른 작업 경로처럼 키와 UUID 를 둘 다 받게 했다(§1.4b). 또 EP-TASK-05 행의 입력에 이미 받고 있던 `title` · `body_md` 를 적었다.
 >
@@ -1737,6 +1739,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-237 | WHEN 게이트 현황(EP-REV-04)을 보이면 THE SYSTEM SHALL 브랜치마다 **가장 최근에 만든 라운드**의 `head_sha` · `round_no` · `kind` 를 보인다 — 라운드 번호는 (브랜치 · 종류)마다 따로 세므로 번호로 고르면 다른 종류의 옛 라운드가 보인다. WHEN `?limit` 이 1 이상의 정수가 아니면 THE SYSTEM SHALL 400 `invalid_input`(`field:'limit'`)으로 거절한다(2026-09-28) |
 | REQ-API-238 | WHEN 리뷰를 제출하면(EP-REV-01 · `nerv_review_submit`) THE SYSTEM SHALL `session_id` 는 **제출자의 그 프로젝트 세션**일 때만 붙이고(REST 도 붙인다), `task_id` 는 키 · UUID 를 그 프로젝트 안에서 해소한다 — 없거나 남의 프로젝트 Task 면 409 `NERV_PRECONDITION`(`kind:'not_found'`). WHEN 같은 변경 · 종류의 라운드가 이미 있으면 THE SYSTEM SHALL 새 라운드와 같은 규칙으로 Task 를 정한다 — 명시한 값이 이기고, 클레임에서 채우는 값은 비어 있을 때만 채운다(2026-09-28) |
 | REQ-API-239 | WHEN 작업을 고치면(EP-TASK-05 `PATCH …/tasks/{task}`) THE SYSTEM SHALL 경로의 `{task}` 를 키 · UUID 둘 다 받는다(§1.4b) — 응답의 `key` 와 이벤트의 키는 언제나 작업 키다. 작업 상세의 [다시 브리핑] · [기준 옮기기] 가 UUID 로 보낸다(2026-09-28) |
+| REQ-API-240 | WHILE 프로젝트의 `gate_policy` 가 스키마(`GatePolicySchema`)에 맞지 않으면 THE SYSTEM SHALL 스펙 게이트 · done 게이트를 기본 정책으로 판정하되 운영 로그에 프로젝트와 함께 경고를 남긴다 — 판정을 멈추지 않고, 조용히 지나가지도 않는다(보존 잡과 같은 규율 · 2026-09-28) |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다 · `decided_by` 는 결정한 사람이다 — 지정자가 아니다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재 — 검토 중이 아닌 문서에 결정 없이 남은 슬롯은 빼고)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |
