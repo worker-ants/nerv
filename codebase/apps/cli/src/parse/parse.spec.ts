@@ -34,6 +34,16 @@ describe('frontmatter (§2.3)', () => {
     expect(frontmatter['pending_plans']).toEqual(['plan/a.md', 'plan/b.md']);
   });
 
+  it('NERV 미러가 쓰는 JSON 인용을 푼다 — 이스케이프와 인용 안의 쉼표 (REQ-API-245)', () => {
+    const { frontmatter } = parseFrontmatter(
+      '---\nid: "CLE-MKS-CPIK"\ntitle: "마켓 스킨: \\"CPIK\\" 연동 \\\\ 1"\nrequirements: ["REQ-A-1", "쉼표, 안"]\nancestors: []\narea: null\n---\n본문',
+    );
+    expect(frontmatter['id']).toBe('CLE-MKS-CPIK');
+    expect(frontmatter['title']).toBe('마켓 스킨: "CPIK" 연동 \\ 1');
+    expect(frontmatter['requirements']).toEqual(['REQ-A-1', '쉼표, 안']);
+    expect(frontmatter['ancestors']).toEqual([]);
+  });
+
   it('frontmatter 가 없으면 전체가 본문이다', () => {
     const { frontmatter, body } = parseFrontmatter('# 제목만');
     expect(frontmatter).toEqual({});

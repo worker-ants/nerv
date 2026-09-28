@@ -5,10 +5,12 @@
 // 모두 500 이었다. 서비스만 부르던 테스트(mirror-retention.spec.ts)는 이것을 볼 수 없었다 — 여기서는
 // 실제 HTTP 로 부른다. 파일 경로의 없음은 404(사람 결정 D5)이고, REST 의 같은 상황은 409 그대로다.
 
+import { createHash } from 'node:crypto';
 import { NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
@@ -73,18 +75,34 @@ afterAll(async () => {
 
 async function get(
   url: string,
-): Promise<{ status: number; type: string; text: string; json: () => Record<string, unknown> }> {
+  extra: Record<string, string> = {},
+): Promise<{
+  status: number;
+  type: string;
+  text: string;
+  headers: Record<string, unknown>;
+  json: () => Record<string, unknown>;
+}> {
   const res = await app.inject({
     method: 'GET',
     url,
-    headers: { authorization: `Bearer ${token}` },
+    headers: { authorization: `Bearer ${token}`, ...extra },
   });
   return {
     status: res.statusCode,
     type: String(res.headers['content-type'] ?? ''),
     text: res.body,
+    headers: res.headers,
     json: () => JSON.parse(res.body) as Record<string, unknown>,
   };
+}
+
+/** 선두 frontmatter 를 실제 YAML 파서로 읽는다 — 미러를 받는 쪽이 하는 일이다 */
+function frontmatterOf(text: string): Record<string, unknown> {
+  const end = text.indexOf('\n---\n', 3);
+  expect(text.startsWith('---\n')).toBe(true);
+  expect(end).toBeGreaterThan(0);
+  return parseYaml(text.slice(4, end)) as Record<string, unknown>;
 }
 
 describe('md 미러의 HTTP 응답 (REQ-API-236)', () => {
@@ -129,6 +147,125 @@ describe('md 미러의 HTTP 응답 (REQ-API-236)', () => {
     const res = await get('/api/v1/projects/clemvion/specs/SPC-MIR-001?v=9');
     expect(res.status).toBe(409);
     expect(res.json()['code']).toBe(NERV_ERROR.PRECONDITION);
+  });
+});
+
+/**
+ * frontmatter 의 트리 자리와 캐시 (2026-09-28 · REQ-API-245 · 246).
+ *
+ * 제목의 `: ` 하나가 YAML 파싱을 깨뜨렸다(clemvion 446편 중 2편). 미러를 받는 쪽은 문서 한 번의 GET 으로 영역
+ * 폴더와 버전을 정하고, 받은 것과 같으면 본문을 다시 받지 않으려 한다.
+ */
+describe('md 미러의 frontmatter · ETag (REQ-API-245 · 246)', () => {
+  const TITLE = '마켓 스킨: CPIK "연동" # 1 — [베타]';
+  beforeAll(async () => {
+    // 맨 위 영역(본문 없음) > 영역 > 기능 > 이 문서
+    const make = async (key: string, type: string, parent: string | null): Promise<string> => {
+      const id = newId();
+      await pool.query(
+        `INSERT INTO spec (id, project_id, type, key, title, parent_id)
+         VALUES ($1,$2,$3::spec_type,$4,$4,(SELECT id FROM spec WHERE project_id=$2 AND key=$5))`,
+        [id, projectId, type, key, parent],
+      );
+      return id;
+    };
+    await make('SPC-ROOT', 'area', null);
+    await make('SPC-AREA', 'area', 'SPC-ROOT');
+    await make('SPC-MID', 'feature', 'SPC-AREA');
+    const drafted = await app.get(SpecService).draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-LEAF',
+      title: TITLE,
+      type: 'feature',
+      bodyMd: '# 잎\n\n본문',
+      userId,
+    });
+    await pool.query(
+      `UPDATE spec SET parent_id = (SELECT id FROM spec WHERE project_id=$1 AND key='SPC-MID')
+        WHERE id = $2`,
+      [projectId, drafted['spec_id']],
+    );
+  });
+
+  it('값은 YAML 로 그대로 읽히고, 앞의 일곱 키 뒤에 트리의 자리와 본문 지문이 붙는다', async () => {
+    const res = await get('/api/projects/clemvion/specs/SPC-LEAF.md');
+    expect(res.status).toBe(200);
+    const front = frontmatterOf(res.text);
+    expect(Object.keys(front)).toEqual([
+      'id',
+      'title',
+      'type',
+      'version',
+      'status',
+      'requirements',
+      'basis_superseded',
+      'parent',
+      'ancestors',
+      'area',
+      'content_hash',
+    ]);
+    expect(front['title']).toBe(TITLE);
+    expect(front['version']).toBe(1);
+    expect(front['status']).toBe('draft');
+    expect(front['parent']).toBe('SPC-MID');
+    expect(front['ancestors']).toEqual(['SPC-ROOT', 'SPC-AREA', 'SPC-MID']);
+    // 가장 가까운 area 조상이다 — 맨 위 영역이 아니다
+    expect(front['area']).toBe('SPC-AREA');
+    const rest = await get('/api/v1/projects/clemvion/specs/SPC-LEAF?basis=latest');
+    expect(front['content_hash']).toBe(rest.json()['content_hash']);
+  });
+
+  it('맨 위 영역은 부모 · area 가 null 이고 조상이 비었다 — 본문 없는 노드도 읽힌다', async () => {
+    const res = await get('/api/projects/clemvion/specs/SPC-ROOT.md');
+    expect(res.status).toBe(200);
+    const front = frontmatterOf(res.text);
+    expect(front['parent']).toBeNull();
+    expect(front['ancestors']).toEqual([]);
+    expect(front['area']).toBeNull();
+    expect(front['version']).toBeNull();
+    expect(front['content_hash']).toBeNull();
+    // 버전이 없으면 언제 바뀌었는지도 모른다
+    expect(res.headers['last-modified']).toBeUndefined();
+  });
+
+  it('ETag 는 응답 바이트의 sha256 이고, 같은 값을 보내면 304 로 본문 없이 답한다', async () => {
+    const first = await get('/api/projects/clemvion/specs/SPC-LEAF.md');
+    const etag = String(first.headers['etag']);
+    expect(etag).toMatch(/^"sha256-[0-9a-f]{64}"$/);
+    expect(etag).toBe(`"sha256-${createHash('sha256').update(first.text, 'utf8').digest('hex')}"`);
+    expect(String(first.headers['last-modified'])).toMatch(/GMT$/);
+    expect(first.headers['cache-control']).toBe('private, no-cache');
+
+    for (const sent of [etag, `W/${etag}`, `"other", ${etag}`, '*']) {
+      const again = await get('/api/projects/clemvion/specs/SPC-LEAF.md', {
+        'if-none-match': sent,
+      });
+      expect(again.status, sent).toBe(304);
+      expect(again.text, sent).toBe('');
+      expect(again.headers['etag']).toBe(etag);
+    }
+
+    const other = await get('/api/projects/clemvion/specs/SPC-LEAF.md', {
+      'if-none-match': '"sha256-0000"',
+    });
+    expect(other.status).toBe(200);
+  });
+
+  it('frontmatter 만 바뀌어도 ETag 가 바뀐다 — 본문 지문(content_hash)은 그대로다', async () => {
+    const before = await get('/api/projects/clemvion/specs/SPC-LEAF.md');
+    await pool.query(`UPDATE spec SET parent_id = NULL WHERE project_id=$1 AND key='SPC-LEAF'`, [
+      projectId,
+    ]);
+    const after = await get('/api/projects/clemvion/specs/SPC-LEAF.md', {
+      'if-none-match': String(before.headers['etag']),
+    });
+    expect(after.status).toBe(200);
+    expect(after.headers['etag']).not.toBe(before.headers['etag']);
+    expect(frontmatterOf(after.text)['content_hash']).toBe(
+      frontmatterOf(before.text)['content_hash'],
+    );
+    expect(frontmatterOf(after.text)['area']).toBeNull();
   });
 });
 

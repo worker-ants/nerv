@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.93 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.94 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.94 변경(2026-09-28 — md 미러의 frontmatter): **새 요구사항 없음 · §3.1 트리 한 줄.** `modules/spec/mirror-frontmatter.ts` 를 더했다([4.4 API 명세](api.md) REQ-API-245). `apps/api` 의 개발 의존성에 `yaml`(루트와 같은 판)을 더했다 — 미러를 실제 YAML 파서로 읽는 테스트가 쓴다.
 >
 > v1.93 변경(2026-09-28 — 인증 스택의 접속 주소): **새 요구사항 없음 · §5.2 전표 두 줄.** `NERV_TRUSTED_PROXIES` · `NERV_CLIENT_IP_HEADER` 를 인증 스택도 읽는다 — 접근 로그와 같은 규칙으로 세션의 주소와 로그인 한도의 주체를 정한다([4.4 API 명세](api.md) REQ-API-244).
 >
@@ -527,6 +529,7 @@ apps/api/src/
       embedding.service.ts      # 청크 · 재임베딩 잡
       gate-tier.ts              # 게이트 티어 판정 — 네 축 + 동적 강화 (spec-workflow §2.4)
       impl-status.ts            # 구현 축 파생 — 증적 술어 한 벌 (D-03 · REQ-API-097)
+      mirror-frontmatter.ts     # 미러 frontmatter — 값은 JSON 문자열로 인용(YAML 안전 · REQ-API-245)
       mirror.controller.ts      # markdown 미러 — 버전 프리픽스 없이 불변 (§2.8)
       reader-hash.ts            # 읽은 것의 지문 — base_hash 의 재료 (§1.4g)
       search.service.ts         # 하이브리드 검색 — ID 직행 · 렉시컬 · 벡터 RRF (§2.2b)

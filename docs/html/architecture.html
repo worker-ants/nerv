@@ -53,7 +53,7 @@
     <h1>시스템 아키텍처</h1>
     <p class="lead">웹앱 · API/MCP 게이트웨이 · 훅 수집기 · Postgres · Valkey(실시간 방송 MQ) · 이벤트 워커의 여섯 덩어리로 구성된 NERV의 시스템 구조와, 가장 중요한 결정인 저장 전략(D-01) — <b>DB 단일 진실 + markdown 미러 + read-only git export</b> — 그리고 핵심 데이터 흐름 4종, 기술 스택 대안 비교, 보안·성능·운영 설계.</p>
     <div class="meta-line">
-      <span>버전 v0.5 (2026-09-06)</span>
+      <span>버전 v0.6 (2026-09-28)</span>
       <span>원본: <code>docs/03-proposal/architecture.md</code></span>
       <span>주로 다루는 결정: D-01 · D-10 · D-11 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -351,7 +351,7 @@
   <p>에이전트에게 블록 JSON이 아니라 markdown을 주는 것은 Notion이 호스티드 MCP를 만들며 내린 공식 결론이다 — 계층형 JSON은 다중 호출과 과다 토큰을 유발하는 반면 markdown은 LLM 토큰당 콘텐츠 밀도가 높다. URL에 <code>.md</code>를 붙인 클린 마크다운 미러와 루트 인덱스는 이미 표준(llms.txt v2)이며 Anthropic·OpenAI·Google이 자사 개발자 문서에 적용하고 있다.</p>
   <ul>
     <li><code>GET /api/projects/{p}/specs/{id}.md?version=approved</code> — 기본은 최신 <span class="badge approved">Approved</span> SpecVersion, <code>?version=42</code>로 특정 스냅샷</li>
-    <li>응답 frontmatter에 고정 ID·버전·문서 상태·승인자·요구사항 ID 목록을 실어 에이전트가 인용할 수 있게 한다. 경로·앵커가 아니라 <b>고정 ID로 상호참조</b>한다(D-09)</li>
+    <li>응답 frontmatter에 고정 ID·버전·문서 상태·요구사항 ID 목록과 트리의 자리(부모·조상·영역)·본문 지문을 넣어 에이전트가 인용할 수 있게 한다. 승인자는 넣지 않는다(2026-09-07 정정) — 키 목록의 정본은 <a href="api.html">4.4 API 명세</a> EP-MIR-01 이다. 경로·앵커가 아니라 <b>고정 ID로 상호참조</b>한다(D-09).</li>
     <li><code>GET /api/projects/{p}/llms.txt</code> — 스펙 트리 인덱스(제목 + <code>.md</code> 링크 + 한 줄 설명)</li>
   </ul>
   <p class="src"><a href="https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look">Notion's hosted MCP server: an inside look — Notion</a> (2025-07-15): 에이전트용 포맷을 블록 JSON에서 markdown으로 전환한 이유.</p>

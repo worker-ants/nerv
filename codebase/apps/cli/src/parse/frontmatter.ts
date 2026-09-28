@@ -63,14 +63,41 @@ export function parseFrontmatter(content: string): ParsedDocument {
 function scalarOrFlowList(value: string): string | string[] {
   const flow = /^\[(.*)\]$/.exec(value.trim());
   if (flow === null) return unquote(value);
+  // NERV 의 md 미러는 목록을 JSON 배열로 쓴다(REQ-API-245) — 인용 안의 쉼표를 칸 나눔으로 읽지 않게 먼저 본다
+  const json = jsonStrings(value.trim());
+  if (json !== null) return json.filter((item) => item !== '');
   return (flow[1] ?? '')
     .split(',')
     .map((item) => unquote(item))
     .filter((item) => item !== '');
 }
 
+/**
+ * 큰따옴표 값은 **이스케이프를 푼다**(2026-09-28). NERV 의 md 미러가 값을 JSON 문자열(= YAML 큰따옴표
+ * 문자열)로 쓰기 시작해서, 제목의 `"` 는 `\"` 로 온다. 양 끝 따옴표만 떼면 `\"` 가 제목에 그대로 남는다.
+ */
 function unquote(value: string): string {
-  return value.trim().replace(/^["']|["']$/g, '');
+  const trimmed = value.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      // JSON 이 아닌 큰따옴표 값(YAML 만의 이스케이프 등)은 예전처럼 따옴표만 뗀다
+    }
+  }
+  return trimmed.replace(/^["']|["']$/g, '');
+}
+
+function jsonStrings(value: string): string[] | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+      ? (parsed as string[])
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

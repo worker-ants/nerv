@@ -39,6 +39,7 @@ import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { safePathSegment } from '../../common/safe-path.js';
+import { renderFrontmatter } from './mirror-frontmatter.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -63,6 +64,9 @@ const INCLUDE_VALUES = [
 
 /** `diff_from` 의 본문 줄 차이 상한 — 넘으면 자르고 `body_diff_truncated` 로 알린다(REQ-API-207) */
 const DIFF_LINE_CAP = 400;
+
+/** 미러의 조상을 거슬러 오를 깊이 상한 — 트리는 사이클을 막지만 읽는 쪽이 그것만 믿지 않는다(REQ-API-245) */
+const ANCESTOR_DEPTH_LIMIT = 64;
 import { EventService } from '../event/event.service.js';
 import { decideGate, gateEventPayload, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
@@ -2231,30 +2235,71 @@ export class SpecService {
    *
    * 이 표면이 있는 이유는 에이전트·CI·사람이 "그냥 문서를 읽고 싶을 때" REST 봉투를 벗기지
    * 않아도 되게 하기 위해서다. frontmatter 에 고정 ID·제목·타입·버전·상태·요구사항 ref·
-   * `basis_superseded` 를 실어(승인자는 싣지 않는다 — 2026-09-07 정정), 파일로
+   * `basis_superseded` 를 넣어(승인자는 넣지 않는다 — 2026-09-07 정정), 파일로
    * 저장해도 출처를 잃지 않게 한다.
+   *
+   * **트리의 자리와 본문 지문도 넣는다**(2026-09-28 · REQ-API-245) — `parent` · `ancestors`(맨 위부터 부모까지) ·
+   * `area`(가장 가까운 area 조상 — 자기 자신은 세지 않는다) · `content_hash`(본문 해시 · REST 의 그 값). 미러를
+   * 받는 쪽이 문서 한 번의 GET 으로 영역 폴더와 버전을 정하게 하려는 것이다. 앞의 일곱 키는 이름 · 순서 · 뜻이
+   * 그대로이고 새 키는 뒤에 붙는다. 값은 모두 YAML 이 그대로 읽는 모양이다(`mirror-frontmatter.ts`).
    */
   async mirrorMarkdown(input: {
     projectId: string;
     specKey: string;
     versionNo?: number | null;
   }): Promise<string> {
+    return (await this.mirrorDocument(input)).markdown;
+  }
+
+  /** 미러 본문과 HTTP 캐시 헤더의 재료 — `updated_at` 은 읽은 버전이 마지막으로 바뀐 때다(REQ-API-246) */
+  async mirrorDocument(input: {
+    projectId: string;
+    specKey: string;
+    versionNo?: number | null;
+  }): Promise<{ markdown: string; updatedAt: Date | null }> {
     const spec = await this.get(input);
     const requirements = (spec['requirements'] ?? []) as Record<string, unknown>[];
-    const frontmatter = [
-      '---',
-      `id: ${String(spec['key'])}`,
-      `title: ${String(spec['title'])}`,
-      `type: ${String(spec['type'])}`,
-      `version: ${String(spec['version_no'])}`,
-      `status: ${String(spec['doc_status'])}`,
-      `requirements: [${requirements.map((r) => String(r['ref'])).join(', ')}]`,
+    const ancestors = await this.ancestorsOf(String(spec['spec_id']));
+    const area = [...ancestors].reverse().find((a) => a.type === 'area')?.key ?? null;
+    const text = (v: unknown): string | null => (v == null ? null : String(v));
+    const frontmatter = renderFrontmatter([
+      ['id', String(spec['key'])],
+      ['title', String(spec['title'])],
+      ['type', String(spec['type'])],
+      ['version', typeof spec['version_no'] === 'number' ? spec['version_no'] : null],
+      ['status', text(spec['doc_status'])],
+      ['requirements', requirements.map((r) => String(r['ref']))],
       // 이 파일이 어느 시점의 스냅샷인지 — 버전 지정 조회의 근거가 된다
-      `basis_superseded: ${String(spec['basis_superseded'] === true)}`,
-      '---',
-      '',
-    ].join('\n');
-    return `${frontmatter}${String(spec['body_md'] ?? '')}`;
+      ['basis_superseded', spec['basis_superseded'] === true],
+      ['parent', ancestors.at(-1)?.key ?? null],
+      ['ancestors', ancestors.map((a) => a.key)],
+      ['area', area],
+      ['content_hash', text(spec['content_hash'])],
+    ]);
+    return {
+      markdown: `${frontmatter}${String(spec['body_md'] ?? '')}`,
+      updatedAt: spec['updated_at'] == null ? null : toDate(spec['updated_at']),
+    };
+  }
+
+  /**
+   * 맨 위부터 부모까지의 조상 — 자기 자신은 빼고, 가까운 것이 뒤다. 트리는 사이클을 막고 있지만(EP-SPEC-15)
+   * 읽는 쪽이 그것을 믿고 끝없이 돌지 않게 깊이에 상한을 둔다.
+   */
+  private async ancestorsOf(specId: string): Promise<{ key: string; type: string }[]> {
+    const { rows } = await this.db.execute<{ key: string; type: string }>(sql`
+      WITH RECURSIVE up AS (
+        SELECT p.id, p.key, p.type::text AS type, p.parent_id, 1 AS depth
+          FROM spec c JOIN spec p ON p.id = c.parent_id
+         WHERE c.id = ${specId}
+        UNION ALL
+        SELECT p.id, p.key, p.type::text, p.parent_id, up.depth + 1
+          FROM up JOIN spec p ON p.id = up.parent_id
+         WHERE up.depth < ${ANCESTOR_DEPTH_LIMIT}
+      )
+      SELECT key, type FROM up ORDER BY depth DESC
+    `);
+    return rows;
   }
 
   /**

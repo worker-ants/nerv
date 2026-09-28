@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **26종**(2026-09-28 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.00 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.01 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.01 변경(2026-09-28 — md 미러의 frontmatter 와 캐시, **clemvion 요청 N3** · 사람 결정 D6 권장안): **REQ-API-245 · 246 신설 · EP-MIR-01 행 · §2.8 예시 · §1.8 쿼터 표 두 행.** ① frontmatter 를 문자열 이어 붙이기로 만들어 제목의 `: ` 하나가 YAML 파싱을 깨뜨렸다(clemvion 446편 중 2편). 값은 모두 JSON 문자열로 인용한다 — 새 의존성 없이 YAML 1.2 의 큰따옴표 문자열이다. 앞의 일곱 키는 그대로 두고 `parent` · `ancestors` · `area` · `content_hash` 를 뒤에 붙였다 — 미러를 받는 쪽이 문서 한 번의 GET 으로 영역 폴더와 버전을 정한다. ② `ETag`(응답 바이트의 sha256) · `Last-Modified` 를 붙이고 `If-None-Match` 가 맞으면 304 로 답한다. ③ 쿼터 표에 `/api/projects/*`(md 미러)가 없었다 — 처음부터 PAT · 웹 세션과 같은 풀에서 셌다(검토 X12).
 >
 > v2.00 변경(2026-09-28 — 로그인된 기기와 접속 주소, **사람 요청**): **REQ-API-243 · 244 신설 · EP-AUTH-03~05 신설.** ① 내 웹 로그인을 보고 끊는 길 셋 — 목록 · 하나 끊기 · 다른 기기 모두 끊기. 인증 스택의 `list-sessions` 는 세션 토큰까지 브라우저에 돌려줘서 쓰지 않는다. 사람만 부른다. ② 인증 스택은 `X-Forwarded-For` 가 한 칸일 때만 주소를 믿는다. 프록시를 지난 운영에서는 두 칸 이상이라 주소가 비었다. 그러면 로그인 · 가입 한도가 모든 사람이 한 통을 나눠 쓰는 자리로 떨어졌다(코드로 확인 — 운영 실측은 아니다). 접근 로그와 같은 규칙(REQ-CB-055)을 넘겨준다.
 >
@@ -977,8 +979,8 @@ REQ-API-012의 429 응답이 참조하는 한도 값이다. 값은 `@nerv/schema
 
 | 주체 | 한도 | 적용 표면 | 비고 |
 | --- | --- | --- | --- |
-| PAT 토큰당 | **300 req/min** | `/api/v1` + `/mcp`(같은 풀 — 토큰이 주체이므로 표면을 나누지 않는다) | 하트비트 60초 주기·조회 포함 여유값. 초과 시 `retry_after_s` 준수는 스킬 규약([4.6](plugin.md) §2) |
-| 웹 세션 사용자당 | **600 req/min** | `/api/v1` | 쿼리 무효화 재조회 버스트([4.5 화면 명세](screens.md) §1.4) 흡수 |
+| PAT 토큰당 | **300 req/min** | `/api/v1` + `/mcp` + `/api/projects/*`(md 미러)(같은 풀 — 토큰이 주체이므로 표면을 나누지 않는다. 미러는 처음부터 같은 풀이었는데 표에 없었다 · 2026-09-28) | 하트비트 60초 주기·조회 포함 여유값. 초과 시 `retry_after_s` 준수는 스킬 규약([4.6](plugin.md) §2) |
+| 웹 세션 사용자당 | **600 req/min** | `/api/v1` + `/api/projects/*`(md 미러) | 쿼리 무효화 재조회 버스트([4.5 화면 명세](screens.md) §1.4) 흡수 |
 | 세션당 ingest | **120 req/min** | `/ingest/hooks/*` | 훅 폭주(도구 호출 다발) 상한. 초과분은 429 — 훅 수집은 손실 허용(진실은 서버 산출물, D-14) |
 | **IP당 인증** | **30 req/min** (로그인·가입·확인 메일 재발송·비밀번호 바꾸기·재설정 요청·재설정은 **10 req/min** — 뒤의 셋은 2026-09-25) | `/api/auth/*` | 주체가 다르다 — 로그인 전에는 토큰도 세션도 없으므로 IP로 센다. 목적도 다르다: 위 셋은 과부하 방어이고 이것은 **무차별 대입 방어**다. 사람의 로그인 속도로는 닿지 않고 자동화된 시도에는 금세 걸리는 값이다. 로그인·가입은 무차별 대입의 표적이라 더 좁다 — 다만 사람이 오타 몇 번에 잠기지 않을 만큼은 남긴다(인증 스택 기본값 10초당 3회는 그 선을 넘는다). 초과 응답 문구는 화면이 우리 말로 옮기고, 재시도 시각은 `Retry-After`·`x-retry-after` 중 있는 것을 쓴다(§1.5 · REQ-WEB-005). **인증 스택의 셈은 고정 창이 아니다**(2026-09-25 실측 · better-auth 1.7.1) — 셈은 **마지막으로 허용된 요청 뒤 60초가 조용해야** 비워진다. 사람의 속도에서는 차이가 없지만, 한 IP 로 몰아 치는 E2E 에서는 로그인이 스위트 전체에 걸쳐 쌓인다 |
 
@@ -1352,20 +1354,24 @@ EP-COV-01은 **계약 선점**이다 — 커버리지 계산은 P2([로드맵](.
 
 | ID | 메서드 · 경로 | 권한 | 응답 |
 | --- | --- | --- | --- |
-| EP-MIR-01 | `GET /api/projects/{p}/specs/{id}.md?version=approved` | `spec:read`(PAT 허용 — 에이전트 공용 읽기 경로) | `text/markdown` — 기본은 최신 approved SpecVersion, `?version=42`로 특정 스냅샷. frontmatter 는 **일곱 키**다: `id`(스펙 키)·`title`·`type`·`version`·`status`·`requirements`·`basis_superseded`. **승인자 필드는 없다**(2026-09-07 정정 — 전표가 오래 적고 있었다. 미러는 파서의 계약이라 키 이름과 목록이 곧 계약이고, 없는 키를 적어 두면 읽는 쪽이 그것을 파싱하려 든다) · 없는 키 · 없는 버전은 404, `?version` 은 `approved` 또는 1 이상의 정수(REQ-API-236) |
+| EP-MIR-01 | `GET /api/projects/{p}/specs/{id}.md?version=approved` | `spec:read`(PAT 허용 — 에이전트 공용 읽기 경로) | `text/markdown` — 기본은 최신 approved SpecVersion, `?version=42`로 특정 스냅샷. frontmatter 는 **열한 키**다: 앞의 일곱 `id`(스펙 키)·`title`·`type`·`version`·`status`·`requirements`·`basis_superseded` 뒤에 `parent`(부모 키)·`ancestors`(맨 위부터 부모까지)·`area`(가장 가까운 area 조상 — 자기는 세지 않는다)·`content_hash`(본문 해시 — REST 의 그 값)가 붙는다(2026-09-28 · REQ-API-245). 문자열은 모두 JSON 문자열(= YAML 큰따옴표 문자열)이고 모르는 값은 `null` 이다. **승인자 필드는 없다**(2026-09-07 정정 — 전표가 오래 적고 있었다. 미러는 파서의 계약이라 키 이름과 목록이 곧 계약이고, 없는 키를 적어 두면 읽는 쪽이 그것을 파싱하려 든다) · 헤더 `ETag`(응답 바이트의 sha256) · `Last-Modified`(읽은 버전이 마지막으로 바뀐 때) · `Cache-Control: private, no-cache` — `If-None-Match` 가 맞으면 본문 없이 304(REQ-API-246) · 없는 키 · 없는 버전은 404, `?version` 은 `approved` 또는 1 이상의 정수(REQ-API-236) |
 | EP-MIR-02 | `GET /api/projects/{p}/llms.txt` | `spec:read` | `text/plain` — 스펙 트리 인덱스(제목 + `.md` 링크 + 한 줄 설명, llms.txt v2 형식) |
 
-응답 frontmatter 예시(필드 의미는 아키텍처 §2.4 그대로):
+응답 frontmatter 예시(필드 의미는 아키텍처 §2.4 그대로 · 제목의 `: ` 가 있어도 YAML 로 그대로 읽힌다):
 
 ```markdown
 ---
-id: SPC-CWC-007
-title: 웹 채팅 채널
-type: feature
+id: "SPC-CWC-007"
+title: "웹 채팅 채널: 임베드 위젯"
+type: "feature"
 version: 4
-status: approved
-requirements: [REQ-CWC-031, REQ-CWC-032]
+status: "approved"
+requirements: ["REQ-CWC-031", "REQ-CWC-032"]
 basis_superseded: false
+parent: "SPC-CWC"
+ancestors: ["SPC", "SPC-CWC"]
+area: "SPC-CWC"
+content_hash: "3f5a9c…"
 ---
 # 임베드 위젯
 …
@@ -1754,6 +1760,8 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-242 | WHEN 리뷰를 제출하면(EP-REV-01 · `nerv_review_submit`) THE SYSTEM SHALL `carried_over` 에 프로젝트의 열린 발견을 발견 목록(EP-REV-03)과 같은 순서(심각도 → 최근 → id)로 **50건까지** 담고, 전체 수 `carried_over_total` 과 나머지의 시작 `carried_over_next_cursor`(다 담았으면 `null`)를 준다 — `block` 의 뜻(프로젝트에 열린 critical 이 있는가)은 그대로다. WHEN 그 커서를 발견 목록(REST EP-REV-03 `cursor` · MCP `nerv_finding_list` `cursor`)에 넘기면 THE SYSTEM SHALL 51번째부터 빠짐도 겹침도 없이 이어 준다(2026-09-28 · 사람 결정 D4) |
 | REQ-API-243 | WHEN 사람이 로그인된 기기를 열면(EP-AUTH-03) THE SYSTEM SHALL 만료되지 않은 그 사람의 웹 로그인을 기기 정보(`user_agent` · `ip_address`) · 로그인 시각 · 마지막 사용 시각 · 지금 요청의 로그인인지와 함께 보이되(주소 · 기기를 모르면 빈 문자열이 아니라 `null`) **세션 토큰은 주지 않는다** — 인증 스택의 `list-sessions` 는 토큰까지 돌려줘서 쓰지 않는다. WHEN 한 로그인을 끊으면(EP-AUTH-04) THE SYSTEM SHALL 그 세션 행을 지워 다음 요청부터 401 이 되게 한다. 지금 쓰는 로그인은 409 `current_session` 으로 거절한다. WHEN 다른 기기를 모두 끊으면(EP-AUTH-05) THE SYSTEM SHALL 지금 로그인만 남긴다. WHILE 요청이 에이전트 토큰이면 THE SYSTEM SHALL 셋 모두 403 `NERV_HUMAN_ONLY` 로 거절한다(2026-09-28 · 사람 요청) |
 | REQ-API-244 | WHEN 인증 스택(better-auth)이 요청의 접속 주소를 정하면 — 세션의 `ip_address` 와 로그인 · 가입 한도의 주체 — THE SYSTEM SHALL 접근 로그와 같은 규칙을 쓴다(REQ-CB-055): `NERV_CLIENT_IP_HEADER` 가 있으면 그 값, 없으면 `X-Forwarded-For` 를 신뢰 프록시(`NERV_TRUSTED_PROXIES`)를 오른쪽부터 건너뛴 첫 주소. 이 스택의 기본은 `X-Forwarded-For` 가 한 칸일 때만 믿는다. 그래서 프록시를 지나 두 칸 이상이 된 운영에서는 주소를 못 찾아 세션의 IP 가 비고 한도가 모든 사람이 한 통을 나눠 쓰는 자리로 떨어졌다(2026-09-28 · 코드로 확인) |
+| REQ-API-245 | WHEN md 미러(EP-MIR-01)가 frontmatter 를 쓰면 THE SYSTEM SHALL 문자열을 모두 JSON 문자열로 인용해 어느 YAML 파서로든 같은 값으로 읽히게 한다 — JSON 문자열은 YAML 1.2 의 큰따옴표 문자열이기도 하고, YAML 이 인쇄 가능한 글자로 보지 않는 것(DEL · C1 제어 문자 · BOM)과 YAML 1.1 파서가 줄바꿈으로 읽는 것(NEL · U+2028 · U+2029)은 `\uXXXX` 로 쓴다. THE SYSTEM SHALL 앞의 일곱 키의 이름 · 순서 · 뜻을 그대로 두고 `parent` · `ancestors`(맨 위부터 부모까지) · `area`(가장 가까운 area 조상 — 자기는 세지 않는다) · `content_hash`(본문 해시) 를 뒤에 붙이며, 모르는 값은 `null` 이다. 제목의 `: ` 하나가 YAML 파싱을 깨뜨렸다(clemvion 446편 중 2편 · 2026-09-28 사용자 보고). CLI 임포터의 frontmatter 파서도 이 인용(`\"` · 인용 안의 쉼표)을 푼다 |
+| REQ-API-246 | WHEN md 미러(EP-MIR-01)가 응답하면 THE SYSTEM SHALL `ETag`(응답 바이트 전체의 sha256 — `"sha256-<hex>"`) · `Last-Modified`(읽은 버전이 마지막으로 바뀐 때 — 버전이 없는 노드는 뺀다) · `Cache-Control: private, no-cache` 를 붙인다. WHEN `If-None-Match` 가 그 ETag 를 가리키면(목록 · `*` · `W/` 를 뗀 약한 비교) THE SYSTEM SHALL 본문 없이 304 로 답한다. ETag 는 frontmatter 까지 덮으므로 부모 · 제목만 바뀌어도 달라진다 — 본문만의 지문은 `content_hash` 다. 304 도 쿼터(§1.8)에서 한 번으로 센다(2026-09-28 · 사람 결정 D6 권장안) |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다 · `decided_by` 는 결정한 사람이다 — 지정자가 아니다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재 — 검토 중이 아닌 문서에 결정 없이 남은 슬롯은 빼고)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |
