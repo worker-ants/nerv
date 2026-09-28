@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.86 (2026-09-28)</span>
+      <span>버전 v1.87 (2026-09-28)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -411,6 +411,10 @@ onlyBuiltDependencies:
       better-auth.ts            # better-auth 배선 — 세션 쿠키 경로
       invitation.controller.ts  # 조직 초대 표면
       invitation.service.ts     # 초대 발급·수락 — 자동 수락 경로는 없다
+    digest/
+      digest.controller.ts  # REST — 내 메일 요약 설정 (EP-NTF-07·08)
+      digest.module.ts
+      digest.service.ts     # 켜기·끄기 · 켠 사람마다 하루 한 번 모아 아웃박스에 넣는다 (REQ-API-232·233)
     event/
       event-core.module.ts         # 의존 없는 핵 — 순환을 감추는 대신 갈라냈다 (REQ-API-151)
       event-subject.ts             # 이벤트가 무엇에 일어났나 — 피드·알림이 함께 쓰는 대상 조인 (REQ-API-181)
@@ -477,16 +481,24 @@ onlyBuiltDependencies:
       task.tools.ts          # MCP — nerv_task_* 5종
       webhook.controller.ts  # GitHub 웹훅 ingest — HMAC (EP-WHK-01)
       webhook.service.ts     # 서명 검증 + Task 키 매칭 (FR-13)
+    mail/
+      mail.config.ts         # 발신 설정 — 비어 있으면 꺼진다 (§5.2 · 2026-09-22)
+      mail.module.ts         # 넣는 쪽과 내보내는 쪽을 함께 판다
+      mail.outbox.ts         # email_outbox 에 넣고·집고·표시한다 (4.3 §2.17)
+      mail.sender.ts         # nodemailer — SMTP 로 나가는 자리는 여기 하나다
+      verify-link.ts         # 확인·재설정 메일의 링크 — 돌아갈 화면은 화면 오리진 안에서만 (4.5 §2.1)
   worker/
     advisory-lock.ts  # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
     job-runner.ts     # 잡 루프 — advisory lock 아래에서 하나만 돈다
     job-log.ts        # 잡 한 판의 한 줄 — 할 일이 없던 판은 debug (§5.5 · REQ-CB-054)
     worker.module.ts
     jobs/
+      digest.job.ts         # 메일 요약 — 켠 사람의 현지 시각에 하루 한 번 (4.4 REQ-API-233, 2026-09-28)
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
       export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
-      notification.job.ts   # event → notification 라우팅 (인앱, Slack·메일은 P2)
+      mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정·메일 요약 (4.3 §2.17, 2026-09-22)
+      notification.job.ts   # event → notification 라우팅 (인앱 — 메일은 digest.job 이 모아 보낸다, Slack 은 P2)
       partition.job.ts      # event·activity 월 파티션 선생성 — 하루 1회 (4.3 §2.14, REQ-DB-021)
       retention.job.ts      # blob TTL 30일 · Activity 보존 정책 집행
       session-stale.job.ts  # 무활동 30분(STALE) 세션 전이 + 클레임 회수 (D-13)</code></pre>
@@ -602,6 +614,8 @@ onlyBuiltDependencies:
       <tr><td><code>TASK_DONE_WINDOW_DAYS</code></td><td><code>7</code></td><td>보관 보기 토글의 기준 — <code>done_at</code> 이 이보다 오래된 done 은 기본 목록에서 빠진다(<a href="screens.html">4.5</a> §2.5)</td></tr>
       <tr><td><code>INVITATION_TTL_DAYS</code></td><td><code>7</code></td><td>조직 초대 링크 수명 — <a href="api.html">4.4 API 명세</a> §2.1b</td></tr>
       <tr><td><code>SENT_MAIL_RETENTION_DAYS</code></td><td><code>INVITATION_TTL_DAYS</code>(7)</td><td>보낸 메일을 발송 큐에 남기는 날 수 — 가장 긴 메일 링크의 수명이라 새 수치가 아니다(<a href="database.html">4.3 데이터베이스</a> REQ-DB-033)</td></tr>
+      <tr><td><code>DIGEST_MAX_LINES</code></td><td><code>20</code></td><td>메일 요약 한 통에 적는 알림 줄 수 — 넘치면 수로 줄인다(<a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.5 · <a href="api.html">4.4 API 명세</a> REQ-API-233)</td></tr>
+      <tr><td><code>DIGEST_DEFAULT_HOUR</code></td><td><code>9</code></td><td>메일 요약을 받는 현지 시의 기본값 — 켤 때 시를 고르지 않으면 이 값이다(<a href="api.html">4.4 API 명세</a> REQ-API-232)</td></tr>
       <tr><td><code>PAGE_LIMIT_DEFAULT</code> · <code>PAGE_LIMIT_MAX</code></td><td><code>30</code> · <code>100</code></td><td>페이지 상한 전역 규칙 — <a href="api.html">4.4 API 명세</a> §1.6</td></tr>
       <tr><td><code>FINDING_PAGE_LIMIT_DEFAULT</code> · <code>_MAX</code></td><td><code>50</code> · <code>200</code></td><td>발견 큐의 <b>예외</b>(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05)</td></tr>
       <tr><td><code>GATE_BRANCH_LIMIT_DEFAULT</code> · <code>_MAX</code></td><td><code>20</code> · <code>200</code></td><td>게이트 표의 브랜치 — 같은 예외(실측 441개)</td></tr>

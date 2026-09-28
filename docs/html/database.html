@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>데이터베이스 스키마</h1>
-    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 40개</b>다 — 도메인 34 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
+    <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 41개</b>다 — 도메인 35 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.62 (2026-09-28)</span>
+      <span>버전 v0.63 (2026-09-28)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -795,8 +795,8 @@ CREATE TABLE notification (
   importance      notification_importance NOT NULL,
   channel         notification_channel NOT NULL DEFAULT 'inapp',
   state           notification_state NOT NULL DEFAULT 'unread',
-  digest_batch_id uuid,
-  delivered_at    timestamptz,
+  digest_batch_id uuid,                        -- 담긴 메일 요약(email_outbox.id · 2026-09-28 · REQ-DB-034)
+  delivered_at    timestamptz,                 -- 메일 요약에 담긴 시각 — 건수가 늘면 다음 요약에 다시 담는다
   read_at         timestamptz,
   created_at      timestamptz NOT NULL DEFAULT now(),
   -- 앱 안 묶음(2026-09-27 · 사람 결정 G2 · 0037 · REQ-DB-030). 보통 알림은 같은 사람 · 같은 배치 키면 열린 묶음에 더한다
@@ -823,6 +823,20 @@ CREATE TABLE notification_preference (
   level      notification_level NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, project_id)
+);
+
+-- 알림 메일 요약(2026-09-28 · 사람 결정 EM1~EM9 · 0041 · REQ-DB-034).
+-- 켠 사람만 행을 갖는다 — 행이 없으면 꺼짐이고 그것이 기본이다. 끄면 행을 지운다.
+CREATE TABLE notification_digest_setting (
+  user_id      uuid PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+  hour         smallint NOT NULL DEFAULT 9,         -- 받는 현지 시(DIGEST_DEFAULT_HOUR)
+  timezone     text NOT NULL,                       -- IANA 이름 — 저장 전에 pg_timezone_names 로 확인한다
+  locale       text NOT NULL,                       -- 메일 언어
+  enabled_at   timestamptz NOT NULL DEFAULT now(),  -- 켠 시각 — 그 전의 알림은 담지 않는다
+  last_sent_at timestamptz,                         -- 마지막 판정 — 현지 날짜로 하루 한 번(담을 줄이 없어도 적는다)
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT notification_digest_hour_ck CHECK (hour BETWEEN 0 AND 23),
+  CONSTRAINT notification_digest_locale_ck CHECK (locale IN ('ko', 'en'))
 );</code></pre>
 
   <h3>2.11 순환 참조 FK</h3>
@@ -1150,13 +1164,13 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
   <p><b>표면은 행을 넣고, 워커가 보낸다.</b> 인라인 발송을 고르지 않은 이유가 셋이다. ① better-auth 문서 자신이 발송을 <code>await</code> 하지 말라고 적는다 — 응답 시간이 "그 이메일이 존재하는가"를 흘린다(타이밍 공격). ② SMTP 는 느리고 죽는다: 사내 메일 서버가 잠깐 막히면 초대 만들기가 함께 막히고, 보낸 것과 못 보낸 것을 나중에 셀 방법이 없다. ③ <b>이 저장소에는 이미 그 배관이 있다</b> — 워커 · advisory lock 단일 실행(REQ-CB-011) · 잡 루프 · 보존 잡. 새 개념이 아니라 여덟 번째 잡이다(<a href="codebase.html">4.2</a> §2.2 <code>mail.job.ts</code>).</p>
 
-  <p><b><code>notification</code> 을 재사용하지 않는다.</b> 그 표는 <code>project_id</code>·<code>event_id</code>·<code>user_id</code> 가 전부 NOT NULL 인데, 초대받은 사람은 <b>계정조차 없을 수 있고</b> 어느 프로젝트에도 속하지 않았다. 억지로 끼우면 그 세 열이 거짓말을 한다 — <code>notification_channel</code> 에 <code>email</code> 이 있는 것은 FR-12 의 <b>알림</b> 메일 채널을 위한 자리이고, 그것은 Phase 2 의 별개 일이다(<a href="scope.html">4.1</a> FR-12).</p>
+  <p><b><code>notification</code> 을 재사용하지 않는다.</b> 그 표는 <code>project_id</code>·<code>event_id</code>·<code>user_id</code> 가 전부 NOT NULL 인데, 초대받은 사람은 <b>계정조차 없을 수 있고</b> 어느 프로젝트에도 속하지 않았다. 억지로 끼우면 그 세 열이 거짓말을 한다 — <code>notification_channel</code> 에 <code>email</code> 이 있는 것은 FR-12 의 <b>알림</b> 메일 채널을 위한 자리이고, 그것은 Phase 2 의 별개 일이다(<a href="scope.html">4.1</a> FR-12). 알림 메일 요약(2026-09-28 · REQ-DB-034)도 이 큐로 나간다 — 알림 행의 <code>channel</code> 은 그대로 <code>inapp</code> 이고, 메일에 담긴 줄에 <code>delivered_at</code> · <code>digest_batch_id</code> 만 적힌다.</p>
 
   <p><b>본문은 넣을 때 만들어져 들어온다.</b> 워커는 렌더링하지 않는다 — 템플릿이 바뀌어도 이미 줄 서 있던 메일의 내용은 바뀌지 않아야 하고, 그래야 "그 사람이 받은 것"과 "지금 보이는 것"이 같다. 로케일은 <b>받는 사람</b>의 것이다(초대한 사람의 것이 아니다). 가입 확인·비밀번호 재설정은 <b>요청한 화면의 언어</b>다 — 받는 사람이 바로 그 화면에서 요청했다(2026-09-25).</p>
 
-  <p><code>email_kind</code> 세 값을 한 번에 만드는 것은 의도다 — <code>ALTER TYPE … ADD VALUE</code> 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 셋 다 쓴다 — <code>invite</code>·<code>verify_email</code>(2026-09-22) · <code>reset_password</code>(2026-09-25 · <a href="api.html">4.4</a> REQ-API-187).</p>
+  <p><code>email_kind</code> 세 값을 한 번에 만드는 것은 의도다 — <code>ALTER TYPE … ADD VALUE</code> 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 셋 다 쓴다 — <code>invite</code>·<code>verify_email</code>(2026-09-22) · <code>reset_password</code>(2026-09-25 · <a href="api.html">4.4</a> REQ-API-187). 넷째 값 <code>notification_digest</code>(2026-09-28 · 메일 요약 · REQ-DB-034)는 <code>ADD VALUE</code> 로 더했다 — 그 마이그레이션(<code>0041</code>) 안에서는 값을 쓰지 않아서 파일 하나로 된다.</p>
 
-  <pre><code>CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password');
+  <pre><code>CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password', 'notification_digest');
 
 CREATE TABLE email_outbox (
   id              uuid PRIMARY KEY,
@@ -1201,6 +1215,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
       <tr><td><code>REQ-DB-031</code></td><td>WHEN 마이그레이션 <code>0038</code> 이 돌면 THE SYSTEM SHALL 안 읽은 보통 알림 가운데 아직 묶음이 아닌 줄을 사람 · 배치 키마다 접는다 — 이미 열린(안 읽은) 묶음이 있으면 거기에, 없으면 가장 최근 줄을 묶음으로 삼아 모든 줄의 이벤트를 <code>notification_batch_event</code> 에 적고, 건수와 처음 · 마지막 시각을 넓힌다. 나머지 줄은 <b>지우지 않고</b> <code>archived</code> 로 둔다. 읽은 알림과 중요 알림은 건드리지 않고, 다시 돌려도 0건이다(로컬 실측 2026-09-27: 안 읽은 922행 → 37줄 · <a href="api.html">4.4 API 명세</a> REQ-API-225 · 2026-09-27)</td></tr>
       <tr><td><code>REQ-DB-032</code></td><td>WHEN 증적이 저장되면 THE SYSTEM SHALL 선택 칸 <code>note</code>(text)에 이 증적이 무엇을 보여 주는지 담고, <code>char_length(note) &lt;= 500</code> CHECK(<code>evidence_note_len_ck</code>)로 상한을 지킨다. 있던 증적은 비어 있다(마이그레이션 <code>0039</code> · <a href="api.html">4.4 API 명세</a> REQ-API-229 · 2026-09-28)</td></tr>
       <tr><td><code>REQ-DB-033</code></td><td>WHEN 보존 잡이 돌면 THE SYSTEM SHALL <code>email_outbox</code> 에서 보낸 지 <code>SENT_MAIL_RETENTION_DAYS</code>(7일 — 메일 링크 가운데 가장 긴 초대 링크의 수명)가 지난 줄을 지운다. WHERE 재시도를 포기한 줄(<code>failed_at</code>)이면 THE SYSTEM SHALL 남긴다 — 원인을 보려고 두는 줄이다(REQ-DB-026). 스키마 주석과 DDL 은 처음부터 "보존 잡이 치운다" 고 적었는데 지우는 코드가 없었다(2026-09-28 · 사람 결정 EM9)</td></tr>
+      <tr><td><code>REQ-DB-034</code></td><td>WHEN 사람이 메일 요약을 켜면 THE SYSTEM SHALL <code>notification_digest_setting</code> 에 그 사람의 행 하나(<code>user_id</code> PK · 사람이 지워지면 함께 지운다)를 두고, 받는 시(<code>hour</code> 0~23 · CHECK <code>notification_digest_hour_ck</code>) · IANA 시간대 · 언어(<code>ko</code> · <code>en</code> · CHECK <code>notification_digest_locale_ck</code>) · 켠 시각 · 마지막 판정 시각을 담는다. 행이 없으면 꺼짐이다. THE SYSTEM SHALL <code>email_kind</code> 에 <code>notification_digest</code> 를 두고, 메일에 담은 알림 줄에는 처음부터 있던 <code>notification.delivered_at</code> · <code>digest_batch_id</code>(그 메일의 <code>email_outbox.id</code>)를 적는다 — 새 열은 없다(마이그레이션 <code>0041</code> · <a href="api.html">4.4 API 명세</a> REQ-API-232·233 · 2026-09-28)</td></tr>
     </tbody>
   </table></div>
 

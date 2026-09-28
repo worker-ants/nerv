@@ -3,7 +3,7 @@
 // 무엇을 담는지가 이 기능의 전부다. 안 읽은 것 가운데 지난 요약 뒤에 새로 생기거나 건수가 늘어난 줄만 —
 // 읽은 것 · 켜기 전의 것 · 보관한 프로젝트 · 멤버에서 빠진 프로젝트는 담지 않는다. 그리고 하루 한 통이다.
 
-import { newId } from '@nerv/schema';
+import { NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -127,7 +127,7 @@ async function notify(input: {
   await pool.query(
     `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
      VALUES ($1,$2,$3,'spec',$4,$5, now())`,
-    [eventId, project, input.type ?? 'spec.recheck_requested', specId, actorId],
+    [eventId, project, input.type ?? NERV_EVENT.SPEC_RECHECK_REQUESTED, specId, actorId],
   );
   await pool.query(
     `INSERT INTO notification (id, project_id, user_id, event_id, importance, state, batch_size, last_at)
@@ -201,7 +201,7 @@ describe('무엇을 담는가 (REQ-API-232)', () => {
     await enable();
     pending = 2;
     const important = await notify({
-      type: 'approval.requested',
+      type: NERV_EVENT.APPROVAL_REQUESTED,
       importance: 'immediate',
       specKey: 'CLV-S-IMPORT',
     });
