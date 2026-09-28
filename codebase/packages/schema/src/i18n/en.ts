@@ -1789,6 +1789,18 @@ export const en = {
   'reset.invalid_body':
     'It expired ({minutes} minutes) or has already been used. Request a new link.',
   'reset.request_again': 'Get a new reset link',
+  'unsubscribe.lead': 'Turn off the email digest.',
+  'unsubscribe.title': 'Turn off the notification email digest?',
+  'unsubscribe.body':
+    'No sign-in needed. This only stops the digest — sign-up confirmation, password reset and invitation emails still arrive, and in-app notifications stay as they are.',
+  'unsubscribe.submit': 'Turn off email digest',
+  'unsubscribe.submitting': 'Turning off…',
+  'unsubscribe.done': 'Email digest turned off',
+  'unsubscribe.done_body': 'To get it again, turn it on in My account.',
+  'unsubscribe.expired': 'This link has expired',
+  'unsubscribe.expired_body':
+    'The link works for {days} days after the email is sent. You can turn the digest off in My account.',
+  'unsubscribe.to_account': 'Go to My account',
   'settings.title': 'Settings',
   'settings.heading': 'Settings — {org}',
   'settings.nav_label': 'Settings menu',

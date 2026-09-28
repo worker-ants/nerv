@@ -1767,6 +1767,18 @@ export const ko = {
   'reset.invalid': '쓸 수 없는 링크입니다',
   'reset.invalid_body': '만료됐거나({minutes}분) 이미 쓴 링크입니다. 새 링크를 받으세요.',
   'reset.request_again': '재설정 링크 다시 받기',
+  'unsubscribe.lead': '메일 요약을 끕니다.',
+  'unsubscribe.title': '알림 메일 요약을 끄겠습니까?',
+  'unsubscribe.body':
+    '로그인하지 않아도 됩니다. 끄는 것은 메일 요약뿐이고 가입 확인 · 비밀번호 재설정 · 초대 메일은 그대로 옵니다. 앱 안의 알림도 그대로입니다.',
+  'unsubscribe.submit': '메일 요약 끄기',
+  'unsubscribe.submitting': '끄는 중…',
+  'unsubscribe.done': '메일 요약을 껐습니다',
+  'unsubscribe.done_body': '다시 받으려면 내 계정에서 켜세요.',
+  'unsubscribe.expired': '만료된 링크입니다',
+  'unsubscribe.expired_body':
+    '끄는 링크는 메일을 보내고 {days}일 동안 쓸 수 있습니다. 내 계정에서 끌 수 있습니다.',
+  'unsubscribe.to_account': '내 계정으로',
   'settings.title': '설정',
   'settings.heading': '설정 — {org}',
   'settings.nav_label': '설정 메뉴',

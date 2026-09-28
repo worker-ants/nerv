@@ -33,6 +33,7 @@ import { Route as SettingsOrgTokensRouteImport } from './routes/settings/org-tok
 import { Route as SettingsProjectsRouteImport } from './routes/settings/projects'
 import { Route as SettingsTokensRouteImport } from './routes/settings/tokens'
 import { Route as SettingsWorkspaceRouteImport } from './routes/settings/workspace'
+import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
 import { Route as PProjIndexRouteImport } from './routes/p.$proj/index'
 import { Route as PProjTasksRouteImport } from './routes/p.$proj/tasks'
 import { Route as PProjReviewsIndexRouteImport } from './routes/p.$proj/reviews.index'
@@ -163,6 +164,11 @@ const SettingsWorkspaceRoute = SettingsWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const UnsubscribeTokenRoute = UnsubscribeTokenRouteImport.update({
+  id: '/unsubscribe/$token',
+  path: '/unsubscribe/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PProjIndexRoute = PProjIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/help': typeof HelpIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/p/$proj': typeof PProjIndexRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/settings/projects': typeof SettingsProjectsRoute
   '/settings/tokens': typeof SettingsTokensRoute
   '/settings/workspace': typeof SettingsWorkspaceRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
@@ -336,6 +345,7 @@ export interface FileRouteTypes {
     | '/settings/projects'
     | '/settings/tokens'
     | '/settings/workspace'
+    | '/unsubscribe/$token'
     | '/help/'
     | '/settings/'
     | '/p/$proj/tasks'
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/settings/projects'
     | '/settings/tokens'
     | '/settings/workspace'
+    | '/unsubscribe/$token'
     | '/help'
     | '/settings'
     | '/p/$proj'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/settings/projects'
     | '/settings/tokens'
     | '/settings/workspace'
+    | '/unsubscribe/$token'
     | '/help/'
     | '/settings/'
     | '/p/$proj/tasks'
@@ -429,6 +441,7 @@ export interface RootRouteChildren {
   PProjRouteRoute: typeof PProjRouteRouteWithChildren
   InviteTokenRoute: typeof InviteTokenRoute
   OOrgRoute: typeof OOrgRoute
+  UnsubscribeTokenRoute: typeof UnsubscribeTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -601,6 +614,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsWorkspaceRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/unsubscribe/$token': {
+      id: '/unsubscribe/$token'
+      path: '/unsubscribe/$token'
+      fullPath: '/unsubscribe/$token'
+      preLoaderRoute: typeof UnsubscribeTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/p/$proj/': {
       id: '/p/$proj/'
       path: '/'
@@ -761,6 +781,7 @@ const rootRouteChildren: RootRouteChildren = {
   PProjRouteRoute: PProjRouteRouteWithChildren,
   InviteTokenRoute: InviteTokenRoute,
   OOrgRoute: OOrgRoute,
+  UnsubscribeTokenRoute: UnsubscribeTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 41개</b>다 — 도메인 35 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.63 (2026-09-28)</span>
+      <span>버전 v0.64 (2026-09-28)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1187,6 +1187,8 @@ CREATE TABLE email_outbox (
   sent_at         timestamptz,
   failed_at       timestamptz,                         -- 상한까지 실패해 포기한 시각
   last_error      text,
+  headers         jsonb,                               -- 덧붙일 머리글(끄는 주소 · RFC 8058) — 메일 요약만
+  unsubscribe_token_hash text,                         -- 끄는 링크 토큰의 SHA-256 — 원문은 메일에만 있다
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
@@ -1196,6 +1198,9 @@ CREATE INDEX email_outbox_due ON email_outbox (next_attempt_at)
 -- 보존 잡이 보낸 지 SENT_MAIL_RETENTION_DAYS(7일 — 초대 링크 수명)가 지난 것을 치운다(본문에 살아 있는 링크가 들어 있다).
 -- 재시도를 포기한 줄(failed_at)은 원인을 보려고 남긴다(REQ-DB-026 · REQ-DB-033)
 CREATE INDEX email_outbox_sent ON email_outbox (sent_at);
+-- 끄는 링크는 토큰으로 찾는다(2026-09-28 · 0042 · REQ-DB-035). 메일 행이 지워지면(보낸 지 7일) 링크도 함께 죽는다
+CREATE UNIQUE INDEX email_outbox_unsubscribe ON email_outbox (unsubscribe_token_hash)
+  WHERE unsubscribe_token_hash IS NOT NULL;
 
 -- 초대는 자기 발송 시각을 따로 갖는다 — 보존 잡이 위 큐를 치워도 답이 남아야 한다
 ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
@@ -1216,6 +1221,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
       <tr><td><code>REQ-DB-032</code></td><td>WHEN 증적이 저장되면 THE SYSTEM SHALL 선택 칸 <code>note</code>(text)에 이 증적이 무엇을 보여 주는지 담고, <code>char_length(note) &lt;= 500</code> CHECK(<code>evidence_note_len_ck</code>)로 상한을 지킨다. 있던 증적은 비어 있다(마이그레이션 <code>0039</code> · <a href="api.html">4.4 API 명세</a> REQ-API-229 · 2026-09-28)</td></tr>
       <tr><td><code>REQ-DB-033</code></td><td>WHEN 보존 잡이 돌면 THE SYSTEM SHALL <code>email_outbox</code> 에서 보낸 지 <code>SENT_MAIL_RETENTION_DAYS</code>(7일 — 메일 링크 가운데 가장 긴 초대 링크의 수명)가 지난 줄을 지운다. WHERE 재시도를 포기한 줄(<code>failed_at</code>)이면 THE SYSTEM SHALL 남긴다 — 원인을 보려고 두는 줄이다(REQ-DB-026). 스키마 주석과 DDL 은 처음부터 "보존 잡이 치운다" 고 적었는데 지우는 코드가 없었다(2026-09-28 · 사람 결정 EM9)</td></tr>
       <tr><td><code>REQ-DB-034</code></td><td>WHEN 사람이 메일 요약을 켜면 THE SYSTEM SHALL <code>notification_digest_setting</code> 에 그 사람의 행 하나(<code>user_id</code> PK · 사람이 지워지면 함께 지운다)를 두고, 받는 시(<code>hour</code> 0~23 · CHECK <code>notification_digest_hour_ck</code>) · IANA 시간대 · 언어(<code>ko</code> · <code>en</code> · CHECK <code>notification_digest_locale_ck</code>) · 켠 시각 · 마지막 판정 시각을 담는다. 행이 없으면 꺼짐이다. THE SYSTEM SHALL <code>email_kind</code> 에 <code>notification_digest</code> 를 두고, 메일에 담은 알림 줄에는 처음부터 있던 <code>notification.delivered_at</code> · <code>digest_batch_id</code>(그 메일의 <code>email_outbox.id</code>)를 적는다 — 새 열은 없다(마이그레이션 <code>0041</code> · <a href="api.html">4.4 API 명세</a> REQ-API-232·233 · 2026-09-28)</td></tr>
+      <tr><td><code>REQ-DB-035</code></td><td>WHEN 메일 요약을 줄 세우면 THE SYSTEM SHALL <code>email_outbox</code> 에 덧붙일 머리글 <code>headers</code>(jsonb — <code>List-Unsubscribe</code> · <code>List-Unsubscribe-Post</code> · <code>Auto-Submitted</code>)와 끄는 링크 토큰의 SHA-256 <code>unsubscribe_token_hash</code> 를 담고, 그 해시는 부분 유일 인덱스(<code>email_outbox_unsubscribe</code>)로 찾는다. 다른 메일은 두 칸이 비어 있다. 토큰의 수명은 그 메일 행의 수명이다 — 보존 잡이 행을 지우면(REQ-DB-033) 링크도 죽는다(마이그레이션 <code>0042</code> · <a href="api.html">4.4 API 명세</a> REQ-API-234 · 2026-09-28 사람 결정 EM8)</td></tr>
     </tbody>
   </table></div>
 

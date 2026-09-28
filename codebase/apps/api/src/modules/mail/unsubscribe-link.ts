@@ -21,10 +21,13 @@ export function hashUnsubscribeToken(token: string): string {
 
 /** 메일 앱이 POST 하는 곳 — `List-Unsubscribe` 머리글 */
 export function unsubscribeApiUrl(token: string): string {
-  return `${apiUrlFromEnv().replace(/\/+$/, '')}/api/v1/mail/unsubscribe/${token}`;
+  return `${apiUrlFromEnv().replace(/\/+$/, '')}/api/v1/mail/unsubscribe/${encodeURIComponent(token)}`;
 }
 
-/** 사람이 여는 곳 — 본문의 링크. 화면이 한 번 묻고 위 주소로 POST 한다 */
+/**
+ * 사람이 여는 곳 — 본문의 링크. 화면이 한 번 묻고 위 주소로 POST 한다. API 의 GET 도 여기로 보낸다 — 그때의
+ * 토큰은 요청에서 온 값이라 경로를 벗어나지 못하게 감싼다(우리가 만든 토큰은 base64url 이라 그대로다).
+ */
 export function unsubscribeWebUrl(token: string): string {
-  return `${webUrlFromEnv().replace(/\/+$/, '')}/unsubscribe/${token}`;
+  return `${webUrlFromEnv().replace(/\/+$/, '')}/unsubscribe/${encodeURIComponent(token)}`;
 }

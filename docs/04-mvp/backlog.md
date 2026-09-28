@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.16 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.17 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.17 변경(2026-09-28 — 스토리 없이 들어온 구현 하나, **사람 결정 EM8**): §1.4 셋째 표에 **메일 요약을 로그인 없이 끄는 링크**를 적는다.
 >
 > v2.16 변경(2026-09-28 — 스토리 없이 들어온 구현 하나, **사람 결정 EM1~EM9**): §1.4 셋째 표에 **알림 메일 요약**을 적는다.
 >
@@ -703,6 +705,7 @@ referenced_by:
 | 도움말 절 연결 — 제목에 로케일 공통 이름 | `lib/markdown.ts`(`{#이름}` 앵커 · 순서는 대체 · `###`) · `lib/manual-chapters.ts`(절 이름 목록 · `help` · `helpHref` · `helpLink` · `isManualSection`) · `lib/manual.ts`(`helpForRoute` — 화면 → 장 · 절) · 매뉴얼 ko · en 20편(`##` 82 · `###` 7 에 이름 · 우회 8×2 를 절 링크로) · `routes/help/$chapter.tsx`(옛 `#sec-N` 옮기기 · `###` 앵커 여백) · `app-shell.tsx` · `quick-switcher.tsx` · 고정 링크 넷 · 토큰 발급 카드의 "이유 보기" · `lib/evidence.ts`(`user_guide` 절) · L1 `markdown.spec.ts` · `manual.spec.ts` · `help.spec.tsx` · `evidence.spec.ts` · L3 `manual.spec.ts` | 사람 결정(HA1~HA6 모두 권장안). 백로그 "남은 것"(빈 상태와 연결이 막다른 길이었다 행 — 도움말의 절 단위 연결)을 닫는다([4.5 화면 명세](screens.md) REQ-WEB-268 · REQ-WEB-161 개정) |
 | 보낸 메일 정리 — 7일 뒤 지운다 | `packages/schema/src/constants.ts`(`SENT_MAIL_RETENTION_DAYS` = `INVITATION_TTL_DAYS`) · `apps/api/src/worker/jobs/retention.job.ts`(보낸 지 7일 지난 `email_outbox` 삭제 · 포기한 줄은 남김) · L2 `worker-jobs.spec.ts` | 사람 결정 EM9(알림 메일 요약 결정 문서). 스키마 주석과 DDL 은 "보존 잡이 치운다" 고 적었는데 코드가 없었다([4.3 데이터베이스](database.md) REQ-DB-033) |
 | 알림 메일 요약 — 켠 사람에게 하루 한 번 | 스키마 `notification_digest_setting` · `email_kind.notification_digest`(마이그레이션 `0041`) · `DIGEST_MAX_LINES` · `DIGEST_DEFAULT_HOUR` · `NotificationDigestInput` · 서버 `modules/digest/`(`digest.service.ts` — 켜기 · 끄기 · 하루 한 번 판정 · `digest.controller.ts` EP-NTF-07·08) · `mail.outbox.ts`(`enqueueDigest`) · 잡 `digest.job.ts` · 화면 `features/inbox/email-digest.tsx`(내 계정) · 문구 `mail.digest.*` · `account.digest*` · 매뉴얼 ko·en(설정 · 받은 요청) · L1 `email-digest.spec.tsx` · L2 `digest.spec.ts` · `worker-jobs.spec.ts` | 사람 결정 EM1~EM9(알림 메일 요약 결정 문서 · 모두 권장안). 알림은 앱 안에만 있어서 앱을 자주 열지 않는 사람에게 알릴 길이 없었다([4.4 API 명세](api.md) REQ-API-232·233 · [4.3 데이터베이스](database.md) REQ-DB-034 · [4.5 화면 명세](screens.md) REQ-WEB-269 · [4.1 MVP 범위와 스택 확정](scope.md) FR-12). 남은 것: 로그인 없이 한 번에 끄는 링크(EM8 — 다음 PR) |
+| 메일 요약을 로그인 없이 끄는 링크 | 스키마 `email_outbox.headers` · `unsubscribe_token_hash`(마이그레이션 `0042`) · 서버 `mail/unsubscribe-link.ts` · `mail.outbox.ts`(머리글 · 해시) · `mail.sender.ts` · `mail.job.ts`(머리글을 그대로 보낸다) · `digest.service.ts`(`unsubscribe` · 본문의 끄는 링크) · `digest.controller.ts`(EP-NTF-09·10) · 화면 `routes/unsubscribe.$token.tsx` · `__root.tsx`(셸 밖 공개 경로) · 문구 `unsubscribe.*` · `mail.digest.unsubscribe` · 매뉴얼 ko·en(설정) · L1 `unsubscribe.spec.tsx` · L2 `digest.spec.ts` · `rest-surface.spec.ts` | 사람 결정 EM8. 메일 요약을 끄려면 로그인해 내 계정까지 가야 했고, 메일 앱의 [구독 취소] 단추도 뜨지 않았다([4.4 API 명세](api.md) REQ-API-234 · [4.3 데이터베이스](database.md) REQ-DB-035 · [4.5 화면 명세](screens.md) REQ-WEB-270). 알림 메일 요약 결정(EM1~EM9)은 이것으로 모두 끝났다 |
 
 #### 이 절은 언제 갱신되는가
 

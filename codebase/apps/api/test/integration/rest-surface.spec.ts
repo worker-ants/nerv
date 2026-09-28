@@ -2186,3 +2186,52 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     expect(tokens.some((t) => t['last_used_hostname'] === 'mac-07')).toBe(true);
   });
 });
+
+describe('메일의 끄는 링크 — 로그인 없이 (EP-NTF-09·10 · REQ-API-234)', () => {
+  const token = 'unsubscribe-token-for-rest-surface-000000000';
+
+  beforeEach(async () => {
+    await pool.query('DELETE FROM email_outbox');
+    await pool.query('DELETE FROM notification_digest_setting');
+    await pool.query(
+      `INSERT INTO notification_digest_setting (user_id, hour, timezone, locale) VALUES ($1, 9, 'UTC', 'ko')`,
+      [adminId],
+    );
+    await pool.query(
+      `INSERT INTO email_outbox (id, kind, to_email, subject, body_text, ref_type, ref_id, unsubscribe_token_hash)
+       VALUES ($1, 'notification_digest', 'admin@example.com', 's', 'b', 'user', $2, $3)`,
+      [newId(), adminId, createHash('sha256').update(token).digest('hex')],
+    );
+  });
+
+  async function digestRows(): Promise<number> {
+    const { rows } = await pool.query(`SELECT 1 FROM notification_digest_setting`);
+    return rows.length;
+  }
+
+  it('GET 은 끄지 않고 화면으로 보낸다 — 메일 보안 검사기가 링크를 미리 연다', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/v1/mail/unsubscribe/${token}` });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toMatch(new RegExp(`/unsubscribe/${token}$`));
+    expect(await digestRows()).toBe(1);
+  });
+
+  it('메일 앱의 한 번에 끄기 — 쿠키도 토큰도 없는 폼 POST 로 끈다(RFC 8058)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/mail/unsubscribe/${token}`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'List-Unsubscribe=One-Click',
+    });
+    expect(res.statusCode).toBeLessThan(300);
+    expect(res.json()).toEqual({ ok: true, unsubscribed: true });
+    expect(await digestRows()).toBe(0);
+  });
+
+  it('모르는 토큰은 409 not_found 이고 아무것도 끄지 않는다', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/v1/mail/unsubscribe/nope' });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { details: Record<string, unknown> }).details['kind']).toBe('not_found');
+    expect(await digestRows()).toBe(1);
+  });
+});
