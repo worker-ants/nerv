@@ -218,7 +218,8 @@ describe('사이드바의 프로젝트 목록 (2026-09-25 D1 · REQ-WEB-225)', (
     const rail = await screen.findByTestId('nav-rail');
     expect(await within(rail).findByTestId('project-none')).toBeTruthy();
     const link = within(rail).getByTestId('project-new-link');
-    expect(link.textContent).toBe('프로젝트 관리 · 새 프로젝트');
+    // 앞의 + 는 사이드바 항목처럼 읽히게 하는 표지다(REQ-WEB-273)
+    expect(link.textContent).toBe('+ 프로젝트 관리 · 새 프로젝트');
     expect(link.getAttribute('href')).toBe('/settings/projects?new=1');
   });
 
@@ -227,7 +228,7 @@ describe('사이드바의 프로젝트 목록 (2026-09-25 D1 · REQ-WEB-225)', (
     renderAt('/');
     const rail = await screen.findByTestId('nav-rail');
     const link = await within(rail).findByTestId('project-new-link');
-    await waitFor(() => expect(link.textContent).toBe('프로젝트 관리'));
+    await waitFor(() => expect(link.textContent).toBe('+ 프로젝트 관리'));
     expect(link.getAttribute('href')).toBe('/settings/projects');
   });
 });

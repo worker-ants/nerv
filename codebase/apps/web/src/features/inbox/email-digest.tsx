@@ -125,14 +125,15 @@ export function EmailDigestSection(): React.JSX.Element | null {
               {data.timezone !== here && (
                 <>
                   {' '}
-                  <button
-                    type="button"
+                  {/* 설정을 저장하는 명령이다 — 이동 링크의 모양이 아니라 단추다(사람 결정 A3 · REQ-WEB-272) */}
+                  <Button
+                    size="xs"
+                    variant="subtle"
                     data-testid="digest-use-browser"
-                    className="text-link hover:underline"
                     onClick={() => change({ timezone: here })}
                   >
                     {t('account.digest_use_browser', { timezone: here })}
-                  </button>
+                  </Button>
                 </>
               )}
             </p>

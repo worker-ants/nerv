@@ -245,7 +245,7 @@ describe('활동 피드가 무엇에 일어났는지 말한다', () => {
   it('잇달아 같은 일은 한 줄로 접고, ×N 을 누르면 펼친다', async () => {
     renderAt('/p/clemvion');
     const repeat = await screen.findByTestId('event-repeat');
-    expect(repeat.textContent).toBe('×3');
+    expect(repeat.textContent).toBe('▸×3'); // ▸ 는 펼치기 표지다(REQ-WEB-276)
     // 접힌 셋 + 승인 + 결재 요청 + 발견
     expect(screen.getAllByTestId('event-row')).toHaveLength(4);
     fireEvent.click(repeat);
@@ -305,7 +305,7 @@ describe('알림 행이 무엇에 대한 것인지 말한다', () => {
   it('잇달아 같은 알림은 한 줄로 접고, 누르면 묶음을 함께 읽는다', async () => {
     renderAt('/notifications');
     const repeat = await screen.findByTestId('notification-repeat');
-    expect(repeat.textContent).toBe('×2');
+    expect(repeat.textContent).toBe('▸×2');
     expect(screen.getAllByTestId('notification-row')).toHaveLength(3);
     fireEvent.click(repeat.closest('li')!);
     await waitFor(() =>

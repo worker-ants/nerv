@@ -131,11 +131,11 @@ function LoginScreen(): React.JSX.Element {
         {/* 미확인 계정에게 비밀번호를 다시 치라고 하는 것은 아무 도움이 안 된다 —
             할 일은 메일함을 여는 것이고, 메일이 없으면 다시 받는 것이다(REQ-WEB-180) */}
         {unverified && (
-          <button
-            type="button"
+          // 가입 화면과 같은 전폭 단추다 — 같은 명령이 여기서만 파란 글자였다(사람 결정 A3 · REQ-WEB-272)
+          <Button
             data-testid="login-resend"
             disabled={resent}
-            className="rounded-nerv-sm px-2 py-1 text-left text-sm text-link hover:underline disabled:text-text-mute disabled:no-underline"
+            className="h-9 w-full"
             onClick={() => {
               setResent(true);
               // 로그인이 들고 온 자리로 — 없으면 첫 화면이고, 거기서 소속을 보고 가른다(REQ-WEB-188)
@@ -143,7 +143,7 @@ function LoginScreen(): React.JSX.Element {
             }}
           >
             {resent ? t('auth.resent') : t('auth.resend')}
-          </button>
+          </Button>
         )}
         <Button type="submit" variant="primary" disabled={busy} className="mt-1 h-9 w-full">
           {busy ? t('login.submitting') : t('login.submit')}

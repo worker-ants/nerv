@@ -44,7 +44,8 @@ export function RelationTabs({
         value: key,
         label: (
           <>
-            {label} <span className="text-text-faint tabular-nums">{counts[key]}</span>
+            {label}
+            <span className="ml-1 text-text-faint tabular-nums">{counts[key]}</span>
           </>
         ),
       }))}
