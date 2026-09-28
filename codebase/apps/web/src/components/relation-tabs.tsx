@@ -7,7 +7,7 @@
 // 건수는 **누르기 전에** 적는다 — 빈 탭을 열어 보게 하지 않는다.
 
 import { useT } from '../lib/i18n.js';
-import { cn } from '../lib/utils.js';
+import { Segmented } from './ui/primitives.js';
 
 /** 관계를 보는 방향. `in` = 역참조(들어오는 것), `out` = 레퍼런스(나가는 것) */
 export type RelationDirection = 'all' | 'in' | 'out';
@@ -26,32 +26,29 @@ export function RelationTabs({
   className,
 }: RelationTabsProps): React.JSX.Element {
   const t = useT();
+  // 공용 세그먼트다 — 고르지 않은 칸이 흐린 글자뿐이던 원시 단추 묶음이었다(REQ-WEB-271)
   return (
-    <div className={cn('flex gap-1', className)}>
-      {(
+    <Segmented
+      label={t('spec.rail.relations')}
+      testIdPrefix="rel-tab"
+      className={className}
+      value={value}
+      onChange={onChange}
+      options={(
         [
           ['all', t('spec.rail.rel_all')],
           ['in', t('spec.rail.rel_in')],
           ['out', t('spec.rail.rel_out')],
         ] as const
-      ).map(([key, label]) => (
-        <button
-          key={key}
-          type="button"
-          data-testid={`rel-tab-${key}`}
-          aria-pressed={value === key}
-          onClick={() => onChange(key)}
-          className={cn(
-            'flex items-center gap-1 rounded-nerv-sm px-2 py-1 text-2xs transition-colors',
-            value === key
-              ? 'bg-bg-active font-medium text-text'
-              : 'text-text-faint hover:bg-bg-hover hover:text-text',
-          )}
-        >
-          {label}
-          <span className="text-text-faint tabular-nums">{counts[key]}</span>
-        </button>
-      ))}
-    </div>
+      ).map(([key, label]) => ({
+        value: key,
+        label: (
+          <>
+            {label}
+            <span className="ml-1 text-text-faint tabular-nums">{counts[key]}</span>
+          </>
+        ),
+      }))}
+    />
   );
 }

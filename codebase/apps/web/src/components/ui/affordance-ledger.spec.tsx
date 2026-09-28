@@ -153,50 +153,34 @@ const counted: Record<string, Counts> = Object.fromEntries(
 /**
  * **장부**(2026-09-28 — 42개 파일 94곳: ghost 18 · 글자뿐인 원시 단추 44 · 링크색 명령 11 · hover 때만 링크색 13 ·
  * 손으로 짠 칩 8). PR 2(상 13건과 결함)가 39개 파일 75곳으로 줄였다 — [더 보기]는 `LoadMore`, 복사는 `CopyButton` 한 벌이
- * 됐다. 남은 것은 PR 3(중) · PR 4(하와 모양 통일)가 줄인다. 그래프 패널의 제목(`graph.tsx`)은 부모가 준 `onOpen` 으로
+ * 됐다. PR 3(중)이 22개 파일 45곳으로 줄였다 — 펼치기는 `Disclosure`, 둘·셋 중 고르기(본문 탭 · 언어 · 테마 · 중심
+ * 거리 · 관계 방향)는 `Segmented` 한 벌이 됐고, ghost 는 모달 바닥 둘만 남았다. 남은 것은 PR 4(하와 모양 통일)가 줄인다. 그래프 패널의 제목(`graph.tsx`)은 부모가 준 `onOpen` 으로
  * 이동하는 단추라 링크색이 맞다 — 검사는 이동인지 명령인지 몰라 링크색 명령으로 센다(PR 4 에서 허용 목록으로). 관례라 그대로 둘 것
  * (사이드바 항목 · 열린 메뉴 항목 · 트리 줄 · ✕)은 마지막 PR 에서 이유와 함께 허용 목록으로 옮긴다.
  */
 const LEDGER: Record<string, Counts> = {
-  'components/app-shell.tsx': { plain: 6 },
-  'components/event-feed.tsx': { plain: 1 },
-  'components/invitation-cards.tsx': { ghost: 1 },
-  'components/locale-switch.tsx': { plain: 1 },
+  'components/app-shell.tsx': { plain: 5 },
   'components/quick-switcher.tsx': { plain: 1 },
-  'components/relation-tabs.tsx': { plain: 1 },
-  'components/side-column.tsx': { plain: 1 },
   'components/spec-tree.tsx': { plain: 2, chip: 2 },
   'components/start-checklist.tsx': { plain: 1 },
-  'components/toast-stack.tsx': { plain: 1, linkCommand: 1 },
-  'features/inbox/approval-card.tsx': { ghost: 1 },
-  'features/inbox/email-digest.tsx': { linkCommand: 1 },
-  'features/review-center/finding-card.tsx': { plain: 1 },
-  'features/session-monitor/activity-rail.tsx': { hoverLink: 1 },
-  'features/session-monitor/activity-timeline.tsx': { plain: 1 },
-  'features/session-monitor/plugin-coverage.tsx': { plain: 1 },
-  'features/session-monitor/session-board.tsx': { ghost: 1 },
+  'components/toast-stack.tsx': { plain: 1 },
   'features/session-monitor/session-card.tsx': { plain: 1 },
   'features/spec-editor/attachment-panel.tsx': { plain: 1, linkCommand: 1 },
-  'features/spec-editor/comment-list.tsx': { plain: 1, linkCommand: 1 },
+  'features/spec-editor/comment-list.tsx': { linkCommand: 1 },
   'features/spec-editor/meta-dialog.tsx': { plain: 1 },
   'features/spec-editor/next-step.tsx': { chip: 4 },
   'features/spec-editor/spec-link-picker.tsx': { plain: 1 },
   'features/spec-editor/spec-toc.tsx': { plain: 1 },
-  'features/spec-graph/graph.tsx': { plain: 3, linkCommand: 1 },
+  'features/spec-graph/graph.tsx': { plain: 2, linkCommand: 1 },
   'features/spec-graph/table.tsx': { plain: 1, hoverLink: 1 },
-  'features/task-board/board.tsx': { plain: 1, linkCommand: 3, hoverLink: 1, chip: 1 },
+  'features/task-board/board.tsx': { plain: 1, linkCommand: 2, hoverLink: 1, chip: 1 },
   'features/task-board/task-sheet.tsx': { plain: 1 },
   'routes/help/$chapter.tsx': { hoverLink: 3 },
   'routes/inbox.tsx': { plain: 1 },
-  'routes/index.tsx': { hoverLink: 6 },
-  'routes/invite.$token.tsx': { ghost: 1 },
-  'routes/login.tsx': { linkCommand: 1 },
-  'routes/notifications.tsx': { ghost: 1, plain: 1 },
-  'routes/p.$proj/reviews.index.tsx': { plain: 2, linkCommand: 1 },
-  'routes/p.$proj/specs.$spec.tsx': { plain: 3, linkCommand: 1 },
-  'routes/p.$proj/tasks.$task.tsx': { ghost: 1 },
+  'routes/index.tsx': { hoverLink: 3 },
+  'routes/p.$proj/reviews.index.tsx': { plain: 1 },
+  'routes/p.$proj/specs.$spec.tsx': { plain: 1, linkCommand: 1 },
   'routes/settings/members.tsx': { chip: 1 },
-  'routes/settings/tokens.tsx': { ghost: 1 },
 };
 
 describe('누를 수 있는 것은 쉴 때 누를 수 있어 보인다 — 장부 (REQ-WEB-271~276)', () => {

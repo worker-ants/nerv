@@ -104,7 +104,6 @@ export function InvitationCards({
           </span>
           <ConfirmAction
             label={t('invite.decline')}
-            variant="ghost"
             testId="invite-decline"
             message={t('invite.decline_confirm')}
             confirmLabel={t('invite.decline')}

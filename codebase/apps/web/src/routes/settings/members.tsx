@@ -405,13 +405,15 @@ function MembersTab(): React.JSX.Element {
                               ? 'border-border-strong bg-bg-elev font-medium text-text'
                               : inherited
                                 ? 'cursor-default border-dashed border-border-strong text-text-mute'
-                                : 'border-border text-text-faint hover:text-text',
+                                : 'border-border-strong text-text-mute hover:bg-bg-hover hover:text-text',
                             !inherited && (!editable || last || lastAdmin)
                               ? 'cursor-not-allowed opacity-60'
                               : '',
                           )}
                         >
-                          {on ? '✓ ' : inherited ? '↳ ' : ''}
+                          {/* **끈 칩에도 표지가 있다**(2026-09-28 · REQ-WEB-274) — 켠 칩의 ✓ 만 있던 동안 끈 칩은 흐린
+                              태그라 "눌러서 켠다" 는 단서가 없었다. 역할을 주는 유일한 길이다 */}
+                          {on ? '✓ ' : inherited ? '↳ ' : '+ '}
                           {role}
                         </button>
                       );

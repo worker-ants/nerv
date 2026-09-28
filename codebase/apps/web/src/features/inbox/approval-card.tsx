@@ -847,10 +847,9 @@ export function ApprovalCard({
                 <Button
                   key={option}
                   size="sm"
-                  variant="ghost"
+                  variant="subtle"
                   disabled={busy}
                   onClick={() => hold({ kind: 'answer', choice: option, comment })}
-                  className="border border-border"
                 >
                   {option}
                 </Button>

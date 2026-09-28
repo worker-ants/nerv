@@ -49,7 +49,7 @@ import { SpecTreeColumn } from './spec-tree-column.js';
 import { SettingsNav } from '../features/settings/settings-nav.js';
 import { LocaleSwitch } from './locale-switch.js';
 import { NAV_ACTIVE, NAV_ITEM, RAIL_LABEL } from './nav-styles.js';
-import { CountBadge, MenuItem, Popover } from './ui/primitives.js';
+import { CountBadge, MenuItem, Popover, Segmented } from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
 import { readViewBasis, viewBasisFromKey, viewBasisKey } from '../lib/view-basis.js';
@@ -336,7 +336,8 @@ export function AppShell({
         data-testid={`rail-project-decisions-${slug}`}
         title={t('shell.project_decisions', { name, count })}
         aria-label={t('shell.project_decisions', { name, count })}
-        className="shrink-0 rounded-nerv-sm px-1 hover:bg-bg-hover"
+        // 옆의 프로젝트 줄과 **다른 곳**(받은 요청)으로 간다 — 배지에 테두리를 둘러 따로 누르는 것으로 보인다(REQ-WEB-274)
+        className="shrink-0 rounded-full p-px ring-1 ring-border-strong hover:bg-bg-hover"
       >
         <CountBadge count={count} tone="action" />
       </Link>
@@ -748,25 +749,13 @@ export function AppShell({
                       (같은 사람이 낮의 노트북과 밤의 데스크톱을 다르게 쓴다). */}
                   <div className="border-t border-border px-3 pt-1.5 pb-1">
                     <p className="mb-1 text-2xs text-text-faint">{t('shell.theme')}</p>
-                    <div className="flex gap-1">
-                      {THEMES.map((name) => (
-                        <button
-                          key={name}
-                          type="button"
-                          data-testid={`theme-${name}`}
-                          aria-pressed={theme === name}
-                          onClick={() => setTheme(name)}
-                          className={cn(
-                            'rounded-nerv-sm px-2 py-0.5 text-xs',
-                            theme === name
-                              ? 'bg-bg-active font-medium'
-                              : 'text-text-mute hover:bg-bg-hover',
-                          )}
-                        >
-                          {t(`theme.${name}`)}
-                        </button>
-                      ))}
-                    </div>
+                    <Segmented
+                      label={t('shell.theme')}
+                      testIdPrefix="theme"
+                      value={theme}
+                      onChange={setTheme}
+                      options={THEMES.map((name) => ({ value: name, label: t(`theme.${name}`) }))}
+                    />
                   </div>
                   <MenuItem
                     onClick={() => {
@@ -1117,8 +1106,10 @@ export function AppShell({
                   to="/settings/projects"
                   search={orgAdmin ? { new: 1 } : {}}
                   data-testid="project-new-link"
-                  className="mt-1 shrink-0 px-2 py-1 text-xs text-text-faint hover:text-text"
+                  // 사이드바에서 가장 작고 흐린 글자였다 — 항목과 같은 글자색에 + 표지(REQ-WEB-273)
+                  className="mt-1 shrink-0 rounded-nerv-sm px-2 py-1 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
                 >
+                  <span aria-hidden="true">+ </span>
                   {orgAdmin ? t('shell.new_project') : t('shell.project_manage')}
                 </Link>
               )}

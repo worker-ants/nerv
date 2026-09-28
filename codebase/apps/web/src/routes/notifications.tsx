@@ -27,6 +27,7 @@ import { StatusBadge } from '../components/status-badge.js';
 import { InvitationCards } from '../components/invitation-cards.js';
 import {
   Button,
+  Disclosure,
   EmptyState,
   LoadMore,
   Mono,
@@ -361,20 +362,19 @@ function NotificationScreen(): React.JSX.Element {
           )}
         </a>
         {repeat > 1 && (
-          <button
-            type="button"
-            data-testid="notification-repeat"
-            aria-expanded={expanded}
-            aria-label={repeatLabel}
-            title={repeatLabel}
-            onClick={(e) => {
+          // 흐린 "×3" 은 개수 표시로 읽혔다 — 펼치기 한 벌(REQ-WEB-276)
+          <Disclosure
+            expanded={expanded}
+            label={repeatLabel}
+            testId="notification-repeat"
+            className="shrink-0 tabular-nums"
+            onToggle={(e) => {
               e.stopPropagation(); // 펼치기는 이동이 아니다
               toggle(String(n['id']));
             }}
-            className="shrink-0 rounded-nerv-sm px-1 text-xs text-text-faint tabular-nums hover:bg-bg-active hover:text-text"
           >
             {t('feed.repeat', { count: repeat })}
-          </button>
+          </Disclosure>
         )}
         {/* 좁은 화면에서도 남긴다 — 어느 프로젝트의 알림인지는 줄의 절반이다(REQ-WEB-192).
             프로젝트 하나로 좁혔으면 모든 줄이 같으므로 빼고, 그 이름은 머리가 한 번 말한다(REQ-WEB-253) */}
@@ -401,9 +401,10 @@ function NotificationScreen(): React.JSX.Element {
         <span className="flex w-14 shrink-0 justify-end">
           {state === 'unread' && (
             <Button
-              size="sm"
-              variant="ghost"
-              // 키보드 포커스·터치에서도 보인다 — 투명한 채 포커스를 받으면 고리까지 함께 사라졌다
+              size="xs"
+              variant="subtle"
+              // 키보드 포커스·터치에서도 보인다 — 투명한 채 포커스를 받으면 고리까지 함께 사라졌다.
+              // 드러날 때는 단추로 보인다 — 옆의 시각과 같은 회색 글자였다(REQ-WEB-271)
               className={REVEAL_ON_HOVER}
               onClick={(e) => {
                 e.stopPropagation(); // 이동 없이 읽음만 처리하는 경로도 남긴다

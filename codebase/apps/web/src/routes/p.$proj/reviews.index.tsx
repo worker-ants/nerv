@@ -22,6 +22,7 @@ import { useScope } from '../../lib/scope.js';
 import { useMediaQuery } from '../../lib/use-media-query.js';
 import { cn } from '../../lib/utils.js';
 import {
+  Button,
   Card,
   EmptyState,
   LoadMore,
@@ -328,10 +329,12 @@ function ReviewCenter(): React.JSX.Element {
             tag.length > 0 ||
             area.length > 0 ||
             status.join() !== 'open') && (
-            <button
-              type="button"
+            // 작업 보드의 [필터 지우기]와 한 모양 — 각주 같은 가장 흐린 글자였다(REQ-WEB-272)
+            <Button
+              size="xs"
+              variant="subtle"
               data-testid="filter-reset"
-              className="mt-2 text-2xs text-text-faint hover:text-text"
+              className="mt-2"
               // 필터만 푼다 — 들어온 브랜치와 고른 발견은 필터가 아니다
               onClick={() =>
                 void navigate({
@@ -348,7 +351,7 @@ function ReviewCenter(): React.JSX.Element {
               }
             >
               {t('reviews.filter.reset')}
-            </button>
+            </Button>
           )}
         </aside>
 
@@ -377,10 +380,10 @@ function ReviewCenter(): React.JSX.Element {
               className="mb-2 flex items-center gap-2 text-xs text-text-mute"
             >
               {t('reviews.branch_filter', { branch })}
-              <button
-                type="button"
+              <Button
+                size="xs"
+                variant="subtle"
                 data-testid="branch-filter-clear"
-                className="text-link hover:underline"
                 // 브랜치만 푼다 — 걸어 둔 다른 필터와 고른 발견은 그대로다
                 onClick={() =>
                   void navigate({
@@ -391,7 +394,7 @@ function ReviewCenter(): React.JSX.Element {
                 }
               >
                 {t('reviews.branch_clear')}
-              </button>
+              </Button>
             </p>
           )}
           {queue.isPending ? (

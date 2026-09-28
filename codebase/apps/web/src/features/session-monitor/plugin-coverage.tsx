@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { relativeTime } from '../../lib/format.js';
 import { usePluginCoverage } from '../../lib/queries.js';
+import { Disclosure } from '../../components/ui/primitives.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
@@ -31,21 +32,13 @@ export function PluginCoverage({
   const allOn = data.total > 0 && data.active === data.total;
   return (
     <section data-testid="plugin-coverage" className="mb-4 text-sm">
-      <button
-        type="button"
-        data-testid="plugin-coverage-toggle"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-nerv-sm px-1 py-0.5 text-text-mute hover:bg-bg-hover hover:text-text"
-      >
+      {/* 겉모습이 상태 배지 하나라 "어느 기계가 꺼져 있나" 가 이 안에 있는 줄 몰랐다 — 펼치기 한 벌(REQ-WEB-276) */}
+      <Disclosure expanded={open} testId="plugin-coverage-toggle" onToggle={() => setOpen(!open)}>
         <StatusBadge
           token={data.total === 0 ? 'idle' : allOn ? 'ok' : 'waiting'}
           label={t('sessions.plugin.summary', { active: data.active, total: data.total })}
         />
-        <span aria-hidden="true" className="text-xs">
-          {open ? '▾' : '▸'}
-        </span>
-      </button>
+      </Disclosure>
       {open && (
         <div className="mt-2 rounded-nerv border border-border bg-bg-elev p-3">
           <p className="mb-2 text-xs text-text-faint">

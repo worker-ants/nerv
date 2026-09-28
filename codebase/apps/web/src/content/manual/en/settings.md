@@ -40,7 +40,7 @@ The Members and roles screen has two tabs. The first tab, **Members**, opens by 
 
 The Members tab shows who belongs here and in which role. A role can be granted for the whole organization or for a single project. When one person has roles at both levels, **their permissions are the union of both**.
 
-The table title shows **which organization's members** are listed. The **Applies to** column shows whether each role covers the whole organization or one project, identified by project **name**. Turning on a role chip grants that role **for that row's organization or project**.
+The table title shows **which organization's members** are listed. The **Applies to** column shows whether each role covers the whole organization or one project, identified by project **name**. Turning on a role chip grants that role **for that row's organization or project**. Chips that are on show ✓, and chips that are off show +.
 
 **Each person's rows are grouped together.** Within a group, the organization-wide row comes first, followed by the project rows in name order. The name and email appear only on the first row of the group. On a project row, a **dashed chip marked ↳** is a role the person **already has organization-wide**. They already have that permission in this project, so it does not need a separate grant and cannot be clicked. To change it, use the organization-wide row.
 

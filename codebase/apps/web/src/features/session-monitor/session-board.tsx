@@ -95,7 +95,7 @@ export function SessionBoard({
           title={t('sessions.none_in_state', { state: t(statusLabelKey('session', state)) })}
           action={
             onStateChange === undefined ? null : (
-              <Button size="sm" variant="ghost" onClick={() => onStateChange(null)}>
+              <Button size="sm" variant="subtle" onClick={() => onStateChange(null)}>
                 {t('sessions.show_all')}
               </Button>
             )

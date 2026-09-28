@@ -116,6 +116,8 @@ export function ScopeRail({
         className={cn(
           'flex items-center justify-between gap-2 rounded-nerv-sm px-1.5 py-0.5 text-xs transition-colors',
           on ? 'bg-bg-sunken font-medium text-text' : 'text-text-mute hover:text-text',
+          // 좁은 폭에서는 칩 줄이다 — 테두리가 없으면 이름과 숫자가 한 문장처럼 이어졌다(REQ-WEB-274)
+          'max-lg:rounded-full max-lg:border max-lg:border-border-strong max-lg:px-2.5',
           tone === 'org' && 'font-semibold',
           tone === 'project' && multiOrg && 'lg:pl-4',
         )}

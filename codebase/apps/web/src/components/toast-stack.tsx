@@ -11,6 +11,7 @@ import { useT } from '../lib/i18n.js';
 import { useRealtime } from '../lib/realtime.js';
 import type { Toast } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
+import { Button } from './ui/primitives.js';
 
 /** 한 번에 보이는 수 — 넘치면 오래된 것부터 접고 "외 N건" 으로 말한다 */
 export const TOAST_VISIBLE_MAX = 3;
@@ -49,9 +50,9 @@ export function ToastStack(): React.JSX.Element {
           className="flex items-center justify-end gap-2 text-xs text-text-mute"
         >
           <span>{t('shell.toast.more', { n: hidden })}</span>
-          <button type="button" className="text-link hover:underline" onClick={dismissAllToasts}>
+          <Button size="xs" variant="subtle" onClick={dismissAllToasts}>
             {t('shell.toast.dismiss_all')}
-          </button>
+          </Button>
         </div>
       )}
       {visible.map((toast) => {

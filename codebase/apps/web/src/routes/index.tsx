@@ -153,15 +153,20 @@ function HomeScreen(): React.JSX.Element {
           ))}
         </ul>
         {(waiting > 5 || othersWaiting > 0) && (
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-faint">
+          // 이동은 쉴 때 링크색이다 — 같은 화면의 빈 상태 링크와 같은 모양(REQ-WEB-273)
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {waiting > 5 && (
-              <Link to="/inbox" className="hover:text-link">
+              <Link to="/inbox" className="text-link hover:underline">
                 {t('home.inbox_all', { count: waiting })}
               </Link>
             )}
             {/* 내가 올린 것이 남의 결정을 기다린다 — 수에서는 뺐지만 사라지지는 않는다 */}
             {othersWaiting > 0 && (
-              <Link to="/inbox" data-testid="home-others-waiting" className="hover:text-link">
+              <Link
+                to="/inbox"
+                data-testid="home-others-waiting"
+                className="text-link hover:underline"
+              >
                 {t('home.others_waiting', { count: othersWaiting })}
               </Link>
             )}
@@ -348,10 +353,11 @@ function ProjectRow({
       <Link
         to="/p/$proj"
         params={{ proj: slug }}
-        className="block truncate text-sm font-medium hover:text-link"
+        className="block truncate text-sm font-medium text-link hover:underline"
       >
         {String(project['name'] ?? slug)}
       </Link>
+      {/* 숫자를 누르면 그 레코드로 간다(REQ-WEB-210) — 쉴 때는 통계 문장이라 ▸ 로 갈 데가 있음을 보인다(REQ-WEB-274) */}
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-text-mute">
         <Link
           to="/p/$proj/sessions"
@@ -360,7 +366,10 @@ function ProjectRow({
           className="hover:text-link"
         >
           {t('home.project.sessions')}{' '}
-          <span className={num(sessions, 'text-status-progress')}>{sessions}</span>
+          <span className={num(sessions, 'text-status-progress')}>{sessions}</span>{' '}
+          <span aria-hidden="true" className="text-text-faint">
+            ▸
+          </span>
         </Link>
         {/* 이 프로젝트의 **결정되지 않은 결재 전체**다 — 남의 큐까지. 내 차례는 위의 오늘 할 일이 센다 */}
         {/* 그 프로젝트로 좁힌 받은 요청을 연다(2026-09-27 · REQ-WEB-258) */}
@@ -372,7 +381,10 @@ function ProjectRow({
           className="hover:text-link"
         >
           {t('home.project.approvals')}{' '}
-          <span className={num(approvals, 'text-status-waiting')}>{approvals}</span>
+          <span className={num(approvals, 'text-status-waiting')}>{approvals}</span>{' '}
+          <span aria-hidden="true" className="text-text-faint">
+            ▸
+          </span>
         </Link>
         <Link
           to="/p/$proj/reviews"
@@ -382,7 +394,10 @@ function ProjectRow({
           className="hover:text-link"
         >
           {t('home.project.critical')}{' '}
-          <span className={num(critical, 'text-status-danger')}>{critical}</span>
+          <span className={num(critical, 'text-status-danger')}>{critical}</span>{' '}
+          <span aria-hidden="true" className="text-text-faint">
+            ▸
+          </span>
         </Link>
       </div>
     </li>

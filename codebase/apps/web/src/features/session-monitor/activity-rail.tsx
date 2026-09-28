@@ -49,7 +49,8 @@ export function ActivityRail({
         <Link
           to="/p/$proj/sessions/$session"
           params={{ proj: projectSlug, session: card.id }}
-          className="ml-auto shrink-0 text-sm text-text-faint hover:text-link"
+          // 이동이라 쉴 때 링크색이다 — 가장 흐린 글자였다(REQ-WEB-273)
+          className="ml-auto shrink-0 text-sm text-link hover:underline"
         >
           {t('sessions.detail_link')} ↗
         </Link>

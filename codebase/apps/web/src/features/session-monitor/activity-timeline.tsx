@@ -19,7 +19,7 @@ import {
 } from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
-import { GlyphChip, LoadMore, Skeleton } from '../../components/ui/primitives.js';
+import { Disclosure, GlyphChip, LoadMore, Skeleton } from '../../components/ui/primitives.js';
 import { relativeTime } from './format.js';
 import { cn } from '../../lib/utils.js';
 
@@ -241,15 +241,14 @@ function ActivityRow({
             </span>
           )}
           {raw !== null && (
-            <button
-              type="button"
-              data-testid="activity-toggle"
-              aria-expanded={expanded}
-              onClick={onToggle}
-              className="shrink-0 text-2xs text-text-faint hover:text-text"
-            >
-              {expanded ? '▾' : '▸'}
-            </button>
+            // 기호만 있던 단추 — 이름이 없었고 누르는 면이 글자 크기였다(REQ-WEB-276 · REQ-WEB-170 과 같은 처방)
+            <Disclosure
+              expanded={expanded}
+              label={expanded ? t('reviews.collapse') : t('reviews.expand')}
+              testId="activity-toggle"
+              className="min-h-6 min-w-6 shrink-0"
+              onToggle={() => onToggle()}
+            />
           )}
         </div>
         {/* 원문 — 접힘이 기본이다. 383건이 다 펼쳐지면 지금보다 나쁘다 */}

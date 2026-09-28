@@ -89,7 +89,10 @@ export function SpecTable({
         >
           {label}
           {/* 방향은 기호만으로 두지 않는다 — 화살표가 없으면 정렬 중인지도 모른다 */}
-          {active && <span aria-hidden="true">{descending ? '▾' : '▴'}</span>}
+          {/* 고르지 않은 열에도 흐린 ↕ — 역참조로 정렬할 수 있다는 단서가 없었다(REQ-WEB-274) */}
+          <span aria-hidden="true" className={active ? undefined : 'text-text-faint'}>
+            {active ? (descending ? '▾' : '▴') : '↕'}
+          </span>
         </button>
       </Th>
     );

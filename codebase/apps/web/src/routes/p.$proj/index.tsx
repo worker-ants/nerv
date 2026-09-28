@@ -232,6 +232,7 @@ function WaitingLine({
   critical: number;
 }): React.JSX.Element {
   const t = useT();
+  // 상태 배지와 같은 옅은 알약이라 표시로 읽혔다 — 이동하는 칩에는 ▸ 를 붙인다(REQ-WEB-274)
   const chip = 'rounded-full px-2.5 py-0.5 text-xs font-medium hover:underline';
   return (
     <div
@@ -255,6 +256,7 @@ function WaitingLine({
           className={cn(chip, 'bg-status-action-soft text-status-action')}
         >
           {t('project.waiting.approvals', { count: approvals })}
+          <span aria-hidden="true"> ▸</span>
         </Link>
       )}
       {importantNotifications > 0 && (
@@ -269,6 +271,7 @@ function WaitingLine({
           className={cn(chip, 'bg-bg-sunken text-text')}
         >
           {t('project.waiting.notifications', { count: importantNotifications })}
+          <span aria-hidden="true"> ▸</span>
         </Link>
       )}
       {waitingSessions > 0 && (
@@ -280,6 +283,7 @@ function WaitingLine({
           className={cn(chip, 'bg-status-waiting-soft text-status-waiting')}
         >
           {t('project.waiting.sessions', { count: waitingSessions })}
+          <span aria-hidden="true"> ▸</span>
         </Link>
       )}
       {critical > 0 && (
@@ -291,6 +295,7 @@ function WaitingLine({
           className={cn(chip, 'bg-status-danger-soft text-status-danger')}
         >
           {t('project.waiting.critical', { count: critical })}
+          <span aria-hidden="true"> ▸</span>
         </Link>
       )}
     </div>

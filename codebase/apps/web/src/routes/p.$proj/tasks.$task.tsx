@@ -621,7 +621,6 @@ function TaskDetail(): React.JSX.Element {
                     {canEditBrief && (
                       <Button
                         size="sm"
-                        variant="ghost"
                         data-testid="rebrief-edit"
                         onClick={() => {
                           setEditingBrief(true);

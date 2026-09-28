@@ -14,7 +14,14 @@ import { relativeTime } from '../../lib/format.js';
 import { useT } from '../../lib/i18n.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { cn } from '../../lib/utils.js';
-import { Avatar, Button, Input, Select, Textarea } from '../../components/ui/primitives.js';
+import {
+  Avatar,
+  Button,
+  Disclosure,
+  Input,
+  Select,
+  Textarea,
+} from '../../components/ui/primitives.js';
 
 /** 코멘트를 달 수 있는 자리 — 본문의 헤딩과 요구사항 */
 export interface AnchorChoice {
@@ -157,17 +164,16 @@ export function CommentList({
       </ul>
       {/* **해결된 것도 다시 볼 수 있다** — 무엇이 지적됐고 어떻게 닫혔는지는 다음 리뷰의 재료다 */}
       {resolved.length > 0 && (
-        <button
-          type="button"
-          data-testid="comments-resolved-toggle"
-          aria-expanded={showResolved}
-          onClick={() => setShowResolved((v) => !v)}
-          className="self-start text-2xs text-text-mute hover:text-text"
+        <Disclosure
+          expanded={showResolved}
+          testId="comments-resolved-toggle"
+          className="self-start"
+          onToggle={() => setShowResolved((v) => !v)}
         >
           {t(showResolved ? 'spec.comment.resolved_hide' : 'spec.comment.resolved_show', {
             count: resolved.length,
           })}
-        </button>
+        </Disclosure>
       )}
       {showResolved && <ul className="flex flex-col gap-1">{resolved.map((c) => row(c, true))}</ul>}
       <div className="mt-1 flex flex-col gap-1.5 border-t border-border pt-2">

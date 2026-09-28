@@ -180,7 +180,10 @@ describe('개요 머리가 여기서 나를 기다리는 것을 말한다 (HUB-0
     renderAt('/p/clemvion');
     const line = await screen.findByTestId('project-waiting');
     await waitFor(() =>
-      expect(within(line).getByTestId('project-waiting-approvals').textContent).toBe('내 결정 2건'),
+      // 끝의 ▸ 는 갈 데가 있다는 표지다(REQ-WEB-274)
+      expect(within(line).getByTestId('project-waiting-approvals').textContent).toBe(
+        '내 결정 2건 ▸',
+      ),
     );
     // 그 프로젝트로 좁힌 받은 요청이다(2026-09-27 · REQ-WEB-258) — 조직을 모르는 응답이면 slug 만 준다
     expect(within(line).getByTestId('project-waiting-approvals').getAttribute('href')).toBe(

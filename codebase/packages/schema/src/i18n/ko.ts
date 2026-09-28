@@ -1982,6 +1982,7 @@ export const ko = {
   'graph.legend.size': '크기 = 역참조 수',
   'graph.help_more': '도움말 — 스펙 장에서 더 보기 ▸',
   'graph.hops': '{n}단계',
+  'graph.hops_label': '중심에서의 거리',
   'graph.relayout': '다른 배치',
   'graph.layout_n': '배치 {n}',
   'graph.layout_reset': '처음 배치',

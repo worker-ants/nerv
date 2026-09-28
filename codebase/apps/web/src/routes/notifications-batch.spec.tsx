@@ -142,12 +142,13 @@ describe('서버가 묶은 줄 (REQ-WEB-262)', () => {
     const rows = await screen.findAllByTestId('notification-row');
     expect(rows).toHaveLength(2);
     const open = rows[0] as HTMLElement;
-    expect(within(open).getByTestId('notification-repeat').textContent).toBe('×12');
+    // 앞의 ▸ 는 펼치기 표지다(REQ-WEB-276) — 수는 서버가 센 그대로다
+    expect(within(open).getByTestId('notification-repeat').textContent).toBe('▸×12');
     expect(within(open).getByTestId('notification-causes').textContent).toBe(
       'SUD-VISION · SUD-AREA-PLAY · SUD-AREA-ROOM 등',
     );
     expect(within(rows[1] as HTMLElement).getByTestId('notification-repeat').textContent).toBe(
-      '×2',
+      '▸×2',
     );
   });
 

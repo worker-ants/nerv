@@ -588,7 +588,7 @@ function RevealOnce({
         >
           {t('settings.tokens.install_chapter')} ▸
         </Link>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="sm" onClick={onClose}>
           {t('common.close')}
         </Button>
       </div>
