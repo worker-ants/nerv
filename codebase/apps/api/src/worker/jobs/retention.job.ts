@@ -7,7 +7,12 @@
 // 프로젝트별 `retention` jsonb 가 기본값을 덮는다(api.md §2.1a) — 프로젝트마다 규제 요건이
 // 다르기 때문이다. 상수는 최후의 기본값이고 정책이 있으면 정책이 이긴다.
 import { Injectable, Logger } from '@nestjs/common';
-import { IDEMPOTENCY_TTL_HOURS, REVIEW_PROMPT_BLOB_TTL_DAYS, RetentionSchema } from '@nerv/schema';
+import {
+  IDEMPOTENCY_TTL_HOURS,
+  REVIEW_PROMPT_BLOB_TTL_DAYS,
+  RetentionSchema,
+  SENT_MAIL_RETENTION_DAYS,
+} from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -18,6 +23,8 @@ export interface RetentionReport {
   projects_scanned: number;
   /** 만료된 멱등 키 행 수(api.md §1.5 — 24시간) */
   idempotency_keys_deleted: number;
+  /** 치운 보낸 메일 행 수(database.md §2.17 — `SENT_MAIL_RETENTION_DAYS`) */
+  sent_mail_deleted: number;
 }
 
 @Injectable()
@@ -34,6 +41,7 @@ export class RetentionJob {
       blobs_expired: 0,
       projects_scanned: 0,
       idempotency_keys_deleted: 0,
+      sent_mail_deleted: 0,
     };
 
     // 멱등 키는 **24시간**이다(api.md §1.5). 프로젝트 정책이 아니라 계약이 정한 값이라
@@ -48,6 +56,18 @@ export class RetentionJob {
       RETURNING id
     `);
     report.idempotency_keys_deleted = staleKeys.length;
+
+    // **보낸 메일을 치운다**(2026-09-28 · 사람 결정 EM9 · REQ-DB-033). 스키마 주석과 DDL 정본은 처음부터
+    // "보존 잡이 보낸 지 오래된 것을 치운다" 고 적었는데 이 잡에 그 삭제가 없었다 — 본문에는 링크와
+    // 문서 제목이 들어 있고, 알림 메일 요약이 들어오면 날마다 쌓인다. 링크가 모두 죽은 뒤에는 남길
+    // 까닭이 없다. 재시도를 포기한 줄(`failed_at`)은 원인을 보려고 남긴다(REQ-DB-026).
+    const { rows: sentMail } = await this.db.execute<{ id: string }>(sql`
+      DELETE FROM email_outbox
+       WHERE sent_at IS NOT NULL
+         AND sent_at < now() - make_interval(days => ${SENT_MAIL_RETENTION_DAYS})
+      RETURNING id
+    `);
+    report.sent_mail_deleted = sentMail.length;
 
     const { rows: projects } = await this.db.execute<{ id: string; retention: unknown }>(
       sql`SELECT id, retention FROM project WHERE archived_at IS NULL`,
@@ -146,11 +166,13 @@ export class RetentionJob {
     if (
       report.activities_deleted > 0 ||
       report.blobs_expired > 0 ||
-      report.idempotency_keys_deleted > 0
+      report.idempotency_keys_deleted > 0 ||
+      report.sent_mail_deleted > 0
     ) {
       this.logger.log(
         `보존 정책 집행 — Activity ${report.activities_deleted}건 삭제 · blob ${report.blobs_expired}건 만료` +
-          ` · 멱등 키 ${report.idempotency_keys_deleted}건 만료`,
+          ` · 멱등 키 ${report.idempotency_keys_deleted}건 만료` +
+          ` · 보낸 메일 ${report.sent_mail_deleted}건 정리`,
       );
     }
     return report;

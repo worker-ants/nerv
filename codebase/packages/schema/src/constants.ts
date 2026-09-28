@@ -308,6 +308,13 @@ export const SEED_ORG_SLUG = 'default';
 export const INVITATION_TTL_DAYS = 7;
 
 /**
+ * 보낸 메일을 **발송 큐에 남겨 두는 날 수**(2026-09-28 · 사람 결정 EM9 · REQ-DB-033). 새 수치가 아니라
+ * 메일 링크 가운데 가장 긴 수명(초대 링크 — 위 값)이다: 그보다 오래된 메일의 링크는 모두 죽어 있어
+ * 남길 까닭이 없다. 재시도를 포기한 줄은 원인을 보려고 남기는 것이라 이 규칙에서 뺀다.
+ */
+export const SENT_MAIL_RETENTION_DAYS = INVITATION_TTL_DAYS;
+
+/**
  * **`nerv_task_update`·EP-TASK-09 가 받는 목표 상태 여섯**(2026-09-07 · REQ-API-129~132).
  *
  * `claimed` 가 빠져 있다. 그 상태로 가는 길은 원자적 클레임 하나뿐이고(`nerv_task_claim` —
