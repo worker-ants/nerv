@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.18 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.19 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.19 변경(2026-09-28 — 스토리 없이 들어온 수정 하나, **사람 결정 A1~A7**): §1.4 셋째 표에 **글자처럼 보이는 단추 — 상 13건과 결함 다섯**을 적는다.
 >
 > v2.18 변경(2026-09-28 — 스토리 없이 들어온 수정 하나, **사람 결정 A1~A7**): §1.4 셋째 표에 **글자처럼 보이는 단추 — 규칙 · 공용 부품 · 장부**를 적는다.
 >
@@ -709,6 +711,7 @@ referenced_by:
 | 알림 메일 요약 — 켠 사람에게 하루 한 번 | 스키마 `notification_digest_setting` · `email_kind.notification_digest`(마이그레이션 `0041`) · `DIGEST_MAX_LINES` · `DIGEST_DEFAULT_HOUR` · `NotificationDigestInput` · 서버 `modules/digest/`(`digest.service.ts` — 켜기 · 끄기 · 하루 한 번 판정 · `digest.controller.ts` EP-NTF-07·08) · `mail.outbox.ts`(`enqueueDigest`) · 잡 `digest.job.ts` · 화면 `features/inbox/email-digest.tsx`(내 계정) · 문구 `mail.digest.*` · `account.digest*` · 매뉴얼 ko·en(설정 · 받은 요청) · L1 `email-digest.spec.tsx` · L2 `digest.spec.ts` · `worker-jobs.spec.ts` | 사람 결정 EM1~EM9(알림 메일 요약 결정 문서 · 모두 권장안). 알림은 앱 안에만 있어서 앱을 자주 열지 않는 사람에게 알릴 길이 없었다([4.4 API 명세](api.md) REQ-API-232·233 · [4.3 데이터베이스](database.md) REQ-DB-034 · [4.5 화면 명세](screens.md) REQ-WEB-269 · [4.1 MVP 범위와 스택 확정](scope.md) FR-12). 남은 것: 로그인 없이 한 번에 끄는 링크(EM8 — 다음 PR) |
 | 메일 요약을 로그인 없이 끄는 링크 | 스키마 `email_outbox.headers` · `unsubscribe_token_hash`(마이그레이션 `0042`) · 서버 `mail/unsubscribe-link.ts` · `mail.outbox.ts`(머리글 · 해시) · `mail.sender.ts` · `mail.job.ts`(머리글을 그대로 보낸다) · `digest.service.ts`(`unsubscribe` · 본문의 끄는 링크) · `digest.controller.ts`(EP-NTF-09·10) · 화면 `routes/unsubscribe.$token.tsx` · `__root.tsx`(셸 밖 공개 경로) · 문구 `unsubscribe.*` · `mail.digest.unsubscribe` · 매뉴얼 ko·en(설정) · L1 `unsubscribe.spec.tsx` · L2 `digest.spec.ts` · `rest-surface.spec.ts` | 사람 결정 EM8. 메일 요약을 끄려면 로그인해 내 계정까지 가야 했고, 메일 앱의 [구독 취소] 단추도 뜨지 않았다([4.4 API 명세](api.md) REQ-API-234 · [4.3 데이터베이스](database.md) REQ-DB-035 · [4.5 화면 명세](screens.md) REQ-WEB-270). 알림 메일 요약 결정(EM1~EM9)은 이것으로 모두 끝났다 |
 | 글자처럼 보이는 단추 — 규칙 · 공용 부품 · 장부 | `components/ui/primitives.tsx`(`subtle` 테두리 · ghost 쓰임 · `buttonClass` · `LoadMore` · `Disclosure` · `SummaryStrip` 거르는 칸 테두리와 링크 칸 `▸` · `Tr` 의 `interactive`) · L1 `affordance-ledger.spec.tsx`(장부 42개 파일 94곳) | 사람 보고와 사람 결정 A1~A7(글자처럼 보이는 단추 검토 · 모두 권장안). 알림의 [모두 읽음]이 쉴 때 회색 글자라 누를 수 있는 줄 몰랐다([4.5 화면 명세](screens.md) REQ-WEB-271~276). 남은 것: 상 13건과 결함 다섯(PR 2) · 중 51건(PR 3) · 하와 모양 통일(PR 4) — 장부가 0 이 될 때까지 |
+| 글자처럼 보이는 단추 — 상 13건과 결함 다섯 | `routes/notifications.tsx` · `inbox.tsx` 의 [모두 읽음] · [승인 가능한 것만 고르기] · [선택 해제] · `specs.$spec.tsx` · `spec-toc.tsx` · `specs.index.tsx` 의 [⋯ 문서 정보] · [목차 ▾] · [전체 트리로] · [검색어 지우기] · 이어쓰기와 원문의 [복사] → `CopyButton`(`className` 받음) · 코멘트 [해결] → `Button xs subtle` · 그래프 패널 제목은 링크색 + → · [이 문서 중심으로] · [더 보기] 일곱 → `LoadMore`(알림 · 받은 요청 · 활동 피드 · 세션 · 앞쪽 활동 · 레인 · 리뷰 큐) · 세션 줄 [상세](링크색) · 발견 카드(커서 · hover 바탕 · 제목 옅은 밑줄과 ›) · 링크색 결함(승인 카드 `Mono` 셋 · `EntityLink` 둘) · 작업 카드 전체 링크 · 문구 `common.copy*` · `spec.source_copy*` 삭제 · L1 장부 94 → 75 | 사람 결정 A1~A7의 적용 첫 묶음([4.5 화면 명세](screens.md) REQ-WEB-271~276). 기능으로 가는 유일한 길이 쉴 때 글자로 보였다. 작업 카드는 hover 바탕과 ⋯ 로 전체가 눌릴 것처럼 보였는데 제목만 눌렸다(매뉴얼 작업 장의 "카드를 누르면" 과 어긋났다). 남은 것: 중 51건(PR 3) · 하와 모양 통일(PR 4) |
 
 #### 이 절은 언제 갱신되는가
 

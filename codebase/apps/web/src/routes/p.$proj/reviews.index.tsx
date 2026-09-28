@@ -22,9 +22,9 @@ import { useScope } from '../../lib/scope.js';
 import { useMediaQuery } from '../../lib/use-media-query.js';
 import { cn } from '../../lib/utils.js';
 import {
-  Button,
   Card,
   EmptyState,
+  LoadMore,
   PageBody,
   PageHeader,
   SectionTitle,
@@ -461,16 +461,14 @@ function ReviewCenter(): React.JSX.Element {
             </Card>
           )}
           {truncated && (
-            <Button
-              size="sm"
-              variant="subtle"
-              data-testid="queue-more"
-              disabled={queue.isFetchingNextPage}
+            <LoadMore
+              className="mt-2"
+              testId="queue-more"
+              pending={queue.isFetchingNextPage}
               onClick={() => void queue.fetchNextPage()}
-              className="mt-2 w-full text-2xs"
-            >
-              {t('reviews.queue.more')}
-            </Button>
+              label={t('reviews.queue.more')}
+              pendingLabel={t('common.loading')}
+            />
           )}
 
           <div className="mt-6">

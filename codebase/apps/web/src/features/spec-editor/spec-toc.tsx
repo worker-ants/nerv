@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
-import { Popover } from '../../components/ui/primitives.js';
+import { Button, Popover } from '../../components/ui/primitives.js';
 import type { MdHeading } from '../../lib/spec-anchors.js';
 
 export function SpecToc({
@@ -43,15 +43,16 @@ export function SpecToc({
   if (items.length < 2) return null;
   return (
     <div ref={boxRef} className="relative">
-      <button
-        type="button"
+      {/* [⋯ 문서 정보] 곁의 같은 단 — 쉴 때 테두리가 있다(REQ-WEB-271) */}
+      <Button
+        size="sm"
+        variant="subtle"
         data-testid="spec-toc"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="rounded-nerv-sm px-2 py-0.5 text-sm text-text-mute hover:bg-bg-hover hover:text-text"
       >
         {t('spec.toc')} ▾
-      </button>
+      </Button>
       {open && (
         <Popover className="max-h-[60vh] w-72 overflow-y-auto py-1" align="right">
           <ul data-testid="spec-toc-list">

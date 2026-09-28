@@ -122,15 +122,18 @@ export function CommentList({
             </p>
           )
         ) : (
-          <button
-            type="button"
+          // 쓰기 명령이다 — 이동 링크의 모양이 아니라 리뷰의 [처분]과 같은 줄 안 단추다(REQ-WEB-272)
+          <Button
+            size="xs"
+            variant="subtle"
+            requiresOnline
             data-testid="comment-resolve"
-            className="mt-1 text-xs text-link hover:underline disabled:opacity-50"
+            className="mt-1 self-start"
             disabled={resolve.isPending}
             onClick={() => resolve.mutate(String(c['id']))}
           >
             {t('spec.comment_resolve')}
-          </button>
+          </Button>
         )}
       </li>
     );

@@ -966,9 +966,11 @@ export function SpecGraph({
                 type="button"
                 data-testid="graph-panel-open"
                 onClick={() => onOpen(selectedNode.key)}
-                className="min-w-0 flex-1 text-left text-base leading-snug font-semibold tracking-heading text-text hover:text-link hover:underline"
+                // **쉴 때 링크색이다**(2026-09-28 · REQ-WEB-273) — 노드를 누르면 고르기만 하고 여는 길은 이것뿐인데,
+                // 본문색 제목이던 동안 패널의 제목으로만 읽혔다
+                className="min-w-0 flex-1 text-left text-base leading-snug font-semibold tracking-heading text-link hover:underline"
               >
-                {selectedNode.title}
+                {selectedNode.title} <span aria-hidden="true">→</span>
               </button>
               <button
                 type="button"
@@ -993,16 +995,18 @@ export function SpecGraph({
               </span>
               <span className="truncate font-mono">{selectedNode.key}</span>
             </p>
-            <button
-              type="button"
+            <Button
+              size="xs"
+              variant="subtle"
+              data-testid="graph-panel-center"
+              className="mt-1.5"
               onClick={() => {
                 setFocus(selectedNode.key);
                 setHops(1);
               }}
-              className="mt-1.5 rounded-nerv-sm px-1.5 py-0.5 text-2xs text-text-mute hover:bg-bg-hover hover:text-text"
             >
               {t('graph.panel.center')}
-            </button>
+            </Button>
           </header>
 
           {/* 레일과 **같은 탭·같은 어휘**다(§2.4) — 두 화면이 관계를 다르게 부르면

@@ -49,6 +49,7 @@ import { cn } from '../../lib/utils.js';
 import {
   Avatar,
   Button,
+  LoadMore,
   PageBody,
   PageHeader,
   Select,
@@ -643,22 +644,18 @@ function Lane({
       {/* 받아 둔 카드를 다 펼치면 **다음 쪽을 부른다**(REQ-WEB-221) — 예전 단추는 받아 둔 것만 펼쳐
           "30+" 레인의 31번째부터는 보드로 닿을 길이 없었다 */}
       {!collapsed && (hidden > 0 || query.hasNextPage === true) && (
-        <button
-          type="button"
-          data-testid={`lane-more-${lane}`}
-          disabled={hidden === 0 && query.isFetchingNextPage}
+        // 레인에서 가장 흐린 글자였다 — 31번째 카드부터 갈 길이 이것뿐이다(REQ-WEB-271)
+        <LoadMore
+          className="mt-1"
+          testId={`lane-more-${lane}`}
+          pending={hidden === 0 && query.isFetchingNextPage}
           onClick={() => {
             if (hidden === 0) void query.fetchNextPage();
             setCap(cap + LANE_CAP);
           }}
-          className="px-3 py-2 text-left text-sm text-text-faint hover:text-text disabled:opacity-60"
-        >
-          {hidden > 0
-            ? t('tasks.lane_more', { count: hidden })
-            : query.isFetchingNextPage
-              ? t('common.loading')
-              : t('tasks.lane_fetch_more')}
-        </button>
+          label={hidden > 0 ? t('tasks.lane_more', { count: hidden }) : t('tasks.lane_fetch_more')}
+          pendingLabel={t('common.loading')}
+        />
       )}
     </section>
   );
@@ -700,9 +697,12 @@ function TaskCard({
     // **테두리를 걷어냈다**(2026-08-23 재검토). 칸마다 같은 상자가 스무 개 서면 화면이
     // 표가 되고, 그때 눈은 어느 것도 붙잡지 못한다. 평소에는 배경 없이 두고 hover 로
     // 만져지는 것만 알린다 — 주의가 필요한 카드만 왼쪽 2px 룰로 스스로 튄다.
+    // **카드 전체가 누르는 면이다**(2026-09-28 · 사람 결정 A5 · REQ-WEB-275) — hover 바탕과 ⋯ 로 카드 전체가 눌릴 것처럼
+    // 보였는데 실제로는 제목만 눌렸다(매뉴얼은 "카드를 누르면" 이라 적는다). 제목 링크의 면을 카드로 넓히고, 카드 안의
+    // 다른 링크·단추는 `relative` 로 그 면 위에 둔다
     <article
       className={cn(
-        'group rounded-nerv border-l-2 py-2.5 pr-3 pl-2.5 transition-colors hover:bg-bg-sunken',
+        'group relative rounded-nerv border-l-2 py-2.5 pr-3 pl-2.5 transition-colors hover:bg-bg-sunken',
         needsAttention ? 'border-l-status-waiting' : 'border-l-transparent',
       )}
     >
@@ -714,7 +714,7 @@ function TaskCard({
           params={{ proj, task: String(task['key']) }}
           // 걸어 둔 필터를 **물고 간다** — 시트 뒤의 보드가 같은 모양으로 남는다(REQ-WEB-213)
           search={(prev: TaskBoardSearch) => boardFilters(prev)}
-          className="min-w-0 flex-1 text-base leading-snug font-medium tracking-heading hover:text-link"
+          className="min-w-0 flex-1 text-base leading-snug font-medium tracking-heading group-hover:text-link after:absolute after:inset-0 after:rounded-nerv"
         >
           {String(task['title'])}
         </Link>
@@ -759,7 +759,7 @@ function TaskCard({
                 host: task['claim_hostname'],
                 agent: String(task['claim_agent_type'] ?? ''),
               })}
-              className="rounded-nerv-sm bg-status-agent-soft px-1 text-2xs font-medium text-status-agent hover:no-underline"
+              className="relative rounded-nerv-sm bg-status-agent-soft px-1 text-2xs font-medium text-status-agent hover:no-underline"
             >
               AI
             </EntityLink>
@@ -781,7 +781,8 @@ function TaskCard({
             projectSlug={proj}
             entity={{ kind: 'spec', key: task['spec_key'] }}
             testId="task-card-spec"
-            className="font-mono text-text-faint hover:text-link"
+            // 옆의 작업 키(링크 아님)와 모양이 같았다 — 흐린 색은 두고 쉴 때 점선 밑줄로 링크임을 보인다(REQ-WEB-273)
+            className="relative font-mono text-text-faint underline decoration-dotted underline-offset-2 hover:text-link"
           />
         )}
         {/* **경과 시간은 오른쪽 끝에 붙는다**(시안 대조 2026-08-23). 카드가 스무 장
@@ -817,7 +818,7 @@ function TaskCard({
           // 걸어 둔 필터를 **물고 간다** — 시트 뒤의 보드가 같은 모양으로 남는다(REQ-WEB-213)
           search={(prev: TaskBoardSearch) => boardFilters(prev)}
           data-testid="rebrief-badge"
-          className="mt-1.5 block rounded-nerv-sm bg-status-waiting-soft px-1.5 py-1 text-2xs text-status-waiting hover:underline"
+          className="relative mt-1.5 block rounded-nerv-sm bg-status-waiting-soft px-1.5 py-1 text-2xs text-status-waiting hover:underline"
         >
           {t('tasks.rebrief', {
             version: String(task['basis_version_no'] ?? '?'),
@@ -835,7 +836,7 @@ function TaskCard({
           <Button
             size="sm"
             data-testid="card-fill"
-            className="mt-1"
+            className="relative mt-1"
             disabled={controls.editBlock !== null}
             title={controls.editBlock ?? t('tasks.ready_blocked_title')}
             onClick={() => controls.onEdit(String(task['key']))}
@@ -849,6 +850,7 @@ function TaskCard({
           <Button
             size="sm"
             data-testid="card-to-ready"
+            className="relative"
             disabled={controls.moveBlock !== null || controls.pending}
             title={controls.moveBlock ?? t('task.next.to_ready_hint')}
             onClick={() => controls.onToReady(String(task['id']))}

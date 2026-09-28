@@ -19,7 +19,7 @@ import { cn } from '../lib/utils.js';
 import { collapseRepeats, eventSubject, eventTarget, hrefOf } from '../lib/event-subject.js';
 import type { EventRow } from '../lib/event-subject.js';
 import { ErrorState, failedWithoutData } from './query-state.js';
-import { Avatar, Button, EmptyState, Skeleton } from './ui/primitives.js';
+import { Avatar, EmptyState, LoadMore, Skeleton } from './ui/primitives.js';
 
 export interface EventFeedProps {
   projectSlug: string;
@@ -107,16 +107,14 @@ export function EventFeed({
       </ul>
       {/* 개요는 끝까지 볼 수 있다 — 30줄에서 끝나고 더 볼 길이 없었다(HUB-07) */}
       {max === undefined && feed.hasNextPage === true && (
-        <div className="mt-3 flex justify-center">
-          <Button
-            variant="ghost"
-            data-testid="event-feed-more"
-            disabled={feed.isFetchingNextPage}
-            onClick={() => void feed.fetchNextPage()}
-          >
-            {t('tasks.more')}
-          </Button>
-        </div>
+        <LoadMore
+          className="mt-3"
+          testId="event-feed-more"
+          pending={feed.isFetchingNextPage}
+          onClick={() => void feed.fetchNextPage()}
+          label={t('tasks.more')}
+          pendingLabel={t('common.loading')}
+        />
       )}
     </>
   );

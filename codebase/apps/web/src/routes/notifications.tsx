@@ -28,6 +28,7 @@ import { InvitationCards } from '../components/invitation-cards.js';
 import {
   Button,
   EmptyState,
+  LoadMore,
   Mono,
   PageBody,
   PageHeader,
@@ -483,7 +484,7 @@ function NotificationScreen(): React.JSX.Element {
               {clearable > 0 && (
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="subtle"
                   data-testid="mark-all-read"
                   disabled={markAllRead.isPending}
                   onClick={() => markAllRead.mutate()}
@@ -621,16 +622,14 @@ function NotificationScreen(): React.JSX.Element {
             })}
           </ul>
           {notifications.hasNextPage === true && (
-            <div className="mt-3 flex justify-center">
-              <Button
-                variant="ghost"
-                data-testid="notif-more"
-                disabled={notifications.isFetchingNextPage}
-                onClick={() => void notifications.fetchNextPage()}
-              >
-                {t('tasks.more')}
-              </Button>
-            </div>
+            <LoadMore
+              className="mt-3"
+              testId="notif-more"
+              pending={notifications.isFetchingNextPage}
+              onClick={() => void notifications.fetchNextPage()}
+              label={t('tasks.more')}
+              pendingLabel={t('common.loading')}
+            />
           )}
         </div>
       </div>

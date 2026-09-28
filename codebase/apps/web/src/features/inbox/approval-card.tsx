@@ -634,7 +634,8 @@ export function ApprovalCard({
             {...(subjectLink.search === undefined ? {} : { search: subjectLink.search })}
             testId="subject-link"
           >
-            <Mono>{subjectLink.key}</Mono>
+            {/* 링크 속 `Mono` 는 자기 글자색으로 링크색을 덮었다 — 링크색을 다시 준다(2026-09-28 · REQ-WEB-273) */}
+            <Mono className="text-link">{subjectLink.key}</Mono>
           </CardLink>
         )}
         {!isQuestion && subjectLink === null && (
@@ -773,7 +774,7 @@ export function ApprovalCard({
               to={item.to}
               params={item.params}
             >
-              <Mono>{item.key}</Mono>
+              <Mono className="text-link">{item.key}</Mono>
             </CardLink>
           ))}
           {/* 발견도 갈 곳이 있다 — 예전에는 짧은 id 만 적혀 있어서 그 지적을 보려면
@@ -789,7 +790,7 @@ export function ApprovalCard({
               search={{ finding: String(card['finding_id']) }}
               testId="finding-link"
             >
-              <Mono>{String(card['finding_id']).slice(0, 8)}</Mono>
+              <Mono className="text-link">{String(card['finding_id']).slice(0, 8)}</Mono>
             </CardLink>
           )}
         </p>

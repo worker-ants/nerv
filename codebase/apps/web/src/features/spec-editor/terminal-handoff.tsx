@@ -8,14 +8,12 @@
 // (`plugin/skills/spec/SKILL.md`), 여기서는 그것을 그대로 조립해 보여 줄 뿐이다.
 
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
 import { useT } from '../../lib/i18n.js';
-import { Button } from '../../components/ui/primitives.js';
+import { CopyButton } from '../../components/copy-button.js';
 import { helpLink } from '../../lib/manual-chapters.js';
 
 export function TerminalHandoffCard({ specKey }: { specKey: string }): React.JSX.Element {
   const t = useT();
-  const [copied, setCopied] = useState(false);
   const command = `claude "/nerv:spec edit ${specKey}"`;
 
   return (
@@ -29,22 +27,9 @@ export function TerminalHandoffCard({ specKey }: { specKey: string }): React.JSX
         >
           {command}
         </code>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          data-testid="handoff-copy"
-          onClick={() => {
-            // 클립보드가 막힌 환경(비 https·권한 거부)에서도 화면은 그대로 돈다 —
-            // 명령은 눈에 보이므로 손으로 옮겨 적을 수 있다.
-            void navigator.clipboard?.writeText(command).then(
-              () => setCopied(true),
-              () => setCopied(false),
-            );
-          }}
-        >
-          {copied ? t('common.copied') : t('common.copy')}
-        </Button>
+        {/* 공용 복사 단추 — [에이전트에게 넘기기]가 포커스를 주는 자리라 쉴 때 단추로 보여야 한다(REQ-WEB-271).
+            클립보드가 막힌 환경에서도 명령은 눈에 보이므로 손으로 옮겨 적을 수 있다 */}
+        <CopyButton value={command} testId="handoff-copy" />
       </div>
       {/* 플러그인을 아직 깔지 않은 사람은 이 명령을 받아도 쓸 수 없다 — 설치 장으로 가는 길(SPEC-09) */}
       <Link

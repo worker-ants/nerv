@@ -61,6 +61,8 @@ export function FindingCard({
         // 주의가 필요한 것만 좌측 룰로 튄다(§2.4d) — 전부 튀면 아무것도 튀지 않는다
         'border-b border-border px-4 py-3 last:border-b-0',
         severity === 'critical' && 'border-l-2 border-l-status-danger',
+        // 고를 수 있는 카드는 세션 줄처럼 커서와 hover 바탕으로 알린다(REQ-WEB-275) — 둘 다 없어서 눌린다는 표시가 없었다
+        onSelect !== undefined && 'cursor-pointer hover:bg-bg-hover',
         selected && 'bg-bg-sunken/60',
       )}
       onClick={onSelect === undefined ? undefined : () => onSelect(finding)}
@@ -81,9 +83,10 @@ export function FindingCard({
                 e.stopPropagation();
                 onSelect(finding);
               }}
-              className="text-left hover:underline"
+              // 목록 전체가 파래지지 않게 글자색은 두고, 쉴 때 옅은 밑줄과 › 로 레일이 열린다는 것을 보인다(REQ-WEB-273)
+              className="text-left underline decoration-border-strong underline-offset-4 hover:decoration-current"
             >
-              {String(finding['title'])}
+              {String(finding['title'])} <span aria-hidden="true">›</span>
             </button>
           )}
         </h3>
