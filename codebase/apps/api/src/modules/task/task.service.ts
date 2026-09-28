@@ -644,6 +644,7 @@ export class TaskService {
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         id: string;
+        key: string;
         status: string;
         goal_md: string | null;
         output_format_md: string | null;
@@ -651,9 +652,12 @@ export class TaskService {
         boundaries_md: string | null;
         baseline_id: string | null;
       }>(sql`
-        SELECT id, status::text AS status, goal_md, output_format_md, tools_sources_md, boundaries_md,
-               baseline_id
-          FROM task WHERE project_id = ${input.projectId} AND key = ${input.taskKey} FOR UPDATE
+        SELECT t.id, t.key, t.status::text AS status, t.goal_md, t.output_format_md,
+               t.tools_sources_md, t.boundaries_md, t.baseline_id
+          FROM task t
+         -- **키와 UUID 를 둘 다 받는다**(2026-09-28 · REQ-API-239 · §1.4b). 키만 보고 있어서, UUID 로
+         -- PATCH 하는 작업 상세의 [다시 브리핑] · [기준 옮기기] 가 언제나 not_found 였다
+         WHERE t.project_id = ${input.projectId} AND ${taskMatch(input.taskKey)} FOR UPDATE
       `);
       const task = rows[0];
       if (task === undefined) {
@@ -790,7 +794,7 @@ export class TaskService {
           projectId: input.projectId,
           subjectType: 'task',
           subjectId: task.id,
-          subjectKey: input.taskKey,
+          subjectKey: task.key,
           actorUserId: input.userId,
           isAgent: false,
         });
@@ -798,7 +802,7 @@ export class TaskService {
 
       return {
         task_id: task.id,
-        key: input.taskKey,
+        key: task.key,
         status: promoted ? 'ready' : task.status,
         delegation_complete: complete,
       };
