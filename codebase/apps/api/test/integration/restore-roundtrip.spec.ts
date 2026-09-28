@@ -8,8 +8,18 @@
 // 스크립트(deploy/scripts/nerv-*.sh)와 같은 절차를 같은 순서로 태운다 — 문서의 절차가
 // 진짜 도는지는 절차를 실행해봐야만 알 수 있다.
 
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  CreateBucketCommand,
+  DeleteBucketCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NERV_ERROR, newId } from '@nerv/schema';
@@ -192,5 +202,223 @@ describe.skipIf(!HAS_PG_TOOLS)('①~⑤ 절차', () => {
     );
     await pool.end();
     expect(rows[0]?.n).toBe(0);
+  });
+});
+
+// ── 첨부 왕복 (2026-09-28 · REQ-CB-031 · REQ-CB-059 · REQ-CB-060) ─────────────────────
+//
+// 위 왕복은 `NERV_BACKUP_SKIP_BLOBS=1` 로 첨부를 건너뛴다 — 러너에 S3 도 `mc` 도 없었다.
+// 그래서 "첨부는 재생성되지 않는다"(§6.5)는 문장을 지키는 백업·복원이 **한 번도 실제로
+// 돌지 않았다.** 여기서는 진짜 오브젝트 스토리지와 `mc` 로 돈다. CI 는 둘을 띄우고
+// `NERV_REQUIRE_BLOB_TOOLS=1` 로 건너뛰기를 실패로 바꾼다 — 위의 pg 도구와 같은 규율이다.
+//
+// 스토리지 주소는 **시험 전용 이름**(`NERV_TEST_S3_*`)으로 받는다. `NERV_S3_*` 를 L2 전체에
+// 걸면 스토리지가 없다고 전제한 다른 스위트까지 스토리지를 보게 된다.
+
+const BLOB = {
+  endpoint: (process.env['NERV_TEST_S3_ENDPOINT'] ?? '').trim(),
+  accessKey: (process.env['NERV_TEST_S3_ACCESS_KEY'] ?? '').trim(),
+  secretKey: (process.env['NERV_TEST_S3_SECRET_KEY'] ?? '').trim(),
+};
+
+const BLOB_TOOLS: { ok: boolean; reason: string } = (() => {
+  if (!HAS_PG_TOOLS) return { ok: false, reason: PG_TOOLS.reason };
+  if (BLOB.endpoint === '') return { ok: false, reason: 'NERV_TEST_S3_ENDPOINT 가 없다' };
+  try {
+    // 개발 장비의 `mc` 는 Midnight Commander 일 수도 있다 — 판 이름으로 가려낸다
+    const version = execFileSync('mc', ['--version'], { encoding: 'utf8' });
+    if (!/RELEASE\./.test(version))
+      return { ok: false, reason: 'PATH 의 mc 가 MinIO 클라이언트가 아니다' };
+  } catch {
+    return { ok: false, reason: 'mc 가 없다' };
+  }
+  return { ok: true, reason: '' };
+})();
+
+if (!BLOB_TOOLS.ok) console.warn(`[restore-roundtrip] 첨부 왕복 건너뜀 — ${BLOB_TOOLS.reason}`);
+if (!BLOB_TOOLS.ok && process.env['NERV_REQUIRE_BLOB_TOOLS'] === '1') {
+  throw new Error(
+    `[restore-roundtrip] 첨부 왕복 — ${BLOB_TOOLS.reason}. NERV_REQUIRE_BLOB_TOOLS=1 에서는 건너뛰지 않는다 ` +
+      '(.github/workflows/ci.yml 이 스토리지와 mc 를 띄운다 · REQ-CB-060).',
+  );
+}
+
+describe.skipIf(!BLOB_TOOLS.ok)('첨부 왕복 — 파일까지 돌아오는가 (REQ-CB-059 · REQ-CB-060)', () => {
+  const suffix = randomUUID().slice(0, 8);
+  const srcBucket = `nerv-bk-src-${suffix}`;
+  const dstBucket = `nerv-bk-dst-${suffix}`;
+  const s3 = new S3Client({
+    endpoint: BLOB.endpoint,
+    region: 'us-east-1',
+    forcePathStyle: true,
+    credentials: { accessKeyId: BLOB.accessKey, secretAccessKey: BLOB.secretKey },
+  });
+  /** 확정된 첨부 둘의 실물 — 키는 서버와 같은 모양(`{project}/{spec}/{id}.{ext}`)이다 */
+  const files = new Map<string, Buffer>();
+  let src: ScratchDb;
+  /** 복원할 때마다 새 DB 다 — §6.5 ① 은 새 Postgres 에 복원하고, 이미 복원한 DB 위의
+   *  `--clean` 복원은 파티션 제약을 지우지 못해 실패한다(2026-09-28 실측) */
+  const dsts: ScratchDb[] = [];
+  let dir: string;
+  let mcConfig: string;
+  let dump: string;
+
+  function envFor(databaseUrl: string, bucket: string, extra: Record<string, string> = {}) {
+    return {
+      ...process.env,
+      DATABASE_URL: databaseUrl,
+      NERV_S3_ENDPOINT: BLOB.endpoint,
+      NERV_S3_ACCESS_KEY: BLOB.accessKey,
+      NERV_S3_SECRET_KEY: BLOB.secretKey,
+      NERV_S3_BUCKET: bucket,
+      MC_CONFIG_DIR: mcConfig,
+      ...extra,
+    };
+  }
+
+  /** 스크립트를 돌리고 종료 코드와 출력을 받는다 — 실패도 결과로 본다 */
+  function run(script: string, args: string[], env: NodeJS.ProcessEnv) {
+    const r = spawnSync('bash', [join(SCRIPTS, script), ...args], { env, encoding: 'utf8' });
+    return { code: r.status, out: r.stdout, err: r.stderr };
+  }
+
+  async function put(bucket: string, key: string, body: Buffer): Promise<void> {
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }));
+  }
+
+  async function read(bucket: string, key: string): Promise<Buffer> {
+    const out = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    return Buffer.from(await out.Body!.transformToByteArray());
+  }
+
+  beforeAll(async () => {
+    src = await createScratchDb('nerv_bkb_src');
+    await runMigrations(src.url);
+    dir = mkdtempSync(join(tmpdir(), 'nerv-backup-blobs-'));
+    mcConfig = mkdtempSync(join(tmpdir(), 'nerv-mc-'));
+
+    const pool = new pg.Pool({ connectionString: src.url });
+    const [orgId, userId, projectId, specId] = [newId(), newId(), newId(), newId()];
+    await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'o','O')`, [orgId]);
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'bk@b.c','백업','active')`,
+      [userId],
+    );
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'p','P','p')`,
+      [projectId, orgId],
+    );
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'design','SPC-BK','시안')`,
+      [specId, projectId],
+    );
+    for (const [name, committed] of [
+      ['시안-1.png', true],
+      ['시안-2.png', true],
+      ['올리다-만.png', false],
+    ] as const) {
+      const id = newId();
+      const key = `${projectId}/${specId}/${id}.png`;
+      await pool.query(
+        `INSERT INTO attachment (id, project_id, spec_id, storage_key, filename, content_type, bytes,
+                                 checksum, uploaded_by_user_id, committed_at)
+         VALUES ($1,$2,$3,$4,$5,'image/png',4,'x',$6, ${committed ? 'now()' : 'NULL'})`,
+        [id, projectId, specId, key, name, userId],
+      );
+      if (committed) files.set(key, Buffer.from(`PNG:${name}`));
+    }
+    await pool.end();
+
+    await s3.send(new CreateBucketCommand({ Bucket: srcBucket }));
+    await s3.send(new CreateBucketCommand({ Bucket: dstBucket }));
+    for (const [key, body] of files) await put(srcBucket, key, body);
+    // 버킷에는 첨부 말고도 리뷰 프롬프트 blob 이 산다 — 파일 수가 증거가 아닌 이유다
+    await put(srcBucket, 'review-prompts/p-1.txt', Buffer.from('prompt'));
+  }, 120_000);
+
+  afterAll(async () => {
+    for (const bucket of [srcBucket, dstBucket]) {
+      const listed = await s3.send(new ListObjectsV2Command({ Bucket: bucket }));
+      for (const o of listed.Contents ?? [])
+        await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: o.Key! }));
+      await s3.send(new DeleteBucketCommand({ Bucket: bucket }));
+    }
+    await src.drop();
+    for (const db of dsts) await db.drop();
+  });
+
+  async function freshDst(): Promise<string> {
+    const db = await createScratchDb('nerv_bkb_dst');
+    dsts.push(db);
+    return db.url;
+  }
+
+  it('백업이 버킷을 미러하고, DB 가 가리키는 파일을 하나씩 확인한다', () => {
+    const r = run('nerv-backup.sh', [], envFor(src.url, srcBucket, { NERV_BACKUP_DIR: dir }));
+    expect(r.code, r.err).toBe(0);
+    expect(r.out).toContain('첨부 3개');
+    for (const [key, body] of files) expect(readFileSync(join(dir, 'blobs', key))).toEqual(body);
+    dump = join(
+      dir,
+      readdirSync(dir).find((f) => f.endsWith('.dump'))!,
+    );
+  });
+
+  it('버킷의 수만 맞고 키가 없으면 복원 검증이 실패한다 — 개수는 증거가 아니다', async () => {
+    // 예전 검증은 "오브젝트 수 ≥ 첨부 행 수" 였다 — 이 버킷은 그 검사를 통과한다
+    for (const name of ['a', 'b', 'c'])
+      await put(dstBucket, `review-prompts/${name}.txt`, Buffer.from(name));
+
+    const r = run('nerv-restore.sh', [dump, src.url], envFor(await freshDst(), dstBucket));
+    expect(r.code, r.err).toBe(1);
+    expect(r.err).toContain('2건이 버킷');
+    expect(r.err).toContain([...files.keys()][0]);
+    expect(r.out).not.toContain('정합 검증 통과');
+  });
+
+  it('백업의 파일을 되돌리면 통과한다 — 바이트까지 같다 (§6.5 ③)', async () => {
+    const r = run(
+      'nerv-restore.sh',
+      [dump, src.url],
+      envFor(await freshDst(), dstBucket, { NERV_RESTORE_BLOBS_DIR: join(dir, 'blobs') }),
+    );
+    expect(r.code, r.err).toBe(0);
+    expect(r.out).toContain('되돌렸습니다');
+    expect(r.out).toContain('DB 2건이 모두 버킷');
+    expect(r.out).toContain('정합 검증 통과');
+    for (const [key, body] of files) expect(await read(dstBucket, key)).toEqual(body);
+  });
+
+  it('확인할 수단이 없으면 손실 0 을 말하지 않는다 — 건너뛰기는 명시할 때만', async () => {
+    const blind = run(
+      'nerv-restore.sh',
+      [dump, src.url],
+      envFor(await freshDst(), dstBucket, { NERV_S3_ENDPOINT: '' }),
+    );
+    expect(blind.code, blind.err).toBe(2);
+    expect(blind.err).toContain('확인할 수단이 없습니다');
+    expect(blind.out).not.toContain('정합 검증 통과');
+
+    const skipped = run(
+      'nerv-restore.sh',
+      [dump, src.url],
+      envFor(await freshDst(), dstBucket, { NERV_S3_ENDPOINT: '', NERV_RESTORE_SKIP_BLOBS: '1' }),
+    );
+    expect(skipped.code).toBe(0);
+    expect(skipped.err).toContain('확인하지 않았습니다');
+  });
+
+  it('버킷에서 이미 잃은 첨부는 백업이 종료 코드로 알린다 — 덤프는 남긴다', async () => {
+    const [lost] = [...files.keys()];
+    await s3.send(new DeleteObjectCommand({ Bucket: srcBucket, Key: lost! }));
+    const before = readdirSync(dir).filter((f) => f.endsWith('.dump')).length;
+
+    const r = run('nerv-backup.sh', [], envFor(src.url, srcBucket, { NERV_BACKUP_DIR: dir }));
+    expect(r.code).toBe(3);
+    expect(r.err).toContain('1건의 파일이 버킷에 없습니다');
+    expect(r.err).toContain(lost);
+    expect(readdirSync(dir).filter((f) => f.endsWith('.dump')).length).toBeGreaterThanOrEqual(
+      before,
+    );
   });
 });

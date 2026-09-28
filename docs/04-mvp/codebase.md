@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.84 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.85 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.85 변경(2026-09-28 — 첨부 백업이 한 번도 실제로 돌지 않았다): **REQ-CB-059·060 신설 · §6.5 절차 ③·⑤ · §4.5 CI 두 줄.** 백업 왕복은 러너에 S3 도 `mc` 도 없어 늘 첨부를 건너뛰었다(`NERV_BACKUP_SKIP_BLOBS=1`). 복원 검증은 버킷의 **오브젝트 수**만 셌고, 확인할 수단이 없으면 경고 한 줄을 남기고 "손실 0" 이라 적었다. 문서의 ③ 은 명령 없이 "(선택) mc mirror 역방향" 한 줄이었다. 이제 백업과 복원이 첨부를 **키마다** 확인하고, 복원 스크립트가 `NERV_RESTORE_BLOBS_DIR` 로 파일을 되돌리며, CI 가 오브젝트 스토리지와 `mc` 를 띄워 매 PR 에서 첨부까지 왕복한다. 실측으로 하나를 더 적는다 — 이미 복원한 DB 위의 `--clean` 복원은 파티션 제약을 지우지 못해 실패하므로 복원은 새 DB 에 한다.
 >
 > v1.84 변경(2026-09-28 — 도구 수): **새 요구사항 없음.** `nerv_spec_attachment_hide` 가 들어와 합계 검산을 카탈로그 25종(P0 8 · P1 15 · P2 2)으로 고친다([4.4 API 명세](api.md) REQ-API-231).
 >
@@ -923,12 +925,16 @@ jobs:
       - run: sudo apt-get install -y postgresql-client-18   # (pgdg 저장소 추가는 실물 참조)
       # **설치만으로는 PATH 가 안 바뀐다** — /usr/bin/pg_dump 는 선설치 PG16 클러스터를 보는 래퍼다
       - run: echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      # 첨부 백업 왕복의 도구 — silo 서버와 그 안의 mcli(서비스는 `server /data` 를 못 받아 docker run 이다)
+      - run: docker run -d -p 9000:9000 … pgsty/silo:<태그> server /data && docker cp …:/usr/bin/mcli /usr/local/bin/mc   # (실물 참조)
       - run: pnpm build      # migrate 는 dist/migrate.js 를 쓴다 — compose·k8s 와 같은 경로
       - run: pnpm db:migrate && pnpm test:integration
         env:
           DATABASE_URL: "postgres://postgres:ci@localhost:5432/postgres"
           NERV_VALKEY_URL: "redis://localhost:6379"
           NERV_REQUIRE_PG_TOOLS: "1"   # 건너뛰기는 로컬의 편의지 CI 의 면제가 아니다 — skip 이 곧 실패
+          NERV_TEST_S3_ENDPOINT: "http://localhost:9000"   # 첨부 왕복 — 시험 전용 이름(NERV_S3_* 는 다른 스위트까지 바꾼다)
+          NERV_REQUIRE_BLOB_TOOLS: "1"   # 스토리지나 mc 가 없어 건너뛰면 실패 — 첨부 왕복도 같은 규율(REQ-CB-060)
   e2e:                         # 매 PR + merge_group + 야간 — L3 (2026-09-06: PR 레인 추가)
     runs-on: ubuntu-latest
     steps:
@@ -1226,6 +1232,8 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-051** | WHEN check 잡이 돌면 THE SYSTEM SHALL md 와 html 의 표에서 **첫 칸이 고정 ID 인 행**을 번호로 짝지어 나머지 칸의 문장을 견주고, 닮은 정도가 **0.7 미만**이면 실패한다 — 파생본은 근거를 담은 괄호를 줄여 실을 수 있지만 **같은 번호가 다른 것을 약속해서는 안 된다**. 규약 1 의 검사는 그때까지 번호가 **있는지**만 셌고, 그 눈먼 자리에서 `REQ-CB-015` 는 파생본에서 배포 산출물을 아직 `codebase/` 에 두라 말했고(2026-08-22 개정 전 문장 — 같은 파일 §1.1 트리는 `deploy/` 라 적어 **문서가 자기와 모순했다**) `REQ-CB-021` 은 "(2026-09-22 개정)" 이라 써 놓고 개정 전 규칙을 실었다(2026-09-24 전수 대조). **게이트 수는 그대로다** — 규약 1 의 검사가 세는 것이 넷에서 다섯으로 는다 | 두 요구의 파생본 문장을 개정 전으로 되돌린 트리에서 `check-md-html.mjs` 가 0.52·0.58 로 실패한다 · 근거 괄호를 줄여 실은 행들(실측 최저 0.75)은 통과한다 |
 | **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-058** | WHEN check 잡이 돌면 THE SYSTEM SHALL base 와 견주어 **새로 쓴 줄**을 문체 플러그인 `ko-style` 의 검사기(`codebase/ko-style/skills/ko-style/scripts/ko-lint.mjs`)로 검사하고, 차단 규칙이나 규범 · 팀 어휘 층의 경고에 걸린 줄이 하나라도 있으면 **실패한다**(`scripts/check-ko-style.mjs`). 규칙은 저장소 루트 `.ko-style.json`([용어 사전](../glossary.md) §3.4 표의 사본)과 플러그인의 공통 규칙 표다. AI 말투 층은 알리기만 하고, 줄 끝에 `ko-style-ignore: <이유>` 가 있으면 그 줄은 보지 않는다(이유가 없으면 듣지 않는다). base 가 없으면 판정하지 않는다 |
+| **REQ-CB-059** | WHEN 백업이 첨부 버킷을 미러하면, THE SYSTEM SHALL DB 의 **확정된 첨부 `storage_key` 하나하나**가 미러에 있는지 확인하고, 없는 것이 있으면 덤프와 미러는 남긴 채 그 키를 적고 **종료 코드 3** 으로 끝난다 — 파일 수는 증거가 아니다(버킷에는 리뷰 프롬프트 blob 도 있다). 빠진 파일은 백업이 아니라 버킷에서 이미 잃은 것이다(2026-09-28) | 빠진 키가 있으면 exit 3 과 그 키 · 덤프는 남는다 · L2 `restore-roundtrip.spec.ts` 첨부 왕복 |
+| **REQ-CB-060** | WHEN 복원이 끝나면, THE SYSTEM SHALL 확정된 첨부의 `storage_key` 를 **키마다** 버킷에서 찾고, 빠진 것이 있으면 그 키를 적고 비영 종료한다 — 예전에는 오브젝트 **수**가 행 수 이상이면 통과였다. WHERE 확인할 수단(`NERV_S3_ENDPOINT` · `mc`)이 없으면, THE SYSTEM SHALL "손실 0" 을 말하지 않고 **종료 코드 2** 로 멈춘다 — `NERV_RESTORE_SKIP_BLOBS=1` 만이 명시적 우회다. WHEN `NERV_RESTORE_BLOBS_DIR` 를 주면, THE SYSTEM SHALL 그 디렉터리를 버킷으로 되돌린 뒤(§6.5 ③ · `--remove` 없이) 검증한다. CI 는 오브젝트 스토리지와 `mc` 를 띄우고 `NERV_REQUIRE_BLOB_TOOLS=1` 로 건너뛰기를 실패로 만든다(2026-09-28) | 파일 없는 복원은 exit 1 · 수단이 없으면 exit 2 · 되돌린 복원은 바이트까지 같다 · L2 `restore-roundtrip.spec.ts` |
 | **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `mc` 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
 | **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |
 | **REQ-CB-033** | WHEN 임베딩 요청을 만들면 THE SYSTEM SHALL `dimensions` 를 실을지를 **`NERV_EMBED_SEND_DIMENSIONS` 에서만** 읽고 제공자 주소로 추정하지 않는다 — 게이트웨이 뒤의 같은 모델은 주소가 다르고, 절단이 빠지면 오류 없이 다른 차원이 돌아와 **검색이 조용히 렉시컬로 degrade** 한다. WHILE 차원을 검사하는 동안 THE SYSTEM SHALL 그 값을 `@nerv/schema` 의 `EMBEDDING_DIMENSIONS`(DDL 이 쓰는 그 상수)에서 읽고 재선언하지 않는다(REQ-CB-006) |
@@ -2352,7 +2360,7 @@ patches:
 | **md 미러**(`nerv-mirror` PVC) | 백업하지 않는다 | — | DB 의 승인 문서에서 다시 만드는 **파생물**이다(export 잡) — 잃으면 다음 판이 채운다. 첨부와 다른 성질이라 볼륨을 따로 둔다 |
 | **embed 모델 캐시**(로컬 프로필 시) | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성([4.3](database.md) §2.15). 외부 제공자 프로필은 해당 없음 |
 
-절차의 실물은 `deploy/scripts/nerv-backup.sh`(①)·`deploy/scripts/nerv-restore.sh`(①+⑤ 검증)이고, k8s 에서는 `base/backup/cronjob.yaml`(CronJob `nerv-backup` — 일 1회)이 같은 스크립트를 configMap 으로 마운트해 돈다. **검증이 절차의 일부다**: 복원 스크립트는 복원 후 원본과의 **실제 행 수**를 대조하고(통계 뷰 `n_live_tup` 이 아니다 — 복원 직후에는 통계가 비어 있어 "손실 0"과 "아직 세지 않았다"를 구분할 수 없다), 불일치면 비영 종료한다. 왕복 자체는 L2 테스트(`restore-roundtrip.spec.ts`)가 매 PR 에 재현한다.
+절차의 실물은 `deploy/scripts/nerv-backup.sh`(①)·`deploy/scripts/nerv-restore.sh`(①+⑤ 검증)이고, k8s 에서는 `base/backup/cronjob.yaml`(CronJob `nerv-backup` — 일 1회)이 같은 스크립트를 configMap 으로 마운트해 돈다. **검증이 절차의 일부다**: 복원 스크립트는 복원 후 원본과의 **실제 행 수**를 대조하고(통계 뷰 `n_live_tup` 이 아니다 — 복원 직후에는 통계가 비어 있어 "손실 0"과 "아직 세지 않았다"를 구분할 수 없다), 불일치면 비영 종료한다. 왕복 자체는 L2 테스트(`restore-roundtrip.spec.ts`)가 매 PR 에 재현한다. **첨부도 함께 돈다**(2026-09-28) — CI 가 오브젝트 스토리지와 `mc` 를 띄우고, 백업이 DB 가 가리키는 파일을 키마다 담는지 · 파일 없는 복원이 실패하는지 · 파일을 되돌린 복원이 바이트까지 같은지 본다(REQ-CB-059·060). 복원은 **새 DB 에** 한다 — 이미 복원한 DB 위에서 `--clean` 복원을 다시 돌리면 파티션 제약을 지우지 못해 실패한다.
 
 복구 순서(왕복 검증도 같은 순서로 실행한다):
 
@@ -2362,10 +2370,10 @@ pg_restore -d "$DATABASE_URL" --clean --if-exists nerv-<date>.dump
 # ② 마이그레이션 정합 — 백업 이후 릴리스가 있었으면 여기서 따라잡는다 (멱등)
 kubectl -n nerv delete job nerv-migrate --ignore-not-found && kustomize build deploy/k8s/overlays/prod | kubectl apply -f -
 kubectl -n nerv wait --for=condition=complete --timeout=300s job/nerv-migrate
-# ③ (선택) MinIO 버킷 복원 — mc mirror 역방향
+# ③ 첨부 되돌리기 — 버킷이 비었으면 복원 스크립트에 NERV_RESTORE_BLOBS_DIR=<백업>/blobs 를 준다(mc mirror 역방향)
 # ④ api·worker 롤아웃 재시작 — Valkey는 빈 채로 시작해도 무방
 kubectl -n nerv rollout restart deploy/nerv-api deploy/nerv-worker
-# ⑤ 정합 검증 — 테이블별 행 수 대조 + 최신 event.occurred_at이 백업 시각 이내인지 확인
+# ⑤ 정합 검증 — 테이블별 행 수 대조 + 최신 event.occurred_at이 백업 시각 이내인지 확인 + 확정된 첨부의 파일을 키마다 확인
 ```
 
 | ID | 요구(EARS) |

@@ -183,6 +183,27 @@ jobs:
           # 러너에 선설치된 PG16 클러스터를 보고 16 을 고른다 — 2026-09-02 에 client-17 을
           # 깔고도 백업 왕복이 여드레 동안 조용히 skip 된 이유다(2026-09-10 실측).
           echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      # **첨부 백업 왕복의 도구**(2026-09-28 · REQ-CB-059 · REQ-CB-060). 백업 왕복은 러너에 S3 도
+      # `mc` 도 없어 첨부를 늘 건너뛰었다(`NERV_BACKUP_SKIP_BLOBS=1`) — "첨부는 재생성되지
+      # 않는다" 를 지키는 절차가 한 번도 실제로 돌지 않았다. 개발·e2e·운영 백업과 같은 이미지
+      # (pgsty/silo)의 서버와 그 안의 `mcli` 를 쓴다. 서비스 컨테이너로 띄우지 않는 이유는
+      # 서비스가 `command` 를 받지 않아서다(`server /data` 가 필요하다).
+      - name: 오브젝트 스토리지와 mc
+        run: |
+          image=pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+          docker run -d --name nerv-ci-blobs -p 9000:9000 \
+            -e MINIO_ROOT_USER=nervci -e MINIO_ROOT_PASSWORD=nervci-secret "$image" server /data
+          docker create --name nerv-ci-mc "$image" >/dev/null
+          docker cp nerv-ci-mc:/usr/bin/mcli ./mc && docker rm nerv-ci-mc >/dev/null
+          sudo install -m 0755 ./mc /usr/local/bin/mc && rm ./mc
+          mc --version
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null http://localhost:9000/minio/health/live && exit 0
+            sleep 1
+          done
+          echo "오브젝트 스토리지가 뜨지 않았다" >&2
+          docker logs nerv-ci-blobs >&2
+          exit 1
       # migrate 는 빌드 산출물(dist/migrate.js)을 쓴다 — compose·k8s 와 같은 코드 경로다
       - run: pnpm build
       - run: pnpm db:migrate && pnpm test:integration
@@ -192,6 +213,12 @@ jobs:
           # 건너뛰기는 로컬 장비의 편의지 CI 의 면제가 아니다 — 여기서는 skip 이 곧 실패다.
           # 이 줄이 없으면 클라이언트가 어긋난 날 잡은 초록인 채로 REQ-CB-019 만 사라진다.
           NERV_REQUIRE_PG_TOOLS: '1'
+          # 첨부 왕복도 같다. 스토리지 주소는 **시험 전용 이름**이다 — `NERV_S3_*` 를 L2 전체에
+          # 걸면 스토리지가 없다고 전제한 다른 스위트까지 스토리지를 보게 된다.
+          NERV_TEST_S3_ENDPOINT: http://localhost:9000
+          NERV_TEST_S3_ACCESS_KEY: nervci
+          NERV_TEST_S3_SECRET_KEY: nervci-secret
+          NERV_REQUIRE_BLOB_TOOLS: '1'
 
   e2e:
     name: e2e (L3 · compose 스택)
