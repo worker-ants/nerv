@@ -458,6 +458,22 @@ export function useSpecAttachments(slug: string, specKey: string): UseQueryResul
   });
 }
 
+/**
+ * 내린 첨부(REQ-API-231 · REQ-WEB-265) — 키가 위 목록의 키로 시작해서, 목록을 무효화하면
+ * 이것도 함께 다시 읽는다. 올릴 수 있는 사람에게만 부른다(복원·삭제가 그들의 일이다).
+ */
+export function useSpecHiddenAttachments(
+  slug: string,
+  specKey: string,
+  enabled: boolean,
+): UseQueryResult<Row[]> {
+  return useQuery({
+    queryKey: ['spec', specKey, 'attachments', 'hidden'],
+    queryFn: () => apiFetch<Row[]>(`/projects/${slug}/specs/${specKey}/attachments?hidden=true`),
+    enabled: enabled && specKey !== '',
+  });
+}
+
 export function useSpecGraph(
   slug: string,
   projectId: ProjectId | undefined,

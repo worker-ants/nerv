@@ -709,6 +709,10 @@ export const en = {
     "Reading the contents of a text attachment on a spec. Prefer downloading it from the url in the listing and handling it as a file. Use this tool only when you can't; it truncates at 32KiB",
   'mcp.arg.attachment_id_read':
     'ID of the attachment to read, from the nerv_spec_get(include:["attachments"]) listing',
+  'mcp.tool.attachment_hide':
+    'Hiding an attachment from the list once it is no longer needed, for example after replacing a mockup. The file is kept, so earlier versions that show it still render, and a person can restore or delete it on the web. Update the body to point at the new attachment first',
+  'mcp.arg.attachment_id_hide':
+    'ID of the attachment to hide, from the nerv_spec_get(include:["attachments"]) listing',
   'mcp.tool.attach':
     'Attaching a design mock or an output artifact to a spec. **Call this tool twice, uploading the file yourself in between**: (1) call with filename and content_type to get an upload_url, (2) PUT the file to that URL (Content-Type header only), (3) call again with just attachment_id to commit. The commit response includes the url for downloading the file. Never pass file contents as an argument to this tool',
   'mcp.arg.attachment_id': 'Second call: after uploading, call again with only this to commit',
@@ -988,7 +992,8 @@ export const en = {
   'spec.meta.archive_confirm_detail':
     "It will be removed from the list and the tree. To bring it back, click [Restore] on this document's page.",
   'spec.attach.remove_confirm': 'Delete attachment "{name}". This cannot be undone.',
-  'spec.attach.remove_detail': 'If the body uses this file, that part will break.',
+  'spec.attach.remove_detail':
+    'No version of the body points to this file, so the file is deleted too.',
   'task.release_abandon_confirm': 'Abandon your claim on this task.',
   'task.release_abandon_detail': 'The task returns to ready and is recorded as abandoned.',
   'settings.workspace.org_delete_blocked':
@@ -1459,6 +1464,16 @@ export const en = {
   'spec.attach.pick': 'choose a file',
   'spec.attach.done': 'Attached.',
   'spec.attach.empty': 'No attachments.',
+  'spec.attach.hide': 'Hide',
+  'spec.attach.hide_confirm': 'Hide attachment "{name}" from the list.',
+  'spec.attach.hide_detail':
+    'The body of {versions} points to this file, so the file is kept. You can restore it from hidden attachments.',
+  'spec.attach.hidden_ok': 'Hidden from the list. The file is kept.',
+  'spec.attach.deleted_ok': 'Attachment deleted.',
+  'spec.attach.restore': 'Restore',
+  'spec.attach.restored_ok': 'Restored to the list.',
+  'spec.attach.hidden_toggle': 'Hidden attachments ({n})',
+  'spec.attach.kept_for': 'Referenced by {versions}; the file is kept',
   'spec.attachments': 'Attachments',
   'spec.comments': 'Comments',
   'spec.editor.link_empty': 'No documents to pick.',

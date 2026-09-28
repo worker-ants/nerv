@@ -625,8 +625,17 @@ export class SpecController {
    */
   @RequireScope('spec:read')
   @Get('specs/:spec/attachments')
-  attachments(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
-    return this.attachments_.list({ projectId: projectOf(req), specKey: spec });
+  attachments(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    // `hidden=true` 면 **내린 첨부만** 준다 — 화면의 "내린 첨부" 칸(REQ-API-231)
+    @Query('hidden') hidden?: string,
+  ): Promise<unknown> {
+    return this.attachments_.list({
+      projectId: projectOf(req),
+      specKey: spec,
+      hidden: hidden === 'true',
+    });
   }
 
   /** EP-SPEC-21 — 사람 업로드(multipart). 에이전트는 presign 2단계를 쓴다 */
@@ -692,6 +701,11 @@ export class SpecController {
       .send(object.body);
   }
 
+  /**
+   * EP-SPEC-23 — 사람의 [삭제]. **지난 버전 본문이 가리키면 내리기만 한다**(REQ-API-231) —
+   * 그 버전의 그림이 깨지지 않게 파일을 남긴다. 무엇을 했는지는 응답이 알린다
+   * (`deleted` · `file_kept` · `referenced_by_versions`).
+   */
   @RequireScope('spec:draft')
   @Delete('attachments/:id')
   removeAttachment(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
@@ -699,6 +713,17 @@ export class SpecController {
       projectId: projectOf(req),
       attachmentId: id,
       // 누가 뗐는지가 감사의 질문이다(REQ-API-151) — REST 는 사람 경로다
+      actor: { userId: principalOf(req).userId, sessionId: null },
+    });
+  }
+
+  /** EP-SPEC-24 — 내린 첨부를 목록에 되돌린다(REQ-API-231). 에이전트 도구에는 없다 */
+  @RequireScope('spec:draft')
+  @Post('attachments/:id/restore')
+  restoreAttachment(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    return this.attachments_.restore({
+      projectId: projectOf(req),
+      attachmentId: id,
       actor: { userId: principalOf(req).userId, sessionId: null },
     });
   }

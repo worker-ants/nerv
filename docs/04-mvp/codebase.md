@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.83 · 2026-09-27 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.84 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.84 변경(2026-09-28 — 도구 수): **새 요구사항 없음.** `nerv_spec_attachment_hide` 가 들어와 합계 검산을 카탈로그 25종(P0 8 · P1 15 · P2 2)으로 고친다([4.4 API 명세](api.md) REQ-API-231).
 >
 > v1.83 변경(2026-09-27): **새 요구사항 없음 · §2.2 트리 한 줄의 주석.** `tables/event.ts` 에 `notification_batch_event`(앱 안 묶음에 든 이벤트 — [4.3 데이터베이스](database.md) REQ-DB-030)가 더해졌다.
 >
@@ -356,7 +358,7 @@ REST·MCP·WebSocket·SSE가 **같은 도메인 서비스를 DI로 공유**한�
 flowchart TB
   subgraph SURF["표면 5종 — 번역만, 규칙 없음"]
     REST["REST 컨트롤러<br/>/api/v1/*"]
-    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 22종"]
+    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 25종"]
     WS["WS 게이트웨이<br/>/ws · 룸 join"]
     SSE["SSE 스트림<br/>GET /sse/* · 단방향"]
     ING["ingest 컨트롤러<br/>/ingest/hooks/* 5종"]
@@ -567,7 +569,7 @@ apps/api/src/
 
 **모듈이 소유하지 않는 넷**(2026-09-06 명시 — 예전에는 "29종 전수 배정" 이라 적고 실제로는 넷이 어느 모듈에도 없었다). `idempotency_key` 는 **횡단 인프라**라 `common/idempotency.*` 가 소유하고 모듈에 붙지 않는다(멱등은 표면의 성질이지 도메인의 성질이 아니다). `spec_chunk_embedding` 은 **파생 인덱스**라 소유자가 아니라 워커 잡(`embedding.job.ts`)이 갱신한다. 인증 인프라 3종(`auth_session`·`auth_account`·`auth_verification`)은 better-auth 가 소유한다 — 우리 모듈이 읽지도 쓰지도 않는다. **넷은 도메인 33종 밖이고, 그래서 위 표의 검산 대상이 아니다.** 워크플로우 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 권한이 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
 
-합계 검산(2026-09-06 실측): **카탈로그 24종** = P0 8 · P1 14 · P2 2 — 정본은 [3.4](../03-proposal/agent-integration.md) §2.3 이고 MVP 범위(22종)는 [4.1](scope.md) §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
+합계 검산(2026-09-28 실측): **카탈로그 25종** = P0 8 · P1 15 · P2 2 — 정본은 [3.4](../03-proposal/agent-integration.md) §2.3 이고 MVP 범위(23종)는 [4.1](scope.md) §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
 
 ### 2.4 표면별 규약
 

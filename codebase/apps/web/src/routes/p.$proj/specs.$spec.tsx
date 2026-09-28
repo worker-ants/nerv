@@ -39,7 +39,7 @@ import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
-import { statusLabelKey, TASK_CREATE_ROLES } from '@nerv/schema';
+import { scopesForRoles, statusLabelKey, TASK_CREATE_ROLES } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -594,6 +594,9 @@ function SpecDetail(): React.JSX.Element {
   const canEditMeta = rolesInProject(me.data, orgSlug, proj).some(
     (r) => r === 'planner' || r === 'admin',
   );
+  // 첨부를 올리고 내리고 지우는 사람 — 서버 가드(`spec:draft`)와 같은 값을 본다(REQ-WEB-265).
+  // 예전에는 planner·admin 만 보여서, 서버가 받는 designer 가 자기 시안을 화면에서 치우지 못했다.
+  const canAttach = scopesForRoles(rolesInProject(me.data, orgSlug, proj)).has('spec:draft');
   // 작업을 만드는 역할 — 정본은 `@nerv/schema` 다(보드의 [+ 새 작업]과 같은 목록)
   const canCreateTask = rolesInProject(me.data, orgSlug, proj).some((r) =>
     (TASK_CREATE_ROLES as readonly string[]).includes(r),
@@ -1534,7 +1537,7 @@ function SpecDetail(): React.JSX.Element {
           )}
 
           {railTab === 'attachments' && (
-            <AttachmentPanel projectSlug={proj} specKey={spec} canEdit={canEditMeta} />
+            <AttachmentPanel projectSlug={proj} specKey={spec} canEdit={canAttach} />
           )}
 
           {railTab === 'requirements' && (

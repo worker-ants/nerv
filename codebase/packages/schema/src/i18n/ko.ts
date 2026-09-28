@@ -697,6 +697,10 @@ export const ko = {
     '스펙에 붙은 텍스트 첨부의 내용을 읽을 때. 가능하면 목록의 url로 받아 파일로 다루는 편이 낫다. 이 도구는 그럴 수 없을 때 쓰고, 32KiB에서 자른다',
   'mcp.arg.attachment_id_read':
     '읽을 첨부의 id — nerv_spec_get(include:["attachments"]) 목록이 준다',
+  'mcp.tool.attachment_hide':
+    '시안을 바꿔 옛 첨부가 더는 필요 없을 때 목록에서 내린다. 파일은 남아 지난 버전 본문의 그림은 그대로 보이고, 사람이 화면에서 복원하거나 지운다. 먼저 본문의 주소를 새 첨부로 고친다',
+  'mcp.arg.attachment_id_hide':
+    '내릴 첨부의 id — nerv_spec_get(include:["attachments"]) 목록이 준다',
   'mcp.tool.attach':
     '디자인 시안·산출물을 스펙에 붙일 때. **이 도구를 두 번 부르고, 그 사이에 파일을 직접 올린다**: ① filename·content_type으로 부르면 upload_url을 준다 → ② 그 주소에 파일을 PUT 한다(헤더는 Content-Type만) → ③ attachment_id만 넣어 다시 불러 확정한다. 확정 응답의 url이 파일을 받는 주소다. 파일 내용을 이 도구의 인자로 넣지 않는다',
   'mcp.arg.attachment_id': '둘째 단계. 파일을 올린 뒤 이것만 넣어 다시 부른다(확정)',
@@ -978,7 +982,7 @@ export const ko = {
   'spec.meta.archive_confirm_detail':
     '목록과 트리에서 빠집니다. 되돌리려면 이 문서 화면에서 [복구]를 누르세요.',
   'spec.attach.remove_confirm': '첨부 "{name}"을(를) 삭제합니다. 되돌릴 수 없습니다.',
-  'spec.attach.remove_detail': '본문에서 이 파일을 쓰고 있으면 그 부분이 깨집니다.',
+  'spec.attach.remove_detail': '어느 버전 본문도 이 파일을 가리키지 않아 파일까지 지웁니다.',
   'task.release_abandon_confirm': '이 작업의 클레임을 포기합니다.',
   'task.release_abandon_detail': '작업은 준비됨으로 돌아가고, 포기로 기록됩니다.',
   'settings.workspace.org_delete_blocked':
@@ -1444,6 +1448,16 @@ export const ko = {
   'spec.attach.pick': '파일 고르기',
   'spec.attach.done': '첨부했습니다.',
   'spec.attach.empty': '첨부가 없습니다.',
+  'spec.attach.hide': '내리기',
+  'spec.attach.hide_confirm': '첨부 "{name}"을(를) 목록에서 내립니다.',
+  'spec.attach.hide_detail':
+    '{versions} 본문이 이 파일을 가리키고 있어 파일은 남깁니다. 내린 첨부에서 복원할 수 있습니다.',
+  'spec.attach.hidden_ok': '목록에서 내렸습니다. 파일은 남아 있습니다.',
+  'spec.attach.deleted_ok': '첨부를 삭제했습니다.',
+  'spec.attach.restore': '복원',
+  'spec.attach.restored_ok': '목록에 복원했습니다.',
+  'spec.attach.hidden_toggle': '내린 첨부 {n}개',
+  'spec.attach.kept_for': '가리키는 버전: {versions} — 파일을 남겨 둡니다',
   'spec.attachments': '첨부',
   'spec.comments': '코멘트',
   'spec.editor.link_empty': '고를 문서가 없습니다.',

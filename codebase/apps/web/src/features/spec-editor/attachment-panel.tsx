@@ -4,14 +4,16 @@
 // 그 링크는 스펙의 버전과 무관하게 바뀌었다 — "이 버전이 말하는 화면" 을 나중에 되짚을 수 없다.
 //
 // 본문에 넣는 일은 여기 없다 — 웹은 본문을 고치지 않고 에이전트가 쓴다(REQ-WEB-173).
-// 패널은 올리고, 미리 보고, 받고, 지운다.
+// 패널은 올리고, 미리 보고, 받고, 지운다. **지난 버전 본문이 가리키는 첨부는 지우지 않고
+// 내린다**(REQ-WEB-265) — 파일을 남겨 그 버전의 그림이 깨지지 않게 한다. 내린 첨부는 접어
+// 두고 복원하거나, 가리키는 버전이 없으면 지운다.
 
 import { useRef, useState } from 'react';
 import { useApiError } from '../../lib/api-errors.js';
 import { apiBase, apiHref } from '../../lib/config.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
-import { rows, useSpecAttachments } from '../../lib/queries.js';
+import { rows, useSpecAttachments, useSpecHiddenAttachments } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
@@ -58,17 +60,71 @@ export function AttachmentPanel({
     onError: onApiError,
   });
 
-  // **첨부 삭제는 되돌릴 수 없다** — 서버가 저장소 객체와 행을 함께 지운다. 예전에는 한 번에
-  // 지웠고, 실패해도 말이 없었다(지금은 기본 처리기가 말한다 · REQ-WEB-196)
+  // **첨부 삭제는 되돌릴 수 없다** — 가리키는 버전이 없으면 서버가 저장소 객체와 행을 함께
+  // 지운다. 가리키는 버전이 있으면 내리기만 하고, 무엇을 했는지 응답이 알린다(REQ-API-231).
+  // 예전에는 실패해도 말이 없었다(지금은 기본 처리기가 말한다 · REQ-WEB-196)
   const remove = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/projects/${projectSlug}/attachments/${id}`, { method: 'DELETE' }),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['spec', specKey, 'attachments'] }),
+      apiFetch<Record<string, unknown>>(`/projects/${projectSlug}/attachments/${id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ['spec', specKey, 'attachments'] });
+      pushToast({
+        tone: 'ok',
+        message: t(result['deleted'] === true ? 'spec.attach.deleted_ok' : 'spec.attach.hidden_ok'),
+      });
+    },
+    onError: onApiError,
+  });
+
+  // 내리기는 되돌릴 수 있다 — 복원에 확인을 두지 않는 이유다
+  const restore = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/projects/${projectSlug}/attachments/${id}/restore`, { method: 'POST' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['spec', specKey, 'attachments'] });
+      pushToast({ tone: 'ok', message: t('spec.attach.restored_ok') });
+    },
     onError: onApiError,
   });
 
   const items = rows(attachments.data);
+  const hiddenQuery = useSpecHiddenAttachments(projectSlug, specKey, canEdit);
+  const hiddenItems = rows(hiddenQuery.data);
+  const [showHidden, setShowHidden] = useState(false);
+
+  /** 이 첨부를 본문에 가진 버전 — `v4, v5` 로 적는다 */
+  const versionsOf = (item: Record<string, unknown>): number[] =>
+    Array.isArray(item['referenced_by_versions'])
+      ? (item['referenced_by_versions'] as unknown[]).map(Number)
+      : [];
+  const versionLabel = (versions: number[]): string => versions.map((v) => `v${v}`).join(', ');
+
+  /** [삭제] — 가리키는 버전이 없을 때만 파일까지 지운다 */
+  const deleteAction = (id: string, name: string): React.JSX.Element => (
+    <ConfirmAction
+      testIdBase="attach-remove"
+      message={t('spec.attach.remove_confirm', { name })}
+      detail={t('spec.attach.remove_detail')}
+      confirmLabel={t('common.delete')}
+      pending={remove.isPending}
+      onConfirm={() => remove.mutate(id)}
+      trigger={({ open, ref, disabled }) => (
+        <Button
+          size="xs"
+          variant="subtle"
+          ref={ref}
+          data-testid="attach-remove"
+          disabled={disabled}
+          onClick={open}
+          className="text-text-faint hover:text-status-danger"
+        >
+          {t('common.delete')}
+        </Button>
+      )}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-2 px-2">
@@ -126,6 +182,7 @@ export function AttachmentPanel({
           const path = `/api/v1/projects/${projectSlug}/attachments/${id}`;
           const url = apiHref(path);
           const isImage = String(item['content_type']).startsWith('image/');
+          const versions = versionsOf(item);
           return (
             <li key={id} data-testid="attachment" className="rounded-nerv border border-border p-2">
               {/* **보이는 것이 먼저다** — 시안은 파일 이름이 아니라 그림으로 알아본다.
@@ -150,32 +207,35 @@ export function AttachmentPanel({
                   {item['is_agent'] === true ? '🤖' : '👤'} {String(item['uploaded_by'] ?? '')}
                 </span>
               </div>
-              {/* 지우기만 남았다 — 편집할 수 없으면 줄 자체를 두지 않는다 */}
+              {/* 지우기만 남았다 — 편집할 수 없으면 줄 자체를 두지 않는다. 지난 버전 본문이
+                  가리키면 단추부터 [내리기]다: [삭제]를 눌렀는데 파일이 남으면 그것이 혼동이다 */}
               {canEdit && (
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  <ConfirmAction
-                    testIdBase="attach-remove"
-                    message={t('spec.attach.remove_confirm', {
-                      name: String(item['filename']),
-                    })}
-                    detail={t('spec.attach.remove_detail')}
-                    confirmLabel={t('common.delete')}
-                    pending={remove.isPending}
-                    onConfirm={() => remove.mutate(id)}
-                    trigger={({ open, ref, disabled }) => (
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        ref={ref}
-                        data-testid="attach-remove"
-                        disabled={disabled}
-                        onClick={open}
-                        className="text-text-faint hover:text-status-danger"
-                      >
-                        {t('common.delete')}
-                      </Button>
-                    )}
-                  />
+                  {versions.length > 0 ? (
+                    <ConfirmAction
+                      testIdBase="attach-hide"
+                      message={t('spec.attach.hide_confirm', { name: String(item['filename']) })}
+                      detail={t('spec.attach.hide_detail', { versions: versionLabel(versions) })}
+                      confirmLabel={t('spec.attach.hide')}
+                      pending={remove.isPending}
+                      onConfirm={() => remove.mutate(id)}
+                      trigger={({ open, ref, disabled }) => (
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          ref={ref}
+                          data-testid="attach-hide"
+                          disabled={disabled}
+                          onClick={open}
+                          className="text-text-faint hover:text-text"
+                        >
+                          {t('spec.attach.hide')}
+                        </Button>
+                      )}
+                    />
+                  ) : (
+                    deleteAction(id, String(item['filename']))
+                  )}
                 </div>
               )}
             </li>
@@ -185,6 +245,62 @@ export function AttachmentPanel({
           <li className="text-2xs text-text-faint">{t('spec.attach.empty')}</li>
         )}
       </ul>
+
+      {/* 내린 첨부 — 접어 둔다. 지금 문서의 첨부와 섞이면 내린 뜻이 없다 */}
+      {canEdit && hiddenItems.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="button"
+            data-testid="attach-hidden-toggle"
+            aria-expanded={showHidden}
+            onClick={() => setShowHidden(!showHidden)}
+            className="text-left text-2xs text-text-mute hover:text-text"
+          >
+            {showHidden ? '▾' : '▸'} {t('spec.attach.hidden_toggle', { n: hiddenItems.length })}
+          </button>
+          {showHidden && (
+            <ul className="flex flex-col gap-1.5">
+              {hiddenItems.map((item) => {
+                const id = String(item['id']);
+                const versions = versionsOf(item);
+                return (
+                  <li
+                    key={id}
+                    data-testid="attachment-hidden"
+                    className="rounded-nerv border border-dashed border-border p-2 text-2xs"
+                  >
+                    <a
+                      href={apiHref(`/api/v1/projects/${projectSlug}/attachments/${id}`)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block truncate text-text-mute hover:underline"
+                    >
+                      {String(item['filename'])}
+                    </a>
+                    {versions.length > 0 && (
+                      <p data-testid="attach-kept-for" className="mt-0.5 text-text-faint">
+                        {t('spec.attach.kept_for', { versions: versionLabel(versions) })}
+                      </p>
+                    )}
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        data-testid="attach-restore"
+                        disabled={restore.isPending}
+                        onClick={() => restore.mutate(id)}
+                      >
+                        {t('spec.attach.restore')}
+                      </Button>
+                      {versions.length === 0 && deleteAction(id, String(item['filename']))}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }

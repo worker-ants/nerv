@@ -413,6 +413,31 @@ export class SpecTools implements NervToolProvider {
         }),
     },
     {
+      // **내리기만 한다**(2026-09-28 · REQ-API-231). 파일까지 지우는 것은 되돌릴 수 없어
+      // 사람이 화면에서 한다(A4 — agent-integration §2.2). 올리는 길만 있던 동안 시안을 바꾼
+      // 에이전트는 옛 시안을 치울 수 없어 두 시안이 목록에 나란히 남았다.
+      name: 'nerv_spec_attachment_hide',
+      tier: 'A2',
+      phase: 'P1',
+      summaryKey: 'mcp.tool.attachment_hide',
+      scope: 'spec:draft',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          attachment_id: { type: 'string', description: 'mcp.arg.attachment_id_hide' },
+          session_id: { type: 'string', description: 'mcp.arg.session_id' },
+        },
+        required: ['attachment_id'],
+      },
+      handler: async (input, ctx) =>
+        this.attachments.hide({
+          projectId: ctx.projectId,
+          attachmentId: String(input['attachment_id'] ?? ''),
+          actor: { userId: ctx.principal.userId, sessionId: ctx.sessionId ?? null },
+        }),
+    },
+    {
       name: 'nerv_spec_draft_upsert',
       tier: 'A2',
       phase: 'P1',

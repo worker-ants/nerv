@@ -378,3 +378,117 @@ describe('에이전트 경로 — presigned 2단계', () => {
     expect(await attachments.list({ projectId, specKey: 'SPC-ATT' })).toHaveLength(0);
   });
 });
+
+/**
+ * **내리기와 지우기**(2026-09-28 · 사람 결정 · REQ-API-231).
+ *
+ * 다른 프로젝트에서 새 시안을 올린 에이전트가 옛 시안을 치울 길이 없어 두 시안이 나란히
+ * 남았다. 에이전트는 내리기만 하고(A2 — 파일이 남아 복원할 수 있다), 파일까지 지우는 것은
+ * 사람이 한다(A4). 사람이 지워도 **지난 버전 본문이 가리키면 내리기만 한다** — 첨부는 버전이
+ * 아니라 스펙에 매달려서, 지우면 그 버전의 그림이 깨진다.
+ */
+describe('내리기와 지우기 (REQ-API-231)', () => {
+  beforeEach(async () => {
+    await pool.query('DELETE FROM spec_version WHERE spec_id = $1', [specId]);
+  });
+
+  async function uploaded(filename = '시안.png'): Promise<{ id: string; url: string }> {
+    const out = await attachments.upload({
+      projectId,
+      specKey: 'SPC-ATT',
+      userId,
+      filename,
+      contentType: 'image/png',
+      body: Buffer.from('PNGDATA'),
+    });
+    return { id: String(out['attachment_id']), url: String(out['url']) };
+  }
+
+  /** 본문이 그 주소를 가리키는 버전을 하나 만든다 — 승인본이 옛 시안을 품은 자리 */
+  async function versionPointingAt(url: string, versionNo = 1): Promise<void> {
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,$3,'approved',$4, digest($4,'sha256'), $5)`,
+      [newId(), specId, versionNo, `# 로그인\n\n![시안](${url})`, userId],
+    );
+  }
+
+  async function storageKeyOf(id: string): Promise<string | undefined> {
+    const { rows } = await pool.query<{ storage_key: string }>(
+      `SELECT storage_key FROM attachment WHERE id = $1`,
+      [id],
+    );
+    return rows[0]?.storage_key;
+  }
+
+  it('목록이 가리키는 버전을 함께 준다 — 지우면 파일까지 사라지는지 거기서 안다', async () => {
+    const old = await uploaded('옛-시안.png');
+    await uploaded('새-시안.png');
+    await versionPointingAt(old.url);
+
+    const listed = await attachments.list({ projectId, specKey: 'SPC-ATT' });
+    const byName = new Map(listed.map((row) => [row['filename'], row]));
+    expect(byName.get('옛-시안.png')?.['referenced_by_versions']).toEqual([1]);
+    expect(byName.get('새-시안.png')?.['referenced_by_versions']).toEqual([]);
+  });
+
+  it('내리면 목록에서 빠지고 파일은 남는다 — 내린 목록에서 복원한다', async () => {
+    const old = await uploaded();
+    await versionPointingAt(old.url);
+    const key = await storageKeyOf(old.id);
+
+    const out = await attachments.hide({ projectId, attachmentId: old.id });
+    expect(out).toMatchObject({ hidden: true, deleted: false, file_kept: true });
+    expect(out['referenced_by_versions']).toEqual([1]);
+    expect(await attachments.list({ projectId, specKey: 'SPC-ATT' })).toHaveLength(0);
+    const hidden = await attachments.list({ projectId, specKey: 'SPC-ATT', hidden: true });
+    expect(hidden.map((row) => row['id'])).toEqual([old.id]);
+    expect(storage.objects.has(key ?? '')).toBe(true);
+    // 지난 버전이 그 주소로 그림을 부른다 — 내린 첨부도 내려받기는 그대로다
+    expect(await attachments.open({ projectId, attachmentId: old.id })).not.toBeNull();
+
+    await attachments.restore({ projectId, attachmentId: old.id });
+    expect(await attachments.list({ projectId, specKey: 'SPC-ATT' })).toHaveLength(1);
+    expect(await attachments.list({ projectId, specKey: 'SPC-ATT', hidden: true })).toHaveLength(0);
+  });
+
+  it('지난 버전이 가리키면 사람의 삭제도 내리기만 한다 — 그 버전의 그림이 깨지지 않게', async () => {
+    const old = await uploaded();
+    await versionPointingAt(old.url, 4);
+    const key = await storageKeyOf(old.id);
+
+    const out = await attachments.remove({ projectId, attachmentId: old.id });
+    expect(out).toMatchObject({ deleted: false, hidden: true, file_kept: true });
+    expect(out['referenced_by_versions']).toEqual([4]);
+    expect(storage.objects.has(key ?? '')).toBe(true);
+    expect(await storageKeyOf(old.id)).toBe(key);
+  });
+
+  it('가리키는 버전이 없으면 파일과 행을 함께 지운다', async () => {
+    const orphan = await uploaded();
+    const key = await storageKeyOf(orphan.id);
+
+    const out = await attachments.remove({ projectId, attachmentId: orphan.id });
+    expect(out).toMatchObject({ deleted: true, hidden: false, file_kept: false });
+    expect(storage.objects.has(key ?? '')).toBe(false);
+    expect(await storageKeyOf(orphan.id)).toBeUndefined();
+  });
+
+  it('내린 첨부도 가리키는 버전이 없으면 지운다', async () => {
+    const orphan = await uploaded();
+    await attachments.hide({ projectId, attachmentId: orphan.id });
+
+    const out = await attachments.remove({ projectId, attachmentId: orphan.id });
+    expect(out['deleted']).toBe(true);
+    expect(await attachments.list({ projectId, specKey: 'SPC-ATT', hidden: true })).toHaveLength(0);
+  });
+
+  it.each([['hide'], ['restore'], ['remove']] as const)(
+    '없는 첨부의 %s 는 409 not_found 다 — 조용히 성공하지 않는다',
+    async (action) => {
+      await expect(attachments[action]({ projectId, attachmentId: newId() })).rejects.toMatchObject(
+        { code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } },
+      );
+    },
+  );
+});

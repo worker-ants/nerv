@@ -372,3 +372,54 @@ describe('레일 탭을 주소가 고른다', () => {
     await waitFor(() => expect(screen.queryByTestId('rel-tab-all')).not.toBeNull());
   });
 });
+
+// ── 첨부를 올리고 치우는 사람 (2026-09-28 · REQ-WEB-265) ───────────────────────
+//
+// 화면은 planner·admin 에게만 올리기와 [삭제]를 보였는데 서버는 `spec:draft` 를 가진 역할
+// 모두를 받았다 — 시안을 가장 많이 다루는 designer 가 자기 시안을 화면에서 치우지 못했다.
+// 이제 화면도 서버와 같은 값(`spec:draft`)을 본다.
+describe('첨부 탭의 권한 (REQ-WEB-265)', () => {
+  function stubRoles(roles: string[]): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        const path = String(url);
+        const json = path.includes('/attachments')
+          ? []
+          : path.includes('/specs/')
+            ? { id: 's-1', key: 'SPC-CWC-007', title: '스펙', project_id: 'p-1' }
+            : path.includes('/projects')
+              ? [{ id: 'p-1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }]
+              : path.includes('/me')
+                ? {
+                    id: 'u-1',
+                    display_name: '지민',
+                    memberships: [
+                      { org_slug: 'default', org_name: 'default', project_slug: 'clemvion', roles },
+                    ],
+                  }
+                : { items: [], memberships: [], count: 0, summary: {} };
+        return { ok: true, status: 200, json: async () => json };
+      }),
+    );
+  }
+
+  it.each([['designer'], ['developer'], ['qa'], ['planner']])(
+    '%s 는 시안을 올릴 수 있다 — 서버가 받는 사람에게 화면도 연다',
+    async (role) => {
+      stubRoles([role]);
+      renderAt('/p/clemvion/specs/SPC-CWC-007?rail=attachments');
+      await waitFor(() => expect(screen.queryByTestId('attach-drop')).not.toBeNull());
+    },
+  );
+
+  it('viewer 에게는 올리는 자리가 없다', async () => {
+    stubRoles(['viewer']);
+    renderAt('/p/clemvion/specs/SPC-CWC-007?rail=attachments');
+    await waitFor(() => expect(screen.getByTestId('rail-tab-attachments')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('rail-body').textContent).toContain('첨부가 없습니다'),
+    );
+    expect(screen.queryByTestId('attach-drop')).toBeNull();
+  });
+});

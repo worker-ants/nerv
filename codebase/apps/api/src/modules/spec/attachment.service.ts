@@ -122,6 +122,16 @@ export function attachmentCsp(contentType: string): string {
   return CSP_LOCKED;
 }
 
+/**
+ * 이 첨부의 주소를 본문에 가진 **버전 번호**(오름차순) — 별칭 `a` 가 attachment 여야 한다.
+ *
+ * 받는 주소는 `/attachments/<id>` 이고 id 는 UUID 라, 본문에 id 가 있으면 그 첨부를 가리킨다.
+ * 초안도 센다 — 지금 쓰는 본문이 가리키는 그림을 지우면 그 초안이 깨진다(REQ-API-231).
+ */
+const referencingVersionsSql = sql`COALESCE((
+  SELECT array_agg(v.version_no ORDER BY v.version_no) FROM spec_version v
+   WHERE v.spec_id = a.spec_id AND strpos(v.body_md, a.id::text) > 0), '{}'::int[])`;
+
 /** 파일당 10MB — 스펙당 합계는 제한하지 않는다(사람 결정). 값의 정본은 상수 파일이다 */
 export const MAX_BYTES = ATTACHMENT_MAX_BYTES;
 
@@ -172,23 +182,36 @@ export class AttachmentService {
     }
   }
 
-  /** 목록 — **확정된 것만**. 올리다 만 행은 목록에 없다 */
-  async list(input: { projectId: string; specKey: string }): Promise<Record<string, unknown>[]> {
+  /**
+   * 목록 — **확정된 것만**. 올리다 만 행은 목록에 없다.
+   *
+   * 내린 첨부도 기본 목록에 없다(REQ-API-231). `hidden` 이면 **내린 것만** 준다 — 화면의
+   * "내린 첨부" 칸이 그것을 읽는다.
+   */
+  async list(input: {
+    projectId: string;
+    specKey: string;
+    hidden?: boolean;
+  }): Promise<Record<string, unknown>[]> {
+    const hidden = input.hidden === true;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT a.id, a.filename, a.content_type, a.bytes, a.created_at,
+      SELECT a.id, a.filename, a.content_type, a.bytes, a.created_at, a.hidden_at,
              u.display_name AS uploaded_by,
              (a.uploaded_by_session_id IS NOT NULL) AS is_agent,
              -- **받는 주소를 함께 준다**(2026-09-04 · 실사용 보고). id 만 주면 주소를
              -- 조립하는 규칙을 아는 쪽만 받을 수 있다 — 웹은 알았고 에이전트는 몰라서
              -- 스토리지(:9000)를 직접 두드리다 403 을 받았다. 서버 경로로 안내한다:
              -- 권한 검사와 CSP sandbox·nosniff 가 그 경로에만 걸린다(REQ-API-070).
-             '/api/v1/projects/' || p.slug || '/attachments/' || a.id AS url
+             '/api/v1/projects/' || p.slug || '/attachments/' || a.id AS url,
+             -- 어느 버전 본문이 이 주소를 가리키는가 — 지우면 파일까지 사라지는지 여기서 안다
+             ${referencingVersionsSql} AS referenced_by_versions
         FROM attachment a
         JOIN spec s ON s.id = a.spec_id
         JOIN project p ON p.id = s.project_id
         JOIN "user" u ON u.id = a.uploaded_by_user_id
        WHERE s.project_id = ${input.projectId} AND s.key = ${input.specKey}
          AND a.committed_at IS NOT NULL
+         AND (a.hidden_at IS NOT NULL) = ${hidden}
        ORDER BY a.created_at
     `);
     return rows;
@@ -431,28 +454,153 @@ export class AttachmentService {
       : { storageKey: row.storage_key, filename: row.filename, contentType: row.content_type };
   }
 
+  /** 행 하나 — 이 프로젝트의 것만. 없으면 409 `not_found` 다(조용히 성공하지 않는다) */
+  private async row(input: { projectId: string; attachmentId: string }): Promise<{
+    spec_id: string;
+    storage_key: string;
+    committed: boolean;
+    hidden: boolean;
+    referenced_by_versions: number[];
+  }> {
+    const { rows } = await this.db.execute<{
+      spec_id: string;
+      storage_key: string;
+      committed: boolean;
+      hidden: boolean;
+      referenced_by_versions: number[];
+    }>(sql`
+      SELECT a.spec_id, a.storage_key,
+             (a.committed_at IS NOT NULL) AS committed, (a.hidden_at IS NOT NULL) AS hidden,
+             ${referencingVersionsSql} AS referenced_by_versions
+        FROM attachment a
+       WHERE a.id = ${input.attachmentId} AND a.project_id = ${input.projectId}
+    `);
+    const row = rows[0];
+    if (row === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.attachment.not_found'), {
+        kind: 'not_found',
+        attachment_id: input.attachmentId,
+      });
+    }
+    return row;
+  }
+
+  /**
+   * **목록에서 내린다** — 파일과 행은 남긴다(REQ-API-231 · 2026-09-28 사람 결정).
+   *
+   * 에이전트의 길은 이것뿐이다: 시안을 바꾸면 옛 시안을 내린다. 파일까지 지우는 것은
+   * 되돌릴 수 없어 사람이 한다(A4 — agent-integration §2.2). 내린 것은 사람이 복원한다.
+   */
+  async hide(input: {
+    projectId: string;
+    attachmentId: string;
+    actor?: { userId: string; sessionId: string | null };
+  }): Promise<Record<string, unknown>> {
+    const found = await this.row(input);
+    if (!found.committed) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.attachment.not_found'), {
+        kind: 'not_found',
+        attachment_id: input.attachmentId,
+      });
+    }
+    if (!found.hidden) {
+      await this.db.execute(sql`
+        UPDATE attachment SET hidden_at = now()
+         WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}
+      `);
+      if (input.actor !== undefined) {
+        await this.audit({
+          projectId: input.projectId,
+          type: NERV_EVENT.SPEC_ATTACHMENT_REMOVED,
+          attachmentId: input.attachmentId,
+          actor: input.actor,
+          payload: {
+            spec_id: found.spec_id,
+            mode: 'hidden',
+            referenced_by_versions: found.referenced_by_versions,
+          },
+        });
+      }
+    }
+    return {
+      attachment_id: input.attachmentId,
+      hidden: true,
+      deleted: false,
+      file_kept: true,
+      referenced_by_versions: found.referenced_by_versions,
+    };
+  }
+
+  /** 내린 첨부를 목록에 되돌린다 — 사람의 길이다(화면의 [복원]) */
+  async restore(input: {
+    projectId: string;
+    attachmentId: string;
+    actor?: { userId: string; sessionId: string | null };
+  }): Promise<Record<string, unknown>> {
+    const found = await this.row(input);
+    if (!found.committed) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.attachment.not_found'), {
+        kind: 'not_found',
+        attachment_id: input.attachmentId,
+      });
+    }
+    if (found.hidden) {
+      await this.db.execute(sql`
+        UPDATE attachment SET hidden_at = NULL
+         WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}
+      `);
+      if (input.actor !== undefined) {
+        await this.audit({
+          projectId: input.projectId,
+          type: NERV_EVENT.SPEC_ATTACHMENT_ADDED,
+          attachmentId: input.attachmentId,
+          actor: input.actor,
+          payload: { spec_id: found.spec_id, restored: true },
+        });
+      }
+    }
+    return { attachment_id: input.attachmentId, hidden: false };
+  }
+
+  /**
+   * 사람의 [삭제] — **지난 버전이 가리키면 내리기만 한다**(REQ-API-231 · 2026-09-28 사람 결정).
+   *
+   * 첨부는 버전이 아니라 스펙에 매달린다. 예전에는 파일과 행을 함께 지워서, 옛 시안을 지우면
+   * 그 시안을 가리키던 승인본의 그림이 깨졌다 — "이 버전이 말하는 화면" 을 되짚으려고 매단
+   * 첨부가 그 되짚기를 깨뜨린 셈이다. 가리키는 버전이 없을 때만 파일까지 지운다.
+   *
+   * 없는 id 는 409 `not_found` 다 — 예전에는 조용히 `ok` 였다.
+   */
   async remove(input: {
     projectId: string;
     attachmentId: string;
     /** 누가 뗐는가 — 감사 축(REQ-API-151) */
     actor?: { userId: string; sessionId: string | null };
-  }): Promise<{ ok: true }> {
-    const found = await this.open(input);
-    if (found !== null) await this.storage.remove(found.storageKey);
-    const { rows } = await this.db.execute<{ spec_id: string }>(
-      sql`DELETE FROM attachment WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}
-          RETURNING spec_id`,
+  }): Promise<Record<string, unknown>> {
+    const found = await this.row(input);
+    if (found.committed && found.referenced_by_versions.length > 0) {
+      return this.hide(input);
+    }
+    await this.storage.remove(found.storage_key);
+    await this.db.execute(
+      sql`DELETE FROM attachment WHERE id = ${input.attachmentId} AND project_id = ${input.projectId}`,
     );
-    if (input.actor !== undefined && rows[0] !== undefined) {
+    if (input.actor !== undefined) {
       await this.audit({
         projectId: input.projectId,
         type: NERV_EVENT.SPEC_ATTACHMENT_REMOVED,
         attachmentId: input.attachmentId,
         actor: input.actor,
-        payload: { spec_id: rows[0].spec_id },
+        payload: { spec_id: found.spec_id, mode: 'deleted' },
       });
     }
-    return { ok: true };
+    return {
+      attachment_id: input.attachmentId,
+      hidden: false,
+      deleted: true,
+      file_kept: false,
+      referenced_by_versions: [],
+    };
   }
 
   /**

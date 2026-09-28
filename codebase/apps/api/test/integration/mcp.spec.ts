@@ -180,14 +180,16 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     }
   });
 
-  it('tools/list 가 24종을 노출한다 — MVP 22(P0 8 + P1 14) + 리뷰 2(P2)', async () => {
+  it('tools/list 가 25종을 노출한다 — MVP 23(P0 8 + P1 15) + 리뷰 2(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
     // 카탈로그와 MVP 를 섞지 않는다 — 리뷰 수집(FR-09) 2종이 Phase 2 에서 위에 얹혔다.
     // MVP 는 22 다: 2026-08-30 에 16 → 19(Task 를 만들고·읽고·훑는 셋), 09-01 에 20
     // (`nerv_spec_attach`), 09-04 에 21(`nerv_spec_attachment_read`), 09-05 에 22
-    // (`nerv_question_cancel` — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다).
-    expect(tools).toHaveLength(24);
+    // (`nerv_question_cancel` — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다), 09-28 에 23
+    // (`nerv_spec_attachment_hide` — 시안을 바꾸면 옛 시안을 내린다. 지우는 것은 사람이다).
+    expect(tools).toHaveLength(25);
+    expect(tools.map((t) => t.name)).toContain('nerv_spec_attachment_hide');
     expect(tools.map((t) => t.name)).toContain('nerv_question_cancel');
     expect(tools.map((t) => t.name)).toContain('nerv_bootstrap');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_relate');
@@ -217,7 +219,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     const used = new Set(tools.map((t) => String(t._meta?.['nerv/scope'])));
 
     for (const scope of REST_ONLY_SCOPES) expect(used.has(scope)).toBe(false);
-    // 남은 일곱이 도구 22종을 덮는다 — 어휘 10 에서 REST 축 3 을 뺀 수와 정확히 같다
+    // 남은 일곱이 도구 25종을 덮는다 — 어휘 10 에서 REST 축 3 을 뺀 수와 정확히 같다
     expect(used.size).toBe(AGENT_SCOPES.length - REST_ONLY_SCOPES.length);
     for (const scope of used) expect(AGENT_SCOPES as readonly string[]).toContain(scope);
   });
@@ -1891,5 +1893,64 @@ describe('응답 상태 코드 — 200 이다 (bin/nerv-outbox 가 읽는다)', 
     });
     expect(bad.status).toBe(200);
     expect((bad.body['result'] as Record<string, unknown>)['isError']).toBe(true);
+  });
+});
+
+/**
+ * **시안을 바꾸면 옛 시안을 내린다**(2026-09-28 · 사람 결정 · REQ-API-231).
+ *
+ * 올리는 도구만 있던 동안, 새 시안을 올린 에이전트는 옛 시안을 치울 수 없어 두 시안이 목록에
+ * 나란히 남았다. 도구는 **내리기만** 한다 — 파일까지 지우는 것은 되돌릴 수 없어 사람의
+ * 일이다(A4 · agent-integration §2.2).
+ */
+describe('nerv_spec_attachment_hide (REQ-API-231)', () => {
+  it('목록에서 내리고 파일은 남긴다 — 가리키는 버전을 알리고, 에이전트의 일로 기록한다', async () => {
+    const boot = await callTool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: 'mac-13',
+      external_session_id: 'S-attach-hide',
+    });
+    const specId = newId();
+    const attachmentId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'design','SPC-MOCK','시안')`,
+      [specId, projectId],
+    );
+    await pool.query(
+      `INSERT INTO attachment (id, project_id, spec_id, storage_key, filename, content_type, bytes,
+                               checksum, uploaded_by_user_id, committed_at)
+       VALUES ($1,$2,$3,$4,'옛-시안.png','image/png',7,'x',$5, now())`,
+      [attachmentId, projectId, specId, `${projectId}/${specId}/${attachmentId}.png`, userId],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'approved',$3, digest($3,'sha256'), $4)`,
+      [newId(), specId, `![옛 시안](/api/v1/projects/x/attachments/${attachmentId})`, userId],
+    );
+
+    const out = await callTool('nerv_spec_attachment_hide', {
+      attachment_id: attachmentId,
+      session_id: boot['session_id'],
+    });
+    expect(out).toMatchObject({ hidden: true, deleted: false, file_kept: true });
+    expect(out['referenced_by_versions']).toEqual([1]);
+
+    const got = await callTool('nerv_spec_get', {
+      spec_id: 'SPC-MOCK',
+      include: ['attachments'],
+      session_id: boot['session_id'],
+    });
+    expect(got['attachments']).toEqual([]);
+    const { rows } = await pool.query<{ hidden: boolean }>(
+      `SELECT hidden_at IS NOT NULL AS hidden FROM attachment WHERE id = $1`,
+      [attachmentId],
+    );
+    expect(rows[0]?.hidden).toBe(true);
+    const { rows: events } = await pool.query<{ is_agent: boolean; mode: string }>(
+      `SELECT is_agent, payload->>'mode' AS mode FROM event
+        WHERE type = 'spec.attachment_removed' AND subject_id = $1`,
+      [attachmentId],
+    );
+    expect(events).toEqual([{ is_agent: true, mode: 'hidden' }]);
   });
 });
