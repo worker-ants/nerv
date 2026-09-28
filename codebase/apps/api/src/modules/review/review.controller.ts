@@ -42,6 +42,9 @@ export class ReviewController {
       changeset: input.changeset,
       kind: input.kind as 'code',
       taskId: input.task_id ?? null,
+      // **REST 도 세션을 붙인다**(2026-09-28 · REQ-API-238) — 버리고 있어서 REST 로 낸 라운드에는 세션도,
+      // 클레임에서 채우는 Task 도 없었다. 제출자의 세션인지는 서비스가 판정한다
+      sessionId: input.session_id ?? null,
       reviewer: {
         role: input.reviewer?.role ?? '',
         risk: (input.reviewer?.risk ?? null) as 'low' | null,

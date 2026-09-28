@@ -855,7 +855,8 @@ export class TaskService {
    * 사람과 화면과 로그가 쓰는 것은 키인데 도구는 UUID 만 받고 있었다 — 에이전트가 화면에서
    * 본 값을 그대로 넣으면 "없는 작업"이 된다. 형태로 갈라 둘 다 받는다.
    */
-  private async resolveTaskId(tx: Tx, projectId: string, ref: string): Promise<string> {
+  // 리뷰 제출도 같은 해소를 쓴다(2026-09-28 · REQ-API-238) — 키를 주면 22P02, 남의 프로젝트 UUID 는 통과하던 자리다
+  async resolveTaskId(tx: Tx, projectId: string, ref: string): Promise<string> {
     const parsed = entityRef(ref);
     // **UUID 도 프로젝트 안에서 해소한다.** 예전에는 UUID 면 그대로 돌려줬고, 그래서
     // `claim` 의 FOR UPDATE 조회가 남의 프로젝트 Task 를 잠그고 그 프로젝트 id 로

@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.28 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.29 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.29 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **리뷰 제출의 세션 · Task** 를 적는다.
 >
 > v2.28 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **게이트 현황의 최신 라운드 · limit** 을 적는다.
 >
@@ -735,6 +737,7 @@ referenced_by:
 | 디스크 미러의 경로 이탈 막기(보안) | `apps/api/src/common/safe-path.ts`(신설 — `safePathSegment` · `resolveInside`) · `worker/jobs/export.job.ts`(slug · 키를 한 칸으로) · `spec.service.ts`(`llms.txt` 링크) · L1 `safe-path.spec.ts` · L2 `mirror-retention.spec.ts` | 스펙 키 · slug 에 형식 검사가 없어 `../` 가 든 키가 `NERV_EXPORT_DIR` 밖에 파일을 썼다. clemvion 요청 검토 중 찾은 것이다([4.4 API 명세](api.md) REQ-API-235) |
 | md 미러의 오류 상태 | `modules/spec/mirror.controller.ts`(content-type 을 응답 뒤에 · `?version` 검사) · `common/nerv-exception.filter.ts`(`fileRouteStatus` — 미러 경로의 `not_found` 는 404) · L1 `nerv-exception.filter.spec.ts` · L2 `mirror-http.spec.ts`(신설 — HTTP 로 부른다) | 미러의 오류가 모두 500 이었다(없는 버전 · 없는 키 · `?version=abc`). clemvion 요청 N3 이 적은 결함이고 원인은 더 넓었다([4.4 API 명세](api.md) REQ-API-236) |
 | 게이트 현황의 최신 라운드 · limit | `modules/review/review.service.ts`(`gateCoverage` — 가장 최근 라운드 · `kind`) · `review.controller.ts`(`limit` 검사) · `features/review-center/gate-coverage.tsx`(주석 정정) · L2 `review.spec.ts` | 다른 종류의 옛 라운드가 최신으로 보였고 `?limit=abc` 가 500 이었다. 명세의 "Phase 2 몫" 문장도 고쳤다([4.4 API 명세](api.md) REQ-API-237) |
+| 리뷰 제출의 세션 · Task | `modules/review/review.service.ts`(제출자의 세션 검사 · Task 키 해소 · 다시 낼 때의 Task 규칙 · `claimedTask`) · `review.controller.ts`(`session_id` 전달) · `task/task.service.ts`(`resolveTaskId` 공개) · L2 `review.spec.ts` 5건 | 같은 변경의 재제출이 명시한 Task 를 무시했고, `task_id` 키는 22P02 · 남의 프로젝트 UUID 는 통과였고, REST 가 `session_id` 를 버렸다([4.4 API 명세](api.md) REQ-API-238) |
 
 #### 이 절은 언제 갱신되는가
 

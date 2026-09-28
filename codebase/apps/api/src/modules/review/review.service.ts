@@ -303,7 +303,15 @@ export class ReviewService {
     }).toString('hex');
 
     return this.events.transact(async (tx, emit) => {
-      const session = await this.sessionFor(tx, input, hash);
+      // **제출자의 세션 · 그 프로젝트의 Task 만 붙인다**(2026-09-28 · REQ-API-238). REST 는 `session_id` 를
+      // 버리고 있었고(세션도, 클레임에서 채우는 Task 도 붙지 않았다), `task_id` 는 그대로 uuid 열에 들어가
+      // 키를 주면 22P02 였고 남의 프로젝트 UUID 는 통과했다. MCP 는 세션을 이미 검사하지만 판정은 여기 한 곳이다
+      if (input.sessionId != null) await this.assertOwnSession(tx, input);
+      const taskId =
+        input.taskId == null
+          ? null
+          : await this.tasks.resolveTaskId(tx, input.projectId, input.taskId);
+      const session = await this.sessionFor(tx, { ...input, taskId }, hash);
       const reportId = await this.upsertReport(tx, session.id, input);
 
       const created: string[] = [];
@@ -487,12 +495,23 @@ export class ReviewService {
       const { rows: linked } = await tx.execute<{ task_id: string | null }>(
         sql`SELECT task_id FROM review_session WHERE id = ${existing.id}`,
       );
-      return {
-        id: existing.id,
-        roundNo: existing.round_no,
-        fresh: false,
-        taskId: linked[0]?.task_id ?? null,
-      };
+      // **다시 제출해도 Task 규칙은 같다**(2026-09-28 · REQ-API-238). 예전에는 같은 변경의 라운드가 있으면
+      // 그 라운드의 옛 `task_id` 를 그대로 써서, 명시한 Task 도 클레임에서 채울 Task 도 무시했다 —
+      // done 게이트는 `task_id` 로만 라운드를 찾으므로 리뷰가 있어도 커버리지가 없다고 판정했다.
+      // 명시한 값은 언제나 이기고, 클레임에서 채우는 값은 비어 있을 때만 채운다(새 라운드와 같다)
+      const current = linked[0]?.task_id ?? null;
+      const wanted =
+        input.taskId ??
+        (current === null && input.sessionId != null
+          ? await this.claimedTask(tx, input.sessionId)
+          : null) ??
+        current;
+      if (wanted !== current) {
+        await tx.execute(
+          sql`UPDATE review_session SET task_id = ${wanted} WHERE id = ${existing.id}`,
+        );
+      }
+      return { id: existing.id, roundNo: existing.round_no, fresh: false, taskId: wanted };
     }
 
     const { rows: prior } = await tx.execute<{ id: string; round_no: number }>(sql`
@@ -511,13 +530,7 @@ export class ReviewService {
     // 다른 Task 의 리뷰를 올릴 수 있어야 하기 때문이다.
     let taskId = input.taskId ?? null;
     if (taskId === null && input.sessionId != null) {
-      const { rows: claimed } = await tx.execute<{ task_id: string }>(sql`
-        SELECT task_id FROM claim
-         WHERE agent_session_id = ${input.sessionId} AND status = 'active'
-           AND lease_expires_at > now()
-         ORDER BY acquired_at DESC LIMIT 1
-      `);
-      taskId = claimed[0]?.task_id ?? null;
+      taskId = await this.claimedTask(tx, input.sessionId);
     }
     await tx.execute(sql`
       INSERT INTO review_session (id, project_id, kind, "trigger", agent_session_id, task_id,
@@ -534,6 +547,32 @@ export class ReviewService {
               coalesce(${input.reviewedAt ?? null}::timestamptz, now()))
     `);
     return { id: sessionId, roundNo, fresh: true, taskId };
+  }
+
+  /** 그 세션이 지금 쥔 Task — 활성 클레임 중 가장 최근 것(REQ-API-148) */
+  private async claimedTask(tx: Tx, sessionId: string): Promise<string | null> {
+    const { rows } = await tx.execute<{ task_id: string }>(sql`
+      SELECT task_id FROM claim
+       WHERE agent_session_id = ${sessionId} AND status = 'active'
+         AND lease_expires_at > now()
+       ORDER BY acquired_at DESC LIMIT 1
+    `);
+    return rows[0]?.task_id ?? null;
+  }
+
+  /** 리뷰를 붙일 세션은 **제출자의 것**이어야 한다 — 남의 세션과 그 클레임에 리뷰를 붙이지 못하게 */
+  private async assertOwnSession(tx: Tx, input: SubmitInput): Promise<void> {
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM agent_session
+       WHERE id = ${input.sessionId ?? null} AND project_id = ${input.projectId}
+         AND user_id = ${input.userId}
+    `);
+    if (rows.length === 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.not_found'), {
+        kind: 'not_found',
+        session_id: input.sessionId,
+      });
+    }
   }
 
   /**
