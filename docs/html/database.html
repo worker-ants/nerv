@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 40개</b>다 — 도메인 34 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.61 (2026-09-28)</span>
+      <span>버전 v0.62 (2026-09-28)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1179,7 +1179,8 @@ CREATE TABLE email_outbox (
 -- 잡이 집는 줄만 보는 부분 인덱스 — 보낸 것이 쌓여도 큐 조회 비용은 그대로다
 CREATE INDEX email_outbox_due ON email_outbox (next_attempt_at)
   WHERE sent_at IS NULL AND failed_at IS NULL;
--- 보존 잡이 보낸 지 오래된 것을 치운다(본문에 살아 있는 링크가 들어 있다)
+-- 보존 잡이 보낸 지 SENT_MAIL_RETENTION_DAYS(7일 — 초대 링크 수명)가 지난 것을 치운다(본문에 살아 있는 링크가 들어 있다).
+-- 재시도를 포기한 줄(failed_at)은 원인을 보려고 남긴다(REQ-DB-026 · REQ-DB-033)
 CREATE INDEX email_outbox_sent ON email_outbox (sent_at);
 
 -- 초대는 자기 발송 시각을 따로 갖는다 — 보존 잡이 위 큐를 치워도 답이 남아야 한다
@@ -1199,6 +1200,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
       <tr><td><code>REQ-DB-030</code></td><td>WHEN 보통 알림이 묶이면 THE SYSTEM SHALL <code>notification</code> 에 <code>batch_key</code> · <code>batch_size</code> · <code>last_at</code> · <code>batch_open</code> 을 두고, <code>(user_id, batch_key) WHERE batch_open</code> 유일 인덱스(<code>notification_open_batch</code>)로 열린 묶음을 키마다 하나로 지키며, 묶음에 든 이벤트를 <code>notification_batch_event</code> 에 적어 <code>(event_id, user_id)</code> 유일로 한 이벤트가 한 사람에게 한 묶음에만 들게 한다. 목록 인덱스(<code>notification_inbox</code>)는 <code>last_at</code> 순이다. 있던 알림의 <code>last_at</code> 은 <code>created_at</code> 으로 채운다(마이그레이션 <code>0037</code> · <a href="api.html">4.4 API 명세</a> REQ-API-223·224 · 2026-09-27)</td></tr>
       <tr><td><code>REQ-DB-031</code></td><td>WHEN 마이그레이션 <code>0038</code> 이 돌면 THE SYSTEM SHALL 안 읽은 보통 알림 가운데 아직 묶음이 아닌 줄을 사람 · 배치 키마다 접는다 — 이미 열린(안 읽은) 묶음이 있으면 거기에, 없으면 가장 최근 줄을 묶음으로 삼아 모든 줄의 이벤트를 <code>notification_batch_event</code> 에 적고, 건수와 처음 · 마지막 시각을 넓힌다. 나머지 줄은 <b>지우지 않고</b> <code>archived</code> 로 둔다. 읽은 알림과 중요 알림은 건드리지 않고, 다시 돌려도 0건이다(로컬 실측 2026-09-27: 안 읽은 922행 → 37줄 · <a href="api.html">4.4 API 명세</a> REQ-API-225 · 2026-09-27)</td></tr>
       <tr><td><code>REQ-DB-032</code></td><td>WHEN 증적이 저장되면 THE SYSTEM SHALL 선택 칸 <code>note</code>(text)에 이 증적이 무엇을 보여 주는지 담고, <code>char_length(note) &lt;= 500</code> CHECK(<code>evidence_note_len_ck</code>)로 상한을 지킨다. 있던 증적은 비어 있다(마이그레이션 <code>0039</code> · <a href="api.html">4.4 API 명세</a> REQ-API-229 · 2026-09-28)</td></tr>
+      <tr><td><code>REQ-DB-033</code></td><td>WHEN 보존 잡이 돌면 THE SYSTEM SHALL <code>email_outbox</code> 에서 보낸 지 <code>SENT_MAIL_RETENTION_DAYS</code>(7일 — 메일 링크 가운데 가장 긴 초대 링크의 수명)가 지난 줄을 지운다. WHERE 재시도를 포기한 줄(<code>failed_at</code>)이면 THE SYSTEM SHALL 남긴다 — 원인을 보려고 두는 줄이다(REQ-DB-026). 스키마 주석과 DDL 은 처음부터 "보존 잡이 치운다" 고 적었는데 지우는 코드가 없었다(2026-09-28 · 사람 결정 EM9)</td></tr>
     </tbody>
   </table></div>
 
