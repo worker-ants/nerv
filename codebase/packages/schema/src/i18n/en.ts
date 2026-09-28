@@ -1400,7 +1400,6 @@ export const en = {
   'home.others_waiting': '{count} waiting on someone else ▸',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '{count} active sessions',
-  'project.actor.agent': 'Agent',
   'project.coverage': 'Implementation status',
   'project.coverage.alt':
     '{verified} verified and {implemented} implemented of {total} requirements',
@@ -1797,6 +1796,8 @@ export const en = {
   'unsubscribe.expired_body':
     'The link works for {days} days after the email is sent. You can turn the digest off in My account.',
   'unsubscribe.to_account': 'Go to My account',
+  'actor.agent': 'Agent',
+  'actor.delegated_by': 'delegated by {name}',
   'settings.title': 'Settings',
   'settings.heading': 'Settings — {org}',
   'settings.nav_label': 'Settings menu',

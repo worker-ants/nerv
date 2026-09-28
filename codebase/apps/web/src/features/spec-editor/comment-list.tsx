@@ -14,14 +14,8 @@ import { relativeTime } from '../../lib/format.js';
 import { useT } from '../../lib/i18n.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { cn } from '../../lib/utils.js';
-import {
-  Avatar,
-  Button,
-  Disclosure,
-  Input,
-  Select,
-  Textarea,
-} from '../../components/ui/primitives.js';
+import { Button, Disclosure, Input, Select, Textarea } from '../../components/ui/primitives.js';
+import { ActorMark } from '../../components/actor-mark.js';
 
 /** 코멘트를 달 수 있는 자리 — 본문의 헤딩과 요구사항 */
 export interface AnchorChoice {
@@ -112,7 +106,13 @@ export function CommentList({
           {/* **누가 · 언제 · 어느 버전에**(SPEC-04) */}
           {author !== null && (
             <span data-testid="comment-author" className="flex items-center gap-1">
-              {!agent && <Avatar name={author} size="sm" />}
+              {/* 에이전트도 표지가 있다 — 글자만이던 자리다(REQ-WEB-277) */}
+              <ActorMark
+                size="sm"
+                name={author}
+                agent={agent}
+                machine={String(c['author_agent_type'] ?? '')}
+              />
               {agent ? `${author} · ${String(c['author_agent_type'] ?? '')}` : author}
             </span>
           )}

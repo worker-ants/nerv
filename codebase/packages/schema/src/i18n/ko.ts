@@ -1386,7 +1386,6 @@ export const ko = {
   'home.others_waiting': '다른 사람의 결정을 기다리는 것 {count}건 ▸',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '활성 세션 {count}개',
-  'project.actor.agent': '에이전트',
   'project.coverage': '구현 현황',
   'project.coverage.alt': '요구사항 {total}건 중 검증 {verified}건 · 구현 {implemented}건',
   'project.metric.empty_promises': '작업 없음',
@@ -1775,6 +1774,8 @@ export const ko = {
   'unsubscribe.expired_body':
     '끄는 링크는 메일을 보내고 {days}일 동안 쓸 수 있습니다. 내 계정에서 끌 수 있습니다.',
   'unsubscribe.to_account': '내 계정으로',
+  'actor.agent': '에이전트',
+  'actor.delegated_by': '{name} 위임',
   'settings.title': '설정',
   'settings.heading': '설정 — {org}',
   'settings.nav_label': '설정 메뉴',

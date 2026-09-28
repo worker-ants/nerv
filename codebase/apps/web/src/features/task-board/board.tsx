@@ -57,6 +57,7 @@ import {
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import { EntityLink } from '../../components/entity-link.js';
+import { ActorMark } from '../../components/actor-mark.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { asProjectId } from '../../lib/query-keys.js';
@@ -757,9 +758,15 @@ function TaskCard({
                 host: task['claim_hostname'],
                 agent: String(task['claim_agent_type'] ?? ''),
               })}
-              className="relative rounded-nerv-sm bg-status-agent-soft px-1 text-2xs font-medium text-status-agent hover:no-underline"
+              className="relative hover:no-underline"
             >
-              AI
+              {/* 행위자 표기 한 벌(REQ-WEB-277) — 피드의 AI 칸과 같은 모양이다 */}
+              <ActorMark
+                name={null}
+                agent
+                size="sm"
+                machine={`${task['claim_hostname']} · ${String(task['claim_agent_type'] ?? '')}`}
+              />
             </EntityLink>
           )}
         {/* 우선순위는 레인의 정렬 기준이다 — **급한 둘만** 작게 보인다(다 보이면 신호가 아니다) */}

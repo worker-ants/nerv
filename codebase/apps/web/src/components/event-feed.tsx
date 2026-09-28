@@ -16,10 +16,11 @@ import { relativeTime } from '../lib/format.js';
 import { rows, useEventFeed } from '../lib/queries.js';
 import type { ProjectId } from '../lib/query-keys.js';
 import { cn } from '../lib/utils.js';
+import { ActorMark } from './actor-mark.js';
 import { collapseRepeats, eventSubject, eventTarget, hrefOf } from '../lib/event-subject.js';
 import type { EventRow } from '../lib/event-subject.js';
 import { ErrorState, failedWithoutData } from './query-state.js';
-import { Avatar, Disclosure, EmptyState, LoadMore, Skeleton } from './ui/primitives.js';
+import { Disclosure, EmptyState, LoadMore, Skeleton } from './ui/primitives.js';
 
 export interface EventFeedProps {
   projectSlug: string;
@@ -160,25 +161,9 @@ function FeedRow({
         nested && 'pl-8',
       )}
     >
-      {/* **사람과 에이전트를 가른다**(REQ-WEB-010 · FR-16 · D-08) — 에이전트는 어느 기계의 무엇인지까지 */}
-      {agent ? (
-        <span
-          data-testid="event-actor-agent"
-          title={[actor, machine].filter((v) => v !== null && v !== '').join(' — ')}
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-nerv-sm bg-status-agent-soft text-2xs font-medium text-status-agent"
-        >
-          AI<span className="sr-only"> {t('project.actor.agent')}</span>
-        </span>
-      ) : actor !== null ? (
-        <Avatar name={actor} size="md" />
-      ) : (
-        <span
-          aria-hidden="true"
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-nerv-sm bg-bg-sunken text-2xs text-text-mute"
-        >
-          ·
-        </span>
-      )}
+      {/* **사람과 에이전트를 가른다**(REQ-WEB-010 · FR-16 · D-08) — 에이전트는 어느 기계의 무엇인지까지.
+          모양은 행위자가 적히는 모든 자리와 같은 한 벌이다(REQ-WEB-277) */}
+      <ActorMark name={actor} agent={agent} machine={machine} testId="event-actor-agent" />
       <span className="min-w-0 flex-1 truncate text-text">
         {t(eventLabelKey(String(e['type'])))}
         {/* 키가 링크다. 키가 없는 대상(발견 · 작업에 붙지 않은 질문)은 **제목이** 링크가 된다 */}

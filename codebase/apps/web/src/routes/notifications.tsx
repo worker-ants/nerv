@@ -37,6 +37,7 @@ import {
   Segmented,
   Skeleton,
 } from '../components/ui/primitives.js';
+import { ActorMark } from '../components/actor-mark.js';
 import { ScopeBadge } from '../components/scope-badge.js';
 import { ScopeRail, scopeName, scopeTotals } from '../features/inbox/scope-rail.js';
 import { levelOf, NotificationLevelControl } from '../features/inbox/notification-level.js';
@@ -101,9 +102,12 @@ const batchSize = (n: EventRow): number =>
 const batchCauses = (n: EventRow): BatchCause[] =>
   Array.isArray(n['batch_causes']) ? (n['batch_causes'] as BatchCause[]) : [];
 
-/** 원인 한 건의 이름 — 재검토면 바뀐 문서, 작업 준비면 그 작업, 그 밖(코멘트)이면 남긴 사람 */
+/**
+ * 원인 한 건의 이름 — 재검토면 바뀐 문서, 작업 준비면 그 작업, 그 밖(코멘트)이면 남긴 사람. 글자만 이어지는 줄이라
+ * 에이전트는 이름 뒤에 "(AI)" — 다른 자리의 AI 칸과 같은 낱말이다(REQ-WEB-277)
+ */
 const causeName = (c: BatchCause): string =>
-  c.because_key ?? c.task_key ?? `${c.actor_name ?? '—'}${c.is_agent === true ? ' 🤖' : ''}`;
+  c.because_key ?? c.task_key ?? `${c.actor_name ?? '—'}${c.is_agent === true ? ' (AI)' : ''}`;
 
 /** 줄에 붙는 한 줄 — 서로 다른 이름을 셋까지 적고, 더 있으면 "등" 을 붙인다 */
 function causeLine(t: ReturnType<typeof useT>, n: EventRow): string | null {
@@ -387,9 +391,14 @@ function NotificationScreen(): React.JSX.Element {
             projectName={n['project_name']}
           />
         )}
-        <span className="hidden w-28 shrink-0 truncate text-right text-xs text-text-faint md:inline">
-          {String(n['actor_name'] ?? '')}
-          {n['is_agent'] === true ? ' 🤖' : ''}
+        {/* 행위자 표기 한 벌 — 사람은 머리글자 원, 에이전트는 AI 칸(REQ-WEB-277) */}
+        <span className="hidden w-28 shrink-0 items-center justify-end gap-1 text-xs text-text-faint md:flex">
+          <ActorMark
+            size="sm"
+            name={typeof n['actor_name'] === 'string' ? n['actor_name'] : null}
+            agent={n['is_agent'] === true}
+          />
+          <span className="truncate">{String(n['actor_name'] ?? '')}</span>
         </span>
         <span className="w-16 shrink-0 text-right text-xs text-text-faint">
           {relativeTime(t, typeof n['occurred_at'] === 'string' ? n['occurred_at'] : null)}

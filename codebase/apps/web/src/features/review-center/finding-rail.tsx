@@ -26,6 +26,7 @@ import type { ProjectId } from '../../lib/query-keys.js';
 import { ResolveDialog } from './resolve-dialog.js';
 import type { ResolveAction } from './resolve-dialog.js';
 import { Button } from '../../components/ui/primitives.js';
+import { ActorMark } from '../../components/actor-mark.js';
 
 const ACTIONS = ['fixed', 'spec_change', 'dismissed', 'wont_fix'] as const;
 
@@ -234,8 +235,12 @@ export function FindingRail({
           {rows(comments.data?.items).map((c) => (
             <li key={String(c['id'])} className="border-l-2 border-l-border pl-2.5">
               <p className="text-sm whitespace-pre-wrap text-text-mute">{String(c['body_md'])}</p>
-              <p className="text-2xs text-text-faint">
-                {c['is_agent'] === true ? '🤖 ' : '👤 '}
+              <p className="flex items-center gap-1 text-2xs text-text-faint">
+                <ActorMark
+                  size="sm"
+                  name={str(c['author_name']) ?? null}
+                  agent={c['is_agent'] === true}
+                />
                 {String(c['author_name'] ?? '')} · {relativeTime(t, str(c['created_at']))}
               </p>
             </li>
