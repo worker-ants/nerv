@@ -1716,6 +1716,19 @@ export const ko = {
   'account.email': '이메일',
   'account.email_hint': '로그인 아이디라서 바꿀 수 없습니다.',
   'account.password': '비밀번호',
+  'account.digest': '메일 요약',
+  'account.digest_hint':
+    '하루 한 번, 안 읽은 알림 가운데 지난 요약 뒤에 새로 온 것을 메일로 모아 보냅니다. 문서 본문은 담지 않고, 메일을 보냈다고 알림이 읽음이 되지는 않습니다.',
+  'account.digest_off_server': '이 서버는 메일을 보내지 않아 메일 요약을 켤 수 없습니다.',
+  'account.digest_enable': '메일 요약 켜기',
+  'account.digest_disable': '끄기',
+  'account.digest_time': '받는 시각',
+  'account.digest_hour': '{hour}시',
+  'account.digest_locale': '메일 언어',
+  'account.digest_timezone': '시간대: {timezone}',
+  'account.digest_use_browser': '이 브라우저의 시간대({timezone})로 바꾸기',
+  'account.digest_saved': '메일 요약을 저장했습니다. 매일 {hour}({timezone})에 보냅니다.',
+  'account.digest_off_toast': '메일 요약을 껐습니다.',
   'account.notifications': '프로젝트별 알림',
   'account.notifications_hint':
     '프로젝트마다 알림을 얼마나 받을지 고릅니다. 이미 받은 알림은 그대로입니다. 받은 요청에는 영향이 없습니다.',
@@ -1929,6 +1942,17 @@ export const ko = {
   'mail.invite.subject': '[NERV] {org}에서 함께 일하자고 초대했습니다',
   'mail.invite.body':
     '{inviter} 님이 {org}에 {role} 역할로 초대했습니다.\n\n아래 주소를 열어 초대를 수락하세요.\n{url}\n\n이 링크는 {days}일 뒤 만료되며, 초대받은 이메일({email})로 로그인해야 수락할 수 있습니다.\n아직 계정이 없다면 먼저 가입한 뒤 같은 주소로 돌아오면 됩니다.\n\n모르는 초대라면 이 메일은 지우셔도 됩니다. 아무 일도 일어나지 않습니다.',
+  'error.digest.mail_disabled': '이 서버는 메일을 보내지 않아 메일 요약을 켤 수 없습니다.',
+  'mail.digest.subject': '[NERV] 알림 {count}건 · 결정 대기 {pending}건',
+  'mail.digest.subject_no_pending': '[NERV] 알림 {count}건',
+  'mail.digest.intro':
+    '{name} 님, 지난 요약 뒤에 온 NERV 알림입니다. 문서 본문은 NERV에서 확인하세요.',
+  'mail.digest.pending': '결정을 기다리는 받은 요청이 {count}건 있습니다.',
+  'mail.digest.open': '이 프로젝트의 알림 보기: {url}',
+  'mail.digest.more': '그 밖에 {count}건이 더 있습니다: {url}',
+  'mail.digest.important': '[중요]',
+  'mail.digest.footer':
+    '매일 {hour}시({timezone})에 보내는 NERV 메일 요약입니다. 받는 시각을 바꾸거나 끄려면 여기서 합니다: {url}',
   'mail.reset.subject': '[NERV] 비밀번호를 새로 정하는 링크입니다',
   'mail.reset.body':
     '{name} 님,\n\n비밀번호를 새로 정해 달라는 요청을 받았습니다. 아래 주소를 열어 새 비밀번호를 정하세요.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다. 새 비밀번호를 정하면 모든 기기에서 로그아웃됩니다.\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 링크를 열어 새 비밀번호를 정하지 않으면 비밀번호는 바뀌지 않습니다.',

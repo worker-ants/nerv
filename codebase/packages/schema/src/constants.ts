@@ -445,3 +445,12 @@ export interface GateEvidence {
   /** 신고 시각 — ISO 문자열 */
   at: string;
 }
+
+/**
+ * 알림 메일 요약 한 통에 적는 **줄 수의 상한**(2026-09-28 · 사람 결정 EM4). 새 수치가 아니라 spec-workflow
+ * §6.5 가 묶음을 일찍 닫는 값(20건)이다. 넘는 줄은 "그 밖에 N건" 으로 줄이고 알림 화면으로 보낸다.
+ */
+export const DIGEST_MAX_LINES = 20;
+
+/** 메일 요약을 켤 때의 기본 시(時) — 와이어프레임의 "다이제스트 09:00"(3.x ui-wireframes) */
+export const DIGEST_DEFAULT_HOUR = 9;

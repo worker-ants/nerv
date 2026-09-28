@@ -1,4 +1,5 @@
-// 이벤트·알림 — event · notification · notification_batch_event · notification_preference
+// 이벤트·알림 — event · notification · notification_batch_event · notification_preference ·
+// notification_digest_setting
 // DDL 정본: docs/04-mvp/database.md §2.10 · 필드 의미: data-model §2.9
 //
 // event 는 append-only(D-10) 이고 월 파티션이라 PK 가 (id, occurred_at) 복합이다.
@@ -8,11 +9,13 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
   pgTable,
   primaryKey,
+  smallint,
   text,
   uniqueIndex,
   uuid,
@@ -23,6 +26,7 @@ import {
   notificationLevel,
   notificationState,
 } from '../enums.js';
+import { DIGEST_DEFAULT_HOUR } from '../constants.js';
 import { createdAt, idPk, ts } from './_columns.js';
 import { agentSession } from './session.js';
 import { project, user } from './tenancy.js';
@@ -159,4 +163,36 @@ export const notificationPreference = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [primaryKey({ name: 'notification_preference_pkey', columns: [t.userId, t.projectId] })],
+);
+
+/**
+ * **알림 메일 요약**(2026-09-28 · 사람 결정 EM1~EM9 · REQ-DB-034 · api.md REQ-API-232).
+ *
+ * 켠 사람만 행이 있다 — `notification_preference` 와 같은 규칙이다(기본은 꺼짐 · EM3). 하루 한 번 **그 사람의
+ * 현지 시각**(`hour` · `timezone`)이 지나면 워커가 안 읽은 알림 가운데 지난 요약 뒤에 새로 생기거나 건수가 늘어난
+ * 줄을 모아 메일 한 통을 줄 세운다. 시간대와 언어는 켤 때 브라우저의 값을 받는다(EM5) — 사람이 따로 입력하지
+ * 않고 빈 값이 없다. `enabled_at` 이후의 줄만 담는다: 처음 켠 날 몇 달 치가 한꺼번에 가지 않게 한다.
+ */
+export const notificationDigestSetting = pgTable(
+  'notification_digest_setting',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** 받는 시(時) — 그 사람의 현지 시각. 기본은 와이어프레임의 09:00 */
+    hour: smallint('hour').notNull().default(DIGEST_DEFAULT_HOUR),
+    /** IANA 시간대 이름(`Asia/Seoul`) — 켤 때 브라우저가 준다 */
+    timezone: text('timezone').notNull(),
+    /** 메일의 언어(`ko` · `en`) — 켤 때의 화면 언어 */
+    locale: text('locale').notNull(),
+    /** 켠 시각 — 이보다 앞선 알림은 담지 않는다 */
+    enabledAt: ts('enabled_at').notNull().defaultNow(),
+    /** 마지막으로 요약을 판정한 시각 — 보낼 것이 없던 날도 옮긴다(하루 한 번) */
+    lastSentAt: ts('last_sent_at'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    check('notification_digest_hour_ck', sql`${t.hour} BETWEEN 0 AND 23`),
+    check('notification_digest_locale_ck', sql`${t.locale} IN ('ko', 'en')`),
+  ],
 );

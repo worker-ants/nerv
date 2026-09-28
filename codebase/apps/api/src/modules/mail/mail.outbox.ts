@@ -161,6 +161,24 @@ export class MailOutbox {
   }
 
   /**
+   * 알림 메일 요약을 줄 세운다(2026-09-28 · 사람 결정 EM1~EM9 · REQ-API-232). 본문은 요약 서비스가 받는
+   * 사람의 언어로 만들어 온다 — 다른 메일과 같이 **넣을 때 만든다**. 요약에 담은 알림 줄에 이 행의 id 를
+   * 적으므로(`notification.digest_batch_id`) 같은 트랜잭션에서 넣고 id 를 돌려준다.
+   */
+  async enqueueDigest(
+    tx: NervDb,
+    input: { email: string; locale: Locale; subject: string; body: string; userId: string },
+  ): Promise<string> {
+    const id = newId();
+    await tx.execute(sql`
+      INSERT INTO email_outbox (id, kind, to_email, locale, subject, body_text, ref_type, ref_id)
+      VALUES (${id}, 'notification_digest', ${input.email}, ${input.locale},
+              ${input.subject}, ${input.body}, 'user', ${input.userId})
+    `);
+    return id;
+  }
+
+  /**
    * 보낼 때가 된 줄을 집는다 — **`FOR UPDATE SKIP LOCKED`**.
    *
    * 워커는 advisory lock 으로 하나만 돌지만(REQ-CB-011), 그 잠금이 풀리는 순간(배포 중

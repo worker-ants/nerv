@@ -3,6 +3,7 @@
 // 잡은 도메인 서비스를 DI 로 받는다 — API 표면과 같은 판정 코드를 쓴다는 뜻이고,
 // 그래서 회수·전이 규칙이 워커와 API 에서 갈라질 수 없다(D-05).
 import { Module } from '@nestjs/common';
+import { DigestModule } from '../modules/digest/digest.module.js';
 import { EventModule } from '../modules/event/event.module.js';
 import { MailModule } from '../modules/mail/mail.module.js';
 import { SpecModule } from '../modules/spec/spec.module.js';
@@ -10,6 +11,7 @@ import { SessionModule } from '../modules/session/session.module.js';
 import { TaskModule } from '../modules/task/task.module.js';
 import { AdvisoryLock } from './advisory-lock.js';
 import { JobRunner } from './job-runner.js';
+import { DigestJob } from './jobs/digest.job.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
@@ -20,7 +22,7 @@ import { RetentionJob } from './jobs/retention.job.js';
 import { SessionStaleJob } from './jobs/session-stale.job.js';
 
 @Module({
-  imports: [TaskModule, SessionModule, EventModule, SpecModule, MailModule],
+  imports: [TaskModule, SessionModule, EventModule, SpecModule, MailModule, DigestModule],
   providers: [
     AdvisoryLock,
     JobRunner,
@@ -32,6 +34,7 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
     RetentionJob,
     EmbeddingJob,
     MailJob,
+    DigestJob,
   ],
   exports: [AdvisoryLock, JobRunner],
 })

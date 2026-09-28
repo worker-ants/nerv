@@ -72,10 +72,12 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     //   입력이 같은 행을 본다)
     // 34번째는 `notification_preference` 다(2026-09-27 · 사람 결정 N3 — 프로젝트별 알림 수준 · 0035)
     // 35번째는 `notification_batch_event` 다(2026-09-27 · 사람 결정 G2 — 앱 안 묶음에 든 이벤트 · 0037)
-    expect(names).toHaveLength(40);
+    // 36번째는 `notification_digest_setting` 이다(2026-09-28 · 사람 결정 EM1~EM9 — 알림 메일 요약 · 0041)
+    expect(names).toHaveLength(41);
     expect(names).toContain('idempotency_key');
     expect(names).toContain('notification_preference');
     expect(names).toContain('notification_batch_event');
+    expect(names).toContain('notification_digest_setting');
     expect(names).toContain('spec_chunk_embedding');
     expect(names).toContain('email_outbox');
     expect(names).toEqual(

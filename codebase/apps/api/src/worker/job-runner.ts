@@ -13,6 +13,7 @@ import { HEARTBEAT_INTERVAL_SECONDS } from '@nerv/schema';
 import { AdvisoryLock } from './advisory-lock.js';
 import { jobLevel, jobMessage } from './job-log.js';
 import type { JobOutcome } from './job-log.js';
+import { DigestJob } from './jobs/digest.job.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
@@ -49,6 +50,7 @@ export class JobRunner {
     exporter: ExportJob,
     partition: PartitionJob,
     mail: MailJob,
+    digest: DigestJob,
   ) {
     const heartbeat = HEARTBEAT_INTERVAL_SECONDS * 1000;
     this.schedule = [
@@ -56,6 +58,10 @@ export class JobRunner {
       // 메일도 하트비트 간격이다 — 새 주기를 만들지 않는다(§2.2). 그러면 "보내기까지의
       // 상한" 이 1분이고, 사람이 초대를 만들고 상대가 메일함을 여는 시간보다 짧다.
       { name: mail.name, everyMs: heartbeat, run: () => mail.run(), lastRunAt: null },
+      // 메일 요약도 하트비트 간격이다(2026-09-28 · 사람 결정 EM2). 하루 한 번인데 촘촘히 도는 이유는 **사람마다
+      // 시각이 다르기** 때문이다 — 판마다 "현지 시각이 정한 시를 지났고 오늘 아직 안 본 사람" 만 고른다. 그러면
+      // 정한 시각에서 늦어도 1분이다. "오늘 보냈는가" 는 행이 든다(재기동하면 이 잡도 곧바로 한 번 돈다).
+      { name: digest.name, everyMs: heartbeat, run: () => digest.run(), lastRunAt: null },
       {
         name: sessionStale.name,
         everyMs: heartbeat,
