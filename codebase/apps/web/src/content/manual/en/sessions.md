@@ -1,6 +1,6 @@
 A session is **a single run of an agent**. The session monitor shows what is going on.
 
-## Reading the monitor
+## Reading the monitor {#monitor}
 
 The session list is on the left, and the **activity rail** for the selected session is on the right. Select a row and that session's activity appears on the same screen. A monitor should not make you go to another screen to find out why a session stalled. On a narrow screen, the rail collapses. Open **Details** on the card to see the activity instead. **The detail screen shows the same content as the rail**: **What it did**, **Activity**, collapsed runs, expandable raw payloads, and [Load earlier activity]. You see no less on a narrow screen.
 
@@ -14,7 +14,7 @@ The list does not load all at once. If there are more sessions, **[Load more]** 
 
 **The state filter and the session open in the rail are kept in the URL.** To show someone a session, share the URL. Reloading the page keeps the same session open. Changing the state filter deselects the session.
 
-### Machines with the plugin on
+### Machines with the plugin on {#plugin-machines}
 
 **`Plugin on: N / M machines`** above the list counts how many machines have the NERV plugin on, out of the machines that opened a Claude Code session in the last 30 days. Click it to expand a list of those machines. Each row shows **On** with the plugin version, or **Off**, along with whose machine it is and when it was last seen. **Machines that are off are listed first.**
 
@@ -23,7 +23,7 @@ The list does not load all at once. If there are more sessions, **[Load more]** 
 - **Codex is not counted.** The plugin is for Claude Code, so it is normal for Codex to run without it.
 - This check works **from plugin 0.3.2** on. Older versions do not report their version, so they show as off. Update with `/plugin marketplace update`, and the machine shows as on from its next session.
 
-## Statuses
+## Statuses {#statuses}
 
 | Status           | Meaning                                                                                                                                       |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,7 +61,7 @@ stateDiagram-v2
 
 The result, however, is certain: **when a session goes `stale`, the task it had claimed is reclaimed and returns to `ready`.** The card shows this too.
 
-## Activity
+## Activity {#activity}
 
 When you open a session, the rail has **two sections**. The top section shows **what it did** (what it is working on, and whether it is stuck). The bottom section is the **tool log**. They are in this order because, on this screen, which tool ran is not the first thing you want to know.
 
@@ -82,7 +82,7 @@ Other members see the title, whether it succeeded, the tool name and the **body*
 
 The **summary strip** at the top shows counts and also works as a filter. Click a number to show only the sessions in that state. **All six states are always shown.** A state with no sessions shows a dimmed `0` (in a project with no sessions at all, a single "No sessions" line appears instead of six zeros). A `0` cannot be clicked, because there are no sessions to filter. If only states with sessions were shown, you could not tell whether there are zero errors or whether the error state does not exist. The positions would also shift from visit to visit, so you would have to look for the one you want each time.
 
-## Instructions and stopping
+## Instructions and stopping {#steer-stop}
 
 The **Intervene** section on the card has two buttons: [Send instruction] and [Stop]. **Only the session's owner and admins can use them.** On someone else's session, the buttons are **disabled from the start**, and the reason is shown next to them. That way, you never write out a stop reason only to be refused. An agent token cannot do either. Only a person can.
 
@@ -96,7 +96,7 @@ Agents are meant to send a heartbeat every minute, but not on a precise timer. T
 
 Stopping takes more than one click. A confirmation dialog opens, and **a reason is required**. While the reason is empty, the confirm button stays disabled. The reason field is **separate from the instruction field**. An instruction you were typing does not become the reason, and if you cancel, the instruction field keeps what you wrote. Press Esc to close the dialog. Enter a reason and confirm, and the claim is released. The task returns to `ready`.
 
-## Questions
+## Questions {#questions}
 
 An agent raises a question when it cannot decide on its own. There are two urgency levels.
 

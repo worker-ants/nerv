@@ -17,6 +17,7 @@ import { rolesInProject } from '../lib/session.js';
 import { Card } from './ui/primitives.js';
 import { ConnectAgentLinks } from './connect-agent-links.js';
 import { CopyButton } from './copy-button.js';
+import { helpLink } from '../lib/manual-chapters.js';
 
 const NEW_SPEC_COMMAND = 'claude "/nerv:spec new"';
 
@@ -52,8 +53,7 @@ export function SpecStartCard({ projectSlug }: { projectSlug: string }): React.J
           <p className="text-sm text-text-mute">
             {t('specs.start.import')}{' '}
             <Link
-              to="/help/$chapter"
-              params={{ chapter: 'agents' }}
+              {...helpLink('agents', 'import')}
               data-testid="spec-start-import"
               className="text-link hover:underline"
             >

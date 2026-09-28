@@ -61,6 +61,7 @@ import {
   readCachedLayout,
   writeCachedLayout,
 } from './layout-cache.js';
+import { helpLink } from '../../lib/manual-chapters.js';
 
 export interface GraphNode {
   id: string;
@@ -939,8 +940,7 @@ export function SpecGraph({
             </label>
             <p>{webglSupported ? t('graph.webgl_hint') : t('graph.webgl_unsupported')}</p>
             <Link
-              to="/help/$chapter"
-              params={{ chapter: 'specs' }}
+              {...helpLink('specs', 'relations')}
               className="mt-1.5 block text-link hover:underline"
             >
               {t('graph.help_more')}

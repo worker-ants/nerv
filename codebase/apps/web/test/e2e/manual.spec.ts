@@ -124,6 +124,37 @@ test('다른 장을 누르면 본문이 처음부터 열린다 — 같은 장 �
   await expect.poll(scrolled).toBeGreaterThan(0);
 });
 
+// ── 절까지 가는 링크 (REQ-WEB-268 · 2026-09-28 사람 결정) ──────────────────────
+//
+// 도움말 링크가 장 첫머리에서 멈추던 동안 게이트 정책 화면의 도움말은 설정 장의 첫 절을 열었다. 절 이름
+// (`{#gates}`)으로 가는 링크가 **다른 장에서 들어올 때**와 **새 탭으로 처음 열 때**(증적 링크가 그렇다)
+// 모두 그 절을 보여 주는지는 실제 브라우저에서만 잴 수 있다 — jsdom 은 스크롤이 없다.
+test('다른 화면의 도움말과 새 탭 주소가 그 절을 연다 — 옛 #sec-N 주소도 옮긴다', async ({
+  page,
+  context,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/settings/gates');
+  await page.getByTestId('help-menu').click({ timeout: 15000 });
+  await page.getByTestId('help-this-screen').click();
+  await expect(page).toHaveURL(/\/help\/settings#gates$/);
+  await expect(page.getByTestId('manual-body').locator('h2#gates')).toBeInViewport({
+    timeout: 15000,
+  });
+
+  const fresh = await context.newPage();
+  await fresh.setViewportSize({ width: 1440, height: 900 });
+  await fresh.goto('/help/tasks#evidence');
+  await expect(fresh.getByTestId('manual-body').locator('h2#evidence')).toBeInViewport({
+    timeout: 15000,
+  });
+
+  // 목차가 예전에 주소에 남기던 순서 앵커 — 같은 순서의 절 이름으로 옮긴다
+  await fresh.goto('/help/tasks#sec-7');
+  await expect(fresh).toHaveURL(/\/help\/tasks#evidence$/);
+  await fresh.close();
+});
+
 // ── 설치 장은 이 배치의 값으로 말한다 (screens.md §2.10 · REQ-WEB-165) ───────
 //
 // **여기서만 확인할 수 있는 것은 "앞문이 내어 준 주소가 실제로 문서에 들어가는가" 다.**

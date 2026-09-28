@@ -14,12 +14,42 @@ describe('renderDoc', () => {
     expect(html).toContain('&lt;script&gt;');
   });
 
-  it('`##` 은 순서로 앵커를 받는다 — 제목 글자에서 뽑으면 로케일마다 앵커가 달라진다', () => {
+  it('이름이 없는 `##` 은 순서로 앵커를 받는다 — 제목 글자에서 뽑으면 로케일마다 앵커가 달라진다', () => {
     const ko = renderDoc('## 시작하기\n\n본문\n\n## 다음 절\n\n본문');
     const en = renderDoc('## Getting started\n\nBody\n\n## Next\n\nBody');
     expect(ko.headings.map((h) => h.id)).toEqual(['sec-1', 'sec-2']);
     expect(en.headings.map((h) => h.id)).toEqual(['sec-1', 'sec-2']);
     expect(ko.html).toContain('id="sec-1"');
+  });
+
+  /**
+   * **이름이 먼저다**(2026-09-28 · 사람 결정 · REQ-WEB-268). 순서만 쓰던 동안 절을 하나 넣으면 밖에서
+   * 건 링크가 조용히 다른 절을 가리켰다. 로케일 공통의 이름은 번역에도 절 삽입에도 그대로다.
+   */
+  it('제목 끝의 `{#이름}` 이 앵커가 되고 글자와 목차에서는 빠진다', () => {
+    const ko = renderDoc('## 게이트 정책 {#gates}\n\n본문\n\n## 다음 절\n');
+    const en = renderDoc('## Gate policy {#gates}\n\nBody\n\n## Next\n');
+    expect(ko.headings[0]).toEqual({ id: 'gates', text: '게이트 정책', ordinal: 1 });
+    expect(en.headings[0]?.id).toBe('gates');
+    // 이름이 없는 다음 절은 여전히 순서다 — 순서는 몇 번째인가이다
+    expect(ko.headings[1]).toEqual({ id: 'sec-2', text: '다음 절', ordinal: 2 });
+    expect(ko.html).toContain('<h2 id="gates">게이트 정책</h2>');
+    expect(ko.html).not.toContain('{#');
+  });
+
+  it('굵은 글씨 · 코드 뒤의 이름도 떼고, `###` 은 이름이 있을 때만 앵커다', () => {
+    const doc = renderDoc('## **굵은** `코드` 제목 {#bold}\n\n### 하위 {#sub}\n\n### 이름 없는 하위\n');
+    expect(doc.headings[0]?.id).toBe('bold');
+    expect(doc.headings[0]?.text).toBe('굵은 코드 제목');
+    expect(doc.html).toContain('<h3 id="sub">하위</h3>');
+    expect(doc.html).toContain('<h3>이름 없는 하위</h3>');
+  });
+
+  it('모양이 틀린 이름은 앵커가 되지 않고 글자로 남는다 — 속성을 끼워 넣을 길이 없다', () => {
+    const doc = renderDoc('## 제목 {#Bad Id}\n\n## 다른 {#x" onclick="y}\n');
+    expect(doc.headings.map((h) => h.id)).toEqual(['sec-1', 'sec-2']);
+    expect(doc.html).toContain('{#Bad Id}');
+    expect(doc.html).not.toContain('onclick="y');
   });
 
   it('목차는 `##` 만 담는다 — `###` 까지 담으면 목차가 본문만큼 길어진다', () => {

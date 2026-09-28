@@ -1,4 +1,4 @@
-## ⌘K — go anywhere
+## ⌘K — go anywhere {#quick-switcher}
 
 `⌘K` (`Ctrl+K` on Windows and Linux) opens the quick switcher. Results are grouped as follows.
 
@@ -27,7 +27,7 @@ Press the **☆** at the right end of a row to pin that document (★). Press it
 
 Inside the switcher, `Tab` moves focus only between the input and the ☆ buttons. Focus never leaves for the screen behind it. `Esc` closes the switcher wherever focus is. When it closes, focus returns to **where it was before you opened it**. Screen readers announce the input as a combo box with a list, and the highlighted row as the selected option.
 
-## The screen by keyboard
+## The screen by keyboard {#keyboard}
 
 **Your first `Tab` press reveals "Skip to main content".** Press `Enter` on it to skip the header and sidebar and start in the page content.
 
@@ -45,13 +45,13 @@ Inside the switcher, `Tab` moves focus only between the input and the ☆ button
 
 **In Notifications, `Tab` to a row and press `Enter` to open it.** Just like a click, this marks the notification read and takes you to the item it points to. **[Read]** is always visible when the row has focus, and on touch screens.
 
-## Dialogs and panels
+## Dialogs and panels {#dialogs}
 
 `Esc` closes all of the following: the **Document info** dialog ([⋯ Document info]), the **Create baseline** dialog, a diagram's full-screen view, the panel for a selected node in the relationship graph, the spec tree opened from the strip on a narrow screen (focus returns to the strip's button), and any confirmation prompt (`Esc` is the same as canceling). If a dialog is showing a confirmation prompt, `Esc` closes only the prompt. While a dialog is open, `Tab` keeps focus inside it. When the dialog closes, focus returns to **the button that opened it**.
 
 When you resolve a review finding, the field for choosing a spec takes two keys. `↓` moves into the list of results, and `Enter` selects the first result right away.
 
-## Inbox
+## Inbox {#inbox}
 
 | Key       | Action                              |
 | --------- | ----------------------------------- |
@@ -74,7 +74,7 @@ These keys do nothing while the cursor is in a text field. The bulk keys are **u
 
 `a` also does nothing on any other card you cannot approve, for example when your role cannot decide approvals or you are not the assigned approver. The approve button is locked, and the card shows why. **On cards in the Decided tab, neither the buttons nor the keys do anything.** Pressing `a`, `r` or `c` on a card that has already been decided has no effect, because the keys work only when the matching buttons do.
 
-## Task screen (sheet over the board)
+## Task screen (sheet over the board) {#task-sheet}
 
 | Key       | Action                                        |
 | --------- | --------------------------------------------- |
@@ -83,7 +83,7 @@ These keys do nothing while the cursor is in a text field. The bulk keys are **u
 
 These keys do nothing while the cursor is in an input field ([Tasks](/help/tasks)).
 
-## Language
+## Language {#language}
 
 Choose **한국어 / English** from the user menu (your name ▾ at the right end of the header). The screens and the error messages from the server switch together. **The sign-in, sign-up, invitation and password reset screens** have no user menu, so the same buttons appear at the bottom of the screen instead. That way you can switch languages before you sign in. Sign-up confirmation and password reset emails arrive in the language you chose there.
 
@@ -91,7 +91,7 @@ Choose **한국어 / English** from the user menu (your name ▾ at the right en
 
 Three things are never translated: **identifiers** (status values like `ready` and `approved`), **operator logs**, and **content stored in documents**. If status values changed with the language, the screen and the logs would show different values.
 
-## Light and dark
+## Light and dark {#theme}
 
 Choose **Light / Dark / System** in the same menu, just below the language. `System` means you leave the choice to your device. With it selected, the screen follows your browser (or operating system) setting, so when your device switches to dark mode at night, the screen turns dark too. Choosing Light or Dark overrides the device setting.
 
