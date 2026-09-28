@@ -377,4 +377,12 @@ export const notificationLevel = pgEnum('notification_level', NOTIFICATION_LEVEL
  * 때문이다 — drizzle 마이그레이션은 트랜잭션으로 도므로, 값을 나중에 더하려면 마이그레이션을
  * 둘로 쪼개야 한다. 어휘를 먼저 정해 두는 편이 싸다(가입 검증·재설정은 다음 단계다).
  */
-export const emailKind = pgEnum('email_kind', ['verify_email', 'invite', 'reset_password']);
+// **알림 메일 요약**(2026-09-28 · 사람 결정 EM1~EM9)이 넷째 값이다. 마이그레이션이 그 값을 쓰지 않고(워커가
+// 런타임에만 쓴다) 더하기만 하므로 파일 하나로 된다 — 위 주석의 "둘로 쪼개야" 는 값을 같은 마이그레이션
+// 안에서 쓸 때의 이야기다.
+export const emailKind = pgEnum('email_kind', [
+  'verify_email',
+  'invite',
+  'reset_password',
+  'notification_digest',
+]);

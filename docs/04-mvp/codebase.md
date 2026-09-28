@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.86 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.87 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.87 변경(2026-09-28 — 알림 메일 요약, **사람 결정 EM1~EM9**): **§2.2 트리에 `modules/digest/` 셋과 아홉 번째 잡 · §5 상수 표 두 줄.** 켠 사람에게 하루 한 번 모아 보내는 메일은 `DigestModule` 이 판정하고 `digest.job.ts` 가 돌린다 — 보내는 일은 그대로 `mail.job.ts` 다. 파생본 트리에 빠져 있던 `modules/mail/` 다섯 줄과 `mail.job.ts` 도 원본에 맞췄다.
 >
 > v1.86 변경(2026-09-28 — 상수 하나): **새 요구사항 없음.** §5 상수 표에 `SENT_MAIL_RETENTION_DAYS` 를 적는다([4.3 데이터베이스](database.md) REQ-DB-033).
 >
@@ -464,6 +466,10 @@ apps/api/src/
       better-auth.ts            # better-auth 배선 — 세션 쿠키 경로
       invitation.controller.ts  # 조직 초대 표면
       invitation.service.ts     # 초대 발급·수락 — 자동 수락 경로는 없다
+    digest/
+      digest.controller.ts  # REST — 내 메일 요약 설정 (EP-NTF-07·08)
+      digest.module.ts
+      digest.service.ts     # 켜기·끄기 · 켠 사람마다 하루 한 번 모아 아웃박스에 넣는다 (REQ-API-232·233)
     event/
       event-core.module.ts         # 의존 없는 핵 — 순환을 감추는 대신 갈라냈다 (REQ-API-151)
       event-subject.ts             # 이벤트가 무엇에 일어났나 — 피드·알림이 함께 쓰는 대상 조인 (REQ-API-181)
@@ -542,11 +548,12 @@ apps/api/src/
     job-log.ts        # 잡 한 판의 한 줄 — 할 일이 없던 판은 debug (§5.5 · REQ-CB-054)
     worker.module.ts
     jobs/
+      digest.job.ts         # 메일 요약 — 켠 사람의 현지 시각에 하루 한 번 (4.4 REQ-API-233, 2026-09-28)
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
       export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
-      mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정 메일 (4.3 §2.17, 2026-09-22)
-      notification.job.ts   # event → notification 라우팅 (인앱, Slack·메일은 P2)
+      mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정·메일 요약 (4.3 §2.17, 2026-09-22)
+      notification.job.ts   # event → notification 라우팅 (인앱 — 메일은 digest.job 이 모아 보낸다, Slack 은 P2)
       partition.job.ts      # event·activity 월 파티션 선생성 — 하루 1회 (4.3 §2.14, REQ-DB-021)
       retention.job.ts      # blob TTL 30일 · Activity 보존 정책 집행
       session-stale.job.ts  # 무활동 30분(STALE) 세션 전이 + 클레임 회수 (D-13)
@@ -662,6 +669,8 @@ packages/schema/
 | `TASK_DONE_WINDOW_DAYS` | `7` | 보관 보기 토글의 기준 — `done_at` 이 이보다 오래된 done 은 기본 목록에서 빠진다([4.5](screens.md) §2.5) |
 | `INVITATION_TTL_DAYS` | `7` | 조직 초대 링크 수명 — [4.4 API 명세](api.md) §2.1b |
 | `SENT_MAIL_RETENTION_DAYS` | `INVITATION_TTL_DAYS`(7) | 보낸 메일을 발송 큐에 남기는 날 수 — 가장 긴 메일 링크의 수명이라 새 수치가 아니다([4.3 데이터베이스](database.md) REQ-DB-033) |
+| `DIGEST_MAX_LINES` | `20` | 메일 요약 한 통에 적는 알림 줄 수 — 넘치면 수로 줄인다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5 · [4.4 API 명세](api.md) REQ-API-233) |
+| `DIGEST_DEFAULT_HOUR` | `9` | 메일 요약을 받는 현지 시의 기본값 — 켤 때 시를 고르지 않으면 이 값이다([4.4 API 명세](api.md) REQ-API-232) |
 | `PAGE_LIMIT_DEFAULT` · `PAGE_LIMIT_MAX` | `30` · `100` | 페이지 상한 전역 규칙 — [4.4 API 명세](api.md) §1.6 |
 | `FINDING_PAGE_LIMIT_DEFAULT` · `_MAX` | `50` · `200` | 발견 큐의 **예외**(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05) |
 | `GATE_BRANCH_LIMIT_DEFAULT` · `_MAX` | `20` · `200` | 게이트 표의 브랜치 — 같은 예외(실측 441개) |

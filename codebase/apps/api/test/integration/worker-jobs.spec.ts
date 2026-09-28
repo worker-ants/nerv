@@ -35,6 +35,8 @@ import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
+import { DigestJob } from '../../src/worker/jobs/digest.job.js';
+import { DigestService } from '../../src/modules/digest/digest.service.js';
 
 let db: ScratchDb;
 let poolA: pg.Pool;
@@ -88,6 +90,8 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
     // 메일 잡은 SMTP 가 꺼진 배치에서 아무것도 하지 않는다(2026-09-22) — 이 스위트가
     // 보는 것은 잡 루프의 단일 실행이지 발송이 아니므로 실물 그대로 넣는다.
     new MailJob(new MailOutbox(drizzleDb), new MailSender()),
+    // 메일 요약도 같다 — 발송이 꺼진 배치에서는 판정조차 하지 않는다(받은 요청 판정을 부르기 전에 끝난다)
+    new DigestJob(new DigestService(drizzleDb, new MailOutbox(drizzleDb), null as never)),
   );
   return { runner, lock };
 }

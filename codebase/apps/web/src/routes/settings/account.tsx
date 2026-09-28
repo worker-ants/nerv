@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { useMe, useNotificationScopes } from '../../lib/queries.js';
+import { EmailDigestSection } from '../../features/inbox/email-digest.js';
 import { levelOf, NotificationLevelControl } from '../../features/inbox/notification-level.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -54,6 +55,7 @@ function AccountTab(): React.JSX.Element {
         <p className="mt-1 text-xs text-text-mute">{t('account.email_hint')}</p>
       </div>
       <PasswordSection />
+      <EmailDigestSection />
       <NotificationLevelsSection />
     </section>
   );

@@ -26,6 +26,7 @@ import { SessionModule } from './modules/session/session.module.js';
 import { SpecModule } from './modules/spec/spec.module.js';
 import { TaskModule } from './modules/task/task.module.js';
 import { WorkerModule } from './worker/worker.module.js';
+import { DigestModule } from './modules/digest/digest.module.js';
 
 /** HTTP 표면 없이 잡 러너만 조립하는 워커용 루트(REQ-CB-005). worker.ts 가 쓴다. */
 @Module({
@@ -46,6 +47,7 @@ export class WorkerAppModule {}
     ImportModule,
     ReviewModule,
     PluginModule,
+    DigestModule,
   ],
   // MCP 표면은 AuthModule(권한 검사)·SessionModule(세션 확인)을 쓴다 —
   // 표면이 직접 판정하지 않고 도메인 서비스에 묻는다(D-05 · REQ-CB-003).

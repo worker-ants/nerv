@@ -172,3 +172,20 @@ export const NotificationLevelInput = z
   })
   .strict();
 export type NotificationLevelInput = z.infer<typeof NotificationLevelInput>;
+
+/**
+ * EP-NTF-08 — 알림 메일 요약을 켜고 끈다(2026-09-28 · 사람 결정 EM1~EM9 · REQ-API-232). 켤 때 시간대와
+ * 언어는 화면이 브라우저의 값을 보낸다(EM5). 끄면 행을 지운다 — 켠 사람만 행이 있다.
+ */
+export const NotificationDigestInput = z
+  .object({
+    enabled: z.boolean(),
+    /** 받는 시(時) — 그 사람의 현지 시각 */
+    hour: z.number().int().min(0).max(23).optional(),
+    /** IANA 시간대 이름 — 판정(실재하는 이름인가)은 서버가 한다 */
+    timezone: z.string().min(1).max(64).optional(),
+    /** 어휘는 `LOCALES` — 판정은 서버가 한다 */
+    locale: z.string().min(1).optional(),
+  })
+  .strict();
+export type NotificationDigestInput = z.infer<typeof NotificationDigestInput>;

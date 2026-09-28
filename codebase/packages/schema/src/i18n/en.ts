@@ -1737,6 +1737,20 @@ export const en = {
   'account.email': 'Email',
   'account.email_hint': 'This is your sign-in ID, so it cannot be changed.',
   'account.password': 'Password',
+  'account.digest': 'Email digest',
+  'account.digest_hint':
+    'Once a day, unread notifications that arrived since your last digest are collected into one email. Document bodies are not included, and sending the email does not mark notifications as read.',
+  'account.digest_off_server':
+    'This server does not send email, so the email digest can’t be turned on.',
+  'account.digest_enable': 'Turn on email digest',
+  'account.digest_disable': 'Turn off',
+  'account.digest_time': 'Time',
+  'account.digest_hour': '{hour}:00',
+  'account.digest_locale': 'Email language',
+  'account.digest_timezone': 'Time zone: {timezone}',
+  'account.digest_use_browser': 'Use this browser’s time zone ({timezone})',
+  'account.digest_saved': 'Email digest saved. It is sent daily at {hour} ({timezone}).',
+  'account.digest_off_toast': 'Email digest turned off.',
   'account.notifications': 'Notifications by project',
   'account.notifications_hint':
     'Choose how many notifications to get from each project. Notifications you already have stay as they are. The inbox is not affected.',
@@ -1949,6 +1963,18 @@ export const en = {
   'mail.invite.subject': '[NERV] {org} has invited you to collaborate',
   'mail.invite.body':
     '{inviter} invited you to join {org} as {role}.\n\nOpen this link to accept:\n{url}\n\nThe link expires in {days} days. To accept, sign in with the invited email ({email}).\nNo account yet? Sign up first, then open the same link again.\n\nIf you were not expecting this invitation, you can delete this email. Nothing will happen.',
+  'error.digest.mail_disabled':
+    'This server does not send email, so the email digest can’t be turned on.',
+  'mail.digest.subject': '[NERV] {count} notifications · {pending} awaiting your decision',
+  'mail.digest.subject_no_pending': '[NERV] {count} notifications',
+  'mail.digest.intro':
+    'Hi {name}, here are the NERV notifications since your last digest. Open NERV to read the documents themselves.',
+  'mail.digest.pending': '{count} requests in your inbox are waiting for your decision.',
+  'mail.digest.open': 'Notifications for this project: {url}',
+  'mail.digest.more': '{count} more: {url}',
+  'mail.digest.important': '[Important]',
+  'mail.digest.footer':
+    'This is your NERV email digest, sent daily at {hour}:00 ({timezone}). To change the time or turn it off: {url}',
   'mail.reset.subject': '[NERV] Reset your password',
   'mail.reset.body':
     'Hi {name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n{url}\n\nThe link can be used once within {minutes} minutes. Setting a new password signs you out on all devices.\n\nIf you did not request this, you can delete this email. Your password will not change unless a new one is set through this link.',

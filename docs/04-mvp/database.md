@@ -18,9 +18,11 @@ referenced_by:
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 40개**다 — 도메인 34 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.62 · 2026-09-28 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.63 · 2026-09-28 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.63 변경(2026-09-28 — 알림 메일 요약, **사람 결정 EM1~EM9**): **REQ-DB-034 신설 · §2.10 테이블 하나 · §2.17 enum 값 하나 · 마이그레이션 `0041`.** 켠 사람만 `notification_digest_setting` 한 행을 갖는다(기본 꺼짐). 메일에 담긴 알림 줄에는 처음부터 있던 `delivered_at` · `digest_batch_id` 를 적는다 — 쓰는 곳이 없던 두 열이 이제 쓰인다. `CREATE TABLE` 은 41개다.
 >
 > v0.62 변경(2026-09-28 — 보낸 메일이 쌓이기만 했다, **사람 결정 EM9**): **REQ-DB-033 신설 · §2.17 DDL 주석.** `email_outbox` 는 "보존 잡이 보낸 지 오래된 것을 치운다" 고 적었는데 그 삭제가 없었다. 알림 메일 요약이 들어오면 문서 제목이 든 본문이 날마다 쌓인다. 보낸 지 7일(초대 링크 수명 — 새 수치가 아니다)이 지난 줄을 지우고, 재시도를 포기한 줄은 남긴다.
 >
@@ -869,8 +871,8 @@ CREATE TABLE notification (
   importance      notification_importance NOT NULL,
   channel         notification_channel NOT NULL DEFAULT 'inapp',
   state           notification_state NOT NULL DEFAULT 'unread',
-  digest_batch_id uuid,
-  delivered_at    timestamptz,
+  digest_batch_id uuid,                        -- 담긴 메일 요약(email_outbox.id · 2026-09-28 · REQ-DB-034)
+  delivered_at    timestamptz,                 -- 메일 요약에 담긴 시각 — 건수가 늘면 다음 요약에 다시 담는다
   read_at         timestamptz,
   created_at      timestamptz NOT NULL DEFAULT now(),
   -- 앱 안 묶음(2026-09-27 · 사람 결정 G2 · 0037 · REQ-DB-030). 보통 알림은 같은 사람 · 같은 배치 키면 열린 묶음에 더한다
@@ -897,6 +899,20 @@ CREATE TABLE notification_preference (
   level      notification_level NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, project_id)
+);
+
+-- 알림 메일 요약(2026-09-28 · 사람 결정 EM1~EM9 · 0041 · REQ-DB-034).
+-- 켠 사람만 행을 갖는다 — 행이 없으면 꺼짐이고 그것이 기본이다. 끄면 행을 지운다.
+CREATE TABLE notification_digest_setting (
+  user_id      uuid PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+  hour         smallint NOT NULL DEFAULT 9,         -- 받는 현지 시(DIGEST_DEFAULT_HOUR)
+  timezone     text NOT NULL,                       -- IANA 이름 — 저장 전에 pg_timezone_names 로 확인한다
+  locale       text NOT NULL,                       -- 메일 언어
+  enabled_at   timestamptz NOT NULL DEFAULT now(),  -- 켠 시각 — 그 전의 알림은 담지 않는다
+  last_sent_at timestamptz,                         -- 마지막 판정 — 현지 날짜로 하루 한 번(담을 줄이 없어도 적는다)
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT notification_digest_hour_ck CHECK (hour BETWEEN 0 AND 23),
+  CONSTRAINT notification_digest_locale_ck CHECK (locale IN ('ko', 'en'))
 );
 ```
 
@@ -1231,14 +1247,14 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
 **표면은 행을 넣고, 워커가 보낸다.** 인라인 발송을 고르지 않은 이유가 셋이다. ① better-auth 문서 자신이 발송을 `await` 하지 말라고 적는다 — 응답 시간이 "그 이메일이 존재하는가"를 흘린다(타이밍 공격). ② SMTP 는 느리고 죽는다: 사내 메일 서버가 잠깐 막히면 초대 만들기가 함께 막히고, 보낸 것과 못 보낸 것을 나중에 셀 방법이 없다. ③ **이 저장소에는 이미 그 배관이 있다** — 워커 · advisory lock 단일 실행(REQ-CB-011) · 잡 루프 · 보존 잡. 새 개념이 아니라 여덟 번째 잡이다([4.2](codebase.md) §2.2 `mail.job.ts`).
 
-**`notification` 을 재사용하지 않는다.** 그 표는 `project_id`·`event_id`·`user_id` 가 전부 NOT NULL 인데, 초대받은 사람은 **계정조차 없을 수 있고** 어느 프로젝트에도 속하지 않았다. 억지로 끼우면 그 세 열이 거짓말을 한다 — `notification_channel` 에 `email` 이 있는 것은 FR-12 의 **알림** 메일 채널을 위한 자리이고, 그것은 Phase 2 의 별개 일이다([4.1](scope.md) FR-12).
+**`notification` 을 재사용하지 않는다.** 그 표는 `project_id`·`event_id`·`user_id` 가 전부 NOT NULL 인데, 초대받은 사람은 **계정조차 없을 수 있고** 어느 프로젝트에도 속하지 않았다. 억지로 끼우면 그 세 열이 거짓말을 한다 — `notification_channel` 에 `email` 이 있는 것은 FR-12 의 **알림** 메일 채널을 위한 자리이고, 그것은 Phase 2 의 별개 일이다([4.1](scope.md) FR-12). 알림 메일 요약(2026-09-28 · REQ-DB-034)도 이 큐로 나간다 — 알림 행의 `channel` 은 그대로 `inapp` 이고, 메일에 담긴 줄에 `delivered_at` · `digest_batch_id` 만 적힌다.
 
 **본문은 넣을 때 만들어져 들어온다.** 워커는 렌더링하지 않는다 — 템플릿이 바뀌어도 이미 줄 서 있던 메일의 내용은 바뀌지 않아야 하고, 그래야 "그 사람이 받은 것"과 "지금 보이는 것"이 같다. 로케일은 **받는 사람**의 것이다(초대한 사람의 것이 아니다). 가입 확인·비밀번호 재설정은 **요청한 화면의 언어**다 — 받는 사람이 바로 그 화면에서 요청했다(2026-09-25).
 
-`email_kind` 세 값을 한 번에 만드는 것은 의도다 — `ALTER TYPE … ADD VALUE` 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 셋 다 쓴다 — `invite`·`verify_email`(2026-09-22) · `reset_password`(2026-09-25 · [4.4](api.md) REQ-API-187).
+`email_kind` 세 값을 한 번에 만드는 것은 의도다 — `ALTER TYPE … ADD VALUE` 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 셋 다 쓴다 — `invite`·`verify_email`(2026-09-22) · `reset_password`(2026-09-25 · [4.4](api.md) REQ-API-187). 넷째 값 `notification_digest`(2026-09-28 · 메일 요약 · REQ-DB-034)는 `ADD VALUE` 로 더했다 — 그 마이그레이션(`0041`) 안에서는 값을 쓰지 않아서 파일 하나로 된다.
 
 ```sql
-CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password');
+CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password', 'notification_digest');
 
 CREATE TABLE email_outbox (
   id              uuid PRIMARY KEY,
@@ -1283,6 +1299,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-031 | WHEN 마이그레이션 `0038` 이 돌면 THE SYSTEM SHALL 안 읽은 보통 알림 가운데 아직 묶음이 아닌 줄을 사람 · 배치 키마다 접는다 — 이미 열린(안 읽은) 묶음이 있으면 거기에, 없으면 가장 최근 줄을 묶음으로 삼아 모든 줄의 이벤트를 `notification_batch_event` 에 적고, 건수와 처음 · 마지막 시각을 넓힌다. 나머지 줄은 **지우지 않고** `archived` 로 둔다. 읽은 알림과 중요 알림은 건드리지 않고, 다시 돌려도 0건이다(로컬 실측 2026-09-27: 안 읽은 922행 → 37줄 · [4.4 API 명세](api.md) REQ-API-225 · 2026-09-27) |
 | REQ-DB-032 | WHEN 증적이 저장되면 THE SYSTEM SHALL 선택 칸 `note`(text)에 이 증적이 무엇을 보여 주는지 담고, `char_length(note) <= 500` CHECK(`evidence_note_len_ck`)로 상한을 지킨다. 있던 증적은 비어 있다(마이그레이션 `0039` · [4.4 API 명세](api.md) REQ-API-229 · 2026-09-28) |
 | REQ-DB-033 | WHEN 보존 잡이 돌면 THE SYSTEM SHALL `email_outbox` 에서 보낸 지 `SENT_MAIL_RETENTION_DAYS`(7일 — 메일 링크 가운데 가장 긴 초대 링크의 수명)가 지난 줄을 지운다. WHERE 재시도를 포기한 줄(`failed_at`)이면 THE SYSTEM SHALL 남긴다 — 원인을 보려고 두는 줄이다(REQ-DB-026). 스키마 주석과 DDL 은 처음부터 "보존 잡이 치운다" 고 적었는데 지우는 코드가 없었다(2026-09-28 · 사람 결정 EM9) |
+| REQ-DB-034 | WHEN 사람이 메일 요약을 켜면 THE SYSTEM SHALL `notification_digest_setting` 에 그 사람의 행 하나(`user_id` PK · 사람이 지워지면 함께 지운다)를 두고, 받는 시(`hour` 0~23 · CHECK `notification_digest_hour_ck`) · IANA 시간대 · 언어(`ko` · `en` · CHECK `notification_digest_locale_ck`) · 켠 시각 · 마지막 판정 시각을 담는다. 행이 없으면 꺼짐이다. THE SYSTEM SHALL `email_kind` 에 `notification_digest` 를 두고, 메일에 담은 알림 줄에는 처음부터 있던 `notification.delivered_at` · `digest_batch_id`(그 메일의 `email_outbox.id`)를 적는다 — 새 열은 없다(마이그레이션 `0041` · [4.4 API 명세](api.md) REQ-API-232·233 · 2026-09-28) |
 
 ---
 
