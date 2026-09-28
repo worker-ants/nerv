@@ -37,6 +37,18 @@ function file(path: string): string {
   return readFileSync(join(here, path), 'utf8').trimEnd();
 }
 
+/** http 변형의 `type:"http"` 훅을 이벤트와 함께 편다 */
+function httpHooks(): { event: string; hook: Record<string, unknown> }[] {
+  const parsed = JSON.parse(file('hooks/hooks.http.json')) as {
+    hooks: Record<string, { hooks: Record<string, unknown>[] }[]>;
+  };
+  return Object.entries(parsed.hooks).flatMap(([event, groups]) =>
+    groups.flatMap((group) =>
+      group.hooks.filter((hook) => hook['type'] === 'http').map((hook) => ({ event, hook })),
+    ),
+  );
+}
+
 // `review` 는 P2 스킬이고 2026-08-23 에 패키지에 들어왔다(4.6 §2.6).
 // **MVP 약속은 여전히 5종**이다 — 6번째는 Phase 2 가 위에 얹힌 것이다.
 // `import` 는 2026-09-06 에 걷었다 — 플러그인이 배달하지 않는 CLI(`@nerv/cli` 는 private)를
@@ -175,6 +187,36 @@ describe('배포 — 서버 주소가 포크 없이 바뀐다 (PLG-04 · 2026-09
     expect(file('hooks/hooks.http.json')).not.toContain('"async"');
   });
 
+  // **실측이 계약이 됐다**(2026-09-28 · E06-S07 · REQ-PLG-027 · 4.6 §3.1 실측 기록). 로컬 에코 서버로
+  // 받은 헤더: `${VAR}`·`$VAR` 는 `allowedEnvVars` 에 있을 때만 확장되고 없으면 빈 문자열이다.
+  // `${VAR:-기본값}` 은 글자 그대로 간다. SessionStart 의 http 훅은 오류 없이 건너뛴다.
+  it('http 변형도 SessionStart 는 command 다 — http 로 두면 세션이 등록되지 않는다', () => {
+    const parsed = JSON.parse(file('hooks/hooks.http.json')) as {
+      hooks: Record<string, { hooks: Record<string, unknown>[] }[]>;
+    };
+    expect(httpHooks().filter(({ event }) => event === 'SessionStart')).toEqual([]);
+    const commands = (parsed.hooks['SessionStart'] ?? []).flatMap((group) =>
+      group.hooks.map((hook) => String(hook['command'] ?? '')),
+    );
+    expect(commands).toContain('"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward" session');
+  });
+
+  it('http 훅의 헤더에 쓴 변수는 모두 allowedEnvVars 에 있고 기본값 문법을 쓰지 않는다', () => {
+    const hooks = httpHooks();
+    expect(hooks.length).toBeGreaterThan(0);
+    for (const { event, hook } of hooks) {
+      const allowed = (hook['allowedEnvVars'] as string[] | undefined) ?? [];
+      for (const value of Object.values((hook['headers'] as Record<string, string>) ?? {})) {
+        expect(value, `${event}: 기본값 문법은 확장되지 않는다`).not.toContain(':-');
+        for (const [, name] of value.matchAll(/\$\{?([A-Za-z_][A-Za-z0-9_]*)/g)) {
+          expect(allowed, `${event}: ${name} 이 허용 목록에 없으면 빈 문자열이 간다`).toContain(
+            name,
+          );
+        }
+      }
+    }
+  });
+
   it('기본 변형은 텔레메트리 훅을 async 로 둔다 — 훅이 턴을 막으면 조정 경로가 된다', () => {
     const parsed = JSON.parse(file('hooks/hooks.json')) as {
       hooks: Record<string, { hooks: Record<string, unknown>[] }[]>;
@@ -206,12 +248,14 @@ describe('관리형 settings — 훅 URL 통제 (agent-integration §3.4 · §6.
   // **덮는 대상은 http 변형이다**(2026-09-03 · 사람 결정 B). 기본이 command 로 바뀌면서
   // 이 allowlist 는 NERV 자신의 훅을 덮지 않는다 — 그 성질이 필요한 조직은 http 변형을
   // 쓰거나 관리형 settings 로 훅을 직접 내린다(3.4 §3.4·§6.4).
-  it('allowedHttpHookUrls 가 http 변형의 URL 전부를 덮는다', () => {
+  it('allowedHttpHookUrls 가 http 변형의 훅 주소와 같다 — 빠진 주소도, 쓰이지 않는 주소도 없다', () => {
     const settings = JSON.parse(file('managed-settings.example.json')) as {
       allowedHttpHookUrls: string[];
     };
-    const hooks = file('hooks/hooks.http.json');
-    for (const url of settings.allowedHttpHookUrls) expect(hooks).toContain(url);
+    // 빠진 주소는 그 훅을 막고, 쓰이지 않는 주소는 통제하는 척만 한다 — 세션 등록 주소가
+    // 그랬다(2026-09-28 · E06-S07: http 변형의 SessionStart 는 command 다)
+    const urls = httpHooks().map(({ hook }) => hook['url'] as string);
+    expect([...settings.allowedHttpHookUrls].sort()).toEqual([...new Set(urls)].sort());
   });
 
   it('훅 URL 화이트리스트가 NERV 도메인 밖으로 나가지 않는다 — 설정이 오염돼도 데이터가 안 샌다', () => {

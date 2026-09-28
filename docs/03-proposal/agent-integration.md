@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **25종**(2026-09-28)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.35 · 2026-09-28 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.36 · 2026-09-28 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.36 변경(2026-09-28 — 훅 헤더 확장 실측, E06-S07): **새 요구사항 없음.** §3.3 의 Phase 0 실측 항목을 닫았다 — 훅 `headers` 는 `allowedEnvVars` 에 있는 변수만 확장하고 `${VAR:-기본값}` 은 확장하지 않는다. 실측 중에 SessionStart 의 http 훅이 돌지 않는 것을 찾아, http 변형도 세션 등록은 `command` 로 보낸다고 적었다(§3.3 · §6.5). 결과의 정본은 [4.6 플러그인](../04-mvp/plugin.md) §3.1이다.
 >
 > v0.35 변경(2026-09-28 — 파생본의 요약이 원본과 달랐다): **새 요구사항 없음.** html 파생본의 요약이 "도구 22종(2026-09-02 실측)" 과 옛 문장으로 남아 있었다 — ID 가 없는 자리라 CI 대조가 보지 못한다. 원본(md)의 요약으로 다시 만든다.
 >
@@ -368,7 +370,7 @@ nerv-plugin/
 }
 ```
 
-`command` 를 기본으로 둔 근거는 셋이다 — 훅 `url` 은 `${VAR}` 확장을 받지 않아 `http` 변형은 **서버 주소가 파일에 박히고**(그래서 실사용자가 패키지를 포크했다), `async` 가 command 전용이며, 포워더가 작업 디렉터리 안에서 도니 `git rev-parse` 로 브랜치·워크트리를 읽어 헤더에 실을 수 있다. `http` 변형은 `hooks/hooks.http.json` 으로 함께 배포한다 — 고르는 기준과 그 대가는 [4.6](../04-mvp/plugin.md) §3.1 이 정본이다.
+`command` 를 기본으로 둔 근거는 셋이다 — 훅 `url` 은 `${VAR}` 확장을 받지 않아 `http` 변형은 **서버 주소가 파일에 박히고**(그래서 실사용자가 패키지를 포크했다), `async` 가 command 전용이며, 포워더가 작업 디렉터리 안에서 도니 `git rev-parse` 로 브랜치·워크트리를 읽어 헤더에 실을 수 있다. `http` 변형은 `hooks/hooks.http.json` 으로 함께 배포한다 — 고르는 기준과 그 대가는 [4.6](../04-mvp/plugin.md) §3.1 이 정본이다. 2026-09-28 실측이 근거를 하나 더했다 — SessionStart 의 http 훅은 돌지 않으므로 http 변형도 세션 등록은 `command` 로 보낸다.
 
 
 | 훅 | NERV 용도 | 응답으로 하는 일 |
@@ -397,9 +399,11 @@ nerv-plugin/
 
 - [Hooks reference — Claude Code Docs](https://code.claude.com/docs/en/hooks) (2026-08-13 확인): 31종 이벤트, 공통 페이로드(`session_id`·`prompt_id`·`transcript_path`·`cwd`), `type:"http"` 핸들러와 헤더 지정, `async`, exit 2 차단 의미론, `allowedHttpHookUrls` 통제.
 
-> **주의 — Phase 0 실측 항목.** 훅 `headers` 값의 환경변수 확장(`${NERV_TOKEN}`)은 `.mcp.json`에서는 공식 지원이 확인되지만 훅 헤더에서의 동작은 1차 문서에서 형태까지 확인하지 못했다([2.4 연동 기술](../02-research/integration-tech.md) §4.5의 미확인 항목과 동일). 확장이 불가하면 `command` 핸들러 래퍼(`bin/nerv-hook-forward`)가 토큰을 주입하는 경로로 폴백한다 — Codex와 같은 바이너리를 쓰므로 추가 비용이 없다.
+> **주의 — Phase 0 실측 항목**(2026-09-28 실측으로 닫았다 — 아래 실측 기록). 훅 `headers` 값의 환경변수 확장(`${NERV_TOKEN}`)은 `.mcp.json`에서는 공식 지원이 확인되지만 훅 헤더에서의 동작은 1차 문서에서 형태까지 확인하지 못했다([2.4 연동 기술](../02-research/integration-tech.md) §4.5의 미확인 항목과 동일). 확장이 불가하면 `command` 핸들러 래퍼(`bin/nerv-hook-forward`)가 토큰을 주입하는 경로로 폴백한다 — Codex와 같은 바이너리를 쓰므로 추가 비용이 없다.
 
 > **확장의 경계**(2026-09-03 실측 정정). 위 미확인 항목의 절반이 확정됐다 — 훅 `headers` 는 `${VAR}` 확장을 받고 **`url` 은 받지 않는다.** `.mcp.json` 의 `url` 은 받는다(`${VAR:-기본값}` 형태까지). 그래서 서버 주소가 `nerv.example.com` 이 아닌 배치에서 MCP 는 파일 하나로 되지만 훅은 `command` 핸들러(`bin/nerv-hook-forward`)를 거쳐야 한다. 그 변형을 [4.6 플러그인](../04-mvp/plugin.md) §3.1 이 파일로 싣는다 — 대가는 `allowedHttpHookUrls`(§6.4)가 그 훅들을 덮지 않는다는 것이고, 어느 변형을 기본으로 삼을지는 **2026-09-03 에 `command` 로 결정됐다**(§3.3).
+
+> **실측 기록 — 훅 헤더 확장**(2026-09-28). 남은 절반을 실측했다(E06-S07 · Claude Code 2.1.283 · 로컬 에코 서버). 훅 `headers` 의 `${VAR}`·`$VAR` 는 `allowedEnvVars` 에 있을 때만 확장되고, 없으면 빈 문자열이 된다. 값은 셸 환경과 settings 의 `env` 어느 쪽에서도 읽는다. `${VAR:-기본값}` 은 확장되지 않고 글자 그대로 간다. 그리고 **SessionStart 의 http 훅은 돌지 않는다** — 오류 없이 건너뛰며 공식 문서에는 이 제한이 없다. 그래서 http 변형도 SessionStart(세션 등록)는 `command` 다. 기록 전문은 [4.6 플러그인](../04-mvp/plugin.md) §3.1이다.
 
 ### 3.4 MCP 설정과 강제 배포
 
@@ -768,7 +772,7 @@ Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권�
 
 ### 6.5 수집 경로와 감사
 
-- **훅 URL 통제** — `allowedHttpHookUrls`로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. **적용 범위는 `type:"http"` 훅뿐이다**(2026-09-03 정정 — 공식 문서 확인). NERV 의 기본 훅은 `command` 변형이므로 이 목록이 그것들을 덮지 않고, command 훅에 대한 동등한 통제는 문서에 없다. 그 성질이 필요한 배치는 둘 중 하나다: `hooks/hooks.http.json` 을 기본 자리에 두거나, **관리형 settings 로 훅 정의 자체를 내린다**(`hooks` 키는 관리형 파일에서도 유효하며 플러그인 기본값을 이긴다 — §3.4의 강제력 등급이 그대로 적용된다). 어느 쪽이든 가장 강한 강제는 서버 게이트 판정이다(D-14).
+- **훅 URL 통제** — `allowedHttpHookUrls`로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. **적용 범위는 `type:"http"` 훅뿐이다**(2026-09-03 정정 — 공식 문서 확인). NERV 의 기본 훅은 `command` 변형이므로 이 목록이 그것들을 덮지 않고, command 훅에 대한 동등한 통제는 문서에 없다. 그 성질이 필요한 배치는 둘 중 하나다: `hooks/hooks.http.json` 을 기본 자리에 두거나, **관리형 settings 로 훅 정의 자체를 내린다**(`hooks` 키는 관리형 파일에서도 유효하며 플러그인 기본값을 이긴다 — §3.4의 강제력 등급이 그대로 적용된다). 어느 쪽이든 가장 강한 강제는 서버 게이트 판정이다(D-14). http 변형도 SessionStart(세션 등록)는 `command` 라 그 주소는 이 목록에 들지 않는다(2026-09-28 실측 · [4.6 플러그인](../04-mvp/plugin.md) §3.1).
 - **ingest 인증 필수** — 토큰 없는 이벤트는 버린다. hostname은 헤더(`X-NERV-Host`)로, MCP 경로에서는 `nerv_bootstrap` 인자로 받는다.
 - **민감정보 최소화** — OTel의 프롬프트·툴 상세는 기본 마스킹이며 opt-in으로만 켠다. 리뷰 프롬프트 페이로드는 TTL 오브젝트에 두고 결론만 영구 보존한다(D-07).
 - **감사 스키마** — `actor{type,id,is_agent}` · `action`(`spec.approved`·`session.started` 식) · `targets[]` · `context`. 승인 이벤트에는 **그때의 판정 근거**를 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다. 실물 payload 는 `gate_tier`·`gate_score`·`auto_passed` 이고(2026-09-07 실측), 판정 전체(`GateDecision`)를 싣는 것과 정책 버전 개념은 이월이다.

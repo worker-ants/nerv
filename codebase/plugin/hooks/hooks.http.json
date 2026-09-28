@@ -1,20 +1,14 @@
 {
-  "$comment": "http 변형 — allowedHttpHookUrls 로 훅 URL 을 묶어야 할 때 이 파일을 hooks/hooks.json 자리에 둔다. 대가는 4.6 §3.1 이 적는다.",
+  "$comment": "http 변형 — allowedHttpHookUrls 로 훅 URL 을 묶어야 할 때 이 파일을 hooks/hooks.json 자리에 둔다. SessionStart 만은 command 다 — Claude Code 는 SessionStart 의 http 훅을 건너뛴다(E06-S07 실측). 대가는 4.6 §3.1 이 적는다.",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
-            "type": "http",
-            "url": "https://api.nerv.example.com/ingest/hooks/session",
-            "headers": {
-              "Authorization": "Bearer ${NERV_TOKEN}",
-              "X-NERV-Project": "${NERV_PROJECT}",
-              "X-NERV-Host": "${NERV_HOSTNAME}",
-              "X-NERV-Agent": "claude-code"
-            },
-            "allowedEnvVars": ["NERV_TOKEN", "NERV_PROJECT", "NERV_HOSTNAME"],
+            "$comment": "http 로 두면 조용히 건너뛰어 세션이 등록되지 않는다 — 뒤의 훅이 전부 버려진다(4.6 §3.1).",
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session",
             "timeout": 5
           },
           {
