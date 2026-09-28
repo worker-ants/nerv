@@ -36,6 +36,8 @@ import { TaskService } from '../task/task.service.js';
 import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
+import { roundVerdicts } from './review-gate.js';
+import type { RoundVerdict } from './review-gate.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 
@@ -1295,6 +1297,25 @@ export class ReviewService {
    * 면제는 **같은 줄에 펼친다**(REQ-WEB-065). 면제한 사람·시각·사유가 목록 어딘가가 아니라
    * 그 브랜치 옆에 있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다(FR-10·FR-16).
    */
+  /**
+   * EP-REV-08 — 게이트 판정(REQ-API-247). 종류 어휘는 먼저 본다 — 모르는 종류를 `uncovered` 로 답하면 오타가
+   * 영원히 "리뷰 없음" 으로 읽힌다(§1.4j).
+   */
+  async gateCheck(input: {
+    projectId: string;
+    branch: string;
+    kinds: readonly string[] | null;
+    headSha: string | null;
+  }): Promise<{ branch: string; head_sha: string | null; items: RoundVerdict[] }> {
+    const kinds =
+      input.kinds === null ? null : assertVocab(input.kinds, reviewKind.enumValues, 'kind');
+    return {
+      branch: input.branch,
+      head_sha: input.headSha,
+      items: await roundVerdicts(this.db, { ...input, kinds }),
+    };
+  }
+
   async gateCoverage(
     projectId: string,
     limit = GATE_BRANCH_LIMIT_DEFAULT,

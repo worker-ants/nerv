@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.94 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.95 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.95 변경(2026-09-28 — 게이트 판정 조회): **새 요구사항 없음 · §3.1 트리 한 줄.** `modules/review/review-gate.ts` 를 더했다([4.4 API 명세](api.md) REQ-API-247).
 >
 > v1.94 변경(2026-09-28 — md 미러의 frontmatter): **새 요구사항 없음 · §3.1 트리 한 줄.** `modules/spec/mirror-frontmatter.ts` 를 더했다([4.4 API 명세](api.md) REQ-API-245). `apps/api` 의 개발 의존성에 `yaml`(루트와 같은 판)을 더했다 — 미러를 실제 YAML 파서로 읽는 테스트가 쓴다.
 >
@@ -510,6 +512,7 @@ apps/api/src/
       plugin.paths.ts       # 아카이브 위치 — NERV_PLUGIN_DIST
       plugin.service.ts     # 마켓플레이스 JSON 조립
     review/
+      review-gate.ts        # 게이트 판정 — 라운드(브랜치 · 종류 · 커밋)가 통과했는가 (REQ-API-247)
       review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts
       review.service.ts

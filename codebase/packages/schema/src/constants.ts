@@ -257,6 +257,13 @@ export const FINDING_PAGE_LIMIT_MAX = 200;
  * `carried_over_next_cursor` 로 발견 목록(EP-REV-03 · `nerv_finding_list`)에서 이어 읽는다.
  */
 export const CARRIED_OVER_LIMIT = 50;
+/**
+ * 게이트 판정 조회(EP-REV-08)가 종류마다 돌려주는 라운드 발견의 상한(2026-09-28 · REQ-API-247). 한 라운드의 발견은
+ * 보통 수십 건이지만, 상한 없는 응답이 무엇을 낳는지는 `carried_over` 가 보여 줬다. 넘으면 `findings_total` 이
+ * 전체 수를 알리고, 나머지는 발견 목록(EP-REV-03 · `branch` 필터)에서 읽는다. 판정(`state` · `open`)은 상한과
+ * 무관하게 라운드의 발견 전부로 한다.
+ */
+export const GATE_ROUND_FINDINGS_LIMIT = 200;
 export const GATE_BRANCH_LIMIT_DEFAULT = 20;
 export const GATE_BRANCH_LIMIT_MAX = 200;
 
