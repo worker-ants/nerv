@@ -199,9 +199,9 @@ describe('레인은 한 쪽에서 끝나지 않는다 (WORK-10)', () => {
     const empty = await screen.findByTestId('ready-empty');
     expect(empty.textContent).toContain('준비된 작업이 없습니다');
     await waitFor(() =>
-      expect(within(empty).getByTestId('ready-empty-blocked').textContent).toBe('막힘 1건 보기'),
+      expect(within(empty).getByTestId('ready-empty-blocked').textContent).toBe('막힘 1건 보기 ▸'),
     );
-    expect(within(empty).getByTestId('ready-empty-backlog').textContent).toBe('백로그 2건 채우기');
+    expect(within(empty).getByTestId('ready-empty-backlog').textContent).toBe('백로그 2건 보기 ▸');
   });
 
   it('백로그를 끈 채면 "백로그 채우기" 가 백로그 레인을 켠다', async () => {

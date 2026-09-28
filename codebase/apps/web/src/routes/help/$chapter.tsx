@@ -136,7 +136,8 @@ function ManualChapterScreen(): React.JSX.Element {
             <Link
               to="/help/$chapter"
               params={{ chapter: previous.id }}
-              className="text-text-mute hover:text-link"
+              // 다음 장으로 가는 이동이다 — 쉴 때 링크색(REQ-WEB-273)
+              className="text-link hover:underline"
             >
               ← {t(previous.titleKey)}
             </Link>
@@ -145,7 +146,7 @@ function ManualChapterScreen(): React.JSX.Element {
             <Link
               to="/help/$chapter"
               params={{ chapter: next.id }}
-              className="ml-auto text-text-mute hover:text-link"
+              className="ml-auto text-link hover:underline"
             >
               {t(next.titleKey)} →
             </Link>

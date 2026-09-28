@@ -1629,7 +1629,7 @@ export const en = {
   'tasks.lane_fetch_more': 'Load more',
   'tasks.ready_empty': 'No tasks are ready',
   'tasks.ready_empty.blocked': 'See {count} blocked',
-  'tasks.ready_empty.backlog': 'Fill in {count} backlog tasks',
+  'tasks.ready_empty.backlog': 'See {count} in backlog',
   'tasks.fill_brief': 'Fill it in ▸',
   'tasks.filter.backlog': 'Show backlog',
   'tasks.filter.archived': 'Show archived',

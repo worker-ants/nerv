@@ -22,7 +22,7 @@ import {
 } from '../lib/queries.js';
 import { canManageScope } from '../lib/session.js';
 import { cn } from '../lib/utils.js';
-import { Card } from './ui/primitives.js';
+import { Button, Card } from './ui/primitives.js';
 
 const DISMISS_KEY = (org: string): string => `nerv.start-dismissed.${org}`;
 
@@ -104,10 +104,11 @@ export function StartChecklist({
       <div className="flex items-baseline gap-2">
         <h2 className="font-medium">{t('start.title')}</h2>
         {dismissible && (
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="start-dismiss"
-            className="ml-auto text-xs text-text-faint hover:text-text"
+            className="ml-auto"
             onClick={() => {
               try {
                 localStorage.setItem(DISMISS_KEY(orgSlug), '1');
@@ -118,7 +119,7 @@ export function StartChecklist({
             }}
           >
             {t('start.dismiss')}
-          </button>
+          </Button>
         )}
       </div>
       <p className="mt-0.5 text-sm text-text-mute">{t('start.lead')}</p>

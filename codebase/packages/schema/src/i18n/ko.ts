@@ -1609,7 +1609,7 @@ export const ko = {
   'tasks.lane_fetch_more': '더 불러오기',
   'tasks.ready_empty': '준비된 작업이 없습니다',
   'tasks.ready_empty.blocked': '막힘 {count}건 보기',
-  'tasks.ready_empty.backlog': '백로그 {count}건 채우기',
+  'tasks.ready_empty.backlog': '백로그 {count}건 보기',
   'tasks.fill_brief': '채우기 ▸',
   'tasks.filter.backlog': '백로그 보기',
   'tasks.filter.archived': '보관 보기',

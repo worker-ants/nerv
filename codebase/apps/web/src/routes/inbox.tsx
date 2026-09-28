@@ -42,6 +42,7 @@ import { useRealtime } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
 import {
   Button,
+  Disclosure,
   EmptyState,
   Kbd,
   LoadMore,
@@ -738,18 +739,14 @@ function InboxScreen(): React.JSX.Element {
             적힌다(REQ-WEB-145) — 묶음은 그 카드를 치우는 것이 아니라 순서를 정하는 것이다 */}
             {inLockedZone && (
               <section data-testid="inbox-locked" className="mt-5">
-                <button
-                  type="button"
-                  data-testid="inbox-locked-toggle"
-                  aria-expanded={showLocked}
-                  onClick={() => setShowLocked((open) => !open)}
-                  className="flex items-center gap-1.5 text-sm text-text-mute hover:text-text"
+                {/* 자기 요청을 거절로 거두는 유일한 자리라 펼치기 한 벌로 보인다(REQ-WEB-276) */}
+                <Disclosure
+                  expanded={showLocked}
+                  testId="inbox-locked-toggle"
+                  onToggle={() => setShowLocked((open) => !open)}
                 >
-                  <span aria-hidden="true" className="w-3 text-2xs">
-                    {showLocked ? '▾' : '▸'}
-                  </span>
                   {t('inbox.locked_group', { count: lockedTotal })}
-                </button>
+                </Disclosure>
                 {showLocked && (
                   <>
                     <p className="mt-1 mb-2 pl-4.5 text-2xs text-text-faint">
