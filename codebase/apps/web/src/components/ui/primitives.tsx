@@ -189,14 +189,24 @@ export function Kbd({ children }: { children: React.ReactNode }): React.JSX.Elem
 export type ButtonVariant = 'primary' | 'default' | 'ghost' | 'subtle' | 'danger' | 'danger-solid';
 export type ButtonSize = 'xs' | 'sm' | 'md';
 
+/**
+ * 변형의 쓰임(2026-09-28 · 사람 결정 A1 · A2 · screens.md §4.4 · REQ-WEB-271). **명령은 쉴 때 틀이나 칠이 있다** — 사람은
+ * 누르기 전에 화면을 훑고, 터치 기기에는 hover 가 없다. 알림의 [모두 읽음]이 쉴 때 옆의 설명문과 같은 회색 글자여서
+ * 누를 수 있는 줄 몰랐다는 보고가 이 규칙의 발단이다. 쓰는 자리는 `affordance-ledger.spec.tsx` 가 센다.
+ */
 const VARIANT: Record<ButtonVariant, string> = {
   // 화면당 하나면 충분하다 — 여러 개면 무엇이 주 행동인지 사라진다
   primary: 'bg-status-action text-on-status hover:opacity-90 border border-transparent',
+  // 흐름을 마치거나 목록을 잇는 보조 명령([닫기] · [다시 시도] · 확인 막대의 [취소])
   default: 'border border-border bg-bg-elev text-text hover:bg-bg-hover',
+  // **틀이 이미 있는 자리에서만 쓴다** — 모달 바닥의 [닫기]·[취소], 테두리 안 도구 막대의 아이콘 단추(사람 결정 A1).
+  // 쉴 때 테두리도 바탕도 없어서 다른 자리에서는 글자로 읽힌다. 명령은 `subtle`·`default` 를 쓴다
   ghost: 'border border-transparent text-text-mute hover:bg-bg-hover hover:text-text',
-  // 줄 안의 작은 조작(발견의 [해소…] · 첨부의 [삭제] · 다이어그램의 [확대]) — 테두리만 있고 바탕은 곁의 면을 따른다.
+  // 줄 안의 작은 조작과 보조 명령(발견의 [처분] · 첨부의 [삭제] · [더 보기] · [모두 읽음]) — 바탕은 옆의 면을 따른다.
+  // **쉴 때 테두리가 보여야 한다**(사람 결정 A2): 들어간 바탕(선택 바 · 레일)에서 `border` 는 1.11:1 이라 거의
+  // 사라졌다. 한 단 진한 `--color-border-strong` 과 본문 글자색을 쓰고, hover 는 바탕으로 알린다.
   // 스무 자리가 이 글자열을 손으로 베껴 쓰던 동안 그 단추들에는 잠긴 까닭도 오프라인 잠금도 없었다(REQ-WEB-235)
-  subtle: 'border border-border text-text-mute hover:border-border-strong hover:text-text',
+  subtle: 'border border-border-strong text-text hover:bg-bg-hover',
   danger: 'border border-border text-status-danger hover:bg-status-danger-soft',
   // **확인의 실행 단추다** — 되돌리기 어려운 일을 한 번 더 물은 뒤에만 선다(confirm-action.tsx).
   // 이 칠이 없던 동안 세션 중단은 클래스를 덮어써 빨갛게 칠했다
@@ -210,6 +220,23 @@ const SIZE: Record<ButtonSize, string> = {
   // 줄 안의 작은 조작 — 높이를 글자가 정하고, 모서리·굵기는 곁의 배지와 같다
   xs: 'h-auto px-2 py-0.5 text-2xs gap-1 rounded-nerv-sm font-normal',
 };
+
+/** 단추 모양의 뼈대 — `Button` 과 `buttonClass` 가 함께 쓴다 */
+const BUTTON_BASE =
+  'inline-flex items-center justify-center rounded-nerv font-medium transition-colors';
+
+/**
+ * **링크를 단추 모양으로 칠한다**(2026-09-28 · REQ-WEB-271). `Button` 은 `<button>` 만 그려서, 이동하는 단추
+ * ([작업 만들기] · [받은 요청에서 열기] · [재설정 링크 다시 받기])는 모양을 손으로 칠했고 화면마다 크기가 달랐다.
+ * 이동은 쓰기가 아니므로 잠김·오프라인 잠금은 없다.
+ */
+export function buttonClass(
+  variant: ButtonVariant = 'default',
+  size: ButtonSize = 'md',
+  className?: string,
+): string {
+  return cn(BUTTON_BASE, VARIANT[variant], SIZE[size], className);
+}
 
 /**
  * 단추 — **못 누르는 까닭을 말한다**(2026-09-25 · UI/UX 검토 SYS-08·SYS-09 · REQ-WEB-003 · REQ-WEB-235).
@@ -267,7 +294,7 @@ export function Button({
   const online = requiresOnline ?? (variant === 'primary' || variant === 'danger-solid');
   const reason = (disabled === true ? disabledReason : undefined) ?? (online ? writeLock : null);
   const classes = cn(
-    'inline-flex items-center justify-center rounded-nerv font-medium transition-colors',
+    BUTTON_BASE,
     // 비활성은 **숨기지 않는다**(REQ-WEB-003) — 흐리게 두고 사유를 말한다
     'disabled:cursor-not-allowed disabled:opacity-45',
     // 잠금(`aria-disabled`)은 `opacity` 로 흐리지 않는다 — 가상 요소인 말풍선까지 함께 흐려진다. 바탕색 막(`::before`)을
@@ -321,6 +348,83 @@ export function Button({
         </span>
       )}
     </>
+  );
+}
+
+/**
+ * **목록 끝의 [더 보기] 한 벌**(2026-09-28 · REQ-WEB-271). 여섯 목록이 네 모양으로 짰고 셋은 ghost 라 "목록의 끝" 으로
+ * 읽혔다 — 받은 요청은 가장 오래 기다린 요청이 뒤쪽 쪽에 있고, 세션·레인은 이것 말고 다음으로 갈 길이 없다.
+ * 전폭 테두리 단추이고, 받는 동안에는 잠근다(두 번 누르면 같은 쪽을 두 번 받는다).
+ */
+export function LoadMore({
+  onClick,
+  pending = false,
+  label,
+  pendingLabel,
+  testId,
+  className,
+}: {
+  onClick: () => void;
+  pending?: boolean;
+  /** 보이는 글자 — 부르는 쪽의 카탈로그 값(`tasks.more` 등) */
+  label: string;
+  /** 받는 동안의 글자 — 없으면 `label` 그대로 */
+  pendingLabel?: string;
+  testId?: string;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <Button
+      size="sm"
+      variant="subtle"
+      className={cn('w-full', className)}
+      disabled={pending}
+      onClick={onClick}
+      {...(testId === undefined ? {} : { 'data-testid': testId })}
+    >
+      {pending ? (pendingLabel ?? label) : label}
+    </Button>
+  );
+}
+
+/**
+ * **펼치기·접기 한 벌**(2026-09-28 · REQ-WEB-276). 묶인 알림의 "×3" · 활동 원문의 ▸ · "해결된 것 N건 보기" 가 저마다
+ * 흐린 글자였다. 줄 안의 작은 단추(`xs subtle`)에 ▸/▾ 표지를 붙이고, 상태는 `aria-expanded` 로 읽힌다. 글자가 기호뿐이면
+ * `label` 로 이름을 준다(REQ-WEB-170 과 같은 처방).
+ */
+export function Disclosure({
+  expanded,
+  onToggle,
+  children,
+  label,
+  controls,
+  testId,
+  className,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  children?: React.ReactNode;
+  /** 보조기기가 읽는 이름 — 보이는 글자가 "×3" 처럼 뜻을 다 말하지 못할 때 */
+  label?: string;
+  /** 펼쳐지는 영역의 id */
+  controls?: string;
+  testId?: string;
+  className?: string;
+}): React.JSX.Element {
+  return (
+    <Button
+      size="xs"
+      variant="subtle"
+      aria-expanded={expanded}
+      className={className}
+      onClick={onToggle}
+      {...(label === undefined ? {} : { 'aria-label': label, title: label })}
+      {...(controls === undefined ? {} : { 'aria-controls': controls })}
+      {...(testId === undefined ? {} : { 'data-testid': testId })}
+    >
+      <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+      {children}
+    </Button>
   );
 }
 
@@ -581,15 +685,27 @@ export function Th({
   return <th className={cn('py-2 pr-3 font-medium', className)}>{children}</th>;
 }
 
+/**
+ * 표의 한 줄. **hover 바탕은 줄 전체가 눌릴 때만 준다**(2026-09-28 · REQ-WEB-275) — 모든 줄에 주던 동안 브랜치 링크 하나만
+ * 눌리는 게이트 현황 표도 줄 전체가 눌릴 것처럼 보였다.
+ */
 export function Tr({
   children,
   className,
+  interactive,
 }: {
   children: React.ReactNode;
   className?: string;
+  interactive?: boolean;
 }): React.JSX.Element {
   return (
-    <tr className={cn('border-b border-border last:border-0 hover:bg-bg-hover', className)}>
+    <tr
+      className={cn(
+        'border-b border-border last:border-0',
+        interactive === true && 'cursor-pointer hover:bg-bg-hover',
+        className,
+      )}
+    >
       {children}
     </tr>
   );
@@ -852,6 +968,18 @@ export function SummaryStrip({
             {m.value}
           </span>
         );
+        // **갈 데가 있다는 표지**(사람 결정 A6 · REQ-WEB-274) — 칸의 모양만으로는 표시와 링크를 구별할 수 없었다
+        const label =
+          m.href === undefined ? (
+            m.label
+          ) : (
+            <>
+              {m.label}
+              <span aria-hidden="true" className="ml-1 text-text-faint">
+                ▸
+              </span>
+            </>
+          );
         const body =
           layout === 'inline' ? (
             <>
@@ -865,13 +993,13 @@ export function SummaryStrip({
                   m.toggle?.pressed === true ? 'text-text' : 'text-text-mute',
                 )}
               >
-                {m.label}
+                {label}
               </span>
             </>
           ) : (
             <>
               <span className="text-2xs font-semibold tracking-label text-text-faint uppercase">
-                {m.label}
+                {label}
               </span>
               {number}
             </>
@@ -885,6 +1013,8 @@ export function SummaryStrip({
         const testId = m.testId === undefined ? {} : { 'data-testid': m.testId };
         if (m.toggle !== undefined) {
           const { pressed, onToggle, disabled } = m.toggle;
+          // **거르는 칸은 테두리가 있다**(2026-09-28 · 사람 결정 A6 · REQ-WEB-274) — 쉴 때 통계 표시와 같은 모양이라,
+          // 같은 모양의 리뷰 요약 줄(눌리지 않는다)과 구별할 길이 없었다. 켠 칸은 바탕으로 읽힌다
           return (
             <button
               key={m.label}
@@ -895,9 +1025,11 @@ export function SummaryStrip({
               disabled={disabled}
               onClick={onToggle}
               className={cn(
-                shell,
-                'text-left transition-opacity',
-                disabled !== true && 'cursor-pointer hover:opacity-100',
+                layout === 'inline' ? 'flex shrink-0 items-center gap-2' : 'flex flex-col gap-1',
+                'mr-3 rounded-nerv border border-border-strong px-3 py-1 text-left transition-colors',
+                pressed ? 'bg-bg-active' : disabled !== true && 'hover:bg-bg-hover',
+                disabled !== true && 'cursor-pointer',
+                m.dimmed === true && 'opacity-45',
               )}
             >
               {body}
