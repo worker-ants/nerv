@@ -23,7 +23,8 @@ import { LOCALE_LABEL, useLocale, useT } from '../lib/i18n.js';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api.js';
-import { chapterForRoute } from '../lib/manual.js';
+import { helpForRoute } from '../lib/manual.js';
+import { helpHref } from '../lib/manual-chapters.js';
 import { useMe } from '../lib/queries.js';
 import { useRealtime } from '../lib/realtime.js';
 import { inOrgHref, useScope } from '../lib/scope.js';
@@ -226,8 +227,8 @@ export function QuickSwitcher({
       })),
       { id: 'go-help', group: 'go', label: t('shell.help'), href: '/help', keywords: 'help' },
       ...((): PaletteItem[] => {
-        const chapter = chapterForRoute(pathname);
-        return chapter === null
+        const target = helpForRoute(pathname);
+        return target === null
           ? []
           : [
               {
@@ -235,7 +236,8 @@ export function QuickSwitcher({
                 group: 'go',
                 label: t('switcher.help_here'),
                 sub: t('shell.help'),
-                href: `/help/${chapter}`,
+                // 절까지 간다(REQ-WEB-268) — 게이트 정책 화면이면 설정 장의 게이트 정책 절
+                href: helpHref(target),
                 keywords: 'help',
               },
             ];

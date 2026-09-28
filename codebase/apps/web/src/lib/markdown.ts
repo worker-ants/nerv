@@ -11,10 +11,16 @@
 import MarkdownIt from 'markdown-it';
 
 export interface DocHeading {
-  /** 앵커 id — 로케일과 무관하게 **순서**로 짓는다(아래 renderDoc 주석) */
+  /** 앵커 id — 제목 끝의 `{#이름}`, 없으면 순서(`sec-N`). 둘 다 로케일과 무관하다(아래 renderDoc 주석) */
   readonly id: string;
   readonly text: string;
+  /** 몇 번째 `##` 인가(1부터) — 옛 주소 `#sec-N` 을 이 절로 옮길 때 쓴다 */
+  readonly ordinal: number;
 }
+
+/** 절 이름의 모양 — 영문 소문자로 시작하고 소문자 · 숫자 · `-` 만. 속성 주입 길을 두지 않는다 */
+export const SECTION_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
+const EXPLICIT_ID = /\s*\{#([a-z][a-z0-9-]*)\}\s*$/;
 
 export interface RenderedDoc {
   readonly html: string;
@@ -87,9 +93,15 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
 /**
  * 본문을 HTML 로, `##` 목록을 목차로.
  *
- * 앵커 id 를 제목 글자가 아니라 **순서**(`sec-1`, `sec-2`…)로 짓는다. 제목에서 뽑으면
- * 같은 절의 앵커가 로케일마다 달라져, 한국어로 복사한 링크가 영어 화면에서 아무 데도
- * 가리키지 못한다 — 매뉴얼은 링크로 주고받는 문서라 그 차이가 바로 드러난다.
+ * 앵커 id 를 제목 글자에서 뽑지 않는다. 뽑으면 같은 절의 앵커가 로케일마다 달라져, 한국어로
+ * 복사한 링크가 영어 화면에서 아무 데도 가리키지 못한다 — 매뉴얼은 링크로 주고받는 문서라 그
+ * 차이가 바로 드러난다.
+ *
+ * **이름이 먼저, 순서는 대체다**(2026-09-28 · 사람 결정 · REQ-WEB-268). 처음에는 순서(`sec-1`…)만
+ * 썼는데, 절을 하나 넣거나 빼면 밖에서 건 링크가 조용히 다른 절을 가리켰다. 그래서 제목 끝에
+ * 로케일 공통의 이름을 단다 — `## 게이트 정책 {#gates}` · `## Gate policy {#gates}`. 이름은 화면과
+ * 목차에서 빠진다. 이름이 없는 `##` 는 지금처럼 순서다. `###` 는 이름이 있을 때만 앵커를 받는다.
+ * 모양이 틀린 이름(`{#Bad Id}`)은 앵커가 되지 않고 글자로 남는다 — 매뉴얼 검사가 그것을 잡는다.
  */
 export function renderDoc(source: string, options: RenderOptions = {}): RenderedDoc {
   const env: DocEnv = {
@@ -100,14 +112,37 @@ export function renderDoc(source: string, options: RenderOptions = {}): Rendered
   const headings: DocHeading[] = [];
 
   for (const [index, token] of tokens.entries()) {
-    if (token.type !== 'heading_open' || token.tag !== 'h2') continue;
+    if (token.type !== 'heading_open' || (token.tag !== 'h2' && token.tag !== 'h3')) continue;
     const inline = tokens[index + 1];
-    const id = `sec-${headings.length + 1}`;
+    const explicit = inline === undefined ? null : takeExplicitId(inline);
+    if (token.tag === 'h3') {
+      if (explicit !== null) token.attrSet('id', explicit);
+      continue;
+    }
+    const ordinal = headings.length + 1;
+    const id = explicit ?? `sec-${ordinal}`;
     token.attrSet('id', id);
     // 목차는 글자만 쓴다 — 제목 안의 `**`·`` ` `` 는 마크업이지 이름이 아니다
-    headings.push({ id, text: (inline?.content ?? '').replace(/[*`]/g, '') });
+    headings.push({ id, text: (inline?.content ?? '').replace(/[*`]/g, ''), ordinal });
   }
 
   const html = md.renderer.render(tokens, md.options, env);
   return { html, headings, diagrams: env.diagrams ?? [] };
+}
+
+/**
+ * 제목 끝의 `{#이름}` 을 떼고 그 이름을 돌려준다. markdown-it 은 그것을 인라인의 **마지막 글자
+ * 조각** 꼬리로 준다 — 굵은 글씨나 코드가 앞에 있어도 마지막 조각에 남는다.
+ */
+function takeExplicitId(inline: {
+  content: string;
+  children: { type: string; content: string }[] | null;
+}): string | null {
+  const match = EXPLICIT_ID.exec(inline.content);
+  if (match === null) return null;
+  const last = inline.children?.at(-1);
+  if (last === undefined || last.type !== 'text' || !EXPLICIT_ID.test(last.content)) return null;
+  last.content = last.content.replace(EXPLICIT_ID, '');
+  inline.content = inline.content.replace(EXPLICIT_ID, '');
+  return match[1] ?? null;
 }

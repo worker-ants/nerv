@@ -11,6 +11,7 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { Button } from '../../components/ui/primitives.js';
+import { helpLink } from '../../lib/manual-chapters.js';
 
 export function TerminalHandoffCard({ specKey }: { specKey: string }): React.JSX.Element {
   const t = useT();
@@ -47,8 +48,7 @@ export function TerminalHandoffCard({ specKey }: { specKey: string }): React.JSX
       </div>
       {/* 플러그인을 아직 깔지 않은 사람은 이 명령을 받아도 쓸 수 없다 — 설치 장으로 가는 길(SPEC-09) */}
       <Link
-        to="/help/$chapter"
-        params={{ chapter: 'install' }}
+        {...helpLink('install', 'claude-code')}
         data-testid="handoff-install"
         className="mt-1 inline-block text-2xs text-link hover:underline"
       >

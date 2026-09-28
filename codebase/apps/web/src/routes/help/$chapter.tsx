@@ -4,7 +4,7 @@
 // `##` 만 담는다: `###` 까지 담으면 목차가 본문만큼 길어져 훑는 도구가 아니게 된다.
 
 import { useLocale, useT } from '../../lib/i18n.js';
-import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
+import { createFileRoute, Link, useRouter, useRouterState } from '@tanstack/react-router';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { chapterNeighbours, findChapter } from '../../lib/manual.js';
@@ -52,6 +52,18 @@ function ManualChapterScreen(): React.JSX.Element {
     });
   }, [doc.html]);
   const { previous, next } = chapterNeighbours(chapterId);
+
+  // **옛 주소를 옮긴다**(2026-09-28 · 사람 결정 · REQ-WEB-268). 절에 이름을 달기 전에는 목차가 주소에
+  // `#sec-N` 을 남겼다 — 누가 그 주소를 복사해 두었으면 이제는 아무 데도 가리키지 않는다. 같은 순서의
+  // 절 이름으로 바꿔 준다(순서의 뜻 그대로라 그 사이 절이 늘었다면 어긋난다 — 예전과 같다).
+  const location = useRouterState({ select: (s) => s.location });
+  useLayoutEffect(() => {
+    const old = /^sec-(\d+)$/.exec(location.hash);
+    if (old === null || doc.headings.some((h) => h.id === location.hash)) return;
+    const target = doc.headings.find((h) => h.ordinal === Number(old[1]));
+    if (target === undefined) return;
+    router.history.replace(`${location.pathname}${location.searchStr}#${target.id}`);
+  }, [location.hash, location.pathname, location.searchStr, doc.headings, router]);
 
   if (chapter === undefined) {
     return (
@@ -105,8 +117,8 @@ function ManualChapterScreen(): React.JSX.Element {
           // 그 "위에 붙은 것" 이 폭에 따라 다르다(2026-09-08 · REQ-WEB-157): 본문이 자기
           // 상자 안에서 흐르는 폭(`md`)에서는 상자 위가 곧 헤더 아래라 페이지 여백만큼이면
           // 되고, 페이지가 흐르는 좁은 화면에서는 셸 헤더가 그 자리를 덮는다.
-          className="prose-nerv max-w-184 [&_h2]:scroll-mt-anchor
-            md:[&_h2]:scroll-mt-6"
+          className="prose-nerv max-w-184 [&_h2]:scroll-mt-anchor [&_h3]:scroll-mt-anchor
+            md:[&_h2]:scroll-mt-6 md:[&_h3]:scroll-mt-6"
           dangerouslySetInnerHTML={bodyHtml}
         />
         {slots.html === doc.html &&
