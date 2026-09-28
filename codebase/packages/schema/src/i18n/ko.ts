@@ -577,6 +577,11 @@ export const ko = {
   'spec.requirements.empty': '이 문서의 승인된 버전에는 요구사항이 없습니다.',
   'spec.requirements.empty_draft':
     '요구사항은 문서가 승인될 때 본문에서 만들어집니다. 이 문서는 아직 승인된 적이 없습니다.',
+  'spec.requirements.draft_delta': 'v{from} 대비 이 초안의 요구사항',
+  'spec.requirements.draft_counts': '추가 {added} · 변경 {modified} · 삭제 {removed}',
+  'spec.requirements.draft_new': '승인되면 요구사항 {count}개가 생깁니다',
+  'spec.requirements.draft_none_new': '이 초안에는 아직 요구사항 줄이 없습니다',
+  'spec.requirements.draft_open_diff': 'v{from}..v{to} 비교 보기',
   'spec.requirements.format': '- REQ-<접두>-<번호> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다',
   'spec.requirements.no_priority': '우선순위 없음',
   'specs.basis': '버전 기준',

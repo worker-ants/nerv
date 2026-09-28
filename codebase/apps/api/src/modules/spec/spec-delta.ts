@@ -10,26 +10,18 @@
 // 축은 둘이다. 요구사항은 리뷰가 실제로 묻는 것이고(EP-SPEC-06 도 그 순서다), 줄 수는
 // 요구사항이 없는 문서에서도 변화의 크기를 말해 준다 — 이 프로젝트의 스펙 다수가 그렇다.
 
-/** 요구사항 한 줄 — `REQ-CWC-031 WHEN … THE SYSTEM SHALL …` (검사기와 같은 모양을 본다) */
-const REQUIREMENT_LINE = /^[-*]?\s*([A-Z]+-[A-Z]+-\d+)\s+(.*)$/;
+import { requirementsOf } from '@nerv/schema';
 
 export interface SpecDelta {
   requirements: { added: string[]; modified: string[]; removed: string[] };
   lines: { added: number; removed: number };
 }
 
-/** 본문에서 요구사항을 읽는다 — 행이 없는 문서의 diff 가 이것을 쓴다(EP-SPEC-06) */
-export function requirementsOf(body: string): Map<string, string> {
-  const found = new Map<string, string>();
-  for (const line of body.split('\n')) {
-    const match = REQUIREMENT_LINE.exec(line.trim());
-    const ref = match?.[1];
-    if (ref === undefined) continue;
-    // 같은 ref 가 두 번 나오면 검사기가 잡는다 — 여기서는 첫 줄을 그 요구사항으로 본다
-    if (!found.has(ref)) found.set(ref, (match?.[2] ?? '').trim());
-  }
-  return found;
-}
+/**
+ * 본문에서 요구사항을 읽는 판정은 `@nerv/schema` 한 곳에 있다 — 초안의 요구사항 탭(화면)도 같은 것을 쓴다(2026-09-28).
+ * 이 모듈을 부르던 곳(버전 비교 · 검색 스니펫)은 그대로 여기서 받는다.
+ */
+export { requirementsOf };
 
 /**
  * 이전 본문 → 새 본문의 델타. 이전이 없으면(새 문서) 전부 added 다.

@@ -1548,6 +1548,9 @@ function SpecDetail(): React.JSX.Element {
                       },
                     }
                   : {})}
+                approvedNo={approvedNo}
+                draftBody={body}
+                onOpenDiff={openDiff}
               />
               <section className="border-t border-border pt-2">
                 <p className="px-1 pb-1 text-2xs tracking-wide text-text-faint uppercase">

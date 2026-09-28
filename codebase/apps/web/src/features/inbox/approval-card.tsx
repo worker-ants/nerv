@@ -18,7 +18,7 @@ import {
   type MessageKey,
   type Translator,
 } from '@nerv/schema';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -27,9 +27,14 @@ import { useRealtime } from '../../lib/realtime.js';
 import { inOrgHref, useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
-import { Button, Kbd, Mono, Textarea } from '../../components/ui/primitives.js';
+import { Button, Kbd, Mono, Skeleton, Textarea } from '../../components/ui/primitives.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
 import { DECISION_GRACE_MS, useGrace } from './decision-grace.js';
+
+/** 스펙 본문 렌더러 — 스펙 상세와 한 벌이다. 편집기 묶음이 받은 요청의 첫 적재에 끼지 않게 펼칠 때 받는다 */
+const LazySpecEditor = lazy(() =>
+  import('../spec-editor/editor.js').then((m) => ({ default: m.SpecEditor })),
+);
 
 export type Decision = 'approve' | 'reject' | 'comment';
 
@@ -813,17 +818,23 @@ export function ApprovalCard({
             {showBody ? t('inbox.card.hide_body') : t('inbox.card.show_body')}
           </Button>
           {showBody && (
+            // **스펙 상세와 같은 렌더러로 그린다**(2026-09-28 · REQ-WEB-279) — 마크다운 원문이 기호째 회색 상자에
+            // 나와 제목 · 목록 · 표 · 그림을 읽을 수 없었다. 편집기는 펼칠 때만 받아 온다(받은 요청이 무거워지지 않게)
             <div
               data-testid="subject-body"
-              className="mt-1.5 max-h-80 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-sm whitespace-pre-wrap text-text-mute"
+              className="mt-1.5 max-h-80 overflow-y-auto rounded-nerv-sm border border-border bg-bg-elev px-3 py-2 text-sm"
             >
-              {subject.isPending
-                ? t('common.loading')
-                : subject.isError
-                  ? t('inbox.card.body_failed')
-                  : String(subject.data?.['body_md'] ?? '') === ''
-                    ? t('inbox.card.body_empty')
-                    : String(subject.data?.['body_md'])}
+              {subject.isPending ? (
+                <p className="text-text-mute">{t('common.loading')}</p>
+              ) : subject.isError ? (
+                <p className="text-text-mute">{t('inbox.card.body_failed')}</p>
+              ) : String(subject.data?.['body_md'] ?? '') === '' ? (
+                <p className="text-text-mute">{t('inbox.card.body_empty')}</p>
+              ) : (
+                <Suspense fallback={<Skeleton rows={3} />}>
+                  <LazySpecEditor value={String(subject.data?.['body_md'])} className="min-h-0" />
+                </Suspense>
+              )}
             </div>
           )}
         </div>
