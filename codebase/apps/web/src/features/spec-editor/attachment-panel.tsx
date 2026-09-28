@@ -19,6 +19,7 @@ import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { Button, Disclosure } from '../../components/ui/primitives.js';
+import { ActorMark } from '../../components/actor-mark.js';
 
 /** 서버와 같은 화이트리스트 — 고르개가 아닌 것을 보여 주면 올린 뒤에야 거부당한다 */
 const ACCEPT =
@@ -205,8 +206,13 @@ export function AttachmentPanel({
                 >
                   {String(item['filename'])}
                 </a>
-                <span className="shrink-0 text-text-faint">
-                  {item['is_agent'] === true ? '🤖' : '👤'} {String(item['uploaded_by'] ?? '')}
+                <span className="flex shrink-0 items-center gap-1 text-text-faint">
+                  <ActorMark
+                    size="sm"
+                    name={typeof item['uploaded_by'] === 'string' ? item['uploaded_by'] : null}
+                    agent={item['is_agent'] === true}
+                  />
+                  {String(item['uploaded_by'] ?? '')}
                 </span>
               </div>
               {/* 지우기만 남았다 — 편집할 수 없으면 줄 자체를 두지 않는다. 지난 버전 본문이
