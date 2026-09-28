@@ -16,6 +16,7 @@
 
 import { Injectable } from '@nestjs/common';
 import {
+  CARRIED_OVER_LIMIT,
   ESCALATE_REASONS,
   FINDING_PAGE_LIMIT_DEFAULT,
   FINDING_PAGE_LIMIT_MAX,
@@ -155,8 +156,15 @@ export interface SubmitResult {
   merged_into_existing_session: boolean;
   findings_new: readonly string[];
   findings_merged: readonly string[];
-  /** 이월된 미해결 — 이 리뷰가 아니라 **이 프로젝트**의 열린 발견이다 */
+  /**
+   * 이월된 미해결 — 이 리뷰가 아니라 **이 프로젝트**의 열린 발견이다. 발견 목록과 같은 순서(심각도 → 최근 → id)로
+   * `CARRIED_OVER_LIMIT` 건까지만 담는다(2026-09-28 · 사람 결정 D4 · REQ-API-242)
+   */
   carried_over: readonly { id: string; severity: string; title: string }[];
+  /** 프로젝트의 열린 발견 전체 수 */
+  carried_over_total: number;
+  /** 나머지의 시작 — 발견 목록(EP-REV-03 `cursor` · `nerv_finding_list`)에 그대로 넘긴다. 다 담았으면 `null` */
+  carried_over_next_cursor: string | null;
   block: boolean;
   /** 이 리뷰가 이어진 Task — 명시하지 않았으면 활성 클레임에서 채운다(REQ-API-148) */
   task_id: string | null;
@@ -330,7 +338,7 @@ export class ReviewService {
       // BLOCK 은 **열린 critical 이 있는가**로 정한다 — consistency 리뷰의 `BLOCK: YES/NO`
       // 를 계승한 필드이고(database.md §2.7), 판정은 리뷰어의 주장이 아니라 데이터다.
       const carried = await this.openFindings(tx, input.projectId);
-      const block = carried.some((f) => f.severity === 'critical');
+      const block = carried.hasCritical;
       await tx.execute(sql`
         UPDATE review_session
            SET state = 'complete',
@@ -386,7 +394,9 @@ export class ReviewService {
         merged_into_existing_session: !session.fresh,
         findings_new: created,
         findings_merged: mergedIds,
-        carried_over: carried,
+        carried_over: carried.items,
+        carried_over_total: carried.total,
+        carried_over_next_cursor: carried.nextCursor,
         block,
         task_id: session.taskId ?? null,
       };
@@ -603,16 +613,52 @@ export class ReviewService {
     return RISK_ORDER[worst] ?? 'low';
   }
 
+  /**
+   * 프로젝트의 열린 발견 — **앞의 `CARRIED_OVER_LIMIT` 건과 총수 · 다음 커서**(2026-09-28 · 사람 결정 D4 · REQ-API-242).
+   * 예전에는 LIMIT 없이 전부 돌려줘서 실측 18,653건이 매 제출 응답에 실렸다. 순서는 발견 목록(EP-REV-03)과 같아서
+   * 커서를 그 목록에 그대로 넘기면 51번째부터 이어진다. 커서의 시각은 문자열로 받는다 — `Date` 로 받으면
+   * 마이크로초가 잘려 같은 밀리초의 발견을 건너뛴다.
+   */
   private async openFindings(
     tx: Tx,
     projectId: string,
-  ): Promise<{ id: string; severity: string; title: string }[]> {
-    const { rows } = await tx.execute<{ id: string; severity: string; title: string }>(sql`
-      SELECT id, severity::text AS severity, title FROM finding
+  ): Promise<{
+    items: { id: string; severity: string; title: string }[];
+    total: number;
+    nextCursor: string | null;
+    hasCritical: boolean;
+  }> {
+    const { rows } = await tx.execute<{
+      id: string;
+      severity: string;
+      title: string;
+      created_at: string;
+    }>(sql`
+      SELECT id, severity::text AS severity, title, created_at::text AS created_at FROM finding
        WHERE project_id = ${projectId} AND status = 'open'
-       ORDER BY severity, created_at
+       ORDER BY severity, created_at DESC, id
+       LIMIT ${CARRIED_OVER_LIMIT + 1}
     `);
-    return rows;
+    const { rows: counts } = await tx.execute<{ total: number; critical: number }>(sql`
+      SELECT count(*)::int AS total,
+             count(*) FILTER (WHERE severity = 'critical')::int AS critical
+        FROM finding WHERE project_id = ${projectId} AND status = 'open'
+    `);
+    const page = rows.slice(0, CARRIED_OVER_LIMIT);
+    const last = page[page.length - 1];
+    return {
+      items: page.map(({ id, severity, title }) => ({ id, severity, title })),
+      total: counts[0]?.total ?? page.length,
+      nextCursor:
+        rows.length > CARRIED_OVER_LIMIT && last !== undefined
+          ? encodeFindingCursor({
+              severity: last.severity,
+              createdAt: last.created_at,
+              id: last.id,
+            })
+          : null,
+      hasCritical: (counts[0]?.critical ?? 0) > 0,
+    };
   }
 
   /** 새로 열었는가(created), 그리고 그 finding id. */

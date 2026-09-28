@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7 이 정본이다.
 >
-> 문서 버전 v0.84 · 2026-09-28 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.85 · 2026-09-28 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.85 변경(2026-09-28 — 이월 발견의 나머지, **사람 결정 D4**): **새 요구사항 없음 · §2 `review` 스킬 한 문장 · 패키지 0.3.9 → 0.3.10.** 제출 응답의 `carried_over` 는 이제 앞의 50건만 담는다. 스킬이 전체 수(`carried_over_total`)를 읽고, 나머지가 필요하면 `nerv_finding_list` 에 `carried_over_next_cursor` 를 넘기게 적었다(`allowed-tools` 에 그 도구를 더했다 · [4.4 API 명세](api.md) REQ-API-242).
 >
 > v0.84 변경(2026-09-28 — 훅 헤더 확장 실측, E06-S07): **REQ-PLG-027 신설 · 패키지 0.3.8 → 0.3.9.** 훅 `headers` 의 `${NERV_TOKEN}` 확장을 실측했다(§3.1 실측 기록) — `allowedEnvVars` 에 있으면 확장된다. `${VAR:-기본값}` 과 `url` 은 확장되지 않는다. 실측 중에 **http 변형의 SessionStart 훅이 돌지 않는 것**을 찾았다. Claude Code 가 SessionStart 의 http 훅을 건너뛰어, 이 변형으로는 세션이 등록되지 않고 뒤의 훅이 모두 버려졌다. `hooks/hooks.http.json` 의 SessionStart 를 command(`nerv-hook-forward session`)로 바꿨다. 관리형 예시의 `allowedHttpHookUrls` 에서도 세션 등록 주소를 뺐다.
 >
@@ -154,7 +156,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.9
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.10
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -177,7 +179,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "license": "Apache-2.0"
 }
 ```
@@ -873,6 +875,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_review_submit
   - mcp__nerv__nerv_finding_resolve
   - mcp__plugin_nerv_nerv__nerv_finding_resolve
+  - mcp__nerv__nerv_finding_list
+  - mcp__plugin_nerv_nerv__nerv_finding_list
   - mcp__nerv__nerv_task_get
   - mcp__plugin_nerv_nerv__nerv_task_get
   - mcp__nerv__nerv_spec_get
@@ -911,7 +915,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
      비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
-4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 전부)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다.
+4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 발견 — 앞의 50건만 담고 전체 수는 `carried_over_total`)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다. 담기지 않은 나머지가 필요하면 `nerv_finding_list` 에 `cursor=carried_over_next_cursor` 를 넘겨 이어 읽는다(`branch` 로 좁힐 수 있다).
 
 발견이 0건이어도 제출한다. "봤고 문제가 없었다"는 라운드가 있어야 게이트가 그것을 통과로 읽는다.
 
@@ -1575,7 +1579,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 **[권장]** 묶음이 기본이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `agent-session:launch` — `AGENT_RECOMMENDED_SCOPES` · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다 | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.9 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.10 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
@@ -1875,7 +1879,7 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 23종(카탈로그 25종)·스킬 5종 범위와 PAT-먼저 인증 결정
+- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 23종(카탈로그 26종)·스킬 5종 범위와 PAT-먼저 인증 결정
 - [4.4 API 명세](api.md) — `/mcp`·`/ingest/hooks/*` 엔드포인트의 요청/응답 계약
 - [4.8 백로그](backlog.md) — 훅 헤더 토큰 주입 실측(E06-S06)·플러그인 v1 스토리·E2E 수용 시나리오
 

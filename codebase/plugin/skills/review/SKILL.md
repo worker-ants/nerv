@@ -6,6 +6,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_review_submit
   - mcp__nerv__nerv_finding_resolve
   - mcp__plugin_nerv_nerv__nerv_finding_resolve
+  - mcp__nerv__nerv_finding_list
+  - mcp__plugin_nerv_nerv__nerv_finding_list
   - mcp__nerv__nerv_task_get
   - mcp__plugin_nerv_nerv__nerv_task_get
   - mcp__nerv__nerv_spec_get
@@ -44,7 +46,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
      비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
-4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 전부)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다.
+4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 발견 — 앞의 50건만 담고 전체 수는 `carried_over_total`)·`block`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다. 담기지 않은 나머지가 필요하면 `nerv_finding_list` 에 `cursor=carried_over_next_cursor` 를 넘겨 이어 읽는다(`branch` 로 좁힐 수 있다).
 
 발견이 0건이어도 제출한다. "봤고 문제가 없었다"는 라운드가 있어야 게이트가 그것을 통과로 읽는다.
 

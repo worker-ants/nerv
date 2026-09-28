@@ -1,4 +1,4 @@
-// MCP — nerv_review_* 2종(Phase 2). REST 컨트롤러와 같은 ReviewService 를 쓴다(D-05).
+// MCP — nerv_review_submit · nerv_finding_resolve · nerv_finding_list(Phase 2). REST 컨트롤러와 같은 ReviewService 를 쓴다(D-05).
 //
 // 이 두 도구가 **리뷰 산출물을 저장소에서 걷어낸다**(agent-integration §5.1 금지 목록 —
 // "리뷰 산출물을 저장소에 파일로 커밋하지 않는다"). 표면은 번역만 한다 — dedup·라운드·
@@ -6,6 +6,7 @@
 
 import { Injectable } from '@nestjs/common';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
+import { csv } from '../../common/query-vocab.js';
 import { ReviewService } from './review.service.js';
 import { resolutionOf, toSubmitFindings } from './review.service.js';
 
@@ -93,7 +94,8 @@ export class ReviewTools implements NervToolProvider {
         return {
           ...result,
           // 다음 행동은 **열린 것이 있느냐**가 정한다 — 없으면 리뷰는 끝이다(§2.1 원칙 5)
-          next_actions: result.carried_over.length > 0 ? ['nerv_finding_resolve'] : [],
+          // 담긴 것은 앞의 50건이다 — 판정은 총수로 한다(2026-09-28 · REQ-API-242)
+          next_actions: result.carried_over_total > 0 ? ['nerv_finding_resolve'] : [],
         };
       },
     },
@@ -164,6 +166,48 @@ export class ReviewTools implements NervToolProvider {
                 ? ['nerv_finding_resolve']
                 : ['nerv_task_update'],
         };
+      },
+    },
+    // **발견 목록 — EP-REV-03 의 MCP 판**(2026-09-28 · 사람 결정 D4 · REQ-API-242). 제출 응답의 `carried_over` 는
+    // 앞의 50건만 담는다. 나머지를 읽을 길이 에이전트에게는 없었다(스킬은 도구로만 일한다) — 같은 필터와 같은 커서를
+    // 받는 읽기 도구를 둔다. 제출 응답의 `carried_over_next_cursor` 를 `cursor` 로 넘기면 51번째부터 이어진다.
+    {
+      name: 'nerv_finding_list',
+      tier: 'A1',
+      phase: 'P2',
+      summaryKey: 'mcp.tool.before_resolve',
+      scope: 'spec:read',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', description: 'mcp.arg.finding_status_filter' },
+          severity: { type: 'string', description: 'mcp.arg.finding_severity_filter' },
+          area: { type: 'string', description: 'mcp.arg.finding_area_filter' },
+          tag: { type: 'string', description: 'mcp.arg.finding_tag_filter' },
+          branch: { type: 'string', description: 'mcp.arg.finding_branch_filter' },
+          limit: { type: 'integer' },
+          cursor: { type: 'string', description: 'mcp.arg.finding_cursor' },
+        },
+      },
+      handler: async (input, ctx) => {
+        const list = (key: string): string[] | undefined => {
+          const raw = input[key];
+          if (typeof raw !== 'string') return undefined;
+          const parts = csv(raw);
+          return parts.length === 0 ? undefined : parts;
+        };
+        const found = await this.reviews.findings({
+          projectId: ctx.projectId,
+          // 기본은 **열린 것만**이다 — REST(EP-REV-03)와 같다
+          status: list('status') ?? ['open'],
+          ...(list('severity') === undefined ? {} : { severity: list('severity')! }),
+          ...(list('area') === undefined ? {} : { area: list('area')! }),
+          ...(list('tag') === undefined ? {} : { tag: list('tag')! }),
+          ...(typeof input['branch'] === 'string' ? { branch: input['branch'] } : {}),
+          ...(typeof input['limit'] === 'number' ? { limit: input['limit'] } : {}),
+          ...(typeof input['cursor'] === 'string' ? { cursor: input['cursor'] } : {}),
+        });
+        return { items: found.items, limit: found.limit, next_cursor: found.next_cursor };
       },
     },
   ];

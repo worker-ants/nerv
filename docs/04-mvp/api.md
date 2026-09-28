@@ -25,9 +25,11 @@ referenced_by:
 ---
 # API 명세
 
-> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **25종**(2026-09-28 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 25종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
+> **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **26종**(2026-09-28 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v1.98 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v1.99 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+>
+> v1.99 변경(2026-09-28 — 이월 발견을 전부 돌려줬다, **사람 결정 D4**): **REQ-API-242 신설 · EP-REV-01 응답 · §4 한 행(도구 26종).** 제출 응답의 `carried_over` 는 LIMIT 없는 조회라 실측 18,653건이면 매 응답이 수 MB 였다. 발견 목록과 같은 순서로 50건까지 담고 `carried_over_total` · `carried_over_next_cursor` 를 더한다. 나머지는 발견 목록의 커서로 이어 읽는다 — 에이전트는 새 읽기 도구 `nerv_finding_list`(A1 · P2)로, 사람 · CI 는 EP-REV-03 으로.
 >
 > v1.98 변경(2026-09-28 — 가운데 토막에 숫자가 든 요구사항 ID, **사람 결정 D11**): **REQ-API-241 신설 · EP-REQ-04 행.** 다음 번호 발급(EP-REQ-04)은 `REQ-C24NODE-001` 처럼 가운데 토막에 숫자가 든 접두를 받아 주는데, 읽는 쪽 여섯 자리(승인 때의 행 만들기 · 저장 델타 · 버전 비교 · 검색 · 검사기 · CLI)는 영문만 봐서 그 ID 가 모두 0건이었다. 모양을 `@nerv/schema` 한 곳으로 모으고 가운데 토막에 숫자를 허용한다. 형식 위반 검사는 같은 정규식으로 먼저 걸러 한 번도 울리지 않았다 — 느슨한 입구로 바꾸고 경고로 둔다. 이미 승인된 문서의 빠진 행은 워커가 채운다.
 >
@@ -419,7 +421,7 @@ flowchart LR
 - **비밀번호를 잊었을 때 — 메일로 재설정**(2026-09-25 — 사람 결정 D10 · REQ-API-187). 인증 스택의 세 문을 쓴다. ① `POST /api/auth/request-password-reset`(`email`) — 계정이 있으면 재설정 메일이 줄을 선다([4.3](database.md) §2.17 `reset_password`). **있든 없든 같은 200 과 같은 문장이다** — 없는 주소에도 인증 스택이 토큰을 만드는 척하고, 우리 콜백은 INSERT 하나라 응답 시간도 갈리지 않는다(계정 존재 확인기가 되지 않는다). 메일은 **요청한 화면의 언어**다 — 화면이 인증 요청에도 `accept-language` 를 싣고, 가입 확인 메일도 같은 규칙을 따른다(전에는 언제나 기본 언어였다). ② 메일의 링크는 `GET /api/auth/reset-password/<토큰>?callbackURL=<화면>/reset-password` 다 — API 가 토큰이 살아 있는지 **보기만 하고**(쓰지 않는다) 화면으로 보낸다: 살아 있으면 `?token=`, 아니면 `?error=INVALID_TOKEN`. 만료된 링크를 연 사람은 비밀번호를 치기 전에 그 사실을 알고, 메일 보안 검사기가 링크를 미리 열어도 토큰이 닳지 않는다. 돌아갈 화면은 요청에서 받지 않는다(갈 곳이 하나뿐이다 — 받으면 그만큼 열린 리다이렉트의 여지가 생긴다). ③ `POST /api/auth/reset-password`(`token`·`newPassword`) — 토큰은 **한 번뿐**이고(두 번째는 400 `INVALID_TOKEN`) 수명은 `PASSWORD_RESET_TTL_MINUTES`(60분)다. 너무 짧은 비밀번호(400 `PASSWORD_TOO_SHORT`)는 토큰을 닳게 하지 않는다. 정하면 그 사람의 **모든** 세션을 끊는다(`revokeSessionsOnPasswordReset` — 재설정은 "누가 내 비밀번호를 안다" 의 답이기도 하다). 그리고 **이메일을 확인된 것으로 적는다** — 메일의 링크로 비밀번호를 정했다는 것이 그 메일함이 이 사람의 것이라는 증명이다(확인하지 않은 채 잊은 사람이 확인 메일을 한 통 더 기다리지 않는다). 요청·재설정 둘 다 로그인과 같은 한도다(§1.8). **메일이 꺼진 배치는 켜지 않는다** — `NERV_MAIL_HOST` 가 비면 `sendResetPassword` 를 넘기지 않아 ①이 400 `RESET_PASSWORD_DISABLED` 로 답하고, 화면은 "서버 운영자에게 문의" 를 말한다. 켜 놓고 메일만 버리면 사람은 오지 않을 메일을 기다린다.
 - PAT 원문 형식: `nerv_` 접두 + 32바이트 난수의 base64url. 서버는 해시만 저장하고(`api_token.token_hash`), 식별·감사용으로 앞 8자를 `api_token.prefix`에 남긴다([데이터 모델](../03-proposal/data-model.md) §2.1과 1:1). 원문은 발급 응답(EP-TOK-02)에서 **한 번만** 반환된다.
 - 권한 어휘는 `resource:action` 표기이고 **10종**이다: `spec:read` `spec:draft` `spec:meta` `spec:evidence` `task:claim` `task:update` `review:submit` `review:resolve` `agent-session:launch` `import:write`. `spec:approve`와 `approval:decide`는 **토큰에 부여 자체가 불가능한 사람 전용 권한**다 — 정책이 아니라 시스템 불변식([에이전트 연동 설계](../03-proposal/agent-integration.md) §6.1 ④). 정본은 `@nerv/schema` 의 `AGENT_SCOPES`·`HUMAN_ONLY_SCOPES` 이며, 어느 문서도 이 목록을 다시 적지 않는다.
-- **MCP 도구 대응이 없는 권한이 셋 있다**(2026-09-04 정정 — 실측). 도구 25종이 쓰는 권한은 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
+- **MCP 도구 대응이 없는 권한이 셋 있다**(2026-09-04 정정 — 실측). 도구 26종이 쓰는 권한은 **일곱**이라, "§2.3 도구 표의 '필요 권한' 열과 1:1"이라던 예전 서술은 사실이 아니었다. REST 축은 셋이다 — `import:write`(§2.10 이관 표면) · `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). `import:write`는 admin이 자신에게만 발급할 수 있고 역할 판정(admin)과 AND로 검사되며, 이관 작업이 끝나면 폐기하는 것이 기본 운용이다(EP-TOK-03).
 - REST 엔드포인트의 인가는 역할 매트릭스([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.6)가 정본이다. §2 전표의 "권한" 열은 그 매트릭스의 인용이며, PAT 요청은 역할 판정에 **권한 검사가 AND로** 추가된다.
 
 ### 1.3a 권한은 라우트가 선언한다 (2026-09-02 신설 — 보안 점검)
@@ -1304,7 +1306,7 @@ EP-SES-01 의 카드도 `plugin_version` 을 싣는다 — 그 세션을 연 플
 
 | ID | 메서드 · 경로 | 권한 | 요청 | 응답 | 발생 이벤트 |
 | --- | --- | --- | --- | --- | --- |
-| EP-REV-01 | `POST /api/v1/projects/{proj}/reviews` | `review:submit` | `ReviewSubmitInput`(branch, base_sha, head_sha, changeset[], kind, task_id?(키 또는 UUID), session_id?(제출자의 세션 — REQ-API-238), reviewer{role, risk}, summary, findings[]{severity, title, body, suggestion, category, file, line, symbol, requirement_id?, spec_version_id?}, payload_ref?) | `ReviewSubmitResult`(review_session_id, round_no, merged_into_existing_session, findings_new[], findings_merged[], carried_over[], block) | 새로 열린 발견마다 `finding.opened` |
+| EP-REV-01 | `POST /api/v1/projects/{proj}/reviews` | `review:submit` | `ReviewSubmitInput`(branch, base_sha, head_sha, changeset[], kind, task_id?(키 또는 UUID), session_id?(제출자의 세션 — REQ-API-238), reviewer{role, risk}, summary, findings[]{severity, title, body, suggestion, category, file, line, symbol, requirement_id?, spec_version_id?}, payload_ref?) | `ReviewSubmitResult`(review_session_id, round_no, merged_into_existing_session, findings_new[], findings_merged[], carried_over[](앞의 50건 — REQ-API-242), carried_over_total, carried_over_next_cursor, block) | 새로 열린 발견마다 `finding.opened` |
 | EP-REV-02 | `POST /api/v1/projects/{proj}/findings/{id}/resolve` | `review:resolve` | `FindingResolveInput`(resolution: fixed/**spec_change**/dismissed/wont_fix/**escalated**(2026-09-05 · REQ-API-108 — `escalate_reason` 이 그 필수 짝이다), commit_sha?, **spec_version_id?**(spec_change 의 근거 — REQ-API-060), change_request_id?, rationale) — 계약 밖의 값은 400 `invalid_input` 이다(기각으로 접지 않는다) | `FindingResolveResult`(finding_id, status, resolution_id, open_remaining) | `finding.resolved` · 에이전트의 critical 하향이면 먼저 `approval.requested` |
 | EP-REV-03 | `GET /api/v1/projects/{proj}/findings` | `spec:read` | `FindingListQuery`(`severity[]`·`status[]`·`area[]`·`tag[]`(전부 쉼표 목록)·`limit`·**`cursor`** — 발견은 자라는 목록이라 커서가 있다(§1.6). `status` 를 주지 않으면 **열린 것만**이다) · **`branch`**(한 브랜치의 발견만 — 목록과 facet 이 같은 규칙으로 거른다 · REQ-API-180) | `FindingListResult`(`items[]` — severity·category·위치·occurrence_count + 마지막 세션의 head_sha·branch·round_no + 유래 스펙/Requirement, `facets{severity,status,area,tag}`) · 나온 작업 `task_key`(리뷰 세션의 작업) · 올린 작업 `promoted_task_key`(REQ-API-180) | — |
 | EP-REV-04 | `GET /api/v1/projects/{proj}/gates/reviews` | `spec:read` | `GateCoverageQuery`(**`limit`** — 기본 20·최대 200, §1.6 의 예외 둘 중 하나) | `GateCoverageResult`(`{items, total}` — 브랜치별로 branch, 커버 리뷰(가장 최근 라운드의 kind·head_sha·round_no·완료 시각 — REQ-API-237), 해소 `resolved/total`, 판정 **`passed`/`pending` 둘뿐**, 면제(`is_bypass` 결재의 사람·시각·사유)) | — |
@@ -1591,9 +1593,9 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 
 ---
 
-## 4. MCP 도구 25종 ↔ 내부 서비스 ↔ REST 대응
+## 4. MCP 도구 26종 ↔ 내부 서비스 ↔ REST 대응
 
-카탈로그는 **25종**이고 단계 분포는 **P0 8 · P1 15 · P2 2**다(2026-09-28 실측 — 도구 레지스트리 기준). P2 둘은 `nerv_review_submit`·`nerv_finding_resolve` 다. [4.1 MVP 범위와 스택 확정](scope.md) 이 적은 **MVP 23종**(P0 8 + P1 15) 위에 Phase 2 리뷰 2종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
+카탈로그는 **26종**이고 단계 분포는 **P0 8 · P1 15 · P2 3**다(2026-09-28 실측 — 도구 레지스트리 기준). P2 셋은 `nerv_review_submit`·`nerv_finding_resolve`·`nerv_finding_list` 다. [4.1 MVP 범위와 스택 확정](scope.md) 이 적은 **MVP 23종**(P0 8 + P1 15) 위에 Phase 2 리뷰 3종이 얹힌 수다. 각 도구의 입력·출력·티어·멱등성은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3이 정본이고, 이 표는 **같은 서비스 메서드가 REST와 MCP 양쪽에 주입되는 지점**만 밝힌다. 게이트 판정·전이 규칙이 서비스 계층에 있으므로, 어느 표면으로 호출하든 판정은 한 번 작성된 코드가 내린다.
 
 임포트 표면(§2.10)은 이 표에 없다 — **대응하는 MCP 도구가 없기 때문**이다. 임포트는 전수 계정·멱등 검증이 재현돼야 하는 결정적 ETL이라 도구 호출 단위로 쪼개지 않는다([4.7 스펙 임포터](importer.md) §3.6). **에이전트가 관여하는 지점이 없다**(2026-09-06 — 래퍼 스킬을 걷었다 · [4.6](plugin.md) §2.5). 임포트는 사람이 도는 운영 작업이다.
 
@@ -1623,6 +1625,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | `nerv_spec_attachment_hide` | A2 | `AttachmentService.hide` | EP-SPEC-23 이 가리키는 버전이 있을 때 하는 일과 같다(내리기) · 복원은 EP-SPEC-24 | 2026-09-28 신설 — **내리기만** 한다. 파일은 남기고, 복원과 파일 삭제는 사람이 화면에서 한다(A4 · REQ-API-231) |
 | `nerv_review_submit` | A2 | `ReviewService.submit` | EP-REV-01 | P2. 라운드 병합·fingerprint dedup 이 이 메서드 안 — 표면 무관 |
 | `nerv_finding_resolve` | A2(critical 하향은 **A3**) | `ReviewService.resolve` | EP-REV-02 | P2. 에이전트의 critical 하향은 승인 카드로 간다(202 `NERV_APPROVAL_REQUIRED`) |
+| `nerv_finding_list` | A1 | `ReviewService.findings` | EP-REV-03 | P2(2026-09-28). 같은 필터 · 같은 커서 — 제출 응답의 `carried_over_next_cursor` 를 넘기면 51번째부터 이어진다(REQ-API-242) |
 | `nerv_session_event` | A1 | `SessionService.appendActivity` | — (훅 ingest §2.9와 같은 메서드) | 훅 없는 실행 환경 폴백 |
 
 **사람 전용 액션은 어느 표면에도 도구가 없다.** `spec:approve`·`approval:decide`는 REST에서도 받은 요청 결정(EP-APR-03) 하나뿐이고 MCP 카탈로그에는 처음부터 존재하지 않는다. A4 액션을 MCP로 요청하면 `NERV_HUMAN_ONLY`와 웹 딥링크가 돌아온다([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.2).
@@ -1743,6 +1746,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-239 | WHEN 작업을 고치면(EP-TASK-05 `PATCH …/tasks/{task}`) THE SYSTEM SHALL 경로의 `{task}` 를 키 · UUID 둘 다 받는다(§1.4b) — 응답의 `key` 와 이벤트의 키는 언제나 작업 키다. 작업 상세의 [다시 브리핑] · [기준 옮기기] 가 UUID 로 보낸다(2026-09-28) |
 | REQ-API-240 | WHILE 프로젝트의 `gate_policy` 가 스키마(`GatePolicySchema`)에 맞지 않으면 THE SYSTEM SHALL 스펙 게이트 · done 게이트를 기본 정책으로 판정하되 운영 로그에 프로젝트와 함께 경고를 남긴다 — 판정을 멈추지 않고, 조용히 지나가지도 않는다(보존 잡과 같은 규율 · 2026-09-28) |
 | REQ-API-241 | THE SYSTEM SHALL 요구사항 ID 를 한 모양으로 읽는다 — `[A-Z]+-[A-Z][A-Z0-9]*-\d+`(첫 토막은 영문, 가운데 토막은 영문으로 시작하는 영문 · 숫자, 끝은 숫자 · `@nerv/schema` `REQUIREMENT_REF_SOURCE`). 승인 때의 행 만들기 · 저장 델타 · 버전 비교 · 검색 · 검사기 · 임포터 기본값이 모두 이것을 쓴다. WHEN 요구사항 ID 처럼 보이지만 이 모양이 아닌 줄이 있으면 THE SYSTEM SHALL 사전 검토에서 경고한다 — 승인돼도 요구사항이 되지 않는다. WHILE 워커가 돌면 THE SYSTEM SHALL 문서마다 최신 승인본의 요구사항 줄 가운데 행이 없는 것을 하루에 한 번 채운다 — 있는 행은 건드리지 않는다(2026-09-28) |
+| REQ-API-242 | WHEN 리뷰를 제출하면(EP-REV-01 · `nerv_review_submit`) THE SYSTEM SHALL `carried_over` 에 프로젝트의 열린 발견을 발견 목록(EP-REV-03)과 같은 순서(심각도 → 최근 → id)로 **50건까지** 담고, 전체 수 `carried_over_total` 과 나머지의 시작 `carried_over_next_cursor`(다 담았으면 `null`)를 준다 — `block` 의 뜻(프로젝트에 열린 critical 이 있는가)은 그대로다. WHEN 그 커서를 발견 목록(REST EP-REV-03 `cursor` · MCP `nerv_finding_list` `cursor`)에 넘기면 THE SYSTEM SHALL 51번째부터 빠짐도 겹침도 없이 이어 준다(2026-09-28 · 사람 결정 D4) |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다 · `decided_by` 는 결정한 사람이다 — 지정자가 아니다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재 — 검토 중이 아닌 문서에 결정 없이 남은 슬롯은 빼고)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |
@@ -1825,7 +1829,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 23종 범위(카탈로그 25종)
+- [4.1 MVP 범위와 스택 확정](scope.md) — 확정 스택(NestJS·socket.io·better-auth·실시간 WebSocket + SSE·방송 MQ Valkey)과 MVP 도구 23종 범위(카탈로그 26종)
 - [4.2 코드베이스와 배포](codebase.md) — §2 모듈 맵(표면↔서비스 주입 구조의 실물)·§3 `packages/schema` zod 공유 규칙·§5.4/§6.3 SSE 프록시 규약
 - [4.3 데이터베이스 스키마](database.md) — §3 이벤트 방송 규약(Valkey `nerv_events` 채널·페이로드)
 - [4.5 화면 명세](screens.md) — 엔드포인트 ID 인용처, 이벤트→Query 무효화 매핑
