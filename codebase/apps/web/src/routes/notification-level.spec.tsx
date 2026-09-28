@@ -136,7 +136,7 @@ describe('알림 센터에서 좁혀 본 프로젝트의 수준을 고른다 (RE
 
 describe('내 계정의 프로젝트별 알림 (REQ-WEB-260)', () => {
   it('내가 속한 프로젝트마다 수준을 고른다', async () => {
-    mount('/settings/account');
+    mount('/settings/account?tab=notifications');
     const section = await screen.findByTestId('account-notifications');
     const clemvion = await within(section).findByTestId('account-notification-default-clemvion');
     expect(

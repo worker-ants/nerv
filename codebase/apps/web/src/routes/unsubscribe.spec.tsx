@@ -98,7 +98,7 @@ describe('/unsubscribe/$token (REQ-WEB-270)', () => {
     const panel = await screen.findByTestId('unsubscribe-expired');
     expect(panel.textContent).toContain('7일');
     expect(screen.getByTestId('unsubscribe-to-account').getAttribute('href')).toBe(
-      '/settings/account',
+      '/settings/account?tab=notifications',
     );
   });
 });

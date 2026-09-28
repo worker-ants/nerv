@@ -225,7 +225,7 @@ describe('무엇을 담는가 (REQ-API-232)', () => {
     expect(body).toContain('■ 에이크미 · webchat');
     expect(body).toContain('[중요] CLV-S-IMPORT 문서 CLV-S-IMPORT — 승인 요청 · 민서');
     expect(body).toContain('CLV-S-GROUPD 문서 CLV-S-GROUPD — 참조 문서 재확인 요청 · 민서 ×3');
-    expect(body).toContain('https://app.nerv.test/settings/account');
+    expect(body).toContain('https://app.nerv.test/settings/account?tab=notifications');
     for (const hidden of ['CLV-S-READ01', 'CLV-S-BEFORE', 'CLV-S-ARCHIV', 'CLV-S-OTHERP']) {
       expect(body, hidden).not.toContain(hidden);
     }

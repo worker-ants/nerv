@@ -7,9 +7,15 @@
 // 맞혀야 한다). 이메일은 로그인 아이디라 바꾸지 않는다 — 그 사실을 칸 옆에서 말한다.
 
 import { DISPLAY_NAME_MAX, PASSWORD_MIN_LENGTH } from '@nerv/schema';
-import { createFileRoute } from '@tanstack/react-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { apiFetch } from '../../lib/api.js';
+import { relativeTime } from '../../lib/format.js';
+import { describeUserAgent } from '../../lib/user-agent.js';
+import { cn } from '../../lib/utils.js';
+import { StatusBadge } from '../../components/status-badge.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { useMe, useNotificationScopes } from '../../lib/queries.js';
@@ -29,11 +35,27 @@ import {
   Skeleton,
 } from '../../components/ui/primitives.js';
 
-export const Route = createFileRoute('/settings/account')({ component: AccountTab });
+/**
+ * **항목을 탭으로 나눈다**(2026-09-28 · 사람 요청 · REQ-WEB-283). 한 화면에 이름 · 비밀번호 · 메일 요약 ·
+ * 프로젝트별 알림이 이어져 원하는 칸을 찾으려면 내려야 했다. 탭은 주소에 남는다(`?tab=devices`) — 링크로
+ * 바로 연다. 계정이 기본 탭이라 주소에 적지 않는다.
+ */
+const ACCOUNT_TABS = ['notifications', 'password', 'devices'] as const;
+type AccountTabKey = 'account' | (typeof ACCOUNT_TABS)[number];
+
+export const Route = createFileRoute('/settings/account')({
+  validateSearch: (search: Record<string, unknown>): { tab?: (typeof ACCOUNT_TABS)[number] } =>
+    (ACCOUNT_TABS as readonly unknown[]).includes(search['tab'])
+      ? { tab: search['tab'] as (typeof ACCOUNT_TABS)[number] }
+      : {},
+  component: AccountTab,
+});
 
 function AccountTab(): React.JSX.Element {
   const t = useT();
   const me = useMe();
+  const { tab } = Route.useSearch();
+  const active: AccountTabKey = tab ?? 'account';
   if (me.data === undefined) {
     return (
       <section className="flex max-w-xl flex-col gap-5">
@@ -44,20 +66,194 @@ function AccountTab(): React.JSX.Element {
   }
   return (
     <section className="flex max-w-xl flex-col gap-8">
-      <PageHeader title={t('settings.tab.account')} />
-      {/* 받아 온 이름이 바뀌면 칸을 새로 만든다 — `useState(name)` 은 첫 렌더의 값을 붙잡는다 */}
-      <NameSection key={me.data.display_name} current={me.data.display_name} />
       <div>
-        <SectionTitle>{t('account.email')}</SectionTitle>
-        <p data-testid="account-email" className="text-sm">
-          {me.data.email}
-        </p>
-        <p className="mt-1 text-xs text-text-mute">{t('account.email_hint')}</p>
+        <PageHeader title={t('settings.tab.account')} />
+        <AccountTabs active={active} />
       </div>
-      <PasswordSection />
-      <EmailDigestSection />
-      <NotificationLevelsSection />
+      {active === 'account' && (
+        <>
+          {/* 받아 온 이름이 바뀌면 칸을 새로 만든다 — `useState(name)` 은 첫 렌더의 값을 붙잡는다 */}
+          <NameSection key={me.data.display_name} current={me.data.display_name} />
+          <div>
+            <SectionTitle>{t('account.email')}</SectionTitle>
+            <p data-testid="account-email" className="text-sm">
+              {me.data.email}
+            </p>
+            <p className="mt-1 text-xs text-text-mute">{t('account.email_hint')}</p>
+          </div>
+        </>
+      )}
+      {active === 'notifications' && (
+        <>
+          <EmailDigestSection />
+          <NotificationLevelsSection />
+        </>
+      )}
+      {active === 'password' && <PasswordSection />}
+      {active === 'devices' && <DevicesSection />}
     </section>
+  );
+}
+
+/** 탭 줄의 링크 — 멤버 · 초대 탭과 같은 모양이다(REQ-WEB-242) */
+const TAB =
+  'flex shrink-0 items-center gap-1.5 border-b-2 px-1 pb-2 text-sm whitespace-nowrap transition-colors';
+
+/**
+ * 내 계정 탭(REQ-WEB-283). **주소가 바뀌는 탭이라 링크다** — 지금 탭은 `aria-current` 로 알린다. 계정 탭은
+ * 빈 쿼리라 `exact` 로 쿼리까지 비교한다(그러지 않으면 다른 탭에서도 계정이 켜진다).
+ */
+function AccountTabs({ active }: { active: AccountTabKey }): React.JSX.Element {
+  const t = useT();
+  const items: { key: AccountTabKey; label: string }[] = [
+    { key: 'account', label: t('account.tab.account') },
+    { key: 'notifications', label: t('account.tab.notifications') },
+    { key: 'password', label: t('account.tab.password') },
+    { key: 'devices', label: t('account.tab.devices') },
+  ];
+  return (
+    <nav aria-label={t('account.tabs_label')} className="flex gap-5 border-b border-border">
+      {items.map((item) => (
+        <Link
+          key={item.key}
+          to="/settings/account"
+          search={item.key === 'account' ? {} : { tab: item.key }}
+          activeOptions={{ exact: true }}
+          aria-current={item.key === active ? 'page' : undefined}
+          data-testid={`account-tab-${item.key}`}
+          className={cn(
+            TAB,
+            item.key === active
+              ? 'border-status-action font-medium text-text'
+              : 'border-transparent text-text-mute hover:text-text',
+          )}
+        >
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+interface AuthSessionRow {
+  id: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  created_at: string;
+  last_active_at: string;
+  current: boolean;
+}
+
+/**
+ * **로그인된 기기**(2026-09-28 · 사람 요청 · REQ-WEB-284 · EP-AUTH-03~05). 로그인마다 한 줄 — 브라우저 · 운영체제 ·
+ * 접속 주소 · 로그인 시각 · 마지막 사용. 지금 쓰는 기기는 표시하고 끊는 단추를 두지 않는다(로그아웃이 그 일을
+ * 한다). 잃어버린 기기 하나만 끊을 수 있게 줄마다 [끊기]를, 맨 위에 [다른 기기 로그인 모두 끊기]를 둔다.
+ */
+function DevicesSection(): React.JSX.Element {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  const onApiError = useApiError();
+  const sessions = useQuery({
+    queryKey: queryKeys.mySessions(),
+    queryFn: () => apiFetch<{ items: AuthSessionRow[] }>('/me/sessions'),
+  });
+  const refresh = (): void =>
+    void queryClient.invalidateQueries({ queryKey: queryKeys.mySessions() });
+  const revoke = useMutation({
+    mutationFn: (id: string) => apiFetch(`/me/sessions/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      refresh();
+      pushToast({ tone: 'ok', message: t('account.devices.revoked') });
+    },
+    onError: onApiError,
+  });
+  const revokeOthers = useMutation({
+    mutationFn: () =>
+      apiFetch<{ revoked: number }>('/me/sessions/revoke-others', { method: 'POST' }),
+    onSuccess: (result) => {
+      refresh();
+      pushToast({
+        tone: 'ok',
+        message: t('account.devices.revoked_others', { n: result.revoked }),
+      });
+    },
+    onError: onApiError,
+  });
+  const items = sessions.data?.items ?? [];
+  const others = items.filter((s) => !s.current).length;
+  const deviceName = (ua: string | null): string => {
+    const { browser, os } = describeUserAgent(ua);
+    if (browser === null && os === null) return t('account.devices.unknown');
+    return [browser, os].filter((v): v is string => v !== null).join(' · ');
+  };
+
+  return (
+    <div data-testid="account-devices" className="flex flex-col gap-3">
+      <div>
+        <SectionTitle>{t('account.devices')}</SectionTitle>
+        <p className="text-xs text-text-mute">{t('account.devices_hint')}</p>
+      </div>
+      <div>
+        <ConfirmAction
+          label={t('account.devices.revoke_others')}
+          variant="danger"
+          testId="account-devices-revoke-others"
+          disabled={others === 0 || revokeOthers.isPending}
+          title={others === 0 ? t('account.devices.none_other') : undefined}
+          message={t('account.devices.revoke_others_confirm', { n: others })}
+          detail={t('account.devices.revoke_others_detail')}
+          confirmLabel={t('account.devices.revoke_others_run')}
+          pending={revokeOthers.isPending}
+          onConfirm={() => revokeOthers.mutate()}
+        />
+      </div>
+      {sessions.data === undefined ? (
+        <Skeleton rows={3} />
+      ) : (
+        <Card className="flex flex-col divide-y divide-border p-0">
+          {items.map((s) => (
+            <div
+              key={s.id}
+              data-testid="account-device"
+              data-current={s.current || undefined}
+              className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                  {deviceName(s.user_agent)}
+                  {s.current && (
+                    <StatusBadge token="ok" size="sm" label={t('account.devices.this_device')} />
+                  )}
+                </p>
+                <p className="text-xs text-text-mute">
+                  {t('account.devices.meta', {
+                    ip: s.ip_address ?? t('account.devices.ip_unknown'),
+                    signed_in: relativeTime(t, s.created_at),
+                    last_used: relativeTime(t, s.last_active_at),
+                  })}
+                </p>
+              </div>
+              {!s.current && (
+                <ConfirmAction
+                  label={t('account.devices.revoke')}
+                  variant="danger"
+                  size="sm"
+                  testId="account-device-revoke"
+                  testIdBase={`account-device-revoke-${s.id}`}
+                  message={t('account.devices.revoke_confirm', {
+                    device: deviceName(s.user_agent),
+                  })}
+                  confirmLabel={t('account.devices.revoke_run')}
+                  pending={revoke.isPending}
+                  onConfirm={() => revoke.mutate(s.id)}
+                />
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
   );
 }
 

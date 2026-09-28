@@ -8,6 +8,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -53,15 +55,40 @@ export class AuthController {
    */
   @Patch('me')
   updateMe(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
-    const principal = principalOf(req);
-    if (principal.isAgent) {
-      throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.account'), {
-        kind: 'human_only',
-        web_url: '/settings/account',
-      });
-    }
+    const principal = humanPrincipal(req);
     const input = parseBody(MeUpdateInput, body);
     return this.auth.updateMe(principal.userId, input.display_name);
+  }
+
+  /**
+   * EP-AUTH-03 · 04 · 05 — 로그인된 기기(2026-09-28 · 사람 요청 · REQ-API-243). 내 웹 로그인 세션을 보고 끊는다.
+   * **사람만** — 에이전트 토큰이 사람의 로그인을 끊지 못한다(D-08). 토큰은 돌려주지 않는다.
+   */
+  @Get('me/sessions')
+  mySessions(@Req() req: ProjectRequest): Promise<unknown> {
+    const principal = humanPrincipal(req);
+    return this.auth.mySessions(principal.userId, principal.authSessionId ?? null);
+  }
+
+  @Delete('me/sessions/:id')
+  revokeMySession(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    const principal = humanPrincipal(req);
+    return this.auth.revokeMySession({
+      userId: principal.userId,
+      currentId: principal.authSessionId ?? null,
+      sessionId: id,
+    });
+  }
+
+  @Post('me/sessions/revoke-others')
+  // 무언가를 만드는 요청이 아니라 끊는 동작이다 — 201 이 아니라 200
+  @HttpCode(HttpStatus.OK)
+  revokeMyOtherSessions(@Req() req: ProjectRequest): Promise<unknown> {
+    const principal = humanPrincipal(req);
+    return this.auth.revokeMyOtherSessions({
+      userId: principal.userId,
+      currentId: principal.authSessionId ?? null,
+    });
   }
 
   /** EP-ORG-01 */
@@ -395,4 +422,16 @@ function rolesOf(req: ProjectRequest): readonly MembershipRole[] {
     throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.no_role'), { kind: 'no_role' });
   }
   return role;
+}
+
+/** 내 계정의 조작은 **사람만** 한다 — 에이전트 토큰이 맡긴 사람의 이름 · 로그인을 바꾸지 못한다(D-08) */
+function humanPrincipal(req: ProjectRequest): Principal {
+  const principal = principalOf(req);
+  if (principal.isAgent) {
+    throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.account'), {
+      kind: 'human_only',
+      web_url: '/settings/account',
+    });
+  }
+  return principal;
 }

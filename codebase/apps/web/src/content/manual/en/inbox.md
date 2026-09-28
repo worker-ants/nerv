@@ -151,7 +151,7 @@ While you look at one project, the project label on each row is hidden. If other
 
 **You can choose how many notifications to get from each project.** When you look at one project, **[All · Important only · Off]** appears above the list, with the current level selected. With **Important only**, the project's other notifications arrive already read; with **Off**, all of them arrive already read. Nothing is dropped, so if you pick the project and look at **All**, the history is still there. Notifications you already have stay as they are. **The inbox is not affected**: requests for your decision always reach the inbox, whatever the level. Projects set to a level other than the default show that level next to their name in the left column. To set several projects at once, open **My account** in Settings ([Settings](/help/settings)).
 
-**You can also get unread notifications by email.** Turn on the email digest in [My account](/help/settings#account) to get one email a day, at the hour you choose, with the notifications that arrived since the last digest. Notifications you have read and projects set to **Off** are left out.
+**You can also get unread notifications by email.** Turn on the email digest on the **Notifications** tab of [My account](/help/settings#account) to get one email a day, at the hour you choose, with the notifications that arrived since the last digest. Notifications you have read and projects set to **Off** are left out.
 
 The notification center is where you check **what you missed**. If the inbox is "what I have to do," notifications are "what I should know." The number of unread Important notifications appears on the **[Notifications]** badge and goes away as you read them.
 

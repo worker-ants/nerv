@@ -121,7 +121,7 @@ On the sign-in screen, click **"Forgot your password?"** just below the password
 - **Reset requests have the same limit as signing in (10 per minute).** If you go over it, a message appears in the form.
 - **On a server that does not send email** (`NERV_MAIL_HOST` is empty), you cannot reset your password here. Submitting the form shows **"Contact the server operator."** This keeps you from waiting for an email that will never arrive.
 
-If you **know your password and want to change it**, go to [My account](/help/settings#account) in Settings.
+If you **know your password and want to change it**, go to the **Password** tab of [My account](/help/settings#account) in Settings.
 
 ## Your first five minutes {#first-five-minutes}
 

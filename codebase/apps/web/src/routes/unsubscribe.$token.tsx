@@ -42,6 +42,7 @@ function UnsubscribeScreen(): React.JSX.Element {
           <p className="text-sm leading-relaxed text-text-mute">{t('unsubscribe.done_body')}</p>
           <Link
             to="/settings/account"
+            search={{ tab: 'notifications' }}
             data-testid="unsubscribe-to-account"
             className={`${NEXT_STEP} border-border hover:bg-bg-hover`}
           >
@@ -56,6 +57,7 @@ function UnsubscribeScreen(): React.JSX.Element {
           </p>
           <Link
             to="/settings/account"
+            search={{ tab: 'notifications' }}
             data-testid="unsubscribe-to-account"
             className={`${NEXT_STEP} border-transparent bg-status-action text-on-status hover:opacity-90`}
           >
