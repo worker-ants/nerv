@@ -12,6 +12,7 @@
 // 마이그레이션 0016 이 지운다(`.strict()` 라 남아 있으면 정책 저장이 400 이 된다).
 
 import { z } from 'zod';
+import { reviewKind } from '../enums.js';
 
 export const GatePolicySchema = z
   .object({
@@ -37,8 +38,15 @@ export const GatePolicySchema = z
       .object({
         /** `any`(기본) · `ci_or_human` — 에이전트가 스스로 올린 증적만으로는 닫지 못한다 */
         evidence_source: z.enum(['any', 'ci_or_human']).default('any'),
-        /** 켜면 그 Task 를 지난 리뷰 라운드와 열린 critical 0 을 함께 본다 */
-        review_coverage: z.boolean().default(false),
+        /**
+         * `true` 면 그 Task 에 묶인 완료 라운드가 하나라도 있고 열린 critical 이 0 이어야 한다(종류 무관 · 처음 뜻 그대로).
+         * **종류 목록**이면 종류마다 그 Task 의 최신 라운드가 게이트 판정(EP-REV-08)을 통과해야 한다 — 열린 critical ·
+         * warning 이 0 이다(2026-09-28 · clemvion 요청 N6 · 사람 결정 D9 · D2a · REQ-API-250). 이미 켠 프로젝트의
+         * 동작이 바뀌지 않게 `true` 의 뜻은 두고 새 모양을 더했다.
+         */
+        review_coverage: z
+          .union([z.boolean(), z.array(z.enum(reviewKind.enumValues)).min(1)])
+          .default(false),
       })
       .strict()
       .default({ evidence_source: 'any', review_coverage: false }),

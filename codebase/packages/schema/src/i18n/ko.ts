@@ -661,6 +661,10 @@ export const ko = {
   'task.missing.evidence_source': 'CI 또는 사람이 올린 증적이 없습니다',
   'task.missing.review_coverage': '이 작업을 검토한 리뷰가 없습니다',
   'task.missing.open_critical': '리뷰에 열린 critical이 남아 있습니다',
+  'task.missing.review_kind_uncovered': '이 작업을 검토한 {kind} 리뷰가 없습니다',
+  'task.missing.review_kind_unfinished': '이 작업의 {kind} 리뷰가 아직 끝나지 않았습니다',
+  'task.missing.review_kind_open':
+    '이 작업의 {kind} 리뷰에 열린 발견이 남아 있습니다(critical {critical}건 · warning {warning}건)',
   'task.missing.evidence': '증적(evidence): 구현 증적 1건 이상',
   'task.release_abandon': '포기',
   'task.release_handoff': '인계',
@@ -1706,7 +1710,25 @@ export const ko = {
   'settings.gates.failopen_body':
     '판정할 수 없으면 막지 않고 진행한 뒤 기록합니다. {hours}시간 안에 {count}번 반복되면 티어를 올립니다.',
   'settings.gates.lead':
-    '여기서는 티어 경계와 동적 강화를 바꿀 수 있습니다. 아래 "판정할 수 없을 때" 값은 볼 수만 있습니다.',
+    '여기서는 티어 경계와 동적 강화, 작업 완료 조건을 바꿀 수 있습니다. 아래 "판정할 수 없을 때" 값은 볼 수만 있습니다.',
+  'settings.gates.done_gate': '작업 완료 조건',
+  'settings.gates.done_gate_hint':
+    '작업을 완료로 옮기기 전에 확인하는 조건입니다. 채우지 못한 작업은 완료되지 않고 무엇이 빠졌는지 알려 줍니다.',
+  'settings.gates.evidence_source': '구현 증적',
+  'settings.gates.evidence_any': '누가 올린 증적이든 인정',
+  'settings.gates.evidence_ci_or_human': 'CI나 사람이 올린 증적만 인정',
+  'settings.gates.review_coverage': '리뷰',
+  'settings.gates.coverage_off': '보지 않음',
+  'settings.gates.coverage_any': '종류와 상관없이 리뷰 1회 · 열린 critical 없음',
+  'settings.gates.coverage_any_short': '종류 무관',
+  'settings.gates.coverage_kinds': '고른 종류마다 리뷰 통과 · 열린 critical · warning 없음',
+  'settings.gates.coverage_kinds_hint':
+    '종류마다 그 작업의 가장 최근 리뷰가 통과해야 합니다. CI가 쓰는 게이트 판정 조회와 같은 기준입니다.',
+  'settings.gates.coverage_kinds_empty': '리뷰 종류를 하나 이상 고르세요.',
+  'settings.gates.change_evidence': '구현 증적 {from} → {to}',
+  'settings.gates.change_coverage': '리뷰 {from} → {to}',
+  'settings.gates.loosen_done_confirm':
+    '작업 완료 조건이 느슨해집니다. 검토를 덜 거친 작업이 완료될 수 있습니다.',
   'settings.gates.saved': '게이트 정책을 저장했습니다.',
   'settings.members.email': '이메일',
   'settings.members.empty': '멤버가 없습니다.',

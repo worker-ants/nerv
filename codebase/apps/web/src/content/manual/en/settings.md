@@ -135,3 +135,13 @@ The **When it cannot decide** values at the bottom of the screen (escalation cou
 **[Save] is enabled only when something has changed.** The changes are listed above the button as before → after. **Saving a higher boundary or turning dynamic escalation off** widens what passes automatically, so you are asked to confirm. From that moment, more specs are approved without a person. If you pick another project with unsaved changes, you are first asked whether to discard them.
 
 Only `admin` can edit the gate policy. Everyone else still sees the current values, because anyone should be able to see what is holding up their changes. The note lists that project's admins, so you know whom to ask.
+
+**Task completion criteria** — the same screen also sets what is checked before a task moves to done. Both are off by default, and turning them on is the project's decision. A task that does not meet them does not move to done, and the done form on the task screen shows what is missing.
+
+- **Implementation evidence** — **accept evidence from anyone**, or **accept only evidence from CI or a person**. With the second, evidence an agent posted on its own is not enough to finish a task.
+- **Review** — choose one of three.
+  - **Not checked**: reviews are not checked.
+  - **One review of any kind · no open critical**: the task must have been reviewed at least once and have no open critical finding.
+  - **A passing review for each chosen kind**: for each chosen kind (code · consistency · spec coverage · merge), the latest review of the task must pass. It passes only when no **critical or warning** finding is open. For example, choosing code and consistency also requires a check that the implementation matches the spec. It is the same check CI uses.
+
+Saving a change that loosens these criteria (turning review off, removing a chosen kind, switching from per-kind to any kind, or accepting evidence from anyone) asks you once more before it is saved.

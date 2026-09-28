@@ -49,6 +49,7 @@ import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
 import { ApprovalService } from '../approval/approval.service.js';
 import { recomputeImplStatus } from '../spec/impl-status.js';
+import { roundVerdicts } from '../review/review-gate.js';
 import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
@@ -2010,12 +2011,36 @@ export class TaskService {
 
     // 조건 1~3 — 리뷰 커버리지. FR-10 이 오래 이월해 온 조건이고, 이제 **정책으로 켠다**.
     // 면제(`gate_bypass` 결재)가 있으면 둘 다 넘어간다 — 면제는 기록된 예외다(FR-10).
-    if (policy.review_coverage) {
+    if (policy.review_coverage !== false) {
       const { rows: waived } = await tx.execute<{ n: number }>(sql`
         SELECT count(*)::int AS n FROM approval
          WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${taskId}
       `);
-      if ((waived[0]?.n ?? 0) === 0) {
+      if ((waived[0]?.n ?? 0) === 0 && Array.isArray(policy.review_coverage)) {
+        // **종류 목록이면 종류마다 게이트 판정을 통과해야 한다**(2026-09-28 · clemvion 요청 N6 · REQ-API-250).
+        // 판정은 게이트 판정 조회(EP-REV-08)와 한 곳이다 — CI 가 본 값과 done 이 본 값이 다르면 어느 쪽도 믿지 못한다
+        const verdicts = await roundVerdicts(tx, {
+          projectId,
+          taskId,
+          kinds: [...new Set(policy.review_coverage)],
+          headSha: null,
+        });
+        for (const v of verdicts) {
+          if (v.state === 'uncovered') {
+            missing.push(text('task.missing.review_kind_uncovered', { kind: v.kind }));
+          } else if (v.reasons.includes('running') || v.reasons.includes('failed')) {
+            missing.push(text('task.missing.review_kind_unfinished', { kind: v.kind }));
+          } else if (v.state === 'pending') {
+            missing.push(
+              text('task.missing.review_kind_open', {
+                kind: v.kind,
+                critical: v.open.critical,
+                warning: v.open.warning,
+              }),
+            );
+          }
+        }
+      } else if ((waived[0]?.n ?? 0) === 0) {
         const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
           SELECT count(*)::int AS rounds,
                  COALESCE(sum((SELECT count(*) FROM finding f

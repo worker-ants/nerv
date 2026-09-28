@@ -22,6 +22,7 @@ import {
   FINDING_PAGE_LIMIT_MAX,
   GATE_BRANCH_LIMIT_DEFAULT,
   GATE_BRANCH_LIMIT_MAX,
+  GatePolicySchema,
   msg,
   NERV_ERROR,
   NERV_EVENT,
@@ -36,7 +37,7 @@ import { TaskService } from '../task/task.service.js';
 import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
-import { roundVerdicts } from './review-gate.js';
+import { roundVerdicts, uncoveredVerdict } from './review-gate.js';
 import type { RoundVerdict } from './review-gate.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -1355,11 +1356,26 @@ export class ReviewService {
   }): Promise<{ branch: string; head_sha: string | null; items: RoundVerdict[] }> {
     const kinds =
       input.kinds === null ? null : assertVocab(input.kinds, reviewKind.enumValues, 'kind');
-    return {
-      branch: input.branch,
-      head_sha: input.headSha,
-      items: await roundVerdicts(this.db, { ...input, kinds }),
-    };
+    const items = await roundVerdicts(this.db, { ...input, kinds });
+    // **종류를 주지 않으면 정책이 요구하는 종류도 함께다**(REQ-API-250) — done 게이트가 `code` · `consistency` 를
+    // 요구하는데 이 브랜치에 consistency 라운드가 없으면, 그 사실이 빠진 목록은 "통과" 로 읽힌다
+    if (kinds === null) {
+      for (const kind of await this.requiredKinds(input.projectId)) {
+        if (!items.some((i) => i.kind === kind)) items.push(uncoveredVerdict(kind, input.headSha));
+      }
+      items.sort((a, b) => a.kind.localeCompare(b.kind));
+    }
+    return { branch: input.branch, head_sha: input.headSha, items };
+  }
+
+  /** done 게이트가 요구하는 리뷰 종류 — 목록으로 켠 프로젝트만 있다. 읽지 못한 정책은 요구가 없는 것으로 본다 */
+  private async requiredKinds(projectId: string): Promise<string[]> {
+    const { rows } = await this.db.execute<{ gate_policy: unknown }>(
+      sql`SELECT gate_policy FROM project WHERE id = ${projectId}`,
+    );
+    const parsed = GatePolicySchema.safeParse(rows[0]?.gate_policy ?? {});
+    const coverage = parsed.success ? parsed.data.done_gate.review_coverage : false;
+    return Array.isArray(coverage) ? [...new Set(coverage)] : [];
   }
 
   async gateCoverage(

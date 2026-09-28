@@ -371,6 +371,49 @@ describe('게이트 정책 — 칸 셋 · 검증 · 전후 (REQ-WEB-201)', () =>
     expect(sent).toHaveLength(0);
   });
 
+  // 작업 완료 조건(2026-09-28 · clemvion 요청 N6 · 사람 결정 D9 · REQ-WEB-285)
+  it('완료 조건의 리뷰를 종류별로 고른다 — 하나도 고르지 않으면 저장 전에 말한다', async () => {
+    renderAt('/settings/gates');
+    await gatesReady();
+    fireEvent.change(screen.getByTestId('gates-coverage'), { target: { value: 'kinds' } });
+    expect(screen.getByTestId('gates-coverage-empty').textContent).toContain('하나 이상');
+    expect((screen.getByTestId('gates-save') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('gates-coverage-kind-consistency'));
+    fireEvent.click(screen.getByTestId('gates-coverage-kind-code'));
+    // 조건을 더하는 쪽이라 한 번 더 묻지 않는다 — 순서는 종류 목록의 순서다
+    expect(screen.getByTestId('gates-unsaved').textContent).toContain(
+      '리뷰 보지 않음 → 코드 · 정합성',
+    );
+    fireEvent.click(screen.getByTestId('gates-save'));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.body['gate_policy']).toMatchObject({
+      done_gate: { evidence_source: 'any', review_coverage: ['code', 'consistency'] },
+    });
+  });
+
+  it('완료 조건을 느슨하게 하는 저장은 한 번 더 묻는다 — 종류별에서 종류 무관으로', async () => {
+    policy = {
+      done_gate: { evidence_source: 'ci_or_human', review_coverage: ['code', 'consistency'] },
+    };
+    renderAt('/settings/gates');
+    await gatesReady();
+    expect((screen.getByTestId('gates-coverage') as HTMLSelectElement).value).toBe('kinds');
+    fireEvent.change(screen.getByTestId('gates-coverage'), { target: { value: 'any' } });
+    expect(screen.getByTestId('gates-unsaved').textContent).toContain(
+      '리뷰 코드 · 정합성 → 종류 무관',
+    );
+    fireEvent.click(screen.getByTestId('gates-save'));
+    expect(sent).toHaveLength(0);
+    expect(screen.getByTestId('gates-save-confirming').textContent).toContain(
+      '작업 완료 조건이 느슨해집니다',
+    );
+    fireEvent.click(screen.getByTestId('gates-save-confirm'));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.body['gate_policy']).toMatchObject({
+      done_gate: { evidence_source: 'ci_or_human', review_coverage: true },
+    });
+  });
+
   it('고친 채 다른 프로젝트를 고르면 버릴지 묻는다 — 말없이 버리지 않는다', async () => {
     renderAt('/settings/gates');
     await gatesReady();

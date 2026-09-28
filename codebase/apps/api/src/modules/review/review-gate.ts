@@ -47,16 +47,22 @@ type Executor = Pick<NervDb, 'execute'>;
 /**
  * 종류마다 **가장 최근에 만든 세션의 커밋**이 그 종류의 최신 라운드다. `headSha` 를 주면 그 커밋의 라운드만 본다.
  * `kinds` 에 있는데 라운드가 없는 종류는 `uncovered` 행이 된다 — 없는 것을 빼 버리면 "통과" 와 구분되지 않는다.
+ *
+ * 범위는 브랜치(EP-REV-08 · 제출 응답) 또는 작업(done 게이트 · REQ-API-250)이다. 작업이면 그 작업에 묶인 세션
+ * (`review_session.task_id`)만 본다 — 같은 작업의 라운드가 여러 브랜치에 있어도 종류마다 가장 최근 것이 라운드다.
  */
 export async function roundVerdicts(
   db: Executor,
   input: {
     projectId: string;
-    branch: string;
     kinds: readonly string[] | null;
     headSha: string | null;
-  },
+  } & ({ branch: string; taskId?: undefined } | { taskId: string; branch?: undefined }),
 ): Promise<RoundVerdict[]> {
+  const scopeFilter: SQL =
+    input.taskId !== undefined
+      ? sql`rs.task_id = ${input.taskId}`
+      : sql`rs.branch = ${input.branch}`;
   const kindFilter: SQL =
     input.kinds === null ? sql`` : sql` AND rs.kind::text = ANY(${sqlArray(input.kinds, 'text')})`;
   const headFilter: SQL = input.headSha === null ? sql`` : sql` AND rs.head_sha = ${input.headSha}`;
@@ -74,7 +80,7 @@ export async function roundVerdicts(
       SELECT rs.id, rs.kind::text AS kind, rs.head_sha, rs.base_sha, rs.round_no, rs.state::text AS state,
              rs.completed_at, rs.created_at
         FROM review_session rs
-       WHERE rs.project_id = ${input.projectId} AND rs.branch = ${input.branch}${kindFilter}${headFilter}
+       WHERE rs.project_id = ${input.projectId} AND ${scopeFilter}${kindFilter}${headFilter}
     ),
     latest AS (
       SELECT DISTINCT ON (kind) kind, head_sha FROM scoped ORDER BY kind, created_at DESC, id DESC
@@ -164,21 +170,25 @@ export async function roundVerdicts(
   }
 
   for (const kind of input.kinds ?? []) {
-    if (verdicts.has(kind)) continue;
-    verdicts.set(kind, {
-      kind,
-      state: 'uncovered',
-      round_no: null,
-      base_sha: null,
-      head_sha: input.headSha,
-      completed_at: null,
-      reasons: [],
-      open: { critical: 0, warning: 0, info: 0 },
-      findings: [],
-      findings_total: 0,
-    });
+    if (!verdicts.has(kind)) verdicts.set(kind, uncoveredVerdict(kind, input.headSha));
   }
   return [...verdicts.values()].sort((a, b) => a.kind.localeCompare(b.kind));
+}
+
+/** 라운드가 없는 종류의 행 — 물었거나 정책이 요구하는 종류다 */
+export function uncoveredVerdict(kind: string, headSha: string | null): RoundVerdict {
+  return {
+    kind,
+    state: 'uncovered',
+    round_no: null,
+    base_sha: null,
+    head_sha: headSha,
+    completed_at: null,
+    reasons: [],
+    open: { critical: 0, warning: 0, info: 0 },
+    findings: [],
+    findings_total: 0,
+  };
 }
 
 function isoOrNull(value: unknown): string | null {

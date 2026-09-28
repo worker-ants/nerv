@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **26종**(2026-09-28 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.04 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.05 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.05 변경(2026-09-28 — 작업 완료 조건의 리뷰 종류, **clemvion 요청 N6** · 사람 결정 D9 · D2a): **REQ-API-250 신설 · §2.1a 정책 예시에 `done_gate` · EP-REV-08 행 · §2.6a 계약 3.** `done_gate.review_coverage` 가 불리언만 받아서 "구현이 스펙과 맞는지(consistency) 검토했는가" 를 서버가 강제할 수 없었다. 리뷰 종류 목록도 받고, 목록이면 종류마다 게이트 판정(EP-REV-08)과 같은 기준(열린 critical · warning 0)으로 본다. `true` 의 뜻은 그대로다. §2.1a 의 정책 예시에는 `done_gate` 가 아예 없었다(검토 X12).
 >
 > v2.04 변경(2026-09-28 — 작업의 기준으로 미러 읽기, **clemvion 요청 N4**): **REQ-API-249 신설 · EP-MIR-01 행 · §2.8 예시.** md 미러가 `?task=` · `?basis=` 를 받아 문서 조회(`nerv_spec_get(task)`)와 같은 버전을 고르고, 무엇으로 읽었는지를 `X-NERV-Read-As` 헤더와 frontmatter 의 `read_as` · `task` 로 준다. `read_as` 값을 `@nerv/schema` 상수 한 벌(`SPEC_READ_AS`)로 옮겼다.
 >
@@ -1041,6 +1043,10 @@ EP-PRJ-03 응답·EP-PRJ-04 입력의 두 jsonb 필드는 웹 폼(S8 게이트 �
     "tier_boundaries": [2, 4, 6],      // 4축 합산 점수의 T1/T2/T3 진입 경계(§2.4 기본: 0~1=T0 · 2~3=T1 · 4~5=T2 · 6+=T3)
     "dynamic_escalation": true         // 티어 +1 — 신호 둘(첫 승인 버전 · 같은 실패 3회 신고), 여럿이어도 한 단계 (spec-workflow §2.4 "동적 강화")
   },
+  "done_gate": {                       // 작업 완료 조건 — 기본은 오늘과 같다(REQ-API-146)
+    "evidence_source": "any",          // any · ci_or_human(에이전트가 스스로 올린 증적만으로는 닫지 못한다)
+    "review_coverage": false           // false · true(종류 무관 라운드 1회 · 열린 critical 0) · ["code", "consistency"](종류마다 게이트 판정 통과 — REQ-API-250)
+  },
   "failopen": {
     "escalate_count": 3,               // 연속 fail-open 판정 격상 임계(D-14)
     "window_hours": 24
@@ -1056,7 +1062,7 @@ EP-PRJ-03 응답·EP-PRJ-04 입력의 두 jsonb 필드는 웹 폼(S8 게이트 �
 }
 ```
 
-S8 게이트 정책 탭의 MVP 편집 항목은 `spec_gate.*` 2키다(2026-09-26 정정 — 이의제기 창 키는 2026-09-02 에 걷혔다)([4.5 화면 명세](screens.md) §2.8) — `failopen`·`retention`은 표시만 하고 편집은 admin의 API 직접 호출로 남긴다(편집 UI는 Phase 2).
+S8 게이트 정책 탭의 편집 항목은 `spec_gate.*` 2키와 `done_gate.*` 2키다(2026-09-28 — 작업 완료 조건을 더했다 · 이의제기 창 키는 2026-09-02 에 뺐다)([4.5 화면 명세](screens.md) §2.8) — `failopen`·`retention`은 표시만 하고 편집은 admin의 API 직접 호출로 남긴다(편집 UI는 Phase 2).
 
 멤버 초대 메일은 **EP-INV-01 이 보낸다**(2026-09-22 · 사람 결정 · §2.1b) — EP-MBR-02 는 기존 사용자 배정만 담당한다([로드맵](../03-proposal/roadmap.md) FR-12 배정과 정합). 알림을 메일로 보내는 것(FR-12 의 메일 채널)은 여전히 Phase 2 다.
 
@@ -1326,13 +1332,13 @@ EP-SES-01 의 카드도 `plugin_version` 을 싣는다 — 그 세션을 연 플
 | EP-REV-05 | `POST /api/v1/projects/{proj}/findings/{id}/comments` | **`review:resolve`**(2026-09-07 정정 — 전표가 `review:submit` 이라 적었고 코드·웹은 처음부터 `review:resolve` 를 요구했다. **문서를 코드에 맞춘다**(사람 결정). 그 귀결을 여기 적는다: `review:resolve` 는 admin·planner·qa 만 갖고 **developer·designer 는 자기 코드에 달린 발견에 답할 수 없다** — 코멘트를 "권한이 아니라 참여" 로 본 EP-CMT-02 와 반대 방향이라, 넓힐지는 권한 축의 결정으로 남는다) | `FindingCommentInput`(body_md) | `FindingCommentResult` | ★`finding.commented` |
 | EP-REV-06 | `GET /api/v1/projects/{proj}/findings/{id}/comments` | 전 역할(`spec:read`) | — | 코멘트 목록(오름차순) | — |
 | EP-REV-07 | `POST /api/v1/projects/{proj}/findings/{id}/task` | `task:update` | — | 승격된 `task_id`(`finding.promoted_task_id` 에 기록) · `key` 도 싣는다 — 두 번째부터는 `created:false` 와 **이미 만든 작업의 `key`**(REQ-API-180) | `task.created` |
-| EP-REV-08 | `GET /api/v1/projects/{proj}/gates/reviews/check` | `spec:read`(PAT 허용 — CI · push 훅) | `branch`(필수) · `kind`(쉼표 목록 — 생략하면 이 브랜치에 라운드가 있는 종류 모두) · `head_sha`(주면 그 커밋의 라운드만) | `{ branch, head_sha, items[] }` — 종류마다 `state`(`uncovered` · `pending` · `passed`) · `round_no` · `base_sha` · `head_sha` · `completed_at` · `reasons[]`(`running` · `failed` · `open_critical` · `open_warning`) · `open{critical, warning, info}` · `findings[]`(`id` · `severity` · `title` · `status` · `resolution{kind, commit_sha, resolved_at}` — 막는 것(열린 critical · warning)부터, 그다음 무거운 순서로 200건) · `findings_total`. **집행에 써도 되는 판정이다**(2026-09-28 · clemvion 요청 N1 · REQ-API-247) | — |
+| EP-REV-08 | `GET /api/v1/projects/{proj}/gates/reviews/check` | `spec:read`(PAT 허용 — CI · push 훅) | `branch`(필수) · `kind`(쉼표 목록 — 생략하면 이 브랜치에 라운드가 있는 종류와 done 게이트가 요구하는 종류(REQ-API-250) 모두) · `head_sha`(주면 그 커밋의 라운드만) | `{ branch, head_sha, items[] }` — 종류마다 `state`(`uncovered` · `pending` · `passed`) · `round_no` · `base_sha` · `head_sha` · `completed_at` · `reasons[]`(`running` · `failed` · `open_critical` · `open_warning`) · `open{critical, warning, info}` · `findings[]`(`id` · `severity` · `title` · `status` · `resolution{kind, commit_sha, resolved_at}` — 막는 것(열린 critical · warning)부터, 그다음 무거운 순서로 200건) · `findings_total`. **집행에 써도 되는 판정이다**(2026-09-28 · clemvion 요청 N1 · REQ-API-247) | — |
 
 세 가지가 이 표면의 계약이다.
 
 1. **입력 스냅샷은 필수다.** `head_sha`·`base_sha` 없는 제출은 `NERV_PRECONDITION` 이다 — 나중에 "무엇을 봤는가"에 답할 수 없는 리뷰는 게이트의 근거가 되지 못한다(clemvion 실측: 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다).
 2. **라운드는 서버가 센다.** 같은 커밋·같은 파일 집합의 재제출은 `changeset_hash` 로 같은 세션에 합쳐지고(`merged_into_existing_session=true`), 라운드는 늘지 않는다. 리뷰어 여럿이 같은 changeset 을 보면 한 세션의 `reviewer_report` 여럿이 된다.
-3. **게이트 현황은 표시용이다.** EP-REV-04 는 "이 브랜치를 커버하는 해소된 리뷰가 있는가"를 SQL 한 번으로 답한다. Task `done` 전이를 **막는** 판정은 done 게이트(REQ-API-146)이고 기준이 다르다 — 정책(`done_gate.review_coverage`)이 켜면 그 Task 에 묶인 라운드와 열린 critical 을 본다. (2026-09-28 정정 — 이 문장은 오래 "그 판정이 done 을 막는 것은 FR-10 의 Phase 2 몫이라 아직 없다" 고 적고 있었는데, REQ-API-146 이 들어온 뒤로 틀린 말이었다.) 보여 주는 것과 막는 것을 한 곳에 넣지 않는다. push 훅 · CI 가 막는 데 쓰는 판정은 EP-REV-08 이다(2026-09-28 · REQ-API-247) — 열린 warning 도 막고, 종류와 커밋으로 좁힌다.
+3. **게이트 현황은 표시용이다.** EP-REV-04 는 "이 브랜치를 커버하는 해소된 리뷰가 있는가"를 SQL 한 번으로 답한다. Task `done` 전이를 **막는** 판정은 done 게이트(REQ-API-146)이고 기준이 다르다 — 정책(`done_gate.review_coverage`)이 켜면 그 Task 에 묶인 라운드와 열린 critical 을 본다 — 종류 목록으로 켜면 종류마다 게이트 판정(EP-REV-08)과 같은 기준이다(2026-09-28 · REQ-API-250). (2026-09-28 정정 — 이 문장은 오래 "그 판정이 done 을 막는 것은 FR-10 의 Phase 2 몫이라 아직 없다" 고 적고 있었는데, REQ-API-146 이 들어온 뒤로 틀린 말이었다.) 보여 주는 것과 막는 것을 한 곳에 넣지 않는다. push 훅 · CI 가 막는 데 쓰는 판정은 EP-REV-08 이다(2026-09-28 · REQ-API-247) — 열린 warning 도 막고, 종류와 커밋으로 좁힌다.
    - **판정은 둘뿐이고 미커버는 값이 아니다**(2026-09-07 정정). 행은 `review_session` 에서 브랜치별로 뽑으므로 **리뷰가 한 번도 없는 브랜치는 판정이 `uncovered` 인 것이 아니라 목록에 없다.** 전표가 오래 셋째 값 `uncovered` 를 적고 있었는데 그 값을 만드는 자리가 없다 — 미커버를 보이려면 브랜치 목록의 출처가 리뷰가 아니어야 하고, 그것은 이 엔드포인트의 질문이 아니다. 같은 이유로 **리뷰가 없는 브랜치의 면제도 이 표에 뜨지 않는다**(`approval.subject_id` 는 uuid 라 브랜치를 직접 가리킬 수 없고, 리뷰 세션을 면제한 결재만 그 브랜치 줄에 실린다).
 4. **하향은 A3다.** `critical` 발견을 `dismissed`/`wont_fix` 로 옮기는 **에이전트의** 호출은 `NERV_APPROVAL_REQUIRED`(202)로 되돌아가고 승인 카드(`approval.subject_type='finding'`)가 받은 요청에 뜬다. 사람이 승인한 뒤 같은 호출을 다시 하면 통과한다. 사람이 직접 부르는 경로에는 이 게이트가 없다 — 막는 것은 에이전트가 **자기 리뷰의 심각도를 스스로 낮추는 것**이다([에이전트 연동](../03-proposal/agent-integration.md) §2.3 — 실측 732건 중 24건).
 
@@ -1774,6 +1780,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-247 | WHEN 게이트 판정(EP-REV-08)을 물으면 THE SYSTEM SHALL (브랜치 · 종류)마다 가장 최근에 만든 세션의 커밋 — `head_sha` 를 주면 그 커밋 — 을 라운드로 삼고, 그 커밋을 본 세션 전부를 한 라운드로 판정한다. 세션이 모두 `complete` 이고 그 세션들에서 관찰된 발견(`finding_occurrence`) 가운데 열린 critical · warning 이 0 이면 `passed`, 아니면 `pending` 과 그 이유(`running` · `failed` · `open_critical` · `open_warning`)다. info 는 막지 않고 수만 준다(사람 결정 D2 = B · [3.3 데이터 모델](../03-proposal/data-model.md) §4.4). WHEN 물은 종류에 라운드가 없으면 THE SYSTEM SHALL `uncovered` 행을 준다 — 빼 버리면 통과와 구분되지 않는다. 모르는 종류 · 빠진 `branch` 는 400 이다. 발견은 프로젝트 전체에서 지문으로 합쳐지므로 다른 브랜치에서 고친 같은 지적도 `fixed` 로 보인다. `resolution.commit_sha` 가 이 브랜치의 커밋인지는 부른 쪽이 확인한다. 같은 커밋 · 같은 파일 묶음을 다른 브랜치에서 제출하면 먼저 만든 세션에 합쳐져(§2.6a 계약 2) 나중 브랜치에는 라운드가 없다 — 판정은 `uncovered` 로 막는 쪽이다(2026-09-28 · clemvion 요청 N1 · 사람 결정 D1) |
 | REQ-API-248 | WHEN 리뷰를 제출하면(EP-REV-01 · `nerv_review_submit`) THE SYSTEM SHALL 응답에 이번 라운드의 막힘을 따로 준다 — `block_scope: "round"` · `round_block`(이번 라운드에 열린 critical · warning 이 있는가) · `blocking_findings[]`(그 발견의 `id` · `severity` · `title`). 라운드와 기준은 게이트 판정(EP-REV-08 · REQ-API-247)과 같다: 세션의 브랜치 · 종류 · 커밋이 같은 세션 전부에서 관찰된 발견이다. 제출 직후 에이전트가 본 값과 CI 가 본 값이 다르면 어느 쪽을 믿을지 모른다(사람 결정 D2a). `block` 은 뜻을 바꾸지 않는다 — 프로젝트 전체의 열린 critical 이라, 열린 critical 이 하나라도 남은 프로젝트에서는 어떤 제출도 참이었다(clemvion 실측 25건 · 2026-09-28 · clemvion 요청 N2 · 사람 결정 D3) |
 | REQ-API-249 | WHEN md 미러(EP-MIR-01)가 `?task=<작업 키 또는 UUID>` 를 받으면 THE SYSTEM SHALL 문서 조회(`nerv_spec_get(task)` · EP-SPEC-03)와 같은 판정으로 버전을 고른다 — 작업의 출처 문서면 기준 버전(`task_basis`), 아니면 작업 기준선이 묶은 버전(`task_baseline`), 기준선에도 없으면 최신 승인본(`approved_fallback`). THE SYSTEM SHALL `?basis=approved|latest` 도 받고, 무엇으로 읽었는지를 헤더 `X-NERV-Read-As` 와 frontmatter 의 `read_as` · `task` 로 준다. 값은 `@nerv/schema` 의 `SPEC_READ_AS` 한 벌이다. 선택자(`version` · `basis` · `task`)를 둘 이상 주면 400, 없는 작업은 404 다(2026-09-28 · clemvion 요청 N4) — 구현 때 pull 도구와 CI 가 REST 만으로 작업의 기준 버전을 받는다 |
+| REQ-API-250 | WHERE 프로젝트 정책 `done_gate.review_coverage` 가 리뷰 종류 목록이면(예: `["code", "consistency"]`) THE SYSTEM SHALL 종류마다 그 Task 에 묶인 세션(`review_session.task_id`) 가운데 가장 최근 라운드가 게이트 판정(EP-REV-08 · REQ-API-247)을 통과해야 `done` 을 허락한다 — 라운드가 없으면 "그 종류의 리뷰가 없다", 세션이 끝나지 않았으면 "끝나지 않았다", 열린 critical · warning 이 있으면 그 수를 `missing` 에 넣는다. THE SYSTEM SHALL `true` 의 뜻(종류 무관 라운드 1회 · 열린 critical 0)은 바꾸지 않는다 — 이미 켠 프로젝트의 동작이 그대로다. 게이트 면제 결재는 두 모양 모두에 통한다. 목록은 알려진 종류만 1개 이상 받는다(아니면 400 · REQ-API-023). WHEN 게이트 판정(EP-REV-08)을 `kind` 없이 물으면 THE SYSTEM SHALL 정책이 요구하는 종류도 행으로 준다(라운드가 없으면 `uncovered`)(2026-09-28 · clemvion 요청 N6 · 사람 결정 D9 · D2a) |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다 · `decided_by` 는 결정한 사람이다 — 지정자가 아니다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재 — 검토 중이 아닌 문서에 결정 없이 남은 슬롯은 빼고)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |

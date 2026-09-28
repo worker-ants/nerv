@@ -12,6 +12,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
+import { TaskService } from '../../src/modules/task/task.service.js';
 import type { SubmitResult } from '../../src/modules/review/review.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -56,6 +57,11 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await pool.query('DELETE FROM resolution');
+  await pool.query('DELETE FROM approval');
+  await pool.query('DELETE FROM evidence');
+  await pool.query('UPDATE review_session SET task_id = NULL');
+  await pool.query('DELETE FROM task');
+  await pool.query(`UPDATE project SET gate_policy = '{}'::jsonb`);
   await pool.query('DELETE FROM finding_occurrence');
   await pool.query('DELETE FROM finding');
   await pool.query('DELETE FROM reviewer_report');
@@ -71,6 +77,7 @@ async function submit(over: {
   branch?: string;
   changeset?: string[];
   findings?: Record<string, unknown>[];
+  taskId?: string;
 }): Promise<SubmitResult> {
   return reviews.submit({
     projectId,
@@ -84,6 +91,7 @@ async function submit(over: {
     changeset: over.changeset ?? ['src/widget.ts'],
     summaryMd: '봤다.',
     reviewer: { role: 'security', risk: 'medium' },
+    taskId: over.taskId ?? null,
     findings: (over.findings ?? []) as never,
   } as Parameters<ReviewService['submit']>[0]);
 }
@@ -284,6 +292,90 @@ describe('제출 응답의 round_block (REQ-API-248)', () => {
     expect(out.blocking_findings.map((f) => f.title)).toEqual(['a 의 결함']);
     const gate = (await check(q('&kind=code'))).items[0]!;
     expect(gate.state).toBe('pending');
+  });
+});
+
+/**
+ * done 게이트의 종류 조건 (2026-09-28 · clemvion 요청 N6 · 사람 결정 D9 · D2a · REQ-API-250).
+ *
+ * `review_coverage` 가 종류 목록이면 종류마다 그 작업의 최신 라운드가 게이트 판정을 통과해야 done 이다 — "구현이
+ * 스펙과 맞는지(consistency) 검토했는가" 를 서버가 강제한다. `true` 의 뜻(종류 무관 · critical 0)은 그대로다.
+ */
+describe('done 게이트의 종류 조건 (REQ-API-250)', () => {
+  async function doneTask(key: string): Promise<string> {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업','in_progress','목표','PR','도구','경계')`,
+      [taskId, projectId, key],
+    );
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'commit','a1b2c3d','human')`,
+      [newId(), projectId, taskId],
+    );
+    return taskId;
+  }
+  const close = (taskId: string): Promise<unknown> =>
+    app
+      .get(TaskService)
+      .transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId,
+        roles: ['planner'],
+        specImpact: { none: true },
+      })
+      .catch((e: unknown) => e);
+  const missingOf = (e: unknown): string[] =>
+    (e as { details?: { missing?: string[] } }).details?.missing ?? [];
+
+  it('종류마다 라운드가 있어야 하고 열린 warning 도 막는다 — 다 통과하면 닫힌다', async () => {
+    await pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify({ done_gate: { review_coverage: ['code', 'consistency'] } }),
+      projectId,
+    ]);
+    const taskId = await doneTask('CLV-T-KIND01');
+
+    const none = missingOf(await close(taskId));
+    expect(none).toEqual([
+      '이 작업을 검토한 code 리뷰가 없습니다',
+      '이 작업을 검토한 consistency 리뷰가 없습니다',
+    ]);
+
+    const code = await submit({ taskId, findings: [finding('warning', '재시도에 상한이 없다')] });
+    await submit({ taskId, kind: 'consistency', changeset: ['spec/a.md'] });
+    expect(missingOf(await close(taskId))).toEqual([
+      '이 작업의 code 리뷰에 열린 발견이 남아 있습니다(critical 0건 · warning 1건)',
+    ]);
+
+    await reviews.resolve({
+      projectId,
+      findingId: code.findings_new[0]!,
+      userId,
+      sessionId: agentSessionId,
+      isAgent: true,
+      kind: 'fixed',
+      status: 'fixed',
+      rationale: '상한 3회',
+      commitSha: 'c0ffee2',
+    });
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
+  });
+
+  it('게이트 판정은 종류를 주지 않아도 정책이 요구하는 종류를 uncovered 로 함께 준다', async () => {
+    await pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify({ done_gate: { review_coverage: ['code', 'consistency'] } }),
+      projectId,
+    ]);
+    await submit({});
+    const res = await check(q());
+    expect(res.items.map((i) => [i.kind, i.state])).toEqual([
+      ['code', 'passed'],
+      ['consistency', 'uncovered'],
+    ]);
   });
 });
 
