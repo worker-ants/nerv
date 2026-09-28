@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { BLOCKED_REASONS } from '../enums.js';
+import { REQUIREMENT_REF_SOURCE } from '../requirement-lines.js';
 
 /** 프로파일 — **클라이언트 것이다.** 서버는 이름만 기록한다(importer.md §1.4 경계 1). */
 export const importProfileSchema = z.object({
@@ -70,8 +71,9 @@ export const importProfileSchema = z.object({
     preserve: z.array(z.string()).default([]),
   }),
   requirement: z
-    .object({ id_pattern: z.string().default('[A-Z]+-[A-Z]+-\\d+') })
-    .default({ id_pattern: '[A-Z]+-[A-Z]+-\\d+' }),
+    // 기본값은 스펙 쪽 추출기와 같은 모양이다(2026-09-28 · REQ-API-241 — 가운데 토막에 숫자)
+    .object({ id_pattern: z.string().default(REQUIREMENT_REF_SOURCE) })
+    .default({ id_pattern: REQUIREMENT_REF_SOURCE }),
   task: z
     .object({
       status_map: z.record(z.string(), z.string()).default({}),

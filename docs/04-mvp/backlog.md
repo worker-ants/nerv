@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.31 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.32 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.32 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **요구사항 ID 의 가운데 토막에 숫자** 를 적는다.
 >
 > v2.31 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **읽지 못한 게이트 정책** 을 적는다.
 >
@@ -744,6 +746,7 @@ referenced_by:
 | 리뷰 제출의 세션 · Task | `modules/review/review.service.ts`(제출자의 세션 검사 · Task 키 해소 · 다시 낼 때의 Task 규칙 · `claimedTask`) · `review.controller.ts`(`session_id` 전달) · `task/task.service.ts`(`resolveTaskId` 공개) · L2 `review.spec.ts` 5건 | 같은 변경의 재제출이 명시한 Task 를 무시했고, `task_id` 키는 22P02 · 남의 프로젝트 UUID 는 통과였고, REST 가 `session_id` 를 버렸다([4.4 API 명세](api.md) REQ-API-238) |
 | 작업 수정이 UUID 도 받는다 | `modules/task/task.service.ts`(`update` — `taskMatch` · 응답 키) · L2 `claim.spec.ts` | 작업 상세의 [다시 브리핑] · [기준 옮기기] 가 UUID 로 PATCH 해서 언제나 not_found 였다([4.4 API 명세](api.md) REQ-API-239) |
 | 읽지 못한 게이트 정책 | `routes/settings/gates.tsx`(읽지 못하면 저장을 막고 이유를 보인다) · 문구 `settings.gates.unreadable*` · `task.service.ts` · `spec.service.ts`(파싱 실패 경고) · L1 `irreversible.spec.tsx` | 화면은 읽지 못한 정책을 기본값으로 덮어 저장할 수 있었고, 서버는 조용히 기본값으로 판정했다([4.5 화면 명세](screens.md) REQ-WEB-280 · [4.4 API 명세](api.md) REQ-API-240) |
+| 요구사항 ID 의 가운데 토막에 숫자 | `packages/schema/src/requirement-lines.ts`(`REQUIREMENT_REF_SOURCE` · `REQUIREMENT_REF` · `requirementRefsIn`) · `spec-check.service.ts`(느슨한 입구 · 형식 위반 경고) · `search.service.ts` · `zod/import.ts`(기본값) · CLI `parse/plan.ts` · 프로파일 둘 · `worker/jobs/requirement-backfill.job.ts`(신설) · 매뉴얼 ko·en(스펙) · L2 `spec-check.spec.ts` 4건 · L1 `plan.spec.ts` · `job-log.spec.ts` | clemvion 요청 N10 의 절반 — `REQ-C24NODE-001` 이 0건이었다. 발급(EP-REQ-04)과 읽기가 다른 규칙이었다([4.4 API 명세](api.md) REQ-API-241) |
 
 #### 이 절은 언제 갱신되는가
 

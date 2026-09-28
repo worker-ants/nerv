@@ -36,5 +36,6 @@ export const nervDocsProfile: ImportProfile = {
     // 쓸 수 없다(정보 손실 0 · §3.3)
     preserve: ['updated', 'referenced_by'],
   },
-  requirement: { id_pattern: 'REQ-[A-Z]+-\\d+' },
+  // 가운데 토막에 숫자가 들어가도 된다(2026-09-28 · REQ-API-241)
+  requirement: { id_pattern: 'REQ-[A-Z][A-Z0-9]*-\\d+' },
 };

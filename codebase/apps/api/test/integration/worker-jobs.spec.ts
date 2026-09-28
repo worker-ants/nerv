@@ -26,6 +26,7 @@ import { SessionStaleJob } from '../../src/worker/jobs/session-stale.job.js';
 import { EmbeddingJob } from '../../src/worker/jobs/embedding.job.js';
 import { EmbeddingService } from '../../src/modules/spec/embedding.service.js';
 import { ExportJob } from '../../src/worker/jobs/export.job.js';
+import { RequirementBackfillJob } from '../../src/worker/jobs/requirement-backfill.job.js';
 import { RetentionJob } from '../../src/worker/jobs/retention.job.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
@@ -92,6 +93,7 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
     new MailJob(new MailOutbox(drizzleDb), new MailSender()),
     // 메일 요약도 같다 — 발송이 꺼진 배치에서는 판정조차 하지 않는다(받은 요청 판정을 부르기 전에 끝난다)
     new DigestJob(new DigestService(drizzleDb, new MailOutbox(drizzleDb), null as never)),
+    new RequirementBackfillJob(drizzleDb),
   );
   return { runner, lock };
 }

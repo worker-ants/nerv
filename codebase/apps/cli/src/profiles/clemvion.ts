@@ -70,7 +70,8 @@ export const clemvionProfile: ImportProfile = {
     // clemvion frontmatter 에는 되돌릴 때만 필요한 값이 없다 — 전부 NERV 필드로 옮겨진다
     preserve: [],
   },
-  requirement: { id_pattern: '[A-Z]+-[A-Z]+-\\d+' },
+  // 가운데 토막에 숫자가 든 ID(`REQ-C24NODE-001`)도 요구사항이다(2026-09-28 · REQ-API-241)
+  requirement: { id_pattern: '[A-Z]+-[A-Z][A-Z0-9]*-\\d+' },
   task: {
     status_map: { 'complete/**': 'done', 'research/**': 'reference' },
     unstarted_sentinel: '(unstarted)',

@@ -57,7 +57,7 @@ describe('한 줄', () => {
 });
 
 describe('JobRunner — 판마다 한 줄', () => {
-  /** 이름·결과만 가진 가짜 잡 아홉 — 생성자 순서대로다 */
+  /** 이름·결과만 가진 가짜 잡 열 — 생성자 순서대로다 */
   function fakes(results: Record<string, () => Promise<unknown>>) {
     const names = [
       'lease-reaper',
@@ -69,6 +69,7 @@ describe('JobRunner — 판마다 한 줄', () => {
       'partition',
       'mail',
       'digest',
+      'requirement-backfill',
     ];
     return names.map((name) => ({
       name,
@@ -83,7 +84,7 @@ describe('JobRunner — 판마다 한 줄', () => {
       'lease-reaper': () => Promise.resolve(2),
       mail: () => Promise.reject(new Error('SMTP 거절')),
     });
-    // 잡 아홉은 이름·run 만 쓴다 — 생성자 모양만 맞춘다
+    // 잡 열은 이름·run 만 쓴다 — 생성자 모양만 맞춘다
     const Runner = JobRunner as unknown as new (...args: unknown[]) => JobRunner;
     const runner = new Runner(lock, ...jobs);
     const lines: { level: string; message: string }[] = [];
@@ -94,8 +95,8 @@ describe('JobRunner — 판마다 한 줄', () => {
     });
 
     const ran = await runner.tick(0);
-    expect(ran).toHaveLength(8); // 실패한 mail 만 빠진다
-    expect(lines).toHaveLength(9);
+    expect(ran).toHaveLength(9); // 실패한 mail 만 빠진다
+    expect(lines).toHaveLength(10);
     expect(lines.find((line) => line.message.startsWith('잡 lease-reaper'))?.level).toBe('log');
     expect(lines.find((line) => line.message.startsWith('잡 notification'))?.level).toBe('debug');
     expect(lines.find((line) => line.message.startsWith('잡 실패 [mail]'))?.level).toBe('warn');

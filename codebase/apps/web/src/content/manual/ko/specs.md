@@ -229,7 +229,7 @@ claude "/nerv:spec edit SPC-CWC-007"
 
 스펙 본문의 요구사항은 따로 추출됩니다. 요구사항마다 `unimplemented` → `in_progress` → `implemented` → `verified`의 구현 상태가 관리됩니다. 우선순위는 `must`, `should`, `could`입니다.
 
-**요구사항 하나는 본문의 한 줄입니다.** 형식은 `- REQ-<접두>-<번호> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다`입니다. 문장을 시작하는 말만 WHEN, WHILE, IF 중에서 고릅니다.
+**요구사항 하나는 본문의 한 줄입니다.** 형식은 `- REQ-<접두>-<번호> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다`입니다. 문장을 시작하는 말만 WHEN, WHILE, IF 중에서 고릅니다. `<접두>`는 영문 대문자로 시작하고 숫자를 섞을 수 있습니다(`REQ-C24NODE-001`). 이 모양이 아닌 줄은 승인돼도 요구사항이 되지 않으므로 사전 검토가 경고합니다.
 
 ```text
 - REQ-CWC-031 WHEN 방문자가 위젯을 처음 열면 THE SYSTEM SHALL 이전 대화를 복원한다
