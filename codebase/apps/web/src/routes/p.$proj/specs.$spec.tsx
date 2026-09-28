@@ -1308,7 +1308,8 @@ function SpecDetail(): React.JSX.Element {
                     'flex shrink-0 items-center gap-1 border-b-2 px-2.5 pt-1 pb-2.5 text-sm whitespace-nowrap transition-colors',
                     railTab === key
                       ? 'border-text font-semibold text-text'
-                      : 'border-transparent text-text-faint hover:text-text',
+                      : // 고르지 않은 탭도 읽는 글자 단이다 — 가장 흐린 단은 비활성으로 읽혔다(REQ-WEB-273)
+                        'border-transparent text-text-mute hover:text-text',
                   )}
                 >
                   {label}

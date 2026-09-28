@@ -469,23 +469,20 @@ function FilterToggle({
   label: string;
   title?: string;
 }): React.JSX.Element {
+  // 테두리 칩을 손으로 짠 원시 단추였다 — 줄 안의 작은 단추 한 벌이고, 켠 것은 ✓ 와 바탕으로 읽힌다(REQ-WEB-238)
   return (
-    <button
-      type="button"
+    <Button
+      size="xs"
+      variant="subtle"
       data-testid={testId}
       aria-pressed={on}
       onClick={onClick}
       {...(title === undefined ? {} : { title })}
-      className={cn(
-        'rounded-nerv-sm border px-2 py-1 text-2xs transition-colors',
-        on
-          ? 'border-border-strong bg-bg-elev font-medium text-text'
-          : 'border-border text-text-mute hover:text-text',
-      )}
+      className={on ? 'bg-bg-active font-medium' : undefined}
     >
       {on ? '✓ ' : ''}
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -575,7 +572,8 @@ function Lane({
             {all.length}
             {more ? '+' : ''}
           </span>
-          <span aria-hidden="true" className="ml-auto text-3xs text-text-ghost">
+          {/* 레인을 접는 유일한 단서다 — 장식 전용 단(ghost)이 아니라 흐린 글자 단(REQ-WEB-234 · REQ-WEB-276) */}
+          <span aria-hidden="true" className="ml-auto text-3xs text-text-faint">
             {collapsed ? '▸' : '▾'}
           </span>
         </button>
@@ -618,7 +616,9 @@ function Lane({
                       onClick={readyEmpty.onBlocked}
                       className="text-link hover:underline"
                     >
-                      {t('tasks.ready_empty.blocked', { count: readyEmpty.blockedLabel })}
+                      {/* 화면 안의 이동이다 — ▸ 로 이동임을 보인다(사람 결정 A3) */}
+                      {t('tasks.ready_empty.blocked', { count: readyEmpty.blockedLabel })}{' '}
+                      <span aria-hidden="true">▸</span>
                     </button>
                   )}
                   {readyEmpty.backlog > 0 && (
@@ -628,7 +628,9 @@ function Lane({
                       onClick={readyEmpty.onBacklog}
                       className="text-link hover:underline"
                     >
-                      {t('tasks.ready_empty.backlog', { count: readyEmpty.backlogLabel })}
+                      {/* "채우기" 라 적었지만 하는 일은 백로그 레인을 켜고 그리로 가는 것이다 — 글자를 일에 맞췄다 */}
+                      {t('tasks.ready_empty.backlog', { count: readyEmpty.backlogLabel })}{' '}
+                      <span aria-hidden="true">▸</span>
                     </button>
                   )}
                 </p>

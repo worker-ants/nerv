@@ -18,7 +18,7 @@ import { useT } from '../../lib/i18n.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
-import { Button } from '../../components/ui/primitives.js';
+import { Button, Disclosure } from '../../components/ui/primitives.js';
 
 /** 서버와 같은 화이트리스트 — 고르개가 아닌 것을 보여 주면 올린 뒤에야 거부당한다 */
 const ACCEPT =
@@ -251,15 +251,14 @@ export function AttachmentPanel({
       {/* 내린 첨부 — 접어 둔다. 지금 문서의 첨부와 섞이면 내린 뜻이 없다 */}
       {canEdit && hiddenItems.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <button
-            type="button"
-            data-testid="attach-hidden-toggle"
-            aria-expanded={showHidden}
-            onClick={() => setShowHidden(!showHidden)}
-            className="text-left text-2xs text-text-mute hover:text-text"
+          <Disclosure
+            expanded={showHidden}
+            testId="attach-hidden-toggle"
+            className="self-start"
+            onToggle={() => setShowHidden(!showHidden)}
           >
-            {showHidden ? '▾' : '▸'} {t('spec.attach.hidden_toggle', { n: hiddenItems.length })}
-          </button>
+            {t('spec.attach.hidden_toggle', { n: hiddenItems.length })}
+          </Disclosure>
           {showHidden && (
             <ul className="flex flex-col gap-1.5">
               {hiddenItems.map((item) => {

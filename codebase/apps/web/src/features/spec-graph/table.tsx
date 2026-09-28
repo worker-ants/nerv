@@ -125,8 +125,9 @@ export function SpecTable({
                 to="/p/$proj/specs/$spec"
                 params={{ proj: projectSlug, spec: node.key }}
                 search={viewBasisSearch(view)}
+                // 줄 전체가 아니라 제목만 눌린다 — 쉴 때 링크색이다(REQ-WEB-273). 보관한 문서만 흐리게 둔다
                 className={cn(
-                  'font-medium hover:text-link',
+                  'font-medium text-link hover:underline',
                   node.archived_at != null ? 'text-text-faint' : undefined,
                 )}
               >

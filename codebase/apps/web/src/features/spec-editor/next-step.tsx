@@ -16,7 +16,7 @@
 import { TASK_CREATE_ROLES } from '@nerv/schema';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useT } from '../../lib/i18n.js';
-import { Button } from '../../components/ui/primitives.js';
+import { Button, buttonClass } from '../../components/ui/primitives.js';
 
 export interface NextStepProps {
   proj: string;
@@ -35,9 +35,6 @@ export interface NextStepProps {
   /** 레일의 그 탭을 연다 — 이 줄이 여는 것은 둘뿐이다 */
   onRail: (tab: 'comments' | 'requirements') => void;
 }
-
-const chip =
-  'rounded-nerv-sm border border-border bg-bg px-2 py-0.5 text-2xs text-text-mute hover:border-border-strong hover:text-text';
 
 export function NextStep({
   proj,
@@ -105,7 +102,8 @@ export function NextStep({
         to="/inbox"
         search={pending === null ? {} : { focus: pending }}
         data-testid="spec-next-inbox"
-        className="rounded-nerv-sm bg-status-action px-2.5 py-1 text-xs font-medium text-on-status hover:opacity-90"
+        // 이동하는 주 행동도 [검토 요청]과 같은 크기의 주 단추다 — 상태마다 크기가 달랐다(REQ-WEB-271)
+        className={buttonClass('primary', 'sm')}
       >
         {t('spec.next.open_inbox')} ↗
       </Link>
@@ -122,7 +120,7 @@ export function NextStep({
           from_version_no: String(versionNo),
         }}
         data-testid="spec-next-derive"
-        className="rounded-nerv-sm bg-status-action px-2.5 py-1 text-xs font-medium text-on-status hover:opacity-90"
+        className={buttonClass('primary', 'sm')}
       >
         {t('spec.next.derive')}
       </Link>
@@ -155,51 +153,51 @@ export function NextStep({
       {actions}
       {/* 다른 버전을 보고 있으면 **기본으로 돌아가는 길** — 대체된 버전을 연 사람의 다음 걸음이다 */}
       {viewingPast && status !== 'draft' && status !== 'in_review' && (
-        <button
-          type="button"
+        <Button
+          size="xs"
+          variant="subtle"
           data-testid="spec-next-latest"
           onClick={() =>
             void navigate({ to: '.', search: ({ v: _v, diff: _diff, ...rest }) => rest })
           }
-          className={chip}
         >
           {t('spec.next.latest')}
-        </button>
+        </Button>
       )}
       <span className="ml-auto flex flex-wrap items-center gap-1.5">
         {openComments > 0 && (
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="spec-next-comments"
             onClick={() => onRail('comments')}
-            className={chip}
           >
             {t('spec.next.comments', { count: openComments })}
-          </button>
+          </Button>
         )}
         {requirementCount > 0 && (
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="spec-next-requirements"
             onClick={() => onRail('requirements')}
-            className={chip}
           >
             {t('spec.next.requirements', { count: requirementCount })}
-          </button>
+          </Button>
         )}
         {handoff && (
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="spec-next-handoff"
             onClick={() => {
               const card = document.getElementById('spec-handoff');
               card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
               card?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
             }}
-            className={chip}
           >
             {t('spec.next.handoff')}
-          </button>
+          </Button>
         )}
       </span>
     </section>

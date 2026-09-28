@@ -804,16 +804,18 @@ export function SpecTree({
               없었다. 일부만 펴진 상태에서 전부 펴려면 두 번 눌러야 하기도 했다. 단추 둘은
               누르면 **늘 같은 일**을 한다. */}
           {activeInTree && (
-            <button
-              type="button"
+            // 곁의 전체 펴기·접기와 같은 테두리 칸이다 — 아이콘만 있던 칸이라 누르는 것인지 몰랐다(REQ-WEB-276)
+            <Button
+              size="xs"
+              variant="subtle"
               data-testid="tree-reveal-active"
               aria-label={t('specs.reveal_active')}
               title={t('specs.reveal_active')}
               onClick={reveal}
-              className="flex size-6 shrink-0 items-center justify-center rounded-nerv-sm text-text-mute hover:bg-bg-active hover:text-text"
+              className="shrink-0"
             >
               <Locate />
-            </button>
+            </Button>
           )}
           {hasBranches && (
             <>
@@ -876,22 +878,25 @@ export function SpecTree({
             onChange={(e) => setFilter(e.target.value)}
             placeholder={t('specs.tree_filter')}
           />
-          <button
-            type="button"
+          {/* 테두리 칩을 손으로 짠 원시 단추였다 — 레일 트리의 같은 조작과 한 부품(REQ-WEB-238) */}
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="tree-expand-all"
+            className="shrink-0"
             onClick={() => setOpen(defaultExpanded(nodes))}
-            className="shrink-0 rounded-nerv-sm border border-border px-2 py-1 text-xs text-text-mute hover:bg-bg-hover"
           >
             {t('specs.expand_all')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="xs"
+            variant="subtle"
             data-testid="tree-collapse-all"
+            className="shrink-0"
             onClick={() => setOpen(new Set())}
-            className="shrink-0 rounded-nerv-sm border border-border px-2 py-1 text-xs text-text-mute hover:bg-bg-hover"
           >
             {t('specs.collapse_all')}
-          </button>
+          </Button>
           {/* 수는 그것을 바꾸는 조작 **옆에** 둔다 — 접기를 누르면 그 자리에서 줄어든다.
               시안(§2.4)은 목록 발치에 두었지만, 141줄 아래는 화면 밖이다 */}
           <span data-testid="tree-count" className="shrink-0 text-xs text-text-faint tabular-nums">
