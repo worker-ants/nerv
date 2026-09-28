@@ -1,11 +1,13 @@
 // 알림 메일 요약 설정 — EP-NTF-07 · 08 (2026-09-28 · 사람 결정 EM1~EM9 · api.md REQ-API-232)
 //
 // 표면은 번역만 한다 — 판정(메일을 보낼 수 있는 서버인가 · 실재하는 시간대인가)은 서비스에 있다(D-05).
-import { Body, Controller, Get, Put, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Redirect, Req } from '@nestjs/common';
 import { msg, NERV_ERROR, NotificationDigestInput } from '@nerv/schema';
+import { Public } from '../../common/auth.guard.js';
 import { parseBody } from '../../common/parse-body.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
+import { unsubscribeWebUrl } from '../mail/unsubscribe-link.js';
 import { DigestService } from './digest.service.js';
 import type { DigestSetting } from './digest.service.js';
 
@@ -30,6 +32,29 @@ export class DigestController {
       timezone: input.timezone,
       locale: input.locale,
     });
+  }
+
+  /**
+   * EP-NTF-09 — 메일의 끄는 링크(**공개** · 2026-09-28 · 사람 결정 EM8 · REQ-API-234). 메일 앱의 [구독 취소]
+   * 단추는 쿠키도 인증도 없이 `List-Unsubscribe=One-Click` 을 POST 한다(RFC 8058) — 그래서 자격증명을 보지
+   * 않는다. 토큰이 곧 권한이고, 할 수 있는 일은 그 사람의 메일 요약을 끄는 것 하나다.
+   */
+  @Public()
+  @Post('mail/unsubscribe/:token')
+  unsubscribe(@Param('token') token: string): Promise<{ ok: true; unsubscribed: true }> {
+    return this.digests.unsubscribe(token);
+  }
+
+  /**
+   * EP-NTF-10 — **끄지 않고** 화면으로 보낸다. 한 번에 끄기를 모르는 메일 앱은 머리글의 주소를 브라우저로
+   * 연다. RFC 8058 은 GET 으로 끄지 말라고 적는다 — 메일 보안 검사기가 링크를 미리 열기 때문이다. 화면이 한 번
+   * 묻고 위의 POST 를 부른다(REQ-API-234).
+   */
+  @Public()
+  @Get('mail/unsubscribe/:token')
+  @Redirect()
+  open(@Param('token') token: string): { url: string; statusCode: number } {
+    return { url: unsubscribeWebUrl(token), statusCode: 302 };
   }
 }
 

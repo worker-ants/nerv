@@ -3,6 +3,7 @@
 // 무엇을 담는지가 이 기능의 전부다. 안 읽은 것 가운데 지난 요약 뒤에 새로 생기거나 건수가 늘어난 줄만 —
 // 읽은 것 · 켜기 전의 것 · 보관한 프로젝트 · 멤버에서 빠진 프로젝트는 담지 않는다. 그리고 하루 한 통이다.
 
+import { createHash } from 'node:crypto';
 import { NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -42,6 +43,7 @@ beforeAll(async () => {
   process.env['NERV_MAIL_HOST'] = 'mailpit';
   process.env['NERV_MAIL_FROM'] = 'NERV <no-reply@example.com>';
   process.env['NERV_WEB_URL'] = 'https://app.nerv.test';
+  process.env['NERV_API_URL'] = 'https://api.nerv.test';
 
   orgId = newId();
   userId = newId();
@@ -85,6 +87,7 @@ afterAll(async () => {
   delete process.env['NERV_MAIL_HOST'];
   delete process.env['NERV_MAIL_FROM'];
   delete process.env['NERV_WEB_URL'];
+  delete process.env['NERV_API_URL'];
   await pool.end();
   await db.drop();
 });
@@ -296,5 +299,57 @@ describe('무엇을 담는가 (REQ-API-232)', () => {
     ]);
     await notify({ specKey: 'CLV-S-EARLY1' });
     expect(await digests.sendDue()).toEqual({ checked: 0, sent: 0 });
+  });
+});
+
+describe('로그인 없이 끄는 링크 (EM8 · REQ-API-234 · REQ-DB-035)', () => {
+  /** 한 통 보내고 그 메일의 토큰 원문을 본문에서 꺼낸다 — 원문은 메일에만 있다 */
+  async function sendOneAndToken(): Promise<{
+    token: string;
+    row: { body_text: string; headers: Record<string, string>; unsubscribe_token_hash: string };
+  }> {
+    await enable();
+    await notify({});
+    await digests.sendDue();
+    const { rows } = await pool.query<{
+      body_text: string;
+      headers: Record<string, string>;
+      unsubscribe_token_hash: string;
+    }>(`SELECT body_text, headers, unsubscribe_token_hash FROM email_outbox`);
+    expect(rows).toHaveLength(1);
+    const token = /\/unsubscribe\/([A-Za-z0-9_-]{43})\b/.exec(rows[0]!.body_text)?.[1];
+    expect(token).toBeDefined();
+    return { token: token!, row: rows[0]! };
+  }
+
+  it('메일마다 새 토큰 — 행에는 해시만 남고, 머리글은 한 번에 끄는 API 주소 · 본문은 화면 주소다', async () => {
+    const { token, row } = await sendOneAndToken();
+    expect(row.unsubscribe_token_hash).toBe(createHash('sha256').update(token).digest('hex'));
+    expect(row.body_text).toContain(`https://app.nerv.test/unsubscribe/${token}`);
+    expect(row.headers).toEqual({
+      'List-Unsubscribe': `<https://api.nerv.test/api/v1/mail/unsubscribe/${token}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'Auto-Submitted': 'auto-generated',
+    });
+  });
+
+  it('토큰으로 끄면 그 사람의 메일 요약만 꺼진다 — 두 번 눌러도 같은 답이다', async () => {
+    const { token } = await sendOneAndToken();
+    await expect(digests.unsubscribe(token)).resolves.toEqual({ ok: true, unsubscribed: true });
+    expect((await digests.get(userId)).enabled).toBe(false);
+    await expect(digests.unsubscribe(token)).resolves.toEqual({ ok: true, unsubscribed: true });
+  });
+
+  it('모르는 토큰 · 지워진 메일의 토큰은 409 not_found — 켜 둔 설정은 그대로다', async () => {
+    const { token } = await sendOneAndToken();
+    await expect(digests.unsubscribe('x'.repeat(43))).rejects.toMatchObject({
+      details: { kind: 'not_found' },
+    });
+    // 보낸 지 7일이 지나 보존 잡이 메일 행을 지웠다(REQ-DB-033) — 링크도 함께 죽는다
+    await pool.query('DELETE FROM email_outbox');
+    await expect(digests.unsubscribe(token)).rejects.toMatchObject({
+      details: { kind: 'not_found' },
+    });
+    expect((await digests.get(userId)).enabled).toBe(true);
   });
 });

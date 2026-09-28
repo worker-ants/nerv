@@ -16,7 +16,7 @@
 // 큐**라, 테이블 카운트(§2)의 33종에 들지 않는다(`spec_chunk_embedding` 과 같은 자리다).
 
 import { sql } from 'drizzle-orm';
-import { index, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { emailKind } from '../enums.js';
 import { citext, createdAt, idPk, ts } from './_columns.js';
 
@@ -46,6 +46,17 @@ export const emailOutbox = pgTable(
     /** 상한까지 실패해 포기한 시각. 여기까지 오면 잡이 더 집지 않는다 */
     failedAt: ts('failed_at'),
     lastError: text('last_error'),
+    /**
+     * 더 붙일 머리글(2026-09-28 · 사람 결정 EM8 · REQ-DB-035). 알림 메일 요약은 메일 앱의 [구독 취소] 단추가
+     * 뜨도록 `List-Unsubscribe` · `List-Unsubscribe-Post`(RFC 8058)와, 자동 응답이 답하지 않도록
+     * `Auto-Submitted`(RFC 3834)를 단다. 없으면 붙이지 않는다.
+     */
+    headers: jsonb('headers').$type<Record<string, string>>(),
+    /**
+     * 로그인 없이 끄는 링크의 **해시**(sha256 hex) — 원문은 메일에만 있다. 이 행이 지워지면(보낸 지 7일 ·
+     * REQ-DB-033) 그 링크도 죽는다: 링크의 수명이 메일의 수명과 같다.
+     */
+    unsubscribeTokenHash: text('unsubscribe_token_hash'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -55,5 +66,9 @@ export const emailOutbox = pgTable(
       .where(sql`sent_at IS NULL AND failed_at IS NULL`),
     // 보존 잡이 보낸 지 오래된 것을 치운다(본문에 살아 있는 링크가 들어 있다)
     index('email_outbox_sent').on(t.sentAt),
+    // 끄는 링크로 줄을 찾는다 — 링크마다 하나다
+    uniqueIndex('email_outbox_unsubscribe')
+      .on(t.unsubscribeTokenHash)
+      .where(sql`unsubscribe_token_hash IS NOT NULL`),
   ],
 );

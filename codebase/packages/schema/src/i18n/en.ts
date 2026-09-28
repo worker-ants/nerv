@@ -1789,6 +1789,18 @@ export const en = {
   'reset.invalid_body':
     'It expired ({minutes} minutes) or has already been used. Request a new link.',
   'reset.request_again': 'Get a new reset link',
+  'unsubscribe.lead': 'Turn off the email digest.',
+  'unsubscribe.title': 'Turn off the notification email digest?',
+  'unsubscribe.body':
+    'No sign-in needed. This only stops the digest — sign-up confirmation, password reset and invitation emails still arrive, and in-app notifications stay as they are.',
+  'unsubscribe.submit': 'Turn off email digest',
+  'unsubscribe.submitting': 'Turning off…',
+  'unsubscribe.done': 'Email digest turned off',
+  'unsubscribe.done_body': 'To get it again, turn it on in My account.',
+  'unsubscribe.expired': 'This link has expired',
+  'unsubscribe.expired_body':
+    'The link works for {days} days after the email is sent. You can turn the digest off in My account.',
+  'unsubscribe.to_account': 'Go to My account',
   'settings.title': 'Settings',
   'settings.heading': 'Settings — {org}',
   'settings.nav_label': 'Settings menu',
@@ -1975,6 +1987,9 @@ export const en = {
   'mail.digest.important': '[Important]',
   'mail.digest.footer':
     'This is your NERV email digest, sent daily at {hour}:00 ({timezone}). To change the time or turn it off: {url}',
+  'mail.digest.unsubscribe': 'Turn it off without signing in: {url}',
+  'error.digest.unsubscribe_expired':
+    'This link has expired. You can turn off the email digest in My account.',
   'mail.reset.subject': '[NERV] Reset your password',
   'mail.reset.body':
     'Hi {name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n{url}\n\nThe link can be used once within {minutes} minutes. Setting a new password signs you out on all devices.\n\nIf you did not request this, you can delete this email. Your password will not change unless a new one is set through this link.',

@@ -27,8 +27,11 @@ export const Route = createRootRoute({ component: RootComponent, notFoundCompone
  * 로그인하지 않은 사람이다(2026-09-25 · REQ-WEB-231) — 여기 없으면 가드가 로그인으로 되돌려 보낸다.
  */
 const BARE_ROUTES = new Set(['/login', '/signup', '/forgot-password', '/reset-password']);
-/** 초대 링크는 로그인 전에도 열려야 한다 — 모르는 것에 가입부터 하라고 할 수는 없다 */
-const BARE_PREFIXES = ['/invite/'];
+/**
+ * 초대 링크는 로그인 전에도 열려야 한다 — 모르는 것에 가입부터 하라고 할 수는 없다. 메일 요약을 끄는 링크도
+ * 같다 — 받고 싶지 않은 메일을 끄려고 로그인할 까닭이 없다(2026-09-28 · EM8 · REQ-WEB-270).
+ */
+const BARE_PREFIXES = ['/invite/', '/unsubscribe/'];
 
 function RootComponent(): React.JSX.Element {
   const matches = useMatches();

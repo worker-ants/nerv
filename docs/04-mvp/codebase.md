@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.87 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.88 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.88 변경(2026-09-28 — 메일 요약을 로그인 없이 끈다): **§2.2 트리 한 줄.** `mail/unsubscribe-link.ts` — 끄는 링크의 토큰과 두 주소를 만드는 순수 함수다.
 >
 > v1.87 변경(2026-09-28 — 알림 메일 요약, **사람 결정 EM1~EM9**): **§2.2 트리에 `modules/digest/` 셋과 아홉 번째 잡 · §5 상수 표 두 줄.** 켠 사람에게 하루 한 번 모아 보내는 메일은 `DigestModule` 이 판정하고 `digest.job.ts` 가 돌린다 — 보내는 일은 그대로 `mail.job.ts` 다. 파생본 트리에 빠져 있던 `modules/mail/` 다섯 줄과 `mail.job.ts` 도 원본에 맞췄다.
 >
@@ -541,6 +543,7 @@ apps/api/src/
       mail.module.ts         # 넣는 쪽과 내보내는 쪽을 함께 판다
       mail.outbox.ts         # email_outbox 에 넣고·집고·표시한다 (4.3 §2.17)
       mail.sender.ts         # nodemailer — SMTP 로 나가는 자리는 여기 하나다
+      unsubscribe-link.ts    # 메일 요약을 끄는 링크 — 토큰 · 해시 · API 주소 · 화면 주소 (4.4 REQ-API-234, 2026-09-28)
       verify-link.ts         # 확인·재설정 메일의 링크 — 돌아갈 화면은 화면 오리진 안에서만 (4.5 §2.1)
   worker/
     advisory-lock.ts  # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)

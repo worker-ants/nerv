@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.63 · 2026-09-28 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.64 · 2026-09-28 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.64 변경(2026-09-28 — 메일 요약을 로그인 없이 끈다, **사람 결정 EM8**): **REQ-DB-035 신설 · §2.17 열 둘과 인덱스 하나 · 마이그레이션 `0042`.** `email_outbox` 에 덧붙일 머리글(`headers`)과 끄는 링크 토큰의 해시(`unsubscribe_token_hash`)를 둔다. 토큰은 메일 행에 붙어 있어서 보낸 지 7일 뒤 행과 함께 사라진다.
 >
 > v0.63 변경(2026-09-28 — 알림 메일 요약, **사람 결정 EM1~EM9**): **REQ-DB-034 신설 · §2.10 테이블 하나 · §2.17 enum 값 하나 · 마이그레이션 `0041`.** 켠 사람만 `notification_digest_setting` 한 행을 갖는다(기본 꺼짐). 메일에 담긴 알림 줄에는 처음부터 있던 `delivered_at` · `digest_batch_id` 를 적는다 — 쓰는 곳이 없던 두 열이 이제 쓰인다. `CREATE TABLE` 은 41개다.
 >
@@ -1271,6 +1273,8 @@ CREATE TABLE email_outbox (
   sent_at         timestamptz,
   failed_at       timestamptz,                         -- 상한까지 실패해 포기한 시각
   last_error      text,
+  headers         jsonb,                               -- 덧붙일 머리글(끄는 주소 · RFC 8058) — 메일 요약만
+  unsubscribe_token_hash text,                         -- 끄는 링크 토큰의 SHA-256 — 원문은 메일에만 있다
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
@@ -1280,6 +1284,9 @@ CREATE INDEX email_outbox_due ON email_outbox (next_attempt_at)
 -- 보존 잡이 보낸 지 SENT_MAIL_RETENTION_DAYS(7일 — 초대 링크 수명)가 지난 것을 치운다(본문에 살아 있는 링크가 들어 있다).
 -- 재시도를 포기한 줄(failed_at)은 원인을 보려고 남긴다(REQ-DB-026 · REQ-DB-033)
 CREATE INDEX email_outbox_sent ON email_outbox (sent_at);
+-- 끄는 링크는 토큰으로 찾는다(2026-09-28 · 0042 · REQ-DB-035). 메일 행이 지워지면(보낸 지 7일) 링크도 함께 죽는다
+CREATE UNIQUE INDEX email_outbox_unsubscribe ON email_outbox (unsubscribe_token_hash)
+  WHERE unsubscribe_token_hash IS NOT NULL;
 
 -- 초대는 자기 발송 시각을 따로 갖는다 — 보존 잡이 위 큐를 치워도 답이 남아야 한다
 ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
@@ -1300,6 +1307,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-032 | WHEN 증적이 저장되면 THE SYSTEM SHALL 선택 칸 `note`(text)에 이 증적이 무엇을 보여 주는지 담고, `char_length(note) <= 500` CHECK(`evidence_note_len_ck`)로 상한을 지킨다. 있던 증적은 비어 있다(마이그레이션 `0039` · [4.4 API 명세](api.md) REQ-API-229 · 2026-09-28) |
 | REQ-DB-033 | WHEN 보존 잡이 돌면 THE SYSTEM SHALL `email_outbox` 에서 보낸 지 `SENT_MAIL_RETENTION_DAYS`(7일 — 메일 링크 가운데 가장 긴 초대 링크의 수명)가 지난 줄을 지운다. WHERE 재시도를 포기한 줄(`failed_at`)이면 THE SYSTEM SHALL 남긴다 — 원인을 보려고 두는 줄이다(REQ-DB-026). 스키마 주석과 DDL 은 처음부터 "보존 잡이 치운다" 고 적었는데 지우는 코드가 없었다(2026-09-28 · 사람 결정 EM9) |
 | REQ-DB-034 | WHEN 사람이 메일 요약을 켜면 THE SYSTEM SHALL `notification_digest_setting` 에 그 사람의 행 하나(`user_id` PK · 사람이 지워지면 함께 지운다)를 두고, 받는 시(`hour` 0~23 · CHECK `notification_digest_hour_ck`) · IANA 시간대 · 언어(`ko` · `en` · CHECK `notification_digest_locale_ck`) · 켠 시각 · 마지막 판정 시각을 담는다. 행이 없으면 꺼짐이다. THE SYSTEM SHALL `email_kind` 에 `notification_digest` 를 두고, 메일에 담은 알림 줄에는 처음부터 있던 `notification.delivered_at` · `digest_batch_id`(그 메일의 `email_outbox.id`)를 적는다 — 새 열은 없다(마이그레이션 `0041` · [4.4 API 명세](api.md) REQ-API-232·233 · 2026-09-28) |
+| REQ-DB-035 | WHEN 메일 요약을 줄 세우면 THE SYSTEM SHALL `email_outbox` 에 덧붙일 머리글 `headers`(jsonb — `List-Unsubscribe` · `List-Unsubscribe-Post` · `Auto-Submitted`)와 끄는 링크 토큰의 SHA-256 `unsubscribe_token_hash` 를 담고, 그 해시는 부분 유일 인덱스(`email_outbox_unsubscribe`)로 찾는다. 다른 메일은 두 칸이 비어 있다. 토큰의 수명은 그 메일 행의 수명이다 — 보존 잡이 행을 지우면(REQ-DB-033) 링크도 죽는다(마이그레이션 `0042` · [4.4 API 명세](api.md) REQ-API-234 · 2026-09-28 사람 결정 EM8) |
 
 ---
 

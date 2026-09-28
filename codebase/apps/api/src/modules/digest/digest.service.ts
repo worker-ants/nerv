@@ -37,6 +37,11 @@ import { ApprovalService } from '../approval/approval.service.js';
 import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from '../event/event-subject.js';
 import { mailEnabled } from '../mail/mail.config.js';
 import { MailOutbox } from '../mail/mail.outbox.js';
+import {
+  hashUnsubscribeToken,
+  newUnsubscribeToken,
+  unsubscribeWebUrl,
+} from '../mail/unsubscribe-link.js';
 
 export interface DigestSetting {
   enabled: boolean;
@@ -170,6 +175,28 @@ export class DigestService {
   }
 
   /**
+   * EP-NTF-09 — 메일의 끄는 링크로 **로그인 없이** 끈다(2026-09-28 · 사람 결정 EM8 · REQ-API-234). 메일 앱의
+   * [구독 취소] 단추(RFC 8058 — 쿠키 없는 POST)와 화면의 확인 단추가 같은 곳을 부른다. 끄는 것은 **메일 요약만**
+   * 이다 — 가입 확인 · 재설정 · 초대 메일은 그대로다. 이미 꺼져 있어도 성공이다(두 번 눌러도 같은 결과).
+   * 링크는 그 메일 행에 붙어 있어서, 행이 지워지면(보낸 지 7일 · REQ-DB-033) 409 `not_found` 다.
+   */
+  async unsubscribe(token: string): Promise<{ ok: true; unsubscribed: true }> {
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT ref_id AS user_id FROM email_outbox
+       WHERE unsubscribe_token_hash = ${hashUnsubscribeToken(token)}
+         AND kind = 'notification_digest' AND ref_id IS NOT NULL
+    `);
+    const userId = rows[0]?.user_id;
+    if (userId === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.digest.unsubscribe_expired'), {
+        kind: 'not_found',
+      });
+    }
+    await this.db.execute(sql`DELETE FROM notification_digest_setting WHERE user_id = ${userId}`);
+    return { ok: true, unsubscribed: true };
+  }
+
+  /**
    * 워커의 한 판 — 현지 시각이 정한 시를 지났고 **오늘(현지) 아직 판정하지 않은** 사람마다 한 통.
    *
    * 워커의 주기는 메모리에만 있어 재기동하면 곧바로 한 번 돈다. 그래서 "오늘 보냈는가" 는 행(`last_sent_at`)이
@@ -245,11 +272,14 @@ export class DigestService {
 
       // 보낼 것이 없는 날도 판정은 끝났다 — 오늘 다시 보지 않는다
       if (lines.length > 0) {
+        // 끄는 링크는 메일마다 새 토큰이다 — 원문은 메일에만 있고 행에는 해시만 남는다(EM8)
+        const unsubscribeToken = newUnsubscribeToken();
         const outboxId = await this.outbox.enqueueDigest(tx, {
           email: setting.email,
           locale,
           userId,
-          ...render({ lines, pending, locale, name: setting.name, setting }),
+          unsubscribeToken,
+          ...render({ lines, pending, locale, name: setting.name, setting, unsubscribeToken }),
         });
         await tx.execute(sql`
           UPDATE notification SET delivered_at = now(), digest_batch_id = ${outboxId}
@@ -283,6 +313,7 @@ function render(input: {
   locale: Locale;
   name: string;
   setting: { hour: number; timezone: string };
+  unsubscribeToken: string;
 }): { subject: string; body: string } {
   const { lines, pending, locale } = input;
   const web = webUrlFromEnv().replace(/\/+$/, '');
@@ -319,6 +350,7 @@ function render(input: {
         url: `${web}/settings/account`,
       }),
     ),
+    t(msg('mail.digest.unsubscribe', { url: unsubscribeWebUrl(input.unsubscribeToken) })),
   );
 
   const subject =
