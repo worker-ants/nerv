@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.85 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.86 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.86 변경(2026-09-28 — 상수 하나): **새 요구사항 없음.** §5 상수 표에 `SENT_MAIL_RETENTION_DAYS` 를 적는다([4.3 데이터베이스](database.md) REQ-DB-033).
 >
 > v1.85 변경(2026-09-28 — 첨부 백업이 한 번도 실제로 돌지 않았다): **REQ-CB-059·060 신설 · §6.5 절차 ③·⑤ · §4.5 CI 두 줄.** 백업 왕복은 러너에 S3 도 `mc` 도 없어 늘 첨부를 건너뛰었다(`NERV_BACKUP_SKIP_BLOBS=1`). 복원 검증은 버킷의 **오브젝트 수**만 셌고, 확인할 수단이 없으면 경고 한 줄을 남기고 "손실 0" 이라 적었다. 문서의 ③ 은 명령 없이 "(선택) mc mirror 역방향" 한 줄이었다. 이제 백업과 복원이 첨부를 **키마다** 확인하고, 복원 스크립트가 `NERV_RESTORE_BLOBS_DIR` 로 파일을 되돌리며, CI 가 오브젝트 스토리지와 `mc` 를 띄워 매 PR 에서 첨부까지 왕복한다. 실측으로 하나를 더 적는다 — 이미 복원한 DB 위의 `--clean` 복원은 파티션 제약을 지우지 못해 실패하므로 복원은 새 DB 에 한다.
 >
@@ -659,6 +661,7 @@ packages/schema/
 | `PARTITION_MONTHS_AHEAD` | `3` | `event`·`activity` 월 파티션 선생성 창 — [4.3](database.md) §2.14 · REQ-DB-021. 이 창이 비면 INSERT 가 실패한다 |
 | `TASK_DONE_WINDOW_DAYS` | `7` | 보관 보기 토글의 기준 — `done_at` 이 이보다 오래된 done 은 기본 목록에서 빠진다([4.5](screens.md) §2.5) |
 | `INVITATION_TTL_DAYS` | `7` | 조직 초대 링크 수명 — [4.4 API 명세](api.md) §2.1b |
+| `SENT_MAIL_RETENTION_DAYS` | `INVITATION_TTL_DAYS`(7) | 보낸 메일을 발송 큐에 남기는 날 수 — 가장 긴 메일 링크의 수명이라 새 수치가 아니다([4.3 데이터베이스](database.md) REQ-DB-033) |
 | `PAGE_LIMIT_DEFAULT` · `PAGE_LIMIT_MAX` | `30` · `100` | 페이지 상한 전역 규칙 — [4.4 API 명세](api.md) §1.6 |
 | `FINDING_PAGE_LIMIT_DEFAULT` · `_MAX` | `50` · `200` | 발견 큐의 **예외**(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05) |
 | `GATE_BRANCH_LIMIT_DEFAULT` · `_MAX` | `20` · `200` | 게이트 표의 브랜치 — 같은 예외(실측 441개) |

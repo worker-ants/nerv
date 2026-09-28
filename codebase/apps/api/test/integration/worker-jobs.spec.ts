@@ -954,4 +954,37 @@ describe('보존 — 지우기 전에 접는다 (REQ-API-067)', () => {
     );
     expect(rows[0]?.prompt_blob_uri).toBeNull();
   });
+
+  /**
+   * **보낸 메일을 치운다**(2026-09-28 · 사람 결정 EM9 · REQ-DB-033). 스키마 주석과 DDL 정본은 처음부터
+   * "보존 잡이 치운다" 고 적었는데 삭제가 없었다. 기간은 새 수치가 아니라 가장 긴 링크 수명(초대 7일)이다.
+   */
+  it('보낸 지 7일이 지난 메일만 지운다 — 보낼 것과 포기한 것은 남긴다', async () => {
+    const pool = poolA;
+    const row = async (
+      label: string,
+      sent: string | null,
+      failed: string | null,
+    ): Promise<string> => {
+      const id = newId();
+      await pool.query(
+        `INSERT INTO email_outbox (id, kind, to_email, subject, body_text, sent_at, failed_at)
+         VALUES ($1,'invite',$2,'s','b', ${sent ?? 'NULL'}, ${failed ?? 'NULL'})`,
+        [id, `${label}@mail.test`],
+      );
+      return id;
+    };
+    const old = await row('old', `now() - interval '8 days'`, null);
+    const recent = await row('recent', `now() - interval '1 day'`, null);
+    const failed = await row('failed', null, `now() - interval '30 days'`);
+    const queued = await row('queued', null, null);
+
+    const report = await new RetentionJob(drizzle(pool)).run();
+    expect(report.sent_mail_deleted).toBeGreaterThanOrEqual(1);
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM email_outbox WHERE id = ANY($1::uuid[])`,
+      [[old, recent, failed, queued]],
+    );
+    expect(rows.map((r) => r.id).sort()).toEqual([recent, failed, queued].sort());
+  });
 });
