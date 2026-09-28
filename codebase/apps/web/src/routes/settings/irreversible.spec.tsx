@@ -221,7 +221,7 @@ describe('토큰 폐기는 누가 끊기는지 말하고 한 번 묻는다 (REQ-
 });
 
 describe('떠난 사람을 내보낸다 (REQ-WEB-201)', () => {
-  it('[조직에서 내보내기…]는 서버 경로 하나로 멤버십 전부와 살아 있는 토큰을 정리한다 (REQ-WEB-263)', async () => {
+  it('[조직에서 내보내기]는 서버 경로 하나로 멤버십 전부와 살아 있는 토큰을 정리한다 (REQ-WEB-263)', async () => {
     renderAt('/settings/members');
     const row = await firstRowOf('유나');
     fireEvent.click(within(row).getByTestId('member-offboard'));

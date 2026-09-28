@@ -61,7 +61,7 @@ describe('다음 행동 표', () => {
     );
   });
 
-  it('진행 중은 [검토 요청]과 [완료…]다', () => {
+  it('진행 중은 [검토 요청]과 [완료]다', () => {
     expect(kinds({ status: 'in_progress', liveClaim: 'mine', canFinish: true })).toEqual([
       'request_review',
       'finish',

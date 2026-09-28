@@ -1026,7 +1026,7 @@ export const en = {
   'settings.members.self_admin_detail':
     "You'll lose edit access to this screen immediately. To get it back, ask another admin.",
   'settings.members.self_admin_off': 'Turn off',
-  'settings.members.offboard': 'Remove from organization…',
+  'settings.members.offboard': 'Remove from organization',
   'settings.members.offboard_confirm': 'Remove {name} from the organization.',
   'settings.members.offboard_run': 'Remove from organization',
   'settings.members.offboard_done': 'Removed.',
@@ -1041,14 +1041,14 @@ export const en = {
   'settings.members.exit.counting': 'Counting what will be removed…',
   'settings.members.exit.count_failed':
     'Could not count what will be removed. You can still remove.',
-  'settings.members.remove_from_project': 'Remove from this project…',
+  'settings.members.remove_from_project': 'Remove from this project',
   'settings.members.remove_from_project_confirm': 'Remove {name} from {project}.',
   'settings.members.remove_from_project_run': 'Remove from {project}',
   'settings.members.remove_from_project_done': 'Removed {name} from {project}.',
   'settings.members.remove_last_confirm':
     '{name} belongs only to {project} in this organization, so removing them also removes them from the organization.',
   'settings.members.remove_self': 'You cannot remove yourself.',
-  'settings.members.clear_project_roles': 'Clear project roles…',
+  'settings.members.clear_project_roles': 'Clear project roles',
   'settings.members.clear_project_roles_confirm': "Delete {name}'s {roles} roles in {project}.",
   'settings.members.clear_project_roles_detail':
     'Organization-wide roles ({org_roles}) still give access to {project}. To block only this project, change the organization-wide roles first.',
@@ -1077,7 +1077,7 @@ export const en = {
   'task.next.roles_only': 'Only {roles} can do this',
   'task.next.held_by_other':
     'Claimed by someone else. Only they or a planner/admin can change its status',
-  'task.next.finish': 'Finish…',
+  'task.next.finish': 'Finish',
   'task.next.reclaim_hint':
     'An expired claim is still attached. Claiming reclaims it and assigns the task to you',
   'task.next.reclaim_keep_hint':
@@ -1241,7 +1241,7 @@ export const en = {
   'shell.project_manage': 'Manage projects',
   'shell.no_projects_yet': 'No projects yet',
   'settings.workspace.new_org': 'New organization',
-  'settings.workspace.new_org_open': 'Create a new organization…',
+  'settings.workspace.new_org_open': 'Create a new organization',
   'settings.workspace.new_org_lead':
     'Create a separate organization to keep another team’s or client’s work apart. Whoever creates it becomes its admin.',
   'settings.tokens.no_project_admin':
@@ -1535,7 +1535,7 @@ export const en = {
   'spec.body_tabs': 'Body view',
   'spec.body_viewer': 'Reader',
   'spec.mermaid_failed': 'Couldn’t render the diagram. Check the syntax.',
-  'spec.meta_button': '⋯ Document info',
+  'spec.meta_button': 'Document info',
   'spec.no_open_comments': 'No open comments.',
   'spec.baseline_pinned': 'pinned',
   'spec.baseline_unpinned': 'outside baseline · latest',

@@ -48,7 +48,7 @@ Inside the switcher, `Tab` moves focus only between the input and the ☆ button
 
 ## Dialogs and panels {#dialogs}
 
-`Esc` closes all of the following: the **Document info** dialog ([⋯ Document info]), the **Create baseline** dialog, a diagram's full-screen view, the panel for a selected node in the relationship graph, the spec tree opened from the strip on a narrow screen (focus returns to the strip's button), and any confirmation prompt (`Esc` is the same as canceling). If a dialog is showing a confirmation prompt, `Esc` closes only the prompt. While a dialog is open, `Tab` keeps focus inside it. When the dialog closes, focus returns to **the button that opened it**.
+`Esc` closes all of the following: the **Document info** dialog ([Document info]), the **Create baseline** dialog, a diagram's full-screen view, the panel for a selected node in the relationship graph, the spec tree opened from the strip on a narrow screen (focus returns to the strip's button), and any confirmation prompt (`Esc` is the same as canceling). If a dialog is showing a confirmation prompt, `Esc` closes only the prompt. While a dialog is open, `Tab` keeps focus inside it. When the dialog closes, focus returns to **the button that opened it**.
 
 When you resolve a review finding, the field for choosing a spec takes two keys. `↓` moves into the list of results, and `Enter` selects the first result right away.
 

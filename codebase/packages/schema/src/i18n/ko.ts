@@ -1012,7 +1012,7 @@ export const ko = {
   'settings.members.self_admin_detail':
     '끄는 즉시 이 화면을 편집할 수 없게 됩니다. 되돌리려면 다른 admin에게 요청해야 합니다.',
   'settings.members.self_admin_off': '끄기',
-  'settings.members.offboard': '조직에서 내보내기…',
+  'settings.members.offboard': '조직에서 내보내기',
   'settings.members.offboard_confirm': '{name}을(를) 조직에서 내보냅니다.',
   'settings.members.offboard_run': '조직에서 내보내기',
   'settings.members.offboard_done': '내보냈습니다.',
@@ -1026,14 +1026,14 @@ export const ko = {
     '이 사람에게 지정된 결재 {n}건은 그대로 둡니다. admin이 대신 결정할 수 있습니다.',
   'settings.members.exit.counting': '지울 것을 세는 중입니다…',
   'settings.members.exit.count_failed': '지울 것을 세지 못했습니다. 빼기는 할 수 있습니다.',
-  'settings.members.remove_from_project': '이 프로젝트에서 빼기…',
+  'settings.members.remove_from_project': '이 프로젝트에서 빼기',
   'settings.members.remove_from_project_confirm': '{name}을(를) {project}에서 뺍니다.',
   'settings.members.remove_from_project_run': '{project}에서 빼기',
   'settings.members.remove_from_project_done': '{name}을(를) {project}에서 뺐습니다.',
   'settings.members.remove_last_confirm':
     '{name}은(는) 이 조직에서 {project}에만 속해 있습니다. 빼면 조직에서도 나갑니다.',
   'settings.members.remove_self': '자기 자신은 뺄 수 없습니다.',
-  'settings.members.clear_project_roles': '이 프로젝트 역할 지우기…',
+  'settings.members.clear_project_roles': '이 프로젝트 역할 지우기',
   'settings.members.clear_project_roles_confirm': '{name}의 {project} 역할 {roles}개를 지웁니다.',
   'settings.members.clear_project_roles_detail':
     '조직 전체 역할({org_roles})이 있어 {project}을(를) 계속 볼 수 있습니다. 이 프로젝트만 막으려면 조직 전체 역할을 먼저 바꾸세요.',
@@ -1062,7 +1062,7 @@ export const ko = {
   'task.next.roles_only': '이 조작은 {roles}만 할 수 있습니다',
   'task.next.held_by_other':
     '다른 사람이 맡고 있습니다. 그 사람이나 planner·admin만 상태를 바꿀 수 있습니다',
-  'task.next.finish': '완료…',
+  'task.next.finish': '완료',
   'task.next.reclaim_hint':
     '점유 시간이 끝난 클레임이 남아 있습니다. 클레임하면 그 클레임을 회수하고 새로 맡습니다',
   'task.next.reclaim_keep_hint':
@@ -1224,7 +1224,7 @@ export const ko = {
   'shell.project_manage': '프로젝트 관리',
   'shell.no_projects_yet': '아직 프로젝트가 없습니다',
   'settings.workspace.new_org': '새 조직',
-  'settings.workspace.new_org_open': '새 조직 만들기…',
+  'settings.workspace.new_org_open': '새 조직 만들기',
   'settings.workspace.new_org_lead':
     '다른 팀이나 고객사의 일을 따로 관리하려면 조직을 새로 만드세요. 만든 사람이 그 조직의 admin이 됩니다.',
   'settings.tokens.no_project_admin':
@@ -1514,7 +1514,7 @@ export const ko = {
   'spec.body_tabs': '본문 보기',
   'spec.body_viewer': '뷰어',
   'spec.mermaid_failed': '다이어그램을 그리지 못했습니다. 문법을 확인하세요.',
-  'spec.meta_button': '⋯ 문서 정보',
+  'spec.meta_button': '문서 정보',
   'spec.no_open_comments': '열린 코멘트가 없습니다.',
   'spec.baseline_pinned': '기준',
   'spec.baseline_unpinned': '기준선 밖 · 최신 버전',

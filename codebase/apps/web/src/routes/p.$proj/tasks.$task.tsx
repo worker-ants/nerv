@@ -110,7 +110,7 @@ function TaskDetail(): React.JSX.Element {
   /** 스펙 영향 — **고르지 않음이 처음이다**. "없음" 을 미리 골라 두면 그 선택을 화면이 대신한다 */
   const [specImpact, setSpecImpact] = useState<'unset' | 'none' | 'some'>('unset');
   const [specImpactNote, setSpecImpactNote] = useState('');
-  /** [완료…]를 눌렀다 — 완료 폼은 진행 중인 작업이나 이것이 켜졌을 때만 편다 */
+  /** [완료]를 눌렀다 — 완료 폼은 진행 중인 작업이나 이것이 켜졌을 때만 편다 */
   const [finishOpen, setFinishOpen] = useState(false);
   /** 위임 명세를 그 자리에서 고친다(REQ-WEB-202) */
   const [editingBrief, setEditingBrief] = useState(false);
@@ -347,7 +347,7 @@ function TaskDetail(): React.JSX.Element {
       gateRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
     } else if (action.target !== undefined) transition.mutate(action.target);
   };
-  /** 완료 폼 — 진행 중인 작업이거나 [완료…]를 눌렀을 때만(backlog·ready 에 늘 펼쳐 두지 않는다) */
+  /** 완료 폼 — 진행 중인 작업이거나 [완료]를 눌렀을 때만(backlog·ready 에 늘 펼쳐 두지 않는다) */
   const showGate =
     status !== 'done' &&
     (finishOpen || status === 'claimed' || status === 'in_progress' || status === 'in_review');

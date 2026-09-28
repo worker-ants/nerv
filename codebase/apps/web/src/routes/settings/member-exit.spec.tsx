@@ -203,7 +203,7 @@ describe('줄마다 판정한다 — 조직 admin 권한이 프로젝트 admin �
       '· coser PROJECT(잠김)',
       '· sudoku PROJECT(잠김)',
     ]);
-    expect(screen.getAllByTestId('member-offboard')[0]?.textContent).toBe('조직에서 내보내기…');
+    expect(screen.getAllByTestId('member-offboard')[0]?.textContent).toBe('조직에서 내보내기');
   });
 
   it('sudoku 만의 admin: sudoku 줄에만 빼기가 있고, 조직에서 내보내기는 없다', async () => {
@@ -242,7 +242,7 @@ describe('빼기 전에 무엇이 지워지는지 적는다', () => {
     me = SUDOKU_ADMIN;
     renderAt('/settings/members');
     const button = within(await rowOf('gehrig', 'sudoku')).getByTestId('member-remove-project');
-    expect(button.textContent).toBe('이 프로젝트 역할 지우기…');
+    expect(button.textContent).toBe('이 프로젝트 역할 지우기');
     fireEvent.click(button);
     const box = await screen.findByTestId('member-remove-project-confirming');
     expect(box.textContent).toContain('gehrig의 sudoku 역할 1개를 지웁니다.');

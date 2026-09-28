@@ -43,7 +43,7 @@ export function SpecToc({
   if (items.length < 2) return null;
   return (
     <div ref={boxRef} className="relative">
-      {/* [⋯ 문서 정보] 곁의 같은 단 — 쉴 때 테두리가 있다(REQ-WEB-271) */}
+      {/* [문서 정보] 곁의 같은 단 — 쉴 때 테두리가 있다(REQ-WEB-271) */}
       <Button
         size="sm"
         variant="subtle"

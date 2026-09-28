@@ -252,3 +252,44 @@ describe('말투 — 에이전트·CLI 가 받는 것은 해라체다', () => {
     expect(agent.filter(([, value]) => seyo.test(value)).map(([key]) => key)).toEqual([]);
   });
 });
+
+// ── 말줄임 (2026-09-28 · 사람 결정 · REQ-WEB-281) ─────────────────────────────────────────────
+//
+// 단추 이름의 "…"(누르면 확인 창이 뜬다는 관례)와 아이콘 글자 "⋯" 를 쓰지 않는다 — 사람이 보기에 불필요한 글자였다.
+// **진행 중 문구는 남긴다**("불러오는 중…" · "Loading…") — 그 말줄임은 "아직 끝나지 않았다" 를 뜻한다.
+describe('말줄임 — 단추 이름과 아이콘 글자에 쓰지 않는다 (REQ-WEB-281)', () => {
+  /** 화면 문구만 센다 — 에이전트 · CLI 문구의 "…" 는 "인자가 더 온다" 는 형식 견본이다 */
+  const onScreen = (catalog: Record<string, string>): [string, string][] =>
+    Object.entries(catalog).filter(([key]) => !AGENT_PREFIXES.some((p) => key.startsWith(p)));
+  /** 말줄임이 **내용**인 자리 — 비교 화면의 접힌 줄 표시("… 12줄 접힘")는 줄이 빠졌다는 사실이다 */
+  const CONTENT = new Set(['spec.diff.skipped']);
+
+  it('"…" 로 끝나는 문구는 진행 중 문구뿐이다', () => {
+    const progressKo = /중(?:입니다)?…$/;
+    const progressEn = /ing(?: [a-z]+)*…$/;
+    expect(
+      onScreen(ko)
+        .filter(
+          ([key, value]) => value.endsWith('…') && !progressKo.test(value) && !CONTENT.has(key),
+        )
+        .map(([key]) => key),
+    ).toEqual([]);
+    expect(
+      onScreen(en)
+        .filter(
+          ([key, value]) => value.endsWith('…') && !progressEn.test(value) && !CONTENT.has(key),
+        )
+        .map(([key]) => key),
+    ).toEqual([]);
+  });
+
+  it('"⋯" 같은 아이콘 글자로 시작하는 문구가 없다', () => {
+    for (const catalog of [ko, en]) {
+      expect(
+        onScreen(catalog)
+          .filter(([key, value]) => /^[⋯…·•]/.test(value) && !CONTENT.has(key))
+          .map(([key]) => key),
+      ).toEqual([]);
+    }
+  });
+});
