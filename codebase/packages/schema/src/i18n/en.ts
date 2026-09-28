@@ -465,6 +465,10 @@ export const en = {
   'reviews.rail.resolution': 'Resolution',
   'mcp.arg.finding_area':
     'what the finding is about: codebase, spec, task, or process. If omitted, the server infers it from provenance',
+  'mcp.arg.task_body_md':
+    'task body (markdown). If given, the body is replaced. You can edit the body without status. base_hash is required with it',
+  'mcp.arg.task_base_hash':
+    'fingerprint of the body you read: pass body_hash from nerv_task_get as is. If someone changed it since, you get 409 stale_body; read again (current_hash is in the response)',
   'mcp.arg.finding_tags':
     'labels for the finding (for example spec_drift: the spec is wrong, not the code). Up to 10, each up to 64 characters. The finding list filter and area inference read them',
   'reviews.filter.area': 'Area',
@@ -818,6 +822,8 @@ export const en = {
     'This task needs plan approval before it can start. An approval card was created in the inbox. Claim it again after it is approved.',
   'error.task.done_is_final': "A finished task can't be reopened.",
   'error.task.not_assignee': 'You are not the assignee of this task.',
+  'error.task.stale_body':
+    'Someone changed the task body after you read it. Read it again, then edit.',
   'error.task.not_found': 'Task not found.',
   'error.task.release_required': 'There is an active claim. Release it or stop the session first.',
   'error.task.transition_not_allowed': "Can't change from {from} to {to}.",

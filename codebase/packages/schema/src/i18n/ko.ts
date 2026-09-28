@@ -462,6 +462,10 @@ export const ko = {
   'reviews.rail.resolution': '처분 근거',
   'mcp.arg.finding_area':
     '무엇에 대한 지적인지. codebase·spec·task·process 중 하나이고, 없으면 서버가 출처를 보고 추정한다',
+  'mcp.arg.task_body_md':
+    '작업 본문(markdown) — 주면 그 본문으로 바꾼다. status 없이 본문만 고칠 수 있다. base_hash가 함께 있어야 한다',
+  'mcp.arg.task_base_hash':
+    '읽은 본문의 지문 — nerv_task_get의 body_hash를 그대로 넘긴다. 그 사이 누가 고쳤으면 409 stale_body이고 응답의 current_hash로 다시 읽는다',
   'mcp.arg.finding_tags':
     '발견의 분류(예: spec_drift — 코드가 아니라 스펙이 틀렸다). 10개까지 · 하나 64자까지. 발견 목록의 필터와 대상 추정이 읽는다',
   'reviews.filter.area': '대상',
@@ -803,6 +807,7 @@ export const ko = {
     '이 작업은 시작 전에 계획 승인이 필요합니다. 받은 요청에 카드를 만들었으니 승인된 뒤 다시 클레임하세요.',
   'error.task.done_is_final': '완료된 작업은 되돌릴 수 없습니다.',
   'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
+  'error.task.stale_body': '작업 본문을 읽은 뒤 다른 사람이 고쳤습니다. 다시 읽고 고치세요.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',
   'error.task.release_required':
     '활성 클레임이 있습니다. 먼저 클레임을 해제하거나 세션을 중단하세요.',
