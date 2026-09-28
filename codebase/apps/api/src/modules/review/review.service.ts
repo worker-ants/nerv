@@ -167,7 +167,18 @@ export interface SubmitResult {
   carried_over_total: number;
   /** 나머지의 시작 — 발견 목록(EP-REV-03 `cursor` · `nerv_finding_list`)에 그대로 넘긴다. 다 담았으면 `null` */
   carried_over_next_cursor: string | null;
+  /** 프로젝트 전체에 열린 critical 이 있는가 — 뜻은 처음 그대로다(consistency 의 `BLOCK` 계승) */
   block: boolean;
+  /**
+   * `round_block` 의 범위 — **이번 라운드**(브랜치 · 종류 · 커밋이 같은 세션 전부)다(2026-09-28 · clemvion 요청 N2 ·
+   * 사람 결정 D3 · REQ-API-248). `block` 은 프로젝트 전체라, 열린 critical 이 하나라도 남은 프로젝트에서는 어떤
+   * 제출도 `true` 였다(clemvion 실측 25건).
+   */
+  block_scope: 'round';
+  /** 이번 라운드에 열린 critical · warning 이 있는가 — 게이트 판정(EP-REV-08)과 같은 기준이다(D2a) */
+  round_block: boolean;
+  /** 이번 라운드를 막는 발견 — 열린 critical · warning(게이트 판정과 같은 상한) */
+  blocking_findings: readonly { id: string; severity: string; title: string }[];
   /** 이 리뷰가 이어진 Task — 명시하지 않았으면 활성 클레임에서 채운다(REQ-API-148) */
   task_id: string | null;
 }
@@ -400,6 +411,7 @@ export class ReviewService {
         carried_over_total: carried.total,
         carried_over_next_cursor: carried.nextCursor,
         block,
+        ...(await this.roundBlock(tx, session.id)),
         task_id: session.taskId ?? null,
       };
     });
@@ -1297,6 +1309,40 @@ export class ReviewService {
    * 면제는 **같은 줄에 펼친다**(REQ-WEB-065). 면제한 사람·시각·사유가 목록 어딘가가 아니라
    * 그 브랜치 옆에 있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다(FR-10·FR-16).
    */
+  /**
+   * 이번 라운드의 막힘(REQ-API-248) — 판정은 게이트 판정(`roundVerdicts`)을 그대로 쓴다. 제출 직후 에이전트가 본
+   * 값과 CI 가 본 값이 다르면 어느 쪽을 믿을지 모른다(D2a). 라운드는 **세션의 것**으로 정한다: 같은 변경 묶음은
+   * 다른 브랜치에서 낸 제출도 먼저 만든 세션에 합쳐지므로(§2.6a 계약 2), 제출의 `branch` 가 아니라 세션의 브랜치다.
+   */
+  private async roundBlock(
+    tx: Pick<NervDb, 'execute'>,
+    sessionId: string,
+  ): Promise<Pick<SubmitResult, 'block_scope' | 'round_block' | 'blocking_findings'>> {
+    const { rows } = await tx.execute<{
+      project_id: string;
+      branch: string;
+      kind: string;
+      head_sha: string;
+    }>(sql`
+      SELECT project_id, branch, kind::text AS kind, head_sha FROM review_session WHERE id = ${sessionId}
+    `);
+    const session = rows[0]!;
+    const [round] = await roundVerdicts(tx, {
+      projectId: session.project_id,
+      branch: session.branch,
+      kinds: [session.kind],
+      headSha: session.head_sha,
+    });
+    const blocking = (round?.findings ?? [])
+      .filter((f) => f.status === 'open' && (f.severity === 'critical' || f.severity === 'warning'))
+      .map((f) => ({ id: f.id, severity: f.severity, title: f.title }));
+    return {
+      block_scope: 'round',
+      round_block: (round?.open.critical ?? 0) + (round?.open.warning ?? 0) > 0,
+      blocking_findings: blocking,
+    };
+  }
+
   /**
    * EP-REV-08 — 게이트 판정(REQ-API-247). 종류 어휘는 먼저 본다 — 모르는 종류를 `uncovered` 로 답하면 오타가
    * 영원히 "리뷰 없음" 으로 읽힌다(§1.4j).

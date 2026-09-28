@@ -246,6 +246,47 @@ describe('EP-REV-08 게이트 판정 (REQ-API-247)', () => {
   });
 });
 
+/**
+ * 제출 응답의 라운드 범위 판정 (2026-09-28 · clemvion 요청 N2 · 사람 결정 D3 · D2a · REQ-API-248).
+ *
+ * `block` 은 프로젝트 전체의 열린 critical 이라, 열린 critical 이 하나라도 남은 프로젝트에서는 어떤 제출도 `true`
+ * 였다. 새 필드는 이번 라운드만 보고, 기준은 게이트 판정과 같다 — 제출 직후 본 값과 CI 가 본 값이 같아야 한다.
+ */
+describe('제출 응답의 round_block (REQ-API-248)', () => {
+  it('다른 브랜치에 열린 critical 이 있어도 이번 라운드가 깨끗하면 round_block 은 거짓이다 — block 은 그대로다', async () => {
+    await submit({
+      branch: 'feat/other',
+      headSha: 'other01',
+      findings: [finding('critical', '다른 브랜치')],
+    });
+    const out = await submit({});
+    expect(out.block).toBe(true);
+    expect(out.block_scope).toBe('round');
+    expect(out.round_block).toBe(false);
+    expect(out.blocking_findings).toEqual([]);
+  });
+
+  it('이번 라운드의 열린 warning 도 막는다 — 막는 발견을 함께 준다, info 는 빼고', async () => {
+    const out = await submit({
+      findings: [finding('warning', '재시도에 상한이 없다'), finding('info', '이름이 길다')],
+    });
+    expect(out.block).toBe(false);
+    expect(out.round_block).toBe(true);
+    expect(out.blocking_findings).toEqual([
+      { id: expect.any(String) as string, severity: 'warning', title: '재시도에 상한이 없다' },
+    ]);
+  });
+
+  it('같은 커밋을 본 앞 세션의 발견도 이번 라운드다 — 게이트 판정과 같은 값이다', async () => {
+    await submit({ changeset: ['src/a.ts'], findings: [finding('critical', 'a 의 결함')] });
+    const out = await submit({ changeset: ['src/b.ts'] });
+    expect(out.round_block).toBe(true);
+    expect(out.blocking_findings.map((f) => f.title)).toEqual(['a 의 결함']);
+    const gate = (await check(q('&kind=code'))).items[0]!;
+    expect(gate.state).toBe('pending');
+  });
+});
+
 async function seed(): Promise<void> {
   const orgId = newId();
   projectId = newId();

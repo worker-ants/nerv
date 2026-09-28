@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.37 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.38 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.38 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **제출 응답의 라운드 범위 판정** 을 적는다.
 >
 > v2.37 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **집행용 게이트 판정 조회(EP-REV-08)** 를 적는다.
 >
@@ -762,6 +764,7 @@ referenced_by:
 | 내 계정의 탭 · 로그인된 기기 · 인증 스택의 접속 주소 | `modules/auth/auth.service.ts`(`mySessions` · `revokeMySession` · `revokeMyOtherSessions` · 주체의 `authSessionId`) · `auth.controller.ts`(EP-AUTH-03~05 · 사람만) · `better-auth.ts`(`advanced.ipAddress`) · `common/client-ip.ts`(`trustedProxyEntriesFromEnv`) · `routes/settings/account.tsx`(탭 넷 · 로그인된 기기) · `lib/user-agent.ts`(신설) · 문구 `account.tab.*` · `account.devices*` · `error.session.*` · 매뉴얼 ko · en(설정) · L2 `account.spec.ts` 4건 · L1 `account.spec.tsx` · `user-agent.spec.ts` | 사람 요청(2026-09-28). 만들다 찾은 결함 — 인증 스택이 프록시를 지난 요청의 주소를 못 찾아, 세션의 IP 가 비고 로그인 한도가 한 통으로 섞였다([4.5 화면 명세](screens.md) REQ-WEB-283 · 284 · [4.4 API 명세](api.md) REQ-API-243 · 244) |
 | md 미러의 frontmatter 인용 · 트리의 자리 · ETag | `modules/spec/mirror-frontmatter.ts`(신설 — JSON 문자열 인용) · `spec.service.ts`(`mirrorDocument` · `ancestorsOf`) · `mirror.controller.ts`(`ETag` · `Last-Modified` · 304 · `etagMatches`) · CLI `parse/frontmatter.ts`(JSON 인용 풀기) · L1 `mirror-frontmatter.spec.ts` · CLI `parse.spec.ts` · L2 `mirror-http.spec.ts` 4건 · `mirror-retention.spec.ts` | clemvion 요청 N3(2026-09-28) · 사람 결정 D6 권장안 · 쿼터 표의 미러 경로(검토 X12 일부)([4.4 API 명세](api.md) REQ-API-245 · 246) |
 | 집행용 게이트 판정 조회(EP-REV-08) | `modules/review/review-gate.ts`(신설 — `roundVerdicts` · 판정 한 곳) · `review.service.ts`(`gateCheck`) · `review.controller.ts`(EP-REV-08) · `@nerv/schema` `GATE_ROUND_FINDINGS_LIMIT` · L2 `review-gate.spec.ts` 8건 | clemvion 요청 N1(2026-09-28) · 사람 결정 D1 · D2 = B([4.4 API 명세](api.md) REQ-API-247). 필수 리뷰어 역할(`missing_roles`)은 N7 에서 더한다 |
+| 제출 응답의 라운드 범위 판정 | `modules/review/review.service.ts`(`roundBlock` — 게이트 판정을 그대로 씀 · `SubmitResult` 에 `block_scope` · `round_block` · `blocking_findings`) · `review-gate.ts`(막는 발견이 먼저) · `plugin/skills/review/SKILL.md`(두 자리) · 플러그인 0.3.11 · L2 `review-gate.spec.ts` 3건 | clemvion 요청 N2(2026-09-28) · 사람 결정 D3 · D2a · 검토 X11([4.4 API 명세](api.md) REQ-API-248) |
 
 #### 이 절은 언제 갱신되는가
 
