@@ -9,6 +9,8 @@
 // **GitHub 를 박지 않는다.** `evidence.repo` 열이 있는 것은 저장소가 여럿일 수 있다는 뜻이라,
 // `pr` 은 "절대 URL" 까지만 본다 — 호스트를 검사하면 자체 호스팅 GitLab 이 막힌다.
 
+import { EVIDENCE_NOTE_MAX } from './constants.js';
+
 /** 커밋 SHA — 짧은 해시(7)부터 전체(40)까지. */
 const COMMIT = /^[0-9a-f]{7,40}$/i;
 
@@ -38,4 +40,19 @@ export function checkEvidenceLocator(kind: string, locator: string): LocatorVerd
   // code_path · test · review · user_guide — 비어 있지 않으면 통과한다.
   // 파일 경로와 테스트 이름은 저장소마다 모양이 달라, 좁히면 정직한 증적이 막힌다.
   return { ok: true };
+}
+
+/**
+ * **증적 설명을 정리한다**(2026-09-28 · 사람 결정 · 4.4 REQ-API-229). 앞뒤 공백을 걷고, 비었으면 없음(`null`)이다.
+ * 상한(`EVIDENCE_NOTE_MAX`)을 넘거나 문자열이 아니면 무엇이 틀렸는지 돌려준다 — 400 으로 옮기는 것은 서비스의 일이다.
+ */
+export function normalizeEvidenceNote(
+  note: unknown,
+): { ok: true; value: string | null } | { ok: false; reason: 'note_type' | 'note_too_long' } {
+  if (note === undefined || note === null) return { ok: true, value: null };
+  if (typeof note !== 'string') return { ok: false, reason: 'note_type' };
+  const value = note.trim();
+  if (value === '') return { ok: true, value: null };
+  if (value.length > EVIDENCE_NOTE_MAX) return { ok: false, reason: 'note_too_long' };
+  return { ok: true, value };
 }

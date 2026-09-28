@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.09 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.10 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.10 변경(2026-09-28 — 스토리 없이 들어온 수정 하나, **사람 결정**): §1.4 셋째 표에 **증적 설명과 done 해제**를 적는다.
 >
 > v2.09 변경(2026-09-28 — 스토리 없이 들어온 수정 하나, **사람 결정**): §1.4 셋째 표에 **되찾기**를 적는다.
 >
@@ -682,6 +684,7 @@ referenced_by:
 | 한 번에 빼기 — 서버(미리보기 · 한 프로젝트에서 · 조직에서) | 서버 `auth.service.ts`(`memberRemovalPreview` · `removeMember` — 판정은 `removalScope` 한 곳) · `auth.controller.ts`(EP-MBR-05~07) · 문구 `error.membership.self_removal` · L2 `member-removal.spec.ts` | 사람 결정 P2 · P3. 화면이 삭제를 하나씩 불러 부분 실패가 남았고, 프로젝트 admin 은 토큰을 끊지 못했다([4.4 API 명세](api.md) REQ-API-226·227). 남은 것: 화면이 이 경로와 미리보기의 수를 쓰게 바꾸기 |
 | 빼기의 확인과 서버 경로 — 화면 | 화면 `routes/settings/members.tsx`(미리보기 EP-MBR-05 로 수를 적음 · 빼기 EP-MBR-06 · 07 하나를 부름 · 토큰 · 멤버십을 하나씩 부르던 코드 삭제) · 문구 `settings.members.exit.*` · 매뉴얼 ko·en(설정) · L1 `member-exit.spec.tsx` · `irreversible.spec.tsx` | 사람 결정 P2. 한 프로젝트에서만 빼기 제안의 마지막 단계다([4.5 화면 명세](screens.md) REQ-WEB-263 · [4.4 API 명세](api.md) REQ-API-226·227) |
 | 되찾기 — 클레임을 잃은 작업을 상태 그대로 다시 잡는다 | 상수 `TASK_RECLAIMABLE_STATUSES` · 서버 `task.service.ts`(`claimInTx` 의 되찾기 · `reclaimable` 을 같은 규칙으로) · `task.tools.ts`(`reclaimed` · `status`) · 화면 `features/task-board/next-actions.ts`(아무도 쥐지 않은 작업에 [클레임]) · `impl` 스킬(플러그인 0.3.6) · 매뉴얼 ko·en(작업) · L1 `next-actions.spec.ts` · L2 `claim.spec.ts` | 사람 결정. 다른 프로젝트에서 검토 중 작업을 완료로 옮기려 하자 서버가 `reclaimable: true` 라고 답하고 클레임은 `not_ready` 로 거절해, `ready` 로 되돌렸다가 다시 거쳐야 했다([4.4 API 명세](api.md) REQ-API-228 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.5) |
+| 증적 설명 · 완료 전 done 해제 거절 | 스키마 `evidence.note` · `EVIDENCE_NOTE_MAX`(마이그레이션 `0039`) · `normalizeEvidenceNote` · 서버 `task.service.ts`(전이의 증적 · 상세 · `release` 의 `not_done`) · `spec.service.ts`(EP-REQ-03 · 요구사항 상세) · `task.tools.ts` · `mcp/tool-input.ts`(배열 항목 안의 모르는 칸) · 화면 작업 상세(설명 표시 · 입력) · `impl` 스킬(플러그인 0.3.7) · 매뉴얼 ko·en(작업) · L1 `tool-input.spec.ts` · `task-next-door.spec.tsx` · `task-evidence.spec.tsx` · L2 `claim.spec.ts` · `mcp.spec.ts` | 사람 결정. 다른 프로젝트에서 커밋 증적에 설명을 붙이자 형식 오류가 났고, done 전에 클레임을 놓자 작업이 claimed 로 남았다([4.4 API 명세](api.md) REQ-API-229·230 · [4.3 데이터베이스](database.md) REQ-DB-032 · [4.5 화면 명세](screens.md) REQ-WEB-264) |
 
 #### 이 절은 언제 갱신되는가
 

@@ -13,6 +13,8 @@ import {
   newId,
   BLOCKED_REASONS,
   checkEvidenceLocator,
+  normalizeEvidenceNote,
+  EVIDENCE_NOTE_MAX,
   GatePolicySchema,
   DELEGATION_PLACEHOLDER_TEXTS,
   isDelegationFilled,
@@ -432,7 +434,7 @@ export class TaskService {
     // 상세가 그것을 고르지 않아 화면은 증적 전부를 **프로젝트의 저장소 하나**로 읽었다 —
     // 저장소가 둘 이상인 프로젝트에서 커밋 링크가 조용히 남의 저장소를 가리킨다.
     const { rows: evidence } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT id, kind::text AS kind, locator, repo, source::text AS source, created_at
+      SELECT id, kind::text AS kind, locator, note, repo, source::text AS source, created_at
         FROM evidence WHERE task_id = ${taskId} ORDER BY created_at
     `);
 
@@ -1598,6 +1600,25 @@ export class TaskService {
     // 어휘의 정본은 `@nerv/schema` 다 — 목록을 여기 다시 적지 않는다
     const reason = assertVocab([input.reason], CLAIM_RELEASE_INPUTS, 'reason')[0];
     return this.events.transact(async (tx, emit) => {
+      // **`done` 으로 놓는 것은 끝낸 뒤다**(2026-09-28 · 사람 결정 · REQ-API-230). `done` 은 작업 상태를 건드리지
+      // 않는 이유라서, 완료로 옮기기 전에 부르면 클레임만 닫히고 작업은 클레임 없는 `claimed`·`in_progress` 로
+      // 남았다(다른 프로젝트에서 실제로 겪었다). 거절하면 클레임이 그대로 남아 이어서 완료로 갈 수 있다 —
+      // 끝내지 못했으면 `handoff` 로 놓는다
+      if (reason === 'done') {
+        const { rows: state } = await tx.execute<{ status: string }>(sql`
+          SELECT t.status::text AS status
+            FROM claim c JOIN task t ON t.id = c.task_id
+           WHERE c.id = ${input.claimId} AND c.status = 'active'
+        `);
+        const status = state[0]?.status;
+        if (status !== undefined && status !== 'done') {
+          throw new NervError(
+            NERV_ERROR.PRECONDITION,
+            msg('error.claim.release_not_done', { status }),
+            { kind: 'not_done', status, claim_id: input.claimId },
+          );
+        }
+      }
       const { rows } = await tx.execute<{
         task_id: string;
         project_id: string;
@@ -1694,7 +1715,7 @@ export class TaskService {
     roles?: readonly string[];
     specImpact?: Record<string, unknown> | null;
     blockedReason?: string | null;
-    evidence?: { kind: string; locator: string }[];
+    evidence?: { kind: string; locator: string; note?: string | null | undefined }[];
   }): Promise<{ status: string; gate?: { ok: boolean; missing: string[] } }> {
     return this.events.transact(async (tx, emit) => {
       // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
@@ -1796,10 +1817,21 @@ export class TaskService {
             },
           );
         }
+        // **설명은 locator 가 아니라 여기다**(2026-09-28 · 사람 결정 · REQ-API-229) — 설명을 둘 자리가 없어
+        // 커밋 SHA 뒤에 붙인 설명이 형식 검사에 걸렸다
+        const note = normalizeEvidenceNote(item.note);
+        if (!note.ok) {
+          throw new NervError(
+            NERV_ERROR.PRECONDITION,
+            msg('error.evidence.note_too_long', { max: EVIDENCE_NOTE_MAX }),
+            { kind: 'invalid_input', field: 'note', reason: note.reason, max: EVIDENCE_NOTE_MAX },
+          );
+        }
         await tx.execute(sql`
-          INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+          INSERT INTO evidence (id, project_id, task_id, kind, locator, note, source)
           VALUES (${newId()}, ${input.projectId}, ${taskId}, ${evidence}::evidence_kind,
-                  ${item.locator}, ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
+                  ${item.locator}, ${note.value},
+                  ${input.sessionId == null ? 'human' : 'agent'}::evidence_source)
         `);
       }
 

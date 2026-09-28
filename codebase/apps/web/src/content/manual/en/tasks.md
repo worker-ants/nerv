@@ -136,6 +136,8 @@ The **Evidence** list on the task screen records the material attached to show w
 
 **Evidence with its own repository opens in that repository.** Evidence attached by CI records which repository it came from. In a project that uses several repositories, the link therefore opens the repository that contains the commit. If no repository is recorded, the project's repository URL is used.
 
+**Evidence can carry a note.** In the finish form, use the note field below the location to say in a sentence or two what the evidence shows (up to 500 characters, optional). The note appears next to the location in the evidence list. Put only what the evidence points to in the location field, such as a commit hash or a PR URL; adding a description after the hash is a format error. Agents leave their notes in the same field (`note`).
+
 **User guide evidence opens a chapter of this manual.** Enter a chapter name (`tasks`) or the full path (`/help/tasks`) to open that chapter. A name that does not match a chapter is shown as plain text.
 
 **Some items are not clickable.** Test names are written differently in every repository, so NERV does not guess where they should link. Plain text is better than a link to the wrong place. Commits and code paths **need a repository URL on the project**. When it is empty, those items are shown as plain text, with a note explaining why.

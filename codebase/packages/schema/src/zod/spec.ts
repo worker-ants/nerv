@@ -9,6 +9,7 @@
 // 있었으면 쓰기 어려운 코드다.
 
 import { z } from 'zod';
+import { EVIDENCE_NOTE_MAX } from '../constants.js';
 
 /**
  * 선언 관계 한 줄 — `refines`·`depends_on`·`duplicates`·`supersedes`.
@@ -83,6 +84,8 @@ export const EvidenceCreateInput = z
     kind: z.string().default('pr'),
     locator: z.string().min(1),
     repo: z.string().nullish(),
+    /** 이 증적이 무엇을 보여 주는가(2026-09-28 · REQ-API-229) */
+    note: z.string().max(EVIDENCE_NOTE_MAX).nullish(),
   })
   .strict();
 

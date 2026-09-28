@@ -20,6 +20,29 @@ const SCHEMA = {
   required: ['claim_id'],
 };
 
+describe('배열 항목 안의 모르는 칸 (REQ-API-229)', () => {
+  const WITH_ITEMS = {
+    type: 'object',
+    properties: {
+      evidence: {
+        type: 'array',
+        items: { type: 'object', properties: { kind: {}, locator: {}, note: {} } },
+      },
+    },
+  };
+
+  it('항목에 붙인 모르는 칸을 자리까지 적어 돌려준다 — 예전에는 조용히 사라졌다', () => {
+    expect(
+      assertToolInput(WITH_ITEMS, {
+        evidence: [
+          { kind: 'commit', locator: 'a1b2c3d', note: '수정' },
+          { kind: 'test', locator: 'x.spec.ts', description: '설명' },
+        ],
+      }),
+    ).toEqual(['evidence[1].description']);
+  });
+});
+
 describe('모르는 인자 — 버렸다는 사실을 말한다', () => {
   it('스키마에 있는 인자만 보내면 무시 목록이 비어 있다', () => {
     expect(assertToolInput(SCHEMA, { claim_id: 'c1', reason: 'done' })).toEqual([]);

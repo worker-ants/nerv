@@ -8,7 +8,7 @@
 // 스키마가 있으면 "받는다고 적어 두고 안 읽는" 코드가 눈에 띈다.
 
 import { z } from 'zod';
-import { LEASE_TTL_SECONDS } from '../constants.js';
+import { EVIDENCE_NOTE_MAX, LEASE_TTL_SECONDS } from '../constants.js';
 import { BLOCKED_REASONS } from '../enums.js';
 
 /** 증적 한 줄 — 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다(REQ-API-056) */
@@ -16,6 +16,8 @@ export const TaskEvidenceInput = z
   .object({
     kind: z.string().min(1),
     locator: z.string().min(1),
+    /** 이 증적이 무엇을 보여 주는가(2026-09-28 · REQ-API-229) — locator 뒤에 붙이지 않는다 */
+    note: z.string().max(EVIDENCE_NOTE_MAX).nullish(),
   })
   .strict();
 

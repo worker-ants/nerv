@@ -95,10 +95,11 @@ allowed-tools:
 - 완료 시 `nerv_task_update`(`task_id`, `status=done`, `evidence`) —
   **증적 없는 done 시도는 하지 않는다.** "다 했습니다"는 증거가 아니다 — 판정은 서버가
   evidence로 한다.
-- `evidence` 는 **`[{kind, locator}]` 배열**이다. `kind` 는 `code_path`·`test`·`pr`·
+- `evidence` 는 **`[{kind, locator, note?}]` 배열**이다. `kind` 는 `code_path`·`test`·`pr`·
   `commit`·`review`·`user_guide` 여섯 중 하나이고 `locator` 는 그것을 가리키는 문자열이다
-  (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). 예: `[{kind: "commit", locator: "a1b2c3d"},
-  {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
+  (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). **설명은 `locator` 에 붙이지 않고 `note` 에 둔다**
+  (한두 문장 · 500자까지) — SHA 뒤에 설명을 붙이면 형식 오류다. 예: `[{kind: "commit",
+  locator: "a1b2c3d", note: "로그인 오류 수정"}, {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
 - 작업 중에 **이번 Task 밖의 별도 건**을 발견하면 `nerv_task_create`(`title` 필수, 그리고
   위임 명세 4요소 `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`)로
   남긴다. 넷이 다 차야 서버가 `ready` 로 올리므로, 채우지 못하면 `backlog` 에 남아
@@ -125,7 +126,8 @@ allowed-tools:
   선행 작업이 남아 있으면(`pending`) 거부된다. 활성 클레임이 걸린 Task 는 `ready`·
   `backlog` 로 옮기기 전에 `nerv_task_release` 로 먼저 놓는다(`release_required`).
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,
-  `reason=done|handoff|abandon`, `state_note`에 인수인계 노트).
+  `reason=done|handoff|abandon`, `state_note`에 인수인계 노트). **`reason=done` 은 `done` 으로 옮긴
+  뒤에만 부른다** — 먼저 부르면 `not_done` 으로 거절되고 클레임은 그대로 남는다. 끝내지 못했으면 `handoff` 다.
 
 ## 리뷰
 

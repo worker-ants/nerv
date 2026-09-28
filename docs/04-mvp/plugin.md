@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **5종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json` 은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7 이 정본이다.
 >
-> 문서 버전 v0.81 · 2026-09-28 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.82 · 2026-09-28 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.82 변경(2026-09-28 — 증적 설명과 done 해제, **사람 결정**): **새 요구사항 없음 · §2 `impl` 스킬 두 문장 · 패키지 0.3.6 → 0.3.7.** 증적은 `[{kind, locator, note?}]` 이고 설명은 `locator` 가 아니라 `note` 에 둔다(SHA 뒤에 붙이면 형식 오류). `reason=done` 해제는 `done` 으로 옮긴 뒤에만 — 먼저 부르면 `not_done` 으로 거절되고 클레임은 남는다([4.4](api.md) REQ-API-229·230).
 >
 > v0.81 변경(2026-09-28 — 되찾기, **사람 결정**): **새 요구사항 없음 · §2 `impl` 스킬 한 문장 · 패키지 0.3.5 → 0.3.6.** `reclaimable: true` 면 다시 클레임하고, 클레임을 잃은 `claimed`·`in_progress`·`in_review` 는 상태 그대로 돌아온다고 적는다(응답의 `reclaimed` · `status`). `in_review` 였으면 `ready` 로 되돌리지 않고 곧바로 `done` 으로 간다([4.4](api.md) REQ-API-228).
 >
@@ -148,7 +150,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.6
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.7
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -171,7 +173,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "license": "Apache-2.0"
 }
 ```
@@ -676,10 +678,11 @@ allowed-tools:
 - 완료 시 `nerv_task_update`(`task_id`, `status=done`, `evidence`) —
   **증적 없는 done 시도는 하지 않는다.** "다 했습니다"는 증거가 아니다 — 판정은 서버가
   evidence로 한다.
-- `evidence` 는 **`[{kind, locator}]` 배열**이다. `kind` 는 `code_path`·`test`·`pr`·
+- `evidence` 는 **`[{kind, locator, note?}]` 배열**이다. `kind` 는 `code_path`·`test`·`pr`·
   `commit`·`review`·`user_guide` 여섯 중 하나이고 `locator` 는 그것을 가리키는 문자열이다
-  (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). 예: `[{kind: "commit", locator: "a1b2c3d"},
-  {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
+  (커밋 SHA · PR URL · 파일 경로 · 테스트 이름). **설명은 `locator` 에 붙이지 않고 `note` 에 둔다**
+  (한두 문장 · 500자까지) — SHA 뒤에 설명을 붙이면 형식 오류다. 예: `[{kind: "commit",
+  locator: "a1b2c3d", note: "로그인 오류 수정"}, {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
 - 작업 중에 **이번 Task 밖의 별도 건**을 발견하면 `nerv_task_create`(`title` 필수, 그리고
   위임 명세 4요소 `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`)로
   남긴다. 넷이 다 차야 서버가 `ready` 로 올리므로, 채우지 못하면 `backlog` 에 남아
@@ -706,7 +709,8 @@ allowed-tools:
   선행 작업이 남아 있으면(`pending`) 거부된다. 활성 클레임이 걸린 Task 는 `ready`·
   `backlog` 로 옮기기 전에 `nerv_task_release` 로 먼저 놓는다(`release_required`).
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,
-  `reason=done|handoff|abandon`, `state_note`에 인수인계 노트).
+  `reason=done|handoff|abandon`, `state_note`에 인수인계 노트). **`reason=done` 은 `done` 으로 옮긴
+  뒤에만 부른다** — 먼저 부르면 `not_done` 으로 거절되고 클레임은 그대로 남는다. 끝내지 못했으면 `handoff` 다.
 
 ## 리뷰
 
@@ -1559,7 +1563,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 **[권장]** 묶음이 기본이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `agent-session:launch` — `AGENT_RECOMMENDED_SCOPES` · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다 | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.6 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub 으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.7 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |

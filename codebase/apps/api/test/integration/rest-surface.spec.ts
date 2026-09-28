@@ -1539,6 +1539,8 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
     ['done', 'done'],
   ])('내려놓기 사유 %s 가 그대로 저장된다', async (sent, stored) => {
     const { claimId } = await seedActiveClaim();
+    // done 해제는 완료된 작업에만 받는다(REQ-API-230) — 먼저 완료로 옮겨 둔다
+    if (sent === 'done') await markClaimTaskDone(claimId);
     const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
       payload: { reason: sent },
     });
@@ -1548,6 +1550,23 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
       [claimId],
     );
     expect(rows[0]?.release_reason).toBe(stored);
+  });
+
+  it('완료 전의 done 해제는 409 not_done 이고 클레임이 남는다 (REQ-API-230)', async () => {
+    const { claimId } = await seedActiveClaim();
+    const res = await call('POST', `/api/v1/projects/clemvion/claims/${claimId}/release`, {
+      payload: { reason: 'done' },
+    });
+    expect(res.status).toBe(409);
+    expect((res.body as Record<string, unknown>)['details']).toMatchObject({
+      kind: 'not_done',
+      status: 'in_progress',
+    });
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM claim WHERE id = $1`,
+      [claimId],
+    );
+    expect(rows[0]?.status).toBe('active');
   });
 
   it('모르는 사유는 조용히 바뀌지 않고 거절된다', async () => {
@@ -1887,6 +1906,15 @@ async function seedActiveClaim(): Promise<{ claimId: string; sessionId: string }
     [claimId, projectId, taskId, sessionId, adminId],
   );
   return { claimId, sessionId };
+}
+
+/** 클레임이 잡은 작업을 완료 상태로 옮긴다 — done 해제의 전제(REQ-API-230) */
+async function markClaimTaskDone(claimId: string): Promise<void> {
+  await pool.query(
+    `UPDATE task SET status = 'done', done_at = now(), spec_impact = '{"none": true}'::jsonb
+      WHERE id = (SELECT task_id FROM claim WHERE id = $1)`,
+    [claimId],
+  );
 }
 
 async function seedSpecVersion(): Promise<string> {
