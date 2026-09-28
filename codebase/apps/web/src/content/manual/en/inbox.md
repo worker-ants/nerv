@@ -1,6 +1,6 @@
 The inbox collects **only what is waiting on your decision**. If it also counted things that don't need your decision, people would soon ignore the badge, and a badge nobody looks at is as good as no badge.
 
-## Kinds of card
+## Kinds of card {#cards}
 
 | Card              | What you decide                                                |
 | ----------------- | -------------------------------------------------------------- |
@@ -14,20 +14,20 @@ A `critical` downgrade from a review also arrives here as a card (see [Reviews](
 
 **Gate bypasses** are also recorded as cards. These cards do not ask anything, though. They record **something that already happened**, so they skip the Pending tab and go straight to the Decided tab **of the person who requested the bypass**. A waiver goes through without anyone's confirmation, so the person who requested it is also the person who decided it.
 
-### What a card shows
+### What a card shows {#card-contents}
 
 An approval card shows two more lines below its header.
 
 - **Request line** — shows who made the request. If an agent session raised it, the machine and agent kind appear too. If that session is **stopped until you decide**, the line shows **"A session is waiting on this"**.
 - **Target line** — shows what you are deciding. For a spec, it shows **which version** it is, the risk tier (T0–T3) and the author's **change summary**. Click **[View changes ▸]** to open the difference from the previous version. A first version has no earlier version to compare against, so it has no such link. For a plan approval, the line shows **which task** the plan is for; for a `critical` downgrade, **which finding** is being downgraded. In both cases, the key in the header links to that task or finding.
 
-### Which organization and project it belongs to
+### Which organization and project it belongs to {#card-scope}
 
 The inbox collects requests from **every organization and project you belong to**, so each card shows the **name of its project** on the right. If you belong to more than one organization, the organization name comes first, as in "organization / project". Items outside the current organization (shown at the top of the left column) appear in an **accent color**, so you do not mistake another organization's approval for one in the current organization. Items with no project are marked **Whole organization**. The **Today** list on Home and notifications are labeled the same way.
 
 **Use the organizations and projects column to see one project's requests.** The first row in the column on the left of the inbox, **All organizations**, is the default. Below it are the projects you belong to, grouped by organization, and each row shows **how many requests you can decide** in that project. Projects with nothing to decide stay in the list. Click a project to narrow the list to that project. The organization and project you pick are kept in the address (`?org=` · `?project=`) and stay when you switch between the **[Pending · Decided]** tabs. When the list is narrowed, `⇧X` selects only that project's cards. The **Inbox** badge in the left column still counts all organizations.
 
-## Question cards
+## Question cards {#questions}
 
 When an agent runs into something it must not decide on its own, it **stops** and asks a question. Question cards show three more things.
 
@@ -39,7 +39,7 @@ When you answer, the session **resumes immediately.**
 
 **Not every question stops an agent.** There are two urgency levels, `blocking` and `normal`. The session stops only for `blocking`; with `normal`, it keeps working while it waits for your answer. A `blocking` question has a **Blocking** mark in its header (the same mark as in the Today list on Home). **When an agent raises a review request or a `critical` downgrade, its session pauses the same way.** A `critical` downgrade card is created only when an agent asks for one. Once you decide, that session receives the result on its next heartbeat.
 
-## Deciding
+## Deciding {#deciding}
 
 **The default queue is admins and planners.** If a card names a **discipline**, that discipline can decide it too. This applies to the second approver on a T3 document (designer for `design`, qa for `feature`, developer for `convention` and `adr`). **Anyone who can read a question can answer it.**
 
@@ -74,7 +74,7 @@ Both exceptions are recorded in the audit log, including which of the three case
 
 **The requester can still reject and comment.** Only approval is blocked. Also, **leaving a comment returns the document to draft**, so it can be revised and resubmitted.
 
-## Deciding several at once
+## Deciding several at once {#bulk}
 
 Use the **checkbox** on the left of a pending card to select several cards and approve or reject them at once. Question cards and decided cards have no checkbox. A question needs an answer rather than an approval, and a decided card is already a record.
 
@@ -99,7 +99,7 @@ You can select up to **50** at a time. Once you have 50, the checkboxes on the o
 
 Decided cards move to the **Decided** tab. This tab shows only **what you decided**; decisions made by other people are in their own lists. Cards are never deleted, so you can check later what was decided, when and how. A card stays there even after an approval makes the document final or a rejection sends it back to draft. Cards in this tab have no decision buttons or input boxes, and instead of the waiting time they show **what was decided and when**. If you left a note with the decision, it appears on the card too (a rejection always has one). When the Pending tab is empty, **your three most recent decisions** appear below it, so you can see right away where the item you just handled went.
 
-## Keyboard
+## Keyboard {#keyboard}
 
 | Key       | Action                                             |
 | --------- | -------------------------------------------------- |
@@ -128,11 +128,11 @@ On Windows and Linux, use `Ctrl` instead of `⌘`.
 
 Shortcuts do nothing while the cursor is in a text field, because typing `a` in a comment must never approve anything. The bulk keys are **uppercase** for the same reason: deciding twenty cards should take at least a `Shift` more than deciding one. While the confirmation list is open, `a`, `r` and `c` do nothing.
 
-## Links that land on the card
+## Links that land on the card {#card-links}
 
 **Opening a link from the Today list on Home, from a notification, or from the address an agent prints in its terminal takes you to that card in the inbox** (`/inbox?focus=…`). If the card is further down the list, the rest of the list is loaded until the card is found, and the card is highlighted briefly. **If the card is not in the list at all, the screen shows why.** For an approval that was already decided, it shows who decided it, how and when. Otherwise it shows "That request was handled already, or is not in your inbox."
 
-## Notifications
+## Notifications {#notifications}
 
 **The badge counts only important notifications.** Notifications come in two grades, and the number on **[Notifications]** in the left column is the count of unread **Important** notifications. Without this split, the few truly urgent ones would be buried under hundreds of other notifications.
 

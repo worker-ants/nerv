@@ -113,7 +113,7 @@ describe('요구사항 패널', () => {
         .getByText(/EARS 문형 안내/)
         .closest('a')
         ?.getAttribute('href'),
-    ).toBe('/help/specs');
+    ).toBe('/help/specs#requirements');
   });
 });
 

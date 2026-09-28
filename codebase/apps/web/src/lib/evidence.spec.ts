@@ -94,9 +94,23 @@ describe('evidenceTarget — 갈 곳이 있는 것만 링크가 된다', () => {
         external: false,
       });
     }
-    // 앵커·질의는 장을 가리키는 데 쓰이지 않는다 — 장만 뽑는다
+    // 그 장에 없는 절 이름이면 장으로만 간다 — 장은 맞으므로 글자로 떨어뜨리지 않는다
     expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: '/help/reviews#gate' })).toEqual({
       href: '/help/reviews',
+      external: false,
+    });
+  });
+
+  // 절까지 간다(2026-09-28 · 사람 결정 · REQ-WEB-161 개정 · REQ-WEB-268)
+  it('user_guide 는 그 장에 있는 절이면 절까지 간다', () => {
+    for (const locator of ['tasks#evidence', '/help/tasks#evidence', 'help/tasks/#evidence']) {
+      expect(evidenceTarget({ ...repo, kind: 'user_guide', locator })).toEqual({
+        href: '/help/tasks#evidence',
+        external: false,
+      });
+    }
+    expect(evidenceTarget({ ...repo, kind: 'user_guide', locator: 'settings#gates' })).toEqual({
+      href: '/help/settings#gates',
       external: false,
     });
   });

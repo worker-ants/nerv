@@ -140,7 +140,9 @@ describe('스펙이 없는 프로젝트 — 시작하는 길을 말한다', () =
       'claude "/nerv:spec new"',
     );
     expect(within(card).getByTestId('connect-agent')).toBeTruthy();
-    expect(within(card).getByTestId('spec-start-import').getAttribute('href')).toBe('/help/agents');
+    expect(within(card).getByTestId('spec-start-import').getAttribute('href')).toBe(
+      '/help/agents#import',
+    );
   });
 
   it('스펙 상세의 트리 열은 한 줄로 목록의 시작 카드로 보낸다', async () => {

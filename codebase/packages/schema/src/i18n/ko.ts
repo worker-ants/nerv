@@ -1813,8 +1813,8 @@ export const ko = {
     '권장은 에이전트가 스킬 다섯 개(next·spec·impl·question·review)를 쓰는 데 필요한 권한입니다. 내 역할에 없는 권한은 빠집니다.',
   'settings.tokens.step1': '① 토큰: 다시 볼 수 없으니 지금 복사하세요',
   'settings.tokens.step2': '② 플러그인 설치: Claude Code에서 차례로 실행합니다',
-  'settings.tokens.step2_github':
-    '이 서버 주소로는 플러그인을 받을 수 없어서 GitHub에서 받습니다. 이유는 설치 장에 있습니다.',
+  'settings.tokens.step2_github': '이 서버 주소로는 플러그인을 받을 수 없어서 GitHub에서 받습니다.',
+  'settings.tokens.step2_github_why': '이유 보기',
   'settings.tokens.step3': '③ 설정: 작업 저장소에서 한 번 실행합니다(설정 파일 세 개를 만듭니다)',
   'settings.tokens.step3_note':
     '이 명령은 토큰을 셸 기록에 남깁니다. 남기지 않으려면 --token과 그 값을 빼고 실행하세요. 그러면 토큰을 화면에 보이지 않게 따로 입력받습니다.',

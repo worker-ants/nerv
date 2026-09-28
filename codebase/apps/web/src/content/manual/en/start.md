@@ -1,6 +1,6 @@
 NERV is a platform where people and AI agents build software together. **Specification documents are the single source of truth**, people make the decisions at approval gates, and AI agents read those specs and implement them. This manual explains what you can do on each screen and what each indicator means.
 
-## The loop
+## The loop {#loop}
 
 Work in NERV moves through a loop of five steps.
 
@@ -12,7 +12,7 @@ Work in NERV moves through a loop of five steps.
 
 When an agent gets stuck, it can send a person a **question** at any time. Questions appear in your inbox as cards. On the next pass through the loop, a changed spec becomes a new version, and tasks based on the old version are flagged automatically.
 
-## Map of the screens
+## Map of the screens {#screens}
 
 | Screen            | What it shows                                                  |
 | ----------------- | -------------------------------------------------------------- |
@@ -34,7 +34,7 @@ When an agent gets stuck, it can send a person a **question** at any time. Quest
 
 **An active session is one that has not ended (Pending, Active, or Awaiting input).** Home, the sidebar badge, and the project screen all count sessions the same way. On the project screen, **sessions awaiting input (paused until a person replies) are listed first**. If no sessions are running, the list shows that there are none. Finished sessions are on the Sessions screen. The sidebar badges and recent activity update **without a reload** when a session starts or ends, or when an approval or finding is created.
 
-## The left column — the same on every screen
+## The left column — the same on every screen {#left-column}
 
 **The left column is the same on every screen.** From top to bottom, it shows the **organization**, **Home · Inbox · Notifications**, the current organization's **projects**, and **Settings · Help**. When you move from Home to a project, or from a project to the inbox, the column stays the same; only the expanded item changes.
 
@@ -56,7 +56,7 @@ Home, Inbox, Notifications, and Settings cover the whole organization, so their 
 
 **To get back to Home**, click the `NERV` logo at the top left or **[Home]** in the left column.
 
-## Narrow screens — phones and tablets
+## Narrow screens — phones and tablets {#narrow-screens}
 
 On a narrow screen, the left column moves into a **drawer that you open with [☰] at the left end of the header**. The drawer has **the same content** as the column that stays beside the page on a wide screen: organization · Home · Inbox · Notifications · projects (with the expanded project's tabs) · Settings · Help. A narrow screen does not hide anything.
 
@@ -66,7 +66,7 @@ On a narrow screen, the left column moves into a **drawer that you open with [�
 - The **spec tree** for a document you are reading and the manual's **contents** are not in the drawer. They are in the narrow strip at the left edge. Click the strip to open the column over the page. Choosing a document or chapter, or pressing `Esc`, closes it.
 - When you widen the window, the drawer closes and the left column returns to its place.
 
-## Roles
+## Roles {#roles}
 
 | Role        | What it can do                                                                                                                            |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -85,7 +85,7 @@ On a narrow screen, the left column moves into a **drawer that you open with [�
 
 One person can be `admin` in the organization and `developer` on a project. **Multiple roles combine**: you get the permissions of both.
 
-## Creating an account — signing up ends with the confirmation mail
+## Creating an account — signing up ends with the confirmation mail {#signup}
 
 Enter a name, an email address, and a password on the sign-up screen to create an account. You are then asked **once to confirm that the address is yours.** You can sign in after you confirm it.
 
@@ -96,7 +96,7 @@ Enter a name, an email address, and a password on the sign-up screen to create a
 - **If you do not see the email, check your spam folder.** If it is not there either, use **[Resend confirmation email]**, which is on both the sign-up and sign-in screens. After one click, it changes to **"Sent. Check your inbox and spam folder."** and cannot be clicked again. Reload the page to use it again.
 - **Resending has the same limit as signing in (10 per minute).** Otherwise, repeated requests for someone else's address could flood their inbox.
 - **An unconfirmed account cannot do anything.** If you get a confirmation email but never signed up, just delete it.
-- **Signing up from an invitation link works the same way.** After you confirm, you return to that invitation (see "Invitations" in [Settings](/help/settings)).
+- **Signing up from an invitation link works the same way.** After you confirm, you return to that invitation (see [Invitations](/help/settings#invitations) in Settings).
 - **The email is sent in the language of the screen you signed up on.** If you changed the language with the buttons below the sign-up form, the email uses that language. The password reset email works the same way.
 
 **Some servers skip this step.** Email confirmation is required **only when the server can send email**. On a deployment with no mail sender configured (`NERV_MAIL_HOST` is empty), signing up signs you in immediately, and neither the notice above nor [Resend confirmation email] appears. This keeps a server from requiring a confirmation it cannot send. A server configured to require email confirmation without a mail sender does not start at all.
@@ -105,7 +105,7 @@ Enter a name, an email address, and a password on the sign-up screen to create a
 
 **After you sign in, you go where you were headed.** If you opened a link from a colleague before signing in, you land on **that exact address** afterward, including filters, the selected item, and any comparison. If you came in through the app's main address, you land on the first screen for your role: the **Inbox** for planners, designers, and admins; the **task board** for developers and QA; and the project overview for everyone else. If you belong to several organizations, NERV uses your role in **the organization you were last viewing**.
 
-## Forgot your password
+## Forgot your password {#forgot-password}
 
 On the sign-in screen, click **"Forgot your password?"** just below the password field. Any address you entered in the email field is filled in on the next screen.
 
@@ -121,9 +121,9 @@ On the sign-in screen, click **"Forgot your password?"** just below the password
 - **Reset requests have the same limit as signing in (10 per minute).** If you go over it, a message appears in the form.
 - **On a server that does not send email** (`NERV_MAIL_HOST` is empty), you cannot reset your password here. Submitting the form shows **"Contact the server operator."** This keeps you from waiting for an email that will never arrive.
 
-If you **know your password and want to change it**, go to "My account" in [Settings](/help/settings).
+If you **know your password and want to change it**, go to [My account](/help/settings#account) in Settings.
 
-## Your first five minutes
+## Your first five minutes {#first-five-minutes}
 
 0. If you received an invitation link, open it first. After you sign in, click **[Join]** on the invitation card to become a member. If you do not belong to any organization yet, you land on **Get started** after signing in, and any invitations you have appear there as cards.
    **If you just created an organization**, you stay on Get started, which shows your role and a **setup checklist** (first project · invite people · connect an agent). If you enter a **first project name** when you create the organization, the project is created in the same step. The same checklist appears at the top of Home. It disappears when all three are done or when you click **[Dismiss]** (only organization admins see it).
@@ -133,7 +133,7 @@ If you **know your password and want to change it**, go to "My account" in [Sett
 4. To connect an agent, issue a token under **Settings → Agent tokens** and install the plugin. The steps are in [Installing the plugin](/help/install), and how the pieces work together is in [Agents](/help/agents).
 5. To find a document, press **⌘K**. You can find **specs, requirements, and tasks** by name, and pasting a stable ID takes you straight to that item. Documents can be searched **only inside a project**. Screens (the inbox, settings tabs, and so on) and projects can be reached from anywhere.
 
-## Messages in the lower right
+## Messages in the lower right {#toasts}
 
 The short messages that appear in the lower-right corner come in three kinds.
 
@@ -147,7 +147,7 @@ Up to three messages are shown at a time. If there are more, "N more" and **Dism
 
 **Repeating an action runs it again.** Releasing a task and claiming it again, or sending the same instruction twice, is sent as a new request. Only a double click made before the button locks counts as one.
 
-## When something fails to load, or is not there
+## When something fails to load, or is not there {#load-failures}
 
 Screens show these three cases differently.
 
@@ -166,7 +166,7 @@ Screens show these three cases differently.
 
 **A spec's version list shows the latest 8 versions first.** If there are more, click **Show N older versions** at the end of the list to see the rest.
 
-## Actions that need confirmation
+## Actions that need confirmation {#confirmations}
 
 **Before an action that is hard to undo or that affects other people, NERV asks you to confirm it in place.** These actions are: revoking a token · revoking an invitation · removing a member · turning off your own admin role · archiving a project · deleting the organization · archiving a spec · deleting an attachment · abandoning a claim · stopping a session. When you click one, the button is replaced by a description of **what will happen** (whether it can be undone, and who it affects), a button that runs the action, and [Cancel].
 

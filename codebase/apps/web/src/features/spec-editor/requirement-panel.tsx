@@ -26,6 +26,7 @@ import { EVIDENCE_SIGNER_ROLES, statusLabelKey } from '@nerv/schema';
 import { taskStatusText } from '../../lib/format.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { ProjectId } from '../../lib/query-keys.js';
+import { helpLink } from '../../lib/manual-chapters.js';
 
 export function RequirementPanel({
   projectSlug,
@@ -67,11 +68,7 @@ export function RequirementPanel({
         <code className="rounded-nerv-sm bg-bg-sunken px-1.5 py-1 font-mono text-2xs text-text-mute">
           {t('spec.requirements.format')}
         </code>
-        <Link
-          to="/help/$chapter"
-          params={{ chapter: 'specs' }}
-          className="text-2xs text-link hover:underline"
-        >
+        <Link {...helpLink('specs', 'requirements')} className="text-2xs text-link hover:underline">
           {t('spec.requirements.ears_help')} ▸
         </Link>
       </div>

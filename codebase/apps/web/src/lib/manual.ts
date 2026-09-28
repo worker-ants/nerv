@@ -8,7 +8,8 @@
 // 매뉴얼은 없는 것보다 나쁘다 — 없는 문서는 사람을 헤매게 하지만, 틀린 문서는 확신을 준다.
 
 import type { Locale, MessageKey } from '@nerv/schema';
-import type { ManualChapterId } from './manual-chapters.js';
+import { help } from './manual-chapters.js';
+import type { HelpTarget, ManualChapterId } from './manual-chapters.js';
 
 /**
  * 장 제목 키만 따로 좁힌다.
@@ -87,30 +88,45 @@ export function chapterNeighbours(id: string): {
 }
 
 /**
- * 지금 보는 화면 → 그 화면을 설명하는 장.
+ * 지금 보는 화면 → 그 화면을 설명하는 장(과 절).
  *
  * 도움말 메뉴의 "이 화면 도움말"이 쓴다. **짚어 줄 장이 없으면 `null`** 이다 — 아무 데나
  * 보내느니 그 항목을 아예 안 보이는 편이 낫다. 홈처럼 첫 장이 곧 답인 화면은 "제품 매뉴얼"
  * 항목이 이미 같은 곳으로 간다.
  *
+ * **절까지 간다**(2026-09-28 · REQ-WEB-268). 장 첫머리로만 가던 동안 게이트 정책 화면의 도움말은 설정
+ * 장의 첫 절(조직 정보)을 열었고, 게이트 정책 절은 그 장의 마지막이었다.
+ *
  * 위에서부터 먼저 맞는 것을 쓴다 — `/p/x/specs/y` 는 스펙 장이지 프로젝트 개요가 아니다.
  */
-const ROUTE_CHAPTERS: readonly (readonly [RegExp, string])[] = [
-  [/^\/p\/[^/]+\/specs(\/|$)/, 'specs'],
-  [/^\/p\/[^/]+\/tasks(\/|$)/, 'tasks'],
-  [/^\/p\/[^/]+\/sessions(\/|$)/, 'sessions'],
-  [/^\/p\/[^/]+\/reviews(\/|$)/, 'reviews'],
-  [/^\/(inbox|notifications)(\/|$)/, 'inbox'],
+const ROUTE_HELP: readonly (readonly [RegExp, HelpTarget])[] = [
+  [/^\/p\/[^/]+\/specs(\/|$)/, help('specs')],
+  [/^\/p\/[^/]+\/tasks(\/|$)/, help('tasks')],
+  [/^\/p\/[^/]+\/sessions(\/|$)/, help('sessions')],
+  [/^\/p\/[^/]+\/reviews(\/|$)/, help('reviews')],
+  [/^\/notifications(\/|$)/, help('inbox', 'notifications')],
+  [/^\/inbox(\/|$)/, help('inbox')],
   // 토큰 탭은 **설치 장**이다(2026-09-24 · SET-10). 설정 장의 토큰 절은 한 줄로 개념 장을 가리키고
   // 실제 절차는 또 다른 장에 있어, 이 화면에서 도움말을 연 사람은 세 번 건너가야 했다
-  [/^\/settings\/tokens(\/|$)/, 'install'],
-  [/^\/settings(\/|$)/, 'settings'],
+  [/^\/settings\/tokens(\/|$)/, help('install')],
+  [/^\/settings\/org-tokens(\/|$)/, help('settings', 'tokens')],
+  [/^\/settings\/gates(\/|$)/, help('settings', 'gates')],
+  [/^\/settings\/members(\/|$)/, help('settings', 'members')],
+  [/^\/settings\/account(\/|$)/, help('settings', 'account')],
+  [/^\/settings\/projects(\/|$)/, help('settings', 'projects')],
+  [/^\/settings\/org(\/|$)/, help('settings', 'org')],
+  [/^\/settings(\/|$)/, help('settings')],
   // 프로젝트 개요(`/p/:proj`)는 **맨 아래**다 — 위의 하위 화면들이 먼저 맞아야 한다.
   // 그 화면의 구현 현황 다섯 숫자(특히 `증적 결손`·`빈 약속`)를 설명하는 자리가
-  // 스펙 장이라 거기로 보낸다. 대응이 없으면 "이 화면 도움말" 자체가 뜨지 않는다.
-  [/^\/p\/[^/]+(\/|$)/, 'specs'],
+  // 스펙 장의 요구사항 절이라 거기로 보낸다. 대응이 없으면 "이 화면 도움말" 자체가 뜨지 않는다.
+  [/^\/p\/[^/]+(\/|$)/, help('specs', 'requirements')],
 ];
 
+export function helpForRoute(pathname: string): HelpTarget | null {
+  return ROUTE_HELP.find(([pattern]) => pattern.test(pathname))?.[1] ?? null;
+}
+
+/** 장만 — 절을 모르는 자리(차례 열의 강조 등)가 쓴다 */
 export function chapterForRoute(pathname: string): string | null {
-  return ROUTE_CHAPTERS.find(([pattern]) => pattern.test(pathname))?.[1] ?? null;
+  return helpForRoute(pathname)?.chapter ?? null;
 }

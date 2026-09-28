@@ -1,6 +1,6 @@
 In NERV, **the spec is the reference** for all development. Agents read the spec before they start implementing.
 
-## The tree and the types
+## The tree and the types {#tree}
 
 The tree on the left shows how your specs are organized. There are six document types, and each type is a different kind of document. When you open a document, **the path of its parent documents** (`Channels › Web chat`) appears at the very top. It shows where the document is, even on a narrow screen with the tree collapsed. Click the path to go to that document.
 
@@ -17,7 +17,7 @@ An `area` can serve only as a group, with no body of its own. For every other ty
 
 **You move or rename a document in the Document info window** (the ⋯ menu at the top of the document · planners and admins). It has four fields: **Title**; **Parent document**, which you pick from the tree (the current parent is shown above it, and you can't pick the document itself or its descendants; pick **Top level** to detach it from its parent); **Sort key**, which orders siblings under the same parent character by character; and **Owner role**, whose members get a recheck request when a document this one references changes (if it isn't set, the default roles get it, and once set it can't be cleared). Moving or renaming keeps versions, relations and comments intact. [Save] stays disabled until you change a field.
 
-## Where you can see all of them
+## Where you can see all of them {#all-specs}
 
 **When you open a document, a spec tree column appears next to the sidebar.** It shows **every document, expanded**. If a list showed only some documents, you could not tell a missing document from a collapsed one. The `141 / 141` at the top of the tree means **visible / total**. When you collapse a branch, the first number drops, so you know that some documents are hidden.
 
@@ -45,7 +45,7 @@ The **Type** selector next to it works the same way. Choose `Skeleton (vision + 
 
 Both selectors appear **only on the tree tab**, in the tree's control row next to **Filter by title or key** and the expand/collapse buttons. They disappear when you switch to the table or the relations graph.
 
-## Versions and statuses
+## Versions and statuses {#versions}
 
 Specs are **never overwritten. Each change adds a new version.** Each version has one of five statuses.
 
@@ -86,7 +86,7 @@ The badge at the top shows the status of the version you are viewing. If you are
 
 **The row under the title shows your next step.** A draft shows **[Request review]**. A document in review shows **[Open in the Inbox]**, because the decision is made on that card. An approved version shows **[Create a task]**, which opens a form for creating a task from that version (this also works for documents without requirements). The chips next to it show the **open comment count** and the **requirement count**. Clicking a chip opens that tab in the right rail. **[Hand off to an agent]** takes you to the [Continue in a terminal] card at the bottom of the rail.
 
-## Version basis — approved, latest or a baseline
+## Version basis — approved, latest or a baseline {#version-basis}
 
 The **Version basis** selector above the list sets which version of each document you read. The list, tree, table, relations graph, document pages and search all follow it.
 
@@ -102,7 +102,7 @@ The **Version basis** selector above the list sets which version of each documen
 - When you read Latest and the version you see is newer than the approved one, a notice above the body says **"The approved version of this document is v3"**, with **[Open v3]** and **[v3→v4 changes]** buttons. The status badge also shows that version's status (Draft, In review), so you don't mistake a draft for the settled version.
 - **Search follows the same choice.** With Approved it searches approved text, with Latest it also searches drafts and versions in review, and with a baseline it searches the versions in that baseline. The results say which versions were searched. Requirements are created when a document is approved, so requirements that exist only in a draft don't appear in the results.
 
-## Baselines — reading the set as it was
+## Baselines — reading the set as it was {#baselines}
 
 Specs move ahead of implementation. New versions keep getting approved, document by document, but implementation must work against **a set of approved versions that were consistent with each other at one point in time**. Pinning the version of a single document is not enough, because the documents it references keep changing.
 
@@ -117,9 +117,9 @@ A **baseline** gives that set a name and freezes it.
 - **If a version was approved after the baseline, the document page tells you.** A notice above the body says "A version was approved after baseline R1: v5", with **[Open v5]** and **[v2→v5 changes]** buttons. The list shows the set as it is, so it has no such marker.
 - **You can also change or clear the baseline from the document.** While you read by a baseline, the Version basis selector appears at the top of the document. Pick **Approved** to go back to the latest approved versions. The same set stays selected when you move to another document from the tree, the table, the graph, a relation row in the rail, or the left sidebar.
 
-Tasks can have a baseline too. The agent working on such a task then reads the surrounding documents at that set's versions. To move such a task to newer versions, change its baseline (see "Tasks built on a baseline" in the [Tasks](/help/tasks) chapter).
+Tasks can have a baseline too. The agent working on such a task then reads the surrounding documents at that set's versions. To move such a task to newer versions, change its baseline (see [Tasks built on a baseline](/help/tasks#baseline-tasks) in the Tasks chapter).
 
-## Comparing versions
+## Comparing versions {#compare}
 
 The **Versions** tab in the rail first shows the **eight most recent** versions. The number next to the tab name is the total. If a document has more than eight versions, click **[Show N older versions]** at the end of the list to see the rest. You can do two things here.
 
@@ -130,7 +130,7 @@ While comparing, you see the **changes** instead of the body. Added or removed r
 
 **What you see is kept in the URL.** `?v=3` shows version 3 in full (read-only), and `?diff=v2..v3` shows the changes between two versions. Copy the URL and the other person sees the same screen, so there is no need to say "look at the third paragraph". Opening a comparison, switching to another pair, or closing it **keeps the rail tab and the baseline** as they were.
 
-## Attachments
+## Attachments {#attachments}
 
 Use the **Attachments** tab in the rail to attach mockups and documents. Drag files in or choose them.
 
@@ -153,7 +153,7 @@ Attachments are also served through the server, so only **members of the project
 
 `html` attachments **open rendered**, so mockups and reports with scripts work. The page opens **isolated**: it cannot access your sign-in or any other NERV screen, and anything that would send what you typed elsewhere (a form submission) is blocked. All other formats, including `svg`, are displayed without scripts.
 
-## Diagrams
+## Diagrams {#diagrams}
 
 A ` ```mermaid ` code block in the body **is displayed as a diagram.** You don't need ASCII art. The syntax is plain [mermaid](https://mermaid.js.org).
 
@@ -164,7 +164,7 @@ A ` ```mermaid ` code block in the body **is displayed as a diagram.** You don't
 - **Full screen** (`⤡`) shows only the diagram, using the whole window. It is not a new tab, so closing it returns you to where you were reading. The scale is kept separately for the body and for full screen.
 - The document always stores the code. The diagram and the scale are only ways of viewing it and are not saved in the document.
 
-## Who writes the body
+## Who writes the body {#writing}
 
 **You don't edit the body on the web.** The web is where you read, decide, and add attachments and comments. Agents write the body.
 
@@ -178,9 +178,9 @@ claude "/nerv:spec edit SPC-CWC-007"
 
 What stays on the web is **the work a person does**: requesting review, approving, editing document info (title, parent), archiving and restoring, attachments, and comments.
 
-**In a project with no specs yet**, the spec list shows how to get started: `claude "/nerv:spec new"` to run in a terminal (with a copy button), the **Open the install guide** and **Issue a token** links if no agent is connected yet, and the CLI importer if you already have documents (see "Importing documents" in the [Agents](/help/agents) chapter). The tree in the sidebar shows a one-line link to that screen. Roles that cannot write drafts (viewer) see who writes specs instead of the command.
+**In a project with no specs yet**, the spec list shows how to get started: `claude "/nerv:spec new"` to run in a terminal (with a copy button), the **Open the install guide** and **Issue a token** links if no agent is connected yet, and the CLI importer if you already have documents (see [Importing documents](/help/agents#import) in the Agents chapter). The tree in the sidebar shows a one-line link to that screen. Roles that cannot write drafts (viewer) see who writes specs instead of the command.
 
-## Getting around a long document
+## Getting around a long document {#navigation}
 
 - **[Contents ▾]** in the metadata row takes you to a section (`##`·`###`). It appears only when a document has two or more sections.
 - **Clicking an anchor takes you to its section.** This applies to anchors on pre-submit check findings, anchors on comments, and `#…` links inside the body. A finding that points to a requirement number (`REQ-…`) opens the Requirements tab in the rail.
@@ -190,7 +190,7 @@ What stays on the web is **the work a person does**: requesting review, approvin
 - Lines in the Source tab have **line numbers**. The numbers are not copied, and adding `#L120` to the end of the URL takes you to that line.
 - When the window is narrow and the rail is below the body, clicking a chip at the top or opening a `?rail=…` URL **scrolls you down to the rail.** You can switch rail tabs with the left and right arrow keys.
 
-## Two ways to look at the body
+## Two ways to look at the body {#body-views}
 
 The **Reader / Source** tabs above the body switch how you view it.
 
@@ -199,13 +199,13 @@ The **Reader / Source** tabs above the body switch how you view it.
 
 The tab you pick **stays in the URL** (`?body=source`), so a link you send opens the same view.
 
-## Checks and submission
+## Checks and submission {#checks}
 
 You don't run the checks yourself. They run **automatically** when you open the document, and the results appear in the **Pre-submit check** panel **above** the body. The checkers look for contradictions between documents, broken chains of rationale, and requirements with no task.
 
 If there is even one **Blocking** finding, [Request review] is disabled. The server would refuse the request anyway, so fix the blocking items first. While the button is disabled, **"N blocking pre-submit check findings"** appears next to it, and clicking it takes you to the results.
 
-**Requesting review does not always send the document to a person.** A gate assigns the document a tier. At the low tiers (T0, T1), it becomes `approved` **immediately, with no approval step**, and the screen shows a "passed without approval" notice. A card appears in the Inbox only at T2 and T3 (for tiers, see the [settings](/help/settings) chapter).
+**Requesting review does not always send the document to a person.** A gate assigns the document a tier. At the low tiers (T0, T1), it becomes `approved` **immediately, with no approval step**, and the screen shows a "passed without approval" notice. A card appears in the Inbox only at T2 and T3 (for tiers, see [Gate policy](/help/settings#gates) in the Settings chapter).
 
 When a person does decide, authors cannot approve their own specs. The exception is **when nobody else can approve that document**, because being unable to make any progress in a project you work on alone is worse. Anything approved this way is recorded in the audit log.
 
@@ -215,7 +215,7 @@ Agents also start the next version of an approved document. Running `/nerv:spec 
 
 **While a version is in review, no new draft can be started.** Once the review ends, work continues from the approved version, or from the same version if it was rejected and returned to draft. This keeps a document from having two drafts. In that case the agent does not edit and points you to the approval card instead.
 
-## Comments
+## Comments {#comments}
 
 Comments are attached to **a specific place in the document**, not to the document as a whole. Instead of selecting text, you choose a place under **Choose where to comment** in the comment box. You can choose a heading of the version you are viewing or a requirement number (`REQ-…`). (You type one in only when the document has nothing to choose from.) Once a comment has been addressed, close it as `resolved`.
 
@@ -225,7 +225,7 @@ Adding a comment requires only **`spec:read`**, so a viewer can raise a point to
 
 Instead of a comment count, the confirmation dialog before submitting shows **how many documents reference this one and how many tasks derive from it**, so you can see first what an approval will affect.
 
-## Requirements
+## Requirements {#requirements}
 
 Requirements in a spec body are extracted, and each one tracks its own implementation status: `unimplemented` → `in_progress` → `implemented` → `verified`. Priorities are `must` · `should` · `could`.
 
@@ -294,7 +294,7 @@ A person clears this mark. QA or an admin either signs a new test record or, if 
 
 The top of the document can also show the badge **A referenced document changed**. It appears when a document this one references has changed since the version you are reading, and it shows **which document** changed. The server determines this; the screen does not guess.
 
-## Relations and backlinks
+## Relations and backlinks {#relations}
 
 When you write another document as a **link** in the body, a `references` relation is created **automatically**. A link here means a **Markdown link**: a title in square brackets followed immediately by the URL in parentheses. A spec key typed as plain text in a sentence creates no relation, because only places where a person explicitly marked "this is that document" count. The other relations (`refines` · `depends_on` · `duplicates` · `supersedes`) can only be judged by reading, so a person or an agent declares them.
 
@@ -334,7 +334,7 @@ When zoomed out, **document names are hidden.** A hundred labels too small to re
 
 **When two names overlap, only one is shown.** A name covered by another is unreadable anyway, so the one with more backlinks keeps its label. Zooming in does **not** bring the hidden name back, because the text grows with the picture and the overlap stays the same. Instead, use one of three options: **click the node** (a selected document always shows its name, and once the rest fades, its neighbors' names come back), **drag the nodes apart**, or use the **table tab**. The panel on the right also lists the names as text.
 
-## Archiving
+## Archiving {#archive}
 
 **Clicking [Archive] in the Document info window opens a confirmation.** Archiving removes the document from the list and the tree, and the only way back is [Restore] on the document's own page. Esc closes only the confirmation. Press it again to close the Document info window.
 

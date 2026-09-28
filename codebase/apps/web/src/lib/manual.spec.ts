@@ -10,11 +10,19 @@ import {
   chapterForRoute,
   chapterNeighbours,
   findChapter,
+  helpForRoute,
   FIRST_CHAPTER,
   MANUAL_CHAPTERS,
 } from './manual.js';
-import { MANUAL_CHAPTER_IDS, isManualChapter } from './manual-chapters.js';
-import { renderDoc } from './markdown.js';
+import {
+  MANUAL_CHAPTER_IDS,
+  MANUAL_SECTION_IDS,
+  isManualChapter,
+  helpHref,
+  isManualSection,
+} from './manual-chapters.js';
+import type { ManualChapterId } from './manual-chapters.js';
+import { SECTION_ID_PATTERN, renderDoc } from './markdown.js';
 
 const LOCALES = ['ko', 'en'] as const;
 
@@ -68,18 +76,79 @@ describe('매뉴얼 목차', () => {
   });
 
   it('본문 안의 앱 링크는 실재하는 곳을 가리킨다 — 죽은 링크는 매뉴얼을 못 믿게 만든다', () => {
+    // 절까지 가리킬 수 있다(`/help/settings#gates` · 같은 장 안의 `#gates` — 2026-09-28 · REQ-WEB-268).
+    // 절 이름이 그 장에 없으면 죽은 링크다 — 장만 맞고 절이 틀린 링크는 사람을 엉뚱한 자리에 둔다
     const dead: string[] = [];
     for (const chapter of MANUAL_CHAPTERS) {
       for (const locale of LOCALES) {
-        for (const [, href] of chapter.body[locale].matchAll(/\]\((\/[^)]*)\)/g)) {
-          const chapterId = href?.replace('/help/', '') ?? '';
-          if (href?.startsWith('/help/') !== true || findChapter(chapterId) === undefined) {
-            dead.push(`${chapter.id}/${locale} → ${href ?? ''}`);
-          }
+        for (const [, href] of chapter.body[locale].matchAll(/\]\(((?:\/|#)[^)]*)\)/g)) {
+          const [path = '', section] = (href ?? '').split('#');
+          const chapterId = path === '' ? chapter.id : path.replace('/help/', '');
+          const alive =
+            (path === '' || path.startsWith('/help/')) &&
+            findChapter(chapterId) !== undefined &&
+            (section === undefined ||
+              (isManualChapter(chapterId) && isManualSection(chapterId, section)));
+          if (!alive) dead.push(`${chapter.id}/${locale} → ${href ?? ''}`);
         }
       }
     }
     expect(dead).toEqual([]);
+  });
+
+  /**
+   * **절 이름은 로케일 공통이다**(2026-09-28 · 사람 결정 · REQ-WEB-268). 한국어로 복사한 링크가 영어
+   * 화면에서도 같은 절로 가야 한다. 두 벌이 어긋나면 한쪽 언어의 링크만 죽는다 — 여기서 대조한다.
+   */
+  describe('절 이름', () => {
+    const idsOf = (body: string): string[] =>
+      [...body.matchAll(/^#{2,3} .*\{#([^}]*)\}\s*$/gm)].map(([, id]) => id ?? '');
+
+    it('ko · en 이 같은 이름을 같은 순서로 갖고, 코드의 목록과 같다', () => {
+      for (const chapter of MANUAL_CHAPTERS) {
+        const expected = [...MANUAL_SECTION_IDS[chapter.id as ManualChapterId]];
+        for (const locale of LOCALES) {
+          expect(idsOf(chapter.body[locale]), `${chapter.id}/${locale}`).toEqual(expected);
+        }
+      }
+    });
+
+    it('`##` 는 모두 이름을 갖는다 — 이름 없는 절은 절을 넣을 때 밀린다', () => {
+      const missing: string[] = [];
+      for (const chapter of MANUAL_CHAPTERS) {
+        for (const locale of LOCALES) {
+          for (const [line] of chapter.body[locale].matchAll(/^## .*$/gm)) {
+            if (!/\{#[^}]*\}\s*$/.test(line)) missing.push(`${chapter.id}/${locale}: ${line}`);
+          }
+        }
+      }
+      expect(missing).toEqual([]);
+    });
+
+    it('이름은 모양이 맞고 장 안에서 하나뿐이며, 순서 번호 · 셸의 id 와 겹치지 않는다', () => {
+      // 셸이 쓰는 정적 id — 같은 이름이면 `#main` 이 본문이 아니라 셸의 <main> 으로 간다
+      const reserved = ['root', 'main'];
+      for (const [chapter, ids] of Object.entries(MANUAL_SECTION_IDS)) {
+        const list = [...ids] as string[];
+        expect(new Set(list).size, chapter).toBe(list.length);
+        for (const id of list) {
+          expect(SECTION_ID_PATTERN.test(id), `${chapter}#${id}`).toBe(true);
+          expect(/^sec-\d+$/.test(id), `${chapter}#${id}`).toBe(false);
+          expect(reserved, `${chapter}#${id}`).not.toContain(id);
+        }
+      }
+    });
+
+    it('렌더한 글자에 `{#` 가 남지 않는다 — 모양이 틀린 이름은 글자로 새어 나온다', () => {
+      const leaked: string[] = [];
+      for (const chapter of MANUAL_CHAPTERS) {
+        for (const locale of LOCALES) {
+          const text = renderDoc(chapter.body[locale]).html.replace(/<[^>]*>/g, '');
+          if (text.includes('{#')) leaked.push(`${chapter.id}/${locale}`);
+        }
+      }
+      expect(leaked).toEqual([]);
+    });
   });
 
   it('본문에 렌더되지 않은 마크업이 남지 않는다 — 화면에 `**` 가 그대로 찍힌다', () => {
@@ -152,5 +221,30 @@ describe('화면 → 장', () => {
   it('하위 화면이 개요보다 먼저 맞는다 — 순서가 뒤집히면 전부 스펙 장으로 간다', () => {
     expect(chapterForRoute('/p/clemvion/tasks')).toBe('tasks');
     expect(chapterForRoute('/p/clemvion/sessions')).toBe('sessions');
+  });
+
+  /**
+   * **절까지 간다**(2026-09-28 · 사람 결정 · REQ-WEB-268). 장 첫머리로만 가던 동안 게이트 정책 화면의
+   * 도움말은 설정 장의 첫 절(조직 정보)을 열었고, 게이트 정책 절은 그 장의 마지막이었다.
+   */
+  it.each([
+    ['/settings/gates', 'settings', 'gates'],
+    ['/settings/members', 'settings', 'members'],
+    ['/settings/account', 'settings', 'account'],
+    ['/settings/projects', 'settings', 'projects'],
+    ['/settings/org-tokens', 'settings', 'tokens'],
+    ['/settings/org', 'settings', 'org'],
+    ['/notifications', 'inbox', 'notifications'],
+    ['/p/clemvion', 'specs', 'requirements'],
+  ])('%s → %s#%s', (path, chapter, section) => {
+    const target = helpForRoute(path);
+    expect(target).toEqual({ chapter, section });
+    expect(isManualSection(target!.chapter, section)).toBe(true);
+    expect(helpHref(target!)).toBe(`/help/${chapter}#${section}`);
+  });
+
+  it('절이 없는 화면은 장 첫머리로 간다 — 토큰 탭은 설치 장의 처음부터 읽는다', () => {
+    expect(helpForRoute('/settings/tokens')).toEqual({ chapter: 'install' });
+    expect(helpHref(helpForRoute('/p/clemvion/tasks')!)).toBe('/help/tasks');
   });
 });

@@ -1837,7 +1837,8 @@ export const en = {
   'settings.tokens.step1': '① Token: copy it now. It will not be shown again',
   'settings.tokens.step2': '② Install the plugin: run these in Claude Code, in order',
   'settings.tokens.step2_github':
-    'The plugin cannot be downloaded from this server’s address, so it is installed from GitHub. The install chapter explains why.',
+    'The plugin cannot be downloaded from this server’s address, so it is installed from GitHub.',
+  'settings.tokens.step2_github_why': 'See why',
   'settings.tokens.step3':
     '③ Configure: run once in your working repository (creates three settings files)',
   'settings.tokens.step3_note':

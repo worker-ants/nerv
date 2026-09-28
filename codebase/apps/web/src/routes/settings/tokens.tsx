@@ -63,6 +63,7 @@ import {
   RevokeButton,
   useRevoke,
 } from '../../features/settings/token-parts.js';
+import { helpLink } from '../../lib/manual-chapters.js';
 
 export const Route = createFileRoute('/settings/tokens')({ component: TokensTab });
 
@@ -540,7 +541,17 @@ function RevealOnce({
         </div>
       ))}
       {!direct && (
-        <p className="mt-1 text-2xs text-text-faint">{t('settings.tokens.step2_github')}</p>
+        <p className="mt-1 text-2xs text-text-faint">
+          {t('settings.tokens.step2_github')}{' '}
+          {/* 이유는 설치 장의 Claude Code 절에 있다 — 글자로만 "설치 장에 있다" 고 하던 자리(REQ-WEB-268) */}
+          <Link
+            {...helpLink('install', 'claude-code')}
+            data-testid="issued-github-why"
+            className="text-link hover:underline"
+          >
+            {t('settings.tokens.step2_github_why')} ▸
+          </Link>
+        </p>
       )}
 
       <p className="mt-3 text-xs font-medium">{t('settings.tokens.step3')}</p>

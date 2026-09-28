@@ -1,6 +1,6 @@
 A task is a single piece of work that comes from an approved spec. People and agents work from the same board.
 
-## The board and its lanes
+## The board and its lanes {#board}
 
 Each lane on the board is a task status.
 
@@ -66,7 +66,7 @@ Board cards and the task screen show the reason **using those four names**. A re
 
 **Lanes do not load all their cards at once.** A `+` after a lane's count means the lane has more cards. At the bottom of the lane, **+N more** expands the cards that are already loaded, and **Load more** fetches the next batch. This way you can read even a long lane to the end, such as Done with Show archived turned on. **When the Ready lane is empty**, it shows what to do next: **See N blocked** (goes to the Blocked lane) and **Fill in N backlog tasks** (goes to the Backlog lane, and turns on Show backlog if it is off).
 
-## The task screen opens over the board
+## The task screen opens over the board {#task-sheet}
 
 Clicking a card opens the task **in a sheet on the right side of the board**. The board stays open behind it. Your filters, collapsed lanes, and expanded "+N more" lists stay as they were, and clicking another card behind the sheet switches the sheet to that task. On a narrow screen, the sheet covers the whole screen.
 
@@ -75,7 +75,7 @@ Clicking a card opens the task **in a sheet on the right side of the board**. Th
 - `Esc`, `j`, and `k` do nothing while the cursor is in an input field.
 - The task's URL (`/p/…/tasks/CLV-T-…`) stays the same when the task opens in a sheet, so you can share it as a link. Opening that URL shows the sheet with the board behind it.
 
-## The next step is at the top of the task screen
+## The next step is at the top of the task screen {#next-step}
 
 The buttons to the right of the task title **move the task from its current status to the next one**.
 
@@ -94,7 +94,7 @@ The buttons to the right of the task title **move the task from its current stat
 
 **The finish form is already open when the task is Claimed, In progress, or In review.** Clicking [Finish…] takes you to it. Spec impact **starts with nothing selected**. You have to choose **No spec impact** explicitly too, so [Move to done] stays disabled until you make a choice. If you choose **Has impact**, the button is enabled only after you write which spec should change and how. If no evidence is attached, a notice appears before you press the button, because the done gate requires evidence. To mark a task as blocked, pick a reason in the separate **Mark as blocked** card.
 
-## The four parts of a brief
+## The four parts of a brief {#brief}
 
 A task can become `ready` only when these four parts are filled in.
 
@@ -111,7 +111,7 @@ If any part is empty, the task cannot be claimed. **Large work needs one more st
 
 The task screen also shows the basis for the task in readable form: the requirement's stable ID and text, the active claim's remaining lease and declared scope, and the reviews that covered this task (open critical findings in red). All three link to the related screen. The requirement goes to the **Requirements** tab of its spec. **[View session ▸]** on the claim row goes to the session that has the claim. The branch on a review row goes to the review center, filtered to **that branch's findings only**.
 
-## Claims and leases
+## Claims and leases {#claims}
 
 Taking on a task is called a **claim**. A claim has a 30-minute lease, and the session sends a heartbeat every 60 seconds to renew it.
 
@@ -122,7 +122,7 @@ Taking on a task is called a **claim**. A claim has a 30-minute lease, and the s
 - **A Claimed or In progress task with no active claim can be picked up again or sent back.** [Claim] picks it up in its current state. If nobody will continue it, [Send back to ready] or [Send back to backlog] returns it to the queue. The first appears when the four parts of the delegation brief are filled in. The second appears when they are not, which is usually the case for imported tasks. Imported in-progress tasks used to stay in that state for a long time. They did not appear in the queue and could not be claimed, so nobody could pick them up. If there is an active claim, release it or stop the session first.
 - The server allows more than the screen offers. **An admin can release someone else's claim**, and planners and admins can change the status of a task that someone else has claimed. The screen does not offer these actions.
 
-## Done, and the archive window
+## Done, and the archive window {#done-archive}
 
 Finished tasks stay on the board for **seven days** and then drop out of the list. Turn on **Show archived** to also see tasks that were completed more than seven days ago.
 
@@ -130,7 +130,7 @@ The archive window is not a status. It is **a period calculated from the complet
 
 **`done` cannot be undone.** Requests to move a finished task to another lane are refused. Completing a task closes it with its evidence and spec impact, so reopening it would be a new decision. If work remains, **create a new task**.
 
-## Click the evidence
+## Click the evidence {#evidence}
 
 The **Evidence** list on the task screen records the material attached to show what the task produced. Items that link somewhere **open in a new tab** when you click them. A PR opens the URL recorded for it, a commit or code path opens that location in the project repository, and a review opens that finding in the review center. They open in a new tab because you may be filling in the finish form on this screen. If you leave the page in the same tab, you lose the spec impact and evidence you entered.
 
@@ -138,17 +138,17 @@ The **Evidence** list on the task screen records the material attached to show w
 
 **Evidence can carry a note.** In the finish form, use the note field below the location to say in a sentence or two what the evidence shows (up to 500 characters, optional). The note appears next to the location in the evidence list. Put only what the evidence points to in the location field, such as a commit hash or a PR URL; adding a description after the hash is a format error. Agents leave their notes in the same field (`note`).
 
-**User guide evidence opens a chapter of this manual.** Enter a chapter name (`tasks`) or the full path (`/help/tasks`) to open that chapter. A name that does not match a chapter is shown as plain text.
+**User guide evidence opens a chapter of this manual.** Enter a chapter name (`tasks`) or the full path (`/help/tasks`) to open that chapter. Add a section name (`tasks#evidence`) to open that section; a section name the chapter does not have opens the top of the chapter. A name that does not match a chapter is shown as plain text.
 
 **Some items are not clickable.** Test names are written differently in every repository, so NERV does not guess where they should link. Plain text is better than a link to the wrong place. Commits and code paths **need a repository URL on the project**. When it is empty, those items are shown as plain text, with a note explaining why.
 
-## Requirement links
+## Requirement links {#requirement-links}
 
 A task can link to the requirement it implements (the task's source requirement). **No task** on the project screen is the number of unimplemented requirements that no task is linked to. So without any links, **No task** equals the number of unimplemented requirements.
 
 The implemented and verified bar is calculated from each requirement's implementation status. The server also derives that status from the progress of the linked tasks (see "Requirements" in the specs chapter).
 
-## When the base version goes stale
+## When the base version goes stale {#stale-base}
 
 If the spec version a task is based on becomes `superseded`, the task card gets a **Re-check instructions** badge, and the basis row in the task details shows **Re-check instructions** too. You have two options:
 
@@ -157,7 +157,7 @@ If the spec version a task is based on becomes `superseded`, the task card gets 
 
 A person makes this choice. The screen does not choose for you. Only planner, developer, and admin can click [Update basis].
 
-## Tasks built on a baseline
+## Tasks built on a baseline {#baseline-tasks}
 
 When a task has a **baseline**, it is built against the versions in that baseline. The agent reads the source document at the task's base version and the surrounding documents at the versions the baseline captured. The basis card in the task details shows the baseline name.
 

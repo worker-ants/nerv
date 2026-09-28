@@ -1,6 +1,6 @@
 The review center is where you see the **findings** about your code and specs in one place. A review is the result of an agent checking the work before a person reads it. A person decides what to fix.
 
-## Review sessions and findings
+## Review sessions and findings {#review-sessions}
 
 A **review session** is the record of one change reviewed under one kind. Findings come from these sessions. There are four kinds of review.
 
@@ -17,7 +17,7 @@ A session moves from `running` to `complete`. It also records which input it rev
 
 **If the same change is submitted twice under the same kind, there is still only one session.** No new session is created; another report is added to the existing one. A different reviewer also adds a report, not a session. When new commits on the branch change the diff, a new session is created and the round number goes up. **The same issue stays a single finding across rounds.** Findings with the same category, file, symbol and title count as the same issue, so a shifted line number doesn't create a new finding. The card shows how many times it was seen and the most recent round, in the form "seen N× · latest round M".
 
-## Severity and resolution
+## Severity and resolution {#severity}
 
 A finding has one of three severities: `critical`, `warning` or `info`. **Open** (`open`) is the **state** of a finding that hasn't been resolved yet. There are four **resolutions**:
 
@@ -38,7 +38,7 @@ Only roles with the `review:resolve` scope (admin, planner and qa) can resolve f
 
 **Only a person can dismiss a `critical` finding or mark it won't fix.** When an agent tries to resolve a `critical` finding as `dismissed` or `wont_fix`, the change isn't applied right away. An **approval card** is created instead. This way, a serious problem can't be removed without anyone noticing.
 
-## What needs fixing
+## What needs fixing {#targets}
 
 Severity shows how urgent a finding is. **Area** shows what needs fixing. There are four areas.
 
@@ -49,7 +49,7 @@ Severity shows how urgent a finding is. **Area** shows what needs fixing. There 
 
 When an agent doesn't send this value, **the server infers the area from what the finding points to** and marks the card `inferred`. When you see that mark, read the finding before you trust its area. The mark is there so that a guess never looks like a fact.
 
-## Filters
+## Filters {#filters}
 
 Narrow the queue with the filters in the **left column**: **Severity**, **Area** and **Status**, plus **Tags** when some findings are tagged. The number next to each value shows how many findings match under the current filters. On a narrow screen, the filters move above the list.
 
@@ -63,7 +63,7 @@ When the list reaches its limit and is cut short, you see **M of N**. When there
 
 **The status filter has no `spec_change` value.** A finding closed by fixing the spec is listed under `Fixed`, and the rail shows what resolved it.
 
-## Gate coverage
+## Gate coverage {#gate-coverage}
 
 Gate coverage shows, for each branch, whether it has been reviewed and whether its findings have all been resolved. In the table, **each row is one branch** and shows the reviews that covered it, the share of findings resolved and the verdict. If no review actually checked the branch, the gate is only stamping it as passed, whatever its rules say. The table shows up to the 20 most recent branches. Click a branch name to go to that branch's findings.
 
@@ -71,6 +71,6 @@ Gate coverage shows, for each branch, whether it has been reviewed and whether i
 
 For a waived branch (a gate bypass), **who waived it, when and why** appears under its row. Making sure a bypass never goes unnoticed is part of this table's job too.
 
-## The sidebar badge
+## The sidebar badge {#badge}
 
 In the left sidebar, the number next to **Review** under the expanded project is the count of **open `critical`** findings. If you could see this number only by opening the review center, nobody would know it until they opened it. That's why it's shown in the sidebar.
