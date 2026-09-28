@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **26종**(2026-09-28)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.39 · 2026-09-28 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.40 · 2026-09-28 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.40 변경(2026-09-28 — done 의 사람 승인은 없다, clemvion 요청 N9 · 사람 결정 D10): **§2.2 A3 행 · §6.4 표 한 행.** "정책상 지정된 done 은 A3(사람 승인)" 라고 적었지만 그런 정책 키도, done 전이에 승인을 거는 코드도 없다. done 은 done 게이트(증적 · 스펙 영향 · 정책이 켜면 리뷰)가 판정하고, 넘을 수 없으면 사람이 면제 결재를 한다. 두 자리를 "제안 · 미구현" 으로 표시했다.
 >
 > v0.39 변경(2026-09-28 — 발견의 태그, clemvion 요청 N8): **§2.3 카탈로그 한 행.** `nerv_review_submit` 의 `findings[]` 에 `tags` 를 더했다 — 서비스는 받는데 도구 스키마에 없어서 에이전트가 줄 수 없었다([4.4 API 명세](../04-mvp/api.md) REQ-API-253).
 >
@@ -169,7 +171,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | --- | --- | --- | --- | --- |
 | **A1 Low** | 읽기·검색·후보 조회 | 없음(자동 실행) | `nerv_bootstrap` `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get` `nerv_spec_check` `nerv_task_next` `nerv_task_heartbeat` `nerv_session_event` `nerv_finding_list` | 승인 프롬프트 없음 |
 | **A2 Medium** | 되돌릴 수 있는 상태 변경 | 실행 후 통지(soft) — Event + 알림, undo 경로 존재 | `nerv_spec_draft_upsert` `nerv_spec_comment_resolve` `nerv_task_claim` `nerv_task_update` `nerv_task_release` `nerv_review_submit` `nerv_finding_resolve`(fixed) `nerv_question_create` `nerv_spec_attachment_hide` | 기본 권한 규칙으로 허용 |
-| **A3 High** | 사람의 시간·판단을 소비하거나 되돌리기 비싼 변경 | 실행 전 승인(hard) | `nerv_spec_submit_review`, `nerv_finding_resolve`(critical → dismissed/wont_fix), 정책상 지정된 `nerv_task_update(status=done)` | Claude: `_meta["anthropic/requiresUserInteraction"]: true` / Codex: 승인 정책 + 질문 폴링 |
+| **A3 High** | 사람의 시간·판단을 소비하거나 되돌리기 비싼 변경 | 실행 전 승인(hard) | `nerv_spec_submit_review`, `nerv_finding_resolve`(critical → dismissed/wont_fix), 정책상 지정된 `nerv_task_update(status=done)`(제안 · 미구현 — 2026-09-28 확인: done 은 done 게이트가 판정하고 사람 승인을 걸지 않는다. 넘을 수 없으면 사람이 면제 결재를 한다) | Claude: `_meta["anthropic/requiresUserInteraction"]: true` / Codex: 승인 정책 + 질문 폴링 |
 | **A4 Critical** | 삭제·배포·권한 변경·게이트 면제 | **도구 미제공** — 웹 UI에서 사람만 | (없음) — 첨부는 **내리기**만 A2 도구로 준다(파일은 남는다 · 2026-09-28) | 요청 시 `NERV_HUMAN_ONLY` 에러와 딥링크 반환 |
 
 - [Designing Approval Gates for High-Risk AI Agent Actions — C# Corner](https://www.c-sharpcorner.com/article/designing-approval-gates-for-high-risk-ai-agent-actions/) (2026-08-13 확인): 부작용·민감도·가역성·영향 범위 4요소 분류와 Low/Medium/High/Critical 4단계 매핑, "모델은 액션을 요청할 수 있을 뿐 실행 허용은 애플리케이션이 결정한다"는 원칙, 승인 만료 윈도우·스테일 승인 거부.
@@ -769,7 +771,7 @@ A3 도구에는 티어를 `_meta` 에 실어 보낸다 — **실물의 이름은
 | --- | --- | --- | --- |
 | `nerv_spec_submit_review` | requiresUserInteraction | `approval_policy` + `NERV_APPROVAL_REQUIRED` | pending Approval 생성 후 대기 |
 | `nerv_finding_resolve`(critical → dismissed/wont_fix) | requiresUserInteraction | 동상 | 승인 큐 경유 |
-| `nerv_task_update(status=done)` — 정책이 요구할 때 | requiresUserInteraction | 동상 | 게이트 판정 + 승인 |
+| `nerv_task_update(status=done)` — 정책이 요구할 때(제안 · 미구현 — 2026-09-28 확인) | requiresUserInteraction | 동상 | 게이트 판정 + 승인 — 지금은 게이트 판정만 한다 |
 | A4 액션 전체 | 도구 없음 | 도구 없음 | `NERV_HUMAN_ONLY` + 딥링크 |
 
 Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권한 모드 → allow → 런타임 콜백)와 NERV 게이트는 동형이다. 특히 "조직이 ask로 지정한 도구는 어떤 모드·allow 규칙에서도 항상 사람에게 온다"는 강제 승인 레인이 NERV 거버넌스의 클라이언트 측 훅 포인트다.

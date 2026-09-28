@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.43 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.44 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.44 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **impl 스킬의 done 승인 문구** 를 적는다.
 >
 > v2.43 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **발견의 태그(REST · MCP)** 를 적는다.
 >
@@ -780,6 +782,7 @@ referenced_by:
 | 프로젝트 스펙 전체 내보내기(EP-MIR-03) | `common/zip-stream.ts`(신설 — 흘려보내는 zip) · `modules/spec/spec-export.service.ts`(신설) · `mirror.controller.ts`(`export.zip`) · `spec.service.ts`(`mirrorDocument` 의 `meta` · `llmsTxt` 의 링크) · `nerv-exception.filter.ts`(파일 경로의 413) · 문구 `error.export.too_large` · L1 `zip-stream.spec.ts` · `nerv-exception.filter.spec.ts` · L2 `mirror-http.spec.ts` 4건 | clemvion 요청 N5(2026-09-28) · 사람 결정 D7 · D8([4.4 API 명세](api.md) REQ-API-251) |
 | 종류별 필수 리뷰어 역할 | `@nerv/schema` `zod/policy.ts`(`review_roles`) · `review-gate.ts`(`roles` · `missing_roles`) · `review.service.ts`(`reviewPolicy` · `recordForcedRoles`) · `task.service.ts`(빠진 역할) · `routes/settings/gates.tsx`(필수 리뷰어 역할 칸) · 문구 `settings.gates.roles*` · `task.missing.review_kind_roles` · 매뉴얼 ko · en(설정) · L2 `review-gate.spec.ts` 2건 · L1 `policy.spec.ts` · `irreversible.spec.tsx` 2건 | clemvion 요청 N7(2026-09-28) · 사람 결정 D9([4.4 API 명세](api.md) REQ-API-252 · [4.5 화면 명세](screens.md) REQ-WEB-286) |
 | 발견의 태그(REST · MCP) | `review.service.ts`(`toSubmitFindings` 가 `tags` 를 넘김) · `review.tools.ts`(`findings[].tags`) · `@nerv/schema` `zod/review.ts`(`tags` 10개 · 64자) · 문구 `mcp.arg.finding_tags` · `plugin/skills/review/SKILL.md` · 플러그인 0.3.12 · L2 `review.spec.ts` 2건 | clemvion 요청 N8(2026-09-28) · EP-REV-01 행의 area(검토 X12)([4.4 API 명세](api.md) REQ-API-253) |
+| impl 스킬의 done 승인 문구 | `plugin/skills/impl/SKILL.md`(done 게이트 문장) · 플러그인 0.3.13 · 명세 세 자리([3.4](../03-proposal/agent-integration.md) §2.2 · §6.4 · [4.4](api.md) §4)를 "제안 · 미구현" 으로 | clemvion 요청 N9(2026-09-28) · 사람 결정 D10 |
 
 #### 이 절은 언제 갱신되는가
 
@@ -1134,6 +1137,7 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 - [3.3 데이터 모델](../03-proposal/data-model.md) — 엔티티 37종(도메인 33 + 인프라 4) 필드 의미의 정본(E02의 대상).
 - [3.6 화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md) — E08 화면 스토리의 그림 정본.
 - [4.1 MVP 범위와 스택 확정](scope.md) · [4.2 코드베이스와 배포](codebase.md) · [4.3 데이터베이스 스키마](database.md) · [4.4 API 명세](api.md) · [4.5 화면 명세](screens.md) · [4.6 플러그인과 온보딩](plugin.md) · [4.7 스펙 임포터](importer.md) — 4부 형제 문서. 각 스토리의 구현 명세 정본.
+
 
 
 

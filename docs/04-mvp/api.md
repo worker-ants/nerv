@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **26종**(2026-09-28 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.08 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.09 · 2026-09-28 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.09 변경(2026-09-28 — done 의 사람 승인은 없다, **clemvion 요청 N9** · 사람 결정 D10): **§4 한 행.** `nerv_task_update` 의 "정책상 done 은 A3" 는 제안이고 구현되지 않았다고 표시했다 — done 은 done 게이트가 판정하고 사람 승인을 걸지 않는다([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.2).
 >
 > v2.08 변경(2026-09-28 — 발견의 태그, **clemvion 요청 N8**): **REQ-API-253 신설 · EP-REV-01 행.** 서비스는 발견의 `tags` 를 받는데 REST · MCP 가 함께 쓰는 번역이 빠뜨려서 어느 표면으로도 저장되지 않았다. 도구 스키마에 `findings[].tags` 를 더하고 번역이 넘기게 했다. EP-REV-01 행에 `area` 도 없었다(검토 X12).
 >
@@ -1652,7 +1654,7 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | `nerv_task_get` | A1 | `TaskService.get` | EP-TASK-04 | 2026-08-30 신설 — MCP 에 Task 단건 조회가 없어 `nerv_task_next`(클레임 후보)만 볼 수 있었다. 키·UUID 둘 다 받는다(§1.4b). 응답에 기준선 **이름**(`baseline` · REQ-API-204) |
 | `nerv_task_list` | A1 | `TaskService.list` | EP-TASK-01 | 2026-08-30 신설 — 상태·담당·스펙으로 거르고 커서로 넘긴다. `spec` 은 키·UUID 둘 다(§1.4b — 예전에는 UUID 만 받아 키를 넣으면 조용히 0건이었다) |
 | `nerv_task_create` | A2 | `TaskService.create` | EP-TASK-03 | 2026-08-30 신설 — 위임 명세 4요소가 차야 서버가 `ready` 로 올린다(D-09). 만들자마자 집어 갈 수 있는 것이 아니다 |
-| `nerv_task_update` | A2(정책상 done은 A3) | `TaskService.transition` | EP-TASK-09 | done 게이트 판정 단일 지점 |
+| `nerv_task_update` | A2(정책상 done은 A3 — 제안 · 미구현, 2026-09-28 확인) | `TaskService.transition` | EP-TASK-09 | done 게이트 판정 단일 지점 |
 | `nerv_spec_relate` | A2 | `SpecRelationService.declare` | — (관계 선언은 에이전트 전용 — 사람의 경로는 본문 참조 자동 동기화(REQ-API-024)와 S3 관계 패널 조회다) | 문서를 읽어야 아는 판단(`refines`·`depends_on`)을 채우는 도구. `references`는 본문에서 자동 동기화되므로 이 도구가 거부한다. 대상 지문은 최신 승인본이나 가장 새 버전 어느 쪽 것이어도 된다(REQ-API-205) |
 | `nerv_question_create` | A2 | `QuestionService.create` | — (질문 생성은 에이전트 전용. 사람의 답변이 EP-QST-02) | 멱등 재호출 = 폴링 규약은 MCP 표면 정의. 입력 전부(`context`·`escalate`·`blocking`·`wait_seconds`)를 받는다 — §1.4d |
 | `nerv_question_cancel` | A2 | `QuestionService.cancel` | EP-QST-03 | 2026-09-05 신설 — 열거에 있는데 만드는 경로가 없던 값(`cancelled`)에 길을 냈다 |
