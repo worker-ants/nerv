@@ -1,5 +1,9 @@
 // 스펙 메타 다이얼로그 — 제목·부모 이동·정렬·아카이브 (REQ-WEB-038·039 · EP-SPEC-15~17)
 //
+// **명세의 칸 넷을 모두 둔다**(2026-09-28 · REQ-WEB-267): 제목 · 부모(트리에서 고른다) · 정렬 키 ·
+// 주인 역할. 예전에는 제목과 "상위 문서 키" 입력 둘뿐이라 부모를 옮기려면 키를 외워 쳐야 했고,
+// 지금 부모가 무엇인지도 보이지 않았으며, 정렬 키와 주인 역할은 API 가 받는데 화면에 칸이 없었다.
+//
 // **이동은 이력을 끊지 않는다**(FR-01). 그 사실을 화면이 말해야 사람이 옮길 용기를 낸다 —
 // 문서를 옮기면 링크가 깨진다고 믿으면 트리는 처음 만든 모양 그대로 굳는다.
 //
@@ -11,11 +15,13 @@ import { useT } from '../../lib/i18n.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { NERV_ERROR } from '@nerv/schema';
+import { NERV_ERROR, ROLE_SCOPES } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useApiError } from '../../lib/api-errors.js';
+import { rows, useSpecTree } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { cn } from '../../lib/utils.js';
 import { Button, Field, Input } from '../../components/ui/primitives.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -26,6 +32,10 @@ export interface MetaDialogProps {
   projectId: ProjectId | undefined;
   specKey: string;
   title: string;
+  /** 지금의 메타 — 상세 응답이 준다(EP-SPEC-03). 없으면 맨 위 · 정하지 않음 */
+  parentKey?: string | null;
+  sortKey?: string | null;
+  ownerRole?: string | null;
   /** planner·admin 만 편집한다 — 그 외 역할에는 비활성 + 사유(REQ-WEB-003·038) */
   canEdit: boolean;
   onClose: () => void;
@@ -41,6 +51,9 @@ export function MetaDialog({
   projectId,
   specKey,
   title,
+  parentKey = null,
+  sortKey = null,
+  ownerRole = null,
   canEdit,
   onClose,
 }: MetaDialogProps): React.JSX.Element {
@@ -49,7 +62,10 @@ export function MetaDialog({
   const { pushToast } = useRealtime();
   const onApiError = useApiError();
   const [newTitle, setNewTitle] = useState(title);
-  const [parentKey, setParentKey] = useState('');
+  /** 고른 부모 — `undefined` 는 그대로, `null` 은 맨 위로 */
+  const [parentChoice, setParentChoice] = useState<string | null | undefined>(undefined);
+  const [newSortKey, setNewSortKey] = useState(sortKey ?? '');
+  const [newOwnerRole, setNewOwnerRole] = useState(ownerRole ?? '');
   const [cycleError, setCycleError] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<Blocker[] | null>(null);
 
@@ -70,14 +86,26 @@ export function MetaDialog({
     }
   };
 
+  // **바뀐 칸만 보낸다** — 그대로인 값을 다시 보내면 서버가 바뀐 것으로 적는다(이벤트의 변경 목록)
+  const changes: Record<string, unknown> = {
+    ...(newTitle.trim() !== '' && newTitle.trim() !== title ? { title: newTitle.trim() } : {}),
+    ...(parentChoice !== undefined && parentChoice !== parentKey
+      ? { parent_key: parentChoice }
+      : {}),
+    ...(newSortKey.trim() !== '' && newSortKey.trim() !== (sortKey ?? '')
+      ? { sort_key: newSortKey.trim() }
+      : {}),
+    ...(newOwnerRole !== '' && newOwnerRole !== (ownerRole ?? '')
+      ? { owner_role: newOwnerRole }
+      : {}),
+  };
+  const dirty = Object.keys(changes).length > 0;
+
   const save = useMutation({
     mutationFn: () =>
       apiFetch(`/projects/${projectSlug}/specs/${specKey}`, {
         method: 'PATCH',
-        body: {
-          title: newTitle,
-          ...(parentKey.trim() === '' ? {} : { parent_key: parentKey.trim() }),
-        },
+        body: changes,
       }),
     onSuccess: () => {
       setCycleError(null);
@@ -148,15 +176,51 @@ export function MetaDialog({
             disabled={!canEdit}
           />
         </Field>
-        <Field label={t('spec.meta.parent_field')} hint={t('spec.meta.parent_hint')}>
-          <Input
-            value={parentKey}
-            onChange={(e) => setParentKey(e.target.value)}
+        {/* `Field` 는 칸 하나를 `<label>` 로 감싼다 — 찾기 칸과 고르는 목록이 함께 든 이 자리는
+            라벨 하나에 담지 않고 같은 모양의 묶음으로 둔다 */}
+        <div role="group" aria-labelledby="meta-parent-label" className="flex flex-col gap-1">
+          <span id="meta-parent-label" className="text-xs font-medium text-text-mute">
+            {t('spec.meta.parent_field')}
+          </span>
+          <ParentPicker
+            projectSlug={projectSlug}
+            projectId={projectId}
+            specKey={specKey}
+            current={parentKey}
+            value={parentChoice === undefined ? parentKey : parentChoice}
+            onChange={setParentChoice}
             disabled={!canEdit}
-            placeholder="KEY-…"
-            className="font-mono"
           />
-        </Field>
+          <span className="text-xs text-text-faint">{t('spec.meta.parent_hint')}</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('spec.meta.sort_field')} hint={t('spec.meta.sort_hint')}>
+            <Input
+              data-testid="meta-sort-key"
+              value={newSortKey}
+              onChange={(e) => setNewSortKey(e.target.value)}
+              disabled={!canEdit}
+              className="font-mono"
+            />
+          </Field>
+          <Field label={t('spec.meta.owner_field')} hint={t('spec.meta.owner_hint')}>
+            <select
+              data-testid="meta-owner-role"
+              value={newOwnerRole}
+              onChange={(e) => setNewOwnerRole(e.target.value)}
+              disabled={!canEdit}
+              className="h-9 w-full rounded-nerv-sm border border-border bg-bg-elev px-2 text-sm"
+            >
+              {/* 정하지 않은 채로만 고를 수 있다 — 한 번 정한 역할을 비우는 길은 API 에 없다 */}
+              {ownerRole === null && <option value="">{t('spec.meta.owner_none')}</option>}
+              {Object.keys(ROLE_SCOPES).map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
       </div>
 
       {cycleError !== null && (
@@ -209,7 +273,7 @@ export function MetaDialog({
         <Button
           variant="primary"
           data-testid="meta-save"
-          disabled={!canEdit || save.isPending}
+          disabled={!canEdit || !dirty || save.isPending}
           disabledReason={canEdit ? undefined : t('spec.meta.edit_role')}
           onClick={() => save.mutate()}
         >
@@ -238,5 +302,121 @@ export function MetaDialog({
         </Button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * **부모는 트리에서 고른다**(REQ-WEB-267). 자기 자신과 자기 아래 문서는 고를 수 없다 — 서버도
+ * `tree_cycle` 로 막지만, 누른 뒤에 거절당하는 것보다 처음부터 잠겨 있는 편이 낫다.
+ */
+function ParentPicker({
+  projectSlug,
+  projectId,
+  specKey,
+  current,
+  value,
+  onChange,
+  disabled,
+}: {
+  projectSlug: string;
+  projectId: ProjectId | undefined;
+  specKey: string;
+  current: string | null;
+  value: string | null;
+  onChange: (next: string | null) => void;
+  disabled: boolean;
+}): React.JSX.Element {
+  const t = useT();
+  const tree = useSpecTree(projectSlug, projectId);
+  const [query, setQuery] = useState('');
+  const nodes = rows(tree.data).map((n) => ({
+    id: String(n['id']),
+    key: String(n['key']),
+    title: String(n['title'] ?? ''),
+    parent: n['parent_id'] == null ? null : String(n['parent_id']),
+  }));
+  // 트리 순서 그대로 펼친다 — 서버가 정렬 키 순으로 준다
+  const children = new Map<string | null, typeof nodes>();
+  for (const n of nodes) children.set(n.parent, [...(children.get(n.parent) ?? []), n]);
+  const ordered: { node: (typeof nodes)[number]; depth: number }[] = [];
+  const walk = (parent: string | null, depth: number): void => {
+    for (const node of children.get(parent) ?? []) {
+      ordered.push({ node, depth });
+      walk(node.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  // 자기와 자기 아래 — 고를 수 없다
+  const self = nodes.find((n) => n.key === specKey);
+  const blocked = new Set<string>();
+  const block = (id: string): void => {
+    blocked.add(id);
+    for (const c of children.get(id) ?? []) block(c.id);
+  };
+  if (self !== undefined) block(self.id);
+
+  const q = query.trim().toLowerCase();
+  const shown = ordered.filter(
+    ({ node }) =>
+      q === '' || node.key.toLowerCase().includes(q) || node.title.toLowerCase().includes(q),
+  );
+  const option = (
+    key: string | null,
+    label: React.ReactNode,
+    depth: number,
+    locked: boolean,
+  ): React.JSX.Element => (
+    <button
+      key={key ?? '(root)'}
+      type="button"
+      role="radio"
+      aria-checked={value === key}
+      data-testid={key === null ? 'meta-parent-root' : `meta-parent-${key}`}
+      disabled={disabled || locked}
+      title={locked ? t('spec.meta.parent_locked') : undefined}
+      onClick={() => onChange(key)}
+      style={{ paddingLeft: 8 + depth * 12 }}
+      className={cn(
+        'flex w-full items-center gap-2 py-1 pr-2 text-left text-sm hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50',
+        value === key && 'bg-bg-active font-medium',
+      )}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p data-testid="meta-parent-current" className="text-xs text-text-mute">
+        {t('spec.meta.parent_current')}{' '}
+        <span className="font-mono">{current ?? t('spec.meta.parent_root')}</span>
+      </p>
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        disabled={disabled}
+        placeholder={t('spec.meta.parent_search')}
+        aria-label={t('spec.meta.parent_search')}
+      />
+      <div
+        role="radiogroup"
+        aria-label={t('spec.meta.parent_field')}
+        data-testid="meta-parent-picker"
+        className="max-h-48 overflow-y-auto rounded-nerv-sm border border-border py-1"
+      >
+        {q === '' && option(null, t('spec.meta.parent_root'), 0, false)}
+        {shown.map(({ node, depth }) =>
+          option(
+            node.key,
+            <>
+              <span className="shrink-0 font-mono text-xs text-text-faint">{node.key}</span>
+              <span className="min-w-0 truncate">{node.title}</span>
+            </>,
+            q === '' ? depth : 0,
+            blocked.has(node.id),
+          ),
+        )}
+      </div>
+    </div>
   );
 }

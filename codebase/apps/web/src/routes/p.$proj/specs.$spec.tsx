@@ -1215,6 +1215,9 @@ function SpecDetail(): React.JSX.Element {
           projectId={projectUuid}
           specKey={spec}
           title={String(detail.data?.['title'] ?? spec)}
+          parentKey={(detail.data?.['parent_key'] as string | null | undefined) ?? null}
+          sortKey={(detail.data?.['sort_key'] as string | null | undefined) ?? null}
+          ownerRole={(detail.data?.['owner_role'] as string | null | undefined) ?? null}
           // 역할은 me 의 멤버십에서 온다 — 권한 판정의 정본은 서버지만, 화면은 미리 알려준다.
           // **합집합으로 본다**: 멤버십 한 행만 보면 조직 단위 admin 이 어느 프로젝트에서도
           // 역할이 없는 사람이 되어, 서버가 허용할 편집을 화면이 막는다(실측 2026-08-24).
