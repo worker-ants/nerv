@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.25 (2026-09-28)</span>
+      <span>버전 v0.26 (2026-09-28)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -1066,10 +1066,10 @@ SELECT EXISTS (
   <div class="table-wrap"><table>
     <thead><tr><th>티어</th><th>정의</th><th>채널</th><th>배칭</th></tr></thead>
     <tbody>
-      <tr><td><span class="badge blocked">critical</span></td><td>내 결정이 없으면 누군가의 세션이 멈춰 있다</td><td>인앱 즉시 + Slack DM + 메일</td><td>없음(개별 발송)</td></tr>
+      <tr><td><span class="badge blocked">critical</span></td><td>내 결정이 없으면 누군가의 세션이 멈춰 있다</td><td>인앱 즉시 + Slack DM + 메일 요약(켠 사람 · §6.5)</td><td>없음(인앱은 한 건씩 · 메일은 요약 한 통에 든다)</td></tr>
       <tr><td><span class="badge review">high</span></td><td>내 작업에 직접 영향, 오늘 안에 봐야 함</td><td>인앱 즉시 + Slack 채널</td><td>없음(한 건씩 · 2026-09-27 사람 결정 G3)</td></tr>
-      <tr><td><span class="badge impl">standard</span></td><td>알아두면 좋음</td><td>인앱만</td><td>같은 대상을 읽을 때까지 한 줄(2026-09-27 사람 결정 G2 · §6.5)</td></tr>
-      <tr><td><span class="badge draft">low</span></td><td>배경 활동</td><td>인앱 피드(뱃지 없음)</td><td>일일 다이제스트</td></tr>
+      <tr><td><span class="badge impl">standard</span></td><td>알아두면 좋음</td><td>인앱 + 메일 요약(켠 사람 · §6.5)</td><td>같은 대상을 읽을 때까지 한 줄(2026-09-27 사람 결정 G2 · §6.5)</td></tr>
+      <tr><td><span class="badge draft">low</span></td><td>배경 활동</td><td>알림을 만들지 않는다 — 이벤트 피드에서 본다</td><td>메일 요약에도 들지 않는다(2026-09-28 · EM4)</td></tr>
     </tbody>
   </table></div>
 
@@ -1186,12 +1186,14 @@ SELECT EXISTS (
 
   <div class="grid-2">
     <div class="card"><b class="card-title">batch key</b><p>§6.3 표의 값에 받는 사람을 더한 것. 같은 키의 열린 줄이 있으면 새 줄을 만들지 않고 그 줄의 건수를 올리며 줄을 맨 위로 올린다("스펙 3.2에 코멘트 4건"). <b>보통 등급만 묶는다</b> — critical · high 는 헤더 배지가 세는 것이라 한 건이 한 줄이다. 코드의 <code>finding.commented</code>(Phase 2 이벤트)는 <code>finding:{id}:comments</code> 다.</p></div>
-    <div class="card"><b class="card-title">batch window</b><p>인앱은 창이 없다 — 사람이 읽을 때까지 열려 있고, 읽으면 닫혀 다음 알림은 새 줄로 시작한다. 수준 밖이라 읽음으로 들어온 알림(§6.1)도 같은 규칙으로 묶이되, 안 읽은 묶음과 읽음 묶음은 섞지 않는다. 메일 24시간(사용자별 조정 가능)은 Phase 2 다.</p></div>
-    <div class="card"><b class="card-title">조기 flush</b><p>인앱에는 없다 — 발송이 아니라 줄 하나의 갱신이라 더해질 때마다 맨 위로 온다. 메일에 둔다(배치 항목이 20건을 넘거나 상위 티어 이벤트가 같은 키로 들어오면 즉시 발송).</p></div>
+    <div class="card"><b class="card-title">batch window</b><p>인앱은 창이 없다 — 사람이 읽을 때까지 열려 있고, 읽으면 닫혀 다음 알림은 새 줄로 시작한다. 수준 밖이라 읽음으로 들어온 알림(§6.1)도 같은 규칙으로 묶이되, 안 읽은 묶음과 읽음 묶음은 섞지 않는다. 메일은 <b>켠 사람에게 그 사람의 현지 시각에 하루 한 번</b>이다(받는 시각은 고른다 — 2026-09-28 · EM2).</p></div>
+    <div class="card"><b class="card-title">조기 flush</b><p>인앱에는 없다 — 발송이 아니라 줄 하나의 갱신이라 더해질 때마다 맨 위로 온다. 메일에도 두지 않는다 — 하루 한 통이고, 줄이 20개를 넘으면 그 한 통이 20줄까지 적고 나머지를 "그 밖에 N건" 으로 줄인다(2026-09-28 · EM4).</p></div>
     <div class="card"><b class="card-title">idempotency</b><p>한 이벤트는 한 사람에게 한 줄 또는 한 묶음에만 든다(<code>notification(event_id, user_id)</code> · <code>notification_batch_event(event_id, user_id)</code> 유일). 동시 이벤트가 두 묶음을 여는 경쟁은 "열린 묶음은 키마다 하나" 유일 인덱스가 막는다(<a href="database.html">4.3 데이터베이스</a> REQ-DB-029·030).</p></div>
   </div>
 
   <p><b>결정 기록</b>(2026-09-27 · 사람 결정 G1~G4 · 다이제스트 검토). 명세는 보통 등급을 5분 창으로 묶는다고 적었지만 묶는 작업이 없어 알림이 한 건씩 쌓였다. 로컬 실측(참조 스펙 재검토 알림 1,590행)에서 대상 × 5분 창은 582줄, 승인 한 건 단위는 150줄, <b>대상을 읽을 때까지 한 줄은 36줄</b>이었다 — 같은 문서가 여러 번 승인되는 흐름에서는 시간 창이 거의 줄이지 못한다. G1: 앱 안 묶음만 MVP 로 들인다(<a href="scope.html">4.1 MVP 범위</a> FR-12). G2: 같은 대상을 읽을 때까지 한 줄로 묶는다(GitHub 스레드 알림의 모양). G3: 보통 등급만 묶는다. G4: 메일 다이제스트는 앱 안 묶음이 자리 잡은 뒤 따로 정한다.</p>
+
+  <p><b>결정 기록</b>(2026-09-28 · 사람 결정 EM1~EM9 · 알림 메일 요약). G4 로 미뤄 둔 메일을 정한다. 알림은 앱 안에만 있어 앱을 자주 열지 않는 사람에게 알릴 길이 없었고, 메일을 보내는 배관(발송 큐 · 워커 · 재시도)은 이미 있었다. EM1: Phase 2 를 앞당겨 착수한다(<a href="scope.html">4.1 MVP 범위</a> 착수 기록 — MVP 범위 표는 그대로). EM2: 하루 한 번, 받는 사람의 현지 시각(기본 09:00). EM3: 기본은 꺼짐 — 켠 사람에게만. EM4: 결정 대기 수 + 중요 + 보통 묶음을 담되 안 읽은 것 가운데 지난 요약 뒤에 새로 생기거나 건수가 늘어난 줄만 — 읽음 상태가 이미 채널을 넘는 중복을 걸러 준다(§6.4 · §6.6-4). EM5: 시간대와 언어는 켤 때 브라우저의 값을 저장하고 설정에서 고친다. EM6: 사람당 한 통, 조직 → 프로젝트로 나눈다. EM7: 키 · 제목 · 건수 · 이름까지, 본문은 없다. EM8: 설정 링크와 로그인 없이 한 번에 끄는 링크(RFC 8058). EM9: 보낸 메일은 7일 뒤 발송 큐에서 지운다. 결정 이름은 §7 게이트 번호(G1~G5)와 겹치지 않게 <code>EM</code> 을 쓴다.</p>
 
   <h3>6.6 피로 방지 원칙 다섯</h3>
 

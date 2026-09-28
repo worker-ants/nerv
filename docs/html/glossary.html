@@ -53,7 +53,7 @@
     <h1>용어 사전</h1>
     <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 38개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.18 (2026-09-27)</span>
+      <span>버전 v0.19 (2026-09-28)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -214,6 +214,7 @@
       <tr><td><b>알림</b></td><td>notification</td><td><code>notification</code></td><td>이미 일어난 일을 알리는 것. 두 등급 — <b>중요</b>(<code>immediate</code> · 영문 화면 <code>Important</code> · 헤더 배지가 세는 것)와 그 밖(<code>digest</code>)이다. 중요를 "결정" 이라 부르지 않는다 — 결정은 받은 요청의 낱말이다</td></tr>
       <tr><td><b>알림 수준</b></td><td>notification level</td><td><code>notification_preference.level</code></td><td>사람이 프로젝트마다 고르는 알림의 양 — <b>모두</b>(<code>all</code> · 영문 <code>All</code>) · <b>중요만</b>(<code>important</code> · <code>Important only</code>) · <b>알리지 않음</b>(<code>none</code> · <code>Off</code>). 고른 수준 밖의 알림은 읽음으로 남는다. 받은 요청에는 영향이 없다. "구독" 은 워치(Phase 2)의 낱말이라 쓰지 않는다</td></tr>
       <tr><td><b>알림 묶음</b></td><td>grouped notification</td><td><code>notification.batch_key</code> · <code>notification_batch_event</code></td><td>보통 알림 가운데 같은 대상(배치 키)의 것을 읽을 때까지 한 줄로 모은 것. 줄에는 든 수(×N)와 무엇 때문인지가 적힌다. 읽으면 닫히고 다음 알림은 새 줄로 시작한다. 중요 알림은 묶지 않는다. "다이제스트" 는 메일로 모아 보내는 것(Phase 2)에만 쓴다</td></tr>
+      <tr><td><b>메일 요약</b></td><td>email digest</td><td><code>notification_digest_setting</code> · <code>email_kind.notification_digest</code></td><td>켠 사람에게 하루 한 번, 그 사람의 현지 시각에 안 읽은 알림 가운데 지난 요약 뒤에 새로 오거나 건수가 늘어난 줄을 모아 보내는 메일. 영어 화면은 <code>Email digest</code> 다. "다이제스트" 는 이 메일을 가리키는 말이고, 화면에서는 "메일 요약" 으로 쓴다. 문서 본문은 담지 않고, 보냈다고 알림이 읽음이 되지는 않는다</td></tr>
       <tr><td><b>세션</b></td><td>agent session</td><td><code>agent_session</code></td><td>에이전트가 일하는 한 번의 회차. 대기·활동 중·응답 대기·무응답·종료·오류의 여섯 상태. 사람의 로그인 세션과 이름이 겹치므로 <b>명세에서는 "에이전트 세션" 으로 늘여 쓴다</b></td></tr>
       <tr><td><b>활동</b></td><td>activity</td><td><code>activity</code></td><td>프로젝트에서 벌어진 일의 시간순 기록. 감사 로그이자 사람이 읽는 피드다</td></tr>
     </tbody>

@@ -53,7 +53,7 @@
     <h1>MVP 범위와 스택 확정</h1>
     <p class="lead">NERV MVP를 <b>Phase 0(PoC) + Phase 1(MVP)의 합</b>으로 확정하고 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 <b>23종</b>(P0 8 + P1 15 · 카탈로그 25종 — 리뷰 2종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 <a href="roadmap.html">로드맵</a> §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.</p>
     <div class="meta-line">
-      <span>버전 v0.39 (2026-09-28)</span>
+      <span>버전 v0.40 (2026-09-28)</span>
       <span>원본: <code>docs/04-mvp/scope.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-SCOPE</code> · status: approved</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -278,7 +278,7 @@
       <tr><td>FR-09</td><td>리뷰 수집</td><td>○</td><td>○</td><td>○</td><td>—</td><td>ReviewSession→Finding→Resolution 은 Phase 2 로 계획했으나 <b>2026-08-23 이후 전부 들어왔다</b>(§5 착수 기록) — 서버·도구·REST 7종·S6 리뷰 센터 화면·<code>/nerv:review</code> 스킬(패키지에 배포됨)·소급 임포터까지. 남은 것은 게이트의 리뷰 커버리지 조건이다(FR-10 행)</td></tr>
       <tr><td>FR-10</td><td>게이트 판정 API</td><td>◐</td><td>○</td><td>◐</td><td>Task <code>done</code> 전이 조건 판정</td><td>리뷰 커버리지 조건·커밋 범위 판정은 Phase 2</td></tr>
       <tr><td>FR-11</td><td>받은 요청(Inbox)</td><td>◐</td><td>○</td><td>◐</td><td>스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트</td><td>CR·에스컬레이션 카드(5유형 완성)는 Phase 2</td></tr>
-      <tr><td>FR-12</td><td>알림</td><td>◐</td><td>○</td><td>◐</td><td>인앱 알림</td><td>Slack · 메일 다이제스트는 Phase 2. <b>앱 안 묶음은 MVP 다</b>(2026-09-27 사람 결정 G1 — 보통 알림을 같은 대상마다 읽을 때까지 한 줄로 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.5). <b>알림의 메일 채널도 Phase 2 다</b> — 2026-09-22 에 들어온 SMTP 는 가입 인증과 초대 메일이고(§2.1 발신 행), 알림을 메일로 보내는 것은 중요도·수신 설정이 함께 필요한 별개의 일이다</td></tr>
+      <tr><td>FR-12</td><td>알림</td><td>◐</td><td>○</td><td>◐</td><td>인앱 알림</td><td>Slack · 메일 다이제스트는 Phase 2. <b>앱 안 묶음은 MVP 다</b>(2026-09-27 사람 결정 G1 — 보통 알림을 같은 대상마다 읽을 때까지 한 줄로 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.5). <b>알림 메일 요약은 Phase 2 를 앞당겨 착수했다</b>(2026-09-28 사람 결정 EM1 — 켠 사람에게 하루 한 번 · §5 착수 기록). 수신 설정(켜기 · 시각 · 시간대 · 언어)이 함께 들어왔다. Slack 은 Phase 2 그대로다</td></tr>
       <tr><td>FR-13</td><td>증적·커버리지</td><td>◐</td><td>○</td><td>◐</td><td>PR·커밋 웹훅 수신, Task↔PR 링크</td><td>커버리지 계산·대시보드는 Phase 2</td></tr>
       <tr><td>FR-14</td><td>멀티테넌시</td><td>●</td><td>◐</td><td>●</td><td>Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정)</td><td>—</td></tr>
       <tr><td>FR-15</td><td>에이전트 연동</td><td>◐</td><td>◐</td><td>◐</td><td>MCP tools P0 8종 + P1 15종 = <b>23종</b>(§4.2) + PAT, Claude Code 플러그인 v1(스킬 5종 + hooks + statusline — <code>.mcp.json</code> 은 담지 않는다, 2026-09-04 REQ-PLG-001 개정), 훅 수집기</td><td>Codex 완전 지원·<code>AGENTS.md</code> 배포·OAuth 2.1은 Phase 2(§5)</td></tr>
@@ -436,6 +436,12 @@
     <p>Phase 2 항목 중 <b>리뷰 수집의 서버·도구</b>를 앞당겨 구현했다. 들어온 것: <code>ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution</code> 적재, MCP 도구 2종(<code>nerv_review_submit</code> A2 · <code>nerv_finding_resolve</code> A2 / critical→dismissed·wont_fix는 A3), REST 3종(EP-REV-01~03 — <a href="api.html">4.4 API 명세</a> §2.6a). 같은 날 이어서 <b>S6 리뷰 센터 화면</b>(<a href="screens.html">4.5</a> §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 <b><code>/nerv:review</code> 스킬</b>(<a href="plugin.html">4.6</a> §2.6)까지 들어왔다. 남은 것: 게이트 둘째 단의 <b>집행</b>(리뷰 커버리지가 Task <code>done</code>을 막는 것 — FR-10의 Phase 2 몫. 지금은 판정을 <b>표시</b>만 한다), <code>spec_drift</code> → CR 라우팅(FR-04 의존), 리뷰 서브에이전트 2종.</p>
     <p><b>MVP 범위 표(§3.2·§4.2)는 바꾸지 않았다.</b> FR-09는 여전히 MVP가 아니고 MVP 약속은 그대로이고 <b>카탈로그만 자랐다</b> — 2026-08-23 의 18종에서 2026-09-28 현재 <b>25종</b>이다(그 사이 범위 확정 일곱 번으로 MVP 도구도 16 → 23 이 됐다 · §4.2).<code>phase</code> 필드가 그 구분을 나른다).</p>
     <p>이 결정이 스키마 하나를 건드렸다: <code>approval_subject_type</code>에 <b><code>finding</code></b>을 더했다(<a href="database.html">4.3</a> §2.1 · <code>0004_finding_approval</code>). A3는 "막는다"가 아니라 <b>사람의 받은 요청을 거친다</b>는 뜻인데, 승인 카드가 붙을 자리가 열거에 없었다.</p>
+  </div></div>
+
+  <div class="callout note"><span class="ico">💡</span><div class="body">
+    <b class="title">착수 기록 — FR-12 알림 메일 요약 (2026-09-28, 사람 결정 EM1~EM9)</b>
+    <p>Phase 2 항목 중 <b>알림의 메일 채널</b>을 앞당겨 구현했다. 켠 사람에게 그 사람의 현지 시각에 하루 한 번, 안 읽은 알림 가운데 지난 요약 뒤에 새로 오거나 건수가 늘어난 줄을 모아 메일 한 통을 보낸다. 들어온 것: 설정 표 <code>notification_digest_setting</code>(<code>0041</code>) · 메일 종류 <code>notification_digest</code> · 설정 API 둘(EP-NTF-07·08 — <a href="api.html">4.4 API 명세</a> REQ-API-232·233) · 워커 잡 <code>digest</code> · 내 계정의 메일 요약 칸(<a href="screens.html">4.5 화면 명세</a> REQ-WEB-269).</p>
+    <p><b>MVP 범위 표는 바꾸지 않았다.</b> FR-12 의 MVP 는 인앱 알림이고, 메일 요약은 FR-09 처럼 Phase 2 를 먼저 착수한 것이다. 앱을 자주 열지 않는 사람(기획 · 디자인 — <a href="pain-points.html">1.2 문제 정의</a> P7)에게 알리는 길이 메일뿐이라는 것이 앞당긴 까닭이다. Slack 채널은 Phase 2 그대로다.</p>
   </div></div>
 
   <p>이 표는 3부 non-goals(<a href="pain-points.html">1.2 문제 정의와 요구사항</a> §5 — 코드 호스팅·CI·범용 PM·에이전트 런타임 비대체, 로컬 하네스 전면 흡수 금지)를 대체하지 않고 그 위에 얹힌다.</p>
