@@ -59,7 +59,23 @@ else
   mc mirror --overwrite --remove "nerv-backup-src/${bucket}" "$blob_dir"
   count="$(find "$blob_dir" -type f | wc -l | tr -d ' ')"
   echo "backup: 첨부 ${count}개 (${blob_dir})"
+
+  # **DB 가 가리키는 파일이 미러에 다 있는가**(2026-09-28 · REQ-CB-059). 파일 수는 증거가
+  # 아니다 — 버킷에는 첨부 말고도 리뷰 프롬프트 blob 이 있어서, 첨부가 빠져도 수는 맞을 수
+  # 있다. 확정된 첨부의 `storage_key` 를 하나씩 찾는다. 빠진 것은 백업이 아니라 버킷에서
+  # 이미 잃은 것이라, 덤프와 미러는 남기고 끝에서 종료 코드로 알린다.
+  missing="$(psql "$DATABASE_URL" -tAc \
+    "SELECT storage_key FROM attachment WHERE committed_at IS NOT NULL ORDER BY 1" |
+    while IFS= read -r key; do
+      [[ -z "$key" || -f "${blob_dir}/${key}" ]] || printf '%s\n' "$key"
+    done)"
 fi
 
 # 보존 기간 경과분 정리 — 무한히 쌓이면 언젠가 디스크가 먼저 죽는다.
 find "$out_dir" -name 'nerv-*.dump' -type f -mtime "+${retention_days}" -delete 2>/dev/null || true
+
+if [[ -n "${missing:-}" ]]; then
+  echo "backup: 확정된 첨부 $(printf '%s\n' "$missing" | wc -l | tr -d ' ')건의 파일이 버킷에 없습니다 — 백업 전에 이미 잃었습니다:" >&2
+  printf '%s\n' "$missing" | head -10 >&2
+  exit 3
+fi
