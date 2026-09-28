@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
+import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { createScratchDb } from './helpers.js';
@@ -909,6 +910,40 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
       bypass_reason: '핫픽스 배포, 사후 리뷰 예약',
       display_name: '규아',
     });
+  });
+});
+
+// 게이트 현황의 두 결함 (2026-09-28 · REQ-API-237). 라운드 번호는 (브랜치 · 종류)마다 따로 세는데
+// "최신" 을 번호로 골라서 다른 종류의 옛 라운드가 보였다. `?limit=abc` 는 LIMIT NaN 으로 가서 500 이었다
+describe('게이트 현황 — 최신 라운드와 limit (REQ-API-237)', () => {
+  it('종류가 섞여도 가장 최근에 만든 라운드를 보인다 — 번호가 큰 다른 종류의 옛 라운드가 아니다', async () => {
+    for (const headSha of ['c0de001', 'c0de002', 'c0de003']) {
+      await reviews.submit(submitInput({ headSha }));
+    }
+    await reviews.submit(submitInput({ headSha: 'c0de004', kind: 'consistency' }));
+    const gate = await reviews.gateCoverage(projectId);
+    expect(gate.items[0]).toMatchObject({
+      branch: 'feat/widget',
+      kind: 'consistency',
+      head_sha: 'c0de004',
+      round_no: 1,
+    });
+  });
+
+  it.each(['abc', '0', '-3'])('?limit=%s 는 400 이다', async (limit) => {
+    const { token } = await app.get(AuthService).issueToken({
+      projectId,
+      userId,
+      name: 'gate',
+      scopes: ['spec:read'],
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/clemvion/gates/reviews?limit=${limit}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect((JSON.parse(res.body) as { code: string }).code).toBe(NERV_ERROR.PRECONDITION);
   });
 });
 

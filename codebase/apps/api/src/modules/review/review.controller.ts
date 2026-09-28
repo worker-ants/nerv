@@ -7,7 +7,14 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { intParam } from '../../common/query-vocab.js';
 import { parseBody } from '../../common/parse-body.js';
-import { FindingCommentInput, FindingResolveInput, ReviewSubmitInput } from '@nerv/schema';
+import {
+  FindingCommentInput,
+  FindingResolveInput,
+  msg,
+  NERV_ERROR,
+  ReviewSubmitInput,
+} from '@nerv/schema';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -78,14 +85,21 @@ export class ReviewController {
     });
   }
 
-  /** EP-REV-04 — 브랜치별 게이트 현황. 표시일 뿐 집행이 아니다 */
+  /** EP-REV-04 — 브랜치별 게이트 현황. 표시용이다 — Task done 을 막는 판정은 done 게이트다 */
   @RequireScope('spec:read')
   @Get('gates/reviews')
   gateCoverage(@Req() req: ProjectRequest, @Query('limit') limit?: string): Promise<unknown> {
-    return this.reviews.gateCoverage(
-      req.nervProjectId!,
-      ...(limit === undefined ? [] : ([Number(limit)] as const)),
-    );
+    // 숫자가 아니거나 1 보다 작으면 400 이다 — `Number('abc')` 가 LIMIT NaN 으로 가서 500 이던 자리다(REQ-API-237)
+    const n = intParam(limit, 'limit');
+    if (n !== null && n < 1) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'limit',
+        unknown: [limit],
+        allowed: ['integer >= 1'],
+      });
+    }
+    return this.reviews.gateCoverage(req.nervProjectId!, ...(n === null ? [] : ([n] as const)));
   }
 
   /**

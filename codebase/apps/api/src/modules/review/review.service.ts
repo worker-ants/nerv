@@ -1199,7 +1199,8 @@ export class ReviewService {
   }
 
   /**
-   * EP-REV-04 — 브랜치별 게이트 현황. **표시일 뿐 집행이 아니다**(api.md §2.6a).
+   * EP-REV-04 — 브랜치별 게이트 현황. **표시용이다**(api.md §2.6a). Task `done` 을 막는 판정은
+   * done 게이트(REQ-API-146 — 정책이 켜면 그 Task 의 라운드와 열린 critical)이고, 기준이 이 표와 다르다.
    *
    * "이 브랜치를 커버하는 해소된 리뷰가 있는가"를 한 번에 답한다. 판정 3종:
    *   uncovered  리뷰 세션이 없다 — 아무도 보지 않았다
@@ -1214,11 +1215,13 @@ export class ReviewService {
     limit = GATE_BRANCH_LIMIT_DEFAULT,
   ): Promise<{ items: Record<string, unknown>[]; total: number }> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      -- **가장 최근에 만든 라운드**다(2026-09-28 · REQ-API-237). 라운드 번호는 (브랜치 · 종류)마다
+      -- 따로 세서, 번호가 큰 것을 고르면 다른 종류의 옛 라운드가 "최신" 으로 보였다 — 종류를 함께 준다
       WITH latest AS (
-        SELECT DISTINCT ON (branch) branch, id, head_sha, round_no, completed_at
+        SELECT DISTINCT ON (branch) branch, id, kind::text AS kind, head_sha, round_no, completed_at
           FROM review_session
          WHERE project_id = ${projectId}
-         ORDER BY branch, round_no DESC, created_at DESC
+         ORDER BY branch, created_at DESC, id DESC
       ),
       counts AS (
         SELECT rs.branch,
@@ -1229,7 +1232,7 @@ export class ReviewService {
          WHERE rs.project_id = ${projectId}
          GROUP BY rs.branch
       )
-      SELECT l.branch, l.head_sha, l.round_no, l.completed_at,
+      SELECT l.branch, l.kind, l.head_sha, l.round_no, l.completed_at,
              coalesce(c.total, 0) AS total, coalesce(c.resolved, 0) AS resolved,
              CASE WHEN coalesce(c.total, 0) = coalesce(c.resolved, 0) THEN 'passed'
                   ELSE 'pending' END AS verdict
