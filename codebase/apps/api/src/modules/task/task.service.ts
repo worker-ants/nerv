@@ -2024,18 +2024,28 @@ export class TaskService {
           taskId,
           kinds: [...new Set(policy.review_coverage)],
           headSha: null,
+          // 종류마다 반드시 보고해야 하는 역할(REQ-API-252) — 게이트 판정과 같은 정책 값이다
+          requiredRoles: parsed.success ? parsed.data.review_roles : {},
         });
         for (const v of verdicts) {
           if (v.state === 'uncovered') {
             missing.push(text('task.missing.review_kind_uncovered', { kind: v.kind }));
           } else if (v.reasons.includes('running') || v.reasons.includes('failed')) {
             missing.push(text('task.missing.review_kind_unfinished', { kind: v.kind }));
-          } else if (v.state === 'pending') {
+          } else if (v.reasons.includes('open_critical') || v.reasons.includes('open_warning')) {
             missing.push(
               text('task.missing.review_kind_open', {
                 kind: v.kind,
                 critical: v.open.critical,
                 warning: v.open.warning,
+              }),
+            );
+          }
+          if (v.roles.missing.length > 0 && v.state !== 'uncovered') {
+            missing.push(
+              text('task.missing.review_kind_roles', {
+                kind: v.kind,
+                roles: v.roles.missing.join(' · '),
               }),
             );
           }

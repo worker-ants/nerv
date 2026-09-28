@@ -671,6 +671,7 @@ export const en = {
   'task.missing.open_critical': 'the review still has open critical findings',
   'task.missing.review_kind_uncovered': 'no {kind} review has covered this task',
   'task.missing.review_kind_unfinished': 'the {kind} review of this task has not finished',
+  'task.missing.review_kind_roles': 'the {kind} review of this task has no report from {roles}',
   'task.missing.review_kind_open':
     'the {kind} review of this task still has open findings ({critical} critical · {warning} warning)',
   'task.missing.evidence': 'evidence (at least one implementation record)',
@@ -1755,6 +1756,14 @@ export const en = {
   'settings.gates.change_coverage': 'Review {from} → {to}',
   'settings.gates.loosen_done_confirm':
     'This loosens the task completion criteria. Tasks with less review may be marked done.',
+  'settings.gates.roles': 'Required reviewer roles',
+  'settings.gates.roles_placeholder': 'e.g. security, testing',
+  'settings.gates.roles_hint':
+    'Enter, separated by commas, the reviewer roles that must report for each kind. If a role is missing, the gate check does not pass and per-kind completion criteria block the task. Leave empty to not check roles.',
+  'settings.gates.roles_invalid':
+    'Each kind can have up to 20 roles, and each role up to 64 characters.',
+  'settings.gates.roles_none': 'none',
+  'settings.gates.change_roles': '{kind} required roles {from} → {to}',
   'settings.gates.saved': 'Gate policy saved.',
   'settings.members.email': 'Email',
   'settings.members.empty': 'No members.',

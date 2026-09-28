@@ -50,6 +50,18 @@ export const GatePolicySchema = z
       })
       .strict()
       .default({ evidence_source: 'any', review_coverage: false }),
+    /**
+     * **리뷰 종류마다 반드시 보고해야 하는 리뷰어 역할**(2026-09-28 · clemvion 요청 N7 · 사람 결정 D9 · REQ-API-252).
+     * 예: `{ "code": ["security", "testing"] }`. 역할은 제출의 `reviewer.role`(`reviewer_report.role`)과 같은 글자다.
+     * 게이트 판정(EP-REV-08)은 빠진 역할이 있으면 통과가 아니고, 종류 목록으로 켠 작업 완료 조건도 그 판정을 쓴다.
+     * 비어 있으면 역할을 보지 않는다 — 지금과 같다.
+     */
+    review_roles: z
+      .partialRecord(
+        z.enum(reviewKind.enumValues),
+        z.array(z.string().trim().min(1).max(64)).min(1).max(20),
+      )
+      .default({}),
     failopen: z
       .object({
         /** 연속 fail-open 판정 격상 임계 — D-14 는 "허용하되 관측하고 격상한다"이다 */

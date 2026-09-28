@@ -414,6 +414,38 @@ describe('게이트 정책 — 칸 셋 · 검증 · 전후 (REQ-WEB-201)', () =>
     });
   });
 
+  // 필수 리뷰어 역할(2026-09-28 · clemvion 요청 N7 · REQ-WEB-286)
+  it('종류마다 필수 역할을 쉼표로 적어 저장한다 — 빼는 저장은 한 번 더 묻는다', async () => {
+    renderAt('/settings/gates');
+    await gatesReady();
+    fireEvent.change(screen.getByTestId('gates-roles-code'), {
+      target: { value: 'security, testing, security' },
+    });
+    expect(screen.getByTestId('gates-unsaved').textContent).toContain(
+      '코드 필수 역할 없음 → security · testing',
+    );
+    fireEvent.click(screen.getByTestId('gates-save'));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.body['gate_policy']).toMatchObject({
+      review_roles: { code: ['security', 'testing'] },
+    });
+  });
+
+  it('요구하던 역할을 빼면 느슨해지므로 확인한다', async () => {
+    policy = { review_roles: { code: ['security', 'testing'] } };
+    renderAt('/settings/gates');
+    await gatesReady();
+    expect((screen.getByTestId('gates-roles-code') as HTMLInputElement).value).toBe(
+      'security, testing',
+    );
+    fireEvent.change(screen.getByTestId('gates-roles-code'), { target: { value: 'security' } });
+    fireEvent.click(screen.getByTestId('gates-save'));
+    expect(sent).toHaveLength(0);
+    fireEvent.click(screen.getByTestId('gates-save-confirm'));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.body['gate_policy']).toMatchObject({ review_roles: { code: ['security'] } });
+  });
+
   it('고친 채 다른 프로젝트를 고르면 버릴지 묻는다 — 말없이 버리지 않는다', async () => {
     renderAt('/settings/gates');
     await gatesReady();

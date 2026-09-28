@@ -143,5 +143,6 @@ Only `admin` can edit the gate policy. Everyone else still sees the current valu
   - **Not checked**: reviews are not checked.
   - **One review of any kind · no open critical**: the task must have been reviewed at least once and have no open critical finding.
   - **A passing review for each chosen kind**: for each chosen kind (code · consistency · spec coverage · merge), the latest review of the task must pass. It passes only when no **critical or warning** finding is open. For example, choosing code and consistency also requires a check that the implementation matches the spec. It is the same check CI uses.
+- **Required reviewer roles** — for each review kind, enter the reviewer roles that must report, separated by commas (for example `security, testing`). A round without a report from one of them does not pass the gate check, and per-kind completion criteria block the task. Leave it empty to not check roles.
 
-Saving a change that loosens these criteria (turning review off, removing a chosen kind, switching from per-kind to any kind, or accepting evidence from anyone) asks you once more before it is saved.
+Saving a change that loosens these criteria (turning review off, removing a chosen kind, switching from per-kind to any kind, accepting evidence from anyone, or removing a required role) asks you once more before it is saved.

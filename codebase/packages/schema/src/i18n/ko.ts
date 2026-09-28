@@ -663,6 +663,7 @@ export const ko = {
   'task.missing.open_critical': '리뷰에 열린 critical이 남아 있습니다',
   'task.missing.review_kind_uncovered': '이 작업을 검토한 {kind} 리뷰가 없습니다',
   'task.missing.review_kind_unfinished': '이 작업의 {kind} 리뷰가 아직 끝나지 않았습니다',
+  'task.missing.review_kind_roles': '이 작업의 {kind} 리뷰에 {roles} 역할의 보고가 없습니다',
   'task.missing.review_kind_open':
     '이 작업의 {kind} 리뷰에 열린 발견이 남아 있습니다(critical {critical}건 · warning {warning}건)',
   'task.missing.evidence': '증적(evidence): 구현 증적 1건 이상',
@@ -1729,6 +1730,13 @@ export const ko = {
   'settings.gates.change_coverage': '리뷰 {from} → {to}',
   'settings.gates.loosen_done_confirm':
     '작업 완료 조건이 느슨해집니다. 검토를 덜 거친 작업이 완료될 수 있습니다.',
+  'settings.gates.roles': '필수 리뷰어 역할',
+  'settings.gates.roles_placeholder': '예: security, testing',
+  'settings.gates.roles_hint':
+    '종류마다 반드시 보고해야 하는 리뷰어 역할을 쉼표로 적습니다. 빠진 역할이 있으면 게이트 판정이 통과하지 않고, 종류별 완료 조건도 막힙니다. 비워 두면 역할을 보지 않습니다.',
+  'settings.gates.roles_invalid': '역할은 종류마다 20개까지, 한 역할은 64자까지 적을 수 있습니다.',
+  'settings.gates.roles_none': '없음',
+  'settings.gates.change_roles': '{kind} 필수 역할 {from} → {to}',
   'settings.gates.saved': '게이트 정책을 저장했습니다.',
   'settings.members.email': '이메일',
   'settings.members.empty': '멤버가 없습니다.',

@@ -24,3 +24,20 @@ describe('done_gate.review_coverage', () => {
     expect(GatePolicySchema.parse({}).done_gate.review_coverage).toBe(false);
   });
 });
+
+describe('review_roles', () => {
+  const roles = (value: unknown): boolean =>
+    GatePolicySchema.safeParse({ review_roles: value }).success;
+
+  it('리뷰 종류마다 역할 목록을 받는다 — 생략하면 비어 있다', () => {
+    expect(roles({ code: ['security', 'testing'] })).toBe(true);
+    expect(roles({ code: ['security'], consistency: ['requirement'] })).toBe(true);
+    expect(GatePolicySchema.parse({}).review_roles).toEqual({});
+  });
+
+  it('모르는 종류 · 빈 목록 · 빈 역할은 거절한다', () => {
+    expect(roles({ codes: ['security'] })).toBe(false);
+    expect(roles({ code: [] })).toBe(false);
+    expect(roles({ code: [''] })).toBe(false);
+  });
+});

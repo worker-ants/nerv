@@ -18,7 +18,7 @@ import { sqlArray } from '../../common/sql-array.js';
 import type { NervDb } from '../../common/database.module.js';
 
 export type GateState = 'uncovered' | 'pending' | 'passed';
-export type GateReason = 'running' | 'failed' | 'open_critical' | 'open_warning';
+export type GateReason = 'running' | 'failed' | 'open_critical' | 'open_warning' | 'missing_roles';
 
 export interface RoundFinding {
   id: string;
@@ -38,6 +38,11 @@ export interface RoundVerdict {
   completed_at: string | null;
   reasons: GateReason[];
   open: { critical: number; warning: number; info: number };
+  /**
+   * 정책이 이 종류에 요구하는 리뷰어 역할과 라운드에서 실제로 보고한 역할(2026-09-28 · clemvion 요청 N7 · REQ-API-252).
+   * 빠진 역할이 있으면 통과가 아니다. 정책이 요구하지 않으면 `required` 가 비어 있다
+   */
+  roles: { required: string[]; reported: string[]; missing: string[] };
   findings: RoundFinding[];
   findings_total: number;
 }
@@ -57,6 +62,8 @@ export async function roundVerdicts(
     projectId: string;
     kinds: readonly string[] | null;
     headSha: string | null;
+    /** 종류마다 반드시 보고해야 하는 역할(`gate_policy.review_roles`) — 주지 않으면 역할을 보지 않는다 */
+    requiredRoles?: Readonly<Partial<Record<string, readonly string[]>>>;
   } & ({ branch: string; taskId?: undefined } | { taskId: string; branch?: undefined }),
 ): Promise<RoundVerdict[]> {
   const scopeFilter: SQL =
@@ -137,11 +144,22 @@ export async function roundVerdicts(
                 s.severity, (s.status = 'open') DESC, s.created_at, s.id
        LIMIT ${GATE_ROUND_FINDINGS_LIMIT}
     `);
+    // 역할은 라운드의 세션 전부에서 센다 — 같은 커밋을 역할마다 따로 제출해도 한 라운드다
+    const { rows: reportedRows } = await db.execute<{ role: string }>(sql`
+      SELECT DISTINCT role FROM reviewer_report
+       WHERE review_session_id = ANY(${sqlArray(round.session_ids, 'uuid')}) AND has_report
+       ORDER BY role
+    `);
+    const roles = rolesOf(
+      input.requiredRoles?.[round.kind],
+      reportedRows.map((r) => r.role),
+    );
     const reasons: GateReason[] = [];
     if (round.running) reasons.push('running');
     if (round.failed) reasons.push('failed');
     if (open.critical > 0) reasons.push('open_critical');
     if (open.warning > 0) reasons.push('open_warning');
+    if (roles.missing.length > 0) reasons.push('missing_roles');
     verdicts.set(round.kind, {
       kind: round.kind,
       state: reasons.length === 0 ? 'passed' : 'pending',
@@ -151,6 +169,7 @@ export async function roundVerdicts(
       completed_at: isoOrNull(round.completed_at),
       reasons,
       open,
+      roles,
       findings: found.map((f) => ({
         id: f.id,
         severity: f.severity,
@@ -170,13 +189,32 @@ export async function roundVerdicts(
   }
 
   for (const kind of input.kinds ?? []) {
-    if (!verdicts.has(kind)) verdicts.set(kind, uncoveredVerdict(kind, input.headSha));
+    if (!verdicts.has(kind)) {
+      verdicts.set(kind, uncoveredVerdict(kind, input.headSha, input.requiredRoles?.[kind]));
+    }
   }
   return [...verdicts.values()].sort((a, b) => a.kind.localeCompare(b.kind));
 }
 
+/** 요구한 역할 · 보고한 역할 · 빠진 역할 — 순서는 글자 순서다 */
+function rolesOf(
+  required: readonly string[] | undefined,
+  reported: readonly string[],
+): RoundVerdict['roles'] {
+  const need = [...new Set(required ?? [])].sort();
+  return {
+    required: need,
+    reported: [...reported],
+    missing: need.filter((role) => !reported.includes(role)),
+  };
+}
+
 /** 라운드가 없는 종류의 행 — 물었거나 정책이 요구하는 종류다 */
-export function uncoveredVerdict(kind: string, headSha: string | null): RoundVerdict {
+export function uncoveredVerdict(
+  kind: string,
+  headSha: string | null,
+  requiredRoles?: readonly string[],
+): RoundVerdict {
   return {
     kind,
     state: 'uncovered',
@@ -186,6 +224,7 @@ export function uncoveredVerdict(kind: string, headSha: string | null): RoundVer
     completed_at: null,
     reasons: [],
     open: { critical: 0, warning: 0, info: 0 },
+    roles: rolesOf(requiredRoles, []),
     findings: [],
     findings_total: 0,
   };

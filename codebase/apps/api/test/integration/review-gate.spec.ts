@@ -78,6 +78,7 @@ async function submit(over: {
   changeset?: string[];
   findings?: Record<string, unknown>[];
   taskId?: string;
+  role?: string;
 }): Promise<SubmitResult> {
   return reviews.submit({
     projectId,
@@ -90,7 +91,7 @@ async function submit(over: {
     kind: over.kind ?? 'code',
     changeset: over.changeset ?? ['src/widget.ts'],
     summaryMd: '봤다.',
-    reviewer: { role: 'security', risk: 'medium' },
+    reviewer: { role: over.role ?? 'security', risk: 'medium' },
     taskId: over.taskId ?? null,
     findings: (over.findings ?? []) as never,
   } as Parameters<ReviewService['submit']>[0]);
@@ -113,6 +114,7 @@ type Item = {
   completed_at: string | null;
   reasons: string[];
   open: { critical: number; warning: number; info: number };
+  roles: { required: string[]; reported: string[]; missing: string[] };
   findings: {
     id: string;
     severity: string;
@@ -375,6 +377,83 @@ describe('done 게이트의 종류 조건 (REQ-API-250)', () => {
     expect(res.items.map((i) => [i.kind, i.state])).toEqual([
       ['code', 'passed'],
       ['consistency', 'uncovered'],
+    ]);
+  });
+});
+
+/**
+ * 종류별 필수 리뷰어 역할 (2026-09-28 · clemvion 요청 N7 · 사람 결정 D9 · REQ-API-252).
+ *
+ * "강제 리뷰어 일곱이 모두 돌았다" 를 로컬에서만 확인하고 있었다. 정책이 역할을 요구하면 게이트 판정은 빠진 역할을
+ * 알리고 통과로 치지 않는다. 같은 커밋을 역할마다 따로 제출해도 한 라운드다.
+ */
+describe('필수 리뷰어 역할 (REQ-API-252)', () => {
+  const requireRoles = (policy: Record<string, unknown>): Promise<unknown> =>
+    pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify(policy),
+      projectId,
+    ]);
+
+  it('빠진 역할이 있으면 pending 이고 무엇이 빠졌는지 준다 — 채우면 통과한다', async () => {
+    await requireRoles({ review_roles: { code: ['security', 'testing'] } });
+    const first = await submit({ role: 'security' });
+    const pending = (await check(q('&kind=code'))).items[0]!;
+    expect(pending.state).toBe('pending');
+    expect(pending.reasons).toEqual(['missing_roles']);
+    expect(pending.roles).toEqual({
+      required: ['security', 'testing'],
+      reported: ['security'],
+      missing: ['testing'],
+    });
+    // 세션에도 남는다 — 스키마에 있었지만 채우는 곳이 없던 두 열이다
+    const { rows: before } = await pool.query<{ forced_roles: string[]; ok: boolean }>(
+      `SELECT forced_roles, forced_coverage_ok AS ok FROM review_session WHERE id = $1`,
+      [first.review_session_id],
+    );
+    expect(before[0]).toEqual({ forced_roles: ['security', 'testing'], ok: false });
+
+    await submit({ role: 'testing' });
+    const passed = (await check(q('&kind=code'))).items[0]!;
+    expect(passed.state).toBe('passed');
+    expect(passed.roles.missing).toEqual([]);
+    const { rows: after } = await pool.query<{ ok: boolean }>(
+      `SELECT forced_coverage_ok AS ok FROM review_session WHERE id = $1`,
+      [first.review_session_id],
+    );
+    expect(after[0]?.ok).toBe(true);
+  });
+
+  it('작업 완료 조건(종류 목록)도 빠진 역할로 막는다', async () => {
+    await requireRoles({
+      done_gate: { review_coverage: ['code'] },
+      review_roles: { code: ['security', 'testing'] },
+    });
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'CLV-T-ROLE01','작업','in_progress','목표','PR','도구','경계')`,
+      [taskId, projectId],
+    );
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'commit','a1b2c3d','human')`,
+      [newId(), projectId, taskId],
+    );
+    await submit({ taskId, role: 'security' });
+    const error = (await app
+      .get(TaskService)
+      .transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId,
+        roles: ['planner'],
+        specImpact: { none: true },
+      })
+      .catch((e: unknown) => e)) as { details?: { missing?: string[] } };
+    expect(error.details?.missing).toEqual([
+      '이 작업의 code 리뷰에 testing 역할의 보고가 없습니다',
     ]);
   });
 });
