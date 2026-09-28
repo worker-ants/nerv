@@ -447,9 +447,11 @@ function SpecListScreen(): React.JSX.Element {
               className="w-64"
             />
             <Button type="submit">{t('common.search')}</Button>
+            {/* 검색하는 동안 [트리|표|그래프]가 사라진다 — 돌아가는 길은 이것뿐이다(REQ-WEB-271) */}
             {submitted !== '' && (
               <Button
-                variant="ghost"
+                variant="subtle"
+                data-testid="specs-back-to-tree"
                 onClick={() => {
                   setQuery('');
                   void navigate({
@@ -459,7 +461,7 @@ function SpecListScreen(): React.JSX.Element {
                   });
                 }}
               >
-                {t('specs.back_to_tree')}
+                ← {t('specs.back_to_tree')}
               </Button>
             )}
           </form>
@@ -680,7 +682,7 @@ function SpecListScreen(): React.JSX.Element {
                     action={
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="subtle"
                         data-testid="specs-search-clear"
                         onClick={() => {
                           setQuery('');

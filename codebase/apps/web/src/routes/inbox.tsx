@@ -44,6 +44,7 @@ import {
   Button,
   EmptyState,
   Kbd,
+  LoadMore,
   PageBody,
   PageHeader,
   Skeleton,
@@ -564,14 +565,14 @@ function InboxScreen(): React.JSX.Element {
               위에서부터 상한까지다 — 확인 단계가 다시 나열하므로 보지 않은 것을 승인하게 되지 않는다 */}
               {visibleApprovable > 0 &&
                 approvable.length < Math.min(visibleApprovable, BULK_DECISION_LIMIT) && (
-                  <button
-                    type="button"
+                  <Button
+                    size="xs"
+                    variant="subtle"
                     data-testid="bulk-select-approvable"
                     onClick={selectApprovable}
-                    className="text-text-mute underline-offset-2 hover:text-text hover:underline"
                   >
                     {t('inbox.bulk.select_approvable')}
-                  </button>
+                  </Button>
                 )}
               <span className="flex-1" />
               <Button
@@ -595,14 +596,14 @@ function InboxScreen(): React.JSX.Element {
                 {t('inbox.bulk.reject')}
               </Button>
               {chosen.length > 0 && (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="subtle"
                   data-testid="bulk-clear"
                   onClick={clearSelection}
-                  className="text-text-mute hover:text-text"
                 >
                   {t('inbox.bulk.clear')}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -770,16 +771,14 @@ function InboxScreen(): React.JSX.Element {
           자연히 포함된다 — 보지 않은 것을 고르게 하는 손잡이를 만들지 않는다. */}
           {/* 잠긴 구역에 닿은 뒤의 남은 쪽은 모두 잠긴 카드다 — 묶음을 접어 둔 동안은 더 받지 않는다 */}
           {inbox.hasNextPage === true && (!inLockedZone || showLocked) && (
-            <div className="mt-3 flex justify-center">
-              <Button
-                variant="ghost"
-                data-testid="inbox-more"
-                disabled={inbox.isFetchingNextPage}
-                onClick={() => void inbox.fetchNextPage()}
-              >
-                {inbox.isFetchingNextPage ? t('common.loading') : t('tasks.more')}
-              </Button>
-            </div>
+            <LoadMore
+              className="mt-3"
+              testId="inbox-more"
+              pending={inbox.isFetchingNextPage}
+              onClick={() => void inbox.fetchNextPage()}
+              label={t('tasks.more')}
+              pendingLabel={t('common.loading')}
+            />
           )}
         </div>
       </div>

@@ -136,7 +136,8 @@ export function SessionCard({
                 entity={{ kind: 'task', key: card.task_key }}
                 stop
                 testId="session-task-link"
-                className="block truncate text-sm text-text"
+                // 본문색을 넘기면 병합이 `text-link` 를 지운다 — 목록이 파래지지 않게 글자색은 두고 쉴 때 옅은 밑줄을 준다(REQ-WEB-273)
+                className="block truncate text-sm text-text underline decoration-border-strong underline-offset-4 hover:decoration-current"
               >
                 {card.task_title}
               </EntityLink>
@@ -200,7 +201,8 @@ export function SessionCard({
           params={{ proj: projectSlug, session: card.id }}
           data-testid="session-detail-link"
           onClick={(e) => e.stopPropagation()}
-          className="shrink-0 text-2xs text-text-mute underline-offset-2 hover:underline"
+          // 이동이라 쉴 때 링크색이다 — 좁은 폭과 개요에서는 세션 상세로 가는 유일한 길이다(REQ-WEB-273)
+          className="shrink-0 text-2xs text-link underline-offset-2 hover:underline"
         >
           {t('session.detail')}
         </Link>

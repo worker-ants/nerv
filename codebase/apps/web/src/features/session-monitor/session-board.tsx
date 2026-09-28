@@ -11,7 +11,13 @@ import { useT } from '../../lib/i18n.js';
 import { useSessions } from '../../lib/queries.js';
 import { SessionCard } from './session-card.js';
 import type { SessionBoardResult } from './types.js';
-import { Button, EmptyState, Skeleton, SummaryStrip } from '../../components/ui/primitives.js';
+import {
+  Button,
+  EmptyState,
+  LoadMore,
+  Skeleton,
+  SummaryStrip,
+} from '../../components/ui/primitives.js';
 import { SESSION_TOKEN, statusDot } from '../../components/status-token.js';
 import { ErrorState } from '../../components/query-state.js';
 import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
@@ -143,17 +149,14 @@ export function SessionBoard({
         단추는 더 받을 것이 있을 때만 그린다: 눌러도 아무 일이 없는 단추는 두지 않는다.
       */}
       {query.hasNextPage && (
-        <div className="flex justify-center pt-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            data-testid="sessions-load-more"
-            disabled={query.isFetchingNextPage}
-            onClick={() => void query.fetchNextPage()}
-          >
-            {query.isFetchingNextPage ? t('common.loading') : t('sessions.more')}
-          </Button>
-        </div>
+        <LoadMore
+          className="mt-1"
+          testId="sessions-load-more"
+          pending={query.isFetchingNextPage}
+          onClick={() => void query.fetchNextPage()}
+          label={t('sessions.more')}
+          pendingLabel={t('common.loading')}
+        />
       )}
     </div>
   );

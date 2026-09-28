@@ -798,7 +798,7 @@ function SpecDetail(): React.JSX.Element {
             <SpecToc headings={headings} onPick={goAnchor} />
             <Button
               size="sm"
-              variant="ghost"
+              variant="subtle"
               data-testid="meta-open"
               onClick={() => setMetaOpen(true)}
             >

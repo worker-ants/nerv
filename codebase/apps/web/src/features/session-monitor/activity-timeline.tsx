@@ -19,7 +19,7 @@ import {
 } from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { useT } from '../../lib/i18n.js';
-import { Button, GlyphChip, Skeleton } from '../../components/ui/primitives.js';
+import { GlyphChip, LoadMore, Skeleton } from '../../components/ui/primitives.js';
 import { relativeTime } from './format.js';
 import { cn } from '../../lib/utils.js';
 
@@ -62,15 +62,13 @@ export function ActivityTimeline({
             표시가 생긴 뒤에도 여전히 닿지 않는 곳이었다. */}
         {timeline.hasNextPage === true && (
           <li className="pb-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              data-testid="timeline-load-more"
-              disabled={timeline.isFetchingNextPage}
+            <LoadMore
+              testId="timeline-load-more"
+              pending={timeline.isFetchingNextPage}
               onClick={() => void timeline.fetchNextPage()}
-            >
-              {t('session.timeline_more')}
-            </Button>
+              label={`↑ ${t('session.timeline_more')}`}
+              pendingLabel={t('common.loading')}
+            />
           </li>
         )}
         {groups.map((group, i) => (

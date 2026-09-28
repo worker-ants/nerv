@@ -23,6 +23,10 @@ export interface EntityLinkProps {
   entity: EntityRef;
   /** 없으면 키를 Mono 로 그린다 */
   children?: React.ReactNode;
+  /**
+   * 글자색을 넘기면 병합이 `text-link` 를 지운다 — 그때는 쉴 때 밑줄 같은 다른 단서를 함께 넘긴다
+   * (2026-09-28 · REQ-WEB-273 · 세션 줄의 작업 제목과 작업 카드의 스펙 키가 본문 글자로만 보였다)
+   */
   className?: string;
   /** 눌러서 고르는 카드 안 — 링크가 카드 선택까지 부르지 않게 */
   stop?: boolean;
