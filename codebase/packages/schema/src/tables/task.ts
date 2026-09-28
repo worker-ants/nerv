@@ -25,6 +25,7 @@ import {
   taskPriority,
   taskStatus,
 } from '../enums.js';
+import { EVIDENCE_NOTE_MAX } from '../constants.js';
 import { createdAt, idPk, ts } from './_columns.js';
 import { agentSession } from './session.js';
 import { requirement, specBaseline, specVersion } from './spec.js';
@@ -202,6 +203,12 @@ export const evidence = pgTable(
     kind: evidenceKind('kind').notNull(),
     /** 경로 glob · PR URL · 커밋 SHA · 테스트 이름 */
     locator: text('locator').notNull(),
+    /**
+     * **이 증적이 무엇을 보여 주는가**(2026-09-28 · 사람 결정 · REQ-DB-032 · api.md REQ-API-229). 선택 칸이다.
+     * 설명을 남길 자리가 없어서, 에이전트가 커밋 SHA 뒤에 설명을 붙이면 형식 검사에 걸렸고 따로 칸을 두면
+     * 조용히 버려졌다. locator 는 그대로 엄격하다 — 설명은 여기에 둔다.
+     */
+    note: text('note'),
     /** 멀티 저장소 대비 */
     repo: text('repo'),
     source: evidenceSource('source').notNull(),
@@ -213,6 +220,10 @@ export const evidence = pgTable(
   },
   (t) => [
     // 셋 중 최소 1개 필수(data-model §2.8)
+    check(
+      'evidence_note_len_ck',
+      sql`char_length(${t.note}) <= ${sql.raw(String(EVIDENCE_NOTE_MAX))}`,
+    ),
     check(
       'evidence_anchor_ck',
       sql`${t.requirementId} IS NOT NULL OR ${t.specVersionId} IS NOT NULL OR ${t.taskId} IS NOT NULL`,

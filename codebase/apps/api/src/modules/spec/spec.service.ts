@@ -12,6 +12,7 @@ import {
   EVIDENCE_SIGNER_ROLES,
   canCreateSpecType,
   evidenceKind,
+  EVIDENCE_NOTE_MAX,
   GatePolicySchema,
   implStatus,
   LEASE_HEARTBEAT_GRACE_SECONDS,
@@ -21,6 +22,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  normalizeEvidenceNote,
   SPEC_APPROVER_ROLES,
   SPEC_SUBMIT_ROLES,
   specType,
@@ -2128,7 +2130,7 @@ export class SpecService {
     // 목록의 증적 수와 **같은 범위**다(2026-09-26) — 요구사항에 직접 붙은 것과 파생 Task 의 것.
     // 상세만 앞의 것을 봐서, 목록이 "증적 3" 이라 말한 요구사항을 열면 1건이 보였다
     const { rows: evidence } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT e.id, e.kind::text AS kind, e.locator, e.source::text AS source, e.created_at,
+      SELECT e.id, e.kind::text AS kind, e.locator, e.note, e.source::text AS source, e.created_at,
              e.task_id, (e.verified_by IS NOT NULL) AS signed, e.stale
         FROM evidence e
        WHERE e.requirement_id = ${id}
@@ -2152,6 +2154,8 @@ export class SpecService {
     kind: string;
     locator: string;
     repo?: string | null;
+    /** 이 증적이 무엇을 보여 주는가(2026-09-28 · REQ-API-229) */
+    note?: string | null;
     userId: string;
     sessionId?: string | null;
     /**
@@ -2166,6 +2170,14 @@ export class SpecService {
     // 그대로 넘겼고 여기서 `::evidence_kind` 로 캐스팅돼, 오타 하나가 22P02 로 죽었다 —
     // `db-error.ts` 가 다루는 SQLSTATE 목록에 22P02 는 없다(진짜 500 으로 나간다).
     const kind = assertVocab([input.kind], evidenceKind.enumValues, 'kind')[0];
+    const note = normalizeEvidenceNote(input.note);
+    if (!note.ok) {
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.evidence.note_too_long', { max: EVIDENCE_NOTE_MAX }),
+        { kind: 'invalid_input', field: 'note', reason: note.reason, max: EVIDENCE_NOTE_MAX },
+      );
+    }
     const evidenceId = newId();
     // **전표가 발생 이벤트를 적으면 그것이 계약이다**(REQ-API-115). EP-REQ-03 은 처음부터
     // ★`evidence.added` 를 적었는데 이 경로는 INSERT 만 하고 이벤트를 내지 않았다 —
@@ -2179,10 +2191,10 @@ export class SpecService {
         input.sessionId == null &&
         (input.roles ?? []).some((r) => (EVIDENCE_SIGNER_ROLES as readonly string[]).includes(r));
       await tx.execute(sql`
-        INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, source,
+        INSERT INTO evidence (id, project_id, requirement_id, kind, locator, repo, note, source,
                               verified_by, verified_at)
         VALUES (${evidenceId}, ${input.projectId}, ${requirement['id'] as string},
-                ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null},
+                ${kind}::evidence_kind, ${input.locator}, ${input.repo ?? null}, ${note.value},
                 ${input.sessionId == null ? 'human' : 'agent'}::evidence_source,
                 ${verifies ? input.userId : null}, ${verifies ? sql`now()` : sql`NULL`})
       `);

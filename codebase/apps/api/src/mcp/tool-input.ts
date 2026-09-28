@@ -17,6 +17,26 @@ import { NervError } from '../common/nerv-exception.filter.js';
 interface PropertySchema {
   type?: string;
   enum?: readonly unknown[];
+  /** 배열의 항목 모양 — 항목이 객체면 그 칸 이름을 본다(아래 `unknownItemKeys`) */
+  items?: { properties?: Record<string, unknown> };
+}
+
+/**
+ * **배열 항목 안의 모르는 칸**(2026-09-28 · REQ-API-229). 최상위만 보던 동안 `evidence` 항목에 붙인 `description`
+ * 같은 칸은 `ignored_args` 에도 잡히지 않고 조용히 사라졌다 — 에이전트는 설명을 남겼다고 믿었다. 이름은
+ * `evidence[0].description` 처럼 자리까지 적는다.
+ */
+function unknownItemKeys(name: string, value: unknown, property: PropertySchema): string[] {
+  const known = property.items?.properties;
+  if (known === undefined || !Array.isArray(value)) return [];
+  const out: string[] = [];
+  value.forEach((item, index) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) return;
+    for (const key of Object.keys(item)) {
+      if (!(key in known)) out.push(`${name}[${String(index)}].${key}`);
+    }
+  });
+  return out;
 }
 
 /** 값이 스키마의 `type` 과 맞는가 — 맞지 않으면 이름을 돌려준다 */
@@ -83,6 +103,7 @@ export function assertToolInput(
     const mismatch = typeMismatch(name, value, property);
     if (mismatch !== null) wrongType.push(mismatch);
     else if (Array.isArray(property.enum) && !property.enum.includes(value)) notAllowed.push(name);
+    else unknown.push(...unknownItemKeys(name, value, property));
   }
 
   if (missing.length === 0 && wrongType.length === 0 && notAllowed.length === 0) return unknown;

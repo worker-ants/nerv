@@ -217,6 +217,31 @@ describe('완료 게이트 — 스펙 영향은 고르지 않은 채 시작한�
   });
 });
 
+/**
+ * **증적 설명은 따로 적는다**(2026-09-28 · 사람 결정 · REQ-WEB-264 · api.md REQ-API-229). 위치 칸은 가리키는 것만
+ * 받는다 — 커밋 해시 뒤에 설명을 붙이면 형식 오류였다.
+ */
+describe('증적 설명 (REQ-WEB-264)', () => {
+  it('완료 폼의 설명 칸이 증적과 함께 간다 — 비워 두면 보내지 않는다', async () => {
+    roles = ['planner'];
+    detail = task({ status: 'in_progress' });
+    await renderDetail();
+    fireEvent.click(screen.getByTestId('spec-impact-none'));
+    fireEvent.change(screen.getByPlaceholderText(ko['task.evidence_placeholder']), {
+      target: { value: 'a1b2c3d' },
+    });
+    const note = screen.getByTestId('evidence-note-input') as HTMLInputElement;
+    expect(note.maxLength).toBe(500);
+    fireEvent.change(note, { target: { value: '  로그인 오류 수정  ' } });
+    fireEvent.click(screen.getByTestId('to-done'));
+    await waitFor(() => expect(posted.some((p) => p.body['status'] === 'done')).toBe(true));
+    const sent = posted.find((p) => p.body['status'] === 'done');
+    expect(sent?.body['evidence']).toEqual([
+      { kind: 'pr', locator: 'a1b2c3d', note: '로그인 오류 수정' },
+    ]);
+  });
+});
+
 describe('위임 명세는 그 자리에서 고친다 (REQ-WEB-202)', () => {
   it('임포트 자리표시자는 ❌ 로 그리고 [고치기]가 폼을 연다', async () => {
     detail = task({ status: 'backlog', goal_md: ko['import.delegation_missing'] });

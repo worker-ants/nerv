@@ -1628,19 +1628,21 @@ describe('E03-S04 에러 규약 — 구조화 결과', () => {
       task_id: taskId,
       status: 'done',
       evidence: [
-        { kind: 'commit', locator: 'a1b2c3d' },
-        { kind: 'test', locator: 'spec-concurrency.spec.ts' },
+        // 설명은 note 에 둔다(2026-09-28 · REQ-API-229) — 항목에 붙인 모르는 칸은 버렸다고 알린다
+        { kind: 'commit', locator: 'a1b2c3d', note: '로그인 오류 수정' },
+        { kind: 'test', locator: 'spec-concurrency.spec.ts', description: '동시성' },
       ],
       spec_impact: { none: true },
     });
     expect(done['status']).toBe('done');
-    const { rows } = await pool.query<{ kind: string; locator: string }>(
-      `SELECT kind::text AS kind, locator FROM evidence WHERE task_id = $1 ORDER BY kind`,
+    expect(done['ignored_args']).toEqual(['evidence[1].description']);
+    const { rows } = await pool.query<{ kind: string; locator: string; note: string | null }>(
+      `SELECT kind::text AS kind, locator, note FROM evidence WHERE task_id = $1 ORDER BY kind`,
       [taskId],
     );
-    expect(rows.map((r) => `${r.kind}:${r.locator}`)).toEqual([
-      'commit:a1b2c3d',
-      'test:spec-concurrency.spec.ts',
+    expect(rows.map((r) => `${r.kind}:${r.locator}:${r.note ?? ''}`)).toEqual([
+      'commit:a1b2c3d:로그인 오류 수정',
+      'test:spec-concurrency.spec.ts:',
     ]);
   });
 

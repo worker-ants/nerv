@@ -335,6 +335,12 @@ export const TASK_TRANSITION_TARGETS = [
 export const TASK_LEASE_BOUND_TARGETS = ['in_progress', 'in_review', 'done'] as const;
 
 /**
+ * **증적 설명의 상한**(2026-09-28 · 사람 결정 · 4.4 REQ-API-229). 증적은 가리키는 것(locator)이 본체이고 설명은
+ * 덧붙이는 한두 문장이다 — 커밋 메시지를 통째로 옮겨 적는 자리가 아니다. DB 의 CHECK 와 표면의 검증이 이 값을 쓴다.
+ */
+export const EVIDENCE_NOTE_MAX = 500;
+
+/**
  * **되찾을 수 있는 상태**(2026-09-28 · 사람 결정 · 4.4 REQ-API-228).
  *
  * 살아 있는 클레임이 없으면 이 상태의 Task 는 `ready` 와 같은 규칙으로 다시 잡힌다 — **상태는 그대로 두고

@@ -11,6 +11,7 @@
 import {
   BLOCKED_REASONS,
   EVIDENCE_KINDS,
+  EVIDENCE_NOTE_MAX,
   TASK_EDIT_ROLES,
   blockedReasonLabelKey,
   isDelegationFilled,
@@ -117,6 +118,8 @@ function TaskDetail(): React.JSX.Element {
   const gateRef = useRef<HTMLDivElement>(null);
   const [evidenceKind, setEvidenceKind] = useState('pr');
   const [evidenceLocator, setEvidenceLocator] = useState('');
+  /** 이 증적이 무엇을 보여 주는가 — 선택(2026-09-28 · REQ-WEB-264 · api.md REQ-API-229) */
+  const [evidenceNote, setEvidenceNote] = useState('');
   const [blockedReason, setBlockedReason] = useState('');
   /** 서버가 거부한 사유 — 카드 옆에 남긴다. 토스트는 사라지고 사람은 이유를 잊는다 */
   const [rejection, setRejection] = useState<{ message: string; missing: string[] } | null>(null);
@@ -274,7 +277,13 @@ function TaskDetail(): React.JSX.Element {
                   evidence:
                     evidenceLocator.trim() === ''
                       ? []
-                      : [{ kind: evidenceKind, locator: evidenceLocator }],
+                      : [
+                          {
+                            kind: evidenceKind,
+                            locator: evidenceLocator,
+                            ...(evidenceNote.trim() === '' ? {} : { note: evidenceNote.trim() }),
+                          },
+                        ],
                 }
               : {}),
             ...(next === 'blocked' ? { blocked_reason: blockedReason } : {}),
@@ -915,6 +924,16 @@ function TaskDetail(): React.JSX.Element {
                       className="min-w-0 flex-1"
                     />
                   </div>
+                  {/* **설명은 따로 적는다**(2026-09-28 · REQ-WEB-264). 위치 칸은 커밋 해시 · PR 주소처럼 가리키는
+                      것만 받는다 — 해시 뒤에 설명을 붙이면 형식 오류다 */}
+                  <Input
+                    value={evidenceNote}
+                    data-testid="evidence-note-input"
+                    maxLength={EVIDENCE_NOTE_MAX}
+                    onChange={(e) => setEvidenceNote(e.target.value)}
+                    placeholder={t('task.evidence_note_placeholder')}
+                    aria-label={t('task.evidence_note_placeholder')}
+                  />
                   {/* 붙은 증적이 없으면 **누르기 전에** 말한다 — 게이트가 거절한 뒤에 알면 늦다 */}
                   {evidence.length === 0 && evidenceLocator.trim() === '' && (
                     <p data-testid="evidence-none-yet" className="text-xs text-status-waiting">
@@ -1045,6 +1064,12 @@ function TaskDetail(): React.JSX.Element {
                       >
                         {String(e['locator'])}
                       </a>
+                    )}
+                    {/* 무엇을 보여 주는 증적인가(2026-09-28 · REQ-WEB-264) — 에이전트가 남긴 한두 문장 */}
+                    {typeof e['note'] === 'string' && e['note'] !== '' && (
+                      <span data-testid="evidence-note" className="min-w-0 truncate text-text-mute">
+                        {e['note']}
+                      </span>
                     )}
                   </li>
                 );

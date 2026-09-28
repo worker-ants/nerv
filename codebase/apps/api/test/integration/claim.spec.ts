@@ -1212,9 +1212,45 @@ describe('클레임 해제', () => {
     expect(await count(`SELECT count(*)::int AS n FROM event WHERE type='claim.released'`)).toBe(1);
   });
 
-  it('done 은 Task 상태를 건드리지 않는다 — done 전이는 게이트가 따로 판정한다', async () => {
+  /**
+   * **`done` 으로 놓는 것은 끝낸 뒤다**(2026-09-28 · 사람 결정 · REQ-API-230). 예전에는 완료 전에 불러도 받아서,
+   * 클레임만 닫히고 작업은 클레임 없는 `claimed` 로 남았다 — 다른 프로젝트에서 실제로 겪었다.
+   */
+  it('완료 전의 done 해제는 거절한다 — 클레임이 남아 이어서 완료로 간다', async () => {
     const taskId = await makeTask('TSK-rel2');
     const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await expect(
+      tasks.release({
+        claimId: claim.claimId,
+        reason: 'done',
+        userId: hana,
+        actor: actor(sessionHana, hana),
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'not_done', status: 'claimed' },
+    });
+    expect(await scalarText(`SELECT status::text FROM claim WHERE id='${claim.claimId}'`)).toBe(
+      'active',
+    );
+
+    // 이어서 완료로 옮기고 놓는다 — 스킬의 표준 순서(task_update → release)다
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'in_progress',
+      userId: hana,
+      sessionId: sessionHana,
+    });
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'done',
+      userId: hana,
+      sessionId: sessionHana,
+      specImpact: { none: true },
+      evidence: [{ kind: 'commit', locator: 'a1b2c3d', note: '로그인 오류 수정' }],
+    });
     const r = await tasks.release({
       claimId: claim.claimId,
       reason: 'done',
@@ -1222,7 +1258,77 @@ describe('클레임 해제', () => {
       actor: actor(sessionHana, hana),
     });
     expect(r.taskStatus).toBe('unchanged');
-    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('claimed');
+    expect(await scalarText(`SELECT status::text FROM task WHERE id='${taskId}'`)).toBe('done');
+  });
+});
+
+/**
+ * **증적 설명**(2026-09-28 · 사람 결정 · REQ-API-229). 설명을 둘 자리가 없어서, 커밋 SHA 뒤에 붙인 설명은 형식
+ * 검사에 걸렸고 따로 칸을 두면 조용히 버려졌다. locator 는 그대로 엄격하고 설명은 `note` 에 둔다.
+ */
+describe('증적 설명 (REQ-API-229)', () => {
+  const doneWith = async (
+    key: string,
+    evidence: { kind: string; locator: string; note?: string }[],
+  ) => {
+    const taskId = await makeTask(key);
+    await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'in_progress',
+      userId: hana,
+      sessionId: sessionHana,
+    });
+    return {
+      taskId,
+      run: () =>
+        tasks.transition({
+          projectId,
+          taskId,
+          status: 'done',
+          userId: hana,
+          sessionId: sessionHana,
+          specImpact: { none: true },
+          evidence,
+        }),
+    };
+  };
+
+  it('설명은 note 에 남고 작업 상세가 돌려준다 — 앞뒤 공백은 걷고 빈 설명은 없음이다', async () => {
+    const { run } = await doneWith('TSK-note1', [
+      { kind: 'commit', locator: 'a1b2c3d', note: '  로그인 오류 수정  ' },
+      { kind: 'test', locator: 'login.spec.ts', note: '   ' },
+    ]);
+    await run();
+    const detail = await tasks.get({ projectId, taskKey: 'TSK-note1' });
+    const evidence = detail['evidence'] as { kind: string; note: string | null }[];
+    expect(evidence.map((e) => [e.kind, e.note])).toEqual([
+      ['commit', '로그인 오류 수정'],
+      ['test', null],
+    ]);
+  });
+
+  it('SHA 뒤에 설명을 붙이면 형식 오류이고, 메시지가 note 칸을 알려 준다', async () => {
+    const { run } = await doneWith('TSK-note2', [
+      { kind: 'commit', locator: 'a1b2c3d 로그인 오류 수정' },
+    ]);
+    await expect(run()).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'invalid_input', field: 'locator', reason: 'commit_shape' },
+    });
+  });
+
+  it('설명이 500자를 넘으면 거절한다 — 아무것도 남기지 않는다', async () => {
+    const { taskId, run } = await doneWith('TSK-note3', [
+      { kind: 'commit', locator: 'a1b2c3d', note: '가'.repeat(501) },
+    ]);
+    await expect(run()).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'note', reason: 'note_too_long', max: 500 },
+    });
+    expect(await count(`SELECT count(*)::int AS n FROM evidence WHERE task_id='${taskId}'`)).toBe(
+      0,
+    );
   });
 });
 

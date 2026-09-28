@@ -301,6 +301,11 @@ export class TaskTools implements NervToolProvider {
                   enum: ['code_path', 'test', 'pr', 'commit', 'review', 'user_guide'],
                 },
                 locator: { type: 'string' },
+                // **설명은 여기다**(2026-09-28 · REQ-API-229) — locator 뒤에 붙이면 형식 검사에 걸린다
+                note: {
+                  type: 'string',
+                  description: 'what this evidence shows (optional, at most 500 characters)',
+                },
               },
             },
           },
@@ -338,7 +343,9 @@ export class TaskTools implements NervToolProvider {
             ? { blockedReason: input['blocked_reason'] }
             : {}),
           ...(Array.isArray(input['evidence'])
-            ? { evidence: input['evidence'] as { kind: string; locator: string }[] }
+            ? {
+                evidence: input['evidence'] as { kind: string; locator: string; note?: string }[],
+              }
             : {}),
         }),
     },

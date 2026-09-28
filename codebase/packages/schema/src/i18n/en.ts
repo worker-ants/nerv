@@ -158,6 +158,8 @@ export const en = {
   'error.claim.lease_too_long':
     'A lease can be at most {max} seconds. Longer values are not accepted.',
   'error.claim.not_active': 'Not an active claim.',
+  'error.claim.release_not_done':
+    'The task is not done yet ({status}). Move it to done first, then release. If you could not finish, release with handoff.',
   'error.claim.not_owner': 'This session does not own this claim.',
   'error.claim.scope_conflict': 'Another session is already working on the same spec document.',
   'error.claim.taken': 'Another session claimed it first.',
@@ -165,7 +167,8 @@ export const en = {
   'error.comment.body_required': 'A body is required.',
   'error.comment.not_found': 'Comment not found.',
   'error.evidence.locator_shape':
-    'The evidence locator has the wrong format ({kind}). A commit must be a 7–40 character hash, and a PR must be a full URL.',
+    'The evidence locator has the wrong format ({kind}). A commit must be a 7–40 character hash, and a PR must be a full URL. Put any description in note.',
+  'error.evidence.note_too_long': 'An evidence note can be at most {max} characters.',
   'error.human_only.account': 'Only a person can change account details. Agent tokens cannot.',
   'error.human_only.approve': 'Only humans can approve.',
   'error.human_only.baseline': 'Only a person can create a baseline.',
@@ -1560,6 +1563,7 @@ export const en = {
     'Commit and code path links need a repository URL. This project does not have one yet.',
   'task.evidence_open': 'Opens in a new tab',
   'task.evidence_placeholder': 'Evidence location (PR URL, commit SHA, test ID)',
+  'task.evidence_note_placeholder': 'What this evidence shows, in a sentence or two (optional)',
   'task.form.edit': 'Edit task · {key}',
   'task.form.source': 'Source: the approved version this task comes from',
   'task.form.source_spec': 'Spec',

@@ -163,6 +163,8 @@ export const ko = {
   'error.claim.lease_expired': '점유 시간이 지났거나 활성 클레임이 아닙니다.',
   'error.claim.lease_too_long': '점유 시간은 최대 {max}초입니다. 더 긴 값은 받지 않습니다.',
   'error.claim.not_active': '활성 클레임이 아닙니다.',
+  'error.claim.release_not_done':
+    '작업이 아직 완료되지 않았습니다({status}). 먼저 완료로 옮기고 놓습니다. 끝내지 못했으면 handoff로 놓습니다.',
   'error.claim.not_owner': '이 클레임을 가진 세션이 아닙니다.',
   'error.claim.scope_conflict': '같은 스펙 문서를 다른 세션이 이미 잡고 있습니다.',
   'error.claim.taken': '다른 세션이 먼저 클레임했습니다.',
@@ -170,7 +172,8 @@ export const ko = {
   'error.comment.body_required': '본문이 필요합니다.',
   'error.comment.not_found': '코멘트를 찾을 수 없습니다.',
   'error.evidence.locator_shape':
-    '증적 위치의 형식이 맞지 않습니다({kind}). 커밋은 7~40자리 해시, PR은 전체 URL이어야 합니다.',
+    '증적 위치의 형식이 맞지 않습니다({kind}). 커밋은 7~40자리 해시, PR은 전체 URL이어야 합니다. 설명은 note 칸에 적습니다.',
+  'error.evidence.note_too_long': '증적 설명은 {max}자까지입니다.',
   'error.human_only.account':
     '계정 정보는 사람만 바꿀 수 있습니다. 에이전트 토큰으로는 바꿀 수 없습니다.',
   'error.human_only.approve': '승인은 사람만 할 수 있습니다.',
@@ -1544,6 +1547,7 @@ export const ko = {
     '커밋·코드 경로 링크를 열려면 프로젝트의 저장소 주소가 필요합니다. 아직 비어 있습니다.',
   'task.evidence_open': '새 탭에서 엽니다',
   'task.evidence_placeholder': '증적 위치 (PR URL · 커밋 SHA · 테스트 ID)',
+  'task.evidence_note_placeholder': '무엇을 보여 주는 증적인지 한두 문장으로(선택)',
   'task.form.edit': '작업 수정 · {key}',
   'task.form.source': '출처: 이 작업이 나온 승인 버전',
   'task.form.source_spec': '스펙',

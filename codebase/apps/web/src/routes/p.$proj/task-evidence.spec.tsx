@@ -29,7 +29,7 @@ const FINDING_ID = '01990a66-4d3f-7c21-9f6a-1b2c3d4e5f60';
 
 const EVIDENCE = [
   { id: 'e-1', kind: 'pr', locator: 'https://git.example.com/nerv/pull/481', source: 'human' },
-  { id: 'e-2', kind: 'commit', locator: 'a1b2c3d', source: 'ci' },
+  { id: 'e-2', kind: 'commit', locator: 'a1b2c3d', note: '로그인 오류 수정', source: 'agent' },
   { id: 'e-3', kind: 'code_path', locator: 'apps/web/src/lib/evidence.ts:12', source: 'agent' },
   { id: 'e-4', kind: 'review', locator: FINDING_ID, source: 'agent' },
   { id: 'e-5', kind: 'test', locator: 'claim.spec.ts > 원자적 클레임', source: 'ci' },
@@ -186,6 +186,14 @@ describe('증적이 선 저장소 (REQ-WEB-160)', () => {
  * **어휘의 정본은 `@nerv/schema` 다**(REQ-CB-006). 폼이 여섯 중 넷을 손으로 적어 두어
  * `review`·`user_guide` 증적은 웹에서 붙일 길이 없었다 — 서버는 처음부터 여섯을 받는데.
  */
+describe('증적 설명 (REQ-WEB-264)', () => {
+  it('설명이 있는 증적만 그 문장을 위치 옆에 보인다', async () => {
+    await renderTask();
+    const notes = screen.getAllByTestId('evidence-note');
+    expect(notes.map((n) => n.textContent)).toEqual(['로그인 오류 수정']);
+  });
+});
+
 describe('증적 종류 셀렉트 (REQ-WEB-160)', () => {
   it('어휘 여섯을 전부 고를 수 있고, 화면이 목록을 다시 적지 않는다', async () => {
     await renderTask();
