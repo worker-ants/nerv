@@ -96,6 +96,15 @@ export function toSubmitFindings(value: unknown): SubmitFinding[] {
       area: (FINDING_AREAS as readonly string[]).includes(String(f['area']))
         ? (f['area'] as SubmitFinding['area'])
         : null,
+      // **태그를 넘긴다**(2026-09-28 · clemvion 요청 N8 · REQ-API-253) — 서비스는 받는데 이 번역이 빠뜨려서
+      // REST 로도 MCP 로도 저장되지 않았다. 모양은 표면이 먼저 본다(zod · 도구 스키마)
+      tags: Array.isArray(f['tags'])
+        ? [
+            ...new Set(
+              f['tags'].filter((t): t is string => typeof t === 'string').map((t) => t.trim()),
+            ),
+          ].filter((t) => t !== '')
+        : [],
     };
   });
 }

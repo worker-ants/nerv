@@ -462,6 +462,8 @@ export const ko = {
   'reviews.rail.resolution': '처분 근거',
   'mcp.arg.finding_area':
     '무엇에 대한 지적인지. codebase·spec·task·process 중 하나이고, 없으면 서버가 출처를 보고 추정한다',
+  'mcp.arg.finding_tags':
+    '발견의 분류(예: spec_drift — 코드가 아니라 스펙이 틀렸다). 10개까지 · 하나 64자까지. 발견 목록의 필터와 대상 추정이 읽는다',
   'reviews.filter.area': '대상',
   'area.codebase': '코드',
   'area.spec': '스펙',

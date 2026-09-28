@@ -46,6 +46,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
      비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
+   - **구현이 아니라 스펙이 틀렸으면 `tags: ["spec_drift"]` 를 단다.** 태그는 발견 목록의 필터이고, `area` 를 비웠을 때 서버가 스펙 이야기로 추론하는 근거다. 태그는 10개까지 · 하나 64자까지다.
 4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 발견 — 앞의 50건만 담고 전체 수는 `carried_over_total`)·`round_block`·`blocking_findings`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다. 담기지 않은 나머지가 필요하면 `nerv_finding_list` 에 `cursor=carried_over_next_cursor` 를 넘겨 이어 읽는다(`branch` 로 좁힐 수 있다).
    **이번 리뷰가 막는지는 `round_block` 으로 판단한다.** 이번 라운드(같은 브랜치 · 종류 · 커밋)에 열린 critical · warning 이 있으면 참이고 그 발견이 `blocking_findings` 다. 고치거나 처분하기 전에는 이 브랜치의 게이트 판정이 통과하지 않는다. `block` 은 프로젝트 전체의 열린 critical 이라 다른 브랜치의 결함으로도 참이다. 그래서 이번 변경을 막는 근거로 쓰지 않는다.
 

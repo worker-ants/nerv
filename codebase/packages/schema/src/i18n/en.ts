@@ -465,6 +465,8 @@ export const en = {
   'reviews.rail.resolution': 'Resolution',
   'mcp.arg.finding_area':
     'what the finding is about: codebase, spec, task, or process. If omitted, the server infers it from provenance',
+  'mcp.arg.finding_tags':
+    'labels for the finding (for example spec_drift: the spec is wrong, not the code). Up to 10, each up to 64 characters. The finding list filter and area inference read them',
   'reviews.filter.area': 'Area',
   'area.codebase': 'Code',
   'area.spec': 'Spec',
