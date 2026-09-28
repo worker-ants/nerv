@@ -2028,6 +2028,8 @@ export const ko = {
   'mail.digest.footer':
     '매일 {hour}시({timezone})에 보내는 NERV 메일 요약입니다. 받는 시각을 바꾸거나 끄려면 여기서 합니다: {url}',
   'mail.digest.unsubscribe': '로그인 없이 바로 끄기: {url}',
+  'error.export.too_large':
+    '내보낼 파일이 zip 한 개에 담을 수 있는 크기(4GB)를 넘습니다. 첨부 없이 받으세요.',
   'error.digest.unsubscribe_expired':
     '이 링크는 만료됐습니다. 내 계정에서 메일 요약을 끌 수 있습니다.',
   'mail.reset.subject': '[NERV] 비밀번호를 새로 정하는 링크입니다',

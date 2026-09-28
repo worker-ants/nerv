@@ -105,6 +105,17 @@ describe('fileRouteStatus — md 미러 경로의 없음 (REQ-API-236)', () => {
     expect(fileRouteStatus(url, 409, notFound)).toBe(404);
   });
 
+  it('내보내기(export.zip)가 zip32 로 담지 못할 만큼 크면 413 이다 (REQ-API-251)', () => {
+    const tooLarge = { kind: 'too_large' };
+    expect(
+      fileRouteStatus('/api/projects/clemvion/export.zip?include=attachments', 409, tooLarge),
+    ).toBe(413);
+    // 첨부 한 건을 올리는 REST 의 너무 큼은 그대로다
+    expect(fileRouteStatus('/api/v1/projects/clemvion/specs/X/attachments', 409, tooLarge)).toBe(
+      409,
+    );
+  });
+
   it('REST 경로는 409 그대로다 — 계약(§1.4)이 바뀌지 않는다', () => {
     expect(fileRouteStatus('/api/v1/projects/clemvion/specs/CLE-X?v=9', 409, notFound)).toBe(409);
     expect(fileRouteStatus('/api/projects/clemvion/specs', 409, notFound)).toBe(409);

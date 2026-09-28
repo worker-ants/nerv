@@ -6,7 +6,17 @@
 // 표면은 번역만 한다: 렌더링은 SpecService 가 하고 여기서는 content-type 만 정한다.
 
 import { createHash } from 'node:crypto';
-import { Controller, Get, Headers, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Query,
+  Req,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { intParam } from '../../common/query-vocab.js';
@@ -14,6 +24,7 @@ import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { SpecService } from './spec.service.js';
+import { SpecExportService } from './spec-export.service.js';
 
 /**
  * 어댑터 타입을 직접 들이지 않는다 — `plugin.controller.ts` 의 `RawReply` 와 같은 규율이다.
@@ -32,7 +43,10 @@ interface RawReply {
 @Controller('api/projects/:proj')
 @UseGuards(ProjectAccessGuard)
 export class MirrorController {
-  constructor(private readonly specs: SpecService) {}
+  constructor(
+    private readonly specs: SpecService,
+    private readonly exports: SpecExportService,
+  ) {}
 
   /** EP-MIR-02 — 트리 색인. 에이전트의 첫 지도다 */
   @RequireScope('spec:read')
@@ -47,6 +61,34 @@ export class MirrorController {
     });
     void reply.header('content-type', 'text/plain; charset=utf-8');
     return text;
+  }
+
+  /**
+   * EP-MIR-03 — 프로젝트 스펙 전체를 zip 하나로(2026-09-28 · clemvion 요청 N5 · 사람 결정 D7 · D8 · REQ-API-251).
+   * `basis=approved|latest` · `layout=flat|tree` · `include=attachments`. 판정 · 경로 규칙은 `SpecExportService` 한 곳이다.
+   */
+  @RequireScope('spec:read')
+  @Get('export.zip')
+  async exportZip(
+    @Req() req: ProjectRequest,
+    @Query('basis') basis?: string,
+    @Query('layout') layout?: string,
+    @Query('include') include?: string,
+  ): Promise<StreamableFile> {
+    const out = await this.exports.archive({
+      projectId: projectOf(req),
+      projectSlug: String(req.params?.['proj'] ?? 'project'),
+      basis: basis ?? null,
+      layout: layout ?? null,
+      include: (include ?? '')
+        .split(',')
+        .map((v) => v.trim())
+        .filter((v) => v !== ''),
+    });
+    return new StreamableFile(out.stream, {
+      type: 'application/zip',
+      disposition: `attachment; filename="${out.filename}"`,
+    });
   }
 
   /**

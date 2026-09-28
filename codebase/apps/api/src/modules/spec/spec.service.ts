@@ -2271,6 +2271,16 @@ export class SpecService {
     updatedAt: Date | null;
     readAs: SpecReadAs;
     task: string | null;
+    /** 내보내기(EP-MIR-03)의 목록 · 폴더 재료 — frontmatter 에 쓴 값과 같다 */
+    meta: {
+      key: string;
+      type: string;
+      version: number | null;
+      status: string | null;
+      contentHash: string | null;
+      area: string | null;
+      body: string;
+    };
   }> {
     const spec = await this.get(input);
     const requirements = (spec['requirements'] ?? []) as Record<string, unknown>[];
@@ -2299,6 +2309,15 @@ export class SpecService {
       updatedAt: spec['updated_at'] == null ? null : toDate(spec['updated_at']),
       readAs: spec['read_as'] as SpecReadAs,
       task: text(spec['task']),
+      meta: {
+        key: String(spec['key']),
+        type: String(spec['type']),
+        version: typeof spec['version_no'] === 'number' ? spec['version_no'] : null,
+        status: text(spec['doc_status']),
+        contentHash: text(spec['content_hash']),
+        area,
+        body: String(spec['body_md'] ?? ''),
+      },
     };
   }
 
@@ -2328,8 +2347,14 @@ export class SpecService {
    * 에이전트가 처음 붙었을 때 "이 프로젝트에 무엇이 있나"를 한 파일로 answer 한다 —
    * 트리 API 를 부르지 못하는 소비자(웹 크롤러·다른 도구)도 같은 지도를 본다.
    */
-  async llmsTxt(input: { projectId: string; projectName: string }): Promise<string> {
+  async llmsTxt(input: {
+    projectId: string;
+    projectName: string;
+    /** 링크 — 기본은 HTTP · 디스크 미러의 `./specs/<키>.md`. 내보내기(EP-MIR-03)는 zip 안의 경로를 준다 */
+    linkOf?: (key: string) => string;
+  }): Promise<string> {
     const nodes = await this.tree({ projectId: input.projectId });
+    const linkOf = input.linkOf ?? ((key: string): string => `./specs/${safePathSegment(key)}.md`);
     const lines = [
       `# ${input.projectName}`,
       '',
@@ -2342,9 +2367,7 @@ export class SpecService {
       const status = node.doc_status === null ? 'draft' : node.doc_status;
       // 링크는 디스크 미러가 쓰는 파일 이름과 같다 — 보통 키는 그대로이고, `/` 같은 글자는 `%XX` 라
       // HTTP 경로(EP-MIR-01)로 따라가도 원래 키로 풀린다(REQ-API-235)
-      lines.push(
-        `- [${node.title}](./specs/${safePathSegment(node.key)}.md): ${node.type} · ${status}`,
-      );
+      lines.push(`- [${node.title}](${linkOf(node.key)}): ${node.type} · ${status}`);
     }
     return `${lines.join('\n')}\n`;
   }

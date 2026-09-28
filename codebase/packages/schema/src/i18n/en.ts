@@ -2054,6 +2054,8 @@ export const en = {
   'mail.digest.footer':
     'This is your NERV email digest, sent daily at {hour}:00 ({timezone}). To change the time or turn it off: {url}',
   'mail.digest.unsubscribe': 'Turn it off without signing in: {url}',
+  'error.export.too_large':
+    'The export is larger than a single zip can hold (4 GB). Download it without attachments.',
   'error.digest.unsubscribe_expired':
     'This link has expired. You can turn off the email digest in My account.',
   'mail.reset.subject': '[NERV] Reset your password',

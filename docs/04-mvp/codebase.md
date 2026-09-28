@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.95 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.96 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.96 변경(2026-09-28 — 프로젝트 스펙 전체 내보내기): **새 요구사항 없음 · §3.1 트리 두 줄.** `common/zip-stream.ts` · `modules/spec/spec-export.service.ts` 를 더했다([4.4 API 명세](api.md) REQ-API-251). 새 의존성은 없다 — 플러그인 아카이브(`scripts/pack-plugin.mjs`)와 같이 node:zlib 만 쓴다.
 >
 > v1.95 변경(2026-09-28 — 게이트 판정 조회): **새 요구사항 없음 · §3.1 트리 한 줄.** `modules/review/review-gate.ts` 를 더했다([4.4 API 명세](api.md) REQ-API-247).
 >
@@ -461,6 +463,7 @@ apps/api/src/
     scope-check.ts                # 권한 판정 정본 — 표면은 위임만 한다 (D-05)
     sql-array.ts                  # 배열 바인딩 — 문자열 이어붙이기를 막는다
     storage.service.ts            # S3 클라이언트 · presigned URL — 공개 주소 경고 (REQ-CB-034)
+    zip-stream.ts                 # zip 을 흘려보내며 쓴다 — node:zlib 만 · 시각 고정 · zip32 (REQ-API-251)
   mcp/
     mcp.controller.ts  # POST /mcp — Streamable HTTP, 신·구 리비전 병행 협상
     tool-context.ts    # 도구 호출의 주체·세션·멱등 키
@@ -540,6 +543,7 @@ apps/api/src/
       spec-check.service.ts     # 사전 검토 — 제출 게이트의 근거를 미리 보인다
       spec-comment.service.ts
       spec-delta.ts             # 요구사항 델타 추출 — 저장 응답과 승인이 같은 함수를 쓴다
+      spec-export.service.ts    # 프로젝트 스펙 전체 zip — EP-MIR-03 (REQ-API-251)
       spec-relation.service.ts  # 관계·역참조 — 상한 없는 유한 목록 (REQ-API-155)
       spec-tree.ts              # 트리 조립 — 기준선 세트 반영
       spec.controller.ts        # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest

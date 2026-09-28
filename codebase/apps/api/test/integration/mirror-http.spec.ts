@@ -15,6 +15,12 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
+import { SpecExportService } from '../../src/modules/spec/spec-export.service.js';
+import { NERV_DB } from '../../src/common/database.module.js';
+import type { NervDb } from '../../src/common/database.module.js';
+import type { StorageService } from '../../src/common/storage.service.js';
+import { Readable } from 'node:stream';
+import { zipEntries } from './zip-entries.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -339,6 +345,137 @@ describe('md 미러의 작업 기준 (REQ-API-249)', () => {
     expect(both.status).toBe(400);
     const missing = await get('/api/projects/clemvion/specs/SPC-MIR-001.md?task=CLV-T-NOPE99');
     expect(missing.status).toBe(404);
+  });
+});
+
+/**
+ * 프로젝트 스펙 전체 내보내기 (2026-09-28 · clemvion 요청 N5 · 사람 결정 D7 · D8 · REQ-API-251).
+ *
+ * 문서마다 GET 하면 446번이고 분당 300건 한도에 걸렸다. zip 하나로 받고, 같은 기준이면 같은 바이트여야 한다.
+ */
+describe('EP-MIR-03 export.zip (REQ-API-251)', () => {
+  async function download(query: string): Promise<{ status: number; type: string; zip: Buffer }> {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/projects/clemvion/export.zip${query}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return {
+      status: res.statusCode,
+      type: String(res.headers['content-type'] ?? ''),
+      zip: res.rawPayload,
+    };
+  }
+
+  it('layout=tree 는 가장 가까운 area 폴더에 넣고, 문서는 md 미러와 같은 바이트다', async () => {
+    const res = await download('?layout=tree');
+    expect(res.status).toBe(200);
+    expect(res.type).toContain('application/zip');
+    const entries = zipEntries(res.zip);
+    const paths = entries.map((e) => e.path);
+    expect(paths.slice(0, 2)).toEqual(['manifest.json', 'llms.txt']);
+    expect(paths).toContain('specs/SPC-AREA/SPC-AREA.md');
+    expect(paths).toContain('specs/SPC-AREA/SPC-MID.md');
+    expect(paths).toContain('specs/SPC-ROOT/SPC-ROOT.md');
+    expect(paths).toContain('specs/SPC-MIR-001.md');
+
+    const manifest = JSON.parse(entries[0]!.data.toString('utf8')) as {
+      basis: string;
+      layout: string;
+      specs: { key: string; path: string; version: number | null; read_as: string }[];
+      attachments: unknown[];
+    };
+    expect(manifest).toMatchObject({ basis: 'approved', layout: 'tree', attachments: [] });
+    // 키 순서다 — 같은 기준이면 같은 바이트가 되는 첫째 조건
+    const keys = manifest.specs.map((d) => d.key);
+    expect(keys).toEqual([...keys].sort());
+    const mir = manifest.specs.find((d) => d.key === 'SPC-MIR-001')!;
+    expect(mir).toMatchObject({ version: 2, read_as: 'approved' });
+
+    const mid = entries.find((e) => e.path === 'specs/SPC-AREA/SPC-MID.md')!;
+    const single = await get('/api/projects/clemvion/specs/SPC-MID.md');
+    expect(mid.data.toString('utf8')).toBe(single.text);
+    // 목록의 링크가 zip 안의 경로다
+    expect(entries[1]!.data.toString('utf8')).toContain('(./specs/SPC-AREA/SPC-MID.md)');
+  });
+
+  it('같은 기준이면 같은 바이트다 · flat 은 한 폴더다 · 승인본이 없는 문서는 현재 버전으로', async () => {
+    const a = await download('');
+    const b = await download('?basis=approved&layout=flat');
+    expect(a.zip.equals(b.zip)).toBe(true);
+    const manifest = JSON.parse(zipEntries(a.zip)[0]!.data.toString('utf8')) as {
+      specs: { key: string; path: string; status: string | null; version: number | null }[];
+    };
+    expect(manifest.specs.every((d) => /^specs\/[^/]+\.md$/.test(d.path))).toBe(true);
+    expect(manifest.specs.find((d) => d.key === 'SPC-LEAF')).toMatchObject({
+      status: 'draft',
+      version: 1,
+    });
+  });
+
+  it('모르는 기준 · 배치 · include 는 400 이다', async () => {
+    expect((await download('?basis=newest')).status).toBe(400);
+    expect((await download('?layout=deep')).status).toBe(400);
+    expect((await download('?include=comments')).status).toBe(400);
+  });
+
+  it('include=attachments 는 내보낸 본문이 가리키는 첨부만 넣고 목록에 id → 경로를 적는다', async () => {
+    const { rows } = await pool.query<{ id: string; spec_id: string; v: string }>(
+      `SELECT s.id AS spec_id, v.id AS v FROM spec s JOIN spec_version v ON v.spec_id = s.id
+        WHERE s.key = 'SPC-LEAF' AND v.version_no = 1`,
+    );
+    const used = newId();
+    const unused = newId();
+    for (const [id, name] of [
+      [used, '시안.png'],
+      [unused, '안-쓰는.png'],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO attachment (id, project_id, spec_id, storage_key, filename, content_type, bytes,
+                                 checksum, uploaded_by_user_id, committed_at)
+         VALUES ($1,$2,$3,$4,$5,'image/png',4,'sha256:x',$6,now())`,
+        [id, projectId, rows[0]!.spec_id, `k/${id}`, name, userId],
+      );
+    }
+    // 승인본은 얼어 있다 — 초안(SPC-LEAF v1)의 본문에 주소를 넣는다
+    await pool.query(`UPDATE spec_version SET body_md = body_md || $2 WHERE id = $1`, [
+      rows[0]!.v,
+      `\n\n![시안](/api/v1/projects/clemvion/attachments/${used})`,
+    ]);
+    // 스토리지는 흉내 낸다 — L2 는 S3 를 띄우지 않는다(attachment.spec.ts 와 같다)
+    const storage = {
+      get: (key: string) =>
+        Promise.resolve({
+          body: Readable.from([Buffer.from(key === `k/${used}` ? 'PNG!' : 'NOPE')]),
+          contentType: 'image/png',
+          bytes: 4,
+        }),
+    } as unknown as StorageService;
+    const exporter = new SpecExportService(app.get<NervDb>(NERV_DB), app.get(SpecService), storage);
+    const out = await exporter.archive({
+      projectId,
+      projectSlug: 'clemvion',
+      basis: null,
+      layout: null,
+      include: ['attachments'],
+    });
+    const chunks: Buffer[] = [];
+    for await (const chunk of out.stream) chunks.push(chunk as Buffer);
+    const entries = zipEntries(Buffer.concat(chunks));
+    const manifest = JSON.parse(entries[0]!.data.toString('utf8')) as {
+      attachments: { id: string; path: string; referenced_by: string[] }[];
+    };
+    expect(manifest.attachments).toEqual([
+      expect.objectContaining({
+        id: used,
+        path: `attachments/${used}/시안.png`,
+        referenced_by: ['SPC-LEAF'],
+      }),
+    ]);
+    const file = entries.find((e) => e.path === manifest.attachments[0]!.path)!;
+    expect(file.data.toString()).toBe('PNG!');
+    // 그림은 다시 압축하지 않는다
+    expect(file.method).toBe(0);
   });
 });
 
