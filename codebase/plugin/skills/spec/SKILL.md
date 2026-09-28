@@ -18,6 +18,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_spec_attach
   - mcp__nerv__nerv_spec_attachment_read
   - mcp__plugin_nerv_nerv__nerv_spec_attachment_read
+  - mcp__nerv__nerv_spec_attachment_hide
+  - mcp__plugin_nerv_nerv__nerv_spec_attachment_hide
   - mcp__nerv__nerv_spec_check
   - mcp__plugin_nerv_nerv__nerv_spec_check
   - mcp__nerv__nerv_spec_comment_resolve
@@ -133,6 +135,16 @@ allowed-tools:
 - `nerv_spec_get`(`spec_id`, `include: ["attachments"]`) → 항목마다 `url` 이 있다. 그 주소로 받는다: `curl -sL "$NERV_SERVER<그 url>" -H "Authorization: Bearer $NERV_TOKEN"`.
 - Bash 가 없는 세션이면 `nerv_spec_attachment_read`(`attachment_id`) — **텍스트만·32KiB 까지**의 좁은 길이다. 잘리면 응답이 `truncated: true` 로 말하니, 그때 앞부분을 전부인 양 다루지 않는다. 그림·PDF·zip 은 거부하고 `url` 을 준다.
 - **스토리지(`:9000`)를 직접 두드리지 않는다.** 서명 없이는 403 이고 그 서명은 업로드용 한 번짜리다 — 받는 길은 위의 `url` 하나다.
+
+**시안을 바꾸면 옛 시안을 내린다.** 새 시안과 옛 시안이 목록에 나란히 남으면 어느 쪽이 지금 것인지 사람이 가려내야 한다.
+
+1. 새 시안을 위의 세 걸음으로 올려 확정한다.
+2. `nerv_spec_draft_upsert` 로 본문의 주소를 새 `url` 로 고친다.
+3. `nerv_spec_attachment_hide`(`attachment_id`) → 옛 시안을 목록에서 내린다. 옛 시안의 `attachment_id` 는 `nerv_spec_get`(`include: ["attachments"]`) 목록에 있다.
+
+- **내리기만 하고 파일은 남는다.** 지난 버전 본문이 그 주소로 그림을 불러올 수 있어서다 — 응답의 `referenced_by_versions` 가 그 버전들이다. 목록의 항목에도 같은 필드가 있다.
+- 파일까지 지우는 것은 되돌릴 수 없어 **사람이 화면에서 한다**(A4). 지워야 하면 사람에게 말한다.
+- 잘못 내렸으면 사람이 화면의 "내린 첨부"에서 복원한다. 도구에는 복원하는 길이 없다.
 
 ## 서브커맨드
 

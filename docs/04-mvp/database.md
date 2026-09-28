@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 40개**다 — 도메인 34 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.60 · 2026-09-28 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.61 · 2026-09-28 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.61 변경(2026-09-28 — 첨부 내리기, **사람 결정**): **§2.3a attachment 열 하나 · 마이그레이션 `0040`.** `hidden_at` — 목록에서 내린 때. 내린 첨부는 목록에 없지만 파일과 행은 남아 지난 버전 본문의 그림이 그대로 보인다([4.4 API 명세](api.md) REQ-API-231).
 >
 > v0.60 변경(2026-09-28 — 증적 설명, **사람 결정**): **REQ-DB-032 신설 · §2.8 evidence 열 하나와 CHECK 하나 · 마이그레이션 `0039`.** 증적에 설명을 둘 자리가 없어서 에이전트가 커밋 SHA 뒤에 설명을 붙이면 형식 검사에 걸렸다. `evidence.note`(500자까지)를 둔다.
 >
@@ -467,6 +469,7 @@ CREATE TABLE attachment (
   uploaded_by_user_id    uuid NOT NULL REFERENCES "user"(id),
   uploaded_by_session_id uuid REFERENCES agent_session(id),   -- 에이전트가 올렸으면 그 세션
   committed_at           timestamptz,                -- **확정 전에는 목록에 없다**(presigned 2단계)
+  hidden_at              timestamptz,                -- 목록에서 내렸다. 파일과 행은 남는다(2026-09-28 · 0040)
   created_at             timestamptz NOT NULL DEFAULT now()
 );
 ```

@@ -281,6 +281,13 @@
       "when": 1790551848893,
       "tag": "0039_evidence_note",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790559133926,
+      "tag": "0040_attachment_hidden",
+      "breakpoints": true
     }
   ]
 }

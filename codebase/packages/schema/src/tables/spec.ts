@@ -273,6 +273,12 @@ export const attachment = pgTable(
      * 올리다 만 것과 올린 것을 구별할 수 있다. 확정 안 된 행은 목록에 나오지 않는다.
      */
     committedAt: ts('committed_at'),
+    /**
+     * **목록에서 내렸는가**(2026-09-28 · REQ-API-231). 내린 첨부는 목록에 나오지 않지만
+     * 파일과 행은 남는다 — 지난 버전 본문이 그 주소를 가리키면 그 버전의 그림이 그대로 보여야
+     * 한다. 에이전트는 내리기만 하고 파일까지 지우는 것은 사람이 한다(A4).
+     */
+    hiddenAt: ts('hidden_at'),
     createdAt: createdAt(),
   },
   (t) => [

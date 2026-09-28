@@ -23,9 +23,11 @@ referenced_by:
 ---
 # 에이전트 연동 설계
 
-> **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **23종**(2026-09-04 — 카탈로그가 18종에서 멈춰 있었다)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
+> **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **25종**(2026-09-28)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.33 · 2026-09-27 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.34 · 2026-09-28 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.34 변경(2026-09-28 — 옛 시안을 치울 길이 없었다, **사람 결정**): **§2.2 A2 · A4 행 · §2.3 도구 한 행(25종째).** `nerv_spec_attachment_hide` 를 더한다. **내리기만 한다** — 파일은 남아 지난 버전 본문의 그림이 그대로 보이고 사람이 복원할 수 있으니 A2 다. 파일 삭제는 A4 그대로 도구로 주지 않는다([4.4 API 명세](../04-mvp/api.md) REQ-API-231).
 >
 > v0.33 변경(2026-09-27 — 기준선으로 개발하는 흐름과 그 뒤의 문서를 고치는 흐름, **사람 결정**): **§2.3 카탈로그 여섯 행 · §2.4 기준 버전 규약 1항 · 4항 신설 · 스펙 수정 흐름 단락.** 구현 흐름은 이제 `nerv_spec_get(task=…)` 한 번으로 그 작업의 기준을 읽고(서버가 출처 문서 · 주변 문서 · 세트 밖을 판정한다 — [4.4](../04-mvp/api.md) REQ-API-203), 스펙을 고치는 흐름은 `basis: "latest"` 로 열린 초안을 읽는다. 기준선으로 개발하는 작업은 재브리핑하지 않고 세트째 옮긴다(REQ-API-210). 서버가 무엇으로 읽었는지(`read_as`)를 알려 주므로, 스킬 넷이 같은 규칙을 문장으로 되풀이하지 않는다.
 >
@@ -156,9 +158,9 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | 티어 | 성격 | 게이트 | NERV 도구 | 클라이언트 표현 |
 | --- | --- | --- | --- | --- |
 | **A1 Low** | 읽기·검색·후보 조회 | 없음(자동 실행) | `nerv_bootstrap` `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get` `nerv_spec_check` `nerv_task_next` `nerv_task_heartbeat` `nerv_session_event` | 승인 프롬프트 없음 |
-| **A2 Medium** | 되돌릴 수 있는 상태 변경 | 실행 후 통지(soft) — Event + 알림, undo 경로 존재 | `nerv_spec_draft_upsert` `nerv_spec_comment_resolve` `nerv_task_claim` `nerv_task_update` `nerv_task_release` `nerv_review_submit` `nerv_finding_resolve`(fixed) `nerv_question_create` | 기본 권한 규칙으로 허용 |
+| **A2 Medium** | 되돌릴 수 있는 상태 변경 | 실행 후 통지(soft) — Event + 알림, undo 경로 존재 | `nerv_spec_draft_upsert` `nerv_spec_comment_resolve` `nerv_task_claim` `nerv_task_update` `nerv_task_release` `nerv_review_submit` `nerv_finding_resolve`(fixed) `nerv_question_create` `nerv_spec_attachment_hide` | 기본 권한 규칙으로 허용 |
 | **A3 High** | 사람의 시간·판단을 소비하거나 되돌리기 비싼 변경 | 실행 전 승인(hard) | `nerv_spec_submit_review`, `nerv_finding_resolve`(critical → dismissed/wont_fix), 정책상 지정된 `nerv_task_update(status=done)` | Claude: `_meta["anthropic/requiresUserInteraction"]: true` / Codex: 승인 정책 + 질문 폴링 |
-| **A4 Critical** | 삭제·배포·권한 변경·게이트 면제 | **도구 미제공** — 웹 UI에서 사람만 | (없음) | 요청 시 `NERV_HUMAN_ONLY` 에러와 딥링크 반환 |
+| **A4 Critical** | 삭제·배포·권한 변경·게이트 면제 | **도구 미제공** — 웹 UI에서 사람만 | (없음) — 첨부는 **내리기**만 A2 도구로 준다(파일은 남는다 · 2026-09-28) | 요청 시 `NERV_HUMAN_ONLY` 에러와 딥링크 반환 |
 
 - [Designing Approval Gates for High-Risk AI Agent Actions — C# Corner](https://www.c-sharpcorner.com/article/designing-approval-gates-for-high-risk-ai-agent-actions/) (2026-08-13 확인): 부작용·민감도·가역성·영향 범위 4요소 분류와 Low/Medium/High/Critical 4단계 매핑, "모델은 액션을 요청할 수 있을 뿐 실행 허용은 애플리케이션이 결정한다"는 원칙, 승인 만료 윈도우·스테일 승인 거부.
 - [OWASP Top 10 for Agentic Applications — OWASP GenAI Security Project](https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/) (2025-12-09 게시): ASI09는 매끄러운 설명이 운영자를 속여 유해 액션을 승인하게 만드는 위험 — 승인 카드에는 에이전트의 설명이 아니라 실제 diff·대상 리소스를 원문으로 보여야 한다.
@@ -195,6 +197,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | `nerv_task_create` | `title`, `goal_md?`, `output_format_md?`, `tools_sources_md?`, `boundaries_md?`, `source_spec_version_id?`, `priority?` | `task_id`, `key`, 상태(4요소가 차면 서버가 `ready` 로 승격) | `task:update` | A2 | 스펙에서 작업을 떼어낼 때 | 멱등 키 지원 |
 | `nerv_spec_attach` | (1단계) `spec_id`, `filename`, `content_type` → `upload_url`·`attachment_id` · (2단계) `attachment_id` → 확정. **파일 바이트는 받지 않는다**(2026-09-07 실물 대조 — 파일은 presigned URL 로 올라가고 MCP 응답에 싣지 않는 것이 이 2단계의 이유다) | 첨부 메타. **presigned 2단계**이고 확정은 실제 업로드를 확인한 뒤에만 통과한다 | `spec:draft` | A2 | 시안·문서를 스펙에 붙일 때 | 확정 재호출은 no-op |
 | `nerv_spec_attachment_read` | `attachment_id` | 첨부 본문. **텍스트만**(`text/*`)이고 `ATTACHMENT_READ_MAX_BYTES` 를 넘으면 자르되 `truncated:true` 로 말한다. 그림·PDF·zip 은 거부하고 **받는 주소**를 준다 | `spec:read` | A1 | Bash 가 없는 세션이 첨부를 되읽을 때 — 있으면 목록의 `url` 로 받는 것이 기본이다 | 읽기 전용 |
+| `nerv_spec_attachment_hide` | `attachment_id` | `hidden` · `file_kept`(늘 `true`) · **`referenced_by_versions`**(본문이 그 첨부를 가리키는 버전) | `spec:draft` | A2 | 시안을 바꾼 뒤 옛 첨부를 목록에서 뺄 때 — 먼저 본문의 주소를 새 첨부로 고친다. **파일은 지우지 않는다**(복원과 삭제는 사람 · A4) | 이미 내린 것은 no-op |
 | `nerv_session_event` | `event_seq`, `type`(thought/action/elicitation/response/error), `title?`, `body_md?`, `tool_name?`, `payload?` — **시각은 받지 않는다**(서버가 적는다) | `{accepted}` — **서버 지시(steer/stop)는 이 응답으로 오지 않는다**(그 채널은 하트비트다 · §2.4) | `agent-session:launch`(자기 세션) | A1 | 훅이 없는 실행 환경의 폴백, 굵직한 마일스톤 | 멱등 — (session_id, event_seq) 유니크, 재전송 안전 |
 
 **카탈로그가 실물보다 좁았다**(2026-09-02 정정). [scope.md](../04-mvp/scope.md) §4.2 와 [api.md](../04-mvp/api.md) §4 가 "도구 정의의 정본" 으로 이 표를 가리키는데, 표는 18종(2026-08-30)에서 멈춰 있었다 — `nerv_task_get`·`nerv_task_list`·`nerv_task_create`·`nerv_spec_attach` 가 빠졌고, `nerv_spec_draft_upsert` 의 입력은 이미 걷어낸 `base_version` 을, `nerv_task_update` 의 증적은 옛 모양을, `nerv_finding_resolve` 의 처분은 3값을 적고 있었다. 정본을 보고 스킬·클라이언트를 쓰는 사람이 **없는 인자를 싣는다** — README v1.66/v1.69 가 기록한 "스킬과 스키마가 어긋나면 지시를 따른 쪽이 손해" 그대로다. 위 표는 코드의 `inputSchema` 를 근거로 맞췄다.

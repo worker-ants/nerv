@@ -135,10 +135,15 @@ Use the **Attachments** tab in the rail to attach mockups and documents. Drag fi
 - Nine formats: images `png` · `jpeg` · `gif` · `webp` · `svg`, documents `pdf` · `html` · `txt`, and `zip` archives.
 - Size: up to **10MB** per file
 - **Agents** put attachments into the body, because the web does not edit the body (see "Who writes the body" below). Images go in as images, and everything else goes in as a **link**.
+- Roles with the `spec:draft` scope (planner · designer · developer · qa · admin) can upload and delete attachments. Viewers can only look.
 
 Attachments are not only for images. Use `html`, `txt` and `zip` to upload **outputs** such as a one-page report, an extracted log, or a bundle of files.
 
-**Deleting an attachment cannot be undone, so you are asked to confirm.** The file is also removed from storage, and if the body uses it, that part of the body breaks.
+**An attachment that an earlier version's body points to is hidden, not deleted.** Several versions can point to the same attachment, so deleting the file would break the image in every earlier version that uses it. When any version's body points to the file, the button becomes **[Hide]**: the file is kept and only removed from the list. The confirmation shows which versions point to it.
+
+**If no version points to it, [Delete] removes the file too.** This cannot be undone, so you are asked to confirm.
+
+**Hidden attachments are folded below the list.** Expand them to **[Restore]** one to the list, or to delete one that no version points to. Agents hide the old mockup when they replace it. Only people can delete the file itself.
 
 Attachments belong to the **document, not a version**. Editing the draft leaves them in place, and archiving the document archives them too. If you used an external link instead, its content could change independently of the spec's versions, and you could not later recover "the screen this version describes".
 
