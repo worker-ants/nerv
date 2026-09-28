@@ -318,6 +318,11 @@ describe('멤버 표는 사람마다 한 묶음 (REQ-WEB-194 · 결정 2)', () =
     expect(project.getAttribute('title')).toContain('조직 전체 역할이라');
     // 조직 전체 줄의 planner 는 실제로 켜져 있다 — 상속이 아니다
     expect(within(rows[0]!).getByTestId('role-planner').getAttribute('aria-pressed')).toBe('true');
+    // **켠 역할은 주 동작 색이다**(2026-09-28 · REQ-WEB-282) — 끈 칩 · 상속 칩과 모양으로 구별된다
+    expect(within(rows[0]!).getByTestId('role-planner').className).toContain(
+      'bg-status-action-soft',
+    );
+    expect(project.className).not.toContain('bg-status-action-soft');
     // 조직 역할이 없는 사람에게는 상속 표시가 없다
     expect(within(rows[2]!).getByTestId('role-planner').getAttribute('data-inherited')).toBeNull();
   });

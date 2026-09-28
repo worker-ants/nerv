@@ -717,13 +717,6 @@ function TaskCard({
         >
           {String(task['title'])}
         </Link>
-        {/* 만져지는 카드라는 표시 — 평소에는 없다가 hover 에서만 뜬다 */}
-        <span
-          aria-hidden="true"
-          className="shrink-0 leading-none text-text-faint opacity-0 transition-opacity group-hover:opacity-100"
-        >
-          ⋯
-        </span>
       </div>
       {task['basis_superseded'] === true && (
         // 기준 버전이 지나갔다 — 재브리핑 신호(agent-integration §2.4).

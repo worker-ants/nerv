@@ -297,7 +297,8 @@ function MembersTab(): React.JSX.Element {
               <Th>{t('settings.members.email')}</Th>
               <Th className="w-32">{t('settings.members.scope')}</Th>
               <Th className="w-92">{t('settings.members.role')}</Th>
-              <Th className="w-32" />
+              {/* 폭을 정하지 않는다 — 단추가 한 줄로 서는 만큼 넓어진다(REQ-WEB-282) */}
+              <Th />
             </>
           }
         >
@@ -319,6 +320,8 @@ function MembersTab(): React.JSX.Element {
                         ref={bindTrigger({ kind: 'org', rowKey: m.key, userId: person.user_id })}
                         size="xs"
                         variant="danger"
+                        // 한 줄로 둔다 — 이름 칸이 좁아 두 줄로 꺾였다(2026-09-28 · REQ-WEB-282)
+                        className="whitespace-nowrap"
                         data-testid="member-offboard"
                         disabled={person.user_id === myId || lastOrgAdmin(person.user_id)}
                         disabledReason={t(
@@ -401,8 +404,10 @@ function MembersTab(): React.JSX.Element {
                           onClick={props.onClick}
                           className={cn(
                             'rounded-nerv-sm border px-1.5 py-0.5 text-2xs transition-colors',
+                            // **켠 역할은 주 동작 색이다**(2026-09-28 · 사람 요청 · REQ-WEB-282) — ✓ · + 글자만 다르고
+                            // 모양이 같아서 누가 무엇을 가졌는지 한눈에 보이지 않았다
                             on
-                              ? 'border-border-strong bg-bg-elev font-medium text-text'
+                              ? 'border-status-action bg-status-action-soft font-medium text-status-action'
                               : inherited
                                 ? 'cursor-default border-dashed border-border-strong text-text-mute'
                                 : 'border-border-strong text-text-mute hover:bg-bg-hover hover:text-text',
@@ -446,6 +451,7 @@ function MembersTab(): React.JSX.Element {
                       ref={bindTrigger({ kind: 'project', rowKey: m.key, userId: person.user_id })}
                       size="sm"
                       variant="subtle"
+                      className="whitespace-nowrap"
                       data-testid="member-remove-project"
                       disabled={person.user_id === myId}
                       disabledReason={t('settings.members.remove_self')}

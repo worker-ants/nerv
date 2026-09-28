@@ -83,16 +83,16 @@ The buttons to the right of the task title **move the task from its current stat
 | -------------- | ---------------------------------------------------------------------------------------- |
 | Backlog        | **[Move to ready]** when all four parts are filled in, **[Fill in the brief]** otherwise |
 | Ready          | **[Claim]**                                                                              |
-| Claimed        | **[Start work]** · [Finish…]                                                             |
-| In progress    | **[Request review]** · [Finish…]                                                         |
-| In review      | **[Finish…]**                                                                            |
+| Claimed        | **[Start work]** · [Finish]                                                              |
+| In progress    | **[Request review]** · [Finish]                                                          |
+| In review      | **[Finish]**                                                                             |
 | Blocked        | **[Unblock]** ([Check and unblock] when the server cannot evaluate the reason)           |
 
 **Buttons you cannot use are still shown, but disabled.** Hover over one or move to it with `Tab` to see why (which roles can use it · someone else has claimed the task · something is still blocking it). [Claim] appears only on **Ready** tasks. The exception is a task whose only claim has an expired lease. Clicking [Claim] there reclaims the expired claim and claims the task for you. The button used to appear on backlog and blocked tasks too, but pressing it there was refused.
 
 **The top of the task screen shows both the assignee and the runner.** **Assignee {name}** is the person responsible for the work. **Running on {host} ▸** is the agent session that has claimed the task and is running it now. Click it to go to that session. The assignee and the runner can be different: people set the assignee, while the runner is whoever has the claim.
 
-**The finish form is already open when the task is Claimed, In progress, or In review.** Clicking [Finish…] takes you to it. Spec impact **starts with nothing selected**. You have to choose **No spec impact** explicitly too, so [Move to done] stays disabled until you make a choice. If you choose **Has impact**, the button is enabled only after you write which spec should change and how. If no evidence is attached, a notice appears before you press the button, because the done gate requires evidence. To mark a task as blocked, pick a reason in the separate **Mark as blocked** card.
+**The finish form is already open when the task is Claimed, In progress, or In review.** Clicking [Finish] takes you to it. Spec impact **starts with nothing selected**. You have to choose **No spec impact** explicitly too, so [Move to done] stays disabled until you make a choice. If you choose **Has impact**, the button is enabled only after you write which spec should change and how. If no evidence is attached, a notice appears before you press the button, because the done gate requires evidence. To mark a task as blocked, pick a reason in the separate **Mark as blocked** card.
 
 ## The four parts of a brief {#brief}
 
