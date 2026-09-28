@@ -18,6 +18,7 @@ import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
 import { MailJob } from './jobs/mail.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
 import { PartitionJob } from './jobs/partition.job.js';
+import { RequirementBackfillJob } from './jobs/requirement-backfill.job.js';
 import { RetentionJob } from './jobs/retention.job.js';
 import { SessionStaleJob } from './jobs/session-stale.job.js';
 
@@ -35,6 +36,7 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
     EmbeddingJob,
     MailJob,
     DigestJob,
+    RequirementBackfillJob,
   ],
   exports: [AdvisoryLock, JobRunner],
 })

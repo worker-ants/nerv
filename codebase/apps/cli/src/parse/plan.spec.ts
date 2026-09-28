@@ -155,3 +155,17 @@ describe('복합 owner 라벨 — 매핑은 사람이 준다 (0003_multi_role)',
     expect(owner('planner/developer', { planner: 'u-plan', developer: 'u-dev' })).toBeNull();
   });
 });
+
+// 가운데 토막에 숫자가 든 요구사항 ID 도 읽는다 — 스펙 쪽 추출기와 같은 규칙이다(2026-09-28 · REQ-API-241)
+describe('계획이 가리키는 요구사항 (REQ-API-241)', () => {
+  it('REQ-C24NODE-001 처럼 가운데에 숫자가 있어도 ref 로 읽는다', () => {
+    const result = classify(
+      'plan/node.md',
+      {},
+      '# 노드\n\nREQ-C24NODE-001 과 REQ-CAFENODE-001 을 구현한다. ISO-8601-1 은 요구사항이 아니다.',
+    );
+    expect(result.kind).toBe('task');
+    const task = (result as { task: { requirement_refs: string[] } }).task;
+    expect(task.requirement_refs).toEqual(['REQ-C24NODE-001', 'REQ-CAFENODE-001']);
+  });
+});

@@ -644,6 +644,7 @@ export class TaskService {
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         id: string;
+        key: string;
         status: string;
         goal_md: string | null;
         output_format_md: string | null;
@@ -651,9 +652,12 @@ export class TaskService {
         boundaries_md: string | null;
         baseline_id: string | null;
       }>(sql`
-        SELECT id, status::text AS status, goal_md, output_format_md, tools_sources_md, boundaries_md,
-               baseline_id
-          FROM task WHERE project_id = ${input.projectId} AND key = ${input.taskKey} FOR UPDATE
+        SELECT t.id, t.key, t.status::text AS status, t.goal_md, t.output_format_md,
+               t.tools_sources_md, t.boundaries_md, t.baseline_id
+          FROM task t
+         -- **키와 UUID 를 둘 다 받는다**(2026-09-28 · REQ-API-239 · §1.4b). 키만 보고 있어서, UUID 로
+         -- PATCH 하는 작업 상세의 [다시 브리핑] · [기준 옮기기] 가 언제나 not_found 였다
+         WHERE t.project_id = ${input.projectId} AND ${taskMatch(input.taskKey)} FOR UPDATE
       `);
       const task = rows[0];
       if (task === undefined) {
@@ -790,7 +794,7 @@ export class TaskService {
           projectId: input.projectId,
           subjectType: 'task',
           subjectId: task.id,
-          subjectKey: input.taskKey,
+          subjectKey: task.key,
           actorUserId: input.userId,
           isAgent: false,
         });
@@ -798,7 +802,7 @@ export class TaskService {
 
       return {
         task_id: task.id,
-        key: input.taskKey,
+        key: task.key,
         status: promoted ? 'ready' : task.status,
         delegation_complete: complete,
       };
@@ -855,7 +859,8 @@ export class TaskService {
    * 사람과 화면과 로그가 쓰는 것은 키인데 도구는 UUID 만 받고 있었다 — 에이전트가 화면에서
    * 본 값을 그대로 넣으면 "없는 작업"이 된다. 형태로 갈라 둘 다 받는다.
    */
-  private async resolveTaskId(tx: Tx, projectId: string, ref: string): Promise<string> {
+  // 리뷰 제출도 같은 해소를 쓴다(2026-09-28 · REQ-API-238) — 키를 주면 22P02, 남의 프로젝트 UUID 는 통과하던 자리다
+  async resolveTaskId(tx: Tx, projectId: string, ref: string): Promise<string> {
     const parsed = entityRef(ref);
     // **UUID 도 프로젝트 안에서 해소한다.** 예전에는 UUID 면 그대로 돌려줬고, 그래서
     // `claim` 의 FOR UPDATE 조회가 남의 프로젝트 Task 를 잠그고 그 프로젝트 id 로
@@ -1975,6 +1980,13 @@ export class TaskService {
       sql`SELECT gate_policy FROM project WHERE id = ${projectId}`,
     );
     const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
+    if (!parsed.success) {
+      // **조용히 기본값으로 가지 않는다**(2026-09-28 · REQ-API-240) — 판정은 멈추지 않되 운영자가 알아야 한다.
+      // 보존 잡(retention.job.ts)과 같은 규율이다. 예전에는 아무 기록 없이 리뷰 조건을 끈 채 통과시켰다
+      this.logger.warn(
+        `gate_policy 가 유효하지 않습니다 — done 게이트는 기본값을 씁니다 (project=${projectId})`,
+      );
+    }
     const policy = parsed.success
       ? parsed.data.done_gate
       : { evidence_source: 'any' as const, review_coverage: false };

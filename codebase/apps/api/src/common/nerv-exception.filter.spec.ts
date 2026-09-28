@@ -4,7 +4,13 @@
 import { describe, expect, it } from 'vitest';
 import { msg, NERV_ERROR, NERV_ERROR_CODES } from '@nerv/schema';
 import type { ArgumentsHost } from '@nestjs/common';
-import { diagnostic, NervError, NervExceptionFilter, statusFor } from './nerv-exception.filter.js';
+import {
+  diagnostic,
+  fileRouteStatus,
+  NervError,
+  NervExceptionFilter,
+  statusFor,
+} from './nerv-exception.filter.js';
 import { dbConstraintError } from './db-error.js';
 import type { NervErrorBody } from './nerv-exception.filter.js';
 
@@ -83,6 +89,32 @@ describe('봉투의 message 는 요청 로케일로 만든다', () => {
     const en = catchWith('en', error);
     expect(en?.code).toBe(ko?.code);
     expect(en?.details).toEqual(ko?.details);
+  });
+});
+
+// 파일처럼 받는 경로의 `not_found` 는 404 다(2026-09-28 · 사람 결정 D5 · REQ-API-236).
+// 본문 코드는 그대로이고 상태만 다르다 — REST 의 같은 상황은 409 그대로다
+describe('fileRouteStatus — md 미러 경로의 없음 (REQ-API-236)', () => {
+  const notFound = { kind: 'not_found' };
+  it.each([
+    '/api/projects/clemvion/specs/CLE-MKS-CPIK.md',
+    '/api/projects/clemvion/specs/CLE-MKS-CPIK.md?version=9',
+    '/api/projects/clemvion/specs/..%2F..%2Fx.md',
+    '/api/projects/clemvion/llms.txt',
+  ])('%s — not_found 는 404', (url) => {
+    expect(fileRouteStatus(url, 409, notFound)).toBe(404);
+  });
+
+  it('REST 경로는 409 그대로다 — 계약(§1.4)이 바뀌지 않는다', () => {
+    expect(fileRouteStatus('/api/v1/projects/clemvion/specs/CLE-X?v=9', 409, notFound)).toBe(409);
+    expect(fileRouteStatus('/api/projects/clemvion/specs', 409, notFound)).toBe(409);
+  });
+
+  it('없음이 아닌 오류는 건드리지 않는다 — 모양이 틀린 것은 400, 권한은 403', () => {
+    const url = '/api/projects/clemvion/specs/A.md?version=abc';
+    expect(fileRouteStatus(url, 400, { kind: 'invalid_input' })).toBe(400);
+    expect(fileRouteStatus(url, 409, { kind: 'basis_exclusive' })).toBe(409);
+    expect(fileRouteStatus(url, 403, notFound)).toBe(403);
   });
 });
 

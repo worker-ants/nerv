@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
+import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { createScratchDb } from './helpers.js';
@@ -912,6 +913,40 @@ describe('FR-09 큐·게이트 현황 — S6 가 읽는 것 (REQ-WEB-061·065)',
   });
 });
 
+// 게이트 현황의 두 결함 (2026-09-28 · REQ-API-237). 라운드 번호는 (브랜치 · 종류)마다 따로 세는데
+// "최신" 을 번호로 골라서 다른 종류의 옛 라운드가 보였다. `?limit=abc` 는 LIMIT NaN 으로 가서 500 이었다
+describe('게이트 현황 — 최신 라운드와 limit (REQ-API-237)', () => {
+  it('종류가 섞여도 가장 최근에 만든 라운드를 보인다 — 번호가 큰 다른 종류의 옛 라운드가 아니다', async () => {
+    for (const headSha of ['c0de001', 'c0de002', 'c0de003']) {
+      await reviews.submit(submitInput({ headSha }));
+    }
+    await reviews.submit(submitInput({ headSha: 'c0de004', kind: 'consistency' }));
+    const gate = await reviews.gateCoverage(projectId);
+    expect(gate.items[0]).toMatchObject({
+      branch: 'feat/widget',
+      kind: 'consistency',
+      head_sha: 'c0de004',
+      round_no: 1,
+    });
+  });
+
+  it.each(['abc', '0', '-3'])('?limit=%s 는 400 이다', async (limit) => {
+    const { token } = await app.get(AuthService).issueToken({
+      projectId,
+      userId,
+      name: 'gate',
+      scopes: ['spec:read'],
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/clemvion/gates/reviews?limit=${limit}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect((JSON.parse(res.body) as { code: string }).code).toBe(NERV_ERROR.PRECONDITION);
+  });
+});
+
 async function seed(): Promise<void> {
   const orgId = newId();
   projectId = newId();
@@ -1084,6 +1119,128 @@ describe('리뷰가 Task 에 이어진다 (REQ-API-148)', () => {
       findings: [],
     });
     expect(result.task_id).toBe(other);
+  });
+});
+
+/**
+ * 제출 경로의 세션 · Task 규칙 (2026-09-28 · REQ-API-238). 같은 변경을 다시 내면 옛 라운드의 `task_id` 를
+ * 그대로 써서 명시한 Task 를 무시했고, `task_id` 는 uuid 열에 그대로 들어가 키는 22P02 · 남의 프로젝트
+ * UUID 는 통과였다. REST 는 `session_id` 를 버렸다.
+ */
+describe('제출의 세션 · Task (REQ-API-238)', () => {
+  async function taskRow(key: string, project = projectId): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업','in_progress','목표','PR','도구','경계')`,
+      [id, project, key],
+    );
+    return id;
+  }
+  async function claim(taskId: string): Promise<void> {
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
+                          lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+      [newId(), projectId, taskId, agentSessionId, userId],
+    );
+  }
+  const roundTask = async (id: string): Promise<string | null> =>
+    (
+      await pool.query<{ task_id: string | null }>(
+        `SELECT task_id FROM review_session WHERE id = $1`,
+        [id],
+      )
+    ).rows[0]!.task_id;
+
+  it('같은 변경을 다시 내도 명시한 Task 가 붙는다 — 옛 라운드의 값이 이기지 않는다', async () => {
+    const first = await reviews.submit(submitInput({ sessionId: null }));
+    expect(await roundTask(first.review_session_id)).toBeNull();
+    const taskId = await taskRow('TSK-RESUB');
+    const again = await reviews.submit(
+      submitInput({ sessionId: null, taskId, reviewer: { role: 'testing', risk: 'low' } }),
+    );
+    expect(again.review_session_id).toBe(first.review_session_id);
+    expect(again.task_id).toBe(taskId);
+    expect(await roundTask(first.review_session_id)).toBe(taskId);
+  });
+
+  it('비어 있던 라운드는 다시 낼 때 클레임의 Task 로 채운다', async () => {
+    const first = await reviews.submit(submitInput({ sessionId: null }));
+    const taskId = await taskRow('TSK-CLAIMED');
+    await claim(taskId);
+    const again = await reviews.submit(submitInput({ reviewer: { role: 'testing', risk: 'low' } }));
+    expect(again.review_session_id).toBe(first.review_session_id);
+    expect(await roundTask(first.review_session_id)).toBe(taskId);
+  });
+
+  it('Task 는 키로도 준다 — 남의 프로젝트 Task 는 없는 것이다', async () => {
+    const taskId = await taskRow('TSK-BYKEY');
+    const byKey = await reviews.submit(submitInput({ sessionId: null, taskId: 'TSK-BYKEY' }));
+    expect(byKey.task_id).toBe(taskId);
+
+    const { rows: org } = await pool.query<{ org_id: string }>(
+      `SELECT org_id FROM project WHERE id = $1`,
+      [projectId],
+    );
+    const otherProject = newId();
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,'OTH','other')`,
+      [otherProject, org[0]!.org_id, `other-${otherProject.slice(-6)}`],
+    );
+    const foreign = await taskRow('TSK-FOREIGN', otherProject);
+    await expect(
+      reviews.submit(submitInput({ sessionId: null, headSha: 'f0reign', taskId: foreign })),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } });
+  });
+
+  it('남의 세션에는 붙이지 않는다 — 그 세션의 클레임으로 Task 를 채우지도 않는다', async () => {
+    const stranger = newId();
+    const strangerSession = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'남','active')`,
+      [stranger, `${stranger.slice(-8)}@example.com`],
+    );
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-09','active')`,
+      [strangerSession, projectId, stranger],
+    );
+    await expect(reviews.submit(submitInput({ sessionId: strangerSession }))).rejects.toMatchObject(
+      { code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } },
+    );
+  });
+
+  it('REST 도 세션을 붙인다 — 클레임의 Task 까지 채운다', async () => {
+    const taskId = await taskRow('TSK-REST');
+    await claim(taskId);
+    const { token } = await app.get(AuthService).issueToken({
+      projectId,
+      userId,
+      name: 'rest-review',
+      scopes: ['review:submit'],
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects/clemvion/reviews',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        branch: 'feat/rest',
+        base_sha: 'aaa999',
+        head_sha: 'bbb999',
+        reviewer: { role: 'security', risk: 'low' },
+        session_id: agentSessionId,
+      },
+    });
+    expect(res.statusCode).toBeLessThan(300);
+    const body = JSON.parse(res.body) as { review_session_id: string; task_id: string | null };
+    expect(body.task_id).toBe(taskId);
+    const { rows } = await pool.query<{ agent_session_id: string | null }>(
+      `SELECT agent_session_id FROM review_session WHERE id = $1`,
+      [body.review_session_id],
+    );
+    expect(rows[0]!.agent_session_id).toBe(agentSessionId);
   });
 });
 

@@ -21,6 +21,7 @@ import { AttachmentService } from '../../src/modules/spec/attachment.service.js'
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
+import { RequirementBackfillJob } from '../../src/worker/jobs/requirement-backfill.job.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { worstOf } from '../../src/modules/spec/spec-check.service.js';
 import { createScratchDb } from './helpers.js';
@@ -31,6 +32,7 @@ let pool: pg.Pool;
 let checks: SpecCheckService;
 let specs: SpecService;
 let tasks: TaskService;
+let backfill: RequirementBackfillJob;
 let projectId: string;
 let planner: string;
 
@@ -45,6 +47,7 @@ beforeAll(async () => {
   const drizzleDb = drizzle(pool);
   const events = new EventService(drizzleDb, silent);
   checks = new SpecCheckService(drizzleDb);
+  backfill = new RequirementBackfillJob(drizzleDb);
   const attachments = new AttachmentService(null as never, drizzleDb);
   specs = new SpecService(
     events,
@@ -468,6 +471,79 @@ describe('요구사항 작성 표면 (REQ-API-144·145)', () => {
     await expect(specs.nextRequirementRef({ projectId, prefix: '' })).rejects.toMatchObject({
       details: { kind: 'invalid_input', field: 'prefix' },
     });
+  });
+});
+
+/**
+ * 요구사항 ID 의 모양은 한 곳이다 (2026-09-28 · REQ-API-241). 다음 번호 발급(EP-REQ-04)은 가운데 토막에 숫자를
+ * 받아 주는데(`REQ-C24NODE-001`) 읽는 쪽 여섯 자리가 영문만 봐서 그 ID 가 모두 0건이었다. 형식 위반 검사는
+ * 같은 정규식으로 먼저 걸러 한 번도 울리지 않았다.
+ */
+describe('요구사항 ID 의 모양 (REQ-API-241)', () => {
+  it('발급한 ID 는 가운데에 숫자가 있어도 요구사항이다 — 발급과 읽기가 같은 규칙이다', async () => {
+    const { ref } = await specs.nextRequirementRef({ projectId, prefix: 'C24NODE' });
+    expect(ref).toBe('REQ-C24NODE-001');
+    const { versionId } = await draft(
+      'SPC-C24NODE',
+      `# 노드\n\n- ${ref} WHEN 노드가 뜨면 THE SYSTEM SHALL 상태를 알린다`,
+    );
+    const result = await checks.check({ projectId, specVersionId: versionId });
+    // "요구사항이 없다" 경고도, 형식 위반도 없다
+    expect(result.findings.filter((f) => f.checker === 'requirement-shape')).toEqual([]);
+  });
+
+  it('모양이 틀린 ID 는 경고다 — 승인돼도 요구사항이 되지 않는다고 알린다', async () => {
+    const { versionId } = await draft(
+      'SPC-BAD-REF',
+      '# 문서\n\n- req-api-001 WHEN 누르면 THE SYSTEM SHALL 연다\n- REQ-OK-001 WHEN 닫으면 THE SYSTEM SHALL 지운다',
+    );
+    const result = await checks.check({ projectId, specVersionId: versionId });
+    const shape = result.findings.filter((f) => f.checker === 'requirement-shape');
+    expect(shape).toHaveLength(1);
+    expect(shape[0]).toMatchObject({ severity: 'warning', anchor: 'req-api-001' });
+    expect(shape[0]?.message).toContain('형식 위반');
+    expect(result.verdict).not.toBe('block');
+  });
+
+  it('끝이 섞인 작업 키는 요구사항 줄로 읽지 않는다 — 목록의 작업 키가 경고를 받지 않는다', async () => {
+    const { versionId } = await draft(
+      'SPC-TASK-LIST',
+      '# 문서\n\n- REQ-TL-001 WHEN 누르면 THE SYSTEM SHALL 연다\n- CLV-T-0CFQC2 이 작업이 구현한다',
+    );
+    const result = await checks.check({ projectId, specVersionId: versionId });
+    expect(result.findings.filter((f) => f.checker === 'requirement-shape')).toEqual([]);
+  });
+
+  it('승인본에서 빠진 요구사항 행을 채운다 — 있는 행은 건드리지 않고, 두 번 돌려도 같다', async () => {
+    // 규칙이 넓어지기 전에 승인된 문서를 흉내 낸다 — 승인은 됐지만 요구사항 행이 없다
+    const { specId, versionId } = await draft(
+      'SPC-BACKFILL',
+      '# 노드\n\n- REQ-C24NODE-002 WHEN 노드가 멈추면 THE SYSTEM SHALL 알린다\n- REQ-KEEP-001 WHEN 열면 THE SYSTEM SHALL 보인다',
+    );
+    await pool.query(
+      `UPDATE spec_version SET status='approved', approved_at=now(), approved_by_user_id=$2,
+              edit_lease_user_id=NULL, edit_lease_session_id=NULL, edit_lease_expires_at=NULL
+        WHERE id = $1`,
+      [versionId, planner],
+    );
+    await pool.query(`UPDATE spec SET current_version_id=$1 WHERE id=$2`, [versionId, specId]);
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-KEEP-001','손대지 않을 문장','must',$4,$4)`,
+      [newId(), projectId, specId, versionId],
+    );
+
+    expect(await backfill.run()).toMatchObject({ inserted: 1 });
+    const { rows } = await pool.query<{ ref: string; statement_md: string }>(
+      `SELECT ref, statement_md FROM requirement WHERE spec_id = $1 ORDER BY ref`,
+      [specId],
+    );
+    expect(rows).toEqual([
+      { ref: 'REQ-C24NODE-002', statement_md: 'WHEN 노드가 멈추면 THE SYSTEM SHALL 알린다' },
+      { ref: 'REQ-KEEP-001', statement_md: '손대지 않을 문장' },
+    ]);
+    expect(await backfill.run()).toMatchObject({ inserted: 0 });
   });
 });
 

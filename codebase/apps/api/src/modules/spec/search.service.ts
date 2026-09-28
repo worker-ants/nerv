@@ -10,7 +10,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
-import { msg, NERV_ERROR, specType, specVersionStatus } from '@nerv/schema';
+import { msg, NERV_ERROR, REQUIREMENT_REF, specType, specVersionStatus } from '@nerv/schema';
 import { entityRef } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { InjectDb } from '../../common/database.module.js';
@@ -355,7 +355,7 @@ export class SearchService {
    */
   private async pinnedRequirementText(items: SearchHit[], pick: Pick): Promise<SearchHit[]> {
     if (pick.baselineId === null) return items;
-    const reqLike = /^[A-Z]+-[A-Z]+-\d+$/;
+    const reqLike = REQUIREMENT_REF;
     const specIds = [
       ...new Set(
         items.filter((i) => i.anchor !== null && reqLike.test(i.anchor)).map((i) => i.spec_id),

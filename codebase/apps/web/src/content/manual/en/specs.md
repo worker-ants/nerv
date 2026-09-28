@@ -229,7 +229,7 @@ Instead of a comment count, the confirmation dialog before submitting shows **ho
 
 Requirements in a spec body are extracted, and each one tracks its own implementation status: `unimplemented` → `in_progress` → `implemented` → `verified`. Priorities are `must` · `should` · `could`.
 
-**Each requirement is one line in the body.** The format is `- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>`. Only the opening word varies: WHEN, WHILE or IF.
+**Each requirement is one line in the body.** The format is `- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>`. Only the opening word varies: WHEN, WHILE or IF. `<prefix>` starts with a capital letter and may contain digits (`REQ-C24NODE-001`). A line that doesn't follow this shape doesn't become a requirement even after approval, so the pre-submit check warns about it.
 
 ```text
 - REQ-CWC-031 WHEN a visitor opens the widget for the first time THE SYSTEM SHALL restore the previous conversation

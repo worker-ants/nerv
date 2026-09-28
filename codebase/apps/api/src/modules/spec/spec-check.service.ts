@@ -1,4 +1,4 @@
-import { text } from '@nerv/schema';
+import { REQUIREMENT_REF, requirementRefsIn, text } from '@nerv/schema';
 import { extractLinkedKeys } from './spec-relation.service.js';
 // 제출 전 자동 사전 검토 — 5검사기 (E09-S02)
 // 정본: docs/03-proposal/spec-workflow.md §2.1
@@ -44,7 +44,12 @@ export interface CheckResult {
 
 /** EARS 문형 — WHEN/WHILE/IF … THE SYSTEM SHALL … */
 const EARS_PATTERN = /^\s*(WHEN|WHILE|IF|WHERE)\b.*\bTHE SYSTEM SHALL\b/i;
-const REQUIREMENT_ID = /^[A-Z]+-[A-Z]+-\d+$/;
+/**
+ * 요구사항 ID **처럼 보이는** 줄 — 모양 검사의 입구다. 예전에는 검사와 같은 정규식으로 먼저 걸러서 형식 위반이
+ * 한 번도 울리지 않았다(2026-09-28 · REQ-API-241). 대소문자와 가운데 토막을 느슨히 받고 끝은 숫자만 받는다 —
+ * 끝이 섞인 작업 키(`CLV-T-0CFQC2`)는 요구사항 줄로 읽지 않는다.
+ */
+const REQUIREMENT_LIKE_LINE = /^[-*]?\s*([A-Za-z]+-[A-Za-z0-9]+-\d+)\s+(.*)$/;
 
 @Injectable()
 export class SpecCheckService {
@@ -112,7 +117,7 @@ export class SpecCheckService {
       ...(await this.unresolvedLinks(projectId, specId, body)),
       ...(await this.isolated(specId)),
     ];
-    const refs = [...new Set(body.match(/[A-Z]+-[A-Z]+-\d+/g) ?? [])];
+    const refs = requirementRefsIn(body);
     if (refs.length === 0) return findings;
 
     // 이 문서가 언급한 요구사항 ID 중 **다른 스펙이 이미 소유한** 것 — 중복 정의의 신호다
@@ -239,20 +244,23 @@ export class SpecCheckService {
     const seen = new Map<string, number>();
 
     body.split('\n').forEach((line, index) => {
-      const match = /^[-*]?\s*([A-Z]+-[A-Z]+-\d+)\s+(.*)$/.exec(line.trim());
+      const match = REQUIREMENT_LIKE_LINE.exec(line.trim());
       if (match === null) return;
       const [, ref, statement] = match;
       if (ref === undefined) return;
 
       seen.set(ref, (seen.get(ref) ?? 0) + 1);
 
-      if (!REQUIREMENT_ID.test(ref)) {
+      if (!REQUIREMENT_REF.test(ref)) {
         findings.push({
           checker: 'requirement-shape',
-          severity: 'block',
-          message: `요구사항 ID 형식 위반: ${ref}`,
+          // **경고다** — 이 줄은 승인돼도 요구사항 행이 되지 않는다는 알림이다. 느슨한 입구가 평범한 문장을
+          // 잡을 수도 있어서 막지는 않는다(2026-09-28 · REQ-API-241)
+          severity: 'warning',
+          message: `요구사항 ID 형식 위반 — 승인돼도 요구사항이 되지 않는다(영문-영문으로 시작하는 영문·숫자-숫자): ${ref}`,
           anchor: ref,
         });
+        return;
       }
       if (statement !== undefined && statement.trim() !== '' && !EARS_PATTERN.test(statement)) {
         findings.push({

@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.24 · 2026-09-26 · HTML 파생본: [importer.html](../html/importer.html)
+> 문서 버전 v0.25 · 2026-09-28 · HTML 파생본: [importer.html](../html/importer.html)
+>
+> v0.25 변경(2026-09-28 — 가운데 토막의 숫자, **사람 결정**): **§2.5 정규식 · §3 기본값 · 프로파일 둘.** 요구사항 ID 의 기본 모양을 `[A-Z]+-[A-Z][A-Z0-9]*-\d+` 로 넓혔다 — 가운데 토막에 숫자가 든 ID(`REQ-C24NODE-001`)가 0건으로 추출됐다. 서버 추출기와 같은 모양이고 정본은 [4.4 API 명세](api.md) REQ-API-241 이다. `nerv-docs` 프로파일도 `REQ-[A-Z][A-Z0-9]*-\d+` 로 같이 넓혔다.
 >
 > v0.24 변경(2026-09-26 — `user_guide:` 가 경고로만 남고 버려졌다): **REQ-IMP-033 신설 · §2.3 `user_guide:` 행 · §4.1 한 행 · 프로파일 예시 한 줄.** 표는 이 필드가 "다른 증적과 같은 검증 경로에 올라온다" 고 적는데 프로파일이 키를 몰라 `frontmatter-unmapped` 로만 남았다(clemvion 세 편). 경로 하나가 `user_guide` 증적 하나이고, `code:` 와 같은 실존 검사를 받아 미매치는 `stale` + `user-guide-no-match`(manual)다. clemvion dry-run: 미매핑 경고 3 → 0 · 미매치 0.
 >
@@ -140,7 +142,7 @@ frontmatter:                 # 원본 필드 → NERV 필드 (§2.3)
   user_guide: evidence.user_guide   # 2026-09-26 · REQ-IMP-033
   pending_plans: requirement.pending_task_links
 requirement:
-  id_pattern: "[A-Z]+-[A-Z]+-\d+"        # §2.5 휴리스틱
+  id_pattern: "[A-Z]+-[A-Z][A-Z0-9]*-\d+"        # §2.5 휴리스틱
 task:                        # plan 프로파일(P1) — §2.6
   status_map: { "complete/**": done, "research/**": reference }
   unstarted_sentinel: "(unstarted)"
@@ -232,13 +234,13 @@ approved 버전의 결재 메타는 **적재 시점의 사실만** 적는다: `s
 2. **`## Rationale` 유지** — 3섹션 규약(`## Overview` → 본문 → `## Rationale`, Rationale 실측 105개 문서)은 본문 안에 그대로 남는다. "폐기된 대안 보존은 문화로 유지, 위치는 그대로"(데이터 모델 §3.1). Rationale만으로 구성된 결정 문서는 `adr` 후보로 수동 확인 큐에 올린다(§2.2).
 3. **상호참조 링크 → `spec_relation`** — 본문의 in-repo 상대링크(스펙→스펙)를 해소해 `spec_relation(kind='references')` 행을 만든다. 해소 실패 링크는 행을 만들지 않고 리포트로 남긴다(로드맵 §7.3(1) "변환 실패 링크는 리포트로"). 본문 자체의 링크 재작성은 기본 **off**다 — 켜려면 `--rewrite-links`(§3.1)를 쓰며, 이때도 원문 버전(v1)을 남기고 재작성본을 후속 버전(v2)으로 얹어 정보 손실 0을 유지한다.
 
-### 2.5 요구사항 추출 — `[A-Z]+-[A-Z]+-\d+` 휴리스틱
+### 2.5 요구사항 추출 — `[A-Z]+-[A-Z][A-Z0-9]*-\d+` 휴리스틱
 
 clemvion의 요구사항 ID는 `NAV-WF-01` · `ED-CV-01` · `ND-AG-24` · `CCH-SE-02` 형식(영역-화면-순번)으로 `_product-overview.md`의 표 안에서 정의되고, 커밋 메시지가 이 ID로 대화한다([1.1 분석](../01-problem/clemvion-analysis.md) §3.1). 추출 규칙:
 
 | # | 규칙 |
 | --- | --- |
-| 1 | **정의 위치** — `_product-overview.md` 본문 표의 행 중 정규식 `[A-Z]+-[A-Z]+-\d+`에 매칭되는 ID 토큰을 가진 행만 정의로 취급한다. 본문 다른 곳의 등장은 참조일 뿐이며 행을 만들지 않는다. **정의를 가진 파일을 프로파일이 `tree.area_body_file` 로 선언하면 그 파일에서만 읽고**, 선언이 없는 프로파일(nerv-docs)은 모든 파일의 표를 읽는다 — 정의 파일이 따로 없다는 뜻이기 때문이다 |
+| 1 | **정의 위치** — `_product-overview.md` 본문 표의 행 중 정규식 `[A-Z]+-[A-Z][A-Z0-9]*-\d+`에 매칭되는 ID 토큰을 가진 행만 정의로 취급한다. 본문 다른 곳의 등장은 참조일 뿐이며 행을 만들지 않는다. **정의를 가진 파일을 프로파일이 `tree.area_body_file` 로 선언하면 그 파일에서만 읽고**, 선언이 없는 프로파일(nerv-docs)은 모든 파일의 표를 읽는다 — 정의 파일이 따로 없다는 뜻이기 때문이다 |
 | 2 | **필드** — `requirement.ref` ← ID 원문(임포트 원본 어휘 계승 — 데이터 모델 §5.1 "요구사항 ref: `REQ-<영역>-<번호>` 또는 임포트 원본(`NAV-WF-01`)"). `statement_md` ← 행의 설명 셀 원문. `acceptance_md` ← 수용 기준 셀이 있으면 그 원문 — **EARS 정규화는 자동으로 하지 않는다**(사람 확인, 로드맵 §7.3(1)) |
 | 3 | **소속** — `requirement.spec_id` = 그 `_product-overview.md`를 본문으로 갖는 area 노드. feature 단위 재배치가 필요해 보이는 행은 수동 확인 큐로 |
 | 4 | **우선순위** — 필수→`must`, 권장→`should`, 선택→`could`(데이터 모델 §2.2의 매핑). 미표기는 NULL로 두고 추정하지 않는다 — plan `priority` 미선언을 null로 두는 로드맵 §7.3(2)와 같은 원칙. 열 이름(`우선순위`/`priority`)이 있으면 그 셀만 보고, 없으면 어휘가 통째로 든 셀을 찾는다 |
@@ -324,7 +326,7 @@ CHECK 위반으로 실패한다(구현 중 실측).
 | 무엇 | 어디서 | 규칙 |
 | --- | --- | --- |
 | 기준 SpecVersion(`source_spec_key`) | plan frontmatter `spec_impact` · `spec_area` · `spec` | 세 자리에 흩어져 있다 — 합쳐 중복을 걷고 **우리가 아는 첫 번째**를 쓴다(FK 가 단수이고, 원본의 나열 순서가 곧 주된 대상이다). 실측 447건 중 365건이 이 정보를 갖고, 273건이 해소된다 |
-| 요구사항(`pending`) | plan **본문**의 `[A-Z]+-[A-Z]+-\d+` | **하나만 언급했을 때만** 링크한다. 여럿이면 그중 무엇을 구현한 것인지 문서가 말하지 않으므로 고르는 순간 없는 판정을 지어내는 것이 된다 — 링크하지 않고 리포트에 올린다. 실측: 정확히 1건 47 · 2건 이상 38 · 0건 362 |
+| 요구사항(`pending`) | plan **본문**의 `[A-Z]+-[A-Z][A-Z0-9]*-\d+` | **하나만 언급했을 때만** 링크한다. 여럿이면 그중 무엇을 구현한 것인지 문서가 말하지 않으므로 고르는 순간 없는 판정을 지어내는 것이 된다 — 링크하지 않고 리포트에 올린다. 실측: 정확히 1건 47 · 2건 이상 38 · 0건 362 |
 
 > **스펙 키는 spec 패스와 같은 규칙으로 다시 계산한다.** plan 패스는 spec 패스와 따로 도는데 계획은 **경로**로 적혀 있고 서버가 아는 것은 **키**다. 규칙이 갈라지면 링크가 조용히 빗나간다 — 실제로 한 번 그랬다: 프로파일의 `frontmatter.id: 'spec.key'` 를 **원본 필드 이름**으로 읽어 `key` 를 찾았더니 365건 중 31건만 맞았다. 그 값은 "원본의 `id` 가 우리 `spec.key` 가 된다"는 **매핑 방향**이지 필드 이름이 아니다.
 
@@ -621,7 +623,7 @@ NERV의 제안서·MVP 문서(`docs/`)는 NERV가 가동되면 **첫 번째로 �
 | 트리 | 디렉터리 구조 그대로 — `01-problem/`·`02-research/`·`03-proposal/`·`04-mvp/` → `area` 노드 4개, `README.md` → `vision`(2026-09-07 배선 — 프로파일이 README 를 **제외**하고 있었다), 각 문서 → `design` |
 | frontmatter | 4부 공통 규격 `id`(`SPC-MVP-<SLUG>`) / `status` / `updated` — `id` → `spec.key`, `status` → `spec_version.status`(2026-09-06 현재 8편 모두 `approved`), `updated` → 매니페스트 보존(서버 시각을 위조하지 않는다) |
 | `status` 없는 15편 | 2026-09-07 실측 정정 — **23편 전부 frontmatter 를 갖고**(예전 표기 '없는 13편' 은 낡았다) 그중 15편에 `status` 가 없다. `frontmatter-missing` 은 skip 이 아니라 **warn** 이고, 프로파일의 `status_default: approved` 가 그 자리를 채운다 — 기본이 draft 면 승인된 정본 15편이 초안으로 적재된다. 문서 버전 줄(`문서 버전 v0.1 · …`)에서 메타를 읽는 보조 규칙 적용, `status`는 `approved`(합의 완료된 제안서) |
-| 요구사항 | 이 프로파일은 **`REQ-[A-Z]+-\d+`** 를 쓴다(2026-09-07 정정 — 예전 표기 `[A-Z]+-[A-Z]+-\d+` 는 기본값이고, 그것을 이 문서에 쓰면 전표의 `EP-IMP-01`·`SPC-MVP-API` 까지 요구사항으로 승격시킨다). `REQ-CB-###`·`REQ-DB-###`·`REQ-API-###`·`REQ-WEB-###`·`REQ-PLG-###`·`REQ-IMP-###` 가 전부 매칭되고, 이 문서의 REQ-IMP-* 도 자기 자신에 의해 추출된다 |
+| 요구사항 | 이 프로파일은 **`REQ-[A-Z][A-Z0-9]*-\d+`** 를 쓴다(2026-09-07 정정 — 예전 표기 `[A-Z]+-[A-Z]+-\d+` 는 기본값이고, 그것을 이 문서에 쓰면 전표의 `EP-IMP-01`·`SPC-MVP-API` 까지 요구사항으로 승격시킨다). `REQ-CB-###`·`REQ-DB-###`·`REQ-API-###`·`REQ-WEB-###`·`REQ-PLG-###`·`REQ-IMP-###` 가 전부 매칭되고, 이 문서의 REQ-IMP-* 도 자기 자신에 의해 추출된다 |
 | 상호 링크 | 상대링크 → `spec_relation(kind='references')` — 아직 없는 형제 문서 링크는 `link-unresolved`로 리포트에 남고, 문서 세트가 완성되면 재실행이 해소한다 |
 | backlog | [4.8 백로그](backlog.md)의 스토리(`E01-S01` 형식)는 Task 적재 후보다 — 스토리 블록 파싱 규칙은 백로그 문서의 형식 정의를 따르고, P1 plan 임포터와 같은 경로로 적재한다 |
 

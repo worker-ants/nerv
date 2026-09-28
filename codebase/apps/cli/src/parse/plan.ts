@@ -203,10 +203,11 @@ export function parseOwnerMap(raw: string): Record<string, string> {
 }
 
 /**
- * 요구사항 ref 모양 — 스펙 쪽 추출기와 **같은 규약**이다(`[A-Z]+-[A-Z]+-\d+`).
- * 여기서 다른 모양을 쓰면 계획이 가리키는 ref 와 스펙이 발급한 ref 가 갈린다.
+ * 요구사항 ref 모양 — 스펙 쪽 추출기와 **같은 규약**이다(`@nerv/schema` 의 `REQUIREMENT_REF_SOURCE` —
+ * 가운데 토막에 숫자가 들어가도 된다 · 2026-09-28 · REQ-API-241). 여기서 다른 모양을 쓰면 계획이 가리키는
+ * ref 와 스펙이 발급한 ref 가 갈린다. 토막마다 두 글자 이상은 이 파서만의 조건이다(본문 산문의 오인을 줄인다).
  */
-const REQUIREMENT_REF = /\b[A-Z][A-Z]+-[A-Z][A-Z]+-\d+\b/g;
+const REQUIREMENT_REF = /\b[A-Z][A-Z]+-[A-Z][A-Z0-9]+-\d+\b/g;
 
 /** frontmatter 값 하나 → 경로 목록. 문자열 하나든 배열이든 같은 것으로 읽는다. */
 function asPathList(value: unknown): string[] {

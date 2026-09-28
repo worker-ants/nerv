@@ -2110,6 +2110,16 @@ describe('기준선 작업 — 세트째 옮긴다 (REQ-API-210)', () => {
     expect((await tasks.get({ projectId, taskKey: 'CLV-T-BL0003' }))['baseline']).toBeNull();
   });
 
+  // 작업 상세의 [다시 브리핑] · [기준 옮기기] 는 UUID 로 PATCH 한다(tasks.$task.tsx). 수정은 키로만 찾고
+  // 있어서 두 단추가 언제나 not_found 였다(2026-09-28 · REQ-API-239 · §1.4b — 키와 UUID 를 둘 다 받는다)
+  it('UUID 로 고쳐도 같다 — 응답은 키를 준다 (REQ-API-239)', async () => {
+    const id = await baselineTask('CLV-T-BL0006', v1, r1);
+    const result = await tasks.update({ projectId, taskKey: id, baseline: 'R2', userId: hana });
+    // 예전에는 UUID 를 키 자리에 그대로 돌려줬다 — 응답의 `key` 는 언제나 키다
+    expect(result).toMatchObject({ task_id: id, key: 'CLV-T-BL0006' });
+    expect((await tasks.get({ projectId, taskKey: 'CLV-T-BL0006' }))['baseline']).toBe('R2');
+  });
+
   it('기준선 작업은 하트비트에 기준 드리프트를 싣지 않는다 — 세트가 약속이다', async () => {
     const id = await baselineTask('CLV-T-BL0004', v1, r1);
     const claim = await tasks.claim(claimInput(id, sessionHana, hana));

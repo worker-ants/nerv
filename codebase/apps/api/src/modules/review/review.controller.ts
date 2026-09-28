@@ -7,7 +7,14 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { intParam } from '../../common/query-vocab.js';
 import { parseBody } from '../../common/parse-body.js';
-import { FindingCommentInput, FindingResolveInput, ReviewSubmitInput } from '@nerv/schema';
+import {
+  FindingCommentInput,
+  FindingResolveInput,
+  msg,
+  NERV_ERROR,
+  ReviewSubmitInput,
+} from '@nerv/schema';
+import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -35,6 +42,9 @@ export class ReviewController {
       changeset: input.changeset,
       kind: input.kind as 'code',
       taskId: input.task_id ?? null,
+      // **REST 도 세션을 붙인다**(2026-09-28 · REQ-API-238) — 버리고 있어서 REST 로 낸 라운드에는 세션도,
+      // 클레임에서 채우는 Task 도 없었다. 제출자의 세션인지는 서비스가 판정한다
+      sessionId: input.session_id ?? null,
       reviewer: {
         role: input.reviewer?.role ?? '',
         risk: (input.reviewer?.risk ?? null) as 'low' | null,
@@ -78,14 +88,21 @@ export class ReviewController {
     });
   }
 
-  /** EP-REV-04 — 브랜치별 게이트 현황. 표시일 뿐 집행이 아니다 */
+  /** EP-REV-04 — 브랜치별 게이트 현황. 표시용이다 — Task done 을 막는 판정은 done 게이트다 */
   @RequireScope('spec:read')
   @Get('gates/reviews')
   gateCoverage(@Req() req: ProjectRequest, @Query('limit') limit?: string): Promise<unknown> {
-    return this.reviews.gateCoverage(
-      req.nervProjectId!,
-      ...(limit === undefined ? [] : ([Number(limit)] as const)),
-    );
+    // 숫자가 아니거나 1 보다 작으면 400 이다 — `Number('abc')` 가 LIMIT NaN 으로 가서 500 이던 자리다(REQ-API-237)
+    const n = intParam(limit, 'limit');
+    if (n !== null && n < 1) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'limit',
+        unknown: [limit],
+        allowed: ['integer >= 1'],
+      });
+    }
+    return this.reviews.gateCoverage(req.nervProjectId!, ...(n === null ? [] : ([n] as const)));
   }
 
   /**

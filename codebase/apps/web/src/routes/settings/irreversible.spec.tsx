@@ -355,6 +355,22 @@ describe('게이트 정책 — 칸 셋 · 검증 · 전후 (REQ-WEB-201)', () =>
     });
   });
 
+  // 저장 본문은 정책 전체를 펼쳐 보낸다 — 읽지 못해 기본값으로 그린 정책을 저장하면 이 화면에 없는
+  // 설정(`done_gate` 등)이 통째로 덮였다(2026-09-28 · REQ-WEB-280)
+  it('저장된 정책을 읽지 못하면 이유를 말하고 저장을 막는다 — 기본값으로 덮지 않는다', async () => {
+    policy = { done_gate: { review_coverage: ['code'] }, unknown_key: true };
+    renderAt('/settings/gates');
+    expect((await screen.findByTestId('gates-unreadable')).textContent).toContain('읽지 못합니다');
+    const save = screen.getByTestId('gates-save') as HTMLButtonElement;
+    fireEvent.change(screen.getByTestId('gate-boundary-T2') as HTMLInputElement, {
+      target: { value: '3' },
+    });
+    expect(save.disabled).toBe(true);
+    expect(save.title).toBe('저장된 정책을 읽지 못해 저장을 막아 두었습니다');
+    fireEvent.click(save);
+    expect(sent).toHaveLength(0);
+  });
+
   it('고친 채 다른 프로젝트를 고르면 버릴지 묻는다 — 말없이 버리지 않는다', async () => {
     renderAt('/settings/gates');
     await gatesReady();

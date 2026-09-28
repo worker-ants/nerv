@@ -19,7 +19,19 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.26 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.32 · 2026-09-28 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.32 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **요구사항 ID 의 가운데 토막에 숫자** 를 적는다.
+>
+> v2.31 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **읽지 못한 게이트 정책** 을 적는다.
+>
+> v2.30 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **작업 수정이 UUID 도 받는다** 를 적는다.
+>
+> v2.29 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **리뷰 제출의 세션 · Task** 를 적는다.
+>
+> v2.28 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **게이트 현황의 최신 라운드 · limit** 을 적는다.
+>
+> v2.27 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **md 미러의 오류 상태**를 적는다.
 >
 > v2.26 변경(2026-09-28 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **디스크 미러의 경로 이탈 막기**를 적는다.
 >
@@ -729,6 +741,12 @@ referenced_by:
 | 행위자 표기 한 벌 — 사람은 머리글자 원, 에이전트는 AI 칸 | `components/actor-mark.tsx`(`ActorMark` — 작은 칸은 `GlyphChip`) · 활동 피드 · 작업 카드의 실행 표식 · 알림 줄의 행위자 칸 · 알림 묶음 원인(`(AI)`) · 리뷰 발견 코멘트 · 첨부 올린 사람 · 스펙 코멘트 작성자 · 문구 `actor.agent` · `actor.delegated_by`(`project.actor.agent` 삭제) · 매뉴얼 ko·en(시작) · L1 `actor-mark.spec.tsx`(화면 코드에 🤖/👤 없음) | 사람 결정(추천안). 같은 구분이 다섯 모양이었고, 이모지는 OS 마다 그림이 다르고 읽는 도구가 그림 이름을 읽었다([4.5 화면 명세](screens.md) REQ-WEB-277 · §4.3) |
 | 초안의 요구사항 변경 미리보기 · 결재 카드의 본문 렌더링 | `packages/schema/src/requirement-lines.ts`(`requirementsOf` — API 의 `spec-delta.ts` 에서 옮김) · `features/spec-editor/requirement-panel.tsx`(`DraftRequirementDelta` — 승인본이 있으면 EP-SPEC-06, 없으면 본문 줄) · `routes/p.$proj/specs.$spec.tsx`(승인본 번호 · 본문 · 비교 열기) · `features/inbox/approval-card.tsx`([본문 보기] → `SpecEditor` 를 펼칠 때 받음) · `editor.tsx`(`className` · 닫힌 편집기는 건너뜀) · 문구 `spec.requirements.draft_*` · 매뉴얼 ko·en(받은 요청 · 스펙) · L1 `draft-requirements.spec.tsx` · `approval-card.spec.tsx` | 백로그의 남은 것 둘을 닫는다 — 초안의 요구사항 델타 미리보기(SPEC-14 ①의 뒤)와 받은 요청의 [본문 보기]를 스펙 상세의 렌더러로([4.5 화면 명세](screens.md) REQ-WEB-278 · 279) |
 | 디스크 미러의 경로 이탈 막기(보안) | `apps/api/src/common/safe-path.ts`(신설 — `safePathSegment` · `resolveInside`) · `worker/jobs/export.job.ts`(slug · 키를 한 칸으로) · `spec.service.ts`(`llms.txt` 링크) · L1 `safe-path.spec.ts` · L2 `mirror-retention.spec.ts` | 스펙 키 · slug 에 형식 검사가 없어 `../` 가 든 키가 `NERV_EXPORT_DIR` 밖에 파일을 썼다. clemvion 요청 검토 중 찾은 것이다([4.4 API 명세](api.md) REQ-API-235) |
+| md 미러의 오류 상태 | `modules/spec/mirror.controller.ts`(content-type 을 응답 뒤에 · `?version` 검사) · `common/nerv-exception.filter.ts`(`fileRouteStatus` — 미러 경로의 `not_found` 는 404) · L1 `nerv-exception.filter.spec.ts` · L2 `mirror-http.spec.ts`(신설 — HTTP 로 부른다) | 미러의 오류가 모두 500 이었다(없는 버전 · 없는 키 · `?version=abc`). clemvion 요청 N3 이 적은 결함이고 원인은 더 넓었다([4.4 API 명세](api.md) REQ-API-236) |
+| 게이트 현황의 최신 라운드 · limit | `modules/review/review.service.ts`(`gateCoverage` — 가장 최근 라운드 · `kind`) · `review.controller.ts`(`limit` 검사) · `features/review-center/gate-coverage.tsx`(주석 정정) · L2 `review.spec.ts` | 다른 종류의 옛 라운드가 최신으로 보였고 `?limit=abc` 가 500 이었다. 명세의 "Phase 2 몫" 문장도 고쳤다([4.4 API 명세](api.md) REQ-API-237) |
+| 리뷰 제출의 세션 · Task | `modules/review/review.service.ts`(제출자의 세션 검사 · Task 키 해소 · 다시 낼 때의 Task 규칙 · `claimedTask`) · `review.controller.ts`(`session_id` 전달) · `task/task.service.ts`(`resolveTaskId` 공개) · L2 `review.spec.ts` 5건 | 같은 변경의 재제출이 명시한 Task 를 무시했고, `task_id` 키는 22P02 · 남의 프로젝트 UUID 는 통과였고, REST 가 `session_id` 를 버렸다([4.4 API 명세](api.md) REQ-API-238) |
+| 작업 수정이 UUID 도 받는다 | `modules/task/task.service.ts`(`update` — `taskMatch` · 응답 키) · L2 `claim.spec.ts` | 작업 상세의 [다시 브리핑] · [기준 옮기기] 가 UUID 로 PATCH 해서 언제나 not_found 였다([4.4 API 명세](api.md) REQ-API-239) |
+| 읽지 못한 게이트 정책 | `routes/settings/gates.tsx`(읽지 못하면 저장을 막고 이유를 보인다) · 문구 `settings.gates.unreadable*` · `task.service.ts` · `spec.service.ts`(파싱 실패 경고) · L1 `irreversible.spec.tsx` | 화면은 읽지 못한 정책을 기본값으로 덮어 저장할 수 있었고, 서버는 조용히 기본값으로 판정했다([4.5 화면 명세](screens.md) REQ-WEB-280 · [4.4 API 명세](api.md) REQ-API-240) |
+| 요구사항 ID 의 가운데 토막에 숫자 | `packages/schema/src/requirement-lines.ts`(`REQUIREMENT_REF_SOURCE` · `REQUIREMENT_REF` · `requirementRefsIn`) · `spec-check.service.ts`(느슨한 입구 · 형식 위반 경고) · `search.service.ts` · `zod/import.ts`(기본값) · CLI `parse/plan.ts` · 프로파일 둘 · `worker/jobs/requirement-backfill.job.ts`(신설) · 매뉴얼 ko·en(스펙) · L2 `spec-check.spec.ts` 4건 · L1 `plan.spec.ts` · `job-log.spec.ts` | clemvion 요청 N10 의 절반 — `REQ-C24NODE-001` 이 0건이었다. 발급(EP-REQ-04)과 읽기가 다른 규칙이었다([4.4 API 명세](api.md) REQ-API-241) |
 
 #### 이 절은 언제 갱신되는가
 

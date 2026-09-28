@@ -1,4 +1,4 @@
-// 잡 루프 — advisory lock 보유 시에만 8종을 각자의 주기로 돌린다 (E04-S04)
+// 잡 루프 — advisory lock 보유 시에만 열 종을 각자의 주기로 돌린다 (E04-S04)
 // 정본: codebase.md §2.2(잡 목록) · REQ-CB-011(단일 실행)
 //
 // **주기는 새 결정이 아니라 기존 상수에서 유도한다.** 리스 회수·stale 판정은 하트비트
@@ -21,6 +21,7 @@ import { MailJob } from './jobs/mail.job.js';
 import { RetentionJob } from './jobs/retention.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
 import { PartitionJob } from './jobs/partition.job.js';
+import { RequirementBackfillJob } from './jobs/requirement-backfill.job.js';
 import { SessionStaleJob } from './jobs/session-stale.job.js';
 
 interface Scheduled {
@@ -51,6 +52,7 @@ export class JobRunner {
     partition: PartitionJob,
     mail: MailJob,
     digest: DigestJob,
+    requirementBackfill: RequirementBackfillJob,
   ) {
     const heartbeat = HEARTBEAT_INTERVAL_SECONDS * 1000;
     this.schedule = [
@@ -103,6 +105,13 @@ export class JobRunner {
         name: partition.name,
         everyMs: heartbeat * 60 * 24,
         run: () => partition.run(),
+        lastRunAt: null,
+      },
+      // 승인본에서 빠진 요구사항 행 — 추출 규칙이 넓어진 뒤 첫 틱에 한 번, 그 뒤로 하루에 한 번(REQ-API-241)
+      {
+        name: requirementBackfill.name,
+        everyMs: heartbeat * 60 * 24,
+        run: () => requirementBackfill.run(),
         lastRunAt: null,
       },
     ];

@@ -89,6 +89,23 @@ export function statusFor(code: NervErrorCode, details: Record<string, unknown>)
   return STATUS[code];
 }
 
+/**
+ * **파일처럼 받는 경로**(md 미러 · `llms.txt`)의 `not_found` 는 404 다(2026-09-28 · 사람 결정 D5 ·
+ * REQ-API-236). 이 경로는 curl · CI · 미러 도구가 파일처럼 내려받아서 404 를 "없음" 으로 다룬다.
+ * **새 에러 코드는 없다** — 본문 코드는 `NERV_PRECONDITION` 그대로이고 HTTP 상태만 다르다.
+ * REST(EP-SPEC-03)의 같은 상황은 409 그대로다(§1.4).
+ */
+const FILE_ROUTE = /^\/api\/projects\/[^/?]+\/(?:specs\/[^?]+\.md|llms\.txt)(?:\?|$)/;
+
+export function fileRouteStatus(
+  url: string,
+  status: number,
+  details: Record<string, unknown>,
+): number {
+  if (status !== HttpStatus.CONFLICT || details['kind'] !== 'not_found') return status;
+  return FILE_ROUTE.test(url) ? HttpStatus.NOT_FOUND : status;
+}
+
 export interface NervErrorBody {
   ok: false;
   code: NervErrorCode | null;
@@ -107,9 +124,12 @@ export class NervExceptionFilter implements ExceptionFilter {
     const req = host.switchToHttp().getRequest<{
       headers?: Record<string, unknown>;
       nervErrorCode?: string | null;
+      url?: string;
     }>();
     const locale = negotiateLocale(headerOf(req?.headers, 'accept-language'));
-    const { status, body } = this.translate(exception, locale);
+    const translated = this.translate(exception, locale);
+    const body = translated.body;
+    const status = fileRouteStatus(String(req?.url ?? ''), translated.status, body.details);
     // 접근 로그(access-log.ts)가 이 코드를 싣는다 — 상태만으로는 409 가 어느 전제조건인지 모른다
     if (req !== undefined && req !== null) req.nervErrorCode = body.code;
     const res = host.switchToHttp().getResponse<{
