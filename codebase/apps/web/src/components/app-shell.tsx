@@ -39,7 +39,7 @@ import {
   useInboxScopes,
 } from '../lib/queries.js';
 import { cn } from '../lib/utils.js';
-import { chapterForRoute } from '../lib/manual.js';
+import { helpForRoute } from '../lib/manual.js';
 import { useScope } from '../lib/scope.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { ToastStack } from './toast-stack.js';
@@ -232,7 +232,8 @@ export function AppShell({
     select: (s) => viewBasisKey(readViewBasis(s.location.search as Record<string, unknown>)),
   });
   const view = useMemo(() => viewBasisFromKey(viewKey), [viewKey]);
-  const contextChapter = chapterForRoute(pathname);
+  // 이 화면을 설명하는 장 — 있으면 그 절까지(REQ-WEB-268)
+  const contextHelp = helpForRoute(pathname);
 
   // 탭 제목이 범위를 말한다(REQ-WEB-194) — 탭을 여럿 열어 두면 어느 것이 어디인지 제목뿐이다.
   // 상세 화면이면 **무엇을 보는지**까지(2026-09-25 — NAV-13 · REQ-WEB-228): 스펙 세 편을 열어 두면 셋 다 "스펙" 이었다
@@ -657,10 +658,11 @@ export function AppShell({
               <Popover align="right" id="shell-menu-help">
                 {/* 지금 화면을 설명하는 장이 먼저다 — 도움말을 여는 사람은 대개 지금
                     보고 있는 것 때문에 연다 */}
-                {contextChapter !== null && (
+                {contextHelp !== null && (
                   <Link
                     to="/help/$chapter"
-                    params={{ chapter: contextChapter }}
+                    params={{ chapter: contextHelp.chapter }}
+                    {...(contextHelp.section === undefined ? {} : { hash: contextHelp.section })}
                     data-testid="help-this-screen"
                     onClick={() => setMenuOpen(null)}
                     className="block px-3 py-1.5 text-sm hover:bg-bg-hover"
@@ -1152,10 +1154,11 @@ export function AppShell({
               <span className="flex-1">{t('shell.help')}</span>
             </Link>
             {/* 다른 화면에서는 "이 화면 도움말" 한 줄 — 도움말 화면에서는 차례가 둘째 열에 서 있다 */}
-            {!onHelp && contextChapter !== null && (
+            {!onHelp && contextHelp !== null && (
               <Link
                 to="/help/$chapter"
-                params={{ chapter: contextChapter }}
+                params={{ chapter: contextHelp.chapter }}
+                {...(contextHelp.section === undefined ? {} : { hash: contextHelp.section })}
                 data-testid="drawer-help-this-screen"
                 className={cn(NAV_ITEM, 'ml-2')}
               >

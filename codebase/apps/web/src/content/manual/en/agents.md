@@ -2,7 +2,7 @@ Once you connect an agent, Claude Code or Codex can read your specs, claim tasks
 
 This chapter explains **how these parts work together**. For the steps to connect an agent, see [Installing the plugin](/help/install).
 
-## What gets connected
+## What gets connected {#components}
 
 - **MCP tools** — agents use these to read from and write to NERV. The server is named `nerv`, and the tools are named `nerv_*`.
 - **Hooks** — report what the agent is doing to the Sessions screen. Where hooks aren't available, the agent sends these events itself.
@@ -12,9 +12,9 @@ This chapter explains **how these parts work together**. For the steps to connec
 
 **The token, not the skill, decides what an agent is allowed to do.** A skill makes a procedure easier to follow and spells out the details, but it cannot bypass a server gate.
 
-## Tokens and scopes
+## Tokens and scopes {#tokens}
 
-What an agent can do depends on **its token**. Issuing one is step 1 of [Installing the plugin](/help/install).
+What an agent can do depends on **its token**. Issuing one is [step 1 of Installing the plugin](/help/install#token).
 
 - The token value is shown **only once, right after it is issued**. Copy it right away.
 - The **My tokens** list under Settings → Agent tokens shows your tokens from **all organizations**. If you belong to more than one organization, the Project column shows "organization / project", so you can tell which organization each token belongs to.
@@ -26,7 +26,7 @@ What an agent can do depends on **its token**. Issuing one is step 1 of [Install
 - A token can never have broader scopes than your role allows. The limit is your role when the token is used, not when it was issued. If your role changes later, tokens you already issued follow it right away.
 - The list records when each token was last used and from which host. If you see a host you don't recognize, revoke that token right away.
 
-## Skills
+## Skills {#skills}
 
 | Skill            | What it does                                           |
 | ---------------- | ------------------------------------------------------ |
@@ -36,7 +36,7 @@ What an agent can do depends on **its token**. Issuing one is step 1 of [Install
 | `/nerv:question` | Ask a question and wait for the answer                 |
 | `/nerv:review`   | Submit reviews and resolve findings                    |
 
-## Tool tiers
+## Tool tiers {#tool-tiers}
 
 Every tool has a risk tier.
 
@@ -44,7 +44,7 @@ Every tool has a risk tier.
 - **A2** — writes. Only reversible changes belong in this tier.
 - **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`) and an agent closing a `critical` finding as dismissed or won't fix are in this tier. No skill lists the review request tool among the tools it may call without approval. When an agent tries to close a `critical` finding that way, the server creates an approval card and the session waits for a person's decision. **The decision is delivered to the requesting session on its next heartbeat.** This applies to approvals, rejections, and comments alike, so the session knows what to do next.
 
-## Importing documents
+## Importing documents {#import}
 
 Use the CLI to import an existing repository's documents as specs and tasks.
 

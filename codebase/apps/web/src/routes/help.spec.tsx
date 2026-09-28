@@ -34,11 +34,9 @@ vi.mock('socket.io-client', () => ({
 
 function renderAt(path: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const router = createRouter({
-    routeTree,
-    history: createMemoryHistory({ initialEntries: [path] }),
-  });
-  return render(
+  const history = createMemoryHistory({ initialEntries: [path] });
+  const router = createRouter({ routeTree, history });
+  const result = render(
     <LocaleProvider locale="ko">
       <QueryClientProvider client={client}>
         <RealtimeProvider>
@@ -47,6 +45,7 @@ function renderAt(path: string) {
       </QueryClientProvider>
     </LocaleProvider>,
   );
+  return Object.assign(result, { history });
 }
 
 beforeEach(() => {
@@ -104,6 +103,17 @@ describe('GNB 도움말', () => {
     expect(screen.getByTestId('help-this-screen').getAttribute('href')).toBe('/help/tasks');
   });
 
+  // 절까지 간다(2026-09-28 · 사람 결정 · REQ-WEB-268) — 게이트 정책 절은 설정 장의 마지막이다
+  it('"이 화면 도움말"은 그 화면을 설명하는 절까지 간다', async () => {
+    renderAt('/settings/gates');
+    await waitFor(() => expect(screen.getByTestId('help-menu')).toBeDefined());
+
+    fireEvent.click(screen.getByTestId('help-menu'));
+    expect(screen.getByTestId('help-this-screen').getAttribute('href')).toBe(
+      '/help/settings#gates',
+    );
+  });
+
   it('짚어 줄 장이 없는 화면에서는 그 항목이 없다 — 아무 데나 보내지 않는다', async () => {
     renderAt('/');
     await waitFor(() => expect(screen.getByTestId('help-menu')).toBeDefined());
@@ -128,8 +138,26 @@ describe('매뉴얼 라우트', () => {
     await waitFor(() => expect(screen.getByTestId('manual-body')).toBeDefined());
     const body = screen.getByTestId('manual-body');
     expect(body.querySelectorAll('h2').length).toBeGreaterThan(2);
-    expect(body.querySelector('h2')?.id).toBe('sec-1');
+    // 절 이름이 앵커다 — 로케일과 무관하고 절을 넣어도 밀리지 않는다(REQ-WEB-268)
+    expect(body.querySelector('h2')?.id).toBe('board');
+    expect(body.textContent).not.toContain('{#');
     expect(screen.getByText('이 페이지 목차')).toBeDefined();
+  });
+
+  it('옛 주소 #sec-N 은 같은 순서의 절 이름으로 옮긴다 (REQ-WEB-268)', async () => {
+    // jsdom 에는 스크롤이 없다 — 라우터가 해시 자리로 옮기며 부르는 것만 받아 둔다
+    Element.prototype.scrollIntoView = vi.fn();
+    const { history } = renderAt('/help/tasks#sec-7');
+    await waitFor(() => expect(history.location.hash).toBe('#evidence'));
+  });
+
+  it('매뉴얼 본문의 절 id 는 한 문서에 하나뿐이다 — 셸의 id 와도 겹치지 않는다', async () => {
+    renderAt('/help/install');
+    const body = await screen.findByTestId('manual-body');
+    const ids = [...body.querySelectorAll('[id]')].map((el) => el.id);
+    for (const id of ids) expect(document.querySelectorAll(`#${CSS.escape(id)}`)).toHaveLength(1);
+    // `###` 도 이름이 있으면 앵커다
+    expect(body.querySelector('h3')?.id).toBe('env-settings-local');
   });
 
   // 상태의 흐름은 그림이다(2026-09-26 — 사람 지시 · REQ-WEB-243). 예전에는 ```mermaid 펜스가 코드로 보였다

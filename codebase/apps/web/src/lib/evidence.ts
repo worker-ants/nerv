@@ -19,7 +19,7 @@
 
 import { isRepoHost } from '@nerv/schema';
 import type { RepoHost } from '@nerv/schema';
-import { isManualChapter } from './manual-chapters.js';
+import { isManualChapter, isManualSection } from './manual-chapters.js';
 
 /** 커밋 SHA — `evidence-locator.ts` 의 `COMMIT` 과 같은 모양이다(그쪽이 이미 거른다) */
 const COMMIT = /^[0-9a-f]{7,40}$/i;
@@ -135,13 +135,24 @@ export function evidenceTarget(input: {
     // "모양을 알 수 없다" 로 두었는데, 장 이름의 정본은 `manual-chapters.ts` 에 실재한다 —
     // 목록에 있는 것만 링크로 만들면 틀린 곳으로 데려갈 일이 없다. `/help/tasks` 처럼 경로째
     // 적어 둔 값도 받는다(사람이 화면에서 본 주소를 그대로 붙이는 것이 가장 흔하다).
+    //
+    // **절까지 간다**(2026-09-28 · 사람 결정 · REQ-WEB-161 개정). `tasks#evidence` 처럼 절 이름을 붙이면 그
+    // 절로 연다. 그 장에 없는 절 이름이면 장으로만 간다 — 장은 맞으므로 글자로 떨어뜨리지 않는다.
     case 'user_guide': {
+      const [path = '', rest = ''] = locator.split('#');
       const chapter =
-        locator
+        path
           .replace(/^\/?help\//, '')
           .replace(/^\/+|\/+$/g, '')
-          .split(/[#?]/)[0] ?? '';
-      return isManualChapter(chapter) ? { href: `/help/${chapter}`, external: false } : null;
+          .split('?')[0] ?? '';
+      if (!isManualChapter(chapter)) return null;
+      const section = rest.split('?')[0] ?? '';
+      return {
+        href: isManualSection(chapter, section)
+          ? `/help/${chapter}#${section}`
+          : `/help/${chapter}`,
+        external: false,
+      };
     }
     // `test` 는 저장소마다 모양이 달라 데려갈 곳을 짐작할 수 없다. 짐작해서 만든 링크는
     // **틀린 곳으로 데려간다** — 글자로 두는 편이 정직하다.

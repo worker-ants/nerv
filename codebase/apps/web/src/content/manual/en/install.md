@@ -2,7 +2,7 @@ This chapter shows how to connect Claude Code or Codex to NERV. Once connected, 
 
 There are **five steps**. If something goes wrong along the way, see the last section for common causes. For how the pieces work together and why, see [Agents](/help/agents).
 
-## Before you start
+## Before you start {#before}
 
 You need three values, and **all three are already on this screen.** They are shown on the "Values on this server" card just above, and every command and file below is already filled in with them. Copy them as they are.
 
@@ -16,7 +16,7 @@ You need three values, and **all three are already on this screen.** They are sh
 
 Your role matters because **a token's scopes can never be broader than your role.** With the `viewer` role, you cannot issue a token that can claim tasks.
 
-## 1. Issue a token
+## 1. Issue a token {#token}
 
 Go to **Settings → Agent tokens → Issue a new token.** Give the token a name that tells you which machine uses it (for example, `mac-02/claude-code`).
 
@@ -31,13 +31,13 @@ Go to **Settings → Agent tokens → Issue a new token.** Give the token a name
 - When your role changes, **tokens you have already issued follow it immediately.** A scope your role loses stops working in the token right away. However, a scope that was left out at issue time because your role lacked it is not added later, even if your role gains it. To get that scope, issue a new token.
 - The checkboxes for `spec:approve` and `approval:decide` are locked. Approval is something only a person can do, so it cannot be granted to a token.
 
-## 2. Environment variables
+## 2. Environment variables {#env}
 
 **This step shows how to write the settings files by hand.** If you install the plugin first (3-A), the single command at the end of 3-A creates this step's files and the next step's `.mcp.json` **for you**. It never overwrites a value that is already set. Follow this step if you want to know which files are created, or if you prefer to write them yourself.
 
 **These values depend on the project, not the machine.** If you export them in your shell profile, the machine can only work with one project. Every time you switch projects, you have to edit the profile and restart your sessions. Keep the values **inside the working repository** instead.
 
-### Default — the repository's `.claude/settings.local.json`
+### Default — the repository's `.claude/settings.local.json` {#env-settings-local}
 
 ```jsonc
 {
@@ -51,7 +51,7 @@ Go to **Settings → Agent tokens → Issue a new token.** Give the token a name
 
 This file is **git-ignored by default**, so the token is not committed. Each repository can have its own values, and you don't have to touch your shell profile.
 
-### `.nerv/env` — for Codex (not needed yet)
+### `.nerv/env` — for Codex (not needed yet) {#env-nerv-env}
 
 **If you only use Claude Code, the file above is all you need.** Don't keep the values in two places. If the two copies differ, which value applies depends on the situation.
 
@@ -67,7 +67,7 @@ NERV_TOKEN=<the token from step 1>
 
 > **Codex does not use this file yet.** Codex's MCP authentication accepts only the _name_ of an environment variable, so the values in this file don't apply to it. Sending Codex notifications to NERV is also turned off for now, because the server has nowhere to receive them yet. Codex support is still in progress.
 
-### If you use only one project on this machine
+### If you use only one project on this machine {#env-single-project}
 
 You can still use your shell profile. However, if `.claude/settings.local.json` sets the same variable, that value is used. `.nerv/env` never overwrites a value that is already set, so a value from your shell profile takes precedence over `.nerv/env`.
 
@@ -86,7 +86,7 @@ The value is **for display only**. The sender can put anything in a header, so i
 
 **Do not commit the token.** Also add `.nerv/` to your working repository's `.gitignore`. The environment file, the plugin's cache, and the offline queue are all stored there.
 
-## 3-A. Install the plugin in Claude Code
+## 3-A. Install the plugin in Claude Code {#claude-code}
 
 Run these two lines inside Claude Code. **They install the plugin that this server distributes.**
 
@@ -155,7 +155,7 @@ To write it by hand, use the content below (together with the environment variab
 
 **On a company-managed machine, skip this step.** The managed settings have already registered the marketplace and enabled the plugin, and `NERV_SERVER` and `NERV_PROJECT` come from them too. You only need steps 1, 2, 4, and 5.
 
-### Korean writing-style plugin (optional)
+### Korean writing-style plugin (optional) {#ko-style}
 
 The same marketplace also has **`ko-style`, a Korean writing-style plugin**. It finds translationese, metaphors that give objects human actions, double passives, and mixed speech levels in the Korean your agent writes, and asks the agent to fix them. It works without a connection to the NERV server.
 
@@ -178,7 +178,7 @@ Put your team's terms and the speech level for each kind of text in `.ko-style.j
 
 **The checks need node.** Without node, the agent still gets the rule summary, but the checks are skipped.
 
-## 3-B. Connect Codex
+## 3-B. Connect Codex {#codex}
 
 Codex has no plugin format. Instead, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.
 
@@ -219,7 +219,7 @@ Claude Code does not read `AGENTS.md` automatically yet. If you use both agents 
 - **There is no hook telemetry.** As a result, Codex sessions show less detail on the sessions screen. You see the milestones the agent posts itself, not every action.
 - A repository's `.codex/config.toml` is read only in **trusted projects**. You approve it once, the first time you open the project.
 
-## 4. Check the connection
+## 4. Check the connection {#verify}
 
 - **Claude Code**: Start Claude Code in the project repository and type `/mcp`. The `nerv` server should be connected, with the `nerv_*` tools listed.
 - **Codex**: Start a session and call `nerv_bootstrap`. The response includes a `session_id` and the gate policy.
@@ -228,7 +228,7 @@ Either way, the connection is only complete when **your session card appears on 
 
 In Claude Code, the session card appears **before** `nerv_bootstrap` is called, because the session-start hook registers the session directly. So if you see the tools but no card, check **the hook**: the token may be empty, `curl` may be missing, or the hook could not connect to the server. The forwarder fails without reporting an error, so nothing is shown.
 
-## 5. Your first task
+## 5. Your first task {#first-task}
 
 ```text
 /nerv:next
@@ -236,7 +236,7 @@ In Claude Code, the session card appears **before** `nerv_bootstrap` is called, 
 
 The skill calls `nerv_bootstrap` first, recommends the next task, and walks you through claiming it. In Codex, you call the same tools in the same order yourself. That order is described in the `AGENTS.md` you copied.
 
-## When it does not work
+## When it does not work {#troubleshooting}
 
 | Symptom                                   | Usual cause                                                                                                                                                                                                                                                                                    |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

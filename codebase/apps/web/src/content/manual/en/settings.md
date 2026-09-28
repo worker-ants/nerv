@@ -8,7 +8,7 @@ On a wide screen, this list appears under **[Settings]** in the left column. On 
 
 **Switching organizations keeps you in settings.** If you switch organizations at the top of the left column while in settings (or in the inbox, notifications or help), the same screen opens for the new organization. If you switch from a project screen, you go to Home, because the new organization does not have that project.
 
-## General (organization)
+## General (organization) {#org}
 
 This is where you rename the organization, delete it, or create a new one.
 
@@ -20,7 +20,7 @@ Only **organization admins** (people whose organization-wide role is admin) can 
 - **Delete the organization** — possible **only while it has no projects**. Deletion cannot be undone. This rule keeps a project's specs, tasks, reviews, and activity history from being deleted along with the organization. **Archived projects count too, though.** Projects cannot be deleted in the app, so an organization that has ever had a project cannot be deleted from this screen for now. In that case [Delete organization] is **disabled**, and the line below it shows how many projects (and how many of them archived) are blocking deletion. Do not archive projects just to delete the organization. An empty organization is deleted after one more confirmation.
 - **New organization** — use **[Create a new organization…]** at the bottom to create another organization. **Anyone** can create one, and whoever creates it becomes its admin. If you also enter a **first project name**, that project is created and opened. If you leave it empty, the new organization's project list opens with the create form already open. Specs are not shared between organizations, so if your team already uses one, ask for an invitation instead of creating a new one. **[Manage or add organizations]** in the organization menu at the top of the left column opens this screen.
 
-## Projects
+## Projects {#projects}
 
 This is where you create projects, edit their name and repository, and archive or restore them. It is the first item in the **Project** group of the settings menu, and it lists the projects of the organization selected at the top of the left column.
 
@@ -29,12 +29,12 @@ This is where you create projects, edit their name and repository, and archive o
 - **Create a project** — type a name, and the address (slug) and key are filled in for you. The address is built from the Latin letters and digits in the name. **If the name has none, the address field stays empty and the reason appears below it.** In that case, type the address and key yourself, using lowercase letters and digits. The key is the short prefix on **task** numbers (`CLV-T-3F92A1`). A spec key is separate: a person chooses it when creating the document. For organization admins, **[Manage or add projects]** under the project list in the left column opens this screen with the form **already open**. Once the project is created, **[Open]** in the message at the lower right takes you straight into it.
 - **Rename** — only the name changes. **The slug does not.**
 - **Repository kind** — set it under the same [Edit] (`github` by default, or `gitlab`). It only sets the **link format**. GitLab puts `/-/` in commit and file URLs, so links do not open unless this is set correctly. **The server never connects to the repository.** It also does not guess the kind from the domain, because a self-hosted server's address does not show which kind it is.
-- **Repository URL and default branch** — set these together with the name under the project row's [Edit]. Commits and code paths in a task's **evidence** open at this URL (see "Click the evidence" in the [Tasks](/help/tasks) chapter). If it is empty, those rows cannot be clicked, and a note on the task screen explains why. To remove a wrong URL, **clear the field and save**.
+- **Repository URL and default branch** — set these together with the name under the project row's [Edit]. Commits and code paths in a task's **evidence** open at this URL (see [Click the evidence](/help/tasks#evidence) in the Tasks chapter). If it is empty, those rows cannot be clicked, and a note on the task screen explains why. To remove a wrong URL, **clear the field and save**.
 - **Archive a project** — you are **asked to confirm in place**, and the confirmation shows how many approvals are pending in that project (they will be hidden for everyone, as described below). An archived project is removed from lists but not deleted, and its URL still opens. You can undo this: turn on **Show archived** above the list, then click **Restore** on that project's row.
 - An archived project's **notifications and approval cards are hidden**, so nobody keeps being asked for decisions on an archived project. They come back when you restore it.
 - You cannot create a new project with the same slug as an existing one. If an archived project uses that slug, a message about it appears on the screen. **Restore** that project instead of creating a new one.
 
-## Members
+## Members {#members}
 
 The Members and roles screen has two tabs. The first tab, **Members**, opens by default. The second, **Invitations**, is where you invite people (see "Invitations" below). The numbers next to the tabs show the number of members (people) and the number of pending invitations.
 
@@ -50,7 +50,7 @@ Only `admin` can edit members and roles. **Only organization admins can change o
 
 **The organization's last admin cannot be removed.** When only one person has the organization-wide admin role, that person's admin chip and [Remove from organization…] are locked. An organization with no admin has nobody who can manage memberships, so there is no way to recover it (the server rejects this as well). Make someone else an organization admin first. **Turning off your own admin chip asks you to confirm**, because you lose edit access to this screen immediately and need another admin to get it back.
 
-## Invitations
+## Invitations {#invitations}
 
 You send invitations from the **Invitations** tab of the Members and roles screen. Only `admin` can send them. For every other role, **[+ Invite] is disabled**. **Only organization admins can invite people to the whole organization.** A project admin can invite people only to their own project.
 
@@ -82,13 +82,13 @@ stateDiagram-v2
     pending --> expired: 7 days pass
 ```
 
-The invited person sees the invitation as a card on **Home, Get started and Notifications**, and can accept it from there. On a server that can send email, **someone without an account must sign up and confirm their email before they can accept**. The steps are under "Creating an account" in [Getting started](/help/start).
+The invited person sees the invitation as a card on **Home, Get started and Notifications**, and can accept it from there. On a server that can send email, **someone without an account must sign up and confirm their email before they can accept**. The steps are under [Creating an account](/help/start#signup) in Getting started.
 
 The card shows **when the invitation expires** ("Expires in 3 days"). To dismiss an invitation you do not want, click **[Decline]** and confirm. After declining, you need a new invitation to join. **Declining an invitation to a project notifies the person who sent it.** Clicking that notification opens the Invitations tab. (Declining an organization-wide invitation sends no notification. It only appears as **Declined** in the Sent invitations list.) If accepting an invitation gives you your first membership, **Get started** opens and shows your role and what to do next.
 
 When you open an invitation link, the page shows **which account you are signed in with**. If you opened it **while signed in with a different account**, **[Sign in with another account]** appears instead of [Join]. Clicking it signs you out, and after you sign in again you return to the link. If the invitation has ended (expired, revoked or declined) or the link does not exist, the page shows **"Ask the person who invited you for a new link."** and **[Go to NERV]**.
 
-## My account
+## My account {#account}
 
 This is the first item in the **You · all organizations** group. It is also the first item in the menu that opens when you click your name at the top right.
 
@@ -97,9 +97,9 @@ This is the first item in the **You · all organizations** group. It is also the
 - **Password** — enter your current password and your new password (twice), then click **[Change password]**. The new password must be at least 8 characters long. If the two new passwords do not match, you are told before anything is sent. **"Sign out all other devices"** is on by default. With it on, other browsers and devices are signed out, and the browser you are using stays signed in. If your current password is wrong, an error appears in the form.
 - **Notifications by project** — choose how many notifications to get from each project you belong to: **All** (the default), **Important only** or **Off**. Notifications outside the level you pick are not dropped; they arrive already read and do not count toward the badge. Notifications you already have stay as they are, and the inbox is not affected. The same control appears in the notification center when you look at one project ([Inbox and notifications](/help/inbox)).
 
-An agent token cannot change your name. Only you can change your own account. If you **forgot** your password, click "Forgot your password?" on the sign-in screen. You will get a link by email where you can set a new one (see "Forgot your password" in [Getting started](/help/start)).
+An agent token cannot change your name. Only you can change your own account. If you **forgot** your password, click "Forgot your password?" on the sign-in screen. You will get a link by email where you can set a new one (see [Forgot your password](/help/start#forgot-password) in Getting started).
 
-## Tokens
+## Tokens {#tokens}
 
 This is where you issue and revoke **your own** tokens for agents. The list includes your tokens from every organization you belong to. **The steps from issuing a token to connecting an agent are in the [Installing the plugin](/help/install) chapter.** Opening help from this screen also takes you there.
 
@@ -109,7 +109,7 @@ After you issue a token, a card shows **three connection steps** in order (token
 
 Organization admins can see who has which token for which project under **[Organization tokens]** in the Organization group of the settings menu. They can also revoke other people's active tokens there with the same [Revoke], for example the tokens of someone who has left. The list can be filtered by project name and owner. If you are not an organization admin, this item is hidden.
 
-## Gate policy
+## Gate policy {#gates}
 
 Gate policy is set **per project**, not for the whole organization. **Choose the project to edit with the project picker on this screen.** The title, "Gate policy — project name", shows which project it is. The picker starts on the project you viewed last ("Recent" in the left column).
 
