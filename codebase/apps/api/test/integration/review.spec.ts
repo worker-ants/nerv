@@ -1309,6 +1309,80 @@ describe('이월 발견의 상한과 나머지 (REQ-API-242)', () => {
   });
 });
 
+/**
+ * 발견의 태그가 두 표면 모두로 저장된다 (2026-09-28 · clemvion 요청 N8 · REQ-API-253).
+ *
+ * 서비스는 `tags` 를 받는데 REST · MCP 가 함께 쓰는 번역(`toSubmitFindings`)이 빠뜨려서, 어느 표면으로 올려도
+ * 저장되지 않았다 — `spec_drift` 로 대상을 추론하는 규칙(REQ-API-073)이 표면에서는 한 번도 쓰이지 않았다.
+ */
+describe('발견의 태그 (REQ-API-253)', () => {
+  const tagsOf = async (title: string): Promise<{ tags: string[]; area: string }> =>
+    (
+      await pool.query<{ tags: string[]; area: string }>(
+        `SELECT tags, area::text AS area FROM finding WHERE title = $1`,
+        [title],
+      )
+    ).rows[0]!;
+
+  it('MCP 로 올린 태그가 저장되고 대상 추론에 쓰인다', async () => {
+    const tool = app.get(ReviewTools).tools.find((t) => t.name === 'nerv_review_submit');
+    const ctx = {
+      projectId,
+      sessionId: agentSessionId,
+      principal: { userId, isAgent: true },
+    } as unknown as ToolContext;
+    await tool!.handler(
+      {
+        branch: 'feat/tags',
+        base_sha: 'aaaa111',
+        head_sha: 'tag0001',
+        reviewer: { role: 'security' },
+        findings: [
+          {
+            severity: 'warning',
+            title: 'MCP 태그',
+            file: 'src/a.ts',
+            tags: ['spec_drift', ' spec_drift ', 'naming'],
+          },
+        ],
+      },
+      ctx,
+    );
+    // 겹친 것과 앞뒤 공백은 정리한다 · 파일이 있어도 spec_drift 면 스펙 이야기다
+    expect(await tagsOf('MCP 태그')).toEqual({ tags: ['spec_drift', 'naming'], area: 'spec' });
+  });
+
+  it('REST 로 올린 태그도 저장된다 — 모양이 틀리면 400 이다', async () => {
+    const { token } = await app.get(AuthService).issueToken({
+      projectId,
+      userId,
+      name: 'tags',
+      scopes: ['review:submit'],
+    });
+    const post = (findings: unknown[]): ReturnType<typeof app.inject> =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/projects/clemvion/reviews',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: {
+          branch: 'feat/tags',
+          base_sha: 'aaaa111',
+          head_sha: 'tag0002',
+          reviewer: { role: 'security' },
+          findings,
+        },
+      });
+    const ok = await post([{ severity: 'info', title: 'REST 태그', tags: ['perf'] }]);
+    expect(ok.statusCode).toBe(201);
+    expect((await tagsOf('REST 태그')).tags).toEqual(['perf']);
+
+    const tooMany = await post([
+      { severity: 'info', title: '많다', tags: Array.from({ length: 11 }, (_, i) => `t${i}`) },
+    ]);
+    expect(tooMany.statusCode).toBe(400);
+  });
+});
+
 describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
   async function taskRow(key: string): Promise<string> {
     const id = newId();

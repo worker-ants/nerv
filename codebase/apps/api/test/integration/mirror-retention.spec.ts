@@ -101,8 +101,9 @@ describe('EP-MIR-01 — md 미러', () => {
     const markdown = await specs.mirrorMarkdown({ projectId, specKey: 'SPC-CWC-007' });
 
     expect(markdown.startsWith('---\n')).toBe(true);
-    expect(markdown).toContain('id: SPC-CWC-007');
-    expect(markdown).toContain('status: approved');
+    // 값은 JSON 문자열로 인용된다(2026-09-28 · REQ-API-245) — YAML 로 읽으면 같은 값이다
+    expect(markdown).toContain('id: "SPC-CWC-007"');
+    expect(markdown).toContain('status: "approved"');
     expect(markdown).toContain('version: 1');
     // 본문은 원문 그대로다 — 미러가 문서를 다시 쓰지 않는다
     expect(markdown).toContain('# 웹챗 위젯');
@@ -132,7 +133,7 @@ describe('EP-MIR-01 — md 미러', () => {
       [newId(), projectId, rows[0]?.spec_id, rows[0]?.id],
     );
     const markdown = await specs.mirrorMarkdown({ projectId, specKey: 'SPC-REQ-LIST' });
-    expect(markdown).toContain('requirements: [REQ-AAA-1]');
+    expect(markdown).toContain('requirements: ["REQ-AAA-1"]');
   });
 });
 

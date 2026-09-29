@@ -462,6 +462,12 @@ export const ko = {
   'reviews.rail.resolution': '처분 근거',
   'mcp.arg.finding_area':
     '무엇에 대한 지적인지. codebase·spec·task·process 중 하나이고, 없으면 서버가 출처를 보고 추정한다',
+  'mcp.arg.task_body_md':
+    '작업 본문(markdown) — 주면 그 본문으로 바꾼다. status 없이 본문만 고칠 수 있다. base_hash가 함께 있어야 한다',
+  'mcp.arg.task_base_hash':
+    '읽은 본문의 지문 — nerv_task_get의 body_hash를 그대로 넘긴다. 그 사이 누가 고쳤으면 409 stale_body이고 응답의 current_hash로 다시 읽는다',
+  'mcp.arg.finding_tags':
+    '발견의 분류(예: spec_drift — 코드가 아니라 스펙이 틀렸다). 10개까지 · 하나 64자까지. 발견 목록의 필터와 대상 추정이 읽는다',
   'reviews.filter.area': '대상',
   'area.codebase': '코드',
   'area.spec': '스펙',
@@ -661,6 +667,11 @@ export const ko = {
   'task.missing.evidence_source': 'CI 또는 사람이 올린 증적이 없습니다',
   'task.missing.review_coverage': '이 작업을 검토한 리뷰가 없습니다',
   'task.missing.open_critical': '리뷰에 열린 critical이 남아 있습니다',
+  'task.missing.review_kind_uncovered': '이 작업을 검토한 {kind} 리뷰가 없습니다',
+  'task.missing.review_kind_unfinished': '이 작업의 {kind} 리뷰가 아직 끝나지 않았습니다',
+  'task.missing.review_kind_roles': '이 작업의 {kind} 리뷰에 {roles} 역할의 보고가 없습니다',
+  'task.missing.review_kind_open':
+    '이 작업의 {kind} 리뷰에 열린 발견이 남아 있습니다(critical {critical}건 · warning {warning}건)',
   'task.missing.evidence': '증적(evidence): 구현 증적 1건 이상',
   'task.release_abandon': '포기',
   'task.release_handoff': '인계',
@@ -796,6 +807,7 @@ export const ko = {
     '이 작업은 시작 전에 계획 승인이 필요합니다. 받은 요청에 카드를 만들었으니 승인된 뒤 다시 클레임하세요.',
   'error.task.done_is_final': '완료된 작업은 되돌릴 수 없습니다.',
   'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
+  'error.task.stale_body': '작업 본문을 읽은 뒤 다른 사람이 고쳤습니다. 다시 읽고 고치세요.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',
   'error.task.release_required':
     '활성 클레임이 있습니다. 먼저 클레임을 해제하거나 세션을 중단하세요.',
@@ -1706,7 +1718,32 @@ export const ko = {
   'settings.gates.failopen_body':
     '판정할 수 없으면 막지 않고 진행한 뒤 기록합니다. {hours}시간 안에 {count}번 반복되면 티어를 올립니다.',
   'settings.gates.lead':
-    '여기서는 티어 경계와 동적 강화를 바꿀 수 있습니다. 아래 "판정할 수 없을 때" 값은 볼 수만 있습니다.',
+    '여기서는 티어 경계와 동적 강화, 작업 완료 조건을 바꿀 수 있습니다. 아래 "판정할 수 없을 때" 값은 볼 수만 있습니다.',
+  'settings.gates.done_gate': '작업 완료 조건',
+  'settings.gates.done_gate_hint':
+    '작업을 완료로 옮기기 전에 확인하는 조건입니다. 채우지 못한 작업은 완료되지 않고 무엇이 빠졌는지 알려 줍니다.',
+  'settings.gates.evidence_source': '구현 증적',
+  'settings.gates.evidence_any': '누가 올린 증적이든 인정',
+  'settings.gates.evidence_ci_or_human': 'CI나 사람이 올린 증적만 인정',
+  'settings.gates.review_coverage': '리뷰',
+  'settings.gates.coverage_off': '보지 않음',
+  'settings.gates.coverage_any': '종류와 상관없이 리뷰 1회 · 열린 critical 없음',
+  'settings.gates.coverage_any_short': '종류 무관',
+  'settings.gates.coverage_kinds': '고른 종류마다 리뷰 통과 · 열린 critical · warning 없음',
+  'settings.gates.coverage_kinds_hint':
+    '종류마다 그 작업의 가장 최근 리뷰가 통과해야 합니다. CI가 쓰는 게이트 판정 조회와 같은 기준입니다.',
+  'settings.gates.coverage_kinds_empty': '리뷰 종류를 하나 이상 고르세요.',
+  'settings.gates.change_evidence': '구현 증적 {from} → {to}',
+  'settings.gates.change_coverage': '리뷰 {from} → {to}',
+  'settings.gates.loosen_done_confirm':
+    '작업 완료 조건이 느슨해집니다. 검토를 덜 거친 작업이 완료될 수 있습니다.',
+  'settings.gates.roles': '필수 리뷰어 역할',
+  'settings.gates.roles_placeholder': '예: security, testing',
+  'settings.gates.roles_hint':
+    '종류마다 반드시 보고해야 하는 리뷰어 역할을 쉼표로 적습니다. 빠진 역할이 있으면 게이트 판정이 통과하지 않고, 종류별 완료 조건도 막힙니다. 비워 두면 역할을 보지 않습니다.',
+  'settings.gates.roles_invalid': '역할은 종류마다 20개까지, 한 역할은 64자까지 적을 수 있습니다.',
+  'settings.gates.roles_none': '없음',
+  'settings.gates.change_roles': '{kind} 필수 역할 {from} → {to}',
   'settings.gates.saved': '게이트 정책을 저장했습니다.',
   'settings.members.email': '이메일',
   'settings.members.empty': '멤버가 없습니다.',
@@ -2006,6 +2043,8 @@ export const ko = {
   'mail.digest.footer':
     '매일 {hour}시({timezone})에 보내는 NERV 메일 요약입니다. 받는 시각을 바꾸거나 끄려면 여기서 합니다: {url}',
   'mail.digest.unsubscribe': '로그인 없이 바로 끄기: {url}',
+  'error.export.too_large':
+    '내보낼 파일이 zip 한 개에 담을 수 있는 크기(4GB)를 넘습니다. 첨부 없이 받으세요.',
   'error.digest.unsubscribe_expired':
     '이 링크는 만료됐습니다. 내 계정에서 메일 요약을 끌 수 있습니다.',
   'mail.reset.subject': '[NERV] 비밀번호를 새로 정하는 링크입니다',

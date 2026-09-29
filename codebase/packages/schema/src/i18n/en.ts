@@ -465,6 +465,12 @@ export const en = {
   'reviews.rail.resolution': 'Resolution',
   'mcp.arg.finding_area':
     'what the finding is about: codebase, spec, task, or process. If omitted, the server infers it from provenance',
+  'mcp.arg.task_body_md':
+    'task body (markdown). If given, the body is replaced. You can edit the body without status. base_hash is required with it',
+  'mcp.arg.task_base_hash':
+    'fingerprint of the body you read: pass body_hash from nerv_task_get as is. If someone changed it since, you get 409 stale_body; read again (current_hash is in the response)',
+  'mcp.arg.finding_tags':
+    'labels for the finding (for example spec_drift: the spec is wrong, not the code). Up to 10, each up to 64 characters. The finding list filter and area inference read them',
   'reviews.filter.area': 'Area',
   'area.codebase': 'Code',
   'area.spec': 'Spec',
@@ -669,6 +675,11 @@ export const en = {
   'task.missing.evidence_source': 'no evidence from CI or a person',
   'task.missing.review_coverage': 'no review has covered this task',
   'task.missing.open_critical': 'the review still has open critical findings',
+  'task.missing.review_kind_uncovered': 'no {kind} review has covered this task',
+  'task.missing.review_kind_unfinished': 'the {kind} review of this task has not finished',
+  'task.missing.review_kind_roles': 'the {kind} review of this task has no report from {roles}',
+  'task.missing.review_kind_open':
+    'the {kind} review of this task still has open findings ({critical} critical · {warning} warning)',
   'task.missing.evidence': 'evidence (at least one implementation record)',
   'task.release_abandon': 'Abandon',
   'task.release_handoff': 'Hand off',
@@ -811,6 +822,8 @@ export const en = {
     'This task needs plan approval before it can start. An approval card was created in the inbox. Claim it again after it is approved.',
   'error.task.done_is_final': "A finished task can't be reopened.",
   'error.task.not_assignee': 'You are not the assignee of this task.',
+  'error.task.stale_body':
+    'Someone changed the task body after you read it. Read it again, then edit.',
   'error.task.not_found': 'Task not found.',
   'error.task.release_required': 'There is an active claim. Release it or stop the session first.',
   'error.task.transition_not_allowed': "Can't change from {from} to {to}.",
@@ -1731,7 +1744,34 @@ export const en = {
   'settings.gates.failopen_body':
     'When it cannot decide, it does not block. It proceeds and logs the case. If this happens {count} times within {hours} hours, the tier goes up.',
   'settings.gates.lead':
-    'You can edit tier boundaries and dynamic escalation here. The "When it cannot decide" values below are read-only.',
+    'You can edit tier boundaries, dynamic escalation and task completion criteria here. The "When it cannot decide" values below are read-only.',
+  'settings.gates.done_gate': 'Task completion criteria',
+  'settings.gates.done_gate_hint':
+    'Checked before a task moves to done. A task that does not meet them stays open, and you are told what is missing.',
+  'settings.gates.evidence_source': 'Implementation evidence',
+  'settings.gates.evidence_any': 'Accept evidence from anyone',
+  'settings.gates.evidence_ci_or_human': 'Accept only evidence from CI or a person',
+  'settings.gates.review_coverage': 'Review',
+  'settings.gates.coverage_off': 'Not checked',
+  'settings.gates.coverage_any': 'One review of any kind · no open critical',
+  'settings.gates.coverage_any_short': 'any kind',
+  'settings.gates.coverage_kinds':
+    'A passing review for each chosen kind · no open critical or warning',
+  'settings.gates.coverage_kinds_hint':
+    'For each kind, the latest review of the task must pass. This is the same check CI uses through the gate check endpoint.',
+  'settings.gates.coverage_kinds_empty': 'Choose at least one review kind.',
+  'settings.gates.change_evidence': 'Implementation evidence {from} → {to}',
+  'settings.gates.change_coverage': 'Review {from} → {to}',
+  'settings.gates.loosen_done_confirm':
+    'This loosens the task completion criteria. Tasks with less review may be marked done.',
+  'settings.gates.roles': 'Required reviewer roles',
+  'settings.gates.roles_placeholder': 'e.g. security, testing',
+  'settings.gates.roles_hint':
+    'Enter, separated by commas, the reviewer roles that must report for each kind. If a role is missing, the gate check does not pass and per-kind completion criteria block the task. Leave empty to not check roles.',
+  'settings.gates.roles_invalid':
+    'Each kind can have up to 20 roles, and each role up to 64 characters.',
+  'settings.gates.roles_none': 'none',
+  'settings.gates.change_roles': '{kind} required roles {from} → {to}',
   'settings.gates.saved': 'Gate policy saved.',
   'settings.members.email': 'Email',
   'settings.members.empty': 'No members.',
@@ -2031,6 +2071,8 @@ export const en = {
   'mail.digest.footer':
     'This is your NERV email digest, sent daily at {hour}:00 ({timezone}). To change the time or turn it off: {url}',
   'mail.digest.unsubscribe': 'Turn it off without signing in: {url}',
+  'error.export.too_large':
+    'The export is larger than a single zip can hold (4 GB). Download it without attachments.',
   'error.digest.unsubscribe_expired':
     'This link has expired. You can turn off the email digest in My account.',
   'mail.reset.subject': '[NERV] Reset your password',

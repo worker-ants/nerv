@@ -114,8 +114,12 @@ allowed-tools:
 - `nerv_task_update` 의 `status` 는 여섯이다 — `backlog`·`ready`·`in_progress`·
   `in_review`·`done`·`blocked`. **`claimed` 는 없다**: 그 상태는 `nerv_task_claim` 만이
   만든다.
-  done 전이는 서버 게이트를 지나며 정책에 따라 사람 승인(A3)이 걸릴 수 있다.
-  게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
+  done 전이는 서버의 done 게이트(증적 · 스펙 영향 · 정책이 켜면 리뷰)를 지난다. 사람 승인은
+  걸리지 않는다. 게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
+  넘을 수 없는 조건이면 사람이 면제 결재를 할 수 있다(사람 전용이라 에이전트는 부탁만 한다).
+- **작업 본문을 고쳐야 하면** `nerv_task_update`(`task_id`, `body_md`, `base_hash`)를 부른다. `base_hash` 는
+  `nerv_task_get` 이 준 `body_hash` 그대로다. `status` 없이 본문만 고칠 수 있다. 409 `stale_body` 면 그 사이
+  사람이 고친 것이다. 다시 읽고 그 위에 고친다(덮지 않는다).
 - **`in_progress`·`in_review`·`done` 은 살아 있는 내 클레임이 있을 때만 부른다.**
   `NERV_LEASE_EXPIRED`(`details.kind` 가 `no_active_claim` 또는 `lease_expired`)가 오면
   `details.reclaimable` 을 본다 — `true` 면 `nerv_task_claim` 으로 다시 잡고 이어 간다.

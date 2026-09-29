@@ -2,11 +2,20 @@
 // 클레임 엔진은 E04 에서 구현됐고 L2 가 지킨다 — 여기는 번역만 한다(REQ-CB-003).
 
 import { Injectable } from '@nestjs/common';
-import { BLOCKED_REASONS, LEASE_TTL_SECONDS, TASK_TRANSITION_TARGETS } from '@nerv/schema';
+import {
+  BLOCKED_REASONS,
+  LEASE_TTL_SECONDS,
+  msg,
+  NERV_ERROR,
+  TASK_EDIT_ROLES,
+  TASK_TRANSITION_TARGETS,
+} from '@nerv/schema';
+import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertAnyRole } from '../../common/scope-check.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { wrapText } from '../../mcp/untrusted.js';
 import { requireSession } from '../session/session.tools.js';
-import { TaskService } from './task.service.js';
+import { bodyHash, TaskService } from './task.service.js';
 import type { ClaimActor } from './task.service.js';
 import type { ToolContext } from '../../mcp/tool-context.js';
 
@@ -326,28 +335,75 @@ export class TaskTools implements NervToolProvider {
               none: { type: 'boolean', description: 'no spec was affected' },
             },
           },
+          // **본문만 고칠 수도 있다**(2026-09-28 · clemvion 요청 N10 · 사람 결정 D12 · REQ-API-254). 읽은 본문의
+          // 지문(`nerv_task_get` 의 `body_hash`)을 함께 줘야 한다 — 그 사이 누가 고쳤으면 409 `stale_body` 다
+          body_md: { type: 'string', description: 'mcp.arg.task_body_md' },
+          base_hash: { type: 'string', description: 'mcp.arg.task_base_hash' },
           idempotency_key: { type: 'string' },
         },
-        required: ['task_id', 'status'],
+        required: ['task_id'],
       },
-      handler: async (input, ctx) =>
-        this.tasks.transition({
-          roles: ctx.principal.roles,
-          projectId: ctx.projectId,
-          taskId: String(input['task_id'] ?? ''),
-          status: String(input['status'] ?? ''),
-          userId: ctx.principal.userId,
-          sessionId: ctx.sessionId,
-          specImpact: (input['spec_impact'] as Record<string, unknown> | undefined) ?? null,
-          ...(typeof input['blocked_reason'] === 'string'
-            ? { blockedReason: input['blocked_reason'] }
-            : {}),
-          ...(Array.isArray(input['evidence'])
-            ? {
-                evidence: input['evidence'] as { kind: string; locator: string; note?: string }[],
-              }
-            : {}),
-        }),
+      handler: async (input, ctx) => {
+        const taskId = String(input['task_id'] ?? '');
+        const status = typeof input['status'] === 'string' ? input['status'] : null;
+        const bodyMd = typeof input['body_md'] === 'string' ? input['body_md'] : null;
+        if (status === null && bodyMd === null) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+            kind: 'invalid_input',
+            field: 'status',
+            allowed: ['status', 'body_md'],
+          });
+        }
+        let bodyResult: Record<string, unknown> | null = null;
+        if (bodyMd !== null) {
+          // 도구는 지문 없이 본문을 덮지 못한다 — 에이전트는 사람이 방금 고친 본문을 모른 채 덮기 쉽다
+          if (typeof input['base_hash'] !== 'string' || input['base_hash'] === '') {
+            throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+              kind: 'invalid_input',
+              field: 'base_hash',
+              allowed: ['body_hash from nerv_task_get'],
+            });
+          }
+          // 본문 수정은 EP-TASK-05 와 같은 역할을 요구한다(planner · developer · admin)
+          assertAnyRole(ctx.principal, TASK_EDIT_ROLES);
+          bodyResult = await this.tasks.update({
+            projectId: ctx.projectId,
+            taskKey: taskId,
+            bodyMd,
+            baseHash: input['base_hash'],
+            userId: ctx.principal.userId,
+          });
+        }
+        const transitioned =
+          status === null
+            ? null
+            : await this.tasks.transition({
+                roles: ctx.principal.roles,
+                projectId: ctx.projectId,
+                taskId,
+                status,
+                userId: ctx.principal.userId,
+                sessionId: ctx.sessionId,
+                specImpact: (input['spec_impact'] as Record<string, unknown> | undefined) ?? null,
+                ...(typeof input['blocked_reason'] === 'string'
+                  ? { blockedReason: input['blocked_reason'] }
+                  : {}),
+                ...(Array.isArray(input['evidence'])
+                  ? {
+                      evidence: input['evidence'] as {
+                        kind: string;
+                        locator: string;
+                        note?: string;
+                      }[],
+                    }
+                  : {}),
+              });
+        return {
+          ...(bodyResult ?? {}),
+          ...(transitioned ?? {}),
+          ...(bodyMd === null ? {} : { body_hash: bodyHash(bodyMd) }),
+        };
+      },
     },
   ];
 }

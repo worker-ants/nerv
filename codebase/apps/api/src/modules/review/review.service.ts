@@ -22,6 +22,7 @@ import {
   FINDING_PAGE_LIMIT_MAX,
   GATE_BRANCH_LIMIT_DEFAULT,
   GATE_BRANCH_LIMIT_MAX,
+  GatePolicySchema,
   msg,
   NERV_ERROR,
   NERV_EVENT,
@@ -36,6 +37,8 @@ import { TaskService } from '../task/task.service.js';
 import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
+import { roundVerdicts, uncoveredVerdict } from './review-gate.js';
+import type { RoundVerdict } from './review-gate.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 
@@ -93,6 +96,15 @@ export function toSubmitFindings(value: unknown): SubmitFinding[] {
       area: (FINDING_AREAS as readonly string[]).includes(String(f['area']))
         ? (f['area'] as SubmitFinding['area'])
         : null,
+      // **태그를 넘긴다**(2026-09-28 · clemvion 요청 N8 · REQ-API-253) — 서비스는 받는데 이 번역이 빠뜨려서
+      // REST 로도 MCP 로도 저장되지 않았다. 모양은 표면이 먼저 본다(zod · 도구 스키마)
+      tags: Array.isArray(f['tags'])
+        ? [
+            ...new Set(
+              f['tags'].filter((t): t is string => typeof t === 'string').map((t) => t.trim()),
+            ),
+          ].filter((t) => t !== '')
+        : [],
     };
   });
 }
@@ -165,7 +177,18 @@ export interface SubmitResult {
   carried_over_total: number;
   /** 나머지의 시작 — 발견 목록(EP-REV-03 `cursor` · `nerv_finding_list`)에 그대로 넘긴다. 다 담았으면 `null` */
   carried_over_next_cursor: string | null;
+  /** 프로젝트 전체에 열린 critical 이 있는가 — 뜻은 처음 그대로다(consistency 의 `BLOCK` 계승) */
   block: boolean;
+  /**
+   * `round_block` 의 범위 — **이번 라운드**(브랜치 · 종류 · 커밋이 같은 세션 전부)다(2026-09-28 · clemvion 요청 N2 ·
+   * 사람 결정 D3 · REQ-API-248). `block` 은 프로젝트 전체라, 열린 critical 이 하나라도 남은 프로젝트에서는 어떤
+   * 제출도 `true` 였다(clemvion 실측 25건).
+   */
+  block_scope: 'round';
+  /** 이번 라운드에 열린 critical · warning 이 있는가 — 게이트 판정(EP-REV-08)과 같은 기준이다(D2a) */
+  round_block: boolean;
+  /** 이번 라운드를 막는 발견 — 열린 critical · warning(게이트 판정과 같은 상한) */
+  blocking_findings: readonly { id: string; severity: string; title: string }[];
   /** 이 리뷰가 이어진 Task — 명시하지 않았으면 활성 클레임에서 채운다(REQ-API-148) */
   task_id: string | null;
 }
@@ -321,6 +344,7 @@ export class ReviewService {
           : await this.tasks.resolveTaskId(tx, input.projectId, input.taskId);
       const session = await this.sessionFor(tx, { ...input, taskId }, hash);
       const reportId = await this.upsertReport(tx, session.id, input);
+      await this.recordForcedRoles(tx, input.projectId, session.id);
 
       const created: string[] = [];
       const mergedIds: string[] = [];
@@ -398,6 +422,7 @@ export class ReviewService {
         carried_over_total: carried.total,
         carried_over_next_cursor: carried.nextCursor,
         block,
+        ...(await this.roundBlock(tx, session.id)),
         task_id: session.taskId ?? null,
       };
     });
@@ -1295,6 +1320,123 @@ export class ReviewService {
    * 면제는 **같은 줄에 펼친다**(REQ-WEB-065). 면제한 사람·시각·사유가 목록 어딘가가 아니라
    * 그 브랜치 옆에 있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다(FR-10·FR-16).
    */
+  /**
+   * **이 세션이 채워야 할 역할과 채웠는지**를 세션에 남긴다(2026-09-28 · clemvion 요청 N7 · REQ-API-252). 두 열은
+   * 스키마에 처음부터 있었는데 채우는 곳이 없었다 — 정책(`review_roles`)을 읽어 제출마다 다시 쓴다. 판정은 라운드
+   * 단위로 게이트 판정(`review-gate.ts`)이 하고, 이 값은 세션 하나의 기록이다.
+   */
+  private async recordForcedRoles(
+    tx: Pick<NervDb, 'execute'>,
+    projectId: string,
+    sessionId: string,
+  ): Promise<void> {
+    const { rows } = await tx.execute<{ gate_policy: unknown; kind: string }>(sql`
+      SELECT p.gate_policy, rs.kind::text AS kind
+        FROM review_session rs JOIN project p ON p.id = rs.project_id
+       WHERE rs.id = ${sessionId} AND p.id = ${projectId}
+    `);
+    const row = rows[0];
+    if (row === undefined) return;
+    const parsed = GatePolicySchema.safeParse(row.gate_policy ?? {});
+    const required = parsed.success
+      ? (parsed.data.review_roles[row.kind as keyof typeof parsed.data.review_roles] ?? [])
+      : [];
+    await tx.execute(sql`
+      UPDATE review_session rs
+         SET forced_roles = ${sqlArray(required, 'text')},
+             forced_coverage_ok = NOT EXISTS (
+               SELECT 1 FROM unnest(${sqlArray(required, 'text')}) AS need(role)
+                WHERE NOT EXISTS (SELECT 1 FROM reviewer_report rr
+                                   WHERE rr.review_session_id = rs.id AND rr.role = need.role
+                                     AND rr.has_report))
+       WHERE rs.id = ${sessionId}
+    `);
+  }
+
+  /**
+   * 이번 라운드의 막힘(REQ-API-248) — 판정은 게이트 판정(`roundVerdicts`)을 그대로 쓴다. 제출 직후 에이전트가 본
+   * 값과 CI 가 본 값이 다르면 어느 쪽을 믿을지 모른다(D2a). 라운드는 **세션의 것**으로 정한다: 같은 변경 묶음은
+   * 다른 브랜치에서 낸 제출도 먼저 만든 세션에 합쳐지므로(§2.6a 계약 2), 제출의 `branch` 가 아니라 세션의 브랜치다.
+   */
+  private async roundBlock(
+    tx: Pick<NervDb, 'execute'>,
+    sessionId: string,
+  ): Promise<Pick<SubmitResult, 'block_scope' | 'round_block' | 'blocking_findings'>> {
+    const { rows } = await tx.execute<{
+      project_id: string;
+      branch: string;
+      kind: string;
+      head_sha: string;
+    }>(sql`
+      SELECT project_id, branch, kind::text AS kind, head_sha FROM review_session WHERE id = ${sessionId}
+    `);
+    const session = rows[0]!;
+    const [round] = await roundVerdicts(tx, {
+      projectId: session.project_id,
+      branch: session.branch,
+      kinds: [session.kind],
+      headSha: session.head_sha,
+    });
+    const blocking = (round?.findings ?? [])
+      .filter((f) => f.status === 'open' && (f.severity === 'critical' || f.severity === 'warning'))
+      .map((f) => ({ id: f.id, severity: f.severity, title: f.title }));
+    return {
+      block_scope: 'round',
+      round_block: (round?.open.critical ?? 0) + (round?.open.warning ?? 0) > 0,
+      blocking_findings: blocking,
+    };
+  }
+
+  /**
+   * EP-REV-08 — 게이트 판정(REQ-API-247). 종류 어휘는 먼저 본다 — 모르는 종류를 `uncovered` 로 답하면 오타가
+   * 영원히 "리뷰 없음" 으로 읽힌다(§1.4j).
+   */
+  async gateCheck(input: {
+    projectId: string;
+    branch: string;
+    kinds: readonly string[] | null;
+    headSha: string | null;
+  }): Promise<{ branch: string; head_sha: string | null; items: RoundVerdict[] }> {
+    const kinds =
+      input.kinds === null ? null : assertVocab(input.kinds, reviewKind.enumValues, 'kind');
+    const policy = await this.reviewPolicy(input.projectId);
+    const items = await roundVerdicts(this.db, {
+      ...input,
+      kinds,
+      requiredRoles: policy.roles,
+    });
+    // **종류를 주지 않으면 정책이 요구하는 종류도 함께다**(REQ-API-250) — done 게이트가 `code` · `consistency` 를
+    // 요구하는데 이 브랜치에 consistency 라운드가 없으면, 그 사실이 빠진 목록은 "통과" 로 읽힌다
+    if (kinds === null) {
+      for (const kind of policy.kinds) {
+        if (!items.some((i) => i.kind === kind)) {
+          items.push(uncoveredVerdict(kind, input.headSha, policy.roles[kind]));
+        }
+      }
+      items.sort((a, b) => a.kind.localeCompare(b.kind));
+    }
+    return { branch: input.branch, head_sha: input.headSha, items };
+  }
+
+  /**
+   * 게이트 판정이 읽는 정책 — done 게이트가 요구하는 종류(목록으로 켠 프로젝트만)와 종류마다의 필수 역할(REQ-API-252).
+   * 읽지 못한 정책은 요구가 없는 것으로 본다.
+   */
+  private async reviewPolicy(
+    projectId: string,
+  ): Promise<{ kinds: string[]; roles: Partial<Record<string, string[]>> }> {
+    const { rows } = await this.db.execute<{ gate_policy: unknown }>(
+      sql`SELECT gate_policy FROM project WHERE id = ${projectId}`,
+    );
+    const parsed = GatePolicySchema.safeParse(rows[0]?.gate_policy ?? {});
+    if (!parsed.success) return { kinds: [], roles: {} };
+    const coverage = parsed.data.done_gate.review_coverage;
+    return {
+      kinds: Array.isArray(coverage) ? [...new Set(coverage)] : [],
+      roles: parsed.data.review_roles,
+    };
+  }
+
   async gateCoverage(
     projectId: string,
     limit = GATE_BRANCH_LIMIT_DEFAULT,

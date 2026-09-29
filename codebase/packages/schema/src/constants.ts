@@ -51,6 +51,26 @@ export const SPEC_VIEW_BASES = ['approved', 'latest'] as const;
 export type SpecViewBasis = (typeof SPEC_VIEW_BASES)[number];
 
 /**
+ * **무엇으로 읽었나** — 문서 조회(EP-SPEC-03 · `nerv_spec_get`)와 md 미러(EP-MIR-01)가 돌려주는 `read_as` 값
+ * (2026-09-28 · clemvion 요청 N4 · REQ-API-249). 셋의 판정은 한 곳(`resolveSelector` · `taskBasisOf`)이고 값도 여기
+ * 한 벌이다 — 미러 헤더(`X-NERV-Read-As`)와 frontmatter 를 읽는 도구가 이 목록으로 대조한다.
+ *
+ * `task_basis`(작업의 출처 문서 — 기준 버전) · `task_baseline`(작업 기준선이 묶은 버전) · `baseline`(이름으로 준 기준선)
+ * · `approved_fallback`(기준선에 이 문서가 없어 최신 승인본으로 읽음) · `approved` · `latest` · `version`.
+ * 정본: docs/04-mvp/api.md REQ-API-198 · 203 · 249
+ */
+export const SPEC_READ_AS = [
+  'approved',
+  'latest',
+  'version',
+  'baseline',
+  'task_basis',
+  'task_baseline',
+  'approved_fallback',
+] as const;
+export type SpecReadAs = (typeof SPEC_READ_AS)[number];
+
+/**
  * 하트비트 주기 — 60초.
  * `nerv_task_heartbeat` 의 응답은 서버→세션 역채널을 겸한다.
  * 정본: docs/03-proposal/agent-integration.md §2.3
@@ -257,6 +277,13 @@ export const FINDING_PAGE_LIMIT_MAX = 200;
  * `carried_over_next_cursor` 로 발견 목록(EP-REV-03 · `nerv_finding_list`)에서 이어 읽는다.
  */
 export const CARRIED_OVER_LIMIT = 50;
+/**
+ * 게이트 판정 조회(EP-REV-08)가 종류마다 돌려주는 라운드 발견의 상한(2026-09-28 · REQ-API-247). 한 라운드의 발견은
+ * 보통 수십 건이지만, 상한 없는 응답이 무엇을 낳는지는 `carried_over` 가 보여 줬다. 넘으면 `findings_total` 이
+ * 전체 수를 알리고, 나머지는 발견 목록(EP-REV-03 · `branch` 필터)에서 읽는다. 판정(`state` · `open`)은 상한과
+ * 무관하게 라운드의 발견 전부로 한다.
+ */
+export const GATE_ROUND_FINDINGS_LIMIT = 200;
 export const GATE_BRANCH_LIMIT_DEFAULT = 20;
 export const GATE_BRANCH_LIMIT_MAX = 200;
 

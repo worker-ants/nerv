@@ -2,6 +2,7 @@
 // 메서드 이름은 docs/04-mvp/api.md §4 대응표의 "내부 서비스 메서드" 열과 1:1 이다.
 // REST 컨트롤러와 MCP 도구가 이 클래스의 같은 인스턴스를 거친다(D-05) — 판정은 여기 한 곳이다.
 
+import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   CLAIM_RELEASE_INPUTS,
@@ -49,6 +50,7 @@ import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
 import { ApprovalService } from '../approval/approval.service.js';
 import { recomputeImplStatus } from '../spec/impl-status.js';
+import { roundVerdicts } from '../review/review-gate.js';
 import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
@@ -440,6 +442,8 @@ export class TaskService {
 
     return {
       ...task,
+      // **본문의 지문**(REQ-API-254) — 본문을 고칠 때 `base_hash` 로 되돌려 주면 그 사이 누가 고쳤는지 서버가 안다
+      body_hash: bodyHash(task['body_md'] as string | null),
       claims,
       reviews,
       dependencies: deps,
@@ -634,6 +638,11 @@ export class TaskService {
     rebrief?: boolean | null;
     /** 새 기준선으로 옮긴다 · `null` 이면 푼다(M9 · REQ-API-210). 없으면 그대로다 */
     baseline?: string | null;
+    /**
+     * **읽은 본문의 지문**(`body_hash` — 2026-09-28 · clemvion 요청 N10 · 사람 결정 D12 · REQ-API-254). 주면 지금 본문의
+     * 지문과 같을 때만 쓴다 — 그 사이 누가 고쳤으면 409 `stale_body` 다. 스펙 초안의 `base_hash` 와 같은 비교-교환이다
+     */
+    baseHash?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
@@ -651,9 +660,10 @@ export class TaskService {
         tools_sources_md: string | null;
         boundaries_md: string | null;
         baseline_id: string | null;
+        body_md: string | null;
       }>(sql`
         SELECT t.id, t.key, t.status::text AS status, t.goal_md, t.output_format_md,
-               t.tools_sources_md, t.boundaries_md, t.baseline_id
+               t.tools_sources_md, t.boundaries_md, t.baseline_id, t.body_md
           FROM task t
          -- **키와 UUID 를 둘 다 받는다**(2026-09-28 · REQ-API-239 · §1.4b). 키만 보고 있어서, UUID 로
          -- PATCH 하는 작업 상세의 [다시 브리핑] · [기준 옮기기] 가 언제나 not_found 였다
@@ -664,6 +674,15 @@ export class TaskService {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
           kind: 'not_found',
           task: input.taskKey,
+        });
+      }
+
+      // **읽은 뒤 누가 고쳤으면 쓰지 않는다**(REQ-API-254) — 행을 잠근 뒤에 비교해야 두 쓰기가 함께 통과하지 않는다
+      if (input.baseHash != null && input.baseHash !== bodyHash(task.body_md)) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.stale_body'), {
+          kind: 'stale_body',
+          current_hash: bodyHash(task.body_md),
+          hint: 'reread',
         });
       }
 
@@ -2010,12 +2029,46 @@ export class TaskService {
 
     // 조건 1~3 — 리뷰 커버리지. FR-10 이 오래 이월해 온 조건이고, 이제 **정책으로 켠다**.
     // 면제(`gate_bypass` 결재)가 있으면 둘 다 넘어간다 — 면제는 기록된 예외다(FR-10).
-    if (policy.review_coverage) {
+    if (policy.review_coverage !== false) {
       const { rows: waived } = await tx.execute<{ n: number }>(sql`
         SELECT count(*)::int AS n FROM approval
          WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${taskId}
       `);
-      if ((waived[0]?.n ?? 0) === 0) {
+      if ((waived[0]?.n ?? 0) === 0 && Array.isArray(policy.review_coverage)) {
+        // **종류 목록이면 종류마다 게이트 판정을 통과해야 한다**(2026-09-28 · clemvion 요청 N6 · REQ-API-250).
+        // 판정은 게이트 판정 조회(EP-REV-08)와 한 곳이다 — CI 가 본 값과 done 이 본 값이 다르면 어느 쪽도 믿지 못한다
+        const verdicts = await roundVerdicts(tx, {
+          projectId,
+          taskId,
+          kinds: [...new Set(policy.review_coverage)],
+          headSha: null,
+          // 종류마다 반드시 보고해야 하는 역할(REQ-API-252) — 게이트 판정과 같은 정책 값이다
+          requiredRoles: parsed.success ? parsed.data.review_roles : {},
+        });
+        for (const v of verdicts) {
+          if (v.state === 'uncovered') {
+            missing.push(text('task.missing.review_kind_uncovered', { kind: v.kind }));
+          } else if (v.reasons.includes('running') || v.reasons.includes('failed')) {
+            missing.push(text('task.missing.review_kind_unfinished', { kind: v.kind }));
+          } else if (v.reasons.includes('open_critical') || v.reasons.includes('open_warning')) {
+            missing.push(
+              text('task.missing.review_kind_open', {
+                kind: v.kind,
+                critical: v.open.critical,
+                warning: v.open.warning,
+              }),
+            );
+          }
+          if (v.roles.missing.length > 0 && v.state !== 'uncovered') {
+            missing.push(
+              text('task.missing.review_kind_roles', {
+                kind: v.kind,
+                roles: v.roles.missing.join(' · '),
+              }),
+            );
+          }
+        }
+      } else if ((waived[0]?.n ?? 0) === 0) {
         const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
           SELECT count(*)::int AS rounds,
                  COALESCE(sum((SELECT count(*) FROM finding f
@@ -2149,4 +2202,14 @@ function toDetail(o: Overlap): Record<string, unknown> {
  */
 function num(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : null;
+}
+
+/**
+ * 작업 본문의 지문 — `sha256(body_md)` 의 hex 다(비었으면 빈 문자열의 해시 · 2026-09-28 · 사람 결정 D12 · REQ-API-254).
+ * 조회(`body_hash`)와 수정의 비교(`base_hash`)가 같은 함수를 쓴다.
+ */
+export function bodyHash(body: string | null | undefined): string {
+  return createHash('sha256')
+    .update(body ?? '', 'utf8')
+    .digest('hex');
 }

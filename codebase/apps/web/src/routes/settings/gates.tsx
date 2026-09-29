@@ -1,6 +1,7 @@
 // /settings/gates — S8 게이트 정책 (api.md §2.1a · D-06 · FR-14)
 //
-// 여기서 고치는 것은 `spec_gate.*` 두 키다(`tier_boundaries` · `dynamic_escalation`) — `failopen`·`retention` 은 표시만 한다(§2.1a).
+// 여기서 고치는 것은 `spec_gate.*` 두 키(`tier_boundaries` · `dynamic_escalation`)와 `done_gate.*` 두 키(`evidence_source` ·
+// `review_coverage` — 2026-09-28 · REQ-WEB-285)다. `failopen`·`retention` 은 표시만 한다(§2.1a).
 // **admin 아닌 역할에는 API 와 UI 양쪽이 거부한다**: 여기서는 비활성 + 사유, 서버에서는 403.
 // 둘 중 하나만 있으면 게이트가 우회 가능해지거나 사용자가 이유 없이 막힌다.
 //
@@ -15,7 +16,8 @@ import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { GatePolicySchema } from '@nerv/schema';
+import { GatePolicySchema, reviewKind } from '@nerv/schema';
+import type { GatePolicy } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useMembers, useProject } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
@@ -49,6 +51,49 @@ export const Route = createFileRoute('/settings/gates')({
 });
 
 const TIERS = ['T1', 'T2', 'T3'] as const;
+
+type Coverage = GatePolicy['done_gate']['review_coverage'];
+type CoverageMode = 'off' | 'any' | 'kinds';
+const REVIEW_KINDS = reviewKind.enumValues;
+
+const modeOf = (coverage: Coverage): CoverageMode =>
+  coverage === false ? 'off' : coverage === true ? 'any' : 'kinds';
+
+/** 리뷰 조건을 한 줄로 — 저장 전 "무엇이 바뀌나" 에 쓴다 */
+export function coverageLabel(t: Translator, coverage: Coverage): string {
+  if (coverage === false) return t('settings.gates.coverage_off');
+  if (coverage === true) return t('settings.gates.coverage_any_short');
+  return coverage.map((kind) => t(`review.kind.${kind}`)).join(' · ');
+}
+
+/** 쉼표로 적은 역할 → 목록. 앞뒤 공백을 자르고 빈 칸과 겹친 것은 뺀다 */
+export function parseRoles(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((role) => role.trim())
+        .filter((role) => role !== ''),
+    ),
+  ];
+}
+
+/**
+ * **완료 조건이 느슨해지는 방향**(REQ-WEB-285) — 리뷰 조건을 끄거나, 고른 종류를 빼거나, 종류별 판정(warning 도
+ * 막음)에서 종류 무관(critical 만)으로 내리거나, 증적을 누구의 것이든 받게 바꾸면 더 적게 검토한 작업이 닫힌다.
+ */
+export function doneGateLoosens(
+  before: GatePolicy['done_gate'],
+  after: GatePolicy['done_gate'],
+): boolean {
+  if (before.evidence_source === 'ci_or_human' && after.evidence_source === 'any') return true;
+  const was = before.review_coverage;
+  const now = after.review_coverage;
+  if (was === false) return false;
+  if (now === false) return true;
+  if (Array.isArray(was)) return now === true || was.some((kind) => !now.includes(kind));
+  return false;
+}
 
 /** 칸의 글자 → 정수. 빈 칸·소수·음수는 경계가 아니다 */
 function parseBoundary(value: string): number | null {
@@ -140,6 +185,13 @@ function GatesTab(): React.JSX.Element {
   /** 고친 칸 — 손대지 않았으면 `null` 이고 저장된 값을 그린다 */
   const [draft, setDraft] = useState<string[] | null>(null);
   const [dynamicEscalation, setDynamicEscalation] = useState<boolean | null>(null);
+  const [evidenceDraft, setEvidenceDraft] = useState<'any' | 'ci_or_human' | null>(null);
+  const [coverageDraft, setCoverageDraft] = useState<{
+    mode: CoverageMode;
+    kinds: string[];
+  } | null>(null);
+  /** 종류마다 쉼표로 적은 필수 역할 — 손대지 않았으면 `null` 이다(REQ-WEB-286) */
+  const [rolesDraft, setRolesDraft] = useState<Record<string, string> | null>(null);
   /** 고친 채 다른 프로젝트를 고르면 — 버릴지 묻는 동안 여기 둔다 */
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
 
@@ -150,12 +202,62 @@ function GatesTab(): React.JSX.Element {
   const dynamic = dynamicEscalation ?? policy.spec_gate.dynamic_escalation;
   const boundariesChanged = valid && next.some((n, i) => n !== current[i]);
   const dynamicChanged = dynamic !== policy.spec_gate.dynamic_escalation;
-  const dirty = draft !== null || dynamicEscalation !== null;
-  const changed = boundariesChanged || dynamicChanged;
+  // **완료 조건**(2026-09-28 · clemvion 요청 N6 · 사람 결정 D9 · REQ-WEB-285)
+  const done = policy.done_gate;
+  const evidence = evidenceDraft ?? done.evidence_source;
+  const coverageForm = coverageDraft ?? {
+    mode: modeOf(done.review_coverage),
+    kinds: Array.isArray(done.review_coverage) ? [...done.review_coverage] : [],
+  };
+  const kindsValid = coverageForm.mode !== 'kinds' || coverageForm.kinds.length > 0;
+  const coverage: Coverage =
+    coverageForm.mode === 'off'
+      ? false
+      : coverageForm.mode === 'any'
+        ? true
+        : (REVIEW_KINDS.filter((k) => coverageForm.kinds.includes(k)) as Exclude<
+            Coverage,
+            boolean
+          >);
+  const nextDone = { evidence_source: evidence, review_coverage: coverage };
+  // **필수 리뷰어 역할**(2026-09-28 · clemvion 요청 N7 · 사람 결정 D9 · REQ-WEB-286)
+  const storedRoles = policy.review_roles as Partial<Record<string, string[]>>;
+  const roleTexts: Record<string, string> =
+    rolesDraft ??
+    Object.fromEntries(REVIEW_KINDS.map((k) => [k, (storedRoles[k] ?? []).join(', ')]));
+  const nextRoles: Partial<Record<string, string[]>> = Object.fromEntries(
+    REVIEW_KINDS.map((k) => [k, parseRoles(roleTexts[k] ?? '')] as const).filter(
+      ([, roles]) => roles.length > 0,
+    ),
+  );
+  const rolesValid = Object.values(nextRoles).every(
+    (roles) => (roles ?? []).length <= 20 && (roles ?? []).every((r) => r.length <= 64),
+  );
+  const sameRoles = (a: string[] | undefined, b: string[] | undefined): boolean =>
+    JSON.stringify([...(a ?? [])].sort()) === JSON.stringify([...(b ?? [])].sort());
+  const rolesChangedKinds = REVIEW_KINDS.filter((k) => !sameRoles(storedRoles[k], nextRoles[k]));
+  const rolesChanged = rolesValid && rolesChangedKinds.length > 0;
+  // 요구하던 역할을 빼면 덜 검토한 라운드가 통과한다
+  const rolesLoosen = REVIEW_KINDS.some((k) =>
+    (storedRoles[k] ?? []).some((role) => !(nextRoles[k] ?? []).includes(role)),
+  );
+  const evidenceChanged = evidence !== done.evidence_source;
+  const coverageChanged =
+    kindsValid && JSON.stringify(coverage) !== JSON.stringify(done.review_coverage);
+  const dirty =
+    draft !== null ||
+    dynamicEscalation !== null ||
+    evidenceDraft !== null ||
+    coverageDraft !== null ||
+    rolesDraft !== null;
+  const changed =
+    boundariesChanged || dynamicChanged || evidenceChanged || coverageChanged || rolesChanged;
   // **자동 통과가 넓어지는 방향** — 경계 하나라도 올리거나 동적 강화를 끄면 사람을 덜 거친다
-  const loosens =
+  const specLoosens =
     (boundariesChanged && next.some((n, i) => n > (current[i] ?? 0))) ||
     (dynamicChanged && !dynamic);
+  const loosens =
+    specLoosens || (kindsValid && doneGateLoosens(done, nextDone)) || (rolesValid && rolesLoosen);
 
   const switchTo = (target: string): void => {
     // 고르면 주소가 바뀐다 — 이력은 쌓지 않는다(고를 때마다 뒤로가기가 한 칸씩 늘지 않게)
@@ -163,6 +265,9 @@ function GatesTab(): React.JSX.Element {
     // 다른 프로젝트의 값을 들고 가면 그 프로젝트에 **옛 프로젝트의 경계**가 저장된다
     setDraft(null);
     setDynamicEscalation(null);
+    setEvidenceDraft(null);
+    setCoverageDraft(null);
+    setRolesDraft(null);
     setPendingSwitch(null);
   };
 
@@ -174,12 +279,17 @@ function GatesTab(): React.JSX.Element {
           gate_policy: {
             ...policy,
             spec_gate: { tier_boundaries: next, dynamic_escalation: dynamic },
+            done_gate: nextDone,
+            review_roles: nextRoles,
           },
         },
       }),
     onSuccess: () => {
       setDraft(null);
       setDynamicEscalation(null);
+      setEvidenceDraft(null);
+      setCoverageDraft(null);
+      setRolesDraft(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectBySlug(slug) });
       pushToast({ tone: 'ok', message: t('settings.gates.saved') });
     },
@@ -199,9 +309,36 @@ function GatesTab(): React.JSX.Element {
         from: onOff(policy.spec_gate.dynamic_escalation),
         to: onOff(dynamic),
       }),
+    evidenceChanged &&
+      t('settings.gates.change_evidence', {
+        from: t(`settings.gates.evidence_${done.evidence_source}`),
+        to: t(`settings.gates.evidence_${evidence}`),
+      }),
+    coverageChanged &&
+      t('settings.gates.change_coverage', {
+        from: coverageLabel(t, done.review_coverage),
+        to: coverageLabel(t, coverage),
+      }),
+    ...(rolesChanged
+      ? rolesChangedKinds.map((k) =>
+          t('settings.gates.change_roles', {
+            kind: t(`review.kind.${k}`),
+            from: (storedRoles[k] ?? []).join(' · ') || t('settings.gates.roles_none'),
+            to: (nextRoles[k] ?? []).join(' · ') || t('settings.gates.roles_none'),
+          }),
+        )
+      : []),
   ].filter((line): line is string => typeof line === 'string');
 
-  const saveBlocked = !isAdmin || slug === '' || !loaded || unreadable || !valid || !changed;
+  const saveBlocked =
+    !isAdmin ||
+    slug === '' ||
+    !loaded ||
+    unreadable ||
+    !valid ||
+    !kindsValid ||
+    !rolesValid ||
+    !changed;
   const saveTitle = !isAdmin
     ? t('settings.gates.admin_only_title')
     : !loaded
@@ -210,9 +347,13 @@ function GatesTab(): React.JSX.Element {
         ? t('settings.gates.unreadable_locked')
         : !valid
           ? t('settings.gates.invalid')
-          : !changed
-            ? t('settings.gates.nothing_changed')
-            : undefined;
+          : !kindsValid
+            ? t('settings.gates.coverage_kinds_empty')
+            : !rolesValid
+              ? t('settings.gates.roles_invalid')
+              : !changed
+                ? t('settings.gates.nothing_changed')
+                : undefined;
 
   return (
     <section className="flex max-w-2xl flex-col gap-5">
@@ -327,6 +468,103 @@ function GatesTab(): React.JSX.Element {
             <span className="block text-xs text-text-mute">{t('settings.gates.dynamic_hint')}</span>
           </span>
         </label>
+        <fieldset
+          data-testid="gates-done"
+          className="flex flex-col gap-3 border-t border-border pt-4"
+        >
+          <legend className="sr-only">{t('settings.gates.done_gate')}</legend>
+          <div>
+            <SectionTitle>{t('settings.gates.done_gate')}</SectionTitle>
+            <p className="text-xs text-text-mute">{t('settings.gates.done_gate_hint')}</p>
+          </div>
+          <Field label={t('settings.gates.evidence_source')} className="max-w-sm">
+            <Select
+              data-testid="gates-evidence"
+              value={evidence}
+              onChange={(e) => setEvidenceDraft(e.target.value as 'any' | 'ci_or_human')}
+              disabled={!isAdmin}
+            >
+              <option value="any">{t('settings.gates.evidence_any')}</option>
+              <option value="ci_or_human">{t('settings.gates.evidence_ci_or_human')}</option>
+            </Select>
+          </Field>
+          <Field label={t('settings.gates.review_coverage')} className="max-w-sm">
+            <Select
+              data-testid="gates-coverage"
+              value={coverageForm.mode}
+              onChange={(e) =>
+                setCoverageDraft({ ...coverageForm, mode: e.target.value as CoverageMode })
+              }
+              disabled={!isAdmin}
+            >
+              <option value="off">{t('settings.gates.coverage_off')}</option>
+              <option value="any">{t('settings.gates.coverage_any')}</option>
+              <option value="kinds">{t('settings.gates.coverage_kinds')}</option>
+            </Select>
+          </Field>
+          {coverageForm.mode === 'kinds' && (
+            <div className="flex flex-col gap-1.5">
+              <div data-testid="gates-coverage-kinds" className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {REVIEW_KINDS.map((kind) => (
+                  <label key={kind} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      data-testid={`gates-coverage-kind-${kind}`}
+                      checked={coverageForm.kinds.includes(kind)}
+                      onChange={(e) =>
+                        setCoverageDraft({
+                          mode: 'kinds',
+                          kinds: e.target.checked
+                            ? [...coverageForm.kinds, kind]
+                            : coverageForm.kinds.filter((k) => k !== kind),
+                        })
+                      }
+                      disabled={!isAdmin}
+                    />
+                    {t(`review.kind.${kind}`)}
+                  </label>
+                ))}
+              </div>
+              <p className="text-2xs text-text-faint">{t('settings.gates.coverage_kinds_hint')}</p>
+              {!kindsValid && (
+                <p
+                  role="alert"
+                  data-testid="gates-coverage-empty"
+                  className="text-xs text-status-danger"
+                >
+                  {t('settings.gates.coverage_kinds_empty')}
+                </p>
+              )}
+            </div>
+          )}
+          {/* 필수 리뷰어 역할(REQ-WEB-286) — 게이트 판정과 종류별 완료 조건이 함께 본다 */}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium text-text-mute">{t('settings.gates.roles')}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {REVIEW_KINDS.map((kind) => (
+                <Field key={kind} label={t(`review.kind.${kind}`)}>
+                  <Input
+                    data-testid={`gates-roles-${kind}`}
+                    value={roleTexts[kind] ?? ''}
+                    placeholder={t('settings.gates.roles_placeholder')}
+                    onChange={(e) => setRolesDraft({ ...roleTexts, [kind]: e.target.value })}
+                    disabled={!isAdmin}
+                  />
+                </Field>
+              ))}
+            </div>
+            <p className="text-2xs text-text-faint">{t('settings.gates.roles_hint')}</p>
+            {!rolesValid && (
+              <p
+                role="alert"
+                data-testid="gates-roles-invalid"
+                className="text-xs text-status-danger"
+              >
+                {t('settings.gates.roles_invalid')}
+              </p>
+            )}
+          </div>
+        </fieldset>
         {changes.length > 0 && (
           <div data-testid="gates-unsaved" className="text-xs">
             <p className="font-medium text-status-waiting">{t('settings.gates.unsaved')}</p>
@@ -345,7 +583,11 @@ function GatesTab(): React.JSX.Element {
               size="md"
               testId="gates-save"
               block
-              message={t('settings.gates.loosen_confirm')}
+              message={t(
+                specLoosens
+                  ? 'settings.gates.loosen_confirm'
+                  : 'settings.gates.loosen_done_confirm',
+              )}
               detail={changes.join(' · ')}
               confirmLabel={t('settings.gates.loosen_save')}
               pending={save.isPending}

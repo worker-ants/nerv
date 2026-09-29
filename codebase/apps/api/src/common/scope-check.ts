@@ -30,6 +30,19 @@ export function assertScope(principal: Principal, required: RoleScope): void {
 }
 
 /**
+ * **역할 하나라도** 있어야 한다 — 라우트 데코레이터(`RequireRole`)와 같은 판정을 도구가 쓸 때(2026-09-28 · REQ-API-254).
+ * 겸직은 역할의 합집합이다. 거절의 모양은 가드와 같다(`role_required`).
+ */
+export function assertAnyRole(principal: Principal, roles: readonly string[]): void {
+  if (roles.some((r) => (principal.roles as readonly string[]).includes(r))) return;
+  throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.role_missing'), {
+    kind: 'role_required',
+    required: roles,
+    granted: principal.roles,
+  });
+}
+
+/**
  * 요청에서 주체를 꺼낸다. 컨트롤러마다 따로 만들던 것을 여기로 모은다 —
  * 권한 판정과 짝이라 같은 자리에 있는 편이 낫다.
  */

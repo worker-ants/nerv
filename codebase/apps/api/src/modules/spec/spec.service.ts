@@ -29,7 +29,7 @@ import {
   specVersionStatus,
   text,
 } from '@nerv/schema';
-import type { GateEvidence } from '@nerv/schema';
+import type { GateEvidence, SpecReadAs } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { evidenceExistsSql, normalizedStatementSql, reverifyRequiredSql } from './impl-status.js';
@@ -39,6 +39,7 @@ import type { SQL } from 'drizzle-orm';
 import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { safePathSegment } from '../../common/safe-path.js';
+import { renderFrontmatter } from './mirror-frontmatter.js';
 import { InjectDb, toDate } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -63,6 +64,9 @@ const INCLUDE_VALUES = [
 
 /** `diff_from` 의 본문 줄 차이 상한 — 넘으면 자르고 `body_diff_truncated` 로 알린다(REQ-API-207) */
 const DIFF_LINE_CAP = 400;
+
+/** 미러의 조상을 거슬러 오를 깊이 상한 — 트리는 사이클을 막지만 읽는 쪽이 그것만 믿지 않는다(REQ-API-245) */
+const ANCESTOR_DEPTH_LIMIT = 64;
 import { EventService } from '../event/event.service.js';
 import { decideGate, gateEventPayload, inferAxes } from './gate-tier.js';
 import type { GateDecision } from './gate-tier.js';
@@ -538,7 +542,8 @@ export class SpecService {
     // `read_as: 'approved_fallback'` · `baseline_pinned: false` 로 그 사실을 말한다 — 없는 이름을
     // 조용히 기본으로 떨어뜨리면 사람은 그 세트를 읽었다고 믿는다(REQ-API-082).
     let pinnedVersionId: string | null = null;
-    let readAs: string = selector.kind;
+    // 작업으로 읽으면 아래에서 셋 중 하나로 정해진다 — 처음 값은 쓰이지 않는다
+    let readAs: SpecReadAs = selector.kind === 'task' ? 'approved_fallback' : selector.kind;
     let baselineName: string | null = null;
     let taskKey: string | null = null;
     const pinOf = async (baselineId: string): Promise<string | null> => {
@@ -2231,30 +2236,109 @@ export class SpecService {
    *
    * 이 표면이 있는 이유는 에이전트·CI·사람이 "그냥 문서를 읽고 싶을 때" REST 봉투를 벗기지
    * 않아도 되게 하기 위해서다. frontmatter 에 고정 ID·제목·타입·버전·상태·요구사항 ref·
-   * `basis_superseded` 를 실어(승인자는 싣지 않는다 — 2026-09-07 정정), 파일로
+   * `basis_superseded` 를 넣어(승인자는 넣지 않는다 — 2026-09-07 정정), 파일로
    * 저장해도 출처를 잃지 않게 한다.
+   *
+   * **트리의 자리와 본문 지문도 넣는다**(2026-09-28 · REQ-API-245) — `parent` · `ancestors`(맨 위부터 부모까지) ·
+   * `area`(가장 가까운 area 조상 — 자기 자신은 세지 않는다) · `content_hash`(본문 해시 · REST 의 그 값). 미러를
+   * 받는 쪽이 문서 한 번의 GET 으로 영역 폴더와 버전을 정하게 하려는 것이다. 앞의 일곱 키는 이름 · 순서 · 뜻이
+   * 그대로이고 새 키는 뒤에 붙는다. 값은 모두 YAML 이 그대로 읽는 모양이다(`mirror-frontmatter.ts`).
    */
   async mirrorMarkdown(input: {
     projectId: string;
     specKey: string;
     versionNo?: number | null;
+    basis?: string | null;
+    task?: string | null;
   }): Promise<string> {
+    return (await this.mirrorDocument(input)).markdown;
+  }
+
+  /**
+   * 미러 본문과 HTTP 헤더의 재료 — `updated_at` 은 읽은 버전이 마지막으로 바뀐 때다(REQ-API-246).
+   *
+   * **어느 버전을 읽을지는 문서 조회와 같은 판정이다**(2026-09-28 · clemvion 요청 N4 · REQ-API-249) — `task` 를 주면
+   * `nerv_spec_get(task)` 와 같은 버전을 고르고, 무엇으로 읽었는지를 `read_as` 로 준다. 선택자는 하나만 받는다.
+   */
+  async mirrorDocument(input: {
+    projectId: string;
+    specKey: string;
+    versionNo?: number | null;
+    basis?: string | null;
+    task?: string | null;
+  }): Promise<{
+    markdown: string;
+    updatedAt: Date | null;
+    readAs: SpecReadAs;
+    task: string | null;
+    /** 내보내기(EP-MIR-03)의 목록 · 폴더 재료 — frontmatter 에 쓴 값과 같다 */
+    meta: {
+      key: string;
+      type: string;
+      version: number | null;
+      status: string | null;
+      contentHash: string | null;
+      area: string | null;
+      body: string;
+    };
+  }> {
     const spec = await this.get(input);
     const requirements = (spec['requirements'] ?? []) as Record<string, unknown>[];
-    const frontmatter = [
-      '---',
-      `id: ${String(spec['key'])}`,
-      `title: ${String(spec['title'])}`,
-      `type: ${String(spec['type'])}`,
-      `version: ${String(spec['version_no'])}`,
-      `status: ${String(spec['doc_status'])}`,
-      `requirements: [${requirements.map((r) => String(r['ref'])).join(', ')}]`,
+    const ancestors = await this.ancestorsOf(String(spec['spec_id']));
+    const area = [...ancestors].reverse().find((a) => a.type === 'area')?.key ?? null;
+    const text = (v: unknown): string | null => (v == null ? null : String(v));
+    const frontmatter = renderFrontmatter([
+      ['id', String(spec['key'])],
+      ['title', String(spec['title'])],
+      ['type', String(spec['type'])],
+      ['version', typeof spec['version_no'] === 'number' ? spec['version_no'] : null],
+      ['status', text(spec['doc_status'])],
+      ['requirements', requirements.map((r) => String(r['ref']))],
       // 이 파일이 어느 시점의 스냅샷인지 — 버전 지정 조회의 근거가 된다
-      `basis_superseded: ${String(spec['basis_superseded'] === true)}`,
-      '---',
-      '',
-    ].join('\n');
-    return `${frontmatter}${String(spec['body_md'] ?? '')}`;
+      ['basis_superseded', spec['basis_superseded'] === true],
+      ['parent', ancestors.at(-1)?.key ?? null],
+      ['ancestors', ancestors.map((a) => a.key)],
+      ['area', area],
+      ['content_hash', text(spec['content_hash'])],
+      // 무엇으로 읽었나 — 작업으로 읽었으면 그 작업의 키도(REQ-API-249)
+      ['read_as', String(spec['read_as'])],
+      ['task', text(spec['task'])],
+    ]);
+    return {
+      markdown: `${frontmatter}${String(spec['body_md'] ?? '')}`,
+      updatedAt: spec['updated_at'] == null ? null : toDate(spec['updated_at']),
+      readAs: spec['read_as'] as SpecReadAs,
+      task: text(spec['task']),
+      meta: {
+        key: String(spec['key']),
+        type: String(spec['type']),
+        version: typeof spec['version_no'] === 'number' ? spec['version_no'] : null,
+        status: text(spec['doc_status']),
+        contentHash: text(spec['content_hash']),
+        area,
+        body: String(spec['body_md'] ?? ''),
+      },
+    };
+  }
+
+  /**
+   * 맨 위부터 부모까지의 조상 — 자기 자신은 빼고, 가까운 것이 뒤다. 트리는 사이클을 막고 있지만(EP-SPEC-15)
+   * 읽는 쪽이 그것을 믿고 끝없이 돌지 않게 깊이에 상한을 둔다.
+   */
+  private async ancestorsOf(specId: string): Promise<{ key: string; type: string }[]> {
+    const { rows } = await this.db.execute<{ key: string; type: string }>(sql`
+      WITH RECURSIVE up AS (
+        SELECT p.id, p.key, p.type::text AS type, p.parent_id, 1 AS depth
+          FROM spec c JOIN spec p ON p.id = c.parent_id
+         WHERE c.id = ${specId}
+        UNION ALL
+        SELECT p.id, p.key, p.type::text, p.parent_id, up.depth + 1
+          FROM up JOIN spec p ON p.id = up.parent_id
+         WHERE up.depth < ${ANCESTOR_DEPTH_LIMIT}
+      )
+      SELECT key, type FROM up ORDER BY depth DESC
+    `);
+    return rows;
   }
 
   /**
@@ -2263,8 +2347,14 @@ export class SpecService {
    * 에이전트가 처음 붙었을 때 "이 프로젝트에 무엇이 있나"를 한 파일로 answer 한다 —
    * 트리 API 를 부르지 못하는 소비자(웹 크롤러·다른 도구)도 같은 지도를 본다.
    */
-  async llmsTxt(input: { projectId: string; projectName: string }): Promise<string> {
+  async llmsTxt(input: {
+    projectId: string;
+    projectName: string;
+    /** 링크 — 기본은 HTTP · 디스크 미러의 `./specs/<키>.md`. 내보내기(EP-MIR-03)는 zip 안의 경로를 준다 */
+    linkOf?: (key: string) => string;
+  }): Promise<string> {
     const nodes = await this.tree({ projectId: input.projectId });
+    const linkOf = input.linkOf ?? ((key: string): string => `./specs/${safePathSegment(key)}.md`);
     const lines = [
       `# ${input.projectName}`,
       '',
@@ -2277,9 +2367,7 @@ export class SpecService {
       const status = node.doc_status === null ? 'draft' : node.doc_status;
       // 링크는 디스크 미러가 쓰는 파일 이름과 같다 — 보통 키는 그대로이고, `/` 같은 글자는 `%XX` 라
       // HTTP 경로(EP-MIR-01)로 따라가도 원래 키로 풀린다(REQ-API-235)
-      lines.push(
-        `- [${node.title}](./specs/${safePathSegment(node.key)}.md): ${node.type} · ${status}`,
-      );
+      lines.push(`- [${node.title}](${linkOf(node.key)}): ${node.type} · ${status}`);
     }
     return `${lines.join('\n')}\n`;
   }

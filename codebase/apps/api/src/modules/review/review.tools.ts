@@ -61,6 +61,13 @@ export class ReviewTools implements NervToolProvider {
                   enum: ['codebase', 'spec', 'task', 'process'],
                   description: 'mcp.arg.finding_area',
                 },
+                // 분류(`spec_drift` 등) — 필터와 대상 추론이 읽는다(2026-09-28 · REQ-API-253)
+                tags: {
+                  type: 'array',
+                  items: { type: 'string', minLength: 1, maxLength: 64 },
+                  maxItems: 10,
+                  description: 'mcp.arg.finding_tags',
+                },
               },
               required: ['severity', 'title'],
             },

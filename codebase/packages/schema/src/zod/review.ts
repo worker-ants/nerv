@@ -26,6 +26,11 @@ export const ReviewFindingInput = z
     area: z.string().nullish(),
     category: z.string().nullish(),
     requirement_id: z.string().nullish(),
+    /**
+     * `spec_drift` 같은 분류 — 발견 목록의 필터와 대상 추론(`inferArea`)이 읽는다. 10개까지 · 하나 64자까지
+     * (2026-09-28 · clemvion 요청 N8 · REQ-API-253). 예전에는 서비스가 받는데 REST · MCP 가 넘기지 않아 저장되지 않았다
+     */
+    tags: z.array(z.string().trim().min(1).max(64)).max(10).nullish(),
   })
   .passthrough();
 

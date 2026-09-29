@@ -106,6 +106,34 @@ export class ReviewController {
   }
 
   /**
+   * EP-REV-08 — 게이트 판정(2026-09-28 · clemvion 요청 N1 · 사람 결정 D1 · D2 · REQ-API-247). **집행에 써도 되는 조회다**
+   * — push 훅과 CI 가 "이 브랜치의 이 종류 라운드가 통과했나" 를 한 번에 묻는다. 표시용인 EP-REV-04 와 판정
+   * 기준이 달라서(열린 warning 도 막는다) 경로를 나눴다. 판정은 `review-gate.ts` 한 곳이다.
+   */
+  @RequireScope('spec:read')
+  @Get('gates/reviews/check')
+  gateCheck(
+    @Req() req: ProjectRequest,
+    @Query('branch') branch?: string,
+    @Query('kind') kind?: string,
+    @Query('head_sha') headSha?: string,
+  ): Promise<unknown> {
+    if (branch === undefined || branch.trim() === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'branch',
+        allowed: ['branch name'],
+      });
+    }
+    return this.reviews.gateCheck({
+      projectId: req.nervProjectId!,
+      branch,
+      kinds: csv(kind) ?? null,
+      headSha: headSha === undefined || headSha.trim() === '' ? null : headSha.trim(),
+    });
+  }
+
+  /**
    * EP-REV-02 — 처분. **사람도 이 문으로 들어온다.**
    *
    * 사람이 부르면 `sessionId` 가 없고, 그래서 critical 하향의 A3 게이트가 걸리지 않는다 —

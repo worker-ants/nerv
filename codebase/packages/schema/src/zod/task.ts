@@ -70,6 +70,11 @@ export const TaskUpdateInput = z
      * (출처 문서가 그 세트에 있으면) 기준 버전이 함께 옮겨 간다. `null` 은 기준선을 푼다.
      */
     baseline: z.string().nullish(),
+    /**
+     * 읽은 본문의 지문(`body_hash`) — 주면 그 사이 본문이 바뀌었을 때 409 `stale_body` 다(2026-09-28 · 사람 결정 D12 ·
+     * REQ-API-254). REST 는 주면 검사하고, 도구(`nerv_task_update`)는 본문을 고칠 때 반드시 받는다
+     */
+    base_hash: z.string().nullish(),
   })
   .strict();
 
