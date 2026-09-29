@@ -30,6 +30,15 @@ let sent: Sent[] = [];
 let me: Record<string, unknown>;
 /** 비밀번호 바꾸기에 서버가 돌려줄 것 */
 let passwordReply: { status: number; json: unknown };
+/** 로그인된 기기 — 서버가 돌려줄 세션 목록 */
+let sessions: {
+  id: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  created_at: string;
+  last_active_at: string;
+  current: boolean;
+}[];
 
 beforeEach(() => {
   localStorage.clear();
@@ -41,6 +50,35 @@ beforeEach(() => {
     memberships: [{ org_slug: 'nerv', org_name: 'NERV', project_slug: null, roles: ['developer'] }],
   };
   passwordReply = { status: 200, json: { token: 't', user: {} } };
+  const now = new Date().toISOString();
+  sessions = [
+    {
+      id: 's-mac',
+      user_agent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 Chrome/131.0 Safari/537.36',
+      ip_address: '198.51.100.10',
+      created_at: now,
+      last_active_at: now,
+      current: true,
+    },
+    {
+      id: 's-phone',
+      user_agent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1',
+      ip_address: '203.0.113.20',
+      created_at: now,
+      last_active_at: now,
+      current: false,
+    },
+    {
+      id: 's-old',
+      user_agent: null,
+      ip_address: null,
+      created_at: now,
+      last_active_at: now,
+      current: false,
+    },
+  ];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: RequestInit) => {
@@ -54,6 +92,18 @@ beforeEach(() => {
           status: passwordReply.status,
           json: async () => passwordReply.json,
         };
+      if (u.includes('/me/sessions')) {
+        if (method === 'GET')
+          return { ok: true, status: 200, json: async () => ({ items: sessions }) };
+        if (u.endsWith('/revoke-others')) {
+          const n = sessions.filter((x) => !x.current).length;
+          sessions = sessions.filter((x) => x.current);
+          return { ok: true, status: 200, json: async () => ({ ok: true, revoked: n }) };
+        }
+        const id = u.split('/').pop();
+        sessions = sessions.filter((x) => x.id !== id);
+        return { ok: true, status: 200, json: async () => ({ ok: true, revoked: 1 }) };
+      }
       if (u.endsWith('/me') && method === 'PATCH') {
         const body = JSON.parse(String(init?.body ?? '{}')) as { display_name: string };
         me = { ...me, display_name: body.display_name };
@@ -136,7 +186,7 @@ describe('비밀번호 바꾸기 (REQ-WEB-229)', () => {
   };
 
   it('두 칸이 다르면 보내기 전에 말하고, 짧으면 단추가 꺼져 있다', async () => {
-    mount('/settings/account');
+    mount('/settings/account?tab=password');
     await screen.findByTestId('account-password-form');
     fill('old-password', 'new-password', 'new-passwort');
     expect(screen.getByTestId('account-password-mismatch')).toBeDefined();
@@ -150,7 +200,7 @@ describe('비밀번호 바꾸기 (REQ-WEB-229)', () => {
   });
 
   it('다른 기기의 로그인을 끊는 것이 기본이고, 바꾸면 칸을 비운다', async () => {
-    mount('/settings/account');
+    mount('/settings/account?tab=password');
     await screen.findByTestId('account-password-form');
     expect((screen.getByTestId('account-revoke-others') as HTMLInputElement).checked).toBe(true);
     fill('old-password', 'new-password', 'new-password');
@@ -172,7 +222,7 @@ describe('비밀번호 바꾸기 (REQ-WEB-229)', () => {
       status: 400,
       json: { code: 'INVALID_PASSWORD', message: 'Invalid password' },
     };
-    mount('/settings/account');
+    mount('/settings/account?tab=password');
     await screen.findByTestId('account-password-form');
     fill('wrong-password', 'new-password', 'new-password');
     fireEvent.click(screen.getByTestId('account-password-submit'));
@@ -213,4 +263,64 @@ describe('로그인 전에도 언어를 바꾼다 (REQ-WEB-230)', () => {
       expect(document.documentElement.lang).toBe('ko');
     },
   );
+});
+
+// 내 계정의 탭과 로그인된 기기 (2026-09-28 · 사람 요청 · REQ-WEB-283 · 284)
+describe('탭 — 한 화면에 이어 두지 않는다 (REQ-WEB-283)', () => {
+  it('계정 탭이 기본이고 이름 · 이메일만 보인다 — 비밀번호 칸은 비밀번호 탭에 있다', async () => {
+    mount('/settings/account');
+    await screen.findByTestId('account-name');
+    expect(screen.getByTestId('account-tab-account').getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByTestId('account-password-form')).toBeNull();
+    expect(screen.queryByTestId('account-devices')).toBeNull();
+  });
+
+  it('주소의 탭으로 바로 연다 — 비밀번호 탭', async () => {
+    mount('/settings/account?tab=password');
+    await screen.findByTestId('account-password-form');
+    expect(screen.getByTestId('account-tab-password').getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByTestId('account-name')).toBeNull();
+  });
+});
+
+describe('로그인된 기기 (REQ-WEB-284)', () => {
+  it('기기마다 브라우저 · 운영체제 · 주소를 보이고, 이 기기는 표시만 하고 끊는 단추가 없다', async () => {
+    mount('/settings/account?tab=devices');
+    const rows = await screen.findAllByTestId('account-device');
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.textContent).toContain('Chrome · macOS');
+    expect(rows[0]?.textContent).toContain('이 기기');
+    expect(within(rows[0]!).queryByTestId('account-device-revoke')).toBeNull();
+    expect(rows[1]?.textContent).toContain('Safari · iOS');
+    expect(rows[1]?.textContent).toContain('203.0.113.20');
+    // 모르는 기기 · 모르는 주소도 빈칸이 아니라 말로 적는다
+    expect(rows[2]?.textContent).toContain('알 수 없는 기기');
+    expect(rows[2]?.textContent).toContain('주소 모름');
+  });
+
+  it('한 기기를 끊는 것은 한 번 묻고, 그 기기만 끊는다', async () => {
+    mount('/settings/account?tab=devices');
+    const rows = await screen.findAllByTestId('account-device');
+    fireEvent.click(within(rows[1]!).getByTestId('account-device-revoke'));
+    expect(sent).toHaveLength(0);
+    fireEvent.click(screen.getByTestId('account-device-revoke-s-phone-confirm'));
+    await waitFor(() => expect(sent.some((x) => x.method === 'DELETE')).toBe(true));
+    expect(sent.find((x) => x.method === 'DELETE')?.url).toContain('/me/sessions/s-phone');
+    await waitFor(() => expect(screen.getAllByTestId('account-device')).toHaveLength(2));
+  });
+
+  it('다른 기기 로그인 모두 끊기 — 몇 개인지 묻고, 이 기기만 남는다', async () => {
+    mount('/settings/account?tab=devices');
+    await screen.findAllByTestId('account-device');
+    fireEvent.click(screen.getByTestId('account-devices-revoke-others'));
+    expect(screen.getByTestId('account-devices-revoke-others-confirming').textContent).toContain(
+      '2개 로그인',
+    );
+    fireEvent.click(screen.getByTestId('account-devices-revoke-others-confirm'));
+    await waitFor(() =>
+      expect(sent.some((x) => x.url.endsWith('/me/sessions/revoke-others'))).toBe(true),
+    );
+    await waitFor(() => expect(screen.getAllByTestId('account-device')).toHaveLength(1));
+    expect(await screen.findByText('다른 기기의 로그인 2개를 끊었습니다.')).toBeDefined();
+  });
 });

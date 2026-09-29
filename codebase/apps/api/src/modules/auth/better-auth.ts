@@ -19,6 +19,7 @@ import {
 import { betterAuth } from 'better-auth';
 import type pg from 'pg';
 import { allowedOriginsFromEnv, apiUrlFromEnv, cookieDomainFromEnv } from '../../common/origins.js';
+import { clientIpHeaderFromEnv, trustedProxyEntriesFromEnv } from '../../common/client-ip.js';
 import { mailEnabled, requireEmailVerificationFromEnv } from '../mail/mail.config.js';
 import { returnToOf } from '../mail/verify-link.js';
 
@@ -109,6 +110,18 @@ export function createBetterAuth(pool: pg.Pool, mail?: VerificationMail) {
       // 같지만, 그러면 **L2 가 끈 채로 초록을 본다** — 위 목록이 CSRF 방어선이라고
       // 적어 두고 그 방어선을 한 번도 태우지 않는 셈이다. 켜 두고 검사가 세게 한다.
       disableOriginCheck: false,
+      // **접속 주소는 접근 로그와 같은 규칙으로 읽는다**(2026-09-28 · REQ-API-244). 이 스택의 기본은
+      // `X-Forwarded-For` 가 한 칸일 때만 믿어서, 프록시를 지나 두 칸 이상이 된 운영(Cloudflare → cloudflared
+      // → ingress)에서는 주소를 못 찾았다 — 세션의 IP 가 비고, 로그인 · 가입 한도가 모든 사람이 **한 통**을
+      // 나눠 쓰는 자리로 떨어졌다(라이브러리의 대체 동작). 클라이언트 주소 헤더(`NERV_CLIENT_IP_HEADER`)를
+      // 먼저 보고, 없으면 신뢰 프록시(`NERV_TRUSTED_PROXIES`)를 오른쪽부터 건너뛴 첫 주소다(REQ-CB-055 와 같다)
+      ipAddress: {
+        ipAddressHeaders: [
+          ...[clientIpHeaderFromEnv()].filter((h): h is string => h !== null),
+          'x-forwarded-for',
+        ],
+        trustedProxies: trustedProxyEntriesFromEnv(),
+      },
       // 쿠키를 한 호스트보다 넓게 둘 것인가는 `NERV_COOKIE_DOMAIN` 이 정한다(REQ-CB-042).
       // **비어 있으면 키 자체를 넣지 않는다** — 옵션만 켜고 도메인을 비우면 better-auth 가
       // baseURL 의 호스트를 도메인으로 써서(실물 `createCookieGetter`), 호스트 전용이던

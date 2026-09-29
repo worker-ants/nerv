@@ -65,22 +65,34 @@ export function normalizeIp(value: string | undefined): string | null {
  * "IP 가 이상하다" 로만 드러나고 설정을 가리키지 않는다. 엔트리가 기동 전에 부른다.
  */
 export function trustedProxiesFromEnv(env: NodeJS.ProcessEnv = process.env): BlockList {
-  const raw = (env['NERV_TRUSTED_PROXIES'] ?? '').trim();
-  const entries = raw === '' ? DEFAULT_TRUSTED_PROXIES : raw.split(/[\s,]+/).filter(Boolean);
   const list = new BlockList();
+  for (const entry of trustedProxyEntriesFromEnv(env)) {
+    const [address = '', prefixText] = entry.split('/');
+    const family = isIP(address);
+    const prefix = prefixText === undefined ? (family === 4 ? 32 : 128) : Number(prefixText);
+    list.addSubnet(address, prefix, family === 4 ? 'ipv4' : 'ipv6');
+  }
+  return list;
+}
+
+/**
+ * 같은 목록을 **문자열로** — 인증 스택(better-auth)의 `advanced.ipAddress.trustedProxies` 가 받는 모양이다
+ * (2026-09-28 · REQ-API-244). 틀린 항목은 여기서 던진다(검사는 한 곳이다).
+ */
+export function trustedProxyEntriesFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  const raw = (env['NERV_TRUSTED_PROXIES'] ?? '').trim();
+  const entries = raw === '' ? [...DEFAULT_TRUSTED_PROXIES] : raw.split(/[\s,]+/).filter(Boolean);
   for (const entry of entries) {
     const [address = '', prefixText] = entry.split('/');
     const family = isIP(address);
     if (family === 0) throw new Error(invalidProxy(entry));
-    const type = family === 4 ? 'ipv4' : 'ipv6';
     const max = family === 4 ? 32 : 128;
     const prefix = prefixText === undefined ? max : Number(prefixText);
     if (!Number.isInteger(prefix) || prefix < 0 || prefix > max || prefixText === '') {
       throw new Error(invalidProxy(entry));
     }
-    list.addSubnet(address, prefix, type);
   }
-  return list;
+  return entries;
 }
 
 function invalidProxy(entry: string): string {

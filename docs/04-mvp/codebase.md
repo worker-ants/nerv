@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.92 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.93 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.93 변경(2026-09-28 — 인증 스택의 접속 주소): **새 요구사항 없음 · §5.2 전표 두 줄.** `NERV_TRUSTED_PROXIES` · `NERV_CLIENT_IP_HEADER` 를 인증 스택도 읽는다 — 접근 로그와 같은 규칙으로 세션의 주소와 로그인 한도의 주체를 정한다([4.4 API 명세](api.md) REQ-API-244).
 >
 > v1.92 변경(2026-09-28 — 카탈로그 26종): **새 요구사항 없음 · 합계 검산과 그림의 수.** `nerv_finding_list`(P2)가 더해져 카탈로그는 26종(P0 8 · P1 15 · P2 3)이다.
 >
@@ -1155,8 +1157,8 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_SSE_KEEPALIVE_MS` | | `25000` | api(`sse.controller.ts`) | SSE keep-alive 주기(§3.5 · REQ-CB-035). **앞문의 유휴 타임아웃이 이 값보다 짧으면 스트림이 조용히 끊긴다** — 그때 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다(`NERV_LOG_LEVEL` 과 같은 이유로 상수에서 꺼냈다). 값이 없거나 양수가 아니면 기본값이다. L2 가 이 값을 낮춰 keep-alive 형식(`event: ping` · `data: {}`)을 실제로 태운다 |
 | `NERV_LOG_LEVEL` | | `log`(=`info`) | api · worker | 두 진입점이 `common/log-level.ts` 한 함수로 읽는다(2026-09-06 배선). 고른 수준과 **그보다 심각한 것**을 켠다 — `verbose` · `debug` · `log` · `warn` · `error` · `fatal`. `info`·`warning`·`trace`·`critical` 은 별칭으로 받는다(compose·k8s 가 이미 `info` 를 넘긴다). 모르는 값은 기본으로 떨어지되 **한 줄 남긴다** — 오타로 로그가 꺼지면 그 사실을 알려 줄 로그도 없다 |
 | `NERV_LOG_FORMAT` | | `text` | api · worker | `text` · `json`(2026-09-24 · §5.5 · REQ-CB-053). `json` 은 **한 줄에 JSON 하나**라 수집기가 필드(`req_id`·`status`·`route` …)로 거른다. **비면 `text`** — 개발 루프는 사람이 읽는다. 컨테이너 배치는 compose(`${NERV_LOG_FORMAT:-json}`)와 k8s ConfigMap 이 `json` 을 넘긴다. 모르는 값은 기본으로 떨어지되 한 줄 남긴다(`NERV_LOG_LEVEL` 과 같은 규칙) |
-| `NERV_TRUSTED_PROXIES` | | loopback·사설 대역 | api | 클라이언트 주소를 가릴 때 **믿는 프록시**의 CIDR(쉼표·공백 구분, 주소 하나도 된다 · 2026-09-24 · §5.5 · REQ-CB-055). 비면 `127.0.0.0/8`·`10.0.0.0/8`·`172.16.0.0/12`·`192.168.0.0/16`·`::1/128`·`fc00::/7`. 파드 CIDR 이 이 밖(예: `100.64.0.0/10`)이면 적는다 — 적지 않으면 모든 줄이 ingress 파드 주소가 된다. **틀린 항목은 기동을 거부한다** |
-| `NERV_CLIENT_IP_HEADER` | | (비움 — 믿지 않음) | api | 클라이언트 주소를 싣는 헤더 이름(2026-09-24 · §5.5 · REQ-CB-055). Cloudflare(Tunnel 포함)면 `cf-connecting-ip`. api 에 직접 붙은 소켓이 신뢰 목록 안일 때만 읽는다. **켜기 전에 origin 에 인터넷이 직접 닿지 않는지 본다**(§5.5 배치 요건) — 닿으면 누구나 이 헤더를 적어 보낼 수 있다. 헤더 이름 모양이 아니면 기동을 거부한다 |
+| `NERV_TRUSTED_PROXIES` | | loopback·사설 대역 | api | 클라이언트 주소를 가릴 때 **믿는 프록시**의 CIDR(쉼표·공백 구분, 주소 하나도 된다 · 2026-09-24 · §5.5 · REQ-CB-055). 비면 `127.0.0.0/8`·`10.0.0.0/8`·`172.16.0.0/12`·`192.168.0.0/16`·`::1/128`·`fc00::/7`. 파드 CIDR 이 이 밖(예: `100.64.0.0/10`)이면 적는다 — 적지 않으면 모든 줄이 ingress 파드 주소가 된다. **틀린 항목은 기동을 거부한다**. 인증 스택(better-auth)도 같은 값으로 세션의 주소와 로그인 한도의 주체를 정한다(2026-09-28 · [4.4 API 명세](api.md) REQ-API-244). |
+| `NERV_CLIENT_IP_HEADER` | | (비움 — 믿지 않음) | api | 클라이언트 주소를 담은 헤더 이름(2026-09-24 · §5.5 · REQ-CB-055). Cloudflare(Tunnel 포함)면 `cf-connecting-ip`. api 에 직접 붙은 소켓이 신뢰 목록 안일 때만 읽는다. **켜기 전에 인터넷에서 origin 으로 바로 들어올 수 없는지 확인한다**(§5.5 배치 요건) — 들어올 수 있으면 누구나 이 헤더를 적어 보낼 수 있다. 헤더 이름 모양이 아니면 기동을 거부한다. 인증 스택(better-auth)도 같은 값으로 세션의 주소와 로그인 한도의 주체를 정한다(2026-09-28 · [4.4 API 명세](api.md) REQ-API-244). |
 
 **에이전트 장비 쪽 변수는 이 전표가 아니다.** `NERV_TOKEN`(PAT)·`NERV_PROJECT`·`NERV_HOSTNAME`은 세션이 도는 개발자 장비의 환경이며, 정본은 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3·§4.1, 발급·설치 절차는 [4.6 플러그인과 온보딩](plugin.md)이다.
 

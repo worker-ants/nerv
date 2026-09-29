@@ -69,6 +69,11 @@ export interface Principal {
   /** 역할이 허용하는 권한 ∩ (PAT 이면) 토큰 권한 — 유효 권한 */
   scopes: string[];
   tokenId: string | null;
+  /**
+   * 웹 로그인 세션의 id — 쿠키로 들어온 요청만 있다(2026-09-28 · REQ-API-243). 로그인된 기기 목록이
+   * "이 기기" 를 표시하고, 다른 기기만 끊을 때 이것을 남긴다
+   */
+  authSessionId?: string | null;
 }
 
 /**
@@ -1392,7 +1397,83 @@ export class AuthService {
       roles: [],
       scopes: [],
       tokenId: null,
+      authSessionId: session.session?.id ?? null,
     };
+  }
+
+  /**
+   * 로그인된 기기 — 내 웹 로그인 세션 목록(2026-09-28 · 사람 요청 · EP-AUTH-03 · REQ-API-243).
+   *
+   * **토큰은 돌려주지 않는다.** 인증 스택의 `list-sessions` 는 세션 토큰까지 브라우저에 돌려줘서 쓰지 않는다 —
+   * 끊기는 id 로 한다. 만료된 세션은 이미 로그인이 아니므로 빼고, 최근에 쓴 순서다. 인증 스택은 주소를 못 찾으면
+   * 빈 문자열을 저장하기도 해서, 빈 값은 `null` 로 준다 — 화면이 "알 수 없음" 을 적는 기준이 하나가 된다.
+   */
+  async mySessions(
+    userId: string,
+    currentId: string | null,
+  ): Promise<{ items: Record<string, unknown>[] }> {
+    const { rows } = await this.db.execute<{
+      id: string;
+      user_agent: string | null;
+      ip_address: string | null;
+      created_at: string;
+      last_active_at: string;
+      expires_at: string;
+    }>(sql`
+      SELECT id, NULLIF(user_agent, '') AS user_agent, NULLIF(ip_address, '') AS ip_address,
+             created_at, updated_at AS last_active_at, expires_at
+        FROM auth_session
+       WHERE user_id = ${userId} AND expires_at > now()
+       ORDER BY updated_at DESC, id
+    `);
+    return { items: rows.map((r) => ({ ...r, current: r.id === currentId })) };
+  }
+
+  /**
+   * 로그인 하나를 끊는다(EP-AUTH-04 · REQ-API-243). **지금 쓰는 로그인은 여기서 끊지 않는다** — 로그아웃이 그
+   * 일을 하고, 여기서 끊으면 화면이 응답을 받기도 전에 쫓겨난다. 남의 세션 · 없는 세션은 같은 `not_found` 다.
+   */
+  async revokeMySession(input: {
+    userId: string;
+    currentId: string | null;
+    sessionId: string;
+  }): Promise<{ ok: true; revoked: number }> {
+    if (input.sessionId === input.currentId) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.revoke_current'), {
+        kind: 'current_session',
+      });
+    }
+    // UUID 가 아니면 찾을 것도 없다 — 캐스팅이 22P02 로 죽지 않게 먼저 거른다
+    const { rows } = looksLikeUuid(input.sessionId)
+      ? await this.db.execute<{ id: string }>(sql`
+          DELETE FROM auth_session WHERE id = ${input.sessionId} AND user_id = ${input.userId}
+          RETURNING id
+        `)
+      : { rows: [] };
+    if (rows.length === 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.not_found'), {
+        kind: 'not_found',
+      });
+    }
+    return { ok: true, revoked: rows.length };
+  }
+
+  /** 다른 기기의 로그인을 모두 끊는다(EP-AUTH-05 · REQ-API-243) — 지금 쓰는 로그인만 남는다 */
+  async revokeMyOtherSessions(input: {
+    userId: string;
+    currentId: string | null;
+  }): Promise<{ ok: true; revoked: number }> {
+    if (input.currentId === null) {
+      // 쿠키 없이 올 수 없는 경로다 — 지금 로그인을 모르면 전부 끊게 되므로 거절한다
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.current_unknown'), {
+        kind: 'current_session_unknown',
+      });
+    }
+    const { rows } = await this.db.execute<{ id: string }>(sql`
+      DELETE FROM auth_session WHERE user_id = ${input.userId} AND id <> ${input.currentId}
+      RETURNING id
+    `);
+    return { ok: true, revoked: rows.length };
   }
 
   async verifyPat(

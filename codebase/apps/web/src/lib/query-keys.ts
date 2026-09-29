@@ -37,6 +37,8 @@ export const PENDING_PROJECT = '' as ProjectId;
 export const queryKeys = {
   me: () => ['me'] as const,
   myNotifications: () => ['me', 'notifications'] as const,
+  /** 내 로그인 세션(로그인된 기기 · REQ-WEB-284) */
+  mySessions: () => ['me', 'sessions'] as const,
   inbox: () => ['inbox'] as const,
 
   /**

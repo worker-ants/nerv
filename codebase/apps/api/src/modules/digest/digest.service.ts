@@ -347,7 +347,7 @@ function render(input: {
       msg('mail.digest.footer', {
         hour: input.setting.hour,
         timezone: input.setting.timezone,
-        url: `${web}/settings/account`,
+        url: `${web}/settings/account?tab=notifications`,
       }),
     ),
     t(msg('mail.digest.unsubscribe', { url: unsubscribeWebUrl(input.unsubscribeToken) })),

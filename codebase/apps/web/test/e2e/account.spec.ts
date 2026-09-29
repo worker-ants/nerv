@@ -2,7 +2,8 @@
 //
 // 이름·비밀번호를 **바꾸는** 흐름은 L2(`apps/api/test/integration/account.spec.ts`)와 L1 이 태운다 — 여기서
 // 바꾸면 이 스위트가 함께 쓰는 시드 세션이 끊긴다("다른 기기의 로그인을 모두 끊습니다"). 여기서 보는 것은
-// 조립이다: 셸 밖 화면에 언어 단추가 실제로 서고 누르면 화면이 바뀌는가 · 내 계정이 실제 /me 로 서는가.
+// 조립이다: 셸 밖 화면에 언어 단추가 실제로 서고 누르면 화면이 바뀌는가 · 내 계정이 실제 /me 로 서는가 ·
+// 로그인된 기기 탭이 실제 세션을 읽는가(2026-09-28).
 
 import { expect, test } from '@playwright/test';
 import { STORAGE_STATE } from './global-setup.js';
@@ -30,6 +31,9 @@ test.describe('시드 세션', () => {
     await expect(name).not.toHaveValue('', { timeout: 15000 });
     await expect(page.getByTestId('account-email')).toContainText('@');
     await expect(page.getByTestId('account-name-save')).toBeDisabled();
+    // 비밀번호는 자기 탭에 있다(2026-09-28 · REQ-WEB-283) — 탭은 주소에 남는다
+    await page.getByTestId('account-tab-password').click();
+    await expect(page).toHaveURL(/tab=password/);
     await expect(page.getByTestId('account-revoke-others')).toBeChecked();
     // 사용자 메뉴에서도 온다
     await page.getByTestId('user-menu').click();
@@ -37,5 +41,19 @@ test.describe('시드 세션', () => {
       'href',
       '/settings/account',
     );
+  });
+
+  test('로그인된 기기 탭이 실제 세션을 보인다 — 지금 쓰는 기기에는 [끊기]가 없다 (REQ-WEB-284)', async ({
+    page,
+  }) => {
+    // [다른 기기 로그인 모두 끊기]는 누르지 않는다 — 같은 스택에서 도는 다른 스위트의 로그인까지 끊는다.
+    // 끊는 흐름은 L2(`account.spec.ts` · EP-AUTH-04 · 05)와 L1 이 태운다
+    await page.goto('/settings/account?tab=devices');
+    const rows = page.getByTestId('account-device');
+    await expect(rows.first()).toBeVisible({ timeout: 15000 });
+    const current = rows.filter({ hasText: '이 기기' });
+    await expect(current).toHaveCount(1);
+    await expect(current.getByTestId('account-device-revoke')).toHaveCount(0);
+    await expect(page.getByTestId('account-tab-devices')).toHaveAttribute('aria-current', 'page');
   });
 });
