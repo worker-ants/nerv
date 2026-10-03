@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.96 (2026-09-28)</span>
+      <span>버전 v1.97 (2026-10-03)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -208,15 +208,28 @@
 
 <pre><code>packages:
   # 플러그인은 빌드 산출물이 아니라 배포되는 파일 묶음이다 — 워크스페이스로 두는 이유는
-  # 문서 대조 테스트(REQ-PLG-001)를 `pnpm test` 한 줄에 태우기 위해서다.
+  # 문서 대조 테스트(REQ-PLG-001)와 문체 플러그인의 예문 · 훅 테스트(REQ-PLG-021~026)를
+  # `pnpm test` 한 줄에 태우기 위해서다.
   - plugin
+  - ko-style
   - 'apps/*'
   - 'packages/*'
 
 # 빌드 스크립트 실행을 허용하는 의존성 화이트리스트(pnpm 10) —
 # 승인하지 않으면 esbuild 바이너리가 설치되지 않아 vitest·vite 가 동작하지 않는다.
 onlyBuiltDependencies:
-  - esbuild</code></pre>
+  - esbuild
+
+# 보안 패치를 받으려고 전이 의존성의 버전을 덮어쓴다(`pnpm audit` · 2026-10-03).
+# 버전을 고정한 쪽이 패치된 버전을 쓰게 되면 그 줄을 지운다.
+overrides:
+  # @nestjs/platform-fastify 는 11.x 마지막(11.2.7)까지 fastify 를 5.11.3 으로 정확히 고정한다.
+  # 5.12.5 미만에는 high 4건 · moderate 3건(인증 우회 · 요청 검증 우회 등)이 있다. Nest 12 는 5.12.5 를 쓴다.
+  '@nestjs/platform-fastify&gt;fastify': ^5.12.5
+  # drizzle-kit 이 설정 파일을 읽을 때 쓰는 @esbuild-kit 은 지원이 끝나 esbuild 0.18 을 그대로 쓴다
+  # (GHSA-67mh-4wv8-2f99). drizzle-kit 자신이 쓰는 ^0.25.4 로 맞춘다 — 스키마 드리프트 게이트가
+  # `drizzle-kit generate` 를 돌려 동작을 확인한다.
+  '@esbuild-kit/core-utils&gt;esbuild': ^0.25.4</code></pre>
 
   <h3>1.3 <code>apps/cli</code> — 컨테이너가 아니라 배포되는 클라이언트</h3>
 
@@ -1969,7 +1982,7 @@ RUN pnpm install --frozen-lockfile --offline \
  &amp;&amp; pnpm --filter @nerv/schema build \
  &amp;&amp; pnpm --filter @nerv/web build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 # 넷 다 템플릿이 치환하는 값이다(nginx/default.conf.template). NERV_WEB_PORT 의 기본값은

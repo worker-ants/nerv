@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "description": "NERV — AI 에이전트 협업 개발 플랫폼 (모노레포 루트, docs/04-mvp/codebase.md §1)",
-  "packageManager": "pnpm@10.23.0",
+  "packageManager": "pnpm@10.34.6",
   "engines": {
     "node": ">=24.0.0 <25",
     "pnpm": ">=10.0.0"
