@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.96 · 2026-09-28 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.97 · 2026-10-03 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.97 변경(2026-10-03 — 보안 취약점이 있는 의존성 업데이트): **새 요구사항 없음 · §1.2 `pnpm-workspace.yaml` 전문 · §6.1 웹 이미지.** ① `pnpm-workspace.yaml` 에 `overrides` 두 줄을 더했다. `@nestjs/platform-fastify` 는 11.x 마지막(11.2.7)까지 fastify 를 5.11.3 으로 고정하고, drizzle-kit 이 쓰는 `@esbuild-kit` 은 esbuild 0.18 을 그대로 쓴다 — 둘 다 고정한 쪽이 패치된 버전을 쓰게 되면 지운다. 전문에 `ko-style` 워크스페이스와 바뀐 주석이 빠져 있던 것도 함께 맞췄다. ② 웹 이미지의 런타임을 `nginx:1.27-alpine` 에서 `nginx:1.30-alpine`(stable)으로 올렸다. 1.27 태그는 2025-04-16 이후 갱신되지 않았다. 같은 템플릿으로 `nginx -t` 를 통과한다(실측). ③ `packageManager` 를 `pnpm@10.34.6` 으로 올렸다(REQ-CB-002 의 정본). 10.23.0 에는 pnpm 자체의 보안 권고가 26건(high 14건) 있었다.
 >
 > v1.96 변경(2026-09-28 — 프로젝트 스펙 전체 내보내기): **새 요구사항 없음 · §3.1 트리 두 줄.** `common/zip-stream.ts` · `modules/spec/spec-export.service.ts` 를 더했다([4.4 API 명세](api.md) REQ-API-251). 새 의존성은 없다 — 플러그인 아카이브(`scripts/pack-plugin.mjs`)와 같이 node:zlib 만 쓴다.
 >
@@ -342,8 +344,10 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 ```yaml
 packages:
   # 플러그인은 빌드 산출물이 아니라 배포되는 파일 묶음이다 — 워크스페이스로 두는 이유는
-  # 문서 대조 테스트(REQ-PLG-001)를 `pnpm test` 한 줄에 태우기 위해서다.
+  # 문서 대조 테스트(REQ-PLG-001)와 문체 플러그인의 예문 · 훅 테스트(REQ-PLG-021~026)를
+  # `pnpm test` 한 줄에 태우기 위해서다.
   - plugin
+  - ko-style
   - 'apps/*'
   - 'packages/*'
 
@@ -351,6 +355,17 @@ packages:
 # 승인하지 않으면 esbuild 바이너리가 설치되지 않아 vitest·vite 가 동작하지 않는다.
 onlyBuiltDependencies:
   - esbuild
+
+# 보안 패치를 받으려고 전이 의존성의 버전을 덮어쓴다(`pnpm audit` · 2026-10-03).
+# 버전을 고정한 쪽이 패치된 버전을 쓰게 되면 그 줄을 지운다.
+overrides:
+  # @nestjs/platform-fastify 는 11.x 마지막(11.2.7)까지 fastify 를 5.11.3 으로 정확히 고정한다.
+  # 5.12.5 미만에는 high 4건 · moderate 3건(인증 우회 · 요청 검증 우회 등)이 있다. Nest 12 는 5.12.5 를 쓴다.
+  '@nestjs/platform-fastify>fastify': ^5.12.5
+  # drizzle-kit 이 설정 파일을 읽을 때 쓰는 @esbuild-kit 은 지원이 끝나 esbuild 0.18 을 그대로 쓴다
+  # (GHSA-67mh-4wv8-2f99). drizzle-kit 자신이 쓰는 ^0.25.4 로 맞춘다 — 스키마 드리프트 게이트가
+  # `drizzle-kit generate` 를 돌려 동작을 확인한다.
+  '@esbuild-kit/core-utils>esbuild': ^0.25.4
 ```
 
 ### 1.3 `apps/cli` — 컨테이너가 아니라 배포되는 클라이언트
@@ -2003,7 +2018,7 @@ RUN pnpm install --frozen-lockfile --offline \
  && pnpm --filter @nerv/schema build \
  && pnpm --filter @nerv/web build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 COPY deploy/docker/nginx/default.conf.template /etc/nginx/templates/
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 # 넷 다 템플릿이 치환하는 값이다(nginx/default.conf.template). NERV_WEB_PORT 의 기본값은

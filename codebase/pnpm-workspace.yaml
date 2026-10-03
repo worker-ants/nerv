@@ -11,3 +11,14 @@ packages:
 # 승인하지 않으면 esbuild 바이너리가 설치되지 않아 vitest·vite 가 동작하지 않는다.
 onlyBuiltDependencies:
   - esbuild
+
+# 보안 패치를 받으려고 전이 의존성의 버전을 덮어쓴다(`pnpm audit` · 2026-10-03).
+# 버전을 고정한 쪽이 패치된 버전을 쓰게 되면 그 줄을 지운다.
+overrides:
+  # @nestjs/platform-fastify 는 11.x 마지막(11.2.7)까지 fastify 를 5.11.3 으로 정확히 고정한다.
+  # 5.12.5 미만에는 high 4건 · moderate 3건(인증 우회 · 요청 검증 우회 등)이 있다. Nest 12 는 5.12.5 를 쓴다.
+  '@nestjs/platform-fastify>fastify': ^5.12.5
+  # drizzle-kit 이 설정 파일을 읽을 때 쓰는 @esbuild-kit 은 지원이 끝나 esbuild 0.18 을 그대로 쓴다
+  # (GHSA-67mh-4wv8-2f99). drizzle-kit 자신이 쓰는 ^0.25.4 로 맞춘다 — 스키마 드리프트 게이트가
+  # `drizzle-kit generate` 를 돌려 동작을 확인한다.
+  '@esbuild-kit/core-utils>esbuild': ^0.25.4

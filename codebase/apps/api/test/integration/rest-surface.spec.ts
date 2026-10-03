@@ -341,12 +341,17 @@ describe('EP-NTF-01 — 알림은 50 에서 끝나지 않는다', () => {
 describe('이벤트 커서의 HTTP 번역 (EP-EVT-01 · §1.6)', () => {
   // 이 스위트는 자기 이벤트를 세운다 — 바깥 `beforeEach` 가 `TRUNCATE event` 를 하므로
   // 안쪽도 `beforeEach` 여야 한다(바깥이 먼저 돈다). `beforeAll` 로 두면 조용히 0건을 센다.
+  //
+  // 시각은 DB 의 지금이다 — `event` 는 월 파티션이고 0000 은 이번 달과 다음 달만 만든다.
+  // 날짜를 박아 두면 그 달이 지나는 순간 넣을 파티션이 없어 세 테스트가 함께 깨진다
+  // (`2026-09-07` 로 두었다가 2026-10-01 부터 실패했다). 세 행은 전처럼 같은 시각이다.
   beforeEach(async () => {
+    const { rows } = await pool.query<{ at: string }>(`SELECT now()::text AS at`);
     for (let i = 0; i < 3; i += 1) {
       await pool.query(
         `INSERT INTO event (id, project_id, type, subject_type, subject_id, is_agent, occurred_at)
-         VALUES ($1,$2,'spec.recheck_requested','spec',$3,false,'2026-09-07 00:00:00+00')`,
-        [newId(), projectId, newId()],
+         VALUES ($1,$2,'spec.recheck_requested','spec',$3,false,$4)`,
+        [newId(), projectId, newId(), rows[0]!.at],
       );
     }
   });
