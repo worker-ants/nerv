@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.46 · 2026-10-03 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.47 · 2026-10-03 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.47 변경(2026-10-03 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **메이저 의존성 업데이트** 를 적는다.
 >
 > v2.46 변경(2026-10-03 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **보안 취약점이 있는 의존성 업데이트** 를 적는다.
 >
@@ -789,6 +791,7 @@ referenced_by:
 | impl 스킬의 done 승인 문구 | `plugin/skills/impl/SKILL.md`(done 게이트 문장) · 플러그인 0.3.13 · 명세 세 자리([3.4](../03-proposal/agent-integration.md) §2.2 · §6.4 · [4.4](api.md) §4)를 "제안 · 미구현" 으로 | clemvion 요청 N9(2026-09-28) · 사람 결정 D10 |
 | 작업 본문 수정과 동시 수정 보호 | `task.service.ts`(`bodyHash` · `update` 의 `baseHash` · 조회의 `body_hash`) · `task.tools.ts`(`nerv_task_update` 의 `body_md` · `base_hash` · `status` 선택) · `task.controller.ts` · `@nerv/schema` `zod/task.ts`(`base_hash`) · `common/scope-check.ts`(`assertAnyRole`) · 문구 `error.task.stale_body` · `mcp.arg.task_*` · `plugin/skills/impl/SKILL.md` · 플러그인 0.3.14 · L2 `task-body.spec.ts` 6건 | clemvion 요청 N10(2026-09-28) · 사람 결정 D12([4.4 API 명세](api.md) REQ-API-254). ID 규칙 절반은 X8(#198) |
 | 보안 취약점이 있는 의존성 업데이트 | `codebase/package.json`(`packageManager` → `pnpm@10.34.6`) · `apps/api/package.json`(`@nestjs/*` 11.2.7) · `apps/web/package.json`(`@tiptap/*` 3.31.4 — 정확히 고정한 code-block · image 도 starter-kit 과 같은 판 · `markdown-it` 14.3.2) · `pnpm-workspace.yaml`(`overrides` — fastify 5.12.5 · `@esbuild-kit` 의 esbuild 0.25) · `pnpm-lock.yaml`(fast-uri · undici · engine.io · brace-expansion · dompurify 를 범위 안에서 갱신 · `pnpm dedupe` 로 prosemirror-model 을 한 벌로) · `deploy/docker/Dockerfile.web`(`nginx:1.30-alpine`) · 실측: `pnpm audit` 0건 · 같은 템플릿으로 `nginx -t` 통과(1.27.5 · 1.30.5) · 스키마 드리프트 게이트로 `drizzle-kit generate` 확인 | 사람 요청(2026-10-03). `pnpm audit` 40건(high 22 · moderate 14 · low 4)과 pnpm 자체의 권고 26건. 메이저(Nest 12 · TypeScript 7 · vitest 5 · mermaid 12 · markdown-it 15)는 올리지 않았다([4.2 코드베이스](codebase.md) v1.97). |
+| 메이저 의존성 업데이트 | `apps/*` · `packages/schema` · `plugin` · `ko-style` 의 `package.json`(vitest 5.0.3 · unplugin-swc 2.0.0 · `@nestjs/*` 12.1.2 · markdown-it 15.0.2 · mermaid 12.1.0 · better-auth 1.7.7 · zod 4.6.5 · `@types/markdown-it` 삭제) · `pnpm-workspace.yaml`(fastify `overrides` 삭제) · `apps/api/src/seed.ts`(issuer 를 쓰지 않음) · `apps/web/src/lib/markdown.ts`(`DocEnv` 를 type 으로) · `apps/web/src/components/mermaid-diagram.tsx`(새 기본 배치 · 모양을 쓴다는 주석 · flowchart · state 의 `wrappingWidth: 200`) · L2 `auth-session.spec.ts`(회귀 방지를 account_id 쪽으로) · 실측: 매뉴얼 20장이 markdown-it v14 · v15 에서 같은 HTML · mermaid 그림 일곱을 11 과 나란히 렌더 | 사람 요청(2026-10-03). TypeScript 7 은 typescript-eslint 가 지원하지 않아 6.0 에 둔다(사람 결정). markdown-it 은 편집기의 `tiptap-markdown` 이 v14 에 묶여 두 벌을 허용했다(사람 결정). mermaid 는 12 의 기본 배치 · 모양(ELK · neo)을 쓰고, 줄바꿈 폭만 11 의 200 으로 둔다 — 12 의 120 에서는 한국어 낱말이 중간에서 잘린다(사람 결정 둘 · ELK 청크 gzip 438KB 는 flowchart · state 를 처음 그릴 때만 받는다). better-auth 1.7.3 이 계정 식별에서 issuer 를 뺐다 — `auth_account.issuer` 는 NULL 을 허용하므로 마이그레이션은 없다([4.2 코드베이스](codebase.md) v1.98). |
 
 #### 이 절은 언제 갱신되는가
 

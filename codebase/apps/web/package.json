@@ -28,15 +28,15 @@
     "@tiptap/starter-kit": "^3.31.4",
     "clsx": "^2.1.1",
     "cytoscape": "^3.34.1",
-    "markdown-it": "^14.3.2",
-    "mermaid": "^11.17.2",
+    "markdown-it": "^15.0.2",
+    "mermaid": "^12.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.86.0",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
     "tiptap-markdown": "^0.9.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -44,7 +44,6 @@
     "@tanstack/router-plugin": "^1.168.34",
     "@testing-library/react": "^16.3.2",
     "@types/cytoscape": "^3.31.0",
-    "@types/markdown-it": "^14.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
@@ -52,6 +51,6 @@
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.3"
   }
 }

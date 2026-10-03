@@ -1,8 +1,9 @@
 // 문서 본문 렌더 — markdown → HTML(`prose-nerv`)
 //
-// 제품 매뉴얼이 쓰는 유일한 렌더 경로다. 파서를 새로 짜지 않는다: `markdown-it` 은
-// 이미 의존성 트리에 있고(스펙 편집기의 `tiptap-markdown` 이 쓴다) 같은 버전을 명시적
-// 의존으로 올린 것뿐이라, 새로 들어온 패키지는 없다.
+// 제품 매뉴얼이 쓰는 유일한 렌더 경로다. 파서를 새로 짜지 않고 `markdown-it` 을 쓴다.
+// **판이 두 벌이다**(2026-10-03): 여기는 v15 이고, 스펙 편집기의 `tiptap-markdown` 은 v14 를
+// 따로 쓴다(그 패키지가 아직 v15 를 받지 않는다). 둘은 인스턴스를 주고받지 않으며, 도움말
+// 화면과 편집기는 서로 다른 청크라 한 화면이 두 벌을 함께 받지는 않는다.
 //
 // **`html: false` 가 이 파일의 안전 계약이다.** 본문에 섞인 원시 HTML 은 태그가 아니라
 // 글자로 이스케이프된다 — 그래서 렌더 결과를 `dangerouslySetInnerHTML` 로 붙여도 되고,
@@ -48,12 +49,16 @@ export interface RenderOptions {
   readonly diagrams?: boolean;
 }
 
-/** 렌더 한 번에 딸려 다니는 값 — markdown-it 이 규칙에 그대로 넘긴다. */
-interface DocEnv {
+/**
+ * 렌더 한 번에 딸려 다니는 값 — markdown-it 이 규칙에 그대로 넘긴다.
+ * interface 가 아니라 type 인 이유: v15 의 `Env` 는 인덱스 시그니처를 갖고, interface 는 그것을
+ * 만족하지 못한다고 판정된다(TS2345).
+ */
+type DocEnv = {
   copyLabel?: string;
   /** 켜져 있으면 mermaid 원본이 여기 쌓인다 — 순서가 곧 `data-diagram` 번호다 */
   diagrams?: string[];
-}
+};
 
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false, breaks: false });
 

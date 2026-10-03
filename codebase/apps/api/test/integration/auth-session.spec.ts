@@ -181,53 +181,50 @@ describe('세션 쿠키로 도메인 표면에 든다', () => {
 });
 
 describe('개발 시드 계정 — 자격증명이 도메인 행과 함께 심어진다', () => {
-  it('시드 사용자는 issuer 까지 맞아야 로그인된다 (better-auth 1.7)', async () => {
-    // better-auth 의 sign-in 은 세 필드를 **동시에** 본다: provider_id · issuer · account_id.
-    // 하나라도 다르면 "User not found" 로 실패하는데, 행은 존재하므로 원인을 찾기 어렵다.
-    // 시드가 그 함정에 빠졌었다(issuer 누락) — 여기서 형태를 고정한다.
-    const seeded = newId();
+  // better-auth 의 이메일 로그인은 자격증명 행을 `provider_id = 'credential'` 이고
+  // `account_id = user.id` 인 것으로 찾는다. 하나라도 다르면 "User not found" 로 실패하는데,
+  // 행은 존재하므로 원인을 찾기 어렵다 — 시드가 그 함정에 빠졌었다. 여기서 형태를 고정한다.
+  //
+  // 1.7.0~1.7.2 는 issuer 까지 봐서 이 묶음이 "issuer 가 없으면 실패" 를 셌다. 1.7.3 이 계정
+  // 식별을 (provider_id, account_id) 로 되돌렸으므로(2026-10-03 · 1.7.7 로 올리며 실측)
+  // 회귀 방지는 account_id 쪽으로 옮겼다. issuer 열은 그 시기의 흔적이라 NULL 을 허용한다.
+  async function seedCredential(email: string, opts: { accountId?: string; issuer?: string }) {
+    const userId = newId();
     await pool.query(
-      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'seeded@example.com','시드',
-       'active')`,
-      [seeded],
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,$2,'시드','active')`,
+      [userId, email],
     );
-
     const { hashPassword } = await import('better-auth/crypto');
     await pool.query(
       `INSERT INTO auth_account (id, user_id, account_id, provider_id, issuer, password)
-       VALUES ($1,$2,$3,'credential','local:credential',$4)`,
-      [newId(), seeded, seeded, await hashPassword('seeded-password')],
+       VALUES ($1,$2,$3,'credential',$4,$5)`,
+      [
+        newId(),
+        userId,
+        opts.accountId ?? userId,
+        opts.issuer ?? null,
+        await hashPassword('seed-pw-1'),
+      ],
     );
-
-    const res = await app.inject({
+    return app.inject({
       method: 'POST',
       url: '/api/auth/sign-in/email',
       headers: { 'content-type': 'application/json' },
-      payload: { email: 'seeded@example.com', password: 'seeded-password' },
+      payload: { email, password: 'seed-pw-1' },
     });
+  }
+
+  it('시드와 같은 모양(provider_id · account_id = user.id, issuer 없음)이면 로그인된다', async () => {
+    expect((await seedCredential('seeded@example.com', {})).statusCode).toBe(200);
+  });
+
+  it('1.7.0~1.7.2 에 issuer 를 채워 심은 행도 그대로 로그인된다', async () => {
+    const res = await seedCredential('legacy@example.com', { issuer: 'local:credential' });
     expect(res.statusCode).toBe(200);
   });
 
-  it('issuer 가 없으면 행이 있어도 로그인되지 않는다 — 회귀 방지', async () => {
-    const broken = newId();
-    await pool.query(
-      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'broken@example.com','깨진',
-       'active')`,
-      [broken],
-    );
-    const { hashPassword } = await import('better-auth/crypto');
-    await pool.query(
-      `INSERT INTO auth_account (id, user_id, account_id, provider_id, password)
-       VALUES ($1,$2,$3,'credential',$4)`,
-      [newId(), broken, broken, await hashPassword('broken-password')],
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/auth/sign-in/email',
-      headers: { 'content-type': 'application/json' },
-      payload: { email: 'broken@example.com', password: 'broken-password' },
-    });
+  it('account_id 가 사용자 id 와 다르면 행이 있어도 로그인되지 않는다 — 회귀 방지', async () => {
+    const res = await seedCredential('broken@example.com', { accountId: newId() });
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
   });
 });
