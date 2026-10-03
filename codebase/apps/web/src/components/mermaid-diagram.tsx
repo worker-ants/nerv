@@ -79,6 +79,10 @@ export function useMermaidSvg(
           startOnLoad: false,
           theme: resolved === 'dark' ? 'dark' : 'default',
           securityLevel: 'strict',
+          // 배치(`layout`)와 모양(`look`)은 mermaid 12 의 기본값(ELK · neo)을 그대로 쓴다 — 사람 결정
+          // (2026-10-03, 11 의 dagre · classic 과 실제 그림을 나란히 보고 골랐다). 11 의 그림으로 되돌리려면
+          // 그 둘만으로는 안 되고 종류별 `wrappingWidth: 200` · `minNodeWidth: 0` 도 적어야 같아진다(실측).
+          // 위의 `theme` 은 12 가 종류별 기본값으로 둔 `redux-color` 보다 앞선다(실측).
           // **원본 크기로 그린다**(REQ-WEB-172). 기본값 `true` 는 SVG 를 담긴 칸에 맞춰 줄이는데, 그러면 큰
           // 다이어그램일수록 글자가 작아진다 — 넘치는 것은 스크롤과 배율이 받는다. 다이어그램 종류마다 따로
           // 있는 값이라 최상위에 한 번 적는다.

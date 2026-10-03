@@ -29,7 +29,7 @@
     "clsx": "^2.1.1",
     "cytoscape": "^3.34.1",
     "markdown-it": "^15.0.2",
-    "mermaid": "^11.17.2",
+    "mermaid": "^12.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.86.0",
