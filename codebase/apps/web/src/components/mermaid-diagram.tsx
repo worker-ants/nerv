@@ -86,11 +86,14 @@ export function useMermaidSvg(
           // **원본 크기로 그린다**(REQ-WEB-172). 기본값 `true` 는 SVG 를 담긴 칸에 맞춰 줄이는데, 그러면 큰
           // 다이어그램일수록 글자가 작아진다 — 넘치는 것은 스크롤과 배율이 받는다. 다이어그램 종류마다 따로
           // 있는 값이라 최상위에 한 번 적는다.
-          flowchart: { useMaxWidth: false },
+          //
+          // **줄바꿈 폭만 11 의 200 으로 둔다** — 사람 결정(2026-10-03). 12 의 기본값 120 에서는 띄어쓰기
+          // 없이 이어진 한국어 낱말이 중간에서 잘린다("Vite 빌 / 드" · "워크플로 / 우"). 배치와 모양은 그대로다.
+          flowchart: { useMaxWidth: false, wrappingWidth: 200 },
           sequence: { useMaxWidth: false },
           gantt: { useMaxWidth: false },
           class: { useMaxWidth: false },
-          state: { useMaxWidth: false },
+          state: { useMaxWidth: false, wrappingWidth: 200 },
           er: { useMaxWidth: false },
           journey: { useMaxWidth: false },
           pie: { useMaxWidth: false },
