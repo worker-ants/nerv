@@ -33,12 +33,13 @@ async function seedCredentials(url: string): Promise<number> {
     for (const user of users) {
       // 이미 자격증명이 있으면 덮지 않는다 — 사람이 바꾼 비밀번호를 시드가 되돌리면
       // "재실행해도 같은 상태"가 아니라 "재실행하면 남의 설정이 사라진다"가 된다.
-      // 세 필드가 다 맞아야 로그인이 된다(better-auth 1.7 sign-in): provider_id ·
-      // **issuer** · account_id = user.id. issuer 를 빼먹으면 "User not found" 로 조용히
-      // 실패한다 — 행은 있는데 못 찾는 상태라 원인을 찾기 어렵다(실측).
+      // 로그인은 provider_id = 'credential' 이고 **account_id = user.id** 인 행을 찾는다
+      // (better-auth sign-in). 하나라도 다르면 "User not found" 로 조용히 실패한다 — 행은
+      // 있는데 못 찾는 상태라 원인을 찾기 어렵다(실측). 1.7.0~1.7.2 는 issuer 까지 봤지만
+      // 1.7.3 이 그 조건을 되돌렸고 새 행에 issuer 를 쓰지 않는다 — 시드도 쓰지 않는다.
       const { rowCount } = await pool.query(
-        `INSERT INTO auth_account (id, user_id, account_id, provider_id, issuer, password)
-         SELECT $1, $2, $3, 'credential', 'local:credential', $4
+        `INSERT INTO auth_account (id, user_id, account_id, provider_id, password)
+         SELECT $1, $2, $3, 'credential', $4
           WHERE NOT EXISTS (
             SELECT 1 FROM auth_account WHERE user_id = $2 AND provider_id = 'credential'
           )`,
