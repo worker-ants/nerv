@@ -17,6 +17,14 @@ An `area` can serve only as a group, with no body of its own. For every other ty
 
 **You move or rename a document in the Document info window** ([Document info] at the top of the document · planners and admins). It has four fields: **Title**; **Parent document**, which you pick from the tree (the current parent is shown above it, and you can't pick the document itself or its descendants; pick **Top level** to detach it from its parent); **Sort key**, which orders siblings under the same parent character by character; and **Owner role**, whose members get a recheck request when a document this one references changes (if it isn't set, the default roles get it, and once set it can't be cleared). Moving or renaming keeps versions, relations and comments intact. [Save] stays disabled until you change a field.
 
+**To move or reorder several documents at once, use Arrange mode.** On the tree tab of the spec list, click **[Arrange]** to add a checkbox to every row (planners and admins). Click the checkboxes, or press `Space` on a row, to select documents, then use the buttons in the bar that appears above the tree.
+
+- **[Move]** — pick the new place from the tree. The selected documents go to the end of that place, in tree order. You can't pick a selected document or anything under it.
+- **[Archive]** — archive the selected documents together with their children, after one confirmation. If you select a parent and its children, archiving the parent covers them. Documents that couldn't be archived because someone has claimed their tasks stay listed under the bar with the reason.
+- **[Up]** · **[Down]** — move the selected documents one step among their siblings. Only documents under the same parent can move together. These are unavailable while a status, type or title filter or a baseline is on, because the documents would land between ones you can't see.
+
+Reordering renumbers that group's sort keys as `0000010`, `0000020`, and so on. New documents and documents moved under another parent go to the end of their siblings. Click **[Done arranging]** when you're finished.
+
 ## Where you can see all of them {#all-specs}
 
 **When you open a document, a spec tree column appears next to the sidebar.** It shows **every document, expanded**. If a list showed only some documents, you could not tell a missing document from a collapsed one. The `141 / 141` at the top of the tree means **visible / total**. When you collapse a branch, the first number drops, so you know that some documents are hidden.

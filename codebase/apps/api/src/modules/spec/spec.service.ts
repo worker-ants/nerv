@@ -91,6 +91,10 @@ import type { RelationSyncResult } from './spec-relation.service.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 
+/** 정렬 키의 폭과 간격 — 임포터의 `0` + 여섯 자리(`0000007`)와 같은 폭이다(REQ-API-265 · 266) */
+const SORT_KEY_WIDTH = 7;
+const SORT_KEY_STEP = 10;
+
 export interface SpecTreeNode extends Record<string, unknown> {
   id: string;
   key: string;
@@ -1092,10 +1096,13 @@ export class SpecService {
         await this.requireLiveParent(tx, parentId);
         await this.requireFreeKey(tx, input.projectId, input.key);
         specId = newId();
+        // **새 문서는 형제의 맨 뒤다**(2026-10-04 · 사람 결정 M3 · REQ-API-266). 정렬 키를 비워 두던 동안
+        // 빈 값이 가장 앞에 정렬돼, 에이전트가 만든 문서가 늘 형제의 맨 앞에 끼어들었다
+        const sortKey = await this.nextSortKey(tx, input.projectId, parentId);
         await tx.execute(sql`
-          INSERT INTO spec (id, project_id, parent_id, type, key, title)
+          INSERT INTO spec (id, project_id, parent_id, type, key, title, sort_key)
           VALUES (${specId}, ${input.projectId}, ${parentId}, ${specTypeValue}::spec_type,
-                  ${input.key}, ${input.title})
+                  ${input.key}, ${input.title}, ${sortKey})
         `);
         created = true;
       } else if (
@@ -1741,8 +1748,17 @@ export class SpecService {
         changed.push('owner_role');
       }
 
+      // 부모를 바꾸면 **새 형제의 맨 뒤**에 둔다(REQ-API-266) — 옛 정렬 키를 들고 가면 새 형제 사이 아무
+      // 데나 끼어든다. 정렬 키를 함께 주면 그것을 쓴다. 트리를 바꾸는 쓰기는 프로젝트마다 한 줄로 선다 —
+      // 엇갈린 두 이동이 서로의 사이클 검사를 지나 고리를 만들지 않게(EP-SPEC-25 와 같은 잠금)
+      if (input.detachParent === true || input.parentKey != null)
+        await this.lockTree(tx, input.projectId);
       if (input.detachParent === true) {
         await tx.execute(sql`UPDATE spec SET parent_id = NULL WHERE id = ${spec.id}`);
+        if (input.sortKey == null) {
+          const next = await this.nextSortKey(tx, input.projectId, null, spec.id);
+          await tx.execute(sql`UPDATE spec SET sort_key = ${next} WHERE id = ${spec.id}`);
+        }
         changed.push('parent_id');
       } else if (input.parentKey != null) {
         const parent = await this.requireSpec(tx, input.projectId, input.parentKey);
@@ -1755,6 +1771,10 @@ export class SpecService {
           });
         }
         await tx.execute(sql`UPDATE spec SET parent_id = ${parent.id} WHERE id = ${spec.id}`);
+        if (input.sortKey == null) {
+          const next = await this.nextSortKey(tx, input.projectId, parent.id, spec.id);
+          await tx.execute(sql`UPDATE spec SET sort_key = ${next} WHERE id = ${spec.id}`);
+        }
         changed.push('parent_id');
       }
 
@@ -1777,6 +1797,174 @@ export class SpecService {
 
       return { spec_id: spec.id, key: input.specKey, changed };
     });
+  }
+
+  /**
+   * EP-SPEC-25 — **트리 정리**(2026-10-04 · 사람 결정 M1 · M2 · REQ-API-265). 한 부모 아래 자식의 최종 순서를
+   * 정한다: 지금 자식 중 `keys` 에 없는 것(지금 순서)을 앞에, `keys`(준 순서)를 뒤에 둔다. 형제 전부를 주면
+   * 순서 바꾸기, 다른 부모의 문서를 주면 그 아래 맨 뒤로 옮기기다 — 둘이 한 규칙이라 경계가 하나다.
+   *
+   * **정렬 키는 형제 묶음 전체를 다시 매긴다**(M2) — `0000010` · `0000020` … 숫자만 쓴다. 한 형제 묶음 안에
+   * 빈 값 · `1` · `0000007` 이 섞여 있어 두 값의 사이값을 고르는 방식은 자주 실패하고, 숫자만 쓰면 임포터의
+   * 키와 섞여도 정렬이 맞는다. 바뀐 문서만 쓰고, 이벤트도 바뀐 문서마다 같은 `batch_id` 로 낸다.
+   *
+   * 프로젝트마다 한 줄로 선다(advisory lock) — 엇갈린 두 이동이 서로의 사이클 검사를 지나 고리를 만들지 않게.
+   * 사이클은 **모든 이동이 끝난 상태**로 본다: 같은 부모 아래로 옮기므로, 그 부모가 옮기는 문서의 하위면 고리다.
+   */
+  async arrange(input: {
+    /** 사람 전용 게이트의 축 — 문서 정보 · 보관 · 복구와 같다(REQ-API-111) */
+    actor: Actor;
+    projectId: string;
+    userId: string;
+    parentKey: string | null;
+    keys: readonly string[];
+  }): Promise<Record<string, unknown>> {
+    if (input.actor.isAgent) {
+      const { rows } = await this.db.execute<{ slug: string }>(
+        sql`SELECT slug FROM project WHERE id = ${input.projectId}`,
+      );
+      const base = process.env['NERV_WEB_URL'];
+      const path = `/p/${rows[0]?.slug ?? ''}/specs`;
+      assertHuman(
+        input.actor,
+        'spec_meta',
+        base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`,
+      );
+    }
+    const keys = [...new Set(input.keys)];
+    return this.events.transact(async (tx, emit) => {
+      await this.lockTree(tx, input.projectId);
+
+      let parentId: string | null = null;
+      if (input.parentKey !== null) {
+        const parent = await this.requireSpec(tx, input.projectId, input.parentKey);
+        await this.requireLiveParent(tx, parent.id);
+        parentId = parent.id;
+      }
+
+      const { rows: found } = await tx.execute<{
+        id: string;
+        key: string;
+        parent_id: string | null;
+        sort_key: string;
+        archived_at: unknown;
+      }>(sql`
+        SELECT id, key, parent_id, sort_key, archived_at FROM spec
+         WHERE project_id = ${input.projectId} AND key = ANY(${sqlArray(keys, 'text')})
+      `);
+      const byKey = new Map(found.map((r) => [r.key, r]));
+      const missing = keys.filter((k) => !byKey.has(k));
+      if (missing.length > 0) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+          kind: 'not_found',
+          missing,
+        });
+      }
+      // 보관한 문서는 목록에 없다 — 옮기거나 순서를 매길 자리가 없다(복구가 먼저다)
+      const shelved = found.find((r) => r.archived_at != null);
+      if (shelved !== undefined) {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.archived', { key: shelved.key }),
+          {
+            kind: 'spec_archived',
+            spec: shelved.key,
+          },
+        );
+      }
+      if (parentId !== null) {
+        for (const key of keys) {
+          const node = byKey.get(key)!;
+          if (await this.isDescendant(tx, node.id, parentId)) {
+            throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.cycle'), {
+              kind: 'tree_cycle',
+              spec: key,
+              parent: input.parentKey,
+            });
+          }
+        }
+      }
+
+      const { rows: siblings } = await tx.execute<{
+        id: string;
+        key: string;
+        parent_id: string | null;
+        sort_key: string;
+      }>(sql`
+        SELECT id, key, parent_id, sort_key FROM spec
+         WHERE project_id = ${input.projectId} AND parent_id IS NOT DISTINCT FROM ${parentId}
+           AND archived_at IS NULL
+         ORDER BY sort_key, key
+      `);
+      const moving = new Set(keys);
+      const final = [
+        ...siblings.filter((n) => !moving.has(n.key)),
+        ...keys.map((k) => byKey.get(k)!),
+      ];
+
+      const batchId = newId();
+      const changed: string[] = [];
+      for (const [index, node] of final.entries()) {
+        const sortKey = String((index + 1) * SORT_KEY_STEP).padStart(SORT_KEY_WIDTH, '0');
+        const fields = [
+          ...(node.parent_id !== parentId ? ['parent_id'] : []),
+          ...(node.sort_key !== sortKey ? ['sort_key'] : []),
+        ];
+        if (fields.length === 0) continue;
+        await tx.execute(
+          sql`UPDATE spec SET parent_id = ${parentId}, sort_key = ${sortKey} WHERE id = ${node.id}`,
+        );
+        changed.push(node.key);
+        await emit({
+          type: NERV_EVENT.SPEC_META_UPDATED,
+          projectId: input.projectId,
+          subjectType: 'spec',
+          subjectId: node.id,
+          subjectKey: node.key,
+          actorUserId: input.userId,
+          isAgent: false,
+          payload: { fields, batch_id: batchId },
+        });
+      }
+      return {
+        parent_key: input.parentKey,
+        order: final.map((n) => n.key),
+        changed,
+        batch_id: batchId,
+      };
+    });
+  }
+
+  /** 트리를 바꾸는 쓰기는 프로젝트마다 한 줄로 선다 — 트랜잭션이 끝나면 풀린다 */
+  private async lockTree(tx: Tx, projectId: string): Promise<void> {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`spec-tree:${projectId}`}, 0))`,
+    );
+  }
+
+  /**
+   * 형제의 맨 뒤에 올 정렬 키(REQ-API-266) — 숫자로만 된 형제 키 중 가장 큰 것 다음이다. 일곱 자리면
+   * 10 을 더하고, 아니면(임포터의 `1` 같은 값) 그 뒤에 한 자리를 붙인다 — 숫자 문자열은 앞이 같으면
+   * 짧은 쪽이 앞이라 어느 정렬 규칙에서도 그 뒤에 온다. 숫자 키가 없으면 첫 자리(`0000010`)다.
+   */
+  private async nextSortKey(
+    tx: Tx,
+    projectId: string,
+    parentId: string | null,
+    except?: string,
+  ): Promise<string> {
+    const { rows } = await tx.execute<{ max: string | null }>(sql`
+      SELECT max(sort_key) FILTER (WHERE sort_key ~ '^[0-9]+$') AS max FROM spec
+       WHERE project_id = ${projectId} AND parent_id IS NOT DISTINCT FROM ${parentId}
+         AND id IS DISTINCT FROM ${except ?? null}::uuid
+    `);
+    const max = rows[0]?.max ?? null;
+    if (max === null) return String(SORT_KEY_STEP).padStart(SORT_KEY_WIDTH, '0');
+    const next = Number(max) + SORT_KEY_STEP;
+    if (max.length === SORT_KEY_WIDTH && String(next).length <= SORT_KEY_WIDTH) {
+      return String(next).padStart(SORT_KEY_WIDTH, '0');
+    }
+    return `${max}5`;
   }
 
   /**

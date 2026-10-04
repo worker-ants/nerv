@@ -1016,6 +1016,147 @@ describe('하위까지 한 번에 보관하고, 함께 보관한 것만 함께 �
   });
 });
 
+// ── 2026-10-04 트리 정리(REQ-API-265 · 266) ──────────────────────────────────
+
+describe('트리 정리 — 순서 바꾸기와 여러 문서 옮기기 (REQ-API-265 · 266)', () => {
+  const human = { isAgent: false };
+  const arrange = (parentKey: string | null, keys: string[]): Promise<Record<string, unknown>> =>
+    specs.arrange({
+      actor: { ...human, userId: planner },
+      projectId,
+      userId: planner,
+      parentKey,
+      keys,
+    });
+  const child = async (key: string, parent: string): Promise<void> => {
+    await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key,
+      title: key,
+      type: 'feature',
+      parentId: parent,
+      bodyMd: `# ${key}`,
+      userId: planner,
+    });
+  };
+  const order = async (parentKey: string): Promise<{ key: string; sort_key: string }[]> => {
+    const { rows } = await pool.query<{ key: string; sort_key: string }>(
+      `SELECT c.key, c.sort_key FROM spec c JOIN spec p ON p.id = c.parent_id
+        WHERE p.key = $1 AND c.archived_at IS NULL ORDER BY c.sort_key, c.key`,
+      [parentKey],
+    );
+    return rows;
+  };
+
+  it('새 문서는 형제의 맨 뒤에 온다 — 빈 정렬 키가 맨 앞에 끼어들지 않는다 (REQ-API-266)', async () => {
+    await draft('ARR-P', '# p');
+    for (const key of ['ARR-C1', 'ARR-C2', 'ARR-C3']) await child(key, 'ARR-P');
+    expect(await order('ARR-P')).toEqual([
+      { key: 'ARR-C1', sort_key: '0000010' },
+      { key: 'ARR-C2', sort_key: '0000020' },
+      { key: 'ARR-C3', sort_key: '0000030' },
+    ]);
+    // 임포터의 `1` 이 섞여 있어도 그 뒤다
+    await pool.query(`UPDATE spec SET sort_key = '1' WHERE key = 'ARR-C3'`);
+    await child('ARR-C4', 'ARR-P');
+    expect((await order('ARR-P')).map((r) => r.key)).toEqual([
+      'ARR-C1',
+      'ARR-C2',
+      'ARR-C3',
+      'ARR-C4',
+    ]);
+  });
+
+  it('형제 전부를 주면 그 순서로 다시 매기고, 바뀐 문서만 쓴다', async () => {
+    await draft('ORD-P', '# p');
+    for (const key of ['ORD-A', 'ORD-B', 'ORD-C']) await child(key, 'ORD-P');
+    const out = await arrange('ORD-P', ['ORD-C', 'ORD-A', 'ORD-B']);
+    expect(out['order']).toEqual(['ORD-C', 'ORD-A', 'ORD-B']);
+    expect(await order('ORD-P')).toEqual([
+      { key: 'ORD-C', sort_key: '0000010' },
+      { key: 'ORD-A', sort_key: '0000020' },
+      { key: 'ORD-B', sort_key: '0000030' },
+    ]);
+    // 같은 순서를 다시 주면 바뀌는 것이 없다
+    expect((await arrange('ORD-P', ['ORD-C', 'ORD-A', 'ORD-B']))['changed']).toEqual([]);
+  });
+
+  it('다른 부모의 문서를 주면 그 아래 맨 뒤로 옮기고, 이벤트는 같은 batch_id 를 담는다', async () => {
+    await draft('MOV-FROM', '# from');
+    await draft('MOV-TO', '# to');
+    for (const key of ['MOV-X', 'MOV-Y']) await child(key, 'MOV-FROM');
+    await child('MOV-T1', 'MOV-TO');
+    const out = await arrange('MOV-TO', ['MOV-Y', 'MOV-X']);
+    expect((await order('MOV-TO')).map((r) => r.key)).toEqual(['MOV-T1', 'MOV-Y', 'MOV-X']);
+    expect(await order('MOV-FROM')).toEqual([]);
+    const { rows } = await pool.query<{ batch: string; fields: string[] }>(
+      `SELECT payload->>'batch_id' AS batch, payload->'fields' AS fields FROM event
+        WHERE type = 'spec.meta_updated'
+          AND subject_id IN (SELECT id FROM spec WHERE key IN ('MOV-X', 'MOV-Y'))`,
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.batch === out['batch_id'])).toBe(true);
+    expect(rows.every((r) => r.fields.includes('parent_id'))).toBe(true);
+    // 맨 위로도 옮긴다
+    await arrange(null, ['MOV-X']);
+    const { rows: top } = await pool.query(`SELECT parent_id FROM spec WHERE key = 'MOV-X'`);
+    expect(top[0]?.['parent_id']).toBeNull();
+  });
+
+  it('자기 하위로는 옮기지 못하고, 보관한 문서 · 없는 문서는 거절한다', async () => {
+    await draft('CYC-P', '# p');
+    await child('CYC-C', 'CYC-P');
+    await expect(arrange('CYC-C', ['CYC-P'])).rejects.toMatchObject({
+      details: { kind: 'tree_cycle', spec: 'CYC-P', parent: 'CYC-C' },
+    });
+    await draft('CYC-SHELF', '# shelf');
+    await specs.archive({
+      actor: { ...human, userId: planner },
+      projectId,
+      specKey: 'CYC-SHELF',
+      userId: planner,
+    });
+    await expect(arrange('CYC-P', ['CYC-SHELF'])).rejects.toMatchObject({
+      details: { kind: 'spec_archived', spec: 'CYC-SHELF' },
+    });
+    await expect(arrange('CYC-P', ['CYC-NOPE'])).rejects.toMatchObject({
+      details: { kind: 'not_found', missing: ['CYC-NOPE'] },
+    });
+  });
+
+  it('문서 정보 창에서 부모를 바꿔도 새 형제의 맨 뒤다 (REQ-API-266)', async () => {
+    await draft('MV1-P', '# p');
+    await draft('MV1-Q', '# q');
+    for (const key of ['MV1-A', 'MV1-B']) await child(key, 'MV1-P');
+    await child('MV1-Z', 'MV1-Q');
+    await specs.updateMeta({
+      actor: { ...human, userId: planner },
+      projectId,
+      specKey: 'MV1-Z',
+      parentKey: 'MV1-P',
+      userId: planner,
+    });
+    expect((await order('MV1-P')).map((r) => r.key)).toEqual(['MV1-A', 'MV1-B', 'MV1-Z']);
+  });
+
+  it('에이전트는 정리하지 못하고 스펙 목록으로 안내받는다', async () => {
+    await draft('AG-P', '# p');
+    await expect(
+      specs.arrange({
+        actor: { userId: planner, isAgent: true },
+        projectId,
+        userId: planner,
+        parentKey: null,
+        keys: ['AG-P'],
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.HUMAN_ONLY,
+      details: { action: 'spec_meta', web_url: expect.stringMatching(/\/p\/clemvion\/specs$/) },
+    });
+  });
+});
+
 // ── E09-S06 기준선 ───────────────────────────────────────────────────────
 
 describe('E09-S06 기준선은 영원히 같은 답을 낸다', () => {

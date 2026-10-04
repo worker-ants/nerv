@@ -7,7 +7,7 @@
 import { specType, specVersionStatus, statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 
 // 그래프 라이브러리는 **탭을 누를 때** 받는다 — gzip 173KB 다. 대부분의 방문은 트리만 쓰는데
 // 그 비용을 목록 화면 전체가 미리 치를 이유가 없다.
@@ -41,6 +41,7 @@ import {
   Skeleton,
 } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
+import { ArrangeBar } from '../../features/spec-editor/arrange-bar.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import {
   NEWER_STATUS,
@@ -153,6 +154,18 @@ function SpecListScreen(): React.JSX.Element {
   // 부모 라우트는 검사하지 않은 인자를 흘려보낸다 — `validateSearch` 가 버린 값도 여기 온다
   const view: SpecView = rawView === 'table' || rawView === 'graph' ? rawView : 'tree';
   const statuses = status === undefined ? [] : status.split(',').filter((value) => value !== '');
+  /** 정리 모드 — 화면의 일시 상태다(주소에 남기지 않는다: 링크로 건넬 일이 아니다) */
+  const [arranging, setArranging] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [titleFiltered, setTitleFiltered] = useState(false);
+  const toggleSelected = useCallback((key: string) => {
+    setSelected((now) => {
+      const next = new Set(now);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
   const types = type === undefined ? [] : type.split(',').filter((value) => value !== '');
   /** 버전 기준 — 목록 · 표 · 그래프 · 검색 · 상세가 모두 이것으로 읽는다(REQ-WEB-248) */
   const viewBasis: ViewBasis =
@@ -357,6 +370,21 @@ function SpecListScreen(): React.JSX.Element {
             ))}
           </select>
         </label>
+        {/* **정리 모드**(2026-10-04 · 사람 결정 M1 · M4 · REQ-WEB-291) — 전수 트리에만 둔다. 문서 정보와 같은
+            권한(planner · admin)이라 다른 역할에는 잠긴 채 이유를 보인다 */}
+        <Button
+          size="sm"
+          data-testid="arrange-toggle"
+          aria-pressed={arranging}
+          disabled={!canFreeze}
+          disabledReason={canFreeze ? undefined : t('spec.meta.edit_role')}
+          onClick={() => {
+            setArranging((on) => !on);
+            setSelected(new Set());
+          }}
+        >
+          {arranging ? t('specs.arrange.toggle_off') : t('specs.arrange.toggle')}
+        </Button>
       </>
     );
 
@@ -588,6 +616,22 @@ function SpecListScreen(): React.JSX.Element {
         <div className="flex min-h-0 flex-1 flex-col">
           {view === 'tree' ? (
             <Card padded={false} className="p-3">
+              {arranging && (
+                <ArrangeBar
+                  projectSlug={proj}
+                  projectId={asProjectId(projectId)}
+                  nodes={graph.data?.nodes ?? []}
+                  selected={selected}
+                  onClear={() => setSelected(new Set())}
+                  // 일부만 보이면 순서를 바꾸지 않는다 — 보이지 않는 형제 사이로 들어간다(M4)
+                  filtered={
+                    statuses.length > 0 ||
+                    types.length > 0 ||
+                    titleFiltered ||
+                    baseline !== undefined
+                  }
+                />
+              )}
               <SpecTree
                 projectSlug={proj}
                 projectId={asProjectId(projectId)}
@@ -598,6 +642,8 @@ function SpecListScreen(): React.JSX.Element {
                 attachedOnly={attach}
                 controls={treeControls}
                 view={viewBasis}
+                {...(arranging ? { selection: { selected, onToggle: toggleSelected } } : {})}
+                onTitleFilter={setTitleFiltered}
               />
             </Card>
           ) : graph.data === undefined ? (

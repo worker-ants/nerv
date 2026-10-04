@@ -79,6 +79,18 @@ export const SpecArchiveInput = z
   })
   .strict();
 
+/**
+ * EP-SPEC-25 — 트리 정리(2026-10-04 · 사람 결정 M1 · M2 · REQ-API-265). `parent_key` 아래 자식의 **최종 순서**는
+ * "지금 자식 중 `keys` 에 없는 것(지금 순서) + `keys`(준 순서)" 다 — 형제 전부를 주면 순서 바꾸기,
+ * 다른 부모의 문서를 주면 그 아래 맨 뒤로 옮기기다. `parent_key: null` 은 맨 위다.
+ */
+export const SpecArrangeInput = z
+  .object({
+    parent_key: z.string().nullable(),
+    keys: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
+
 /** EP-SPEC-12 — 기준선 생성. `items` 를 주지 않으면 현재 승인본으로 채운다 */
 export const BaselineCreateInput = z
   .object({

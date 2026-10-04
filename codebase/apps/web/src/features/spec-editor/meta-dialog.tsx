@@ -208,7 +208,7 @@ export function MetaDialog({
           <ParentPicker
             projectSlug={projectSlug}
             projectId={projectId}
-            specKey={specKey}
+            specKeys={[specKey]}
             current={parentKey}
             value={parentChoice === undefined ? parentKey : parentChoice}
             onChange={setParentChoice}
@@ -381,10 +381,10 @@ export function liveDescendants(
  * **부모는 트리에서 고른다**(REQ-WEB-267). 자기 자신과 자기 아래 문서는 고를 수 없다 — 서버도
  * `tree_cycle` 로 막지만, 누른 뒤에 거절당하는 것보다 처음부터 잠겨 있는 편이 낫다.
  */
-function ParentPicker({
+export function ParentPicker({
   projectSlug,
   projectId,
-  specKey,
+  specKeys,
   current,
   value,
   onChange,
@@ -392,8 +392,10 @@ function ParentPicker({
 }: {
   projectSlug: string;
   projectId: ProjectId | undefined;
-  specKey: string;
-  current: string | null;
+  /** 옮길 문서들 — 그것들과 그 아래는 고를 수 없다(정리 모드는 여러 편을 함께 옮긴다 · REQ-WEB-291) */
+  specKeys: readonly string[];
+  /** 지금 부모 — 여러 편이면 저마다 달라 적지 않는다(`undefined`) */
+  current: string | null | undefined;
   value: string | null;
   onChange: (next: string | null) => void;
   disabled: boolean;
@@ -419,13 +421,12 @@ function ParentPicker({
   };
   walk(null, 0);
   // 자기와 자기 아래 — 고를 수 없다
-  const self = nodes.find((n) => n.key === specKey);
   const blocked = new Set<string>();
   const block = (id: string): void => {
     blocked.add(id);
     for (const c of children.get(id) ?? []) block(c.id);
   };
-  if (self !== undefined) block(self.id);
+  for (const node of nodes) if (specKeys.includes(node.key)) block(node.id);
 
   const q = query.trim().toLowerCase();
   const shown = ordered.filter(
@@ -459,10 +460,12 @@ function ParentPicker({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p data-testid="meta-parent-current" className="text-xs text-text-mute">
-        {t('spec.meta.parent_current')}{' '}
-        <span className="font-mono">{current ?? t('spec.meta.parent_root')}</span>
-      </p>
+      {current !== undefined && (
+        <p data-testid="meta-parent-current" className="text-xs text-text-mute">
+          {t('spec.meta.parent_current')}{' '}
+          <span className="font-mono">{current ?? t('spec.meta.parent_root')}</span>
+        </p>
+      )}
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}

@@ -96,6 +96,16 @@ export interface SpecTreeProps {
    */
   controls?: React.ReactNode;
   /**
+   * **정리 모드**(2026-10-04 · 사람 결정 M1 · M4 · REQ-WEB-291) — 전수 목록에서만 준다. 주면 줄마다 고르는
+   * 칸이 생기고 Space 로도 고른다. 보관한 문서는 고르지 않는다(옮길 자리가 없다)
+   */
+  selection?: {
+    selected: ReadonlySet<string>;
+    onToggle: (key: string) => void;
+  };
+  /** 제목 거르기가 켜졌는지 알린다 — 걸러진 목록에서는 순서를 바꾸지 못한다(보이지 않는 형제가 있다) */
+  onTitleFilter?: (active: boolean) => void;
+  /**
    * 버전 기준(REQ-WEB-248) — 기준선이면 그 세트가 담은 문서만 그때의 버전으로(REQ-API-098),
    * 최신이면 문서마다 가장 새 버전으로 그린다. 줄을 누르면 이 기준을 상세까지 넘긴다
    */
@@ -373,10 +383,16 @@ export function SpecTree({
   view = {},
   titleFilter = false,
   headerAction,
+  selection,
+  onTitleFilter,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId, includeArchived, view);
   const [filter, setFilter] = useState('');
+  const filtering = filter.trim() !== '';
+  useEffect(() => {
+    onTitleFilter?.(filtering);
+  }, [filtering, onTitleFilter]);
   // null = 아직 정하지 않음. 첫 데이터가 와야 초깃값을 만들 수 있다.
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
@@ -659,6 +675,11 @@ export function SpecTree({
         if (!isOpen) toggle(node.id);
         else moveTo(index + 1);
         break;
+      case ' ':
+        // 정리 모드에서는 Space 가 고른다 — 마우스 없이 여러 편을 고르는 길이다(REQ-WEB-291)
+        if (selection === undefined || node.archived_at != null) return;
+        selection.onToggle(node.key);
+        break;
       case 'ArrowLeft': {
         if (branch && isOpen && open.has(node.id)) {
           toggle(node.id);
@@ -700,6 +721,20 @@ export function SpecTree({
     const holdsActive = !isOpen && activeChain.has(node.id);
     return (
       <div className="group flex items-center rounded-nerv-sm hover:bg-bg-hover">
+        {/* 정리 모드의 고르는 칸 — 줄 링크 밖에 둔다(링크 안에 입력을 넣을 수 없다). Tab 은 줄이 받고
+            Space 가 고른다 — 칸이 Tab 을 한 칸 더 받으면 트리가 두 배로 길어진다 */}
+        {selection !== undefined && (
+          <input
+            type="checkbox"
+            data-testid="tree-select"
+            tabIndex={-1}
+            checked={selection.selected.has(node.key)}
+            disabled={node.archived_at != null}
+            onChange={() => selection.onToggle(node.key)}
+            aria-label={t('specs.arrange.select', { title: node.title })}
+            className="mx-1 shrink-0"
+          />
+        )}
         {/* 자식이 없어도 자리를 비운다 — 삼각형 유무로 들여쓰기가 어긋나면
             트리가 계단처럼 보인다 */}
         {children.length === 0 && <span aria-hidden="true" className="size-6 shrink-0" />}
