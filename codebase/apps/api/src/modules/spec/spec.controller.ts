@@ -37,6 +37,7 @@ import {
   NERV_ERROR,
   SpecCreateInput,
   SpecDraftUpsertInput,
+  SpecArchiveInput,
   SpecMetaUpdateInput,
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -575,16 +576,22 @@ export class SpecController {
     });
   }
 
-  /** EP-SPEC-16 */
+  /** EP-SPEC-16 — 하위가 있으면 `descendants: true` 로 가지째 보관한다(REQ-API-263) */
   @RequireScope('spec:meta')
   @Post('specs/:spec/archive')
-  archive(@Req() req: ProjectRequest, @Param('spec') spec: string): Promise<unknown> {
+  archive(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Body() body: Record<string, unknown> | undefined,
+  ): Promise<unknown> {
     const principal = actorOf(req);
+    const input = parseBody(SpecArchiveInput, body ?? {});
     return this.specs.archive({
       actor: actorOf(req),
       projectId: projectOf(req),
       specKey: spec,
       userId: principal.userId,
+      ...(input.descendants === true ? { descendants: true } : {}),
     });
   }
 

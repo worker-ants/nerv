@@ -873,6 +873,149 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
   });
 });
 
+// ── 2026-10-04 하위까지 보관 · 함께 보관한 것만 복구(REQ-API-263 · 264) ──────────
+
+describe('하위까지 한 번에 보관하고, 함께 보관한 것만 함께 복구한다 (REQ-API-263 · 264)', () => {
+  const human = (): { userId: string; isAgent: boolean } => ({ userId: planner, isAgent: false });
+  const under = (key: string, parentKey: string): Promise<unknown> =>
+    specs.updateMeta({ actor: human(), projectId, specKey: key, parentKey, userId: planner });
+  const archive = (key: string, descendants?: boolean): Promise<Record<string, unknown>> =>
+    specs.archive({
+      actor: human(),
+      projectId,
+      specKey: key,
+      userId: planner,
+      ...(descendants === undefined ? {} : { descendants }),
+    });
+  const restore = (key: string): Promise<Record<string, unknown>> =>
+    specs.restore({ actor: human(), projectId, specKey: key, userId: planner });
+  const state = async (
+    key: string,
+  ): Promise<{ archived: boolean; batch: string | null; at: string | null }> => {
+    const { rows } = await pool.query<{
+      archived_at: string | null;
+      archive_batch_id: string | null;
+    }>(
+      `SELECT archived_at::text AS archived_at, archive_batch_id::text AS archive_batch_id
+         FROM spec WHERE key = $1`,
+      [key],
+    );
+    return {
+      archived: rows[0]?.archived_at != null,
+      batch: rows[0]?.archive_batch_id ?? null,
+      at: rows[0]?.archived_at ?? null,
+    };
+  };
+
+  /** 뿌리 R — 자식 A(손자 A1) · 자식 B */
+  async function branch(prefix: string): Promise<void> {
+    for (const key of ['R', 'A', 'A1', 'B']) await draft(`${prefix}-${key}`, `# ${key}`);
+    await under(`${prefix}-A`, `${prefix}-R`);
+    await under(`${prefix}-A1`, `${prefix}-A`);
+    await under(`${prefix}-B`, `${prefix}-R`);
+  }
+
+  it('하위가 있는데 descendants 없이 오면 막고, 함께 보관될 문서를 전부 알려 준다', async () => {
+    await branch('SUB1');
+    await expect(archive('SUB1-R')).rejects.toMatchObject({
+      details: {
+        kind: 'archive_blocked',
+        blockers: [
+          { kind: 'child_spec', key: 'SUB1-A' },
+          { kind: 'child_spec', key: 'SUB1-B' },
+        ],
+        descendants: ['SUB1-A', 'SUB1-B', 'SUB1-A1'],
+      },
+    });
+    expect((await state('SUB1-R')).archived).toBe(false);
+  });
+
+  it('descendants: true 면 가지째 한 묶음으로 보관하고, 이벤트마다 같은 batch_id 를 담는다', async () => {
+    await branch('SUB2');
+    const out = await archive('SUB2-R', true);
+    expect(out['archived_keys']).toEqual(['SUB2-R', 'SUB2-A', 'SUB2-B', 'SUB2-A1']);
+    const batches = new Set(
+      await Promise.all(['R', 'A', 'A1', 'B'].map(async (k) => (await state(`SUB2-${k}`)).batch)),
+    );
+    expect(batches).toEqual(new Set([out['batch_id']]));
+    const { rows } = await pool.query<{ batch: string }>(
+      `SELECT payload->>'batch_id' AS batch FROM event WHERE type = 'spec.archived'
+          AND subject_id IN (SELECT id FROM spec WHERE key LIKE 'SUB2-%')`,
+    );
+    expect(rows).toHaveLength(4);
+    expect(new Set(rows.map((r) => r.batch))).toEqual(new Set([out['batch_id']]));
+  });
+
+  it('먼저 따로 보관한 하위는 그대로 두고, 복구도 함께 보관한 것만 되살린다', async () => {
+    await branch('SUB3');
+    await archive('SUB3-A1');
+    const earlier = await state('SUB3-A1');
+    await archive('SUB3-R', true);
+    // 따로 보관한 손자는 묶음도 시각도 그대로다
+    expect(await state('SUB3-A1')).toEqual(earlier);
+
+    const out = await restore('SUB3-R');
+    expect(out['restored_keys']).toEqual(['SUB3-R', 'SUB3-A', 'SUB3-B']);
+    expect((await state('SUB3-A')).archived).toBe(false);
+    expect(await state('SUB3-A1')).toEqual(earlier);
+  });
+
+  it('위에서 막히면 바로 위가 아니라 보관된 조상의 가장 위를 알려 준다', async () => {
+    await branch('SUB4');
+    await archive('SUB4-A1');
+    await archive('SUB4-A');
+    await archive('SUB4-R', true);
+    await expect(restore('SUB4-A1')).rejects.toMatchObject({
+      details: { kind: 'parent_archived', parent: 'SUB4-A', restore_first: 'SUB4-R' },
+    });
+  });
+
+  it('묶음이 없는 옛 보관은 그 문서 하나만 되살린다', async () => {
+    await branch('SUB5');
+    await archive('SUB5-R', true);
+    await pool.query(`UPDATE spec SET archive_batch_id = NULL WHERE key LIKE 'SUB5-%'`);
+    expect((await restore('SUB5-R'))['restored_keys']).toEqual(['SUB5-R']);
+    expect((await state('SUB5-A')).archived).toBe(true);
+  });
+
+  it('가지 안 깊은 곳의 활성 클레임도 보관을 막는다', async () => {
+    await branch('SUB6');
+    const leaf = await pool.query<{ id: string }>(
+      `SELECT v.id FROM spec_version v JOIN spec s ON s.id = v.spec_id WHERE s.key = 'SUB6-A1'`,
+    );
+    await approve(leaf.rows[0]!.id);
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'CLV-T-SUB6A1','손자의 작업','claimed',$3,'목표','PR','저장소','경계')`,
+      [taskId, projectId, leaf.rows[0]!.id],
+    );
+    const sessionId = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-01','active')`,
+      [sessionId, projectId, planner],
+    );
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
+                          scope_spec_ids, scope_file_globs, lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active','{}','{}', now() + interval '10 minutes')`,
+      [newId(), projectId, taskId, sessionId, planner],
+    );
+    await expect(archive('SUB6-R', true)).rejects.toMatchObject({
+      details: {
+        kind: 'archive_blocked',
+        blockers: [{ kind: 'active_claim', key: 'CLV-T-SUB6A1' }],
+      },
+    });
+    expect((await state('SUB6-R')).archived).toBe(false);
+    await pool.query(`DELETE FROM claim WHERE task_id = $1`, [taskId]);
+    await pool.query(`DELETE FROM task WHERE id = $1`, [taskId]);
+    await pool.query(`DELETE FROM agent_session WHERE id = $1`, [sessionId]);
+  });
+});
+
 // ── E09-S06 기준선 ───────────────────────────────────────────────────────
 
 describe('E09-S06 기준선은 영원히 같은 답을 낸다', () => {

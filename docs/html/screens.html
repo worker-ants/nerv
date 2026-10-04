@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v2.18 (2026-10-04)</span>
+      <span>버전 v2.19 (2026-10-04)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1145,6 +1145,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>목록 머리</td><td><b>[보관 보기]</b> 체크 — 뷰 상태이므로 주소에 남는다(<code>?archived=true</code>). 트리·표·그래프·검색이 <b>같은 값</b>을 쓴다</td></tr>
       <tr><td>목록의 줄</td><td>보관한 것은 <code>보관됨</code> 배지 + 흐린 글자. 켜서 찾아온 사람에게만 보이되, <b>살아 있는 문서와 같은 무게로 그리지 않는다</b></td></tr>
       <tr><td>문서 상단</td><td>보관 배너 + <b>[복구]</b>(planner·admin). 복구 손잡이는 이 자리 하나다 — [보관 보기]로 찾아오든 주소로 들어오든 문서를 열어서 복구한다. 배너는 "기본 목록과 트리에서는 빠지고 [보관 보기]를 켜면 함께 보인다" 고 말한다(2026-10-04 정정 — 예전 문구 "주소로만 열 수 있다" 는 [보관 보기]가 생긴 뒤로 사실이 아니었다). 보관된 문서에는 <b>다음 할 일 줄을 두지 않고</b>, [문서 정보] 창에 <b>[보관]을 두지 않는다</b>(REQ-WEB-287)</td></tr>
+      <tr><td>[문서 정보] 창의 [보관]</td><td>하위가 있으면 <b>함께 보관될 하위를 모두 나열하고</b>, 확인하면 가지째 보관한다(상한 없음 · 이미 보관된 가지는 건너뛴다). 남길 문서는 먼저 옮기라고 적는다 — 부모만 보관하는 길은 없다. 복구하면 함께 보관한 하위도 돌아오고 몇 편인지 알린다. 위에서 막히면 보관된 조상의 <b>가장 위</b> 문서를 알린다(2026-10-04 · REQ-WEB-290)</td></tr>
     </tbody>
   </table></div>
 
@@ -1164,6 +1165,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>REQ-WEB-287</td><td>WHILE 보는 문서가 보관된 동안 THE SYSTEM SHALL 다음 할 일 줄([검토 요청] · [작업 만들기])을 두지 않고 [문서 정보] 창에 [보관]을 두지 않는다 — 서버가 둘 다 거절하고(<a href="api.html">4.4 API 명세</a> REQ-API-255 · 257), 다시 보관하면 처음 보관한 시각을 잃을 뿐이다. 할 일은 배너의 [복구] 하나다. WHEN 보관이 끝나지 않은 작업(<code>open_tasks</code>)을 돌려주면 THE SYSTEM SHALL 완료 토스트에 그 개수와 "작업 큐에서 빠졌다 — 보드에서 정리한다" 를 함께 알린다(2026-10-04)</td></tr>
       <tr><td>REQ-WEB-288</td><td>WHEN 스펙 목록의 검색 결과를 그리면 THE SYSTEM SHALL 결과를 그 종류의 화면으로 잇고(작업 → 작업 상세 · 요구사항 → 문서의 요구사항 탭 · 문서 → 문서 상세) 번호로 찾은 보관 문서에 <code>보관됨</code> 을 붙인다. WHEN 트리 거르기가 번호로만 맞으면 THE SYSTEM SHALL 그 줄의 제목 옆에 번호를 보인다. WHILE ⌘K 의 검색어가 마지막으로 받은 결과의 검색어와 다른 동안 THE SYSTEM SHALL 그 결과를 보이지 않는다 — 번호를 다 치고 바로 Enter 를 누르면 앞 글자의 결과가 열렸다. 화면의 이름은 "번호" 다(<a href="glossary.html">용어 사전</a> §2.2 "고정 ID" · 2026-10-04)</td></tr>
       <tr><td>REQ-WEB-289</td><td>WHEN 스펙 트리(전체 · 레일)의 줄을 그리면 THE SYSTEM SHALL 첨부가 있는 문서에 클립 선 그림과 첨부 수(EP-SPEC-01 <code>attachment_count</code>)를 흐린 글자로 붙이고 0 이면 그리지 않는다 — 주의를 끄는 표시가 아니라 정보다. THE SYSTEM SHALL 표에 정렬되는 "첨부" 열을 두고, 스펙 목록 상단에 "첨부 있음 N" 칩을 두어 누르면 첨부가 있는 문서만 트리에 남기며 그 상태를 주소(<code>?attach=1</code>)에 남긴다. THE SYSTEM SHALL 열린 코멘트 수를 이모지가 아닌 선 그림으로 그린다(§4.3). WHEN 코멘트 · 첨부 이벤트가 오면 THE SYSTEM SHALL 트리와 표 · 그래프를 함께 다시 읽는다(2026-10-04 · 사람 결정 F1 · F2)</td></tr>
+      <tr><td>REQ-WEB-290</td><td>WHEN 살아 있는 하위가 있는 문서의 [문서 정보] 창을 열면 THE SYSTEM SHALL 함께 보관될 하위를 모두 나열하고, 확인 문장에 그 수를 적으며, 보관 요청에 <code>descendants: true</code> 를 넣는다. WHEN 복구가 함께 보관한 하위까지 되살리면 THE SYSTEM SHALL 완료 토스트에 그 수를 적고, WHEN 부모 때문에 막히면 <code>restore_first</code>(보관된 조상의 가장 위)를 먼저 복구하라고 알린다(2026-10-04 · 사람 결정 R1~R3)</td></tr>
     </tbody>
   </table></div>
 

@@ -69,6 +69,16 @@ export const SpecMetaUpdateInput = z
   })
   .strict();
 
+/**
+ * EP-SPEC-16 — 보관. **살아 있는 하위가 있으면 `descendants: true` 여야 가지째 보관한다**
+ * (2026-10-04 · REQ-API-263) — 없이 오면 409 `archive_blocked` 가 함께 보관될 문서를 알려 준다.
+ */
+export const SpecArchiveInput = z
+  .object({
+    descendants: z.boolean().optional(),
+  })
+  .strict();
+
 /** EP-SPEC-12 — 기준선 생성. `items` 를 주지 않으면 현재 승인본으로 채운다 */
 export const BaselineCreateInput = z
   .object({

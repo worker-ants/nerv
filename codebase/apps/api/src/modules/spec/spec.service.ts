@@ -1782,9 +1782,16 @@ export class SpecService {
   /**
    * EP-SPEC-16 — 아카이브. **삭제가 아니다**: 링크·이력은 그대로 남고 기본 조회에서만 빠진다.
    *
-   * 두 가지가 있으면 막는다 — ① 살아 있는 하위 노드(부모만 감추면 자식이 고아가 된다)
-   * ② 활성 클레임이 걸린 파생 Task(누군가 지금 그 스펙을 근거로 일하고 있다).
-   * 둘 다 "차단 사유 목록"으로 돌려준다. 무엇을 정리해야 하는지 모르는 거부는 벽일 뿐이다.
+   * **하위까지 한 번에 보관한다**(2026-10-04 · 사람 결정 R2 · R3 · REQ-API-263). 예전에는 살아 있는 하위가
+   * 있으면 막아서, 깊은 가지 하나를 치우려면 맨 아래부터 한 편씩 보관해야 했다. 부모만 감추면 자식이 고아가
+   * 되는 것은 그대로라, 부모만 보관하는 길은 없다 — 하위가 있으면 `descendants: true` 를 받아야 가지째
+   * 보관하고, 없이 오면 지금처럼 막고 **무엇이 함께 보관될지**(`descendants`)를 알려 준다. 화면은 그 목록을
+   * 확인 창에 보이고 다시 부른다. 상한은 두지 않는다(R3) — 되돌릴 수 있고, 한 트랜잭션에 수백 행은 가볍다.
+   *
+   * 이미 보관된 가지는 건너뛴다 — 그 아래는 이미 보관돼 있고, 그 묶음은 따로 복구된다(R1).
+   * 막는 것은 하나다: 가지 안 어느 문서든 그것을 근거로 한 작업에 활성 클레임이 걸려 있으면(누군가 지금 그
+   * 문서를 근거로 일하고 있다). 보관한 문서들은 같은 `archive_batch_id` 를 갖고, 이벤트도 문서마다 내되
+   * 같은 `batch_id` 를 담는다 — 감사 기록에서 한 동작으로 센다.
    */
   async archive(input: {
     /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
@@ -1792,6 +1799,8 @@ export class SpecService {
     projectId: string;
     specKey: string;
     userId: string;
+    /** 살아 있는 하위까지 함께 보관한다 — 화면이 목록을 보인 뒤에 보낸다 */
+    descendants?: boolean;
   }): Promise<Record<string, unknown>> {
     await this.assertHumanForSpec(input.actor, input.projectId, input.specKey);
     return this.events.transact(async (tx, emit) => {
@@ -1802,29 +1811,53 @@ export class SpecService {
         return { spec_id: spec.id, key: input.specKey, archived: true, unchanged: true };
       }
 
-      const { rows: children } = await tx.execute<{ key: string }>(sql`
-        SELECT key FROM spec WHERE parent_id = ${spec.id} AND archived_at IS NULL
+      // 가지 — 이 문서와 살아 있는 하위. 보관된 노드에서 멈춘다(그 아래는 이미 보관돼 있다)
+      const { rows: branch } = await tx.execute<{
+        id: string;
+        key: string;
+        parent_id: string | null;
+      }>(sql`
+        WITH RECURSIVE down AS (
+          SELECT id, key, parent_id, 0 AS depth FROM spec WHERE id = ${spec.id}
+          UNION
+          SELECT c.id, c.key, c.parent_id, down.depth + 1
+            FROM spec c JOIN down ON c.parent_id = down.id
+           WHERE c.archived_at IS NULL
+        )
+        SELECT id, key, parent_id FROM down ORDER BY depth, key
       `);
-      // 작업은 기준 버전으로도, 요구사항으로도 이 문서를 가리킨다(임포트 레거시는 요구사항만 있다)
+      const descendantKeys = branch.filter((n) => n.id !== spec.id).map((n) => n.key);
+      if (descendantKeys.length > 0 && input.descendants !== true) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.archive_blocked'), {
+          kind: 'archive_blocked',
+          // 바로 아래 문서 — 예전 응답과 같은 모양이다(정리할 문서로 가는 길)
+          blockers: branch
+            .filter((n) => n.parent_id === spec.id)
+            .map((n) => ({ kind: 'child_spec', key: n.key })),
+          // 함께 보관될 문서 전부 — `descendants: true` 로 다시 부르면 이것이 같이 보관된다
+          descendants: descendantKeys,
+        });
+      }
+      const ids = sqlArray(
+        branch.map((n) => n.id),
+        'uuid',
+      );
+
+      // 작업은 기준 버전으로도, 요구사항으로도 문서를 가리킨다(임포트 레거시는 요구사항만 있다)
       const basisTasks = sql`
         SELECT t.id, t.key, t.status FROM task t
-         WHERE t.source_spec_version_id IN (SELECT id FROM spec_version WHERE spec_id = ${spec.id})
-            OR t.source_requirement_id IN (SELECT id FROM requirement WHERE spec_id = ${spec.id})
+         WHERE t.source_spec_version_id IN (SELECT id FROM spec_version WHERE spec_id = ANY(${ids}))
+            OR t.source_requirement_id IN (SELECT id FROM requirement WHERE spec_id = ANY(${ids}))
       `;
       const { rows: claimed } = await tx.execute<{ key: string }>(sql`
         SELECT DISTINCT b.key FROM (${basisTasks}) b
           JOIN claim c ON c.task_id = b.id AND c.released_at IS NULL
          ORDER BY b.key
       `);
-
-      const blockers = [
-        ...children.map((c) => ({ kind: 'child_spec', key: c.key })),
-        ...claimed.map((t) => ({ kind: 'active_claim', key: t.key })),
-      ];
-      if (blockers.length > 0) {
+      if (claimed.length > 0) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.archive_blocked'), {
           kind: 'archive_blocked',
-          blockers,
+          blockers: claimed.map((t) => ({ kind: 'active_claim', key: t.key })),
         });
       }
 
@@ -1834,26 +1867,46 @@ export class SpecService {
         SELECT DISTINCT b.key FROM (${basisTasks}) b WHERE b.status <> 'done' ORDER BY b.key
       `);
 
-      await tx.execute(sql`UPDATE spec SET archived_at = now() WHERE id = ${spec.id}`);
-      await emit({
-        type: NERV_EVENT.SPEC_ARCHIVED,
-        projectId: input.projectId,
-        subjectType: 'spec',
-        subjectId: spec.id,
-        subjectKey: await this.keyOfSpec(tx, spec.id),
-        actorUserId: input.userId,
-        isAgent: false,
-      });
+      const batchId = newId();
+      // 동시에 들어온 다른 보관이 먼저 보관한 행은 건너뛴다 — 그 행의 묶음과 시각을 덮지 않는다
+      const { rows: archived } = await tx.execute<{ id: string; key: string }>(sql`
+        UPDATE spec SET archived_at = now(), archive_batch_id = ${batchId}
+         WHERE id = ANY(${ids}) AND archived_at IS NULL
+        RETURNING id, key
+      `);
+      const order = new Map(branch.map((n, i) => [n.id, i]));
+      archived.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      for (const row of archived) {
+        await emit({
+          type: NERV_EVENT.SPEC_ARCHIVED,
+          projectId: input.projectId,
+          subjectType: 'spec',
+          subjectId: row.id,
+          subjectKey: row.key,
+          actorUserId: input.userId,
+          isAgent: false,
+          payload: { batch_id: batchId },
+        });
+      }
       return {
         spec_id: spec.id,
         key: input.specKey,
         archived: true,
+        batch_id: batchId,
+        archived_keys: archived.map((r) => r.key),
         open_tasks: open.map((t) => t.key),
       };
     });
   }
 
-  /** EP-SPEC-17 — 복원. 부모가 아카이브 상태면 거부한다(복원해도 보이지 않는다). */
+  /**
+   * EP-SPEC-17 — 복원. **함께 보관한 하위도 함께 되살린다**(2026-10-04 · 사람 결정 R1 · REQ-API-264) — 같은
+   * `archive_batch_id` 의 하위만이다. 그 전에 따로 보관한 하위는 다른 묶음이라 그대로 남는다. 묶음이 없는
+   * 옛 보관(열이 생기기 전)은 그 문서 하나만 되살린다.
+   *
+   * 부모가 보관돼 있으면 거부한다(복원해도 보이지 않는다). 그때 **먼저 복구할 문서**는 바로 위가 아니라
+   * 보관된 조상 사슬의 **가장 위**다(`restore_first`) — 바로 위를 복구하려 해도 그 위에서 다시 막힌다.
+   */
   async restore(input: {
     /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
     actor: Actor;
@@ -1869,28 +1922,73 @@ export class SpecService {
         return { spec_id: spec.id, key: input.specKey, archived: false, unchanged: true };
       }
       if (spec.parent_id !== null) {
-        const { rows } = await tx.execute<{ archived_at: unknown; key: string }>(
-          sql`SELECT archived_at, key FROM spec WHERE id = ${spec.parent_id}`,
-        );
-        if (rows[0]?.archived_at != null) {
+        // 보관된 조상의 사슬 — 살아 있는 조상을 만나면 멈춘다
+        const { rows: up } = await tx.execute<{ key: string; archived_at: unknown }>(sql`
+          WITH RECURSIVE up AS (
+            SELECT id, key, parent_id, archived_at, 1 AS depth FROM spec WHERE id = ${spec.parent_id}
+            UNION
+            SELECT p.id, p.key, p.parent_id, p.archived_at, up.depth + 1
+              FROM spec p JOIN up ON p.id = up.parent_id
+             WHERE up.archived_at IS NOT NULL
+          )
+          SELECT key, archived_at FROM up ORDER BY depth
+        `);
+        if (up[0]?.archived_at != null) {
+          const chain = up.filter((a) => a.archived_at != null);
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.parent_archived'), {
             kind: 'parent_archived',
-            parent: rows[0].key,
+            parent: up[0].key,
+            restore_first: chain.at(-1)?.key ?? up[0].key,
           });
         }
       }
 
-      await tx.execute(sql`UPDATE spec SET archived_at = NULL WHERE id = ${spec.id}`);
-      await emit({
-        type: NERV_EVENT.SPEC_RESTORED,
-        projectId: input.projectId,
-        subjectType: 'spec',
-        subjectId: spec.id,
-        subjectKey: await this.keyOfSpec(tx, spec.id),
-        actorUserId: input.userId,
-        isAgent: false,
-      });
-      return { spec_id: spec.id, key: input.specKey, archived: false };
+      const { rows: batchRows } = await tx.execute<{ archive_batch_id: string | null }>(
+        sql`SELECT archive_batch_id FROM spec WHERE id = ${spec.id}`,
+      );
+      const batchId = batchRows[0]?.archive_batch_id ?? null;
+      // 함께 보관한 가지 — 같은 묶음인 하위만 따라 내려간다
+      const { rows: branch } = await tx.execute<{ id: string }>(
+        batchId === null
+          ? sql`SELECT ${spec.id}::uuid AS id`
+          : sql`
+            WITH RECURSIVE down AS (
+              SELECT id, 0 AS depth FROM spec WHERE id = ${spec.id}
+              UNION
+              SELECT c.id, down.depth + 1
+                FROM spec c JOIN down ON c.parent_id = down.id
+               WHERE c.archived_at IS NOT NULL AND c.archive_batch_id = ${batchId}
+            )
+            SELECT id FROM down ORDER BY depth`,
+      );
+      const order = new Map(branch.map((n, i) => [n.id, i]));
+      const { rows: restored } = await tx.execute<{ id: string; key: string }>(sql`
+        UPDATE spec SET archived_at = NULL, archive_batch_id = NULL
+         WHERE id = ANY(${sqlArray(
+           branch.map((n) => n.id),
+           'uuid',
+         )}) AND archived_at IS NOT NULL
+        RETURNING id, key
+      `);
+      restored.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      for (const row of restored) {
+        await emit({
+          type: NERV_EVENT.SPEC_RESTORED,
+          projectId: input.projectId,
+          subjectType: 'spec',
+          subjectId: row.id,
+          subjectKey: row.key,
+          actorUserId: input.userId,
+          isAgent: false,
+          ...(batchId === null ? {} : { payload: { batch_id: batchId } }),
+        });
+      }
+      return {
+        spec_id: spec.id,
+        key: input.specKey,
+        archived: false,
+        restored_keys: restored.map((r) => r.key),
+      };
     });
   }
 

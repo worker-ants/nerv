@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.22 · 2026-09-28 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.23 · 2026-10-04 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.23 변경(2026-10-04 — 하위까지 보관, **사람 결정 R1**): `spec` 에 `archive_batch_id` 를 더한다. 한 보관 동작이 함께 보관한 문서를 묶어 복구가 그 묶음만 되살린다([4.3 DB 스키마](../04-mvp/database.md) REQ-DB-036).
 >
 > v0.22 변경(2026-09-28 — 알림 메일 요약, **사람 결정 EM1~EM9**): **§1 엔티티 하나 · §2.9 표 하나와 두 칸.** `notification_digest_setting` — 메일 요약을 켠 사람의 받는 시각 · 시간대 · 언어. `notification.digest_batch_id` · `delivered_at` 을 처음으로 쓴다(메일 요약에 담은 한 통과 그 시각).
 >
@@ -288,6 +290,7 @@ stateDiagram-v2
 | `current_version_id` | uuid FK NULL | 최신 `approved` 버전(없으면 최신 `draft`) |
 | `owner_role` | enum NULL | 기본 리뷰어 자동 지정 힌트 |
 | `archived_at` | timestamptz | 삭제 대신 아카이브(ADR 관행과 동일) |
+| `archive_batch_id` | uuid NULL | 함께 보관한 묶음 — 하위까지 한 번에 보관한 문서들이 같은 값을 갖고, 복구가 그 묶음만 되살린다(2026-10-04) |
 
 **`spec_version`** — 불변 스냅샷.
 

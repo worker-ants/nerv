@@ -338,7 +338,9 @@ When zoomed out, **document names are hidden.** A hundred labels too small to re
 
 **Clicking [Archive] in the Document info window opens a confirmation.** Archiving removes the document from the list and the tree, and the only way back is [Restore] on the document's own page. Esc closes only the confirmation. Press it again to close the Document info window.
 
-Archiving can be **refused**. You can't archive a document that has child documents that are not archived, or a task derived from it that someone has claimed. In that case, the screen lists what is blocking it, and each key takes you to the document or task you need to deal with.
+**Child documents are archived together with it.** The confirmation lists every child document that will be archived, and confirming archives the whole branch at once. To keep a child, first move it elsewhere in [Document info]. There is no way to archive only the parent, because child documents that drop out of the lists could not be found again. Children you already archived separately stay as they are.
+
+Archiving can be **refused**. You can't archive it if someone has claimed a task derived from the document or one of its children. In that case, the screen lists what is blocking it, and each key takes you to the task you need to deal with.
 
 Archiving is **not deletion.** The document disappears from lists and the tree, but it still opens at its URL, and links to it keep working. A spec is the record of what was decided and why. Deleting it would erase that record.
 
@@ -348,6 +350,6 @@ An archived document is **no longer a basis for work.** Tasks derived from it le
 
 To **see archived documents again**, turn on **Show archived** at the top of the spec list. They reappear in the list marked `Archived`. The setting stays in the URL (`?archived=true`), so a link you share shows the other person the same list.
 
-**You restore a document from its own page.** When you open an archived spec, a banner appears at the top, and planners and admins also see a **Restore** button. If its parent is archived, the restore is refused, and the screen shows the key of the document to restore first.
+**You restore a document from its own page.** When you open an archived spec, a banner appears at the top, and planners and admins also see a **Restore** button. **Child documents archived together with it are restored too**; children you archived separately before stay archived. If its parent is archived, the restore is refused, and the screen shows the key of the document to restore first. When several levels above are archived, that's the topmost one.
 
 You **cannot create a document under an archived one**, and you cannot move an existing document under it either. Otherwise that document would appear in no list at all, and even the person who created it could not find it again.
