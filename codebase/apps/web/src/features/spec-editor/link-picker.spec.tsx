@@ -68,10 +68,12 @@ describe('스펙 고르기', () => {
     expect(labels.some((l) => l?.includes('SUD-SELF'))).toBe(false);
   });
 
-  it('제목·키로 좁힌다', async () => {
+  it('제목·번호로 좁힌다', async () => {
     renderPicker();
     await waitFor(() => expect(screen.getAllByTestId('link-option').length).toBe(2));
-    fireEvent.change(screen.getByPlaceholderText('제목·키로 찾기'), { target: { value: '협동' } });
+    fireEvent.change(screen.getByPlaceholderText('제목·번호로 찾기'), {
+      target: { value: '협동' },
+    });
     await waitFor(() => expect(screen.getAllByTestId('link-option').length).toBe(1));
     expect(screen.getByTestId('link-option').textContent).toContain('협동 모드');
   });

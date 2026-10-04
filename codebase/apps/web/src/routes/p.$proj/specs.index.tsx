@@ -633,47 +633,76 @@ function SpecListScreen(): React.JSX.Element {
             )}
             {search.isFetching && <Skeleton rows={3} />}
             <ul className="flex flex-col gap-2">
-              {(search.data?.items ?? []).map((hit) => (
-                <li key={`${String(hit['spec_id'])}-${String(hit['anchor'] ?? '')}`}>
-                  <Link
-                    to="/p/$proj/specs/$spec"
-                    params={{ proj, spec: String(hit['key']) }}
-                    search={detailSearch}
-                    className="block"
-                  >
-                    <Card interactive padded={false} className="px-3 py-2.5">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Mono>{String(hit['key'])}</Mono>
-                        {/* 결과 카드는 여는 곳이다 — 제목을 쉴 때 링크색으로 둔다(REQ-WEB-273) */}
-                        <span className="min-w-0 flex-1 truncate font-medium text-link">
-                          {String(hit['title'])}
+              {(search.data?.items ?? []).map((hit) => {
+                // **결과는 그 종류의 화면으로 간다**(2026-10-04 · REQ-WEB-288). 예전에는 종류와 상관없이
+                // 스펙 상세로 보내서, 작업 번호로 찾은 결과를 누르면 "없는 문서" 가 열렸고 요구사항
+                // 결과는 요구사항 탭을 열지 않았다. ⌘K 팔레트(`hrefOfHit`)와 같은 규칙이다.
+                const card = (
+                  <Card interactive padded={false} className="px-3 py-2.5">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mono>{String(hit['key'])}</Mono>
+                      {/* 결과 카드는 여는 곳이다 — 제목을 쉴 때 링크색으로 둔다(REQ-WEB-273) */}
+                      <span className="min-w-0 flex-1 truncate font-medium text-link">
+                        {String(hit['title'])}
+                      </span>
+                      {/* 번호로 찾으면 보관된 문서도 나온다 — 열 수는 있되 보관됐다는 것을 함께 보인다 */}
+                      {hit['archived_at'] != null && (
+                        <StatusBadge token="idle" label={t('specs.archived_badge')} />
+                      )}
+                      {hit['doc_status'] !== null && (
+                        <StatusBadge
+                          token={
+                            (SPEC_VERSION_TOKEN[
+                              String(hit['doc_status']) as keyof typeof SPEC_VERSION_TOKEN
+                            ] ?? 'idle') as StatusToken
+                          }
+                          label={t(statusLabelKey('spec', String(hit['doc_status'])))}
+                        />
+                      )}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs text-text-mute">
+                      {String(hit['snippet'] ?? '')}
+                    </p>
+                    {/* 어느 경로로 들어왔는지 — 신뢰의 문제다 */}
+                    <p className="mt-1.5 flex gap-1 text-2xs text-text-faint">
+                      {((hit['matched_by'] as string[] | undefined) ?? []).map((by) => (
+                        <span key={by} className="rounded-nerv-sm bg-bg-sunken px-1.5 py-0.5">
+                          {by}
                         </span>
-                        {hit['doc_status'] !== null && (
-                          <StatusBadge
-                            token={
-                              (SPEC_VERSION_TOKEN[
-                                String(hit['doc_status']) as keyof typeof SPEC_VERSION_TOKEN
-                              ] ?? 'idle') as StatusToken
-                            }
-                            label={t(statusLabelKey('spec', String(hit['doc_status'])))}
-                          />
-                        )}
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-xs text-text-mute">
-                        {String(hit['snippet'] ?? '')}
-                      </p>
-                      {/* 어느 경로로 들어왔는지 — 신뢰의 문제다 */}
-                      <p className="mt-1.5 flex gap-1 text-2xs text-text-faint">
-                        {((hit['matched_by'] as string[] | undefined) ?? []).map((by) => (
-                          <span key={by} className="rounded-nerv-sm bg-bg-sunken px-1.5 py-0.5">
-                            {by}
-                          </span>
-                        ))}
-                      </p>
-                    </Card>
-                  </Link>
-                </li>
-              ))}
+                      ))}
+                    </p>
+                  </Card>
+                );
+                const key = String(hit['key']);
+                return (
+                  <li key={`${String(hit['spec_id'])}-${String(hit['anchor'] ?? '')}`}>
+                    {hit['kind'] === 'task' ? (
+                      <Link
+                        to="/p/$proj/tasks/$task"
+                        params={{ proj, task: key }}
+                        className="block"
+                        data-testid="search-hit"
+                      >
+                        {card}
+                      </Link>
+                    ) : (
+                      <Link
+                        to="/p/$proj/specs/$spec"
+                        params={{ proj, spec: key }}
+                        search={
+                          hit['kind'] === 'requirement'
+                            ? { ...detailSearch, rail: 'requirements' as const }
+                            : detailSearch
+                        }
+                        className="block"
+                        data-testid="search-hit"
+                      >
+                        {card}
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
               {search.isFetched && (search.data?.items.length ?? 0) === 0 && (
                 <li>
                   <EmptyState

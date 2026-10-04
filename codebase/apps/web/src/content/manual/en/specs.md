@@ -33,17 +33,17 @@ The top row of the tree has three buttons.
 
 Collapsed branches are remembered. The tree column next to a document and the spec list screen remember them **separately**.
 
-**The tree column appears only while you are viewing a document.** On the tasks, sessions and reviews screens, that width goes to the page content. Type in **Filter by title or key** at the top of the column to keep only the documents whose title or key matches. (To search document contents, use ⌘K or the search on the spec list.) On a wide screen, **[Hide spec tree]** at the end of the column's top row hides the column, and this browser remembers that. Click the strip at the left edge to show it again. On a narrow screen, the strip opens the tree over the page, and picking a document or pressing `Esc` closes it.
+**The tree column appears only while you are viewing a document.** On the tasks, sessions and reviews screens, that width goes to the page content. Type in **Filter by title or ID** at the top of the column to keep only the documents whose title or ID matches. A row that matched by ID shows the ID next to its title. (To search document contents, use ⌘K or the search on the spec list.) On a wide screen, **[Hide spec tree]** at the end of the column's top row hides the column, and this browser remembers that. Click the strip at the left edge to show it again. On a narrow screen, the strip opens the tree over the page, and picking a document or pressing `Esc` closes it.
 
 To see all documents, go to **Specs** in the left menu. That screen is the **complete list**. It opens with every document expanded, and you collapse branches yourself. **If a document is not there, it is not in this project.**
 
-Both the tree tab and the table tab show `Showing N of M`. When the two numbers differ, the difference is the number of documents that are collapsed or filtered out by **Filter by title or key**. This screen has no separate tree column, because its tree is the full-screen version of that column.
+Both the tree tab and the table tab show `Showing N of M`. When the two numbers differ, the difference is the number of documents that are collapsed or filtered out by **Filter by title or ID**. This screen has no separate tree column, because its tree is the full-screen version of that column.
 
 The **Status** selector above the list shows only the documents in a given status, such as `Draft`, `In review`, or `Draft + In review`. The status is that of the version the **Version basis** selector reads. With the default (Approved), `Draft` finds only documents that were never approved. To also find drafts on top of an approved version, switch **Version basis** to **Latest** or choose `New version in progress`. What remains is **the documents in that status and their ancestors**. The ancestors don't match the filter. They remain **to show where each document belongs**, because without its parent you cannot tell where a document fits. A branch with no matching documents drops out entirely. The chosen status **stays in the URL, so a link shows someone else the same list.** The `of M` is the project's total document count and is not affected by the filter.
 
 The **Type** selector next to it works the same way. Choose `Skeleton (vision + area)` to keep only the documents that **define the structure**, so you can see the shape of the tree at a glance. A project with 141 documents has a skeleton of 17. This helps when you decide where a new document belongs. If you set both selectors, only documents that match **both** remain.
 
-Both selectors appear **only on the tree tab**, in the tree's control row next to **Filter by title or key** and the expand/collapse buttons. They disappear when you switch to the table or the relations graph.
+Both selectors appear **only on the tree tab**, in the tree's control row next to **Filter by title or ID** and the expand/collapse buttons. They disappear when you switch to the table or the relations graph.
 
 ## Versions and statuses {#versions}
 

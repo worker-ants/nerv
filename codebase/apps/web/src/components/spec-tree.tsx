@@ -316,8 +316,12 @@ export function SpecTree({
   // 목록 응답을 믿고 크래시하지 않는다 — 트리 하나 때문에 셸 전체가 흰 화면이 된다.
   const nodes = rows(tree.data) as unknown as TreeNode[];
   const byParent = useMemo(() => groupByParent(nodes), [nodes]);
+  const needle = filter.trim().toLowerCase();
+  const keyHit = (node: TreeNode): boolean =>
+    needle !== '' &&
+    node.key.toLowerCase().includes(needle) &&
+    !node.title.toLowerCase().includes(needle);
   const matches = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
     if (needle === '') return null;
     return new Set(
       nodes
@@ -677,6 +681,16 @@ export function SpecTree({
             />
           )}
           <span className="truncate">{node.title}</span>
+          {/* **번호로 걸렀으면 번호를 보인다**(2026-10-04 · REQ-WEB-288). 행은 제목만 그려서, 번호로 맞아
+              남은 행은 왜 남았는지 알 수 없었다. 제목으로도 맞으면 그것으로 충분하다 */}
+          {keyHit(node) && (
+            <span
+              data-testid="tree-key-hit"
+              className="shrink-0 font-mono text-2xs text-text-faint"
+            >
+              {node.key}
+            </span>
+          )}
           {node.archived_at != null && (
             <StatusBadge token="idle" label={t('specs.archived_badge')} />
           )}

@@ -11,7 +11,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import { msg, NERV_ERROR, REQUIREMENT_REF, specType, specVersionStatus } from '@nerv/schema';
-import { entityRef } from '../../common/entity-ref.js';
+import { entityRef, looksLikeUuid } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
@@ -34,17 +34,24 @@ const STATUS_BOOST: Record<string, number> = {
 };
 
 /**
- * **질의가 키처럼 생겼는가** — 접두는 보지 않는다(2026-09-07 · REQ-WEB-141 의 짝).
+ * **공백 없는 한 덩어리면 번호로 대조한다**(2026-10-04 · 사람 결정 S1 · REQ-API-258).
  *
- * 예전에는 `SPC-`·`REQ-`·`TSK-` 접두를 규칙으로 삼았는데, 표시 키 형식은 2026-08-23 에
- * `<PRJ>-<타입>-<base32 6>` 로 바뀌었다([3.3 데이터 모델](../../../../../docs/03-proposal/data-model.md) §5.1).
- * 실데이터에서 그 접두에 맞는 키는 task 0/487 · spec 2/159 라, 사람이 실제 키(`CLV-T-ZWHNB0`)를
- * 치면 ID 직행이 한 번도 걸리지 않았다 — 검색이 아는 유일한 정확 경로가 죽어 있었다.
- *
- * 그래서 **모양만 본다**: 대문자·숫자 토막이 하이픈으로 이어진 것. 일반 문장에 세 열 조회를
- * 붙이지 않기 위한 게이트일 뿐이고, 판정은 열과의 정확 일치가 한다.
+ * 2026-09-07 에는 접두(`SPC-`·`REQ-`·`TSK-`) 대신 "대문자·숫자 토막이 하이픈으로 이어진 모양" 을
+ * 게이트로 삼고 검색어를 대문자로 바꿔 비교했다. 그 모양 밖의 키가 실데이터에 많았다: 시드와
+ * clemvion 의 소문자 키(`channel-web-chat` · `chat-channel`)는 대문자로 바뀐 검색어와 영영 같지
+ * 않았고, 한 단어 키(`README` · `common`)와 숫자로 시작하는 키(`03-proposal-…`)는 게이트를 넘지
+ * 못했다. 키는 부른 쪽이 짓는 값이라([4.4 API 명세](../../../../../docs/04-mvp/api.md) EP-SPEC-07)
+ * 모양을 가정할 수 없다 — 대소문자를 무시하고 세 열과 견준다. 조회 셋은 프로젝트 안의 색인을 탄다.
  */
-const KEY_SHAPE_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/i;
+const SINGLE_TOKEN_RE = /^\S+$/;
+
+/**
+ * **번호의 일부로 찾기**(2026-10-04 · 사람 결정 S2 · REQ-API-259). 세 글자 이상이어야 하고,
+ * 맨 위에는 정확 일치 다음으로 **다섯 건까지만** 올린다 — 모든 키에 들어 있는 토막(`SPC`)을 치면
+ * 결과 전부가 번호 일치로 채워져 본문 일치가 밀려나기 때문이다. 나머지는 다른 단계와 함께 순위로 섞인다.
+ */
+const FRAGMENT_MIN = 3;
+const FRAGMENT_PINNED = 5;
 
 export interface SearchHit extends Record<string, unknown> {
   spec_id: string;
@@ -66,6 +73,11 @@ export interface SearchHit extends Record<string, unknown> {
   kind?: 'spec' | 'requirement' | 'task';
   /** 이 결과가 어느 경로로 들어왔나 — 디버깅이 아니라 신뢰의 문제다 */
   matched_by: string[];
+  /**
+   * 보관된 문서인가(2026-10-04 · REQ-API-258) — 번호로 찾으면 보관된 문서도 나온다. 번호를 친
+   * 사람은 그 문서를 열려는 것이라 감추지 않되, 보관됐다는 사실은 결과가 함께 알린다.
+   */
+  archived_at?: string | null;
 }
 
 export interface SearchResult extends Record<string, unknown> {
@@ -172,6 +184,11 @@ export class SearchService {
     // ① ID 직행 — 고정 ID 는 전문 검색을 거치지 않는다. 사람도 에이전트도 ID 를 칠 때는
     //    "찾아줘"가 아니라 "열어줘"라는 뜻이다.
     const direct = await this.byStableId(input.projectId, query, pick);
+    // ①' 번호의 일부 — 정확 일치가 없을 때만 찾는다(REQ-API-259)
+    const fragment =
+      direct.length === 0
+        ? await this.byKeyFragment(input.projectId, query, limit, pick, input.includeArchived)
+        : [];
 
     // ② 렉시컬 — FTS(영문·ID 토큰) + trgm(한국어 조사 변형). 둘은 서로의 사각을 덮는다.
     const lexical = await this.lexical(
@@ -192,7 +209,14 @@ export class SearchService {
 
     // ④ RRF 병합 — 점수 정규화 없이 **순위만** 쓴다. 렉시컬 점수와 코사인 거리는 단위가 달라
     //    가중합이 성립하지 않는다. 순위 역수 합은 그 비교를 아예 피한다.
-    const merged = this.rrf([direct, lexical, semantic]);
+    //
+    //    **번호 일치는 순위 합산 밖에서 맨 위에 둔다**(2026-10-04 · REQ-API-258). 합산에 넣으면 정확
+    //    일치는 1/61(≈0.016)이고 승인본 가산점이 0.03 이라, 초안이나 작업을 번호로 정확히 쳐도 다른
+    //    승인 문서에 밀렸다 — ⌘K 에서 Enter 를 누르면 친 번호가 아닌 문서가 열렸다(REQ-API-025 가
+    //    처음부터 약속한 "최상위 직행" 이 지켜지지 않았다).
+    const pinned = [...direct, ...fragment.slice(0, FRAGMENT_PINNED)];
+    const ranked = this.rrf([fragment.slice(FRAGMENT_PINNED), lexical, semantic]);
+    const merged = this.pinFirst(pinned, ranked);
 
     // **자르기 전에 거른다.** 뒤에서 거르면 요청한 limit 보다 적게 나오고, 그 부족분이
     // "더 없다" 로 읽힌다 — 종류·상태는 이미 실려 온 값이라 여기서 판정할 수 있다.
@@ -248,30 +272,112 @@ export class SearchService {
    * 그때까지 task 는 어느 열도 보지 않았다.
    */
   private async byStableId(projectId: string, query: string, pick: Pick): Promise<SearchHit[]> {
-    const id = query.trim().toUpperCase();
-    if (!KEY_SHAPE_RE.test(id)) return [];
+    const id = query.trim();
+    if (!SINGLE_TOKEN_RE.test(id)) return [];
+    // UUID 도 받는다(2026-10-04 · 사람 결정 S3) — 도구와 API 가 주고받는 값을 그대로 붙여 넣는 경우다
+    const uuid = looksLikeUuid(id) ? id : null;
 
     const { rows } = await this.db.execute<SearchHit>(sql`
       SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type,
              sv.status::text AS doc_status, sv.version_no, NULL::text AS anchor,
-             left(coalesce(sv.body_md, ''), 200) AS snippet, 'spec' AS kind
+             left(coalesce(sv.body_md, ''), 200) AS snippet, 'spec' AS kind, s.archived_at
         FROM spec s
    LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
-       WHERE s.project_id = ${projectId} AND s.key = ${id}${pick.member}
+       WHERE s.project_id = ${projectId}
+         AND (lower(s.key) = lower(${id}) OR s.id = ${uuid}::uuid)${pick.member}
        UNION ALL
       SELECT s.id, s.key, s.title, s.type::text, sv.status::text, sv.version_no, r.ref AS anchor,
-             r.statement_md AS snippet, 'requirement' AS kind
+             r.statement_md AS snippet, 'requirement' AS kind, s.archived_at
         FROM requirement r
         JOIN spec s ON s.id = r.spec_id
    LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
-       WHERE r.project_id = ${projectId} AND r.ref = ${id}${this.requirementAlive(pick)}${pick.member}
+       WHERE r.project_id = ${projectId}
+         AND (lower(r.ref) = lower(${id}) OR r.id = ${uuid}::uuid)${this.requirementAlive(pick)}${pick.member}
        UNION ALL
       SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::int, NULL::text,
-             left(coalesce(t.body_md, ''), 200), 'task' AS kind
+             left(coalesce(t.body_md, ''), 200), 'task' AS kind, NULL::timestamptz
         FROM task t
-       WHERE t.project_id = ${projectId} AND t.key = ${id}
+       WHERE t.project_id = ${projectId}
+         AND (lower(t.key) = lower(${id}) OR t.id = ${uuid}::uuid)
     `);
     return rows.map((r) => ({ ...r, score: 1, matched_by: ['id'] }));
+  }
+
+  /**
+   * 번호의 일부(2026-10-04 · REQ-API-259) — 문서 키 · 요구사항 번호 · 작업 키 안에 검색어가 들어 있는 것.
+   *
+   * 순서는 **얼마나 번호다운 일치인가**다: 끝이 맞는 것(`CWC-007` → `SPC-CWC-007`)이 먼저, 그다음
+   * 앞이 맞는 것, 그다음 가운데다. 같은 자리면 짧은 키가 먼저다 — 남는 글자가 적을수록 친 것에 가깝다.
+   * 보관 · 기준 판정은 다른 단계와 같다. 작업은 보관이 없다.
+   */
+  private async byKeyFragment(
+    projectId: string,
+    query: string,
+    limit: number,
+    pick: Pick,
+    includeArchived?: boolean,
+  ): Promise<SearchHit[]> {
+    const q = query.trim();
+    if (!SINGLE_TOKEN_RE.test(q) || [...q].length < FRAGMENT_MIN) return [];
+    const archived = includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
+    const place = (column: SQL): SQL => sql`CASE
+        WHEN right(lower(${column}), length(${q})) = lower(${q}) THEN 0
+        WHEN left(lower(${column}), length(${q})) = lower(${q}) THEN 1
+        ELSE 2 END`;
+    const { rows } = await this.db.execute<SearchHit & { place: number }>(sql`
+      SELECT * FROM (
+        SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type,
+               sv.status::text AS doc_status, sv.version_no, NULL::text AS anchor,
+               left(coalesce(sv.body_md, ''), 200) AS snippet, 'spec' AS kind, s.archived_at,
+               ${place(sql`s.key`)} AS place, length(s.key) AS len
+          FROM spec s
+     LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
+         WHERE s.project_id = ${projectId} AND strpos(lower(s.key), lower(${q})) > 0${archived}${pick.member}
+         UNION ALL
+        SELECT s.id, s.key, s.title, s.type::text, sv.status::text, sv.version_no, r.ref,
+               r.statement_md, 'requirement', s.archived_at,
+               ${place(sql`r.ref`)}, length(r.ref)
+          FROM requirement r
+          JOIN spec s ON s.id = r.spec_id
+     LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
+         WHERE r.project_id = ${projectId} AND strpos(lower(r.ref), lower(${q})) > 0${this.requirementAlive(pick)}${archived}${pick.member}
+         UNION ALL
+        SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::int, NULL::text,
+               left(coalesce(t.body_md, ''), 200), 'task', NULL::timestamptz,
+               ${place(sql`t.key`)}, length(t.key)
+          FROM task t
+         WHERE t.project_id = ${projectId} AND strpos(lower(t.key), lower(${q})) > 0
+      ) hits
+      ORDER BY place, len, key, anchor NULLS FIRST
+      LIMIT ${limit}
+    `);
+    return rows.map(({ place: _place, len: _len, ...r }) => ({
+      ...r,
+      score: 1,
+      matched_by: ['key'],
+    }));
+  }
+
+  /**
+   * 번호 일치를 맨 위에 두고, 순위 합산 결과에서 같은 결과를 뺀다 — 다른 단계에서도 맞았다면 그
+   * 경로를 `matched_by` 에 더한다(무엇에 맞았는지는 신뢰의 문제다).
+   */
+  private pinFirst(pinned: SearchHit[], ranked: SearchHit[]): SearchHit[] {
+    const keyOf = (hit: SearchHit): string => `${hit.spec_id}:${hit.anchor ?? ''}`;
+    const top = new Map<string, SearchHit>();
+    for (const hit of pinned) if (!top.has(keyOf(hit))) top.set(keyOf(hit), { ...hit });
+    const rest: SearchHit[] = [];
+    for (const hit of ranked) {
+      const same = top.get(keyOf(hit));
+      if (same === undefined) {
+        rest.push(hit);
+        continue;
+      }
+      for (const source of hit.matched_by) {
+        if (!same.matched_by.includes(source)) same.matched_by.push(source);
+      }
+    }
+    return [...top.values(), ...rest];
   }
 
   private async lexical(
@@ -286,7 +392,7 @@ export class SearchService {
       WITH scored AS (
         SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type,
                sv.status::text AS doc_status, sv.version_no, NULL::text AS anchor,
-               left(coalesce(sv.body_md, ''), 240) AS snippet,
+               left(coalesce(sv.body_md, ''), 240) AS snippet, s.archived_at,
                GREATEST(
                  ts_rank(to_tsvector('simple', coalesce(sv.body_md, '')), plainto_tsquery('simple', ${query})),
                  ts_rank(to_tsvector('simple', s.title), plainto_tsquery('simple', ${query})),
@@ -298,7 +404,7 @@ export class SearchService {
          WHERE s.project_id = ${projectId}${archived}${pick.member}
         UNION ALL
         SELECT s.id, s.key, s.title, s.type::text, sv.status::text, sv.version_no, r.ref AS anchor,
-               r.statement_md AS snippet, similarity(r.statement_md, ${query}) AS rank
+               r.statement_md AS snippet, s.archived_at, similarity(r.statement_md, ${query}) AS rank
           FROM requirement r
           JOIN spec s ON s.id = r.spec_id
      LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
@@ -318,20 +424,27 @@ export class SearchService {
   ): Promise<SearchHit[]> {
     const archived = includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
     const literal = `[${embedding.join(',')}]`;
+    // **가까운 순으로 자른다**(2026-10-04 · REQ-API-260). `DISTINCT ON (s.id)` 는 정렬의 첫 열이
+    // `s.id` 여야 해서, 그 자리에서 `LIMIT` 을 걸면 문서마다 가장 가까운 청크를 고른 뒤 **UUID 순으로**
+    // 잘랐다 — 가장 오래된 문서들이 질의와 상관없이 모든 검색의 의미 단계를 채웠다. 문서마다 고른 뒤
+    // 거리로 다시 정렬해 자른다.
     const { rows } = await this.db.execute<SearchHit & { body_md: string | null }>(sql`
-      SELECT DISTINCT ON (s.id)
-             s.id AS spec_id, s.key, s.title, s.type::text AS type,
-             sv.status::text AS doc_status, sv.version_no, e.anchor, sv.body_md,
-             1 - (e.embedding <=> ${literal}::vector) AS score
-        FROM spec_chunk_embedding e
-        JOIN spec_version sv ON sv.id = e.spec_version_id
-        JOIN spec s ON s.id = sv.spec_id
-       WHERE s.project_id = ${projectId}${archived}${pick.member}
-         -- **그 기준이 읽는 버전의 청크만**(REQ-API-195). 임베딩은 최신 승인본 · 초안 · 검토 중에만
-         -- 있다(REQ-DB-017) — 기준선이 묶은 옛 승인본은 청크가 없어 렉시컬로만 찾는다
-         AND sv.id = ${pick.versionId}
-       ORDER BY s.id, e.embedding <=> ${literal}::vector
-       LIMIT ${limit}
+      SELECT * FROM (
+        SELECT DISTINCT ON (s.id)
+               s.id AS spec_id, s.key, s.title, s.type::text AS type,
+               sv.status::text AS doc_status, sv.version_no, e.anchor, sv.body_md, s.archived_at,
+               1 - (e.embedding <=> ${literal}::vector) AS score
+          FROM spec_chunk_embedding e
+          JOIN spec_version sv ON sv.id = e.spec_version_id
+          JOIN spec s ON s.id = sv.spec_id
+         WHERE s.project_id = ${projectId}${archived}${pick.member}
+           -- **그 기준이 읽는 버전의 청크만**(REQ-API-195). 임베딩은 최신 승인본 · 초안 · 검토 중에만
+           -- 있다(REQ-DB-017) — 기준선이 묶은 옛 승인본은 청크가 없어 렉시컬로만 찾는다
+           AND sv.id = ${pick.versionId}
+         ORDER BY s.id, e.embedding <=> ${literal}::vector
+      ) nearest
+      ORDER BY score DESC
+      LIMIT ${limit}
     `);
     // **스니펫은 맞은 청크다**(M12 · REQ-API-208) — 예전에는 본문 앞 240자였다. 색인과 같은 규칙으로
     // 다시 쪼개 앵커의 절을 꺼낸다(청크 문장은 저장하지 않는다 — 지문과 벡터만 있다)

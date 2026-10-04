@@ -149,17 +149,21 @@ describe('트리가 서는 곳 (OBS-01)', () => {
 });
 
 describe('찾는 칸 — 둘째 열의 머리는 제목 거르기다', () => {
-  it('제목·키로 거른다 — 문서 검색은 ⌘K 의 일이다', async () => {
+  it('제목·번호로 거른다 — 문서 검색은 ⌘K 의 일이다', async () => {
     mount('/p/demo/specs/SPC-A');
     const col = await column();
     await within(col).findByText('임베드');
     const filter = within(col).getByTestId('tree-title-filter');
-    expect(filter.getAttribute('placeholder')).toBe('제목·키로 찾기');
+    expect(filter.getAttribute('placeholder')).toBe('제목·번호로 찾기');
     fireEvent.change(filter, { target: { value: '위젯' } });
     expect(within(col).queryByText('임베드')).toBeNull();
     expect(within(col).getByText('위젯')).toBeDefined();
+    // 제목으로 맞은 줄은 번호를 덧붙이지 않는다
+    expect(within(col).queryByTestId('tree-key-hit')).toBeNull();
     fireEvent.change(filter, { target: { value: 'spc-b' } });
     expect(within(col).getByText('임베드')).toBeDefined();
+    // **번호로 맞은 줄은 번호를 보인다**(REQ-WEB-288) — 제목만 보이면 왜 남았는지 알 수 없다
+    expect(within(col).getByTestId('tree-key-hit').textContent).toBe('SPC-B');
   });
 });
 
