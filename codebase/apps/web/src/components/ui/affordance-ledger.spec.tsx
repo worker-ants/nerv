@@ -114,6 +114,8 @@ interface Counts {
 const ALLOWED_GHOST: Record<string, number> = {
   'features/spec-editor/meta-dialog.tsx': 1,
   'features/spec-editor/baseline-controls.tsx': 1,
+  // 옮길 자리를 고르는 창의 [닫기](2026-10-04 · REQ-WEB-291) — 문서 정보 창의 바닥과 같은 자리다
+  'features/spec-editor/arrange-bar.tsx': 1,
 };
 
 function count(file: string): Counts {

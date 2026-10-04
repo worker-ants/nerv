@@ -616,6 +616,36 @@ export const en = {
   'specs.status_newer': 'New version in progress',
   'specs.attached_only': 'Has attachments',
   'specs.row_attachments': '{count} attachments',
+  'specs.arrange.toggle': 'Arrange',
+  'specs.arrange.toggle_off': 'Done arranging',
+  'specs.arrange.bar': 'Arrange documents',
+  'specs.arrange.hint': 'Select documents to move or reorder. Space on a row selects it too.',
+  'specs.arrange.selected': '{count} selected',
+  'specs.arrange.select': 'Select {title}',
+  'specs.arrange.move': 'Move',
+  'specs.arrange.up': 'Up',
+  'specs.arrange.down': 'Down',
+  'specs.arrange.archive': 'Archive',
+  'specs.arrange.archive_confirm':
+    'Archive the {count} selected documents along with their children ({total} in all).',
+  'specs.arrange.archive_blocked':
+    'Can’t archive: someone has claimed a task based on this document or one of its children.',
+  'specs.arrange.archived':
+    'Archived {count} documents. They’re not deleted, just hidden from default lists.',
+  'specs.arrange.archived_partial':
+    'Archived {count} documents. {failed} couldn’t be archived (see below the bar).',
+  'specs.arrange.pick_first': 'Select documents in the tree first.',
+  'specs.arrange.clear': 'Clear selection',
+  'specs.arrange.move_title': 'Where to move {count} documents',
+  'specs.arrange.move_hint':
+    'You can’t pick a selected document or anything under it. They go to the end of the new place.',
+  'specs.arrange.move_confirm': 'Move here',
+  'specs.arrange.moved': 'Moved {count} documents to the end of their new place.',
+  'specs.arrange.reordered': 'Order updated.',
+  'specs.arrange.order_locked':
+    'Turn off all filters to reorder. In a filtered list, documents would land between ones you can’t see.',
+  'specs.arrange.order_same_parent':
+    'Only documents under the same parent can be reordered together.',
   'specs.row_newer_title': 'A newer version exists on top of the approved one. Click to open v{n}.',
   'specs.search_basis_approved': 'Searched approved versions.',
   'specs.search_basis_latest':

@@ -38,6 +38,7 @@ import {
   SpecCreateInput,
   SpecDraftUpsertInput,
   SpecArchiveInput,
+  SpecArrangeInput,
   SpecMetaUpdateInput,
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -573,6 +574,24 @@ export class SpecController {
       detachParent: meta.parent_key === null,
       sortKey: meta.sort_key ?? null,
       ownerRole: meta.owner_role ?? null,
+    });
+  }
+
+  /**
+   * EP-SPEC-25 — 트리 정리(REQ-API-265). 한 부모 아래 자식의 최종 순서를 정한다 — 순서 바꾸기와 여러 문서
+   * 옮기기가 한 규칙이다. 사람 전용이고 권한은 문서 정보와 같다(`spec:meta`)
+   */
+  @RequireScope('spec:meta')
+  @Post('specs/arrange')
+  arrange(@Req() req: ProjectRequest, @Body() body: Record<string, unknown>): Promise<unknown> {
+    const principal = actorOf(req);
+    const input = parseBody(SpecArrangeInput, body);
+    return this.specs.arrange({
+      actor: actorOf(req),
+      projectId: projectOf(req),
+      userId: principal.userId,
+      parentKey: input.parent_key,
+      keys: input.keys,
     });
   }
 
