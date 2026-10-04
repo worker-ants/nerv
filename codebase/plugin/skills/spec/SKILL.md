@@ -174,7 +174,7 @@ allowed-tools:
 3. `nerv_spec_draft_upsert` — 입력: `parent_id`, `type`, `title`, `body_markdown`,
    `change_summary`(새 스펙이므로 `base_hash` 없음), 필요하면 `relations`, `idempotency_key`.
    **`key` 는 프로젝트 안에서 유일하다** — 이미 쓰이면 `key_taken` 이 온다. 그때 답은 다른
-   키를 지어내는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(보관된 문서면 복구한다).
+   키를 지어내는 것이 아니라 **그 문서를 읽고 이어 쓰는 것**이다(보관된 문서면 복구는 사람이 한다 — `web_url` 을 건네고 기다린다).
 4. 응답의 `web_url`(S3 딥링크) · `relations`(added·removed·unknown) · `delta` 를 터미널에
    표시한다 — 각각 사람이 웹에서 이어보는 경로, **이 문서가 그래프에 붙었는지**의 답,
    그리고 **무엇이 바뀌었는지**다.
@@ -253,7 +253,8 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_PRECONDITION `wrapped_body` | 읽은 본문을 **포장째** 저장하려 했다 — `<nerv:spec …>` 경계는 표시이지 본문이 아니다. 경계 안쪽만 넣어 다시 부른다 |
 | NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 넣어 보낸다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
-| NERV_PRECONDITION `key_taken` | 그 키를 이미 쓰는 문서가 있다 — details 의 `web_url`·`archived` 를 보고 **그 문서를 읽고 이어 쓴다**(보관 상태면 복구가 먼저다). 키를 조금 바꿔 새로 만들지 않는다 |
+| NERV_PRECONDITION `key_taken` | 그 키를 이미 쓰는 문서가 있다 — details 의 `web_url`·`archived` 를 보고 **그 문서를 읽고 이어 쓴다**. `archived` 가 참이면 에이전트는 복구하지 못한다 — `web_url` 을 사람에게 건네고 복구를 요청한다. 키를 조금 바꿔 새로 만들지 않는다 |
+| NERV_PRECONDITION `spec_archived` | 보관된 문서에 초안을 쓰거나 검토를 요청했다 — 보관은 "더 이상 기준이 아니다" 라는 뜻이다. 이어 쓰지 않는다. details 의 `web_url` 을 사람에게 건네고 복구할지 묻는다(복구는 사람이 웹에서 한다) |
 | NERV_PRECONDITION `relation_base_hash_required` | 관계를 선언하면서 상대 문서의 지문을 넣지 않았다 — details 의 `targets` 가 어느 문서인지 준다. 그 문서를 nerv_spec_get 으로 읽고 `content_hash` 를 넣어 다시 부른다 |
 | NERV_PRECONDITION `stale_relation_target` | 상대 문서가 그 사이 바뀌었다 — 다시 읽고 **관계가 여전히 맞는지 확인한 뒤** 새 지문으로 부른다. 지문만 갈아 끼우는 것은 확인이 아니다 |
 

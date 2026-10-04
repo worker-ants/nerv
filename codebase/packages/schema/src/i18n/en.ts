@@ -182,6 +182,8 @@ export const en = {
   'error.human_only.inbox': 'The inbox is for humans only.',
   'error.human_only.inbox_decide': 'Only humans can decide inbox items.',
   'error.human_only.project_admin': 'Only humans can change, archive, or restore project settings.',
+  'error.human_only.spec_meta':
+    'Only a person can change document info, archive, or restore. Open Document info on that document in the web app.',
   'error.human_only.steer': 'Only humans can steer or stop a session.',
   'error.human_only.token_issue': 'Only humans can issue tokens.',
   'error.idempotency.mismatch':
@@ -810,6 +812,7 @@ export const en = {
   'error.spec.not_found': 'Spec not found.',
   'error.spec.requirement_not_found': 'Requirement not found.',
   'error.spec.parent_archived': 'The parent spec is archived.',
+  'error.spec.archived': 'This document is archived ({key}). Restore it before you continue.',
   'error.spec.title_required': 'A title is required.',
   'error.spec.version_missing': 'The requested version does not exist.',
   'error.spec.version_not_found': 'Version not found.',
@@ -828,6 +831,8 @@ export const en = {
   'error.task.release_required': 'There is an active claim. Release it or stop the session first.',
   'error.task.transition_not_allowed': "Can't change from {from} to {to}.",
   'error.task.not_ready': 'The task is not ready ({status}).',
+  'error.task.basis_archived':
+    'The source document ({spec}) is archived, so this task can’t be started.',
   'error.webhook.bad_signature': 'Signature mismatch.',
   'error.webhook.no_secret': 'The webhook secret is not configured.',
   'error.webhook.no_signature': 'Signature missing.',
@@ -1563,7 +1568,7 @@ export const en = {
   'spec.viewer': 'Viewing as {name}',
   // ── 스펙 메타·아카이브 (screens.md §2.4) ────────────────────────────────────────
   'spec.archived_banner':
-    'This document is archived. It’s hidden from lists and the tree, and opens only by its URL. Its links and history are kept.',
+    'This document is archived. It’s left out of the default lists and the tree; turn on Show archived in the spec list to see it. Its links and history are kept.',
   'spec.restore': 'Restore',
   'spec.restore_blocked_parent':
     'Its parent ({parent}) is archived, so it can’t be restored. Restore the parent first.',
@@ -1573,6 +1578,8 @@ export const en = {
   'spec.meta.archive_title': 'Not a delete. It’s hidden from lists, but links and history are kept',
   'spec.meta.edit_role': 'Only planner and admin can change this.',
   'spec.meta.archived': 'Archived. It’s not deleted, just hidden from default lists.',
+  'spec.meta.archived_open_tasks':
+    'Archived. {count} unfinished tasks were taken out of the task queue. Clean them up on the task board.',
   'spec.meta.blocker.child': 'Child spec',
   'spec.meta.blocker.claim': 'Task with an active claim',
   'spec.meta.cycle': '{parent} is under {key}. A spec can’t be moved under its own descendant.',

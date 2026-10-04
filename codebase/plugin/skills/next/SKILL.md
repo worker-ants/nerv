@@ -87,6 +87,7 @@ allowed-tools:
 | --- | --- |
 | NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 재로그인·토큰 재발급을 사람에게 안내. 권한 확대를 시도하지 않는다 |
 | NERV_CONFLICT_SCOPE | 다음 후보로 이동, 없으면 nerv_question_create |
+| NERV_PRECONDITION `spec_archived` | 근거 문서(`details.spec`)가 보관돼 그 작업은 시작할 수 없다 — 다음 후보로 이동하고, 작업 키와 문서 키를 사람에게 보고한다 |
 | NERV_RATE_LIMIT | retry_after_s 준수. 병렬 재시도로 우회하지 않는다 |
 | NERV_UNAVAILABLE | 읽기는 `.nerv/cache/context-pack.json`(마지막 bootstrap)과 `.nerv/cache/specs/` 의 기준 버전 스냅샷을 Read 한다. 쓰기는 .nerv/outbox/에 멱등 키로 큐잉. 신규 클레임은 발급하지 않는다 |
 

@@ -29,7 +29,10 @@ afterEach(() => {
   cleanup();
 });
 
-function renderDialog(reply: { status: number; body: unknown }): {
+function renderDialog(
+  reply: { status: number; body: unknown },
+  options: { archived?: boolean } = {},
+): {
   onClose: ReturnType<typeof vi.fn>;
   calls: string[];
 } {
@@ -51,6 +54,7 @@ function renderDialog(reply: { status: number; body: unknown }): {
         specKey="SPC-A"
         title="문서"
         canEdit
+        archived={options.archived ?? false}
         onClose={onClose}
       />
     ),
@@ -72,6 +76,12 @@ function renderDialog(reply: { status: number; body: unknown }): {
 }
 
 describe('문서 정보 · 보관', () => {
+  it('이미 보관된 문서에는 [보관]이 없다 — 되살리는 길은 배너의 [복구]다 (REQ-WEB-287)', async () => {
+    renderDialog({ status: 200, body: {} }, { archived: true });
+    await screen.findByTestId('meta-save');
+    expect(screen.queryByTestId('meta-archive')).toBeNull();
+  });
+
   it('확인 전에는 보관하지 않는다 — 되살리는 길을 함께 말한다', async () => {
     const { calls } = renderDialog({ status: 200, body: {} });
     fireEvent.click(await screen.findByTestId('meta-archive'));

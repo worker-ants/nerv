@@ -2147,3 +2147,116 @@ describe('기준선 작업 — 세트째 옮긴다 (REQ-API-210)', () => {
     });
   });
 });
+
+/**
+ * **보관한 문서는 작업의 근거가 되지 않는다**(2026-10-04 · REQ-API-255).
+ *
+ * 보관은 활성 클레임이 있으면 막히지만 ready 작업은 막지 않는다. 그래서 보관한 뒤에도 그 문서의
+ * ready 작업이 후보 목록에 남아, 에이전트가 폐기한 문서를 근거로 새 작업을 시작할 수 있었다.
+ * 후보 목록 · 클레임 · 작업 생성이 같은 판정을 쓴다 — 목록만 거르면 키를 아는 세션은 그대로 잡는다.
+ */
+describe('보관한 문서의 작업 — 큐에서 빠지고 잡히지 않는다 (REQ-API-255)', () => {
+  let doc = '';
+  let version = '';
+  let requirement = '';
+
+  beforeEach(async () => {
+    doc = newId();
+    version = newId();
+    requirement = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','SPC-ARCH-TASK','보관할 문서')`,
+      [doc, projectId],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'approved','# 본문', decode('0a','hex'), $3)`,
+      [version, doc, hana],
+    );
+    await pool.query(`UPDATE spec SET current_version_id = $1 WHERE id = $2`, [version, doc]);
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-ARCH-001','WHEN 조건이면 THE SYSTEM SHALL 동작한다','must',$4,$4)`,
+      [requirement, projectId, doc, version],
+    );
+  });
+
+  afterEach(async () => {
+    await pool.query(
+      `DELETE FROM claim WHERE task_id IN (SELECT id FROM task
+         WHERE source_spec_version_id = $1 OR source_requirement_id = $2)`,
+      [version, requirement],
+    );
+    await pool.query(
+      `DELETE FROM task WHERE source_spec_version_id = $1 OR source_requirement_id = $2`,
+      [version, requirement],
+    );
+    await pool.query(`DELETE FROM requirement WHERE id = $1`, [requirement]);
+    await pool.query(`UPDATE spec SET current_version_id = NULL WHERE id = $1`, [doc]);
+    await pool.query(`DELETE FROM spec_version WHERE id = $1`, [version]);
+    await pool.query(`DELETE FROM spec WHERE id = $1`, [doc]);
+  });
+
+  async function readyTask(
+    key: string,
+    basis: { version?: string; requirement?: string },
+  ): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id, source_requirement_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,$3,'ready',$4,$5,'목표','PR','저장소','건드리지 않을 것')`,
+      [id, projectId, key, basis.version ?? null, basis.requirement ?? null],
+    );
+    return id;
+  }
+
+  const archive = (): Promise<unknown> =>
+    pool.query(`UPDATE spec SET archived_at = now() WHERE id = $1`, [doc]);
+
+  it('보관하면 후보에서 빠진다 — 복구하면 돌아온다', async () => {
+    const task = await readyTask('TSK-ARCH-1', { version });
+    expect((await tasks.next({ projectId })).map((c) => c.id)).toContain(task);
+
+    await archive();
+    expect((await tasks.next({ projectId })).map((c) => c.id)).not.toContain(task);
+
+    await pool.query(`UPDATE spec SET archived_at = NULL WHERE id = $1`, [doc]);
+    expect((await tasks.next({ projectId })).map((c) => c.id)).toContain(task);
+  });
+
+  it('키를 알아도 잡지 못한다 — 클레임도 같은 판정이다', async () => {
+    const task = await readyTask('TSK-ARCH-2', { version });
+    await archive();
+
+    await expect(tasks.claim(claimInput(task, sessionHana, hana))).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'spec_archived', spec: 'SPC-ARCH-TASK' },
+    });
+    expect(await scalarText(`SELECT status::text FROM task WHERE id = '${task}'`)).toBe('ready');
+  });
+
+  it('요구사항으로만 이어진 임포트 작업도 같다 — 기준 버전이 없어도 근거 문서는 있다', async () => {
+    const task = await readyTask('TSK-ARCH-3', { requirement });
+    expect((await tasks.next({ projectId })).map((c) => c.id)).toContain(task);
+
+    await archive();
+    expect((await tasks.next({ projectId })).map((c) => c.id)).not.toContain(task);
+    await expect(tasks.claim(claimInput(task, sessionHana, hana))).rejects.toMatchObject({
+      details: { kind: 'spec_archived' },
+    });
+  });
+
+  it('보관한 문서를 근거로 새 작업을 만들지 못한다', async () => {
+    await archive();
+    await expect(
+      tasks.create({
+        projectId,
+        title: '폐기한 문서의 작업',
+        sourceSpecVersionId: version,
+        userId: hana,
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'spec_archived', spec: 'SPC-ARCH-TASK' } });
+  });
+});

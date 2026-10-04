@@ -188,6 +188,8 @@ export const ko = {
   'error.human_only.inbox': '받은 요청은 사람 전용입니다.',
   'error.human_only.inbox_decide': '받은 요청 결정은 사람만 할 수 있습니다.',
   'error.human_only.project_admin': '프로젝트 설정 변경·보관·복구는 사람만 할 수 있습니다.',
+  'error.human_only.spec_meta':
+    '문서 정보 변경·보관·복구는 사람만 할 수 있습니다. 웹에서 그 문서의 [문서 정보]를 엽니다.',
   'error.human_only.steer': '지시와 중단은 사람만 할 수 있습니다.',
   'error.human_only.token_issue': '토큰 발급은 사람만 할 수 있습니다.',
   'error.idempotency.mismatch': '같은 멱등 키로 다른 요청이 왔습니다. 새 키로 다시 보내세요.',
@@ -795,6 +797,7 @@ export const ko = {
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
   'error.spec.requirement_not_found': '요구사항을 찾을 수 없습니다.',
   'error.spec.parent_archived': '상위 문서가 보관된 상태입니다.',
+  'error.spec.archived': '보관된 문서입니다({key}). 이어서 쓰려면 먼저 복구해야 합니다.',
   'error.spec.title_required': '제목이 필요합니다.',
   'error.spec.version_missing': '요청한 버전이 없습니다.',
   'error.spec.version_not_found': '버전을 찾을 수 없습니다.',
@@ -813,6 +816,7 @@ export const ko = {
     '활성 클레임이 있습니다. 먼저 클레임을 해제하거나 세션을 중단하세요.',
   'error.task.transition_not_allowed': '{from}에서 {to} 상태로는 바꿀 수 없습니다.',
   'error.task.not_ready': '작업이 준비됨 상태가 아닙니다({status}).',
+  'error.task.basis_archived': '근거 문서({spec})가 보관되어 이 작업을 시작할 수 없습니다.',
   'error.webhook.bad_signature': '서명이 일치하지 않습니다.',
   'error.webhook.no_secret': '웹훅 시크릿이 설정되지 않았습니다.',
   'error.webhook.no_signature': '서명이 없습니다.',
@@ -1540,7 +1544,7 @@ export const ko = {
   'spec.viewer': '보는 사람: {name}',
   // ── 스펙 메타·보관 (screens.md §2.4) ────────────────────────────────────────
   'spec.archived_banner':
-    '보관된 문서입니다. 목록과 트리에는 보이지 않고 주소로만 열 수 있습니다. 링크와 이력은 그대로 남아 있습니다.',
+    '보관된 문서입니다. 기본 목록과 트리에서는 빠지고, 스펙 목록의 [보관 보기]를 켜면 함께 보입니다. 링크와 이력은 그대로 남아 있습니다.',
   'spec.restore': '복구',
   'spec.restore_blocked_parent':
     '상위 문서({parent})가 보관된 상태라 복구할 수 없습니다. 상위 문서를 먼저 복구하세요.',
@@ -1550,6 +1554,8 @@ export const ko = {
   'spec.meta.archive_title': '삭제와 다릅니다. 목록에서만 빠지고 링크와 이력은 남습니다',
   'spec.meta.edit_role': 'planner·admin만 바꿀 수 있습니다.',
   'spec.meta.archived': '보관했습니다. 삭제되지 않고 목록에서만 빠집니다.',
+  'spec.meta.archived_open_tasks':
+    '보관했습니다. 끝나지 않은 작업 {count}건은 작업 큐에서 빠졌습니다. 작업 보드에서 정리해 주세요.',
   'spec.meta.blocker.child': '하위 스펙',
   'spec.meta.blocker.claim': '클레임 중인 작업',
   'spec.meta.cycle':

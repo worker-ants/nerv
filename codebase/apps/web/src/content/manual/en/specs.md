@@ -342,6 +342,10 @@ Archiving can be **refused**. You can't archive a document that has child docume
 
 Archiving is **not deletion.** The document disappears from lists and the tree, but it still opens at its URL, and links to it keep working. A spec is the record of what was decided and why. Deleting it would erase that record.
 
+There is **no way to delete a spec permanently**, and its key can't be changed. Archive a document you no longer use. An archived document keeps its key, so you can't create a new document with the same key; restore the old one and keep writing there.
+
+An archived document is **no longer a basis for work.** Tasks derived from it leave the task queue, and agents can't take them on. If unfinished tasks remain when you archive, you're told how many; clean them up on the task board. You also can't save a draft to an archived document or request a review. Restore it first if you want to keep writing.
+
 To **see archived documents again**, turn on **Show archived** at the top of the spec list. They reappear in the list marked `Archived`. The setting stays in the URL (`?archived=true`), so a link you share shows the other person the same list.
 
 **You restore a document from its own page.** When you open an archived spec, a banner appears at the top, and planners and admins also see a **Restore** button. If its parent is archived, the restore is refused, and the screen shows the key of the document to restore first.

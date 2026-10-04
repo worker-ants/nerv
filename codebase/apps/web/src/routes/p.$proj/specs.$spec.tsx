@@ -835,24 +835,27 @@ function SpecDetail(): React.JSX.Element {
         {/* **다음 할 일**(2026-09-24 — UI/UX 검토 SPEC-02 · SPEC-08 · SPEC-10 · REQ-WEB-214). 이 화면의 거의
             유일한 결정 단추 [검토 요청]이 본문 칸의 **맨 끝**에 있었다 — 56화면짜리 문서라면 56화면
             아래다. 잠긴 이유도, 검토 중이면 결재가 어디서 기다리는지도, 승인본이면 무엇을 하면 되는지도
-            말하지 않았다. 보는 버전의 상태가 이 줄을 정한다 */}
-        <NextStep
-          proj={proj}
-          spec={spec}
-          viewed={viewed}
-          viewingPast={viewing !== null}
-          checkBlocks={
-            check.data?.['verdict'] === 'block'
-              ? rows(check.data['findings']).filter((f) => f['severity'] === 'block').length
-              : 0
-          }
-          openComments={openCommentCount}
-          requirementCount={rows(requirements.data).length}
-          canCreateTask={canCreateTask}
-          submitting={submit.isPending}
-          onSubmit={() => setShowImpact(true)}
-          onRail={openRail}
-        />
+            말하지 않았다. 보는 버전의 상태가 이 줄을 정한다. **보관된 문서에는 두지 않는다**(REQ-WEB-287) —
+            검토 요청도 작업 만들기도 서버가 거절하고, 할 일은 위 배너의 [복구] 하나다 */}
+        {detail.data?.['archived_at'] == null && (
+          <NextStep
+            proj={proj}
+            spec={spec}
+            viewed={viewed}
+            viewingPast={viewing !== null}
+            checkBlocks={
+              check.data?.['verdict'] === 'block'
+                ? rows(check.data['findings']).filter((f) => f['severity'] === 'block').length
+                : 0
+            }
+            openComments={openCommentCount}
+            requirementCount={rows(requirements.data).length}
+            canCreateTask={canCreateTask}
+            submitting={submit.isPending}
+            onSubmit={() => setShowImpact(true)}
+            onRail={openRail}
+          />
+        )}
         {showImpact && (
           <div
             role="dialog"
@@ -1212,6 +1215,7 @@ function SpecDetail(): React.JSX.Element {
           // **합집합으로 본다**: 멤버십 한 행만 보면 조직 단위 admin 이 어느 프로젝트에서도
           // 역할이 없는 사람이 되어, 서버가 허용할 편집을 화면이 막는다(실측 2026-08-24).
           canEdit={canEditMeta}
+          archived={detail.data?.['archived_at'] != null}
           onClose={() => setMetaOpen(false)}
         />
       )}

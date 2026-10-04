@@ -721,6 +721,156 @@ describe('E09-S08 메타 편집은 이력을 보존한다', () => {
       }),
     ).rejects.toMatchObject({ details: { kind: 'parent_archived' } });
   });
+
+  // ── 2026-10-04 보관 정리(REQ-API-255~257) ──────────────────────────────────
+
+  const human = { userId: '', isAgent: false };
+  const archiveAs = (key: string, actor = { ...human, userId: planner }) =>
+    specs.archive({ actor, projectId, specKey: key, userId: planner });
+
+  it('이미 보관된 문서를 다시 보관해도 처음 보관한 시각은 그대로다 (REQ-API-256)', async () => {
+    const { specId } = await draft('SPC-TWICE', '# 두 번');
+    await archiveAs('SPC-TWICE');
+    await pool.query(`UPDATE spec SET archived_at = '2026-01-01T00:00:00Z' WHERE id = $1`, [
+      specId,
+    ]);
+    const before = await pool.query(
+      `SELECT count(*)::int AS n FROM event WHERE type = 'spec.archived'`,
+    );
+
+    const again = await archiveAs('SPC-TWICE');
+    expect(again).toMatchObject({ archived: true, unchanged: true });
+    const { rows } = await pool.query<{ at: string }>(
+      `SELECT archived_at::text AS at FROM spec WHERE id = $1`,
+      [specId],
+    );
+    expect(rows[0]?.at.startsWith('2026-01-01')).toBe(true);
+    // 바뀐 것이 없으면 알릴 것도 없다
+    const after = await pool.query(
+      `SELECT count(*)::int AS n FROM event WHERE type = 'spec.archived'`,
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+
+    // 복구도 같은 규칙이다
+    await specs.restore({
+      actor: { ...human, userId: planner },
+      projectId,
+      specKey: 'SPC-TWICE',
+      userId: planner,
+    });
+    const twice = await specs.restore({
+      actor: { ...human, userId: planner },
+      projectId,
+      specKey: 'SPC-TWICE',
+      userId: planner,
+    });
+    expect(twice).toMatchObject({ archived: false, unchanged: true });
+  });
+
+  it('끝나지 않은 작업을 알려 준다 — 보관은 그 작업을 큐에서 빼므로 (REQ-API-255)', async () => {
+    const { versionId } = await draft('SPC-OPENTASK', '# 작업이 남은 문서');
+    await approve(versionId);
+    for (const [key, status] of [
+      ['CLV-T-OPEN01', 'ready'],
+      ['CLV-T-DONE01', 'done'],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO task (id, project_id, key, title, status, source_spec_version_id, spec_impact, done_at,
+                           goal_md, output_format_md, tools_sources_md, boundaries_md)
+         VALUES ($1,$2,$3,$3,$4,$5,
+                 ${status === 'done' ? `'{"none": true}'::jsonb, now()` : 'NULL, NULL'},
+                 '목표','PR','저장소','경계')`,
+        [newId(), projectId, key, status, versionId],
+      );
+    }
+    const out = await archiveAs('SPC-OPENTASK');
+    expect(out['open_tasks']).toEqual(['CLV-T-OPEN01']);
+  });
+
+  it('요구사항으로만 이어진 작업의 활성 클레임도 보관을 막는다 (REQ-API-255)', async () => {
+    const { specId, versionId } = await draft('SPC-REQCLAIM', '# 요구사항');
+    await approve(versionId);
+    const requirementId = newId();
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-RCL-001','WHEN 조건이면 THE SYSTEM SHALL 동작한다','must',$4,$4)`,
+      [requirementId, projectId, specId, versionId],
+    );
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, source_requirement_id,
+                         goal_md, output_format_md, tools_sources_md, boundaries_md)
+       VALUES ($1,$2,'CLV-T-RCLM01','임포트 작업','claimed',$3,'목표','PR','저장소','경계')`,
+      [taskId, projectId, requirementId],
+    );
+    const sessionId = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-01','active')`,
+      [sessionId, projectId, planner],
+    );
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status,
+                          scope_spec_ids, scope_file_globs, lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active','{}','{}', now() + interval '10 minutes')`,
+      [newId(), projectId, taskId, sessionId, planner],
+    );
+
+    await expect(archiveAs('SPC-REQCLAIM')).rejects.toMatchObject({
+      details: {
+        kind: 'archive_blocked',
+        blockers: [{ kind: 'active_claim', key: 'CLV-T-RCLM01' }],
+      },
+    });
+    await pool.query(`DELETE FROM claim WHERE task_id = $1`, [taskId]);
+    await pool.query(`DELETE FROM task WHERE id = $1`, [taskId]);
+    await pool.query(`DELETE FROM agent_session WHERE id = $1`, [sessionId]);
+  });
+
+  it('보관된 문서에는 초안을 쓰지도, 검토를 요청하지도 못한다 (REQ-API-257)', async () => {
+    const { specId, versionId } = await draft('SPC-SHELVED', '# 보관 전 초안');
+    await archiveAs('SPC-SHELVED');
+
+    await expect(
+      specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        specId: 'SPC-SHELVED',
+        baseHash: await hashOf(specId),
+        bodyMd: '# 보관 뒤에 고친 본문',
+        userId: planner,
+      }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'spec_archived', spec: 'SPC-SHELVED' },
+    });
+    await expect(
+      specs.submitReview({ projectId, specVersionId: versionId, userId: planner }),
+    ).rejects.toMatchObject({ details: { kind: 'spec_archived', spec: 'SPC-SHELVED' } });
+    // 본문은 보관할 때 그대로다
+    const { rows } = await pool.query<{ body_md: string; status: string }>(
+      `SELECT body_md, status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    expect(rows[0]).toEqual({ body_md: '# 보관 전 초안', status: 'draft' });
+  });
+
+  it('에이전트가 막히면 프로젝트 설정이 아니라 그 문서로 안내한다 (REQ-API-256)', async () => {
+    await draft('SPC-AGENTMETA', '# 메타');
+    const error = (await specs
+      .updateMeta({
+        actor: { userId: planner, isAgent: true },
+        projectId,
+        specKey: 'SPC-AGENTMETA',
+        title: '에이전트가 바꾸려 한 제목',
+        userId: planner,
+      })
+      .catch((e: unknown) => e)) as { code: string; details: Record<string, unknown> };
+    expect(error.code).toBe(NERV_ERROR.HUMAN_ONLY);
+    expect(error.details).toMatchObject({ kind: 'human_only', action: 'spec_meta' });
+    expect(String(error.details['web_url'])).toMatch(/\/p\/clemvion\/specs\/SPC-AGENTMETA$/);
+  });
 });
 
 // ── E09-S06 기준선 ───────────────────────────────────────────────────────

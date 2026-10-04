@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.27 (2026-09-28)</span>
+      <span>버전 v0.28 (2026-10-04)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -172,6 +172,8 @@
       <tr><td><code>approved → deprecated</code></td><td>폐기 CR 승인</td><td>참조 중인 미완료 Task 0건 또는 이관 계획 첨부</td><td>planner · admin</td><td><code>spec.deprecated</code></td></tr>
     </tbody>
   </table></div>
+
+  <p><b>MVP 에서 폐기는 보관이다</b>(2026-10-04 사람 결정). 위 <code>approved → deprecated</code> 는 폐기 변경 요청(FR-04 · Phase 2)이 만드는 전이라 지금 이 상태로 바꾸는 경로는 없고 이 상태를 가진 버전은 임포트로 들어온 것뿐이다. 더 쓰지 않는 문서는 노드를 <b>보관</b>한다(<a href="api.html">4.4 API 명세</a> EP-SPEC-16) — 보관한 문서는 기본 목록·검색에서 빠지고 그 문서를 근거로 한 작업은 작업 큐에서 빠지며, 초안 저장·검토 요청을 받지 않는다(REQ-API-255 · 257). 스펙의 <b>영구 삭제와 키 변경은 두지 않는다</b> — 기준선 · 이벤트 기록 · 작업의 근거가 그 행을 가리키고 키는 링크와 요구사항 번호의 기준이다.</p>
 
   <p>에이전트는 <span class="badge draft">draft</span>까지만 만들 수 있다. <code>spec:approve</code>는 어떤 자율성 설정에서도 사람 전용이다 — MCP 사양이 "호스트는 어떤 도구든 호출 전 명시적 사용자 동의를 받아야 한다"고 요구하는 지점이고, OWASP ASI03(Identity &amp; Privilege Abuse) 대응이기도 하다.</p>
 

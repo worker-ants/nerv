@@ -11,6 +11,7 @@ import { NervError } from './nerv-exception.filter.js';
 
 const ACTIONS: HumanOnlyAction[] = [
   'project_admin',
+  'spec_meta',
   'inbox',
   'inbox_decide',
   'approve',

@@ -151,6 +151,12 @@ describe('복구는 문서 안에 있다 (REQ-WEB-105)', () => {
     expect(await screen.findByTestId('archived-banner')).toBeTruthy();
   });
 
+  it('보관된 문서에는 다음 할 일 줄이 없다 — 검토 요청도 작업 만들기도 서버가 거절한다 (REQ-WEB-287)', async () => {
+    await renderAt('/p/clemvion/specs/SPC-GONE');
+    await screen.findByTestId('archived-banner');
+    expect(screen.queryByTestId('spec-next')).toBeNull();
+  });
+
   it('[복구]가 EP-SPEC-17 을 부른다 — 목록에서 빠진 문서라 이 자리가 유일한 손잡이다', async () => {
     await renderAt('/p/clemvion/specs/SPC-GONE');
     fireEvent.click(await screen.findByTestId('spec-restore'));
