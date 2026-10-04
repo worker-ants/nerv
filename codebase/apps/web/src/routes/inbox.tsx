@@ -16,19 +16,13 @@
 import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { BULK_DECISION_LIMIT } from '@nerv/schema';
-import {
-  ApprovalCard,
-  bulkBlockText,
-  inView,
-  subjectFallback,
-} from '../features/inbox/approval-card.js';
+import { ApprovalCard, inView, subjectFallback } from '../features/inbox/approval-card.js';
 import type { CardFailure } from '../features/inbox/approval-card.js';
+import { BulkConfirm, bulkApprovable, useBulkDecision } from '../features/inbox/bulk-decision.js';
 import { apiFetch } from '../lib/api.js';
 import { relativeTime } from '../lib/format.js';
-import { useApiError } from '../lib/api-errors.js';
-import { queryKeys } from '../lib/query-keys.js';
 import {
   inboxActionable,
   inboxCards,
@@ -38,7 +32,6 @@ import {
   useInboxScopes,
 } from '../lib/queries.js';
 import type { Row } from '../lib/queries.js';
-import { useRealtime } from '../lib/realtime.js';
 import { cn } from '../lib/utils.js';
 import {
   Button,
@@ -49,9 +42,7 @@ import {
   PageBody,
   PageHeader,
   Skeleton,
-  Textarea,
 } from '../components/ui/primitives.js';
-import { ScopeBadge } from '../components/scope-badge.js';
 import { ScopeRail, scopeName } from '../features/inbox/scope-rail.js';
 import type { ScopeRailRow, ScopeSelection } from '../features/inbox/scope-rail.js';
 import { ErrorState, failedWithoutData } from '../components/query-state.js';
@@ -105,12 +96,6 @@ function inboxHref(search: InboxSearch): string {
 }
 
 /** 서버가 준 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(EP-APR-06) */
-interface BulkResult {
-  id: string;
-  ok: boolean;
-  kind?: string | null;
-  message?: string;
-}
 
 /**
  * 일괄에 **넣을 수 있는가** — 질문이 아니고 아직 결정되지 않은 카드.
@@ -120,11 +105,6 @@ interface BulkResult {
  */
 function selectableCard(card: Row): boolean {
   return card['subject_type'] !== 'question' && (card['decision'] ?? null) === null;
-}
-
-/** **저위험 판정은 서버의 것이다**(`can_bulk_approve` · REQ-API-163) — 화면은 읽기만 한다 */
-function bulkApprovable(card: Row): boolean {
-  return card['can_bulk_approve'] === true;
 }
 
 function InboxScreen(): React.JSX.Element {
@@ -173,25 +153,23 @@ function InboxScreen(): React.JSX.Element {
   const inLockedZone = lockedCards.length > 0;
   const cardAt = (index: number): Element | null =>
     listRef.current?.querySelector(`[data-card-index="${index}"]`) ?? null;
-  const queryClient = useQueryClient();
-  const { pushToast } = useRealtime();
-  const onApiError = useApiError();
-
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState<'approve' | 'reject' | null>(null);
   const [reason, setReason] = useState('');
   const [failures, setFailures] = useState<Map<string, CardFailure>>(new Map());
-  // 멱등 키는 **확인 패널을 연 시점에** 잡는다 — 같은 배치의 재전송은 한 번만 실행되고
-  // (api.md §1.5), 다음 배치는 새 키를 받는다.
-  const batchKey = useRef<string>('');
+  // 보내는 길과 확인 창은 스펙 목록과 한 벌이다(REQ-WEB-292) — 실패한 것만 선택에 남긴다
+  const bulk = useBulkDecision((failed) => {
+    setFailures(failed);
+    setSelected(new Set(failed.keys()));
+    setConfirming(null);
+    setReason('');
+  });
 
   const selectable = state === 'pending' ? cards.filter(selectableCard) : [];
   const chosen = selectable.filter((card) => selected.has(String(card['id'])));
   const approvable = chosen.filter(bulkApprovable);
   /** 더 고를 수 없다 — 고른 것이 상한에 닿았다 */
   const atLimit = selected.size >= BULK_DECISION_LIMIT;
-  // 승인은 저위험만, 거절은 고른 것 전부 — 확인 패널이 이 목록을 그대로 나열한다
-  const targets = confirming === 'approve' ? approvable : chosen;
 
   const toggle = (id: string): void =>
     setSelected((prev) => {
@@ -236,56 +214,9 @@ function InboxScreen(): React.JSX.Element {
   const openConfirm = (decision: 'approve' | 'reject'): void => {
     if (state !== 'pending') return;
     if (decision === 'approve' ? approvable.length === 0 : chosen.length === 0) return;
-    batchKey.current = crypto.randomUUID();
+    bulk.open();
     setConfirming(decision);
   };
-
-  const bulk = useMutation({
-    mutationFn: (decision: 'approve' | 'reject') =>
-      apiFetch<{ decided: number; failed: number; results: BulkResult[] }>('/approvals/decisions', {
-        method: 'POST',
-        body: {
-          decision,
-          comment: reason,
-          // **건마다 지문을 싣는다**(REQ-API-162). 일괄이 stale 검사를 건너뛰면 일괄
-          // 승인이 그 방어의 구멍이 된다 — 본문이 바뀐 한 건만 막히고 나머지는 지나간다.
-          items: (decision === 'approve' ? approvable : chosen).map((card) => ({
-            id: String(card['id']),
-            ...(typeof card['content_hash'] === 'string'
-              ? { seen_content_hash: card['content_hash'] }
-              : {}),
-          })),
-        },
-        idempotencyKey: `bulk-${batchKey.current}`,
-      }),
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
-      // **실패한 것만 선택에 남긴다.** 목록이 통째로 비면 사람은 전부 처리됐다고 읽는데,
-      // 남은 것이 있으면 그것이 거짓말이 된다.
-      const failed = new Map<string, CardFailure>();
-      for (const item of result.results)
-        if (!item.ok)
-          failed.set(item.id, {
-            kind: item.kind ?? null,
-            message: item.message ?? t('inbox.bulk.blocked.not_eligible'),
-          });
-      setFailures(failed);
-      setSelected(new Set(failed.keys()));
-      setConfirming(null);
-      setReason('');
-      pushToast(
-        result.failed === 0
-          ? // 결재 처리 트레일 — 한 건씩 결정할 때와 같은 3분이다(REQ-WEB-197)
-            { tone: 'ok', kind: 'trail', message: t('inbox.bulk.done', { n: result.decided }) }
-          : {
-              tone: 'warn',
-              kind: 'trail',
-              message: t('inbox.bulk.partial', { n: result.decided, failed: result.failed }),
-            },
-      );
-    },
-    onError: onApiError,
-  });
 
   // **카드가 줄면 커서를 끌어온다**(REQ-WEB-204). 마지막 카드를 처리하면 커서가 목록 밖에 남아
   // 활성 카드가 없는데도 범례는 떠 있었다
@@ -580,7 +511,7 @@ function InboxScreen(): React.JSX.Element {
                 size="sm"
                 variant="primary"
                 data-testid="bulk-approve"
-                disabled={approvable.length === 0 || bulk.isPending}
+                disabled={approvable.length === 0 || bulk.pending}
                 disabledReason={chosen.length === 0 ? t('inbox.bulk.pick_first') : undefined}
                 onClick={() => openConfirm('approve')}
               >
@@ -590,7 +521,7 @@ function InboxScreen(): React.JSX.Element {
                 size="sm"
                 variant="danger"
                 data-testid="bulk-reject"
-                disabled={chosen.length === 0 || bulk.isPending}
+                disabled={chosen.length === 0 || bulk.pending}
                 disabledReason={chosen.length === 0 ? t('inbox.bulk.pick_first') : undefined}
                 onClick={() => openConfirm('reject')}
               >
@@ -612,94 +543,15 @@ function InboxScreen(): React.JSX.Element {
           {/* **무엇을 승인하는지 나열한다.** 본문을 열지 않고 결정하는 조작이라, 이 목록이
           남은 유일한 "무엇을 승인하는가" 다(spec-workflow §6.4 — 원문 우선의 최소치) */}
           {confirming !== null && (
-            <form
-              data-testid="bulk-confirm"
-              className="mb-2 rounded-nerv border border-border bg-bg-elev p-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (confirming === 'reject' && reason.trim() === '') return;
-                bulk.mutate(confirming);
-              }}
-            >
-              <p className="text-2xs font-semibold text-text">
-                {confirming === 'approve'
-                  ? t('inbox.bulk.confirm_approve', { count: targets.length })
-                  : t('inbox.bulk.confirm_reject', { count: targets.length })}
-              </p>
-              <p className="mt-0.5 text-2xs text-text-faint">{t('inbox.bulk.confirm_hint')}</p>
-              {/* **빠지는 것과 그 까닭**(REQ-WEB-182). 수만 적으면 사람은 어느 것이 왜 빠졌는지
-              카드를 하나씩 열어 봐야 한다 — 서버가 카드마다 이유를 준다(REQ-API-163) */}
-              {confirming === 'approve' && chosen.length > approvable.length && (
-                <div data-testid="bulk-skipped" className="mt-1 text-2xs text-status-waiting">
-                  <p>{t('inbox.bulk.skipped', { count: chosen.length - approvable.length })}</p>
-                  <ul data-testid="bulk-skipped-list" className="mt-0.5 flex flex-col gap-0.5">
-                    {chosen
-                      .filter((card) => !bulkApprovable(card))
-                      .map((card) => (
-                        <li key={String(card['id'])} className="flex gap-2">
-                          <span className="shrink-0 font-mono">
-                            {String(card['spec_key'] ?? card['task_key'] ?? '')}
-                          </span>
-                          <span className="min-w-0 flex-1">{bulkBlockText(t, card)}</span>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              )}
-              <ul
-                data-testid="bulk-list"
-                className="mt-2 max-h-56 overflow-y-auto rounded-nerv-sm bg-bg-sunken px-2.5 py-2 text-xs"
-              >
-                {targets.map((card) => (
-                  <li key={String(card['id'])} className="flex gap-2 py-0.5">
-                    <span className="shrink-0 font-mono text-text-mute">
-                      {String(card['spec_key'] ?? card['task_key'] ?? '')}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">
-                      {String(card['title'] ?? card['spec_title'] ?? '')}
-                    </span>
-                    <ScopeBadge
-                      className="shrink-0"
-                      orgSlug={card['org_slug']}
-                      orgName={card['org_name']}
-                      projectSlug={card['project_slug']}
-                      projectName={card['project_name']}
-                    />
-                  </li>
-                ))}
-              </ul>
-              {/* **거절 사유는 일괄에도 필수다**(REQ-WEB-022) — 전 건에 같은 사유가 남는다 */}
-              {confirming === 'reject' && (
-                <label className="mt-2 block text-2xs text-text-mute">
-                  {t('inbox.bulk.reason')}
-                  <Textarea
-                    data-testid="bulk-reason"
-                    rows={2}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    className="mt-1"
-                  />
-                </label>
-              )}
-              <div className="mt-2 flex gap-2">
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant={confirming === 'approve' ? 'primary' : 'danger'}
-                  data-testid="bulk-submit"
-                  disabled={
-                    bulk.isPending ||
-                    targets.length === 0 ||
-                    (confirming === 'reject' && reason.trim() === '')
-                  }
-                >
-                  {t('inbox.bulk.submit')}
-                </Button>
-                <Button type="button" size="sm" onClick={() => setConfirming(null)}>
-                  {t('inbox.bulk.cancel')}
-                </Button>
-              </div>
-            </form>
+            <BulkConfirm
+              confirming={confirming}
+              chosen={chosen}
+              reason={reason}
+              onReason={setReason}
+              pending={bulk.pending}
+              onSubmit={(decision, targets) => bulk.submit(decision, targets, reason)}
+              onCancel={() => setConfirming(null)}
+            />
           )}
 
           {inbox.isLoading && <Skeleton rows={3} className="[&>div]:h-24" />}

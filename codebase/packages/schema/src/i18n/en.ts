@@ -617,6 +617,16 @@ export const en = {
   'specs.attached_only': 'Has attachments',
   'specs.row_attachments': '{count} attachments',
   'specs.arrange.toggle': 'Arrange',
+  'specs.arrange.pending_on':
+    'You can’t arrange while viewing pending decisions. Turn off Awaiting my decision first.',
+  'specs.pending_only': 'Awaiting my decision',
+  'specs.decide.bar': 'Decide in bulk',
+  'specs.decide.none': 'No documents in review are waiting for your decision.',
+  'specs.decide.hint':
+    '{count} documents are waiting for your decision. Select some, then approve or reject.',
+  'specs.decide.selected': '{count} selected (up to {max} at a time)',
+  'specs.decide.pick_first':
+    'Select documents in the tree first: click a checkbox, or press Space on a row.',
   'specs.arrange.toggle_off': 'Done arranging',
   'specs.arrange.bar': 'Arrange documents',
   'specs.arrange.hint': 'Select documents to move or reorder. Space on a row selects it too.',

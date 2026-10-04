@@ -3378,6 +3378,59 @@ describe('일괄 결정 (EP-APR-06 · REQ-API-162~164)', () => {
     }
   }
 
+  /**
+   * **스펙 목록의 결재 대기**(2026-10-04 · 사람 결정 A1 · A2 · REQ-API-267). 트리에서 문서를 골라 받은 요청과
+   * 같은 일괄 결정으로 보낸다 — 판정은 받은 요청과 한 벌이어야 한다.
+   */
+  it('스펙 목록의 결재 대기는 문서마다 한 줄이고, 받은 요청과 같은 판정을 준다 (REQ-API-267)', async () => {
+    const low = await pending('SPC-PEND-LOW');
+    const high = await pending('SPC-PEND-T3', 2);
+    const out = await approvals.pendingSpecApprovals({
+      actor: person(reviewer),
+      userId: reviewer,
+      projectId,
+    });
+    const rows = out.items.filter((i) => String(i['spec_key']).startsWith('SPC-PEND-'));
+    // T3 는 결재 칸이 둘이어도 문서는 한 줄이다
+    expect(rows.map((r) => r['spec_key'])).toEqual(['SPC-PEND-LOW', 'SPC-PEND-T3']);
+    expect(rows[0]).toMatchObject({
+      approval_id: low.ids[0],
+      version_id: low.versionId,
+      can_approve: true,
+      can_bulk_approve: true,
+    });
+    expect(rows[1]).toMatchObject({ can_bulk_approve: false, bulk_block_reason: 'bulk_quorum' });
+    expect(high.ids).toContain(rows[1]?.['approval_id']);
+    expect(typeof rows[0]?.['content_hash']).toBe('string');
+    // 받은 요청의 같은 카드와 같은 판정이다
+    const card = (await projectInbox(reviewer)).find((c) => c['id'] === low.ids[0]);
+    expect(card?.['can_bulk_approve']).toBe(rows[0]?.['can_bulk_approve']);
+    expect(card?.['content_hash']).toBe(rows[0]?.['content_hash']);
+  });
+
+  it('보관한 문서의 결재는 스펙 목록에 오지 않고, 에이전트는 부르지 못한다 (REQ-API-267)', async () => {
+    await pending('SPC-PEND-SHELF');
+    await specs.archive({
+      actor: person(planner),
+      projectId,
+      specKey: 'SPC-PEND-SHELF',
+      userId: planner,
+    });
+    const out = await approvals.pendingSpecApprovals({
+      actor: person(reviewer),
+      userId: reviewer,
+      projectId,
+    });
+    expect(out.items.map((i) => i['spec_key'])).not.toContain('SPC-PEND-SHELF');
+    await expect(
+      approvals.pendingSpecApprovals({
+        actor: { userId: reviewer, isAgent: true },
+        userId: reviewer,
+        projectId,
+      }),
+    ).rejects.toMatchObject({ code: NERV_ERROR.HUMAN_ONLY });
+  });
+
   it('저위험만 지나간다 — T3(정족수 2)는 일괄에서 빠지고 나머지는 승인된다', async () => {
     const low = await pending('SPC-BULK-LOW');
     const high = await pending('SPC-BULK-T3', 2);

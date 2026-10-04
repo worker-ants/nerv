@@ -4,10 +4,10 @@
 // 것이 요점 — 관계는 관련성의 근거이지 질의 일치가 아니다. 섞으면 사람은 왜 이게 나왔는지
 // 알 수 없고, 그러면 검색을 믿지 않게 된다.
 
-import { specType, specVersionStatus, statusLabelKey } from '@nerv/schema';
+import { BULK_DECISION_LIMIT, specType, specVersionStatus, statusLabelKey } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 
 // 그래프 라이브러리는 **탭을 누를 때** 받는다 — gzip 173KB 다. 대부분의 방문은 트리만 쓰는데
 // 그 비용을 목록 화면 전체가 미리 치를 이유가 없다.
@@ -26,6 +26,7 @@ import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { apiFetch } from '../../lib/api.js';
 import { cn } from '../../lib/utils.js';
 import { useMe, useProject, useSpecGraph } from '../../lib/queries.js';
+import type { Row } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import {
@@ -42,7 +43,8 @@ import {
 } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { ArrangeBar } from '../../features/spec-editor/arrange-bar.js';
-import { asProjectId } from '../../lib/query-keys.js';
+import { DecisionBar } from '../../features/spec-editor/decision-bar.js';
+import { asProjectId, queryKeys } from '../../lib/query-keys.js';
 import {
   NEWER_STATUS,
   hasNewerVersion,
@@ -60,6 +62,7 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     archived?: true;
     attach?: true;
     baseline?: string;
+    pending?: true;
     basis?: 'latest';
     focus?: string;
     layout?: number;
@@ -75,6 +78,10 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     // **첨부 있음**도 뷰 상태다(2026-10-04 · REQ-WEB-289) — 시안이 붙은 문서 목록을 링크로 건넨다
     ...(search['attach'] === true || search['attach'] === 1 || search['attach'] === '1'
       ? { attach: true as const }
+      : {}),
+    // **결재 대기**도 뷰 상태다(2026-10-04 · REQ-WEB-292) — "내가 결정할 문서" 목록을 링크로 다시 연다
+    ...(search['pending'] === true || search['pending'] === 1 || search['pending'] === '1'
+      ? { pending: true as const }
       : {}),
     // **검색어도 뷰 상태다**(§2.4 (3) · screens.md:583 — "검색·타입·상태 필터는 URL 쿼리로
     // 보존"). 컴포넌트 state 로 두면 "이 검색 결과를 봐 달라" 를 링크로 건넬 수 없고,
@@ -142,6 +149,7 @@ function SpecListScreen(): React.JSX.Element {
   const {
     archived = false,
     attach = false,
+    pending = false,
     baseline,
     basis,
     focus,
@@ -179,6 +187,7 @@ function SpecListScreen(): React.JSX.Element {
   const searchWith = (patch: {
     archived?: boolean;
     attach?: boolean;
+    pending?: boolean;
     baseline?: string | null;
     basis?: 'latest' | null;
     focus?: string | null;
@@ -190,6 +199,7 @@ function SpecListScreen(): React.JSX.Element {
   }): {
     archived?: true;
     attach?: true;
+    pending?: true;
     baseline?: string;
     basis?: 'latest';
     focus?: string;
@@ -224,6 +234,7 @@ function SpecListScreen(): React.JSX.Element {
     return {
       ...((patch.archived ?? archived) ? { archived: true as const } : {}),
       ...((patch.attach ?? attach) ? { attach: true as const } : {}),
+      ...((patch.pending ?? pending) ? { pending: true as const } : {}),
       ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
       ...(nextBasis === undefined ? {} : { basis: nextBasis }),
       ...(nextQuery === undefined || nextQuery === '' ? {} : { q: nextQuery }),
@@ -285,6 +296,30 @@ function SpecListScreen(): React.JSX.Element {
   const attachedCount = (graph.data?.nodes ?? []).filter(
     (n) => (n.attachment_count ?? 0) > 0,
   ).length;
+  /**
+   * **결재 대기**(2026-10-04 · 사람 결정 A1 · A2 · REQ-WEB-292) — 칩을 켤 때만 묻는다. 판정은 받은 요청과
+   * 한 벌이다(EP-SPEC-26). 트리를 그 문서들로 거르고, 고른 것을 받은 요청과 같은 일괄 결정으로 보낸다
+   */
+  const pendingApprovals = useQuery({
+    queryKey: queryKeys.projectPendingApprovals(asProjectId(projectId) ?? (proj as never)),
+    queryFn: () => apiFetch<{ items: Row[] }>(`/projects/${proj}/specs/pending-approvals`),
+    enabled: pending && projectId !== undefined,
+  });
+  const pendingRows = pendingApprovals.data?.items ?? [];
+  const pendingKeys = useMemo(
+    () => new Set(pendingRows.map((row) => String(row['spec_key']))),
+    [pendingRows],
+  );
+  const [decisionPicked, setDecisionPicked] = useState<ReadonlySet<string>>(new Set());
+  const toggleDecision = useCallback((key: string) => {
+    setDecisionPicked((now) => {
+      const next = new Set(now);
+      if (next.has(key)) next.delete(key);
+      // 받은 요청과 같은 상한이다(REQ-API-191) — 그 위로는 더 고르지 않는다
+      else if (next.size < BULK_DECISION_LIMIT) next.add(key);
+      return next;
+    });
+  }, []);
 
   // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
   // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
@@ -376,8 +411,14 @@ function SpecListScreen(): React.JSX.Element {
           size="sm"
           data-testid="arrange-toggle"
           aria-pressed={arranging}
-          disabled={!canFreeze}
-          disabledReason={canFreeze ? undefined : t('spec.meta.edit_role')}
+          disabled={!canFreeze || pending}
+          disabledReason={
+            !canFreeze
+              ? t('spec.meta.edit_role')
+              : pending
+                ? t('specs.arrange.pending_on')
+                : undefined
+          }
           onClick={() => {
             setArranging((on) => !on);
             setSelected(new Set());
@@ -598,6 +639,30 @@ function SpecListScreen(): React.JSX.Element {
                 {t('specs.attached_only')} {attachedCount}
               </button>
             )}
+            {/* **결재 대기**(2026-10-04 · 사람 결정 A1 · A2 · REQ-WEB-292) — 켜면 내가 결정할 수 있는 검토 중
+                문서만 트리에 남고 줄마다 고르는 칸이 생긴다. 수는 켰을 때 묻는다(A2) */}
+            <button
+              type="button"
+              data-testid="spec-pending-only"
+              aria-pressed={pending}
+              onClick={() => {
+                setDecisionPicked(new Set());
+                void navigate({
+                  to: '/p/$proj/specs',
+                  params: { proj },
+                  search: searchWith({ pending: !pending, view: 'tree' }),
+                });
+              }}
+              className={cn(
+                'rounded-nerv-sm border px-2 py-0.5 tabular-nums',
+                pending
+                  ? 'border-status-action bg-status-action-soft font-medium text-status-action'
+                  : 'border-status-action text-status-action hover:bg-status-action-soft',
+              )}
+            >
+              {t('specs.pending_only')}
+              {pending && pendingApprovals.data !== undefined ? ` ${pendingRows.length}` : ''}
+            </button>
           </div>
         )}
 
@@ -616,7 +681,15 @@ function SpecListScreen(): React.JSX.Element {
         <div className="flex min-h-0 flex-1 flex-col">
           {view === 'tree' ? (
             <Card padded={false} className="p-3">
-              {arranging && (
+              {pending && (
+                <DecisionBar
+                  projectId={asProjectId(projectId)}
+                  pending={pendingRows}
+                  selected={decisionPicked}
+                  onSelect={setDecisionPicked}
+                />
+              )}
+              {arranging && !pending && (
                 <ArrangeBar
                   projectSlug={proj}
                   projectId={asProjectId(projectId)}
@@ -642,7 +715,18 @@ function SpecListScreen(): React.JSX.Element {
                 attachedOnly={attach}
                 controls={treeControls}
                 view={viewBasis}
-                {...(arranging ? { selection: { selected, onToggle: toggleSelected } } : {})}
+                {...(pending
+                  ? {
+                      onlyKeys: pendingKeys,
+                      selection: {
+                        selected: decisionPicked,
+                        onToggle: toggleDecision,
+                        selectable: (key: string) => pendingKeys.has(key),
+                      },
+                    }
+                  : arranging
+                    ? { selection: { selected, onToggle: toggleSelected } }
+                    : {})}
                 onTitleFilter={setTitleFiltered}
               />
             </Card>

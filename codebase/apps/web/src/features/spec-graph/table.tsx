@@ -15,7 +15,7 @@ import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
 import { Mono, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { GraphEdge, GraphNode } from './graph.js';
-import { viewBasisSearch, type ViewBasis } from '../../lib/view-basis.js';
+import { hasNewerVersion, viewBasisSearch, type ViewBasis } from '../../lib/view-basis.js';
 
 type SortKey = 'title' | 'type' | 'status' | 'backlinks' | 'attachments';
 
@@ -138,6 +138,16 @@ export function SpecTable({
                 {node.title}
               </Link>{' '}
               <Mono>{node.key}</Mono>{' '}
+              {/* **승인본 위에 새 버전이 있다**(2026-10-04 · REQ-WEB-292) — 트리에만 있던 표시다. 표는 상태 열이
+                  승인본의 상태라, 그 위의 검토 중 개정판이 표에서는 보이지 않았다 */}
+              {hasNewerVersion(node) && (
+                <span
+                  data-testid="table-newer"
+                  className="rounded-nerv-sm border border-dashed border-status-waiting px-1.5 text-2xs text-status-waiting tabular-nums"
+                >
+                  {`v${String(node.latest_version_no)} ${t(statusLabelKey('spec', String(node.latest_status)))}`}
+                </span>
+              )}{' '}
               {node.archived_at != null && (
                 <StatusBadge token="idle" label={t('specs.archived_badge')} />
               )}

@@ -431,6 +431,57 @@ export class ApprovalService {
     return { approvalFrom, approvalWhere, questionFrom, questionWhere };
   }
 
+  /**
+   * EP-SPEC-26 — **이 프로젝트에서 내가 결정할 수 있는 스펙 결재**(2026-10-04 · 사람 결정 A1 · A2 · REQ-API-267).
+   *
+   * 스펙 목록의 "결재 대기" 칩이 이것으로 트리를 거르고, 거기서 고른 문서를 받은 요청과 같은 일괄 결정
+   * (EP-APR-06)으로 보낸다. **판정은 받은 요청과 한 벌이다** — 같은 큐 조건(`inboxConditions`)과 같은 판정 식
+   * (`can_approve` · `can_bulk_approve` · 사유 · 정족수)을 쓴다. 트리 노드에 사람마다 다른 결재 필드를 얹지 않는
+   * 이유는 트리 응답이 사람마다 달라지고 모든 트리 요청이 무거워지기 때문이다(A2).
+   *
+   * 문서마다 **한 줄**이다 — T3 는 결재 칸이 둘이라 같은 사람에게 둘이 보일 수 있는데, 화면은 문서를 고르므로
+   * 내가 누를 수 있는 칸을 앞세워 하나만 준다. 보관한 문서는 목록에 없으므로 빠진다.
+   */
+  async pendingSpecApprovals(input: {
+    actor: Actor;
+    userId: string;
+    projectId: string;
+  }): Promise<{ items: Record<string, unknown>[] }> {
+    assertHuman(input.actor, 'inbox', '/inbox');
+    const { approvalFrom, approvalWhere } = this.inboxConditions(
+      input.userId,
+      false,
+      sql` AND p.id = ${input.projectId}`,
+    );
+    const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT DISTINCT ON (x.spec_key) x.* FROM (
+        SELECT a.id, a.id AS approval_id, sv.id AS version_id, sv.version_no,
+               s.key AS spec_key, s.title AS spec_title, a.assignee_role::text AS assignee_role,
+               a.requested_at, (a.requested_by_user_id = ${input.userId}) AS self_requested,
+               ${canApproveSql(input.userId)},
+               ${canApproveReasonSql(input.userId)},
+               ${canBulkApproveSql(input.userId)},
+               ${bulkBlockReasonSql(input.userId)},
+               encode(sv.content_hash, 'hex') AS content_hash,
+               ${quorumColumnsSql()},
+               gate.payload->>'gate_tier' AS gate_tier
+          ${approvalFrom}
+          JOIN spec s ON s.id = sv.spec_id
+     LEFT JOIN LATERAL (
+            SELECT e.payload FROM event e
+             WHERE e.type = ${NERV_EVENT.APPROVAL_REQUESTED} AND e.subject_id = a.id
+               AND e.payload ? 'gate_tier'
+             ORDER BY e.occurred_at DESC
+             LIMIT 1) gate ON true
+         ${approvalWhere}
+           AND a.subject_type = 'spec_version' AND s.archived_at IS NULL
+      ) x
+      ORDER BY x.spec_key, x.can_approve DESC NULLS LAST, x.can_bulk_approve DESC NULLS LAST,
+               x.requested_at, x.id
+    `);
+    return { items: rows };
+  }
+
   async inboxGlobal(input: {
     /** 사람 전용 게이트의 축 — 판정은 표면이 아니라 여기다(D-05 · REQ-API-111) */
     actor: Actor;

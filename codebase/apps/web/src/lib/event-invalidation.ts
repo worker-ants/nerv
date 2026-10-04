@@ -114,11 +114,16 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.SESSION_COMPLETE]: sessionAxis,
   [E.SESSION_STEERED]: sessionAxis,
 
-  [E.APPROVAL_REQUESTED]: inboxAxis,
+  // 스펙 목록의 결재 대기(REQ-WEB-292)도 같은 판정의 다른 모양이다 — 함께 낡는다
+  [E.APPROVAL_REQUESTED]: (e) => [...inboxAxis(e), queryKeys.projectPendingApprovals(e.project_id)],
   // 결정이 나면 카드는 수신함에서 사라진다 — 대상(스펙)은 자기 이벤트가 따로 바꾼다
   // **그 요청의 알림도 함께 닫힌다**(REQ-API-176) — 알림 목록과 배지도 되읽는다. 빠뜨리면 받은
   // 요청 배지만 줄고 알림 배지는 새로고침 전까지 그대로다
-  [E.APPROVAL_DECIDED]: () => [queryKeys.inbox(), queryKeys.myNotifications()],
+  [E.APPROVAL_DECIDED]: (e) => [
+    queryKeys.inbox(),
+    queryKeys.myNotifications(),
+    queryKeys.projectPendingApprovals(e.project_id),
+  ],
   // **질문은 그 세션을 멈춘다**(awaiting_input) — 세션 보드·개요의 "사람을 기다림" 이 함께 바뀐다.
   // 답변·취소는 세션을 되읽는데 묻는 쪽만 빠져 있었다(2026-09-25 · REQ-WEB-219)
   [E.QUESTION_CREATED]: (e) => [queryKeys.inbox(), queryKeys.projectSessions(e.project_id)],
