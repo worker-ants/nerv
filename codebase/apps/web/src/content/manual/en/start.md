@@ -131,7 +131,7 @@ If you **know your password and want to change it**, go to the **Password** tab 
 2. Open **Specs** and skim the tree. It shows what this project decided to build.
 3. Open **Tasks** and look at the `ready` lane. It lists the tasks you can pick up right now.
 4. To connect an agent, issue a token under **Settings → Agent tokens** and install the plugin. The steps are in [Installing the plugin](/help/install), and how the pieces work together is in [Agents](/help/agents).
-5. To find a document, press **⌘K**. You can find **specs, requirements, and tasks** by name, and pasting a stable ID takes you straight to that item. Documents can be searched **only inside a project**. Screens (the inbox, settings tabs, and so on) and projects can be reached from anywhere.
+5. To find a document, press **⌘K**. You can find **specs, requirements, and tasks** by name, and pasting an ID puts that item first. Documents can be searched **only inside a project**. Screens (the inbox, settings tabs, and so on) and projects can be reached from anywhere.
 
 ## Messages in the lower right {#toasts}
 

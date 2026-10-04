@@ -378,6 +378,67 @@ describe('E09-S10 벡터 경로', () => {
     expect(hit?.anchor).not.toBeNull();
   });
 
+  /**
+   * **가까운 순으로 자른다**(2026-10-04 · REQ-API-260). 문서마다 가장 가까운 청크를 고른 뒤 UUID
+   * 순으로 잘라서, 가장 오래된 문서들이 의미 단계를 채우고 새 문서는 아무리 가까워도 빠졌다.
+   * 오래된 문서를 상한(limit × 3)보다 많이 만든 뒤 가장 새 문서를 찾는다.
+   */
+  it('의미 단계는 오래된 순이 아니라 가까운 순으로 자른다 (REQ-API-260)', async () => {
+    const approveNow = async (r: Record<string, unknown>): Promise<void> => {
+      await pool.query(
+        `UPDATE spec_version SET status='approved', approved_at=now(), approved_by_user_id=$2,
+                edit_lease_user_id=NULL, edit_lease_session_id=NULL, edit_lease_expires_at=NULL
+          WHERE id = $1`,
+        [r['spec_version_id'], planner],
+      );
+      await pool.query(`UPDATE spec SET current_version_id=$1 WHERE id=$2`, [
+        r['spec_version_id'],
+        r['spec_id'],
+      ]);
+    };
+    for (let i = 0; i < 35; i += 1) {
+      const filler = await specs.draftUpsert({
+        roles: ['planner'],
+        projectId,
+        key: `SPC-OLD-${String(i).padStart(3, '0')}`,
+        title: `old ${i}`,
+        type: 'feature',
+        bodyMd: `# old ${i}\n\n${'xyzw'.repeat(20 + i)}`,
+        userId: planner,
+      });
+      await approveNow(filler);
+    }
+    const newest = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-NEWEST',
+      title: '가장 새 문서',
+      type: 'feature',
+      bodyMd: '# 가장 새 문서\n\n결제 실패 알림을 다시 보낸다',
+      userId: planner,
+    });
+    await approveNow(newest);
+    // 한 판에는 시간 상한이 있다 — 다 적재될 때까지 돌린다
+    for (let pass = 0; pass < 10; pass += 1) {
+      if (!(await embeddings.runOnce({ projectId })).stopped_early) break;
+    }
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM spec_chunk_embedding WHERE spec_version_id = $1`,
+      [newest['spec_version_id']],
+    );
+    expect(rows[0]?.n).toBeGreaterThan(0);
+
+    const result = await search.search({
+      projectId,
+      query: '결제 실패 알림을 다시 보낸다',
+      limit: 10,
+    });
+    // 의미 단계의 결과는 맞은 절(앵커)을 들고 와 본문 일치와 다른 줄이다
+    expect(
+      result.items.some((i) => i.key === 'SPC-NEWEST' && i.matched_by.includes('vector')),
+    ).toBe(true);
+  });
+
   it('제공자가 죽으면 같은 질의가 degraded 로 떨어지되 결과는 계속 나온다', async () => {
     const dead = new SearchService(drizzle(pool));
     const saved = process.env['NERV_EMBED_URL'];

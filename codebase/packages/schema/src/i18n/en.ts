@@ -640,7 +640,7 @@ export const en = {
   'status.finding.open': 'Open',
   'status.finding.wont_fix': "Won't fix",
   'switcher.placeholder_in':
-    'Go to a screen or project, search specs and tasks in {project}, or paste a stable ID',
+    'Go to a screen or project, search specs and tasks in {project}, or paste an ID',
   'switcher.placeholder_no_project':
     'Go to a screen or project (open a project to search specs and tasks)',
   'task.basis': 'Basis: why this task exists',
@@ -1478,7 +1478,7 @@ export const en = {
   'specs.holds_active': 'Contains the document you’re viewing',
   'specs.no_results': 'No results.',
   'specs.no_results_hint':
-    'You can also search by stable ID (spec key, requirement ref, or task key).',
+    'You can also search by ID (document, requirement, or task), in any letter case, or by part of an ID.',
   'specs.related': 'Connected through relations',
   'specs.reveal_active': 'Go to the document you are viewing',
   'specs.related_hint': 'These don’t match your query but are connected through relations.',
@@ -1487,7 +1487,7 @@ export const en = {
   'specs.show_archived_hint': 'Also lists archived documents. Restore them from the document page',
   'specs.search_placeholder': 'Search contents or stable IDs',
   'specs.title': 'Specs',
-  'specs.tree_filter': 'Filter by title or key',
+  'specs.tree_filter': 'Filter by title or ID',
   'specs.column.show': 'Show spec tree',
   'specs.column.hide': 'Hide spec tree',
   'specs.tree_label': 'Spec tree',
@@ -1516,7 +1516,7 @@ export const en = {
   'spec.attachments': 'Attachments',
   'spec.comments': 'Comments',
   'spec.editor.link_empty': 'No documents to pick.',
-  'spec.editor.link_search': 'Find by title or key',
+  'spec.editor.link_search': 'Find by title or ID',
   'spec.diff.from': 'from',
   'spec.diff.to': 'to',
   'spec.diff.added': 'added',

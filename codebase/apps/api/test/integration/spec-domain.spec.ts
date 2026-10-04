@@ -1235,6 +1235,93 @@ describe('E09-S10 하이브리드 검색', () => {
     expect(byTask.items[0]?.['kind']).toBe('task');
   });
 
+  // ── 2026-10-04 문서 번호(REQ-API-258 · 259) ───────────────────────────────
+
+  it('소문자 · 한 단어 · 숫자로 시작하는 키도 번호로 맞고, 대소문자를 가리지 않는다 (REQ-API-258)', async () => {
+    for (const key of ['channel-web-chat', 'README', '03-proposal-vision']) {
+      const s = await draft(key, `# ${key}\n\n본문`, `문서 ${key}`);
+      await approve(s.versionId);
+    }
+    for (const [query, key] of [
+      ['channel-web-chat', 'channel-web-chat'],
+      ['CHANNEL-WEB-CHAT', 'channel-web-chat'],
+      ['readme', 'README'],
+      ['03-proposal-vision', '03-proposal-vision'],
+    ] as const) {
+      const result = await search.search({ projectId, query });
+      expect(result.items[0]?.key, query).toBe(key);
+      expect(result.items[0]?.matched_by, query).toContain('id');
+    }
+  });
+
+  it('번호가 맞으면 맨 위다 — 승인 문서의 본문 일치가 초안을 밀어내지 않는다 (REQ-API-258)', async () => {
+    // 초안은 상태 가산점이 없다. 순위 합산에 섞이던 때는 번호를 본문에 적은 승인 문서가 위로 갔다
+    await draft('SPC-PIN-001', '# 초안\n\n아직 초안이다', '초안 문서');
+    const other = await draft(
+      'SPC-PIN-002',
+      '# SPC-PIN-001 을 이어받는 문서\n\nSPC-PIN-001 SPC-PIN-001',
+      'SPC-PIN-001 이어받기',
+    );
+    await approve(other.versionId);
+
+    const result = await search.search({ projectId, query: 'spc-pin-001' });
+    expect(result.items[0]?.key).toBe('SPC-PIN-001');
+    expect(result.items.map((i) => i.key)).toContain('SPC-PIN-002');
+  });
+
+  it('UUID 로도 맞는다 (REQ-API-258 · S3)', async () => {
+    const s = await draft('SPC-UUID-001', '# 문서\n\n본문', 'UUID 로 찾는 문서');
+    const result = await search.search({ projectId, query: s.specId });
+    expect(result.items[0]?.key).toBe('SPC-UUID-001');
+    expect(result.items[0]?.matched_by).toContain('id');
+  });
+
+  it('보관된 문서도 번호로는 찾고, 보관됐다는 사실을 함께 준다 (REQ-API-258)', async () => {
+    await draft('SPC-SHELF-001', '# 문서\n\n본문', '보관할 문서');
+    await specs.archive({
+      actor: { userId: planner, isAgent: false },
+      projectId,
+      specKey: 'SPC-SHELF-001',
+      userId: planner,
+    });
+    const result = await search.search({ projectId, query: 'SPC-SHELF-001' });
+    expect(result.items[0]?.key).toBe('SPC-SHELF-001');
+    expect(result.items[0]?.archived_at).not.toBeNull();
+    // 일부로 찾을 때는 보관 판정이 다른 단계와 같다 — 켜지 않으면 빠진다
+    const partial = await search.search({ projectId, query: 'SHELF' });
+    expect(partial.items.map((i) => i.key)).not.toContain('SPC-SHELF-001');
+    const withArchived = await search.search({ projectId, query: 'SHELF', includeArchived: true });
+    expect(withArchived.items.map((i) => i.key)).toContain('SPC-SHELF-001');
+  });
+
+  it('번호의 일부로 찾는다 — 끝이 맞는 것 · 짧은 것이 먼저다 (REQ-API-259)', async () => {
+    for (const key of ['SPC-FRG-007', 'FRG-007-EXTRA', 'SPC-FRG-0070']) {
+      const s = await draft(key, `# ${key}\n\n본문`, `일부 ${key}`);
+      await approve(s.versionId);
+    }
+    const result = await search.search({ projectId, query: 'frg-007' });
+    const keyed = result.items.filter((i) => i.matched_by.includes('key')).map((i) => i.key);
+    // 끝이 맞는 SPC-FRG-007 → 앞이 맞는 FRG-007-EXTRA → 가운데의 SPC-FRG-0070
+    expect(keyed).toEqual(['SPC-FRG-007', 'FRG-007-EXTRA', 'SPC-FRG-0070']);
+    expect(result.items[0]?.key).toBe('SPC-FRG-007');
+    // 두 글자는 일부 일치를 하지 않는다
+    const short = await search.search({ projectId, query: 'FR' });
+    expect(short.items.some((i) => i.matched_by.includes('key'))).toBe(false);
+  });
+
+  it('일부 일치는 맨 위에 다섯 건까지만 올린다 — 모든 키에 든 토막이 본문 일치를 밀어내지 않게 (REQ-API-259)', async () => {
+    for (let i = 1; i <= 7; i += 1) {
+      const key = `CAP-${String(i).padStart(3, '0')}`;
+      const s = await draft(key, `# ${key}\n\n본문`, `상한 ${key}`);
+      await approve(s.versionId);
+    }
+    const result = await search.search({ projectId, query: 'CAP', limit: 20 });
+    const head = result.items.slice(0, 5);
+    expect(head.every((i) => i.matched_by.includes('key'))).toBe(true);
+    // 나머지 일부 일치도 사라지지 않는다 — 다른 결과와 함께 순위로 섞인다
+    expect(result.items.filter((i) => i.matched_by.includes('key'))).toHaveLength(7);
+  });
+
   it('한국어 조사 변형을 trgm 이 잡는다 — simple 토크나이저만으로는 "위젯"≠"위젯을" 이다', async () => {
     const s = await draft(
       'SPC-KR-001',

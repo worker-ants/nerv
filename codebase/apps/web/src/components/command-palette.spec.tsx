@@ -235,6 +235,40 @@ describe('최근·고정은 어느 프로젝트의 것인지 안다 (NAV-04)', (
     );
   });
 
+  it('앞 검색어의 결과는 다음 글자를 치는 순간 사라진다 — Enter 가 옛 결과를 열지 않게 (REQ-WEB-288)', async () => {
+    searchHits = [
+      { key: 'SPC-OLD', title: '앞 결과', type: 'feature', doc_status: null, anchor: null },
+    ];
+    renderAt('/p/clemvion/tasks');
+    await openPalette();
+    type('SPC');
+    await screen.findByText('앞 결과');
+    searchHits = [
+      { key: 'SPC-NEW', title: '새 결과', type: 'feature', doc_status: null, anchor: null },
+    ];
+    type('SPC-NEW');
+    expect(screen.queryByText('앞 결과')).toBeNull();
+    expect(await screen.findByText('새 결과')).toBeDefined();
+  });
+
+  it('번호로 찾은 보관 문서에는 보관됨 표시가 붙는다 (REQ-WEB-288)', async () => {
+    searchHits = [
+      {
+        key: 'SPC-SHELF',
+        title: '보관한 문서',
+        type: 'feature',
+        doc_status: 'approved',
+        anchor: null,
+        archived_at: '2026-10-01T00:00:00Z',
+      },
+    ];
+    renderAt('/p/clemvion/tasks');
+    await openPalette();
+    type('SPC-SHELF');
+    const row = (await screen.findByText('보관한 문서')).closest('[data-testid="switcher-option"]');
+    expect(within(row as HTMLElement).getByText('보관됨')).toBeDefined();
+  });
+
   it('스펙 상세를 열면 그것이 최근에 남는다 — ⌘K 로 고른 것만이 아니다', async () => {
     renderAt('/p/clemvion/specs/SPC-X');
     await waitFor(() =>

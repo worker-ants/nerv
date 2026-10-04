@@ -45,6 +45,8 @@ export interface SwitcherHit {
   anchor: string | null;
   /** 무엇에 맞았나 — 서버가 준다(`spec`·`requirement`·`task`). 없으면 스펙으로 본다 */
   kind?: string;
+  /** 보관된 문서면 그 시각 — 번호로 찾으면 보관된 문서도 나온다(REQ-API-258) */
+  archived_at?: string | null;
   /**
    * **어느 프로젝트의 것인가**(2026-09-25 — UI/UX 검토 NAV-04 · REQ-WEB-223). 기록이 프로젝트를 잊는
    * 동안 A 에서 고정한 스펙을 B 에서 열면 `/p/B/specs/<A 의 키>` 로 가서 "없다" 가 떴고, 홈에서 누르면
@@ -179,6 +181,11 @@ export function QuickSwitcher({
     scopesForRoles(rolesInProject(me.data, orgSlug, projectSlug)).has('spec:draft');
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<SwitcherHit[]>([]);
+  /**
+   * **결과가 어느 검색어의 것인가**(2026-10-04 · REQ-WEB-288). 디바운스 동안에는 앞 글자의 결과가
+   * 남아 있어서, 번호를 다 치고 바로 Enter 를 누르면 그 앞 검색어의 첫 결과가 열렸다.
+   */
+  const [hitsFor, setHitsFor] = useState('');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -350,7 +357,7 @@ export function QuickSwitcher({
     const matches = (item: PaletteItem): boolean =>
       `${item.label} ${item.sub ?? ''} ${item.keywords ?? ''}`.toLowerCase().includes(q);
     // 문서 결과에는 기록할 범위가 없다 — 지금 프로젝트의 것이다
-    const docs = hits.map((hit, i) =>
+    const docs = (hitsFor === query ? hits : []).map((hit, i) =>
       docItem(
         'docs',
         {
@@ -371,7 +378,9 @@ export function QuickSwitcher({
     ];
   }, [
     q,
+    query,
     hits,
+    hitsFor,
     pins,
     orgSlug,
     scope.projects,
@@ -398,6 +407,7 @@ export function QuickSwitcher({
     if (open) return;
     setQuery('');
     setHits([]);
+    setHitsFor('');
     setCursor(0);
   }, [open]);
 
@@ -407,8 +417,14 @@ export function QuickSwitcher({
       void apiFetch<{ items: SwitcherHit[] }>(
         `/projects/${projectSlug}/specs/search?q=${encodeURIComponent(query)}&limit=10`,
       )
-        .then((result) => setHits(result.items ?? []))
-        .catch(() => setHits([]));
+        .then((result) => {
+          setHits(result.items ?? []);
+          setHitsFor(query);
+        })
+        .catch(() => {
+          setHits([]);
+          setHitsFor(query);
+        });
     }, 180); // 디바운스 — 타이핑마다 서버를 때리지 않는다
     return () => clearTimeout(timer);
   }, [open, projectSlug, query, q]);
@@ -547,6 +563,9 @@ export function QuickSwitcher({
                       <span className="max-w-[40%] shrink-0 truncate text-2xs text-text-faint">
                         {item.sub}
                       </span>
+                    )}
+                    {item.hit?.archived_at != null && (
+                      <StatusBadge token="idle" label={t('specs.archived_badge')} />
                     )}
                     {item.hit !== undefined && item.hit.doc_status !== null && (
                       <StatusBadge
