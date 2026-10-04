@@ -67,6 +67,17 @@ export class ApprovalController {
     });
   }
 
+  /**
+   * EP-SPEC-26 — 이 프로젝트에서 내가 결정할 수 있는 스펙 결재(REQ-API-267). 스펙 목록의 "결재 대기" 칩이
+   * 켜질 때만 부른다. 판정은 받은 요청과 한 벌이고, **사람 전용**이다(REQ-API-123)
+   */
+  @RequireScope('spec:read')
+  @Get('specs/pending-approvals')
+  pendingSpecApprovals(@Req() req: ProjectRequest): Promise<unknown> {
+    const { projectId, userId, actor } = human(req);
+    return this.approvals.pendingSpecApprovals({ projectId, userId, actor });
+  }
+
   /** EP-QST-01 — 질문 목록(기본 `open` · 어휘 판정은 서비스가 한다 · REQ-API-126) */
   @RequireScope('spec:read')
   @Get('questions')

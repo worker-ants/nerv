@@ -107,8 +107,15 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
   });
 
   it('승인 요청·질문 생성은 받은 요청을 무효화한다', () => {
+    // 스펙 목록의 결재 대기도 같은 판정의 다른 모양이다 — 함께 낡는다(REQ-WEB-292)
     expect(invalidationKeysFor(envelope(NERV_EVENT.APPROVAL_REQUESTED))).toEqual([
       queryKeys.inbox(),
+      queryKeys.projectPendingApprovals(PRJ),
+    ]);
+    expect(invalidationKeysFor(envelope(NERV_EVENT.APPROVAL_DECIDED))).toEqual([
+      queryKeys.inbox(),
+      queryKeys.myNotifications(),
+      queryKeys.projectPendingApprovals(PRJ),
     ]);
     // 질문은 그 세션을 멈춘다 — 세션 보드와 개요의 "응답 대기" 도 함께 바뀐다(REQ-WEB-219)
     expect(invalidationKeysFor(envelope(NERV_EVENT.QUESTION_CREATED))).toEqual([

@@ -54,6 +54,8 @@ export const queryKeys = {
   projectSpecTree: (projId: ProjectId) => ['project', projId, 'specTree'] as const,
   /** 스펙 표·관계 그래프가 함께 쓰는 한 응답(EP-SPEC-19) */
   projectSpecGraph: (projId: ProjectId) => ['project', projId, 'specGraph'] as const,
+  /** 스펙 목록의 "결재 대기" — 이 프로젝트에서 내가 결정할 수 있는 스펙 결재(EP-SPEC-26 · REQ-WEB-292) */
+  projectPendingApprovals: (projId: ProjectId) => ['project', projId, 'pendingApprovals'] as const,
   projectTasks: (projId: ProjectId) => ['project', projId, 'tasks'] as const,
   projectSessions: (projId: ProjectId) => ['project', projId, 'sessions'] as const,
   projectBaselines: (projId: ProjectId) => ['project', projId, 'baselines'] as const,

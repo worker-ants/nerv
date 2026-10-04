@@ -102,7 +102,11 @@ export interface SpecTreeProps {
   selection?: {
     selected: ReadonlySet<string>;
     onToggle: (key: string) => void;
+    /** 고를 수 있는 줄 — 없으면 보관하지 않은 줄 전부(결재 대기는 내가 결정할 수 있는 문서만 · REQ-WEB-292) */
+    selectable?: (key: string) => boolean;
   };
+  /** 이 키의 문서와 그 조상만 남긴다 — 결재 대기 칩(REQ-WEB-292). 상태 · 종류와 AND 다 */
+  onlyKeys?: ReadonlySet<string>;
   /** 제목 거르기가 켜졌는지 알린다 — 걸러진 목록에서는 순서를 바꾸지 못한다(보이지 않는 형제가 있다) */
   onTitleFilter?: (active: boolean) => void;
   /**
@@ -385,6 +389,7 @@ export function SpecTree({
   headerAction,
   selection,
   onTitleFilter,
+  onlyKeys,
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId, includeArchived, view);
@@ -427,7 +432,8 @@ export function SpecTree({
   const statusKept = useMemo(() => {
     const wantedStatus = statuses !== undefined && statuses.length > 0 ? new Set(statuses) : null;
     const wantedType = types !== undefined && types.length > 0 ? new Set(types) : null;
-    if (wantedStatus === null && wantedType === null && !attachedOnly) return null;
+    if (wantedStatus === null && wantedType === null && !attachedOnly && onlyKeys === undefined)
+      return null;
     const matched = new Set(
       nodes
         .filter(
@@ -437,7 +443,8 @@ export function SpecTree({
               // "새 버전 진행 중" 은 줄의 상태가 아니라 줄 위의 버전이다(REQ-WEB-249)
               (wantedStatus.has(NEWER_STATUS) && hasNewerVersion(n))) &&
             (wantedType === null || wantedType.has(n.type)) &&
-            (!attachedOnly || (n.attachment_count ?? 0) > 0),
+            (!attachedOnly || (n.attachment_count ?? 0) > 0) &&
+            (onlyKeys === undefined || onlyKeys.has(n.key)),
         )
         .map((n) => n.id),
     );
@@ -452,7 +459,7 @@ export function SpecTree({
       }
     }
     return kept;
-  }, [statuses, types, attachedOnly, nodes]);
+  }, [statuses, types, attachedOnly, onlyKeys, nodes]);
 
   const storageKey = storageKeyFor(projectSlug, variant);
 
@@ -653,6 +660,10 @@ export function SpecTree({
       setScrollTop(viewport.scrollTop);
     }
   };
+  const canSelect = (node: TreeNode): boolean =>
+    selection !== undefined &&
+    node.archived_at == null &&
+    (selection.selectable === undefined || selection.selectable(node.key));
   const onRowKey = (e: React.KeyboardEvent, node: TreeNode): void => {
     const index = visible.findIndex((v) => v.node.id === node.id);
     const branch = byParent.has(node.id);
@@ -677,7 +688,7 @@ export function SpecTree({
         break;
       case ' ':
         // 정리 모드에서는 Space 가 고른다 — 마우스 없이 여러 편을 고르는 길이다(REQ-WEB-291)
-        if (selection === undefined || node.archived_at != null) return;
+        if (selection === undefined || !canSelect(node)) return;
         selection.onToggle(node.key);
         break;
       case 'ArrowLeft': {
@@ -729,7 +740,7 @@ export function SpecTree({
             data-testid="tree-select"
             tabIndex={-1}
             checked={selection.selected.has(node.key)}
-            disabled={node.archived_at != null}
+            disabled={!canSelect(node)}
             onChange={() => selection.onToggle(node.key)}
             aria-label={t('specs.arrange.select', { title: node.title })}
             className="mx-1 shrink-0"
