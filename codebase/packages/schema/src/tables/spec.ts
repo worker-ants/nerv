@@ -56,6 +56,12 @@ export const spec = pgTable(
     /** 기본 리뷰어 자동 지정 힌트 */
     ownerRole: memberRole('owner_role'),
     archivedAt: ts('archived_at'),
+    /**
+     * **어느 보관 동작으로 보관됐나**(2026-10-04 · 사람 결정 R1 · REQ-DB-036). 하위까지 한 번에 보관한
+     * 문서들은 같은 값을 갖는다 — 복구가 "함께 보관한 것만" 되살리는 근거다. 그 전에 따로 보관한 하위는
+     * 다른 값이라 그대로 남는다. 이 열이 생기기 전에 보관한 문서는 NULL 이고 혼자 복구된다.
+     */
+    archiveBatchId: uuid('archive_batch_id'),
     createdAt: createdAt(),
   },
   (t) => [

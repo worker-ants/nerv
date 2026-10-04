@@ -521,25 +521,37 @@ function SpecDetail(): React.JSX.Element {
         method: 'POST',
         body: {},
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
       // 목록으로 돌아오는 것이 복구의 요점이다 — 트리와 표(그래프 응답)를 함께 새로 받는다
       if (projectUuid !== undefined) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecTree(projectUuid) });
         void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecGraph(projectUuid) });
       }
-      pushToast({ tone: 'ok', message: t('spec.restore_done') });
+      // 함께 보관한 하위도 되살아난다(REQ-WEB-290) — 몇 편이 함께 돌아왔는지 말한다
+      const restored = Array.isArray(result['restored_keys']) ? result['restored_keys'].length : 1;
+      pushToast({
+        tone: 'ok',
+        message:
+          restored > 1
+            ? t('spec.restore_done_with', { count: restored - 1 })
+            : t('spec.restore_done'),
+      });
     },
     onError: (error: Error) => {
-      // 상위가 보관돼 있으면 되살릴 자리가 없다 — 무엇을 먼저 복구해야 하는지 이름으로 말한다
+      // 상위가 보관돼 있으면 되살릴 자리가 없다 — 무엇을 먼저 복구해야 하는지 이름으로 말한다.
+      // 바로 위가 아니라 보관된 조상의 **가장 위**다(REQ-API-264) — 바로 위를 복구해도 그 위에서 다시 막힌다
       if (
         error instanceof NervApiError &&
         error.body.details['kind'] === 'parent_archived' &&
         typeof error.body.details['parent'] === 'string'
       ) {
+        const first = error.body.details['restore_first'];
         pushToast({
           tone: 'warn',
-          message: t('spec.restore_blocked_parent', { parent: error.body.details['parent'] }),
+          message: t('spec.restore_blocked_parent', {
+            parent: typeof first === 'string' ? first : error.body.details['parent'],
+          }),
         });
         return;
       }

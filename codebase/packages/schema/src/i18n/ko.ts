@@ -1015,6 +1015,9 @@ export const ko = {
   'invite.revoke_confirm': '{email}에게 보낸 초대를 회수합니다. 링크는 바로 쓸 수 없게 됩니다.',
   'invite.locked': '초대는 조직 admin이나 프로젝트 admin만 보낼 수 있습니다.',
   'spec.meta.archive_confirm': '이 문서를 보관합니다.',
+  'spec.meta.archive_confirm_with': '이 문서와 하위 문서 {count}편을 함께 보관합니다.',
+  'spec.meta.archive_descendants':
+    '하위 문서 {count}편도 함께 보관합니다. 남길 문서는 먼저 다른 곳으로 옮기세요.',
   'spec.meta.archive_confirm_detail':
     '목록과 트리에서 빠집니다. 되돌리려면 이 문서 화면에서 [복구]를 누르세요.',
   'spec.attach.remove_confirm': '첨부 "{name}"을(를) 삭제합니다. 되돌릴 수 없습니다.',
@@ -1550,15 +1553,19 @@ export const ko = {
     '보관된 문서입니다. 기본 목록과 트리에서는 빠지고, 스펙 목록의 [보관 보기]를 켜면 함께 보입니다. 링크와 이력은 그대로 남아 있습니다.',
   'spec.restore': '복구',
   'spec.restore_blocked_parent':
-    '상위 문서({parent})가 보관된 상태라 복구할 수 없습니다. 상위 문서를 먼저 복구하세요.',
+    '상위 문서가 보관된 상태라 복구할 수 없습니다. {parent}부터 복구하세요.',
   'spec.restore_done': '복구했습니다. 목록과 트리에 다시 표시됩니다.',
+  'spec.restore_done_with':
+    '함께 보관한 하위 문서 {count}편도 복구했습니다. 목록과 트리에 다시 표시됩니다.',
   'spec.meta.archive': '보관',
   'spec.meta.archive_blocked': '보관할 수 없습니다. 아래 항목을 먼저 정리하세요',
   'spec.meta.archive_title': '삭제와 다릅니다. 목록에서만 빠지고 링크와 이력은 남습니다',
   'spec.meta.edit_role': 'planner·admin만 바꿀 수 있습니다.',
   'spec.meta.archived': '보관했습니다. 삭제되지 않고 목록에서만 빠집니다.',
+  'spec.meta.archived_with':
+    '하위 문서 {count}편과 함께 보관했습니다. 삭제되지 않고 목록에서만 빠집니다.',
   'spec.meta.archived_open_tasks':
-    '보관했습니다. 끝나지 않은 작업 {count}건은 작업 큐에서 빠졌습니다. 작업 보드에서 정리해 주세요.',
+    '끝나지 않은 작업 {count}건은 작업 큐에서 빠졌습니다. 작업 보드에서 정리해 주세요.',
   'spec.meta.blocker.child': '하위 스펙',
   'spec.meta.blocker.claim': '클레임 중인 작업',
   'spec.meta.cycle':

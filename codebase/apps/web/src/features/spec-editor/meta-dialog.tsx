@@ -71,6 +71,10 @@ export function MetaDialog({
   const [newOwnerRole, setNewOwnerRole] = useState(ownerRole ?? '');
   const [cycleError, setCycleError] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<Blocker[] | null>(null);
+  // **함께 보관될 하위**(2026-10-04 · 사람 결정 R2 · REQ-WEB-290). 부모만 보관하는 길은 없다 — 하위가 있으면
+  // 확인 창이 그 목록을 먼저 보이고 가지째 보관한다. 트리는 보관되지 않은 것만 담으므로 그대로 쓴다
+  const tree = useSpecTree(projectSlug, projectId);
+  const descendants = liveDescendants(rows(tree.data), specKey);
 
   // Esc 로 닫힌다 — 다이얼로그의 기본 기대다(FreezeDialog 와 같은 규율). 안의 확인이 열려 있으면
   // Esc 는 확인만 닫는다(confirm-action.tsx 가 전파를 멈춘다)
@@ -132,20 +136,25 @@ export function MetaDialog({
 
   const archive = useMutation({
     mutationFn: () =>
-      apiFetch<{ open_tasks?: string[] }>(`/projects/${projectSlug}/specs/${specKey}/archive`, {
-        method: 'POST',
-        body: {},
-      }),
+      apiFetch<{ open_tasks?: string[]; archived_keys?: string[] }>(
+        `/projects/${projectSlug}/specs/${specKey}/archive`,
+        { method: 'POST', body: descendants.length > 0 ? { descendants: true } : {} },
+      ),
     onSuccess: (result) => {
       setBlockers(null);
       invalidate();
       // **끝나지 않은 작업이 남았으면 그것까지 알린다**(REQ-WEB-287). 보관하면 그 작업은 큐에서 빠지고
       // 새로 잡히지 않는다 — 말하지 않으면 보드에 멈춘 작업이 이유 없이 남는다
       const open = result.open_tasks?.length ?? 0;
+      const withChildren = (result.archived_keys?.length ?? 1) - 1;
       pushToast({
         tone: 'ok',
-        message:
-          open > 0 ? t('spec.meta.archived_open_tasks', { count: open }) : t('spec.meta.archived'),
+        message: [
+          withChildren > 0
+            ? t('spec.meta.archived_with', { count: withChildren })
+            : t('spec.meta.archived'),
+          ...(open > 0 ? [t('spec.meta.archived_open_tasks', { count: open })] : []),
+        ].join(' '),
       });
       onClose();
     },
@@ -156,6 +165,10 @@ export function MetaDialog({
         error.body.details['kind'] === 'archive_blocked'
       ) {
         setBlockers(error.body.details['blockers'] as Blocker[]);
+        // 그 사이 하위가 생겼다 — 트리를 다시 받아 함께 보관될 목록을 고친다
+        if (Array.isArray(error.body.details['descendants']) && projectId !== undefined) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.projectSpecTree(projectId) });
+        }
         return;
       }
       onApiError(error);
@@ -293,6 +306,22 @@ export function MetaDialog({
               보관됐다 — 되살릴 수는 있지만(이 문서 주소의 [복구]) 그 길을 모르는 사람에게는
               문서가 목록에서 사라진 것이다 */}
         {/* 이미 보관된 문서에는 두지 않는다(REQ-WEB-287) — 다시 누르면 처음 보관한 시각을 잃을 뿐이다 */}
+        {!archived && descendants.length > 0 && (
+          <div
+            data-testid="archive-descendants"
+            className="w-full rounded-nerv-sm bg-bg-sunken px-2 py-1.5 text-xs text-text-mute"
+          >
+            <p>{t('spec.meta.archive_descendants', { count: descendants.length })}</p>
+            {/* 상한을 두지 않는다(R3) — 전부 나열하고, 길면 이 안에서 스크롤한다 */}
+            <ul className="mt-1 max-h-32 overflow-y-auto">
+              {descendants.map((d) => (
+                <li key={d.key} className="truncate">
+                  <span className="font-mono">{d.key}</span> {d.title}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {!archived && (
           <ConfirmAction
             label={t('spec.meta.archive')}
@@ -303,7 +332,11 @@ export function MetaDialog({
             // `title` 은 **잠긴 단추의 사유**다(confirm-action.tsx) — 설명("삭제가 아닙니다")을 여기 두면 잠긴 까닭으로 읽힌다
             title={t('spec.meta.edit_role')}
             tooltip={t('spec.meta.archive_title')}
-            message={t('spec.meta.archive_confirm')}
+            message={
+              descendants.length > 0
+                ? t('spec.meta.archive_confirm_with', { count: descendants.length })
+                : t('spec.meta.archive_confirm')
+            }
             detail={t('spec.meta.archive_confirm_detail')}
             confirmLabel={t('spec.meta.archive')}
             pending={archive.isPending}
@@ -316,6 +349,32 @@ export function MetaDialog({
       </div>
     </Modal>
   );
+}
+
+/**
+ * 보관되지 않은 하위 전부 — 트리 순서대로. 트리 응답이 보관된 것을 담지 않으므로 그 아래도 따라오지 않는다.
+ */
+export function liveDescendants(
+  nodes: readonly Record<string, unknown>[],
+  specKey: string,
+): { key: string; title: string }[] {
+  const root = nodes.find((n) => n['key'] === specKey);
+  if (root === undefined) return [];
+  const children = new Map<string, Record<string, unknown>[]>();
+  for (const n of nodes) {
+    if (n['parent_id'] == null) continue;
+    const parent = String(n['parent_id']);
+    children.set(parent, [...(children.get(parent) ?? []), n]);
+  }
+  const out: { key: string; title: string }[] = [];
+  const walk = (id: string): void => {
+    for (const child of children.get(id) ?? []) {
+      out.push({ key: String(child['key']), title: String(child['title'] ?? '') });
+      walk(String(child['id']));
+    }
+  };
+  walk(String(root['id']));
+  return out;
 }
 
 /**

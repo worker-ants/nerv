@@ -1031,6 +1031,10 @@ export const en = {
     'Revoke the invitation sent to {email}. The link will stop working immediately.',
   'invite.locked': 'Only an organization admin or a project admin can send invitations.',
   'spec.meta.archive_confirm': 'Archive this document.',
+  'spec.meta.archive_confirm_with':
+    'Archive this document together with its {count} child documents.',
+  'spec.meta.archive_descendants':
+    'Its {count} child documents will be archived too. Move any you want to keep somewhere else first.',
   'spec.meta.archive_confirm_detail':
     "It will be removed from the list and the tree. To bring it back, click [Restore] on this document's page.",
   'spec.attach.remove_confirm': 'Delete attachment "{name}". This cannot be undone.',
@@ -1573,15 +1577,19 @@ export const en = {
     'This document is archived. It’s left out of the default lists and the tree; turn on Show archived in the spec list to see it. Its links and history are kept.',
   'spec.restore': 'Restore',
   'spec.restore_blocked_parent':
-    'Its parent ({parent}) is archived, so it can’t be restored. Restore the parent first.',
+    'A parent document is archived, so this can’t be restored. Restore {parent} first.',
   'spec.restore_done': 'Restored. It’s back in the lists and the tree.',
+  'spec.restore_done_with':
+    'Restored, along with {count} child documents archived together with it. They’re back in the lists and the tree.',
   'spec.meta.archive': 'Archive',
   'spec.meta.archive_blocked': 'Can’t archive yet. Resolve these first',
   'spec.meta.archive_title': 'Not a delete. It’s hidden from lists, but links and history are kept',
   'spec.meta.edit_role': 'Only planner and admin can change this.',
   'spec.meta.archived': 'Archived. It’s not deleted, just hidden from default lists.',
+  'spec.meta.archived_with':
+    'Archived along with {count} child documents. They’re not deleted, just hidden from default lists.',
   'spec.meta.archived_open_tasks':
-    'Archived. {count} unfinished tasks were taken out of the task queue. Clean them up on the task board.',
+    '{count} unfinished tasks were taken out of the task queue. Clean them up on the task board.',
   'spec.meta.blocker.child': 'Child spec',
   'spec.meta.blocker.claim': 'Task with an active claim',
   'spec.meta.cycle': '{parent} is under {key}. A spec can’t be moved under its own descendant.',

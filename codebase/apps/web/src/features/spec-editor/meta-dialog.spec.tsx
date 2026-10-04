@@ -31,17 +31,22 @@ afterEach(() => {
 
 function renderDialog(
   reply: { status: number; body: unknown },
-  options: { archived?: boolean } = {},
+  options: { archived?: boolean; tree?: Record<string, unknown>[] } = {},
 ): {
   onClose: ReturnType<typeof vi.fn>;
   calls: string[];
+  bodies: unknown[];
 } {
   const onClose = vi.fn();
   const calls: string[] = [];
+  const bodies: unknown[] = [];
   vi.stubGlobal('fetch', async (url: unknown, init?: RequestInit) => {
     // 쓰기만 센다 — 실시간 공급자가 부르는 읽기는 이 검사의 것이 아니다
     if ((init?.method ?? 'GET') !== 'GET') {
       calls.push(`${init?.method ?? 'GET'} ${String(url).replace(/^.*\/api\/v1/, '')}`);
+      bodies.push(typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body);
+    } else if (options.tree !== undefined && String(url).includes('/specs/tree')) {
+      return { ok: true, status: 200, json: async () => options.tree };
     }
     return { ok: reply.status < 400, status: reply.status, json: async () => reply.body };
   });
@@ -50,7 +55,8 @@ function renderDialog(
     component: () => (
       <MetaDialog
         projectSlug="clemvion"
-        projectId={undefined}
+        // 트리는 프로젝트 UUID 가 있을 때만 읽는다 — 하위 목록을 보는 검사만 그것을 준다
+        projectId={options.tree === undefined ? undefined : ('p-1' as never)}
         specKey="SPC-A"
         title="문서"
         canEdit
@@ -72,10 +78,44 @@ function renderDialog(
       </QueryClientProvider>
     </LocaleProvider>,
   );
-  return { onClose, calls };
+  return { onClose, calls, bodies };
 }
 
 describe('문서 정보 · 보관', () => {
+  it('하위가 있으면 함께 보관될 문서를 보이고, 가지째 보관하라고 보낸다 (REQ-WEB-290)', async () => {
+    const node = (id: string, key: string, parent: string | null): Record<string, unknown> => ({
+      id,
+      key,
+      title: `제목 ${key}`,
+      type: 'feature',
+      parent_id: parent,
+      doc_status: 'approved',
+      version_no: 1,
+    });
+    const { calls, bodies } = renderDialog(
+      { status: 200, body: { archived_keys: ['SPC-A', 'SPC-A1', 'SPC-A2'] } },
+      { tree: [node('a', 'SPC-A', null), node('a1', 'SPC-A1', 'a'), node('a2', 'SPC-A2', 'a1')] },
+    );
+    const list = await screen.findByTestId('archive-descendants');
+    expect(list.textContent).toContain('하위 문서 2편');
+    expect(list.textContent).toContain('SPC-A1');
+    expect(list.textContent).toContain('SPC-A2');
+    fireEvent.click(screen.getByTestId('meta-archive'));
+    expect(screen.getByTestId('meta-archive-confirming').textContent).toContain('하위 문서 2편');
+    fireEvent.click(screen.getByTestId('meta-archive-confirm'));
+    await waitFor(() => expect(calls).toEqual(['POST /projects/clemvion/specs/SPC-A/archive']));
+    expect(bodies[0]).toEqual({ descendants: true });
+  });
+
+  it('하위가 없으면 목록도 없고 그냥 보관한다', async () => {
+    const { bodies } = renderDialog({ status: 200, body: {} }, { tree: [] });
+    await screen.findByTestId('meta-save');
+    expect(screen.queryByTestId('archive-descendants')).toBeNull();
+    fireEvent.click(screen.getByTestId('meta-archive'));
+    fireEvent.click(screen.getByTestId('meta-archive-confirm'));
+    await waitFor(() => expect(bodies).toEqual([{}]));
+  });
+
   it('이미 보관된 문서에는 [보관]이 없다 — 되살리는 길은 배너의 [복구]다 (REQ-WEB-287)', async () => {
     renderDialog({ status: 200, body: {} }, { archived: true });
     await screen.findByTestId('meta-save');
