@@ -57,6 +57,7 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     search: Record<string, unknown>,
   ): {
     archived?: true;
+    attach?: true;
     baseline?: string;
     basis?: 'latest';
     focus?: string;
@@ -69,6 +70,10 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     // 주소는 JSON 으로 읽힌다 — `?archived=1` 은 숫자 1 로 온다(board-search.ts 의 같은 결함)
     ...(search['archived'] === true || search['archived'] === 1 || search['archived'] === '1'
       ? { archived: true as const }
+      : {}),
+    // **첨부 있음**도 뷰 상태다(2026-10-04 · REQ-WEB-289) — 시안이 붙은 문서 목록을 링크로 건넨다
+    ...(search['attach'] === true || search['attach'] === 1 || search['attach'] === '1'
+      ? { attach: true as const }
       : {}),
     // **검색어도 뷰 상태다**(§2.4 (3) · screens.md:583 — "검색·타입·상태 필터는 URL 쿼리로
     // 보존"). 컴포넌트 state 로 두면 "이 검색 결과를 봐 달라" 를 링크로 건넬 수 없고,
@@ -135,6 +140,7 @@ function SpecListScreen(): React.JSX.Element {
   const navigate = useNavigate();
   const {
     archived = false,
+    attach = false,
     baseline,
     basis,
     focus,
@@ -159,6 +165,7 @@ function SpecListScreen(): React.JSX.Element {
    */
   const searchWith = (patch: {
     archived?: boolean;
+    attach?: boolean;
     baseline?: string | null;
     basis?: 'latest' | null;
     focus?: string | null;
@@ -169,6 +176,7 @@ function SpecListScreen(): React.JSX.Element {
     view?: SpecView;
   }): {
     archived?: true;
+    attach?: true;
     baseline?: string;
     basis?: 'latest';
     focus?: string;
@@ -202,6 +210,7 @@ function SpecListScreen(): React.JSX.Element {
         : undefined;
     return {
       ...((patch.archived ?? archived) ? { archived: true as const } : {}),
+      ...((patch.attach ?? attach) ? { attach: true as const } : {}),
       ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
       ...(nextBasis === undefined ? {} : { basis: nextBasis }),
       ...(nextQuery === undefined || nextQuery === '' ? {} : { q: nextQuery }),
@@ -259,6 +268,10 @@ function SpecListScreen(): React.JSX.Element {
   ]).filter(([, count]) => count > 0);
   /** 승인본 위에 새 버전이 진행 중인 문서 수(REQ-WEB-249) — 기준과 상관없이 같은 수다 */
   const newerCount = (graph.data?.nodes ?? []).filter(hasNewerVersion).length;
+  /** 첨부가 있는 문서 수(REQ-WEB-289) — 첨부는 문서에 붙으므로 기준과 상관없이 같은 수다 */
+  const attachedCount = (graph.data?.nodes ?? []).filter(
+    (n) => (n.attachment_count ?? 0) > 0,
+  ).length;
 
   // 그래프를 보는 동안에만 화면 높이를 **확정한다**. `min-h` 로 두면 `flex-1` 자식이
   // 내용만큼 자라는데, 이웃 93개짜리 문서를 고르는 순간 패널이 4,771px 이 되고 캔버스도
@@ -473,7 +486,7 @@ function SpecListScreen(): React.JSX.Element {
           REQ-WEB-140). 기준선으로 보는 동안은 전부 승인본이라 말할 것이 없다 */}
       {submitted.trim() === '' &&
         baseline === undefined &&
-        (statusCounts.length > 0 || newerCount > 0) && (
+        (statusCounts.length > 0 || newerCount > 0 || attachedCount > 0) && (
           <div
             data-testid="spec-status-summary"
             role="group"
@@ -533,6 +546,30 @@ function SpecListScreen(): React.JSX.Element {
                 {t('specs.status_newer')} {newerCount}
               </button>
             )}
+            {/* **첨부 있음**(2026-10-04 · 사람 결정 F2 · REQ-WEB-289) — 상태와 다른 축이라 상태 칩과 함께
+                켤 수 있다(AND). 트리 탭에서 거른다 — 표는 "첨부" 열로 정렬한다 */}
+            {attachedCount > 0 && (
+              <button
+                type="button"
+                data-testid="spec-attached-only"
+                aria-pressed={attach}
+                onClick={() =>
+                  void navigate({
+                    to: '/p/$proj/specs',
+                    params: { proj },
+                    search: searchWith({ attach: !attach, view: 'tree' }),
+                  })
+                }
+                className={cn(
+                  'rounded-nerv-sm border px-2 py-0.5 tabular-nums',
+                  attach
+                    ? 'border-border-strong bg-bg-active font-medium text-text'
+                    : 'border-border text-text-mute hover:text-text',
+                )}
+              >
+                {t('specs.attached_only')} {attachedCount}
+              </button>
+            )}
           </div>
         )}
 
@@ -558,6 +595,7 @@ function SpecListScreen(): React.JSX.Element {
                 includeArchived={archived}
                 statuses={statuses}
                 types={types}
+                attachedOnly={attach}
                 controls={treeControls}
                 view={viewBasis}
               />

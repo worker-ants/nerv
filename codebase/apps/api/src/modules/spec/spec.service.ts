@@ -107,6 +107,12 @@ export interface SpecTreeNode extends Record<string, unknown> {
   /** 열린 코멘트 수 — 리뷰어가 먼저 볼 문서를 고르는 재료다(REQ-API-183) */
   open_comments: number;
   /**
+   * 첨부 수(2026-10-04 · 사람 결정 F1 · REQ-API-261) — **지금 보이는 첨부만** 센다: 올리기를 마쳤고
+   * 내리지 않은 것. 문서 화면의 "첨부 N" 과 같은 수다(EP-SPEC-20 의 기본 목록). 첨부는 버전이 아니라
+   * 문서에 붙으므로 보기 기준과 상관없이 지금의 수다.
+   */
+  attachment_count: number;
+  /**
    * **보기 기준과 상관없이** 함께 주는 세 값(2026-09-27 · REQ-API-194). 승인본으로 읽는 줄이
    * "이 문서 위에 v4 초안이 있다" 를 표시하려면 가장 새 버전과 최신 승인본의 번호가 필요하다.
    * 버전이 없는 노드(임포터의 골격)는 셋 다 null 이다.
@@ -352,6 +358,10 @@ export class SpecService {
              coalesce(sv.updated_at, sv.created_at) AS updated_at,
              (SELECT count(*)::int FROM spec_comment c
                WHERE c.spec_id = s.id AND c.status = 'open') AS open_comments,
+             -- 첨부 수(REQ-API-261) — 문서 화면의 "첨부 N" 과 같은 집합: 올리기를 마쳤고 내리지 않은 것
+             (SELECT count(*)::int FROM attachment att
+               WHERE att.spec_id = s.id AND att.committed_at IS NOT NULL
+                 AND att.hidden_at IS NULL) AS attachment_count,
              ${VERSION_SUMMARY_COLUMNS}
         FROM spec s
    LEFT JOIN spec_version sv ON ${version}

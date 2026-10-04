@@ -49,6 +49,11 @@ const specAxis: KeyBuilder = (e) => {
 // 나머지는 UUID 로 남아 있었다 — 화면의 키는 고정 ID라 코멘트가 달려도, Task 가 done 이
 // 돼도 단건 캐시는 한 번도 무효화되지 않았다(서버가 그 이벤트에 키를 싣게 됐다).
 const specComments: KeyBuilder = (e) => [queryKeys.specComments(e.subject_key ?? e.subject_id)];
+/** 스펙 목록 — 트리(EP-SPEC-01)와 표 · 그래프(EP-SPEC-19)가 같은 노드의 수를 보인다 */
+const specListAxis: KeyBuilder = (e) => [
+  queryKeys.projectSpecTree(e.project_id),
+  queryKeys.projectSpecGraph(e.project_id),
+];
 const taskAxis: KeyBuilder = (e) => [
   queryKeys.projectTasks(e.project_id),
   queryKeys.task(e.subject_key ?? e.subject_id),
@@ -73,8 +78,9 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   // 참조 전파 — S3 참조 갱신 배지가 함께 붙는다
   [E.SPEC_RECHECK_REQUESTED]: (e) => [queryKeys.spec(e.subject_key ?? e.subject_id)],
 
-  [E.SPEC_COMMENT_ADDED]: specComments,
-  [E.COMMENT_RESOLVED]: specComments,
+  // 목록 줄의 열린 코멘트 수도 낡는다(2026-10-04 · REQ-WEB-289) — 트리 · 표가 그 수를 보인다
+  [E.SPEC_COMMENT_ADDED]: (e) => [...specComments(e), ...specListAxis(e)],
+  [E.COMMENT_RESOLVED]: (e) => [...specComments(e), ...specListAxis(e)],
 
   [E.TASK_READY]: taskAxis,
   [E.TASK_CLAIMED]: taskAxis,
@@ -151,8 +157,9 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.INVITATION_DECLINED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.TOKEN_CREATED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
   [E.TOKEN_REVOKED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
-  [E.SPEC_ATTACHMENT_ADDED]: (e) => [queryKeys.projectSpecTree(e.project_id)],
-  [E.SPEC_ATTACHMENT_REMOVED]: (e) => [queryKeys.projectSpecTree(e.project_id)],
+  // 첨부 수는 트리와 표(그래프 응답) 둘 다에 있다(REQ-WEB-289) — 트리만 다시 읽어 표가 낡아 있었다
+  [E.SPEC_ATTACHMENT_ADDED]: specListAxis,
+  [E.SPEC_ATTACHMENT_REMOVED]: specListAxis,
 
   [E.GATE_BYPASSED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.GATE_FAILOPEN]: (e) => [queryKeys.projectEvents(e.project_id)],

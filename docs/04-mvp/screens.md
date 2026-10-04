@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.17 · 2026-10-04 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.18 · 2026-10-04 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.18 변경(2026-10-04 — 트리 · 표의 첨부 표시, **사람 결정 F1 · F2**): **REQ-WEB-289 신설 · §1.4 이벤트 표 두 행 · §2.4 행 메타 · §2.4c 열.** 디자인 시안이 어느 문서에 붙었는지 목록에서는 알 수 없었다. 트리(전체 · 레일)의 줄에 클립과 첨부 수를, 표에 정렬되는 "첨부" 열을, 스펙 목록에 "첨부 있음" 칩을 둔다. 열린 코멘트 수의 이모지(💬)는 "화면에 이모지를 쓰지 않는다"(§4.3)와 어긋나 선 그림으로 바꿨다. 코멘트 · 첨부 이벤트가 표 · 그래프를 다시 읽지 않아 목록의 수가 낡던 것도 고쳤다.
 >
 > v2.17 변경(2026-10-04 — 검색의 문서 번호, **사람 결정 S1~S3**): **REQ-WEB-288 신설 · §1.3a 동작 · 결과 행 · §2.4 검색 모드 · 트리 거르기 칸 이름.** 스펙 목록의 검색 결과가 종류와 상관없이 스펙 상세로 가서, 작업 결과를 누르면 "없는 문서" 가 열렸다. 트리 거르기는 번호로 맞아도 행에 번호가 보이지 않았고 ⌘K 는 번호를 다 치고 바로 Enter 를 누르면 앞 글자의 결과를 열었다. 화면의 이름은 용어 사전대로 "번호" 다([4.4 API 명세](api.md) REQ-API-258 · 259).
 >
@@ -606,7 +608,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | 이벤트(`<리소스>.<동사>`) | 무효화하는 쿼리 키 | 수신 룸 |
 | --- | --- | --- |
 | `spec.draft_created` ★`spec.draft_updated` `spec.submitted` `spec.rejected` `spec.approved` `spec.superseded` `spec.deprecated` | `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'specTree']` | `project:{id}` |
-| `spec.comment_added` · ★`comment.resolved` | `['spec', specId, 'comments']` | `project:{id}` |
+| `spec.comment_added` · ★`comment.resolved` | `['spec', specId, 'comments']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']`(목록 줄의 열린 코멘트 수 — 2026-10-04 · REQ-WEB-289) | `project:{id}` |
 | `task.ready` `task.claimed` `task.blocked` `task.done` · ★`task.created` ★`task.updated` | `['project', projId, 'tasks']` · `['task', taskId]` | `project:{id}` |
 | `task.rebrief_required` | `['project', projId, 'tasks']` · `['task', taskId]` + S4 재브리핑 배지 | `project:{id}` + 담당자·클레임 세션 소유자 `user:{id}` |
 | `spec.recheck_requested` | `['spec', specId]` + S3 참조 갱신 배지 | `project:{id}` + 대상 문서 owner `user:{id}` |
@@ -619,7 +621,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` | `['project', projId, 'events']` + 게이트 배너/카운터 | `project:{id}`(bypassed는 admin `user:{id}`에도) |
 | ★`spec.meta_updated` ★`spec.archived` ★`spec.restored` | 스펙 축과 같다 — `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']` | `project:{id}` |
-| ★`spec.attachment_added` ★`spec.attachment_removed` | `['project', projId, 'spec-tree']` | `project:{id}` |
+| ★`spec.attachment_added` ★`spec.attachment_removed` | `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']`(트리와 표 둘 다 첨부 수를 보인다 — 2026-10-04 · REQ-WEB-289) | `project:{id}` |
 | ★`evidence.added` | `['task', taskKey]` · `['project', projId, 'tasks']` · `['project', projId, 'coverage']` | `project:{id}` |
 | ★`approval.decided` | `['inbox']` + 헤더 배지 | `user:{id}` + `project:{id}` |
 | ★`question.cancelled` | `['inbox']` · `['project', projId, 'sessions']` | `user:{id}` + `project:{id}` |
@@ -1121,7 +1123,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 ```
 
 1. **목록 머리 — 만드는 문은 없다**(2026-09-22 걷음 · REQ-WEB-173). 스펙은 에이전트가 쓰고, 문서가 하나도 없으면 목록이 **시작 카드**를 보인다(REQ-WEB-208). 행 클릭은 S3 상세로.
-2. **행 = 트리 노드 + 메타** — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수. 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 `SpecTree` 공유다(D-05의 프론트 버전). 승인본 위에 새 버전(초안 · 검토 중)이 있으면 줄 끝에 `v4 검토 중` 같은 표시가 있고, 누르면 그 버전이 열린다(2026-09-27 · REQ-WEB-249).
+2. **행 = 트리 노드 + 메타** — 타입(6종)·문서 상태·현재 버전·최근 갱신·open 코멘트 수(말풍선 선 그림)·**첨부 수**(클립 선 그림 — 0 이면 그리지 않는다 · 2026-10-04 · REQ-WEB-289). 레일 트리도 첨부가 있는 줄에는 클립과 수를 단다. 상단의 **첨부 있음 N** 칩이 첨부가 있는 문서만 트리에 남긴다(`?attach=1` · 상태 · 종류 필터와 AND). 데이터는 S2·S3 트리와 같은 EP-SPEC-01(+ 검색은 EP-SPEC-02) — 컴포넌트도 `SpecTree` 공유다(D-05의 프론트 버전). 승인본 위에 새 버전(초안 · 검토 중)이 있으면 줄 끝에 `v4 검토 중` 같은 표시가 있고, 누르면 그 버전이 열린다(2026-09-27 · REQ-WEB-249).
 3. **필터 결과 카운트** — 검색·타입·상태 필터는 URL 쿼리로 보존한다(ui-wireframes §1.4 뷰 상태 규약). **상태 필터**(`?status=` · REQ-WEB-138 — 2026-09-05 신설)는 고른 상태의 문서와 **그 조상**을 남긴다: 조상을 빼면 부모 없는 줄이 생기고(실측 clemvion: draft 26건 중 17건의 부모가 draft 가 아니다) 목록의 위아래가 뜻을 잃는다. 아래에 걸린 것이 없는 가지는 통째로 빠진다. 서버에도 같은 필터가 있지만(EP-SPEC-01 `?status=` · REQ-API-092) **화면은 그것을 쓰지 않는다** — 이 화면은 이미 전 계층을 한 응답으로 받아 두었고(REQ-WEB-044), 서버에 걸러 달라고 하면 `전체 M` 을 알 방법이 사라진다. 판정 규칙은 서버와 같다. **`[타입 ▾]`**(`?type=`)도 같은 규칙이다 — `area` 는 본문 없이 자리를 잡는 종류라 `vision,area` 를 고르면 **트리의 뼈대**가 남는다(실측 clemvion 141편 → 17편). 둘을 함께 걸면 AND 다. **`새 버전 진행 중`**(`?status=newer`)은 줄의 상태가 아니라 줄 위의 버전으로 거른다(REQ-WEB-249).
 4. **버전 기준 선택기**(2026-09-27 개정 — 사람 결정 · REQ-WEB-248) — **승인본**(기본) · **최신 (초안 포함)**(`?basis=latest`) · 기준선들(EP-SPEC-11 목록). [기준선 생성](planner·admin — EP-SPEC-12 다이얼로그)은 옆에 따로 있다. 목록이 문서마다 `current_version_id`(최신 승인본)만 읽어서 승인본 위의 초안이 어디에도 없었다(사람 보고). 최신이면 문서마다 번호가 가장 큰 버전으로 목록 · 표 · 그래프 · 검색을 그린다. 기준선을 고르면 `?baseline=` 쿼리로 목록이 **그 세트가 담은 문서만, 그 세트가 묶어 둔 버전으로** 렌더된다(spec-workflow §3.6 · REQ-API-098). 세트 밖의 문서를 함께 보이면 보는 사람은 그 세트가 그것을 담고 있다고 읽는다. 기준선으로 보는 동안에는 상태 · 종류 필터를 그리지 않는다(세트 항목은 전부 승인본이라 거를 것이 없다). 셋은 배타라 선택기가 하나다(서버도 함께 받지 않는다 — [4.4](api.md) REQ-API-196). 새 라우트 없음 — 뷰 상태 쿼리다.
 5. **검색 모드** — 검색어 입력 시 트리 뷰가 결과 목록으로 전환된다(`?q=` 뷰 상태). 하이브리드 결과([4.4](api.md) §2.2b)를 **관련도 순 + 스펙 단위 그룹핑 + 매칭 앵커 스니펫**으로 표시하고 `related[]`(관계 확장 — 질의 일치가 아니라 상위 결과의 1-hop 이웃)는 **"관련 스펙" 별도 섹션**으로 구분해 섞지 않는다. `degraded: "lexical-only"` 수신 시 "의미 검색 일시 중단 — 키워드 결과만" 배너 1줄. **결과는 그 종류의 화면으로 간다** — 작업은 작업 상세, 요구사항은 그 문서의 요구사항 탭(`?rail=requirements`), 문서는 문서 상세다. 번호로 찾은 보관 문서에는 `보관됨` 을 붙인다(2026-10-04 · REQ-WEB-288). 트리 자체를 거르는 **트리 필터**(클라이언트, 매칭 경로만 펼침)는 `/` 키로 전환 — 서버 검색과 다른 축이다. **고른 버전 기준의 본문에서 찾는다**(2026-09-27 사람 결정 · REQ-WEB-250) — 결과 위에 어느 버전에서 찾았는지 적는다.
@@ -1332,6 +1334,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | REQ-WEB-106 | WHEN 트리를 렌더할 때 부모가 응답에 없는 노드가 있으면 THE SYSTEM SHALL 그 노드를 뿌리 층에 그린다 — 트리에 자리가 없다는 이유로 문서를 화면에서 빼지 않는다 |
 | REQ-WEB-287 | WHILE 보는 문서가 보관된 동안 THE SYSTEM SHALL 다음 할 일 줄([검토 요청] · [작업 만들기])을 두지 않고 [문서 정보] 창에 [보관]을 두지 않는다 — 서버가 둘 다 거절하고([4.4 API 명세](api.md) REQ-API-255 · 257), 다시 보관하면 처음 보관한 시각을 잃을 뿐이다. 할 일은 배너의 [복구] 하나다. WHEN 보관이 끝나지 않은 작업(`open_tasks`)을 돌려주면 THE SYSTEM SHALL 완료 토스트에 그 개수와 "작업 큐에서 빠졌다 — 보드에서 정리한다" 를 함께 알린다(2026-10-04) |
 | REQ-WEB-288 | WHEN 스펙 목록의 검색 결과를 그리면 THE SYSTEM SHALL 결과를 그 종류의 화면으로 잇고(작업 → 작업 상세 · 요구사항 → 문서의 요구사항 탭 · 문서 → 문서 상세) 번호로 찾은 보관 문서에 `보관됨` 을 붙인다. WHEN 트리 거르기가 번호로만 맞으면 THE SYSTEM SHALL 그 줄의 제목 옆에 번호를 보인다. WHILE ⌘K 의 검색어가 마지막으로 받은 결과의 검색어와 다른 동안 THE SYSTEM SHALL 그 결과를 보이지 않는다 — 번호를 다 치고 바로 Enter 를 누르면 앞 글자의 결과가 열렸다. 화면의 이름은 "번호" 다([용어 사전](../glossary.md) §2.2 "고정 ID" · 2026-10-04) |
+| REQ-WEB-289 | WHEN 스펙 트리(전체 · 레일)의 줄을 그리면 THE SYSTEM SHALL 첨부가 있는 문서에 클립 선 그림과 첨부 수(EP-SPEC-01 `attachment_count`)를 흐린 글자로 붙이고 0 이면 그리지 않는다 — 주의를 끄는 표시가 아니라 정보다. THE SYSTEM SHALL 표에 정렬되는 "첨부" 열을 두고, 스펙 목록 상단에 "첨부 있음 N" 칩을 두어 누르면 첨부가 있는 문서만 트리에 남기며 그 상태를 주소(`?attach=1`)에 남긴다. THE SYSTEM SHALL 열린 코멘트 수를 이모지가 아닌 선 그림으로 그린다(§4.3). WHEN 코멘트 · 첨부 이벤트가 오면 THE SYSTEM SHALL 트리와 표 · 그래프를 함께 다시 읽는다(2026-10-04 · 사람 결정 F1 · F2) |
 
 #### 나열하는 자리는 전부 나열한다 (2026-08-30 개정 — 사람 지시)
 
@@ -1358,7 +1361,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
 > **스펙 목록의 수용 기준 일부가 §2.6a 표에 있다**(2026-09-06 색인): REQ-WEB-129 · 135 · 136 · 138.
 
-같은 목록의 세 번째 탭이다. **트리는 "어디 있나"에 답하고 표는 "어디가 비었나"에 답한다** — 130편을 계층으로 훑으면 아무도 참조하지 않는 문서가 가지 속에 묻힌다. 열(제목·종류·상태·역참조 수·경로)은 정렬 가능하고, 역참조 0은 흐리게 그려 눈이 먼저 찾게 한다.
+같은 목록의 세 번째 탭이다. **트리는 "어디 있나"에 답하고 표는 "어디가 비었나"에 답한다** — 130편을 계층으로 훑으면 아무도 참조하지 않는 문서가 가지 속에 묻힌다. 열(제목·종류·상태·역참조 수·**첨부 수**(2026-10-04 · REQ-WEB-289)·경로)은 정렬 가능하고, 역참조 0은 흐리게 그려 눈이 먼저 찾게 한다.
 
 ### 2.4a 관계 그래프 (2026-08-23 신설)
 

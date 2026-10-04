@@ -609,6 +609,8 @@ export const ko = {
   'specs.basis_hint':
     '목록 · 문서 · 검색이 문서마다 어느 버전을 읽을지 고릅니다. 승인본(기본)은 최신 승인 버전을 보여 주고, 승인된 적 없는 문서는 초안을 보여 줍니다. 최신은 승인본 위의 초안과 검토 중인 버전까지 보여 줍니다. 기준선은 그 기준선에 담긴 문서만 당시 버전으로 보여 줍니다.',
   'specs.status_newer': '새 버전 진행 중',
+  'specs.attached_only': '첨부 있음',
+  'specs.row_attachments': '첨부 {count}개',
   'specs.row_newer_title': '승인본 위에 새 버전이 있습니다. 누르면 v{n} 버전을 엽니다.',
   'specs.search_basis_approved': '승인본 본문에서 찾았습니다.',
   'specs.search_basis_latest': '최신 버전 본문에서 찾았습니다. 초안과 검토 중인 버전도 포함합니다.',
@@ -2089,6 +2091,7 @@ export const ko = {
   'graph.tab.tree': '트리',
   // ── 스펙 트리 조작 ────────────────────────────────────────────────────────────
   'specs.col.backlinks': '역참조',
+  'specs.col.attachments': '첨부',
   'specs.col.path': '경로',
   'specs.col.status': '상태',
   'specs.col.title': '제목',

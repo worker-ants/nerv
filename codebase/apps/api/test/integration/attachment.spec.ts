@@ -8,7 +8,7 @@
 
 process.env['NERV_EMBED_URL'] = 'http://127.0.0.1:1/v1';
 
-import { ATTACHMENT_READ_MAX_BYTES, NERV_ERROR, newId } from '@nerv/schema';
+import { ATTACHMENT_READ_MAX_BYTES, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Readable } from 'node:stream';
@@ -16,6 +16,8 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AttachmentService, MAX_BYTES } from '../../src/modules/spec/attachment.service.js';
 import { StorageService } from '../../src/common/storage.service.js';
+import { EventService } from '../../src/modules/event/event.service.js';
+import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -120,6 +122,38 @@ describe('사람 경로 — 서버가 받아서 넣는다', () => {
     expect(listed).toHaveLength(1);
     expect(listed[0]?.['filename']).toBe('로그인-시안.png');
     expect(listed[0]?.['is_agent']).toBe(false);
+  });
+
+  /**
+   * **사람이 올려도 알린다**(2026-10-04 · REQ-API-262). 명세는 EP-SPEC-21 이 `spec.attachment_added` 를
+   * 낸다고 적었는데 에이전트의 확정 경로만 냈다 — 웹에서 올린 첨부는 다른 화면의 트리 · 표가 첨부 수를
+   * 새로 읽을 길이 없었다.
+   */
+  it('사람 업로드도 spec.attachment_added 를 남긴다 (REQ-API-262)', async () => {
+    const silent = {
+      publish: async () => false,
+      subscribe: async () => undefined,
+    } as unknown as ValkeyService;
+    const audited = new AttachmentService(
+      storage as unknown as StorageService,
+      drizzle(pool) as never,
+      new EventService(drizzle(pool), silent),
+    );
+    const out = await audited.upload({
+      projectId,
+      specKey: 'SPC-ATT',
+      userId,
+      filename: '알림-시안.png',
+      contentType: 'image/png',
+      body: Buffer.from('PNGDATA'),
+    });
+    const { rows } = await pool.query<{ type: string; actor_user_id: string; is_agent: boolean }>(
+      `SELECT type, actor_user_id::text AS actor_user_id, is_agent FROM event WHERE subject_id = $1`,
+      [out['id'] ?? out['attachment_id']],
+    );
+    expect(rows).toEqual([
+      { type: NERV_EVENT.SPEC_ATTACHMENT_ADDED, actor_user_id: userId, is_agent: false },
+    ]);
   });
 
   /**

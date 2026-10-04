@@ -91,6 +91,7 @@ const NODES: Row[] = [
     version_no: 2,
     updated_at: ago(3),
     open_comments: 2,
+    attachment_count: 3,
   },
   {
     id: 'n-2',
@@ -102,6 +103,7 @@ const NODES: Row[] = [
     version_no: 4,
     updated_at: ago(2 * 24 * 60),
     open_comments: 0,
+    attachment_count: 0,
   },
   {
     id: 'n-3',
@@ -113,6 +115,7 @@ const NODES: Row[] = [
     version_no: 1,
     updated_at: ago(60),
     open_comments: 0,
+    attachment_count: 1,
   },
 ];
 
@@ -281,5 +284,47 @@ describe('스펙 목록 — 머리의 상태별 수 · 동결 역할 · 행의 �
     expect(meta.textContent).toContain('v2');
     expect(meta.textContent).toContain('3분 전');
     expect(within(meta).getByTestId('tree-row-comments').textContent).toContain('2');
+    // 이모지가 아니라 선 그림이다(REQ-WEB-289)
+    expect(meta.textContent).not.toContain('💬');
+  });
+
+  it('첨부가 있는 줄에만 클립과 수가 붙는다 (REQ-WEB-289)', async () => {
+    renderAt('/p/clemvion/specs');
+    const trees = await screen.findAllByTestId('spec-tree');
+    const full = within(trees.at(-1)!);
+    const withAtt = (await full.findByText('위젯 상태')).closest('a')!;
+    expect(within(withAtt).getByTestId('tree-row-attachments').textContent).toBe('3');
+    expect(within(withAtt).getByTestId('tree-row-attachments').getAttribute('aria-label')).toBe(
+      '첨부 3개',
+    );
+    const without = full.getByText('위젯 캐시').closest('a')!;
+    expect(within(without).queryByTestId('tree-row-attachments')).toBeNull();
+  });
+
+  it('"첨부 있음" 칩이 첨부가 있는 문서만 남기고 그 상태를 주소에 남긴다 (REQ-WEB-289)', async () => {
+    const history = renderAt('/p/clemvion/specs');
+    const summary = await screen.findByTestId('spec-status-summary');
+    const chip = await within(summary).findByTestId('spec-attached-only');
+    expect(chip.textContent).toContain('2');
+    fireEvent.click(chip);
+    await waitFor(() =>
+      expect(new URLSearchParams(history.location.search).get('attach')).toBe('true'),
+    );
+    const trees = screen.getAllByTestId('spec-tree');
+    const full = within(trees.at(-1)!);
+    await waitFor(() => expect(full.queryByText('위젯 캐시')).toBeNull());
+    expect(full.getByText('위젯 상태')).toBeDefined();
+    expect(full.getByText('위젯 테마')).toBeDefined();
+  });
+
+  it('표에 정렬되는 "첨부" 열이 있다 (REQ-WEB-289)', async () => {
+    renderAt('/p/clemvion/specs?view=table');
+    await screen.findByText('위젯 캐시');
+    const counts = (): string[] =>
+      screen.getAllByTestId('table-attachments').map((c) => c.textContent ?? '');
+    fireEvent.click(screen.getByRole('button', { name: '첨부' }));
+    expect(counts()).toEqual(['0', '1', '3']);
+    fireEvent.click(screen.getByRole('button', { name: '첨부' }));
+    expect(counts()).toEqual(['3', '1', '0']);
   });
 });

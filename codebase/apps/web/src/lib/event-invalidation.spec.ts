@@ -75,7 +75,20 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     const comment = invalidationKeysFor(
       envelope(NERV_EVENT.SPEC_COMMENT_ADDED, { subject_id: 'spec-uuid', subject_key: 'SPC-A' }),
     );
-    expect(comment).toEqual([queryKeys.specComments('SPC-A')]);
+    // 목록 줄의 열린 코멘트 수도 낡는다 — 트리 · 표를 함께 다시 읽는다(REQ-WEB-289)
+    expect(comment).toEqual([
+      queryKeys.specComments('SPC-A'),
+      queryKeys.projectSpecTree(PRJ),
+      queryKeys.projectSpecGraph(PRJ),
+    ]);
+
+    // 첨부 수는 트리와 표 둘 다에 있다 — 트리만 다시 읽어 표가 낡아 있었다
+    for (const type of [NERV_EVENT.SPEC_ATTACHMENT_ADDED, NERV_EVENT.SPEC_ATTACHMENT_REMOVED]) {
+      expect(invalidationKeysFor(envelope(type, { subject_id: 'att-uuid' }))).toEqual([
+        queryKeys.projectSpecTree(PRJ),
+        queryKeys.projectSpecGraph(PRJ),
+      ]);
+    }
 
     const task = invalidationKeysFor(
       envelope(NERV_EVENT.TASK_DONE, { subject_id: 'task-uuid', subject_key: 'CLV-T-7QF3K2' }),
