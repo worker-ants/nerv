@@ -140,6 +140,16 @@ function filledSql(column: SQL): SQL {
   return sql`(coalesce(${trimmed}, '') <> '' AND ${trimmed} NOT IN (${placeholders}))`;
 }
 
+/**
+ * 작업의 근거 문서 — 기준 버전으로 이어지든 요구사항으로 이어지든 같은 문서다. 임포트 레거시는
+ * 기준 버전 없이 요구사항만 가리키므로 두 길을 다 본다. `t` 는 task 별칭이다.
+ */
+function basisSpecIdsSql(): SQL {
+  return sql`(SELECT sv_b.spec_id FROM spec_version sv_b WHERE sv_b.id = t.source_spec_version_id
+              UNION ALL
+              SELECT r_b.spec_id FROM requirement r_b WHERE r_b.id = t.source_requirement_id)`;
+}
+
 @Injectable()
 export class TaskService {
   private readonly logger = new Logger(TaskService.name);
@@ -189,6 +199,11 @@ export class TaskService {
          -- (2026-09-27 사람 결정 M9 · REQ-API-210) — 세트가 약속이라, 핀 문서에 새 승인본이 나와도
          -- "그 세트로 개발한다" 는 그대로다. 예전에는 큐에서 조용히 빠져 찾을 길이 없었다
          AND (t.source_spec_version_id IS NULL OR sv.status = 'approved' OR t.baseline_id IS NOT NULL)
+         -- **보관한 문서를 근거로 한 작업은 후보가 아니다**(2026-10-04 · REQ-API-255). 보관은 활성
+         -- 클레임만 막으므로, 이 줄이 없던 동안 폐기한 문서의 ready 작업을 에이전트가 새로 집어 갔다
+         AND NOT EXISTS (
+           SELECT 1 FROM spec xs WHERE xs.archived_at IS NOT NULL AND xs.id IN ${basisSpecIdsSql()}
+         )
          -- 선행 의존(blocks)이 전부 done
          AND NOT EXISTS (
            SELECT 1 FROM task_dependency d
@@ -586,6 +601,10 @@ export class TaskService {
     if (baselineId !== null && input.sourceSpecVersionId != null) {
       await this.assertPinMatches(baselineId, input.baseline ?? '', input.sourceSpecVersionId);
     }
+    await this.assertBasisLive(this.db, {
+      specVersionId: input.sourceSpecVersionId ?? null,
+      requirementId: input.sourceRequirementId ?? null,
+    });
     return this.events.transact(async (tx, emit) => {
       const taskId = newId();
       // 표시 키는 데이터 모델 §5.1 형식이다(`CLV-T-7QF3K2`). 이전 표기(`TSK-` + 16진 4자)는
@@ -1184,6 +1203,10 @@ export class TaskService {
         });
       }
       this.assertDelegationSpec(task);
+      await this.assertBasisLive(tx, {
+        specVersionId: task.source_spec_version_id,
+        requirementId: task.source_requirement_id,
+      });
 
       // 2) 겹침 계산
       const overlaps = await this.claims.detectOverlaps(tx, {
@@ -2164,6 +2187,33 @@ export class TaskService {
         given_version_no: row.given_no,
         pinned_version_no: row.pinned_no,
       },
+    );
+  }
+
+  /**
+   * **보관한 문서는 작업의 근거가 되지 않는다**(2026-10-04 · REQ-API-255). 작업 생성과 클레임이 같은
+   * 판정을 쓴다 — 후보 목록(`next`)만 거르면 키를 아는 세션은 그대로 잡을 수 있다. 보관은 활성 클레임이
+   * 있으면 막히므로, 보관한 뒤에 새로 시작하는 일이 없어야 "아무도 그 문서로 일하지 않는다" 가 지켜진다.
+   */
+  private async assertBasisLive(
+    runner: Tx | NervDb,
+    basis: { specVersionId: string | null; requirementId: string | null },
+  ): Promise<void> {
+    if (basis.specVersionId === null && basis.requirementId === null) return;
+    const { rows } = await runner.execute<{ key: string }>(sql`
+      SELECT s.key FROM spec s
+       WHERE s.archived_at IS NOT NULL
+         AND s.id IN (SELECT spec_id FROM spec_version WHERE id = ${basis.specVersionId}
+                      UNION ALL
+                      SELECT spec_id FROM requirement WHERE id = ${basis.requirementId})
+       LIMIT 1
+    `);
+    const archived = rows[0];
+    if (archived === undefined) return;
+    throw new NervError(
+      NERV_ERROR.PRECONDITION,
+      msg('error.task.basis_archived', { spec: archived.key }),
+      { kind: 'spec_archived', spec: archived.key },
     );
   }
 

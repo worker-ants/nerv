@@ -38,6 +38,8 @@ export interface MetaDialogProps {
   ownerRole?: string | null;
   /** planner·admin 만 편집한다 — 그 외 역할에는 비활성 + 사유(REQ-WEB-003·038) */
   canEdit: boolean;
+  /** 이미 보관된 문서 — [보관]을 두지 않는다. 되살리는 길은 상세 상단 배너의 [복구]다 */
+  archived?: boolean;
   onClose: () => void;
 }
 
@@ -55,6 +57,7 @@ export function MetaDialog({
   sortKey = null,
   ownerRole = null,
   canEdit,
+  archived = false,
   onClose,
 }: MetaDialogProps): React.JSX.Element {
   const t = useT();
@@ -129,13 +132,20 @@ export function MetaDialog({
 
   const archive = useMutation({
     mutationFn: () =>
-      apiFetch(`/projects/${projectSlug}/specs/${specKey}/archive`, { method: 'POST', body: {} }),
-    onSuccess: () => {
+      apiFetch<{ open_tasks?: string[] }>(`/projects/${projectSlug}/specs/${specKey}/archive`, {
+        method: 'POST',
+        body: {},
+      }),
+    onSuccess: (result) => {
       setBlockers(null);
       invalidate();
+      // **끝나지 않은 작업이 남았으면 그것까지 알린다**(REQ-WEB-287). 보관하면 그 작업은 큐에서 빠지고
+      // 새로 잡히지 않는다 — 말하지 않으면 보드에 멈춘 작업이 이유 없이 남는다
+      const open = result.open_tasks?.length ?? 0;
       pushToast({
         tone: 'ok',
-        message: t('spec.meta.archived'),
+        message:
+          open > 0 ? t('spec.meta.archived_open_tasks', { count: open }) : t('spec.meta.archived'),
       });
       onClose();
     },
@@ -282,21 +292,24 @@ export function MetaDialog({
         {/* **보관도 한 번 묻는다**(§2.4 "[아카이브…] 확인" · REQ-WEB-200). 예전에는 누르는 즉시
               보관됐다 — 되살릴 수는 있지만(이 문서 주소의 [복구]) 그 길을 모르는 사람에게는
               문서가 목록에서 사라진 것이다 */}
-        <ConfirmAction
-          label={t('spec.meta.archive')}
-          variant="danger"
-          size="md"
-          testId="meta-archive"
-          disabled={!canEdit}
-          // `title` 은 **잠긴 단추의 사유**다(confirm-action.tsx) — 설명("삭제가 아닙니다")을 여기 두면 잠긴 까닭으로 읽힌다
-          title={t('spec.meta.edit_role')}
-          tooltip={t('spec.meta.archive_title')}
-          message={t('spec.meta.archive_confirm')}
-          detail={t('spec.meta.archive_confirm_detail')}
-          confirmLabel={t('spec.meta.archive')}
-          pending={archive.isPending}
-          onConfirm={() => archive.mutate()}
-        />
+        {/* 이미 보관된 문서에는 두지 않는다(REQ-WEB-287) — 다시 누르면 처음 보관한 시각을 잃을 뿐이다 */}
+        {!archived && (
+          <ConfirmAction
+            label={t('spec.meta.archive')}
+            variant="danger"
+            size="md"
+            testId="meta-archive"
+            disabled={!canEdit}
+            // `title` 은 **잠긴 단추의 사유**다(confirm-action.tsx) — 설명("삭제가 아닙니다")을 여기 두면 잠긴 까닭으로 읽힌다
+            title={t('spec.meta.edit_role')}
+            tooltip={t('spec.meta.archive_title')}
+            message={t('spec.meta.archive_confirm')}
+            detail={t('spec.meta.archive_confirm_detail')}
+            confirmLabel={t('spec.meta.archive')}
+            pending={archive.isPending}
+            onConfirm={() => archive.mutate()}
+          />
+        )}
         <Button variant="ghost" className="ml-auto" onClick={onClose}>
           {t('common.close')}
         </Button>

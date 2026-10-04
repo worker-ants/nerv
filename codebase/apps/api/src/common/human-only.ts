@@ -33,6 +33,7 @@ export interface Actor {
  */
 export type HumanOnlyAction =
   | 'project_admin'
+  | 'spec_meta'
   | 'inbox'
   | 'inbox_decide'
   | 'approve'
@@ -43,6 +44,7 @@ export type HumanOnlyAction =
 
 const MESSAGE = {
   project_admin: 'error.human_only.project_admin',
+  spec_meta: 'error.human_only.spec_meta',
   inbox: 'error.human_only.inbox',
   inbox_decide: 'error.human_only.inbox_decide',
   approve: 'error.human_only.approve',

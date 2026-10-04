@@ -1059,6 +1059,7 @@ export class SpecService {
       // 기존 문서를 고치는 저장인가 — 그때만 base_hash 를 요구한다(새 문서에는 기준이 없다)
       const isExisting = specId !== null;
       let created = false;
+      if (specId !== null) await this.requireLiveSpec(tx, input.projectId, specId);
 
       if (specId === null) {
         if (input.key === undefined || input.title === undefined || input.type === undefined) {
@@ -1442,6 +1443,7 @@ export class SpecService {
           kind: 'not_found',
         });
       }
+      await this.requireLiveSpec(tx, input.projectId, version.spec_id);
       if (version.status !== 'draft') {
         throw new NervError(
           NERV_ERROR.PRECONDITION,
@@ -1706,7 +1708,7 @@ export class SpecService {
     ownerRole?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
-    assertHuman(input.actor, 'project_admin', '/settings');
+    await this.assertHumanForSpec(input.actor, input.projectId, input.specKey);
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
 
@@ -1781,18 +1783,28 @@ export class SpecService {
     specKey: string;
     userId: string;
   }): Promise<Record<string, unknown>> {
-    assertHuman(input.actor, 'project_admin', '/settings');
+    await this.assertHumanForSpec(input.actor, input.projectId, input.specKey);
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
+      // **이미 보관된 문서는 그대로 둔다**(2026-10-04 · REQ-API-256). 다시 쓰면 처음 보관한 시각이
+      // 지금으로 덮이고 같은 이벤트가 한 번 더 나간다 — 멱등 재호출은 바뀐 것이 없다고 답한다
+      if (spec.archived_at != null) {
+        return { spec_id: spec.id, key: input.specKey, archived: true, unchanged: true };
+      }
 
       const { rows: children } = await tx.execute<{ key: string }>(sql`
         SELECT key FROM spec WHERE parent_id = ${spec.id} AND archived_at IS NULL
       `);
+      // 작업은 기준 버전으로도, 요구사항으로도 이 문서를 가리킨다(임포트 레거시는 요구사항만 있다)
+      const basisTasks = sql`
+        SELECT t.id, t.key, t.status FROM task t
+         WHERE t.source_spec_version_id IN (SELECT id FROM spec_version WHERE spec_id = ${spec.id})
+            OR t.source_requirement_id IN (SELECT id FROM requirement WHERE spec_id = ${spec.id})
+      `;
       const { rows: claimed } = await tx.execute<{ key: string }>(sql`
-        SELECT t.key FROM task t
-          JOIN spec_version sv ON sv.id = t.source_spec_version_id
-          JOIN claim c ON c.task_id = t.id AND c.released_at IS NULL
-         WHERE sv.spec_id = ${spec.id}
+        SELECT DISTINCT b.key FROM (${basisTasks}) b
+          JOIN claim c ON c.task_id = b.id AND c.released_at IS NULL
+         ORDER BY b.key
       `);
 
       const blockers = [
@@ -1806,6 +1818,12 @@ export class SpecService {
         });
       }
 
+      // **끝나지 않은 작업은 그대로 두고 알린다**(REQ-API-255). 보관하면 작업 큐에서 빠지고 새 클레임도
+      // 막히므로, 남은 작업은 사람이 보드에서 정리한다 — 무엇이 남았는지 모르면 정리할 수 없다
+      const { rows: open } = await tx.execute<{ key: string }>(sql`
+        SELECT DISTINCT b.key FROM (${basisTasks}) b WHERE b.status <> 'done' ORDER BY b.key
+      `);
+
       await tx.execute(sql`UPDATE spec SET archived_at = now() WHERE id = ${spec.id}`);
       await emit({
         type: NERV_EVENT.SPEC_ARCHIVED,
@@ -1816,7 +1834,12 @@ export class SpecService {
         actorUserId: input.userId,
         isAgent: false,
       });
-      return { spec_id: spec.id, key: input.specKey, archived: true };
+      return {
+        spec_id: spec.id,
+        key: input.specKey,
+        archived: true,
+        open_tasks: open.map((t) => t.key),
+      };
     });
   }
 
@@ -1828,9 +1851,13 @@ export class SpecService {
     specKey: string;
     userId: string;
   }): Promise<Record<string, unknown>> {
-    assertHuman(input.actor, 'project_admin', '/settings');
+    await this.assertHumanForSpec(input.actor, input.projectId, input.specKey);
     return this.events.transact(async (tx, emit) => {
       const spec = await this.requireSpec(tx, input.projectId, input.specKey);
+      // 보관과 같은 규칙이다 — 보관되지 않은 문서의 복구는 바뀐 것이 없다(REQ-API-256)
+      if (spec.archived_at == null) {
+        return { spec_id: spec.id, key: input.specKey, archived: false, unchanged: true };
+      }
       if (spec.parent_id !== null) {
         const { rows } = await tx.execute<{ archived_at: unknown; key: string }>(
           sql`SELECT archived_at, key FROM spec WHERE id = ${spec.parent_id}`,
@@ -2403,7 +2430,7 @@ export class SpecService {
    * 어디에도 없었다. 기본(버전 없음)은 여전히 최신 승인본이다(REQ-WEB-011).
    */
   private async webUrl(
-    tx: Tx,
+    tx: Tx | NervDb,
     projectId: string,
     specId: string,
     versionNo?: number,
@@ -2470,9 +2497,14 @@ export class SpecService {
     tx: Tx,
     projectId: string,
     key: string,
-  ): Promise<{ id: string; title: string; parent_id: string | null }> {
-    const { rows } = await tx.execute<{ id: string; title: string; parent_id: string | null }>(
-      sql`SELECT id, title, parent_id FROM spec WHERE project_id = ${projectId} AND key = ${key}`,
+  ): Promise<{ id: string; title: string; parent_id: string | null; archived_at: unknown }> {
+    const { rows } = await tx.execute<{
+      id: string;
+      title: string;
+      parent_id: string | null;
+      archived_at: unknown;
+    }>(
+      sql`SELECT id, title, parent_id, archived_at FROM spec WHERE project_id = ${projectId} AND key = ${key}`,
     );
     const spec = rows[0];
     if (spec === undefined) {
@@ -2482,6 +2514,46 @@ export class SpecService {
       });
     }
     return spec;
+  }
+
+  /**
+   * 문서 정보 · 보관 · 복구는 사람이 웹에서 한다(REQ-API-111). **대신 갈 곳은 그 문서다**
+   * (2026-10-04 · REQ-API-256) — 예전에는 `/settings` 를 줘서, 에이전트가 사람에게 건넨 링크가
+   * 이 문서의 [문서 정보]가 아니라 프로젝트 설정을 열었다.
+   */
+  private async assertHumanForSpec(
+    actor: Actor,
+    projectId: string,
+    specKey: string,
+  ): Promise<void> {
+    if (!actor.isAgent) return;
+    const { rows } = await this.db.execute<{ id: string }>(
+      sql`SELECT id FROM spec WHERE project_id = ${projectId} AND key = ${specKey}`,
+    );
+    const specId = rows[0]?.id;
+    assertHuman(
+      actor,
+      'spec_meta',
+      specId === undefined ? undefined : await this.webUrl(this.db, projectId, specId),
+    );
+  }
+
+  /**
+   * **보관한 문서는 고치지 않는다**(2026-10-04 · REQ-API-257). 보관은 "이 문서는 더 이상 기준이
+   * 아니다" 이고, 그 위에 초안을 쓰거나 검토를 요청하면 목록에 없는 문서가 조용히 다시 자란다.
+   * 이어 쓰려면 사람이 먼저 복구한다 — `web_url` 이 그 [복구] 단추가 있는 자리다.
+   */
+  private async requireLiveSpec(tx: Tx, projectId: string, specId: string): Promise<void> {
+    const { rows } = await tx.execute<{ key: string; archived_at: unknown }>(
+      sql`SELECT key, archived_at FROM spec WHERE id = ${specId}`,
+    );
+    const row = rows[0];
+    if (row?.archived_at == null) return;
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.archived', { key: row.key }), {
+      kind: 'spec_archived',
+      spec: row.key,
+      web_url: await this.webUrl(tx, projectId, specId),
+    });
   }
 
   /** candidate 가 root 의 자손이거나 root 자신인가 — 트리 사이클 판정(EP-SPEC-15). */
