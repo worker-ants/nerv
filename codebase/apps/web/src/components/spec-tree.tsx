@@ -48,6 +48,8 @@ export interface TreeNode {
   updated_at?: string | null;
   /** 열린 코멘트 수(REQ-API-183) */
   open_comments?: number;
+  /** 지금 보이는 첨부 수(REQ-API-261) — 올리기를 마쳤고 내리지 않은 것 */
+  attachment_count?: number;
   /**
    * 가장 새 버전의 번호 · 상태와 최신 승인본 번호(REQ-API-194) — 기준과 상관없이 온다.
    * 승인본으로 읽는 줄이 "위에 v4 초안이 있다" 를 표시하는 재료다(REQ-WEB-249)
@@ -83,6 +85,8 @@ export interface SpecTreeProps {
   statuses?: readonly string[];
   /** 스펙 종류 필터 — `statuses` 와 함께 걸면 **둘 다 맞는 것**만이다(REQ-API-093) */
   types?: readonly string[];
+  /** 첨부가 있는 문서만(2026-10-04 · REQ-WEB-289) — 상태 · 종류와 AND 다 */
+  attachedOnly?: boolean;
   /**
    * 이 트리에만 딸린 조작 — 필터 줄 맨 앞에 선다(REQ-WEB-140).
    *
@@ -255,6 +259,71 @@ function Locate(): React.JSX.Element {
   );
 }
 
+/** 말풍선 — 열린 코멘트 수 옆에 선다. 첨부의 클립과 같은 굵기 · 크기다 */
+function CommentGlyph(): React.JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z" />
+    </svg>
+  );
+}
+
+/** 클립 — 첨부가 있는 문서 */
+function PaperclipGlyph(): React.JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9" />
+    </svg>
+  );
+}
+
+/**
+ * **첨부가 있는 문서를 고를 수 있게**(2026-10-04 · 사람 결정 F1 · F2 · REQ-WEB-289). 디자인 시안은 문서에
+ * 붙는데 목록에서는 어느 문서에 시안이 있는지 열어 보기 전에는 알 수 없었다. 주의를 끄는 표시가 아니라
+ * 정보라 흐린 글자다 — 0 이면 아무것도 그리지 않는다. 줄 전체가 링크라 이것은 누르는 것이 아니다.
+ */
+function AttachmentMark({
+  count,
+  t,
+}: {
+  count: number;
+  t: ReturnType<typeof useT>;
+}): React.JSX.Element | null {
+  if (count <= 0) return null;
+  const label = t('specs.row_attachments', { count });
+  return (
+    <span
+      data-testid="tree-row-attachments"
+      title={label}
+      aria-label={label}
+      className="flex shrink-0 items-center gap-0.5 text-2xs text-text-faint tabular-nums"
+    >
+      <PaperclipGlyph />
+      {count}
+    </span>
+  );
+}
+
 function storageKeyFor(projectSlug: string, variant: SpecTreeVariant): string {
   return `nerv.tree.${projectSlug}.${variant}`;
 }
@@ -299,6 +368,7 @@ export function SpecTree({
   includeArchived = false,
   statuses,
   types,
+  attachedOnly = false,
   controls,
   view = {},
   titleFilter = false,
@@ -341,7 +411,7 @@ export function SpecTree({
   const statusKept = useMemo(() => {
     const wantedStatus = statuses !== undefined && statuses.length > 0 ? new Set(statuses) : null;
     const wantedType = types !== undefined && types.length > 0 ? new Set(types) : null;
-    if (wantedStatus === null && wantedType === null) return null;
+    if (wantedStatus === null && wantedType === null && !attachedOnly) return null;
     const matched = new Set(
       nodes
         .filter(
@@ -350,7 +420,8 @@ export function SpecTree({
               (n.doc_status !== null && wantedStatus.has(n.doc_status)) ||
               // "새 버전 진행 중" 은 줄의 상태가 아니라 줄 위의 버전이다(REQ-WEB-249)
               (wantedStatus.has(NEWER_STATUS) && hasNewerVersion(n))) &&
-            (wantedType === null || wantedType.has(n.type)),
+            (wantedType === null || wantedType.has(n.type)) &&
+            (!attachedOnly || (n.attachment_count ?? 0) > 0),
         )
         .map((n) => n.id),
     );
@@ -365,7 +436,7 @@ export function SpecTree({
       }
     }
     return kept;
-  }, [statuses, types, nodes]);
+  }, [statuses, types, attachedOnly, nodes]);
 
   const storageKey = storageKeyFor(projectSlug, variant);
 
@@ -740,17 +811,23 @@ export function SpecTree({
               {typeof node.updated_at === 'string' && (
                 <span>{relativeTime(t, node.updated_at)}</span>
               )}
+              {/* 이모지가 아니라 선 그림이다(2026-10-04 · REQ-WEB-289) — 화면에는 이모지를 쓰지 않는다(§4.3) */}
               {(node.open_comments ?? 0) > 0 && (
                 <span
                   data-testid="tree-row-comments"
                   title={t('spec.next.comments', { count: node.open_comments ?? 0 })}
-                  className="text-status-waiting"
+                  aria-label={t('spec.next.comments', { count: node.open_comments ?? 0 })}
+                  className="flex items-center gap-0.5 text-status-waiting"
                 >
-                  💬 {node.open_comments}
+                  <CommentGlyph />
+                  {node.open_comments}
                 </span>
               )}
+              <AttachmentMark count={node.attachment_count ?? 0} t={t} />
             </span>
           )}
+          {/* 레일은 평소와 다른 것만 말한다 — 첨부가 있는 문서는 평소와 다르다(F2) */}
+          {variant === 'rail' && <AttachmentMark count={node.attachment_count ?? 0} t={t} />}
         </Link>
         {/* **승인본 위에 새 버전이 진행 중이다**(2026-09-27 사람 결정 V3 · REQ-WEB-249). 목록이 문서마다
             최신 승인본만 읽어서, 에이전트가 그 위에 쓴 v4 초안은 목록 어디에도 없었다. 승인본으로 읽는

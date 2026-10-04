@@ -71,6 +71,8 @@ export interface GraphNode {
   parent_id: string | null;
   doc_status: string | null;
   archived_at?: string | null;
+  /** 지금 보이는 첨부 수(REQ-API-261) — 표의 "첨부" 열이 쓴다 */
+  attachment_count?: number;
   /**
    * 가장 새 버전의 번호 · 상태와 최신 승인본 번호(REQ-API-194) — 기준과 상관없이 온다.
    * 승인본으로 읽는 줄이 "위에 v4 초안이 있다" 를 표시하는 재료다(REQ-WEB-249)

@@ -17,7 +17,7 @@ import type { StatusToken } from '../../components/status-badge.js';
 import type { GraphEdge, GraphNode } from './graph.js';
 import { viewBasisSearch, type ViewBasis } from '../../lib/view-basis.js';
 
-type SortKey = 'title' | 'type' | 'status' | 'backlinks';
+type SortKey = 'title' | 'type' | 'status' | 'backlinks' | 'attachments';
 
 export interface SpecTableProps {
   nodes: readonly GraphNode[];
@@ -63,6 +63,9 @@ export function SpecTable({
     list.sort((a, b) => {
       if (sort === 'backlinks') {
         return direction * ((backlinks.get(a.id) ?? 0) - (backlinks.get(b.id) ?? 0));
+      }
+      if (sort === 'attachments') {
+        return direction * ((a.attachment_count ?? 0) - (b.attachment_count ?? 0));
       }
       const left = sort === 'type' ? a.type : sort === 'status' ? (a.doc_status ?? '') : a.title;
       const right = sort === 'type' ? b.type : sort === 'status' ? (b.doc_status ?? '') : b.title;
@@ -114,6 +117,7 @@ export function SpecTable({
             {header('type', t('specs.col.type'))}
             {header('status', t('specs.col.status'))}
             {header('backlinks', t('specs.col.backlinks'))}
+            {header('attachments', t('specs.col.attachments'))}
             <Th>{t('specs.col.path')}</Th>
           </>
         }
@@ -160,6 +164,15 @@ export function SpecTable({
               )}
             >
               {backlinks.get(node.id) ?? 0}
+            </Td>
+            {/* 첨부 수(REQ-WEB-289) — 0 은 흐리게. 열을 눌러 정렬하면 시안이 붙은 문서가 모인다 */}
+            <Td
+              className={cn(
+                'tabular-nums',
+                (node.attachment_count ?? 0) === 0 ? 'text-text-faint' : undefined,
+              )}
+            >
+              <span data-testid="table-attachments">{node.attachment_count ?? 0}</span>
             </Td>
             <Td className="text-xs text-text-faint">{pathOf(node, byId)}</Td>
           </Tr>

@@ -1202,6 +1202,35 @@ describe('코멘트의 작성자 · 목록 행의 갱신 시각과 열린 코멘
 
 // ── E09-S10 검색 ─────────────────────────────────────────────────────────────
 
+describe('트리 노드의 첨부 수 (REQ-API-261)', () => {
+  it('지금 보이는 첨부만 센다 — 올리다 만 것과 내린 것은 빠진다', async () => {
+    const { specId } = await draft('SPC-ATTCNT', '# 시안이 붙은 문서', '시안');
+    await draft('SPC-NOATT', '# 시안이 없는 문서', '시안 없음');
+    for (const [state, n] of [
+      ['committed', 2],
+      ['pending', 1],
+      ['hidden', 1],
+    ] as const) {
+      for (let i = 0; i < n; i += 1) {
+        const id = newId();
+        await pool.query(
+          `INSERT INTO attachment (id, project_id, spec_id, storage_key, filename, content_type, bytes,
+                                   checksum, uploaded_by_user_id, committed_at, hidden_at)
+           VALUES ($1,$2,$3,$4,$5,'image/png',4,'sha256:x',$6,
+                   ${state === 'pending' ? 'NULL' : 'now()'}, ${state === 'hidden' ? 'now()' : 'NULL'})`,
+          [id, projectId, specId, `k/${id}`, `${state}-${i}.png`, planner],
+        );
+      }
+    }
+    const nodes = await specs.tree({ projectId });
+    expect(nodes.find((n) => n.key === 'SPC-ATTCNT')?.attachment_count).toBe(2);
+    expect(nodes.find((n) => n.key === 'SPC-NOATT')?.attachment_count).toBe(0);
+    // 표 · 그래프(EP-SPEC-19)도 같은 노드를 쓴다
+    const graph = await specs.graph({ projectId });
+    expect(graph.nodes.find((n) => n.key === 'SPC-ATTCNT')?.attachment_count).toBe(2);
+  });
+});
+
 describe('E09-S10 하이브리드 검색', () => {
   it('고정 ID 는 전문 검색을 거치지 않고 직행한다', async () => {
     const s = await draft('SPC-CWC-007', '# 웹챗 위젯 임베드\n\n본문', '웹챗 위젯 임베드');

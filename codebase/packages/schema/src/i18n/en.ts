@@ -614,6 +614,8 @@ export const en = {
   'specs.basis_hint':
     'Choose which version of each document the list, document pages and search read. Approved (default) shows the latest approved version, or the draft if the document was never approved. Latest also shows drafts and versions in review on top of the approved one. A baseline shows only the documents it captured, at those versions.',
   'specs.status_newer': 'New version in progress',
+  'specs.attached_only': 'Has attachments',
+  'specs.row_attachments': '{count} attachments',
   'specs.row_newer_title': 'A newer version exists on top of the approved one. Click to open v{n}.',
   'specs.search_basis_approved': 'Searched approved versions.',
   'specs.search_basis_latest':
@@ -2117,6 +2119,7 @@ export const en = {
   'graph.tab.tree': 'Tree',
   // ── 스펙 트리 조작 ────────────────────────────────────────────────────────────
   'specs.col.backlinks': 'Referenced by',
+  'specs.col.attachments': 'Attachments',
   'specs.col.path': 'Path',
   'specs.col.status': 'Status',
   'specs.col.title': 'Title',

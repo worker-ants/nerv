@@ -50,6 +50,7 @@ const NODES = [
     parent_id: 'r',
     doc_status: 'draft',
     version_no: 1,
+    attachment_count: 2,
   },
 ];
 
@@ -164,6 +165,17 @@ describe('찾는 칸 — 둘째 열의 머리는 제목 거르기다', () => {
     expect(within(col).getByText('임베드')).toBeDefined();
     // **번호로 맞은 줄은 번호를 보인다**(REQ-WEB-288) — 제목만 보이면 왜 남았는지 알 수 없다
     expect(within(col).getByTestId('tree-key-hit').textContent).toBe('SPC-B');
+  });
+});
+
+describe('첨부 표시 — 레일도 첨부가 있는 문서를 보인다 (REQ-WEB-289)', () => {
+  it('첨부가 있는 줄에만 클립과 수가 붙는다', async () => {
+    mount('/p/demo/specs/SPC-A');
+    const col = await column();
+    const row = (await within(col).findByText('임베드')).closest('a')!;
+    expect(within(row).getByTestId('tree-row-attachments').textContent).toBe('2');
+    const plain = within(col).getByText('위젯').closest('a')!;
+    expect(within(plain).queryByTestId('tree-row-attachments')).toBeNull();
   });
 });
 

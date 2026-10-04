@@ -239,7 +239,7 @@ export class AttachmentService {
     const key = this.storageKey(input.projectId, spec, id, input.contentType);
     await this.storage.put(key, input.body, input.contentType);
 
-    return this.insert({
+    const inserted = await this.insert({
       id,
       projectId: input.projectId,
       specId: spec,
@@ -252,6 +252,21 @@ export class AttachmentService {
       sessionId: null,
       committed: true,
     });
+    // **사람 업로드도 알린다**(2026-10-04 · REQ-API-262). 명세는 EP-SPEC-21 이 `spec.attachment_added` 를
+    // 낸다고 적었는데 에이전트 경로(확정)만 냈다 — 웹에서 올리면 다른 화면의 트리 · 표가 첨부 수를
+    // 새로 읽을 길이 없었다. 감사 기록이 남는 것은 덤이다.
+    await this.audit({
+      projectId: input.projectId,
+      type: NERV_EVENT.SPEC_ATTACHMENT_ADDED,
+      attachmentId: id,
+      actor: { userId: input.userId, sessionId: null },
+      payload: {
+        spec_id: spec,
+        content_type: input.contentType,
+        bytes: input.body.byteLength,
+      },
+    });
+    return inserted;
   }
 
   /**
