@@ -404,6 +404,50 @@ export function withCanvasBackground<T>(el: HTMLElement, create: () => T): T {
   }
 }
 
+/** `keepScreenRedraw` 가 읽는 WebGL 렌더러의 부분 — cytoscape 의 공개 타입에 없다 */
+interface PickingRenderer {
+  findNearestElements?: (...args: unknown[]) => unknown;
+  data?: { canvasNeedsRedraw?: boolean[] };
+  NODE?: number;
+  DRAG?: number;
+}
+
+/**
+ * 포인터 아래를 찾는 일이 **화면을 다시 그리라는 표시를 지우지 않게** 한다.
+ *
+ * WebGL 렌더러는 마우스를 움직이거나 화면에 닿을 때 포인터 아래 요소를 찾으려고 화면 밖 판정용
+ * 버퍼에 그래프를 한 번 그리는데, 그 그리기가 끝나면서 화면의 "다시 그려라" 표시까지 지운다
+ * (cytoscape 3.34.3 `renderWebgl` — upstream `unstable` 도 같다). 다시 그리기를 요청한 뒤 다음
+ * 장면 전에 그래프 위에서 포인터가 움직이면 그 장면은 그렸다고 처리되지만 아무것도 칠하지 않고,
+ * 다음 확대·이동까지 빈 화면이나 옛 장면이 남았다. 판정용 버퍼를 다시 그리는 때가 확대 · 이동 ·
+ * 크기 · 순서가 바뀔 때라 **화면이 바뀌어야 하는 바로 그때** 빠졌다 — 그래프를 연 직후 빈 채로
+ * 있다가 휠 · 터치 뒤에야 그려졌고, 노드를 고른 강조도 같은 까닭으로 빠졌다(2026-10-05 사람 보고 ·
+ * 실측: 만드는 동안 포인터가 움직이면 빈 화면 8/8 → 0/8). 캔버스 렌더러는 판정에 그리지 않아 해당 없다.
+ *
+ * 판정 전의 표시를 기억했다가 되살린다. 내부 필드가 없는 판이면(이름이 바뀌었다) 손대지 않는다.
+ */
+export function keepScreenRedraw(cy: cytoscape.Core): void {
+  // `renderer()` 는 공개 타입에 없다 — 헤드리스면 렌더러가 없다
+  const r = (cy as unknown as { renderer: () => PickingRenderer | null }).renderer();
+  if (r === null) return;
+  const pick = r.findNearestElements;
+  const flags = r.data?.canvasNeedsRedraw;
+  if (typeof pick !== 'function' || flags === undefined) return;
+  if (typeof r.NODE !== 'number' || typeof r.DRAG !== 'number') return;
+  const node = r.NODE;
+  const drag = r.DRAG;
+  r.findNearestElements = function (this: unknown, ...args: unknown[]) {
+    const redrawNode = flags[node] === true;
+    const redrawDrag = flags[drag] === true;
+    try {
+      return pick.apply(this, args);
+    } finally {
+      if (redrawNode) flags[node] = true;
+      if (redrawDrag) flags[drag] = true;
+    }
+  };
+}
+
 export function SpecGraph({
   nodes,
   edges,
@@ -665,6 +709,8 @@ export function SpecGraph({
     );
 
     letAreasPan(cy);
+    // 포인터가 움직여도 첫 장면과 강조가 빠지지 않게 — WebGL 에서만 생기는 일이다
+    if (webgl) keepScreenRedraw(cy);
     // 다시 세야 하는 때는 둘이다 — **노드를 끌었을 때**(자리가 바뀐다)와 **배율이 이름이
     // 나타나는 문턱을 넘나들 때**. 배율 자체는 답을 바꾸지 않는다: 이름도 그림과 함께
     // 커지므로 누가 누구를 가리는지는 그대로다(패닝도 같은 이유로 그대로다).
