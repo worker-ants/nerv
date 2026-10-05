@@ -3,10 +3,14 @@
 // 여기서 지키는 것: 중심 모드가 hop 을 정확히 세는가. 이게 틀리면 화면은 그럴듯한데
 // 엉뚱한 문서가 "영향 범위"로 보인다 — 눈으로는 절대 못 잡는 종류의 오류다.
 
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import cytoscape from 'cytoscape';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   connectionsOf,
+  keepScreenRedraw,
   legendFor,
   letAreasPan,
   labelOpacity,
@@ -246,5 +250,75 @@ describe('WebGL 에서도 가려지는 이름 (2026-09-27 · 실측)', () => {
     cy.$id('b').addClass('faded');
     expect(key('a')).not.toBe(key('b'));
     cy.destroy();
+  });
+});
+
+describe('포인터가 움직여도 장면이 빠지지 않는다 (2026-10-05 · 사람 보고)', () => {
+  // WebGL 렌더러는 포인터 아래를 찾으려고 판정용 버퍼에 그리면서 화면의 "다시 그려라" 표시까지
+  // 지운다. 그래프를 연 직후 포인터가 움직이면 첫 장면이 빈 채로 남고 휠 · 터치 뒤에야 그려졌다.
+  const NODE = 2;
+  const DRAG = 1;
+  /** 판정이 표시를 지우는 렌더러 — cytoscape 3.34.3 의 `renderWebgl` 이 picking 에서 하는 일이다 */
+  function fakeCy(): {
+    cy: cytoscape.Core;
+    flags: boolean[];
+    pick: ReturnType<typeof vi.fn>;
+    renderer: Record<string, unknown>;
+  } {
+    const flags = [false, false, false];
+    const pick = vi.fn(function (this: unknown, ..._args: unknown[]) {
+      flags[NODE] = false;
+      flags[DRAG] = false;
+      return ['near'];
+    });
+    const renderer: Record<string, unknown> = {
+      findNearestElements: pick,
+      data: { canvasNeedsRedraw: flags },
+      NODE,
+      DRAG,
+    };
+    return { cy: { renderer: () => renderer } as unknown as cytoscape.Core, flags, pick, renderer };
+  }
+
+  it('판정 전에 다시 그리기로 했으면 판정 뒤에도 다시 그린다', () => {
+    const { cy, flags, pick, renderer } = fakeCy();
+    keepScreenRedraw(cy);
+    flags[NODE] = true;
+    flags[DRAG] = true;
+    const find = renderer['findNearestElements'] as (...args: unknown[]) => unknown;
+    expect(find.call(renderer, 10, 20, true, false)).toEqual(['near']);
+    expect(pick).toHaveBeenCalledWith(10, 20, true, false);
+    expect(flags[NODE]).toBe(true);
+    expect(flags[DRAG]).toBe(true);
+  });
+
+  it('다시 그리기로 하지 않았으면 켜지 않는다 — 포인터를 움직일 때마다 장면을 그리지 않는다', () => {
+    const { cy, flags, renderer } = fakeCy();
+    keepScreenRedraw(cy);
+    (renderer['findNearestElements'] as (...args: unknown[]) => unknown).call(renderer, 0, 0);
+    expect(flags[NODE]).toBe(false);
+    expect(flags[DRAG]).toBe(false);
+  });
+
+  it('내부 필드가 없는 렌더러에는 손대지 않는다', () => {
+    const { cy, pick, renderer } = fakeCy();
+    delete renderer['data'];
+    keepScreenRedraw(cy);
+    expect(renderer['findNearestElements']).toBe(pick);
+    // 헤드리스(렌더러 없음)도 던지지 않는다
+    const headless = cytoscape({ headless: true });
+    expect(() => keepScreenRedraw(headless)).not.toThrow();
+    headless.destroy();
+  });
+
+  it('설치된 cytoscape 가 아직 판정에서 표시를 지운다 — 고쳐지면 이 우회를 뺀다', () => {
+    // 우회는 내부 이름(`canvasNeedsRedraw` · `NODE` · `findNearestElements`)에 기댄다. 판이 바뀌어
+    // 이름이 달라지면 우회가 조용히 아무 일도 하지 않으므로, 기대는 줄이 그대로인지 여기서 본다
+    const dist = dirname(createRequire(import.meta.url).resolve('cytoscape'));
+    const source = readFileSync(join(dist, 'cytoscape.esm.mjs'), 'utf8');
+    expect(source).toContain('if (r.data.canvasNeedsRedraw[r.NODE] || renderTarget.picking) {');
+    expect(source).toContain(
+      'r.findNearestElements = function (x, y, interactiveElementsOnly, isTouch) {',
+    );
   });
 });

@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.54 · 2026-10-04 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.55 · 2026-10-05 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.55 변경(2026-10-05 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **관계 그래프가 빈 채로 뜨던 결함** 을 적는다.
 >
 > v2.54 변경(2026-10-04 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **스펙 목록에서 한꺼번에 결재** 를 적는다.
 >
@@ -813,6 +815,7 @@ referenced_by:
 | 하위까지 보관 · 함께 보관한 것만 복구 | 마이그레이션 `0043_spec_archive_batch` · `@nerv/schema` `spec.archiveBatchId` · `SpecArchiveInput` · `spec.service.ts`(`archive` — 가지째 한 묶음 · `descendants` 없으면 함께 보관될 목록과 409 · 가지 전체의 활성 클레임 · `restore` — 같은 묶음만 · `restore_first`) · `spec.controller.ts`(EP-SPEC-16 본문) · 웹 `meta-dialog.tsx`(`liveDescendants` · 함께 보관될 목록 · 완료 토스트) · `specs.$spec.tsx`(복구 토스트 · 가장 위 조상) · 문구 `spec.meta.archive_descendants` · `archive_confirm_with` · `archived_with` · `restore_done_with` · 매뉴얼 ko · en `specs.md#archive` · L2 `spec-domain.spec.ts` 6건 · L1 웹 `meta-dialog.spec.tsx` 2건 | 사람 요청(2026-10-04) · 사람 결정 R1~R3([4.4 API 명세](api.md) REQ-API-263 · 264 · [4.3 DB 스키마](database.md) REQ-DB-036 · [4.5 화면 명세](screens.md) REQ-WEB-290) |
 | 트리 정리(정리 모드) | `@nerv/schema` `SpecArrangeInput` · `spec.service.ts`(`arrange` — 최종 순서 · 형제 묶음 다시 매기기 · 프로젝트 단위 잠금 · `nextSortKey` — 새 문서와 부모를 바꾼 문서는 맨 뒤 · `lockTree`) · `spec.controller.ts`(EP-SPEC-25) · 웹 `arrange-bar.tsx`(선택 막대 · `shiftOrder` · [보관] — 고른 것의 위쪽만 가지째 보관) · `spec-tree.tsx`(고르는 칸 · `Space` · 제목 거르기 알림) · `meta-dialog.tsx`(`ParentPicker` 를 여러 편에 · 내보냄) · `specs.index.tsx`([정리]) · 문구 `specs.arrange.*` · 매뉴얼 ko · en `specs.md#tree` · L2 `spec-domain.spec.ts` 6건 · L1 웹 `spec-arrange.spec.tsx` 10건 | 사람 요청(2026-10-04) · 사람 결정 M1~M4([4.4 API 명세](api.md) EP-SPEC-25 · REQ-API-265 · 266 · [4.5 화면 명세](screens.md) REQ-WEB-291). 끌어서 놓기는 새 의존성(스택 결정)이 필요해 두지 않았다 |
 | 스펙 목록에서 한꺼번에 결재 | `approval.service.ts`(`pendingSpecApprovals` — `inboxConditions` · 판정 식 한 벌 · 문서마다 한 줄) · `approval.controller.ts`(EP-SPEC-26) · 웹 `features/inbox/bulk-decision.tsx`(`BulkConfirm` · `useBulkDecision` — 받은 요청에서 빼낸 공용 부품) · `routes/inbox.tsx`(공용 부품으로) · `decision-bar.tsx` · `specs.index.tsx`("결재 대기" 칩 · `?pending=1`) · `spec-tree.tsx`(`onlyKeys` · 고를 수 있는 줄) · `table.tsx`(검토 중 개정판 표시) · `event-invalidation.ts`(결재 이벤트가 결재 대기를 다시 읽음) · 문구 `specs.pending_only` · `specs.decide.*` · 매뉴얼 ko · en `inbox.md#bulk` · `specs.md` · L2 `approval.spec.ts` 2건 · L1 웹 `spec-decide.spec.tsx` 6건 | 사람 요청(2026-10-04) · 사람 결정 A1~A3([4.4 API 명세](api.md) EP-SPEC-26 · REQ-API-267 · [4.5 화면 명세](screens.md) REQ-WEB-292) |
+| 관계 그래프가 빈 채로 뜨던 결함 | `apps/web/src/features/spec-graph/graph.tsx`(`keepScreenRedraw` — WebGL 렌더러의 포인터 판정이 화면 다시 그리기 표시를 지우지 않게 감싼다) · L1 `graph.spec.tsx` 4건(설치된 cytoscape 에 그 결함이 아직 있는지도 본다 — 고쳐지면 우회를 뺀다) · L3 `spec-graph.spec.ts`(매 장면 앞에서 포인터를 움직여도 그림이 남는다 — 우회를 빼면 5번 모두 빈 캔버스) | 사람 보고(2026-10-05 — 맥 · 모바일에서 가끔 그래프가 그려지지 않다가 스크롤 같은 이벤트 뒤에야 그려졌다). cytoscape 3.34.3 의 결함이다([4.5 화면 명세](screens.md) §2.4a) — 노드를 고른 강조도 같은 까닭으로 빠졌다 |
 
 #### 이 절은 언제 갱신되는가
 
