@@ -943,7 +943,12 @@ function InviteSection({
         </div>
       )}
 
-      {rows(invitations.data).length === 0 ? (
+      {/* 받기 전에는 "보낸 초대가 없습니다" 가 아니다(REQ-WEB-293) */}
+      {invitations.isPending ? (
+        <Skeleton rows={2} />
+      ) : failedWithoutData(invitations) ? (
+        <ErrorState error={invitations.error} onRetry={() => void invitations.refetch()} />
+      ) : rows(invitations.data).length === 0 ? (
         <p className="text-sm text-text-faint">{t('invite.none')}</p>
       ) : (
         // **머리 있는 표다**(REQ-WEB-191) — 머리 없는 줄에서는 흐린 slug 가 무엇의 값인지 알 수 없었다

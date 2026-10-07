@@ -54,6 +54,7 @@ import {
   PageHeader,
   Select,
   Skeleton,
+  SkeletonText,
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import { EntityLink } from '../../components/entity-link.js';
@@ -198,9 +199,10 @@ export function TaskBoard(): React.JSX.Element {
     ...filters,
     ...(meId === undefined ? {} : { assignee: meId }),
   });
-  const count = (q: ReturnType<typeof useTaskLane>): string => {
-    const items = q.data?.items ?? [];
-    return `${items.length}${q.data?.next_cursor != null ? '+' : ''}`;
+  // **받기 전의 수는 0 이 아니다**(REQ-WEB-294) — 넷이 응답 전에 "0" 이었다. `null` 이면 숫자 자리의 골격이다
+  const count = (q: ReturnType<typeof useTaskLane>): string | null => {
+    if (q.data === undefined) return null;
+    return `${q.data.items.length}${q.data.next_cursor != null ? '+' : ''}`;
   };
   const summary: SummaryMetric[] = [
     { label: t('tasks.summary.in_progress'), value: count(inProgress), tone: 'progress' },
@@ -223,9 +225,10 @@ export function TaskBoard(): React.JSX.Element {
   };
   const readyEmpty: ReadyEmpty = {
     blocked: blocked.data?.items.length ?? 0,
-    blockedLabel: count(blocked),
+    // 수가 0 보다 클 때만 보이므로(받은 뒤다) 빈 글자로 둔다
+    blockedLabel: count(blocked) ?? '',
     backlog: backlog.data?.items.length ?? 0,
-    backlogLabel: count(backlog),
+    backlogLabel: count(backlog) ?? '',
     onBlocked: () => scrollToLane('blocked'),
     onBacklog: () => {
       if (!showBacklog) toBoard(searchWith({ backlog: true }));
@@ -570,8 +573,14 @@ function Lane({
           {/* 한 페이지를 채웠으면 **뒤에 더 있다**는 뜻이다 — 그냥 30 이라고
                       적으면 사람은 그것이 전부라고 읽는다 */}
           <span className="text-xs tabular-nums text-text-faint">
-            {all.length}
-            {more ? '+' : ''}
+            {query.data === undefined ? (
+              <SkeletonText className="w-3" />
+            ) : (
+              <>
+                {all.length}
+                {more ? '+' : ''}
+              </>
+            )}
           </span>
           {/* 레인을 접는 유일한 단서다 — 장식 전용 단(ghost)이 아니라 흐린 글자 단(REQ-WEB-234 · REQ-WEB-276) */}
           <span aria-hidden="true" className="ml-auto text-3xs text-text-faint">

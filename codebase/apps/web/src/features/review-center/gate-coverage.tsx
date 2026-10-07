@@ -10,7 +10,16 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { useT } from '../../lib/i18n.js';
 import type { Row } from '../../lib/queries.js';
 import { relativeTime } from '../session-monitor/format.js';
-import { EmptyState, SectionTitle, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
+import {
+  EmptyState,
+  SectionTitle,
+  Skeleton,
+  Table,
+  Td,
+  Th,
+  Tr,
+} from '../../components/ui/primitives.js';
+import { ErrorState } from '../../components/query-state.js';
 import { EntityLink } from '../../components/entity-link.js';
 import type { StatusToken } from '../../components/status-badge.js';
 
@@ -24,12 +33,32 @@ export function GateCoverage({
   rows: items,
   total,
   projectSlug,
+  failed,
 }: {
-  rows: Row[];
+  /** 받기 전이면 `undefined` — 그때는 빈 상태가 아니라 골격이다(REQ-WEB-293) */
+  rows: Row[] | undefined;
   total: number;
   projectSlug: string;
+  /** 한 번도 받지 못한 채 실패했다 — 빈 상태로 그리지 않는다(REQ-WEB-198) */
+  failed?: { error: unknown; retry: () => void };
 }): React.JSX.Element {
   const t = useT();
+  if (failed !== undefined) {
+    return (
+      <section>
+        <SectionTitle>{t('reviews.gate.title')}</SectionTitle>
+        <ErrorState error={failed.error} onRetry={failed.retry} />
+      </section>
+    );
+  }
+  if (items === undefined) {
+    return (
+      <section>
+        <SectionTitle>{t('reviews.gate.title')}</SectionTitle>
+        <Skeleton rows={3} />
+      </section>
+    );
+  }
   if (items.length === 0) {
     return (
       <section>

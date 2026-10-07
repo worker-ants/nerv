@@ -19,6 +19,7 @@ import { useRealtime } from '../../lib/realtime.js';
 import { useScope } from '../../lib/scope.js';
 import { rolesInProject } from '../../lib/session.js';
 import { Button, Mono, Skeleton } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -75,7 +76,11 @@ export function RequirementPanel({
     (EVIDENCE_SIGNER_ROLES as readonly string[]).includes(role),
   );
 
-  if (query.isPending) return <Skeleton className="h-16" />;
+  if (query.isPending) return <Skeleton rows={1} className="[&>div]:h-16" />;
+  // 받지 못한 것을 "요구사항이 없습니다" 로 그리지 않는다(REQ-WEB-198)
+  if (failedWithoutData(query)) {
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  }
   if (items.length === 0) {
     // 빈 상태는 **막다른 길이 아니다**(§1.5) — 무엇을 쓰면 되는지로 데려간다.
     //
@@ -266,6 +271,11 @@ export function DerivedTaskPanel({
   });
   const items = query.data?.items ?? [];
 
+  // 받기 전에는 "나온 작업이 아직 없습니다" 가 아니다(REQ-WEB-293)
+  if (query.isPending) return <Skeleton rows={2} className="px-1 [&>div]:h-6" />;
+  if (failedWithoutData(query)) {
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  }
   return (
     <div className="flex flex-col gap-1 px-1">
       {items.length === 0 ? (

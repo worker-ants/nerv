@@ -23,7 +23,10 @@ import {
   PageBody,
   PageHeader,
   SectionTitle,
+  Skeleton,
+  SkeletonText,
 } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import type { SessionCard as SessionCardData } from '../../features/session-monitor/types.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
@@ -64,6 +67,8 @@ function ProjectOverview(): React.JSX.Element {
     (a, b) => Number(b.state === 'awaiting_input') - Number(a.state === 'awaiting_input'),
   );
 
+  // **받기 전에는 수를 말하지 않는다**(REQ-WEB-294) — 여섯 칸이 응답 전에 전부 0 이었다
+  const covered = coverage.data !== undefined;
   const total = Number(totals['total'] ?? 0);
   const implemented = Number(totals['implemented'] ?? 0);
   const verified = Number(totals['verified'] ?? 0);
@@ -96,45 +101,59 @@ function ProjectOverview(): React.JSX.Element {
       <section className="mb-8 grid gap-4 lg:grid-cols-3">
         <Card className="self-start lg:col-span-1">
           <SectionTitle>{t('project.coverage')}</SectionTitle>
-          {/* 막대 하나 — 요구사항이 어디까지 왔는지는 다섯 줄의 숫자보다 폭으로 먼저 읽힌다.
-              폭만으로 구분하지 않도록 아래에 숫자를 그대로 남긴다(REQ-WEB-033) */}
-          <div
-            className="flex h-1.5 overflow-hidden rounded-full bg-bg-sunken"
-            role="img"
-            aria-label={t('project.coverage.alt', { total, verified, implemented })}
-          >
-            <span className="bg-status-ok" style={{ width: `${pct(verified, total)}%` }} />
-            <span
-              className="bg-status-done"
-              style={{ width: `${pct(Math.max(0, implemented - verified), total)}%` }}
-            />
-          </div>
-          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
-            <Metric label={t('project.metric.total')} value={total} />
-            <Metric label={t('project.metric.implemented')} value={implemented} />
-            <Metric
-              label={t('project.metric.verified')}
-              value={verified}
-              tone={verified > 0 ? 'ok' : undefined}
-            />
-            {/* 두 숫자가 이 카드의 존재 이유다 — 관계 그래프가 아니면 셀 수 없다(§5.5) */}
-            <Metric
-              label={t('project.metric.evidence_missing')}
-              value={missing}
-              tone={missing > 0 ? 'waiting' : undefined}
-            />
-            <Metric
-              label={t('project.metric.empty_promises')}
-              value={empty}
-              tone={empty > 0 ? 'danger' : undefined}
-            />
-            {/* 문장이 바뀌어 검증이 풀린 것 — 검증률에서 빠진 까닭을 여기서 말한다(REQ-WEB-241) */}
-            <Metric
-              label={t('project.metric.reverify_required')}
-              value={reverify}
-              tone={reverify > 0 ? 'waiting' : undefined}
-            />
-          </dl>
+          {/* 받지 못했으면 수 대신 이유와 [다시 시도] — 골격을 남겨 두면 끝나지 않는 "불러오는 중" 이다(REQ-WEB-198) */}
+          {failedWithoutData(coverage) ? (
+            <ErrorState error={coverage.error} onRetry={() => void coverage.refetch()} />
+          ) : (
+            <>
+              {/* 막대 하나 — 요구사항이 어디까지 왔는지는 다섯 줄의 숫자보다 폭으로 먼저 읽힌다.
+                  폭만으로 구분하지 않도록 아래에 숫자를 그대로 남긴다(REQ-WEB-033) */}
+              <div
+                className="flex h-1.5 overflow-hidden rounded-full bg-bg-sunken"
+                role="img"
+                aria-label={
+                  covered
+                    ? t('project.coverage.alt', { total, verified, implemented })
+                    : t('common.loading')
+                }
+              >
+                <span className="bg-status-ok" style={{ width: `${pct(verified, total)}%` }} />
+                <span
+                  className="bg-status-done"
+                  style={{ width: `${pct(Math.max(0, implemented - verified), total)}%` }}
+                />
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+                <Metric label={t('project.metric.total')} value={covered ? total : null} />
+                <Metric
+                  label={t('project.metric.implemented')}
+                  value={covered ? implemented : null}
+                />
+                <Metric
+                  label={t('project.metric.verified')}
+                  value={covered ? verified : null}
+                  tone={verified > 0 ? 'ok' : undefined}
+                />
+                {/* 두 숫자가 이 카드의 존재 이유다 — 관계 그래프가 아니면 셀 수 없다(§5.5) */}
+                <Metric
+                  label={t('project.metric.evidence_missing')}
+                  value={covered ? missing : null}
+                  tone={missing > 0 ? 'waiting' : undefined}
+                />
+                <Metric
+                  label={t('project.metric.empty_promises')}
+                  value={covered ? empty : null}
+                  tone={empty > 0 ? 'danger' : undefined}
+                />
+                {/* 문장이 바뀌어 검증이 풀린 것 — 검증률에서 빠진 까닭을 여기서 말한다(REQ-WEB-241) */}
+                <Metric
+                  label={t('project.metric.reverify_required')}
+                  value={covered ? reverify : null}
+                  tone={reverify > 0 ? 'waiting' : undefined}
+                />
+              </dl>
+            </>
+          )}
         </Card>
 
         <Card className="lg:col-span-2">
@@ -161,6 +180,10 @@ function ProjectOverview(): React.JSX.Element {
               <SessionCard key={card.id} card={card} projectSlug={proj} />
             ))}
           </div>
+          {sessions.isPending && <Skeleton rows={2} className="[&>div]:h-12" />}
+          {failedWithoutData(sessions) && (
+            <ErrorState error={sessions.error} onRetry={() => void sessions.refetch()} />
+          )}
           {sessions.data !== undefined &&
             active.length === 0 &&
             (everCount > 0 ? (
@@ -313,7 +336,8 @@ function Metric({
   tone,
 }: {
   label: string;
-  value: number;
+  /** `null` 은 아직 받지 않았다 — 0 이 아니다(REQ-WEB-294) */
+  value: number | null;
   tone?: 'ok' | 'waiting' | 'danger' | undefined;
 }): React.JSX.Element {
   return (
@@ -328,7 +352,7 @@ function Metric({
           tone === 'danger' ? 'text-status-danger' : undefined,
         )}
       >
-        {value}
+        {value === null ? <SkeletonText /> : value}
       </dd>
     </div>
   );

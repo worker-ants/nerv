@@ -108,6 +108,8 @@ export function SessionTrajectory({
   const t = useT();
   const trajectory = useSessionTrajectory(projectSlug, sessionId);
 
+  // 받기 전에는 빈 목록이 아니라 골격이다(REQ-WEB-293) — 제목 아래가 비어 있다가 줄이 생겼다
+  if (trajectory.isPending) return <Skeleton rows={3} className={cn('[&>div]:h-5', className)} />;
   return (
     <ol className={cn('flex flex-col gap-1.5', className)} data-testid="session-trajectory">
       {rows(trajectory.data).map((step) => (

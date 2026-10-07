@@ -8,7 +8,7 @@
 
 import { scopesForRoles } from '@nerv/schema';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { ErrorState } from '../../components/query-state.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { useEffect, useRef, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
 import { FindingRail } from '../../features/review-center/finding-rail.js';
@@ -30,6 +30,7 @@ import {
   PageHeader,
   SectionTitle,
   Skeleton,
+  SkeletonText,
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
@@ -248,14 +249,18 @@ function ReviewCenter(): React.JSX.Element {
   const matched = status.reduce((sum, key) => sum + (facets?.status[key] ?? 0), 0);
   // 잘렸다는 사실은 이제 **다음 쪽이 있는가**로 안다 — 상한이 아니라 커서가 답한다
   const truncated = queue.hasNextPage === true || matched > items.length;
+  // 받기 전의 수는 `null` — 0 이 아니라 숫자 자리의 골격이다(REQ-WEB-294)
   const summary: SummaryMetric[] = [
     {
       label: t('reviews.summary.critical'),
-      value: facets?.severity['critical'] ?? 0,
+      value: facets === undefined ? null : (facets.severity['critical'] ?? 0),
       tone: 'danger',
     },
-    { label: t('reviews.summary.open'), value: facets?.status['open'] ?? 0 },
-    { label: t('reviews.summary.branches'), value: gate.data?.total ?? 0 },
+    {
+      label: t('reviews.summary.open'),
+      value: facets === undefined ? null : (facets.status['open'] ?? 0),
+    },
+    { label: t('reviews.summary.branches'), value: gate.data?.total ?? null },
   ];
 
   const toggle = (
@@ -295,7 +300,7 @@ function ReviewCenter(): React.JSX.Element {
             label={t('reviews.filter.severity')}
             values={SEVERITIES}
             selected={severity}
-            counts={facets?.severity ?? {}}
+            counts={facets?.severity}
             labelOf={(v) => t(`severity.${v}` as 'severity.info')}
             onToggle={(v) => toggle('severity', severity, v)}
           />
@@ -303,7 +308,7 @@ function ReviewCenter(): React.JSX.Element {
             label={t('reviews.filter.area')}
             values={AREAS}
             selected={area}
-            counts={facets?.area ?? {}}
+            counts={facets?.area}
             labelOf={(v) => t(`area.${v}` as 'area.codebase')}
             onToggle={(v) => toggle('area', area, v)}
           />
@@ -311,7 +316,7 @@ function ReviewCenter(): React.JSX.Element {
             label={t('reviews.filter.status')}
             values={STATUSES}
             selected={status}
-            counts={facets?.status ?? {}}
+            counts={facets?.status}
             labelOf={(v) => t(`status.finding.${v}` as 'status.finding.open')}
             onToggle={(v) => toggle('status', status, v)}
           />
@@ -475,10 +480,14 @@ function ReviewCenter(): React.JSX.Element {
           )}
 
           <div className="mt-6">
+            {/* 받기 전에는 "리뷰가 들어온 브랜치가 없습니다" 가 아니다(REQ-WEB-293) */}
             <GateCoverage
-              rows={gateRows}
+              rows={gate.data === undefined ? undefined : gateRows}
               total={gate.data?.total ?? gateRows.length}
               projectSlug={proj}
+              {...(failedWithoutData(gate)
+                ? { failed: { error: gate.error, retry: () => void gate.refetch() } }
+                : {})}
             />
           </div>
         </div>
@@ -526,7 +535,8 @@ function FacetGroup({
   label: string;
   values: readonly string[];
   selected: readonly string[];
-  counts: Record<string, number>;
+  /** 받기 전이면 `undefined` — 칸마다 0 을 적지 않고 숫자 자리의 골격을 둔다(REQ-WEB-294) */
+  counts: Record<string, number> | undefined;
   labelOf: (value: string) => string;
   onToggle: (value: string) => void;
 }): React.JSX.Element {
@@ -555,7 +565,9 @@ function FacetGroup({
                 </span>
                 {labelOf(value)}
               </span>
-              <span className="font-mono text-2xs text-text-faint">{counts[value] ?? 0}</span>
+              <span className="font-mono text-2xs text-text-faint">
+                {counts === undefined ? <SkeletonText className="w-3" /> : (counts[value] ?? 0)}
+              </span>
             </button>
           );
         })}

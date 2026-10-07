@@ -9,6 +9,7 @@
 
 import { createContext, useContext, useId, useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { useT } from '../../lib/i18n.js';
 import { useWriteLock } from '../../lib/realtime.js';
 import { TOKEN_CLASS } from '../status-badge.js';
 import { cn } from '../../lib/utils.js';
@@ -158,7 +159,13 @@ export function EmptyState({
   );
 }
 
-/** 로딩 골격 — 스피너 단독 금지(§1.5). 들어올 모양을 미리 보여준다. */
+/**
+ * 로딩 골격 — 스피너 단독 금지(§1.5). 들어올 모양을 미리 보여준다.
+ *
+ * **보조기기에는 "불러오는 중…" 이다**(2026-10-07 · REQ-WEB-294). 막대만 있던 동안 화면 읽기 프로그램은
+ * 빈 자리를 지나갔다 — 보는 사람에게는 회색 막대가 "아직" 을 말하지만 듣는 사람에게는 아무것도 없었다.
+ * 막대는 읽지 않고(`aria-hidden`) 문장 하나를 읽는다. 막대의 높이는 `className="[&>div]:h-12"` 로 고른다.
+ */
 export function Skeleton({
   rows = 3,
   className,
@@ -166,12 +173,43 @@ export function Skeleton({
   rows?: number;
   className?: string;
 }): React.JSX.Element {
+  const t = useT();
   return (
-    <div data-testid="skeleton" className={cn('flex flex-col gap-2', className)}>
+    <div data-testid="skeleton" role="status" className={cn('flex flex-col gap-2', className)}>
+      <span className="sr-only">{t('common.loading')}</span>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="h-9 animate-pulse rounded-nerv bg-bg-sunken" />
+        <div key={i} aria-hidden="true" className="h-9 animate-pulse rounded-nerv bg-bg-sunken" />
       ))}
     </div>
+  );
+}
+
+/**
+ * 글자 한 토막의 골격 — 수 · 이름처럼 **줄 안의 값**이 아직 없을 때(2026-10-07 · REQ-WEB-294).
+ *
+ * 받기 전의 수를 `?? 0` 으로 그리면 "0건" 은 모르는 것이 아니라 없다는 말이 된다(§1.5) — 개요의
+ * 커버리지 여섯 칸 · 작업 보드 요약 · 리뷰 요약이 응답 전에 전부 0 이었다. 보조기기에는 "불러오는 중…"
+ * 을 읽히고, 그 자리에 이미 다른 이름(`aria-label`)이 있으면 `silent` 로 막대만 둔다.
+ */
+export function SkeletonText({
+  className,
+  silent,
+}: {
+  className?: string;
+  silent?: boolean;
+}): React.JSX.Element {
+  const t = useT();
+  return (
+    <span data-testid="skeleton-text" className="inline-flex align-middle">
+      <span
+        aria-hidden="true"
+        className={cn(
+          'inline-block h-[0.8em] w-6 animate-pulse rounded-nerv-sm bg-bg-sunken',
+          className,
+        )}
+      />
+      {silent !== true && <span className="sr-only">{t('common.loading')}</span>}
+    </span>
   );
 }
 
@@ -914,7 +952,8 @@ export function Avatar({
 
 export interface SummaryMetric {
   label: string;
-  value: number | string;
+  /** `null` 은 **아직 모른다** — 0 이 아니라 숫자 자리의 골격을 그린다(REQ-WEB-294) */
+  value: number | string | null;
   /** 강조가 필요한 값만 색을 준다 — 전부 색이면 아무것도 강조되지 않는다 */
   tone?: 'default' | 'progress' | 'waiting' | 'danger' | 'done';
   /** 숫자를 보고 **갈 데가 있어야 한다**(§1.5) — 없으면 그냥 표시다 */
@@ -982,7 +1021,7 @@ export function SummaryStrip({
               m.dot === undefined ? tone[m.tone ?? 'default'] : 'text-text',
             )}
           >
-            {m.value}
+            {m.value === null ? <SkeletonText className="w-8" /> : m.value}
           </span>
         );
         // **갈 데가 있다는 표지**(사람 결정 A6 · REQ-WEB-274) — 칸의 모양만으로는 표시와 링크를 구별할 수 없었다

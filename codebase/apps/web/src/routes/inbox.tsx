@@ -42,6 +42,7 @@ import {
   PageBody,
   PageHeader,
   Skeleton,
+  SkeletonText,
 } from '../components/ui/primitives.js';
 import { ScopeRail, scopeName } from '../features/inbox/scope-rail.js';
 import type { ScopeRailRow, ScopeSelection } from '../features/inbox/scope-rail.js';
@@ -380,9 +381,14 @@ function InboxScreen(): React.JSX.Element {
         }
         meta={
           <span className="rounded-full bg-bg-sunken px-2 py-0.5 text-xs text-text-mute">
-            {state === 'pending'
-              ? t('inbox.count_pending', { count: actionable })
-              : t('inbox.count_decided', { count: total })}
+            {/* 받기 전에는 "0건" 이 아니다(REQ-WEB-294) */}
+            {inbox.data === undefined ? (
+              <SkeletonText className="w-10" />
+            ) : state === 'pending' ? (
+              t('inbox.count_pending', { count: actionable })
+            ) : (
+              t('inbox.count_decided', { count: total })
+            )}
           </span>
         }
       />

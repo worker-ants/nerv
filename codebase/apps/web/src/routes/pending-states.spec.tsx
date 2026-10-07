@@ -43,10 +43,34 @@ const EMPTY_KEYS = [
   'tasks.ready_empty',
   'notif.empty',
   'inbox.empty_decided',
+  // 오른쪽 열 · 리뷰 · 설정 — 2단계(REQ-WEB-294)
+  'spec.no_open_comments',
+  'spec.attach.empty',
+  'spec.derived_tasks.empty',
+  'common.not_yet',
+  'reviews.gate.empty',
+  'settings.workspace.no_projects',
+  'invite.none',
+  'session.no_trajectory',
 ] as const satisfies readonly (keyof typeof ko)[];
 
 /** 빈 상태가 문장 대신 표시로 남는 자리 */
 const EMPTY_TEST_IDS = ['spec-start', 'spec-tree-start', 'ready-empty', 'requirements-empty'];
+
+/**
+ * 받기 전의 "0" — 요약 줄의 큰 수 · 개요 커버리지의 칸 · 스펙 상세 레일 탭의 수. 응답이 오지 않았는데 0 이면
+ * 그것은 모르는 것이 아니라 없다는 말이다(REQ-WEB-294).
+ */
+function zeroClaims(): string[] {
+  const zero = (el: Element): boolean => /^0\+?$/.test((el.textContent ?? '').trim());
+  return [
+    ...[...document.querySelectorAll('.text-metric')].filter(zero).map(() => 'metric:0'),
+    ...[...document.querySelectorAll('dd')].filter(zero).map(() => 'dd:0'),
+    ...[...document.querySelectorAll('[data-testid^="rail-tab-"] > span')]
+      .filter(zero)
+      .map(() => 'rail-tab:0'),
+  ];
+}
 
 /** 응답이 오지 않는 요청 — 이 파일의 모든 검사가 "기다리는 동안" 이다 */
 const never = (): Promise<never> => new Promise<never>(() => undefined);
@@ -71,10 +95,25 @@ const ME = {
 };
 
 /**
- * 무엇이 오는가 — `nothing` 은 모든 요청이 멈춘 처음 순간이고, `scope` 는 내 정보 · 프로젝트까지
- * 받은 뒤 화면의 데이터만 기다리는 순간이다. 꺼진 쿼리의 틈은 앞의 것에서 드러난다.
+ * 무엇이 오는가 — `nothing` 은 모든 요청이 멈춘 처음 순간이고, `scope` 는 내 정보 · 프로젝트 · 연 문서까지
+ * 받은 뒤 화면의 나머지 데이터만 기다리는 순간이다. 꺼진 쿼리의 틈은 앞의 것에서 드러나고, 문서가 온 뒤에야
+ * 그려지는 오른쪽 열은 뒤의 것에서 드러난다.
  */
 type Arrived = 'nothing' | 'scope';
+
+const SPEC = {
+  spec_id: 's-1',
+  key: 'SPC-X',
+  title: '위젯 상태',
+  type: 'feature',
+  project_id: 'p1',
+  version_id: 'v-1',
+  version_no: 1,
+  doc_status: 'draft',
+  body_md: '# 위젯 상태\n\n본문',
+  requirements: [],
+  recheck: { count: 0, specs: [] },
+};
 let arrived: Arrived = 'nothing';
 
 function reply(path: string): unknown {
@@ -84,6 +123,7 @@ function reply(path: string): unknown {
     return [{ id: 'p1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }];
   if (/^\/projects\/clemvion(\?|$)/.test(path))
     return { id: 'p1', slug: 'clemvion', name: 'clemvion', gate_policy: {} };
+  if (/^\/projects\/clemvion\/specs\/SPC-X(\?|$)/.test(path)) return SPEC;
   return undefined;
 }
 
@@ -145,6 +185,7 @@ function emptyClaims(): string[] {
   return [
     ...EMPTY_KEYS.filter((key) => text.includes(ko[key])),
     ...EMPTY_TEST_IDS.filter((id) => screen.queryAllByTestId(id).length > 0),
+    ...zeroClaims(),
   ];
 }
 
@@ -158,8 +199,15 @@ const SCREENS: [string, RegExp][] = [
   ['/p/clemvion', /^\/projects\/clemvion\/events/],
   ['/p/clemvion/specs', /^\/projects\/clemvion\/specs\/tree/],
   ['/p/clemvion/specs/SPC-X', /^\/projects\/clemvion\/specs\/tree/],
+  // 오른쪽 열의 탭마다 — 문서가 온 뒤에 열이 그려지므로 그 열이 부르는 요청을 기다린다
+  ['/p/clemvion/specs/SPC-X?rail=comments', /^\/projects\/clemvion\/specs\/SPC-X\/comments/],
+  ['/p/clemvion/specs/SPC-X?rail=attachments', /^\/projects\/clemvion\/specs\/SPC-X\/attachments/],
+  ['/p/clemvion/specs/SPC-X?rail=versions', /^\/projects\/clemvion\/specs\/SPC-X\/versions/],
+  ['/p/clemvion/specs/SPC-X?rail=requirements', /^\/projects\/clemvion\/tasks\?/],
   ['/p/clemvion/tasks', /^\/projects\/clemvion\/tasks\?/],
   ['/p/clemvion/sessions', /^\/projects\/clemvion\/sessions/],
+  ['/p/clemvion/reviews', /^\/projects\/clemvion\/findings/],
+  ['/settings/projects', ORG_PROJECTS],
 ];
 
 describe('받기 전은 "없다" 가 아니다 (REQ-WEB-293)', () => {
