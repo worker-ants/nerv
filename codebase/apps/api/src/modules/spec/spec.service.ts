@@ -2588,6 +2588,8 @@ export class SpecService {
     specKey: string;
     versionNo?: number | null;
     basis?: string | null;
+    /** 기준선 이름 — 그 세트가 이 문서에 고정한 버전(2026-10-07 · REQ-API-269) */
+    baseline?: string | null;
     task?: string | null;
   }): Promise<{
     markdown: string;
@@ -2675,8 +2677,10 @@ export class SpecService {
     projectName: string;
     /** 링크 — 기본은 HTTP · 디스크 미러의 `./specs/<키>.md`. 내보내기(EP-MIR-03)는 zip 안의 경로를 준다 */
     linkOf?: (key: string) => string;
+    /** 색인할 문서 — 내보내기는 zip에 담은 것을 준다(기준선 · 최신). 없으면 승인본 트리다 */
+    nodes?: readonly SpecTreeNode[];
   }): Promise<string> {
-    const nodes = await this.tree({ projectId: input.projectId });
+    const nodes = input.nodes ?? (await this.tree({ projectId: input.projectId }));
     const linkOf = input.linkOf ?? ((key: string): string => `./specs/${safePathSegment(key)}.md`);
     const lines = [
       `# ${input.projectName}`,

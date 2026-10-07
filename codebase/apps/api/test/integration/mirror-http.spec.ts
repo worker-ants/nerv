@@ -479,6 +479,135 @@ describe('EP-MIR-03 export.zip (REQ-API-251)', () => {
   });
 });
 
+/**
+ * 기준선으로 내보내기 · 읽기 (2026-10-07 · REQ-API-268 · 269 · 미러 제안 D2 · D5 · 사람 결정).
+ *
+ * 미러 스크립트(`nerv-mirror`)가 세 기준을 모두 요청 한 번으로 받게 한다. 기준선은 세트라 그 세트의 문서만,
+ * 고정한 버전으로 담고, 나중에 보관한 문서도 담는다. `.md` 미러는 예전에 `?baseline=`을 오류 없이 버리고
+ * 승인본을 줬다 — 받은 쪽은 기준선으로 받았다고 믿었다.
+ */
+describe('기준선 미러 (REQ-API-268 · 269)', () => {
+  beforeAll(async () => {
+    // R1 = SPC-MIR-001의 v1(지금은 v2가 승인본이다) + 나중에 보관한 SPC-BASE-OLD
+    const old = await app.get(SpecService).draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-BASE-OLD',
+      title: '기준선에만 남은 문서',
+      type: 'feature',
+      bodyMd: '# 옛 문서\n\n본문',
+      userId,
+    });
+    await pool.query(
+      `UPDATE spec_version SET status='approved', approved_at=now(), approved_by_user_id=$2,
+              edit_lease_user_id=NULL, edit_lease_session_id=NULL, edit_lease_expires_at=NULL
+        WHERE id = $1`,
+      [old['spec_version_id'], userId],
+    );
+    await pool.query(`UPDATE spec SET current_version_id=$1 WHERE id=$2`, [
+      old['spec_version_id'],
+      old['spec_id'],
+    ]);
+    const baselineId = newId();
+    await pool.query(
+      `INSERT INTO spec_baseline (id, project_id, name, created_by_user_id) VALUES ($1,$2,'R1',$3)`,
+      [baselineId, projectId, userId],
+    );
+    await pool.query(
+      `INSERT INTO spec_baseline_item (baseline_id, spec_id, spec_version_id)
+       SELECT $1, s.id, v.id FROM spec s JOIN spec_version v ON v.spec_id = s.id
+        WHERE s.project_id = $2 AND ((s.key = 'SPC-MIR-001' AND v.version_no = 1)
+                                  OR (s.key = 'SPC-BASE-OLD' AND v.version_no = 1))`,
+      [baselineId, projectId],
+    );
+    await pool.query(`UPDATE spec SET archived_at = now() WHERE id = $1`, [old['spec_id']]);
+  });
+
+  async function download(query: string): Promise<{
+    status: number;
+    disposition: string;
+    zip: Buffer;
+  }> {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/projects/clemvion/export.zip${query}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return {
+      status: res.statusCode,
+      disposition: String(res.headers['content-disposition'] ?? ''),
+      zip: res.rawPayload,
+    };
+  }
+
+  it('export.zip?baseline= 는 그 세트의 문서만, 고정한 버전으로 담는다 — 나중에 보관한 문서도', async () => {
+    const res = await download('?baseline=R1');
+    expect(res.status).toBe(200);
+    expect(res.disposition).toContain('clemvion-specs-baseline-R1.zip');
+    const entries = zipEntries(res.zip);
+    const manifest = JSON.parse(entries[0]!.data.toString('utf8')) as {
+      basis: string;
+      baseline: { name: string; created_at: string } | null;
+      specs: { key: string; path: string; version: number | null; read_as: string }[];
+    };
+    expect(manifest.basis).toBe('baseline');
+    expect(manifest.baseline).toMatchObject({ name: 'R1' });
+    expect(Number.isNaN(Date.parse(manifest.baseline!.created_at))).toBe(false);
+    expect(manifest.specs.map((d) => d.key)).toEqual(['SPC-BASE-OLD', 'SPC-MIR-001']);
+    expect(manifest.specs.find((d) => d.key === 'SPC-MIR-001')).toMatchObject({
+      version: 1,
+      read_as: 'baseline',
+    });
+
+    // 문서는 같은 기준의 md 미러와 같은 바이트다
+    const mir = entries.find((e) => e.path === 'specs/SPC-MIR-001.md')!;
+    const single = await get('/api/projects/clemvion/specs/SPC-MIR-001.md?baseline=R1');
+    expect(mir.data.toString('utf8')).toBe(single.text);
+
+    // 색인은 이 zip이 담은 문서다 — 세트 밖의 문서를 가리키지 않는다
+    const llms = entries[1]!.data.toString('utf8');
+    expect(llms).toContain('(./specs/SPC-MIR-001.md)');
+    expect(llms).toContain('(./specs/SPC-BASE-OLD.md)');
+    expect(llms).not.toContain('SPC-LEAF');
+
+    // 같은 기준이면 같은 바이트다
+    expect((await download('?baseline=R1')).zip.equals(res.zip)).toBe(true);
+  });
+
+  it('승인본 · 최신 내보내기는 그대로다 — 목록의 baseline은 null이고 보관한 문서는 빠진다', async () => {
+    const res = await download('?basis=approved');
+    const manifest = JSON.parse(zipEntries(res.zip)[0]!.data.toString('utf8')) as {
+      basis: string;
+      baseline: unknown;
+      specs: { key: string; version: number | null }[];
+    };
+    expect(manifest.basis).toBe('approved');
+    expect(manifest.baseline).toBeNull();
+    expect(manifest.specs.map((d) => d.key)).not.toContain('SPC-BASE-OLD');
+    expect(manifest.specs.find((d) => d.key === 'SPC-MIR-001')!.version).toBe(2);
+  });
+
+  it('.md?baseline= 는 그 세트가 고정한 버전을 읽는다 — 예전처럼 버리고 승인본을 주지 않는다', async () => {
+    const res = await get('/api/projects/clemvion/specs/SPC-MIR-001.md?baseline=R1');
+    expect(res.status).toBe(200);
+    expect(res.headers['x-nerv-read-as']).toBe('baseline');
+    const front = frontmatterOf(res.text);
+    expect(front['version']).toBe(1);
+    expect(front['read_as']).toBe('baseline');
+  });
+
+  it('기준선과 다른 선택자를 함께 주거나 없는 기준선이면 400 이다', async () => {
+    expect((await download('?basis=latest&baseline=R1')).status).toBe(400);
+    expect((await download('?baseline=NOPE')).status).toBe(400);
+    expect(
+      (await get('/api/projects/clemvion/specs/SPC-MIR-001.md?baseline=R1&basis=latest')).status,
+    ).toBe(400);
+    expect((await get('/api/projects/clemvion/specs/SPC-MIR-001.md?baseline=NOPE')).status).toBe(
+      400,
+    );
+  });
+});
+
 async function seed(): Promise<void> {
   const orgId = newId();
   projectId = newId();
