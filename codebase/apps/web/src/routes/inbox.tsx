@@ -42,6 +42,7 @@ import {
   PageBody,
   PageHeader,
   Skeleton,
+  SkeletonText,
 } from '../components/ui/primitives.js';
 import { ScopeRail, scopeName } from '../features/inbox/scope-rail.js';
 import type { ScopeRailRow, ScopeSelection } from '../features/inbox/scope-rail.js';
@@ -380,9 +381,14 @@ function InboxScreen(): React.JSX.Element {
         }
         meta={
           <span className="rounded-full bg-bg-sunken px-2 py-0.5 text-xs text-text-mute">
-            {state === 'pending'
-              ? t('inbox.count_pending', { count: actionable })
-              : t('inbox.count_decided', { count: total })}
+            {/* 받기 전에는 "0건" 이 아니다(REQ-WEB-294) */}
+            {inbox.data === undefined ? (
+              <SkeletonText className="w-10" />
+            ) : state === 'pending' ? (
+              t('inbox.count_pending', { count: actionable })
+            ) : (
+              t('inbox.count_decided', { count: total })
+            )}
           </span>
         }
       />
@@ -554,7 +560,7 @@ function InboxScreen(): React.JSX.Element {
             />
           )}
 
-          {inbox.isLoading && <Skeleton rows={3} className="[&>div]:h-24" />}
+          {inbox.isPending && <Skeleton rows={3} className="[&>div]:h-24" />}
           {/* 실패는 빈 받은 요청이 아니다(REQ-WEB-198) — 그렇게 그리면 결재가 쌓인 채 "없다" 가 된다 */}
           {failedWithoutData(inbox) && (
             <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />

@@ -8,7 +8,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import type { MessageKey } from '@nerv/schema';
 import { useMe } from '../lib/queries.js';
 import { canManageScope, landingFor, primaryMembership, rolesInProject } from '../lib/session.js';
-import { Card, PageBody, PageHeader } from '../components/ui/primitives.js';
+import { Card, PageBody, PageHeader, Skeleton } from '../components/ui/primitives.js';
 import { InvitationCards } from '../components/invitation-cards.js';
 import { StartChecklist } from '../components/start-checklist.js';
 import { CreateOrgForm } from '../features/org/create-org-form.js';
@@ -48,7 +48,10 @@ function OnboardingScreen(): React.JSX.Element {
           부른 조직이 있는데 새로 만드는 것은 조직을 가르는 일이다 */}
       <InvitationCards />
 
-      {membership === null ? (
+      {/* 내 정보가 오기 전에는 소속을 모른다 — 조직이 있는 사람에게 조직 만들기 카드를 먼저 보이지 않는다(REQ-WEB-295) */}
+      {me.isPending ? (
+        <Skeleton rows={3} className="[&>div]:h-16" />
+      ) : membership === null ? (
         <CreateOrgCard email={me.data?.email ?? ''} />
       ) : (
         <div className="flex flex-col gap-3">

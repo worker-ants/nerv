@@ -562,7 +562,7 @@ function NotificationScreen(): React.JSX.Element {
               </Link>
             </p>
           )}
-          {notifications.isLoading && <Skeleton rows={5} />}
+          {notifications.isPending && <Skeleton rows={5} />}
           {failedWithoutData(notifications) && (
             <ErrorState error={notifications.error} onRetry={() => void notifications.refetch()} />
           )}

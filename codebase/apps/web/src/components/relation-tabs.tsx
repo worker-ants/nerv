@@ -7,7 +7,7 @@
 // 건수는 **누르기 전에** 적는다 — 빈 탭을 열어 보게 하지 않는다.
 
 import { useT } from '../lib/i18n.js';
-import { Segmented } from './ui/primitives.js';
+import { Segmented, SkeletonText } from './ui/primitives.js';
 
 /** 관계를 보는 방향. `in` = 역참조(들어오는 것), `out` = 레퍼런스(나가는 것) */
 export type RelationDirection = 'all' | 'in' | 'out';
@@ -15,7 +15,8 @@ export type RelationDirection = 'all' | 'in' | 'out';
 export interface RelationTabsProps {
   value: RelationDirection;
   onChange: (next: RelationDirection) => void;
-  counts: Readonly<Record<RelationDirection, number>>;
+  /** 받기 전이면 `undefined` — 칸마다 0 을 적지 않고 숫자 자리의 골격을 둔다(REQ-WEB-294) */
+  counts: Readonly<Record<RelationDirection, number>> | undefined;
   className?: string | undefined;
 }
 
@@ -45,7 +46,9 @@ export function RelationTabs({
         label: (
           <>
             {label}
-            <span className="ml-1 text-text-faint tabular-nums">{counts[key]}</span>
+            <span className="ml-1 text-text-faint tabular-nums">
+              {counts === undefined ? <SkeletonText className="w-3" /> : counts[key]}
+            </span>
           </>
         ),
       }))}

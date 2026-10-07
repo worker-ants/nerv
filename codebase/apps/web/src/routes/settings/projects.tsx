@@ -30,7 +30,9 @@ import {
   PageHeader,
   SectionTitle,
   Select,
+  Skeleton,
 } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ReadOnlyNotice, scopeAdmins } from '../../components/read-only-notice.js';
 
@@ -77,7 +79,17 @@ function ProjectsTab(): React.JSX.Element {
       )}
       <ProjectSection
         orgSlug={orgSlug}
-        projects={rows(projects.data)}
+        projects={
+          // 조직이 없으면 부를 목록도 없다 — 그때 `undefined` 로 두면 골격이 끝나지 않는다
+          orgSlug === null && me.data !== undefined
+            ? []
+            : projects.data === undefined
+              ? undefined
+              : rows(projects.data)
+        }
+        {...(failedWithoutData(projects)
+          ? { failed: { error: projects.error, retry: () => void projects.refetch() } }
+          : {})}
         canCreate={isOrgAdmin}
         canSeeArchived={isOrgAdmin || anyProjectAdmin}
         canEditProject={canEditProject}
@@ -98,6 +110,7 @@ function ProjectsTab(): React.JSX.Element {
 function ProjectSection({
   orgSlug,
   projects,
+  failed,
   showArchived,
   onShowArchived,
   canCreate,
@@ -107,7 +120,10 @@ function ProjectSection({
   onFormClosed,
 }: {
   orgSlug: string | null;
-  projects: Record<string, unknown>[];
+  /** 받기 전이면 `undefined` — "프로젝트가 없습니다" 가 아니라 골격이다(REQ-WEB-293) */
+  projects: Record<string, unknown>[] | undefined;
+  /** 한 번도 받지 못한 채 실패했다(REQ-WEB-198) */
+  failed?: { error: unknown; retry: () => void };
   showArchived: boolean;
   onShowArchived: (next: boolean) => void;
   /** 새 프로젝트 — 조직 수준이라 조직 admin 만 */
@@ -181,7 +197,9 @@ function ProjectSection({
         />
       )}
 
-      {projects.length === 0 && !creating && (
+      {failed !== undefined && <ErrorState error={failed.error} onRetry={failed.retry} />}
+      {projects === undefined && failed === undefined && <Skeleton rows={3} />}
+      {projects !== undefined && projects.length === 0 && !creating && (
         <EmptyState
           icon="◇"
           title={t('settings.workspace.no_projects')}
@@ -196,7 +214,7 @@ function ProjectSection({
       )}
 
       <ul className="flex flex-col">
-        {projects.map((project) => (
+        {(projects ?? []).map((project) => (
           <ProjectRow
             key={String(project['id'])}
             project={project}

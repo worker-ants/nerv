@@ -16,6 +16,7 @@ import {
   writeLastOrg,
   writeLastProject,
 } from './last-org.js';
+import { useT } from './i18n.js';
 import { rows, useMe, useProjects } from './queries.js';
 import { rolesInProject } from './session.js';
 
@@ -29,6 +30,8 @@ export interface Scope {
    * 0개라고 말하는 자리(홈의 첫 프로젝트 안내 · REQ-WEB-205)는 이것이 참일 때만 말한다
    */
   projectsLoaded: boolean;
+  /** 목록을 한 번도 받지 못한 채 실패했다 — 그때 골격을 남기면 끝나지 않는다(REQ-WEB-294) */
+  projectsFailed: boolean;
   projectSlug: string | null;
   project: Record<string, unknown> | undefined;
 }
@@ -72,6 +75,7 @@ export function useScope(routeProjectSlug?: string | undefined): Scope {
     orgName: currentOrg?.name ?? null,
     projects,
     projectsLoaded: projectsQuery.data !== undefined,
+    projectsFailed: projectsQuery.isError && projectsQuery.data === undefined,
     projectSlug,
     project: projects.find((p) => p['slug'] === projectSlug),
   };
@@ -91,6 +95,31 @@ export function useCanIntervene(projectSlug: string | null, sessionUserId: unkno
   const { orgSlug } = useScope(projectSlug ?? undefined);
   if (rolesInProject(me.data, orgSlug, projectSlug).includes('admin')) return true;
   return typeof sessionUserId === 'string' && sessionUserId === me.data?.id;
+}
+
+/**
+ * 내 역할을 **아는가**(2026-10-07 · REQ-WEB-295) — 내 정보(me)가 오기 전에는 모른다.
+ *
+ * 역할 판정(`rolesInProject` · `canManageScope`)은 내 정보가 없으면 "역할 없음" 을 돌려준다. 그 값을 그대로
+ * 그리면 **모르는 권한이 없는 권한이 된다** — 설정 화면들이 응답 전에 admin 에게 "조직 admin 만 할 수
+ * 있습니다" 를 먼저 보였고, 조직이 있는 사람에게 온보딩이 조직 만들기 카드를 보였다. 안내 · 잠금 사유는
+ * 이것이 참일 때만 그린다. 내 정보를 끝내 받지 못했으면(실패) 아는 것으로 친다 — 그때의 잠금은 맞는 말이고,
+ * 골격을 남기면 끝나지 않는다.
+ */
+export function useRolesKnown(): boolean {
+  const me = useMe();
+  return me.data !== undefined || me.isError;
+}
+
+/**
+ * "이 역할만 할 수 있다" 는 잠금 사유 — 역할을 모르는 동안은 "불러오는 중…" 이다(REQ-WEB-295). 단추는
+ * 그동안에도 잠겨 있지만(누를 수 있는지 모른다), 사유가 거짓말을 하지는 않는다.
+ */
+export function useRolesOnly(): (roles: readonly string[]) => string {
+  const t = useT();
+  const known = useRolesKnown();
+  return (roles) =>
+    known ? t('task.next.roles_only', { roles: roles.join(' · ') }) : t('common.loading');
 }
 
 /**

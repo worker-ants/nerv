@@ -28,7 +28,7 @@ import { cn } from '../../lib/utils.js';
 import { useMe, useProject, useSpecGraph } from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
-import { useScope } from '../../lib/scope.js';
+import { useRolesOnly, useScope } from '../../lib/scope.js';
 import {
   Button,
   Card,
@@ -144,6 +144,8 @@ interface SearchResult {
 
 function SpecListScreen(): React.JSX.Element {
   const t = useT();
+  // 역할을 모르는 동안의 잠금 사유는 "불러오는 중…" 이다(REQ-WEB-295)
+  const rolesOnly = useRolesOnly();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
   const {
@@ -495,9 +497,7 @@ function SpecListScreen(): React.JSX.Element {
               type="button"
               data-testid="freeze-baseline"
               disabled={!canFreeze}
-              disabledReason={
-                canFreeze ? undefined : t('task.next.roles_only', { roles: 'planner · admin' })
-              }
+              disabledReason={canFreeze ? undefined : rolesOnly(['planner', 'admin'])}
               onClick={() => setFreezing(true)}
             >
               {t('specs.freeze')}
@@ -786,7 +786,10 @@ function SpecListScreen(): React.JSX.Element {
         <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
           <section>
             <SectionTitle>
-              {t('specs.results', { count: search.data?.items.length ?? 0 })}
+              {/* 받기 전에는 "결과 0건" 이 아니다(REQ-WEB-294) */}
+              {search.data === undefined
+                ? t('common.loading')
+                : t('specs.results', { count: search.data.items.length })}
             </SectionTitle>
             {/* **어느 버전의 본문에서 찾았는지 적는다**(REQ-WEB-250). 결과만 보고는 승인본에서 찾았는지
                 초안까지 찾았는지 알 수 없다. 바꾸려면 위의 [버전 기준]을 고른다 */}
@@ -920,7 +923,7 @@ function SpecListScreen(): React.JSX.Element {
                   <span className="ml-1.5 text-2xs text-text-faint">{String(r['via_kind'])}</span>
                 </li>
               ))}
-              {(search.data?.related ?? []).length === 0 && (
+              {search.data !== undefined && search.data.related.length === 0 && (
                 <li className="py-1.5 text-sm text-text-faint">{t('common.none')}</li>
               )}
             </ul>

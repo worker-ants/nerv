@@ -130,7 +130,7 @@ function HomeScreen(): React.JSX.Element {
           )}
         </div>
 
-        {inbox.isLoading && <Skeleton rows={2} />}
+        {inbox.isPending && <Skeleton rows={2} />}
         {inboxFailed && <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />}
         {inbox.data !== undefined && cards.length === 0 && (
           <EmptyState

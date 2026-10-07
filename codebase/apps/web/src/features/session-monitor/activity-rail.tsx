@@ -20,7 +20,7 @@ import { EntityLink } from '../../components/entity-link.js';
 import { ActivityTimeline, SessionTrajectory } from './activity-timeline.js';
 import { SteerPanel } from './steer-panel.js';
 import { relativeTime } from './format.js';
-import { useCanIntervene } from '../../lib/scope.js';
+import { useCanIntervene, useRolesKnown } from '../../lib/scope.js';
 import type { SessionCard } from './types.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
@@ -38,6 +38,7 @@ export function ActivityRail({
 }): React.JSX.Element {
   const t = useT();
   const canIntervene = useCanIntervene(projectSlug, card.user_id);
+  const rolesKnown = useRolesKnown();
 
   return (
     <div data-testid="activity-rail" className="flex min-h-0 flex-col">
@@ -78,6 +79,7 @@ export function ActivityRail({
           sessionId={card.id}
           state={card.state}
           canIntervene={canIntervene}
+          rolesKnown={rolesKnown}
         />
       </div>
 

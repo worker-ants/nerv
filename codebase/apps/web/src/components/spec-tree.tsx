@@ -21,7 +21,7 @@ import { rows, useSpecTree } from '../lib/queries.js';
 import { StatusBadge } from './status-badge.js';
 import { cn } from '../lib/utils.js';
 import { relativeTime } from '../lib/format.js';
-import { Button, Input } from './ui/primitives.js';
+import { Button, Input, Skeleton } from './ui/primitives.js';
 import { SPEC_VERSION_TOKEN, statusDot } from './status-token.js';
 import { SpecStartCard } from './spec-start-card.js';
 import type { StatusToken } from './status-badge.js';
@@ -578,13 +578,11 @@ export function SpecTree({
       <div className="mb-1 flex justify-end px-2">{headerAction}</div>
     );
 
-  if (tree.isLoading) {
+  if (tree.isPending) {
     return (
       <div data-testid="tree-skeleton" className="flex flex-col gap-2">
         {actionRow}
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-4 rounded bg-bg-sunken" />
-        ))}
+        <Skeleton rows={3} className="[&>div]:h-4" />
       </div>
     );
   }

@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { relativeTime } from '../../lib/format.js';
 import { usePluginCoverage } from '../../lib/queries.js';
-import { Disclosure } from '../../components/ui/primitives.js';
+import { Disclosure, Skeleton } from '../../components/ui/primitives.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
@@ -26,7 +26,9 @@ export function PluginCoverage({
   const coverage = usePluginCoverage(projectSlug, projectId);
   const [open, setOpen] = useState(false);
   const data = coverage.data;
-  // 불러오는 중에는 자리를 비운다 — "0 / 0" 을 먼저 보이면 그것이 사실처럼 읽힌다
+  // 불러오는 중에는 "0 / 0" 대신 줄 자리의 골격이다 — 비워 두면 다 받은 뒤 보드가 아래로 밀렸다(REQ-WEB-296).
+  // 받지 못했으면 그리지 않는다 — 보드를 돕는 한 줄이라 그 실패가 보드를 가리지 않는다
+  if (coverage.isPending) return <Skeleton rows={1} className="mb-4 w-48 [&>div]:h-6" />;
   if (data === undefined) return null;
 
   const allOn = data.total > 0 && data.active === data.total;

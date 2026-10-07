@@ -75,8 +75,14 @@ import {
   PageBody,
   Segmented,
   Skeleton,
+  SkeletonText,
 } from '../../components/ui/primitives.js';
-import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
+import {
+  ErrorState,
+  NotFoundState,
+  failedWithoutData,
+  isNotFound,
+} from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import { useScrollTopOn } from '../../lib/scroll-top.js';
@@ -567,19 +573,24 @@ function SpecDetail(): React.JSX.Element {
   const backlinks = relationItems.filter((r) => r['direction'] === 'in');
   const outgoing = relationItems.filter((r) => r['direction'] !== 'in');
   const shownRelations = relTab === 'in' ? backlinks : relTab === 'out' ? outgoing : relationItems;
+  /**
+   * 레일 탭의 수 — **받기 전이면 `null`** 이고 숫자 자리의 골격을 그린다(2026-10-07 · REQ-WEB-294). 다섯 탭이
+   * 응답 전에 전부 0 이었고, 그 0 을 보고 탭을 연 사람은 "열린 코멘트가 없습니다" 를 먼저 봤다.
+   */
+  const railCounts = {
+    relations: relations.data === undefined ? null : relationItems.length,
+    requirements: requirements.data === undefined ? null : rows(requirements.data).length,
+    versions: versions.data === undefined ? null : rows(versions.data).length,
+    attachments: attachments.data === undefined ? null : rows(attachments.data).length,
+    comments: comments.data === undefined ? null : openCommentCount,
+  };
 
   /**
    * 탭 줄이 어느 쪽으로 잘렸는지 다시 잰다. 스크롤할 때 · 창이 바뀔 때 · **수가 들어올 때**
    * 셋이다 — 마지막이 빠지면 처음 그린 빈 수(0)로 잰 결과가 그대로 남아, 데이터가 도착해
    * 줄이 넓어져도 페이드가 없다.
    */
-  const railTabWidths = [
-    relationItems.length,
-    rows(requirements.data).length,
-    rows(versions.data).length,
-    rows(attachments.data).length,
-    rows(comments.data).length,
-  ].join(',');
+  const railTabWidths = Object.values(railCounts).map(String).join(',');
   useEffect(() => {
     const el = railTabsRef.current;
     if (el === null) return undefined;
@@ -737,13 +748,18 @@ function SpecDetail(): React.JSX.Element {
           </nav>
         )}
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <StatusBadge
-            token={
-              (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
-                'idle') as StatusToken
-            }
-            label={t(statusLabelKey('spec', docStatus))}
-          />
+          {/* 보는 버전을 받기 전에는 상태를 모른다 — 빈 상태값의 배지를 그리지 않는다(REQ-WEB-294) */}
+          {viewed === undefined ? (
+            <SkeletonText className="w-12" />
+          ) : (
+            <StatusBadge
+              token={
+                (SPEC_VERSION_TOKEN[docStatus as keyof typeof SPEC_VERSION_TOKEN] ??
+                  'idle') as StatusToken
+              }
+              label={t(statusLabelKey('spec', docStatus))}
+            />
+          )}
           <Mono className="text-xs">{spec}</Mono>
           {typeof detail.data?.['type'] === 'string' && (
             <>
@@ -841,7 +857,11 @@ function SpecDetail(): React.JSX.Element {
         </h1>
         {/* 곁줄 — 이 문서의 이력·무게가 한 줄로 요약된다(시안: 승인자 · 파생 · 역참조) */}
         <div className="mt-2 mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-5 text-sm text-text-mute">
-          <Byline detail={viewed ?? detail.data} backlinks={backlinks.length} t={t} />
+          <Byline
+            detail={viewed ?? detail.data}
+            backlinks={relations.data === undefined ? null : backlinks.length}
+            t={t}
+          />
         </div>
 
         {/* **다음 할 일**(2026-09-24 — UI/UX 검토 SPEC-02 · SPEC-08 · SPEC-10 · REQ-WEB-214). 이 화면의 거의
@@ -1152,9 +1172,16 @@ function SpecDetail(): React.JSX.Element {
                 {t('spec.version_current')}
               </Button>
             </div>
-            <div onClick={onDocClick}>
-              <SpecEditor key={`v${String(viewing)}`} value={pastBody} />
-            </div>
+            {/* 옛 버전을 받기 전에는 빈 본문이 아니라 골격이다 — 빈 편집기는 "본문이 없다" 로 읽힌다(REQ-WEB-293) */}
+            {pastVersion.isPending ? (
+              <Skeleton rows={6} />
+            ) : failedWithoutData(pastVersion) ? (
+              <ErrorState error={pastVersion.error} onRetry={() => void pastVersion.refetch()} />
+            ) : (
+              <div onClick={onDocClick}>
+                <SpecEditor key={`v${String(viewing)}`} value={pastBody} />
+              </div>
+            )}
           </>
         )}
 
@@ -1298,15 +1325,15 @@ function SpecDetail(): React.JSX.Element {
             >
               {(
                 [
-                  ['relations', t('spec.rail.relations'), relationItems.length],
+                  ['relations', t('spec.rail.relations'), railCounts.relations],
                   // **약속이 레일의 두 번째 질문이다** — "이 문서가 무엇을 약속했고 누가
                   // 지키고 있나"(D-03 · FR-13). 그 답이 화면 어디에도 없었다.
-                  ['requirements', t('spec.requirements'), rows(requirements.data).length],
-                  ['versions', t('spec.versions'), rows(versions.data).length],
-                  ['attachments', t('spec.attachments'), rows(attachments.data).length],
+                  ['requirements', t('spec.requirements'), railCounts.requirements],
+                  ['versions', t('spec.versions'), railCounts.versions],
+                  ['attachments', t('spec.attachments'), railCounts.attachments],
                   // **열린 것만 센다**(SPEC-04) — 해결된 것까지 세어 "코멘트 5" 를 눌렀는데 "열린 코멘트가
                   // 없습니다" 가 떴다. 머리의 칩과 같은 수다
-                  ['comments', t('spec.comments'), openCommentCount],
+                  ['comments', t('spec.comments'), railCounts.comments],
                 ] as const
               ).map(([key, label, count]) => (
                 <button
@@ -1316,7 +1343,7 @@ function SpecDetail(): React.JSX.Element {
                   id={`spec-rail-tab-${key}`}
                   aria-selected={railTab === key}
                   aria-controls="spec-rail-panel"
-                  aria-label={t('spec.rail.tab_label', { label, count })}
+                  aria-label={count === null ? label : t('spec.rail.tab_label', { label, count })}
                   tabIndex={railTab === key ? 0 : -1}
                   data-testid={`rail-tab-${key}`}
                   onClick={() => setRailTab(key)}
@@ -1330,7 +1357,7 @@ function SpecDetail(): React.JSX.Element {
                 >
                   {label}
                   <span aria-hidden="true" className="text-2xs text-text-ghost tabular-nums">
-                    {count}
+                    {count === null ? <SkeletonText className="w-3" silent /> : count}
                   </span>
                 </button>
               ))}
@@ -1367,7 +1394,11 @@ function SpecDetail(): React.JSX.Element {
               <RelationTabs
                 value={relTab}
                 onChange={setRelTab}
-                counts={{ all: relationItems.length, in: backlinks.length, out: outgoing.length }}
+                counts={
+                  relations.data === undefined
+                    ? undefined
+                    : { all: relationItems.length, in: backlinks.length, out: outgoing.length }
+                }
               />
               {/* **이 문서 주변을 그림으로**(2026-09-24 · SPEC-07). 목록의 그래프는 늘 전역에서
                   시작해서, 상세에서 "이 문서 주변" 으로 갈 길이 없었다 */}
@@ -1399,7 +1430,11 @@ function SpecDetail(): React.JSX.Element {
         >
           {railTab === 'relations' && (
             <>
-              {shownRelations.length === 0 && (
+              {relations.isPending && <Skeleton rows={3} className="px-2 [&>div]:h-6" />}
+              {failedWithoutData(relations) && (
+                <ErrorState error={relations.error} onRetry={() => void relations.refetch()} />
+              )}
+              {relations.data !== undefined && shownRelations.length === 0 && (
                 <p className="px-2 text-text-faint">{t('common.not_yet')}</p>
               )}
 
@@ -1443,7 +1478,13 @@ function SpecDetail(): React.JSX.Element {
             </>
           )}
 
-          {railTab === 'versions' && (
+          {railTab === 'versions' && versions.isPending && (
+            <Skeleton rows={3} className="px-2 [&>div]:h-6" />
+          )}
+          {railTab === 'versions' && failedWithoutData(versions) && (
+            <ErrorState error={versions.error} onRetry={() => void versions.refetch()} />
+          )}
+          {railTab === 'versions' && versions.data !== undefined && (
             <ul className="flex flex-col gap-1 px-2">
               {versionRows.slice(0, versionsShown).map((v) => (
                 <li
@@ -1579,14 +1620,21 @@ function SpecDetail(): React.JSX.Element {
 
           {railTab === 'comments' && (
             <div className="px-2" data-testid="rail-panel-comments">
-              <CommentList
-                projectSlug={proj}
-                specKey={spec}
-                versionId={versionId}
-                comments={rows(comments.data)}
-                anchors={commentAnchors}
-                onAnchor={goAnchor}
-              />
+              {/* 받기 전에는 "열린 코멘트가 없습니다" 가 아니다(REQ-WEB-293) */}
+              {comments.isPending ? (
+                <Skeleton rows={3} className="[&>div]:h-6" />
+              ) : failedWithoutData(comments) ? (
+                <ErrorState error={comments.error} onRetry={() => void comments.refetch()} />
+              ) : (
+                <CommentList
+                  projectSlug={proj}
+                  specKey={spec}
+                  versionId={versionId}
+                  comments={rows(comments.data)}
+                  anchors={commentAnchors}
+                  onAnchor={goAnchor}
+                />
+              )}
             </div>
           )}
         </div>
@@ -1614,7 +1662,8 @@ function Byline({
   t,
 }: {
   detail: Record<string, unknown> | undefined;
-  backlinks: number;
+  /** 받기 전이면 `null` — "역참조 0" 이라고 적지 않는다(REQ-WEB-294) */
+  backlinks: number | null;
   t: ReturnType<typeof useT>;
 }): React.JSX.Element {
   const approver =
@@ -1638,7 +1687,11 @@ function Byline({
           ·
         </span>
       )}
-      <span>{t('spec.byline.backlinks', { count: backlinks })}</span>
+      {backlinks === null ? (
+        <SkeletonText className="w-16" />
+      ) : (
+        <span>{t('spec.byline.backlinks', { count: backlinks })}</span>
+      )}
     </>
   );
 }

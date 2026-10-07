@@ -102,7 +102,7 @@ function TokensTab(): React.JSX.Element {
   // 설정 라우트에는 프로젝트 축이 없어 그 값은 "마지막으로 본 프로젝트" 였다 — 사람은
   // 자기가 무엇을 향해 발급하는지 모른 채 눌렀다. `projects` 는 헤더의 select 가 그리는
   // 그 목록과 같은 값이고(`scope.ts`), 기본값은 지금 보고 있는 프로젝트다.
-  const { orgSlug, projectSlug, projects } = useScope();
+  const { orgSlug, projectSlug, projects, projectsLoaded } = useScope();
   const me = useMe();
   // 조직 전체 토큰 표는 **조직 admin 만**(2026-09-24 · REQ-API-172) — 조직의 모든 토큰을 보이는
   // 표라, 한 프로젝트의 admin 이 남의 프로젝트 토큰을 보면 안 된다. 서버와 같은 규칙이다
@@ -237,7 +237,8 @@ function TokensTab(): React.JSX.Element {
         </FieldRow>
         {/* **막다른 길을 만들지 않는다**(§1.5 · REQ-WEB-003). 비활성인 단추는 왜 그런지를
             같은 자리에서 말해야 한다 — 예전에는 아무 말 없이 잠겨 있었다. */}
-        {project === null && (
+        {/* 목록을 받기 전에는 "프로젝트가 없다" 가 아니다(REQ-WEB-293) */}
+        {project === null && projectsLoaded && (
           <p data-testid="token-no-project" className="mt-2 text-xs text-status-waiting">
             {/* **조직 admin 에게는 할 일을 말한다**(2026-09-24 · REQ-WEB-205). 조직을 막 만든 admin 이
                 "admin 에게 소속을 요청하세요" 를 읽었다 — 자기 자신에게 요청하라는 말이었다 */}

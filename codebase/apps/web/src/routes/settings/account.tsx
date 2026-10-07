@@ -34,6 +34,7 @@ import {
   SectionTitle,
   Skeleton,
 } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 
 /**
  * **항목을 탭으로 나눈다**(2026-09-28 · 사람 요청 · REQ-WEB-283). 한 화면에 이름 · 비밀번호 · 메일 요약 ·
@@ -266,6 +267,11 @@ function NotificationLevelsSection(): React.JSX.Element | null {
   const t = useT();
   const scopes = useNotificationScopes();
   const rows = scopes.data?.items ?? [];
+  // 받기 전에는 자리를 잡는다 — 프로젝트가 있는 사람에게는 늘 보이는 절이다(REQ-WEB-296)
+  if (scopes.isPending) return <Skeleton rows={3} />;
+  if (failedWithoutData(scopes)) {
+    return <ErrorState error={scopes.error} onRetry={() => void scopes.refetch()} />;
+  }
   if (rows.length === 0) return null;
   const multiOrg = new Set(rows.map((r) => r.org_slug)).size > 1;
   return (

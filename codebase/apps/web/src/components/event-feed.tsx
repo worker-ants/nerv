@@ -53,7 +53,7 @@ export function EventFeed({
   const groups = collapseRepeats(items, repeatKey);
   const shown = max === undefined ? groups : groups.slice(0, max);
 
-  if (feed.isLoading) return <Skeleton rows={4} />;
+  if (feed.isPending) return <Skeleton rows={4} />;
   if (failedWithoutData(feed)) {
     return <ErrorState error={feed.error} onRetry={() => void feed.refetch()} />;
   }

@@ -31,7 +31,7 @@ import { useApiError } from '../../lib/api-errors.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rolesInProject } from '../../lib/session.js';
-import { useScope } from '../../lib/scope.js';
+import { useRolesOnly, useScope } from '../../lib/scope.js';
 import { DelegationForm } from './delegation-form.js';
 import { leaseRemaining, relativeTime } from '../session-monitor/format.js';
 import { blockedReasonText } from '../../lib/format.js';
@@ -54,6 +54,7 @@ import {
   PageHeader,
   Select,
   Skeleton,
+  SkeletonText,
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import { EntityLink } from '../../components/entity-link.js';
@@ -111,8 +112,8 @@ export function TaskBoard(): React.JSX.Element {
   // [+ 새 작업]·[채우기]가 누구에게나 켜져 있어, designer 는 폼을 다 채우고 저장한 뒤에야 403 을 받았다
   const roles = rolesInProject(me.data, orgSlug, proj);
   const hasRole = (list: readonly string[]): boolean => roles.some((r) => list.includes(r));
-  const rolesOnly = (list: readonly string[]): string =>
-    t('task.next.roles_only', { roles: list.join(' · ') });
+  // 역할을 모르는 동안의 사유는 "불러오는 중…" 이다(REQ-WEB-295)
+  const rolesOnly = useRolesOnly();
   const canCreate = hasRole(TASK_CREATE_ROLES);
   // 보관은 **끄고 시작한다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
   //
@@ -198,9 +199,10 @@ export function TaskBoard(): React.JSX.Element {
     ...filters,
     ...(meId === undefined ? {} : { assignee: meId }),
   });
-  const count = (q: ReturnType<typeof useTaskLane>): string => {
-    const items = q.data?.items ?? [];
-    return `${items.length}${q.data?.next_cursor != null ? '+' : ''}`;
+  // **받기 전의 수는 0 이 아니다**(REQ-WEB-294) — 넷이 응답 전에 "0" 이었다. `null` 이면 숫자 자리의 골격이다
+  const count = (q: ReturnType<typeof useTaskLane>): string | null => {
+    if (q.data === undefined) return null;
+    return `${q.data.items.length}${q.data.next_cursor != null ? '+' : ''}`;
   };
   const summary: SummaryMetric[] = [
     { label: t('tasks.summary.in_progress'), value: count(inProgress), tone: 'progress' },
@@ -223,9 +225,10 @@ export function TaskBoard(): React.JSX.Element {
   };
   const readyEmpty: ReadyEmpty = {
     blocked: blocked.data?.items.length ?? 0,
-    blockedLabel: count(blocked),
+    // 수가 0 보다 클 때만 보이므로(받은 뒤다) 빈 글자로 둔다
+    blockedLabel: count(blocked) ?? '',
     backlog: backlog.data?.items.length ?? 0,
-    backlogLabel: count(backlog),
+    backlogLabel: count(backlog) ?? '',
     onBlocked: () => scrollToLane('blocked'),
     onBacklog: () => {
       if (!showBacklog) toBoard(searchWith({ backlog: true }));
@@ -570,8 +573,14 @@ function Lane({
           {/* 한 페이지를 채웠으면 **뒤에 더 있다**는 뜻이다 — 그냥 30 이라고
                       적으면 사람은 그것이 전부라고 읽는다 */}
           <span className="text-xs tabular-nums text-text-faint">
-            {all.length}
-            {more ? '+' : ''}
+            {query.data === undefined ? (
+              <SkeletonText className="w-3" />
+            ) : (
+              <>
+                {all.length}
+                {more ? '+' : ''}
+              </>
+            )}
           </span>
           {/* 레인을 접는 유일한 단서다 — 장식 전용 단(ghost)이 아니라 흐린 글자 단(REQ-WEB-234 · REQ-WEB-276) */}
           <span aria-hidden="true" className="ml-auto text-3xs text-text-faint">
@@ -581,7 +590,7 @@ function Lane({
       </h2>
       {/* 로딩은 화면 골격으로 — 스피너 단독 금지(§1.5). 레인마다 따로 부르므로
                   빠른 레인이 먼저 차고 느린 레인만 골격으로 남는다 */}
-      {query.isLoading && !collapsed && <Skeleton rows={3} className="[&>div]:h-12" />}
+      {query.isPending && !collapsed && <Skeleton rows={3} className="[&>div]:h-12" />}
       {/* **실패는 빈 레인이 아니다**(REQ-WEB-198) — "비어 있음" 을 그리면 사람은 그 레인에
           일이 없다고 읽는다. 레인마다 따로 부르므로 실패도 그 레인 하나만 말한다 */}
       {!collapsed && failedWithoutData(query) && (

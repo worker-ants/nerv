@@ -47,7 +47,7 @@ export function SessionBoard({
 }: SessionBoardProps): React.JSX.Element {
   const t = useT();
   const query = useSessions(projectSlug, projectId, state) as {
-    isLoading: boolean;
+    isPending: boolean;
     isError: boolean;
     error: unknown;
     data: SessionBoardResult | undefined;
@@ -57,7 +57,7 @@ export function SessionBoard({
     fetchNextPage: () => unknown;
   };
 
-  if (query.isLoading) {
+  if (query.isPending) {
     // 로딩은 화면 골격으로 — 스피너 단독 금지(screens.md §1.5)
     return (
       <div data-testid="session-board-skeleton">

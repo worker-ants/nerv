@@ -18,7 +18,8 @@ import { useT } from '../../lib/i18n.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
-import { Button, Disclosure } from '../../components/ui/primitives.js';
+import { Button, Disclosure, Skeleton } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ActorMark } from '../../components/actor-mark.js';
 
 /** 서버와 같은 화이트리스트 — 고르개가 아닌 것을 보여 주면 올린 뒤에야 거부당한다 */
@@ -249,7 +250,18 @@ export function AttachmentPanel({
             </li>
           );
         })}
-        {items.length === 0 && (
+        {/* 받기 전에는 "첨부가 없습니다" 가 아니다(REQ-WEB-293) */}
+        {attachments.isPending && (
+          <li>
+            <Skeleton rows={2} className="[&>div]:h-6" />
+          </li>
+        )}
+        {failedWithoutData(attachments) && (
+          <li>
+            <ErrorState error={attachments.error} onRetry={() => void attachments.refetch()} />
+          </li>
+        )}
+        {attachments.data !== undefined && items.length === 0 && (
           <li className="text-2xs text-text-faint">{t('spec.attach.empty')}</li>
         )}
       </ul>

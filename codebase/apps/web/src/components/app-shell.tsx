@@ -49,7 +49,14 @@ import { SpecTreeColumn } from './spec-tree-column.js';
 import { SettingsNav } from '../features/settings/settings-nav.js';
 import { LocaleSwitch } from './locale-switch.js';
 import { NAV_ACTIVE, NAV_ITEM, RAIL_LABEL } from './nav-styles.js';
-import { CountBadge, MenuItem, Popover, Segmented } from './ui/primitives.js';
+import {
+  CountBadge,
+  MenuItem,
+  Popover,
+  Segmented,
+  Skeleton,
+  SkeletonText,
+} from './ui/primitives.js';
 import { asProjectId } from '../lib/query-keys.js';
 import { useMediaQuery } from '../lib/use-media-query.js';
 import { readViewBasis, viewBasisFromKey, viewBasisKey } from '../lib/view-basis.js';
@@ -403,6 +410,12 @@ export function AppShell({
             className="ml-1 flex min-w-0 items-center gap-1 text-sm max-md:ml-0"
           >
             {/* 조직은 **글자**다 — 헤더에서 `/` 로 가는 길은 로고 하나다(2026-08-30 · 같은 목적지를 두 번 두지 않는다) */}
+            {/* 내 정보가 오기 전에는 조직을 모른다 — 자리를 잡아 두고 나중에 밀리지 않게 한다(REQ-WEB-296) */}
+            {currentOrg === null && me.isPending && (
+              <span className="px-1 max-md:hidden">
+                <SkeletonText className="w-16" />
+              </span>
+            )}
             {currentOrg !== null && (
               <span
                 data-testid="crumb-org"
@@ -693,6 +706,16 @@ export function AppShell({
           {/* 설정은 사용자 메뉴 안에 있다 — 와이어프레임 헤더(§2.1)는
               `⬢ NERV 홈 받은 요청 알림 🔍검색 [지민 ▾]` 여섯 자리뿐이고, 자주 쓰지 않는 항목이
               자주 쓰는 항목의 자리를 먹으면 헤더는 금세 도구모음이 된다. */}
+          {/* 사용자 메뉴의 자리 — 내 정보가 오기 전에도 같은 폭을 잡는다. 없다가 생기면 헤더의 항목이 옆으로 밀렸다(REQ-WEB-296) */}
+          {me.isPending && (
+            <span
+              data-testid="user-menu-skeleton"
+              className={cn(HEADER_LINK, 'flex shrink-0 items-center gap-1.5 max-md:px-1')}
+            >
+              <SkeletonText className="size-5 rounded-full" />
+              <SkeletonText className="w-12 max-md:hidden" silent />
+            </span>
+          )}
           {me.data !== undefined && (
             <div className="relative" data-menu-root="user">
               <button
@@ -844,6 +867,12 @@ export function AppShell({
 
           {/* 조직 — 전환기가 열의 머리다. 헤더에 있던 동안 받은 요청·알림 배지가 그 바로 옆이라 "지금 조직의 수" 로
               읽혔다(배지는 모든 조직을 센다 — REQ-WEB-193) */}
+          {/* 조직 전환기의 자리 — 내 정보가 오기 전에도 같은 높이를 잡는다. 없다가 생기면 아래 열 전체가 밀렸다(REQ-WEB-296) */}
+          {currentOrg === null && me.isPending && (
+            <div data-testid="org-switcher-skeleton" className="shrink-0 px-2 pb-2">
+              <Skeleton rows={1} className="[&>div]:h-10" />
+            </div>
+          )}
           {currentOrg !== null && (
             <div className="relative shrink-0 pb-2" data-menu-root="org">
               <button
@@ -952,7 +981,7 @@ export function AppShell({
           {/* 프로젝트 — 지금 조직의 것이 다 서고, **라우트의 프로젝트만 펼친다**. 조직 범위 화면에서는 아무것도
               펼치지 않는다 — 기억한 프로젝트는 "최근" 표식일 뿐 선택이 아니다(REQ-WEB-193 의 목적을 구조가 지킨다) */}
           {/* 조직을 몰라도(목록을 받기 전) **라우트의 프로젝트는 선다** — 탭이 그 조회를 기다리면 안 된다 */}
-          {(currentOrg !== null || sidebarProject !== undefined) && (
+          {(currentOrg !== null || sidebarProject !== undefined || me.isPending) && (
             <div data-testid="rail-projects" className="mt-4 flex shrink-0 flex-col">
               <p className={cn(RAIL_LABEL, 'px-2 pb-1')}>{t('common.project')}</p>
               <ul className="flex flex-col gap-0.5">
@@ -1095,6 +1124,12 @@ export function AppShell({
                   );
                 })}
               </ul>
+              {/* 목록을 받기 전 — 라우트의 프로젝트(있으면) 아래에 줄 자리를 잡는다. 없다가 생기면 열이 밀렸다(REQ-WEB-296) */}
+              {!scope.projectsLoaded &&
+                !scope.projectsFailed &&
+                (me.isPending || currentOrg !== null) && (
+                  <Skeleton rows={3} className="mt-0.5 px-2 [&>div]:h-6" />
+                )}
               {scope.projectsLoaded && projectRows.length === 0 && (
                 <p data-testid="project-none" className="px-2 py-1 text-sm text-text-faint">
                   {t('shell.no_projects_yet')}
