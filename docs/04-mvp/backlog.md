@@ -21,7 +21,7 @@ referenced_by:
 >
 > 문서 버전 v2.57 · 2026-10-07 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
-> v2.57 변경(2026-10-07 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **받기 전에 빈 항목이 보이던 결함 — 남은 자리** 를 적는다.
+> v2.57 변경(2026-10-07 — 스토리 없이 들어온 수정 둘): §1.4 셋째 표에 **받기 전에 빈 항목이 보이던 결함 — 남은 자리** 와 **새 작업 폼의 헛 조회** 를 적는다.
 >
 > v2.56 변경(2026-10-07 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **받기 전에 빈 항목이 보이던 결함** 을 적는다.
 >
@@ -822,6 +822,7 @@ referenced_by:
 | 관계 그래프가 빈 채로 뜨던 결함 | `apps/web/src/features/spec-graph/graph.tsx`(`keepScreenRedraw` — WebGL 렌더러의 포인터 판정이 화면 다시 그리기 표시를 지우지 않게 감싼다) · L1 `graph.spec.tsx` 4건(설치된 cytoscape 에 그 결함이 아직 있는지도 본다 — 고쳐지면 우회를 뺀다) · L3 `spec-graph.spec.ts`(매 장면 앞에서 포인터를 움직여도 그림이 남는다 — 우회를 빼면 5번 모두 빈 캔버스) | 사람 보고(2026-10-05 — 맥 · 모바일에서 가끔 그래프가 그려지지 않다가 스크롤 같은 이벤트 뒤에야 그려졌다). cytoscape 3.34.3 의 결함이다([4.5 화면 명세](screens.md) §2.4a) — 노드를 고른 강조도 같은 까닭으로 빠졌다 |
 | 받기 전에 빈 항목이 보이던 결함 | 웹 `isLoading` 12곳 → `isPending`(꺼져 있는 쿼리도 불러오는 중이다 — `components/spec-tree.tsx` · `features/session-monitor/session-board.tsx` · `components/event-feed.tsx` · `features/task-board/board.tsx` 등) · `eslint.config.js`(REQ-WEB-293 — `isLoading` 을 막는다) · `components/ui/primitives.tsx`(`Skeleton` 의 `role="status"` · `SkeletonText` · `SummaryMetric.value` 의 `null` — REQ-WEB-294) · 받기 전의 수와 빈 문구: 개요 커버리지 · 작업 보드 요약과 레인 상단 · 리뷰 요약 · 필터 수 · 게이트 현황 · 스펙 상세 레일 탭 · 관계 · 버전 · 코멘트 · 첨부 · 파생 작업 · 지난 버전 본문 · 받은 요청 건수 · 검색 결과 수 · 세션 궤적 · 설정의 프로젝트 · 초대 · `lib/scope.ts`(`useRolesKnown` · `useRolesOnly` — REQ-WEB-295) · 설정 셸 `routes/settings/route.tsx`(내 정보를 기다린다) · 온보딩 · 초대 화면 · 문서 시작 카드 · 개입 패널 · 잠금 사유(작업 보드 · 다음 할 일 · 작업 상세 · 기준선 고정) · 게이트 정책 폼 · 토큰 발급의 "프로젝트 없음" · 셸 `components/app-shell.tsx`(조직 전환기 · 사용자 메뉴 · 헤더의 조직 이름 · 프로젝트 목록의 자리 — REQ-WEB-296) · 설정 목록 · `components/route-states.tsx`(`RoutePending` — 라우터의 `defaultPendingComponent`) · 계정의 알림 절 · 플러그인 적용 현황 · L1 `routes/pending-states.spec.tsx`(응답이 오지 않는 채로 화면 21개 × 두 순간 + 초대 · 셸 · 계정 알림 탭 — 빈 상태의 문장 · 표시 · 받기 전의 0 · 모르는 권한 · 자리) |
 | 받기 전에 빈 항목이 보이던 결함 — 남은 자리 | 같은 규칙(REQ-WEB-293 · 294 · 296)을 남은 자리에: `features/task-board/delegation-form.tsx`(고칠 작업을 받기 전에는 폼 대신 골격 · 출처 선택지의 "불러오는 중…") · 작업 보드 필터 선택지 · 스펙 목록 상태 칩 줄의 자리 · 리뷰 발견의 코멘트 · 프로젝트 이름(개요 제목 · 헤더 · 왼쪽 열 — slug 를 먼저 보이지 않는다) · 홈 인사말(내 정보가 오기 전) · 계정 기기의 [다른 기기 모두 끊기] 사유 · 글자만 있던 로딩 셋(버전 비교 · 결재 카드 본문 · 받은 요청의 짚은 항목) · L1 `routes/pending-states.spec.tsx` 5건(main 코드에서 5건 모두 실패) |
+| 새 작업 폼의 헛 조회 | `apps/web/src/lib/queries.ts`(`useTask` — 키가 빈 문자열이면 부르지 않는다. 새 작업 폼은 수정 폼과 한 부품이라 빈 키로 `/projects/<slug>/tasks/` 를 불렀고 그 응답은 아무도 쓰지 않았다) · L1 `routes/task-derive.spec.tsx` 1건(고치기 전에는 그 요청이 나갔다) |
 
 #### 이 절은 언제 갱신되는가
 
