@@ -398,8 +398,10 @@ function BoardFilters({
 }): React.JSX.Element {
   const t = useT();
   const { orgSlug } = useScope(proj);
-  const specs = rows(useSpecTree(proj, projectId).data);
-  const members = rows(useMembers(orgSlug).data);
+  const specTree = useSpecTree(proj, projectId);
+  const memberList = useMembers(orgSlug);
+  const specs = rows(specTree.data);
+  const members = rows(memberList.data);
   // 한 사람이 조직·프로젝트 멤버십을 둘 다 가질 수 있다 — 사람으로 한 번씩만
   const people = new Map<string, string>();
   for (const m of members) {
@@ -420,6 +422,8 @@ function BoardFilters({
         className="h-7 w-56 text-xs"
       >
         <option value="">{t('tasks.filter.spec_all')}</option>
+        {/* 받기 전에는 "전체" 만 있는 것이 아니라 아직 모른다(REQ-WEB-293) */}
+        {specTree.isPending && <option disabled>{t('common.loading')}</option>}
         {!specKnown && <option value={spec}>{spec}</option>}
         {specs.map((sp) => (
           <option key={String(sp['key'])} value={String(sp['key'])}>
@@ -436,6 +440,7 @@ function BoardFilters({
       >
         <option value="">{t('tasks.filter.assignee_all')}</option>
         {meId !== undefined && <option value={meId}>{t('tasks.filter.assignee_me')}</option>}
+        {memberList.isPending && <option disabled>{t('common.loading')}</option>}
         {!assigneeKnown && <option value={assignee}>{t('tasks.filter.assignee_unknown')}</option>}
         {[...people].map(([userId, name]) => (
           <option key={userId} value={userId}>

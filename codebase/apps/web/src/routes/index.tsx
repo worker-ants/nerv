@@ -19,7 +19,7 @@ import {
 } from '../lib/queries.js';
 import { useScope } from '../lib/scope.js';
 import { cn } from '../lib/utils.js';
-import { EmptyState, Skeleton } from '../components/ui/primitives.js';
+import { EmptyState, Skeleton, SkeletonText } from '../components/ui/primitives.js';
 import { StatusBadge } from '../components/status-badge.js';
 import { InvitationCards } from '../components/invitation-cards.js';
 import { EventFeed } from '../components/event-feed.js';
@@ -88,17 +88,16 @@ function HomeScreen(): React.JSX.Element {
       {/* 날짜 → 인사말. 인사말이 곧 요약이다 — 결정이 없으면 그렇게 말한다 */}
       <div className="text-sm text-text-faint">{today}</div>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">
-        {me.data === undefined ? (
+        {me.data === undefined && !me.isPending ? (
           t('home.title_anon')
-        ) : inboxFailed ? (
+        ) : me.data !== undefined && inboxFailed ? (
           t('home.greeting_failed', { name })
-        ) : inbox.data === undefined ? (
-          // 모르는 동안은 아무 말도 하지 않는다 — 골격이 자리를 지킨다
-          <span
-            data-testid="greeting-skeleton"
-            aria-label={t('common.loading')}
-            className="inline-block h-[1em] w-2/3 max-w-md animate-pulse rounded-nerv bg-bg-sunken align-middle"
-          />
+        ) : me.data === undefined || inbox.data === undefined ? (
+          // 모르는 동안은 아무 말도 하지 않는다 — 골격이 자리를 지킨다. 내 정보가 오기 전에도 같다: 일반 제목을
+          // 보였다가 인사말로 바꾸면 같은 자리의 글자가 바뀐다(REQ-WEB-294)
+          <span data-testid="greeting-skeleton">
+            <SkeletonText className="h-[1em] w-2/3 max-w-md" />
+          </span>
         ) : waiting === 0 ? (
           t('home.greeting_clear', { name })
         ) : (

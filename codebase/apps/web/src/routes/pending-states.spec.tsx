@@ -18,6 +18,8 @@ import { ko } from '@nerv/schema';
 import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
+import { DelegationForm } from '../features/task-board/delegation-form.js';
+import { asProjectId } from '../lib/query-keys.js';
 
 vi.mock('socket.io-client', () => ({
   io: () => ({
@@ -317,5 +319,57 @@ describe('내 정보가 오기 전의 역할은 "없음" 이 아니다 (REQ-WEB-
     await screen.findAllByText(/Beta/);
     expect(screen.queryByTestId('invite-signup')).toBeNull();
     expect(screen.queryByTestId('invite-accept')).toBeNull();
+  });
+});
+
+describe('남은 자리 — 값이 비었다가 채워지지 않는다 (REQ-WEB-293 · 294)', () => {
+  it('프로젝트 이름 — 받기 전에 slug 를 보였다가 이름으로 바꾸지 않는다(개요 제목 · 헤더 · 왼쪽 열)', async () => {
+    await renderAt('/p/clemvion', ORG_PROJECTS);
+    expect(document.querySelector('main h1')?.textContent ?? '').not.toContain('clemvion');
+    expect(screen.getByTestId('crumb-project').textContent ?? '').not.toContain('clemvion');
+    expect(screen.getByTestId('rail-project-current').textContent ?? '').not.toContain('clemvion');
+  });
+
+  it('홈 — 내 정보가 오기 전에 일반 제목을 보였다가 인사말로 바꾸지 않는다', async () => {
+    await renderAt('/', ORG_PROJECTS);
+    expect(screen.getByTestId('greeting-skeleton')).toBeTruthy();
+    expect(document.querySelector('main h1')?.textContent ?? '').not.toContain(
+      ko['home.title_anon'],
+    );
+  });
+
+  it('작업 보드의 필터 — 받기 전에는 "전체" 뿐인 선택지가 아니라 불러오는 중이다', async () => {
+    arrived = 'scope';
+    await renderAt('/p/clemvion/tasks', /^\/projects\/clemvion\/tasks\?/);
+    expect(screen.getByTestId('filter-spec').textContent).toContain(ko['common.loading']);
+    expect(screen.getByTestId('filter-assignee').textContent).toContain(ko['common.loading']);
+  });
+
+  it('계정의 기기 — 받기 전에 "끊을 다른 기기가 없습니다" 를 사유로 달지 않는다', async () => {
+    arrived = 'scope';
+    await renderAt('/settings/account?tab=devices', ORG_PROJECTS);
+    const revoke = await screen.findByTestId('account-devices-revoke-others');
+    expect(revoke.getAttribute('data-reason')).toBe(ko['common.loading']);
+  });
+
+  it('작업 수정 폼 — 고칠 작업을 받기 전에는 빈 칸의 폼이 아니라 골격이다', async () => {
+    render(
+      <LocaleProvider locale="ko">
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <RealtimeProvider>
+            <DelegationForm
+              projectSlug="clemvion"
+              projectId={asProjectId('p1')}
+              taskKey="CLV-T-AAAAAA"
+              onDone={() => undefined}
+            />
+          </RealtimeProvider>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+    expect(await screen.findByTestId('delegation-form-loading')).toBeTruthy();
+    expect(screen.queryByTestId('delegation-form')).toBeNull();
   });
 });
