@@ -53,7 +53,9 @@ function httpHooks(): { event: string; hook: Record<string, unknown> }[] {
 // **MVP 약속은 여전히 5종**이다 — 6번째는 Phase 2 가 위에 얹힌 것이다.
 // `import` 는 2026-09-06 에 걷었다 — 플러그인이 배달하지 않는 CLI(`@nerv/cli` 는 private)를
 // 부르는 스킬이라 설치한 쪽에서는 첫 Bash 호출이 해석되지 않았다. 근거와 선택지는 4.6 §2.5.
-const SKILLS = ['next', 'spec', 'impl', 'question', 'review'] as const;
+// `mirror` 는 2026-10-07 에 들어왔다(4.6 §2.7). MCP 도구 대신 플러그인이 배달하는 스크립트(`bin/nerv-mirror`)를
+// 부른다 — `import` 와 달리 부르는 것이 패키지 안에 있다.
+const SKILLS = ['next', 'spec', 'impl', 'question', 'review', 'mirror'] as const;
 
 describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', () => {
   it.each(SKILLS)('skills/%s/SKILL.md', (skill) => {
@@ -277,6 +279,8 @@ describe('패키지 구성', () => {
     'bin/nerv-hook-forward',
     'bin/nerv-outbox',
     'bin/nerv-init',
+    'bin/nerv-mirror',
+    'skills/mirror/scripts/nerv-mirror.mjs',
     'hooks/hooks.http.json',
     'managed-settings.example.json',
     'README.md',
@@ -302,6 +306,7 @@ describe('패키지 구성', () => {
       'statusline/nerv-statusline.sh',
       'managed-settings.example.json',
       'bin/nerv-init',
+      'bin/nerv-mirror',
     ]) {
       expect(readme, `README 가 ${path} 를 적지 않는다`).toContain(path);
     }

@@ -21,7 +21,7 @@ referenced_by:
 >
 > 문서 버전 v2.58 · 2026-10-07 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
-> v2.58 변경(2026-10-07 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **기준선으로 미러 받기**를 적는다.
+> v2.58 변경(2026-10-07 — 스토리 없이 들어온 구현 둘): §1.4 셋째 표에 **기준선으로 미러 받기**와 **스펙 미러 스킬**을 적는다.
 >
 > v2.57 변경(2026-10-07 — 스토리 없이 들어온 수정 둘): §1.4 셋째 표에 **받기 전에 빈 항목이 보이던 결함 — 남은 자리** 와 **새 작업 폼의 헛 조회** 를 적는다.
 >
@@ -826,6 +826,7 @@ referenced_by:
 | 받기 전에 빈 항목이 보이던 결함 — 남은 자리 | 같은 규칙(REQ-WEB-293 · 294 · 296)을 남은 자리에: `features/task-board/delegation-form.tsx`(고칠 작업을 받기 전에는 폼 대신 골격 · 출처 선택지의 "불러오는 중…") · 작업 보드 필터 선택지 · 스펙 목록 상태 칩 줄의 자리 · 리뷰 발견의 코멘트 · 프로젝트 이름(개요 제목 · 헤더 · 왼쪽 열 — slug 를 먼저 보이지 않는다) · 홈 인사말(내 정보가 오기 전) · 계정 기기의 [다른 기기 모두 끊기] 사유 · 글자만 있던 로딩 셋(버전 비교 · 결재 카드 본문 · 받은 요청의 짚은 항목) · L1 `routes/pending-states.spec.tsx` 5건(main 코드에서 5건 모두 실패) |
 | 새 작업 폼의 헛 조회 | `apps/web/src/lib/queries.ts`(`useTask` — 키가 빈 문자열이면 부르지 않는다. 새 작업 폼은 수정 폼과 한 부품이라 빈 키로 `/projects/<slug>/tasks/` 를 불렀고 그 응답은 아무도 쓰지 않았다) · L1 `routes/task-derive.spec.tsx` 1건(고치기 전에는 그 요청이 나갔다) |
 | 기준선으로 미러 받기 | `modules/spec/spec-export.service.ts`(`baseline=<이름>` — 그 세트의 문서만 고정한 버전으로, 나중에 보관한 문서도 · 목록의 `baseline` · 파일 이름 — REQ-API-268) · `mirror.controller.ts`(`export.zip` · `.md`의 `?baseline=` — `.md`는 예전에 이 값을 오류 없이 버렸다 · REQ-API-269) · `spec.service.ts`(`mirrorDocument`의 `baseline` · `llmsTxt`의 `nodes` — 색인을 zip이 담은 문서로) · L2 `test/integration/mirror-http.spec.ts` 4건(기준선 내보내기 · 승인본과의 차이 · `.md` · 400 셋) |
+| 스펙 미러 스킬(`/nerv:mirror`) | 플러그인 `skills/mirror/SKILL.md`(신설 — 경로 · 기준을 정하고 스크립트를 한 번 실행한다) · `skills/mirror/scripts/nerv-mirror.mjs`(신설 — 의존성 없는 node 스크립트: `baselines` · `pull` · `status`, 미러가 쓴 파일만 고치고 지운다, zip 안의 경로 · CRC 검사, 다시 받을 때 지난번 기준) · `bin/nerv-mirror`(sh 래퍼) · 패키지 0.3.15 → 0.3.16 · L1 `plugin/mirror.spec.ts` 13건(가짜 서버) · L2 `mirror-http.spec.ts` 1건(실제 서버에 스크립트를 붙인다) · `plugin.spec.ts`(아카이브에 두 파일 · 실행 비트) — REQ-PLG-028 |
 
 #### 이 절은 언제 갱신되는가
 

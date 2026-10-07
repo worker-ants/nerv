@@ -28,13 +28,16 @@ What an agent can do depends on **its token**. Issuing one is [step 1 of Install
 
 ## Skills {#skills}
 
-| Skill            | What it does                                           |
-| ---------------- | ------------------------------------------------------ |
-| `/nerv:next`     | Recommend and claim the next task                      |
-| `/nerv:spec`     | Write a spec draft or a change request                 |
-| `/nerv:impl`     | Follow the implementation procedure for a claimed task |
-| `/nerv:question` | Ask a question and wait for the answer                 |
-| `/nerv:review`   | Submit reviews and resolve findings                    |
+| Skill            | What it does                                              |
+| ---------------- | --------------------------------------------------------- |
+| `/nerv:next`     | Recommend and claim the next task                         |
+| `/nerv:spec`     | Write a spec draft or a change request                    |
+| `/nerv:impl`     | Follow the implementation procedure for a claimed task    |
+| `/nerv:question` | Ask a question and wait for the answer                    |
+| `/nerv:review`   | Submit reviews and resolve findings                       |
+| `/nerv:mirror`   | Download spec documents and attachments to a local folder |
+
+`/nerv:mirror` works differently from the other skills: it does not use the MCP tools. The `nerv-mirror` script that ships with the plugin downloads the spec documents and attachments in a single request, makes the folder you choose match the server, and returns only a short summary to the agent. You choose one basis: **approved** (the default), **latest** (including drafts and documents in review), or a **baseline**. The folder keeps a list of the files the mirror wrote (`.nerv-mirror.json`), and later runs change or delete only the files on that list. When you pull the same folder again, it uses the previous basis. The token needs the `spec:read` scope, and the script needs node 18 or later.
 
 ## Tool tiers {#tool-tiers}
 

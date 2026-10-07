@@ -1,25 +1,26 @@
-# nerv-plugin v0.3.15
+# nerv-plugin v0.3.16
 
 NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md)**
 이고, 이 디렉터리는 그 문서 §1~§3 전문의 실물이다 — 두 쪽이 다르면 문서가 옳고 여기가 결함이다.
 
 ## 무엇이 들어 있나
 
-| 경로                                               | 역할                                                                         | 정본           |
-| -------------------------------------------------- | ---------------------------------------------------------------------------- | -------------- |
-| `.claude-plugin/plugin.json`                       | 매니페스트                                                                   | §1.1           |
-| `.claude-plugin/marketplace.json`                  | 사내 마켓플레이스 등록                                                       | §1.2 배포 경로 |
-| `hooks/hooks.json`                                 | 훅 이벤트 6종(**기본은 `type:"command"`**) — 세션 시작은 둘                  | §3.1           |
-| `skills/{next,spec,impl,question,review}/SKILL.md` | 스킬 5종(`review` 는 P2 배포분 · `import` 는 2026-09-06 걷음 — 4.6 §2.5)     | §2.1~§2.6      |
-| `agents/nerv-spec-writer.md`                       | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음)                             | §1.1           |
-| `statusline/nerv-statusline.sh`                    | 클레임·리스·겹침 표시                                                        | §3.2           |
-| `bin/nerv-hook-forward`                            | 기본 변형의 훅 전송기 — http 변형도 SessionStart 는 이것을 쓴다              | §3.1           |
-| `bin/nerv-init`                                    | 설치 부트스트랩 — 저장소의 설정 세 자리를 만든다(덮지 않는다)                | §3.7           |
-| `bin/nerv-outbox`                                  | 오프라인 쓰기 큐(enqueue·flush·status)                                       | §3.4           |
-| `hooks/hooks.http.json`                            | 훅 URL 을 관리형으로 묶을 때의 변형(`type:"http"` · SessionStart 만 command) | §3.1           |
-| `codex/config.toml`                                | Codex 용 MCP 접속 템플릿 — 자동 생성·갱신은 Phase 2 다                       | §5.2           |
-| `codex/AGENTS.md`                                  | Codex 세션이 읽는 규약 — 스킬과 같은 절차를 문장으로                         | §5.3           |
-| `managed-settings.example.json`                    | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                                | §3.5           |
+| 경로                                                      | 역할                                                                                                      | 정본           |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------- |
+| `.claude-plugin/plugin.json`                              | 매니페스트                                                                                                | §1.1           |
+| `.claude-plugin/marketplace.json`                         | 사내 마켓플레이스 등록                                                                                    | §1.2 배포 경로 |
+| `hooks/hooks.json`                                        | 훅 이벤트 6종(**기본은 `type:"command"`**) — 세션 시작은 둘                                               | §3.1           |
+| `skills/{next,spec,impl,question,review,mirror}/SKILL.md` | 스킬 6종(`review`는 P2 배포분 · `mirror`는 2026-10-07 · `import`는 2026-09-06 걷음 — 4.6 §2.5)            | §2.1~§2.7      |
+| `agents/nerv-spec-writer.md`                              | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음)                                                          | §1.1           |
+| `statusline/nerv-statusline.sh`                           | 클레임·리스·겹침 표시                                                                                     | §3.2           |
+| `bin/nerv-hook-forward`                                   | 기본 변형의 훅 전송기 — http 변형도 SessionStart 는 이것을 쓴다                                           | §3.1           |
+| `bin/nerv-init`                                           | 설치 부트스트랩 — 저장소의 설정 세 자리를 만든다(덮지 않는다)                                             | §3.7           |
+| `bin/nerv-outbox`                                         | 오프라인 쓰기 큐(enqueue·flush·status)                                                                    | §3.4           |
+| `bin/nerv-mirror`                                         | 스펙 미러 — 문서 · 첨부를 로컬 폴더에 받는다. 본체는 `skills/mirror/scripts/nerv-mirror.mjs`(의존성 없음) | §2.7           |
+| `hooks/hooks.http.json`                                   | 훅 URL 을 관리형으로 묶을 때의 변형(`type:"http"` · SessionStart 만 command)                              | §3.1           |
+| `codex/config.toml`                                       | Codex 용 MCP 접속 템플릿 — 자동 생성·갱신은 Phase 2 다                                                    | §5.2           |
+| `codex/AGENTS.md`                                         | Codex 세션이 읽는 규약 — 스킬과 같은 절차를 문장으로                                                      | §5.3           |
+| `managed-settings.example.json`                           | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                                                             | §3.5           |
 
 ## 설계에서 물러서지 않는 두 가지
 

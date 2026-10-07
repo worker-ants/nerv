@@ -5,7 +5,12 @@
 // 모두 500 이었다. 서비스만 부르던 테스트(mirror-retention.spec.ts)는 이것을 볼 수 없었다 — 여기서는
 // 실제 HTTP 로 부른다. 파일 경로의 없음은 404(사람 결정 D5)이고, REST 의 같은 상황은 409 그대로다.
 
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
@@ -605,6 +610,61 @@ describe('기준선 미러 (REQ-API-268 · 269)', () => {
     expect((await get('/api/projects/clemvion/specs/SPC-MIR-001.md?baseline=NOPE')).status).toBe(
       400,
     );
+  });
+
+  /**
+   * **스크립트와 서버의 계약**(REQ-PLG-028). 플러그인의 `nerv-mirror` 를 이 서버에 그대로 붙여 본다 — 경로 ·
+   * 인증 · 기준선 목록의 모양 · zip 이 한쪽에서만 바뀌면 여기서 드러난다. 스크립트 자체의 규칙은 L1
+   * (`plugin/mirror.spec.ts`)이 가짜 서버로 본다.
+   */
+  it('플러그인의 nerv-mirror 가 이 서버에서 기준선 목록을 읽고 그 기준선으로 받는다', async () => {
+    await app.listen(0, '127.0.0.1');
+    const server = await app.getUrl();
+    const bin = join(dirname(fileURLToPath(import.meta.url)), '../../../../plugin/bin/nerv-mirror');
+    const run = (args: string[]): Promise<{ code: number; stdout: string; stderr: string }> =>
+      new Promise((resolve, reject) => {
+        // 서버가 같은 프로세스라 동기 실행은 쓰지 못한다
+        const child = spawn('sh', [bin, ...args], {
+          env: {
+            PATH: process.env['PATH'] ?? '',
+            NERV_SERVER: server,
+            NERV_PROJECT: 'clemvion',
+            NERV_TOKEN: token,
+          },
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (d: Buffer) => (stdout += d.toString('utf8')));
+        child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
+        child.on('error', reject);
+        child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr }));
+      });
+
+    const listed = await run(['baselines', '--json']);
+    expect(listed.stderr).toBe('');
+    const names = (JSON.parse(listed.stdout) as { baselines: { name: string }[] }).baselines.map(
+      (b) => b.name,
+    );
+    expect(names).toContain('R1');
+
+    const out = mkdtempSync(join(tmpdir(), 'nerv-mirror-l2-'));
+    const pulled = await run(['pull', out, '--baseline', 'R1', '--no-attachments', '--json']);
+    expect(pulled.stderr).toBe('');
+    expect(pulled.code).toBe(0);
+    expect(JSON.parse(pulled.stdout)).toMatchObject({
+      ok: true,
+      basis: 'baseline',
+      baseline: 'R1',
+      specs: { total: 2, added: 2 },
+    });
+    // 디스크의 문서가 그 기준선으로 읽은 md 미러와 같은 바이트다
+    const manifest = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8')) as {
+      specs: { key: string; path: string }[];
+    };
+    for (const spec of manifest.specs) {
+      const single = await get(`/api/projects/clemvion/specs/${spec.key}.md?baseline=R1`);
+      expect(readFileSync(join(out, spec.path), 'utf8'), spec.key).toBe(single.text);
+    }
   });
 });
 

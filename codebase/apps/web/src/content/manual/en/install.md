@@ -25,7 +25,7 @@ Go to **Settings → Agent tokens → Issue a new token.** Give the token a name
 - **You can set an expiry**: 30 days, 90 days, 1 year, or never. The default is never. An expired token is rejected from that moment on, just like a revoked one. The list shows the expiry date.
 - After you issue a token, a card appears with **the token's details** (project, scopes, expiry) and **three connection steps** in order: ① the token (with a copy button), ② two lines that install the plugin (run them in Claude Code), and ③ one `nerv-init` line to run in your working repository. Line ③ looks up `nerv-init` in the install cache, so you can paste it as is. It creates the files from steps 2 and 3 in one go. **That line leaves the token in your shell history.** To avoid this, remove `--token` and its value. You are then prompted for the token, and your input is hidden. The **first time the token is used**, the card changes to **"Connected · machine name"**.
 - The **first column** of your token list is the project. Revoked and expired tokens are collapsed; click [Show revoked and expired] to show them. **Organization admins** (people whose organization-wide role is admin) can see who has which token in which project on the **[Organization tokens]** screen, under Organization in Settings. **Only organization admins can use [Revoke] on that screen to cut off someone else's token.** A project admin can revoke only their own tokens. Revoking cannot be undone, so you are asked to confirm.
-- Scopes start with the **[Recommended]** preset. It includes the scopes an agent needs for the five skills (next · spec · impl · question · review): `spec:read` · `spec:draft` · `task:claim` · `task:update` · `review:submit` · `agent-session:launch`. Any of these that your role lacks is left out when the token is issued (a locked scope is never added without your knowledge). To grant a different set, switch to **[Custom]** and check or uncheck the boxes. Under each scope's name, **one line describes what it allows**.
+- Scopes start with the **[Recommended]** preset. It includes the scopes an agent needs for the six skills (next · spec · impl · question · review · mirror): `spec:read` · `spec:draft` · `task:claim` · `task:update` · `review:submit` · `agent-session:launch`. Any of these that your role lacks is left out when the token is issued (a locked scope is never added without your knowledge). To grant a different set, switch to **[Custom]** and check or uncheck the boxes. Under each scope's name, **one line describes what it allows**.
 - **Do not remove `agent-session:launch`.** `nerv_bootstrap` requires this scope, so without it you cannot even start steps 4 and 5 below. This is the most common mistake when trimming scopes with [Custom].
 - **A token's scopes never exceed your role.** Scopes your role does not have appear **dimmed and locked**. For example, `review:resolve` belongs only to the admin, planner, and qa roles, so it is locked for a `developer`. Locked scopes stay in the list for the same reason the human-only scopes do: you should be able to see on screen why you cannot grant them.
 - When your role changes, **tokens you have already issued follow it immediately.** A scope your role loses stops working in the token right away. However, a scope that was left out at issue time because your role lacked it is not added later, even if your role gains it. To get that scope, issue a new token.
@@ -105,7 +105,7 @@ Installing from this server means **the version always matches this server**. Th
 
 If your company uses an internal git marketplace, enter that git URL instead and install `nerv@nerv-internal`.
 
-**Two tools must already be installed.** The hook forwarder uses `curl`, and the statusline and outbox use `jq`. If either is missing, you get no error; the features that need it **silently do nothing.**
+**Three tools must already be installed.** The hook forwarder uses `curl`, the statusline and outbox use `jq`, and the spec mirror (`/nerv:mirror`) uses node 18 or later. If `curl` or `jq` is missing, you get no error; the features that need it **silently do nothing.** If node is missing, the mirror script tells you so.
 
 > To get a new version, run `/plugin marketplace update`. You get a new copy only when an administrator bumps the plugin version. If the version is unchanged, you keep using the copy you already have.
 
@@ -113,7 +113,7 @@ Four things are installed.
 
 | What                        | What it does                                                                                     |
 | --------------------------- | ------------------------------------------------------------------------------------------------ |
-| Five skills                 | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review`                           |
+| Six skills                  | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror`            |
 | Hooks                       | Send what the agent does to the sessions screen                                                  |
 | statusline                  | Shows your current claim, time left on the lease, and declared-scope overlaps on the prompt line |
 | Subagent `nerv-spec-writer` | A dedicated agent that only drafts specs                                                         |
