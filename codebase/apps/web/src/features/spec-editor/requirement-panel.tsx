@@ -75,7 +75,7 @@ export function RequirementPanel({
     (EVIDENCE_SIGNER_ROLES as readonly string[]).includes(role),
   );
 
-  if (query.isLoading) return <Skeleton className="h-16" />;
+  if (query.isPending) return <Skeleton className="h-16" />;
   if (items.length === 0) {
     // 빈 상태는 **막다른 길이 아니다**(§1.5) — 무엇을 쓰면 되는지로 데려간다.
     //
@@ -346,7 +346,7 @@ function DraftRequirementDelta({
     );
   }
 
-  if (diff.isLoading) return <Skeleton rows={1} />;
+  if (diff.isPending) return <Skeleton rows={1} />;
   const changed = rows(diff.data?.['requirements']).filter((r) => r['delta'] !== 'unchanged');
   const count = (kind: string): number => changed.filter((r) => r['delta'] === kind).length;
   return (

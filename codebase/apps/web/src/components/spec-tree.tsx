@@ -578,7 +578,7 @@ export function SpecTree({
       <div className="mb-1 flex justify-end px-2">{headerAction}</div>
     );
 
-  if (tree.isLoading) {
+  if (tree.isPending) {
     return (
       <div data-testid="tree-skeleton" className="flex flex-col gap-2">
         {actionRow}

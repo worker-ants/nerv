@@ -82,6 +82,11 @@ const NO_HARDCODED_MESSAGES = [
   { selector: 'Literal[value=/[가-힣]{2,}/]', message: MESSAGE_KEY_ONLY },
 ];
 
+/** REQ-WEB-293 — 받기 전의 판정 */
+const IS_PENDING_NOT_LOADING =
+  'REQ-WEB-293: 받기 전의 판정은 isPending 으로 한다 — isLoading 은 꺼져 있는 쿼리(enabled: false)를 ' +
+  '불러오는 중으로 보지 않아, 그동안 빈 상태가 먼저 보인다.';
+
 const NO_HARDCODED_CONTRACT_LITERALS = [
   {
     // 에러 코드 10종 — 정본 docs/04-mvp/api.md §1.4
@@ -203,6 +208,17 @@ export default tseslint.config(
             "CallExpression[callee.name='pushToast'] > ObjectExpression > Property[key.name='message'] > MemberExpression[object.name=/^(e|err|error)$/][property.name='message']",
           message:
             'REQ-WEB-196: 실패를 알릴 때는 useApiError() 의 onApiError 를 쓴다 — error.message 를 토스트에 그대로 넣지 않는다.',
+        },
+        // **받기 전은 isPending 으로 판정한다**(screens.md §1.5 · REQ-WEB-293). TanStack Query v5 의 isLoading 은
+        // `isPending && isFetching` 이라 꺼져 있는 쿼리(프로젝트 id 를 기다리는 `enabled: false`)를 불러오는 중으로
+        // 보지 않는다 — 2026-10-07 까지 그 틈에 스펙 트리 · 세션 · 최근 활동이 빈 상태를 먼저 보였다.
+        {
+          selector: "MemberExpression[property.name='isLoading']",
+          message: IS_PENDING_NOT_LOADING,
+        },
+        {
+          selector: "ObjectPattern > Property[key.name='isLoading']",
+          message: IS_PENDING_NOT_LOADING,
         },
       ],
     },

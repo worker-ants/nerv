@@ -95,7 +95,7 @@ function InviteScreen(): React.JSX.Element {
   return (
     <AuthFrame lead={t('invite.page_title')}>
       <div className="rounded-nerv-lg border border-border bg-bg-elev p-6">
-        {preview.isLoading && <Skeleton rows={3} />}
+        {preview.isPending && <Skeleton rows={3} />}
 
         {preview.isError && (
           <p role="alert" data-testid="invite-error" className="text-sm text-status-danger">

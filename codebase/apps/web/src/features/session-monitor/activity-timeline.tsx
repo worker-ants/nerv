@@ -55,7 +55,7 @@ export function ActivityTimeline({
 
   return (
     <>
-      {timeline.isLoading && <Skeleton rows={4} />}
+      {timeline.isPending && <Skeleton rows={4} />}
       <ol className={cn('min-h-0 pl-1', className)}>
         {/* **잘렸다고 말만 하지 않는다**(2026-09-07). 예전에는 "앞쪽 활동이 더 있습니다"
             한 줄이었고, 그 줄을 읽은 사람에게 갈 길이 없었다 — 443건 세션의 초반은
@@ -80,7 +80,7 @@ export function ActivityTimeline({
             onToggle={() => setOpen(open === group.key ? null : group.key)}
           />
         ))}
-        {!timeline.isLoading && items.length === 0 && (
+        {!timeline.isPending && items.length === 0 && (
           <li className="text-sm text-text-faint">{t('session.no_activity')}</li>
         )}
       </ol>

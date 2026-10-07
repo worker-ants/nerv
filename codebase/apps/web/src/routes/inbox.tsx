@@ -554,7 +554,7 @@ function InboxScreen(): React.JSX.Element {
             />
           )}
 
-          {inbox.isLoading && <Skeleton rows={3} className="[&>div]:h-24" />}
+          {inbox.isPending && <Skeleton rows={3} className="[&>div]:h-24" />}
           {/* 실패는 빈 받은 요청이 아니다(REQ-WEB-198) — 그렇게 그리면 결재가 쌓인 채 "없다" 가 된다 */}
           {failedWithoutData(inbox) && (
             <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />
