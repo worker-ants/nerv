@@ -266,6 +266,37 @@ describe('받기 전은 "없다" 가 아니다 (REQ-WEB-293)', () => {
   });
 });
 
+describe('셸 · 늘 보이는 절은 자리를 먼저 잡는다 (REQ-WEB-296)', () => {
+  it('아무 응답도 없을 때 — 조직 전환기 · 사용자 메뉴 · 프로젝트 목록의 자리에 골격', async () => {
+    await renderAt('/', ORG_PROJECTS);
+    expect(screen.getByTestId('org-switcher-skeleton')).toBeTruthy();
+    expect(screen.getByTestId('user-menu-skeleton')).toBeTruthy();
+    expect(
+      screen.getByTestId('rail-projects').querySelector('[data-testid="skeleton"]'),
+    ).not.toBeNull();
+  });
+
+  it('내 정보 · 목록이 온 뒤 — 셸의 골격은 사라진다', async () => {
+    arrived = 'scope';
+    await renderAt('/p/clemvion', /^\/projects\/clemvion\/events/);
+    expect(screen.queryByTestId('org-switcher-skeleton')).toBeNull();
+    expect(screen.queryByTestId('user-menu-skeleton')).toBeNull();
+    expect(
+      screen.getByTestId('rail-projects').querySelector('[data-testid="skeleton"]'),
+    ).toBeNull();
+  });
+
+  it('계정의 알림 탭 — 받기 전에 빈 탭이 아니라 절마다 골격', async () => {
+    arrived = 'scope';
+    await renderAt('/settings/account?tab=notifications', ORG_PROJECTS);
+    await waitFor(() =>
+      expect(
+        document.querySelector('main')?.querySelectorAll('[data-testid="skeleton"]').length ?? 0,
+      ).toBeGreaterThanOrEqual(2),
+    );
+  });
+});
+
 describe('내 정보가 오기 전의 역할은 "없음" 이 아니다 (REQ-WEB-295)', () => {
   it('초대 — 로그인했는지 모르는 동안 가입 · 로그인 단추를 보이지 않는다', async () => {
     arrived = 'preview';

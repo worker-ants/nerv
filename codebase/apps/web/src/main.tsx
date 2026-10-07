@@ -13,7 +13,7 @@ import { loadRuntimeConfig } from './lib/config.js';
 import { RealtimeProvider } from './lib/realtime.js';
 import { createQueryClient } from './lib/query-client.js';
 import { routeTree } from './routeTree.gen';
-import { RouteErrorPage } from './components/route-states.js';
+import { RouteErrorPage, RoutePending } from './components/route-states.js';
 import './styles/tokens.css';
 
 const queryClient = createQueryClient();
@@ -22,6 +22,8 @@ const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
   defaultErrorComponent: RouteErrorPage,
+  // 화면 코드를 받는 동안 그 자리에만 골격 — 셸은 그대로다(REQ-WEB-296)
+  defaultPendingComponent: RoutePending,
 });
 
 declare module '@tanstack/react-router' {

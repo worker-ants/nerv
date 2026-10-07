@@ -30,6 +30,8 @@ export interface Scope {
    * 0개라고 말하는 자리(홈의 첫 프로젝트 안내 · REQ-WEB-205)는 이것이 참일 때만 말한다
    */
   projectsLoaded: boolean;
+  /** 목록을 한 번도 받지 못한 채 실패했다 — 그때 골격을 남기면 끝나지 않는다(REQ-WEB-294) */
+  projectsFailed: boolean;
   projectSlug: string | null;
   project: Record<string, unknown> | undefined;
 }
@@ -73,6 +75,7 @@ export function useScope(routeProjectSlug?: string | undefined): Scope {
     orgName: currentOrg?.name ?? null,
     projects,
     projectsLoaded: projectsQuery.data !== undefined,
+    projectsFailed: projectsQuery.isError && projectsQuery.data === undefined,
     projectSlug,
     project: projects.find((p) => p['slug'] === projectSlug),
   };

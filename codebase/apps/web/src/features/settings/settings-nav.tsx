@@ -16,9 +16,10 @@ import { Link } from '@tanstack/react-router';
 import { useT } from '../../lib/i18n.js';
 import { useMe } from '../../lib/queries.js';
 import { canManageScope } from '../../lib/session.js';
-import { useScope } from '../../lib/scope.js';
+import { useRolesKnown, useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { NAV_ACTIVE, NAV_ITEM } from '../../components/nav-styles.js';
+import { Skeleton } from '../../components/ui/primitives.js';
 import type { MessageKey } from '@nerv/schema';
 
 type SettingsPath =
@@ -109,6 +110,16 @@ export function SettingsNav({
     ...group,
     items: group.items.filter((item) => item.orgAdminOnly !== true || orgAdmin),
   }));
+  // **역할을 모르는 동안은 목록을 그리지 않는다**(2026-10-07 · REQ-WEB-296). admin 에게만 보이는 항목이 나중에
+  // 끼어들며 아래 항목이 밀렸다 — 그동안은 목록 자리의 골격이다
+  const known = useRolesKnown();
+  if (!known) {
+    return variant === 'tabs' ? (
+      <Skeleton rows={1} className={cn('mb-5 [&>div]:h-8', className)} />
+    ) : (
+      <Skeleton rows={4} className={cn('mt-0.5 ml-2 pl-1.5 [&>div]:h-6', className)} />
+    );
+  }
 
   if (variant === 'tabs')
     return (

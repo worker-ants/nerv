@@ -12,7 +12,15 @@ import { useApiError } from '../../lib/api-errors.js';
 import { LOCALE_LABEL, useLocale, useT } from '../../lib/i18n.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
-import { Button, Card, Field, SectionTitle, Select } from '../../components/ui/primitives.js';
+import {
+  Button,
+  Card,
+  Field,
+  SectionTitle,
+  Select,
+  Skeleton,
+} from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 
 interface DigestSetting {
   enabled: boolean;
@@ -65,7 +73,11 @@ export function EmailDigestSection(): React.JSX.Element | null {
   });
 
   const data = setting.data;
-  if (data === undefined) return null;
+  // 늘 보이는 절이다 — 받기 전에 비워 두면 탭이 통째로 빈 채로 열렸다(REQ-WEB-296). 실패는 이유와 [다시 시도]
+  if (failedWithoutData(setting)) {
+    return <ErrorState error={setting.error} onRetry={() => void setting.refetch()} />;
+  }
+  if (data === undefined) return <Skeleton rows={3} />;
   const here = browserTimezone();
   const change = (patch: Record<string, unknown>): void => save.mutate({ enabled: true, ...patch });
 
