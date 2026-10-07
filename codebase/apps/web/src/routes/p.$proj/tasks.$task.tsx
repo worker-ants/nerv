@@ -46,7 +46,7 @@ import { rows, useMe, useProject, useTask } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
 import { secondsUntil, useNow } from '../../lib/clock.js';
 import { leaseRemaining } from '../../features/session-monitor/format.js';
-import { useScope } from '../../lib/scope.js';
+import { useRolesOnly, useScope } from '../../lib/scope.js';
 import { useRememberVisit } from '../../components/quick-switcher.js';
 import { describeApiError, useApiError } from '../../lib/api-errors.js';
 import { usePressKey } from '../../lib/press-key.js';
@@ -74,6 +74,8 @@ export const Route = createFileRoute('/p/$proj/tasks/$task')({ component: TaskDe
 
 function TaskDetail(): React.JSX.Element {
   const t = useT();
+  // 역할을 모르는 동안의 잠금 사유는 "불러오는 중…" 이다(REQ-WEB-295)
+  const rolesOnly = useRolesOnly();
   const { proj, task } = Route.useParams();
   const detail = useTask(proj, task);
   const project = useProject(proj);
@@ -606,11 +608,7 @@ function TaskDetail(): React.JSX.Element {
                         data-testid="rebrief"
                         disabled={rebrief.isPending || !canEditBrief}
                         onClick={() => rebrief.mutate()}
-                        disabledReason={
-                          canEditBrief
-                            ? undefined
-                            : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
-                        }
+                        disabledReason={canEditBrief ? undefined : rolesOnly(TASK_EDIT_ROLES)}
                         title={canEditBrief ? t('task.basis.rebrief_title') : undefined}
                         requiresOnline
                       >
@@ -737,9 +735,7 @@ function TaskDetail(): React.JSX.Element {
                       data-testid="brief-edit"
                       disabled={!canEditBrief || status === 'done'}
                       disabledReason={
-                        canEditBrief
-                          ? t('task.brief.done_locked')
-                          : t('task.next.roles_only', { roles: TASK_EDIT_ROLES.join(' · ') })
+                        canEditBrief ? t('task.brief.done_locked') : rolesOnly(TASK_EDIT_ROLES)
                       }
                       onClick={() => setEditingBrief(true)}
                     >
@@ -1006,13 +1002,7 @@ function TaskDetail(): React.JSX.Element {
                   data-testid="to-blocked"
                   disabled={blockedReason.trim() === '' || transition.isPending || !canMove}
                   onClick={() => transition.mutate('blocked')}
-                  disabledReason={
-                    canMove
-                      ? undefined
-                      : t('task.next.roles_only', {
-                          roles: rolesWithScope('task:update').join(' · '),
-                        })
-                  }
+                  disabledReason={canMove ? undefined : rolesOnly(rolesWithScope('task:update'))}
                   title={canMove ? t('task.blocked_reason_title') : undefined}
                   requiresOnline
                 >

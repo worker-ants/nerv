@@ -32,6 +32,7 @@ import {
   PageHeader,
   SectionTitle,
   Select,
+  Skeleton,
 } from '../../components/ui/primitives.js';
 import { ConfirmAction, ConfirmBar } from '../../components/ui/confirm-action.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
@@ -174,6 +175,8 @@ function GatesTab(): React.JSX.Element {
   // (`...policy`), 불러오는 중·실패 중에 보이던 **기본 정책**을 누르면 그 프로젝트의 정책이
   // 통째로 기본값으로 덮였다.
   const loaded = project.data !== undefined;
+  // 고를 프로젝트(목록)도 정책도 아직이면 폼을 그리지 않는다 — 프로젝트가 없는 조직은 목록이 온 뒤 빈 폼이다
+  const policyPending = slug === '' ? !projectsLoaded : project.isPending;
   const stored = GatePolicySchema.safeParse(project.data?.['gate_policy'] ?? {});
   const policy = stored.success ? stored.data : GatePolicySchema.parse({});
   // **읽지 못한 정책은 저장하지 않는다**(2026-09-28 · REQ-WEB-280). 저장 본문은 정책 전체를 펼쳐
@@ -414,198 +417,211 @@ function GatesTab(): React.JSX.Element {
         <ErrorState error={project.error} onRetry={() => void project.refetch()} />
       )}
 
-      <Card className="flex flex-col gap-4">
-        {/* 없으면 비활성 필드가 **고장으로** 읽힌다 — 무엇이 편집 대상인지 먼저 말한다 */}
-        <p className="text-xs text-text-mute">{t('settings.gates.lead')}</p>
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-xs font-medium text-text-mute">
-            {t('settings.gates.boundaries')}
-          </legend>
-          <div className="flex flex-wrap gap-3">
-            {TIERS.map((tier, i) => (
-              <Field key={tier} label={t('settings.gates.tier_field', { tier })} className="w-28">
-                <Input
-                  data-testid={`gate-boundary-${tier}`}
-                  inputMode="numeric"
-                  value={texts[i] ?? ''}
-                  aria-invalid={parsed[i] === null || undefined}
-                  onChange={(e) => {
-                    const copy = [...texts];
-                    copy[i] = e.target.value;
-                    setDraft(copy);
-                  }}
-                  disabled={!isAdmin}
-                />
-              </Field>
-            ))}
-          </div>
-          <p className="text-2xs text-text-faint">{t('settings.gates.boundaries_hint')}</p>
-          {!valid && (
-            <p role="alert" data-testid="gates-invalid" className="text-xs text-status-danger">
-              {t('settings.gates.invalid')}
-            </p>
-          )}
-          {/* 입력값으로 **바로** 다시 그린다 — 칸 셋만 보고는 어느 점수가 사람을 거치는지 모른다 */}
-          <ul data-testid="gates-summary" className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-            {tierRanges(t, next).map((row) => (
-              <li key={row.tier} className="text-text-mute">
-                <span className="font-mono font-medium text-text">{row.tier}</span> {row.range} ·{' '}
-                {row.rule}
-              </li>
-            ))}
-          </ul>
-        </fieldset>
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={dynamic}
-            onChange={(e) => setDynamicEscalation(e.target.checked)}
-            disabled={!isAdmin}
-            className="mt-1"
-          />
-          <span>
-            {t('settings.gates.dynamic')}
-            <span className="block text-xs text-text-mute">{t('settings.gates.dynamic_hint')}</span>
-          </span>
-        </label>
-        <fieldset
-          data-testid="gates-done"
-          className="flex flex-col gap-3 border-t border-border pt-4"
-        >
-          <legend className="sr-only">{t('settings.gates.done_gate')}</legend>
-          <div>
-            <SectionTitle>{t('settings.gates.done_gate')}</SectionTitle>
-            <p className="text-xs text-text-mute">{t('settings.gates.done_gate_hint')}</p>
-          </div>
-          <Field label={t('settings.gates.evidence_source')} className="max-w-sm">
-            <Select
-              data-testid="gates-evidence"
-              value={evidence}
-              onChange={(e) => setEvidenceDraft(e.target.value as 'any' | 'ci_or_human')}
-              disabled={!isAdmin}
-            >
-              <option value="any">{t('settings.gates.evidence_any')}</option>
-              <option value="ci_or_human">{t('settings.gates.evidence_ci_or_human')}</option>
-            </Select>
-          </Field>
-          <Field label={t('settings.gates.review_coverage')} className="max-w-sm">
-            <Select
-              data-testid="gates-coverage"
-              value={coverageForm.mode}
-              onChange={(e) =>
-                setCoverageDraft({ ...coverageForm, mode: e.target.value as CoverageMode })
-              }
-              disabled={!isAdmin}
-            >
-              <option value="off">{t('settings.gates.coverage_off')}</option>
-              <option value="any">{t('settings.gates.coverage_any')}</option>
-              <option value="kinds">{t('settings.gates.coverage_kinds')}</option>
-            </Select>
-          </Field>
-          {coverageForm.mode === 'kinds' && (
-            <div className="flex flex-col gap-1.5">
-              <div data-testid="gates-coverage-kinds" className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {REVIEW_KINDS.map((kind) => (
-                  <label key={kind} className="flex items-center gap-1.5 text-sm">
-                    <input
-                      type="checkbox"
-                      data-testid={`gates-coverage-kind-${kind}`}
-                      checked={coverageForm.kinds.includes(kind)}
-                      onChange={(e) =>
-                        setCoverageDraft({
-                          mode: 'kinds',
-                          kinds: e.target.checked
-                            ? [...coverageForm.kinds, kind]
-                            : coverageForm.kinds.filter((k) => k !== kind),
-                        })
-                      }
-                      disabled={!isAdmin}
-                    />
-                    {t(`review.kind.${kind}`)}
-                  </label>
-                ))}
-              </div>
-              <p className="text-2xs text-text-faint">{t('settings.gates.coverage_kinds_hint')}</p>
-              {!kindsValid && (
-                <p
-                  role="alert"
-                  data-testid="gates-coverage-empty"
-                  className="text-xs text-status-danger"
-                >
-                  {t('settings.gates.coverage_kinds_empty')}
-                </p>
-              )}
-            </div>
-          )}
-          {/* 필수 리뷰어 역할(REQ-WEB-286) — 게이트 판정과 종류별 완료 조건이 함께 본다 */}
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium text-text-mute">{t('settings.gates.roles')}</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {REVIEW_KINDS.map((kind) => (
-                <Field key={kind} label={t(`review.kind.${kind}`)}>
+      {/* **받기 전에는 기본 정책을 그리지 않는다**(2026-10-07 · REQ-WEB-293). 저장은 잠겨 있었지만(REQ-WEB-198)
+          칸마다 기본값이 서 있어, 사람은 그 값을 이 프로젝트의 정책으로 읽었다 */}
+      {policyPending ? (
+        <Skeleton rows={5} />
+      ) : (
+        <Card className="flex flex-col gap-4">
+          {/* 없으면 비활성 필드가 **고장으로** 읽힌다 — 무엇이 편집 대상인지 먼저 말한다 */}
+          <p className="text-xs text-text-mute">{t('settings.gates.lead')}</p>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-xs font-medium text-text-mute">
+              {t('settings.gates.boundaries')}
+            </legend>
+            <div className="flex flex-wrap gap-3">
+              {TIERS.map((tier, i) => (
+                <Field key={tier} label={t('settings.gates.tier_field', { tier })} className="w-28">
                   <Input
-                    data-testid={`gates-roles-${kind}`}
-                    value={roleTexts[kind] ?? ''}
-                    placeholder={t('settings.gates.roles_placeholder')}
-                    onChange={(e) => setRolesDraft({ ...roleTexts, [kind]: e.target.value })}
+                    data-testid={`gate-boundary-${tier}`}
+                    inputMode="numeric"
+                    value={texts[i] ?? ''}
+                    aria-invalid={parsed[i] === null || undefined}
+                    onChange={(e) => {
+                      const copy = [...texts];
+                      copy[i] = e.target.value;
+                      setDraft(copy);
+                    }}
                     disabled={!isAdmin}
                   />
                 </Field>
               ))}
             </div>
-            <p className="text-2xs text-text-faint">{t('settings.gates.roles_hint')}</p>
-            {!rolesValid && (
-              <p
-                role="alert"
-                data-testid="gates-roles-invalid"
-                className="text-xs text-status-danger"
-              >
-                {t('settings.gates.roles_invalid')}
+            <p className="text-2xs text-text-faint">{t('settings.gates.boundaries_hint')}</p>
+            {!valid && (
+              <p role="alert" data-testid="gates-invalid" className="text-xs text-status-danger">
+                {t('settings.gates.invalid')}
               </p>
             )}
-          </div>
-        </fieldset>
-        {changes.length > 0 && (
-          <div data-testid="gates-unsaved" className="text-xs">
-            <p className="font-medium text-status-waiting">{t('settings.gates.unsaved')}</p>
-            <ul className="mt-0.5 text-text-mute">
-              {changes.map((line) => (
-                <li key={line}>{line}</li>
+            {/* 입력값으로 **바로** 다시 그린다 — 칸 셋만 보고는 어느 점수가 사람을 거치는지 모른다 */}
+            <ul data-testid="gates-summary" className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {tierRanges(t, next).map((row) => (
+                <li key={row.tier} className="text-text-mute">
+                  <span className="font-mono font-medium text-text">{row.tier}</span> {row.range} ·{' '}
+                  {row.rule}
+                </li>
               ))}
             </ul>
-          </div>
-        )}
-        <div className="self-start">
-          {loosens && !saveBlocked ? (
-            <ConfirmAction
-              label={t('common.save')}
-              variant="primary"
-              size="md"
-              testId="gates-save"
-              block
-              message={t(
-                specLoosens
-                  ? 'settings.gates.loosen_confirm'
-                  : 'settings.gates.loosen_done_confirm',
-              )}
-              detail={changes.join(' · ')}
-              confirmLabel={t('settings.gates.loosen_save')}
-              pending={save.isPending}
-              onConfirm={() => save.mutate()}
+          </fieldset>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={dynamic}
+              onChange={(e) => setDynamicEscalation(e.target.checked)}
+              disabled={!isAdmin}
+              className="mt-1"
             />
-          ) : (
-            <Button
-              variant="primary"
-              data-testid="gates-save"
-              disabled={saveBlocked || save.isPending}
-              onClick={() => save.mutate()}
-              title={saveTitle}
-            >
-              {t('common.save')}
-            </Button>
+            <span>
+              {t('settings.gates.dynamic')}
+              <span className="block text-xs text-text-mute">
+                {t('settings.gates.dynamic_hint')}
+              </span>
+            </span>
+          </label>
+          <fieldset
+            data-testid="gates-done"
+            className="flex flex-col gap-3 border-t border-border pt-4"
+          >
+            <legend className="sr-only">{t('settings.gates.done_gate')}</legend>
+            <div>
+              <SectionTitle>{t('settings.gates.done_gate')}</SectionTitle>
+              <p className="text-xs text-text-mute">{t('settings.gates.done_gate_hint')}</p>
+            </div>
+            <Field label={t('settings.gates.evidence_source')} className="max-w-sm">
+              <Select
+                data-testid="gates-evidence"
+                value={evidence}
+                onChange={(e) => setEvidenceDraft(e.target.value as 'any' | 'ci_or_human')}
+                disabled={!isAdmin}
+              >
+                <option value="any">{t('settings.gates.evidence_any')}</option>
+                <option value="ci_or_human">{t('settings.gates.evidence_ci_or_human')}</option>
+              </Select>
+            </Field>
+            <Field label={t('settings.gates.review_coverage')} className="max-w-sm">
+              <Select
+                data-testid="gates-coverage"
+                value={coverageForm.mode}
+                onChange={(e) =>
+                  setCoverageDraft({ ...coverageForm, mode: e.target.value as CoverageMode })
+                }
+                disabled={!isAdmin}
+              >
+                <option value="off">{t('settings.gates.coverage_off')}</option>
+                <option value="any">{t('settings.gates.coverage_any')}</option>
+                <option value="kinds">{t('settings.gates.coverage_kinds')}</option>
+              </Select>
+            </Field>
+            {coverageForm.mode === 'kinds' && (
+              <div className="flex flex-col gap-1.5">
+                <div
+                  data-testid="gates-coverage-kinds"
+                  className="flex flex-wrap gap-x-4 gap-y-1.5"
+                >
+                  {REVIEW_KINDS.map((kind) => (
+                    <label key={kind} className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="checkbox"
+                        data-testid={`gates-coverage-kind-${kind}`}
+                        checked={coverageForm.kinds.includes(kind)}
+                        onChange={(e) =>
+                          setCoverageDraft({
+                            mode: 'kinds',
+                            kinds: e.target.checked
+                              ? [...coverageForm.kinds, kind]
+                              : coverageForm.kinds.filter((k) => k !== kind),
+                          })
+                        }
+                        disabled={!isAdmin}
+                      />
+                      {t(`review.kind.${kind}`)}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-2xs text-text-faint">
+                  {t('settings.gates.coverage_kinds_hint')}
+                </p>
+                {!kindsValid && (
+                  <p
+                    role="alert"
+                    data-testid="gates-coverage-empty"
+                    className="text-xs text-status-danger"
+                  >
+                    {t('settings.gates.coverage_kinds_empty')}
+                  </p>
+                )}
+              </div>
+            )}
+            {/* 필수 리뷰어 역할(REQ-WEB-286) — 게이트 판정과 종류별 완료 조건이 함께 본다 */}
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-text-mute">{t('settings.gates.roles')}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {REVIEW_KINDS.map((kind) => (
+                  <Field key={kind} label={t(`review.kind.${kind}`)}>
+                    <Input
+                      data-testid={`gates-roles-${kind}`}
+                      value={roleTexts[kind] ?? ''}
+                      placeholder={t('settings.gates.roles_placeholder')}
+                      onChange={(e) => setRolesDraft({ ...roleTexts, [kind]: e.target.value })}
+                      disabled={!isAdmin}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <p className="text-2xs text-text-faint">{t('settings.gates.roles_hint')}</p>
+              {!rolesValid && (
+                <p
+                  role="alert"
+                  data-testid="gates-roles-invalid"
+                  className="text-xs text-status-danger"
+                >
+                  {t('settings.gates.roles_invalid')}
+                </p>
+              )}
+            </div>
+          </fieldset>
+          {changes.length > 0 && (
+            <div data-testid="gates-unsaved" className="text-xs">
+              <p className="font-medium text-status-waiting">{t('settings.gates.unsaved')}</p>
+              <ul className="mt-0.5 text-text-mute">
+                {changes.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
           )}
-        </div>
-      </Card>
+          <div className="self-start">
+            {loosens && !saveBlocked ? (
+              <ConfirmAction
+                label={t('common.save')}
+                variant="primary"
+                size="md"
+                testId="gates-save"
+                block
+                message={t(
+                  specLoosens
+                    ? 'settings.gates.loosen_confirm'
+                    : 'settings.gates.loosen_done_confirm',
+                )}
+                detail={changes.join(' · ')}
+                confirmLabel={t('settings.gates.loosen_save')}
+                pending={save.isPending}
+                onConfirm={() => save.mutate()}
+              />
+            ) : (
+              <Button
+                variant="primary"
+                data-testid="gates-save"
+                disabled={saveBlocked || save.isPending}
+                onClick={() => save.mutate()}
+                title={saveTitle}
+              >
+                {t('common.save')}
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <SectionTitle>{t('settings.gates.failopen')}</SectionTitle>

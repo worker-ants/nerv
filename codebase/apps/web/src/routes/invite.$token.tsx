@@ -184,6 +184,9 @@ function InviteScreen(): React.JSX.Element {
                     </p>
                   )}
                 </>
+              ) : me.isPending ? (
+                // 로그인했는지 아직 모른다 — 로그인한 사람에게 가입 · 로그인 단추를 먼저 보이지 않는다(REQ-WEB-295)
+                <Skeleton rows={2} className="mt-4" />
               ) : (
                 // **돌아올 자리를 들려 보낸다.** 가입·로그인이 끝나면 이 주소로 돌아온다
                 <div className="mt-4 flex flex-col gap-2">

@@ -31,7 +31,7 @@ import { useApiError } from '../../lib/api-errors.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { rolesInProject } from '../../lib/session.js';
-import { useScope } from '../../lib/scope.js';
+import { useRolesOnly, useScope } from '../../lib/scope.js';
 import { DelegationForm } from './delegation-form.js';
 import { leaseRemaining, relativeTime } from '../session-monitor/format.js';
 import { blockedReasonText } from '../../lib/format.js';
@@ -112,8 +112,8 @@ export function TaskBoard(): React.JSX.Element {
   // [+ 새 작업]·[채우기]가 누구에게나 켜져 있어, designer 는 폼을 다 채우고 저장한 뒤에야 403 을 받았다
   const roles = rolesInProject(me.data, orgSlug, proj);
   const hasRole = (list: readonly string[]): boolean => roles.some((r) => list.includes(r));
-  const rolesOnly = (list: readonly string[]): string =>
-    t('task.next.roles_only', { roles: list.join(' · ') });
+  // 역할을 모르는 동안의 사유는 "불러오는 중…" 이다(REQ-WEB-295)
+  const rolesOnly = useRolesOnly();
   const canCreate = hasRole(TASK_CREATE_ROLES);
   // 보관은 **끄고 시작한다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
   //

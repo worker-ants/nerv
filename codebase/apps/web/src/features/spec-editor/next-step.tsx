@@ -17,6 +17,7 @@ import { TASK_CREATE_ROLES } from '@nerv/schema';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useT } from '../../lib/i18n.js';
 import { Button, buttonClass } from '../../components/ui/primitives.js';
+import { useRolesOnly } from '../../lib/scope.js';
 
 export interface NextStepProps {
   proj: string;
@@ -50,6 +51,7 @@ export function NextStep({
   onRail,
 }: NextStepProps): React.JSX.Element | null {
   const t = useT();
+  const rolesOnly = useRolesOnly();
   const navigate = useNavigate();
   if (viewed === undefined) return null;
   const status = String(viewed['doc_status'] ?? '');
@@ -129,7 +131,7 @@ export function NextStep({
         size="sm"
         disabled
         data-testid="spec-next-derive"
-        title={t('task.next.roles_only', { roles: TASK_CREATE_ROLES.join(' · ') })}
+        title={rolesOnly(TASK_CREATE_ROLES)}
       >
         {t('spec.next.derive')}
       </Button>

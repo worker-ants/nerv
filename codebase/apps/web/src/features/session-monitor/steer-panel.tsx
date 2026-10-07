@@ -36,6 +36,11 @@ export interface SteerPanelProps {
    * 되돌릴 수 없는 버튼일수록 누르기 전에 말해야 한다.
    */
   canIntervene: boolean;
+  /**
+   * 그 판정의 재료(내 정보)가 왔는가 — 오기 전의 `canIntervene: false` 는 "모른다" 다(REQ-WEB-295). 그동안
+   * 단추는 잠겨 있지만 "내 세션이 아니다" 라고 말하지 않는다. 판정한 쪽이 함께 넘긴다
+   */
+  rolesKnown?: boolean;
 }
 
 export function SteerPanel({
@@ -44,6 +49,7 @@ export function SteerPanel({
   sessionId,
   state,
   canIntervene,
+  rolesKnown = true,
 }: SteerPanelProps): React.JSX.Element {
   const t = useT();
   const queryClient = useQueryClient();
@@ -126,7 +132,8 @@ export function SteerPanel({
           onConfirm={(reason) => send.mutate({ kind: 'stop', text: reason })}
         />
         {finished && <span className="text-xs text-text-faint">{t('steer.finished')}</span>}
-        {!finished && !canIntervene && (
+        {/* 역할을 모르는 동안은 "내 세션이 아니다" 가 아니다(REQ-WEB-295) */}
+        {!finished && !canIntervene && rolesKnown && (
           <span data-testid="steer-forbidden" className="text-xs text-text-faint">
             {t('steer.not_owner')}
           </span>

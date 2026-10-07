@@ -151,7 +151,7 @@ Up to three messages are shown at a time. If there are more, "N more" and **Dism
 
 Screens show these three cases differently.
 
-- **Loading** — grey placeholders appear. Nothing is shown as "empty" yet. Counts and summary numbers show a short grey bar instead of 0. Screen readers read these places as "Loading".
+- **Loading** — grey placeholders appear. Nothing is shown as "empty" yet. Counts and summary numbers show a short grey bar instead of 0. Screen readers read these places as "Loading". While your role is still being checked, notices such as "Only admins can do this" do not appear either.
 - **⚠ Failed to load** — the server could not be reached, or it returned an error. The reason and **Retry** appear in place. A list that looks empty is not really empty. For example, if the inbox could not be read, Home's greeting shows "we couldn't load your inbox" instead of "no decisions are waiting". A list that was already showing stays in place if a refresh fails.
 - **? Not found** — the task, document, session, or project in the address does not exist, or you are not a member of that project. The screen shows what is missing (the key or the address) and links to **← Back to the list** or **Go home**. If you are not a member, that is shown too. Ask an organization admin to add you.
 

@@ -22,7 +22,7 @@ import { SteerPanel } from '../../features/session-monitor/steer-panel.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SESSION_TOKEN } from '../../components/status-token.js';
 import { rows, useProject, useSessionDetail } from '../../lib/queries.js';
-import { useCanIntervene } from '../../lib/scope.js';
+import { useCanIntervene, useRolesKnown } from '../../lib/scope.js';
 import {
   Card,
   PageBody,
@@ -59,6 +59,7 @@ function SessionDetail(): React.JSX.Element {
   const data = detail.data ?? {};
   const state = String(data['state'] ?? '');
   const canIntervene = useCanIntervene(proj, data['user_id']);
+  const rolesKnown = useRolesKnown();
   const usage = (data['token_usage'] ?? {}) as Record<string, unknown>;
 
   // 받아 오기 전에는 세션을 그리지 않는다 — 빈 머리는 "없다" 와 "아직" 을 가르지 못한다(REQ-WEB-198 · 199)
@@ -153,6 +154,7 @@ function SessionDetail(): React.JSX.Element {
             sessionId={session}
             state={state}
             canIntervene={canIntervene}
+            rolesKnown={rolesKnown}
           />
         </Card>
 

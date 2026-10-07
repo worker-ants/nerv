@@ -52,10 +52,24 @@ const EMPTY_KEYS = [
   'settings.workspace.no_projects',
   'invite.none',
   'session.no_trajectory',
+  // 내 정보가 오기 전의 "없음" — 3단계(REQ-WEB-295). 이 사람은 조직이 있다
+  'onboarding.step1',
 ] as const satisfies readonly (keyof typeof ko)[];
 
-/** 빈 상태가 문장 대신 표시로 남는 자리 */
-const EMPTY_TEST_IDS = ['spec-start', 'spec-tree-start', 'ready-empty', 'requirements-empty'];
+/**
+ * 빈 상태가 문장 대신 표시로 남는 자리 — 그리고 **모르는 권한을 없는 권한으로** 그린 자리(REQ-WEB-295):
+ * "admin 만 할 수 있습니다" 안내 · 문서를 시작할 수 없다는 말 · 남의 세션이라는 말 · 프로젝트가 없다는 경고
+ */
+const EMPTY_TEST_IDS = [
+  'spec-start',
+  'spec-tree-start',
+  'ready-empty',
+  'requirements-empty',
+  'read-only-notice',
+  'spec-start-ask',
+  'steer-forbidden',
+  'token-no-project',
+];
 
 /**
  * 받기 전의 "0" — 요약 줄의 큰 수 · 개요 커버리지의 칸 · 스펙 상세 레일 탭의 수. 응답이 오지 않았는데 0 이면
@@ -91,6 +105,17 @@ const ME = {
       project_slug: 'clemvion',
       project_name: 'clemvion',
     },
+    // 조직 admin 이다 — 받은 뒤에는 "admin 만" 안내가 보이지 않아야 맞다(받기 전에 보이면 그것이 결함이다)
+    {
+      id: 'm0',
+      roles: ['admin'],
+      org_id: 'o1',
+      org_slug: 'default',
+      org_name: 'NERV',
+      project_id: null,
+      project_slug: null,
+      project_name: null,
+    },
   ],
 };
 
@@ -99,7 +124,7 @@ const ME = {
  * 받은 뒤 화면의 나머지 데이터만 기다리는 순간이다. 꺼진 쿼리의 틈은 앞의 것에서 드러나고, 문서가 온 뒤에야
  * 그려지는 오른쪽 열은 뒤의 것에서 드러난다.
  */
-type Arrived = 'nothing' | 'scope';
+type Arrived = 'nothing' | 'scope' | 'preview';
 
 const SPEC = {
   spec_id: 's-1',
@@ -116,8 +141,21 @@ const SPEC = {
 };
 let arrived: Arrived = 'nothing';
 
+/** 초대 미리보기 — `preview` 순간에는 이것만 온다(내 정보는 아직이다) */
+const PREVIEW = {
+  id: 'inv-1',
+  org_slug: 'beta',
+  org_name: 'Beta',
+  project_slug: null,
+  role: 'developer',
+  invited_by: '하나',
+  state: 'pending',
+  email_hint: 'm***@example.com',
+};
+
 function reply(path: string): unknown {
   if (arrived === 'nothing') return undefined;
+  if (arrived === 'preview') return /^\/invitations\/tok-1(\?|$)/.test(path) ? PREVIEW : undefined;
   if (/^\/me(\?|$)/.test(path)) return ME;
   if (/^\/orgs\/[^/]+\/projects/.test(path))
     return [{ id: 'p1', slug: 'clemvion', key: 'CLV', name: 'clemvion' }];
@@ -166,12 +204,10 @@ async function renderAt(path: string, settled: RegExp): Promise<void> {
       </QueryClientProvider>
     </LocaleProvider>,
   );
-  // 본문이 골격(또는 "없다")을 그릴 때까지 — 라우트 조각이 오기 전의 빈 본문을 "아무 말도 하지
-  // 않았다" 로 세지 않는다
+  // 본문이 그려질 때까지 — 라우트 조각이 오기 전의 빈 본문을 "아무 말도 하지 않았다" 로 세지 않는다
+  // (골격도 "불러오는 중…" 을 글자로 갖는다)
   await waitFor(() => {
-    const main = document.querySelector('main');
-    const drawn = main?.querySelector('[data-testid*="skeleton"]') ?? null;
-    expect(drawn !== null || emptyClaims().length > 0).toBe(true);
+    expect(document.querySelector('main')?.textContent ?? '').not.toBe('');
   });
   // 내 정보 · 프로젝트가 온 뒤라면 그것을 기다려 부르는 요청까지 나간 뒤에 센다 — 처음 순간은 `nothing` 이 본다
   if (arrived === 'scope') {
@@ -208,6 +244,13 @@ const SCREENS: [string, RegExp][] = [
   ['/p/clemvion/sessions', /^\/projects\/clemvion\/sessions/],
   ['/p/clemvion/reviews', /^\/projects\/clemvion\/findings/],
   ['/settings/projects', ORG_PROJECTS],
+  // 역할로 칸을 잠그고 안내를 띄우는 화면들 — 3단계(REQ-WEB-295)
+  ['/settings/org', ORG_PROJECTS],
+  ['/settings/org-tokens', ORG_PROJECTS],
+  ['/settings/members', ORG_PROJECTS],
+  ['/settings/gates', ORG_PROJECTS],
+  ['/settings/tokens', ORG_PROJECTS],
+  ['/onboarding', ORG_PROJECTS],
 ];
 
 describe('받기 전은 "없다" 가 아니다 (REQ-WEB-293)', () => {
@@ -220,5 +263,28 @@ describe('받기 전은 "없다" 가 아니다 (REQ-WEB-293)', () => {
       await renderAt(path, settled);
       expect(emptyClaims()).toEqual([]);
     });
+  });
+});
+
+describe('내 정보가 오기 전의 역할은 "없음" 이 아니다 (REQ-WEB-295)', () => {
+  it('초대 — 로그인했는지 모르는 동안 가입 · 로그인 단추를 보이지 않는다', async () => {
+    arrived = 'preview';
+    const history = createMemoryHistory({ initialEntries: ['/invite/tok-1'] });
+    const router = createRouter({ routeTree, history });
+    render(
+      <LocaleProvider locale="ko">
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <RealtimeProvider>
+            <RouterProvider router={router as never} />
+          </RealtimeProvider>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+    // 미리보기는 왔다 — 조직 이름이 보이면 그 뒤의 단추 자리를 센다
+    await screen.findAllByText(/Beta/);
+    expect(screen.queryByTestId('invite-signup')).toBeNull();
+    expect(screen.queryByTestId('invite-accept')).toBeNull();
   });
 });

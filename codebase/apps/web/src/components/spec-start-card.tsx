@@ -12,9 +12,9 @@ import { rolesWithScope, scopesForRoles } from '@nerv/schema';
 import { Link } from '@tanstack/react-router';
 import { useT } from '../lib/i18n.js';
 import { useMe } from '../lib/queries.js';
-import { useScope } from '../lib/scope.js';
+import { useRolesKnown, useScope } from '../lib/scope.js';
 import { rolesInProject } from '../lib/session.js';
-import { Card } from './ui/primitives.js';
+import { Card, Skeleton } from './ui/primitives.js';
 import { ConnectAgentLinks } from './connect-agent-links.js';
 import { CopyButton } from './copy-button.js';
 import { helpLink } from '../lib/manual-chapters.js';
@@ -27,11 +27,15 @@ export function SpecStartCard({ projectSlug }: { projectSlug: string }): React.J
   const me = useMe();
   const { orgSlug } = useScope(projectSlug);
   const canDraft = scopesForRoles(rolesInProject(me.data, orgSlug, projectSlug)).has('spec:draft');
+  const known = useRolesKnown();
 
   return (
     <Card data-testid="spec-start" className="flex flex-col gap-3">
       <p className="font-medium">{t('specs.start.title')}</p>
-      {canDraft ? (
+      {/* 역할을 모르는 동안 "○○에게 요청하세요" 를 보이지 않는다(REQ-WEB-295) */}
+      {!known ? (
+        <Skeleton rows={2} />
+      ) : canDraft ? (
         <>
           <div>
             <p className="text-sm text-text-mute">{t('specs.start.new')}</p>

@@ -28,7 +28,7 @@ import { cn } from '../../lib/utils.js';
 import { useMe, useProject, useSpecGraph } from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
-import { useScope } from '../../lib/scope.js';
+import { useRolesOnly, useScope } from '../../lib/scope.js';
 import {
   Button,
   Card,
@@ -144,6 +144,8 @@ interface SearchResult {
 
 function SpecListScreen(): React.JSX.Element {
   const t = useT();
+  // 역할을 모르는 동안의 잠금 사유는 "불러오는 중…" 이다(REQ-WEB-295)
+  const rolesOnly = useRolesOnly();
   const { proj } = Route.useParams();
   const navigate = useNavigate();
   const {
@@ -495,9 +497,7 @@ function SpecListScreen(): React.JSX.Element {
               type="button"
               data-testid="freeze-baseline"
               disabled={!canFreeze}
-              disabledReason={
-                canFreeze ? undefined : t('task.next.roles_only', { roles: 'planner · admin' })
-              }
+              disabledReason={canFreeze ? undefined : rolesOnly(['planner', 'admin'])}
               onClick={() => setFreezing(true)}
             >
               {t('specs.freeze')}
