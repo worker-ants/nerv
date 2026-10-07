@@ -629,6 +629,9 @@ export function useTask(slug: string, taskKey: string): UseQueryResult<Row> {
   return useQuery({
     queryKey: queryKeys.task(taskKey),
     queryFn: () => apiFetch<Row>(`/projects/${slug}/tasks/${taskKey}`),
+    // **키가 없으면 묻지 않는다**(2026-10-07). 새 작업 폼은 수정 폼과 한 부품이라 이 훅을 빈 키로 불렀고,
+    // 그때마다 `/projects/<slug>/tasks/` 가 나갔다 — 응답은 아무도 쓰지 않았다(useProject 의 빈 slug 와 같은 부류)
+    enabled: taskKey !== '',
   });
 }
 

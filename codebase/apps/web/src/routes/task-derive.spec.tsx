@@ -128,3 +128,13 @@ describe('4요소가 비면 막는다 (REQ-WEB-016)', () => {
     expect(created).toHaveLength(0);
   });
 });
+
+describe('새 작업 폼은 고칠 작업을 묻지 않는다', () => {
+  // 수정 폼과 한 부품이라 작업 조회 훅을 늘 부르는데, 새 작업에는 키가 없다 — 빈 키로 부르면
+  // `/projects/<slug>/tasks/` 가 나가고 그 응답은 아무도 쓰지 않았다(useProject 가 빈 slug 로 겪은 그 부류다)
+  it('키 없는 작업 조회(`/tasks/`)를 보내지 않는다', async () => {
+    await renderAt(DERIVE);
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+    expect(urls.filter((u) => /\/projects\/[^/]+\/tasks\/(\?|$)/.test(u))).toEqual([]);
+  });
+});

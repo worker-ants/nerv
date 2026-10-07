@@ -673,7 +673,7 @@ function FocusMissing({ id }: { id: string }): React.JSX.Element {
       data-testid="focus-missing"
       className="mb-3 rounded-nerv-sm bg-bg-sunken px-3 py-2 text-sm text-text-mute"
     >
-      {detail.isPending ? t('common.loading') : text}
+      {detail.isPending ? <SkeletonText className="w-48" /> : text}
     </p>
   );
 }

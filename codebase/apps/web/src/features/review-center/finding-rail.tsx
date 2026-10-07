@@ -25,7 +25,8 @@ import type { Row } from '../../lib/queries.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 import { ResolveDialog } from './resolve-dialog.js';
 import type { ResolveAction } from './resolve-dialog.js';
-import { Button } from '../../components/ui/primitives.js';
+import { Button, Skeleton } from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ActorMark } from '../../components/actor-mark.js';
 
 const ACTIONS = ['fixed', 'spec_change', 'dismissed', 'wont_fix'] as const;
@@ -231,6 +232,15 @@ export function FindingRail({
           코멘트는 그 세션의 하트비트로 돌아간다(§6.7) */}
       <section data-testid="finding-comments">
         <h3 className="mb-1.5 text-2xs text-text-faint">{t('reviews.rail.comments')}</h3>
+        {/* 받기 전에는 자리를 잡는다 — 코멘트가 나중에 끼어들며 입력칸이 밀렸다(REQ-WEB-296) */}
+        {comments.isPending && <Skeleton rows={2} className="mb-2 [&>div]:h-8" />}
+        {failedWithoutData(comments) && (
+          <ErrorState
+            className="mb-2"
+            error={comments.error}
+            onRetry={() => void comments.refetch()}
+          />
+        )}
         <ul className="mb-2 flex flex-col gap-1.5">
           {rows(comments.data?.items).map((c) => (
             <li key={String(c['id'])} className="border-l-2 border-l-border pl-2.5">

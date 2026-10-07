@@ -553,6 +553,10 @@ function SpecListScreen(): React.JSX.Element {
       {/* **지금 무엇이 몇 건인가**(2026-09-24 · SPEC-13 · REQ-WEB-216 · REQ-WEB-056). "초안이 몇 건, 검토 중이
           몇 건인가" 는 트리를 훑어야 답이 나왔다. 누르면 그 상태로 거른 트리다(상태 필터는 트리의 것이다 —
           REQ-WEB-140). 기준선으로 보는 동안은 전부 승인본이라 말할 것이 없다 */}
+      {/* 받기 전에는 줄 자리를 잡는다 — 수가 온 뒤 칩 줄이 끼어들며 트리가 밀렸다(REQ-WEB-296) */}
+      {submitted.trim() === '' && baseline === undefined && graph.isPending && (
+        <Skeleton rows={1} className="mb-3 w-72 [&>div]:h-6" />
+      )}
       {submitted.trim() === '' &&
         baseline === undefined &&
         (statusCounts.length > 0 || newerCount > 0 || attachedCount > 0) && (

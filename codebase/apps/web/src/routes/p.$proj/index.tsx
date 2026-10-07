@@ -79,7 +79,14 @@ function ProjectOverview(): React.JSX.Element {
   return (
     <PageBody wide>
       <PageHeader
-        title={String(project.data?.['name'] ?? proj)}
+        // 받기 전에는 이름을 모른다 — slug 를 먼저 보였다가 이름으로 바꾸지 않는다(REQ-WEB-294)
+        title={
+          project.isPending ? (
+            <SkeletonText className="w-48" />
+          ) : (
+            String(project.data?.['name'] ?? proj)
+          )
+        }
         description={String(project.data?.['description'] ?? '')}
       />
 

@@ -13,7 +13,7 @@
 
 import { useT } from '../../lib/i18n.js';
 import { cn } from '../../lib/utils.js';
-import { Button } from '../../components/ui/primitives.js';
+import { Button, Skeleton } from '../../components/ui/primitives.js';
 import type { Row } from '../../lib/queries.js';
 
 /** 변경 줄 앞뒤로 남기는 맥락 — 세 줄이면 그 문단이 어디인지 알아볼 수 있다 */
@@ -86,7 +86,8 @@ export function VersionDiff({
         </Button>
       </header>
 
-      {isPending && <p className="text-sm text-text-mute">{t('common.loading')}</p>}
+      {/* 글자 한 줄이 아니라 들어올 모양의 골격이다 — 스피너 단독 금지와 같은 규칙(§1.5) */}
+      {isPending && <Skeleton rows={4} />}
       {isError && <p className="text-sm text-status-danger">{t('spec.diff.failed')}</p>}
 
       {!isPending && !isError && (

@@ -117,8 +117,9 @@ describe('라우팅 맵 (screens.md §1.2)', () => {
   it('프로젝트 사이드바는 /p/:proj/* 에서만 나온다 (§1.3)', async () => {
     const { unmount } = renderAt('/p/clemvion/tasks');
     await waitFor(() => expect(screen.getByText('작업 보드')).toBeDefined());
-    // 사이드바 제목과 헤더 프로젝트 select 양쪽에 이름이 있다 — 사이드바 쪽을 본다
-    expect(screen.getAllByText('clemvion').length).toBeGreaterThan(0);
+    // 사이드바 제목과 헤더 프로젝트 select 양쪽에 이름이 있다 — 사이드바 쪽을 본다. 이름은 프로젝트를 받은 뒤에
+    // 보인다(받기 전에는 slug 대신 골격이다 · REQ-WEB-294) — 그래서 기다린다
+    expect((await screen.findAllByText('clemvion')).length).toBeGreaterThan(0);
     // 리뷰 탭은 2026-08-23 에 열렸다 — 비활성 표기 대신 실제 링크다(screens.md §2.6a)
     expect(screen.getByRole('link', { name: /리뷰/ }).getAttribute('href')).toBe(
       '/p/clemvion/reviews',

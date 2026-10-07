@@ -825,7 +825,7 @@ export function ApprovalCard({
               className="mt-1.5 max-h-80 overflow-y-auto rounded-nerv-sm border border-border bg-bg-elev px-3 py-2 text-sm"
             >
               {subject.isPending ? (
-                <p className="text-text-mute">{t('common.loading')}</p>
+                <Skeleton rows={3} />
               ) : subject.isError ? (
                 <p className="text-text-mute">{t('inbox.card.body_failed')}</p>
               ) : String(subject.data?.['body_md'] ?? '') === '' ? (

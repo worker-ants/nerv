@@ -200,8 +200,15 @@ function DevicesSection(): React.JSX.Element {
           label={t('account.devices.revoke_others')}
           variant="danger"
           testId="account-devices-revoke-others"
-          disabled={others === 0 || revokeOthers.isPending}
-          title={others === 0 ? t('account.devices.none_other') : undefined}
+          disabled={sessions.data === undefined || others === 0 || revokeOthers.isPending}
+          // 받기 전에는 "끊을 다른 기기가 없다" 가 아니다(REQ-WEB-293)
+          title={
+            sessions.data === undefined
+              ? t('common.loading')
+              : others === 0
+                ? t('account.devices.none_other')
+                : undefined
+          }
           message={t('account.devices.revoke_others_confirm', { n: others })}
           detail={t('account.devices.revoke_others_detail')}
           confirmLabel={t('account.devices.revoke_others_run')}
@@ -209,7 +216,9 @@ function DevicesSection(): React.JSX.Element {
           onConfirm={() => revokeOthers.mutate()}
         />
       </div>
-      {sessions.data === undefined ? (
+      {failedWithoutData(sessions) ? (
+        <ErrorState error={sessions.error} onRetry={() => void sessions.refetch()} />
+      ) : sessions.data === undefined ? (
         <Skeleton rows={3} />
       ) : (
         <Card className="flex flex-col divide-y divide-border p-0">

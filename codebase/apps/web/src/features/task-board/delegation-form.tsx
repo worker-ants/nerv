@@ -21,7 +21,15 @@ import { rows, useRequirements, useSpecTree, useSpecVersions, useTask } from '..
 import { useEffect, useRef, useState } from 'react';
 import { isDelegationFilled } from '@nerv/schema';
 import type { MessageKey, Translator } from '@nerv/schema';
-import { Button, Field, Input, Select, Textarea } from '../../components/ui/primitives.js';
+import {
+  Button,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+} from '../../components/ui/primitives.js';
+import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 
 /** 4요소는 공백만으로 채워질 수 없다 — 형식적 충족을 막는 최소선이다. */
@@ -166,10 +174,13 @@ export function DelegationForm({
   // 내린 채 카드의 [채우기]를 누르면 아무 일도 없어 보였다 — 폼으로 옮기고 제목 칸에 커서를 둔다
   const formRef = useRef<HTMLFormElement>(null);
   const { setFocus } = form;
+  // 고칠 작업을 받은 뒤에 폼이 그려진다 — 그때 한 번 더 옮긴다(받기 전에는 폼이 아직 없다)
+  const ready = taskKey === null || existing.data !== undefined;
   useEffect(() => {
+    if (!ready) return;
     formRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
     setFocus('title');
-  }, [setFocus]);
+  }, [setFocus, ready]);
 
   const save = useMutation({
     mutationFn: async (input: DelegationInput) => {
@@ -242,6 +253,22 @@ export function DelegationForm({
     onError: onApiError,
   });
 
+  // **고칠 작업을 받기 전에는 폼을 그리지 않는다**(2026-10-07 · REQ-WEB-293). 빈 칸으로 열린 수정 폼은
+  // "비어 있는 작업" 으로 읽히고, 그 위에 적은 것은 값이 도착하는 순간 덮였다
+  if (taskKey !== null && failedWithoutData(existing)) {
+    return <ErrorState error={existing.error} onRetry={() => void existing.refetch()} />;
+  }
+  if (!ready) {
+    return (
+      <div
+        data-testid="delegation-form-loading"
+        className="rounded-nerv border border-border bg-bg-elev p-4"
+      >
+        <Skeleton rows={5} />
+      </div>
+    );
+  }
+
   return (
     <form
       ref={formRef}
@@ -287,6 +314,8 @@ export function DelegationForm({
                 className="w-52"
               >
                 <option value="">{t('task.form.source_none')}</option>
+                {/* 받기 전에는 고를 것이 없는 것이 아니라 아직 모른다(REQ-WEB-293) */}
+                {specs.isPending && <option disabled>{t('common.loading')}</option>}
                 {rows(specs.data).map((sp) => (
                   <option key={String(sp['key'])} value={String(sp['key'])}>
                     {String(sp['key'])}
@@ -301,6 +330,9 @@ export function DelegationForm({
                 className="w-52"
               >
                 <option value="">{t('task.form.source_none')}</option>
+                {sourceSpec !== '' && versions.isPending && (
+                  <option disabled>{t('common.loading')}</option>
+                )}
                 {approved.map((v) => (
                   <option key={String(v['id'])} value={String(v['id'])}>
                     v{String(v['version_no'])}
@@ -315,6 +347,9 @@ export function DelegationForm({
                 className="w-60"
               >
                 <option value="">{t('task.form.source_none')}</option>
+                {sourceSpec !== '' && requirements.isPending && (
+                  <option disabled>{t('common.loading')}</option>
+                )}
                 {rows(requirements.data).map((r) => (
                   <option key={String(r['id'])} value={String(r['id'])}>
                     {String(r['ref'])}

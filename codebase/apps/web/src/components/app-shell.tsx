@@ -350,9 +350,20 @@ export function AppShell({
       </Link>
     );
   };
+  /**
+   * 라우트 프로젝트의 **이름** — 프로젝트 조회와 목록 중 먼저 온 쪽이 말한다. 둘 다 오기 전에는 `undefined` 이고
+   * 그 자리는 골격이다(REQ-WEB-294). slug 를 먼저 보였다가 이름으로 바꾸면 같은 자리의 글자가 바뀐다
+   */
+  const routeProjectName: string | undefined = (() => {
+    const named = shellProject.data?.['name'] ?? currentProject?.['name'];
+    if (named !== undefined && named !== null) return String(named);
+    return shellProject.isPending || (!scope.projectsLoaded && !scope.projectsFailed)
+      ? undefined
+      : sidebarProject;
+  })();
   const railProjects =
     sidebarProject !== undefined && !projectRows.some((p) => p['slug'] === sidebarProject)
-      ? [{ slug: sidebarProject, name: currentProject?.['name'] ?? sidebarProject }, ...projectRows]
+      ? [{ slug: sidebarProject, name: routeProjectName }, ...projectRows]
       : projectRows;
 
   return (
@@ -439,7 +450,7 @@ export function AppShell({
                     detail !== null && 'max-md:hidden',
                   )}
                 >
-                  {String(currentProject?.['name'] ?? sidebarProject)}
+                  {routeProjectName ?? <SkeletonText className="w-20" />}
                 </Link>
               </>
             )}
@@ -1030,7 +1041,13 @@ export function AppShell({
                           >
                             {slug.slice(0, 1)}
                           </span>
-                          <span className="flex-1 truncate">{name}</span>
+                          <span className="flex-1 truncate">
+                            {project['name'] === undefined ? (
+                              <SkeletonText className="w-20" silent />
+                            ) : (
+                              name
+                            )}
+                          </span>
                         </Link>
                         {decisionsLink(slug, name)}
                       </div>
