@@ -10,6 +10,9 @@
 //   버전이 가리키면 넣는다(REQ-API-231 과 같은 규칙). 본문은 바꾸지 않는다. 주소 → zip 안의 경로는 목록의
 //   `attachments[].id` → `path` 로 받는 쪽이 푼다.
 // - **zip32 다.** 총 크기가 4GB 를 넘으면 시작하기 전에 413 으로 알린다 — 첨부 없이 받으면 된다.
+// - **기준선으로도 받는다**(2026-10-07 · REQ-API-268). `baseline=<이름>`이면 그 세트가 담은 문서만, 고정한 버전으로
+//   넣는다. 세트는 만든 순간에 고정되므로 **나중에 보관한 문서도 넣는다**(미러 제안 D5 · 사람 결정) — 빼면 "R1 그대로" 가
+//   아니다. `basis`와는 배타다(문서 조회와 같은 규칙 · `resolveSelector`).
 
 import { Injectable, Logger } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
@@ -22,6 +25,7 @@ import { assertVocab } from '../../common/query-vocab.js';
 import { safePathSegment } from '../../common/safe-path.js';
 import { StorageService } from '../../common/storage.service.js';
 import { ZIP32_LIMIT, ZipStream, zipOverhead } from '../../common/zip-stream.js';
+import { resolveSelector } from './spec-basis.js';
 import { SpecService } from './spec.service.js';
 
 export const EXPORT_BASES = ['approved', 'latest'] as const;
@@ -67,22 +71,37 @@ export class SpecExportService {
     projectId: string;
     projectSlug: string;
     basis: string | null;
+    /** 기준선 이름 — 주면 그 세트의 문서만, 고정한 버전으로(REQ-API-268). `basis`와 배타다 */
+    baseline?: string | null;
     layout: string | null;
     include: readonly string[];
   }): Promise<{ stream: Readable; filename: string; bytes: number }> {
-    const basis = assertVocab([input.basis ?? 'approved'], EXPORT_BASES, 'basis')[0]!;
+    if (input.basis != null && input.basis !== '') {
+      assertVocab([input.basis], EXPORT_BASES, 'basis');
+    }
+    // 선택자는 하나만이다 — 둘이면 400(문서 조회와 같은 판정 · 같은 오류)
+    const selector = resolveSelector({ basis: input.basis, baseline: input.baseline ?? null });
+    const baselineName = selector.kind === 'baseline' ? selector.name : null;
+    const basis = selector.kind === 'latest' ? 'latest' : 'approved';
     const layout = assertVocab([input.layout ?? 'flat'], EXPORT_LAYOUTS, 'layout')[0]!;
     const include = new Set(assertVocab(input.include, EXPORT_INCLUDES, 'include'));
+    // 없는 이름은 기본값으로 떨어뜨리지 않고 400 이다(트리가 판정한다) — 만든 시각은 목록에 적는다
+    const baseline =
+      baselineName === null ? null : await this.baselineOf(input.projectId, baselineName);
 
-    const nodes = (await this.specs.tree({ projectId: input.projectId, basis })).sort((a, b) =>
-      a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
+    // 색인(`llms.txt`)은 트리 순서, zip은 키 순서다 — 정렬한 사본을 따로 만든다
+    const tree = await this.specs.tree(
+      baselineName === null
+        ? { projectId: input.projectId, basis }
+        : { projectId: input.projectId, baseline: baselineName, includeArchived: true },
     );
+    const nodes = [...tree].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     const docs: ExportedDoc[] = [];
     for (const node of nodes) {
       const doc = await this.specs.mirrorDocument({
         projectId: input.projectId,
         specKey: node.key,
-        basis,
+        ...(baselineName === null ? { basis } : { baseline: baselineName }),
       });
       const file = `${safePathSegment(doc.meta.key)}.md`;
       // tree: area 문서는 자기 폴더에, 그 밖은 가장 가까운 area 조상 폴더에, area 조상이 없으면 맨 위에
@@ -105,10 +124,12 @@ export class SpecExportService {
       : [];
 
     const pathOf = new Map(docs.map((d) => [d.key, d.path]));
+    // **색인은 이 zip이 담은 문서다** — 승인본 트리로 만들면 기준선 zip의 색인이 zip에 없는 문서를 가리켰다
     const llms = Buffer.from(
       await this.specs.llmsTxt({
         projectId: input.projectId,
         projectName: input.projectSlug,
+        nodes: tree,
         linkOf: (key) => `./${pathOf.get(key) ?? `specs/${safePathSegment(key)}.md`}`,
       }),
       'utf8',
@@ -117,7 +138,8 @@ export class SpecExportService {
       `${JSON.stringify(
         {
           project: input.projectSlug,
-          basis,
+          basis: baseline === null ? basis : 'baseline',
+          baseline,
           layout,
           include: [...include],
           specs: docs.map((d) => ({
@@ -186,9 +208,27 @@ export class SpecExportService {
 
     return {
       stream: zip.stream,
-      filename: `${safePathSegment(input.projectSlug)}-specs-${basis}.zip`,
+      filename:
+        baseline === null
+          ? `${safePathSegment(input.projectSlug)}-specs-${basis}.zip`
+          : `${safePathSegment(input.projectSlug)}-specs-baseline-${safePathSegment(baseline.name)}.zip`,
       bytes: total,
     };
+  }
+
+  /** 기준선의 이름 · 만든 시각 — 목록에 적는다. 만든 시각은 바뀌지 않으므로 같은 바이트 규칙을 지킨다 */
+  private async baselineOf(
+    projectId: string,
+    name: string,
+  ): Promise<{ name: string; created_at: string } | null> {
+    const { rows } = await this.db.execute<{ name: string; created_at: Date | string }>(sql`
+      SELECT name, created_at FROM spec_baseline WHERE project_id = ${projectId} AND name = ${name}
+    `);
+    const row = rows[0];
+    // 없는 이름의 거절은 트리가 한다(`baselineIdOf` — 400 invalid_input) — 여기서 따로 판정하지 않는다
+    if (row === undefined) return null;
+    const created = row.created_at instanceof Date ? row.created_at : new Date(row.created_at);
+    return { name: row.name, created_at: created.toISOString() };
   }
 
   /**

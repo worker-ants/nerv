@@ -215,6 +215,7 @@ describe('EP-PLG-02 — 아카이브', () => {
       'bin/nerv-outbox',
       'bin/nerv-env.sh',
       'bin/nerv-init',
+      'bin/nerv-mirror',
     ]) {
       expect(modes.has(exec)).toBe(true);
       expect((modes.get(exec) ?? 0) & 0o111).not.toBe(0);
@@ -230,8 +231,12 @@ describe('EP-PLG-02 — 아카이브', () => {
     const names = zipNames(Buffer.from(zip.rawPayload));
     expect(names).toContain('.claude-plugin/plugin.json');
     expect(names).toContain('hooks/hooks.json');
+    // 미러 스크립트는 본체(.mjs)와 PATH 이름(bin/)이 함께 간다 — 한쪽만 가면 `nerv-mirror` 가 돌지 않는다
+    expect(names).toContain('bin/nerv-mirror');
+    expect(names).toContain('skills/mirror/scripts/nerv-mirror.mjs');
     // 저장소 전용 파일은 패키지에 들어가지 않는다
     expect(names).not.toContain('plugin-package.spec.ts');
+    expect(names).not.toContain('mirror.spec.ts');
   });
 
   it('본문이 실제로 풀리는 zip 이다 — 첫 항목을 해제해 본다', async () => {

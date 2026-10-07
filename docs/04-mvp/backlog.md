@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.57 · 2026-10-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.58 · 2026-10-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.58 변경(2026-10-07 — 스토리 없이 들어온 구현 둘): §1.4 셋째 표에 **기준선으로 미러 받기**와 **스펙 미러 스킬**을 적는다.
 >
 > v2.57 변경(2026-10-07 — 스토리 없이 들어온 수정 둘): §1.4 셋째 표에 **받기 전에 빈 항목이 보이던 결함 — 남은 자리** 와 **새 작업 폼의 헛 조회** 를 적는다.
 >
@@ -823,6 +825,8 @@ referenced_by:
 | 받기 전에 빈 항목이 보이던 결함 | 웹 `isLoading` 12곳 → `isPending`(꺼져 있는 쿼리도 불러오는 중이다 — `components/spec-tree.tsx` · `features/session-monitor/session-board.tsx` · `components/event-feed.tsx` · `features/task-board/board.tsx` 등) · `eslint.config.js`(REQ-WEB-293 — `isLoading` 을 막는다) · `components/ui/primitives.tsx`(`Skeleton` 의 `role="status"` · `SkeletonText` · `SummaryMetric.value` 의 `null` — REQ-WEB-294) · 받기 전의 수와 빈 문구: 개요 커버리지 · 작업 보드 요약과 레인 상단 · 리뷰 요약 · 필터 수 · 게이트 현황 · 스펙 상세 레일 탭 · 관계 · 버전 · 코멘트 · 첨부 · 파생 작업 · 지난 버전 본문 · 받은 요청 건수 · 검색 결과 수 · 세션 궤적 · 설정의 프로젝트 · 초대 · `lib/scope.ts`(`useRolesKnown` · `useRolesOnly` — REQ-WEB-295) · 설정 셸 `routes/settings/route.tsx`(내 정보를 기다린다) · 온보딩 · 초대 화면 · 문서 시작 카드 · 개입 패널 · 잠금 사유(작업 보드 · 다음 할 일 · 작업 상세 · 기준선 고정) · 게이트 정책 폼 · 토큰 발급의 "프로젝트 없음" · 셸 `components/app-shell.tsx`(조직 전환기 · 사용자 메뉴 · 헤더의 조직 이름 · 프로젝트 목록의 자리 — REQ-WEB-296) · 설정 목록 · `components/route-states.tsx`(`RoutePending` — 라우터의 `defaultPendingComponent`) · 계정의 알림 절 · 플러그인 적용 현황 · L1 `routes/pending-states.spec.tsx`(응답이 오지 않는 채로 화면 21개 × 두 순간 + 초대 · 셸 · 계정 알림 탭 — 빈 상태의 문장 · 표시 · 받기 전의 0 · 모르는 권한 · 자리) |
 | 받기 전에 빈 항목이 보이던 결함 — 남은 자리 | 같은 규칙(REQ-WEB-293 · 294 · 296)을 남은 자리에: `features/task-board/delegation-form.tsx`(고칠 작업을 받기 전에는 폼 대신 골격 · 출처 선택지의 "불러오는 중…") · 작업 보드 필터 선택지 · 스펙 목록 상태 칩 줄의 자리 · 리뷰 발견의 코멘트 · 프로젝트 이름(개요 제목 · 헤더 · 왼쪽 열 — slug 를 먼저 보이지 않는다) · 홈 인사말(내 정보가 오기 전) · 계정 기기의 [다른 기기 모두 끊기] 사유 · 글자만 있던 로딩 셋(버전 비교 · 결재 카드 본문 · 받은 요청의 짚은 항목) · L1 `routes/pending-states.spec.tsx` 5건(main 코드에서 5건 모두 실패) |
 | 새 작업 폼의 헛 조회 | `apps/web/src/lib/queries.ts`(`useTask` — 키가 빈 문자열이면 부르지 않는다. 새 작업 폼은 수정 폼과 한 부품이라 빈 키로 `/projects/<slug>/tasks/` 를 불렀고 그 응답은 아무도 쓰지 않았다) · L1 `routes/task-derive.spec.tsx` 1건(고치기 전에는 그 요청이 나갔다) |
+| 기준선으로 미러 받기 | `modules/spec/spec-export.service.ts`(`baseline=<이름>` — 그 세트의 문서만 고정한 버전으로, 나중에 보관한 문서도 · 목록의 `baseline` · 파일 이름 — REQ-API-268) · `mirror.controller.ts`(`export.zip` · `.md`의 `?baseline=` — `.md`는 예전에 이 값을 오류 없이 버렸다 · REQ-API-269) · `spec.service.ts`(`mirrorDocument`의 `baseline` · `llmsTxt`의 `nodes` — 색인을 zip이 담은 문서로) · L2 `test/integration/mirror-http.spec.ts` 4건(기준선 내보내기 · 승인본과의 차이 · `.md` · 400 셋) |
+| 스펙 미러 스킬(`/nerv:mirror`) | 플러그인 `skills/mirror/SKILL.md`(신설 — 경로 · 기준을 정하고 스크립트를 한 번 실행한다) · `skills/mirror/scripts/nerv-mirror.mjs`(신설 — 의존성 없는 node 스크립트: `baselines` · `pull` · `status`, 미러가 쓴 파일만 고치고 지운다, zip 안의 경로 · CRC 검사, 다시 받을 때 지난번 기준) · `bin/nerv-mirror`(sh 래퍼) · 패키지 0.3.15 → 0.3.16 · L1 `plugin/mirror.spec.ts` 13건(가짜 서버) · L2 `mirror-http.spec.ts` 1건(실제 서버에 스크립트를 붙인다) · `plugin.spec.ts`(아카이브에 두 파일 · 실행 비트) — REQ-PLG-028 |
 
 #### 이 절은 언제 갱신되는가
 

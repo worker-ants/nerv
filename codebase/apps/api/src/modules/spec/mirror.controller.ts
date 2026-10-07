@@ -65,7 +65,8 @@ export class MirrorController {
 
   /**
    * EP-MIR-03 — 프로젝트 스펙 전체를 zip 하나로(2026-09-28 · clemvion 요청 N5 · 사람 결정 D7 · D8 · REQ-API-251).
-   * `basis=approved|latest` · `layout=flat|tree` · `include=attachments`. 판정 · 경로 규칙은 `SpecExportService` 한 곳이다.
+   * `basis=approved|latest` 또는 `baseline=<이름>`(REQ-API-268) · `layout=flat|tree` · `include=attachments`. 판정 · 경로
+   * 규칙은 `SpecExportService` 한 곳이다.
    */
   @RequireScope('spec:read')
   @Get('export.zip')
@@ -74,11 +75,14 @@ export class MirrorController {
     @Query('basis') basis?: string,
     @Query('layout') layout?: string,
     @Query('include') include?: string,
+    @Query('baseline') baseline?: string,
   ): Promise<StreamableFile> {
     const out = await this.exports.archive({
       projectId: projectOf(req),
       projectSlug: String(req.params?.['proj'] ?? 'project'),
       basis: basis ?? null,
+      // 기준선으로도 받는다(2026-10-07 · REQ-API-268) — `basis`와 함께 오면 400이다
+      baseline: baseline ?? null,
       layout: layout ?? null,
       include: (include ?? '')
         .split(',')
@@ -109,6 +113,7 @@ export class MirrorController {
     @Headers('if-none-match') ifNoneMatch?: string,
     @Query('basis') basis?: string,
     @Query('task') task?: string,
+    @Query('baseline') baseline?: string,
   ): Promise<string> {
     const { markdown, updatedAt, readAs } = await this.specs.mirrorDocument({
       projectId: projectOf(req),
@@ -118,6 +123,9 @@ export class MirrorController {
       // **작업의 기준으로 · 보기 기준으로 읽는다**(REQ-API-249) — 선택자는 하나만이다(둘이면 400)
       basis: basis ?? null,
       task: task ?? null,
+      // **기준선으로도 읽는다**(2026-10-07 · REQ-API-269). 예전에는 이 값을 오류 없이 버리고 승인본을 줬다 —
+      // 받은 쪽은 기준선으로 받았다고 믿었다
+      baseline: baseline ?? null,
     });
     void reply.header('x-nerv-read-as', readAs);
     const etag = `"sha256-${createHash('sha256').update(markdown, 'utf8').digest('hex')}"`;
