@@ -1,4 +1,10 @@
-import { text, type GateAxis, type GateEvidence, type GateSignal } from '@nerv/schema';
+import {
+  GATE_FLOOR_T2_SIGNALS,
+  text,
+  type GateAxis,
+  type GateEvidence,
+  type GateSignal,
+} from '@nerv/schema';
 // 스펙 변경 게이트 티어 T0~T3 — 정본: docs/03-proposal/spec-workflow.md §2.4 (D-06)
 //
 // **자동 통과 경로는 필수 기능이다.** SDD 에 대한 대표적 비판이 "버그 하나 고치는 데 16개
@@ -69,6 +75,13 @@ export interface EscalationSignals {
    * 약속" 은 크기가 아니라 **성질**이다. 축에 가산점을 섞으면 그 자가 무엇을 재는지 흐려진다.
    */
   firstApprovedVersion?: boolean;
+  /**
+   * **제출한 버전이 직전 버전보다 크게 줄었다**(2026-10-09 사람 결정 · REQ-API-273). 판정은 사전 검토의 `base-continuity` 와
+   * 같은 `bodyChange` 다 — 확인 없이 줄었으면 사전 검토가 이미 막으므로, 여기까지 오는 것은 `allow_shrink` 로 확인한 축소다.
+   * clemvion 용어 사전 v4 는 34.7KB 가 484바이트가 된 채 승인됐다. 확인한 삭제라도 사람이 한 번 보게 하려고 **최소 T2** 다
+   * (`GATE_FLOOR_T2_SIGNALS`) — 한 단계만 올리면 T0 문서는 T1 이 되어 여전히 사람 없이 통과한다.
+   */
+  bodyShrunk?: boolean;
 }
 
 export function scoreOf(axes: GateAxes): number {
@@ -113,14 +126,19 @@ export function decideGate(
   if (policy.dynamicEscalation !== false) {
     if (signals.firstApprovedVersion === true) fired.push('first_version');
     if (signals.repeatedFailures === true) fired.push('retry_threshold');
+    if (signals.bodyShrunk === true) fired.push('body_shrunk');
   }
   // **여럿이어도 한 단계다**(2026-09-26 사람 결정 · spec-workflow §2.4). 신호가 말하는 것은
   // "사람이 한 번 봐야 한다" 이지 "두 사람이" 가 아니다 — 쌓으면 첫 버전인 T1 문서에 신호 하나가
   // 겹쳐 T3(직군 교차 2인 + 파생 작업의 플랜 승인)까지 갔다. 묻는 횟수가 늘면 확인은 읽히지 않는다.
   if (fired.length > 0) {
     tier = escalate(tier);
+    // **크게 줄어든 버전은 사람이 한 번 본다**(2026-10-09 사람 결정). 한 단계 뒤에도 T0 · T1 이면 T2 로 올린다 — T2 · T3 은
+    // 위의 한 단계 그대로다
+    const floor = fired.some((signal) => GATE_FLOOR_T2_SIGNALS.includes(signal));
+    if (floor && (tier === 'T0' || tier === 'T1')) tier = 'T2';
     reasons.push(
-      `${fired.map((signal) => text(`gate.reason.${signal}`)).join(' · ')} ${text('gate.escalated')}`,
+      `${fired.map((signal) => text(`gate.reason.${signal}`)).join(' · ')} ${text(floor ? 'gate.escalated_floor' : 'gate.escalated')}`,
     );
   }
 

@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.65 · 2026-10-04 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.66 · 2026-10-08 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.66 변경(2026-10-08 — 잘린 본문이 승인까지 갔다, clemvion 보고): **REQ-DB-037 신설 · §2.3 `spec_version` 열 둘 · 마이그레이션 `0044`.** 덮어쓸 본문보다 크게 줄이는 초안 저장은 `allow_shrink`를 준 것만 받는다([4.4 API](api.md) REQ-API-270). 그 저장이 `shrink_ack_at` · `shrink_ack_user_id`를 채우고, 사전 검토는 기록이 있는 초안의 축소를 block 대신 warning으로 본다(REQ-API-271).
 >
 > v0.65 변경(2026-10-04 — 하위까지 보관하고 함께 보관한 것만 복구, **사람 결정 R1**): **REQ-DB-036 신설 · §2.3 `spec` 열 하나 · 마이그레이션 `0043`.** 한 보관 동작이 보관한 문서들이 같은 `archive_batch_id` 를 갖는다. 복구가 그 묶음만 되살리는 근거다.
 >
@@ -374,6 +376,8 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   edit_lease_user_id        uuid REFERENCES "user"(id),        -- 초안 편집 리스 보유자
   edit_lease_session_id     uuid REFERENCES agent_session(id), -- 보유 표면. NULL = 웹
   edit_lease_expires_at     timestamptz,                        -- TTL 30분(공용 상수)
+  shrink_ack_at             timestamptz,                        -- 크게 줄인 것을 확인한 저장(allow_shrink) — 2026-10-08 · 0044 · REQ-DB-037
+  shrink_ack_user_id        uuid REFERENCES "user"(id),         -- 그 저장을 한 사람. 한 번 남기면 그 버전에서 지우지 않는다
   created_at                timestamptz NOT NULL DEFAULT now(),
   updated_at                timestamptz NOT NULL DEFAULT now(), -- 본문이 **바뀐** 시각(저장된 시각이 아니다)
   CONSTRAINT spec_version_no_uq UNIQUE (spec_id, version_no),
@@ -1312,6 +1316,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-034 | WHEN 사람이 메일 요약을 켜면 THE SYSTEM SHALL `notification_digest_setting` 에 그 사람의 행 하나(`user_id` PK · 사람이 지워지면 함께 지운다)를 두고, 받는 시(`hour` 0~23 · CHECK `notification_digest_hour_ck`) · IANA 시간대 · 언어(`ko` · `en` · CHECK `notification_digest_locale_ck`) · 켠 시각 · 마지막 판정 시각을 담는다. 행이 없으면 꺼짐이다. THE SYSTEM SHALL `email_kind` 에 `notification_digest` 를 두고, 메일에 담은 알림 줄에는 처음부터 있던 `notification.delivered_at` · `digest_batch_id`(그 메일의 `email_outbox.id`)를 적는다 — 새 열은 없다(마이그레이션 `0041` · [4.4 API 명세](api.md) REQ-API-232·233 · 2026-09-28) |
 | REQ-DB-035 | WHEN 메일 요약을 줄 세우면 THE SYSTEM SHALL `email_outbox` 에 덧붙일 머리글 `headers`(jsonb — `List-Unsubscribe` · `List-Unsubscribe-Post` · `Auto-Submitted`)와 끄는 링크 토큰의 SHA-256 `unsubscribe_token_hash` 를 담고, 그 해시는 부분 유일 인덱스(`email_outbox_unsubscribe`)로 찾는다. 다른 메일은 두 칸이 비어 있다. 토큰의 수명은 그 메일 행의 수명이다 — 보존 잡이 행을 지우면(REQ-DB-033) 링크도 죽는다(마이그레이션 `0042` · [4.4 API 명세](api.md) REQ-API-234 · 2026-09-28 사람 결정 EM8) |
 | REQ-DB-036 | WHEN 문서를 보관하면 THE SYSTEM SHALL 그 보관 동작이 보관한 문서마다 같은 `spec.archive_batch_id`(uuid · NULL 허용)를 남기고, 복구하면 그 문서와 같은 값을 가진 하위만 되살린 뒤 값을 지운다. 이 열이 생기기 전에 보관한 문서는 NULL 이고 혼자 복구된다(마이그레이션 `0043` · [4.4 API 명세](api.md) REQ-API-263 · 264 · 2026-10-04 사람 결정 R1) |
+| REQ-DB-037 | WHEN 초안 저장이 `allow_shrink`로 덮어쓸 본문보다 크게 줄인 것을 확인하면 THE SYSTEM SHALL 그 버전의 `spec_version.shrink_ack_at`(timestamptz) · `shrink_ack_user_id`(uuid → `user`)를 처음 한 번 채우고 그 버전에서는 지우지 않는다 — 사전 검토(`base-continuity`)가 이 기록으로 축소를 block 대신 warning으로 본다. 마이그레이션 `0044` 이전의 버전은 NULL이고 확인한 적이 없는 것으로 본다([4.4 API](api.md) REQ-API-270 · 271 · 2026-10-08) |
 
 ---
 

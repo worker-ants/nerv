@@ -16,6 +16,7 @@ import { Button, Textarea } from '../../components/ui/primitives.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
 import { bulkBlockText } from './approval-card.js';
 import type { CardFailure } from './approval-card.js';
+import { parseBodyChange } from '../../components/body-change.js';
 
 export interface BulkResult {
   id: string;
@@ -174,6 +175,16 @@ export function BulkConfirm({
             <span className="min-w-0 flex-1 truncate">
               {String(card['title'] ?? card['spec_title'] ?? '')}
             </span>
+            {/* **본문을 열지 않고 결정하는 자리라 크게 줄어든 문서를 따로 표시한다**(2026-10-08 · REQ-WEB-298) —
+                카드 목록에 있던 크기 줄이 이 목록에는 없어, 스펙 목록의 결재 대기에서 고른 문서는 그 줄 없이 승인됐다 */}
+            {(parseBodyChange(card['body_change'])?.shrunk.length ?? 0) > 0 && (
+              <span
+                data-testid="bulk-shrunk"
+                className="shrink-0 rounded-nerv-sm bg-status-waiting-soft px-1 text-2xs text-status-waiting"
+              >
+                {t('spec.body_change.shrunk_badge')}
+              </span>
+            )}
             {showScope && (
               <ScopeBadge
                 className="shrink-0"

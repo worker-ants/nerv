@@ -85,6 +85,43 @@ describe('첫 승인 버전은 티어를 올린다 (2026-09-02 사람 결정)', 
   });
 });
 
+/**
+ * **본문이 크게 줄었으면 최소 T2 다**(2026-10-09 사람 결정 · REQ-API-273). clemvion 용어 사전 v4 는 34.7KB 가 484바이트가
+ * 된 채 승인됐다. 확인한(`allow_shrink`) 삭제라도 사람이 한 번 본다 — 한 단계만 올리면 T0 문서는 T1 이 되어 여전히 사람 없이
+ * 통과한다.
+ */
+describe('축소 신호 — 크게 줄어든 버전은 사람이 한 번 본다 (2026-10-09 사람 결정)', () => {
+  it('T0 · T1 은 T2 로 오른다 — 사람 없이 통과하지 않는다', () => {
+    // 요구사항이 없는 design 문서: 부작용 0 + 민감도 1 = 1점 → T0
+    const t0 = decideGate(axes(0, 1, 0, 0), { bodyShrunk: true });
+    expect(t0.tier).toBe('T2');
+    expect(t0.autoPass).toBe(false);
+    expect(t0.requiredApprovers).toBe(1);
+    expect(t0.signals).toEqual(['body_shrunk']);
+    expect(t0.rationale).toBe(
+      '4축 합계 1점 · 직전 버전보다 본문이 크게 줄었음 → 티어 +1 · 최소 T2',
+    );
+    expect(decideGate(axes(2, 1, 0, 0), { bodyShrunk: true }).tier).toBe('T2');
+  });
+
+  it('T2 · T3 에서는 다른 신호처럼 한 단계다 — 여럿이어도 한 단계', () => {
+    expect(decideGate(axes(2, 1, 1, 0), { bodyShrunk: true }).tier).toBe('T3');
+    const both = decideGate(axes(2, 1, 1, 0), { bodyShrunk: true, repeatedFailures: true });
+    expect(both.tier).toBe('T3');
+    expect(both.signals).toEqual(['retry_threshold', 'body_shrunk']);
+  });
+
+  it('다른 신호만 섰으면 바닥이 없다 — 첫 승인 버전의 T0 문서는 그대로 T1 이다', () => {
+    expect(decideGate(axes(0, 1, 0, 0), { firstApprovedVersion: true }).tier).toBe('T1');
+  });
+
+  it('동적 강화를 끈 프로젝트에서는 세지 않는다', () => {
+    expect(
+      decideGate(axes(0, 1, 0, 0), { bodyShrunk: true }, { dynamicEscalation: false }).tier,
+    ).toBe('T0');
+  });
+});
+
 describe('프로젝트 정책 — 경계와 동적 강화 스위치가 실제로 걸린다', () => {
   it('경계를 좁히면 같은 점수가 더 높은 티어가 된다', () => {
     const three = axes(2, 1, 0, 0);

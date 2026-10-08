@@ -13,6 +13,7 @@ import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GATE_AXES,
+  GATE_FLOOR_T2_SIGNALS,
   GATE_SIGNALS,
   type GateSignal,
   type MessageKey,
@@ -29,6 +30,7 @@ import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { Button, Kbd, Mono, Skeleton, Textarea } from '../../components/ui/primitives.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
+import { BodyChangeLine, parseBodyChange } from '../../components/body-change.js';
 import { DECISION_GRACE_MS, useGrace } from './decision-grace.js';
 
 /** 스펙 본문 렌더러 — 스펙 상세와 한 벌이다. 편집기 묶음이 받은 요청의 첫 적재에 끼지 않게 펼칠 때 받는다 */
@@ -1208,8 +1210,14 @@ function GateRationale({
           </span>
         );
       })}
-      {/* 여럿이어도 한 단계다(2026-09-26 사람 결정) — "+1" 은 끝에 한 번 */}
-      {signals.length > 0 && ` ${t('gate.escalated')}`}
+      {/* 여럿이어도 한 단계다(2026-09-26 사람 결정) — "+1" 은 끝에 한 번. 본문이 크게 줄었으면 최소 T2 다(2026-10-09
+          사람 결정) — 점수가 1점인데 T2 인 까닭을 같은 줄에서 말한다 */}
+      {signals.length > 0 &&
+        ` ${t(
+          signals.some((signal) => GATE_FLOOR_T2_SIGNALS.includes(signal))
+            ? 'gate.escalated_floor'
+            : 'gate.escalated',
+        )}`}
     </p>
   );
 }
@@ -1282,6 +1290,7 @@ function TargetLine({
   if (typeof specKey === 'string' && specKey !== '') {
     const diff = diffSearchOf(card);
     const version = card['version_no'];
+    const bodyChange = parseBodyChange(card['body_change']);
     return (
       <div data-testid="target-line" className="flex flex-col gap-0.5">
         <p className="flex flex-wrap items-center gap-x-1.5">
@@ -1309,6 +1318,9 @@ function TargetLine({
           )}
         </p>
         <GateRationale card={card} currentOrg={currentOrg} />
+        {/* **직전 버전과 견준 크기**(2026-10-08 · REQ-WEB-298) — 제출 때 잰 값이 결재 요청에 남아 있다.
+            34.7KB 가 484바이트가 된 용어 사전 v4 를 이 카드는 버전 번호와 변경 요약만으로 보여 줬다 */}
+        {bodyChange !== null && <BodyChangeLine change={bodyChange} />}
         {typeof card['change_summary_md'] === 'string' && card['change_summary_md'] !== '' && (
           <p data-testid="change-summary" className="line-clamp-2 text-text-mute">
             {card['change_summary_md']}

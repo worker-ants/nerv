@@ -19,7 +19,11 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.58 · 2026-10-07 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.60 · 2026-10-09 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.60 변경(2026-10-09 — 축소 신호, 사람 결정): §1.4 셋째 표의 **본문 축소 방지** 행에 게이트 신호 `body_shrunk`(최소 T2)를 적는다. 스토리 수 · `done` 수는 그대로다.
+>
+> v2.59 변경(2026-10-08 — 스토리 없이 들어온 구현 둘, clemvion 보고): §1.4 셋째 표에 **본문 축소 방지**와 **버전 인자의 두 이름**을 적는다. E09-S02 행의 검사기를 다섯에서 여섯으로 고친다(`base-continuity`). 스토리 수 · `done` 수는 그대로다.
 >
 > v2.58 변경(2026-10-07 — 스토리 없이 들어온 구현 둘): §1.4 셋째 표에 **기준선으로 미러 받기**와 **스펙 미러 스킬**을 적는다.
 >
@@ -827,6 +831,8 @@ referenced_by:
 | 새 작업 폼의 헛 조회 | `apps/web/src/lib/queries.ts`(`useTask` — 키가 빈 문자열이면 부르지 않는다. 새 작업 폼은 수정 폼과 한 부품이라 빈 키로 `/projects/<slug>/tasks/` 를 불렀고 그 응답은 아무도 쓰지 않았다) · L1 `routes/task-derive.spec.tsx` 1건(고치기 전에는 그 요청이 나갔다) |
 | 기준선으로 미러 받기 | `modules/spec/spec-export.service.ts`(`baseline=<이름>` — 그 세트의 문서만 고정한 버전으로, 나중에 보관한 문서도 · 목록의 `baseline` · 파일 이름 — REQ-API-268) · `mirror.controller.ts`(`export.zip` · `.md`의 `?baseline=` — `.md`는 예전에 이 값을 오류 없이 버렸다 · REQ-API-269) · `spec.service.ts`(`mirrorDocument`의 `baseline` · `llmsTxt`의 `nodes` — 색인을 zip이 담은 문서로) · L2 `test/integration/mirror-http.spec.ts` 4건(기준선 내보내기 · 승인본과의 차이 · `.md` · 400 셋) |
 | 스펙 미러 스킬(`/nerv:mirror`) | 플러그인 `skills/mirror/SKILL.md`(신설 — 경로 · 기준을 정하고 스크립트를 한 번 실행한다) · `skills/mirror/scripts/nerv-mirror.mjs`(신설 — 의존성 없는 node 스크립트: `baselines` · `pull` · `status`, 미러가 쓴 파일만 고치고 지운다, zip 안의 경로 · CRC 검사, 다시 받을 때 지난번 기준) · `bin/nerv-mirror`(sh 래퍼) · 패키지 0.3.15 → 0.3.16 · L1 `plugin/mirror.spec.ts` 13건(가짜 서버) · L2 `mirror-http.spec.ts` 1건(실제 서버에 스크립트를 붙인다) · `plugin.spec.ts`(아카이브에 두 파일 · 실행 비트) — REQ-PLG-028 |
+| 본문 축소 방지 | `packages/schema/src/body-shrink.ts`(신설 — `bodyChange`: 크기 · 제목 수 · 남은 요구사항 가운데 하나가 절반 아래면 축소, 덮어쓸 본문이 2,000바이트 미만이면 보지 않는다) · `modules/spec/spec.service.ts`(`draftUpsert` — 덮어쓸 본문과 견줘 `allow_shrink` 없는 축소를 409 `body_shrunk`로 거절, 확인 기록 · 응답의 `body_change` — REQ-API-270) · `spec-check.service.ts`(여섯째 검사기 `base-continuity` · 결과의 `body_change` — REQ-API-271) · 결재 요청 이벤트의 `body_change` · `gate-tier.ts`(게이트 신호 `body_shrunk` — 최소 T2 · 2026-10-09 사람 결정 · REQ-API-273) · `0044_spec_version_shrink_ack`(REQ-DB-037) · `apps/web/src/components/body-change.tsx`(검토 요청 창 · 승인 카드 — REQ-WEB-297 · 298) · `features/inbox/bulk-decision.tsx`(일괄 결정 확인 목록의 "본문이 크게 줄었음" — 받은 요청과 스펙 결재 대기(EP-SPEC-26)가 함께 쓴다) · 플러그인 `skills/spec` · `agents/nerv-spec-writer`(0.3.17) · L1 `body-shrink.spec.ts` · L2 `spec-shrink.spec.ts` · `rest-surface.spec.ts` | clemvion 보고(2026-10-08) — 용어 사전 v4가 34.7KB에서 484바이트 조각으로, 계정 · 워크스페이스 v4 초안이 86KB에서 앞 40줄로 덮였다. 앞의 것은 승인까지 갔다 |
+| 버전 인자의 두 이름 | `common/query-vocab.ts`(`aliasedParam` 신설 — 둘이 다른 값이면 400 `alias_conflict`) · `spec.controller.ts`(문서 조회가 `version`도 받는다) · `mirror.controller.ts`(md 미러가 `v`도 받는다) — REQ-API-272 · 도구 설명 `mcp.arg.version` · L2 `mirror-http.spec.ts` | clemvion 실측 — 미러의 `?v=3` · `?v=99`가 둘 다 승인본(v4)을 200으로 돌려줬다 |
 
 #### 이 절은 언제 갱신되는가
 
@@ -954,7 +960,7 @@ MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터�
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
 | E09-S01 | 문서 축 상태 머신 + 불변 스냅샷 — `draft→in_review→approved→superseded/deprecated`, approved 본문 불변은 DB 트리거로 강제 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.2 · [4.3 데이터베이스 스키마](database.md) §2 · FR-02 | WHEN `approved` SpecVersion 본문 수정이 시도되면, THE SYSTEM SHALL DB 계층에서 거부한다(1-6: 거부율 100%) | E02-S01 |
-| E09-S02 | 제출 전 사전 검토 5검사기 — cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence, warning/block + 앵커 위치 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.1 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3(`nerv_spec_check`) | WHEN 초안에 BLOCK 검사 결과가 있으면, THE SYSTEM SHALL `in_review` 제출을 거부하고 앵커 위치를 반환한다 | E09-S01 |
+| E09-S02 | 제출 전 사전 검토 6검사기 — cross-spec/rationale-continuity/convention-compliance/requirement-shape/task-coherence/base-continuity(2026-10-08 추가 — 직전 버전보다 크게 준 본문), warning/block + 앵커 위치 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.1 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.3(`nerv_spec_check`) | WHEN 초안에 BLOCK 검사 결과가 있으면, THE SYSTEM SHALL `in_review` 제출을 거부하고 앵커 위치를 반환한다 | E09-S01 |
 | E09-S03 | 리뷰어 자동 지정 + 지시자≠승인자 — 역할·영역 기반 지정, 본인 요청 승인·지시자 승인 차단 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.2~2.3 | WHEN 에이전트를 지시한 사람이 그 산출물의 승인을 시도하면, THE SYSTEM SHALL 거부하고 대체 승인자를 제안한다 | E09-S01 |
 | E09-S04 | 위험도 가변 게이트 — 스펙 변경 게이트 티어 T0~T3, 저위험(T0) 자동 통과 + 통과 사실 이벤트 기록. 첫날부터 켠다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.4 · D-06 · [3.7 로드맵](../03-proposal/roadmap.md) §3.5 | WHEN T0(오탈자·문구) 변경이 제출되면, THE SYSTEM SHALL 승인 없이 통과시키되 통과 사실을 event로 남긴다 | E09-S01 |
 | E09-S05 | Task done 게이트(P1 범위) — evidence 조건 검사, 리뷰 커버리지 조건은 Phase 2로 제외(FR-10 ◐) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.6 · [3.7 로드맵](../03-proposal/roadmap.md) §1.3(FR-10) | WHEN 유효한 리스 없이 `nerv_task_update(status=done)`이 호출되면, THE SYSTEM SHALL 거부한다 | E04-S03 · E10-S02 |

@@ -1990,6 +1990,36 @@ describe('문서 대조에서 드러난 표면 — 경로가 전표와 같아야
     );
   });
 
+  /**
+   * EP-SPEC-08 — 크게 줄이는 저장은 `allow_shrink` 를 준 것만 받는다(2026-10-08 · REQ-API-270). MCP 와 같은 이름 ·
+   * 같은 판정이다 — REST 로 붙는 스크립트가 34.7KB 본문을 484바이트로 덮은 것이 첫 사고였다(clemvion).
+   */
+  it('EP-SPEC-08 — 크게 줄이는 저장은 409 body_shrunk, allow_shrink 를 주면 받는다', async () => {
+    const long = `# 긴 문서\n\n${Array.from({ length: 12 }, (_, i) => `## 절 ${i}\n\n${'본문 문장이다. '.repeat(40)}\n`).join('\n')}`;
+    const created = await call('POST', '/api/v1/projects/clemvion/specs', {
+      payload: { key: 'SPC-SHRINK', title: '축소', type: 'feature', body_markdown: long },
+    });
+    expect(created.status).toBe(201);
+    const hash = (created.body as Record<string, unknown>)['content_hash'];
+
+    const cut = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-SHRINK/draft', {
+      payload: { body_markdown: '\n\n### 남은 소절\n\n짧다.\n', base_hash: hash },
+    });
+    expect(cut.status).toBe(409);
+    expect((cut.body as { details?: Record<string, unknown> }).details).toMatchObject({
+      kind: 'body_shrunk',
+      allow_with: 'allow_shrink',
+    });
+
+    const allowed = await call('PUT', '/api/v1/projects/clemvion/specs/SPC-SHRINK/draft', {
+      payload: { body_markdown: '# 긴 문서\n\n줄였다.\n', base_hash: hash, allow_shrink: true },
+    });
+    expect(allowed.status).toBe(200);
+    expect((allowed.body as Record<string, unknown>)['body_change']).toMatchObject({
+      shrunk: ['bytes', 'headings'],
+    });
+  });
+
   // 화면의 영향 미리보기가 이 값을 센다. 서버가 요청받아야 싣는데 REST 가 그 인자를
   // 넘기지 않아, 파생 Task 를 가진 스펙 86개가 전부 "0건" 이라 말하고 있었다(실측 2026-09-03).
   it('EP-SPEC-03 — include=tasks 가 파생 Task 를 싣는다', async () => {

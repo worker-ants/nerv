@@ -276,6 +276,8 @@ export const en = {
   'mcp.arg.lease_seconds': 'Lease length in seconds. Max 1800; longer values are rejected.',
   'mcp.arg.takeover':
     'take over an edit lease held by another session. Use it when a disconnected session has not released the lease',
+  'mcp.arg.allow_shrink':
+    'declare that this save shrinks the body it overwrites sharply (size, heading count or kept requirements below half). Without it such a save is rejected with body_shrunk. Set it only after a person has confirmed the deletion',
   'notif.scope_all':
     'Notifications from all your organizations. Each row shows its organization and project.',
   'scope.elsewhere': 'This item belongs to {org}, not the currently selected organization',
@@ -362,7 +364,9 @@ export const en = {
     'Record status with nerv_task_update, then release with nerv_task_release before exiting.',
   'gate.reason.first_version': "the document's first approved version",
   'gate.reason.retry_threshold': 'the same failure reported three times',
+  'gate.reason.body_shrunk': 'the body shrank sharply against the previous version',
   'gate.escalated': '→ tier +1',
+  'gate.escalated_floor': '→ tier +1 · at least T2',
   'gate.axis.side_effect': 'side effects',
   'gate.axis.sensitivity': 'sensitivity',
   'gate.axis.reversibility': 'reversibility',
@@ -374,6 +378,13 @@ export const en = {
   'check.no_requirements':
     'No requirements. Add requirements to a feature document so its implementation can be checked.',
   'check.version_not_found': 'Version not found.',
+  'check.body_shrunk':
+    'The body shrank sharply from the previous version v{n} ({detail}). If that was not intended, restore what was dropped. If the deletion is intended, save again with `allow_shrink: true` to record it.',
+  'check.body_shrunk_ack':
+    'The body shrank sharply from the previous version v{n} ({detail}). The save confirmed it as an intended deletion.',
+  'body_change.bytes': 'size {before} → {after}',
+  'body_change.headings': 'headings {before} → {after}',
+  'body_change.requirements': '{kept} of {before} requirements kept',
   'export.index_lead':
     '> NERV spec tree index. Each entry points at the md mirror of the latest approved version.',
   'export.index_specs': '## Specs',
@@ -794,7 +805,7 @@ export const en = {
   'mcp.arg.basis':
     'Version basis: approved (default, the latest approved version) or latest (the highest-numbered version, including drafts and versions in review on top of the approved one). Cannot be combined with version, baseline or task',
   'mcp.arg.version':
-    'Version number. Reads that version (v on REST). Cannot be combined with basis, baseline or task. A missing number is rejected',
+    'Version number. Reads that version (`version`, or `v` for short, on the REST document read and the md mirror). Cannot be combined with basis, baseline or task. A missing number is rejected',
   'mcp.arg.task_basis':
     "Task key or UUID. Reads by that task's basis: the basis version for its source document, otherwise the version pinned in the task's baseline, otherwise the latest approved version. read_as tells which",
   'mcp.arg.task_basis_tree':
@@ -832,6 +843,8 @@ export const en = {
   'error.spec.submit_not_author': 'Only the author, a planner or an admin can submit for review.',
   'error.spec.empty_body':
     "A draft can't be overwritten with an empty body. Include the body (drafts don't keep the previous body).",
+  'error.spec.body_shrunk':
+    "This save shrinks the body sharply (size {before} → {after}). Drafts don't keep the previous body. If that was not intended, check the whole body and send it again. If the deletion is intended, send `allow_shrink: true` with it.",
   'error.spec.stale_body':
     "The body has changed since you read it. Read it again and reapply your edit (resending the same body would overwrite someone else's changes).",
   'error.spec.version_xor_baseline': 'Version and baseline cannot be given together.',
@@ -1588,6 +1601,12 @@ export const en = {
   'spec.impact_send': 'Send the review request',
   'spec.impact_tasks':
     '{count} derived tasks. If the basis version changes, instructions need re-checking',
+  'spec.body_change.line': 'Against the previous version v{n} · {detail}',
+  'spec.body_change.shrunk_badge': 'body shrank sharply',
+  'spec.body_change.shrunk':
+    'The body shrank sharply and the save did not confirm it as an intended deletion. Check what was dropped.',
+  'spec.body_change.shrunk_ack':
+    'The body shrank sharply. The save confirmed it as an intended deletion. Check that what was dropped is right.',
   'spec.impact_title': 'Impact of this change',
   'spec.mermaid_zoom_in': 'Zoom in',
   'spec.mermaid_zoom_out': 'Zoom out',
@@ -1796,7 +1815,7 @@ export const en = {
     'A change gets a tier when its total score on four axes (side effects · sensitivity · reversibility · blast radius) meets that boundary. Lower boundaries mean more changes need human review.',
   'settings.gates.dynamic': 'Dynamic escalation',
   'settings.gates.dynamic_hint':
-    "Raises the tier by one for a document's first approved version, or when an agent reports the same failure three times. Only one step even if both apply",
+    "Raises the tier by one for a document's first approved version, when an agent reports the same failure three times, or when the body shrank sharply against the previous version. Only one step even if several apply. A sharply shrunk body is raised to at least T2 so a person sees it once",
   'settings.gates.failopen': 'When it cannot decide (read-only)',
   'settings.gates.failopen_body':
     'When it cannot decide, it does not block. It proceeds and logs the case. If this happens {count} times within {hours} hours, the tier goes up.',

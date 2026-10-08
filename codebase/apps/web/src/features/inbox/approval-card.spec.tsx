@@ -363,3 +363,64 @@ describe('일괄에서 빠지는 이유', () => {
     expect(bulkBlockText(ko, {})).toBe(ko('inbox.bulk.blocked.not_eligible'));
   });
 });
+
+/**
+ * 직전 버전과 견준 크기(2026-10-08 · REQ-WEB-298) — clemvion 용어 사전 v4 는 34.7KB 가 484바이트가 된 채 승인됐다.
+ * 카드는 버전 번호 · 티어 · 변경 요약만 보여 줘서 결재한 사람이 문서가 거의 비었다는 것을 볼 자리가 없었다.
+ */
+describe('스펙 카드의 본문 크기 (REQ-WEB-298)', () => {
+  const card = (bodyChange: unknown): Record<string, unknown> => ({
+    id: 'a-shrink',
+    subject_type: 'spec_version',
+    subject_id: 'v-shrink',
+    project_slug: 'clemvion',
+    spec_key: 'CLE-GLOSSARY',
+    spec_title: '용어 사전',
+    version_no: 4,
+    gate_tier: 'T3',
+    waiting_seconds: 60,
+    can_approve: true,
+    body_change: bodyChange,
+  });
+  const shrunk = {
+    before: { bytes: 34766, headings: 27, requirements: 0 },
+    after: { bytes: 484, headings: 1, requirements: 0 },
+    requirements_kept: 0,
+    shrunk: ['bytes', 'headings'],
+    base_version_no: 3,
+    acknowledged: false,
+  };
+
+  it('직전 버전과 견준 크기 · 제목 수를 한 줄로 보이고, 크게 줄었으면 문장으로 알린다', async () => {
+    await renderCard(card(shrunk));
+    const line = screen.getByTestId('body-change');
+    expect(line.textContent).toContain('직전 버전 v3 대비 · 크기 34.8KB → 0.5KB · 제목 27 → 1개');
+    // 요구사항이 없던 문서에는 요구사항을 적지 않는다
+    expect(line.textContent).not.toContain('요구사항');
+    expect(screen.getByTestId('body-change-warning').textContent).toBe(
+      ko('spec.body_change.shrunk'),
+    );
+  });
+
+  it('저장할 때 의도한 삭제로 확인했으면 그렇게 말한다', async () => {
+    await renderCard(card({ ...shrunk, acknowledged: true }));
+    expect(screen.getByTestId('body-change-warning').textContent).toBe(
+      ko('spec.body_change.shrunk_ack'),
+    );
+  });
+
+  it('줄지 않았으면 경고 없이 한 줄만, 값이 없는 옛 요청이면 그리지 않는다', async () => {
+    await renderCard(
+      card({
+        ...shrunk,
+        after: { bytes: 35100, headings: 28, requirements: 0 },
+        shrunk: [],
+      }),
+    );
+    expect(screen.getByTestId('body-change').getAttribute('data-shrunk')).toBe('false');
+    expect(screen.queryByTestId('body-change-warning')).toBeNull();
+    cleanup();
+    await renderCard(card(undefined));
+    expect(screen.queryByTestId('body-change')).toBeNull();
+  });
+});

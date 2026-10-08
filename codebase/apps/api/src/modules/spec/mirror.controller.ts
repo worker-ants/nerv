@@ -19,7 +19,7 @@ import {
 } from '@nestjs/common';
 import { msg, NERV_ERROR } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
-import { intParam } from '../../common/query-vocab.js';
+import { aliasedParam, intParam } from '../../common/query-vocab.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -109,17 +109,23 @@ export class MirrorController {
     @Req() req: ProjectRequest,
     @Res({ passthrough: true }) reply: RawReply,
     @Param('spec') spec: string,
-    @Query('version') version?: string,
+    @Query('version') versionParam?: string,
+    // 문서 조회(EP-SPEC-03)의 이름 — 예전에는 여기서 오류 없이 버려져 승인본이 갔다(REQ-API-272)
+    @Query('v') v?: string,
     @Headers('if-none-match') ifNoneMatch?: string,
     @Query('basis') basis?: string,
     @Query('task') task?: string,
     @Query('baseline') baseline?: string,
   ): Promise<string> {
+    const version = aliasedParam({ version: versionParam, v }, 'version');
     const { markdown, updatedAt, readAs } = await this.specs.mirrorDocument({
       projectId: projectOf(req),
       specKey: spec,
       // 숫자가 아니면 400 이다 — `Number('abc')` 가 SQL 까지 가서 22P02 로 죽던 자리다
-      versionNo: version === undefined || version === 'approved' ? null : versionOf(version),
+      versionNo:
+        version === undefined || version.value === 'approved'
+          ? null
+          : versionOf(version.value, version.name),
       // **작업의 기준으로 · 보기 기준으로 읽는다**(REQ-API-249) — 선택자는 하나만이다(둘이면 400)
       basis: basis ?? null,
       task: task ?? null,
@@ -151,13 +157,13 @@ export function etagMatches(header: string | undefined, etag: string): boolean {
   return header.split(',').some((tag) => tag.trim() === '*' || bare(tag) === bare(etag));
 }
 
-/** `?version=` — 1 이상의 정수만 받는다(0 · 음수는 모양이 틀린 것이다) */
-function versionOf(raw: string): number | null {
-  const value = intParam(raw, 'version');
+/** `?version=`(줄여서 `?v=`) — 1 이상의 정수만 받는다(0 · 음수는 모양이 틀린 것이다). 오류는 부른 이름으로 말한다 */
+function versionOf(raw: string, field: string): number | null {
+  const value = intParam(raw, field);
   if (value !== null && value < 1) {
     throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
       kind: 'invalid_input',
-      field: 'version',
+      field,
       unknown: [raw],
       allowed: ['approved', 'integer >= 1'],
     });

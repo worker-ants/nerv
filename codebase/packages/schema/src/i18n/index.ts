@@ -17,7 +17,13 @@ export type { Catalog, PlaceholderValues, Placeholders } from './translator.js';
 export { DEFAULT_LOCALE, LOCALES, isLocale, negotiateLocale } from './locale.js';
 export { interpolate } from './translator.js';
 export { ko } from './ko.js';
-export { blockedReasonLabelKey, eventLabelKey, statusLabelKey } from './domain.js';
+export {
+  blockedReasonLabelKey,
+  bodyChangeDetail,
+  eventLabelKey,
+  sizeLabel,
+  statusLabelKey,
+} from './domain.js';
 export type {
   BlockedReasonLabelKey,
   EventLabelKey,

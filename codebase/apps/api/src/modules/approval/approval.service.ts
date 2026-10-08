@@ -464,7 +464,9 @@ export class ApprovalService {
                ${bulkBlockReasonSql(input.userId)},
                encode(sv.content_hash, 'hex') AS content_hash,
                ${quorumColumnsSql()},
-               gate.payload->>'gate_tier' AS gate_tier
+               gate.payload->>'gate_tier' AS gate_tier,
+               -- 직전 버전과 견준 크기(REQ-API-271) — 일괄 결정의 확인 목록이 크게 줄어든 문서를 따로 표시한다
+               gate.payload->'body_change' AS body_change
           ${approvalFrom}
           JOIN spec s ON s.id = sv.spec_id
      LEFT JOIN LATERAL (
@@ -639,6 +641,8 @@ export class ApprovalService {
              gate.payload->'gate_signals' AS gate_signals,
              -- 신호의 근거 — 재시도 신호가 가리키는 에스컬레이션(2026-09-26 · REQ-API-189)
              gate.payload->'gate_evidence' AS gate_evidence,
+             -- 직전 버전과 견준 크기 · 제목 · 요구사항(2026-10-08 · REQ-API-271) — 이 칸이 생기기 전의 요청은 NULL
+             gate.payload->'body_change' AS body_change,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
         ${approvalFrom}
         JOIN "user" u ON u.id = a.requested_by_user_id

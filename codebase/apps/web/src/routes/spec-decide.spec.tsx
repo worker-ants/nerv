@@ -52,6 +52,15 @@ const PENDING = [
     can_approve: true,
     can_bulk_approve: true,
     bulk_block_reason: null,
+    // 확인하고 크게 줄인 초안 — 확인 목록이 그 줄에 따로 표시한다(REQ-WEB-298)
+    body_change: {
+      before: { bytes: 40000, headings: 31, requirements: 0 },
+      after: { bytes: 5000, headings: 5, requirements: 0 },
+      requirements_kept: 0,
+      shrunk: ['bytes', 'headings'],
+      base_version_no: 1,
+      acknowledged: true,
+    },
   },
   {
     approval_id: 'ap-t3',
@@ -172,6 +181,8 @@ describe('결재 대기 칩 (REQ-WEB-292)', () => {
     expect(within(confirm).getByTestId('bulk-skipped-list').textContent).toContain('DEC-T3');
     expect(within(confirm).getByTestId('bulk-list').textContent).toContain('DEC-LOW');
     expect(within(confirm).getByTestId('bulk-list').textContent).not.toContain('DEC-T3');
+    // 본문을 열지 않고 결정하는 자리 — 크게 줄어든 문서는 줄마다 표시된다(REQ-WEB-298)
+    expect(within(confirm).getAllByTestId('bulk-shrunk')).toHaveLength(1);
     fireEvent.click(within(confirm).getByTestId('bulk-submit'));
     await waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).toMatchObject({

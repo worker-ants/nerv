@@ -51,6 +51,8 @@ export const SpecDraftUpsertInput = z
     change_summary: z.string().nullish(),
     /** 남의 리스를 뺏는다(§1.4h) — 뺏어도 본문은 `base_hash` 가 지킨다 */
     takeover: z.boolean().nullish(),
+    /** 덮어쓸 본문보다 크게 줄이는 저장임을 밝힌다(2026-10-08 · REQ-API-270) — 없으면 `body_shrunk` 로 거절된다 */
+    allow_shrink: z.boolean().nullish(),
     /** 주지 않으면 건드리지 않고, 빈 배열은 "전부 지워라" 다 */
     relations: z.array(SpecRelationInput).nullish(),
   })

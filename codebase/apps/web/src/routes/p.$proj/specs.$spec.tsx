@@ -86,6 +86,7 @@ import {
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import { useScrollTopOn } from '../../lib/scroll-top.js';
+import { BodyChangeLine, parseBodyChange } from '../../components/body-change.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({
   /**
@@ -275,6 +276,8 @@ function SpecDetail(): React.JSX.Element {
   const viewed: Record<string, unknown> | undefined =
     viewing === null ? detail.data : pastVersion.data;
   const check = useSpecCheck(proj, String(viewed?.['version_id'] ?? ''));
+  // 검토 요청 창이 보여 줄 직전 버전 대비 크기 — 사전 검토가 같은 판정으로 잰 값이다(REQ-WEB-297)
+  const submitBodyChange = parseBodyChange(check.data?.['body_change']);
 
   const [showImpact, setShowImpact] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
@@ -902,6 +905,11 @@ function SpecDetail(): React.JSX.Element {
               <li>{t('spec.impact_backlinks', { count: backlinks.length })}</li>
               <li>{t('spec.impact_tasks', { count: rows(detail.data?.['tasks']).length })}</li>
             </ul>
+            {/* **직전 버전과 견준 크기**(2026-10-08 · REQ-WEB-297). 484바이트로 잘린 본문도 이 창은 역참조와 작업
+                수만 보여 줬다 — 무엇이 흔들리는지와 함께 무엇이 얼마나 바뀌는지를 본다 */}
+            {submitBodyChange !== null && (
+              <BodyChangeLine change={submitBodyChange} className="mt-2" />
+            )}
             <div className="mt-2 flex gap-2">
               <Button
                 size="sm"

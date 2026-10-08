@@ -76,3 +76,31 @@ export function intParam(raw: string | undefined, field: string): number | null 
   }
   return value;
 }
+
+/**
+ * **같은 것을 부르는 두 이름**(2026-10-08 · REQ-API-272). 문서 조회(EP-SPEC-03)는 버전을 `v` 로, md 미러(EP-MIR-01)는
+ * `version` 으로 받았다 — 한쪽에서 배운 이름을 다른 쪽에 쓰면 그 인자는 **오류 없이 버려지고** 승인본이 200 으로
+ * 왔다(clemvion 실측: 미러의 `?v=3` · `?v=99` 가 둘 다 v4). 두 경로가 두 이름을 다 받는다. 둘이 함께 오는데 값이
+ * 다르면 어느 쪽을 원했는지 알 수 없으니 400 이다 — 하나를 골라 주면 또 하나의 조용한 무시가 된다.
+ *
+ * 고른 **이름도** 돌려준다 — 값이 틀렸을 때(`?v=abc`) 오류의 `field` 는 부른 쪽이 실제로 쓴 이름이어야 한다.
+ */
+export function aliasedParam(
+  values: Readonly<Record<string, string | undefined>>,
+  field: string,
+): { name: string; value: string } | undefined {
+  const given = Object.entries(values).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== '',
+  );
+  const distinct = new Set(given.map(([, value]) => value));
+  if (distinct.size > 1) {
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+      kind: 'invalid_input',
+      field,
+      reason: 'alias_conflict',
+      given: Object.fromEntries(given),
+    });
+  }
+  const first = given[0];
+  return first === undefined ? undefined : { name: first[0], value: first[1] };
+}

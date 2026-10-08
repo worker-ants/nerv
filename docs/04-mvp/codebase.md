@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.98 · 2026-10-03 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v1.99 · 2026-10-08 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v1.99 변경(2026-10-08 — 본문 축소 판정을 한 곳으로): **새 요구사항 없음 · §3.1 트리 한 줄.** `packages/schema/src/body-shrink.ts` — 초안 저장이 덮어쓸 본문을 크게 줄였는지 재는 `bodyChange`. 저장의 거절 · 사전 검토의 지적 · 검토 요청 창과 승인 카드의 표시가 같은 판정을 쓴다([4.4 API](api.md) REQ-API-270 · 271).
 >
 > v1.98 변경(2026-10-03 — 메이저 의존성 업데이트, 사람 요청): **새 요구사항 없음 · §1.2 `pnpm-workspace.yaml` 전문.** NestJS 12 가 fastify 를 5.12.5 로 고정하므로 v1.97 에서 더한 `overrides` 의 fastify 줄을 지웠다(그 줄의 주석에 적어 둔 조건이 충족됐다). drizzle-kit 의 esbuild 줄은 남는다. 같은 날 Vitest 5 · unplugin-swc 2 · NestJS 12 · markdown-it 15 · mermaid 12 로 올렸고 TypeScript 는 6.0 에 둔다 — typescript-eslint 가 TypeScript 7 을 지원하지 않는다([4.8 백로그](backlog.md) §1.4).
 >
@@ -665,6 +667,7 @@ packages/schema/
     errors.ts                    # NERV_* 에러 코드 리터럴 유니온 (정본: 3.4 §2.7)
     anchor.ts                    # 헤딩 → 앵커 slug — 검색·코멘트 앵커와 본문 이동이 같은 것을 본다 (4.5 REQ-WEB-215)
     requirement-lines.ts         # 본문의 요구사항 줄 — 저장 델타 · 버전 비교 · 초안의 요구사항 탭이 같은 것을 본다 (4.5 REQ-WEB-278)
+    body-shrink.ts               # 본문 축소 판정 — 초안 저장 · 사전 검토 · 검토 요청 창 · 승인 카드가 같은 것을 본다 (4.4 REQ-API-270 · 271)
     evidence-locator.ts          # 증적 locator 형식 판정 — REST·MCP 가 같은 것을 본다 (정본: 4.4 §2.4)
     plugin-install.ts            # 설치 가능한 아카이브 주소인가 — API 로그와 설치 장 카드가
                                  #   같은 것을 본다 (정본: 4.6 §3.5 · 4.5 REQ-WEB-165)

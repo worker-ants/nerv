@@ -468,9 +468,17 @@ export type GateAxis = (typeof GATE_AXES)[number];
  * 카탈로그의 `gate.reason.<키>` 와 같다. **여럿이 발동해도 티어는 한 단계만 오른다**(2026-09-26
  * 사람 결정 — spec-workflow §2.4). 롤백 이력 신호는 같은 날 걷었다 — NERV 에 "승인 후 롤백" 에
  * 해당하는 전이가 없다(버전 되돌리기가 생기면 다시 본다 · 재검토 트리거).
+ *
+ * `body_shrunk` 는 2026-10-09 사람 결정이다 — 제출한 버전이 직전 버전보다 크게 줄었다(`bodyChange` · REQ-API-273).
  */
-export const GATE_SIGNALS = ['first_version', 'retry_threshold'] as const;
+export const GATE_SIGNALS = ['first_version', 'retry_threshold', 'body_shrunk'] as const;
 export type GateSignal = (typeof GATE_SIGNALS)[number];
+/**
+ * **서면 티어를 최소 T2 로 올리는 신호**(2026-10-09 사람 결정 · spec-workflow §2.4). 한 단계만 올리면 T0 문서는 T1 이 되어
+ * 여전히 사람 없이 통과한다 — 크게 줄어든 버전은 사람이 한 번 봐야 한다는 것이 이 신호의 뜻이다. T2 · T3 에서는 다른
+ * 신호와 같이 한 단계다(여럿이어도 한 단계). 카드는 이 신호가 서면 "→ 티어 +1 · 최소 T2" 로 적는다.
+ */
+export const GATE_FLOOR_T2_SIGNALS: readonly GateSignal[] = ['body_shrunk'];
 /**
  * 신호의 **근거** — 사람이 따라가 볼 수 있는 원문 하나(2026-09-26 · REQ-API-189). 재시도 신호면
  * 에이전트가 올린 `e2e-fail-3x` 에스컬레이션(질문 또는 발견 처분)이다. 이벤트의 `gate_evidence`
@@ -486,6 +494,25 @@ export interface GateEvidence {
   /** 신고 시각 — ISO 문자열 */
   at: string;
 }
+
+// ── 본문 축소 (2026-10-08 · api.md REQ-API-270 · 271) ─────────────────────────────────────────
+/**
+ * **이 비율 아래로 줄면 "크게 줄었다"**(크기 · 제목 수 · 남은 요구사항 수에 같은 값을 쓴다). 사람 요청의 말이
+ * "대부분 사라지면" 이라 절반이다. clemvion 실측(2026-09-27 ~ 10-08 · 40줄 넘는 문서의 저장 527건): 크기가
+ * 원래의 90% 아래로 준 저장은 셋뿐이었고(2% · 7% 는 사고, 23% 는 용어 사전을 하위 문서 12편으로 나눈 의도한
+ * 삭제), 그다음으로 많이 줄인 저장도 86% 를 남겼다 — 이 값에 걸리는 정상 저장은 그 의도한 하나뿐이다.
+ */
+export const BODY_SHRINK_RATIO = 0.5;
+/**
+ * 축소 판정을 적용하는 **덮어쓸 본문의 최소 크기(바이트)**. 이보다 짧은 문서는 통째로 다시 쓰는 일이 흔하고
+ * (본문 없는 묶음 노드 · 자리표시 본문), 잃어도 한 화면 안에서 다시 쓸 수 있는 크기다. clemvion 버전 본문의
+ * 하위 10% 가 3.2KB 다.
+ */
+export const BODY_SHRINK_MIN_BYTES = 2000;
+/** 제목 · 요구사항 축을 보는 **최소 개수** — 셋 가운데 둘을 지운 것을 "대부분 사라졌다" 고 부르지 않는다 */
+export const BODY_SHRINK_MIN_ITEMS = 4;
+/** 축소를 재는 축 — 오류 `details.shrunk` · 응답과 이벤트의 `body_change.shrunk` 가 이 이름을 쓴다 */
+export const BODY_SHRINK_REASONS = ['bytes', 'headings', 'requirements'] as const;
 
 /**
  * 알림 메일 요약 한 통에 적는 **줄 수의 상한**(2026-09-28 · 사람 결정 EM4). 새 수치가 아니라 spec-workflow
