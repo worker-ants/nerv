@@ -363,7 +363,9 @@ export const ko = {
   // 신호 이름 — 여럿이어도 티어는 한 단계만 오르므로 "+1" 은 끝에 한 번 붙는다(gate.escalated)
   'gate.reason.first_version': '이 문서의 첫 승인 버전',
   'gate.reason.retry_threshold': '같은 실패 3회 신고',
+  'gate.reason.body_shrunk': '직전 버전보다 본문이 크게 줄었음',
   'gate.escalated': '→ 티어 +1',
+  'gate.escalated_floor': '→ 티어 +1 · 최소 T2',
   // 게이트의 네 축 — 이름은 spec-workflow §2.4 의 표(2026-09-26 · glossary 「티어」)
   'gate.axis.side_effect': '부작용',
   'gate.axis.sensitivity': '민감도',
@@ -376,7 +378,7 @@ export const ko = {
   'check.no_requirements':
     '요구사항이 한 줄도 없습니다. feature 문서에 요구사항을 적어야 구현 여부를 확인할 수 있습니다.',
   'check.version_not_found': '버전을 찾을 수 없습니다.',
-  // 본문 축소(2026-10-08 · REQ-API-271) — {detail} 은 아래 body_change.* 를 ' · ' 로 이은 것이다
+  // 본문 축소(2026-10-08 · REQ-API-271) — {detail}은 아래 body_change.* 를 ' · ' 로 이은 것이다
   'check.body_shrunk':
     '직전 버전 v{n}보다 본문이 크게 줄었습니다({detail}). 의도하지 않았으면 빠진 내용을 되살리세요. 의도한 삭제면 `allow_shrink: true`를 넣어 다시 저장해 확인을 남기세요.',
   'check.body_shrunk_ack':
@@ -1784,7 +1786,7 @@ export const ko = {
     '네 가지 기준(부작용 · 민감도 · 가역성 · 영향 범위)의 합산 점수가 경계값 이상이면 그 티어가 됩니다. 경계값을 낮출수록 사람이 검토하는 변경이 늘어납니다.',
   'settings.gates.dynamic': '동적 강화',
   'settings.gates.dynamic_hint':
-    '문서의 첫 승인 버전이거나 에이전트가 같은 실패를 3회 신고했으면 티어를 한 단계 올립니다. 둘 다 해당해도 한 단계만 올립니다',
+    '문서의 첫 승인 버전, 에이전트의 같은 실패 3회 신고, 직전 버전보다 크게 줄어든 본문 가운데 하나라도 있으면 티어를 한 단계 올립니다. 여럿이 해당해도 한 단계만 올립니다. 본문이 크게 줄었으면 최소 T2로 올려 사람이 한 번 봅니다',
   'settings.gates.failopen': '판정할 수 없을 때 (보기 전용)',
   'settings.gates.failopen_body':
     '판정할 수 없으면 막지 않고 진행한 뒤 기록합니다. {hours}시간 안에 {count}번 반복되면 티어를 올립니다.',

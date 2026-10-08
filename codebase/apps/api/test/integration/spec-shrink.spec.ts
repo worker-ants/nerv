@@ -345,6 +345,36 @@ describe('REQ-API-271 사전 검토는 직전 버전과 견준다', () => {
   });
 });
 
+describe('REQ-API-273 축소 신호 — 크게 줄어든 버전은 사람이 한 번 본다 (2026-10-09 사람 결정)', () => {
+  it('요구사항 없는 design 문서(T0)를 확인하고 크게 줄이면 T2 로 결재 대기에 간다', async () => {
+    const v1 = await approved('CLV-DSN-CUT', specBody(30), 'design');
+    const created = await newDraft('CLV-DSN-CUT', v1, specBody(30));
+    const v2 = created['spec_version_id'] as string;
+    await save('CLV-DSN-CUT', v2, specBody(4), true);
+
+    const submitted = await specs.submitReview({ projectId, specVersionId: v2, userId: planner });
+    expect(submitted.status).toBe('in_review');
+    expect(submitted.gate).toMatchObject({ tier: 'T2', score: 1, signals: ['body_shrunk'] });
+    const { rows } = await pool.query(
+      `SELECT payload FROM event WHERE type = $1 AND subject_id = $2`,
+      [NERV_EVENT.SPEC_SUBMITTED, v2],
+    );
+    expect(rows[0].payload).toMatchObject({ gate_tier: 'T2', gate_signals: ['body_shrunk'] });
+  });
+
+  it('줄지 않은 같은 문서는 그대로 T0 이라 사람 없이 통과한다 — 신호가 아무 데나 서지 않는다', async () => {
+    const v1 = await approved('CLV-DSN-EDIT', specBody(30), 'design');
+    const created = await newDraft('CLV-DSN-EDIT', v1, `${specBody(30)}\n한 줄 더.\n`);
+    const submitted = await specs.submitReview({
+      projectId,
+      specVersionId: created['spec_version_id'] as string,
+      userId: planner,
+    });
+    expect(submitted.status).toBe('approved');
+    expect(submitted.gate).toMatchObject({ tier: 'T0', signals: [] });
+  });
+});
+
 describe('REQ-WEB-298 결재 요청이 직전 버전과 견준 크기를 남긴다', () => {
   it('확인하고 크게 줄인 초안의 결재 카드에 body_change 가 온다', async () => {
     const v1 = await approved('CLV-CARD', specBody(30));

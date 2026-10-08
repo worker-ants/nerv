@@ -364,7 +364,9 @@ export const en = {
     'Record status with nerv_task_update, then release with nerv_task_release before exiting.',
   'gate.reason.first_version': "the document's first approved version",
   'gate.reason.retry_threshold': 'the same failure reported three times',
+  'gate.reason.body_shrunk': 'the body shrank sharply against the previous version',
   'gate.escalated': '→ tier +1',
+  'gate.escalated_floor': '→ tier +1 · at least T2',
   'gate.axis.side_effect': 'side effects',
   'gate.axis.sensitivity': 'sensitivity',
   'gate.axis.reversibility': 'reversibility',
@@ -1813,7 +1815,7 @@ export const en = {
     'A change gets a tier when its total score on four axes (side effects · sensitivity · reversibility · blast radius) meets that boundary. Lower boundaries mean more changes need human review.',
   'settings.gates.dynamic': 'Dynamic escalation',
   'settings.gates.dynamic_hint':
-    "Raises the tier by one for a document's first approved version, or when an agent reports the same failure three times. Only one step even if both apply",
+    "Raises the tier by one for a document's first approved version, when an agent reports the same failure three times, or when the body shrank sharply against the previous version. Only one step even if several apply. A sharply shrunk body is raised to at least T2 so a person sees it once",
   'settings.gates.failopen': 'When it cannot decide (read-only)',
   'settings.gates.failopen_body':
     'When it cannot decide, it does not block. It proceeds and logs the case. If this happens {count} times within {hours} hours, the tier goes up.',

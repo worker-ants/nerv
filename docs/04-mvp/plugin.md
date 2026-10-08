@@ -23,7 +23,7 @@ referenced_by:
 >
 > 문서 버전 v0.92 · 2026-10-08 · HTML 파생본: [plugin.html](../html/plugin.html)
 >
-> v0.92 변경(2026-10-08 — 잘린 본문이 승인까지 갔다, clemvion 보고): **새 요구사항 없음 · §2.2 `spec` 스킬 · 에이전트 `nerv-spec-writer` · 패키지 0.3.16 → 0.3.17.** 서버가 덮어쓸 본문보다 크게 줄이는 초안 저장을 `body_shrunk` 로 거절하고 `allow_shrink` 를 준 것만 받는다([4.4 API](api.md) REQ-API-270). 스킬은 본문을 언제나 전체로 보내라고 하고, `body_shrunk` 는 대부분 보낸 본문이 잘린 것이니 다시 확인하라고 한다. 의도한 삭제만 사람에게 확인받은 뒤 `allow_shrink` 를 붙인다. 사전 검토의 여섯째 검사기 `base-continuity`(REQ-API-271)를 적었다. 서브에이전트는 `allow_shrink` 를 위임받은 지시가 밝혔을 때만 붙인다 — 10-08 사고는 이 에이전트의 도구 호출이 생성 도중 끊겨 86KB 본문의 앞 40줄로 저장된 것이었다.
+> v0.92 변경(2026-10-08 — 잘린 본문이 승인까지 갔다, clemvion 보고): **새 요구사항 없음 · §2.2 `spec` 스킬 · 에이전트 `nerv-spec-writer` · 패키지 0.3.16 → 0.3.17.** 서버가 덮어쓸 본문보다 크게 줄이는 초안 저장을 `body_shrunk`로 거절하고 `allow_shrink`를 준 것만 받는다([4.4 API](api.md) REQ-API-270). 스킬은 본문을 언제나 전체로 보내라고 하고, `body_shrunk`는 대부분 보낸 본문이 잘린 것이니 다시 확인하라고 한다. 의도한 삭제만 사람에게 확인받은 뒤 `allow_shrink`를 붙인다. 사전 검토의 여섯째 검사기 `base-continuity`(REQ-API-271)를 적었다. 서브에이전트는 `allow_shrink`를 위임받은 지시가 밝혔을 때만 붙인다 — 10-08 사고는 이 에이전트의 도구 호출이 생성 도중 끊겨 86KB 본문의 앞 40줄로 저장된 것이었다.
 >
 > v0.91 변경(2026-10-07 — 스펙 미러, 사람 요청): **REQ-PLG-028 신설 · §2.7 `mirror` 스킬 · `bin/nerv-mirror` · 패키지 0.3.15 → 0.3.16.** 스펙 문서와 첨부를 사람이 정한 폴더에 받아 서버와 같게 맞추는 스킬을 더했다. 승인본 · 최신(초안 포함) · 기준선 중 하나를 고른다. 목록과 다운로드는 스크립트가 한다 — 서버의 내보내기를 요청 한 번으로 받아 디스크에 쓰고 대화에는 요약 몇 줄만 돌려준다. 에이전트가 MCP로 문서마다 읽으면 본문이 전부 대화에 들어오고 첨부는 받을 수 없었다. 기준선으로 받는 길은 서버에 함께 더했다([4.4 API 명세](api.md) REQ-API-268 · 269).
 >
@@ -554,9 +554,9 @@ allowed-tools:
    사람에게 보여준다.
 5. **본문은 언제나 전체를 보낸다.** 저장은 초안을 통째로 덮어쓰고 이전 본문은 어디에도 남지 않는다 —
    고친 절만 보내면 나머지가 사라진다. 덮어쓸 본문보다 크게 줄이는 저장(크기 · 제목 수 · 남은 요구사항
-   가운데 하나가 절반 아래)은 `body_shrunk` 로 거절된다. 그 거절은 대부분 **보내려던 본문이 잘렸다**는
+   가운데 하나가 절반 아래)은 `body_shrunk`로 거절된다. 그 거절은 대부분 **보내려던 본문이 잘렸다**는
    뜻이다(파일을 비운 뒤 읽은 편집 스크립트, 생성 도중 끊긴 호출이 실제로 그랬다). 의도한 삭제(문서를 나누어
-   옮기는 등)만 사람에게 무엇을 지우는지 보고하고 확인받은 뒤 `allow_shrink: true` 로 보낸다. 응답의
+   옮기는 등)만 사람에게 무엇을 지우는지 보고하고 확인받은 뒤 `allow_shrink: true`로 보낸다. 응답의
    `body_change`(덮어쓴 본문과 견준 크기 · 제목 · 요구사항)도 사람에게 보여 준다.
 6. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
    `resolved_in_version_id`)로 닫는다. 반영하지 않기로 한 코멘트는 닫지 말고 사유를 보고한다.
@@ -575,9 +575,9 @@ allowed-tools:
 `nerv_spec_check`(`spec_version_id`) — 6검사기(cross-spec / rationale-continuity /
 convention-compliance / requirement-shape / task-coherence / base-continuity) 결과를 warning/block과 앵커
 위치로 받는다. 제출 전에 block 0 · warning 0을 목표로 고친다. 저장 후·제출 전 아무 때나
-반복 호출해도 된다(읽기 전용). `base-continuity` 는 초안을 **직전 버전**과 견준다 — 여러 번에 나눠
-크게 줄었으면 저장은 모두 지나가도 여기서 잡힌다. 확인 없이 줄었으면 block, 저장할 때 `allow_shrink` 로
-확인했으면 warning 이다. 응답의 `body_change` 가 직전 버전과 견준 크기다.
+반복 호출해도 된다(읽기 전용). `base-continuity`는 초안을 **직전 버전**과 견준다 — 여러 번에 나눠
+크게 줄었으면 저장은 모두 지나가도 여기서 잡힌다. 확인 없이 줄었으면 block, 저장할 때 `allow_shrink`로
+확인했으면 warning이다. 응답의 `body_change`가 직전 버전과 견준 크기다.
 
 ### comments — open 코멘트 조회·해소
 `nerv_spec_get`(`include=["comments"]`)으로 open 코멘트를 나열하고, 하나씩 edit 절차로
@@ -610,7 +610,7 @@ convention-compliance / requirement-shape / task-coherence / base-continuity) �
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
 | NERV_PRECONDITION `wrapped_body` | 읽은 본문을 **포장째** 저장하려 했다 — `<nerv:spec …>` 경계는 표시이지 본문이 아니다. 경계 안쪽만 넣어 다시 부른다 |
 | NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 넣어 보낸다 |
-| NERV_PRECONDITION `body_shrunk` | 덮어쓸 본문보다 크게 줄이는 저장이다(details 의 `body_change` 가 크기 · 제목 · 요구사항을 준다). **대부분 보낸 본문이 잘린 것이다** — 보내려던 본문 전체를 다시 확인하고(파일이면 다시 읽어 크기와 제목 수를 견준다), details 의 `reread` 로 지금 본문을 읽어 무엇이 빠지는지 본다. 의도한 삭제면 사람에게 무엇을 지우는지 보고하고 확인받은 뒤 `allow_shrink: true` 로 다시 부른다. 거절을 넘기려고 반사적으로 붙이지 않는다 |
+| NERV_PRECONDITION `body_shrunk` | 덮어쓸 본문보다 크게 줄이는 저장이다(details의 `body_change`가 크기 · 제목 · 요구사항을 준다). **대부분 보낸 본문이 잘린 것이다** — 보내려던 본문 전체를 다시 확인하고(파일이면 다시 읽어 크기와 제목 수를 견준다), details의 `reread`로 지금 본문을 읽어 무엇이 빠지는지 본다. 의도한 삭제면 사람에게 무엇을 지우는지 보고하고 확인받은 뒤 `allow_shrink: true`로 다시 부른다. 거절을 넘기려고 반사적으로 붙이지 않는다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
 | NERV_PRECONDITION `key_taken` | 그 키를 이미 쓰는 문서가 있다 — details 의 `web_url`·`archived` 를 보고 **그 문서를 읽고 이어 쓴다**. `archived` 가 참이면 에이전트는 복구하지 못한다 — `web_url` 을 사람에게 건네고 복구를 요청한다. 키를 조금 바꿔 새로 만들지 않는다 |
 | NERV_PRECONDITION `spec_archived` | 보관된 문서에 초안을 쓰거나 검토를 요청했다 — 보관은 "더 이상 기준이 아니다" 라는 뜻이다. 이어 쓰지 않는다. details 의 `web_url` 을 사람에게 건네고 복구할지 묻는다(복구는 사람이 웹에서 한다) |

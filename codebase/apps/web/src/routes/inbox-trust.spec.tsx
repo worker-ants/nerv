@@ -289,6 +289,30 @@ describe('무엇을 · 누가 · 왜 (REQ-WEB-204)', () => {
     expect(line.querySelectorAll('[data-signal]')).toHaveLength(1);
   });
 
+  it('축소 신호면 끝이 "최소 T2" 다 — 1점짜리가 T2 인 까닭을 같은 줄에서 읽는다 (REQ-WEB-298 · REQ-API-273)', async () => {
+    pages = [
+      {
+        items: [
+          spec(1, {
+            version_no: 4,
+            gate_tier: 'T2',
+            gate_score: 1,
+            gate_axes: { side_effect: 0, sensitivity: 1, reversibility: 0, blast_radius: 0 },
+            gate_signals: ['body_shrunk'],
+          }),
+        ],
+        next_cursor: null,
+        total: 1,
+      },
+    ];
+    renderAt('/inbox');
+    await waitFor(() => expect(cards()).toHaveLength(1));
+    const line = within(cards()[0] as HTMLElement).getByTestId('gate-rationale');
+    expect(line.textContent).toBe(
+      '위험도 1점 (부작용 0 · 민감도 1 · 가역성 0 · 영향 범위 0) · 직전 버전보다 본문이 크게 줄었음 → 티어 +1 · 최소 T2',
+    );
+  });
+
   it('신호가 여럿이어도 "+1" 은 한 번 — 재시도 신호는 그 신고로 가는 길을 단다 (REQ-WEB-240 · REQ-API-189)', async () => {
     pages = [
       {

@@ -3108,11 +3108,17 @@ export class SpecService {
     `);
     const counts = rows[0] ?? { referencing: 0, tasks: 0, requirements: 0 };
 
-    const { rows: bodies } = await tx.execute<{ body_md: string; base_md: string | null }>(sql`
+    const { rows: bodies } = await tx.execute<{
+      body_md: string;
+      base_md: string | null;
+      lineage_md: string | null;
+    }>(sql`
       SELECT sv.body_md,
              (SELECT prev.body_md FROM spec_version prev
                WHERE prev.spec_id = sv.spec_id AND prev.status = 'approved' AND prev.id <> sv.id
-               ORDER BY prev.version_no DESC LIMIT 1) AS base_md
+               ORDER BY prev.version_no DESC LIMIT 1) AS base_md,
+             -- 축소 신호의 기준은 **계보의 직전 버전**이다 — 사전 검토 · 검토 요청 창 · 승인 카드와 같다
+             (SELECT b.body_md FROM spec_version b WHERE b.id = sv.base_version_id) AS lineage_md
         FROM spec_version sv WHERE sv.id = ${specVersionId}
     `);
     const delta = specDelta(bodies[0]?.base_md ?? null, bodies[0]?.body_md ?? '');
@@ -3165,6 +3171,10 @@ export class SpecService {
         // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
         firstApprovedVersion: bodies[0]?.base_md == null,
         repeatedFailures: retry !== null,
+        // 직전 버전(계보)보다 크게 줄었는가 — 사전 검토의 `base-continuity` 와 같은 기준이다(REQ-API-273)
+        bodyShrunk:
+          bodies[0]?.lineage_md != null &&
+          bodyChange(bodies[0].lineage_md, bodies[0].body_md).shrunk.length > 0,
       },
       {
         boundaries: policy.spec_gate.tier_boundaries,

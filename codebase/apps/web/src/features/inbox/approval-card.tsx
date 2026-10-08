@@ -13,6 +13,7 @@ import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GATE_AXES,
+  GATE_FLOOR_T2_SIGNALS,
   GATE_SIGNALS,
   type GateSignal,
   type MessageKey,
@@ -1209,8 +1210,14 @@ function GateRationale({
           </span>
         );
       })}
-      {/* 여럿이어도 한 단계다(2026-09-26 사람 결정) — "+1" 은 끝에 한 번 */}
-      {signals.length > 0 && ` ${t('gate.escalated')}`}
+      {/* 여럿이어도 한 단계다(2026-09-26 사람 결정) — "+1" 은 끝에 한 번. 본문이 크게 줄었으면 최소 T2 다(2026-10-09
+          사람 결정) — 점수가 1점인데 T2 인 까닭을 같은 줄에서 말한다 */}
+      {signals.length > 0 &&
+        ` ${t(
+          signals.some((signal) => GATE_FLOOR_T2_SIGNALS.includes(signal))
+            ? 'gate.escalated_floor'
+            : 'gate.escalated',
+        )}`}
     </p>
   );
 }

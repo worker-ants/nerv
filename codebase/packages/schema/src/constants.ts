@@ -468,9 +468,17 @@ export type GateAxis = (typeof GATE_AXES)[number];
  * 카탈로그의 `gate.reason.<키>` 와 같다. **여럿이 발동해도 티어는 한 단계만 오른다**(2026-09-26
  * 사람 결정 — spec-workflow §2.4). 롤백 이력 신호는 같은 날 걷었다 — NERV 에 "승인 후 롤백" 에
  * 해당하는 전이가 없다(버전 되돌리기가 생기면 다시 본다 · 재검토 트리거).
+ *
+ * `body_shrunk` 는 2026-10-09 사람 결정이다 — 제출한 버전이 직전 버전보다 크게 줄었다(`bodyChange` · REQ-API-273).
  */
-export const GATE_SIGNALS = ['first_version', 'retry_threshold'] as const;
+export const GATE_SIGNALS = ['first_version', 'retry_threshold', 'body_shrunk'] as const;
 export type GateSignal = (typeof GATE_SIGNALS)[number];
+/**
+ * **서면 티어를 최소 T2 로 올리는 신호**(2026-10-09 사람 결정 · spec-workflow §2.4). 한 단계만 올리면 T0 문서는 T1 이 되어
+ * 여전히 사람 없이 통과한다 — 크게 줄어든 버전은 사람이 한 번 봐야 한다는 것이 이 신호의 뜻이다. T2 · T3 에서는 다른
+ * 신호와 같이 한 단계다(여럿이어도 한 단계). 카드는 이 신호가 서면 "→ 티어 +1 · 최소 T2" 로 적는다.
+ */
+export const GATE_FLOOR_T2_SIGNALS: readonly GateSignal[] = ['body_shrunk'];
 /**
  * 신호의 **근거** — 사람이 따라가 볼 수 있는 원문 하나(2026-09-26 · REQ-API-189). 재시도 신호면
  * 에이전트가 올린 `e2e-fail-3x` 에스컬레이션(질문 또는 발견 처분)이다. 이벤트의 `gate_evidence`
