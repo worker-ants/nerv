@@ -202,7 +202,13 @@ allowed-tools:
    자리다. 애초에 그 셋은 기존 문서를 고칠 때 **넣지 않는 것**이 맞다.
 4. 응답의 `delta`(요구사항 added·modified·removed + 줄 수)·검증 경고·`relations` 를
    사람에게 보여준다.
-5. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
+5. **본문은 언제나 전체를 보낸다.** 저장은 초안을 통째로 덮어쓰고 이전 본문은 어디에도 남지 않는다 —
+   고친 절만 보내면 나머지가 사라진다. 덮어쓸 본문보다 크게 줄이는 저장(크기 · 제목 수 · 남은 요구사항
+   가운데 하나가 절반 아래)은 `body_shrunk` 로 거절된다. 그 거절은 대부분 **보내려던 본문이 잘렸다**는
+   뜻이다(파일을 비운 뒤 읽은 편집 스크립트, 생성 도중 끊긴 호출이 실제로 그랬다). 의도한 삭제(문서를 나누어
+   옮기는 등)만 사람에게 무엇을 지우는지 보고하고 확인받은 뒤 `allow_shrink: true` 로 보낸다. 응답의
+   `body_change`(덮어쓴 본문과 견준 크기 · 제목 · 요구사항)도 사람에게 보여 준다.
+6. 반영을 마친 코멘트는 `nerv_spec_comment_resolve`(`comment_id`, `resolution_note`,
    `resolved_in_version_id`)로 닫는다. 반영하지 않기로 한 코멘트는 닫지 말고 사유를 보고한다.
 
 ### 요구사항 줄의 형식 — 이것이 문서의 값어치다
@@ -216,10 +222,12 @@ allowed-tools:
 - 규약·ADR·영역 문서(`convention`·`adr`·`area`·`vision`)는 요구사항이 없는 것이 정상이라 이 경고를 받지 않는다.
 
 ### check — 사전 검토 셀프서비스
-`nerv_spec_check`(`spec_version_id`) — 5검사기(cross-spec / rationale-continuity /
-convention-compliance / requirement-shape / task-coherence) 결과를 warning/block과 앵커
+`nerv_spec_check`(`spec_version_id`) — 6검사기(cross-spec / rationale-continuity /
+convention-compliance / requirement-shape / task-coherence / base-continuity) 결과를 warning/block과 앵커
 위치로 받는다. 제출 전에 block 0 · warning 0을 목표로 고친다. 저장 후·제출 전 아무 때나
-반복 호출해도 된다(읽기 전용).
+반복 호출해도 된다(읽기 전용). `base-continuity` 는 초안을 **직전 버전**과 견준다 — 여러 번에 나눠
+크게 줄었으면 저장은 모두 지나가도 여기서 잡힌다. 확인 없이 줄었으면 block, 저장할 때 `allow_shrink` 로
+확인했으면 warning 이다. 응답의 `body_change` 가 직전 버전과 견준 크기다.
 
 ### comments — open 코멘트 조회·해소
 `nerv_spec_get`(`include=["comments"]`)으로 open 코멘트를 나열하고, 하나씩 edit 절차로
@@ -252,6 +260,7 @@ convention-compliance / requirement-shape / task-coherence) 결과를 warning/bl
 | NERV_PRECONDITION `invalid_input` | 입력이 스키마와 어긋났다 — details 의 `missing`·`wrong_type`·`not_allowed` 가 **항목 이름**을 준다. 그 이름으로 고쳐 다시 부른다 |
 | NERV_PRECONDITION `wrapped_body` | 읽은 본문을 **포장째** 저장하려 했다 — `<nerv:spec …>` 경계는 표시이지 본문이 아니다. 경계 안쪽만 넣어 다시 부른다 |
 | NERV_PRECONDITION `empty_body` | 빈 본문으로 기존 초안을 덮어쓰려 했다. 초안은 이전 본문을 남기지 않으므로 서버가 막는다 — 본문을 넣어 보낸다 |
+| NERV_PRECONDITION `body_shrunk` | 덮어쓸 본문보다 크게 줄이는 저장이다(details 의 `body_change` 가 크기 · 제목 · 요구사항을 준다). **대부분 보낸 본문이 잘린 것이다** — 보내려던 본문 전체를 다시 확인하고(파일이면 다시 읽어 크기와 제목 수를 견준다), details 의 `reread` 로 지금 본문을 읽어 무엇이 빠지는지 본다. 의도한 삭제면 사람에게 무엇을 지우는지 보고하고 확인받은 뒤 `allow_shrink: true` 로 다시 부른다. 거절을 넘기려고 반사적으로 붙이지 않는다 |
 | NERV_PRECONDITION `not_found`(`details.field`) | `context`·`relations.to` 가 없는 문서를 가리켰다. 키를 확인하고 고친다 |
 | NERV_PRECONDITION `key_taken` | 그 키를 이미 쓰는 문서가 있다 — details 의 `web_url`·`archived` 를 보고 **그 문서를 읽고 이어 쓴다**. `archived` 가 참이면 에이전트는 복구하지 못한다 — `web_url` 을 사람에게 건네고 복구를 요청한다. 키를 조금 바꿔 새로 만들지 않는다 |
 | NERV_PRECONDITION `spec_archived` | 보관된 문서에 초안을 쓰거나 검토를 요청했다 — 보관은 "더 이상 기준이 아니다" 라는 뜻이다. 이어 쓰지 않는다. details 의 `web_url` 을 사람에게 건네고 복구할지 묻는다(복구는 사람이 웹에서 한다) |

@@ -44,7 +44,7 @@ import {
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
 import type { Actor } from '../../common/human-only.js';
-import { csv, intParam } from '../../common/query-vocab.js';
+import { aliasedParam, csv, intParam } from '../../common/query-vocab.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRoleAndScope, RequireScope } from '../../common/route-permission.js';
@@ -201,13 +201,17 @@ export class SpecController {
     return this.baselines.get({ projectId: projectOf(req), name });
   }
 
-  /** EP-SPEC-03 — 기준 버전 지정 조회(`?v=`)와 기준선 조회(`?baseline=`)를 지원한다 */
+  /**
+   * EP-SPEC-03 — 기준 버전 지정 조회(`?version=` · 줄여서 `?v=`)와 기준선 조회(`?baseline=`)를 지원한다. 두 이름은
+   * md 미러(EP-MIR-01)와 같다(REQ-API-272) — 둘이 다른 값으로 오면 400 이다
+   */
   @RequireScope('spec:read')
   @Get('specs/:spec')
   get(
     @Req() req: ProjectRequest,
     @Param('spec') spec: string,
-    @Query('v') version?: string,
+    @Query('v') v?: string,
+    @Query('version') versionParam?: string,
     // 쉼표로 온다 — 배열 쿼리 표기(`include[]=`)는 프록시마다 다르게 접힌다
     @Query('include') include?: string,
     @Query('baseline') baseline?: string,
@@ -215,12 +219,17 @@ export class SpecController {
     @Query('task') task?: string,
   ): Promise<Record<string, unknown>> {
     // 선택자(v · baseline · basis · task)의 배타는 서비스 한 곳이 판정한다(REQ-API-196 · 203)
+    const version = aliasedParam({ version: versionParam, v }, 'version');
     return this.specs.get({
       projectId: projectOf(req),
       specKey: spec,
       baseline: baseline === undefined || baseline === '' ? null : baseline,
       // `Number('abc')` 는 NaN 이고, NaN 을 SQL 에 실으면 22P02 로 죽는다(라이브 실측: `?v=abc` → 500)
-      versionNo: intParam(version, 'v'),
+      // `approved` 는 "기본(최신 승인본)으로" 다 — md 미러와 같은 어휘다(REQ-API-272)
+      versionNo:
+        version === undefined || version.value === 'approved'
+          ? null
+          : intParam(version.value, version.name),
       include:
         include === undefined || include === ''
           ? null
@@ -284,6 +293,8 @@ export class SpecController {
       ...(input.change_summary == null ? {} : { changeSummary: input.change_summary }),
       // 리스 인계 — 웹에서 "인계" 를 누른 다음 저장이 이것을 싣는다(§1.4h)
       ...(input.takeover === true ? { takeover: true } : {}),
+      // 크게 줄이는 저장의 확인 — MCP 와 같은 이름 · 같은 판정이다(REQ-API-270 · D-05)
+      ...(input.allow_shrink === true ? { allowShrink: true } : {}),
       // **선언 관계도 나른다**(2026-09-05 · REQ-API-043). 전표는 처음부터 이 입력을
       // 적었고 서비스도 받고 있었는데 이 줄이 없어, REST 로 보낸 관계는 오류 없이
       // 버려졌다 — 보낸 쪽은 반영됐다고 믿는다. MCP 는 배선돼 있었으므로 같은 요청에

@@ -215,6 +215,8 @@ You don't run the checks yourself. They run **automatically** when you open the 
 
 If there is even one **Blocking** finding, [Request review] is disabled. The server would refuse the request anyway, so fix the blocking items first. While the button is disabled, **"N blocking pre-submit check findings"** appears next to it, and clicking it takes you to the results.
 
+**A draft whose body shrank sharply does not slip through.** Every save overwrites the whole draft, and the previous body is not kept. So the server refuses a save that drops the size, the heading count or the kept requirements below half of the body it overwrites (bodies under 2KB are not checked). Most of the time that means the body that was sent got cut off. Only for a deliberate deletion, such as splitting a document into several, does the agent confirm with a person and then save it as an intended deletion. A draft that shrank over several saves is checked again by the pre-submit check against the **previous version**: Blocking if the deletion was not confirmed, a warning if it was.
+
 **Requesting review does not always send the document to a person.** A gate assigns the document a tier. At the low tiers (T0, T1), it becomes `approved` **immediately, with no approval step**, and the screen shows a "passed without approval" notice. A card appears in the Inbox only at T2 and T3 (for tiers, see [Gate policy](/help/settings#gates) in the Settings chapter).
 
 When a person does decide, authors cannot approve their own specs. The exception is **when nobody else can approve that document**, because being unable to make any progress in a project you work on alone is worse. Anything approved this way is recorded in the audit log.
@@ -233,7 +235,7 @@ Each comment shows **who left it (for an agent, which machine and which agent) �
 
 Adding a comment requires only **`spec:read`**, so a viewer can raise a point too. Only roles that can write drafts can close (resolve) comments.
 
-Instead of a comment count, the confirmation dialog before submitting shows **how many documents reference this one and how many tasks derive from it**, so you can see first what an approval will affect.
+Instead of a comment count, the confirmation dialog before submitting shows **how many documents reference this one and how many tasks derive from it**, so you can see first what an approval will affect. Below that, one line shows **the size against the previous version** (for example `Against the previous version v3 · size 34.8KB → 0.5KB · headings 27 → 1`). If the body shrank sharply, a further line says whether the deletion was confirmed as intended.
 
 ## Requirements {#requirements}
 

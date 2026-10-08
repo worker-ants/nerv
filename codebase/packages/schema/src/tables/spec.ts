@@ -111,6 +111,14 @@ export const specVersion = pgTable(
     editLeaseSessionId: uuid('edit_lease_session_id').references(() => agentSession.id),
     /** TTL 30분 — Task 클레임 리스와 같은 상수(D-04) */
     editLeaseExpiresAt: ts('edit_lease_expires_at'),
+    /**
+     * **본문 축소를 확인한 저장**(2026-10-08 · REQ-API-270 · 271). 크게 줄이는 저장은 `allow_shrink` 를 준
+     * 것만 받고, 그 저장이 이 둘을 채운다. 사전 검토는 직전 버전보다 크게 준 초안을 block 으로 잡는데, 여기
+     * 기록이 있으면 warning 으로 낮춘다 — 의도한 삭제가 검토 요청까지 막히면 안 되고, 확인 없이 줄어든 초안은
+     * 검토 요청에 닿으면 안 된다. 한 번 채우면 그 버전에서는 지우지 않는다.
+     */
+    shrinkAckAt: ts('shrink_ack_at'),
+    shrinkAckUserId: uuid('shrink_ack_user_id').references(() => user.id),
     createdAt: createdAt(),
     /**
      * 본문이 마지막으로 **바뀐** 시각 — 저장된 시각이 아니다.

@@ -1,6 +1,14 @@
-import { REQUIREMENT_REF, requirementRefsIn, text } from '@nerv/schema';
+import {
+  bodyChange,
+  bodyChangeDetail,
+  createTranslator,
+  REQUIREMENT_REF,
+  requirementRefsIn,
+  text,
+} from '@nerv/schema';
+import type { BodyChange } from '@nerv/schema';
 import { extractLinkedKeys } from './spec-relation.service.js';
-// 제출 전 자동 사전 검토 — 5검사기 (E09-S02)
+// 제출 전 자동 사전 검토 — 6검사기 (E09-S02 · 여섯째 `base-continuity` 는 2026-10-08 · REQ-API-271)
 // 정본: docs/03-proposal/spec-workflow.md §2.1
 //
 // clemvion 에서 이 검사는 `spec/` 쓰기 직전의 **의무**였고 산출물이 전부 git 에 커밋됐다 —
@@ -24,7 +32,8 @@ export type CheckerName =
   | 'rationale-continuity'
   | 'convention-compliance'
   | 'requirement-shape'
-  | 'task-coherence';
+  | 'task-coherence'
+  | 'base-continuity';
 
 export interface CheckFinding {
   checker: CheckerName;
@@ -38,8 +47,13 @@ export interface CheckResult {
   /** 종합 판정 — 개별 severity 의 최댓값이다. 낮출 수 없다 */
   verdict: CheckSeverity;
   findings: CheckFinding[];
-  /** 검사기별 실행 여부 — 5개가 다 돌았는지 보인다(커버리지 무결성) */
+  /** 검사기별 실행 여부 — 여섯이 다 돌았는지 보인다(커버리지 무결성) */
   checkers: Record<CheckerName, number>;
+  /**
+   * **직전 버전과 견준 본문의 크기**(2026-10-08 · REQ-API-271 · REQ-WEB-297). 줄지 않았어도 준다 — 검토 요청 창이
+   * "무엇이 얼마나 바뀌나" 를 늘 보여 주려면 줄었을 때만 오는 값으로는 모자란다. 직전 버전이 없으면(첫 버전) null.
+   */
+  body_change: (BodyChange & { base_version_no: number; acknowledged: boolean }) | null;
 }
 
 /** EARS 문형 — WHEN/WHILE/IF … THE SYSTEM SHALL … */
@@ -56,7 +70,7 @@ export class SpecCheckService {
   constructor(@InjectDb() private readonly db: NervDb) {}
 
   /**
-   * 5검사기를 돌린다. 제출 게이트이면서 **셀프서비스**다 —
+   * 6검사기를 돌린다. 제출 게이트이면서 **셀프서비스**다 —
    * 초안 저장 후·제출 전 아무 때나 부를 수 있다(§2.1 말미).
    */
   async check(input: { projectId: string; specVersionId: string }): Promise<CheckResult> {
@@ -65,9 +79,15 @@ export class SpecCheckService {
       spec_key: string;
       spec_type: string;
       body_md: string;
+      base_body: string | null;
+      base_version_no: number | null;
+      shrink_acknowledged: boolean;
     }>(sql`
-      SELECT sv.spec_id, s.key AS spec_key, s.type::text AS spec_type, sv.body_md
+      SELECT sv.spec_id, s.key AS spec_key, s.type::text AS spec_type, sv.body_md,
+             b.body_md AS base_body, b.version_no AS base_version_no,
+             sv.shrink_ack_at IS NOT NULL AS shrink_acknowledged
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+        LEFT JOIN spec_version b ON b.id = sv.base_version_id
        WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
     `);
     const version = rows[0];
@@ -83,21 +103,29 @@ export class SpecCheckService {
           },
         ],
         checkers: emptyCounts(),
+        body_change: null,
       };
     }
 
+    const continuity = baseContinuity(version);
     const findings = [
       ...(await this.crossSpec(input.projectId, version.spec_id, version.body_md)),
       ...(await this.rationaleContinuity(input.projectId, version.body_md)),
       ...(await this.conventionCompliance(input.projectId, version.spec_type, version.body_md)),
       ...this.requirementShape(version.spec_type, version.body_md),
       ...(await this.taskCoherence(version.spec_id)),
+      ...continuity.findings,
     ];
 
     const counts = emptyCounts();
     for (const finding of findings) counts[finding.checker] += 1;
 
-    return { verdict: worstOf(findings), findings, checkers: counts };
+    return {
+      verdict: worstOf(findings),
+      findings,
+      checkers: counts,
+      body_change: continuity.bodyChange,
+    };
   }
 
   /**
@@ -332,6 +360,50 @@ function emptyCounts(): Record<CheckerName, number> {
     'convention-compliance': 0,
     'requirement-shape': 0,
     'task-coherence': 0,
+    'base-continuity': 0,
+  };
+}
+
+/** 사전 검토의 지적은 기본 로케일로 적는다 — 다른 검사기의 `text()` 와 같다(본문 필드라 봉투의 로케일 밖이다) */
+const t = createTranslator();
+
+/**
+ * **직전 버전과의 연속성**(2026-10-08 · REQ-API-271). 초안이 계보의 직전 버전보다 크게 줄었으면 지적한다 — 판정은
+ * 초안 저장과 같은 `bodyChange` 다. 저장은 **덮어쓴 본문**과 견주므로 여러 번에 나눠 줄인 초안은 지나갈 수 있는데,
+ * 사람이 결재에서 견주는 것은 직전 버전이라 여기서는 그것과 견준다.
+ *
+ * **확인 없이 줄었으면 block** 이다 — 검토 요청이 막힌다. 저장할 때 `allow_shrink` 로 확인했으면 warning 으로 남긴다:
+ * 의도한 삭제를 막지 않되 검토 요청 창 · 승인 카드에서 사람이 보게 한다.
+ */
+function baseContinuity(version: {
+  body_md: string;
+  base_body: string | null;
+  base_version_no: number | null;
+  shrink_acknowledged: boolean;
+}): { findings: CheckFinding[]; bodyChange: CheckResult['body_change'] } {
+  if (version.base_body === null || version.base_version_no === null) {
+    return { findings: [], bodyChange: null };
+  }
+  const change = bodyChange(version.base_body, version.body_md);
+  const result = {
+    ...change,
+    base_version_no: Number(version.base_version_no),
+    acknowledged: version.shrink_acknowledged,
+  };
+  if (change.shrunk.length === 0) return { findings: [], bodyChange: result };
+  const values = { n: result.base_version_no, detail: bodyChangeDetail(t, change, change.shrunk) };
+  return {
+    findings: [
+      {
+        checker: 'base-continuity',
+        severity: version.shrink_acknowledged ? 'warning' : 'block',
+        message: version.shrink_acknowledged
+          ? t('check.body_shrunk_ack', values)
+          : t('check.body_shrunk', values),
+        anchor: null,
+      },
+    ],
+    bodyChange: result,
   };
 }
 

@@ -9,6 +9,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  bodyChange,
   EVIDENCE_SIGNER_ROLES,
   canCreateSpecType,
   evidenceKind,
@@ -25,6 +26,7 @@ import {
   normalizeEvidenceNote,
   SPEC_APPROVER_ROLES,
   SPEC_SUBMIT_ROLES,
+  sizeLabel,
   specType,
   specVersionStatus,
   text,
@@ -168,6 +170,12 @@ export interface DraftUpsertInput {
    * 리스는 신호이고 지문이 자물쇠다.
    */
   takeover?: boolean | undefined;
+  /**
+   * **본문을 크게 줄이는 것이 의도임을 밝힌다**(2026-10-08 · REQ-API-270). 덮어쓸 본문보다 크게 준 저장은
+   * 이것 없이는 거절한다 — 잘린 본문과 의도한 삭제를 서버는 구별할 수 없으므로 부른 쪽이 말한다. 이것을 준
+   * 저장은 버전에 확인 기록을 남기고, 사전 검토는 그 초안의 축소를 block 이 아니라 warning 으로 본다.
+   */
+  allowShrink?: boolean | undefined;
   userId: string;
   sessionId?: string | null;
 }
@@ -1243,6 +1251,52 @@ export class SpecService {
         }
       }
 
+      // **크게 줄이는 저장은 밝힌 것만 받는다**(2026-10-08 · REQ-API-270). 빈 본문 방어는 **빈** 본문만 막았다 —
+      // 34.7KB 용어 사전이 484바이트 조각으로(편집 스크립트 결함), 86KB 문서가 앞 40줄로(생성 도중 끊긴 도구
+      // 호출) 덮였고 서버는 둘 다 받았다(clemvion 실측). 견주는 것은 **이 저장이 덮어쓸 본문**이다 — 이어쓰기면 지금
+      // 초안, 새 초안이면 직전 버전. 잃는 것이 그것이기 때문이다. 잘린 본문과 의도한 삭제는 서버가 구별할 수 없어
+      // 부른 쪽이 `allow_shrink` 로 말한다(실측에서 의도한 쪽은 용어 사전을 하위 문서 12편으로 나눈 한 번이었다).
+      const priorVersion =
+        isExisting && draft === null
+          ? ((
+              await tx.execute<{ id: string; body_md: string }>(sql`
+                SELECT id, body_md FROM spec_version
+                 WHERE spec_id = ${specId} ORDER BY version_no DESC LIMIT 1
+              `)
+            ).rows[0] ?? null)
+          : null;
+      const overwritten = draft !== null ? previousBody : (priorVersion?.body_md ?? null);
+      const change = overwritten === null ? null : bodyChange(overwritten, input.bodyMd);
+      if (change !== null && change.shrunk.length > 0 && input.allowShrink !== true) {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.body_shrunk', {
+            before: sizeLabel(change.before.bytes),
+            after: sizeLabel(change.after.bytes),
+          }),
+          {
+            kind: 'body_shrunk',
+            body_change: change,
+            // 의도한 삭제면 다시 보낼 인자 — 아니면 `reread` 대로 다시 읽어 전체 본문으로 보낸다
+            allow_with: 'allow_shrink',
+            ...(await rereadAt()),
+          },
+        );
+      }
+      // **확인 기록은 직전 버전보다 크게 줄어든 초안에만 남긴다** — 사전 검토(`base-continuity`)가 견주는 그 기준이다.
+      // 습관처럼 `allow_shrink` 를 붙인 저장이 미리 기록을 남겨 두면, 나중에 확인 없이 줄어든 본문이 사전 검토에서
+      // warning 으로 지나간다. "지금 초안보다 줄었다" 로 남기면 같은 구멍이 열린다: 10KB 직전 버전 위에서 30KB 로
+      // 키운 초안을 12KB 로 줄이며 남긴 기록이, 그 뒤 확인 없이 4KB 까지 줄어든 초안을 덮는다(코드 검토 지적).
+      // 새 초안이면 `change` 가 곧 직전 버전과 견준 값이다.
+      const shrinkAcknowledged =
+        input.allowShrink === true &&
+        (draft === null
+          ? (change?.shrunk.length ?? 0) > 0
+          : await this.shrunkFromBase(tx, draft.id, input.bodyMd));
+      // 이벤트에는 **이 저장이 확인 인자로 지나간 축소**를 남긴다 — 누가 언제 지웠는지 되짚을 곳이다
+      const shrinkAllowed =
+        shrinkAcknowledged || (input.allowShrink === true && (change?.shrunk.length ?? 0) > 0);
+
       const hash = createHash('sha256').update(input.bodyMd, 'utf8').digest('hex');
       const leaseExpires = new Date(Date.now() + this.draftLeaseTtlSeconds * 1000);
 
@@ -1260,7 +1314,13 @@ export class SpecService {
                  END,
                  edit_lease_user_id = ${input.userId},
                  edit_lease_session_id = ${input.sessionId ?? null},
-                 edit_lease_expires_at = ${leaseExpires.toISOString()}
+                 edit_lease_expires_at = ${leaseExpires.toISOString()},
+                 -- 처음 확인한 사람과 시각을 남긴다 — 한 번 남긴 기록은 그 버전에서 지우지 않는다
+                 shrink_ack_at = CASE WHEN ${shrinkAcknowledged}::boolean THEN coalesce(shrink_ack_at, now())
+                                      ELSE shrink_ack_at END,
+                 shrink_ack_user_id = CASE WHEN ${shrinkAcknowledged}::boolean
+                                           THEN coalesce(shrink_ack_user_id, ${input.userId}::uuid)
+                                           ELSE shrink_ack_user_id END
            WHERE id = ${draft.id} AND content_hash = decode(${draft.content_hash}, 'hex')
         `);
         const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
@@ -1281,6 +1341,8 @@ export class SpecService {
             // 봉투에는 **수**만 싣는다 — 본문은 이벤트에 담지 않는다(D-14)
             lines_added: delta.lines.added,
             lines_removed: delta.lines.removed,
+            // 크게 줄인 것을 확인한 저장이면 남긴다 — 나중에 "누가 언제 지웠나" 를 되짚을 곳이다(REQ-API-270)
+            ...(shrinkAllowed ? { shrink_allowed: true } : {}),
           },
           type: NERV_EVENT.SPEC_DRAFT_UPDATED,
           projectId: input.projectId,
@@ -1301,6 +1363,8 @@ export class SpecService {
           // 다음 저장의 base_hash — 응답이 주지 않으면 에이전트는 매번 다시 읽어야 한다
           content_hash: hash,
           delta,
+          // 덮어쓴 본문과 견준 크기 · 제목 · 요구사항(REQ-API-270) — `shrunk` 가 비어 있지 않으면 확인하고 줄인 것이다
+          body_change: change,
           relations: { ...relations, declared },
           // 방금 쓴 **그 초안**을 연다 — 승인본 위의 초안이면 기본 주소는 승인본에 선다
           web_url: await this.webUrl(tx, input.projectId, specId, Number(draft.version_no)),
@@ -1314,23 +1378,23 @@ export class SpecService {
       const versionId = newId();
       // **계보는 시스템이 채운다**(2026-08-30 사람 결정). 예전에는 부른 쪽이 `base_version` 으로
       // 선언했는데, 부른 쪽은 "무엇을 보고 썼는가"를 지문으로 이미 말하고 있다(§1.4g).
-      // 어느 버전에서 갈라져 나왔는가는 서버가 아는 사실이지 물어볼 일이 아니다.
-      const { rows: lineage } = await tx.execute<{ id: string }>(sql`
-        SELECT id FROM spec_version WHERE spec_id = ${specId} AND version_no < ${versionNo}
-         ORDER BY version_no DESC LIMIT 1
-      `);
-      const baseVersionId = lineage[0]?.id ?? null;
+      // 어느 버전에서 갈라져 나왔는가는 서버가 아는 사실이지 물어볼 일이 아니다. 그 버전은 축소 판정이 이미
+      // 읽어 두었다(`priorVersion` — 같은 트랜잭션의 가장 큰 번호다).
+      const baseVersionId = priorVersion?.id ?? null;
 
       await tx.execute(sql`
         INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
                                   change_summary_md,
                                   author_user_id, author_session_id, base_version_id,
-                                  edit_lease_user_id, edit_lease_session_id, edit_lease_expires_at)
+                                  edit_lease_user_id, edit_lease_session_id, edit_lease_expires_at,
+                                  shrink_ack_at, shrink_ack_user_id)
         VALUES (${versionId}, ${specId}, ${versionNo}, 'draft', ${input.bodyMd},
                 decode(${hash}, 'hex'), ${input.changeSummary ?? null},
                 ${input.userId}, ${input.sessionId ?? null},
                 ${baseVersionId}, ${input.userId}, ${input.sessionId ?? null},
-                ${leaseExpires.toISOString()})
+                ${leaseExpires.toISOString()},
+                ${shrinkAcknowledged ? sql`now()` : null},
+                ${shrinkAcknowledged ? input.userId : null})
       `);
       if (created) {
         await tx.execute(
@@ -1339,7 +1403,10 @@ export class SpecService {
       }
 
       await emit({
-        payload: input.changeSummary === undefined ? {} : { change_summary: input.changeSummary },
+        payload: {
+          ...(input.changeSummary === undefined ? {} : { change_summary: input.changeSummary }),
+          ...(shrinkAllowed ? { shrink_allowed: true } : {}),
+        },
         type: NERV_EVENT.SPEC_DRAFT_CREATED,
         projectId: input.projectId,
         subjectType: 'spec_version',
@@ -1354,18 +1421,14 @@ export class SpecService {
       const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
       const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
       // 새 버전의 기준은 **직전 버전**이다. 첫 버전이면 기준이 없으니 전부 새로 쓴 것이다.
-      const { rows: prior } = await tx.execute<{ body_md: string }>(sql`
-        SELECT body_md FROM spec_version
-         WHERE spec_id = ${specId} AND version_no < ${versionNo}
-         ORDER BY version_no DESC LIMIT 1
-      `);
       return {
         spec_id: specId,
         spec_version_id: versionId,
         version_no: versionNo,
         created: true,
         content_hash: hash,
-        delta: specDelta(prior[0]?.body_md ?? null, input.bodyMd),
+        delta: specDelta(priorVersion?.body_md ?? null, input.bodyMd),
+        body_change: change,
         relations: { ...relations, declared },
         web_url: await this.webUrl(tx, input.projectId, specId, Number(versionNo)),
       };
@@ -1385,6 +1448,8 @@ export class SpecService {
     baseHash?: string | undefined;
     changeSummary?: string | undefined;
     takeover?: boolean | undefined;
+    /** 크게 줄이는 저장의 확인(REQ-API-270) — MCP 와 같은 이름 `allow_shrink` 로 온다 */
+    allowShrink?: boolean | undefined;
     /**
      * 선언 관계 — **REST 도 이것을 나른다**(2026-09-05 · REQ-API-043).
      *
@@ -1414,6 +1479,7 @@ export class SpecService {
       ...(input.baseHash == null ? {} : { baseHash: input.baseHash }),
       ...(input.changeSummary == null ? {} : { changeSummary: input.changeSummary }),
       ...(input.takeover === true ? { takeover: true } : {}),
+      ...(input.allowShrink === true ? { allowShrink: true } : {}),
       ...(input.relations === undefined ? {} : { relations: input.relations }),
       ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
@@ -1500,6 +1566,11 @@ export class SpecService {
           findings: check.findings.filter((f) => f.severity === 'block'),
         });
       }
+      // **직전 버전과 견준 크기를 결재 요청에 남긴다**(2026-10-08 · REQ-API-271 · REQ-WEB-298). 제출 뒤 본문은
+      // 동결되므로 지금 잰 값이 결재 때의 값이다. 승인 카드가 등급 근거처럼 이벤트에서 그대로 읽는다 — 용어 사전
+      // v4 는 34.7KB 가 484바이트가 된 채 승인됐는데 카드는 버전 번호와 변경 요약만 보여 줬다
+      const bodyChangePayload =
+        check.body_change === null ? {} : { body_change: check.body_change };
 
       const gate = await this.assessGate(
         tx,
@@ -1529,7 +1600,7 @@ export class SpecService {
         fromState: 'draft',
         toState: 'in_review',
         // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188)
-        payload: gateEventPayload(gate),
+        payload: { ...gateEventPayload(gate), ...bodyChangePayload },
       });
 
       if (gate.autoPass) {
@@ -1583,6 +1654,7 @@ export class SpecService {
             // 카드가 티어 곁에 근거를 그린다(§6.4 · REQ-API-188) — 배지만으로는 왜 사람이
             // 불렸는지 모른다
             ...gateEventPayload(gate),
+            ...bodyChangePayload,
             required_approvers: cards.slots,
             // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
             // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다
@@ -1698,7 +1770,7 @@ export class SpecService {
   }
 
   /**
-   * nerv_spec_check · EP-SPEC-09 — 사전 검토 5검사기.
+   * nerv_spec_check · EP-SPEC-09 — 사전 검토 6검사기.
    * 제출 게이트이면서 **셀프서비스**다: 초안 저장 후·제출 전 아무 때나 부를 수 있다(§2.1).
    */
   check(input: { projectId: string; specVersionId: string }): Promise<CheckResult> {
@@ -2868,6 +2940,19 @@ export class SpecService {
       SELECT id FROM down WHERE id = ${candidateId}
     `);
     return rows.length > 0;
+  }
+
+  /**
+   * 이 초안의 본문이 **직전 버전**(계보 `base_version_id`)보다 크게 줄었는가 — 사전 검토가 block 으로 잡는 그 판정이다
+   * (REQ-API-271). `allow_shrink` 를 준 이어쓰기가 확인 기록을 남길지는 이것만 정한다. 첫 버전이면(계보가 없으면) 거짓이다.
+   */
+  private async shrunkFromBase(tx: Tx, draftId: string, nextBody: string): Promise<boolean> {
+    const { rows } = await tx.execute<{ body_md: string }>(sql`
+      SELECT b.body_md FROM spec_version d JOIN spec_version b ON b.id = d.base_version_id
+       WHERE d.id = ${draftId}
+    `);
+    const base = rows[0]?.body_md;
+    return base !== undefined && bodyChange(base, nextBody).shrunk.length > 0;
   }
 
   /**

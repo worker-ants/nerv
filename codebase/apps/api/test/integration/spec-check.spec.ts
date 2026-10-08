@@ -1,4 +1,4 @@
-// E09-S02·S05 — 제출 전 사전 검토 5검사기 · done 게이트.
+// E09-S02·S05 — 제출 전 사전 검토 6검사기 · done 게이트(여섯째 base-continuity 는 spec-shrink.spec.ts 가 본다).
 //
 // clemvion 에서 이 검사는 산출물이 git 에 커밋되는 의무였고 858세션·42MB 가 쌓였다.
 // 더 나쁜 것은 **모순**이다: SUMMARY 는 BLOCK: NO 인데 리포트에는 [CRITICAL] 이 있는 경우가
@@ -117,10 +117,11 @@ describe('E09-S02 종합 verdict 는 낮출 수 없다', () => {
     ).toBe('block');
   });
 
-  it('검사기 5종이 모두 실행된다 — 커버리지 무결성', async () => {
+  it('검사기 6종이 모두 실행된다 — 커버리지 무결성', async () => {
     const { versionId } = await draft('SPC-COV', '# 문서\n\n본문');
     const result = await checks.check({ projectId, specVersionId: versionId });
     expect(Object.keys(result.checkers).sort()).toEqual([
+      'base-continuity',
       'convention-compliance',
       'cross-spec',
       'rationale-continuity',

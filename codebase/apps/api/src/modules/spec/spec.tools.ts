@@ -498,6 +498,9 @@ export class SpecTools implements NervToolProvider {
           // **남의 리스를 뺏는다**(§1.4h). 죽은 세션이 쥔 리스를 30분 기다리지 않게 하는
           // 탈출구다 — 뺏어도 본문은 `base_hash` 가 지킨다.
           takeover: { type: 'boolean', default: false, description: 'mcp.arg.takeover' },
+          // **크게 줄이는 저장의 확인**(REQ-API-270). 잘린 본문과 의도한 삭제를 서버가 구별할 수 없어 부른 쪽이
+          // 말한다 — 없이 크게 줄이면 `body_shrunk` 로 거절된다
+          allow_shrink: { type: 'boolean', default: false, description: 'mcp.arg.allow_shrink' },
         },
         // `required` 로는 "둘 중 하나"를 적을 수 없다 — 그 판정은 핸들러가 한다
         required: [],
@@ -526,6 +529,7 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['type'] === 'string' ? { type: input['type'] } : {}),
           ...(typeof input['parent_id'] === 'string' ? { parentId: input['parent_id'] } : {}),
           ...(input['takeover'] === true ? { takeover: true } : {}),
+          ...(input['allow_shrink'] === true ? { allowShrink: true } : {}),
           ...(Array.isArray(input['relations'])
             ? {
                 relations: (input['relations'] as Record<string, unknown>[]).map((r) => ({

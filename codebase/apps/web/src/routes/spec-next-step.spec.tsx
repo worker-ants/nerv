@@ -193,6 +193,46 @@ describe('초안이면 [검토 요청]이 머리에 있다', () => {
     expect(toastLink.getAttribute('href')).toBe('/inbox?focus=ap-10');
   });
 
+  // 직전 버전과 견준 크기(2026-10-08 · REQ-WEB-297) — 잘린 본문도 이 창은 역참조 · 작업 수만 보여 줬다
+  it('확인 창이 직전 버전과 견준 크기를 보이고, 확인하고 크게 줄였으면 그렇다고 말한다', async () => {
+    v4 = { ...v4, doc_status: 'draft', pending_approval_id: null };
+    checkVerdict = {
+      verdict: 'warning',
+      findings: [],
+      body_change: {
+        before: { bytes: 85944, headings: 47, requirements: 59 },
+        after: { bytes: 5341, headings: 2, requirements: 16 },
+        requirements_kept: 16,
+        shrunk: ['bytes', 'headings', 'requirements'],
+        base_version_no: 3,
+        acknowledged: true,
+      },
+    };
+    renderAt('/p/clemvion/specs/SPC-X?v=4');
+    const submit = await screen.findByTestId('submit-review');
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(submit);
+    const dialog = await screen.findByTestId('impact-preview');
+    const line = within(dialog).getByTestId('body-change');
+    expect(line.textContent).toContain(
+      '직전 버전 v3 대비 · 크기 85.9KB → 5.3KB · 제목 47 → 2개 · 요구사항 59개 중 16개 남음',
+    );
+    expect(within(dialog).getByTestId('body-change-warning').textContent).toContain(
+      '의도한 삭제로 확인했습니다',
+    );
+  });
+
+  it('첫 버전이라 견줄 버전이 없으면 그 줄을 그리지 않는다', async () => {
+    v4 = { ...v4, doc_status: 'draft', pending_approval_id: null };
+    checkVerdict = { verdict: 'warning', findings: [], body_change: null };
+    renderAt('/p/clemvion/specs/SPC-X?v=4');
+    const submit = await screen.findByTestId('submit-review');
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(submit);
+    const dialog = await screen.findByTestId('impact-preview');
+    expect(within(dialog).queryByTestId('body-change')).toBeNull();
+  });
+
   it('사전 검토에 block 이 있으면 잠긴 이유를 곁에서 말한다 — 판정은 번역해 적는다', async () => {
     v4 = { ...v4, doc_status: 'draft', pending_approval_id: null };
     checkVerdict = {

@@ -162,6 +162,85 @@ describe('md 미러의 HTTP 응답 (REQ-API-236)', () => {
 });
 
 /**
+ * 버전을 부르는 이름 둘(2026-10-08 · REQ-API-272). 문서 조회는 `v`, md 미러는 `version` 만 받아서, 미러의 `?v=3` 과
+ * `?v=99` 가 **둘 다 승인본을 200 으로** 돌려줬다(clemvion 실측) — 모르는 인자가 오류 없이 버려졌다. 두 경로가 두
+ * 이름을 다 받고, 둘이 다른 값이면 400 이다.
+ */
+describe('버전 인자의 두 이름 (REQ-API-272)', () => {
+  beforeAll(async () => {
+    // v1 승인본 위에 v2 초안 — 기본은 v1 이라, 인자가 버려지면 v1 이 온다
+    const specs = app.get(SpecService);
+    const first = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-MIR-ALIAS',
+      title: '별칭',
+      type: 'feature',
+      bodyMd: '# 별칭\n\n첫 버전',
+      userId,
+    });
+    await pool.query(
+      `UPDATE spec_version SET status='approved', approved_at=now(), approved_by_user_id=$2,
+              edit_lease_user_id=NULL, edit_lease_session_id=NULL, edit_lease_expires_at=NULL
+        WHERE id = $1`,
+      [first['spec_version_id'], userId],
+    );
+    await pool.query(`UPDATE spec SET current_version_id=$1 WHERE id=$2`, [
+      first['spec_version_id'],
+      first['spec_id'],
+    ]);
+    await specs.draftUpsert({
+      projectId,
+      specId: 'SPC-MIR-ALIAS',
+      bodyMd: '# 별칭\n\n둘째 버전',
+      baseHash: String(first['content_hash']),
+      userId,
+    });
+  });
+
+  it('md 미러가 ?v= 를 받는다 — 버리고 승인본을 주지 않는다', async () => {
+    const res = await get('/api/projects/clemvion/specs/SPC-MIR-ALIAS.md?v=2');
+    expect(res.status).toBe(200);
+    expect(frontmatterOf(res.text)['version']).toBe(2);
+    expect(res.text).toContain('둘째 버전');
+    expect((await get('/api/projects/clemvion/specs/SPC-MIR-ALIAS.md?v=99')).status).toBe(404);
+  });
+
+  it('문서 조회가 ?version= 을 받는다', async () => {
+    const res = await get('/api/v1/projects/clemvion/specs/SPC-MIR-ALIAS?version=2');
+    expect(res.status).toBe(200);
+    expect(res.json()['version_no']).toBe(2);
+  });
+
+  it('값의 어휘도 같다 — 두 경로 모두 `approved` 는 기본(최신 승인본)이다', async () => {
+    const json = await get('/api/v1/projects/clemvion/specs/SPC-MIR-ALIAS?v=approved');
+    expect(json.status).toBe(200);
+    expect(json.json()['version_no']).toBe(1);
+    const md = await get('/api/projects/clemvion/specs/SPC-MIR-ALIAS.md?v=approved');
+    expect(md.status).toBe(200);
+    expect(frontmatterOf(md.text)['version']).toBe(1);
+  });
+
+  it('두 이름이 같은 값이면 받고, 다르면 400 이다 — 어느 쪽을 원했는지 모른다', async () => {
+    expect((await get('/api/projects/clemvion/specs/SPC-MIR-ALIAS.md?v=2&version=2')).status).toBe(
+      200,
+    );
+    for (const url of [
+      '/api/projects/clemvion/specs/SPC-MIR-ALIAS.md?v=1&version=2',
+      '/api/v1/projects/clemvion/specs/SPC-MIR-ALIAS?v=1&version=2',
+    ]) {
+      const res = await get(url);
+      expect(res.status).toBe(400);
+      expect(res.json()['details']).toMatchObject({
+        kind: 'invalid_input',
+        field: 'version',
+        reason: 'alias_conflict',
+      });
+    }
+  });
+});
+
+/**
  * frontmatter 의 트리 자리와 캐시 (2026-09-28 · REQ-API-245 · 246).
  *
  * 제목의 `: ` 하나가 YAML 파싱을 깨뜨렸다(clemvion 446편 중 2편). 미러를 받는 쪽은 문서 한 번의 GET 으로 영역

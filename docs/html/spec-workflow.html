@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.28 (2026-10-04)</span>
+      <span>버전 v0.29 (2026-10-08)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -393,6 +393,7 @@
       <tr><td><code>convention-compliance</code></td><td>convention 타입 스펙 위배</td><td>규약을 스펙 노드로 두고 참조 관계로 검사</td></tr>
       <tr><td><code>requirement-shape</code></td><td>EARS 템플릿·요구사항 ID 형식·중복 ID</td><td>요구사항이 1급 엔티티라 파싱이 아니라 스키마 검증</td></tr>
       <tr><td><code>task-coherence</code></td><td>파생 Task와의 정합(고아 요구사항·빈 약속)</td><td>clemvion의 R-5 "어떤 plan도 책임지지 않는 빈 약속"을 FK 부재로 즉시 검출</td></tr>
+      <tr><td><code>base-continuity</code></td><td>직전 버전보다 본문이 크게 줄었는가(크기 · 제목 수 · 남은 요구사항 가운데 하나가 절반 아래) — 저장할 때 의도한 삭제로 확인하지 않았으면 block, 확인했으면 warning(2026-10-08)</td><td>초안은 덮어써져 잃은 본문이 남지 않는다. clemvion 용어 사전 v4 가 34.7KB 에서 484바이트 조각이 된 채 승인됐다 — 버전 행이 계보를 알고 있어 직전 버전과 견줄 수 있다</td></tr>
     </tbody>
   </table></div>
 
@@ -401,7 +402,7 @@
     <p>clemvion 실측에서 SUMMARY는 <code>BLOCK: NO</code>인데 checker 리포트에는 <code>[CRITICAL]</code>이 있는 모순이 커밋된 <b>732세션 중 24건(3.3%)</b> 존재했다. NERV에서는 종합 verdict가 개별 검사기 severity보다 낮을 수 없다는 것이 스키마 제약이고, 예외를 두려면 BYPASS 레코드(<a href="#sec-7">7장</a>)를 남겨야 한다.</p>
   </div></div>
 
-  <p>이 검사는 제출 게이트이면서 동시에 <b>셀프서비스</b>다. 에이전트는 <code>nerv_spec_check</code>(A1·읽기 전용)로 같은 검사 서비스를 초안 저장 후·제출 전 아무 때나 호출해, 5검사기별 warning/block 결과와 앵커 위치를 받아볼 수 있다. clemvion의 "spec 쓰기 직전 consistency-check 의무"(훅 강제)가 "수시 가능 + 제출 시 강제"로 바뀐 것이다.</p>
+  <p>이 검사는 제출 게이트이면서 동시에 <b>셀프서비스</b>다. 에이전트는 <code>nerv_spec_check</code>(A1·읽기 전용)로 같은 검사 서비스를 초안 저장 후·제출 전 아무 때나 호출해, 6검사기별 warning/block 결과와 앵커 위치를 받아볼 수 있다. clemvion의 "spec 쓰기 직전 consistency-check 의무"(훅 강제)가 "수시 가능 + 제출 시 강제"로 바뀐 것이다.</p>
 
   <h3>2.2 리뷰어 자동 지정 (역할·영역 기반)</h3>
 

@@ -6,7 +6,9 @@
 //
 // 카탈로그에 빠진 값이 있으면 `i18n.spec.ts` 가 잡는다(이벤트 카탈로그 전수 대조).
 
+import type { BodyChange, BodyShrinkReason } from '../body-shrink.js';
 import type { NervEventName } from '../events.js';
+import type { Translator } from './index.js';
 import type { MessageKey } from './ko.js';
 
 /** 이벤트 이름은 `<리소스>.<동사>` 라 키가 곧 `event.<그것>` 이다 */
@@ -38,4 +40,47 @@ export type BlockedReasonLabelKey = MessageKey & `blocked.${string}`;
 
 export function blockedReasonLabelKey(reason: string): BlockedReasonLabelKey {
   return `blocked.${reason}` as BlockedReasonLabelKey;
+}
+
+/** 바이트 → `34.8KB` — 사람이 크기를 견주는 자리의 표기(1000 단위 · 소수 한 자리) */
+export function sizeLabel(bytes: number): string {
+  return `${(bytes / 1000).toFixed(1)}KB`;
+}
+
+/**
+ * 본문 변화 한 줄(2026-10-08 · REQ-API-271 · REQ-WEB-297 · 298) — 사전 검토의 지적 · 검토 요청 창 · 승인 카드가
+ * 같은 말을 쓴다. `axes` 를 주면 그 축만, 주지 않으면 크기 · 제목 · (앞 본문에 있으면) 요구사항을 모두 적는다.
+ */
+export function bodyChangeDetail(
+  t: Translator,
+  change: BodyChange,
+  axes?: readonly BodyShrinkReason[],
+): string {
+  const show = (axis: BodyShrinkReason): boolean =>
+    axes === undefined
+      ? axis !== 'requirements' || change.before.requirements > 0
+      : axes.includes(axis);
+  const parts: string[] = [];
+  if (show('bytes')) {
+    parts.push(
+      t('body_change.bytes', {
+        before: sizeLabel(change.before.bytes),
+        after: sizeLabel(change.after.bytes),
+      }),
+    );
+  }
+  if (show('headings')) {
+    parts.push(
+      t('body_change.headings', { before: change.before.headings, after: change.after.headings }),
+    );
+  }
+  if (show('requirements')) {
+    parts.push(
+      t('body_change.requirements', {
+        before: change.before.requirements,
+        kept: change.requirements_kept,
+      }),
+    );
+  }
+  return parts.join(' · ');
 }

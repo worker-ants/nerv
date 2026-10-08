@@ -281,6 +281,8 @@ export const ko = {
   'mcp.arg.lease_seconds': '점유 시간(초). 최대 1800이며 더 긴 값은 거절한다',
   'mcp.arg.takeover':
     '다른 세션이 가진 편집 리스를 넘겨받는다. 끊긴 세션이 리스를 놓지 않았을 때 쓴다',
+  'mcp.arg.allow_shrink':
+    '덮어쓸 본문보다 크게 줄이는 저장임을 밝힌다(크기 · 제목 수 · 남은 요구사항 가운데 하나가 절반 아래). 없으면 body_shrunk로 거절된다. 사람이 삭제를 확인했을 때만 준다',
   'notif.scope_all': '내가 속한 모든 조직의 알림입니다. 줄마다 조직과 프로젝트가 표시됩니다.',
   'scope.elsewhere': '지금 선택한 조직이 아닌 {org}의 항목입니다',
   'scope.org_wide': '조직 전체',
@@ -374,6 +376,14 @@ export const ko = {
   'check.no_requirements':
     '요구사항이 한 줄도 없습니다. feature 문서에 요구사항을 적어야 구현 여부를 확인할 수 있습니다.',
   'check.version_not_found': '버전을 찾을 수 없습니다.',
+  // 본문 축소(2026-10-08 · REQ-API-271) — {detail} 은 아래 body_change.* 를 ' · ' 로 이은 것이다
+  'check.body_shrunk':
+    '직전 버전 v{n}보다 본문이 크게 줄었습니다({detail}). 의도하지 않았으면 빠진 내용을 되살리세요. 의도한 삭제면 `allow_shrink: true`를 넣어 다시 저장해 확인을 남기세요.',
+  'check.body_shrunk_ack':
+    '직전 버전 v{n}보다 본문이 크게 줄었습니다({detail}). 저장할 때 의도한 삭제로 확인했습니다.',
+  'body_change.bytes': '크기 {before} → {after}',
+  'body_change.headings': '제목 {before} → {after}개',
+  'body_change.requirements': '요구사항 {before}개 중 {kept}개 남음',
   'export.index_lead': '> NERV 스펙 트리 색인. 각 항목은 승인된 최신 버전의 md 미러를 가리킨다.',
   'export.index_specs': '## 스펙',
   'import.task_not_found': 'Task를 찾지 못했다. 계획이 적재되지 않았거나 경로가 다르다',
@@ -773,7 +783,7 @@ export const ko = {
   'mcp.arg.basis':
     '버전 기준 — approved(기본 · 최신 승인본) 또는 latest(번호가 가장 큰 버전 · 승인본 위의 초안과 검토 중 포함). version · baseline · task와 함께 줄 수 없다',
   'mcp.arg.version':
-    '버전 번호 — 그 버전을 읽는다(REST의 v). basis · baseline · task와 함께 줄 수 없고, 없는 번호는 거절이다',
+    '버전 번호 — 그 버전을 읽는다(REST의 문서 조회와 md 미러는 `version`, 줄여서 `v`). basis · baseline · task와 함께 줄 수 없고, 없는 번호는 거절이다',
   'mcp.arg.task_basis':
     '작업 키 또는 UUID — 그 작업의 기준으로 읽는다. 출처 문서면 기준 버전, 아니면 작업 기준선이 묶은 버전, 둘 다 아니면 최신 승인본이고 read_as로 알린다',
   'mcp.arg.task_basis_tree':
@@ -812,6 +822,8 @@ export const ko = {
   'error.spec.submit_not_author': '제출은 작성자 본인 또는 planner·admin만 할 수 있습니다.',
   'error.spec.empty_body':
     '빈 본문으로 덮어쓸 수 없습니다. 본문을 넣어 보내세요(초안은 이전 본문을 따로 남기지 않습니다).',
+  'error.spec.body_shrunk':
+    '이 저장은 본문을 크게 줄입니다(크기 {before} → {after}). 초안은 이전 본문을 따로 남기지 않습니다. 의도하지 않았으면 본문 전체를 다시 확인해 보내세요. 의도한 삭제면 `allow_shrink: true`를 함께 보내세요.',
   'error.spec.stale_body':
     '그사이 본문이 바뀌었습니다. 다시 읽고 바뀐 본문에 수정 내용을 반영하세요(같은 본문으로 다시 보내면 다른 사람의 수정을 덮어씁니다).',
   'error.spec.version_xor_baseline': '버전과 기준선은 함께 지정할 수 없습니다.',
@@ -1561,6 +1573,13 @@ export const ko = {
   'spec.impact_send': '검토 요청 보내기',
   'spec.impact_tasks': '파생 작업 {count}건. 기준 버전이 바뀌면 지시 재확인이 필요합니다',
   'spec.impact_title': '이 변경의 영향',
+  // 직전 버전과 견준 본문 크기 — 검토 요청 창 · 승인 카드(2026-10-08 · REQ-WEB-297 · 298)
+  'spec.body_change.line': '직전 버전 v{n} 대비 · {detail}',
+  'spec.body_change.shrunk_badge': '본문이 크게 줄었음',
+  'spec.body_change.shrunk':
+    '본문이 크게 줄었습니다. 저장할 때 의도한 삭제로 확인하지 않았습니다. 빠진 내용을 확인하세요.',
+  'spec.body_change.shrunk_ack':
+    '본문이 크게 줄었습니다. 저장할 때 의도한 삭제로 확인했습니다. 빠진 내용이 맞는지 확인하세요.',
   'spec.mermaid_zoom_in': '확대',
   'spec.mermaid_zoom_out': '축소',
   'spec.mermaid_zoom_fit': '원래 크기로',
