@@ -116,6 +116,17 @@ export function isBlockedReason(value: unknown): value is BlockedReason {
 
 export const dependencyKind = pgEnum('dependency_kind', ['blocks', 'relates']);
 export const claimStatus = pgEnum('claim_status', ['active', 'released', 'expired', 'revoked']);
+
+/**
+ * 클레임을 쥔 세션이 **무엇을 기다리는가**(2026-10-09 · REQ-API-275) — 하트비트의 `awaiting.kind`.
+ *
+ * 백그라운드 작업(리뷰 워크플로 등 10~17분)이나 사람의 답 · 결재를 기다리느라 턴을 끝내는 세션에 Stop 훅이 클레임
+ * 해제를 요구했고, 모델은 기다리는 중에도 클레임을 풀었다 — 풀면 작업이 `ready` 로 돌아가 다른 세션이 가져간다
+ * (clemvion CLE-T-ZTTHXD 실측). 기다린다고 **선언**한 클레임은 그 시각까지 Stop 이 막지 않는다.
+ */
+export const CLAIM_AWAITING_KINDS = ['background', 'user', 'approval'] as const;
+export type ClaimAwaitingKind = (typeof CLAIM_AWAITING_KINDS)[number];
+export const claimAwaitingKind = pgEnum('claim_awaiting_kind', CLAIM_AWAITING_KINDS);
 /**
  * 클레임을 왜 내려놓았나.
  *

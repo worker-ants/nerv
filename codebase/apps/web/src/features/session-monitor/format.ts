@@ -20,6 +20,23 @@ export function leaseRemaining(t: Translator, seconds: number | null): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+/** 대기가 아직 살아 있는가 — 서버는 받은 순간의 사실만 준다. 다음 재조회 전에 지나간 대기는 그리지 않는다 */
+export function awaitingAlive(until: string, now = Date.now()): boolean {
+  const at = Date.parse(until);
+  return Number.isFinite(at) && at > now;
+}
+
+/**
+ * 대기 표시의 남은 시간 "12분 남음" — 절대 시각을 쓰지 않는 규약(①)을 따른다. 1분 미만도 1분으로 적는다.
+ * 읽지 못하는 시각이면 `—` 다(REQ-WEB-300)
+ */
+export function awaitingLeft(t: Translator, until: string, now = Date.now()): string {
+  const at = Date.parse(until);
+  if (!Number.isFinite(at)) return DASH;
+  const minutes = Math.max(1, Math.ceil((at - now) / 60_000));
+  return t('session.awaiting_left', { n: minutes });
+}
+
 /** diff 통계 "+218 −34" (§3.3) */
 export function diffStat(added: number, removed: number): string {
   return `+${added} −${removed}`;

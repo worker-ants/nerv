@@ -192,6 +192,11 @@ export class IngestController {
    * clemvion 이 같은 자리에서 같은 답을 냈다 — [1.2 분석](../../../../../docs/01-problem/clemvion-analysis.md)
    * §"`stop_hook_active`면 즉시 허용 — 무한 루프 차단". 우리 문제 정의가 이미 적어 둔
    * 교훈을 서버가 되풀이하고 있었다.
+   *
+   * **기다린다고 선언한 클레임은 세지 않는다**(2026-10-09 · REQ-API-276 · clemvion CLE-T-ZTTHXD). 백그라운드
+   * 리뷰(10~17분)를 기다리느라 턴을 끝내는 세션에 해제만 안내하자 모델은 기다리는 중에도 클레임을 풀었다 — 풀면
+   * 작업이 `ready` 로 돌아가 다른 세션이 가져간다. 하트비트의 `awaiting` 이 그 시각까지 이 판정을 비켜 가고, 막을 때의
+   * 안내는 두 갈래다(끝냈으면 해제 · 기다리는 중이면 해제하지 않고 대기를 남긴다).
    */
   @Post('stop')
   async stop(
@@ -206,15 +211,19 @@ export class IngestController {
     if (sessionId === null) return { ok: true };
 
     const claims = await this.sessions.activeClaimSummary(sessionId);
-    const unfinished = claims.filter((c) => c.status === 'claimed' || c.status === 'in_progress');
+    const unfinished = claims.filter(
+      (c) => (c.status === 'claimed' || c.status === 'in_progress') && !c.awaiting,
+    );
     if (unfinished.length === 0) return { ok: true };
 
     return {
       ok: true,
       decision: 'block',
-      reason: `${text('agent.unfinished_claims', {
-        keys: unfinished.map((c) => c.task_key).join(', '),
-      })} ${text('agent.release_before_exit')}`,
+      reason: [
+        text('agent.unfinished_claims', { keys: unfinished.map((c) => c.task_key).join(', ') }),
+        text('agent.release_before_exit'),
+        text('agent.keep_claim_while_waiting'),
+      ].join(' '),
     };
   }
 

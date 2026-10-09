@@ -841,6 +841,203 @@ describe('작업 상세가 싣는 것 (REQ-API-142)', () => {
  * 로 되돌리고 다시 거쳐야 했다). 살아 있는 클레임이 없는 `claimed`·`in_progress`·`in_review` 는 상태 그대로
  * 다시 잡힌다.
  */
+/**
+ * 대기 표시 — 기다리는 세션이 클레임을 풀지 않게 한다 (2026-10-09 · REQ-API-275 · 276).
+ *
+ * clemvion 은 리뷰를 워크플로로 백그라운드에서 돌리고(10~17분) 완료 알림을 기다린다. 그동안 턴을 끝내면 Stop 훅이
+ * 해제를 요구했고, 모델은 기다리는 중에도 클레임을 풀어 작업이 ready 로 돌아갔다(CLE-T-ZTTHXD). 하트비트의
+ * `awaiting` 이 그 시각까지 Stop 판정을 비켜 가고 세션 보드에 「대기 중」을 보인다.
+ */
+describe('대기 표시 (REQ-API-275 · 276)', () => {
+  const awaitingOf = async (claimId: string): Promise<Record<string, unknown> | undefined> =>
+    (
+      await pool.query(
+        `SELECT awaiting_kind::text AS kind, awaiting_refs AS refs, awaiting_until AS until,
+                lease_expires_at FROM claim WHERE id = $1`,
+        [claimId],
+      )
+    ).rows[0];
+
+  it('awaiting 을 주면 리스 만료 시각까지 남고, 빼고 보낸 다음 하트비트가 지운다', async () => {
+    const taskId = await makeTask('CLV-T-AW0001');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    const beat = await tasks.heartbeat({
+      claimId: claim.claimId,
+      actor: actor(sessionHana, hana),
+      awaiting: { kind: 'background', refs: ['wf_ai_review_1'] },
+    });
+    expect(beat.awaiting).toMatchObject({ kind: 'background', refs: ['wf_ai_review_1'] });
+    // 시각을 주지 않으면 리스 만료 시각이다 — 리스보다 오래 기다린다는 선언은 거짓이 된다
+    expect(beat.awaiting?.until.getTime()).toBe(beat.leaseExpiresAt.getTime());
+    expect(TaskService.toHeartbeatResult(beat).awaiting).toMatchObject({
+      kind: 'background',
+      until: beat.leaseExpiresAt.toISOString(),
+    });
+    expect(await awaitingOf(claim.claimId)).toMatchObject({
+      kind: 'background',
+      refs: ['wf_ai_review_1'],
+    });
+    expect(await sessions.activeClaimSummary(sessionHana)).toEqual([
+      expect.objectContaining({ task_key: 'CLV-T-AW0001', awaiting: true }),
+    ]);
+
+    // 다시 일을 시작한 하트비트 — awaiting 이 없으면 기다림이 끝났다
+    const resumed = await tasks.heartbeat({
+      claimId: claim.claimId,
+      actor: actor(sessionHana, hana),
+    });
+    expect(resumed.awaiting).toBeNull();
+    expect(await awaitingOf(claim.claimId)).toMatchObject({ kind: null, refs: [], until: null });
+    expect(await sessions.activeClaimSummary(sessionHana)).toEqual([
+      expect.objectContaining({ awaiting: false }),
+    ]);
+  });
+
+  it('until 은 지금보다 뒤 · 리스 만료 시각 이하만 받고, 거절되면 리스 연장도 없던 일이 된다', async () => {
+    const taskId = await makeTask('CLV-T-AW0002');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana, undefined, 60));
+    const before = await awaitingOf(claim.claimId);
+    const inSeconds = (n: number): string => new Date(Date.now() + n * 1000).toISOString();
+
+    // 리스(600초) 뒤의 시각 — 늦을 수 있는 가장 늦은 시각을 알려 준다(리스가 늘었다고 읽히는 이름이 아니다)
+    await expect(
+      tasks.heartbeat({
+        claimId: claim.claimId,
+        actor: actor(sessionHana, hana),
+        leaseSeconds: 600,
+        awaiting: { kind: 'background', until: inSeconds(1200) },
+      }),
+    ).rejects.toMatchObject({
+      details: { kind: 'invalid_input', field: 'awaiting.until', max_until: expect.any(String) },
+    });
+    // 한 트랜잭션이다 — 거절된 하트비트는 리스도 늘리지 않았다
+    expect((await awaitingOf(claim.claimId))?.['lease_expires_at']).toEqual(
+      before?.['lease_expires_at'],
+    );
+
+    await expect(
+      tasks.heartbeat({
+        claimId: claim.claimId,
+        actor: actor(sessionHana, hana),
+        awaiting: { kind: 'background', until: inSeconds(-60) },
+      }),
+    ).rejects.toMatchObject({ details: { field: 'awaiting.until' } });
+    await expect(
+      tasks.heartbeat({
+        claimId: claim.claimId,
+        actor: actor(sessionHana, hana),
+        awaiting: { kind: 'nap' },
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'invalid_input', field: 'awaiting.kind' } });
+    await expect(
+      tasks.heartbeat({
+        claimId: claim.claimId,
+        actor: actor(sessionHana, hana),
+        awaiting: { kind: 'user', refs: Array.from({ length: 21 }, (_, i) => `q${i}`) },
+      }),
+    ).rejects.toMatchObject({ details: { kind: 'invalid_input', field: 'awaiting.refs' } });
+    // MCP 게이트웨이는 객체 안의 칸을 보지 않는다 — 오타가 조용히 버려지지 않게 도메인이 막는다
+    await expect(
+      tasks.heartbeat({
+        claimId: claim.claimId,
+        actor: actor(sessionHana, hana),
+        awaiting: { kind: 'background', ref: 'wf_1' } as never,
+      }),
+    ).rejects.toMatchObject({ details: { field: 'awaiting', unknown: ['ref'] } });
+
+    // 리스를 줄여 두었으면 다시 늘리는 하트비트에서 받는다
+    const until = inSeconds(900);
+    const ok = await tasks.heartbeat({
+      claimId: claim.claimId,
+      actor: actor(sessionHana, hana),
+      leaseSeconds: 1800,
+      awaiting: { kind: 'user', refs: ['Q-1'], until },
+    });
+    expect(ok.awaiting?.until.toISOString()).toBe(until);
+  });
+
+  // 대기 표시가 생긴 뒤로 리스를 늘려 길게 기다리겠다는 선언은 위험하다 — 하트비트가 30분 끊기면 세션이
+  // 무응답으로 회수되고 작업은 ready 로 돌아간다. MCP 게이트웨이는 `maximum` 을 보지 않아 도메인이 막는다
+  it('하트비트도 리스 상한(1800초)과 하한(1초)을 지킨다', async () => {
+    const taskId = await makeTask('CLV-T-AW0005');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    for (const leaseSeconds of [2700, 0, -5, 1.5]) {
+      await expect(
+        tasks.heartbeat({ claimId: claim.claimId, actor: actor(sessionHana, hana), leaseSeconds }),
+      ).rejects.toMatchObject({
+        details: { kind: 'invalid_input', field: 'lease_seconds', max: 1800 },
+      });
+    }
+  });
+
+  it('작업 상태가 바뀌면 그 대기는 효력을 잃는다 — 전이는 클레임 행에 쓰지 않는다', async () => {
+    const taskId = await makeTask('CLV-T-AW0003');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    const wait = (): Promise<unknown> =>
+      tasks.heartbeat({
+        claimId: claim.claimId,
+        actor: actor(sessionHana, hana),
+        awaiting: { kind: 'background', refs: ['wf_1'] },
+      });
+    const waiting = async (): Promise<boolean> =>
+      (await sessions.activeClaimSummary(sessionHana))[0]?.awaiting === true;
+
+    await wait();
+    expect(await waiting()).toBe(true);
+    await tasks.transition({
+      projectId,
+      taskId,
+      status: 'in_progress',
+      userId: hana,
+      sessionId: sessionHana,
+    });
+    // 행은 그대로다(전이는 작업을 먼저 잠그고 해제 · 회수는 클레임을 먼저 잠근다 — 전이가 클레임에 쓰면 교착이 난다)
+    expect((await awaitingOf(claim.claimId))?.['kind']).toBe('background');
+    expect(await waiting()).toBe(false);
+    expect(
+      (await sessions.board({ projectId })).items.find((c) => c.id === sessionHana),
+    ).toMatchObject({ awaiting_kind: null, awaiting_until: null });
+
+    // 바뀐 상태에서 다시 남기면 산다 — 전이가 거절되면 상태가 그대로라 그대로 산다
+    await wait();
+    expect(await waiting()).toBe(true);
+    await expect(
+      tasks.transition({ projectId, taskId, status: 'ready', userId: hana, roles: ['planner'] }),
+    ).rejects.toMatchObject({ details: { kind: 'release_required' } });
+    expect(await waiting()).toBe(true);
+  });
+
+  it('세션 보드는 살아 있는 대기만 보인다 — 시각이 지난 대기는 사실이 아니다', async () => {
+    const taskId = await makeTask('CLV-T-AW0004');
+    const claim = await tasks.claim(claimInput(taskId, sessionHana, hana));
+    await tasks.heartbeat({
+      claimId: claim.claimId,
+      actor: actor(sessionHana, hana),
+      awaiting: { kind: 'approval', refs: ['A-1'] },
+    });
+    const card = async (): Promise<Record<string, unknown> | undefined> =>
+      (await sessions.board({ projectId })).items.find((c) => c.id === sessionHana);
+    expect(await card()).toMatchObject({
+      awaiting_kind: 'approval',
+      awaiting_refs: ['A-1'],
+      awaiting_until: expect.any(String),
+    });
+
+    await pool.query(
+      `UPDATE claim SET awaiting_until = now() - interval '1 minute' WHERE id = $1`,
+      [claim.claimId],
+    );
+    expect(await card()).toMatchObject({
+      awaiting_kind: null,
+      awaiting_refs: [],
+      awaiting_until: null,
+    });
+    expect(await sessions.activeClaimSummary(sessionHana)).toEqual([
+      expect.objectContaining({ awaiting: false }),
+    ]);
+  });
+});
+
 describe('되찾기 — 상태 그대로 다시 잡는다 (REQ-API-228)', () => {
   const act = (sessionId: string, userId: string) => ({
     projectId,

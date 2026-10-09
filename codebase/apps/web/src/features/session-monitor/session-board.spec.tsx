@@ -135,6 +135,58 @@ describe('SessionCard — REQ-WEB-019 필수 표기', () => {
   });
 });
 
+describe('SessionCard — 세션이 선언한 기다림 (REQ-WEB-300)', () => {
+  it('무엇을 얼마나 더 기다리는지 보인다 — 하트비트가 끊겨도 작업을 놓은 것이 아니다', async () => {
+    render(
+      <SessionCard
+        card={{
+          ...base,
+          awaiting_kind: 'background',
+          awaiting_refs: ['wf_ai_review', 'wf_consistency'],
+          awaiting_until: '2026-08-22T12:14:30Z',
+        }}
+        now={NOW}
+      />,
+    );
+    const line = screen.getByTestId('session-awaiting');
+    expect(line.textContent).toContain('대기 중 · 백그라운드 작업 · 15분 남음');
+    expect(line.textContent).toContain('wf_ai_review · wf_consistency');
+  });
+
+  it('대기가 없거나 · 지났거나 · 클레임한 작업이 없으면 그리지 않는다', async () => {
+    render(<SessionCard card={base} now={NOW} />);
+    expect(screen.queryByTestId('session-awaiting')).toBeNull();
+    cleanup();
+    // 다음 재조회 전에 지나간 대기 — 서버는 받은 순간의 사실만 준다
+    render(
+      <SessionCard
+        card={{
+          ...base,
+          awaiting_kind: 'background',
+          awaiting_refs: [],
+          awaiting_until: '2026-08-22T11:59:00Z',
+        }}
+        now={NOW}
+      />,
+    );
+    expect(screen.queryByTestId('session-awaiting')).toBeNull();
+    cleanup();
+    render(
+      <SessionCard
+        card={{
+          ...base,
+          task_key: null,
+          awaiting_kind: 'user',
+          awaiting_refs: [],
+          awaiting_until: '2026-08-22T12:10:00Z',
+        }}
+        now={NOW}
+      />,
+    );
+    expect(screen.queryByTestId('session-awaiting')).toBeNull();
+  });
+});
+
 describe('SessionBoard — 상태 3종 (screens.md §1.5)', () => {
   it('로딩은 골격으로 — 스피너 단독 금지', async () => {
     vi.stubGlobal(

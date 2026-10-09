@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.62 · 2026-10-09 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.63 · 2026-10-09 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.63 변경(2026-10-09 — 스토리 없이 들어온 구현 하나, clemvion 보고): §1.4 셋째 표에 **하트비트 대기 표시**를 적는다. 스토리 수 · `done` 수는 그대로다.
 >
 > v2.62 변경(2026-10-09 — 스토리 없이 들어온 구현 하나, 사람 점검): §1.4 셋째 표에 **도구 설명의 mermaid 안내**를 적는다. 스토리 수 · `done` 수는 그대로다.
 >
@@ -839,6 +841,7 @@ referenced_by:
 | 버전 인자의 두 이름 | `common/query-vocab.ts`(`aliasedParam` 신설 — 둘이 다른 값이면 400 `alias_conflict`) · `spec.controller.ts`(문서 조회가 `version`도 받는다) · `mirror.controller.ts`(md 미러가 `v`도 받는다) — REQ-API-272 · 도구 설명 `mcp.arg.version` · L2 `mirror-http.spec.ts` | clemvion 실측 — 미러의 `?v=3` · `?v=99`가 둘 다 승인본(v4)을 200으로 돌려줬다 |
 | 범위를 고른 리뷰 면제 | `approval.service.ts`(`bypass` — `kinds`: 작업으로 해소 · 역할 범위 `REVIEW_WAIVER_ROLES` · 코드 증적이 있으면 코드 계열 거절) · `task.service.ts`(done 게이트가 면제한 종류를 빼고 판정 · 면제 뒤 코드 증적이면 세지 않음 · 거부의 `uncovered_kinds` · 상세의 `review_waivers`) · `0045_approval_bypass_kinds`(REQ-DB-038) · `apps/web/src/features/task-board/review-waiver.tsx`(완료 조건 카드의 [리뷰 면제] · 리뷰 목록 아래 기록) · 플러그인 `skills/impl`(0.3.18) · L2 `review-gate.spec.ts` · L1 `task-next-door.spec.tsx` — REQ-API-274 · REQ-WEB-299 | clemvion 보고(2026-10-09) — 코드를 내지 않은 작업 CLE-T-2NVZA4 · CLE-T-SJAYNM이 `code` 리뷰가 없어 done에서 막혔다 |
 | 도구 설명의 mermaid 안내 | `packages/schema/src/i18n/{ko,en}.ts`(`mcp.arg.body_markdown` — 다이어그램은 `mermaid` 코드 펜스로 그린다) · 플러그인 `codex/AGENTS.md`(0.3.19) · L1 `plugin-package.spec.ts`(Codex 초안과 [4.6 플러그인](plugin.md) §5.3의 바이트 대조) | 사람 점검(2026-10-09) — 안내가 `spec` 스킬과 `nerv-spec-writer`에만 있어서, 스킬을 거치지 않고 도구를 부르는 에이전트는 받지 못했다 |
+| 하트비트 대기 표시 | `task.service.ts`(`heartbeat` — `awaiting{kind, refs, until}`을 리스 연장과 한 트랜잭션에서 기록 · 시각은 지금 뒤 · 리스 만료 이하 · 빼고 보내면 지움 · 남길 때의 작업 상태를 함께 기록해 상태가 바뀌면 효력을 잃음 · 하트비트의 리스 상한 · 하한) · `ingest.controller.ts`(Stop — 대기 표시가 살아 있는 클레임은 세지 않고, 막을 때는 두 갈래 안내) · `session.service.ts`(세션 목록의 `awaiting_*`) · `0046_claim_awaiting`(REQ-DB-039) · `apps/web/src/features/session-monitor/session-card.tsx`(「대기 중 · 종류 · N분 남음」) · 플러그인 `skills/impl` · `skills/question`(0.3.20 · 하트비트를 `allowed-tools`에 더함) · L2 `claim.spec.ts` 다섯 · `ingest.spec.ts` 하나 · L1 세션 카드 둘 | clemvion 보고(2026-10-09 · CLE-T-ZTTHXD) — 백그라운드 리뷰(10~17분)를 기다리느라 턴을 끝내는 세션에 Stop 훅이 해제만 안내해 모델이 기다리는 중에도 클레임을 풀었고, 작업이 `ready`로 돌아가 다른 세션이 가져갈 수 있었다. 사람이 안내 문구와 대기 표시를 함께 고르게 했다(REQ-API-275 · 276 · REQ-WEB-300) |
 
 #### 이 절은 언제 갱신되는가
 

@@ -159,6 +159,14 @@ export interface SessionCard extends Record<string, unknown> {
   waiting_question_id: string | null;
   waiting_question_title: string | null;
   waiting_approval_id: string | null;
+  /**
+   * 활성 클레임의 **대기 표시**(2026-10-09 · REQ-API-275) — 하트비트가 남긴 종류 · 대상 · 언제까지. 그 시각이 지났거나
+   * 남길 때와 작업 상태가 다르면 `null` 이다(지난 대기는 사실이 아니다). 세션 상태와 따로 간다: 질문 대기(`awaiting_input`)는 서버가 판정한
+   * 상태이고, 이것은 세션이 스스로 선언한 기다림이다
+   */
+  awaiting_kind: string | null;
+  awaiting_refs: string[];
+  awaiting_until: string | null;
 }
 
 export interface BootstrapResult {
@@ -309,15 +317,24 @@ export class SessionService {
   }
 
   /** SessionStart 훅의 additionalContext 재료 — "너는 지금 무엇을 쥐고 있나". */
-  async activeClaimSummary(
-    sessionId: string,
-  ): Promise<{ task_key: string; status: string; lease_expires_at: unknown }[]> {
+  async activeClaimSummary(sessionId: string): Promise<
+    {
+      task_key: string;
+      status: string;
+      lease_expires_at: unknown;
+      /** 지금 기다리는 중인가 — 대기 표시가 있고, 그 시각이 지나지 않았고, 작업 상태가 그때 그대로다(REQ-API-276) */
+      awaiting: boolean;
+    }[]
+  > {
     const { rows } = await this.db.execute<{
       task_key: string;
       status: string;
       lease_expires_at: unknown;
+      awaiting: boolean;
     }>(sql`
-      SELECT t.key AS task_key, t.status::text AS status, c.lease_expires_at
+      SELECT t.key AS task_key, t.status::text AS status, c.lease_expires_at,
+             (c.awaiting_kind IS NOT NULL AND c.awaiting_until > now()
+              AND c.awaiting_task_status = t.status) AS awaiting
         FROM claim c JOIN task t ON t.id = c.task_id
        WHERE c.agent_session_id = ${sessionId} AND c.status = 'active'
        ORDER BY c.acquired_at
@@ -766,7 +783,14 @@ export class SessionService {
              lc.last_task_key, lc.last_task_title, lc.last_claim_status, lc.last_release_reason,
              wq.waiting_question_id, wq.waiting_question_title,
              CASE WHEN wq.waiting_question_id IS NULL THEN wa.waiting_approval_id END
-               AS waiting_approval_id
+               AS waiting_approval_id,
+             -- 살아 있는 대기만 — 시각이 지났거나 작업 상태가 바뀌었으면 사실이 아니다(REQ-API-275)
+             CASE WHEN c.awaiting_until > now() AND c.awaiting_task_status = t.status
+                  THEN c.awaiting_kind::text END AS awaiting_kind,
+             CASE WHEN c.awaiting_until > now() AND c.awaiting_task_status = t.status
+                  THEN c.awaiting_refs ELSE '{}' END::text[] AS awaiting_refs,
+             CASE WHEN c.awaiting_until > now() AND c.awaiting_task_status = t.status
+                  THEN c.awaiting_until::text END AS awaiting_until
         FROM agent_session s
         JOIN "user" u ON u.id = s.user_id
    LEFT JOIN claim c ON c.agent_session_id = s.id AND c.status = 'active'

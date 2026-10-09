@@ -8,7 +8,12 @@
 // 스키마가 있으면 "받는다고 적어 두고 안 읽는" 코드가 눈에 띈다.
 
 import { z } from 'zod';
-import { EVIDENCE_NOTE_MAX, LEASE_TTL_SECONDS } from '../constants.js';
+import {
+  AWAITING_REF_MAX,
+  AWAITING_REFS_MAX,
+  EVIDENCE_NOTE_MAX,
+  LEASE_TTL_SECONDS,
+} from '../constants.js';
 import { BLOCKED_REASONS } from '../enums.js';
 
 /** 증적 한 줄 — 한 Task 가 커밋·PR·테스트를 여럿 남기므로 목록이다(REQ-API-056) */
@@ -116,6 +121,18 @@ export const TaskClaimInput = z
   .strict();
 
 /**
+ * 대기 표시 — 종류 · 대상 · 언제까지(REQ-API-275). 모양만 본다: 종류의 어휘(`CLAIM_AWAITING_KINDS`)와 시각의 범위
+ * (지금보다 뒤 · 리스 만료 시각 이하)는 도메인이 본다 — MCP 는 이 스키마를 거치지 않는다
+ */
+export const ClaimAwaitingInput = z
+  .object({
+    kind: z.string().min(1),
+    refs: z.array(z.string().min(1).max(AWAITING_REF_MAX)).max(AWAITING_REFS_MAX).nullish(),
+    until: z.string().min(1).nullish(),
+  })
+  .strict();
+
+/**
  * EP-TASK-07 — 하트비트.
  *
  * 이 셋이 **`void body;` 한 줄에 통째로 버려지고 있었다**(2026-09-05 · REQ-API-100).
@@ -133,6 +150,11 @@ export const HeartbeatInput = z
       .strict()
       .nullish(),
     lease_seconds: z.number().int().positive().max(LEASE_TTL_SECONDS).nullish(),
+    /**
+     * **무엇을 기다리는가**(2026-10-09 · REQ-API-275). 주면 `until`(없으면 리스 만료 시각)까지 Stop 훅이 이 클레임을
+     * 정리하지 않은 것으로 세지 않는다. 빼고 보내면 지운다 — 다시 일을 시작한 하트비트가 곧 대기의 끝이다
+     */
+    awaiting: ClaimAwaitingInput.nullish(),
   })
   .strict();
 

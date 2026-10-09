@@ -4,6 +4,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   BLOCKED_REASONS,
+  AWAITING_REFS_MAX,
+  CLAIM_AWAITING_KINDS,
   LEASE_TTL_SECONDS,
   msg,
   NERV_ERROR,
@@ -16,7 +18,7 @@ import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-regist
 import { wrapText } from '../../mcp/untrusted.js';
 import { requireSession } from '../session/session.tools.js';
 import { bodyHash, TaskService } from './task.service.js';
-import type { ClaimActor } from './task.service.js';
+import type { ClaimActor, ClaimAwaitingInput } from './task.service.js';
 import type { ToolContext } from '../../mcp/tool-context.js';
 
 @Injectable()
@@ -230,10 +232,22 @@ export class TaskTools implements NervToolProvider {
             maximum: LEASE_TTL_SECONDS,
             description: 'mcp.arg.lease_seconds',
           },
+          // 무엇을 기다리는가(2026-10-09 · REQ-API-275) — 기다리는 동안 Stop 훅이 해제를 요구하지 않는다
+          awaiting: {
+            type: 'object',
+            description: 'mcp.arg.awaiting',
+            properties: {
+              kind: { type: 'string', enum: [...CLAIM_AWAITING_KINDS] },
+              refs: { type: 'array', items: { type: 'string' }, maxItems: AWAITING_REFS_MAX },
+              until: { type: 'string' },
+            },
+            required: ['kind'],
+          },
         },
         required: ['claim_id'],
       },
       handler: async (input, ctx) => {
+        const awaiting = input['awaiting'];
         const beat = await this.tasks.heartbeat({
           claimId: String(input['claim_id']),
           actor: claimActor(ctx),
@@ -242,6 +256,11 @@ export class TaskTools implements NervToolProvider {
           ...(typeof input['lease_seconds'] === 'number'
             ? { leaseSeconds: input['lease_seconds'] }
             : {}),
+          // 객체가 아니면 없는 것으로 본다 — 없으면 지운다(REQ-API-275)
+          awaiting:
+            typeof awaiting === 'object' && awaiting !== null && !Array.isArray(awaiting)
+              ? (awaiting as ClaimAwaitingInput)
+              : null,
         });
         // 답변은 하트비트 역채널로도 온다 — 한 경로만 감싸면 반대 경로가 구멍이다(REQ-API-153).
         // **사람의 지시(`instructions`)와 리뷰 코멘트는 감싸지 않는다**: 그것은 따라야 할

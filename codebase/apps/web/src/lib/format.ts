@@ -7,6 +7,7 @@
 // 테스트도 로케일을 갈아끼우지 못한다 — 시간 표기는 순수 함수로 두는 편이 낫다.
 
 import {
+  CLAIM_AWAITING_KINDS,
   EVIDENCE_KINDS,
   blockedReasonLabelKey,
   claimStatus,
@@ -94,4 +95,9 @@ export function reviewStateText(t: Translator, value: unknown): string {
 
 export function evidenceKindText(t: Translator, value: unknown): string {
   return vocabText(t, EVIDENCE_KINDS, (v) => `evidence.kind.${v}`, value);
+}
+
+/** 세션이 선언한 기다림의 종류(REQ-WEB-300) */
+export function awaitingKindText(t: Translator, value: unknown): string {
+  return vocabText(t, CLAIM_AWAITING_KINDS, (v) => `session.awaiting_kind.${v}`, value);
 }
