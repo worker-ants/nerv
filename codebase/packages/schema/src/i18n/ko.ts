@@ -760,7 +760,8 @@ export const ko = {
     '선언 관계 — 정제·선행 같은 판단. 본문 링크가 만드는 references와 다른 축이고, 주지 않으면 건드리지 않는다',
   'mcp.arg.question_context': '출처. 사람이 원문을 찾아갈 수 있도록 고정 ID를 적는다',
   'mcp.arg.escalate': '사람에게 넘기는 이유. 다섯 가지 값 중 하나(spec-workflow §4.7)',
-  'mcp.arg.body_markdown': '스펙 본문(markdown) — `body_md`라는 이름으로도 받는다',
+  'mcp.arg.body_markdown':
+    '스펙 본문(markdown) — `body_md`라는 이름으로도 받는다. 다이어그램은 언어 태그가 `mermaid`인 코드 펜스로 그린다(웹이 그림으로 보여 준다). 아스키 아트로 그리지 않는다',
   'mcp.arg.change_summary':
     '무엇을 왜 바꿨는지. 버전에 남는 유일한 설명이다. 주지 않으면 이전 값을 그대로 둔다',
   'mcp.arg.goal_md': '무엇을 이루면 끝나는지. 위임 명세 네 가지 중 하나다',

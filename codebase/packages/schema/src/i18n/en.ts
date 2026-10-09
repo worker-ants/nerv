@@ -776,7 +776,8 @@ export const en = {
   'mcp.arg.question_context':
     'Where this came from. Include stable IDs so a human can find the source',
   'mcp.arg.escalate': 'Why this goes to a human: one of five reasons (spec-workflow §4.7)',
-  'mcp.arg.body_markdown': 'The spec body (markdown). Also accepted as `body_md`',
+  'mcp.arg.body_markdown':
+    'The spec body (markdown). Also accepted as `body_md`. Draw diagrams as fenced code blocks tagged `mermaid` (the web renders them as diagrams), not as ASCII art',
   'mcp.arg.change_summary':
     'What changed and why. This is the only description stored with the version. Omit to keep the previous value',
   'mcp.arg.goal_md': 'What counts as done. One of the four brief elements',
