@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v5.21 · 2026-10-09 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v5.22 · 2026-10-09 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v5.22 변경(2026-10-09 — mermaid 안내가 스킬에만 있었습니다, 사람 점검): **새 요구사항 없음 · 플러그인 0.3.18 → 0.3.19.** 다이어그램을 `mermaid` 코드 펜스로 그리라는 안내가 `spec` 스킬과 `nerv-spec-writer`에만 있어서, 스킬을 거치지 않고 `nerv_spec_draft_upsert`를 바로 부르는 에이전트(Codex 등)는 그 안내를 받지 못했습니다. MCP 도구의 `body_markdown` 인자 설명과 Codex AGENTS.md 초안에 같은 안내를 넣었습니다([4.6 플러그인과 온보딩](04-mvp/plugin.md) §5.3 · [4.8 백로그](04-mvp/backlog.md)).
 >
 > v5.21 변경(2026-10-09 — 코드가 없는 작업을 닫을 수 없었습니다, clemvion 보고): **REQ-API-274 · REQ-WEB-299 · REQ-DB-038 신설 · 플러그인 0.3.17 → 0.3.18.** 완료 조건이 `code` 리뷰를 요구하는 프로젝트에서 코드를 내지 않은 작업은 done에서 막혔고, 남은 길은 하지 않은 리뷰를 꾸며 내는 것뿐이었습니다. 이제 사람이 작업 화면에서 사유와 함께 리뷰 종류를 골라 면제합니다. 코드 리뷰는 developer · admin이, 스펙 리뷰는 planner · admin이 면제하고, 코드 증적이 붙은 작업의 코드 리뷰는 면제되지 않습니다([4.4 API 명세](04-mvp/api.md) · [4.5 화면 명세](04-mvp/screens.md) · [3.5 스펙 워크플로우](03-proposal/spec-workflow.md) §7).
 >
@@ -858,9 +860,9 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.67` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v2.20` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v2.26` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.93` | 스킬 6종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.94` | 스킬 6종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.25` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v2.61` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v2.62` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

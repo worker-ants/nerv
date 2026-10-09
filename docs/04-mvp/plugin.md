@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **6종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v0.93 · 2026-10-09 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.94 · 2026-10-09 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.94 변경(2026-10-09 — mermaid 안내가 스킬에만 있었다, 사람 점검): **새 요구사항 없음 · §5.3 Codex AGENTS.md 초안 · 패키지 0.3.18 → 0.3.19.** 다이어그램을 `mermaid` 코드 펜스로 그리라는 안내(v0.18)는 `spec` 스킬과 `nerv-spec-writer`에만 있었다. 그래서 스킬을 거치지 않고 `nerv_spec_draft_upsert`를 바로 부르는 에이전트(Codex · 스킬을 부르지 않은 세션 · 다른 MCP 클라이언트)는 그 안내를 받지 못했다. 서버의 `body_markdown` 인자 설명(`mcp.arg.body_markdown` · ko · en)과 Codex 초안의 "단일 진실" 절에 같은 안내를 넣는다. 곁들여 §5.3을 템플릿 실물과 맞춘다 — 2026-09-27에 템플릿에 들어간 "스펙을 읽는 기준" 절이 이 사본에는 없었다. 이제 플러그인 패키지 테스트가 둘을 바이트로 대조한다.
 >
 > v0.93 변경(2026-10-09 — 코드가 없는 작업을 닫을 수 없었다, clemvion 보고): **새 요구사항 없음 · §2.3 `impl` 스킬 · 패키지 0.3.17 → 0.3.18.** done 거부의 `details.uncovered_kinds`를 읽고, 코드를 내지 않은 작업이 `code`에서 막혔으면 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁하라고 적는다([4.4 API](api.md) REQ-API-274). 면제는 사람 전용이라 도구는 늘지 않았다.
 >
@@ -172,7 +174,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.18
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.19
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -198,7 +200,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "license": "Apache-2.0"
 }
 ```
@@ -1711,7 +1713,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 **[권장]** 묶음이 기본이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `agent-session:launch` — `AGENT_RECOMMENDED_SCOPES` · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다 | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.18 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.19 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
@@ -1817,12 +1819,18 @@ MVP에서는 `notify`·`[otel]` 줄이 동작하지 않아도 무방하다 — *
 ## 단일 진실
 - 제품 스펙의 단일 진실은 NERV다. `spec/**` 는 NERV가 내보낸 read-only 미러이므로 직접 편집하지 않는다.
 - 스펙을 바꿔야 하면 `nerv_spec_draft_upsert` 로 draft를 만들고, `nerv_spec_check` 로 사전 검토를 통과시킨 뒤 `nerv_spec_submit_review` 로 사람 검토를 요청한다.
+- 스펙 본문의 다이어그램은 언어 태그가 `mermaid`인 코드 펜스로 그린다. 웹이 그림으로 보여 주고, 아스키 아트는 글자로 남는다. 그림만 두지 말고 문장으로도 적는다 — 그림은 검색에도 요구사항 추출에도 잡히지 않는다.
 
 ## 세션 시작 시 반드시 (이 순서)
 1. `nerv_bootstrap` — 프로젝트·hostname·저장소 정보를 등록하고 규약·게이트 정책을 받는다.
 2. `nerv_task_next` — 지시가 없으면 여기서 다음 할 일을 받는다. 임의로 작업을 고르지 않는다.
 3. `nerv_task_claim` — scope(spec_ids, file_globs)를 **작업 시작 전에** 선언한다. 겹침 응답이 오면 멈추고 질문한다.
 4. 구현 중 60초마다 `nerv_task_heartbeat`. 응답의 `pending` 지시를 즉시 따른다.
+
+## 스펙을 읽는 기준
+- 구현은 **작업의 기준**으로 읽는다: `nerv_spec_get` 에 `task`(작업 키)를 넘기면 출처 문서는 기준 버전, 주변 문서는 작업 기준선이 묶은 버전으로 온다. 트리 · 검색도 `task` 를 넘긴다.
+- 스펙을 고칠 때는 `basis: "latest"` 로 읽는다(승인본 위의 초안). 응답에 `edit_blocked_by` 가 있으면 검토 중인 개정판이 있으니 고치지 않는다.
+- 응답의 `read_as` 가 무엇으로 읽었는지 알려 준다. 기본값(최신 승인본)에 기대지 않는다.
 
 ## 절대 금지
 - 리뷰 산출물을 저장소에 파일로 커밋하지 않는다. 제출은 `nerv_review_submit` 도구로 한다(2026-08-23 배포).

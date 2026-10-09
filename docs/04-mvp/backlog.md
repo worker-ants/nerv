@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.61 · 2026-10-09 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.62 · 2026-10-09 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.62 변경(2026-10-09 — 스토리 없이 들어온 구현 하나, 사람 점검): §1.4 셋째 표에 **도구 설명의 mermaid 안내**를 적는다. 스토리 수 · `done` 수는 그대로다.
 >
 > v2.61 변경(2026-10-09 — 스토리 없이 들어온 구현 하나, clemvion 보고): §1.4 셋째 표에 **범위를 고른 리뷰 면제**를 적는다. 스토리 수 · `done` 수는 그대로다.
 >
@@ -836,6 +838,7 @@ referenced_by:
 | 본문 축소 방지 | `packages/schema/src/body-shrink.ts`(신설 — `bodyChange`: 크기 · 제목 수 · 남은 요구사항 가운데 하나가 절반 아래면 축소, 덮어쓸 본문이 2,000바이트 미만이면 보지 않는다) · `modules/spec/spec.service.ts`(`draftUpsert` — 덮어쓸 본문과 견줘 `allow_shrink` 없는 축소를 409 `body_shrunk`로 거절, 확인 기록 · 응답의 `body_change` — REQ-API-270) · `spec-check.service.ts`(여섯째 검사기 `base-continuity` · 결과의 `body_change` — REQ-API-271) · 결재 요청 이벤트의 `body_change` · `gate-tier.ts`(게이트 신호 `body_shrunk` — 최소 T2 · 2026-10-09 사람 결정 · REQ-API-273) · `0044_spec_version_shrink_ack`(REQ-DB-037) · `apps/web/src/components/body-change.tsx`(검토 요청 창 · 승인 카드 — REQ-WEB-297 · 298) · `features/inbox/bulk-decision.tsx`(일괄 결정 확인 목록의 "본문이 크게 줄었음" — 받은 요청과 스펙 결재 대기(EP-SPEC-26)가 함께 쓴다) · 플러그인 `skills/spec` · `agents/nerv-spec-writer`(0.3.17) · L1 `body-shrink.spec.ts` · L2 `spec-shrink.spec.ts` · `rest-surface.spec.ts` | clemvion 보고(2026-10-08) — 용어 사전 v4가 34.7KB에서 484바이트 조각으로, 계정 · 워크스페이스 v4 초안이 86KB에서 앞 40줄로 덮였다. 앞의 것은 승인까지 갔다 |
 | 버전 인자의 두 이름 | `common/query-vocab.ts`(`aliasedParam` 신설 — 둘이 다른 값이면 400 `alias_conflict`) · `spec.controller.ts`(문서 조회가 `version`도 받는다) · `mirror.controller.ts`(md 미러가 `v`도 받는다) — REQ-API-272 · 도구 설명 `mcp.arg.version` · L2 `mirror-http.spec.ts` | clemvion 실측 — 미러의 `?v=3` · `?v=99`가 둘 다 승인본(v4)을 200으로 돌려줬다 |
 | 범위를 고른 리뷰 면제 | `approval.service.ts`(`bypass` — `kinds`: 작업으로 해소 · 역할 범위 `REVIEW_WAIVER_ROLES` · 코드 증적이 있으면 코드 계열 거절) · `task.service.ts`(done 게이트가 면제한 종류를 빼고 판정 · 면제 뒤 코드 증적이면 세지 않음 · 거부의 `uncovered_kinds` · 상세의 `review_waivers`) · `0045_approval_bypass_kinds`(REQ-DB-038) · `apps/web/src/features/task-board/review-waiver.tsx`(완료 조건 카드의 [리뷰 면제] · 리뷰 목록 아래 기록) · 플러그인 `skills/impl`(0.3.18) · L2 `review-gate.spec.ts` · L1 `task-next-door.spec.tsx` — REQ-API-274 · REQ-WEB-299 | clemvion 보고(2026-10-09) — 코드를 내지 않은 작업 CLE-T-2NVZA4 · CLE-T-SJAYNM이 `code` 리뷰가 없어 done에서 막혔다 |
+| 도구 설명의 mermaid 안내 | `packages/schema/src/i18n/{ko,en}.ts`(`mcp.arg.body_markdown` — 다이어그램은 `mermaid` 코드 펜스로 그린다) · 플러그인 `codex/AGENTS.md`(0.3.19) · L1 `plugin-package.spec.ts`(Codex 초안과 [4.6 플러그인](plugin.md) §5.3의 바이트 대조) | 사람 점검(2026-10-09) — 안내가 `spec` 스킬과 `nerv-spec-writer`에만 있어서, 스킬을 거치지 않고 도구를 부르는 에이전트는 받지 못했다 |
 
 #### 이 절은 언제 갱신되는가
 
