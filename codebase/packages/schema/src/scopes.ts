@@ -235,3 +235,30 @@ export const SPEC_APPROVER_ROLES: Readonly<Record<string, string>> = {
  * 있었고, 그러면 **작성자가 자기 초안을 승인**할 수 있었다(요청자만 비교했기 때문이다).
  */
 export const SPEC_SUBMIT_ROLES = ['admin', 'planner'] as const;
+
+/**
+ * **리뷰 종류마다 면제할 수 있는 역할**(2026-10-09 · api.md REQ-API-274). 정본은 spec-workflow §1.6 의 권한표다 —
+ * 게이트 면제(BYPASS)는 admin ● · planner ○ 스펙 계열만 · developer ○ 코드 계열만 · 에이전트 불가. 코드 계열은 `code` ·
+ * `merge`, 스펙 계열은 `consistency` · `spec_coverage` 다. 범위를 고른 면제(`kinds`)가 이 표로 판정한다. 범위 없는 면제는
+ * 예전 그대로다.
+ */
+export const REVIEW_WAIVER_ROLES: Readonly<Record<string, readonly string[]>> = {
+  code: ['admin', 'developer'],
+  merge: ['admin', 'developer'],
+  consistency: ['admin', 'planner'],
+  spec_coverage: ['admin', 'planner'],
+};
+
+/** 그 역할들로 면제할 수 있는 리뷰 종류인가 — 서버 판정과 화면이 같은 표를 본다 */
+export function canWaiveReviewKind(roles: readonly string[], kind: string): boolean {
+  const allowed = REVIEW_WAIVER_ROLES[kind] ?? [];
+  return roles.some((role) => allowed.includes(role));
+}
+
+/**
+ * **코드 계열 리뷰의 면제는 코드 증적이 없는 작업에만 적용된다**(2026-10-09 · REQ-API-274). 면제의 전제가 "이 작업은 코드를
+ * 내지 않았다" 이므로, 커밋 · PR · 코드 경로 증적이 붙은 작업에서는 그 면제를 받지 않고, 면제 뒤에 붙으면 done 게이트가
+ * 그 면제를 세지 않는다 — 코드가 있는 작업의 code 리뷰 요구를 약하게 하지 않는다.
+ */
+export const CODE_REVIEW_KINDS = ['code', 'merge'] as const;
+export const CODE_EVIDENCE_KINDS = ['commit', 'pr', 'code_path'] as const;

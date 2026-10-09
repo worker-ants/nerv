@@ -114,6 +114,11 @@ export const ko = {
   'error.approval.bulk_limit': '한 번에 {max}건까지 결정할 수 있습니다.',
   'error.approval.bulk_not_eligible': '일괄 승인할 수 없는 항목입니다. 한 건씩 결정하세요.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
+  // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
+  'error.approval.bypass_kind_forbidden':
+    '이 역할로는 {kinds} 리뷰를 면제할 수 없습니다. 코드 계열(code · merge)은 developer · admin이, 스펙 계열(consistency · spec_coverage)은 planner · admin이 면제합니다.',
+  'error.approval.bypass_has_code':
+    '코드 증적(커밋 · PR · 코드 경로)이 붙은 작업은 {kinds} 리뷰를 면제할 수 없습니다. 코드를 낸 작업은 코드 리뷰를 받습니다.',
   'error.auth.admin_only': 'admin만 할 수 있습니다.',
   'error.auth.org_admin_only':
     '조직 전체 범위는 조직 admin만 관리할 수 있습니다. 프로젝트 admin은 자기 프로젝트만 관리할 수 있습니다.',
@@ -720,6 +725,8 @@ export const ko = {
   'task.missing.review_coverage': '이 작업을 검토한 리뷰가 없습니다',
   'task.missing.open_critical': '리뷰에 열린 critical이 남아 있습니다',
   'task.missing.review_kind_uncovered': '이 작업을 검토한 {kind} 리뷰가 없습니다',
+  'task.missing.review_waiver_void':
+    '{kind} 리뷰 면제는 코드 증적이 없을 때만 적용됩니다. 이 작업에는 코드 증적이 있습니다',
   'task.missing.review_kind_unfinished': '이 작업의 {kind} 리뷰가 아직 끝나지 않았습니다',
   'task.missing.review_kind_roles': '이 작업의 {kind} 리뷰에 {roles} 역할의 보고가 없습니다',
   'task.missing.review_kind_open':
@@ -1661,6 +1668,23 @@ export const ko = {
   'task.claim_human': '사람',
   'task.claims': '활성 클레임',
   'task.done_gate': '완료 처리 · 완료 조건',
+  // 리뷰 면제(2026-10-09 · REQ-WEB-299)
+  'task.waiver.title': '리뷰 면제',
+  'task.waiver.hint':
+    '코드를 내지 않은 작업처럼 받을 수 없는 리뷰는 하지 않은 리뷰를 꾸며 내지 말고 사유와 함께 면제합니다. 누가 · 언제 · 왜 면제했는지가 기록에 남습니다.',
+  'task.waiver.open': '리뷰 면제',
+  'task.waiver.kinds': '면제할 리뷰',
+  'task.waiver.reason_placeholder':
+    '면제 사유(필수) — 예: 코드 변경 없이 승인된 스펙을 다시 검토한 작업',
+  'task.waiver.confirm': '{kinds} 리뷰 면제를 기록합니다. 기록은 지울 수 없습니다.',
+  'task.waiver.submit': '면제 기록',
+  'task.waiver.done': '{kinds} 리뷰를 면제했습니다',
+  'task.waiver.line': '{kinds} 리뷰 면제 · {by} · {at}',
+  'task.waiver.all': '리뷰 전부',
+  'task.waiver.void': '코드 증적이 있어 적용되지 않습니다',
+  'task.waiver.code_evidence': '코드 증적이 붙은 작업은 코드 리뷰를 면제할 수 없습니다',
+  'task.waiver.no_role':
+    '면제할 수 있는 리뷰가 없습니다. 코드 리뷰는 developer · admin이, 스펙 리뷰는 planner · admin이 면제합니다',
   'task.reviews': '리뷰',
   'task.reviews.none': '이 작업을 검토한 리뷰가 없습니다.',
   'task.reviews.open_critical': '열린 critical {n}건',

@@ -94,6 +94,13 @@ The buttons to the right of the task title **move the task from its current stat
 
 **The finish form is already open when the task is Claimed, In progress, or In review.** Clicking [Finish] takes you to it. Spec impact **starts with nothing selected**. You have to choose **No spec impact** explicitly too, so [Move to done] stays disabled until you make a choice. If you choose **Has impact**, the button is enabled only after you write which spec should change and how. If no evidence is attached, a notice appears before you press the button, because the done gate requires evidence. To mark a task as blocked, pick a reason in the separate **Mark as blocked** card.
 
+**A review the task cannot get is waived with a reason.** When the project's done criteria require review kinds (for example `code` and `consistency`), a task that produced no code has no way to get a `code` review. Re-reviewing approved specs or only drafting specs are such tasks. Instead of faking a review, open **[Waive a review]** in the finish form, pick the kinds to waive, write a reason and press **[Record waiver]**. The done criteria then skip only those kinds.
+
+- Code reviews (`code` · `merge`) are waived by a developer or an admin, spec reviews (`consistency` · `spec_coverage`) by a planner or an admin. You can pick only the kinds your role can waive.
+- A task with commit, PR or code path evidence cannot have its code review waived. If such evidence is attached after a waiver, that waiver no longer applies.
+- A waiver is a permanent record. Who waived which kinds, when and why always shows below the review list.
+- Agents cannot waive. When an agent asks for a waiver through a question, a person records it on this screen.
+
 ## The four parts of a brief {#brief}
 
 A task can become `ready` only when these four parts are filled in.

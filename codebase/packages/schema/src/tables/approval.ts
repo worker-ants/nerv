@@ -14,6 +14,7 @@ import {
   memberRole,
   questionStatus,
   questionUrgency,
+  reviewKind,
 } from '../enums.js';
 import { createdAt, idPk, ts } from './_columns.js';
 import { finding } from './review.js';
@@ -63,10 +64,21 @@ export const approval = pgTable(
     /** 게이트 면제도 결재 레코드다(FR-10) */
     isBypass: boolean('is_bypass').notNull().default(false),
     bypassReason: text('bypass_reason'),
+    /**
+     * **면제의 범위 — 어느 리뷰 종류를 면제했나**(2026-10-09 · REQ-DB-038 · api.md REQ-API-274). NULL 은 범위 없는
+     * 면제(리뷰 커버리지 전부)이고 이 칸이 생기기 전의 면제가 모두 그렇다. 값이 있으면 작업의 done 게이트가 그 종류만
+     * 요구에서 뺀다 — 코드 산출물이 없는 작업의 `code` 리뷰처럼, 하지 않은 리뷰를 꾸며 내지 않고 닫게 한다.
+     */
+    bypassKinds: reviewKind('bypass_kinds').array(),
     createdAt: createdAt(),
   },
   (t) => [
     check('approval_bypass_reason_ck', sql`NOT ${t.isBypass} OR ${t.bypassReason} IS NOT NULL`),
+    // 범위는 면제에만 있고, 있으면 비어 있지 않다 — 빈 배열은 "아무것도 면제하지 않은 면제" 라는 뜻 없는 기록이다
+    check(
+      'approval_bypass_kinds_ck',
+      sql`${t.bypassKinds} IS NULL OR (${t.isBypass} AND cardinality(${t.bypassKinds}) > 0)`,
+    ),
     // **결정된 행에는 결정자가 있다.** 없으면 그 행은 처리됨 탭에서 사라지는데, 사라진
     // 것은 아무도 못 본다 — 코드 규약으로 두지 않고 DB 가 붙잡는다.
     check('approval_decided_by_ck', sql`${t.decision} IS NULL OR ${t.decidedByUserId} IS NOT NULL`),

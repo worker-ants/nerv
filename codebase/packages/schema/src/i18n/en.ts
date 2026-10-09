@@ -106,6 +106,10 @@ export const en = {
   'error.approval.bulk_limit': 'You can decide up to {max} items at once.',
   'error.approval.bulk_not_eligible': 'This item cannot be approved in bulk. Decide it on its own.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
+  'error.approval.bypass_kind_forbidden':
+    'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
+  'error.approval.bypass_has_code':
+    'A task with code evidence (commit · PR · code path) cannot have its {kinds} review waived. A task that produced code gets a code review.',
   'error.auth.admin_only': 'Only admins can do this.',
   'error.auth.org_admin_only':
     'Only organization admins can manage organization-wide access. Project admins can manage only their own project.',
@@ -731,6 +735,8 @@ export const en = {
   'task.missing.review_coverage': 'no review has covered this task',
   'task.missing.open_critical': 'the review still has open critical findings',
   'task.missing.review_kind_uncovered': 'no {kind} review has covered this task',
+  'task.missing.review_waiver_void':
+    'the {kind} review waiver applies only without code evidence, and this task has code evidence',
   'task.missing.review_kind_unfinished': 'the {kind} review of this task has not finished',
   'task.missing.review_kind_roles': 'the {kind} review of this task has no report from {roles}',
   'task.missing.review_kind_open':
@@ -1688,6 +1694,23 @@ export const en = {
   'task.claim_human': 'human',
   'task.claims': 'Active claims',
   'task.done_gate': 'Completion · done criteria',
+  'task.waiver.title': 'Review waiver',
+  'task.waiver.hint':
+    'A review this task cannot get, such as a code review for a task that produced no code, is waived with a reason instead of faking a review. Who waived it, when and why stays on record.',
+  'task.waiver.open': 'Waive a review',
+  'task.waiver.kinds': 'Reviews to waive',
+  'task.waiver.reason_placeholder':
+    'Reason (required) — e.g. re-reviewed approved specs with no code change',
+  'task.waiver.confirm':
+    'This records a waiver of the {kinds} review. The record cannot be deleted.',
+  'task.waiver.submit': 'Record waiver',
+  'task.waiver.done': 'Waived the {kinds} review',
+  'task.waiver.line': '{kinds} review waived · {by} · {at}',
+  'task.waiver.all': 'all reviews',
+  'task.waiver.void': 'not applied because the task has code evidence',
+  'task.waiver.code_evidence': 'A task with code evidence cannot have its code review waived',
+  'task.waiver.no_role':
+    'You cannot waive any of these reviews. Code reviews are waived by a developer or an admin, spec reviews by a planner or an admin',
   'task.reviews': 'Reviews',
   'task.reviews.none': 'No reviews have checked this task.',
   'task.reviews.open_critical': '{n} open critical',

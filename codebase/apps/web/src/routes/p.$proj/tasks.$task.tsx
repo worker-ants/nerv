@@ -51,6 +51,11 @@ import { useRememberVisit } from '../../components/quick-switcher.js';
 import { describeApiError, useApiError } from '../../lib/api-errors.js';
 import { usePressKey } from '../../lib/press-key.js';
 import {
+  requiredReviewKinds,
+  ReviewWaiverForm,
+  ReviewWaiverList,
+} from '../../features/task-board/review-waiver.js';
+import {
   Button,
   Card,
   Input,
@@ -946,6 +951,15 @@ function TaskDetail(): React.JSX.Element {
                         t('task.transition_missing', { missing: rejection.missing.join(', ') })}
                     </p>
                   )}
+                  {/* **받을 수 없는 리뷰는 사유와 함께 면제한다**(2026-10-09 · REQ-WEB-299) — 코드를 내지 않은 작업의
+                      code 리뷰처럼. 면제할 수 있는 종류가 없으면 그리지 않는다 */}
+                  <ReviewWaiverForm
+                    proj={proj}
+                    taskParam={task}
+                    task={data}
+                    requiredKinds={requiredReviewKinds(project.data?.['gate_policy'])}
+                    roles={roles}
+                  />
                   <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                     <Button
                       variant="primary"
@@ -1114,6 +1128,8 @@ function TaskDetail(): React.JSX.Element {
                 <li className="text-sm text-text-faint">{t('task.reviews.none')}</li>
               )}
             </ul>
+            {/* 면제도 리뷰 기록의 일부다 — 누가 · 언제 · 왜 · 어느 종류를(REQ-WEB-299) */}
+            <ReviewWaiverList waivers={rows(data['review_waivers'])} />
           </Card>
         </div>
       </PageBody>

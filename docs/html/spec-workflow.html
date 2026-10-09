@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.30 (2026-10-09)</span>
+      <span>버전 v0.31 (2026-10-09)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -1230,6 +1230,7 @@ SELECT EXISTS (
   <div class="callout note"><span class="ico">📝</span><div class="body">
     <b class="title">BYPASS는 우회가 아니라 기록이다</b>
     <p>clemvion에도 <code>BYPASS_DEFAULT_BRANCH_GUARD=1</code> 같은 환경변수 탈출구가 있었지만 <b>사용 사실이 어디에도 남지 않았다</b>. NERV의 BYPASS는 Approval 엔티티(대상: 게이트 면제)로 만들어지고, 사유·범위·유효 시간을 받으며, admin 알림과 감사 로그에 남는다. 같은 경로에서 면제가 반복되면 그것은 게이트 설계가 틀렸다는 신호이며 정책 조정 대상이 된다 — clemvion이 실패 이력에서 게이트를 사후에 키워 온 방식을 데이터로 앞당기는 장치다.</p>
+      <p><b>범위는 리뷰 종류다</b>(2026-10-09 — clemvion 보고 · <a href="api.html">4.4 API</a> REQ-API-274). 완료 조건이 <code>code</code> · <code>consistency</code> 리뷰를 요구하는 프로젝트에서 코드를 내지 않은 작업(승인된 스펙 14편의 일관성 재검토 · 스펙 초안만 쓴 작업)은 <code>code</code> 라운드를 받을 길이 없었다. 면제는 리뷰 커버리지를 통째로 넘기는 것밖에 없었고, 그 면제를 낼 화면도 없었다 — 남은 길은 변경 없이 code 리뷰를 꾸며 내는 것이었고, 그러면 하지 않은 리뷰가 기록에 남는다. 면제가 종류(<code>kinds</code>)를 받는다. done 게이트는 그 종류만 요구에서 빼고 나머지는 그대로 본다. 누가 면제할 수 있는지는 §1.6 표 그대로다 — 코드 계열(<code>code</code>·<code>merge</code>)은 developer · admin, 스펙 계열(<code>consistency</code>·<code>spec_coverage</code>)은 planner · admin. <b>코드를 낸 작업의 코드 리뷰는 면제되지 않는다</b> — 커밋 · PR · 코드 경로 증적이 붙은 작업에서는 그 면제를 받지 않고, 면제 뒤에 붙으면 done 게이트가 그 면제를 세지 않는다. 증적만으로 "코드 없음"을 추정해 자동으로 빼는 안은 택하지 않았다 — 코드를 내고 증적을 빼면 게이트를 피할 수 있고, 그 판단은 사람이 기록으로 지는 편이 맞다. done이 아닌 종료 상태(<code>closed</code>)도 두지 않았다 — 이 작업들은 할 일을 끝냈고, 구현 축은 done을 끝난 것으로 센다. <b>남은 일</b>: 범위를 고르지 않은 면제는 예전처럼 admin · planner · developer 누구나 낼 수 있어 §1.6 표(admin ●)와 어긋난다. 바꾸면 기존 면제 경로의 동작이 바뀌므로 따로 정한다.</p>
   </div></div>
 
   <div class="table-wrap"><table>

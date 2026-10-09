@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 41개</b>다 — 도메인 35 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.66 (2026-10-08)</span>
+      <span>버전 v0.67 (2026-10-09)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -717,8 +717,10 @@ CREATE TABLE resolution (
   decided_at              timestamptz,
   is_bypass               boolean NOT NULL DEFAULT false, -- 게이트 면제도 결재 레코드(FR-10)
   bypass_reason           text,
+  bypass_kinds            review_kind[],                  -- 면제의 범위 — 면제한 리뷰 종류. NULL은 전부(2026-10-09 · 0045 · REQ-DB-038)
   created_at              timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT approval_bypass_reason_ck CHECK (NOT is_bypass OR bypass_reason IS NOT NULL),
+  CONSTRAINT approval_bypass_kinds_ck CHECK (bypass_kinds IS NULL OR (is_bypass AND cardinality(bypass_kinds) &gt; 0)),
   -- 결정된 행에는 결정자가 있다 — 없으면 그 행은 처리됨 탭에서 사라지고, 사라진 것은 아무도 못 본다
   CONSTRAINT approval_decided_by_ck CHECK (decision IS NULL OR decided_by_user_id IS NOT NULL)
 );
@@ -1227,6 +1229,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
       <tr><td><code>REQ-DB-035</code></td><td>WHEN 메일 요약을 줄 세우면 THE SYSTEM SHALL <code>email_outbox</code> 에 덧붙일 머리글 <code>headers</code>(jsonb — <code>List-Unsubscribe</code> · <code>List-Unsubscribe-Post</code> · <code>Auto-Submitted</code>)와 끄는 링크 토큰의 SHA-256 <code>unsubscribe_token_hash</code> 를 담고, 그 해시는 부분 유일 인덱스(<code>email_outbox_unsubscribe</code>)로 찾는다. 다른 메일은 두 칸이 비어 있다. 토큰의 수명은 그 메일 행의 수명이다 — 보존 잡이 행을 지우면(REQ-DB-033) 링크도 죽는다(마이그레이션 <code>0042</code> · <a href="api.html">4.4 API 명세</a> REQ-API-234 · 2026-09-28 사람 결정 EM8)</td></tr>
       <tr><td><code>REQ-DB-036</code></td><td>WHEN 문서를 보관하면 THE SYSTEM SHALL 그 보관 동작이 보관한 문서마다 같은 <code>spec.archive_batch_id</code>(uuid · NULL 허용)를 남기고, 복구하면 그 문서와 같은 값을 가진 하위만 되살린 뒤 값을 지운다. 이 열이 생기기 전에 보관한 문서는 NULL 이고 혼자 복구된다(마이그레이션 <code>0043</code> · <a href="api.html">4.4 API 명세</a> REQ-API-263 · 264 · 2026-10-04 사람 결정 R1)</td></tr>
       <tr><td><code>REQ-DB-037</code></td><td>WHEN 초안 저장이 <code>allow_shrink</code>로 덮어쓸 본문보다 크게 줄인 것을 확인하면 THE SYSTEM SHALL 그 버전의 <code>spec_version.shrink_ack_at</code>(timestamptz) · <code>shrink_ack_user_id</code>(uuid → <code>user</code>)를 처음 한 번 채우고 그 버전에서는 지우지 않는다 — 사전 검토(<code>base-continuity</code>)가 이 기록으로 축소를 block 대신 warning으로 본다. 마이그레이션 <code>0044</code> 이전의 버전은 NULL이고 확인한 적이 없는 것으로 본다(<a href="api.html">4.4 API</a> REQ-API-270 · 271 · 2026-10-08)</td></tr>
+      <tr><td><code>REQ-DB-038</code></td><td>WHEN 사람이 게이트 면제에 리뷰 종류를 고르면 THE SYSTEM SHALL <code>approval.bypass_kinds</code>(<code>review_kind[]</code>)에 그 종류를 남기고, CHECK(<code>approval_bypass_kinds_ck</code>)로 면제 행에만 · 비어 있지 않게 둔다. NULL은 범위 없는 면제(리뷰 커버리지 전부)이고 마이그레이션 <code>0045</code> 이전의 면제가 모두 그렇다(<a href="api.html">4.4 API</a> REQ-API-274 · 2026-10-09)</td></tr>
     </tbody>
   </table></div>
 

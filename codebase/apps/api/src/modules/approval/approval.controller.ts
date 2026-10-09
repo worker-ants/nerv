@@ -105,6 +105,9 @@ export class ApprovalController {
       userId,
       reason: bypass.reason,
       actor,
+      // 범위를 고른 면제(REQ-API-274) — 종류마다 면제할 수 있는 역할은 서비스가 판정한다(D-05)
+      ...(bypass.kinds === undefined ? {} : { kinds: bypass.kinds }),
+      roles: req.nervRoles ?? [],
     });
   }
 
