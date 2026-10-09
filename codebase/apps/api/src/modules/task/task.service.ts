@@ -6,6 +6,8 @@ import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   CLAIM_RELEASE_INPUTS,
+  CODE_EVIDENCE_KINDS,
+  CODE_REVIEW_KINDS,
   evidenceKind,
   LEASE_TTL_SECONDS,
   msg,
@@ -46,6 +48,7 @@ import type { NervDb } from '../../common/database.module.js';
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
+import { sqlArray } from '../../common/sql-array.js';
 import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
 import { ApprovalService } from '../approval/approval.service.js';
@@ -455,12 +458,40 @@ export class TaskService {
         FROM evidence WHERE task_id = ${taskId} ORDER BY created_at
     `);
 
+    // **리뷰 면제의 기록**(2026-10-09 · REQ-API-274 · REQ-WEB-299) — 누가 · 언제 · 왜 · 어느 종류를. 면제는 결재 레코드라
+    // 지워지지 않는다. 코드 계열 면제는 코드 증적이 붙은 작업에서 done 게이트가 세지 않으므로 그 사실도 함께 준다
+    const { rows: waiverRows } = await this.db.execute<{
+      id: string;
+      kinds: string[] | null;
+      reason: string;
+      at: unknown;
+      by_name: string | null;
+    }>(sql`
+      SELECT a.id, a.bypass_kinds::text[] AS kinds, a.bypass_reason AS reason, a.decided_at AS at,
+             u.display_name AS by_name
+        FROM approval a LEFT JOIN "user" u ON u.id = a.decided_by_user_id
+       WHERE a.is_bypass AND a.subject_type = 'gate_bypass' AND a.subject_id = ${taskId}
+       ORDER BY a.decided_at
+    `);
+    const hasCodeEvidence = evidence.some((e) =>
+      (CODE_EVIDENCE_KINDS as readonly string[]).includes(String(e['kind'])),
+    );
+    const reviewWaivers = waiverRows.map((w) => ({
+      ...w,
+      // 코드 증적이 있어 done 게이트가 세지 않는 종류 — 범위 없는 면제는 예전 그대로 전부 적용된다
+      void_kinds:
+        w.kinds === null || !hasCodeEvidence
+          ? []
+          : w.kinds.filter((k) => (CODE_REVIEW_KINDS as readonly string[]).includes(k)),
+    }));
+
     return {
       ...task,
       // **본문의 지문**(REQ-API-254) — 본문을 고칠 때 `base_hash` 로 되돌려 주면 그 사이 누가 고쳤는지 서버가 안다
       body_hash: bodyHash(task['body_md'] as string | null),
       claims,
       reviews,
+      review_waivers: reviewWaivers,
       dependencies: deps,
       evidence,
       blocked_resolution: await this.blockedResolution(taskId, task, deps),
@@ -1888,6 +1919,9 @@ export class TaskService {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.done_gate'), {
             kind: 'done_gate',
             missing: gate.missing,
+            // **어느 리뷰 종류가 비었나**(2026-10-09 · REQ-API-274) — 코드를 내지 않은 작업이면 사람이 그 종류를
+            // 사유와 함께 면제한다(작업 화면 · EP-APR-04 `kinds`). 리뷰를 꾸며 내지 않게 기계가 읽을 값을 준다
+            ...(gate.uncoveredKinds.length > 0 ? { uncovered_kinds: gate.uncoveredKinds } : {}),
           });
         }
         await tx.execute(sql`
@@ -2007,8 +2041,9 @@ export class TaskService {
     taskId: string,
     projectId: string,
     specImpact: Record<string, unknown> | null | undefined,
-  ): Promise<{ ok: boolean; missing: string[] }> {
+  ): Promise<{ ok: boolean; missing: string[]; uncoveredKinds: string[] }> {
     const missing: string[] = [];
+    const uncoveredKinds: string[] = [];
 
     // 조건 5 — 스펙 영향 선언. none sentinel 을 허용하되 선언 자체는 필수다
     const impact = specImpact;
@@ -2053,24 +2088,54 @@ export class TaskService {
     // 조건 1~3 — 리뷰 커버리지. FR-10 이 오래 이월해 온 조건이고, 이제 **정책으로 켠다**.
     // 면제(`gate_bypass` 결재)가 있으면 둘 다 넘어간다 — 면제는 기록된 예외다(FR-10).
     if (policy.review_coverage !== false) {
-      const { rows: waived } = await tx.execute<{ n: number }>(sql`
-        SELECT count(*)::int AS n FROM approval
+      // **면제는 둘이다**(2026-10-09 · REQ-API-274). 범위 없는 면제(`bypass_kinds` NULL)는 예전처럼 리뷰 커버리지를
+      // 통째로 넘긴다. 범위를 고른 면제는 그 종류만 요구에서 뺀다 — 코드를 내지 않은 작업이 `code` 리뷰를 꾸며 내지 않고
+      // 닫히게 하는 길이다(clemvion CLE-T-2NVZA4 · CLE-T-SJAYNM).
+      const { rows: waivers } = await tx.execute<{ kinds: string[] | null }>(sql`
+        SELECT bypass_kinds::text[] AS kinds FROM approval
          WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${taskId}
       `);
-      if ((waived[0]?.n ?? 0) === 0 && Array.isArray(policy.review_coverage)) {
+      const waivedAll = waivers.some((w) => w.kinds === null);
+      const waivedKinds = new Set(waivers.flatMap((w) => w.kinds ?? []));
+      // **코드를 낸 작업의 코드 계열 면제는 세지 않는다** — 면제 뒤에 커밋 · PR · 코드 경로 증적이 붙었으면 그 전제가
+      // 깨졌다. 코드가 있는 작업의 code 리뷰 요구는 약해지지 않는다
+      const codeWaived = [...waivedKinds].filter((k) =>
+        (CODE_REVIEW_KINDS as readonly string[]).includes(k),
+      );
+      // 세지 않은 면제는 그 종류의 리뷰가 비어 있을 때만 이유로 적는다 — 진짜 리뷰를 통과했거나 정책이 그 종류를 요구하지
+      // 않으면 막을 것이 없다. 면제는 지워지지 않으므로 무조건 적으면 그 작업은 영영 닫히지 않는다
+      const voidKinds = new Set<string>();
+      if (!waivedAll && codeWaived.length > 0) {
+        const { rows: code } = await tx.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n FROM evidence
+           WHERE task_id = ${taskId} AND kind::text = ANY(${sqlArray(CODE_EVIDENCE_KINDS, 'text')})
+        `);
+        if ((code[0]?.n ?? 0) > 0) {
+          for (const kind of codeWaived) {
+            waivedKinds.delete(kind);
+            voidKinds.add(kind);
+          }
+        }
+      }
+      if (!waivedAll && Array.isArray(policy.review_coverage)) {
         // **종류 목록이면 종류마다 게이트 판정을 통과해야 한다**(2026-09-28 · clemvion 요청 N6 · REQ-API-250).
         // 판정은 게이트 판정 조회(EP-REV-08)와 한 곳이다 — CI 가 본 값과 done 이 본 값이 다르면 어느 쪽도 믿지 못한다
+        const kinds = [...new Set(policy.review_coverage)].filter((k) => !waivedKinds.has(k));
         const verdicts = await roundVerdicts(tx, {
           projectId,
           taskId,
-          kinds: [...new Set(policy.review_coverage)],
+          kinds,
           headSha: null,
           // 종류마다 반드시 보고해야 하는 역할(REQ-API-252) — 게이트 판정과 같은 정책 값이다
           requiredRoles: parsed.success ? parsed.data.review_roles : {},
         });
         for (const v of verdicts) {
           if (v.state === 'uncovered') {
+            if (voidKinds.has(v.kind)) {
+              missing.push(text('task.missing.review_waiver_void', { kind: v.kind }));
+            }
             missing.push(text('task.missing.review_kind_uncovered', { kind: v.kind }));
+            uncoveredKinds.push(v.kind);
           } else if (v.reasons.includes('running') || v.reasons.includes('failed')) {
             missing.push(text('task.missing.review_kind_unfinished', { kind: v.kind }));
           } else if (v.reasons.includes('open_critical') || v.reasons.includes('open_warning')) {
@@ -2091,7 +2156,7 @@ export class TaskService {
             );
           }
         }
-      } else if ((waived[0]?.n ?? 0) === 0) {
+      } else if (!waivedAll) {
         const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
           SELECT count(*)::int AS rounds,
                  COALESCE(sum((SELECT count(*) FROM finding f
@@ -2107,7 +2172,7 @@ export class TaskService {
         }
       }
     }
-    return { ok: missing.length === 0, missing };
+    return { ok: missing.length === 0, missing, uncoveredKinds };
   }
 
   private async findOwnActiveClaim(

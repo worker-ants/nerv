@@ -83,6 +83,11 @@ export const GateBypassInput = z
   .object({
     subject_id: z.string().min(1),
     reason: z.string().min(1),
+    /**
+     * **면제할 리뷰 종류**(2026-10-09 · REQ-API-274). 주면 `subject_id` 는 이 프로젝트의 작업(키 또는 UUID)이고, done
+     * 게이트가 그 종류만 요구에서 뺀다. 주지 않으면 예전처럼 범위 없는 면제다
+     */
+    kinds: z.array(z.string().min(1)).min(1).optional(),
   })
   .strict();
 

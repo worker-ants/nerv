@@ -117,6 +117,11 @@ allowed-tools:
   done 전이는 서버의 done 게이트(증적 · 스펙 영향 · 정책이 켜면 리뷰)를 지난다. 사람 승인은
   걸리지 않는다. 게이트 거부 응답이 오면 사유를 사람에게 그대로 보고한다(우회하지 않는다).
   넘을 수 없는 조건이면 사람이 면제 결재를 할 수 있다(사람 전용이라 에이전트는 부탁만 한다).
+  **받을 수 없는 리뷰는 꾸며 내지 않는다.** 거부의 `details.uncovered_kinds`가 비어 있는 리뷰 종류다.
+  코드를 내지 않은 작업(승인된 스펙의 재검토 · 스펙 초안만 쓴 작업 등)이 `code`에서 막혔으면, 변경도 없이
+  code 리뷰를 제출하지 말고 `nerv_question_create`로 사람에게 그 종류의 **리뷰 면제**를 부탁한다 — 작업 화면의
+  완료 조건 → [리뷰 면제]에서 사유와 함께 기록한다(코드 리뷰는 developer · admin, 스펙 리뷰는 planner · admin).
+  커밋 · PR · 코드 경로 증적이 붙은 작업의 코드 리뷰는 면제되지 않는다. 면제가 기록되면 같은 인자로 done을 다시 부른다.
 - **작업 본문을 고쳐야 하면** `nerv_task_update`(`task_id`, `body_md`, `base_hash`)를 부른다. `base_hash` 는
   `nerv_task_get` 이 준 `body_hash` 그대로다. `status` 없이 본문만 고칠 수 있다. 409 `stale_body` 면 그 사이
   사람이 고친 것이다. 다시 읽고 그 위에 고친다(덮지 않는다).
@@ -144,7 +149,7 @@ allowed-tools:
 | 코드 | 대응 |
 | --- | --- |
 | NERV_LEASE_EXPIRED | 리스 만료 후 쓰기 시도 — 재클레임을 1회 시도하고, 실패하면 산출물(커밋·노트)만 제출하고 종료한다 |
-| NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지 |
+| NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지. `details.uncovered_kinds`의 리뷰를 이 작업이 받을 수 없으면(코드를 내지 않았다) 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁한다 |
 | NERV_APPROVAL_REQUIRED | 재시도하지 않는다. `approval_id` 와 함께 사람에게 보고하고 멈춘다 — 결정은 하트비트 `pending` 의 `approval_decided` 로 온다(승인을 읽는 도구는 없다). 그동안 새 작업을 클레임하지 않는다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 `.nerv/cache/context-pack.json`(마지막 bootstrap)과 `.nerv/cache/specs/` 의 기준 버전 스냅샷을 Read 한다. 쓰기는 .nerv/outbox/ 멱등 큐잉. 신규 클레임 발급 금지 |

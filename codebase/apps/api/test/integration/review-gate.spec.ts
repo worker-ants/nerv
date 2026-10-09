@@ -13,6 +13,7 @@ import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
+import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import type { SubmitResult } from '../../src/modules/review/review.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -455,6 +456,226 @@ describe('필수 리뷰어 역할 (REQ-API-252)', () => {
     expect(error.details?.missing).toEqual([
       '이 작업의 code 리뷰에 testing 역할의 보고가 없습니다',
     ]);
+  });
+});
+
+/**
+ * 코드 산출물이 없는 작업 — 범위를 고른 리뷰 면제 (2026-10-09 · clemvion 보고 · REQ-API-274).
+ *
+ * `review_coverage: ["code","consistency"]` 인 프로젝트에서 코드를 내지 않은 작업은 `code` 라운드를 받을 길이 없어
+ * done 에서 막혔다. 면제는 리뷰 커버리지를 통째로 넘기는 것뿐이었고 웹에는 그 단추도 없었다 — 남은 길은 하지 않은
+ * 리뷰를 꾸며 내는 것뿐이었다. 사람이 사유와 함께 **그 종류만** 면제하고, 코드를 낸 작업의 code 리뷰는 면제하지 못한다.
+ */
+describe('범위를 고른 리뷰 면제 — 코드 없는 작업을 정직하게 닫는다 (REQ-API-274)', () => {
+  const SIX = ['security', 'testing', 'requirement', 'scope', 'side_effect', 'maintainability'];
+  const policy = (): Promise<unknown> =>
+    pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify({
+        done_gate: { evidence_source: 'any', review_coverage: ['code', 'consistency'] },
+        review_roles: { code: SIX },
+      }),
+      projectId,
+    ]);
+  async function task(key: string, evidence: [string, string][]): Promise<string> {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업','in_progress','목표','리뷰 레코드','도구','경계')`,
+      [taskId, projectId, key],
+    );
+    for (const [kind, locator] of evidence) {
+      await pool.query(
+        `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+         VALUES ($1,$2,$3,$4,$5,'agent')`,
+        [newId(), projectId, taskId, kind, locator],
+      );
+    }
+    return taskId;
+  }
+  const close = (taskId: string): Promise<unknown> =>
+    app
+      .get(TaskService)
+      .transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId,
+        roles: ['planner'],
+        specImpact: { none: true },
+      })
+      .catch((e: unknown) => e);
+  const detailsOf = (e: unknown): Record<string, unknown> =>
+    (e as { details?: Record<string, unknown> }).details ?? {};
+  const waive = (
+    subject: string,
+    kinds: string[] | undefined,
+    roles: string[],
+    over: { isAgent?: boolean; reason?: string } = {},
+  ): Promise<unknown> =>
+    app
+      .get(ApprovalService)
+      .bypass({
+        projectId,
+        subjectType: 'gate_bypass',
+        subjectId: subject,
+        userId,
+        reason: over.reason ?? '코드 변경 없이 승인된 스펙 14편의 일관성을 다시 검토한 작업이다',
+        actor: { userId, isAgent: over.isAgent === true },
+        ...(kinds === undefined ? {} : { kinds }),
+        roles,
+      })
+      .catch((e: unknown) => e);
+
+  it('CLE-T-2NVZA4 — consistency 라운드만 있는 작업은 code 가 비어 막히고, developer 가 code 를 면제하면 닫힌다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-2NVZA4', [
+      ['review', 'round-1'],
+      ['review', 'round-2'],
+      ['review', 'round-3'],
+      ['review', 'round-4'],
+    ]);
+    for (const n of [1, 2, 3, 4]) {
+      await submit({
+        taskId,
+        kind: 'consistency',
+        branch: `review/consistency-${n}`,
+        changeset: [`spec/CLE-${n}.md`],
+      });
+    }
+    const refused = detailsOf(await close(taskId));
+    expect(refused['missing']).toEqual(['이 작업을 검토한 code 리뷰가 없습니다']);
+    // 기계가 읽을 값 — 에이전트는 이것으로 사람에게 면제를 부탁한다
+    expect(refused['uncovered_kinds']).toEqual(['code']);
+
+    const waived = (await waive('CLV-T-2NVZA4', ['code'], ['developer'])) as Record<
+      string,
+      unknown
+    >;
+    expect(waived).toMatchObject({ task_key: 'CLV-T-2NVZA4', kinds: ['code'] });
+    const { rows } = await pool.query(
+      `SELECT bypass_kinds::text[] AS kinds, bypass_reason, decided_by_user_id FROM approval
+        WHERE is_bypass AND subject_id = $1`,
+      [taskId],
+    );
+    expect(rows[0]).toMatchObject({ kinds: ['code'], decided_by_user_id: userId });
+    const { rows: ev } = await pool.query(
+      `SELECT payload FROM event WHERE type = 'gate.bypassed' ORDER BY occurred_at DESC LIMIT 1`,
+    );
+    expect(ev[0].payload).toMatchObject({ kinds: ['code'], task_key: 'CLV-T-2NVZA4' });
+
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
+    // 작업 상세가 누가 · 언제 · 왜 면제했는지 준다
+    const detail = await app.get(TaskService).get({ projectId, taskKey: 'CLV-T-2NVZA4' });
+    expect(detail['review_waivers']).toEqual([
+      expect.objectContaining({ kinds: ['code'], by_name: '규아', void_kinds: [] }),
+    ]);
+  });
+
+  it('CLE-T-SJAYNM — 스펙 초안만 쓴 작업: planner 는 code 를 면제하지 못하고 admin 은 한다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-SJAYNM', [['review', 'spec-draft-review']]);
+    await submit({ taskId, kind: 'consistency', changeset: ['spec/CLE-SJ.md'] });
+
+    const forbidden = await waive(taskId, ['code'], ['planner']);
+    expect(forbidden).toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'bypass_kind_forbidden', kinds: ['code'] },
+    });
+    expect((await pool.query(`SELECT count(*)::int AS n FROM approval`)).rows[0].n).toBe(0);
+
+    await waive(taskId, ['code'], ['admin']);
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
+  });
+
+  it('code 를 면제해도 consistency 는 그대로 요구한다 — 면제는 고른 종류만이다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-ONLY01', [['review', 'r']]);
+    await waive(taskId, ['code'], ['developer']);
+    const refused = detailsOf(await close(taskId));
+    expect(refused['missing']).toEqual(['이 작업을 검토한 consistency 리뷰가 없습니다']);
+    expect(refused['uncovered_kinds']).toEqual(['consistency']);
+  });
+
+  it('코드를 낸 작업의 code 리뷰는 면제하지 못한다 — 아무것도 기록하지 않는다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-CODE01', [['commit', 'a1b2c3d']]);
+    const refused = await waive(taskId, ['code'], ['developer', 'admin']);
+    expect(refused).toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'bypass_has_code', kinds: ['code'] },
+    });
+    expect((await pool.query(`SELECT count(*)::int AS n FROM approval`)).rows[0].n).toBe(0);
+  });
+
+  it('면제한 뒤에 코드 증적이 붙으면 그 면제를 세지 않는다 — 코드를 내고 증적을 빼는 길도 막는다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-LATE01', [['review', 'r']]);
+    await submit({ taskId, kind: 'consistency', changeset: ['spec/a.md'] });
+    await waive(taskId, ['code'], ['developer']);
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'pr','https://github.com/o/r/pull/7','agent')`,
+      [newId(), projectId, taskId],
+    );
+    const refused = detailsOf(await close(taskId));
+    expect(refused['missing']).toEqual([
+      'code 리뷰 면제는 코드 증적이 없을 때만 적용됩니다. 이 작업에는 코드 증적이 있습니다',
+      '이 작업을 검토한 code 리뷰가 없습니다',
+    ]);
+    const detail = await app.get(TaskService).get({ projectId, taskKey: 'CLV-T-LATE01' });
+    expect(detail['review_waivers']).toEqual([expect.objectContaining({ void_kinds: ['code'] })]);
+  });
+
+  it('세지 않은 면제는 길을 막지 않는다 — 코드를 낸 뒤 진짜 code 리뷰를 통과하면 닫힌다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-LATE02', [['review', 'r']]);
+    await submit({ taskId, kind: 'consistency', changeset: ['spec/a.md'] });
+    await waive(taskId, ['code'], ['developer']);
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'commit','a1b2c3d','agent')`,
+      [newId(), projectId, taskId],
+    );
+    for (const role of SIX) await submit({ taskId, kind: 'code', role });
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
+
+    // 정책이 code 를 요구하지 않게 바뀌어도 그 면제가 남아 막지 않는다
+    await pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify({ done_gate: { evidence_source: 'any', review_coverage: ['consistency'] } }),
+      projectId,
+    ]);
+    const other = await task('CLV-T-LATE03', [['review', 'r']]);
+    await submit({ taskId: other, kind: 'consistency', changeset: ['spec/a.md'] });
+    await waive(other, ['code'], ['developer']);
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'pr','https://github.com/o/r/pull/8','agent')`,
+      [newId(), projectId, other],
+    );
+    expect(await close(other)).toMatchObject({ status: 'done' });
+  });
+
+  it('에이전트는 면제하지 못하고, 모르는 종류 · 작업이 아닌 대상은 거절한다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-GUARD1', []);
+    expect(await waive(taskId, ['code'], ['developer'], { isAgent: true })).toMatchObject({
+      code: NERV_ERROR.HUMAN_ONLY,
+    });
+    expect(await waive(taskId, ['lint'], ['admin'])).toMatchObject({
+      details: { kind: 'invalid_input', field: 'kinds' },
+    });
+    expect(await waive(newId(), ['code'], ['admin'])).toMatchObject({
+      details: { kind: 'not_found' },
+    });
+    expect((await pool.query(`SELECT count(*)::int AS n FROM approval`)).rows[0].n).toBe(0);
+  });
+
+  it('범위 없는 면제는 예전 그대로 리뷰 커버리지를 통째로 넘긴다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-ALL001', [['review', 'r']]);
+    await waive(taskId, undefined, ['planner'], { reason: '릴리스 임박 — 사후 리뷰 예약' });
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
   });
 });
 

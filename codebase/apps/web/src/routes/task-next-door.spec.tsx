@@ -38,6 +38,8 @@ let lanes: Record<string, Record<string, unknown>[]> = {};
 let posted: { method: string; url: string; body: Record<string, unknown> }[] = [];
 /** 쓰기의 응답 — 검사마다 갈아 끼운다 */
 let reply: Record<string, unknown> = { status: 'ready' };
+/** 프로젝트의 게이트 정책 — 리뷰 면제가 읽는다 */
+let gatePolicy: Record<string, unknown> = {};
 
 function task(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -64,6 +66,7 @@ beforeEach(() => {
   lanes = {};
   posted = [];
   reply = { status: 'ready' };
+  gatePolicy = {};
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown, init?: RequestInit) => {
@@ -112,7 +115,13 @@ beforeEach(() => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ id: 'p1', slug: 'clemvion', items: [], memberships: [] }),
+        json: async () => ({
+          id: 'p1',
+          slug: 'clemvion',
+          items: [],
+          memberships: [],
+          gate_policy: gatePolicy,
+        }),
       };
     }),
   );
@@ -447,5 +456,130 @@ describe('기준선 작업 — 세트째 옮긴다 (REQ-WEB-252)', () => {
     await renderDetail();
     expect(screen.getByTestId('task-baseline').textContent).toBe(ko['common.none']);
     expect(screen.queryByTestId('task-baseline-move')).toBeNull();
+  });
+});
+
+/**
+ * 리뷰 면제 (2026-10-09 · REQ-WEB-299 · clemvion CLE-T-2NVZA4). 코드를 내지 않은 작업은 code 리뷰를 받을 길이 없는데
+ * 면제는 API 에만 있어 화면에서 닫지 못했다. 역할마다 면제할 수 있는 종류가 다르고(spec-workflow §1.6), 코드를 낸
+ * 작업의 코드 리뷰는 면제하지 못한다.
+ */
+describe('리뷰 면제 (REQ-WEB-299)', () => {
+  const requireKinds = (): void => {
+    gatePolicy = { done_gate: { review_coverage: ['code', 'consistency'] } };
+  };
+
+  it('developer 는 code 만 고를 수 있고, 사유와 함께 그 작업에 면제를 기록한다', async () => {
+    requireKinds();
+    detail = task({
+      status: 'in_progress',
+      evidence: [{ id: 'e1', kind: 'review', locator: 'r1' }],
+    });
+    reply = { approval_id: 'a1', task_key: 'CLV-T-AAAAAA', kinds: ['code'] };
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    fireEvent.click(await screen.findByTestId('review-waiver-open'));
+    expect(screen.getByTestId('review-waiver-kind-code')).toBeTruthy();
+    expect(screen.queryByTestId('review-waiver-kind-consistency')).toBeNull();
+    // 고르기 전 · 사유 전에는 기록하지 않는다
+    expect(isLocked(screen.getByTestId('review-waiver-submit'))).toBe(true);
+    fireEvent.click(screen.getByTestId('review-waiver-kind-code'));
+    fireEvent.change(screen.getByTestId('review-waiver-reason'), {
+      target: { value: '코드 변경 없이 승인된 스펙을 다시 검토했다' },
+    });
+    fireEvent.click(screen.getByTestId('review-waiver-submit'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({
+      method: 'POST',
+      body: {
+        subject_id: 'task-1',
+        kinds: ['code'],
+        reason: '코드 변경 없이 승인된 스펙을 다시 검토했다',
+      },
+    });
+    expect(posted[0]?.url).toContain('/projects/clemvion/gates/bypass');
+  });
+
+  it('planner 는 consistency 만, 면제할 수 있는 종류가 없는 역할은 안내만 본다', async () => {
+    requireKinds();
+    roles = ['planner'];
+    detail = task({ status: 'in_progress' });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    fireEvent.click(await screen.findByTestId('review-waiver-open'));
+    expect(screen.getByTestId('review-waiver-kind-consistency')).toBeTruthy();
+    expect(screen.queryByTestId('review-waiver-kind-code')).toBeNull();
+    cleanup();
+    roles = ['qa'];
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    expect((await screen.findByTestId('review-waiver-no-role')).textContent).toBe(
+      ko['task.waiver.no_role'],
+    );
+  });
+
+  it('코드 증적이 붙은 작업은 code 를 고르지 못하고 그 까닭을 말한다', async () => {
+    requireKinds();
+    detail = task({
+      status: 'in_progress',
+      evidence: [{ id: 'e1', kind: 'commit', locator: 'a1b2c3d' }],
+    });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    fireEvent.click(await screen.findByTestId('review-waiver-open'));
+    expect((screen.getByTestId('review-waiver-kind-code') as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByTestId('review-waiver-code').textContent).toBe(
+      ko['task.waiver.code_evidence'],
+    );
+  });
+
+  it('면제 기록은 리뷰 목록 아래에 누가 · 왜와 함께 남고, 이미 면제한 종류는 다시 고르지 않는다', async () => {
+    requireKinds();
+    detail = task({
+      status: 'in_progress',
+      review_waivers: [
+        {
+          id: 'w1',
+          kinds: ['code'],
+          reason: '코드 산출물 없음',
+          at: '2026-10-09T01:00:00Z',
+          by_name: '지민',
+          void_kinds: [],
+        },
+      ],
+    });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    const line = await screen.findByTestId('review-waiver');
+    expect(line.textContent).toContain('지민');
+    expect(line.textContent).toContain('코드 산출물 없음');
+    // developer 가 면제할 수 있는 code 는 이미 면제됐다 — 남은 consistency 는 developer 의 몫이 아니다
+    expect(await screen.findByTestId('review-waiver-no-role')).toBeTruthy();
+  });
+
+  it('범위 없는 면제가 이미 있으면 더 고를 종류가 없다', async () => {
+    requireKinds();
+    detail = task({
+      status: 'in_progress',
+      review_waivers: [
+        {
+          id: 'w0',
+          kinds: null,
+          reason: '릴리스 임박',
+          at: '2026-10-09T01:00:00Z',
+          by_name: '지민',
+          void_kinds: [],
+        },
+      ],
+    });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    expect((await screen.findByTestId('review-waiver')).textContent).toContain(
+      ko['task.waiver.all'],
+    );
+    expect(screen.queryByTestId('review-waiver-form')).toBeNull();
+    expect(screen.queryByTestId('review-waiver-no-role')).toBeNull();
+  });
+
+  it('완료 조건이 종류 목록이 아니면 면제 입력을 그리지 않는다', async () => {
+    detail = task({ status: 'in_progress' });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    await screen.findByTestId('done-gate');
+    expect(screen.queryByTestId('review-waiver-form')).toBeNull();
+    expect(screen.queryByTestId('review-waiver-no-role')).toBeNull();
   });
 });

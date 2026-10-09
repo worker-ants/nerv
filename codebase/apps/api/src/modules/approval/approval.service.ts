@@ -13,11 +13,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   APPROVAL_INBOX_STATES,
   approvalDecision,
+  canWaiveReviewKind,
+  CODE_EVIDENCE_KINDS,
+  CODE_REVIEW_KINDS,
   msg,
   NERV_ERROR,
   NERV_EVENT,
   newId,
   questionStatus,
+  reviewKind,
   scopesForRoles,
 } from '@nerv/schema';
 import type { Message, NervErrorCode } from '@nerv/schema';
@@ -44,7 +48,9 @@ import {
   encodeCursor,
   pageLimit,
 } from '../../common/cursor.js';
+import { entityRef } from '../../common/entity-ref.js';
 import { assertVocab } from '../../common/query-vocab.js';
+import { sqlArray } from '../../common/sql-array.js';
 import type { NervDb } from '../../common/database.module.js';
 import { memberOfProjectSql, scopeFilterSql } from '../../common/member-scope.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -1283,33 +1289,102 @@ export class ApprovalService {
     userId: string;
     reason: string;
     actor: Actor;
-  }): Promise<{ approval_id: string }> {
+    /**
+     * **면제할 리뷰 종류**(2026-10-09 · REQ-API-274). 주면 `subjectId` 는 이 프로젝트의 작업(키 또는 UUID)이고,
+     * 그 작업의 done 게이트가 이 종류만 요구에서 뺀다. 주지 않으면 예전 그대로 범위 없는 면제다.
+     */
+    kinds?: readonly string[] | undefined;
+    /** 면제한 사람의 이 프로젝트 역할 — 종류마다 면제할 수 있는 역할이 다르다(spec-workflow §1.6) */
+    roles?: readonly string[] | undefined;
+  }): Promise<{ approval_id: string; task_key?: string; kinds?: string[] }> {
     assertHuman(input.actor, 'bypass');
     if (input.reason.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
         kind: 'bypass_reason_required',
       });
     }
+    // 어휘의 정본은 `review_kind` 다 — 모르는 종류는 거절이지 무시가 아니다(REQ-API-112)
+    const kinds =
+      input.kinds === undefined
+        ? null
+        : [...new Set(assertVocab([...input.kinds], reviewKind.enumValues, 'kinds'))];
     return this.events.transact(async (tx, emit) => {
+      let subjectId = input.subjectId;
+      let taskKey: string | null = null;
+      if (kinds !== null) {
+        // **범위를 고른 면제는 작업에 붙는다** — done 게이트가 작업 id 로 면제를 찾는다
+        const ref = entityRef(input.subjectId);
+        const { rows: tasks } = await tx.execute<{ id: string; key: string }>(sql`
+          SELECT id, key FROM task
+           WHERE project_id = ${input.projectId}
+             AND ${ref.id === null ? sql`key = ${ref.key ?? ''}` : sql`id = ${ref.id}`}
+        `);
+        const task = tasks[0];
+        if (task === undefined) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
+            kind: 'not_found',
+            task: input.subjectId,
+          });
+        }
+        subjectId = task.id;
+        taskKey = task.key;
+        // **역할마다 면제할 수 있는 종류가 다르다**(spec-workflow §1.6 권한표) — 코드 계열은 developer · admin,
+        // 스펙 계열은 planner · admin. 하나라도 못 하면 아무것도 기록하지 않는다
+        const forbidden = kinds.filter((kind) => !canWaiveReviewKind(input.roles ?? [], kind));
+        if (forbidden.length > 0) {
+          throw new NervError(
+            NERV_ERROR.FORBIDDEN,
+            msg('error.approval.bypass_kind_forbidden', { kinds: forbidden.join(' · ') }),
+            { kind: 'bypass_kind_forbidden', kinds: forbidden, roles: input.roles ?? [] },
+          );
+        }
+        // **코드를 낸 작업의 코드 리뷰는 면제하지 않는다** — 면제의 전제는 "코드 산출물이 없다" 이다
+        const codeKinds = kinds.filter((kind) =>
+          (CODE_REVIEW_KINDS as readonly string[]).includes(kind),
+        );
+        if (codeKinds.length > 0) {
+          const { rows: code } = await tx.execute<{ kind: string; locator: string }>(sql`
+            SELECT kind::text AS kind, locator FROM evidence
+             WHERE task_id = ${task.id}
+               AND kind::text = ANY(${sqlArray(CODE_EVIDENCE_KINDS, 'text')})
+             ORDER BY created_at LIMIT 5
+          `);
+          if (code.length > 0) {
+            throw new NervError(
+              NERV_ERROR.PRECONDITION,
+              msg('error.approval.bypass_has_code', { kinds: codeKinds.join(' · ') }),
+              { kind: 'bypass_has_code', kinds: codeKinds, evidence: code },
+            );
+          }
+        }
+      }
       const approvalId = newId();
       await tx.execute(sql`
         INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                              decision, decided_at, decided_by_user_id, is_bypass, bypass_reason)
+                              decision, decided_at, decided_by_user_id, is_bypass, bypass_reason,
+                              bypass_kinds)
         VALUES (${approvalId}, ${input.projectId}, ${input.subjectType}::approval_subject_type,
                 -- 면제는 **낸 사람이 곧 결정한 사람**이다 — 묻지 않고 지나가는 것이 면제다
-                ${input.subjectId}, ${input.userId}, 'approve', now(), ${input.userId},
-                true, ${input.reason})
+                ${subjectId}, ${input.userId}, 'approve', now(), ${input.userId},
+                true, ${input.reason},
+                ${kinds === null ? null : sqlArray(kinds, 'review_kind')})
       `);
       await emit({
         type: NERV_EVENT.GATE_BYPASSED,
         projectId: input.projectId,
         subjectType: 'approval',
         subjectId: approvalId,
+        ...(taskKey === null ? {} : { subjectKey: taskKey }),
         actorUserId: input.userId,
         isAgent: input.actor.isAgent,
-        payload: { reason: input.reason },
+        payload: {
+          reason: input.reason,
+          ...(kinds === null ? {} : { kinds, task_id: subjectId, task_key: taskKey }),
+        },
       });
-      return { approval_id: approvalId };
+      return kinds === null
+        ? { approval_id: approvalId }
+        : { approval_id: approvalId, task_key: taskKey ?? '', kinds };
     });
   }
 

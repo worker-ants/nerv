@@ -13,7 +13,7 @@ import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
 /** 이 저장소가 배열로 싣는 타입. 값이 아니라 **타입 이름**이라 열거로 닫는다. */
-export type SqlArrayType = 'text' | 'uuid' | 'session_state';
+export type SqlArrayType = 'text' | 'uuid' | 'session_state' | 'review_kind';
 
 /**
  * `ARRAY[$1, $2]::<type>[]` — 각 값은 바인딩된 파라미터다.

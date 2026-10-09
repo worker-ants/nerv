@@ -316,6 +316,13 @@
       "when": 1791465401174,
       "tag": "0044_spec_version_shrink_ack",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1791510375049,
+      "tag": "0045_approval_bypass_kinds",
+      "breakpoints": true
     }
   ]
 }
