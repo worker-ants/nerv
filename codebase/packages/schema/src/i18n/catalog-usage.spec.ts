@@ -55,6 +55,10 @@ const DYNAMIC: readonly { prefix: string; values?: readonly string[]; where: str
   { prefix: 'reviews.action.', where: 'review-center — 처분과 그 설명(`_hint`)' },
   { prefix: 'reviews.verdict.', where: 'review-center gate-coverage' },
   { prefix: 'scope.desc.', where: 'web settings/tokens — 권한 설명' },
+  {
+    prefix: 'session.awaiting_kind.',
+    where: 'web lib/format.ts awaitingKindText — 대기 표시의 종류',
+  },
   { prefix: 'severity.', where: 'review-center — 발견의 심각도' },
   {
     prefix: 'spec.diff.',

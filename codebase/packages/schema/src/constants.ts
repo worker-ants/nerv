@@ -14,6 +14,13 @@ import { ko } from './i18n/ko.js';
 export const LEASE_TTL_SECONDS = 1800;
 
 /**
+ * 하트비트 대기 표시(`awaiting.refs`)의 상한 — 개수 20 · 한 줄 200자(2026-10-09 · REQ-API-275).
+ * 대상은 워크플로 · 질문 · 결재 ID 같은 짧은 식별자다. 세션 보드 한 줄에 보이므로 목록이 자라지 않게 묶는다
+ */
+export const AWAITING_REFS_MAX = 20;
+export const AWAITING_REF_MAX = 200;
+
+/**
  * 첨부 파일당 상한 — 10MB(2026-09-01 사람 결정).
  * 스펙당 **합계는 제한하지 않는다** — 시안이 쌓이는 것은 문서가 자라는 것이다.
  * 정본: docs/04-mvp/api.md §2.10

@@ -323,6 +323,40 @@ describe('Stop — 유일한 동기 판정 경로', () => {
     expect(res.body['decision']).toBeUndefined();
   });
 
+  // 백그라운드 리뷰를 기다리느라 턴을 끝내는 세션에 해제만 안내하자 모델은 기다리는 중에도 클레임을 풀었다
+  // (clemvion CLE-T-ZTTHXD · REQ-API-276). 기다린다고 선언한 클레임은 그 시각까지 세지 않는다
+  it('대기 표시가 살아 있으면 첫 Stop 도 막지 않고, 시각이 지나면 두 갈래 안내로 막는다', async () => {
+    const start = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });
+    const claimId = newId();
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status, lease_expires_at,
+                          awaiting_kind, awaiting_refs, awaiting_until, awaiting_task_status)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes',
+               'background', '{wf_ai_review}', now() + interval '20 minutes', 'in_progress')`,
+      [claimId, projectId, taskId, String(start.body['session_id']), userId],
+    );
+    await pool.query(`UPDATE task SET status = 'in_progress' WHERE id = $1`, [taskId]);
+
+    const waiting = await hook('stop', { session_id: EXTERNAL_SESSION });
+    expect(waiting.body['decision']).toBeUndefined();
+
+    // 작업 상태가 남길 때와 다르면 그 대기는 효력이 없다
+    await pool.query(`UPDATE task SET status = 'claimed' WHERE id = $1`, [taskId]);
+    expect((await hook('stop', { session_id: EXTERNAL_SESSION })).body['decision']).toBe('block');
+    await pool.query(`UPDATE task SET status = 'in_progress' WHERE id = $1`, [taskId]);
+
+    await pool.query(
+      `UPDATE claim SET awaiting_until = now() - interval '1 minute' WHERE id = $1`,
+      [claimId],
+    );
+    const lapsed = await hook('stop', { session_id: EXTERNAL_SESSION });
+    expect(lapsed.body['decision']).toBe('block');
+    // 끝냈으면 해제 · 기다리는 중이면 해제하지 않고 대기를 남긴다 — 둘 다 말한다
+    expect(lapsed.body['reason']).toContain('nerv_task_release');
+    expect(lapsed.body['reason']).toContain('awaiting');
+    expect(lapsed.body['reason']).toContain('in_review');
+  });
+
   // clemvion 이 같은 자리에서 같은 답을 냈다(1.2 §"stop_hook_active면 즉시 허용").
   // 확인하지 않으면 클레임을 쥔 채 사람에게 물으려는 턴마다 강제 계속이 반복된다.
   it('이미 Stop 훅으로 계속하는 중이면 다시 막지 않는다 — anti-wedge', async () => {

@@ -6,6 +6,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_question_create
   - mcp__nerv__nerv_question_cancel
   - mcp__plugin_nerv_nerv__nerv_question_cancel
+  - mcp__nerv__nerv_task_heartbeat
+  - mcp__plugin_nerv_nerv__nerv_task_heartbeat
   - mcp__nerv__nerv_task_release
   - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_task_update
@@ -48,6 +50,8 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
    /nerv:impl 루프 중이라면 하트비트 응답의 pending에도 같은 답변이 실려 온다.
 5. **대기 중 규칙.** blocking 질문의 답변을 기다리는 동안 새 작업을 클레임하지 않고,
    해당 결정에 의존하는 코드를 미리 쓰지 않는다. 하트비트는 유지한다(세션은 죽지 않는다).
+   **답을 기다리느라 턴을 끝낼 때는 클레임을 해제하지 않는다** — `nerv_task_heartbeat`에
+   `awaiting`(`kind: user`, `refs`: 질문 ID)을 보내고 끝낸다. 그 시각(최대 30분)까지 Stop 훅이 막지 않는다.
 6. `expired`면 질문이 만료된 것이다 — 안전한 기본값을 임의로 고르지 말고, 상황을
    `state_note`에 남겨 `nerv_task_release`(`reason=handoff`)로 인계하거나 사람에게 보고한다.
 7. **답이 필요 없어졌으면 거둔다.** 기다리는 동안 스스로 답을 찾았거나 전제가 사라졌으면

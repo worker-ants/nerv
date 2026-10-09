@@ -32,6 +32,10 @@ export interface SessionCard {
   waiting_question_id?: string | null;
   waiting_question_title?: string | null;
   waiting_approval_id?: string | null;
+  /** 세션이 하트비트로 선언한 기다림(REQ-API-275 · REQ-WEB-300) — 시각이 지났으면 서버가 null 로 준다 */
+  awaiting_kind?: string | null;
+  awaiting_refs?: string[];
+  awaiting_until?: string | null;
 }
 
 export interface SessionBoardResult {

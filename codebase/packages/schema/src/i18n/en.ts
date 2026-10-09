@@ -157,6 +157,8 @@ export const en = {
     'It includes versions that are not approved, so the baseline was not created.',
   'error.baseline.not_found': 'Baseline not found.',
   'error.claim.lease_expired': 'The lease expired, or this is not an active claim.',
+  'error.claim.awaiting_until':
+    'The wait must end after now and no later than the lease expiry (at most 30 minutes). If it may take longer and you are in a review stage, move the task to in_review.',
   'error.claim.lease_too_long':
     'A lease can be at most {max} seconds. Longer values are not accepted.',
   'error.claim.not_active': 'Not an active claim.',
@@ -278,6 +280,8 @@ export const en = {
   'mcp.arg.relation_base_hash':
     'content hash of the target document (content_hash from nerv_spec_get); required when adding a relation',
   'mcp.arg.lease_seconds': 'Lease length in seconds. Max 1800; longer values are rejected.',
+  'mcp.arg.awaiting':
+    "While waiting, record what you are waiting for. kind is background (a background job), user (a person's answer) or approval; refs are the IDs you are waiting on; until is when the wait ends (ISO 8601; defaults to the lease expiry and cannot be later; at most 30 minutes). Until then, as long as the task status stays the same, the Stop hook does not ask you to release the claim. A heartbeat without awaiting clears it.",
   'mcp.arg.takeover':
     'take over an edit lease held by another session. Use it when a disconnected session has not released the lease',
   'mcp.arg.allow_shrink':
@@ -365,7 +369,9 @@ export const en = {
   'agent.resume_claim': 'Continue this claim. Do not claim anything new.',
   'agent.unfinished_claims': 'Claims not yet wrapped up: {keys}.',
   'agent.release_before_exit':
-    'Record status with nerv_task_update, then release with nerv_task_release before exiting.',
+    'If the work is finished or you are leaving the session, record status with nerv_task_update and release with nerv_task_release before exiting.',
+  'agent.keep_claim_while_waiting':
+    "If you are ending the turn to wait for a background job, a person's answer or an approval, do not release. In a review stage, first move the task to in_review. Then send nerv_task_heartbeat with awaiting (kind and refs) to record what you are waiting for, and end the turn again.",
   'gate.reason.first_version': "the document's first approved version",
   'gate.reason.retry_threshold': 'the same failure reported three times',
   'gate.reason.body_shrunk': 'the body shrank sharply against the previous version',
@@ -2053,6 +2059,11 @@ export const en = {
   'specs.clear_search': 'Clear the search',
   'session.waiting_question': 'Question: {title}',
   'session.waiting_approval': 'Waiting for approval',
+  'session.awaiting': 'Waiting · {kind} · {left}',
+  'session.awaiting_kind.background': 'background job',
+  'session.awaiting_kind.user': "a person's answer",
+  'session.awaiting_kind.approval': 'approval',
+  'session.awaiting_left': '{n} min left',
   'session.open_in_inbox': 'Open in inbox ↗',
   'session.last_task': 'Last task',
   'session.reclaimed': 'Reclaimed',

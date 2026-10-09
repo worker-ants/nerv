@@ -137,6 +137,14 @@ allowed-tools:
 - 작업을 끝냈거나 세션을 접으면 `nerv_task_release`(`claim_id`,
   `reason=done|handoff|abandon`, `state_note`에 인수인계 노트). **`reason=done` 은 `done` 으로 옮긴
   뒤에만 부른다** — 먼저 부르면 `not_done` 으로 거절되고 클레임은 그대로 남는다. 끝내지 못했으면 `handoff` 다.
+- **기다리느라 턴을 끝낼 때는 해제하지 않는다** — 백그라운드 작업(리뷰 워크플로 등) · 사람의 답 · 결재를
+  기다리는 경우다. 해제하면 Task가 `ready`로 돌아가 다른 세션이 가져간다. 리뷰 단계면 **먼저** Task를
+  `in_review`로 옮긴다(상태가 바뀌면 앞서 남긴 대기는 효력을 잃는다). 그다음 `nerv_task_heartbeat`에
+  `awaiting`(`kind`: `background`·`user`·`approval`, `refs`: 기다리는 대상의 ID, `until`: 생략하면 리스
+  만료 시각)을 보내고 끝낸다. 그 시각까지 Stop 훅이 막지 않고 세션 보드에 「대기 중」이 보인다. 대기는
+  최대 30분(리스 상한)이다 — 하트비트가 30분 끊기면 세션이 무응답으로 넘어가 클레임이 회수된다. 그보다
+  오래 걸릴 수 있으면 `in_review`가 지켜 준다(회수돼도 `ready`로 돌아가지 않는다). 알림을 받아 다시
+  시작하면 `awaiting` 없이 하트비트부터 보낸다 — 그 하트비트가 대기를 지운다.
 
 ## 리뷰
 

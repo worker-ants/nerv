@@ -5,6 +5,9 @@
 import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  AWAITING_REF_MAX,
+  AWAITING_REFS_MAX,
+  CLAIM_AWAITING_KINDS,
   CLAIM_RELEASE_INPUTS,
   CODE_EVIDENCE_KINDS,
   CODE_REVIEW_KINDS,
@@ -59,6 +62,20 @@ import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
 
 /** 클레임을 만지는 주체 — 전표의 "보유자"·"admin" 판정에 필요한 것 전부다 */
+/** 하트비트가 받는 대기 표시 — 모양은 `ClaimAwaitingInput`(zod)이고 어휘 · 시각은 `writeAwaiting` 이 본다 */
+export interface ClaimAwaitingInput {
+  kind: string;
+  refs?: string[] | null | undefined;
+  until?: string | null | undefined;
+}
+
+/** 기록된 대기 표시(REQ-API-275) */
+export interface ClaimAwaiting {
+  kind: string;
+  refs: string[];
+  until: Date;
+}
+
 export interface ClaimActor {
   projectId: string;
   userId: string;
@@ -1391,13 +1408,28 @@ export class TaskService {
     leaseExpiresAt: Date;
     pending: unknown[];
     scopeOverlaps: number;
-  }): { lease_expires_at: string; pending: unknown[]; scope_overlaps: number } {
+    awaiting?: ClaimAwaiting | null;
+  }): {
+    lease_expires_at: string;
+    pending: unknown[];
+    scope_overlaps: number;
+    awaiting: { kind: string; refs: string[]; until: string } | null;
+  } {
     return {
       lease_expires_at: beat.leaseExpiresAt.toISOString(),
       // 서버 → 세션 방향의 유일한 보장된 채널이다(agent-integration §2.4)
       pending: beat.pending,
       // 지금 내 범위와 겹치는 활성 클레임 수(block·warn만) — statusline 이 읽는다
       scope_overlaps: beat.scopeOverlaps,
+      // 기록된 대기 표시 — `until` 까지 Stop 훅이 이 클레임으로 막지 않는다(REQ-API-275). 없으면 null
+      awaiting:
+        beat.awaiting == null
+          ? null
+          : {
+              kind: beat.awaiting.kind,
+              refs: beat.awaiting.refs,
+              until: beat.awaiting.until.toISOString(),
+            },
     };
   }
 
@@ -1415,12 +1447,40 @@ export class TaskService {
     progress?: string | null;
     /** 세션 카드의 +N −M — 카탈로그가 처음부터 적고 있던 셋(REQ-API-081) */
     stats?: { added?: number; removed?: number; files?: number } | null;
-  }): Promise<{ leaseExpiresAt: Date; pending: unknown[]; scopeOverlaps: number }> {
+    /** 무엇을 기다리는가(REQ-API-275) — 없으면 지운다 */
+    awaiting?: ClaimAwaitingInput | null;
+  }): Promise<{
+    leaseExpiresAt: Date;
+    pending: unknown[];
+    scopeOverlaps: number;
+    awaiting: ClaimAwaiting | null;
+  }> {
     const owned = await this.assertClaimOwner(input.claimId, input.actor, 'heartbeat');
 
-    const leaseExpiresAt = await this.db.transaction(async (tx) =>
-      this.claims.renewLease(tx, input.claimId, input.leaseSeconds),
-    );
+    // **리스 상한은 하트비트에서도 본다**(2026-10-09). 클레임만 보고 있어 MCP 하트비트는 1800초를 넘는 값도, 0 이나
+    // 음수도 받았다(도구 게이트웨이는 `maximum` 을 보지 않는다). 대기 표시가 생긴 뒤로는 더 위험하다 — 리스를 늘려
+    // 길게 기다리겠다고 선언한 세션은 하트비트가 30분 끊기면 무응답으로 회수되고, 작업은 그대로 `ready` 로 돌아간다
+    if (input.leaseSeconds !== undefined) {
+      const ttl = input.leaseSeconds;
+      if (!Number.isInteger(ttl) || ttl < 1 || ttl > LEASE_TTL_SECONDS) {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          ttl > LEASE_TTL_SECONDS
+            ? msg('error.claim.lease_too_long', { max: LEASE_TTL_SECONDS })
+            : msg('error.mcp.invalid_input'),
+          { kind: 'invalid_input', field: 'lease_seconds', min: 1, max: LEASE_TTL_SECONDS },
+        );
+      }
+    }
+
+    // 대기 표시는 리스와 **한 트랜잭션**이다 — 시각의 상한이 새 리스 만료 시각이고, 표시가 거절되면 연장도 없던 일이 된다
+    const { leaseExpiresAt, awaiting } = await this.db.transaction(async (tx) => {
+      const lease = await this.claims.renewLease(tx, input.claimId, input.leaseSeconds);
+      return {
+        leaseExpiresAt: lease,
+        awaiting: await this.writeAwaiting(tx, input.claimId, input.awaiting ?? null, lease),
+      };
+    });
 
     /**
      * **겹침 수는 하트비트가 답한다**(2026-09-06 · 사람 결정 · REQ-API-116).
@@ -1454,7 +1514,7 @@ export class TaskService {
     // 역채널 — 답변된 질문을 여기 싣는다. Claude 의 channel capability 는 향상이고
     // 하트비트가 정본이다(Codex 에는 채널이 없다). 여기 실리지 않으면 에이전트는 모른다.
     const sessionId = owned.agentSessionId;
-    if (sessionId === null) return { leaseExpiresAt, pending: [], scopeOverlaps };
+    if (sessionId === null) return { leaseExpiresAt, pending: [], scopeOverlaps, awaiting };
 
     // **세션 카드의 +N −M 이 여기서 채워진다.** 열은 처음부터 있었고 읽는 화면도 있었는데
     // 쓰는 곳이 없어 실사용 세션 34개 전부 `+0 −0` 이었다(실측 2026-09-03). 하트비트는
@@ -1504,7 +1564,86 @@ export class TaskService {
       leaseExpiresAt,
       pending: [...instructions, ...basis, ...decisions, ...answers],
       scopeOverlaps,
+      awaiting,
     };
+  }
+
+  /**
+   * **대기 표시를 쓰거나 지운다**(2026-10-09 · REQ-API-275 · clemvion CLE-T-ZTTHXD).
+   *
+   * 백그라운드 리뷰(10~17분)나 사람의 답을 기다리느라 턴을 끝내는 세션에 Stop 훅이 클레임 해제를 요구했고, 모델은
+   * 기다리는 중에도 클레임을 풀었다 — 풀면 작업이 `ready` 로 돌아가 다른 세션의 `nerv_task_next` 가 가져간다.
+   * 기다린다고 선언한 클레임은 `until` 까지 Stop 이 세지 않는다. 시각의 상한은 리스 만료 시각(최대 30분)이다:
+   * 리스보다 오래 기다린다는 선언은 리스가 먼저 끝나 거짓이 되므로 받지 않는다. 그보다 길게 기다릴 수 있으면
+   * 리뷰 단계는 `in_review` 로 옮긴다 — 리스가 끝나도 `in_review` 는 `ready` 로 돌아가지 않는다.
+   * **`awaiting` 없는 하트비트는 지운다** — 기다림이 끝나고 다시 일을 시작한 세션은 하트비트부터 보낸다.
+   * **작업 상태도 함께 남긴다** — 상태가 바뀌면 그 대기는 효력을 잃는다(읽는 쪽이 견준다). 전이가 이 행을 지우러
+   * 오지 않게 하려는 것이다: 전이는 작업을 먼저 잠그고 해제 · 회수는 클레임을 먼저 잠근다.
+   */
+  private async writeAwaiting(
+    tx: Tx,
+    claimId: string,
+    input: ClaimAwaitingInput | null,
+    leaseExpiresAt: Date,
+  ): Promise<ClaimAwaiting | null> {
+    if (input === null) {
+      await tx.execute(sql`
+        UPDATE claim
+           SET awaiting_kind = NULL, awaiting_refs = '{}', awaiting_until = NULL,
+               awaiting_task_status = NULL
+         WHERE id = ${claimId} AND awaiting_kind IS NOT NULL
+      `);
+      return null;
+    }
+    // 모르는 칸은 거절한다 — MCP 게이트웨이는 객체 안의 칸을 보지 않아 `ref`(오타)가 조용히 버려진다
+    const unknown = Object.keys(input).filter((k) => !['kind', 'refs', 'until'].includes(k));
+    if (unknown.length > 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'awaiting',
+        unknown,
+        allowed: ['kind', 'refs', 'until'],
+      });
+    }
+    const kind = assertVocab([String(input.kind)], CLAIM_AWAITING_KINDS, 'awaiting.kind')[0] ?? '';
+    // MCP 는 zod 를 거치지 않는다 — 모양도 여기서 다시 본다
+    const refs = input.refs ?? [];
+    if (
+      !Array.isArray(refs) ||
+      refs.length > AWAITING_REFS_MAX ||
+      refs.some((r) => typeof r !== 'string' || r === '' || r.length > AWAITING_REF_MAX)
+    ) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'awaiting.refs',
+        max_items: AWAITING_REFS_MAX,
+        max_length: AWAITING_REF_MAX,
+      });
+    }
+    let until = leaseExpiresAt;
+    if (input.until != null && input.until !== '') {
+      const at = Date.parse(String(input.until));
+      // 지금보다 뒤 · 리스 만료 시각 이하 — 지난 시각은 대기가 아니고, 리스 뒤의 시각은 리스가 먼저 끝난다
+      if (Number.isNaN(at) || at <= Date.now() || at > leaseExpiresAt.getTime()) {
+        // 늦을 수 있는 가장 늦은 시각을 준다 — `lease_expires_at` 이라 부르면 리스가 늘었다고 읽힌다(거절되어 늘지 않았다)
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.claim.awaiting_until'), {
+          kind: 'invalid_input',
+          field: 'awaiting.until',
+          max_until: leaseExpiresAt.toISOString(),
+        });
+      }
+      until = new Date(at);
+    }
+    await tx.execute(sql`
+      UPDATE claim c
+         SET awaiting_kind = ${kind}::claim_awaiting_kind,
+             awaiting_refs = ${sqlArray(refs, 'text')},
+             awaiting_until = ${until.toISOString()}::timestamptz,
+             awaiting_task_status = t.status
+        FROM task t
+       WHERE c.id = ${claimId} AND t.id = c.task_id
+    `);
+    return { kind, refs: [...refs], until };
   }
 
   /**

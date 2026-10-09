@@ -12,8 +12,16 @@ import { SESSION_TOKEN } from '../../components/status-token.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { Avatar, REVEAL_ON_HOVER } from '../../components/ui/primitives.js';
 import { EntityLink } from '../../components/entity-link.js';
+import { awaitingKindText } from '../../lib/format.js';
 import { cn } from '../../lib/utils.js';
-import { diffStat, identity, leaseRemaining, relativeTime } from './format.js';
+import {
+  awaitingAlive,
+  awaitingLeft,
+  diffStat,
+  identity,
+  leaseRemaining,
+  relativeTime,
+} from './format.js';
 import type { SessionCard as Card } from './types.js';
 
 export interface SessionCardProps {
@@ -235,6 +243,33 @@ export function SessionCard({
             >
               {t('session.open_in_inbox')}
             </Link>
+          </span>
+        )}
+
+      {/* **세션이 스스로 선언한 기다림**(2026-10-09 · REQ-WEB-300). 백그라운드 리뷰를 기다리는 동안 하트비트가 끊겨도
+          작업을 놓은 것이 아니라는 것을 사람이 안다 — 무엇을(대상 ID) 얼마나 더 기다리는지 함께 보인다 */}
+      {card.task_key !== null &&
+        typeof card.awaiting_kind === 'string' &&
+        typeof card.awaiting_until === 'string' &&
+        awaitingAlive(card.awaiting_until, now) && (
+          <span
+            data-testid="session-awaiting"
+            className="order-last flex w-full min-w-0 items-center gap-2 text-2xs text-status-waiting"
+          >
+            <span className="shrink-0">
+              {t('session.awaiting', {
+                kind: awaitingKindText(t, card.awaiting_kind),
+                left: awaitingLeft(t, card.awaiting_until, now),
+              })}
+            </span>
+            {(card.awaiting_refs ?? []).length > 0 && (
+              <span
+                className="min-w-0 truncate font-mono text-text-faint"
+                title={(card.awaiting_refs ?? []).join('\n')}
+              >
+                {(card.awaiting_refs ?? []).join(' · ')}
+              </span>
+            )}
           </span>
         )}
 

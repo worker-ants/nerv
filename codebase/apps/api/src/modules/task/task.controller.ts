@@ -201,6 +201,8 @@ export class TaskController {
                 ...(input.stats.files == null ? {} : { files: input.stats.files }),
               },
         ...(input.lease_seconds == null ? {} : { leaseSeconds: input.lease_seconds }),
+        // 없으면 지운다(REQ-API-275) — 빼고 보낸 하트비트가 대기의 끝이다
+        awaiting: input.awaiting ?? null,
       })
       .then((beat) => TaskService.toHeartbeatResult(beat));
   }

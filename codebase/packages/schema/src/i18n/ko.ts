@@ -164,6 +164,8 @@ export const ko = {
   'error.baseline.not_approved': '승인되지 않은 버전이 들어 있어 기준선을 만들지 않았습니다.',
   'error.baseline.not_found': '기준선을 찾을 수 없습니다.',
   'error.claim.lease_expired': '점유 시간이 지났거나 활성 클레임이 아닙니다.',
+  'error.claim.awaiting_until':
+    '대기 시각은 지금보다 뒤이고 점유 만료 시각(최대 30분)을 넘지 않아야 합니다. 더 오래 걸릴 수 있으면 리뷰 단계는 작업을 in_review로 옮깁니다.',
   'error.claim.lease_too_long': '점유 시간은 최대 {max}초입니다. 더 긴 값은 받지 않습니다.',
   'error.claim.not_active': '활성 클레임이 아닙니다.',
   'error.claim.release_not_done':
@@ -284,6 +286,8 @@ export const ko = {
   'mcp.arg.relation_base_hash':
     '상대 문서의 지문(nerv_spec_get 응답의 content_hash). 관계를 추가할 때는 필수다',
   'mcp.arg.lease_seconds': '점유 시간(초). 최대 1800이며 더 긴 값은 거절한다',
+  'mcp.arg.awaiting':
+    '기다리는 중이면 무엇을 기다리는지 남긴다. kind는 background(백그라운드 작업) · user(사람의 답) · approval(결재), refs는 기다리는 대상의 ID, until은 언제까지(ISO 8601 · 생략하면 점유 만료 시각 · 그보다 늦을 수 없다 · 최대 30분). until까지 작업 상태가 그대로면 Stop 훅이 클레임 해제를 요구하지 않는다. awaiting 없이 보내면 지운다',
   'mcp.arg.takeover':
     '다른 세션이 가진 편집 리스를 넘겨받는다. 끊긴 세션이 리스를 놓지 않았을 때 쓴다',
   'mcp.arg.allow_shrink':
@@ -363,8 +367,12 @@ export const ko = {
   'agent.active_claims': 'NERV: 활성 클레임 {claims}.',
   'agent.resume_claim': '새로 클레임하지 말고 이어서 진행한다.',
   'agent.unfinished_claims': '아직 정리하지 않은 클레임이 있다: {keys}.',
+  // **두 갈래다**(2026-10-09 · REQ-API-276). 해제만 말하던 동안 모델은 백그라운드 리뷰를 기다리는 중에도 클레임을
+  // 풀었고, 작업이 ready로 돌아가 다른 세션이 가져갈 수 있었다(clemvion CLE-T-ZTTHXD)
   'agent.release_before_exit':
-    'nerv_task_update로 상태를 남기고 nerv_task_release로 클레임을 해제한 뒤 끝낸다.',
+    '작업을 끝냈거나 세션을 접는다면 nerv_task_update로 상태를 남기고 nerv_task_release로 클레임을 해제한 뒤 끝낸다.',
+  'agent.keep_claim_while_waiting':
+    '백그라운드 작업이나 사람의 답 · 결재를 기다리느라 턴을 끝내는 것이면 해제하지 않는다. 리뷰 단계면 먼저 작업을 in_review로 옮긴다. 그다음 nerv_task_heartbeat에 awaiting(kind · refs)을 보내 무엇을 기다리는지 남기고 다시 끝낸다.',
   // 신호 이름 — 여럿이어도 티어는 한 단계만 오르므로 "+1" 은 끝에 한 번 붙는다(gate.escalated)
   'gate.reason.first_version': '이 문서의 첫 승인 버전',
   'gate.reason.retry_threshold': '같은 실패 3회 신고',
@@ -2020,6 +2028,12 @@ export const ko = {
   'specs.clear_search': '검색어 지우기',
   'session.waiting_question': '질문: {title}',
   'session.waiting_approval': '결재를 기다립니다',
+  // 세션이 하트비트로 선언한 기다림(REQ-WEB-300) — 질문 대기와 달리 서버가 판정한 상태가 아니다
+  'session.awaiting': '대기 중 · {kind} · {left}',
+  'session.awaiting_kind.background': '백그라운드 작업',
+  'session.awaiting_kind.user': '사람의 답',
+  'session.awaiting_kind.approval': '결재',
+  'session.awaiting_left': '{n}분 남음',
   'session.open_in_inbox': '받은 요청에서 열기 ↗',
   'session.last_task': '마지막 작업',
   'session.reclaimed': '회수됨',

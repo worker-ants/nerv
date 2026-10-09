@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>용어 사전</h1>
-    <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 38개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
+    <p class="lead">문서 세트·화면 문구·매뉴얼·스킬이 공유하는 <b>용어의 정본</b>이다 — 한국어와 영어 둘 다. 표제어 39개에 대해 한국어 채택어·영문·코드 식별자·한 줄 뜻을 정하고, 채택으로 <b>치환되는 옛 표현</b>과 그 파급을 함께 적는다. 말투(합쇼체/해라체)의 규칙도 여기에 둔다.</p>
     <div class="meta-line">
-      <span>버전 v0.22 (2026-10-09)</span>
+      <span>버전 v0.23 (2026-10-09)</span>
       <span>원본: <code>docs/glossary.md</code></span>
       <span>용어를 쓰는 모든 문서가 이 문서를 인용한다</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -184,6 +184,7 @@
       <tr><td><b>남은 시간 · 점유 시간</b> ← 리스</td><td>lease</td><td>—</td><td>사람이 읽는 자리에서 "리스" 대신 쓰는 말. 배지는 "남은 시간 {remaining}", 오류는 "점유 시간이 지났거나…"</td></tr>
       <tr><td><b>작업 범위</b> ← 스코프</td><td>claim scope</td><td><code>claim.scope_spec_ids</code>·<code>claim.scope_file_globs</code></td><td>클레임이 선언하는 <b>건드릴 스펙과 파일</b>. 겹침 판정의 입력이다</td></tr>
       <tr><td><b>하트비트</b></td><td>heartbeat</td><td><code>claim.last_heartbeat_at</code>·<code>agent_session.last_heartbeat_at</code></td><td>세션이 살아 있음을 알리는 주기 신호. 끊기면 무응답으로 넘어가고 클레임이 회수된다</td></tr>
+      <tr><td><b>대기 표시</b></td><td>awaiting</td><td><code>claim.awaiting_kind</code>·<code>claim.awaiting_refs</code>·<code>claim.awaiting_until</code> · 하트비트 <code>awaiting</code></td><td>클레임을 쥔 세션이 <b>무엇을 언제까지 기다리는지</b> 하트비트로 남긴 것 — 백그라운드 작업 · 사람의 답 · 결재. 그 시각(최대 30분)까지 작업 상태가 그대로면 Stop 훅이 해제를 요구하지 않고 세션 보드에 「대기 중」이 보인다. 세션 상태 「응답 대기」(<code>awaiting_input</code>)와 다르다 — 그것은 서버가 판정한 질문 대기이고, 이것은 세션이 스스로 선언한 것이다(2026-10-09)</td></tr>
       <tr><td><b>지문</b></td><td>content hash</td><td><code>content_hash</code></td><td>읽은 내용이 그 사이에 바뀌지 않았음을 확인하는 값. <b>리스가 시간을 지키고 지문이 내용을 지킨다</b></td></tr>
       <tr><td><b>증적</b></td><td>evidence</td><td><code>evidence_kind</code></td><td>작업이 실제로 끝났음을 가리키는 자료 — 코드 경로·테스트·PR·커밋·리뷰·사용 안내의 여섯 종</td></tr>
       <tr><td><b>다시 검증</b></td><td>re-verification</td><td><code>reverify_required</code></td><td>검증했던 요구사항의 문장이 바뀌어 앞선 검증 서명이 지금 문장을 보증하지 않는다는 표시. <b>상태가 아니다</b> — <code>verified</code> 는 <code>implemented</code> 로 돌아가고, qa·admin 이 다시 서명하면(새 테스트 · 영향 없음 확인) 사라진다. 화면 문구는 "다시 검증 필요" · 영문 "Needs re-verification"</td></tr>

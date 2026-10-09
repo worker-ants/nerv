@@ -17,6 +17,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import {
+  claimAwaitingKind,
   claimReleaseReason,
   claimStatus,
   dependencyKind,
@@ -175,6 +176,24 @@ export const claim = pgTable(
      * 이력이 아니라 **지금 무엇을 하는 중인가**라서 행을 쌓지 않는다(하트비트는 자연 멱등이다).
      */
     progressNote: text('progress_note'),
+    /**
+     * **무엇을 기다리는가**(2026-10-09 · REQ-API-275 · 276) — 하트비트가 `awaiting` 으로 쓰고, `awaiting` 없는 다음
+     * 하트비트나 작업 상태 변경이 지운다. 이 시각까지 Stop 훅이 정리하지 않은 클레임으로 세지 않고 세션 보드가
+     * 「대기 중」을 보인다. 상한은 리스 만료 시각이다 — 리스보다 오래 기다린다고 선언하면 리스가 먼저 끝난다
+     */
+    awaitingKind: claimAwaitingKind('awaiting_kind'),
+    /** 기다리는 대상 — 워크플로 · 질문 · 결재 ID 같은 것(사람이 알아보게 보드에 그대로 보인다) */
+    awaitingRefs: text('awaiting_refs')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    awaitingUntil: ts('awaiting_until'),
+    /**
+     * 대기를 남길 때의 작업 상태 — **상태가 바뀌면 그 대기는 효력을 잃는다**(읽는 쪽이 `task.status` 와 견준다).
+     * 전이가 클레임 행을 지우러 가지 않는 이유는 잠금 순서다: 전이는 작업을 먼저 잠그고, 해제 · 회수는 클레임을
+     * 먼저 잠근다. 전이가 클레임에 쓰면 두 순서가 맞물려 교착이 난다
+     */
+    awaitingTaskStatus: taskStatus('awaiting_task_status'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -187,6 +206,13 @@ export const claim = pgTable(
     index('claim_project_active')
       .on(t.projectId)
       .where(sql`${t.status} = 'active'`),
+    // 종류와 시각은 함께 있거나 함께 없다 — 시각 없는 대기는 끝나지 않고, 종류 없는 시각은 무엇인지 모른다
+    check(
+      'claim_awaiting_ck',
+      sql`(${t.awaitingKind} IS NULL) = (${t.awaitingUntil} IS NULL)
+          AND (${t.awaitingKind} IS NULL) = (${t.awaitingTaskStatus} IS NULL)
+          AND (${t.awaitingKind} IS NOT NULL OR cardinality(${t.awaitingRefs}) = 0)`,
+    ),
   ],
 );
 
