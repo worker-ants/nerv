@@ -358,6 +358,12 @@ export class TaskTools implements NervToolProvider {
           // 지문(`nerv_task_get` 의 `body_hash`)을 함께 줘야 한다 — 그 사이 누가 고쳤으면 409 `stale_body` 다
           body_md: { type: 'string', description: 'mcp.arg.task_body_md' },
           base_hash: { type: 'string', description: 'mcp.arg.task_base_hash' },
+          // **위임 명세 네 칸**(2026-10-10 · REQ-API-282) — 도구로 고칠 길이 없어 비운 채 만든 작업을 다시 만들었다
+          goal_md: { type: 'string', description: 'mcp.arg.goal_md' },
+          output_format_md: { type: 'string', description: 'mcp.arg.output_format_md' },
+          tools_sources_md: { type: 'string', description: 'mcp.arg.tools_sources_md' },
+          boundaries_md: { type: 'string', description: 'mcp.arg.boundaries_md' },
+          base_brief_hash: { type: 'string', description: 'mcp.arg.base_brief_hash' },
           idempotency_key: { type: 'string' },
         },
         required: ['task_id'],
@@ -366,30 +372,59 @@ export class TaskTools implements NervToolProvider {
         const taskId = String(input['task_id'] ?? '');
         const status = typeof input['status'] === 'string' ? input['status'] : null;
         const bodyMd = typeof input['body_md'] === 'string' ? input['body_md'] : null;
-        if (status === null && bodyMd === null) {
+        // 준 칸만 고친다 — 빈 문자열은 "지워라" 가 아니라 안 준 것이다(`pick` 과 같은 규칙)
+        const brief = pick(input, {
+          goal_md: 'goalMd',
+          output_format_md: 'outputFormatMd',
+          tools_sources_md: 'toolsSourcesMd',
+          boundaries_md: 'boundariesMd',
+        });
+        const hasBrief = Object.keys(brief).length > 0;
+        if (status === null && bodyMd === null && !hasBrief) {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
             kind: 'invalid_input',
             field: 'status',
-            allowed: ['status', 'body_md'],
+            allowed: [
+              'status',
+              'body_md',
+              'goal_md',
+              'output_format_md',
+              'tools_sources_md',
+              'boundaries_md',
+            ],
           });
         }
         let bodyResult: Record<string, unknown> | null = null;
-        if (bodyMd !== null) {
+        if (bodyMd !== null || hasBrief) {
           // 도구는 지문 없이 본문을 덮지 못한다 — 에이전트는 사람이 방금 고친 본문을 모른 채 덮기 쉽다
-          if (typeof input['base_hash'] !== 'string' || input['base_hash'] === '') {
+          if (
+            bodyMd !== null &&
+            (typeof input['base_hash'] !== 'string' || input['base_hash'] === '')
+          ) {
             throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
               kind: 'invalid_input',
               field: 'base_hash',
               allowed: ['body_hash from nerv_task_get'],
             });
           }
-          // 본문 수정은 EP-TASK-05 와 같은 역할을 요구한다(planner · developer · admin)
+          // 위임 명세도 같다(REQ-API-282) — 지문은 `nerv_task_get` 이나 `nerv_task_create` 응답의 `brief_hash` 다
+          if (
+            hasBrief &&
+            (typeof input['base_brief_hash'] !== 'string' || input['base_brief_hash'] === '')
+          ) {
+            throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+              kind: 'invalid_input',
+              field: 'base_brief_hash',
+              allowed: ['brief_hash from nerv_task_get or nerv_task_create'],
+            });
+          }
+          // 본문 · 명세 수정은 EP-TASK-05 와 같은 역할을 요구한다(planner · developer · admin)
           assertAnyRole(ctx.principal, TASK_EDIT_ROLES);
           bodyResult = await this.tasks.update({
             projectId: ctx.projectId,
             taskKey: taskId,
-            bodyMd,
-            baseHash: input['base_hash'],
+            ...(bodyMd === null ? {} : { bodyMd, baseHash: String(input['base_hash']) }),
+            ...(hasBrief ? { ...brief, baseBriefHash: String(input['base_brief_hash']) } : {}),
             userId: ctx.principal.userId,
           });
         }

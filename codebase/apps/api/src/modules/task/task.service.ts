@@ -506,6 +506,13 @@ export class TaskService {
       ...task,
       // **본문의 지문**(REQ-API-254) — 본문을 고칠 때 `base_hash` 로 되돌려 주면 그 사이 누가 고쳤는지 서버가 안다
       body_hash: bodyHash(task['body_md'] as string | null),
+      // **위임 명세의 지문**(REQ-API-282) — 네 칸을 고칠 때 `base_brief_hash` 로 되돌려 준다
+      brief_hash: briefHash({
+        goal_md: (task['goal_md'] as string | null) ?? null,
+        output_format_md: (task['output_format_md'] as string | null) ?? null,
+        tools_sources_md: (task['tools_sources_md'] as string | null) ?? null,
+        boundaries_md: (task['boundaries_md'] as string | null) ?? null,
+      }),
       claims,
       reviews,
       review_waivers: reviewWaivers,
@@ -681,7 +688,22 @@ export class TaskService {
         isAgent: false,
         toState: 'backlog',
       });
-      return { task_id: taskId, key, status: 'backlog' };
+      // **비운 칸을 바로 알린다**(2026-10-10 · REQ-API-283 · clemvion CLE-T-V54M21 · 2K6CDJ · CYS6YF). 칸을 비운 채 만든
+      // 에이전트는 ready 로 올릴 수 없다는 것을 모르고 지나갔고, 나중에 알았을 때는 고칠 길이 없어 같은 작업을 다시
+      // 만들었다. 지문도 함께 준다 — 다시 읽지 않고 `nerv_task_update` 로 채울 수 있다
+      const brief: BriefFields = {
+        goal_md: input.goalMd ?? null,
+        output_format_md: input.outputFormatMd ?? null,
+        tools_sources_md: input.toolsSourcesMd ?? null,
+        boundaries_md: input.boundariesMd ?? null,
+      };
+      return {
+        task_id: taskId,
+        key,
+        status: 'backlog',
+        delegation_missing: briefMissing(brief),
+        brief_hash: briefHash(brief),
+      };
     });
   }
 
@@ -710,6 +732,11 @@ export class TaskService {
      * 지문과 같을 때만 쓴다 — 그 사이 누가 고쳤으면 409 `stale_body` 다. 스펙 초안의 `base_hash` 와 같은 비교-교환이다
      */
     baseHash?: string | null;
+    /**
+     * **읽은 위임 명세의 지문**(`brief_hash` — 2026-10-10 · REQ-API-282). 주면 지금 네 칸의 지문과 같을 때만 쓴다 —
+     * 그 사이 누가 고쳤으면 409 `stale_brief` 다. 에이전트가 MCP 로 명세를 고칠 때는 반드시 준다
+     */
+    baseBriefHash?: string | null;
     userId: string;
   }): Promise<Record<string, unknown>> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
@@ -749,6 +776,14 @@ export class TaskService {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.stale_body'), {
           kind: 'stale_body',
           current_hash: bodyHash(task.body_md),
+          hint: 'reread',
+        });
+      }
+      // 위임 명세도 같다(REQ-API-282) — 비운 칸을 채우려던 에이전트가 사람이 방금 채운 칸을 덮지 않는다
+      if (input.baseBriefHash != null && input.baseBriefHash !== briefHash(task)) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.stale_brief'), {
+          kind: 'stale_brief',
+          current_brief_hash: briefHash(task),
           hint: 'reread',
         });
       }
@@ -891,6 +926,9 @@ export class TaskService {
         key: task.key,
         status: promoted ? 'ready' : task.status,
         delegation_complete: complete,
+        // 아직 빈 칸과 새 지문 — 이어서 채울 때 다시 읽지 않아도 된다(REQ-API-282)
+        delegation_missing: briefMissing(merged),
+        brief_hash: briefHash(merged),
       };
     });
   }
@@ -2466,4 +2504,23 @@ export function bodyHash(body: string | null | undefined): string {
   return createHash('sha256')
     .update(body ?? '', 'utf8')
     .digest('hex');
+}
+
+/** 위임 명세 네 칸 — 순서가 지문의 일부다 */
+const BRIEF_FIELDS = ['goal_md', 'output_format_md', 'tools_sources_md', 'boundaries_md'] as const;
+type BriefFields = Record<(typeof BRIEF_FIELDS)[number], string | null>;
+
+/**
+ * **위임 명세의 지문**(2026-10-10 · REQ-API-282) — 네 칸을 순서대로 이어 sha256 을 낸다. 본문 지문(`body_hash`)과
+ * 따로 둔다: 본문만 고치는 세션이 명세를 고친 사람 때문에 막히지 않고, 그 반대도 같다
+ */
+export function briefHash(brief: BriefFields): string {
+  return createHash('sha256')
+    .update(JSON.stringify(BRIEF_FIELDS.map((f) => brief[f] ?? '')), 'utf8')
+    .digest('hex');
+}
+
+/** 아직 비어 있는 위임 명세 칸 — 자리표시자도 빈 것이다(REQ-API-131) */
+export function briefMissing(brief: BriefFields): string[] {
+  return BRIEF_FIELDS.filter((f) => !isDelegationFilled(brief[f]));
 }

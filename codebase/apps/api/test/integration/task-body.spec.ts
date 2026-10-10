@@ -148,6 +148,131 @@ describe('작업 본문 수정 (REQ-API-254)', () => {
   });
 });
 
+/**
+ * 위임 명세를 도구로 채운다 (2026-10-10 · REQ-API-282 · 283).
+ *
+ * clemvion 에이전트는 위임 명세 칸을 비운 채 작업을 만들었고(CLE-T-V54M21 · 2K6CDJ · CYS6YF), ready 로 올릴 수 없다는
+ * 것을 안 뒤에는 고칠 길이 없어 같은 내용으로 다시 만들었다 — 백로그에 진행하지 않을 중복이 셋 남았다.
+ */
+describe('위임 명세를 도구로 채운다 (REQ-API-282 · 283)', () => {
+  const named = (name: string, roles: string[] = ['developer']) => {
+    const t = app.get(TaskTools).tools.find((x) => x.name === name)!;
+    const ctx = {
+      projectId,
+      sessionId: null,
+      principal: { userId, isAgent: true, roles, scopes: ['task:update'] },
+    } as unknown as ToolContext;
+    return (input: Record<string, unknown>): Promise<Record<string, unknown>> =>
+      t.handler(input, ctx).catch((e: unknown) => e) as Promise<Record<string, unknown>>;
+  };
+  const briefOf = async (key: string): Promise<Record<string, unknown> | undefined> =>
+    (
+      await pool.query(
+        `SELECT status::text AS status, goal_md, output_format_md, tools_sources_md, boundaries_md
+           FROM task WHERE key = $1`,
+        [key],
+      )
+    ).rows[0];
+
+  it('CLE-T-CYS6YF — 칸을 비운 채 만들면 빈 칸과 지문을 받고, 같은 작업을 다시 만들지 않고 채워 ready 로 올린다', async () => {
+    const created = await named('nerv_task_create')({
+      title: '하네스: 같은 초 세션의 멱등 키 앞자리',
+      goal_md: '같은 초에 연 두 세션의 멱등 키가 겹치지 않는다',
+      output_format_md: 'PR 1건',
+      boundaries_md: 'NERV 서버는 고치지 않는다',
+    });
+    expect(created).toMatchObject({ status: 'backlog', delegation_missing: ['tools_sources_md'] });
+    const key = String(created['key']);
+
+    const filled = await named('nerv_task_update')({
+      task_id: key,
+      tools_sources_md: 'scripts/nerv_review_payload.py · .review/ 디렉터리 규칙',
+      base_brief_hash: created['brief_hash'],
+    });
+    expect(filled).toMatchObject({
+      status: 'ready',
+      delegation_complete: true,
+      delegation_missing: [],
+    });
+    expect(await briefOf(key)).toMatchObject({
+      status: 'ready',
+      tools_sources_md: 'scripts/nerv_review_payload.py · .review/ 디렉터리 규칙',
+      goal_md: '같은 초에 연 두 세션의 멱등 키가 겹치지 않는다',
+    });
+    // 조회의 지문과 응답의 지문이 같다 — 이어서 고칠 때 다시 읽지 않아도 된다
+    const detail = await app.get(TaskService).get({ projectId, taskKey: key });
+    expect(detail['brief_hash']).toBe(filled['brief_hash']);
+    // 다시 만들지 않았다 — 백로그에 남은 중복이 없다
+    const { rows } = await pool.query(`SELECT count(*)::int AS n FROM task WHERE title = $1`, [
+      '하네스: 같은 초 세션의 멱등 키 앞자리',
+    ]);
+    expect(rows[0].n).toBe(1);
+  });
+
+  it('지문 없이는 받지 않고, 그 사이 사람이 채웠으면 409 stale_brief 로 덮지 않는다', async () => {
+    const created = await named('nerv_task_create')({ title: '빈 명세 작업' });
+    expect(created['delegation_missing']).toEqual([
+      'goal_md',
+      'output_format_md',
+      'tools_sources_md',
+      'boundaries_md',
+    ]);
+    const key = String(created['key']);
+
+    const noHash = await named('nerv_task_update')({ task_id: key, goal_md: '목표' });
+    expect(noHash['details']).toMatchObject({ kind: 'invalid_input', field: 'base_brief_hash' });
+
+    await pool.query(`UPDATE task SET goal_md = '사람이 쓴 목표' WHERE key = $1`, [key]);
+    const stale = await named('nerv_task_update')({
+      task_id: key,
+      goal_md: '에이전트 목표',
+      base_brief_hash: created['brief_hash'],
+    });
+    expect(stale).toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'stale_brief', current_brief_hash: expect.any(String), hint: 'reread' },
+    });
+    expect((await briefOf(key))?.['goal_md']).toBe('사람이 쓴 목표');
+  });
+
+  it('본문과 같은 역할이 있어야 하고, 빈 문자열은 안 준 것이다', async () => {
+    const created = await named('nerv_task_create')({ title: '역할 확인 작업' });
+    const key = String(created['key']);
+    const denied = await named('nerv_task_update', ['qa'])({
+      task_id: key,
+      goal_md: '목표',
+      base_brief_hash: created['brief_hash'],
+    });
+    expect(denied).toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'role_required' },
+    });
+    const blank = await named('nerv_task_update')({
+      task_id: key,
+      goal_md: '',
+      base_brief_hash: created['brief_hash'],
+    });
+    expect(blank['details']).toMatchObject({ kind: 'invalid_input', field: 'status' });
+  });
+
+  it('REST 도 base_brief_hash 를 주면 검사한다', async () => {
+    const created = await named('nerv_task_create')({ title: 'REST 명세 작업' });
+    const key = String(created['key']);
+    const patch = (payload: Record<string, unknown>): ReturnType<typeof app.inject> =>
+      app.inject({
+        method: 'PATCH',
+        url: `/api/v1/projects/clemvion/tasks/${key}`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload,
+      });
+    const stale = await patch({ goal_md: 'REST 목표', base_brief_hash: 'deadbeef' });
+    expect(stale.statusCode).toBe(409);
+    expect((stale.json() as { details: { kind: string } }).details.kind).toBe('stale_brief');
+    const ok = await patch({ goal_md: 'REST 목표', base_brief_hash: created['brief_hash'] });
+    expect(ok.statusCode).toBe(200);
+  });
+});
+
 async function seed(): Promise<void> {
   const orgId = newId();
   projectId = newId();
