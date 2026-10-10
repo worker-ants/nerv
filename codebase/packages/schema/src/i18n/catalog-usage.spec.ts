@@ -115,8 +115,13 @@ function productCorpus(): string {
 const corpus = productCorpus();
 const keys = Object.keys(ko);
 
-const quoted = (key: string): boolean =>
-  corpus.includes(`'${key}'`) || corpus.includes(`"${key}"`) || corpus.includes(`\`${key}\``);
+/**
+ * 말뭉치에서 따옴표(`'` · `"` · `` ` ``)로 감싼 낱말을 **한 번만** 모은다(2026-10-10). 예전에는 키마다 말뭉치 전체를
+ * 세 번 훑었다(키 1,921개 × 약 3MB). 한가한 기계에서도 1초가 넘었고, 바쁜 기계에서는 기본 상한 5초를 넘겨 실패했다 —
+ * 코드가 자랄수록 느려지는 검사에 고정 상한이 걸려 있던 셈이다. 결과는 같다: 키에는 따옴표도 공백도 없다(아래 첫 검사).
+ */
+const QUOTED = new Set([...corpus.matchAll(/(?=(['"`])([^'"`\s]+)\1)/g)].map((m) => m[2] ?? ''));
+const quoted = (key: string): boolean => QUOTED.has(key);
 
 const dynamic = (key: string): boolean =>
   DYNAMIC.some(
@@ -128,6 +133,8 @@ describe('카탈로그의 키는 쓰인다 (REQ-CB-057)', () => {
   it('제품 소스를 실제로 읽었다 — 빈 말뭉치로 통과하지 않는다', () => {
     expect(corpus.length).toBeGreaterThan(100_000);
     expect(quoted('common.save')).toBe(true);
+    // 따옴표로 감싼 낱말을 모으는 방식은 키에 따옴표 · 공백이 없을 때만 `includes` 와 같다
+    expect(keys.filter((key) => /['"`\s]/.test(key))).toEqual([]);
   });
 
   it('모든 키를 제품 코드가 부르거나 동적 접두사 아래에 있다', () => {
