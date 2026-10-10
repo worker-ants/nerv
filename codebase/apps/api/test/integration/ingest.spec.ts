@@ -124,6 +124,8 @@ describe('SessionStart — 등록 + 컨텍스트 주입', () => {
     expect(res.body['hookSpecificOutput']).toMatchObject({ hookEventName: 'SessionStart' });
     expect(res.body['additionalContext']).toBeUndefined();
     expect(injected(res.body)).toContain('활성 클레임이 없다');
+    // 세션 id 와 재개 방법을 알려 준다 — 쉬다 돌아온 에이전트가 어림 없이 이 세션을 이어 간다(REQ-API-280)
+    expect(injected(res.body)).toContain(`resume_session_id=${String(res.body['session_id'])}`);
 
     const { rows } = await pool.query<{ hostname: string; state: string; agent_type: string }>(
       `SELECT hostname, state::text AS state, agent_type::text AS agent_type
@@ -455,6 +457,69 @@ describe('훅의 세션 신원은 토큰에서 온다 (D-08)', () => {
     );
     expect(rows[0]?.state).toBe('active');
     expect(rows[0]?.claims).toBe(1);
+  });
+
+  /**
+   * 지목한 세션은 자기 세션이어야 한다 (2026-10-10 · REQ-API-281). bootstrap 의 재개 조회는 프로젝트만 보고 사람은
+   * 보지 않아서, 다른 멤버가 세션 id(세션 보드에 보인다)나 external id 하나로 남의 세션을 이어받을 수 있었다.
+   */
+  it('남의 세션 id · external id 로는 재개하지 못한다 — 세션은 주인에게 남는다', async () => {
+    const start = await hook('session', { session_id: EXTERNAL_SESSION }, { host: 'mac-07' });
+    const sessionId = String(start.body['session_id']);
+    const other = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'seoyun@example.com','서윤','active')`,
+      [other],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'developer' FROM project WHERE id = $3`,
+      [newId(), other, projectId],
+    );
+    const otherToken = (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId: other,
+        name: 'other-resume',
+        scopes: ['agent-session:launch'],
+      })
+    ).token;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${otherToken}`,
+        'mcp-protocol-version': '2026-07-28',
+      },
+      payload: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'nerv_bootstrap',
+          arguments: {
+            agent_type: 'claude-code',
+            hostname: 'mac-99',
+            resume_session_id: sessionId,
+          },
+        },
+      },
+    });
+    const resumed = (res.json() as { result: { structuredContent: Record<string, unknown> } })
+      .result.structuredContent;
+    expect(resumed['ok']).toBe(false);
+    expect((resumed['details'] as Record<string, unknown>)['kind']).toBe('not_found');
+
+    // 남의 external id 로 세션 시작 훅을 보내도 그 세션을 이어받지 못한다
+    const hijack = await hook('session', { session_id: EXTERNAL_SESSION }, { token: otherToken });
+    expect(hijack.status).toBeGreaterThanOrEqual(400);
+
+    const { rows } = await pool.query<{ id: string; user_id: string }>(
+      `SELECT id, user_id FROM agent_session ORDER BY started_at`,
+    );
+    expect(rows).toEqual([{ id: sessionId, user_id: userId }]);
   });
 });
 
@@ -886,6 +951,34 @@ describe('만료 뒤에도 같은 세션이다 (REQ-API-079 · 279)', () => {
       { id: stale, state: 'stale' },
       { id: alive, state: 'active' },
     ]);
+  });
+
+  it('세션 id 로 재개하면 어림하지 않는다 — 같은 자리에 죽은 세션이 있어도 이 세션을 이어 간다', async () => {
+    // 같은 호스트 · cwd 에 하네스 세션이 둘 — 하나(D)는 세션 종료 훅 없이 죽었다
+    const dead = await start('S-dead');
+    const mine = await start('S-mine');
+    await goStale();
+    // 죽은 세션의 활동이 더 최근이다 — 어림(채택)이면 그쪽을 고른다
+    await pool.query(
+      `INSERT INTO activity (id, session_id, project_id, seq, type, title, created_at)
+       VALUES ($1, $2, $3, 99, 'action', '최근 활동', now())`,
+      [newId(), dead, projectId],
+    );
+    const guessed = await bootstrap();
+    expect(guessed['session_id']).toBe(dead);
+    await goStale();
+
+    // 세션 시작 훅이 알려 준 id 를 넘기면 그 세션이다
+    const resumed = await tool('nerv_bootstrap', {
+      agent_type: 'claude-code',
+      hostname: HOST,
+      cwd: CWD,
+      resume_session_id: mine,
+    });
+    expect(resumed['session_id']).toBe(mine);
+    expect(resumed['resumed']).toBe(true);
+    const live = await app.get(SessionService).liveSessions(projectId, userId);
+    expect(live.map((s) => s.session_id)).toEqual([mine]);
   });
 
   it('되살리면 session.started 를 낸다 — 세션 보드가 다시 읽는다', async () => {

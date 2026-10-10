@@ -63,7 +63,7 @@ stateDiagram-v2
 
 The result, however, is certain: **when a session goes `stale`, the task it had claimed is reclaimed and returns to `ready`.** The card shows this too.
 
-**The session comes back when the same agent moves again.** If an idle session edits a file, runs a command, finishes a turn, or calls `nerv_bootstrap` again, the same card turns active again. If the agent calls `nerv_bootstrap` before doing anything else, though, it continues the same session only within 24 hours of going `stale`; after that, a new session starts. A session that ended normally continues only when you reopen it in the harness (`--resume`). Reclaimed tasks do not come back, so the agent claims them again.
+**The session comes back when the same agent moves again.** If an idle session edits a file, runs a command, finishes a turn, or calls `nerv_bootstrap` again, the same card turns active again. The agent continues the same session by calling `nerv_bootstrap` again with the session id it got when the session started. Without that id, it continues the same session only within 24 hours of going `stale`; after that, a new session starts. A session that ended normally continues only when you reopen it in the harness (`--resume`) or call again with its id. Only the person who started a session can continue it by id. Reclaimed tasks do not come back, so the agent claims them again.
 
 ## Activity {#activity}
 

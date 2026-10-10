@@ -1041,9 +1041,16 @@ export class SessionService {
   private async findResumable(
     input: BootstrapInput,
   ): Promise<{ id: string; adopted: boolean } | null> {
+    // **지목한 세션은 자기 세션이어야 한다**(2026-10-10 · REQ-API-281). 두 갈래 모두 프로젝트만 보고 사람은 보지 않아서,
+    // 같은 프로젝트의 다른 멤버가 세션 id(세션 보드에 보인다)나 external id 하나로 남의 세션을 이어받을 수 있었다 —
+    // 이어받으면 그 세션 위에서 클레임하고, 세션 종료 훅이 남의 클레임까지 회수한다. 훅 쪽 조회(`findByExternalId`)는
+    // 2026-09 에 이미 같은 이유로 사람을 본다(D-08 — 신원은 토큰에서 온다). 세션 시작 훅이 세션 id 를 모델에게 알려 주고
+    // 스킬이 그것을 넘기게 되면서 이 길이 기본 경로가 됐다.
     if (input.resumeSessionId != null) {
       const { rows } = await this.db.execute<{ id: string }>(
-        sql`SELECT id FROM agent_session WHERE id = ${input.resumeSessionId} AND project_id = ${input.projectId}`,
+        sql`SELECT id FROM agent_session
+             WHERE id = ${input.resumeSessionId} AND project_id = ${input.projectId}
+               AND user_id = ${input.userId}`,
       );
       const id = rows[0]?.id;
       if (id === undefined) {
@@ -1055,12 +1062,19 @@ export class SessionService {
       return { id, adopted: false };
     }
     if (input.externalSessionId != null) {
-      const { rows } = await this.db.execute<{ id: string }>(sql`
-        SELECT id FROM agent_session
+      const { rows } = await this.db.execute<{ id: string; user_id: string }>(sql`
+        SELECT id, user_id FROM agent_session
          WHERE project_id = ${input.projectId} AND external_session_id = ${input.externalSessionId}
       `);
-      const id = rows[0]?.id;
-      return id === undefined ? null : { id, adopted: false };
+      const row = rows[0];
+      if (row === undefined) return null;
+      // 남의 external id 다 — 이어받지 않고, 새 세션을 만들 수도 없다((프로젝트, external id)가 유일하다). 재개 id 와 같은 거절이다
+      if (row.user_id !== input.userId) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.resume_not_found'), {
+          kind: 'not_found',
+        });
+      }
+      return { id: row.id, adopted: false };
     }
     const adopted = await this.adoptHookSession(input);
     return adopted === null ? null : { id: adopted, adopted: true };

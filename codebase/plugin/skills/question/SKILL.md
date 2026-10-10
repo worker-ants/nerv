@@ -12,6 +12,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_task_update
   - mcp__plugin_nerv_nerv__nerv_task_update
+  - mcp__nerv__nerv_bootstrap
+  - mcp__plugin_nerv_nerv__nerv_bootstrap
   - Bash(nerv-outbox:*)
   - Read(.nerv/**)
   - Write(.nerv/**)
@@ -66,6 +68,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 
 | 코드 | 대응 |
 | --- | --- |
+| NERV_PRECONDITION `session_required` | 30분 쉬어 세션이 만료됐다. 가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id(없으면 앞서 받은 bootstrap 응답의 `session_id`)를 `resume_session_id`로 넘겨 `nerv_bootstrap`을 다시 부르고(`resume_not_found`면 그 인자 없이) 같은 멱등 키로 질문을 다시 올린다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 — long-poll 간격을 임의로 좁히지 않는다 |
 | NERV_UNAVAILABLE | 질문을 .nerv/outbox/에 멱등 키로 큐잉하고 사람에게 직접 보고 |
 

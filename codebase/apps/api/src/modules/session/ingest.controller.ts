@@ -96,17 +96,22 @@ export class IngestController {
     });
 
     const claims = await this.sessions.activeClaimSummary(result.session_id);
+    const claimContext =
+      claims.length === 0
+        ? text('agent.no_claim')
+        : `${text('agent.active_claims', {
+            claims: claims.map((c) => `${c.task_key}(${c.status})`).join(', '),
+          })} ${text('agent.resume_claim')}`;
     return {
       ok: true,
       session_id: result.session_id,
       hookSpecificOutput: {
         hookEventName: 'SessionStart',
-        additionalContext:
-          claims.length === 0
-            ? text('agent.no_claim')
-            : `${text('agent.active_claims', {
-                claims: claims.map((c) => `${c.task_key}(${c.status})`).join(', '),
-              })} ${text('agent.resume_claim')}`,
+        // **세션 id 를 모델에게 알려 준다**(2026-10-10 · 사람 결정 · REQ-API-280). Claude Code 는 모델에게 자기
+        // `session_id` 를 주지 않아서, 30분 쉬고 돌아온 에이전트는 resume id 없이 bootstrap 을 다시 불렀다. 그러면
+        // 서버는 사람 · 호스트 · cwd 로 어림해 채택하는 수밖에 없고, 같은 자리에 죽은 세션이 있으면 그 세션을 고를 수
+        // 있었다. 이 id 를 `resume_session_id` 로 넘기면 어림하지 않고 이 세션을 이어 간다.
+        additionalContext: `${claimContext} ${text('agent.session_ref', { id: result.session_id })}`,
       },
     };
   }

@@ -20,6 +20,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_spec_get
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
+  - mcp__nerv__nerv_bootstrap
+  - mcp__plugin_nerv_nerv__nerv_bootstrap
   - Bash(nerv-outbox:*)
   - Read(.nerv/**)
   - Write(.nerv/**)
@@ -156,6 +158,7 @@ allowed-tools:
 
 | 코드 | 대응 |
 | --- | --- |
+| NERV_PRECONDITION `session_required` | 30분 쉬어 세션이 만료됐다. 가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id(없으면 앞서 받은 bootstrap 응답의 `session_id`)를 `resume_session_id`로 넘겨 `nerv_bootstrap`을 다시 부른다(`resume_not_found`면 그 인자 없이). 회수된 클레임은 돌아오지 않는다 — /nerv:next 절차로 같은 작업을 다시 클레임한다(살아 있는 클레임이 없는 `claimed`·`in_progress`·`in_review` 작업은 상태 그대로 되찾는다) |
 | NERV_LEASE_EXPIRED | 리스 만료 후 쓰기 시도 — 재클레임을 1회 시도하고, 실패하면 산출물(커밋·노트)만 제출하고 종료한다 |
 | NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지. `details.uncovered_kinds`의 리뷰를 이 작업이 받을 수 없으면(코드를 내지 않았다) 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁한다 |
 | NERV_APPROVAL_REQUIRED | 재시도하지 않는다. `approval_id` 와 함께 사람에게 보고하고 멈춘다 — 결정은 하트비트 `pending` 의 `approval_decided` 로 온다(승인을 읽는 도구는 없다). 그동안 새 작업을 클레임하지 않는다 |

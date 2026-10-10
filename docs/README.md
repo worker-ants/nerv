@@ -13,7 +13,7 @@ referenced_by:
 >
 > 문서 버전 v5.25 · 2026-10-10 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
 >
-> v5.25 변경(2026-10-10 — 만료 뒤 세션이 둘로 나뉘었습니다, L2 재현 · **사람 결정**): **REQ-API-079 개정 · REQ-API-279 신설.** 30분 쉬고 돌아온 에이전트가 resume id 없이 `nerv_bootstrap`을 다시 부르면 새 세션이 생겼습니다. 훅은 옛 세션을 계속 봐서 Stop 게이트가 새 세션의 클레임을 몰랐습니다. compact 뒤에는 도구가 `session_ambiguous`로 막혔습니다. 세션 종료 뒤에도 클레임이 남았습니다. 이제 stale이 된 지 24시간 안의 훅 세션을 채택해 되살립니다. 도구 · 서브에이전트 · Stop 훅이 오면 그 세션도 되살립니다([4.4 API 명세](04-mvp/api.md) §1.4c · [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) §2.4 · §5.2).
+> v5.25 변경(2026-10-10 — 만료 뒤 세션이 둘로 나뉘었습니다, L2 재현 · **사람 결정**): **REQ-API-079 개정 · REQ-API-279 · 280 · 281 신설 · 플러그인 0.3.21 → 0.3.22.** 30분 쉬고 돌아온 에이전트가 resume id 없이 `nerv_bootstrap`을 다시 부르면 새 세션이 생겼습니다. 훅은 옛 세션을 계속 봐서 Stop 게이트가 새 세션의 클레임을 몰랐습니다. compact 뒤에는 도구가 `session_ambiguous`로 막혔습니다. 세션 종료 뒤에도 클레임이 남았습니다. 이제 stale이 된 지 24시간 안의 훅 세션을 채택해 되살립니다. 도구 · 서브에이전트 · Stop 훅이 오면 그 세션도 되살립니다. 채택은 어림이라, 세션 시작 훅이 NERV 세션 id를 알려 주고 스킬이 그 id를 `resume_session_id`로 넘깁니다. 지목한 세션은 자기 세션이어야 합니다 — 다른 멤버가 세션 id 하나로 남의 세션을 이어받을 수 있던 결함을 함께 막았습니다([4.4 API 명세](04-mvp/api.md) §1.4c · [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) §2.4 · §5.2).
 >
 > v5.24 변경(2026-10-10 — MCP 응답 두 개가 컸습니다, clemvion 보고 · **사람 결정**): **REQ-API-277 · 278 신설 · REQ-API-242 개정 · 플러그인 0.3.20 → 0.3.21.** 세션은 30분 쉬면 만료되어 에이전트가 `nerv_bootstrap`을 다시 부릅니다. 그 응답이 약 45KB였습니다. 규약 목록에 상한이 없었고, clemvion은 API 카탈로그 사본 272편이 `convention`이었습니다. 리뷰 제출 응답은 매번 프로젝트 전체의 같은 critical 50건(약 9KB)을 담았습니다. 이제 규약 목록은 하위 규약을 꼭대기 한 줄로 접어 50건까지 담고, 이월 발견은 수만 줍니다. 제출 응답의 다음 행동은 이번 라운드를 막는 발견이 있을 때만 처분입니다([4.4 API 명세](04-mvp/api.md) · [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) §2.3 · [4.6 플러그인과 온보딩](04-mvp/plugin.md) §2).
 >
@@ -866,7 +866,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.68` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v2.23` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v2.27` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.96` | 스킬 6종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v0.97` | 스킬 6종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.25` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
 | [4.8 백로그](04-mvp/backlog.md) | `v2.65` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 

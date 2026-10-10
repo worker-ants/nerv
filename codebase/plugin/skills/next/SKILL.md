@@ -34,7 +34,11 @@ allowed-tools:
 
 1. **bootstrap 확인.** 이 세션에서 `nerv_bootstrap`을 아직 호출하지 않았다면 지금 호출한다 —
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
-   재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
+   그리고 **가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id를 `resume_session_id`로 넘긴다**(fork · compact
+   뒤에는 새 안내가 온다. 안내가 없으면 앞서 받은 bootstrap 응답의 `session_id`, 둘 다 없으면 넣지 않는다).
+   쉬다 돌아와 도구가 `session_required`를 돌려줄 때도 같은 id로 다시 부른다 — 서버가 어림하지 않고 이
+   세션을 이어 간다. `resume_not_found`면 `resume_session_id` 없이 다시 부른다(새 세션). 응답의 규약 요약·
+   게이트 정책·**내 활성 클레임**을 읽는다.
    - **규약 목록(`conventions`)은 접혀 있다.** 하위 규약이 있는 규약은 꼭대기 한 줄로 오고, 그 줄의
      `descendants` 가 접힌 하위 규약 수다. 꼭대기도 50건까지라 `conventions_total` 이 목록 수에
      `descendants` 합을 더한 것보다 크면 잘린 것이다. 작업과 관련된 규약은 `nerv_spec_get`(`spec_id`=키)으로

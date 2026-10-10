@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **6종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v0.96 · 2026-10-10 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.97 · 2026-10-10 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.97 변경(2026-10-10 — 쉬다 돌아온 세션이 둘로 나뉘었다, L2 재현 · **사람 결정**): **새 요구사항 없음 · §2.1 `next` 스킬 · §2.3 `impl` 스킬 · §2.4 `question` 스킬 · §5.3 Codex AGENTS.md 초안 · 패키지 0.3.21 → 0.3.22.** 세션 시작 훅이 NERV 세션 id를 알려 준다. `next` 스킬은 bootstrap에 그 id를 `resume_session_id`로 넘기고, 쉬다 돌아와 도구가 `session_required`를 돌려줄 때도 같은 id로 다시 부른다. `impl` · `question` 스킬은 도구가 `session_required`를 돌려주면 같은 방식으로 다시 부른다(두 스킬의 `allowed-tools`에 `nerv_bootstrap`을 더했다). 쓰는 id는 가장 최근의 세션 시작 안내가 알려 준 것이다 — fork한 세션은 부모의 안내도 본다. `resume_not_found`면 그 인자 없이 다시 부른다. Codex 초안은 첫 bootstrap 응답의 `session_id`를 쓴다([4.4 API 명세](api.md) REQ-API-280 · 281).
 >
 > v0.96 변경(2026-10-10 — MCP 응답 두 개가 컸다, clemvion 보고 · **사람 결정**): **새 요구사항 없음 · §2.1 `next` 스킬 · §2.6 `review` 스킬 · 패키지 0.3.20 → 0.3.21.** bootstrap의 규약 목록이 하위 규약을 꼭대기 한 줄로 접어 50건까지 담는다. `next` 스킬이 `descendants` · `conventions_total`을 읽고, 접힌 하위를 `nerv_spec_tree`로 보게 적었다. 리뷰 제출 응답은 이월 발견의 목록 대신 수(`carried_over_total` · `carried_over_by_severity`)만 준다. `review` 스킬이 목록은 `nerv_finding_list`로 읽고, 다음 행동이 `round_block` 기준이라고 적었다([4.4 API 명세](api.md) REQ-API-277 · 278).
 >
@@ -178,7 +180,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.21
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.22
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -204,7 +206,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.21",
+  "version": "0.3.22",
   "license": "Apache-2.0"
 }
 ```
@@ -285,7 +287,11 @@ allowed-tools:
 
 1. **bootstrap 확인.** 이 세션에서 `nerv_bootstrap`을 아직 호출하지 않았다면 지금 호출한다 —
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
-   재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
+   그리고 **가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id를 `resume_session_id`로 넘긴다**(fork · compact
+   뒤에는 새 안내가 온다. 안내가 없으면 앞서 받은 bootstrap 응답의 `session_id`, 둘 다 없으면 넣지 않는다).
+   쉬다 돌아와 도구가 `session_required`를 돌려줄 때도 같은 id로 다시 부른다 — 서버가 어림하지 않고 이
+   세션을 이어 간다. `resume_not_found`면 `resume_session_id` 없이 다시 부른다(새 세션). 응답의 규약 요약·
+   게이트 정책·**내 활성 클레임**을 읽는다.
    - **규약 목록(`conventions`)은 접혀 있다.** 하위 규약이 있는 규약은 꼭대기 한 줄로 오고, 그 줄의
      `descendants` 가 접힌 하위 규약 수다. 꼭대기도 50건까지라 `conventions_total` 이 목록 수에
      `descendants` 합을 더한 것보다 크면 잘린 것이다. 작업과 관련된 규약은 `nerv_spec_get`(`spec_id`=키)으로
@@ -663,6 +669,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_spec_get
   - mcp__nerv__nerv_question_create
   - mcp__plugin_nerv_nerv__nerv_question_create
+  - mcp__nerv__nerv_bootstrap
+  - mcp__plugin_nerv_nerv__nerv_bootstrap
   - Bash(nerv-outbox:*)
   - Read(.nerv/**)
   - Write(.nerv/**)
@@ -799,6 +807,7 @@ allowed-tools:
 
 | 코드 | 대응 |
 | --- | --- |
+| NERV_PRECONDITION `session_required` | 30분 쉬어 세션이 만료됐다. 가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id(없으면 앞서 받은 bootstrap 응답의 `session_id`)를 `resume_session_id`로 넘겨 `nerv_bootstrap`을 다시 부른다(`resume_not_found`면 그 인자 없이). 회수된 클레임은 돌아오지 않는다 — /nerv:next 절차로 같은 작업을 다시 클레임한다(살아 있는 클레임이 없는 `claimed`·`in_progress`·`in_review` 작업은 상태 그대로 되찾는다) |
 | NERV_LEASE_EXPIRED | 리스 만료 후 쓰기 시도 — 재클레임을 1회 시도하고, 실패하면 산출물(커밋·노트)만 제출하고 종료한다 |
 | NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지. `details.uncovered_kinds`의 리뷰를 이 작업이 받을 수 없으면(코드를 내지 않았다) 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁한다 |
 | NERV_APPROVAL_REQUIRED | 재시도하지 않는다. `approval_id` 와 함께 사람에게 보고하고 멈춘다 — 결정은 하트비트 `pending` 의 `approval_decided` 로 온다(승인을 읽는 도구는 없다). 그동안 새 작업을 클레임하지 않는다 |
@@ -833,6 +842,8 @@ allowed-tools:
   - mcp__plugin_nerv_nerv__nerv_task_release
   - mcp__nerv__nerv_task_update
   - mcp__plugin_nerv_nerv__nerv_task_update
+  - mcp__nerv__nerv_bootstrap
+  - mcp__plugin_nerv_nerv__nerv_bootstrap
   - Bash(nerv-outbox:*)
   - Read(.nerv/**)
   - Write(.nerv/**)
@@ -887,6 +898,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 
 | 코드 | 대응 |
 | --- | --- |
+| NERV_PRECONDITION `session_required` | 30분 쉬어 세션이 만료됐다. 가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id(없으면 앞서 받은 bootstrap 응답의 `session_id`)를 `resume_session_id`로 넘겨 `nerv_bootstrap`을 다시 부르고(`resume_not_found`면 그 인자 없이) 같은 멱등 키로 질문을 다시 올린다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 — long-poll 간격을 임의로 좁히지 않는다 |
 | NERV_UNAVAILABLE | 질문을 .nerv/outbox/에 멱등 키로 큐잉하고 사람에게 직접 보고 |
 
@@ -1734,7 +1746,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 **[권장]** 묶음이 기본이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `agent-session:launch` — `AGENT_RECOMMENDED_SCOPES` · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다 | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.21 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.22 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
@@ -1862,6 +1874,7 @@ MVP에서는 `notify`·`[otel]` 줄이 동작하지 않아도 무방하다 — *
 ## 막혔을 때
 - 스펙에 답이 없거나 경계를 벗어나면 추측하지 말고 `nerv_question_create` 로 선택지와 함께 질문한다.
 - 답변 대기 중에는 같은 멱등 키로 재호출해 폴링한다. 그동안 새 작업을 클레임하지 않는다.
+- 도구가 `session_required` 를 돌려주면 30분 동안 활동이 없어 세션이 만료된 것이다. 첫 `nerv_bootstrap` 응답의 `session_id` 를 `resume_session_id` 로 넘겨 다시 부른다. 회수된 클레임은 `nerv_task_claim` 으로 다시 잡는다.
 ```
 
 MVP 주석 한 가지: "절대 금지"의 `nerv_review_submit` 문장은 P2 도구를 선참조한다 — MVP 기간에는 "리뷰 산출물을 파일로 커밋하지 않는다"까지만 유효하고, 도구 제출 경로는 Phase 2에 열린다. AGENTS.md는 NERV가 생성하는 산출물이므로 이 주석은 생성 시점의 정책 버전이 반영한다.
