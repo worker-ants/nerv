@@ -100,9 +100,11 @@ export class ReviewTools implements NervToolProvider {
         });
         return {
           ...result,
-          // 다음 행동은 **열린 것이 있느냐**가 정한다 — 없으면 리뷰는 끝이다(§2.1 원칙 5)
-          // 담긴 것은 앞의 50건이다 — 판정은 총수로 한다(2026-09-28 · REQ-API-242)
-          next_actions: result.carried_over_total > 0 ? ['nerv_finding_resolve'] : [],
+          // 다음 행동은 **이번 라운드를 막는 것이 있느냐**가 정한다 — 없으면 리뷰는 끝이다(§2.1 원칙 5).
+          // 예전에는 프로젝트에 열린 발견이 하나라도 있으면 처분을 권했다. 열린 발견이 수만 건인 clemvion 에서는
+          // 언제나 처분이었고, 스킬은 막는지를 `round_block` 으로 판단하라고 적고 있었다(2026-10-10 · 사람 결정 F2 ·
+          // REQ-API-278)
+          next_actions: result.round_block ? ['nerv_finding_resolve'] : [],
         };
       },
     },
@@ -175,9 +177,9 @@ export class ReviewTools implements NervToolProvider {
         };
       },
     },
-    // **발견 목록 — EP-REV-03 의 MCP 판**(2026-09-28 · 사람 결정 D4 · REQ-API-242). 제출 응답의 `carried_over` 는
-    // 앞의 50건만 담는다. 나머지를 읽을 길이 에이전트에게는 없었다(스킬은 도구로만 일한다) — 같은 필터와 같은 커서를
-    // 받는 읽기 도구를 둔다. 제출 응답의 `carried_over_next_cursor` 를 `cursor` 로 넘기면 51번째부터 이어진다.
+    // **발견 목록 — EP-REV-03 의 MCP 판**(2026-09-28 · 사람 결정 D4 · REQ-API-242). 에이전트가 열린 발견을 읽을 길은
+    // 이것 하나다(스킬은 도구로만 일한다) — REST 와 같은 필터와 같은 커서를 받는다. 제출 응답은 이제 열린 발견의
+    // 수만 준다(2026-10-10 · 사람 결정 F1 · REQ-API-278). 목록은 여기서 `branch` · `severity` 로 좁혀 읽는다.
     {
       name: 'nerv_finding_list',
       tier: 'A1',

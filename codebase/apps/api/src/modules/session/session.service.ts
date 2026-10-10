@@ -10,6 +10,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   activityType,
   agentType,
+  CONVENTIONS_LIMIT,
   msg,
   NERV_ERROR,
   NERV_EVENT,
@@ -169,13 +170,29 @@ export interface SessionCard extends Record<string, unknown> {
   awaiting_until: string | null;
 }
 
+/** bootstrap 규약 목록의 한 줄 — 본문은 담지 않는다. 읽을 때는 `nerv_spec_get`(`spec_id`=키) */
+export interface ConventionSummary extends Record<string, unknown> {
+  key: string;
+  title: string;
+  type: string;
+  /** 이 규약 밑에 접힌 하위 규약 수 — 규약에서 규약으로 이어지는 하위 전부다. 비전은 접지 않으므로 0 이다 */
+  descendants: number;
+}
+
 export interface BootstrapResult {
   session_id: string;
   /** 재호출이면 기존 스냅샷을 그대로 돌려줬다는 표시(멱등) */
   resumed: boolean;
   project: { id: string; key: string; slug: string };
-  /** 규약 스펙(convention·vision) 요약 — 세션이 첫 호출로 규약을 읽게 한다 */
-  conventions: { id: string; key: string; title: string; type: string }[];
+  /**
+   * 규약 스펙(convention·vision)의 **접은 목록** — 세션이 첫 호출로 규약을 읽게 한다. 하위 트리의 꼭대기(부모가
+   * 없거나, 규약이 아니거나, 보관된 규약인 것)만 `CONVENTIONS_LIMIT` 건까지 담고, 접힌 하위 규약의 수를
+   * `descendants` 로 준다(2026-10-10 · 사람 결정 C1 · REQ-API-277). 하위는 `nerv_spec_tree`(`root`,
+   * `type=convention`, `depth=1`)로 한 단계씩 읽는다
+   */
+  conventions: ConventionSummary[];
+  /** 보관되지 않은 규약 스펙 전체 수 — 목록 수에 `descendants` 합을 더한 것보다 크면 상한에 잘린 것이다 */
+  conventions_total: number;
   active_claims: ActiveClaimSummary[];
   gate_policy: Record<string, unknown>;
   constants: { lease_ttl_seconds: number; heartbeat_interval_seconds: number };
@@ -1054,17 +1071,41 @@ export class SessionService {
     }
 
     // 규약 스펙 — convention·vision 타입만. 세션이 규약을 모른 채 시작하지 않게 한다.
-    const { rows: conventions } = await this.db.execute<{
-      id: string;
-      key: string;
-      title: string;
-      type: string;
-    }>(sql`
-      SELECT id, key, title, type::text AS type FROM spec
-       WHERE project_id = ${projectId} AND archived_at IS NULL
-         AND type IN ('convention', 'vision')
-       ORDER BY sort_key, key
+    //
+    // **접어서 준다**(2026-10-10 · clemvion 보고 · 사람 결정 C1 · REQ-API-277). 전부 담았더니 clemvion 은 API
+    // 카탈로그 사본 272편(`CLE-C24-*` · `CLE-MKS-*`)이 `convention` 이라 응답이 약 45KB 였고, 세션이 만료될 때마다
+    // 다시 부르며 그만큼 컨텍스트가 늘었다. 카탈로그는 하위 트리라서 꼭대기 한 줄로 접으면 일반 규약은 그대로
+    // 보인다. 하위 트리가 아니어도 크기는 상한이 막는다. 비전은 접지 않는다 — 모든 영역이 그 밑에 있다.
+    // 전체 수도 **같은 문장에서** 센다 — 두 문장으로 나누면 그 사이의 쓰기가 잘림을 꾸미거나 감춘다.
+    const { rows: conventionRows } = await this.db.execute<
+      ConventionSummary & { total: number }
+    >(sql`
+      WITH RECURSIVE conv AS (
+        SELECT id, parent_id, key, title, type::text AS type, sort_key FROM spec
+         WHERE project_id = ${projectId} AND archived_at IS NULL
+           AND type IN ('convention', 'vision')
+      ),
+      top AS (
+        SELECT c.* FROM conv c
+         WHERE c.type = 'vision'
+            OR NOT EXISTS (SELECT 1 FROM conv p WHERE p.id = c.parent_id AND p.type = 'convention')
+      ),
+      folded AS (
+        SELECT t.id AS top_id, c.id FROM top t
+          JOIN conv c ON c.parent_id = t.id AND c.type = 'convention'
+         WHERE t.type = 'convention'
+        UNION ALL
+        SELECT f.top_id, c.id FROM folded f
+          JOIN conv c ON c.parent_id = f.id AND c.type = 'convention'
+      )
+      SELECT t.key, t.title, t.type,
+             (SELECT count(*)::int FROM folded f WHERE f.top_id = t.id) AS descendants,
+             (SELECT count(*)::int FROM conv) AS total
+        FROM top t
+       ORDER BY (t.type = 'vision') DESC, t.sort_key, t.key
+       LIMIT ${CONVENTIONS_LIMIT}
     `);
+    const conventions: ConventionSummary[] = conventionRows.map(({ total: _total, ...row }) => row);
 
     // 내 활성 클레임 — 기준 버전·기준선을 함께 싣는다(agent-integration §2.4)
     const { rows: claims } = await this.db.execute<ActiveClaimSummary>(sql`
@@ -1085,6 +1126,8 @@ export class SessionService {
       resumed,
       project: { id: project.id, key: project.key, slug: project.slug },
       conventions,
+      // 꼭대기가 없으면 규약도 없다 — 비전은 언제나 꼭대기이고, 규약은 꼭대기 아니면 꼭대기의 하위다
+      conventions_total: conventionRows[0]?.total ?? 0,
       active_claims: claims,
       gate_policy: project.gate_policy ?? {},
       constants: {

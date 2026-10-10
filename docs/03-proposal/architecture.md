@@ -23,7 +23,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)는 웹앱(Vite + React SPA), API + MCP 게이트웨이(NestJS), 훅 수집기, Postgres, Valkey(실시간 방송 MQ), 이벤트·알림 워커의 여섯 덩어리와 git forge·Slack 연동으로 구성된다. 가장 중요한 결정은 저장 전략(D-01)이다: **스펙과 리뷰 산출물의 단일 진실은 플랫폼 DB**이고, git에는 사람이 읽고 grep할 수 있는 **read-only markdown 미러**와 포인터만 남기며, 에이전트는 markdown으로 읽되 **쓰기는 MCP/API 한 경로로만** 한다. 근거는 추정이 아니라 실측이다 — clemvion에서 리뷰 이력 blob 60.7MB가 `.git` packed blob 바이트의 60%를 차지했고(`review/` 산출물은 markdown 13,777개·131MB), 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의 입력이 되는 자기증식 루프(한 changeset 8라운드, 마지막 라운드 프롬프트 94파일 중 86개가 이전 리뷰 산출물)가 관측됐다. 이 문서는 컴포넌트별 책임, 저장 전략, 핵심 데이터 흐름 4종(스펙 승인 · 작업 클레임 · 세션 하트비트/stale · 리뷰 수집→게이트 판정), 기술 스택(D-11) 대안 비교, 멀티테넌시·보안·성능·백업·로컬 폴백(NFR-05)까지를 구현 착수가 가능한 수준으로 기술한다.
 >
-> 문서 버전 v0.8 · 2026-09-28 · HTML 파생본: [architecture.html](../html/architecture.html)
+> 문서 버전 v0.9 · 2026-10-10 · HTML 파생본: [architecture.html](../html/architecture.html)
+
+> v0.9 변경(2026-10-10 — 이월 발견은 수만 준다, clemvion 보고 · **사람 결정**): §3.4 시퀀스 한 줄. 리뷰 제출 응답이 이월된 미해결 목록 대신 그 수만 준다([4.4 API 명세](../04-mvp/api.md) REQ-API-278).
 
 > v0.8 변경(2026-09-28 — 프로젝트 스펙 전체 내보내기, clemvion 요청 N5): §2.4(a) 한 줄. `export.zip` 이 프로젝트 스펙 전체를 zip 하나로 준다 — (b) 의 git export 가 없는 동안 전체 미러와 백업을 맡는다([4.4 API 명세](../04-mvp/api.md) REQ-API-251).
 >
@@ -315,7 +317,7 @@ sequenceDiagram
   M->>OBJ: 프롬프트 페이로드 저장 - TTL 30일
   M->>DB: ReviewSession + ReviewerReport + Finding 저장
   M->>DB: fingerprint 대조 - 기존 finding이면 라운드만 추가
-  M-->>S: 신규 finding + 이월된 미해결 목록
+  M-->>S: 신규 finding + 이월된 미해결 수
   S->>M: nerv_finding_resolve - finding_id · fixed · commit_sha
   M->>DB: Resolution 기록 + Finding open → fixed
   F->>M: PR 웹훅 - head_sha

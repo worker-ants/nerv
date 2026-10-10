@@ -19,6 +19,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
+import { SessionService } from '../../src/modules/session/session.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -188,7 +189,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     // (`nerv_spec_attach`), 09-04 에 21(`nerv_spec_attachment_read`), 09-05 에 22
     // (`nerv_question_cancel` — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다), 09-28 에 23
     // (`nerv_spec_attachment_hide` — 시안을 바꾸면 옛 시안을 내린다. 지우는 것은 사람이다).
-    // 2026-09-28 — 리뷰가 3(`nerv_finding_list` — 제출 응답에 담기지 않은 이월 발견을 읽는다 · REQ-API-242)
+    // 2026-09-28 — 리뷰가 3(`nerv_finding_list` — 열린 발견을 읽는다. 제출 응답은 수만 준다 · REQ-API-242 · 278)
     expect(tools).toHaveLength(26);
     expect(tools.map((t) => t.name)).toContain('nerv_finding_list');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_attachment_hide');
@@ -395,14 +396,106 @@ describe('E03-S03 P0 도구 — nerv_bootstrap', () => {
     expect(result['resumed']).toBe(false);
     expect(result['project']).toMatchObject({ slug: 'clemvion', key: 'CLV' });
     expect(result['active_claims']).toEqual([]);
-    // 규약 스펙을 실어 준다 — 세션이 규약을 모른 채 시작하지 않게
-    expect((result['conventions'] as unknown[]).length).toBeGreaterThan(0);
+    // 규약 스펙을 담아 준다 — 세션이 규약을 모른 채 시작하지 않게. 본문도 id 도 없다(REQ-API-277)
+    const conventions = result['conventions'] as Record<string, unknown>[];
+    expect(conventions).toContainEqual({
+      key: 'conv-commit',
+      title: '커밋 규약',
+      type: 'convention',
+      descendants: 0,
+    });
+    expect(
+      conventions.every((c) => Object.keys(c).sort().join() === 'descendants,key,title,type'),
+    ).toBe(true);
+    expect(result['conventions_total']).toBeGreaterThanOrEqual(conventions.length);
     expect(result['constants']).toMatchObject({ heartbeat_interval_seconds: 60 });
 
     const { rows } = await pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM agent_session WHERE external_session_id='S-b7e9'`,
     );
     expect(rows[0]?.n).toBe(1);
+  });
+
+  /**
+   * 규약 목록은 접고 상한을 둔다 (2026-10-10 · clemvion 보고 · 사람 결정 C1 · REQ-API-277). 전부 담았더니 clemvion 은
+   * API 카탈로그 사본 272편이 `convention` 이라 응답이 약 45KB 였다. 카탈로그는 하위 트리라 꼭대기 한 줄로 접는다.
+   */
+  it('규약 목록은 하위 규약을 꼭대기 한 줄로 접고 50건까지만 담는다', async () => {
+    const orgId = (await pool.query<{ id: string }>(`SELECT id FROM organization LIMIT 1`)).rows[0]!
+      .id;
+    const foldProject = newId();
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'conv-fold','CFD','conv-fold')`,
+      [foldProject, orgId],
+    );
+    const ids = new Map<string, string>();
+    const spec = async (
+      key: string,
+      type: string,
+      parent: string | null,
+      archived = false,
+    ): Promise<void> => {
+      ids.set(key, newId());
+      await pool.query(
+        `INSERT INTO spec (id, project_id, type, key, title, parent_id, archived_at)
+         VALUES ($1,$2,$3::spec_type,$4,$5,$6,$7)`,
+        [
+          ids.get(key),
+          foldProject,
+          type,
+          key,
+          `${key} 제목`,
+          parent === null ? null : ids.get(parent),
+          archived ? new Date() : null,
+        ],
+      );
+    };
+    await spec('VIS', 'vision', null);
+    await spec('CAT', 'convention', 'VIS');
+    await spec('CAT-A', 'convention', 'CAT');
+    await spec('CAT-A-1', 'convention', 'CAT-A');
+    await spec('CAT-B', 'convention', 'CAT');
+    // 규약 밑의 기능 문서 밑에 있는 규약은 접히지 않는다 — 부모가 규약이 아니다
+    await spec('CAT-F', 'feature', 'CAT');
+    await spec('CAT-F-C', 'convention', 'CAT-F');
+    await spec('AREA', 'area', 'VIS');
+    await spec('GLOSS', 'convention', 'AREA');
+    // 보관된 규약의 하위는 꼭대기다 — 보관된 것은 목록에 없다
+    await spec('OLD', 'convention', 'AREA', true);
+    await spec('OLD-C', 'convention', 'OLD');
+
+    const sessions = app.get(SessionService);
+    const packed = await sessions.bootstrap({
+      projectId: foldProject,
+      userId,
+      agentType: 'claude-code',
+      hostname: 'mac-fold',
+    });
+    // 비전이 먼저다 — 비전은 접지 않는다
+    expect(packed.conventions).toEqual([
+      { key: 'VIS', title: 'VIS 제목', type: 'vision', descendants: 0 },
+      { key: 'CAT', title: 'CAT 제목', type: 'convention', descendants: 3 },
+      { key: 'CAT-F-C', title: 'CAT-F-C 제목', type: 'convention', descendants: 0 },
+      { key: 'GLOSS', title: 'GLOSS 제목', type: 'convention', descendants: 0 },
+      { key: 'OLD-C', title: 'OLD-C 제목', type: 'convention', descendants: 0 },
+    ]);
+    expect(packed.conventions_total).toBe(8);
+
+    // 꼭대기가 상한을 넘으면 잘린다 — 잘린 것은 총수로 안다
+    for (let i = 0; i < 50; i += 1) {
+      await spec(`ZZ-${String(i).padStart(2, '0')}`, 'convention', 'AREA');
+    }
+    const capped = await sessions.bootstrap({
+      projectId: foldProject,
+      userId,
+      agentType: 'claude-code',
+      hostname: 'mac-fold-2',
+    });
+    expect(capped.conventions).toHaveLength(50);
+    expect(capped.conventions[0]).toMatchObject({ key: 'VIS' });
+    expect(capped.conventions_total).toBe(58);
+    const shown = capped.conventions.reduce((n, c) => n + 1 + c.descendants, 0);
+    expect(shown).toBeLessThan(capped.conventions_total);
   });
 
   it('같은 external_session_id 재호출은 동일 스냅샷이다 — 멱등', async () => {
@@ -1504,7 +1597,7 @@ describe('P2 리뷰 도구 2종 — 카탈로그에 들어온 표면 (FR-09, 202
     expect(result['ok']).not.toBe(false);
     expect(result['round_no']).toBe(1);
     expect(result['findings_new']).toHaveLength(1);
-    // 열린 critical 이 있으면 BLOCK 이고, 다음 행동은 처분이다(§2.1 원칙 5)
+    // 열린 critical 이 있으면 BLOCK 이고, 이번 라운드를 막으니 다음 행동은 처분이다(§2.1 원칙 5 · REQ-API-278)
     expect(result['block']).toBe(true);
     expect(result['next_actions']).toEqual(['nerv_finding_resolve']);
   });

@@ -35,6 +35,11 @@ allowed-tools:
 1. **bootstrap 확인.** 이 세션에서 `nerv_bootstrap`을 아직 호출하지 않았다면 지금 호출한다 —
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
+   - **규약 목록(`conventions`)은 접혀 있다.** 하위 규약이 있는 규약은 꼭대기 한 줄로 오고, 그 줄의
+     `descendants` 가 접힌 하위 규약 수다. 꼭대기도 50건까지라 `conventions_total` 이 목록 수에
+     `descendants` 합을 더한 것보다 크면 잘린 것이다. 작업과 관련된 규약은 `nerv_spec_get`(`spec_id`=키)으로
+     본문을 읽는다. 접힌 하위는 `nerv_spec_tree`(`root`=키, `type=convention`, `depth=1`)로 한 단계씩
+     내려가며 본다 — 카탈로그 같은 큰 하위 트리를 한 번에 펼치면 응답이 다시 커진다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
      활성 클레임 줄에 `task_key`·`spec_key`·`version_no`·`baseline` 이 있으니 6단계를 그대로 한다.
    - 응답을 `.nerv/cache/context-pack.json` 에 Write 한다 — 서버에 연결되지 않을 때 규약과 정책을

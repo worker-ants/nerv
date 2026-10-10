@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **6종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v0.95 · 2026-10-09 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v0.96 · 2026-10-10 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v0.96 변경(2026-10-10 — MCP 응답 두 개가 컸다, clemvion 보고 · **사람 결정**): **새 요구사항 없음 · §2.1 `next` 스킬 · §2.6 `review` 스킬 · 패키지 0.3.20 → 0.3.21.** bootstrap의 규약 목록이 하위 규약을 꼭대기 한 줄로 접어 50건까지 담는다. `next` 스킬이 `descendants` · `conventions_total`을 읽고, 접힌 하위를 `nerv_spec_tree`로 보게 적었다. 리뷰 제출 응답은 이월 발견의 목록 대신 수(`carried_over_total` · `carried_over_by_severity`)만 준다. `review` 스킬이 목록은 `nerv_finding_list`로 읽고, 다음 행동이 `round_block` 기준이라고 적었다([4.4 API 명세](api.md) REQ-API-277 · 278).
 >
 > v0.95 변경(2026-10-09 — 기다리는 세션이 클레임을 풀었다, clemvion 보고 · **사람 결정**): **새 요구사항 없음 · §2.3 `impl` 스킬 · §2.4 `question` 스킬 · 패키지 0.3.19 → 0.3.20.** 백그라운드 작업 · 사람의 답 · 결재를 기다리느라 턴을 끝낼 때는 클레임을 해제하지 않고 `nerv_task_heartbeat`에 `awaiting`을 보낸 뒤 끝내라고 적는다. 리뷰 단계면 먼저 `in_review`로 옮기고, 대기는 최대 30분이다. 다시 시작하면 `awaiting` 없이 하트비트부터 보내 대기를 지운다. `question` 스킬은 답을 기다리는 동안 하트비트를 유지하라고 적고 있었지만 `allowed-tools`에 하트비트가 없었다 — 더했다. 계약은 [4.4 API](api.md) REQ-API-275 · 276이다.
 >
@@ -176,7 +178,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.20
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.21
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -202,7 +204,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.20",
+  "version": "0.3.21",
   "license": "Apache-2.0"
 }
 ```
@@ -284,6 +286,11 @@ allowed-tools:
 1. **bootstrap 확인.** 이 세션에서 `nerv_bootstrap`을 아직 호출하지 않았다면 지금 호출한다 —
    입력: `project`, `agent_type`, `hostname`, `cwd`, 필요 시 `branch`·`worktree_path`·`model`,
    재개 세션이면 `resume_session_id`. 응답의 규약 요약·게이트 정책·**내 활성 클레임**을 읽는다.
+   - **규약 목록(`conventions`)은 접혀 있다.** 하위 규약이 있는 규약은 꼭대기 한 줄로 오고, 그 줄의
+     `descendants` 가 접힌 하위 규약 수다. 꼭대기도 50건까지라 `conventions_total` 이 목록 수에
+     `descendants` 합을 더한 것보다 크면 잘린 것이다. 작업과 관련된 규약은 `nerv_spec_get`(`spec_id`=키)으로
+     본문을 읽는다. 접힌 하위는 `nerv_spec_tree`(`root`=키, `type=convention`, `depth=1`)로 한 단계씩
+     내려가며 본다 — 카탈로그 같은 큰 하위 트리를 한 번에 펼치면 응답이 다시 커진다.
    - 활성 클레임이 이미 있으면 새로 클레임하지 않는다. 그 작업을 인수해 /nerv:impl 로 진행한다.
      활성 클레임 줄에 `task_key`·`spec_key`·`version_no`·`baseline` 이 있으니 6단계를 그대로 한다.
    - 응답을 `.nerv/cache/context-pack.json` 에 Write 한다 — 서버에 연결되지 않을 때 규약과 정책을
@@ -972,8 +979,8 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
      비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
    - **구현이 아니라 스펙이 틀렸으면 `tags: ["spec_drift"]` 를 단다.** 태그는 발견 목록의 필터이고, `area` 를 비웠을 때 서버가 스펙 이야기로 추론하는 근거다. 태그는 10개까지 · 하나 64자까지다.
-4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over`(이 프로젝트에 열려 있는 발견 — 앞의 50건만 담고 전체 수는 `carried_over_total`)·`round_block`·`blocking_findings`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다. 담기지 않은 나머지가 필요하면 `nerv_finding_list` 에 `cursor=carried_over_next_cursor` 를 넘겨 이어 읽는다(`branch` 로 좁힐 수 있다).
-   **이번 리뷰가 막는지는 `round_block` 으로 판단한다.** 이번 라운드(같은 브랜치 · 종류 · 커밋)에 열린 critical · warning 이 있으면 참이고 그 발견이 `blocking_findings` 다. 고치거나 처분하기 전에는 이 브랜치의 게이트 판정이 통과하지 않는다. `block` 은 프로젝트 전체의 열린 critical 이라 다른 브랜치의 결함으로도 참이다. 그래서 이번 변경을 막는 근거로 쓰지 않는다.
+4. **응답을 읽는다** — `findings_new`(새로 열린 것)·`findings_merged`(이미 있던 것)·`carried_over_total`(이 프로젝트에 열려 있는 발견의 수 — 심각도별 수는 `carried_over_by_severity` 이고 목록은 담기지 않는다)·`round_block`·`blocking_findings`. **`findings_merged`에 든 것을 다시 서술하지 않는다** — 같은 지적은 fingerprint로 하나의 Finding에 합쳐진다. 열린 발견의 목록이 필요하면 `nerv_finding_list` 로 읽는다 — `branch` · `severity` 로 좁히고, 더 있으면 응답의 `next_cursor` 를 `cursor` 로 넘겨 이어 읽는다.
+   **이번 리뷰가 막는지는 `round_block` 으로 판단한다.** 이번 라운드(같은 브랜치 · 종류 · 커밋)에 열린 critical · warning 이 있으면 참이고 그 발견이 `blocking_findings` 다. 고치거나 처분하기 전에는 이 브랜치의 게이트 판정이 통과하지 않는다. 응답의 `next_actions` 도 같은 기준이라, 막는 발견이 없으면 비어 있다. `block` 은 프로젝트 전체의 열린 critical 이라 다른 브랜치의 결함으로도 참이다. 그래서 이번 변경을 막는 근거로 쓰지 않는다.
 
 발견이 0건이어도 제출한다. "봤고 문제가 없었다"는 라운드가 있어야 게이트가 그것을 통과로 읽는다.
 
@@ -1727,7 +1734,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 | # | 단계 | 명령/행동 | 확인 방법 |
 | --- | --- | --- | --- |
 | 1 | PAT 발급 | 웹 S8 설정 → 에이전트 토큰 → 발급. 권한은 **[권장]** 묶음이 기본이다(`spec:read` `spec:draft` `task:claim` `task:update` `review:submit` `agent-session:launch` — `AGENT_RECOMMENDED_SCOPES` · 내 역할에 없는 것은 빠진다 · 2026-09-24 정정: 적혀 있던 developer 프리셋의 `review:resolve` 는 2026-09-02 부터 developer 에게 잠겨 있었고, 화면에는 프리셋이 없었다) — `spec:approve`·`approval:decide`는 체크박스 자체가 비활성(사람 전용). 발급 뒤 카드가 이 표의 2·3단계를 그대로 준다 | 토큰 문자열이 1회 표시됨. S8 목록에 토큰 행 생성 |
-| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.20 활성 표시 |
+| 2 | 플러그인 설치 | Claude Code에서 `/plugin marketplace add https://<서버>/plugin/marketplace.json` → `/plugin install nerv@nerv` → 재시작. **그 주소로 설치가 안 되면**(https·비-루프백·신뢰된 CA 중 하나라도 없을 때) GitHub으로 폴백한다 — `add worker-ants/nerv`, 설치 명령은 그대로다(§3.5 표) | `/plugin` 목록에 `nerv` v0.3.21 활성 표시 |
 | 3 | 설정 | 작업 저장소에서 `nerv-init` 한 번(경로는 아래 — 세션이 있으면 세션이 알려 준다). 토큰은 가려서 묻는다. **이미 있는 값은 덮지 않는다**(§3.7). 손으로 하려면 아래 두 블록이 그 내용이다 | `.mcp.json`·`.claude/settings.local.json`·`.gitignore` 셋이 서고, 재시작 뒤 `/mcp` 에 `nerv` connected |
 | 4 | 연결 확인 | 프로젝트 저장소에서 Claude Code 실행 → `/mcp` | `nerv` 서버 connected, `nerv_*` 도구 목록 표시 |
 | 5 | 첫 부트스트랩 | `/nerv:next` 실행(스킬이 `nerv_bootstrap`부터 호출한다) | 응답에 `session_id`·게이트 정책이 보이고, 웹 S5 세션 모니터에 내 세션 카드가 뜬다 |
