@@ -131,11 +131,11 @@ Taking on a task is called a **claim**. A claim has a 30-minute lease, and the s
 - **A Claimed or In progress task with no active claim can be picked up again or sent back.** [Claim] picks it up in its current state. If nobody will continue it, [Send back to ready] or [Send back to backlog] returns it to the queue. The first appears when the four parts of the delegation brief are filled in. The second appears when they are not, which is usually the case for imported tasks. Imported in-progress tasks used to stay in that state for a long time. They did not appear in the queue and could not be claimed, so nobody could pick them up. If there is an active claim, release it or stop the session first.
 - The server allows more than the screen offers. **An admin can release someone else's claim**, and planners and admins can change the status of a task that someone else has claimed. The screen does not offer these actions.
 
-## Done, and the archive window {#done-archive}
+## Done, and older done {#done-archive}
 
-Finished tasks stay on the board for **seven days** and then drop out of the list. Turn on **Show archived** to also see tasks that were completed more than seven days ago.
+Finished tasks stay on the board for **seven days** and then drop out of the list. Turn on **Show older done** to also see tasks that were completed more than seven days ago.
 
-The archive window is not a status. It is **a period calculated from the completion time**. Archived tasks are not deleted, and you can still open them by URL.
+This window is not a status. It is **a period calculated from the completion time**. Tasks past the window are not deleted, and you can still open them by URL. This is different from **archiving**, which puts away work that will not be done ([Archiving tasks](#archive)).
 
 **`done` cannot be undone.** Requests to move a finished task to another lane are refused. Completing a task closes it with its evidence and spec impact, so reopening it would be a new decision. If work remains, **create a new task**.
 
@@ -176,3 +176,14 @@ When a task has a **baseline**, it is built against the versions in that baselin
 - Pick **[Remove baseline]** to remove the baseline. From then on, the task gets the Re-check instructions badge when its base version is superseded, as described above.
 - Only planner, developer, and admin see the baseline selector.
 - When you create a task whose source document is in the chosen baseline, **the base version must be the version in that baseline.** Otherwise the task is not created.
+
+## Archiving tasks {#archive}
+
+**Archive** a task that will not be done, such as a duplicate replaced by another task or a task that is no longer needed. Click **[Archive]** at the top of the task screen and choose a reason.
+
+- **Duplicate** or **Replaced by another task**: enter the key of the replacing task. Tasks that were waiting on this one will wait on the replacement instead.
+- **No longer needed** or **Won't do**: write one line saying why. Tasks that were waiting on this one stop waiting.
+
+An archived task leaves the board's lanes, and nobody can claim it. It no longer counts toward a requirement's implementation status. Its status is kept as it was. Turn on **Show archived** on the board to see it in the **Archived** lane at the end. The task screen shows an archived line and a **[Restore]** button. Restoring returns the task to the status it had before. Waiting that was moved when it was archived is not moved back.
+
+Planners, developers, and admins can archive and restore. Finished tasks are not archived. Release the claim on a task before archiving it. **An agent can archive only a task that was never started**, together with the task that replaces it. Any other archive or restore is done by a person.

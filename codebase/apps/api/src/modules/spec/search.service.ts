@@ -295,7 +295,7 @@ export class SearchService {
          AND (lower(r.ref) = lower(${id}) OR r.id = ${uuid}::uuid)${this.requirementAlive(pick)}${pick.member}
        UNION ALL
       SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::int, NULL::text,
-             left(coalesce(t.body_md, ''), 200), 'task' AS kind, NULL::timestamptz
+             left(coalesce(t.body_md, ''), 200), 'task' AS kind, t.archived_at
         FROM task t
        WHERE t.project_id = ${projectId}
          AND (lower(t.key) = lower(${id}) OR t.id = ${uuid}::uuid)
@@ -308,7 +308,7 @@ export class SearchService {
    *
    * 순서는 **얼마나 번호다운 일치인가**다: 끝이 맞는 것(`CWC-007` → `SPC-CWC-007`)이 먼저, 그다음
    * 앞이 맞는 것, 그다음 가운데다. 같은 자리면 짧은 키가 먼저다 — 남는 글자가 적을수록 친 것에 가깝다.
-   * 보관 · 기준 판정은 다른 단계와 같다. 작업은 보관이 없다.
+   * 보관 · 기준 판정은 다른 단계와 같다. 작업의 보관(2026-10-10 · REQ-API-286)도 문서와 같은 인자로 거른다.
    */
   private async byKeyFragment(
     projectId: string,
@@ -343,10 +343,11 @@ export class SearchService {
          WHERE r.project_id = ${projectId} AND strpos(lower(r.ref), lower(${q})) > 0${this.requirementAlive(pick)}${archived}${pick.member}
          UNION ALL
         SELECT t.id, t.key, t.title, t.status::text, NULL::text, NULL::int, NULL::text,
-               left(coalesce(t.body_md, ''), 200), 'task', NULL::timestamptz,
+               left(coalesce(t.body_md, ''), 200), 'task', t.archived_at,
                ${place(sql`t.key`)}, length(t.key)
           FROM task t
          WHERE t.project_id = ${projectId} AND strpos(lower(t.key), lower(${q})) > 0
+           ${includeArchived === true ? sql`` : sql`AND t.archived_at IS NULL`}
       ) hits
       ORDER BY place, len, key, anchor NULLS FIRST
       LIMIT ${limit}

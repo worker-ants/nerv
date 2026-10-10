@@ -63,6 +63,7 @@ import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import type { ProjectId } from '../../lib/query-keys.js';
+import { ArchivedLane } from './archived-lane.js';
 import { boardFilters } from './board-search.js';
 import type { TaskBoardSearch } from './board-search.js';
 
@@ -126,6 +127,7 @@ export function TaskBoard(): React.JSX.Element {
     ai: agentOnly = false,
     backlog: backlogParam,
     archived: showArchived = false,
+    archived_tasks: showArchivedTasks = false,
     from_version: fromVersion,
     from_spec: fromSpec,
     from_version_no: fromVersionNo,
@@ -161,10 +163,18 @@ export function TaskBoard(): React.JSX.Element {
   const searchWith = (patch: {
     backlog?: boolean;
     archived?: boolean;
+    archivedTasks?: boolean;
     ai?: boolean;
     spec?: string | null;
     assignee?: string | null;
-  }): { spec?: string; assignee?: string; ai?: true; backlog?: false; archived?: true } => {
+  }): {
+    spec?: string;
+    assignee?: string;
+    ai?: true;
+    backlog?: false;
+    archived?: true;
+    archived_tasks?: true;
+  } => {
     const nextSpec = patch.spec === undefined ? spec : (patch.spec ?? undefined);
     const nextAssignee = patch.assignee === undefined ? assignee : (patch.assignee ?? undefined);
     return {
@@ -173,6 +183,7 @@ export function TaskBoard(): React.JSX.Element {
       ...((patch.ai ?? agentOnly) ? { ai: true as const } : {}),
       ...((patch.backlog ?? showBacklog) ? {} : { backlog: false as const }),
       ...((patch.archived ?? showArchived) ? { archived: true as const } : {}),
+      ...((patch.archivedTasks ?? showArchivedTasks) ? { archived_tasks: true as const } : {}),
     };
   };
   const toBoard = (search: ReturnType<typeof searchWith>): void =>
@@ -345,6 +356,15 @@ export function TaskBoard(): React.JSX.Element {
               label={t('tasks.filter.archived')}
               title={t('tasks.filter.archived_title', { days: TASK_DONE_WINDOW_DAYS })}
             />
+            {/* **보관은 따로 본다**(2026-10-10 · REQ-WEB-302) — 보관한 작업은 상태를 그대로 들고 있어 레인에 섞이면
+                진행하지 않을 작업이 "진행 중" 칸에 앉는다. 보관함 한 칸에 모은다 */}
+            <FilterToggle
+              testId="filter-archived-tasks"
+              on={showArchivedTasks}
+              onClick={() => toBoard(searchWith({ archivedTasks: !showArchivedTasks }))}
+              label={t('tasks.filter.archived_tasks')}
+              title={t('tasks.filter.archived_tasks_title')}
+            />
           </div>
         }
       />
@@ -368,6 +388,7 @@ export function TaskBoard(): React.JSX.Element {
             {...(lane === 'ready' ? { readyEmpty } : {})}
           />
         ))}
+        {showArchivedTasks && <ArchivedLane proj={proj} projectId={id} filters={filters} />}
       </div>
     </PageBody>
   );

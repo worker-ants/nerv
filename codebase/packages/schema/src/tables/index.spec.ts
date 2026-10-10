@@ -112,8 +112,9 @@ describe('enum 선언 (database.md §2.1)', () => {
   // 2026-09-22 · 40 → 41: `email_kind` 신설(마이그레이션 0027 · database.md §2.17)
   // 2026-09-27 · 41 → 42: `notification_level` 신설(마이그레이션 0035 · REQ-DB-028)
   // 2026-10-09 · 42 → 43: `claim_awaiting_kind` 신설(마이그레이션 0046 · REQ-DB-039)
-  it('43종이다', () => {
-    expect(declaredEnums).toHaveLength(43);
+  // 2026-10-10 · 43 → 44: `task_archive_reason` 신설(마이그레이션 0047 · REQ-DB-040)
+  it('44종이다', () => {
+    expect(declaredEnums).toHaveLength(44);
   });
 
   it('하이픈이 든 clemvion 계승 어휘를 그대로 쓴다 (data-model §2.6)', () => {

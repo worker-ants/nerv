@@ -83,6 +83,8 @@ export const MANUAL_SECTION_IDS = {
     'requirement-links',
     'stale-base',
     'baseline-tasks',
+    // 새 절은 끝에 둔다 — 옛 주소 `#sec-N` 은 순서로 옮겨지므로 가운데 넣으면 뒤의 절이 밀린다(REQ-WEB-268)
+    'archive',
   ],
   sessions: ['monitor', 'plugin-machines', 'statuses', 'activity', 'steer-stop', 'questions'],
   reviews: ['review-sessions', 'severity', 'targets', 'filters', 'gate-coverage', 'badge'],

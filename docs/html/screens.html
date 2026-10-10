@@ -54,7 +54,7 @@
     <p class="lead">MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다 — 라우팅 맵과 앱 셸, 화면별 데이터 소스·WebSocket 무효화·컴포넌트·폼 검증·EARS 수용 기준(REQ-WEB-*), TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 그리고 제안서 팔레트의 Tailwind 토큰 이식. <b>MVP 라우트는 전부 와이어프레임을 갖는다</b> — S1~S8의 정본은 <a href="ui-wireframes.html">3.6 화면 설계</a>이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널)의 그림은 이 문서가 소유한다(§1.6 커버리지 표).</p>
     <div class="meta-line">
       <span>SPC-MVP-SCREENS · status: approved</span>
-      <span>버전 v2.27 (2026-10-09)</span>
+      <span>버전 v2.28 (2026-10-10)</span>
       <span>원본: <code>docs/04-mvp/screens.md</code></span>
       <span>범위: 로그인/온보딩 + S1~S5 · S7 · S8 (S6은 Phase 2)</span>
       <span class="refs">참조하는 문서: <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="plugin.html">4.6</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -310,6 +310,7 @@
       <tr><td><code>spec.comment_added</code> · ★<code>comment.resolved</code></td><td><code>['spec', specId, 'comments']</code> · <code>['project', projId, 'spec-tree']</code> · <code>['project', projId, 'spec-graph']</code>(목록 줄의 열린 코멘트 수 — 2026-10-04 · REQ-WEB-289)</td><td><code>project:{id}</code></td></tr>
       <tr><td><code>task.ready</code> <code>task.claimed</code> <code>task.blocked</code> <code>task.done</code> · ★<code>task.created</code> ★<code>task.updated</code></td><td><code>['project', projId, 'tasks']</code> · <code>['task', taskId]</code></td><td><code>project:{id}</code></td></tr>
       <tr><td><code>task.rebrief_required</code></td><td><code>['project', projId, 'tasks']</code> · <code>['task', taskId]</code> + S4 재브리핑 배지</td><td><code>project:{id}</code> + 담당자·클레임 세션 소유자 <code>user:{id}</code></td></tr>
+      <tr><td><code>task.archived</code> · <code>task.restored</code></td><td><code>['project', projId, 'tasks']</code> · <code>['task', taskId]</code> — 보관한 작업이 레인에서 빠지고 보관함 · 상세의 보관됨 줄이 바뀐다(2026-10-10 · REQ-WEB-301 · 302)</td><td><code>project:{id}</code></td></tr>
       <tr><td><code>spec.recheck_requested</code></td><td><code>['spec', specId]</code> + S3 참조 갱신 배지</td><td><code>project:{id}</code> + 대상 문서 owner <code>user:{id}</code></td></tr>
       <tr><td>★<code>baseline.created</code></td><td><code>['project', projId, 'baselines']</code></td><td><code>project:{id}</code></td></tr>
       <tr><td><code>claim.conflict_warn</code> <code>claim.conflict_blocked</code></td><td><code>['project', projId, 'sessions']</code> + 경고 토스트</td><td><code>project:{id}</code> + 양쪽 세션 소유자 <code>user:{id}</code></td></tr>
@@ -1539,18 +1540,21 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
     <li><b>아카이브를 상태값으로 만들지 않는다.</b> 종단 상태가 늘면 "왜 끝났는가"(done 인가 blocked 인가)를 잃고 전이 규칙 표 전체가 바뀐다(D-05 판정 단일 지점). 창은 <code>done_at</code> 에서 파생하므로 마이그레이션도 잡도 필요 없다 — 상수 <code>TASK_DONE_WINDOW_DAYS</code>.</li>
     <li><b>레인마다 따로 조회한다</b>(EP-TASK-01 · 커서). 한 목록을 받아 화면에서 가르면 자를 수가 없다: 우선순위 순 30건이 전부 done 이고 ready 가 한 건도 없는 페이지가 나온다. 실측으로 1요청 229 KB → 6요청 1 KB.</li>
     <li>한 페이지를 채운 레인은 건수에 <b><code>+</code></b>를 붙인다 — 그냥 <code>30</code>이라고 적으면 사람은 그것이 전부라고 읽는다. 받아 둔 카드를 다 펼치면 같은 자리의 단추가 <b>다음 쪽을 부른다</b>(2026-09-25 · REQ-WEB-221 — 예전에는 받아 둔 것만 펼쳐 31번째부터 닿을 길이 없었다).</li>
-    <li>필터는 <b>보드 위</b>에 둔다. 레인 머리에 붙이면 어느 레인의 설정인지 헷갈리고, <code>보관 보기</code>는 done 만 바꾸지만 <code>백로그 보기</code>는 레인 자체를 늘린다. <b>걸린 필터는 보인다</b>(2026-09-25 · REQ-WEB-221): 스펙·담당 고르개가 걸린 값을 그대로 보이고, 하나라도 걸리면 "필터 적용 중" 과 [필터 지우기]가 선다. 요약 숫자와 레인은 <b>같은 조건</b>으로 센다 — <code>?assignee=</code> 가 레인에만 실려 두 줄이 다른 말을 했다. "내 담당" 숫자는 <code>?assignee=&lt;나&gt;</code> 로 간다.</li>
-    <li><b><code>백로그 보기</code>는 켜고 시작한다</b>(2026-09-08 — 사람 지시 · REQ-WEB-155). 2026-09-06 까지는 <code>보관 보기</code>와 함께 꺼진 채로 열렸는데, 둘이 감추는 것은 성질이 다르다: 보관은 <b>끝난 일</b>을, 백로그는 <b>막 시작된 일</b>을 감춘다. 생성은 언제나 <code>backlog</code> 이므로(EP-TASK-03 · FR-05 — 4요소를 다 채워 보내도 승격은 다음 <code>PATCH</code> 다) 방금 만든 티켓은 기본 화면의 어느 레인에도 없었고, 만든 사람이 본 것은 빈 상태도 오류도 아닌 <b>침묵</b>이었다. 기본값은 주소에 적지 않고 <b>끈 상태만</b> 남긴다(<code>?backlog=0</code>).</li>
+    <li>필터는 <b>보드 위</b>에 둔다. 레인 머리에 붙이면 어느 레인의 설정인지 헷갈리고 <code>지난 완료 보기</code>는 done만 바꾸지만 <code>백로그 보기</code>는 레인 자체를 늘린다. <b>걸린 필터는 보인다</b>(2026-09-25 · REQ-WEB-221): 스펙·담당 고르개가 걸린 값을 그대로 보이고 하나라도 걸리면 "필터 적용 중"과 [필터 지우기]가 선다. 요약 숫자와 레인은 <b>같은 조건</b>으로 센다 — <code>?assignee=</code>가 레인에만 실려 두 줄이 다른 말을 했다. "내 담당" 숫자는 <code>?assignee=&lt;나&gt;</code>로 간다.</li>
+    <li><b><code>백로그 보기</code>는 켜고 시작한다</b>(2026-09-08 — 사람 지시 · REQ-WEB-155). 2026-09-06 까지는 <code>지난 완료 보기</code>(그때 이름은 <code>보관 보기</code>)와 함께 꺼진 채로 열렸는데 둘이 감추는 것은 성질이 다르다: 보관은 <b>끝난 일</b>을, 백로그는 <b>막 시작된 일</b>을 감춘다. 생성은 언제나 <code>backlog</code>이므로(EP-TASK-03 · FR-05 — 4요소를 다 채워 보내도 승격은 다음 <code>PATCH</code>다) 방금 만든 티켓은 기본 화면의 어느 레인에도 없었고 만든 사람이 본 것은 빈 상태도 오류도 아닌 <b>침묵</b>이었다. 기본값은 주소에 적지 않고 <b>끈 상태만</b> 남긴다(<code>?backlog=0</code>).</li>
+    <li><b>작업 보관은 따로 본다</b>(2026-10-10 — 사람 결정 D2 · REQ-WEB-301 · 302 · <a href="api.html">4.4 API</a> REQ-API-284~286). 진행하지 않기로 한 작업을 정리할 길이 없어 다른 작업으로 대체된 중복이 백로그에 남았다(clemvion). 작업 상세 머리의 <b>[보관]</b>이 사유(중복 · 다른 작업으로 대체 · 더 이상 필요 없음 · 하지 않기로 함)와 대신할 작업 또는 이유 한 줄을 받는다. 보관한 작업은 상태를 그대로 가지고 있어 상태 레인에 섞이면 진행하지 않을 작업이 "진행 중" 칸에 앉는다 — 레인에서 빼고 보드의 <b><code>보관 보기</code></b>가 끝에 <b>보관함</b> 칸 하나를 연다(<code>?archived_tasks=1</code> · EP-TASK-01 <code>archived=only</code>). 오래 <code>보관 보기</code>라 부르던 done 창 토글은 <b><code>지난 완료 보기</code></b>로 이름을 바꿨다 — 「보관」은 스펙 · 프로젝트와 같은 뜻(진행하지 않기로 치운 것)으로만 쓴다. 상세는 키로 그대로 열리고 보관됨 줄(사유 · 대신할 작업 · 누가 언제)과 <b>[복원]</b>이 다음 행동 단추를 대신한다</li>
   </ul>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>수용 기준(EARS)</th></tr></thead>
     <tbody>
-      <tr><td>REQ-WEB-054</td><td>WHILE 보관 보기가 꺼져 있으면 THE SYSTEM SHALL <code>done_at</code> 이 <code>TASK_DONE_WINDOW_DAYS</code> 를 지난 작업을 보드에서 제외한다</td></tr>
+      <tr><td>REQ-WEB-054</td><td>WHILE 지난 완료 보기가 꺼져 있으면 THE SYSTEM SHALL <code>done_at</code>이 <code>TASK_DONE_WINDOW_DAYS</code>를 지난 작업을 보드에서 제외한다</td></tr>
       <tr><td>REQ-WEB-055</td><td>WHEN 보드가 열리면 THE SYSTEM SHALL 레인마다 따로 조회하고, 상태를 지정하지 않은 전량 조회를 하지 않는다</td></tr>
       <tr><td>REQ-WEB-143</td><td>WHEN 보드 카드 또는 작업 상세가 <code>blocked_reason</code> 을 보이면 THE SYSTEM SHALL 그 값이 <code>BLOCKED_REASONS</code> 안이면 그 어휘의 라벨(카탈로그 <code>blocked.*</code>)로, 어휘 밖이면 <b>저장된 원문 그대로</b> 표시한다 — 식별자도 문구 키도 화면에 나오지 않는다. WHERE 어휘 판정이 필요하면 THE SYSTEM SHALL <code>@nerv/schema</code> 의 판정을 쓰고 화면에서 어휘 목록을 다시 적지 않는다</td></tr>
       <tr><td>REQ-WEB-155</td><td>WHEN 작업 보드를 열면 THE SYSTEM SHALL <code>백로그 보기</code>를 <b>켠 상태로</b> 시작해 <code>backlog</code> 레인을 그린다 — 생성 직후의 작업이 어느 레인에도 없는 상태를 만들지 않는다. WHEN 사람이 그것을 끄면 THE SYSTEM SHALL 주소에 <code>?backlog=0</code> 을 남기고, 켜진 상태는 주소에 적지 않는다</td></tr>
       <tr><td>REQ-WEB-221</td><td>WHEN 작업 보드에 스펙·담당·에이전트 필터가 걸리면 THE SYSTEM SHALL 보드 위의 고르개가 그 값을 보이고 "필터 적용 중" 과 [필터 지우기]를 두며, 요약 숫자와 레인을 같은 조건으로 센다. WHEN "내 담당" 숫자를 누르면 THE SYSTEM SHALL 담당이 나인 작업만 남긴 보드로 간다. WHEN 레인이 받아 둔 카드를 다 펼쳤는데 다음 쪽이 있으면 THE SYSTEM SHALL 같은 자리의 단추로 다음 쪽을 부른다. WHEN ready 레인이 비면 THE SYSTEM SHALL 막힌 작업과 백로그로 가는 길을 그 수와 함께 보인다(수가 0 인 것은 빼고)</td></tr>
+      <tr><td>REQ-WEB-301</td><td>WHEN 작업 상세를 그리면 THE SYSTEM SHALL 끝나지 않았고 보관하지 않은 작업의 머리에 <b>[보관]</b>을 두고(planner · developer · admin — 살아 있는 클레임이 있으면 그 사유와 함께 잠근다), 펼치면 사유 넷 가운데 하나와 — 중복 · 대체면 대신할 작업의 키, 더 이상 필요 없음 · 하지 않기로 함이면 이유 한 줄을 — 받아 EP-TASK-10으로 보낸다. WHEN 작업이 보관돼 있으면 THE SYSTEM SHALL 다음 행동 단추를 그리지 않고 보관됨 줄(사유 · 대신할 작업 링크 · 메모 · 누가 언제)과 <b>[복원]</b>(EP-TASK-11)을 보인다(2026-10-10 · 사람 결정 · clemvion 보고 — 대체된 중복을 정리할 길이 없었다)</td></tr>
+      <tr><td>REQ-WEB-302</td><td>WHEN 작업 보드를 그리면 THE SYSTEM SHALL 보관한 작업을 상태 레인에 담지 않고 <code>보관 보기</code>(<code>?archived_tasks=1</code>)를 켜면 레인 끝에 <b>보관함</b> 칸 하나를 두어 보관한 작업을 사유 · 대신할 작업과 함께 보인다(EP-TASK-01 <code>archived=only</code>). THE SYSTEM SHALL done 창을 여는 토글은 <code>지난 완료 보기</code>라 부른다 — 「보관」은 진행하지 않기로 치운 것에만 쓴다(2026-10-10 · 사람 결정 D2)</td></tr>
     </tbody>
   </table></div>
 
@@ -1564,6 +1568,7 @@ projectBySlug:   (slug: string)      =&gt; ['project', slug] as const;   // 해�
       <tr><td>위임 명세 편집</td><td>EP-TASK-05 <code>PATCH /api/v1/projects/{proj}/tasks/{task}</code></td><td>4요소: <code>goal_md</code>·<code>output_format_md</code>·<code>tools_sources_md</code>·<code>boundaries_md</code>(data-model §2.4). 충족 시 서버가 <code>ready</code> 승격</td></tr>
       <tr><td>사람 클레임</td><td>EP-TASK-06 <code>POST /api/v1/projects/{proj}/tasks/{task}/claim</code></td><td><code>claim.agent_session_id</code> NULL — <code>nerv_task_claim</code>과 같은 서비스·같은 겹침 판정. <b>2026-09-06 배선</b>: 작업 상세의 [클레임]/[인계]/[포기]. 범위는 이 작업의 출처 스펙 하나이고 파일 글롭은 <b>비운다</b>(사람이 무엇을 만질지 서버가 추정하지 않는다)</td></tr>
       <tr><td>상태 전이</td><td>EP-TASK-09 <code>POST /api/v1/projects/{proj}/tasks/{task}/transition</code></td><td>서버 가드 거부 시 사유를 그대로 카드 툴팁으로</td></tr>
+      <tr><td>작업 보관 · 복원</td><td>EP-TASK-10 <code>POST …/tasks/{task}/archive</code> · EP-TASK-11 <code>POST …/tasks/{task}/restore</code></td><td>상세 머리의 [보관] · 보관됨 줄의 [복원] — 보관한 작업은 레인에서 빠지고 보관함 칸에만 보인다(REQ-WEB-301 · 302)</td></tr>
     </tbody>
   </table></div>
 

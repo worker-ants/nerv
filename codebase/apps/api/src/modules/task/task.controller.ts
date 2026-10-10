@@ -11,6 +11,7 @@ import {
   NERV_ERROR,
   TASK_CREATE_ROLES,
   TASK_EDIT_ROLES,
+  TaskArchiveInput,
   TaskClaimInput,
   TaskCreateInput,
   TaskTransitionInput,
@@ -18,6 +19,7 @@ import {
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { RequireRoleAndScope, RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
@@ -39,6 +41,7 @@ export class TaskController {
     @Query('spec') spec?: string,
     @Query('ai') ai?: string,
     @Query('include_archived') includeArchived?: string,
+    @Query('archived') archived?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ): Promise<unknown> {
@@ -50,8 +53,10 @@ export class TaskController {
       // `?ai=1` — 에이전트가 쥔 것만(REQ-API-122). 문자 '1' 하나만 참이다: 뜻이 흔들리면
       // 필터가 언제 켜지는지 부르는 쪽마다 달라진다.
       agentOnly: ai === '1',
-      // 기본은 **닫혀 있다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다.
+      // 기본은 **닫혀 있다** — 스펙 아카이브(REQ-API-022)와 같은 규약이다. 이름이 오래됐다: 지난 완료를 연다
       includeArchived: includeArchived === 'true',
+      // **보관한 작업**(REQ-API-286) — 어휘는 도메인이 본다(모르는 값은 400)
+      archived: archivedParam(archived),
       ...(limit === undefined ? {} : { limit: Number(limit) }),
       ...(cursor === undefined ? {} : { cursor }),
     });
@@ -128,6 +133,41 @@ export class TaskController {
       baseBriefHash: input.base_brief_hash ?? null,
       // 없으면 그대로, `null` · 빈 문자열이면 푼다 — 둘을 가르려고 `??` 로 접지 않는다
       ...(input.baseline === undefined ? {} : { baseline: input.baseline }),
+    });
+  }
+
+  /**
+   * EP-TASK-10 — 작업 보관(2026-10-10 · REQ-API-284). 수정과 같은 권한이다. 에이전트 토큰이면 도메인이 에이전트의
+   * 조건(시작한 적 없는 작업 · 대신할 작업)을 본다
+   */
+  @RequireRoleAndScope([...TASK_EDIT_ROLES], 'task:update')
+  @Post('tasks/:task/archive')
+  archive(
+    @Req() req: ProjectRequest,
+    @Param('task') task: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const input = parseBody(TaskArchiveInput, body);
+    const principal = principalOf(req);
+    return this.tasks.archive({
+      projectId: projectOf(req),
+      taskKey: task,
+      actor: { userId: principal.userId, isAgent: principal.isAgent },
+      reason: input.reason,
+      supersededBy: input.superseded_by ?? null,
+      note: input.note ?? null,
+    });
+  }
+
+  /** EP-TASK-11 — 보관 복원(2026-10-10 · REQ-API-285). 사람만 한다(도메인이 본다) */
+  @RequireRoleAndScope([...TASK_EDIT_ROLES], 'task:update')
+  @Post('tasks/:task/restore')
+  restore(@Req() req: ProjectRequest, @Param('task') task: string): Promise<unknown> {
+    const principal = principalOf(req);
+    return this.tasks.restore({
+      projectId: projectOf(req),
+      taskKey: task,
+      actor: { userId: principal.userId, isAgent: principal.isAgent },
     });
   }
 
@@ -243,7 +283,14 @@ function projectOf(req: ProjectRequest): string {
   return projectId;
 }
 
-function principalOf(req: ProjectRequest): { userId: string } {
+/** `?archived=` — `include`·`only` 만 받는다. 모르는 값을 조용히 버리면 필터가 꺼진 줄 모른다(§1.4j) */
+function archivedParam(raw: string | undefined): 'include' | 'only' | null {
+  if (raw === undefined || raw === '') return null;
+  const [value] = assertVocab([raw], ['include', 'only'], 'archived');
+  return value as 'include' | 'only';
+}
+
+function principalOf(req: ProjectRequest): { userId: string; isAgent: boolean } {
   const principal = req.nervPrincipal;
   if (principal === undefined) {
     throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), { kind: 'missing' });

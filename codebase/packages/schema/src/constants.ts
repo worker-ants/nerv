@@ -18,6 +18,9 @@ export const LEASE_TTL_SECONDS = 1800;
  * 대상은 워크플로 · 질문 · 결재 ID 같은 짧은 식별자다. 세션 보드 한 줄에 보이므로 목록이 자라지 않게 묶는다
  */
 export const AWAITING_REFS_MAX = 20;
+
+/** 작업 보관 메모의 상한 — 500자(2026-10-10 · REQ-API-284). 증적 설명과 같은 크기다 */
+export const TASK_ARCHIVE_NOTE_MAX = 500;
 export const AWAITING_REF_MAX = 200;
 
 /**

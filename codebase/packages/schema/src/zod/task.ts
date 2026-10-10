@@ -164,6 +164,18 @@ export const HeartbeatInput = z
   .strict();
 
 /**
+ * EP-TASK-10 — 작업 보관(2026-10-10 · REQ-API-284). 사유의 어휘(`TASK_ARCHIVE_REASONS`)와 사유마다 필요한 칸
+ * (대신할 작업 · 메모)은 도메인이 본다 — MCP(`nerv_task_update` 의 `archive`)는 이 스키마를 거치지 않는다
+ */
+export const TaskArchiveInput = z
+  .object({
+    reason: z.string().min(1),
+    superseded_by: z.string().nullish(),
+    note: z.string().nullish(),
+  })
+  .strict();
+
+/**
  * EP-TASK-08 — 내려놓기.
  *
  * `reason` 의 어휘는 `CLAIM_RELEASE_INPUTS` 셋이고 판정은 도메인이 한다 —

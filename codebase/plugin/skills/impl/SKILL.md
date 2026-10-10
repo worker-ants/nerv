@@ -108,10 +108,15 @@ allowed-tools:
   **같은 작업을 다시 만들지 않는다** — `nerv_task_update`(`task_id`, 빈 칸, `base_brief_hash`)로
   채운다. `base_brief_hash`에는 응답의 `brief_hash`를 그대로 넣는다. 채울 것을 모르면 `backlog`에 남아 사람이 마저 채운다 — **잊는 것보다
   낫다.** 지금 하던 일을 그것 때문에 멈추지 않는다.
+- **같은 작업이 둘이 됐으면 옛것을 보관한다.** `nerv_task_update`(`task_id`, `archive`)를 부르고, `archive`는
+  `{reason: "duplicate" 또는 "superseded", superseded_by: <대신할 작업 키>}`다. 다른 인자와 함께 보내지 않는다.
+  에이전트는 시작한 적 없는 작업(클레임 · 증적 없음)만 보관할 수 있다. 그 밖의 보관과 복원은 사람이 하므로
+  `nerv_question_create`로 부탁한다. 보관하면 그 작업을 기다리던 작업이 대신할 작업을 기다리게 된다.
 - 특정 Task 를 읽어야 하면 `nerv_task_get`(`task_id` — 키든 UUID든)이다.
   `nerv_task_next` 는 **지금 클레임할 수 있는 후보**만 준다.
 - 프로젝트에 무엇이 도는지 훑어야 하면 `nerv_task_list`(`status` 쉼표 목록 · `assignee` ·
-  `spec` · `cursor`)다. 보관한 것은 기본으로 빠진다 — 필요하면 `include_archived`.
+  `spec` · `cursor`)다. 완료된 지 오래된 작업은 기본으로 빠진다 — 필요하면 `include_archived`. 진행하지
+  않기로 보관한 작업도 빠진다 — 보려면 `archived`(`include` · `only`)다.
 - `spec_impact` 도 done 게이트의 **필수 선언**이다. 바꾼 스펙이 있으면
   `{changed: ["SPC-…"]}`, 없으면 `{none: true}` — 비어 있으면 게이트가 막는다.
   "영향 없음"을 말하지 않는 것과 "아직 안 봤다"를 서버는 구별할 수 없기 때문이다.

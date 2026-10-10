@@ -115,6 +115,20 @@ export function isBlockedReason(value: unknown): value is BlockedReason {
 }
 
 export const dependencyKind = pgEnum('dependency_kind', ['blocks', 'relates']);
+
+/**
+ * **작업을 보관한 이유**(2026-10-10 · 사람 결정 · REQ-API-284 · REQ-DB-040).
+ *
+ * 작업에는 진행하지 않기로 한 것을 정리할 길이 없었다 — 상태는 done 이 끝이고, done 은 게이트를 지나야 한다.
+ * clemvion 백로그에 다른 작업으로 대체된 중복 셋이 그대로 남았다(CLE-T-V54M21 · 2K6CDJ · CYS6YF). 보관은 상태와
+ * 따로 간다: 상태 어휘를 늘리면 보드 레인 · 구현 현황 · 전이 표가 모두 바뀐다. `duplicate`·`superseded` 는
+ * 대신할 작업(`superseded_by_task_id`)을 반드시 가리키고, 에이전트는 이 둘만 쓸 수 있다
+ */
+export const TASK_ARCHIVE_REASONS = ['duplicate', 'superseded', 'obsolete', 'wont_do'] as const;
+export type TaskArchiveReason = (typeof TASK_ARCHIVE_REASONS)[number];
+export const taskArchiveReason = pgEnum('task_archive_reason', TASK_ARCHIVE_REASONS);
+/** 대신할 작업을 반드시 가리키는 사유 — 에이전트가 쓸 수 있는 것도 이 둘이다(D1) */
+export const TASK_ARCHIVE_REPLACED_REASONS = ['duplicate', 'superseded'] as const;
 export const claimStatus = pgEnum('claim_status', ['active', 'released', 'expired', 'revoked']);
 
 /**
