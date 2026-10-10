@@ -103,6 +103,17 @@ export const LEASE_HEARTBEAT_GRACE_SECONDS = HEARTBEAT_INTERVAL_SECONDS * 3;
 export const SESSION_STALE_SECONDS = 1800;
 
 /**
+ * stale 이 된 훅 세션을 `nerv_bootstrap` 이 **채택해 되살리는 기간** — 24시간(2026-10-10 · 사람 결정 · REQ-API-079 개정).
+ *
+ * 30분 쉬면 세션이 stale 이 되고, 다시 움직인 에이전트의 MCP 도구는 `session_required` 를 받아 bootstrap 을 다시
+ * 부른다. 채택이 살아 있는 훅 세션만 보던 동안은 그때 **새 세션**이 생겼다. 훅(Stop · SessionEnd)은 external id 로
+ * 옛 세션을 계속 보므로 클레임과 훅 평면이 갈라졌고, compact 뒤에는 둘 다 살아나 `session_ambiguous` 가 됐다(재현).
+ * 점심 · 퇴근 뒤 다음 날 아침까지는 같은 하네스 세션으로 본다. 그보다 오래되면 다른 하네스일 가능성이 커서 채택하지
+ * 않는다. 세션 종료 훅으로 끝난 세션(`complete` · `error`)은 기간과 상관없이 채택하지 않는다.
+ */
+export const STALE_SESSION_ADOPT_SECONDS = 24 * 60 * 60;
+
+/**
  * `nerv_bootstrap` 이 돌려주는 규약 목록의 상한(2026-10-10 · 사람 결정 C1 · REQ-API-277).
  *
  * 규약 스펙(convention · vision)을 전부 담았더니 clemvion 은 API 카탈로그 사본 272편이 `convention` 이라

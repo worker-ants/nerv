@@ -60,6 +60,8 @@ beforeEach(async () => {
   await pool.query('DELETE FROM notification');
   await pool.query('TRUNCATE event');
   await pool.query('DELETE FROM claim');
+  // 클레임은 작업에 맡은 세션을 남긴다 — 세션을 지우기 전에 비운다
+  await pool.query('UPDATE task SET delegate_session_id = NULL');
   await pool.query('DELETE FROM agent_session');
   await pool.query(`UPDATE task SET status = 'ready' WHERE id = $1`, [taskId]);
 });
@@ -709,5 +711,201 @@ describe('작업 궤적 — 도구 로그가 아니라 한 일 (REQ-API-068)', (
       .get(SessionService)
       .trajectory({ projectId, sessionId: EXTERNAL_SESSION });
     expect(steps.every((s) => !String(s['type']).startsWith('session.'))).toBe(true);
+  });
+});
+
+/**
+ * 만료 뒤에도 같은 세션이다 (2026-10-10 · 사람 결정 · REQ-API-079 개정 · REQ-API-279).
+ *
+ * 30분 쉬면 세션이 stale 이 되고 클레임이 회수된다. 돌아온 에이전트의 MCP 도구는 `session_required` 를 받아
+ * bootstrap 을 다시 부르는데, 채택이 살아 있는 훅 세션만 보던 동안은 그때 **새 세션**이 생겼다. 훅은 external id 로
+ * 옛 세션을 계속 봐서 Stop 게이트가 새 세션의 클레임을 몰랐고, compact 뒤에는 둘 다 살아나 도구가
+ * `session_ambiguous` 로 막혔고, 세션 종료 뒤에도 새 세션의 클레임이 남았다(L2 재현).
+ */
+describe('만료 뒤에도 같은 세션이다 (REQ-API-079 · 279)', () => {
+  const CWD = '/work/clemvion';
+  const HOST = 'mac-07';
+  const SCOPE = { spec_ids: [], file_globs: ['src/**'] };
+
+  async function tool(name: string, args: Record<string, unknown> = {}) {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+        'mcp-protocol-version': '2026-07-28',
+      },
+      payload: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+    });
+    return (res.json() as { result: { structuredContent: Record<string, unknown> } }).result
+      .structuredContent;
+  }
+
+  async function start(external = EXTERNAL_SESSION): Promise<string> {
+    const res = await hook(
+      'session',
+      { session_id: external, source: 'startup', cwd: CWD },
+      { host: HOST, agent: 'claude-code' },
+    );
+    return String(res.body['session_id']);
+  }
+
+  /** 30분 넘게 쉬어 stale 이 되게 한다 — 워커의 잡이 부르는 메서드 그대로다 */
+  async function goStale(): Promise<void> {
+    await pool.query(
+      `UPDATE agent_session SET last_heartbeat_at = now() - interval '31 minutes',
+                                started_at = now() - interval '40 minutes'`,
+    );
+    await app.get(SessionService).markStale();
+  }
+
+  async function states(): Promise<{ id: string; state: string }[]> {
+    return (
+      await pool.query<{ id: string; state: string }>(
+        `SELECT id, state::text AS state FROM agent_session ORDER BY started_at`,
+      )
+    ).rows;
+  }
+
+  const bootstrap = () =>
+    tool('nerv_bootstrap', { agent_type: 'claude-code', hostname: HOST, cwd: CWD });
+
+  it('resume id 없이 다시 부른 bootstrap 이 stale 이 된 훅 세션을 되살린다 — 클레임과 훅이 한 세션에 붙는다', async () => {
+    const hookSession = await start();
+    await goStale();
+    expect(await states()).toEqual([{ id: hookSession, state: 'stale' }]);
+
+    const blocked = await tool('nerv_task_claim', { task_id: taskId, scope: SCOPE });
+    expect((blocked['details'] as Record<string, unknown>)['kind']).toBe('session_required');
+
+    const resumed = await bootstrap();
+    expect(resumed['session_id']).toBe(hookSession);
+    expect(resumed['resumed']).toBe(true);
+    expect(await states()).toEqual([{ id: hookSession, state: 'active' }]);
+
+    const claimed = await tool('nerv_task_claim', { task_id: taskId, scope: SCOPE });
+    expect(claimed['ok']).toBe(true);
+    const { rows: claims } = await pool.query<{ agent_session_id: string }>(
+      `SELECT agent_session_id FROM claim WHERE status = 'active'`,
+    );
+    expect(claims.map((c) => c.agent_session_id)).toEqual([hookSession]);
+
+    // Stop 게이트가 그 클레임을 본다 — 예전에는 옛 세션을 봐서 통과시켰다
+    const stop = await hook('stop', { session_id: EXTERNAL_SESSION });
+    expect(stop.body['decision']).toBe('block');
+
+    // compact 뒤에도 세션은 하나다 — 예전에는 둘이 살아나 도구가 session_ambiguous 였다
+    await hook('session', { session_id: EXTERNAL_SESSION, source: 'compact', cwd: CWD });
+    const live = await app.get(SessionService).liveSessions(projectId, userId);
+    expect(live.map((s) => s.session_id)).toEqual([hookSession]);
+
+    // 세션 종료 훅이 그 클레임을 회수한다 — 예전에는 새 세션의 클레임이 남았다
+    await hook('session-end', { session_id: EXTERNAL_SESSION, reason: 'exit' });
+    const { rows: after } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM claim`,
+    );
+    expect(after.every((c) => c.status !== 'active')).toBe(true);
+  });
+
+  it('훅이 오면 stale 세션이 되살아난다 — MCP 도구가 bootstrap 없이 이어진다', async () => {
+    const hookSession = await start();
+    await goStale();
+
+    await hook('tool', {
+      session_id: EXTERNAL_SESSION,
+      tool_name: 'Bash',
+      tool_use_id: 'tu-back',
+      tool_input: { command: 'git status' },
+      tool_response: { stdout: 'ok', exit_code: 0 },
+    });
+    expect(await states()).toEqual([{ id: hookSession, state: 'active' }]);
+
+    const claimed = await tool('nerv_task_claim', { task_id: taskId, scope: SCOPE });
+    expect(claimed['ok']).toBe(true);
+    // Stop 도 같은 판단이다 — 살아 움직이는 하네스의 훅이다(stale 전이가 클레임은 회수한다)
+    await goStale();
+    await hook('stop', { session_id: EXTERNAL_SESSION });
+    expect(await states()).toEqual([{ id: hookSession, state: 'active' }]);
+  });
+
+  it('하루가 지난 stale 세션과 정상 종료된 세션은 채택하지 않는다 — 새 세션을 만든다', async () => {
+    const old = await start();
+    await goStale();
+    await pool.query(`UPDATE agent_session SET ended_at = now() - interval '25 hours'`);
+    const fresh = await bootstrap();
+    expect(fresh['session_id']).not.toBe(old);
+    expect(fresh['resumed']).toBe(false);
+
+    const ended = await start('S-ended');
+    await hook('session-end', { session_id: 'S-ended', reason: 'exit' });
+    const next = await bootstrap();
+    expect([old, ended, fresh['session_id']]).not.toContain(next['session_id']);
+    expect(next['resumed']).toBe(false);
+  });
+
+  it('늦게 온 훅은 정상 종료된 세션을 되살리지 않는다', async () => {
+    const hookSession = await start();
+    await hook('session-end', { session_id: EXTERNAL_SESSION, reason: 'exit' });
+    await hook('tool', {
+      session_id: EXTERNAL_SESSION,
+      tool_name: 'Bash',
+      tool_use_id: 'tu-late',
+      tool_input: { command: 'ls' },
+      tool_response: { stdout: '', exit_code: 0 },
+    });
+    expect(await states()).toEqual([{ id: hookSession, state: 'complete' }]);
+  });
+
+  it('아직 쓸려 가지 않은 세션을 채택해도 바로 이어진다 — 재개가 하트비트를 새로 적는다', async () => {
+    const hookSession = await start();
+    // 상태는 active 인데 하트비트가 30분을 넘겼다 — stale 잡이 아직 돌지 않았다
+    await pool.query(
+      `UPDATE agent_session SET last_heartbeat_at = now() - interval '31 minutes',
+                                started_at = now() - interval '40 minutes'`,
+    );
+    const resumed = await bootstrap();
+    expect(resumed['session_id']).toBe(hookSession);
+    const claimed = await tool('nerv_task_claim', { task_id: taskId, scope: SCOPE });
+    expect(claimed['ok']).toBe(true);
+  });
+
+  it('살아 있는 훅 세션이 stale 세션보다 먼저다 — 활동이 더 최근이어도 stale 은 고르지 않는다', async () => {
+    const stale = await start('S-old');
+    await goStale();
+    const alive = await start('S-new');
+    // stale 세션의 활동이 더 최근이다
+    await pool.query(
+      `INSERT INTO activity (id, session_id, project_id, seq, type, title, created_at)
+       VALUES ($1, $2, $3, 99, 'action', '최근 활동', now())`,
+      [newId(), stale, projectId],
+    );
+    const picked = await bootstrap();
+    expect(picked['session_id']).toBe(alive);
+    expect(await states()).toEqual([
+      { id: stale, state: 'stale' },
+      { id: alive, state: 'active' },
+    ]);
+  });
+
+  it('되살리면 session.started 를 낸다 — 세션 보드가 다시 읽는다', async () => {
+    const hookSession = await start();
+    await goStale();
+    await pool.query('TRUNCATE event');
+    await hook('stop', { session_id: EXTERNAL_SESSION });
+    const { rows } = await pool.query<{
+      type: string;
+      from_state: string | null;
+      payload: Record<string, unknown>;
+    }>(`SELECT type, from_state, payload FROM event WHERE subject_id = $1`, [hookSession]);
+    expect(rows).toEqual([
+      { type: NERV_EVENT.SESSION_STARTED, from_state: 'stale', payload: { resumed: true } },
+    ]);
+    // 이미 살아 있는 세션에 오는 훅은 이벤트를 내지 않는다 — 도구 호출마다 나면 소음이다
+    await hook('stop', { session_id: EXTERNAL_SESSION });
+    const { rows: again } = await pool.query(`SELECT 1 FROM event WHERE subject_id = $1`, [
+      hookSession,
+    ]);
+    expect(again).toHaveLength(1);
   });
 });

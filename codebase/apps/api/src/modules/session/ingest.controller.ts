@@ -121,7 +121,7 @@ export class IngestController {
     @Body() body: HookPayload,
   ): Promise<{ ok: boolean }> {
     const principal = requireAgent(req);
-    const sessionId = await this.resolveSession(principal, body);
+    const sessionId = await this.resolveLiveSession(principal, body);
     if (sessionId === null) return { ok: false };
 
     const toolName = body.tool_name ?? 'tool';
@@ -164,7 +164,7 @@ export class IngestController {
   @HttpCode(HttpStatus.ACCEPTED)
   async subagent(@Req() req: HookRequest, @Body() body: HookPayload): Promise<{ ok: boolean }> {
     const principal = requireAgent(req);
-    const sessionId = await this.resolveSession(principal, body);
+    const sessionId = await this.resolveLiveSession(principal, body);
     if (sessionId === null) return { ok: false };
 
     await this.sessions.appendHookActivity({
@@ -207,7 +207,7 @@ export class IngestController {
     // 두 번째 판정은 하지 않는다 — 첫 block 이 이미 말했고, 그것으로 안 풀렸다면
     // 다시 막는 것은 안내가 아니라 덫이다.
     if (body.stop_hook_active === true) return { ok: true };
-    const sessionId = await this.resolveSession(principal, body);
+    const sessionId = await this.resolveLiveSession(principal, body);
     if (sessionId === null) return { ok: true };
 
     const claims = await this.sessions.activeClaimSummary(sessionId);
@@ -242,6 +242,20 @@ export class IngestController {
       userId: principal.userId,
     });
     return { ok: true };
+  }
+
+  /**
+   * 세션이 살아 움직인다는 훅(도구 · 서브에이전트 · Stop)은 stale 이 된 세션을 되살린다(2026-10-10 · REQ-API-279).
+   * 그러지 않으면 30분 쉬고 돌아온 에이전트의 활동이 stale 세션에 붙는 동안 MCP 도구는 `session_required` 를 받고,
+   * 다시 부른 bootstrap 이 세션을 하나 더 만들었다. SessionEnd 는 끝내는 훅이라 되살리지 않는다.
+   */
+  private async resolveLiveSession(
+    principal: Principal,
+    body: HookPayload,
+  ): Promise<string | null> {
+    const sessionId = await this.resolveSession(principal, body);
+    if (sessionId !== null) await this.sessions.reviveFromHook(sessionId);
+    return sessionId;
   }
 
   /**
