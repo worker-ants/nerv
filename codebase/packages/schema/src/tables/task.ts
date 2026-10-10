@@ -6,6 +6,7 @@
 
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   boolean,
   check,
   index,
@@ -23,6 +24,7 @@ import {
   dependencyKind,
   evidenceKind,
   evidenceSource,
+  taskArchiveReason,
   taskPriority,
   taskStatus,
 } from '../enums.js';
@@ -79,6 +81,20 @@ export const task = pgTable(
     /** 어휘: awaiting_answer / dependency_broken / spec_conflict / external */
     blockedReason: text('blocked_reason'),
     doneAt: ts('done_at'),
+    /**
+     * **보관**(2026-10-10 · 사람 결정 · REQ-API-284~286 · REQ-DB-040) — 진행하지 않기로 한 작업. 상태와 따로 간다:
+     * 보관한 작업은 목록 · 작업 큐 · 클레임 · 구현 현황 · 의존에서 빠지고, 키로는 그대로 읽히며 사람이 되살린다.
+     * 영구 삭제는 두지 않는다(스펙과 같은 결정 · 2026-10-04) — 이벤트 이력이 가리키는 행이 사라지면 안 된다
+     */
+    archivedAt: ts('archived_at'),
+    archiveReason: taskArchiveReason('archive_reason'),
+    /** 사람이 남긴 한 줄 — `obsolete`·`wont_do` 는 필수다(무엇이 바뀌어 하지 않는가) */
+    archiveNote: text('archive_note'),
+    /** 대신할 작업 — `duplicate`·`superseded` 는 필수다. 이 작업을 기다리던 의존이 그리로 옮겨 간다 */
+    supersededByTaskId: uuid('superseded_by_task_id').references((): AnyPgColumn => task.id),
+    archivedByUserId: uuid('archived_by_user_id').references(() => user.id),
+    /** 에이전트가 보관했으면 그 세션 — 사람이 화면에서 했으면 NULL */
+    archivedBySessionId: uuid('archived_by_session_id').references(() => agentSession.id),
     updatedAt: ts('updated_at')
       .notNull()
       .default(sql`now()`),
@@ -86,6 +102,19 @@ export const task = pgTable(
   },
   (t) => [
     uniqueIndex('task_key_uq').on(t.projectId, t.key),
+    // 보관의 모양 — 시각 · 사유 · 한 사람이 함께 있거나 함께 없다. 대신할 작업을 가리키는 사유는 그 작업이 있어야 하고
+    // 자기 자신은 가리키지 못한다. 보관하지 않은 작업에는 보관의 흔적이 남지 않는다
+    check(
+      'task_archive_ck',
+      sql`(${t.archivedAt} IS NULL) = (${t.archiveReason} IS NULL)
+          AND (${t.archivedAt} IS NULL) = (${t.archivedByUserId} IS NULL)
+          AND (${t.archivedAt} IS NOT NULL OR (${t.supersededByTaskId} IS NULL
+               AND ${t.archiveNote} IS NULL AND ${t.archivedBySessionId} IS NULL))
+          AND (${t.archiveReason} NOT IN ('duplicate', 'superseded') OR ${t.supersededByTaskId} IS NOT NULL)
+          AND (${t.supersededByTaskId} IS NULL OR ${t.supersededByTaskId} <> ${t.id})`,
+    ),
+    // 끝난 일은 보관하지 않는다 — done 은 게이트를 지나 닫힌 상태다
+    check('task_archive_not_done_ck', sql`${t.archivedAt} IS NULL OR ${t.status} <> 'done'`),
     // 규칙 3 — backlog·blocked 밖으로 나가려면 위임 명세 4요소 전부 NOT NULL
     check(
       'task_delegation_spec_ck',

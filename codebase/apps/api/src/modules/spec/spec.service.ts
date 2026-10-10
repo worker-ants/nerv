@@ -665,7 +665,9 @@ export class SpecService {
             SELECT t.id, t.key, t.title, t.status::text AS status
               FROM task t
               JOIN spec_version sv ON sv.id = t.source_spec_version_id
+             -- 보관한 작업은 이 문서의 영향 범위가 아니다(REQ-API-286)
              WHERE t.project_id = ${input.projectId} AND sv.spec_id = ${specId}
+               AND t.archived_at IS NULL
              ORDER BY t.created_at DESC
           `)
         ).rows
@@ -2105,7 +2107,7 @@ export class SpecService {
 
       // 작업은 기준 버전으로도, 요구사항으로도 문서를 가리킨다(임포트 레거시는 요구사항만 있다)
       const basisTasks = sql`
-        SELECT t.id, t.key, t.status FROM task t
+        SELECT t.id, t.key, t.status, t.archived_at FROM task t
          WHERE t.source_spec_version_id IN (SELECT id FROM spec_version WHERE spec_id = ANY(${ids}))
             OR t.source_requirement_id IN (SELECT id FROM requirement WHERE spec_id = ANY(${ids}))
       `;
@@ -2124,7 +2126,9 @@ export class SpecService {
       // **끝나지 않은 작업은 그대로 두고 알린다**(REQ-API-255). 보관하면 작업 큐에서 빠지고 새 클레임도
       // 막히므로, 남은 작업은 사람이 보드에서 정리한다 — 무엇이 남았는지 모르면 정리할 수 없다
       const { rows: open } = await tx.execute<{ key: string }>(sql`
-        SELECT DISTINCT b.key FROM (${basisTasks}) b WHERE b.status <> 'done' ORDER BY b.key
+        SELECT DISTINCT b.key FROM (${basisTasks}) b
+         -- 보관한 작업은 이미 정리됐다(REQ-API-286)
+         WHERE b.status <> 'done' AND b.archived_at IS NULL ORDER BY b.key
       `);
 
       const batchId = newId();
@@ -2379,7 +2383,9 @@ export class SpecService {
              )::int AS evidence_missing,
              count(*) FILTER (
                WHERE r.impl_status = 'unimplemented'
-                 AND NOT EXISTS (SELECT 1 FROM task t WHERE t.source_requirement_id = r.id)
+                 -- 보관한 작업만 남은 요구사항도 빈 약속이다(REQ-API-286)
+                 AND NOT EXISTS (SELECT 1 FROM task t
+                                  WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL)
              )::int AS empty_promises,
              -- **다시 검증 필요**(2026-09-26 · REQ-API-190) — 서명은 있는데 모두 지금 문장보다 앞선다
              count(*) FILTER (WHERE ${reverifyRequiredSql()})::int AS reverify_required
@@ -2488,15 +2494,18 @@ export class SpecService {
              CASE WHEN ${reverifyRequiredSql()} THEN (
                SELECT e.locator FROM evidence e
                 WHERE (e.requirement_id = r.id
-                       OR e.task_id IN (SELECT t3.id FROM task t3 WHERE t3.source_requirement_id = r.id))
+                       OR e.task_id IN (SELECT t3.id FROM task t3
+                                         WHERE t3.source_requirement_id = r.id AND t3.archived_at IS NULL))
                   AND e.kind = 'test' AND e.verified_by IS NOT NULL AND NOT e.stale
                 ORDER BY e.created_at DESC LIMIT 1)
              END AS reverify_locator,
-             (SELECT count(*) FROM task t WHERE t.source_requirement_id = r.id)::int AS task_count,
+             (SELECT count(*) FROM task t
+               WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL)::int AS task_count,
              -- 파생과 같은 술어다(REQ-API-141) — 요구사항에 직접 붙은 것과 파생 Task 의 것
              (SELECT count(*) FROM evidence e
                WHERE e.requirement_id = r.id
-                  OR e.task_id IN (SELECT t2.id FROM task t2 WHERE t2.source_requirement_id = r.id)
+                  OR e.task_id IN (SELECT t2.id FROM task t2
+                                    WHERE t2.source_requirement_id = r.id AND t2.archived_at IS NULL)
              )::int AS evidence_count
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${input.projectId}
@@ -2531,7 +2540,8 @@ export class SpecService {
        WHERE rv.requirement_id = ${id} ORDER BY sv.version_no
     `);
     const { rows: tasks } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT id, key, title, status::text AS status FROM task WHERE source_requirement_id = ${id}
+      SELECT id, key, title, status::text AS status, archived_at::text AS archived_at
+        FROM task WHERE source_requirement_id = ${id}
     `);
     // 목록의 증적 수와 **같은 범위**다(2026-09-26) — 요구사항에 직접 붙은 것과 파생 Task 의 것.
     // 상세만 앞의 것을 봐서, 목록이 "증적 3" 이라 말한 요구사항을 열면 1건이 보였다
@@ -2540,7 +2550,9 @@ export class SpecService {
              e.task_id, (e.verified_by IS NOT NULL) AS signed, e.stale
         FROM evidence e
        WHERE e.requirement_id = ${id}
-          OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${id})
+          -- 목록의 증적 수와 같은 범위다 — 보관한 작업의 증적은 빠진다(REQ-API-286)
+          OR e.task_id IN (SELECT t.id FROM task t
+                            WHERE t.source_requirement_id = ${id} AND t.archived_at IS NULL)
        ORDER BY e.created_at
     `);
     return { ...requirement, history, tasks, evidence };
@@ -3103,7 +3115,8 @@ export class SpecService {
       SELECT
         (SELECT count(*)::int FROM spec_relation WHERE to_spec_id = ${specId}) AS referencing,
         (SELECT count(*)::int FROM task t JOIN spec_version sv ON sv.id = t.source_spec_version_id
-          WHERE sv.spec_id = ${specId}) AS tasks,
+          -- 보관한 작업은 티어를 올리지 않는다(REQ-API-286) — 중복이 영향 범위를 부풀린다
+          WHERE sv.spec_id = ${specId} AND t.archived_at IS NULL) AS tasks,
         (SELECT count(*)::int FROM requirement WHERE spec_id = ${specId}) AS requirements
     `);
     const counts = rows[0] ?? { referencing: 0, tasks: 0, requirements: 0 };
@@ -3380,6 +3393,8 @@ export class SpecService {
         UPDATE task SET rebrief_required_at = now()
          WHERE source_spec_version_id = ${old.id} AND status NOT IN ('done', 'blocked')
            AND baseline_id IS NULL
+           -- 보관한 작업에는 재브리핑을 부르지 않는다(REQ-API-286)
+           AND archived_at IS NULL
         RETURNING id
       `);
       for (const task of rebriefed) {

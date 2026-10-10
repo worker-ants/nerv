@@ -199,6 +199,8 @@ export const ko = {
     '문서 정보 변경·보관·복구는 사람만 할 수 있습니다. 웹에서 그 문서의 [문서 정보]를 엽니다.',
   'error.human_only.steer': '지시와 중단은 사람만 할 수 있습니다.',
   'error.human_only.token_issue': '토큰 발급은 사람만 할 수 있습니다.',
+  'error.human_only.task_archive':
+    '이 보관과 복원은 사람만 할 수 있습니다. 에이전트는 시작한 적 없는 작업만 대신할 작업과 함께 보관합니다.',
   'error.idempotency.mismatch': '같은 멱등 키로 다른 요청이 왔습니다. 새 키로 다시 보내세요.',
   'error.idempotency.in_flight': '같은 키의 요청이 아직 처리 중입니다. 잠시 뒤 다시 보내세요.',
   'error.mcp.bad_origin': '허용되지 않은 Origin입니다.',
@@ -495,6 +497,10 @@ export const ko = {
     '작업 본문(markdown) — 주면 그 본문으로 바꾼다. status 없이 본문만 고칠 수 있다. base_hash가 함께 있어야 한다',
   'mcp.arg.task_base_hash':
     '읽은 본문의 지문 — nerv_task_get의 body_hash를 그대로 넘긴다. 그 사이 누가 고쳤으면 409 stale_body이고 응답의 current_hash로 다시 읽는다',
+  'mcp.arg.task_list_archived':
+    '보관한 작업 — include면 함께, only면 그것만 준다. 없으면 뺀다. include_archived는 이름만 비슷한 다른 인자로, 완료된 지 오래된 작업을 연다',
+  'mcp.arg.task_archive':
+    '진행하지 않을 작업을 보관한다. 시작한 적 없는 작업(클레임 · 증적 없음)을 대신할 작업과 함께만 보관할 수 있다. reason은 duplicate(같은 내용) 또는 superseded(다른 작업이 대신함), superseded_by는 대신할 작업의 키다. 이 작업을 기다리던 작업은 대신할 작업을 기다리게 된다. 그 밖의 보관과 복원은 사람이 한다. 다른 인자와 함께 보내지 않는다',
   'mcp.arg.base_brief_hash':
     '읽은 위임 명세의 지문 — 위임 명세 네 칸 중 하나라도 고치면 반드시 준다. nerv_task_get이나 nerv_task_create 응답의 brief_hash를 그대로 넘긴다. 그 사이 누가 고쳤으면 409 stale_brief이고 응답의 current_brief_hash로 다시 읽는다',
   'mcp.arg.finding_tags':
@@ -753,6 +759,8 @@ export const ko = {
   'webhook.skip.no_task_key': 'Task 키를 브랜치·제목·본문에서 찾지 못했습니다.',
   'webhook.skip.no_locator': '증적으로 남길 URL·SHA가 없습니다.',
   'webhook.skip.duplicate': '이미 수집된 증적입니다.',
+  'webhook.skip.task_archived':
+    '{key}는 보관한 작업이라 증적을 붙이지 않았습니다. 대신할 작업: {superseded_by}',
   'mcp.arg.project': '프로젝트 slug (토큰의 소속 프로젝트와 일치해야 한다)',
   'mcp.arg.hostname': '어느 사용자의 어느 머신인지. 세션 보드에서 세션을 구분하는 값이다',
   'mcp.arg.external_session_id': '하네스 세션 ID — 재호출 멱등 키',
@@ -884,6 +892,15 @@ export const ko = {
   'error.task.not_assignee': '이 작업의 담당자가 아닙니다.',
   'error.task.stale_body': '작업 본문을 읽은 뒤 다른 사람이 고쳤습니다. 다시 읽고 고치세요.',
   'error.task.stale_brief': '위임 명세를 읽은 뒤 다른 사람이 고쳤습니다. 다시 읽고 고치세요.',
+  'error.task.archive_needs_replacement': '중복이나 대체로 보관하려면 대신할 작업을 고르세요.',
+  'error.task.archive_needs_note':
+    '더 이상 필요 없거나 하지 않기로 한 작업을 보관하려면 이유를 한 줄 적으세요.',
+  'error.task.archive_done': '끝난 작업은 보관하지 않습니다.',
+  'error.task.archived': '보관한 작업입니다. 다시 일하려면 사람이 먼저 복원해야 합니다.',
+  'error.task.depends_on_archived':
+    '보관한 작업에는 의존을 걸 수 없습니다. 대신할 작업을 고르세요.',
+  'error.task.archive_target_archived':
+    '보관한 작업으로는 대신할 수 없습니다. 보관하지 않은 작업을 고르세요.',
   'error.task.not_found': '작업을 찾을 수 없습니다.',
   'error.task.release_required':
     '활성 클레임이 있습니다. 먼저 클레임을 해제하거나 세션을 중단하세요.',
@@ -973,6 +990,8 @@ export const ko = {
   'event.task.ready': '작업 준비됨',
   'event.task.rebrief_required': '기준 버전이 바뀌어 지시 재확인 필요',
   'event.task.updated': '작업 수정',
+  'event.task.archived': '작업 보관됨',
+  'event.task.restored': '작업 복원됨',
   'event.member.added': '멤버 추가됨',
   'event.member.removed': '멤버 제거됨',
   'event.invitation.declined': '초대 거절됨',
@@ -1683,6 +1702,29 @@ export const ko = {
   'task.claims': '활성 클레임',
   'task.done_gate': '완료 처리 · 완료 조건',
   // 리뷰 면제(2026-10-09 · REQ-WEB-299)
+  'task.archive.open': '보관',
+  'task.archive.open_title':
+    '진행하지 않을 작업을 보드에서 치웁니다. 사람이 다시 복원할 수 있습니다',
+  'task.archive.title': '작업 보관',
+  'task.archive.hint':
+    '보관한 작업은 보드 · 작업 큐에서 빠지고 아무도 클레임할 수 없습니다. 이 작업을 기다리던 작업은 대신할 작업을 기다립니다. 대신할 작업이 없으면 기다림이 풀립니다.',
+  'task.archive.reason': '보관 이유',
+  'task.archive.reason.duplicate': '중복',
+  'task.archive.reason.superseded': '다른 작업으로 대체',
+  'task.archive.reason.obsolete': '더 이상 필요 없음',
+  'task.archive.reason.wont_do': '하지 않기로 함',
+  'task.archive.replacement': '대신할 작업',
+  'task.archive.replacement_placeholder': '작업 키 (예: CLE-T-6SKVRM)',
+  'task.archive.note_optional': '메모 (선택)',
+  'task.archive.note_required': '이유를 한 줄 적으세요 (필수)',
+  'task.archive.submit': '보관',
+  'task.archive.done': '작업을 보관했습니다',
+  'task.archive.notice': '보관한 작업 · {reason} · {by} · {at}',
+  'task.archive.replaced_by': '대신할 작업',
+  'task.archive.restore': '복원',
+  'task.archive.restored': '작업을 복원했습니다. 상태는 보관하기 전 그대로입니다',
+  'task.archive.locked_claim': '클레임이 걸린 작업은 먼저 놓아야 보관할 수 있습니다',
+  'task.archive.locked_archived': '보관한 작업은 고칠 수 없습니다. 먼저 복원하세요',
   'task.waiver.title': '리뷰 면제',
   'task.waiver.hint':
     '코드를 내지 않은 작업처럼 받을 수 없는 리뷰는 하지 않은 리뷰를 꾸며 내지 말고 사유와 함께 면제합니다. 누가 · 언제 · 왜 면제했는지가 기록에 남습니다.',
@@ -1754,7 +1796,13 @@ export const ko = {
   'tasks.ready_empty.backlog': '백로그 {count}건 보기',
   'tasks.fill_brief': '채우기 ▸',
   'tasks.filter.backlog': '백로그 보기',
-  'tasks.filter.archived': '보관 보기',
+  // **지난 완료**(2026-10-10 · 사람 결정 D2) — 이 토글은 오래 「보관 보기」였지만 완료된 지 오래된 작업을 여는 것이었다.
+  // 「보관」은 이제 진행하지 않기로 한 작업이다(스펙과 같은 뜻 · REQ-WEB-302)
+  'tasks.filter.archived': '지난 완료 보기',
+  'tasks.filter.archived_tasks': '보관 보기',
+  'tasks.filter.archived_tasks_title': '진행하지 않기로 보관한 작업을 따로 보여 줍니다',
+  'tasks.lane.archived': '보관함',
+  'tasks.archived.empty': '보관한 작업이 없습니다',
   'tasks.filter.archived_title': '완료된 지 {days}일이 지난 작업도 보여 줍니다',
   'tasks.more': '더 보기',
   'tasks.lease': '남은 시간 {remaining}',

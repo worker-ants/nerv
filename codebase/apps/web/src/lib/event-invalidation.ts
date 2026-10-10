@@ -90,6 +90,9 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.TASK_UPDATED]: taskAxis,
   // 재브리핑 — S4 배지가 함께 붙는다
   [E.TASK_REBRIEF_REQUIRED]: taskAxis,
+  // 보관 · 복원(REQ-API-284 · 285) — 레인에서 빠지거나 돌아오고, 상세의 보관됨 줄이 바뀐다
+  [E.TASK_ARCHIVED]: taskAxis,
+  [E.TASK_RESTORED]: taskAxis,
 
   [E.BASELINE_CREATED]: (e) => [queryKeys.projectBaselines(e.project_id)],
 

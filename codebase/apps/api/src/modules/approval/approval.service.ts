@@ -415,13 +415,17 @@ export class ApprovalService {
     const approvalFrom = sql`FROM approval a
         JOIN project p ON p.id = a.project_id
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
-   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id`;
+   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
+   LEFT JOIN task plan_task ON plan_task.id = a.subject_id AND a.subject_type = 'plan'`;
     const memberOfProject = memberOfProjectSql(userId);
     const approvalWhere = sql`WHERE ${stateFilter}${projectFilter}
          -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
          -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
          -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
          AND p.archived_at IS NULL
+         -- **보관한 작업의 계획 승인은 기다리지 않는다**(2026-10-10 · REQ-API-286) — 잡을 수 없는 작업의 결재다.
+         -- 닫지 않고 거른다: 결정 어휘에 "거둠" 이 없고, 사람이 복원하면 그 카드가 다시 산다
+         AND NOT (a.subject_type = 'plan' AND a.decision IS NULL AND plan_task.archived_at IS NOT NULL)
          -- 대기는 **내 큐**(지정·역할 슬롯·기본 큐 · REQ-API-137) · 처리됨은 **내가 결정한 것**
          AND ${scopeFilter}
          AND ${memberOfProject}`;
@@ -1314,8 +1318,12 @@ export class ApprovalService {
       if (kinds !== null) {
         // **범위를 고른 면제는 작업에 붙는다** — done 게이트가 작업 id 로 면제를 찾는다
         const ref = entityRef(input.subjectId);
-        const { rows: tasks } = await tx.execute<{ id: string; key: string }>(sql`
-          SELECT id, key FROM task
+        const { rows: tasks } = await tx.execute<{
+          id: string;
+          key: string;
+          archived: boolean;
+        }>(sql`
+          SELECT id, key, archived_at IS NOT NULL AS archived FROM task
            WHERE project_id = ${input.projectId}
              AND ${ref.id === null ? sql`key = ${ref.key ?? ''}` : sql`id = ${ref.id}`}
         `);
@@ -1324,6 +1332,13 @@ export class ApprovalService {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
             kind: 'not_found',
             task: input.subjectId,
+          });
+        }
+        // 보관한 작업은 done 으로 가지 않는다 — 그 작업의 리뷰 면제는 쓸 데가 없다(REQ-API-286)
+        if (task.archived) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.archived'), {
+            kind: 'task_archived',
+            task: task.key,
           });
         }
         subjectId = task.id;

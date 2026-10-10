@@ -342,7 +342,9 @@ export class SpecCheckService {
       SELECT r.ref FROM requirement r
        WHERE r.spec_id = ${specId} AND r.removed_in_version_id IS NULL
          AND r.impl_status IN ('in_progress', 'implemented')
-         AND NOT EXISTS (SELECT 1 FROM task t WHERE t.source_requirement_id = r.id)
+         -- 보관한 작업은 책임지지 않는다(REQ-API-286)
+         AND NOT EXISTS (SELECT 1 FROM task t
+                          WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL)
     `);
     return rows.map((row) => ({
       checker: 'task-coherence' as const,

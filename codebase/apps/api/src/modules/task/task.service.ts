@@ -5,6 +5,9 @@
 import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  TASK_ARCHIVE_NOTE_MAX,
+  TASK_ARCHIVE_REASONS,
+  TASK_ARCHIVE_REPLACED_REASONS,
   AWAITING_REF_MAX,
   AWAITING_REFS_MAX,
   CLAIM_AWAITING_KINDS,
@@ -141,6 +144,19 @@ export interface ReadyCandidate extends Record<string, unknown> {
  * Task 한 건을 가리키는 조건 — **키와 UUID 를 둘 다 받는다**(§1.4b).
  * 아무 문자열이나 `::uuid` 로 캐스팅하면 22P02 가 나고, 그건 "못 찾았다"가 아니라 500 이다.
  */
+/**
+ * 에이전트가 할 수 없는 보관 — 무엇 때문인지(`why`)와 대신 할 일을 함께 준다. `reason` 은 대신할 작업이 없는 사유,
+ * `started` 는 클레임이나 증적이 있는 작업, `restore` 는 복원이다(REQ-API-284 · 285)
+ */
+function humanOnlyArchive(why: 'reason' | 'started' | 'restore'): NervError {
+  return new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.task_archive'), {
+    kind: 'human_only',
+    action: 'task_archive',
+    why,
+    next_actions: ['nerv_question_create'],
+  });
+}
+
 function taskMatch(ref: string): SQL {
   const parsed = entityRef(ref);
   return parsed.id === null ? sql`t.key = ${ref}` : sql`t.id = ${parsed.id}`;
@@ -211,6 +227,8 @@ export class TaskService {
         LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
        WHERE t.project_id = ${input.projectId}
          AND t.status = 'ready'
+         -- **보관한 작업은 후보가 아니다**(2026-10-10 · REQ-API-286)
+         AND t.archived_at IS NULL
          AND t.blocked_reason IS NULL
          -- 위임 명세 4요소 — CHECK 가 이미 막지만 질의에서도 확인한다(방어적)
          AND t.goal_md IS NOT NULL AND t.output_format_md IS NOT NULL
@@ -229,6 +247,8 @@ export class TaskService {
            SELECT 1 FROM task_dependency d
              JOIN task dep ON dep.id = d.depends_on_task_id
             WHERE d.task_id = t.id AND d.kind = 'blocks' AND dep.status <> 'done'
+              -- 보관한 작업은 아무도 기다리지 않는다(보관할 때 의존을 옮기거나 풀지만 방어로도 본다)
+              AND dep.archived_at IS NULL
          )
          -- 이미 활성 클레임이 있으면 후보가 아니다
          AND NOT EXISTS (
@@ -258,7 +278,10 @@ export class TaskService {
     /** `?ai=1` — 에이전트 세션이 쥔 것만(`delegate_session_id`) */
     agentOnly?: boolean;
     specId?: string | null;
+    /** **지난 완료**(done 창 밖)도 포함 — 이름이 오래돼 `archived` 지만 보관과는 다르다(REQ-API-286) */
     includeArchived?: boolean;
+    /** **보관한 작업**(2026-10-10 · REQ-API-286) — 없으면 빼고, `include` 면 함께, `only` 면 그것만 */
+    archived?: 'include' | 'only' | null;
     limit?: number;
     cursor?: string | undefined;
   }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
@@ -301,11 +324,19 @@ export class TaskService {
     // 이미 보장하므로 지금은 항상 참이다. 그래도 두는 이유는 NULL 의 성질이다 — 이 절이
     // 없으면 done_at 이 NULL 인 순간 비교가 NULL 이 되고 `NOT (true AND NULL)` 도 NULL 이라
     // **행이 조용히 사라진다**. 제약이 바뀌는 날 감춰지는 쪽으로 틀어지지 않게 한다.
-    const archived =
+    const doneWindow =
       input.includeArchived === true
         ? sql``
         : sql` AND NOT (t.status = 'done' AND t.done_at IS NOT NULL
                         AND t.done_at < now() - ${`${TASK_DONE_WINDOW_DAYS} days`}::interval)`;
+    // **보관한 작업은 기본에서 빠진다**(2026-10-10 · REQ-API-286) — 진행하지 않기로 한 작업이 레인에 남으면 아무도
+    // 지우지 못하는 줄이 된다. 보관 보기는 그것만 본다
+    const archivedFilter =
+      input.archived === 'include'
+        ? sql``
+        : input.archived === 'only'
+          ? sql` AND t.archived_at IS NOT NULL`
+          : sql` AND t.archived_at IS NULL`;
 
     // 커서는 정렬 키와 **같은 순서**를 따라야 한다 — (priority ASC, updated_at DESC, id ASC).
     // id 를 마지막에 두는 이유는 동률 때문이다: priority·updated_at 이 같은 두 행이 있으면
@@ -367,7 +398,10 @@ export class TaskService {
              -- 자리표시자를 찬 것으로 셌고, 되돌린 임포트 작업이 [채우기] 없이 backlog 에 갇혔다
              (${filledSql(sql`t.goal_md`)} AND ${filledSql(sql`t.output_format_md`)}
               AND ${filledSql(sql`t.tools_sources_md`)} AND ${filledSql(sql`t.boundaries_md`)})
-               AS delegation_complete
+               AS delegation_complete,
+             -- 보관 표시(REQ-API-286) — 보관 보기에서 사유와 대신할 작업을 보인다
+             t.archived_at::text AS archived_at, t.archive_reason::text AS archive_reason,
+             (SELECT sup.key FROM task sup WHERE sup.id = t.superseded_by_task_id) AS superseded_by
         FROM task t
    -- 담당자는 **이름으로** 준다. id 만 주면 화면이 아무것도 못 그리고, 목록마다
    -- 사용자를 다시 조회하면 N+1 이다(2026-08-23 — 보드 아바타).
@@ -376,7 +410,7 @@ export class TaskService {
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN claim c ON c.task_id = t.id AND c.status = 'active'
    LEFT JOIN agent_session cs ON cs.id = c.agent_session_id
-       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${agent}${spec}${archived}${seek}
+       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${agent}${spec}${doneWindow}${archivedFilter}${seek}
        ORDER BY t.priority, t.updated_at DESC, t.id
        LIMIT ${limit + 1}
     `);
@@ -422,9 +456,14 @@ export class TaskService {
              au.display_name AS assignee_name,
              -- **기준선 이름**(M8 · REQ-API-204) — id 만 주던 동안 nerv_spec_get(baseline)으로
              -- 옮길 값이 없었다(그 인자는 이름을 받는다)
-             bl.name AS baseline
+             bl.name AS baseline,
+             -- **보관**(REQ-API-284) — 대신할 작업은 키로, 보관한 사람은 이름으로 준다. 상태와 따로 읽는다
+             t.archive_reason::text AS archive_reason, sup.key AS superseded_by,
+             arc.display_name AS archived_by_name
         FROM task t
    LEFT JOIN "user" au ON au.id = t.assignee_user_id
+   LEFT JOIN task sup ON sup.id = t.superseded_by_task_id
+   LEFT JOIN "user" arc ON arc.id = t.archived_by_user_id
    LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
@@ -462,7 +501,8 @@ export class TaskService {
        ORDER BY rs.round_no DESC LIMIT 10
     `);
     const { rows: deps } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT d.depends_on_task_id, d.kind::text AS kind, dt.key, dt.title, dt.status::text AS status
+      SELECT d.depends_on_task_id, d.kind::text AS kind, dt.key, dt.title, dt.status::text AS status,
+             dt.archived_at::text AS archived_at
         FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
        WHERE d.task_id = ${taskId}
     `);
@@ -571,7 +611,10 @@ export class TaskService {
     if (reason === 'dependency_broken') {
       // **`blocks` 만 센다** — ready 판정이 보는 것과 같은 조건이다(`next()`).
       // 두 자리가 다른 조건을 쓰면 화면이 "풀 수 있다" 는데 큐는 안 올려 준다.
-      const pending = deps.filter((d) => d['kind'] === 'blocks' && d['status'] !== 'done');
+      // 보관한 작업은 아무도 기다리지 않는다(REQ-API-286 · `pendingDependencies` 와 같은 조건)
+      const pending = deps.filter(
+        (d) => d['kind'] === 'blocks' && d['status'] !== 'done' && d['archived_at'] == null,
+      );
       return {
         reason,
         source: 'task_dependency',
@@ -770,6 +813,8 @@ export class TaskService {
           task: input.taskKey,
         });
       }
+      // 보관한 작업은 고치지 않는다(REQ-API-286) — 고쳐도 아무도 그 작업을 하지 않는다
+      await this.assertNotArchived(tx, task.id);
 
       // **읽은 뒤 누가 고쳤으면 쓰지 않는다**(REQ-API-254) — 행을 잠근 뒤에 비교해야 두 쓰기가 함께 통과하지 않는다
       if (input.baseHash != null && input.baseHash !== bodyHash(task.body_md)) {
@@ -877,6 +922,28 @@ export class TaskService {
       }
 
       if (input.dependsOnKeys != null) {
+        // **보관한 작업에는 의존을 걸지 않는다**(REQ-API-286) — 보관할 때 옮기거나 푼 의존이 이 길로 되살아나면
+        // 기다리는 작업이 영영 막힌다. 대신할 작업이 있으면 그 키를 알려 준다
+        if (input.dependsOnKeys.length > 0) {
+          const { rows: gone } = await tx.execute<{
+            key: string;
+            superseded_by: string | null;
+          }>(sql`
+            SELECT t.key, sup.key AS superseded_by
+              FROM task t LEFT JOIN task sup ON sup.id = t.superseded_by_task_id
+             WHERE t.project_id = ${input.projectId} AND t.archived_at IS NOT NULL
+               AND t.key = ANY(${sqlArray(input.dependsOnKeys, 'text')})
+          `);
+          if (gone.length > 0) {
+            throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.depends_on_archived'), {
+              kind: 'depends_on_archived',
+              archived: gone.map((g) => g.key),
+              superseded_by: Object.fromEntries(
+                gone.filter((g) => g.superseded_by !== null).map((g) => [g.key, g.superseded_by]),
+              ),
+            });
+          }
+        }
         await tx.execute(sql`DELETE FROM task_dependency WHERE task_id = ${task.id}`);
         for (const key of input.dependsOnKeys) {
           await tx.execute(sql`
@@ -930,6 +997,298 @@ export class TaskService {
         delegation_missing: briefMissing(merged),
         brief_hash: briefHash(merged),
       };
+    });
+  }
+
+  /**
+   * **작업 보관**(2026-10-10 · 사람 결정 · REQ-API-284 · 286 · EP-TASK-10 · `nerv_task_update` 의 `archive`).
+   *
+   * 진행하지 않기로 한 작업을 정리할 길이 없었다. clemvion 에이전트가 위임 명세를 비운 채 만든 작업을 같은 내용으로
+   * 다시 만들었고, 옛것 셋이 백로그에 남았다(CLE-T-V54M21 · 2K6CDJ · CYS6YF). 보관은 상태와 따로 간다.
+   *
+   * - **사람**은 끝나지 않았고 살아 있는 클레임이 없는 작업을 보관한다. 사유는 넷이고, `duplicate`·`superseded` 는
+   *   대신할 작업을, `obsolete`·`wont_do` 는 메모를 반드시 받는다.
+   * - **에이전트**는 시작한 적 없는 작업(클레임도 증적도 없다)을 대신할 작업과 함께(`duplicate`·`superseded`)만
+   *   보관한다. 사람이 시작한 일을 에이전트가 치우면 그 판단을 아무도 보지 않는다.
+   * - 이 작업을 기다리던 의존은 대신할 작업으로 옮긴다. 대신할 작업이 없으면 풀린 것으로 본다(보관한 작업은 끝나지
+   *   않는다 — 그대로 두면 기다리던 작업이 영영 막힌다).
+   */
+  async archive(input: {
+    projectId: string;
+    taskKey: string;
+    actor: { userId: string; isAgent: boolean; sessionId?: string | null };
+    reason: string;
+    supersededBy?: string | null;
+    note?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const reason = assertVocab([input.reason], TASK_ARCHIVE_REASONS, 'reason')[0] ?? '';
+    const replaced = (TASK_ARCHIVE_REPLACED_REASONS as readonly string[]).includes(reason);
+    const note = (input.note ?? '').trim() === '' ? null : (input.note ?? '').trim();
+    if (note !== null && note.length > TASK_ARCHIVE_NOTE_MAX) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'note',
+        max_length: TASK_ARCHIVE_NOTE_MAX,
+      });
+    }
+    const supersededRef = (input.supersededBy ?? '').trim();
+    if (replaced && supersededRef === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.archive_needs_replacement'), {
+        kind: 'invalid_input',
+        field: 'superseded_by',
+        reason,
+      });
+    }
+    if (!replaced && note === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.archive_needs_note'), {
+        kind: 'invalid_input',
+        field: 'note',
+        reason,
+      });
+    }
+    // 에이전트는 대신할 작업이 있는 사유만 쓴다 — "하지 않겠다" 는 판단은 사람이 진다
+    if (input.actor.isAgent && !replaced) {
+      throw humanOnlyArchive('reason');
+    }
+
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{
+        id: string;
+        key: string;
+        status: string;
+        archived_at: unknown;
+        source_requirement_id: string | null;
+      }>(sql`
+        SELECT t.id, t.key, t.status::text AS status, t.archived_at, t.source_requirement_id
+          FROM task t
+         WHERE t.project_id = ${input.projectId} AND ${taskMatch(input.taskKey)} FOR UPDATE
+      `);
+      const task = rows[0];
+      if (task === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
+          kind: 'not_found',
+          task: input.taskKey,
+        });
+      }
+      // 이미 보관한 작업은 그대로 둔다 — 다시 쓰면 처음 보관한 시각과 사람이 덮인다(스펙 보관과 같은 규칙)
+      if (task.archived_at != null) {
+        return { task_id: task.id, key: task.key, archived: true, unchanged: true };
+      }
+      if (task.status === 'done') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.archive_done'), {
+          kind: 'done_is_final',
+        });
+      }
+      // 리스가 끝난 클레임은 먼저 회수한다 — 클레임과 같은 순서다. 회수하지 않으면 화면은 [보관]을 열어 두는데
+      // (살아 있는 클레임이 없다) 서버는 만료된 행을 보고 매번 release_required 로 거절한다
+      await this.claims.reclaimExpired(tx, emit, input.projectId);
+      // 쥔 사람이 있으면 먼저 놓는다 — 보관한 작업에 산 클레임이 남으면 그 세션은 없는 일을 계속한다
+      const claim = await this.activeClaimOf(tx, task.id);
+      if (claim !== undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.release_required'), {
+          kind: 'release_required',
+          task_id: task.id,
+          claim_id: claim.id,
+        });
+      }
+      if (input.actor.isAgent) {
+        const { rows: started } = await tx.execute<{ claims: number; evidence: number }>(sql`
+          SELECT (SELECT count(*)::int FROM claim WHERE task_id = ${task.id}) AS claims,
+                 (SELECT count(*)::int FROM evidence WHERE task_id = ${task.id}) AS evidence
+        `);
+        if ((started[0]?.claims ?? 0) > 0 || (started[0]?.evidence ?? 0) > 0) {
+          throw humanOnlyArchive('started');
+        }
+      }
+
+      let replacement: { id: string; key: string } | null = null;
+      if (supersededRef !== '') {
+        const { rows: target } = await tx.execute<{
+          id: string;
+          key: string;
+          archived_at: unknown;
+        }>(sql`
+          SELECT t.id, t.key, t.archived_at FROM task t
+           WHERE t.project_id = ${input.projectId} AND ${taskMatch(supersededRef)}
+           -- 대신할 작업을 그 사이 누가 보관하지 못하게 잡아 둔다 — 보관한 작업을 가리키면 기다리던 의존이 풀려 버린다
+           FOR SHARE
+        `);
+        const found = target[0];
+        if (found === undefined) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
+            kind: 'not_found',
+            field: 'superseded_by',
+            task: supersededRef,
+          });
+        }
+        if (found.id === task.id) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+            kind: 'invalid_input',
+            field: 'superseded_by',
+            reason: 'self',
+          });
+        }
+        // 보관한 작업으로 대신하면 의존이 다시 보관한 작업에 걸린다 — 살아 있는 작업을 가리킨다
+        if (found.archived_at != null) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.archive_target_archived'), {
+            kind: 'superseded_by_archived',
+            superseded_by: found.key,
+          });
+        }
+        replacement = { id: found.id, key: found.key };
+      }
+
+      await tx.execute(sql`
+        UPDATE task
+           SET archived_at = now(), archive_reason = ${reason}::task_archive_reason,
+               archive_note = ${note}, superseded_by_task_id = ${replacement?.id ?? null},
+               archived_by_user_id = ${input.actor.userId},
+               archived_by_session_id = ${input.actor.isAgent ? (input.actor.sessionId ?? null) : null},
+               updated_at = now()
+         WHERE id = ${task.id}
+      `);
+
+      // **기다리던 의존을 옮긴다**(REQ-API-286) — 대신할 작업이 있으면 그리로, 없으면 푼다. 옮기면 고리가 생기는
+      // 의존(대신할 작업이 이미 그 작업을 기다린다 · 대신할 작업 자신)은 옮기지 않고 푼다 — 고리가 생기면 둘 다
+      // 영영 큐에 오르지 못한다
+      const { rows: dependents } = await tx.execute<{
+        task_id: string;
+        key: string;
+        kind: string;
+      }>(sql`
+        SELECT d.task_id, t.key, d.kind::text AS kind FROM task_dependency d JOIN task t ON t.id = d.task_id
+         WHERE d.depends_on_task_id = ${task.id} ORDER BY t.key
+      `);
+      const moved: string[] = [];
+      const released: string[] = [];
+      if (replacement !== null) {
+        const { rows: upstream } = await tx.execute<{ id: string }>(sql`
+          WITH RECURSIVE up AS (
+            SELECT depends_on_task_id AS id FROM task_dependency WHERE task_id = ${replacement.id}
+            UNION
+            SELECT d.depends_on_task_id FROM task_dependency d JOIN up ON d.task_id = up.id
+          )
+          SELECT id FROM up
+        `);
+        const waitedOn = new Set(upstream.map((u) => u.id));
+        for (const d of dependents) {
+          if (d.task_id === replacement.id || waitedOn.has(d.task_id)) {
+            released.push(d.key);
+            continue;
+          }
+          await tx.execute(sql`
+            INSERT INTO task_dependency (task_id, depends_on_task_id, kind)
+            VALUES (${d.task_id}, ${replacement.id}, ${d.kind}::dependency_kind)
+            ON CONFLICT DO NOTHING
+          `);
+          moved.push(d.key);
+        }
+      } else {
+        released.push(...dependents.map((d) => d.key));
+      }
+      await tx.execute(sql`DELETE FROM task_dependency WHERE depends_on_task_id = ${task.id}`);
+
+      await emit({
+        type: NERV_EVENT.TASK_ARCHIVED,
+        projectId: input.projectId,
+        subjectType: 'task',
+        subjectId: task.id,
+        subjectKey: task.key,
+        actorUserId: input.actor.userId,
+        actorSessionId: input.actor.isAgent ? (input.actor.sessionId ?? null) : null,
+        isAgent: input.actor.isAgent,
+        payload: {
+          reason,
+          ...(replacement === null ? {} : { superseded_by: replacement.key }),
+          ...(moved.length === 0 ? {} : { dependencies_moved: moved }),
+          ...(released.length === 0 ? {} : { dependencies_released: released }),
+        },
+      });
+      // 보관한 작업은 구현 현황에 들지 않는다 — 요구사항의 축을 다시 센다
+      await this.refreshImplStatus(tx, task.source_requirement_id);
+      return {
+        task_id: task.id,
+        key: task.key,
+        archived: true,
+        archive_reason: reason,
+        superseded_by: replacement?.key ?? null,
+        dependencies_moved: moved,
+        dependencies_released: released,
+      };
+    });
+  }
+
+  /**
+   * **보관 복원**(2026-10-10 · REQ-API-285 · EP-TASK-11) — 사람만 한다. 상태는 보관하기 전 그대로다. 보관할 때 옮기거나
+   * 푼 의존은 되돌리지 않는다 — 그 사이 대신할 작업에 걸린 의존이 진짜일 수 있어서, 다시 걸지는 사람이 정한다
+   */
+  async restore(input: {
+    projectId: string;
+    taskKey: string;
+    actor: { userId: string; isAgent: boolean };
+  }): Promise<Record<string, unknown>> {
+    if (input.actor.isAgent) throw humanOnlyArchive('restore');
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{
+        id: string;
+        key: string;
+        status: string;
+        archived_at: unknown;
+        source_requirement_id: string | null;
+      }>(sql`
+        SELECT t.id, t.key, t.status::text AS status, t.archived_at, t.source_requirement_id
+          FROM task t
+         WHERE t.project_id = ${input.projectId} AND ${taskMatch(input.taskKey)} FOR UPDATE
+      `);
+      const task = rows[0];
+      if (task === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.not_found'), {
+          kind: 'not_found',
+          task: input.taskKey,
+        });
+      }
+      if (task.archived_at == null) {
+        return { task_id: task.id, key: task.key, archived: false, unchanged: true };
+      }
+      await tx.execute(sql`
+        UPDATE task
+           SET archived_at = NULL, archive_reason = NULL, archive_note = NULL,
+               superseded_by_task_id = NULL, archived_by_user_id = NULL,
+               archived_by_session_id = NULL, updated_at = now()
+         WHERE id = ${task.id}
+      `);
+      // **기준이 그 사이 밀려났으면 재브리핑 표시를 다시 단다** — 보관한 동안에는 표시를 달지 않았다(REQ-API-286).
+      // 달지 않으면 복원한 작업은 작업 큐에서 빠진 채(기준이 승인본이 아니다) 화면에 [다시 브리핑]도 없다
+      const { rows: rebriefed } = await tx.execute<{ id: string }>(sql`
+        UPDATE task t SET rebrief_required_at = now()
+         WHERE t.id = ${task.id} AND t.rebrief_required_at IS NULL AND t.baseline_id IS NULL
+           AND t.status NOT IN ('done', 'blocked')
+           AND EXISTS (SELECT 1 FROM spec_version sv
+                        WHERE sv.id = t.source_spec_version_id AND sv.status = 'superseded')
+        RETURNING t.id
+      `);
+      if (rebriefed.length > 0) {
+        await emit({
+          type: NERV_EVENT.TASK_REBRIEF_REQUIRED,
+          projectId: input.projectId,
+          subjectType: 'task',
+          subjectId: task.id,
+          subjectKey: task.key,
+          actorUserId: input.actor.userId,
+          isAgent: false,
+        });
+      }
+      await emit({
+        type: NERV_EVENT.TASK_RESTORED,
+        projectId: input.projectId,
+        subjectType: 'task',
+        subjectId: task.id,
+        subjectKey: task.key,
+        actorUserId: input.actor.userId,
+        isAgent: false,
+      });
+      await this.refreshImplStatus(tx, task.source_requirement_id);
+      return { task_id: task.id, key: task.key, archived: false, status: task.status };
     });
   }
 
@@ -1049,15 +1408,19 @@ export class TaskService {
       id: string;
       project_id: string;
       source_spec_version_id: string | null;
+      archived: boolean;
     }>(
       parsed.id !== null
-        ? sql`SELECT id, project_id, source_spec_version_id FROM task
-               WHERE project_id = ${input.projectId} AND id = ${parsed.id}`
-        : sql`SELECT id, project_id, source_spec_version_id FROM task
-               WHERE project_id = ${input.projectId} AND key = ${parsed.key ?? ''}`,
+        ? sql`SELECT id, project_id, source_spec_version_id, archived_at IS NOT NULL AS archived
+                FROM task WHERE project_id = ${input.projectId} AND id = ${parsed.id}`
+        : sql`SELECT id, project_id, source_spec_version_id, archived_at IS NOT NULL AS archived
+                FROM task WHERE project_id = ${input.projectId} AND key = ${parsed.key ?? ''}`,
     );
     const task = taskRows[0];
     if (task === undefined) return; // 없는 작업은 트랜잭션 안에서 제대로 거절된다
+    // **보관한 작업에는 계획 승인 카드를 만들지 않는다**(REQ-API-286) — 카드는 트랜잭션 밖에서 먼저 만들어지므로,
+    // 여기서 멈추지 않으면 잡을 수 없는 작업의 결재가 받은 요청에 남는다. 거절은 트랜잭션 안의 판정이 한다
+    if (task.archived) return;
     const taskId = task.id;
 
     const gate = await this.planGate({
@@ -1101,8 +1464,10 @@ export class TaskService {
       if (approved.length > 0) return { required: false, reason: null };
 
       const { rows } = await this.db.execute<{ siblings: number; tier: string | null }>(sql`
+        -- 보관한 작업은 형제로 세지 않는다(REQ-API-286) — 같은 작업을 다시 만든 중복이 계획 승인을 부른다
         SELECT (SELECT count(*)::int FROM task t
-                 WHERE t.source_spec_version_id = ${input.sourceSpecVersionId}) AS siblings,
+                 WHERE t.source_spec_version_id = ${input.sourceSpecVersionId}
+                   AND t.archived_at IS NULL) AS siblings,
                -- 티어는 열이 아니라 **승인 경로가 남긴 이벤트**에 있다(append-only).
                -- 판정 시점의 값을 그대로 읽는 것이라 다시 계산하는 것보다 정확하다.
                (SELECT e.payload->>'gate_tier' FROM event e
@@ -1238,6 +1603,7 @@ export class TaskService {
         output_format_md: string | null;
         tools_sources_md: string | null;
         boundaries_md: string | null;
+        archived_at: unknown;
       }>(sql`SELECT * FROM task WHERE id = ${taskId} FOR UPDATE`);
 
       const task = taskRows[0];
@@ -1247,6 +1613,8 @@ export class TaskService {
           task_id: taskId,
         });
       }
+      // **보관한 작업은 잡지 않는다**(2026-10-10 · REQ-API-286) — 대신할 작업이 있으면 그리로 가라고 알린다
+      await this.assertNotArchived(tx, taskId);
 
       // 같은 세션의 재호출은 기존 클레임을 그대로 돌려준다(멱등 — agent-integration §2.3)
       const existing = await this.findOwnActiveClaim(tx, taskId, input.sessionId);
@@ -1813,10 +2181,38 @@ export class TaskService {
    * 아직 끝나지 않은 선행 작업의 키 — 승격(`update()`)과 전이(`transition()`)가 같은 질의를 쓴다.
    * 둘이 따로 적으면 한쪽만 조건이 바뀌고, 그때 Task 는 문에 따라 다른 답을 받는다.
    */
+  /**
+   * 보관한 작업이면 409 `task_archived` — 대신할 작업이 있으면 그 키를 준다(REQ-API-286). 보관한 작업에는 클레임 ·
+   * 전이 · 수정 · 증적이 붙지 않는다. 다시 일하려면 사람이 복원한다
+   */
+  private async assertNotArchived(tx: Tx, taskId: string): Promise<void> {
+    const { rows } = await tx.execute<{
+      key: string;
+      archived_at: unknown;
+      archive_reason: string | null;
+      superseded_by: string | null;
+    }>(sql`
+      SELECT t.key, t.archived_at, t.archive_reason::text AS archive_reason, sup.key AS superseded_by
+        FROM task t LEFT JOIN task sup ON sup.id = t.superseded_by_task_id
+       WHERE t.id = ${taskId}
+    `);
+    const row = rows[0];
+    if (row === undefined || row.archived_at == null) return;
+    throw new NervError(NERV_ERROR.PRECONDITION, msg('error.task.archived'), {
+      kind: 'task_archived',
+      task: row.key,
+      archive_reason: row.archive_reason,
+      ...(row.superseded_by === null
+        ? {}
+        : { superseded_by: row.superseded_by, next_actions: ['nerv_task_get', 'nerv_task_claim'] }),
+    });
+  }
+
   private async pendingDependencies(tx: Tx, taskId: string): Promise<string[]> {
     const { rows } = await tx.execute<{ key: string }>(sql`
       SELECT dt.key FROM task_dependency d JOIN task dt ON dt.id = d.depends_on_task_id
-       WHERE d.task_id = ${taskId} AND dt.status <> 'done'
+       -- 보관한 작업은 아무도 기다리지 않는다(REQ-API-286)
+       WHERE d.task_id = ${taskId} AND dt.status <> 'done' AND dt.archived_at IS NULL
     `);
     return rows.map((r) => r.key);
   }
@@ -1996,6 +2392,8 @@ export class TaskService {
           kind: 'not_found',
         });
       }
+      // 보관한 작업은 옮기지 않는다(REQ-API-286) — 다시 일하려면 사람이 먼저 복원한다
+      await this.assertNotArchived(tx, taskId);
       if (task.status === input.status) {
         // 같은 목표 상태로의 재호출은 no-op 성공이다(멱등 — agent-integration §2.3)
         return { status: task.status };

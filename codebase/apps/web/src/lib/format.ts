@@ -8,6 +8,7 @@
 
 import {
   CLAIM_AWAITING_KINDS,
+  TASK_ARCHIVE_REASONS,
   EVIDENCE_KINDS,
   blockedReasonLabelKey,
   claimStatus,
@@ -95,6 +96,11 @@ export function reviewStateText(t: Translator, value: unknown): string {
 
 export function evidenceKindText(t: Translator, value: unknown): string {
   return vocabText(t, EVIDENCE_KINDS, (v) => `evidence.kind.${v}`, value);
+}
+
+/** 작업을 보관한 이유(REQ-WEB-301) */
+export function taskArchiveReasonText(t: Translator, value: unknown): string {
+  return vocabText(t, TASK_ARCHIVE_REASONS, (v) => `task.archive.reason.${v}`, value);
 }
 
 /** 세션이 선언한 기다림의 종류(REQ-WEB-300) */

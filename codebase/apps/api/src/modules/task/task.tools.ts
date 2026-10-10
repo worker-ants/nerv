@@ -6,6 +6,7 @@ import {
   BLOCKED_REASONS,
   AWAITING_REFS_MAX,
   CLAIM_AWAITING_KINDS,
+  TASK_ARCHIVE_REPLACED_REASONS,
   LEASE_TTL_SECONDS,
   msg,
   NERV_ERROR,
@@ -13,6 +14,7 @@ import {
   TASK_TRANSITION_TARGETS,
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { assertVocab } from '../../common/query-vocab.js';
 import { assertAnyRole } from '../../common/scope-check.js';
 import type { NervToolDefinition, NervToolProvider } from '../../mcp/tool-registry.js';
 import { wrapText } from '../../mcp/untrusted.js';
@@ -88,6 +90,12 @@ export class TaskTools implements NervToolProvider {
           spec: { type: 'string', description: 'spec key (e.g. SUD-DSN-UI) or UUID' },
           // 기본은 **닫혀 있다** — 보관한 것까지 함께 오면 목록이 목록이기를 그만둔다
           include_archived: { type: 'boolean', default: false },
+          // 보관한 작업(REQ-API-286) — 위의 옛 이름은 지난 완료다
+          archived: {
+            type: 'string',
+            enum: ['include', 'only'],
+            description: 'mcp.arg.task_list_archived',
+          },
           limit: { type: 'integer', minimum: 1, maximum: 100 },
           cursor: { type: 'string', description: 'mcp.arg.cursor' },
         },
@@ -100,6 +108,16 @@ export class TaskTools implements NervToolProvider {
           assigneeUserId: typeof input['assignee'] === 'string' ? input['assignee'] : null,
           specId: typeof input['spec'] === 'string' ? input['spec'] : null,
           includeArchived: input['include_archived'] === true,
+          // 모르는 값은 조용히 버리지 않는다(§1.4j) — `archived: true` 를 버리면 보관한 작업이 없는 줄 안다
+          ...(input['archived'] === undefined || input['archived'] === null
+            ? {}
+            : {
+                archived: assertVocab(
+                  [String(input['archived'])],
+                  ['include', 'only'],
+                  'archived',
+                )[0] as 'include' | 'only',
+              }),
           ...(typeof input['limit'] === 'number' ? { limit: input['limit'] } : {}),
           ...(typeof input['cursor'] === 'string' ? { cursor: input['cursor'] } : {}),
         });
@@ -364,6 +382,17 @@ export class TaskTools implements NervToolProvider {
           tools_sources_md: { type: 'string', description: 'mcp.arg.tools_sources_md' },
           boundaries_md: { type: 'string', description: 'mcp.arg.boundaries_md' },
           base_brief_hash: { type: 'string', description: 'mcp.arg.base_brief_hash' },
+          // **작업 보관**(2026-10-10 · REQ-API-284) — 시작한 적 없는 작업을 대신할 작업과 함께. 다른 인자와 함께 받지 않는다
+          archive: {
+            type: 'object',
+            description: 'mcp.arg.task_archive',
+            properties: {
+              reason: { type: 'string', enum: [...TASK_ARCHIVE_REPLACED_REASONS] },
+              superseded_by: { type: 'string', description: 'task key (CLV-T-…) or UUID' },
+              note: { type: 'string' },
+            },
+            required: ['reason', 'superseded_by'],
+          },
           idempotency_key: { type: 'string' },
         },
         required: ['task_id'],
@@ -372,6 +401,49 @@ export class TaskTools implements NervToolProvider {
         const taskId = String(input['task_id'] ?? '');
         const status = typeof input['status'] === 'string' ? input['status'] : null;
         const bodyMd = typeof input['body_md'] === 'string' ? input['body_md'] : null;
+        const archive = input['archive'];
+        if (archive !== undefined && archive !== null) {
+          if (typeof archive !== 'object' || Array.isArray(archive)) {
+            throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+              kind: 'invalid_input',
+              field: 'archive',
+              allowed: ['{reason, superseded_by, note?}'],
+            });
+          }
+          // 보관은 그것만 한다 — 상태를 옮기거나 본문을 고치면서 보관하면 무엇이 먼저인지 정해지지 않는다
+          const others = [
+            'status',
+            'body_md',
+            'base_hash',
+            ...BRIEF_ARGS,
+            'base_brief_hash',
+            'evidence',
+            'blocked_reason',
+            'spec_impact',
+          ].filter((k) => input[k] !== undefined);
+          if (others.length > 0) {
+            throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+              kind: 'invalid_input',
+              field: 'archive',
+              conflicts_with: others,
+            });
+          }
+          // 보관은 수정과 같은 역할을 요구한다(planner · developer · admin)
+          assertAnyRole(ctx.principal, TASK_EDIT_ROLES);
+          const a = archive as Record<string, unknown>;
+          return this.tasks.archive({
+            projectId: ctx.projectId,
+            taskKey: taskId,
+            actor: {
+              userId: ctx.principal.userId,
+              isAgent: ctx.principal.isAgent,
+              sessionId: ctx.sessionId,
+            },
+            reason: String(a['reason'] ?? ''),
+            supersededBy: typeof a['superseded_by'] === 'string' ? a['superseded_by'] : null,
+            note: typeof a['note'] === 'string' ? a['note'] : null,
+          });
+        }
         // 준 칸만 고친다 — 빈 문자열은 "지워라" 가 아니라 안 준 것이다(`pick` 과 같은 규칙)
         const brief = pick(input, {
           goal_md: 'goalMd',
@@ -391,6 +463,7 @@ export class TaskTools implements NervToolProvider {
               'output_format_md',
               'tools_sources_md',
               'boundaries_md',
+              'archive',
             ],
           });
         }
@@ -461,6 +534,9 @@ export class TaskTools implements NervToolProvider {
     },
   ];
 }
+
+/** 위임 명세 네 칸의 인자 이름 */
+const BRIEF_ARGS = ['goal_md', 'output_format_md', 'tools_sources_md', 'boundaries_md'] as const;
 
 /** 준 것만 넘긴다 — 안 준 값을 `null` 로 바꾸면 "지워라" 가 된다 */
 function pick(

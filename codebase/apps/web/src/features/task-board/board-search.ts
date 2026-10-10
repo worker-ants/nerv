@@ -20,7 +20,10 @@ export interface TaskBoardSearch {
   ai?: true;
   /** 기본이 켜짐이라 **끈 상태만** 주소에 남는다(`?backlog=0`) */
   backlog?: false;
+  /** **지난 완료**(done 창 밖) — 이름이 오래돼 `archived` 다. 작업 보관은 아래 `archived_tasks` 다(REQ-WEB-302) */
   archived?: true;
+  /** 보관한 작업 칸(보관함)을 연다(2026-10-10 · REQ-WEB-302) */
+  archived_tasks?: true;
   /** S3 의 "이 버전에서 파생" — 주소가 폼의 초기값이다(REQ-WEB-147) */
   from_version?: string;
   from_spec?: string;
@@ -48,6 +51,7 @@ export function validateBoardSearch(search: Record<string, unknown>): TaskBoardS
     ...(isOn(search['ai']) ? { ai: true as const } : {}),
     ...(isOff(search['backlog']) ? { backlog: false as const } : {}),
     ...(isOn(search['archived']) ? { archived: true as const } : {}),
+    ...(isOn(search['archived_tasks']) ? { archived_tasks: true as const } : {}),
     ...(typeof search['from_version'] === 'string' && search['from_version'] !== ''
       ? { from_version: search['from_version'] }
       : {}),
@@ -74,5 +78,6 @@ export function boardFilters(search: TaskBoardSearch): TaskBoardSearch {
     ...(search.ai === true ? { ai: true as const } : {}),
     ...(search.backlog === false ? { backlog: false as const } : {}),
     ...(search.archived === true ? { archived: true as const } : {}),
+    ...(search.archived_tasks === true ? { archived_tasks: true as const } : {}),
   };
 }

@@ -192,6 +192,8 @@ export const en = {
     'Only a person can change document info, archive, or restore. Open Document info on that document in the web app.',
   'error.human_only.steer': 'Only humans can steer or stop a session.',
   'error.human_only.token_issue': 'Only humans can issue tokens.',
+  'error.human_only.task_archive':
+    'Only a person can make this archive or restore. An agent can archive only a task that was never started, together with the task that replaces it.',
   'error.idempotency.mismatch':
     'This idempotency key was already used for a different request. Retry with a new key.',
   'error.idempotency.in_flight':
@@ -494,6 +496,10 @@ export const en = {
     'task body (markdown). If given, the body is replaced. You can edit the body without status. base_hash is required with it',
   'mcp.arg.task_base_hash':
     'fingerprint of the body you read: pass body_hash from nerv_task_get as is. If someone changed it since, you get 409 stale_body; read again (current_hash is in the response)',
+  'mcp.arg.task_list_archived':
+    'archived tasks: include returns them too, only returns just them; omitted leaves them out. include_archived is a different argument with a similar name; it opens tasks finished long ago',
+  'mcp.arg.task_archive':
+    'Archive a task that will not be done. You can archive only a task that was never started (no claims, no evidence), and only together with the task that replaces it: reason is duplicate (same content) or superseded (another task covers it), and superseded_by is the key of the replacing task. Tasks that were waiting on this one will wait on the replacement instead. Any other archive or a restore is done by a person. Do not send it with other arguments',
   'mcp.arg.base_brief_hash':
     'fingerprint of the delegation brief you read: required whenever you change any of the four brief fields. Pass brief_hash from nerv_task_get or nerv_task_create as is. If someone changed it since, you get 409 stale_brief; read again (current_brief_hash is in the response)',
   'mcp.arg.finding_tags':
@@ -762,6 +768,8 @@ export const en = {
   'webhook.skip.no_task_key': 'No task key found in the branch, title, or body.',
   'webhook.skip.no_locator': 'No URL or SHA to record as evidence.',
   'webhook.skip.duplicate': 'Evidence already recorded (idempotent).',
+  'webhook.skip.task_archived':
+    '{key} is archived, so no evidence was recorded. Replacing task: {superseded_by}',
   'mcp.arg.project': "Project slug (must match the token's project)",
   'mcp.arg.hostname':
     "Which user's machine this is. Used to tell sessions apart on the session board",
@@ -901,6 +909,17 @@ export const en = {
     'Someone changed the task body after you read it. Read it again, then edit.',
   'error.task.stale_brief':
     'Someone changed the delegation brief after you read it. Read it again, then edit.',
+  'error.task.archive_needs_replacement':
+    'To archive a task as a duplicate or as superseded, choose the task that replaces it.',
+  'error.task.archive_needs_note':
+    'To archive a task that is no longer needed or will not be done, write one line saying why.',
+  'error.task.archive_done': 'Finished tasks are not archived.',
+  'error.task.archived':
+    'This task is archived. A person must restore it before anyone works on it.',
+  'error.task.depends_on_archived':
+    'A task cannot depend on an archived task. Choose the task that replaces it.',
+  'error.task.archive_target_archived':
+    'An archived task cannot replace another task. Choose a task that is not archived.',
   'error.task.not_found': 'Task not found.',
   'error.task.release_required': 'There is an active claim. Release it or stop the session first.',
   'error.task.transition_not_allowed': "Can't change from {from} to {to}.",
@@ -991,6 +1010,8 @@ export const en = {
   'event.task.ready': 'Task ready',
   'event.task.rebrief_required': 'Basis changed; re-check instructions',
   'event.task.updated': 'Task updated',
+  'event.task.archived': 'Task archived',
+  'event.task.restored': 'Task restored',
   'event.member.added': 'Member added',
   'event.member.removed': 'Member removed',
   'event.invitation.declined': 'Invitation declined',
@@ -1707,6 +1728,29 @@ export const en = {
   'task.claim_human': 'human',
   'task.claims': 'Active claims',
   'task.done_gate': 'Completion · done criteria',
+  'task.archive.open': 'Archive',
+  'task.archive.open_title':
+    'Remove a task that will not be done from the board. A person can restore it later',
+  'task.archive.title': 'Archive task',
+  'task.archive.hint':
+    'An archived task leaves the board and the work queue, and nobody can claim it. Tasks that were waiting on it will wait on the replacement instead. If there is no replacement, they stop waiting.',
+  'task.archive.reason': 'Reason',
+  'task.archive.reason.duplicate': 'Duplicate',
+  'task.archive.reason.superseded': 'Replaced by another task',
+  'task.archive.reason.obsolete': 'No longer needed',
+  'task.archive.reason.wont_do': "Won't do",
+  'task.archive.replacement': 'Replacing task',
+  'task.archive.replacement_placeholder': 'Task key (e.g. CLE-T-6SKVRM)',
+  'task.archive.note_optional': 'Note (optional)',
+  'task.archive.note_required': 'Write one line saying why (required)',
+  'task.archive.submit': 'Archive',
+  'task.archive.done': 'Task archived',
+  'task.archive.notice': 'Archived · {reason} · {by} · {at}',
+  'task.archive.replaced_by': 'Replaced by',
+  'task.archive.restore': 'Restore',
+  'task.archive.restored': 'Task restored. Its status is what it was before archiving',
+  'task.archive.locked_claim': 'Release the claim on this task before archiving it',
+  'task.archive.locked_archived': 'An archived task cannot be edited. Restore it first',
   'task.waiver.title': 'Review waiver',
   'task.waiver.hint':
     'A review this task cannot get, such as a code review for a task that produced no code, is waived with a reason instead of faking a review. Who waived it, when and why stays on record.',
@@ -1780,7 +1824,11 @@ export const en = {
   'tasks.ready_empty.backlog': 'See {count} in backlog',
   'tasks.fill_brief': 'Fill it in ▸',
   'tasks.filter.backlog': 'Show backlog',
-  'tasks.filter.archived': 'Show archived',
+  'tasks.filter.archived': 'Show older done',
+  'tasks.filter.archived_tasks': 'Show archived',
+  'tasks.filter.archived_tasks_title': 'Show tasks archived as not to be done, in their own lane',
+  'tasks.lane.archived': 'Archived',
+  'tasks.archived.empty': 'No archived tasks',
   'tasks.filter.archived_title': 'Also show tasks completed more than {days} days ago',
   'tasks.more': 'Load more',
   'tasks.lease': 'lease {remaining}',

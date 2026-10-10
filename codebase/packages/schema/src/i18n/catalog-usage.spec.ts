@@ -61,6 +61,10 @@ const DYNAMIC: readonly { prefix: string; values?: readonly string[]; where: str
   },
   { prefix: 'severity.', where: 'review-center — 발견의 심각도' },
   {
+    prefix: 'task.archive.reason.',
+    where: 'web lib/format.ts taskArchiveReasonText — 작업 보관 사유',
+  },
+  {
     prefix: 'spec.diff.',
     values: ['added', 'removed', 'modified', 'unchanged'],
     where: 'web version-diff',

@@ -52,6 +52,10 @@ export const NERV_EVENT = {
   TASK_CREATED: 'task.created',
   /** ★ EP-TASK-09 */
   TASK_UPDATED: 'task.updated',
+  /** ★ EP-TASK-10 · `nerv_task_update`(`archive`) — 진행하지 않기로 한 작업(REQ-API-284) */
+  TASK_ARCHIVED: 'task.archived',
+  /** ★ EP-TASK-11 — 사람이 되살렸다(REQ-API-285) */
+  TASK_RESTORED: 'task.restored',
 
   // ── 클레임 (P0) ──────────────────────────────────────────────────────────
   CLAIM_CONFLICT_WARN: 'claim.conflict_warn',

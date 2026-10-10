@@ -606,7 +606,11 @@ export class AuthService {
              (SELECT count(*) FROM agent_session se
                WHERE se.project_id = p.id AND se.state = ANY(${sqlArray(ACTIVE_SESSION_STATES, 'session_state')}))::int AS active_sessions,
              (SELECT count(*) FROM approval a
-               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals,
+               WHERE a.project_id = p.id AND a.decision IS NULL
+                 -- 받은 요청과 같은 범위 — 보관한 작업의 계획 승인 카드는 기다리지 않는다(REQ-API-286)
+                 AND NOT (a.subject_type = 'plan' AND EXISTS (
+                   SELECT 1 FROM task pt WHERE pt.id = a.subject_id AND pt.archived_at IS NOT NULL
+                 )))::int AS pending_approvals,
              -- **홈이 프로젝트마다 무엇이 위험한지를 말한다**(2026-09-25 · REQ-API-185). 단건
              -- 조회(EP-PRJ-03)만 싣던 값이라, 홈은 헤더가 고른 한 프로젝트밖에 비출 수 없었다
              (SELECT count(*) FROM finding f
@@ -637,7 +641,11 @@ export class AuthService {
              (SELECT count(*) FROM agent_session se
                WHERE se.project_id = p.id AND se.state = ANY(${sqlArray(ACTIVE_SESSION_STATES, 'session_state')}))::int AS active_sessions,
              (SELECT count(*) FROM approval a
-               WHERE a.project_id = p.id AND a.decision IS NULL)::int AS pending_approvals,
+               WHERE a.project_id = p.id AND a.decision IS NULL
+                 -- 받은 요청과 같은 범위 — 보관한 작업의 계획 승인 카드는 기다리지 않는다(REQ-API-286)
+                 AND NOT (a.subject_type = 'plan' AND EXISTS (
+                   SELECT 1 FROM task pt WHERE pt.id = a.subject_id AND pt.archived_at IS NOT NULL
+                 )))::int AS pending_approvals,
              -- 사이드바가 **무엇이 위험한지**를 화면에 들어가기 전에 말한다(S6 배지).
              -- 세션 건수와 같은 이유의 같은 처방이다: 들어가야 아는 숫자면 그 화면을
              -- 열기 전에는 아무도 모른다.

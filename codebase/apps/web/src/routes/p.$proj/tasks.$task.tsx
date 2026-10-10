@@ -70,6 +70,7 @@ import {
 } from '../../components/ui/primitives.js';
 import { EntityLink } from '../../components/entity-link.js';
 import { TaskSheet } from '../../features/task-board/task-sheet.js';
+import { ArchivedNotice, ArchiveTaskForm } from '../../features/task-board/task-archive.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
@@ -130,6 +131,8 @@ function TaskDetail(): React.JSX.Element {
   const [blockedReason, setBlockedReason] = useState('');
   /** 서버가 거부한 사유 — 카드 옆에 남긴다. 토스트는 사라지고 사람은 이유를 잊는다 */
   const [rejection, setRejection] = useState<{ message: string; missing: string[] } | null>(null);
+  // [보관]이 여는 폼(REQ-WEB-301)
+  const [archiving, setArchiving] = useState(false);
 
   const data = detail.data ?? {};
   const status = String(data['status'] ?? '');
@@ -178,7 +181,13 @@ function TaskDetail(): React.JSX.Element {
   const roles = rolesInProject(me.data, orgSlug, proj);
   const privileged = roles.some((r) => r === 'planner' || r === 'admin');
   // 위임 명세를 고치는 문(EP-TASK-05)은 planner·developer·admin 만이다 — 서버 가드와 같은 목록
-  const canEditBrief = roles.some((r) => (TASK_EDIT_ROLES as readonly string[]).includes(r));
+  const mayEdit = roles.some((r) => (TASK_EDIT_ROLES as readonly string[]).includes(r));
+  // **보관한 작업**(2026-10-10 · REQ-WEB-301) — 다음 행동 단추를 두지 않고 고치는 기능을 잠근다. 클레임 · 전이 · 수정은 서버가
+  // `task_archived` 로 거절하고, 다시 일하려면 사람이 복원한다
+  const archived = data['archived_at'] != null;
+  const canEditBrief = mayEdit && !archived;
+  /** 고치는 기능이 잠긴 까닭 — 보관이면 보관이라고, 아니면 역할을 말한다 */
+  const editLocked = archived ? t('task.archive.locked_archived') : rolesOnly(TASK_EDIT_ROLES);
   const canMove = scopesForRoles(roles).has('task:update');
   const isAssignee = data['assignee_user_id'] === meId && meId !== undefined;
   const canFinish = myClaim !== undefined || isAssignee || privileged;
@@ -332,7 +341,7 @@ function TaskDetail(): React.JSX.Element {
   });
 
   /** 머리의 단추 — 상태가 정한다(REQ-WEB-202) */
-  const actions = nextActions(
+  const nextSteps = nextActions(
     {
       status,
       delegationFilled,
@@ -344,6 +353,13 @@ function TaskDetail(): React.JSX.Element {
     },
     t,
   );
+  const actions = archived ? [] : nextSteps;
+  // 보관 단추는 끝나지 않은 작업에만 — 쥔 사람이 있으면 먼저 놓아야 한다(서버가 release_required 로 거절한다)
+  const archiveLocked = !mayEdit
+    ? rolesOnly(TASK_EDIT_ROLES)
+    : liveClaim !== 'none'
+      ? t('task.archive.locked_claim')
+      : null;
   const run = (action: NextAction): void => {
     if (action.kind === 'claim') claim.mutate();
     else if (action.kind === 'fill_brief') {
@@ -357,6 +373,7 @@ function TaskDetail(): React.JSX.Element {
   /** 완료 폼 — 진행 중인 작업이거나 [완료]를 눌렀을 때만(backlog·ready 에 늘 펼쳐 두지 않는다) */
   const showGate =
     status !== 'done' &&
+    !archived &&
     (finishOpen || status === 'claimed' || status === 'in_progress' || status === 'in_review');
   const finishBlock =
     specImpact === 'unset'
@@ -432,7 +449,7 @@ function TaskDetail(): React.JSX.Element {
             </>
           }
           actions={
-            actions.length === 0 ? undefined : (
+            actions.length === 0 && (archived || status === 'done') ? undefined : (
               <div data-testid="next-actions" className="flex flex-wrap items-center gap-2">
                 {actions.map((action) => (
                   <Button
@@ -455,10 +472,34 @@ function TaskDetail(): React.JSX.Element {
                     {action.label}
                   </Button>
                 ))}
+                {!archived && status !== 'done' && (
+                  <Button
+                    data-testid="task-archive-open"
+                    disabled={archiveLocked !== null}
+                    disabledReason={archiveLocked ?? undefined}
+                    title={archiveLocked === null ? t('task.archive.open_title') : undefined}
+                    requiresOnline
+                    onClick={() => setArchiving((v) => !v)}
+                  >
+                    {t('task.archive.open')}
+                  </Button>
+                )}
               </div>
             )
           }
         />
+        {archived && (
+          <ArchivedNotice
+            proj={proj}
+            taskParam={task}
+            task={data}
+            canRestore={mayEdit}
+            restoreLockedReason={mayEdit ? undefined : rolesOnly(TASK_EDIT_ROLES)}
+          />
+        )}
+        {!archived && archiving && (
+          <ArchiveTaskForm proj={proj} taskParam={task} onClose={() => setArchiving(false)} />
+        )}
         {/* 머리의 단추가 거절되면 **그 아래에 남는다**(REQ-WEB-018) — 완료 폼이 닫혀 있어도 */}
         {rejection !== null && !showGate && (
           <p
@@ -613,7 +654,7 @@ function TaskDetail(): React.JSX.Element {
                         data-testid="rebrief"
                         disabled={rebrief.isPending || !canEditBrief}
                         onClick={() => rebrief.mutate()}
-                        disabledReason={canEditBrief ? undefined : rolesOnly(TASK_EDIT_ROLES)}
+                        disabledReason={canEditBrief ? undefined : editLocked}
                         title={canEditBrief ? t('task.basis.rebrief_title') : undefined}
                         requiresOnline
                       >
@@ -739,9 +780,7 @@ function TaskDetail(): React.JSX.Element {
                       size="sm"
                       data-testid="brief-edit"
                       disabled={!canEditBrief || status === 'done'}
-                      disabledReason={
-                        canEditBrief ? t('task.brief.done_locked') : rolesOnly(TASK_EDIT_ROLES)
-                      }
+                      disabledReason={canEditBrief ? t('task.brief.done_locked') : editLocked}
                       onClick={() => setEditingBrief(true)}
                     >
                       {t('task.brief.edit')}

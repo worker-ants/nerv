@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.27 · 2026-10-09 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.28 · 2026-10-10 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.28 변경(2026-10-10 — 진행하지 않을 작업을 정리할 길이 없었다, clemvion 보고 · **사람 결정**): **REQ-WEB-301 · 302 신설 · §2.5 한 항목 · 데이터 소스 한 줄 · §1.4 이벤트 한 줄 · REQ-WEB-054 문구.** 작업 상세에 [보관] · 보관됨 줄 · [복원]을 두고 보드의 `보관 보기`가 보관함 칸을 연다. done 창 토글은 `지난 완료 보기`로 이름을 바꿨다([4.4 API](api.md) REQ-API-284~286).
 >
 > v2.27 변경(2026-10-09 — 기다리는 세션이 클레임을 풀었다, clemvion 보고): **REQ-WEB-300 신설 · §2.6 한 항목.** 세션이 하트비트로 기다린다고 선언하면 세션 카드에 「대기 중 · 종류 · N분 남음」과 기다리는 대상을 한 줄로 보인다. 백그라운드 리뷰를 기다리는 10~17분 동안 하트비트가 멈춰도 작업을 놓은 것이 아니라는 것을 사람이 안다([4.4 API](api.md) REQ-API-275).
 >
@@ -629,6 +631,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `spec.comment_added` · ★`comment.resolved` | `['spec', specId, 'comments']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']`(목록 줄의 열린 코멘트 수 — 2026-10-04 · REQ-WEB-289) | `project:{id}` |
 | `task.ready` `task.claimed` `task.blocked` `task.done` · ★`task.created` ★`task.updated` | `['project', projId, 'tasks']` · `['task', taskId]` | `project:{id}` |
 | `task.rebrief_required` | `['project', projId, 'tasks']` · `['task', taskId]` + S4 재브리핑 배지 | `project:{id}` + 담당자·클레임 세션 소유자 `user:{id}` |
+| `task.archived` · `task.restored` | `['project', projId, 'tasks']` · `['task', taskId]` — 보관한 작업이 레인에서 빠지고 보관함 · 상세의 보관됨 줄이 바뀐다(2026-10-10 · REQ-WEB-301 · 302) | `project:{id}` |
 | `spec.recheck_requested` | `['spec', specId]` + S3 참조 갱신 배지 | `project:{id}` + 대상 문서 owner `user:{id}` |
 | ★`baseline.created` | `['project', projId, 'baselines']` | `project:{id}` |
 | `claim.conflict_warn` `claim.conflict_blocked` | `['project', projId, 'sessions']` + 경고 토스트 | `project:{id}` + 양쪽 세션 소유자 `user:{id}` |
@@ -1656,16 +1659,19 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 - **아카이브를 상태값으로 만들지 않는다.** 종단 상태가 늘면 "왜 끝났는가"(done 인가 blocked 인가)를 잃고 전이 규칙 표 전체가 바뀐다(D-05 판정 단일 지점). 창은 `done_at` 에서 파생하므로 마이그레이션도 잡도 필요 없다 — 상수 `TASK_DONE_WINDOW_DAYS`.
 - **레인마다 따로 조회한다**(EP-TASK-01 · 커서). 한 목록을 받아 화면에서 가르면 자를 수가 없다: 우선순위 순 30건이 전부 done 이고 ready 가 한 건도 없는 페이지가 나온다. 실측으로 1요청 229 KB → 6요청 1 KB.
 - 한 페이지를 채운 레인은 건수에 **`+`**를 붙인다 — 그냥 `30`이라고 적으면 사람은 그것이 전부라고 읽는다. 받아 둔 카드를 다 펼치면 같은 자리의 단추가 **다음 쪽을 부른다**(2026-09-25 · REQ-WEB-221 — 예전에는 받아 둔 것만 펼쳐 31번째부터 닿을 길이 없었다).
-- 필터는 **보드 위**에 둔다. 레인 머리에 붙이면 어느 레인의 설정인지 헷갈리고, `보관 보기`는 done 만 바꾸지만 `백로그 보기`는 레인 자체를 늘린다. **걸린 필터는 보인다**(2026-09-25 · REQ-WEB-221): 스펙·담당 고르개가 걸린 값을 그대로 보이고, 하나라도 걸리면 "필터 적용 중" 과 [필터 지우기]가 선다. 요약 숫자와 레인은 **같은 조건**으로 센다 — `?assignee=` 가 레인에만 실려 두 줄이 다른 말을 했다. "내 담당" 숫자는 `?assignee=<나>` 로 간다.
-- **`백로그 보기`는 켜고 시작한다**(2026-09-08 — 사람 지시 · REQ-WEB-155). 2026-09-06 까지는 `보관 보기`와 함께 꺼진 채로 열렸는데, 둘이 감추는 것은 성질이 다르다: 보관은 **끝난 일**을, 백로그는 **막 시작된 일**을 감춘다. 생성은 언제나 `backlog` 이므로(EP-TASK-03 · FR-05 — 4요소를 다 채워 보내도 승격은 다음 `PATCH` 다) 방금 만든 티켓은 기본 화면의 어느 레인에도 없었고, 만든 사람이 본 것은 빈 상태도 오류도 아닌 **침묵**이었다. 기본값은 주소에 적지 않고 **끈 상태만** 남긴다(`?backlog=0`).
+- 필터는 **보드 위**에 둔다. 레인 머리에 붙이면 어느 레인의 설정인지 헷갈리고 `지난 완료 보기`는 done만 바꾸지만 `백로그 보기`는 레인 자체를 늘린다. **걸린 필터는 보인다**(2026-09-25 · REQ-WEB-221): 스펙·담당 고르개가 걸린 값을 그대로 보이고 하나라도 걸리면 "필터 적용 중"과 [필터 지우기]가 선다. 요약 숫자와 레인은 **같은 조건**으로 센다 — `?assignee=`가 레인에만 실려 두 줄이 다른 말을 했다. "내 담당" 숫자는 `?assignee=<나>`로 간다.
+- **`백로그 보기`는 켜고 시작한다**(2026-09-08 — 사람 지시 · REQ-WEB-155). 2026-09-06 까지는 `지난 완료 보기`(그때 이름은 `보관 보기`)와 함께 꺼진 채로 열렸는데 둘이 감추는 것은 성질이 다르다: 보관은 **끝난 일**을, 백로그는 **막 시작된 일**을 감춘다. 생성은 언제나 `backlog`이므로(EP-TASK-03 · FR-05 — 4요소를 다 채워 보내도 승격은 다음 `PATCH`다) 방금 만든 티켓은 기본 화면의 어느 레인에도 없었고 만든 사람이 본 것은 빈 상태도 오류도 아닌 **침묵**이었다. 기본값은 주소에 적지 않고 **끈 상태만** 남긴다(`?backlog=0`).
+- **작업 보관은 따로 본다**(2026-10-10 — 사람 결정 D2 · REQ-WEB-301 · 302 · [4.4 API](api.md) REQ-API-284~286). 진행하지 않기로 한 작업을 정리할 길이 없어 다른 작업으로 대체된 중복이 백로그에 남았다(clemvion). 작업 상세 머리의 **[보관]** 이 사유(중복 · 다른 작업으로 대체 · 더 이상 필요 없음 · 하지 않기로 함)와 대신할 작업 또는 이유 한 줄을 받는다. 보관한 작업은 상태를 그대로 가지고 있어 상태 레인에 섞이면 진행하지 않을 작업이 "진행 중" 칸에 앉는다 — 레인에서 빼고 보드의 **`보관 보기`** 가 끝에 **보관함** 칸 하나를 연다(`?archived_tasks=1` · EP-TASK-01 `archived=only`). 오래 `보관 보기`라 부르던 done 창 토글은 **`지난 완료 보기`** 로 이름을 바꿨다 — 「보관」은 스펙 · 프로젝트와 같은 뜻(진행하지 않기로 치운 것)으로만 쓴다. 상세는 키로 그대로 열리고 보관됨 줄(사유 · 대신할 작업 · 누가 언제)과 **[복원]** 이 다음 행동 단추를 대신한다
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
-| REQ-WEB-054 | WHILE 보관 보기가 꺼져 있으면 THE SYSTEM SHALL `done_at` 이 `TASK_DONE_WINDOW_DAYS` 를 지난 작업을 보드에서 제외한다 |
+| REQ-WEB-054 | WHILE 지난 완료 보기가 꺼져 있으면 THE SYSTEM SHALL `done_at`이 `TASK_DONE_WINDOW_DAYS`를 지난 작업을 보드에서 제외한다 |
 | REQ-WEB-055 | WHEN 보드가 열리면 THE SYSTEM SHALL 레인마다 따로 조회하고, 상태를 지정하지 않은 전량 조회를 하지 않는다 |
 | REQ-WEB-143 | WHEN 보드 카드 또는 작업 상세가 `blocked_reason` 을 보이면 THE SYSTEM SHALL 그 값이 `BLOCKED_REASONS` 안이면 그 어휘의 라벨(카탈로그 `blocked.*`)로, 어휘 밖이면 **저장된 원문 그대로** 표시한다 — 식별자도 문구 키도 화면에 나오지 않는다. WHERE 어휘 판정이 필요하면 THE SYSTEM SHALL `@nerv/schema` 의 판정을 쓰고 화면에서 어휘 목록을 다시 적지 않는다 |
 | REQ-WEB-155 | WHEN 작업 보드를 열면 THE SYSTEM SHALL `백로그 보기`를 **켠 상태로** 시작해 `backlog` 레인을 그린다 — 생성 직후의 작업이 어느 레인에도 없는 상태를 만들지 않는다. WHEN 사람이 그것을 끄면 THE SYSTEM SHALL 주소에 `?backlog=0` 을 남기고, 켜진 상태는 주소에 적지 않는다 |
 | REQ-WEB-221 | WHEN 작업 보드에 스펙·담당·에이전트 필터가 걸리면 THE SYSTEM SHALL 보드 위의 고르개가 그 값을 보이고 "필터 적용 중" 과 [필터 지우기]를 두며, 요약 숫자와 레인을 같은 조건으로 센다. WHEN "내 담당" 숫자를 누르면 THE SYSTEM SHALL 담당이 나인 작업만 남긴 보드로 간다. WHEN 레인이 받아 둔 카드를 다 펼쳤는데 다음 쪽이 있으면 THE SYSTEM SHALL 같은 자리의 단추로 다음 쪽을 부른다. WHEN ready 레인이 비면 THE SYSTEM SHALL 막힌 작업과 백로그로 가는 길을 그 수와 함께 보인다(수가 0 인 것은 빼고) |
+| REQ-WEB-301 | WHEN 작업 상세를 그리면 THE SYSTEM SHALL 끝나지 않았고 보관하지 않은 작업의 머리에 **[보관]** 을 두고(planner · developer · admin — 살아 있는 클레임이 있으면 그 사유와 함께 잠근다), 펼치면 사유 넷 가운데 하나와 — 중복 · 대체면 대신할 작업의 키, 더 이상 필요 없음 · 하지 않기로 함이면 이유 한 줄을 — 받아 EP-TASK-10으로 보낸다. WHEN 작업이 보관돼 있으면 THE SYSTEM SHALL 다음 행동 단추를 그리지 않고 보관됨 줄(사유 · 대신할 작업 링크 · 메모 · 누가 언제)과 **[복원]**(EP-TASK-11)을 보인다(2026-10-10 · 사람 결정 · clemvion 보고 — 대체된 중복을 정리할 길이 없었다) |
+| REQ-WEB-302 | WHEN 작업 보드를 그리면 THE SYSTEM SHALL 보관한 작업을 상태 레인에 담지 않고 `보관 보기`(`?archived_tasks=1`)를 켜면 레인 끝에 **보관함** 칸 하나를 두어 보관한 작업을 사유 · 대신할 작업과 함께 보인다(EP-TASK-01 `archived=only`). THE SYSTEM SHALL done 창을 여는 토글은 `지난 완료 보기`라 부른다 — 「보관」은 진행하지 않기로 치운 것에만 쓴다(2026-10-10 · 사람 결정 D2) |
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
@@ -1675,6 +1681,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 위임 명세 편집 | EP-TASK-05 `PATCH /api/v1/projects/{proj}/tasks/{task}` | 4요소: `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`(data-model §2.4). 충족 시 서버가 `ready` 승격 |
 | 사람 클레임 | EP-TASK-06 `POST /api/v1/projects/{proj}/tasks/{task}/claim` | `claim.agent_session_id` NULL — `nerv_task_claim`과 같은 서비스·같은 겹침 판정. **2026-09-06 배선**: 작업 상세의 [클레임]/[인계]/[포기]. 범위는 이 작업의 출처 스펙 하나이고 파일 글롭은 **비운다**(사람이 무엇을 만질지 서버가 추정하지 않는다) |
 | 상태 전이 | EP-TASK-09 `POST /api/v1/projects/{proj}/tasks/{task}/transition` | 서버 가드 거부 시 사유를 그대로 카드 툴팁으로 |
+| 작업 보관 · 복원 | EP-TASK-10 `POST …/tasks/{task}/archive` · EP-TASK-11 `POST …/tasks/{task}/restore` | 상세 머리의 [보관] · 보관됨 줄의 [복원] — 보관한 작업은 레인에서 빠지고 보관함 칸에만 보인다(REQ-WEB-301 · 302) |
 
 **하위 뷰: 작업 상세 패널** (`/p/:proj/tasks/:task`) — 보드 위 오버레이. 그림은 ui-wireframes에 없어 여기서 소유한다(§1.6).
 

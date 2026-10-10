@@ -89,9 +89,10 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
   // `ALTER TYPE … ADD VALUE` 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없다.
   // 42번째는 `notification_level` 이다(2026-09-27 · 0035 — all · important · none)
   // 43번째는 `claim_awaiting_kind` 다(2026-10-09 · 0046 — background · user · approval)
-  it('enum 43종이 생성된다 (§2.1)', async () => {
+  // 44번째는 `task_archive_reason` 이다(2026-10-10 · 0047 — duplicate · superseded · obsolete · wont_do)
+  it('enum 44종이 생성된다 (§2.1)', async () => {
     const count = await scalar(`SELECT count(*)::int FROM pg_type WHERE typtype = 'e'`);
-    expect(count).toBe(43);
+    expect(count).toBe(44);
   });
 });
 

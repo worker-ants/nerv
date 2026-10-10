@@ -583,3 +583,90 @@ describe('리뷰 면제 (REQ-WEB-299)', () => {
     expect(screen.queryByTestId('review-waiver-no-role')).toBeNull();
   });
 });
+
+describe('작업 보관 (REQ-WEB-301 · 302)', () => {
+  it('보관한 작업은 다음 행동 없이 사유 · 대신할 작업 · [복원]을 보인다', async () => {
+    detail = task({
+      status: 'ready',
+      archived_at: '2026-10-10T01:00:00Z',
+      archive_reason: 'duplicate',
+      superseded_by: 'CLV-T-BBBBBB',
+      archived_by_name: '도현',
+    });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    const notice = await screen.findByTestId('task-archived');
+    expect(notice.textContent).toContain(ko['task.archive.reason.duplicate']);
+    expect(notice.textContent).toContain('도현');
+    expect(screen.getByTestId('task-archived-replacement').textContent).toBe('CLV-T-BBBBBB');
+    // 잡거나 옮길 단추가 없다 — 보관도 두 번 하지 않는다
+    expect(screen.queryByTestId('claim-task')).toBeNull();
+    expect(screen.queryByTestId('task-archive-open')).toBeNull();
+    fireEvent.click(screen.getByTestId('task-restore'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]?.url).toContain('/projects/clemvion/tasks/CLV-T-AAAAAA/restore');
+  });
+
+  it('[보관]은 사유마다 필요한 칸을 받고 그 작업의 보관 경로로 보낸다', async () => {
+    detail = task({ status: 'backlog' });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    fireEvent.click(await screen.findByTestId('task-archive-open'));
+    // 중복이 기본이고 대신할 작업이 있어야 보낸다
+    expect(isLocked(screen.getByTestId('task-archive-submit'))).toBe(true);
+    fireEvent.change(screen.getByTestId('task-archive-replacement'), {
+      target: { value: 'CLV-T-BBBBBB' },
+    });
+    // 필요 없어짐은 대신할 작업 대신 이유 한 줄이다
+    fireEvent.click(screen.getByTestId('task-archive-reason-obsolete'));
+    expect(screen.queryByTestId('task-archive-replacement')).toBeNull();
+    expect(isLocked(screen.getByTestId('task-archive-submit'))).toBe(true);
+    fireEvent.click(screen.getByTestId('task-archive-reason-duplicate'));
+    fireEvent.click(screen.getByTestId('task-archive-submit'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({
+      method: 'POST',
+      body: { reason: 'duplicate', superseded_by: 'CLV-T-BBBBBB' },
+    });
+    expect(posted[0]?.url).toContain('/projects/clemvion/tasks/CLV-T-AAAAAA/archive');
+  });
+
+  it('남이 쥔 작업 · 역할이 없는 사람에게는 [보관]이 잠긴다', async () => {
+    detail = task({
+      status: 'in_progress',
+      claims: [
+        {
+          id: 'c1',
+          status: 'active',
+          user_id: 'someone-else',
+          agent_session_id: 's1',
+          lease_expires_at: '2099-01-01T00:00:00Z',
+        },
+      ],
+    });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    expect(isLocked(await screen.findByTestId('task-archive-open'))).toBe(true);
+    cleanup();
+    roles = ['qa'];
+    detail = task({ status: 'backlog' });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    expect(isLocked(await screen.findByTestId('task-archive-open'))).toBe(true);
+  });
+
+  it('보드의 「보관 보기」는 보관함 칸을 따로 연다', async () => {
+    lanes[''] = [
+      {
+        id: 't9',
+        key: 'CLV-T-OLD999',
+        title: '옛 중복',
+        status: 'backlog',
+        archived_at: '2026-10-10T01:00:00Z',
+        archive_reason: 'duplicate',
+        superseded_by: 'CLV-T-NEW999',
+      },
+    ];
+    renderAt('/p/clemvion/tasks?archived_tasks=1');
+    const lane = await screen.findByTestId('column-archived');
+    expect(await within(lane).findByText('옛 중복')).toBeDefined();
+    expect(lane.textContent).toContain('CLV-T-NEW999');
+    expect(screen.getByTestId('filter-archived').textContent).toBe(ko['tasks.filter.archived']);
+  });
+});

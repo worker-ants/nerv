@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.23 · 2026-10-04 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.24 · 2026-10-10 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.24 변경(2026-10-10 — 진행하지 않을 작업을 정리할 길이 없었다, clemvion 보고 · **사람 결정**): §2.4 `task` 에 보관 필드 여섯을 적는다. 보관은 상태와 따로 가는 표시다. 계약 정본은 [4.4 API](../04-mvp/api.md) REQ-API-284~286이다.
 >
 > v0.23 변경(2026-10-04 — 하위까지 보관, **사람 결정 R1**): `spec` 에 `archive_batch_id` 를 더한다. 한 보관 동작이 함께 보관한 문서를 묶어 복구가 그 묶음만 되살린다([4.3 DB 스키마](../04-mvp/database.md) REQ-DB-036).
 >
@@ -435,6 +437,10 @@ stateDiagram-v2
 | `spec_impact` | jsonb NULL | 완료 시 필수 선언: 영향 스펙 ID 목록 또는 `{"none": true}` |
 | `blocked_reason` | text NULL | |
 | `done_at` · `updated_at` | timestamptz | |
+| `archived_at` | timestamptz NULL | **보관**(2026-10-10) — 진행하지 않기로 한 작업. 상태와 따로 간다. 보관한 작업은 목록 · 작업 큐 · 클레임 · 의존 · 구현 현황에서 빠지고 사람이 복원한다 |
+| `archive_reason` | enum NULL | `duplicate / superseded / obsolete / wont_do` — 앞의 둘은 `superseded_by_task_id`, 뒤의 둘은 `archive_note`가 필수 |
+| `archive_note` · `superseded_by_task_id` | text NULL · uuid FK NULL | 보관의 이유 한 줄 · 대신할 작업(이 작업을 기다리던 의존이 그리로 옮겨 간다) |
+| `archived_by_user_id` · `archived_by_session_id` | uuid FK NULL | 보관한 사람 · 에이전트가 보관했으면 그 세션 |
 
 전이 규칙:
 

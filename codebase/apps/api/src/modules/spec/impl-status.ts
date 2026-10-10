@@ -66,7 +66,8 @@ export function evidenceExistsSql(reqAlias = 'r'): SQL {
   return sql`EXISTS (
     SELECT 1 FROM evidence e
      WHERE (e.requirement_id = ${ref}
-            OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${ref}))
+            OR e.task_id IN (SELECT t.id FROM task t
+                              WHERE t.source_requirement_id = ${ref} AND t.archived_at IS NULL))
        AND NOT e.stale
   )`;
 }
@@ -78,7 +79,8 @@ function signedEvidenceSql(reqAlias: string, currentOnly: boolean): SQL {
   return sql`EXISTS (
     SELECT 1 FROM evidence e
      WHERE (e.requirement_id = ${ref}
-            OR e.task_id IN (SELECT t.id FROM task t WHERE t.source_requirement_id = ${ref}))
+            OR e.task_id IN (SELECT t.id FROM task t
+                              WHERE t.source_requirement_id = ${ref} AND t.archived_at IS NULL))
        AND e.kind = 'test' AND e.verified_by IS NOT NULL AND NOT e.stale
        ${currentOnly ? sql`AND (${changedAt} IS NULL OR e.created_at >= ${changedAt})` : sql``}
   )`;
@@ -123,20 +125,25 @@ export function openCriticalSql(reqAlias = 'r'): SQL {
 }
 
 export async function recomputeImplStatus(db: Queryable, requirementId: string): Promise<void> {
+  // **보관한 작업은 세지 않는다**(2026-10-10 · REQ-API-286). 보관은 상태를 그대로 두므로, 세면 보관한 `in_review` 작업이
+  // 요구사항을 `in_progress` 에 붙잡고 보관한 backlog 작업이 `implemented` 를 영영 막는다. 작업이 모두 보관됐으면
+  // 작업이 하나도 없는 요구사항처럼 손대지 않는다(아래 가드) — 임포트가 정한 값을 중복 하나 보관한 일로 지우지 않는다
   const next = sql`(
          CASE
            WHEN EXISTS (
              SELECT 1 FROM task t
-              WHERE t.source_requirement_id = r.id
+              WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL
                 AND t.status IN ('claimed', 'in_progress', 'in_review')
            ) THEN 'in_progress'
            WHEN NOT EXISTS (
-             SELECT 1 FROM task t WHERE t.source_requirement_id = r.id AND t.status <> 'done'
+             SELECT 1 FROM task t
+              WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND t.archived_at IS NULL
            ) AND ${evidenceExistsSql()}
              AND ${verifiedEvidenceSql()}
              AND NOT ${openCriticalSql()} THEN 'verified'
            WHEN NOT EXISTS (
-             SELECT 1 FROM task t WHERE t.source_requirement_id = r.id AND t.status <> 'done'
+             SELECT 1 FROM task t
+              WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND t.archived_at IS NULL
            ) AND ${evidenceExistsSql()} THEN 'implemented'
            WHEN EXISTS (
              SELECT 1 FROM task t WHERE t.source_requirement_id = r.id AND t.status = 'done'
@@ -154,6 +161,8 @@ export async function recomputeImplStatus(db: Queryable, requirementId: string):
        -- 파생한다(2026-09-26 사람 결정). 발견이 열린 것으로는 풀리지 않는다(REQ-API-141)
        AND (r.impl_status <> 'verified'
             OR (r.statement_changed_at IS NOT NULL AND NOT ${verifiedEvidenceSql()}))
-       AND EXISTS (SELECT 1 FROM task t WHERE t.source_requirement_id = r.id)
+       -- 살아 있는 작업이 하나는 있어야 다시 파생한다 — 보관한 작업만 남았으면 작업이 없는 요구사항과 같다
+       AND EXISTS (SELECT 1 FROM task t
+                    WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL)
   `);
 }

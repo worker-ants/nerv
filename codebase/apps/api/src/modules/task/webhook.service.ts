@@ -123,8 +123,14 @@ export class WebhookService {
       };
     }
 
-    const { rows } = await this.db.execute<{ id: string }>(sql`
-      SELECT id FROM task WHERE project_id = ${input.projectId} AND key = ${taskKey}
+    const { rows } = await this.db.execute<{
+      id: string;
+      archived_at: unknown;
+      superseded_by: string | null;
+    }>(sql`
+      SELECT t.id, t.archived_at, sup.key AS superseded_by
+        FROM task t LEFT JOIN task sup ON sup.id = t.superseded_by_task_id
+       WHERE t.project_id = ${input.projectId} AND t.key = ${taskKey}
     `);
     const taskId = rows[0]?.id;
     if (taskId === undefined) {
@@ -134,6 +140,20 @@ export class WebhookService {
         matched_task: taskKey,
         evidence_id: null,
         skipped_reason: `${taskKey} 가 이 프로젝트에 없습니다.`,
+      };
+    }
+    // **보관한 작업에는 증적을 붙이지 않는다**(2026-10-10 · REQ-API-286). 200 으로 사유만 남긴다 — GitHub 배달 로그가
+    // 곧 확인 경로다. 대신할 작업으로 옮겨 붙이지는 않는다: 그 커밋이 정말 그 작업의 것인지는 사람이 본다
+    if (rows[0]?.archived_at != null) {
+      return {
+        ok: true,
+        event,
+        matched_task: taskKey,
+        evidence_id: null,
+        skipped_reason: text('webhook.skip.task_archived', {
+          key: taskKey,
+          superseded_by: rows[0]?.superseded_by ?? '-',
+        }),
       };
     }
 
