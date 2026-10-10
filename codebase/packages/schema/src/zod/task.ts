@@ -80,6 +80,11 @@ export const TaskUpdateInput = z
      * REQ-API-254). REST 는 주면 검사하고, 도구(`nerv_task_update`)는 본문을 고칠 때 반드시 받는다
      */
     base_hash: z.string().nullish(),
+    /**
+     * 읽은 위임 명세의 지문(`brief_hash`) — 주면 그 사이 네 칸이 바뀌었을 때 409 `stale_brief` 다(2026-10-10 ·
+     * REQ-API-282). REST 는 주면 검사하고, 도구는 위임 명세를 고칠 때 반드시 받는다
+     */
+    base_brief_hash: z.string().nullish(),
   })
   .strict();
 

@@ -104,8 +104,10 @@ allowed-tools:
   locator: "a1b2c3d", note: "로그인 오류 수정"}, {kind: "test", locator: "spec-concurrency.spec.ts"}]`.
 - 작업 중에 **이번 Task 밖의 별도 건**을 발견하면 `nerv_task_create`(`title` 필수, 그리고
   위임 명세 4요소 `goal_md`·`output_format_md`·`tools_sources_md`·`boundaries_md`)로
-  남긴다. 넷이 다 차야 서버가 `ready` 로 올리므로, 채우지 못하면 `backlog` 에 남아
-  사람이 마저 채운다 — **잊는 것보다 낫다.** 지금 하던 일을 그것 때문에 멈추지 않는다.
+  남긴다. 넷이 다 차야 서버가 `ready`로 올린다. 응답의 `delegation_missing`이 비어 있지 않으면
+  **같은 작업을 다시 만들지 않는다** — `nerv_task_update`(`task_id`, 빈 칸, `base_brief_hash`)로
+  채운다. `base_brief_hash`에는 응답의 `brief_hash`를 그대로 넣는다. 채울 것을 모르면 `backlog`에 남아 사람이 마저 채운다 — **잊는 것보다
+  낫다.** 지금 하던 일을 그것 때문에 멈추지 않는다.
 - 특정 Task 를 읽어야 하면 `nerv_task_get`(`task_id` — 키든 UUID든)이다.
   `nerv_task_next` 는 **지금 클레임할 수 있는 후보**만 준다.
 - 프로젝트에 무엇이 도는지 훑어야 하면 `nerv_task_list`(`status` 쉼표 목록 · `assignee` ·
@@ -126,7 +128,9 @@ allowed-tools:
   커밋 · PR · 코드 경로 증적이 붙은 작업의 코드 리뷰는 면제되지 않는다. 면제가 기록되면 같은 인자로 done을 다시 부른다.
 - **작업 본문을 고쳐야 하면** `nerv_task_update`(`task_id`, `body_md`, `base_hash`)를 부른다. `base_hash` 는
   `nerv_task_get` 이 준 `body_hash` 그대로다. `status` 없이 본문만 고칠 수 있다. 409 `stale_body` 면 그 사이
-  사람이 고친 것이다. 다시 읽고 그 위에 고친다(덮지 않는다).
+  사람이 고친 것이다. 다시 읽고 그 위에 고친다(덮지 않는다). **위임 명세 네 칸**(`goal_md`·`output_format_md`·
+  `tools_sources_md`·`boundaries_md`)도 같은 도구로 고친다. 그때는 `base_brief_hash`(`nerv_task_get`의
+  `brief_hash`)를 함께 주고, 409 `stale_brief`면 다시 읽고 그 위에 고친다. 넷이 다 차면 `ready`로 올라간다.
 - **`in_progress`·`in_review`·`done` 은 살아 있는 내 클레임이 있을 때만 부른다.**
   `NERV_LEASE_EXPIRED`(`details.kind` 가 `no_active_claim` 또는 `lease_expired`)가 오면
   `details.reclaimable` 을 본다 — `true` 면 `nerv_task_claim` 으로 다시 잡고 이어 간다.
