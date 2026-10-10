@@ -16,7 +16,6 @@
 
 import { Injectable } from '@nestjs/common';
 import {
-  CARRIED_OVER_LIMIT,
   ESCALATE_REASONS,
   FINDING_PAGE_LIMIT_DEFAULT,
   FINDING_PAGE_LIMIT_MAX,
@@ -169,14 +168,12 @@ export interface SubmitResult {
   findings_new: readonly string[];
   findings_merged: readonly string[];
   /**
-   * 이월된 미해결 — 이 리뷰가 아니라 **이 프로젝트**의 열린 발견이다. 발견 목록과 같은 순서(심각도 → 최근 → id)로
-   * `CARRIED_OVER_LIMIT` 건까지만 담는다(2026-09-28 · 사람 결정 D4 · REQ-API-242)
+   * 이월된 미해결 — 이 리뷰가 아니라 **이 프로젝트**의 열린 발견 전체 수다. 목록은 담지 않는다(2026-10-10 · 사람
+   * 결정 F1 · REQ-API-278). 필요하면 발견 목록(EP-REV-03 · `nerv_finding_list`)을 `branch` · `severity` 로 좁혀 읽는다
    */
-  carried_over: readonly { id: string; severity: string; title: string }[];
-  /** 프로젝트의 열린 발견 전체 수 */
   carried_over_total: number;
-  /** 나머지의 시작 — 발견 목록(EP-REV-03 `cursor` · `nerv_finding_list`)에 그대로 넘긴다. 다 담았으면 `null` */
-  carried_over_next_cursor: string | null;
+  /** 심각도별 수 — 셋을 더하면 `carried_over_total` 이다 */
+  carried_over_by_severity: { critical: number; warning: number; info: number };
   /** 프로젝트 전체에 열린 critical 이 있는가 — 뜻은 처음 그대로다(consistency 의 `BLOCK` 계승) */
   block: boolean;
   /**
@@ -418,9 +415,8 @@ export class ReviewService {
         merged_into_existing_session: !session.fresh,
         findings_new: created,
         findings_merged: mergedIds,
-        carried_over: carried.items,
         carried_over_total: carried.total,
-        carried_over_next_cursor: carried.nextCursor,
+        carried_over_by_severity: carried.bySeverity,
         block,
         ...(await this.roundBlock(tx, session.id)),
         task_id: session.taskId ?? null,
@@ -639,50 +635,38 @@ export class ReviewService {
   }
 
   /**
-   * 프로젝트의 열린 발견 — **앞의 `CARRIED_OVER_LIMIT` 건과 총수 · 다음 커서**(2026-09-28 · 사람 결정 D4 · REQ-API-242).
-   * 예전에는 LIMIT 없이 전부 돌려줘서 실측 18,653건이 매 제출 응답에 실렸다. 순서는 발견 목록(EP-REV-03)과 같아서
-   * 커서를 그 목록에 그대로 넘기면 51번째부터 이어진다. 커서의 시각은 문자열로 받는다 — `Date` 로 받으면
-   * 마이크로초가 잘려 같은 밀리초의 발견을 건너뛴다.
+   * 프로젝트의 열린 발견 — **총수와 심각도별 수**(2026-10-10 · 사람 결정 F1 · REQ-API-278).
+   *
+   * 처음에는 LIMIT 없이 전부 돌려줘서 실측 18,653건이 매 제출 응답에 담겼다. 앞의 50건과 커서로 줄였지만
+   * (2026-09-28 · D4) 그 50건은 이번 리뷰와 상관없는 프로젝트 전체의 발견이었고, 열린 critical 이 수백 건인
+   * clemvion 에서는 매번 같은 critical 50건(약 9KB)이었다. 이번 라운드의 판단 재료는 `round_block` ·
+   * `blocking_findings` 가 따로 준다. 목록이 필요하면 발견 목록을 필터로 좁혀 읽는다.
    */
   private async openFindings(
     tx: Tx,
     projectId: string,
   ): Promise<{
-    items: { id: string; severity: string; title: string }[];
     total: number;
-    nextCursor: string | null;
+    bySeverity: { critical: number; warning: number; info: number };
     hasCritical: boolean;
   }> {
     const { rows } = await tx.execute<{
-      id: string;
-      severity: string;
-      title: string;
-      created_at: string;
+      total: number;
+      critical: number;
+      warning: number;
+      info: number;
     }>(sql`
-      SELECT id, severity::text AS severity, title, created_at::text AS created_at FROM finding
-       WHERE project_id = ${projectId} AND status = 'open'
-       ORDER BY severity, created_at DESC, id
-       LIMIT ${CARRIED_OVER_LIMIT + 1}
-    `);
-    const { rows: counts } = await tx.execute<{ total: number; critical: number }>(sql`
       SELECT count(*)::int AS total,
-             count(*) FILTER (WHERE severity = 'critical')::int AS critical
+             count(*) FILTER (WHERE severity = 'critical')::int AS critical,
+             count(*) FILTER (WHERE severity = 'warning')::int AS warning,
+             count(*) FILTER (WHERE severity = 'info')::int AS info
         FROM finding WHERE project_id = ${projectId} AND status = 'open'
     `);
-    const page = rows.slice(0, CARRIED_OVER_LIMIT);
-    const last = page[page.length - 1];
+    const counts = rows[0] ?? { total: 0, critical: 0, warning: 0, info: 0 };
     return {
-      items: page.map(({ id, severity, title }) => ({ id, severity, title })),
-      total: counts[0]?.total ?? page.length,
-      nextCursor:
-        rows.length > CARRIED_OVER_LIMIT && last !== undefined
-          ? encodeFindingCursor({
-              severity: last.severity,
-              createdAt: last.created_at,
-              id: last.id,
-            })
-          : null,
-      hasCritical: (counts[0]?.critical ?? 0) > 0,
+      total: counts.total,
+      bySeverity: { critical: counts.critical, warning: counts.warning, info: counts.info },
+      hasCritical: counts.critical > 0,
     };
   }
 

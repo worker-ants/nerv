@@ -345,8 +345,7 @@ export const en = {
   'mcp.arg.finding_tag_filter':
     'Comma list. A finding matches if it has any of the tags (spec_drift and so on)',
   'mcp.arg.finding_branch_filter': 'Only findings last observed in a review of this branch',
-  'mcp.arg.finding_cursor':
-    'The next_cursor of the previous response, or carried_over_next_cursor from nerv_review_submit',
+  'mcp.arg.finding_cursor': 'The next_cursor of the previous response',
   'mcp.arg.commit_sha': 'commit that fixed the code (evidence); required for fixed',
   'error.review.empty_comment': 'Comments cannot be empty.',
   'error.spec.base_hash_required':
@@ -926,7 +925,7 @@ export const en = {
   'mcp.tool.after_comment': 'Right after addressing comments',
   'mcp.tool.after_draft': 'Any time after saving a draft and before submitting',
   'mcp.tool.before_resolve':
-    "When picking findings to resolve (the rest of a submit response, or a branch's findings)",
+    'When picking findings to resolve (a submit response only gives counts; narrow by branch or severity)',
   'mcp.tool.before_claim': 'Just before claiming',
   'mcp.tool.before_impl': 'Before starting implementation, before review',
   'mcp.tool.declare_relation': 'Declaring a relation after reading the documents',

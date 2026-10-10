@@ -1247,65 +1247,95 @@ describe('제출의 세션 · Task (REQ-API-238)', () => {
 });
 
 /**
- * 이월 발견의 상한과 나머지 (2026-09-28 · 사람 결정 D4 · REQ-API-242). 예전에는 프로젝트의 열린 발견을 LIMIT 없이
- * 전부 돌려줘서 실측 18,653건이 매 제출 응답에 실렸다. 앞의 50건과 총수 · 커서를 주고, 나머지는 발견 목록
- * (REST EP-REV-03 · MCP nerv_finding_list)에서 같은 커서로 이어 읽는다.
+ * 이월 발견은 수만 준다 (2026-10-10 · 사람 결정 F1 · F2 · REQ-API-278). 처음에는 프로젝트의 열린 발견을 전부, 그다음에는
+ * 앞의 50건과 커서를 돌려줬다(D4 · REQ-API-242). 그 50건은 이번 리뷰와 상관없는 프로젝트 전체의 발견이라 clemvion 에서는
+ * 매번 같은 critical 50건(약 9KB)이었다. 이제 총수와 심각도별 수만 주고, 목록은 발견 목록(REST EP-REV-03 · MCP
+ * nerv_finding_list)을 필터로 좁혀 읽는다. 다음 행동도 프로젝트 총수가 아니라 이번 라운드(`round_block`)가 정한다.
  */
-describe('이월 발견의 상한과 나머지 (REQ-API-242)', () => {
-  const many = (n: number, severity: 'critical' | 'warning' | 'info') =>
+describe('이월 발견은 수만 준다 (REQ-API-278)', () => {
+  const many = (n: number, severity: 'critical' | 'warning' | 'info', tag = '') =>
     Array.from({ length: n }, (_, i) => ({
       severity,
-      title: `${severity} 지적 ${i}`,
+      title: `${severity} 지적 ${tag}${i}`,
       body_md: '본문',
-      file: `src/f${severity}${i}.ts`,
+      file: `src/f${severity}${tag}${i}.ts`,
       line: i + 1,
       category: 'security',
     }));
+  const toolCtx = () =>
+    ({
+      projectId,
+      sessionId: agentSessionId,
+      principal: { userId, isAgent: true },
+    }) as unknown as ToolContext;
+  const tool = (name: string) => app.get(ReviewTools).tools.find((t) => t.name === name)!;
 
-  it('앞의 50건 · 총수 · 커서를 준다 — 커서로 이어 읽으면 빠짐도 겹침도 없다', async () => {
+  it('총수와 심각도별 수를 준다 — 목록과 커서는 담지 않는다', async () => {
     const result = await reviews.submit(
-      submitInput({ findings: [...many(3, 'critical'), ...many(52, 'warning')] }),
+      submitInput({
+        findings: [...many(3, 'critical'), ...many(52, 'warning'), ...many(2, 'info')],
+      }),
     );
-    expect(result.carried_over).toHaveLength(50);
-    expect(result.carried_over_total).toBe(55);
-    expect(result.carried_over_next_cursor).not.toBeNull();
-    // critical 이 먼저 온다 — 목록과 같은 순서다
-    expect(result.carried_over.slice(0, 3).every((f) => f.severity === 'critical')).toBe(true);
+    expect(result.carried_over_total).toBe(57);
+    expect(result.carried_over_by_severity).toEqual({ critical: 3, warning: 52, info: 2 });
+    expect(result).not.toHaveProperty('carried_over');
+    expect(result).not.toHaveProperty('carried_over_next_cursor');
     // 뜻은 그대로다 — 프로젝트에 열린 critical 이 있으면 참
     expect(result.block).toBe(true);
-
-    const rest = await reviews.findings({
-      projectId,
-      status: ['open'],
-      cursor: result.carried_over_next_cursor,
-    });
-    const ids = [
-      ...result.carried_over.map((f) => f.id),
-      ...rest.items.map((f) => String(f['id'])),
-    ];
-    expect(rest.items).toHaveLength(5);
-    expect(new Set(ids).size).toBe(55);
   });
 
-  it('다 담기면 커서가 없다', async () => {
-    const result = await reviews.submit(submitInput({ findings: many(2, 'info') }));
-    expect(result.carried_over_total).toBe(2);
-    expect(result.carried_over_next_cursor).toBeNull();
-    expect(result.block).toBe(false);
+  it('다음 행동은 이번 라운드가 정한다 — 다른 브랜치의 열린 발견으로 처분을 권하지 않는다', async () => {
+    const blocked = (await tool('nerv_review_submit').handler(
+      {
+        branch: 'feat/other',
+        base_sha: 'aaaa111',
+        head_sha: 'oth0001',
+        reviewer: { role: 'security' },
+        findings: [{ severity: 'critical', title: '다른 브랜치의 critical', file: 'src/o.ts' }],
+      },
+      toolCtx(),
+    )) as { round_block: boolean; next_actions: string[] };
+    expect(blocked.round_block).toBe(true);
+    expect(blocked.next_actions).toEqual(['nerv_finding_resolve']);
+
+    const clean = (await tool('nerv_review_submit').handler(
+      {
+        branch: 'feat/clean',
+        base_sha: 'aaaa111',
+        head_sha: 'cln0001',
+        reviewer: { role: 'security' },
+        findings: [],
+      },
+      toolCtx(),
+    )) as {
+      round_block: boolean;
+      block: boolean;
+      carried_over_total: number;
+      next_actions: string[];
+    };
+    expect(clean.round_block).toBe(false);
+    // 프로젝트에는 여전히 열린 critical 이 있다 — 그래도 이번 라운드를 막지 않으면 리뷰는 끝이다
+    expect(clean.block).toBe(true);
+    expect(clean.carried_over_total).toBe(1);
+    expect(clean.next_actions).toEqual([]);
   });
 
-  it('nerv_finding_list 가 같은 커서로 나머지를 준다 — 에이전트의 길이다', async () => {
-    const result = await reviews.submit(submitInput({ findings: many(53, 'warning') }));
-    const tool = app.get(ReviewTools).tools.find((t) => t.name === 'nerv_finding_list');
-    const ctx = { projectId, sessionId: null, principal: { userId } } as unknown as ToolContext;
-    const page = (await tool!.handler(
-      { cursor: result.carried_over_next_cursor, limit: 10 },
-      ctx,
-    )) as { items: { id: string }[]; next_cursor: string | null };
-    expect(page.items).toHaveLength(3);
-    expect(page.next_cursor).toBeNull();
-    const seen = new Set(result.carried_over.map((f) => f.id));
-    expect(page.items.every((f) => !seen.has(f.id))).toBe(true);
+  it('목록은 nerv_finding_list 로 읽는다 — 커서로 이어 읽으면 빠짐도 겹침도 없다', async () => {
+    await reviews.submit(submitInput({ findings: many(13, 'warning') }));
+    const list = tool('nerv_finding_list');
+    const first = (await list.handler({ limit: 10 }, toolCtx())) as {
+      items: { id: string }[];
+      next_cursor: string | null;
+    };
+    expect(first.items).toHaveLength(10);
+    expect(first.next_cursor).not.toBeNull();
+    const rest = (await list.handler({ limit: 10, cursor: first.next_cursor }, toolCtx())) as {
+      items: { id: string }[];
+      next_cursor: string | null;
+    };
+    expect(rest.items).toHaveLength(3);
+    expect(rest.next_cursor).toBeNull();
+    expect(new Set([...first.items, ...rest.items].map((f) => f.id)).size).toBe(13);
   });
 });
 

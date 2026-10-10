@@ -103,6 +103,18 @@ export const LEASE_HEARTBEAT_GRACE_SECONDS = HEARTBEAT_INTERVAL_SECONDS * 3;
 export const SESSION_STALE_SECONDS = 1800;
 
 /**
+ * `nerv_bootstrap` 이 돌려주는 규약 목록의 상한(2026-10-10 · 사람 결정 C1 · REQ-API-277).
+ *
+ * 규약 스펙(convention · vision)을 전부 담았더니 clemvion 은 API 카탈로그 사본 272편이 `convention` 이라
+ * 응답이 약 45KB 였다. 세션은 30분 쉬면 만료되고 다시 부를 때마다 그만큼 컨텍스트가 늘었다. Claude Code 는
+ * MCP 결과가 5만 자를 넘으면 파일로 돌리고 경로만 남기므로, 그 문턱을 넘으면 `session_id` 와 활성 클레임도
+ * 바로 보이지 않는다. 하위 규약은 꼭대기 한 줄로 접고(`descendants`), 꼭대기도 이만큼만 담는다. 나머지는
+ * `nerv_spec_tree`(`root`, `type=convention`, `depth=1`)로 한 단계씩 읽는다 — 트리 노드는 필드가 많아서 카탈로그
+ * 하위 트리를 한 번에 펼치면 다시 5만 자를 넘는다.
+ */
+export const CONVENTIONS_LIMIT = 50;
+
+/**
  * 월 파티션을 **몇 달 앞까지 미리 만들어 둘 것인가**(database.md §2.14).
  *
  * 0000 은 당월과 다음 달만 만든다. 그 뒤를 이어 만드는 주체가 없으면 마이그레이션 달
@@ -278,12 +290,6 @@ export const PAGE_LIMIT_MAX = 100;
 export const FINDING_PAGE_LIMIT_DEFAULT = 50;
 export const FINDING_PAGE_LIMIT_MAX = 200;
 
-/**
- * 리뷰 제출 응답의 `carried_over` 상한(2026-09-28 · 사람 결정 D4 · REQ-API-242). 이월된 발견은 프로젝트의 열린
- * 발견 전부라, 실측 18,653건이면 매 제출 응답이 수 MB 가 되어 에이전트가 읽지 못했다. 나머지는
- * `carried_over_next_cursor` 로 발견 목록(EP-REV-03 · `nerv_finding_list`)에서 이어 읽는다.
- */
-export const CARRIED_OVER_LIMIT = 50;
 /**
  * 게이트 판정 조회(EP-REV-08)가 종류마다 돌려주는 라운드 발견의 상한(2026-09-28 · REQ-API-247). 한 라운드의 발견은
  * 보통 수십 건이지만, 상한 없는 응답이 무엇을 낳는지는 `carried_over` 가 보여 줬다. 넘으면 `findings_total` 이
