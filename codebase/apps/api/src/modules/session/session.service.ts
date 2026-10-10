@@ -18,6 +18,7 @@ import {
   PLUGIN_COVERAGE_WINDOW_DAYS,
   SESSION_STALE_SECONDS,
   sessionEndReason,
+  STALE_SESSION_ADOPT_SECONDS,
   sessionState,
 } from '@nerv/schema';
 import {
@@ -40,6 +41,11 @@ import { EventService } from '../event/event.service.js';
 import { ClaimService } from '../task/claim.service.js';
 
 export type AgentKind = 'claude-code' | 'codex' | 'web' | 'other';
+
+/** 살아 있는 세션 상태 — `liveSessions` · 채택 · stale 전이의 SQL 이 보는 셋과 같다 */
+const LIVE_STATES: readonly string[] = ['pending', 'active', 'awaiting_input'];
+/** 채택이 되살릴 수 있는 상태 — 살아 있거나 stale 이다. 세션 종료 훅으로 끝난 세션은 고르지 않는다(REQ-API-079) */
+const ADOPTABLE_STATES: readonly string[] = [...LIVE_STATES, 'stale'];
 
 export interface BootstrapInput {
   projectId: string;
@@ -222,17 +228,22 @@ export class SessionService {
   async bootstrap(input: BootstrapInput): Promise<BootstrapResult> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     const agentTypeValue = assertVocab([input.agentType], agentType.enumValues, 'agent_type')[0];
-    const existing = await this.findResumable(input);
+    const found = await this.findResumable(input);
+    // **재개는 되살리는 것이다.** stale 로 쓸려 간 세션을 그대로 두고 `resumed: true` 만
+    // 돌려주면, 그 세션은 살아 있다고 말하면서 죽은 상태로 남는다 — 세션 추정(§1.4c)도
+    // 그 세션을 찾지 못해 에이전트가 bootstrap 과 실패를 무한히 오간다.
+    //
+    // **채택한 세션은 고른 뒤에 끝났으면 되살리지 않는다**(2026-10-10). 고르는 질의와 되살리는 쓰기 사이에 세션 종료
+    // 훅이 들어오면 끝난 세션이 다시 `active` 가 되고, 그 세션을 끝낼 훅은 다시 오지 않는다. 그때는 새 세션을 만든다.
+    // 재개(`resume_session_id` · external id)는 사람이나 하네스가 그 세션을 지목한 것이라 어느 상태든 되살린다.
+    const existing =
+      found === null
+        ? null
+        : (await this.revive(found.id, found.adopted ? ADOPTABLE_STATES : null))
+          ? found.id
+          : null;
 
     if (existing !== null) {
-      // **재개는 되살리는 것이다.** stale 로 쓸려 간 세션을 그대로 두고 `resumed: true` 만
-      // 돌려주면, 그 세션은 살아 있다고 말하면서 죽은 상태로 남는다 — 세션 추정(§1.4c)도
-      // 그 세션을 찾지 못해 에이전트가 bootstrap 과 실패를 무한히 오간다.
-      await this.db.execute(sql`
-        UPDATE agent_session
-           SET state = 'active', ended_at = NULL, end_reason = NULL, last_heartbeat_at = now()
-         WHERE id = ${existing} AND state <> 'active'
-      `);
       // **훅이 모르는 것을 여기서 채운다.** 훅 페이로드에는 branch·worktree·model 이 없어
       // 훅이 만든 세션은 신원 3요소(§1.4c)가 비어 있다 — 실측 2026-09-03: 실사용 세션
       // 34개 전부에서 셋이 NULL 이었고, 세션 카드가 "누구의 무엇"에 답하지 못했다.
@@ -331,6 +342,61 @@ export class SessionService {
        ORDER BY started_at DESC LIMIT 1
     `);
     return rows[0]?.id ?? null;
+  }
+
+  /**
+   * 훅이 온 stale 세션을 **되살린다**(2026-10-10 · 사람 결정 · REQ-API-279).
+   *
+   * 훅은 external id 로 세션을 찾고 상태를 보지 않는다 — 30분 쉬어 stale 이 된 세션에도 활동이 그대로 붙었지만 상태는
+   * stale 로 남아, 세션 추정이 그 세션을 찾지 못하고 MCP 도구가 `session_required` 를 받았다. 같은 external id 로 훅이
+   * 왔다는 것은 그 하네스 세션이 살아 있다는 뜻이다(bootstrap 의 재개와 같은 판단이다 — REQ-API-041). 회수된 클레임은
+   * 돌아오지 않는다. 세션 종료 훅으로 끝난 세션은 되살리지 않는다 — 늦게 도착한 비동기 훅일 수 있다.
+   */
+  async reviveFromHook(sessionId: string): Promise<void> {
+    await this.revive(sessionId, ['stale']);
+  }
+
+  /**
+   * 세션을 다시 `active` 로 — 재개(bootstrap) · 채택 · 훅이 같은 메서드를 쓴다(D-05). `onlyFrom` 이 있으면 그 상태일
+   * 때만 바꾼다. 바꿨으면 `true` 다.
+   *
+   * 이미 `active` 여도 하트비트는 새로 적는다(2026-10-10). 채택은 아직 쓸려 가지 않은 — 상태는 `active` 인데 하트비트가
+   * 30분을 넘긴 — 세션도 고른다. 하트비트를 그대로 두면 세션 추정이 그 세션을 찾지 못해 바로 다음 도구 호출이 다시
+   * `session_required` 가 된다.
+   *
+   * **살아 있지 않던 세션을 되살렸으면 `session.started` 를 낸다**(`resumed: true` · 2026-10-10 · REQ-API-279). 세션
+   * 보드는 세션 이벤트가 와야 다시 읽으므로, 내지 않으면 되살아난 세션이 새로 고칠 때까지 「무응답」으로 남는다.
+   */
+  private async revive(sessionId: string, onlyFrom: readonly string[] | null): Promise<boolean> {
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{ state: string; project_id: string; user_id: string }>(sql`
+        SELECT state::text AS state, project_id, user_id FROM agent_session
+         WHERE id = ${sessionId}
+         FOR UPDATE
+      `);
+      const row = rows[0];
+      if (row === undefined || (onlyFrom !== null && !onlyFrom.includes(row.state))) return false;
+      await tx.execute(sql`
+        UPDATE agent_session
+           SET state = 'active', ended_at = NULL, end_reason = NULL, last_heartbeat_at = now()
+         WHERE id = ${sessionId}
+      `);
+      if (!LIVE_STATES.includes(row.state)) {
+        await emit({
+          type: NERV_EVENT.SESSION_STARTED,
+          projectId: row.project_id,
+          subjectType: 'agent_session',
+          subjectId: sessionId,
+          actorUserId: row.user_id,
+          actorSessionId: sessionId,
+          isAgent: true,
+          fromState: row.state,
+          toState: 'active',
+          payload: { resumed: true },
+        });
+      }
+      return true;
+    });
   }
 
   /** SessionStart 훅의 additionalContext 재료 — "너는 지금 무엇을 쥐고 있나". */
@@ -972,10 +1038,19 @@ export class SessionService {
     }
   }
 
-  private async findResumable(input: BootstrapInput): Promise<string | null> {
+  private async findResumable(
+    input: BootstrapInput,
+  ): Promise<{ id: string; adopted: boolean } | null> {
+    // **지목한 세션은 자기 세션이어야 한다**(2026-10-10 · REQ-API-281). 두 갈래 모두 프로젝트만 보고 사람은 보지 않아서,
+    // 같은 프로젝트의 다른 멤버가 세션 id(세션 보드에 보인다)나 external id 하나로 남의 세션을 이어받을 수 있었다 —
+    // 이어받으면 그 세션 위에서 클레임하고, 세션 종료 훅이 남의 클레임까지 회수한다. 훅 쪽 조회(`findByExternalId`)는
+    // 2026-09 에 이미 같은 이유로 사람을 본다(D-08 — 신원은 토큰에서 온다). 세션 시작 훅이 세션 id 를 모델에게 알려 주고
+    // 스킬이 그것을 넘기게 되면서 이 길이 기본 경로가 됐다.
     if (input.resumeSessionId != null) {
       const { rows } = await this.db.execute<{ id: string }>(
-        sql`SELECT id FROM agent_session WHERE id = ${input.resumeSessionId} AND project_id = ${input.projectId}`,
+        sql`SELECT id FROM agent_session
+             WHERE id = ${input.resumeSessionId} AND project_id = ${input.projectId}
+               AND user_id = ${input.userId}`,
       );
       const id = rows[0]?.id;
       if (id === undefined) {
@@ -984,16 +1059,25 @@ export class SessionService {
           session_id: input.resumeSessionId,
         });
       }
-      return id;
+      return { id, adopted: false };
     }
     if (input.externalSessionId != null) {
-      const { rows } = await this.db.execute<{ id: string }>(sql`
-        SELECT id FROM agent_session
+      const { rows } = await this.db.execute<{ id: string; user_id: string }>(sql`
+        SELECT id, user_id FROM agent_session
          WHERE project_id = ${input.projectId} AND external_session_id = ${input.externalSessionId}
       `);
-      return rows[0]?.id ?? null;
+      const row = rows[0];
+      if (row === undefined) return null;
+      // 남의 external id 다 — 이어받지 않고, 새 세션을 만들 수도 없다((프로젝트, external id)가 유일하다). 재개 id 와 같은 거절이다
+      if (row.user_id !== input.userId) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.session.resume_not_found'), {
+          kind: 'not_found',
+        });
+      }
+      return { id: row.id, adopted: false };
     }
-    return this.adoptHookSession(input);
+    const adopted = await this.adoptHookSession(input);
+    return adopted === null ? null : { id: adopted, adopted: true };
   }
 
   /**
@@ -1028,6 +1112,11 @@ export class SessionService {
    */
   private async adoptHookSession(input: BootstrapInput): Promise<string | null> {
     if (input.cwd == null || input.cwd === '') return null;
+    // **stale 이 된 훅 세션도 채택한다**(2026-10-10 · 사람 결정 · REQ-API-079 개정). 살아 있는 세션만 보던 동안은
+    // 30분 쉬고 돌아온 에이전트가 bootstrap 을 다시 부르면 새 세션이 생겼다 — 훅은 external id 로 옛 세션을 계속
+    // 보므로 Stop 게이트가 새 세션의 클레임을 몰랐고, compact 뒤에는 둘 다 살아나 `session_ambiguous` 였다(재현).
+    // 살아 있는 세션이 먼저고, 없으면 stale 이 된 지 `STALE_SESSION_ADOPT_SECONDS` 안의 세션이다. 세션 종료 훅으로
+    // 끝난 세션(`complete` · `error`)은 고르지 않는다 — 그 하네스는 끝났다고 스스로 말했다.
     const { rows } = await this.db.execute<{ id: string }>(sql`
       SELECT s.id FROM agent_session s
        LEFT JOIN LATERAL (
@@ -1037,10 +1126,18 @@ export class SessionService {
        WHERE s.project_id = ${input.projectId} AND s.user_id = ${input.userId}
          AND s.external_session_id IS NOT NULL
          AND s.hostname = ${input.hostname} AND s.cwd = ${input.cwd}
-         AND s.state IN ('pending', 'active', 'awaiting_input')
-         AND coalesce(s.last_heartbeat_at, s.started_at)
-             > now() - ${sqlSeconds(SESSION_STALE_SECONDS)}
-       ORDER BY act.last_activity_at DESC NULLS LAST,
+         AND (
+               (s.state IN ('pending', 'active', 'awaiting_input')
+                AND coalesce(s.last_heartbeat_at, s.started_at)
+                    > now() - ${sqlSeconds(STALE_SESSION_ADOPT_SECONDS)})
+            OR (s.state = 'stale'
+                AND coalesce(s.ended_at, s.last_heartbeat_at, s.started_at)
+                    > now() - ${sqlSeconds(STALE_SESSION_ADOPT_SECONDS)})
+             )
+       ORDER BY (s.state IN ('pending', 'active', 'awaiting_input')
+                 AND coalesce(s.last_heartbeat_at, s.started_at)
+                     > now() - ${sqlSeconds(SESSION_STALE_SECONDS)}) DESC,
+                act.last_activity_at DESC NULLS LAST,
                 coalesce(s.last_heartbeat_at, s.started_at) DESC
        LIMIT 1
     `);

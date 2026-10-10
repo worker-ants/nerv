@@ -201,7 +201,7 @@ export const en = {
   'error.mcp.invalid_input':
     'The input does not match the schema. Check the fields listed in details and call again.',
   'error.mcp.no_session':
-    'No active session. Start or resume one with nerv_bootstrap. Sessions expire after 30 minutes of inactivity.',
+    'No active session. Start or resume one with nerv_bootstrap. Sessions expire after 30 minutes of inactivity. To resume, pass the NERV session id you got when the session started as resume_session_id.',
   'error.mcp.session_ambiguous':
     'This project has {count} active sessions. Specify one with session_id.',
   'error.mcp.pat_only': 'MCP accepts personal access tokens only.',
@@ -329,7 +329,8 @@ export const en = {
     "Your current sign-in couldn't be identified, so other devices can't be picked out.",
   'error.session.not_found': 'Session not found.',
   'error.session.not_owner': 'You do not own this session.',
-  'error.session.resume_not_found': 'No session to resume.',
+  'error.session.resume_not_found':
+    'No session to resume. Call again without resume_session_id to start a new session.',
   'error.spec.archive_blocked': 'This spec cannot be archived yet.',
   'error.review.spec_version_required':
     'A spec_change resolution needs the spec_version_id of what you changed.',
@@ -366,6 +367,8 @@ export const en = {
   'agent.no_claim': 'NERV: no active claim. Start with /nerv:next.',
   'agent.active_claims': 'NERV: active claims {claims}.',
   'agent.resume_claim': 'Continue this claim. Do not claim anything new.',
+  'agent.session_ref':
+    'Your NERV session id is {id} (use this one if you were given a different id earlier). If a NERV tool returns session_required after a break, call nerv_bootstrap with resume_session_id={id} to continue this session.',
   'agent.unfinished_claims': 'Claims not yet wrapped up: {keys}.',
   'agent.release_before_exit':
     'If the work is finished or you are leaving the session, record status with nerv_task_update and release with nerv_task_release before exiting.',

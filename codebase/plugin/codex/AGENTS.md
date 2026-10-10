@@ -28,3 +28,4 @@
 ## 막혔을 때
 - 스펙에 답이 없거나 경계를 벗어나면 추측하지 말고 `nerv_question_create` 로 선택지와 함께 질문한다.
 - 답변 대기 중에는 같은 멱등 키로 재호출해 폴링한다. 그동안 새 작업을 클레임하지 않는다.
+- 도구가 `session_required` 를 돌려주면 30분 동안 활동이 없어 세션이 만료된 것이다. 첫 `nerv_bootstrap` 응답의 `session_id` 를 `resume_session_id` 로 넘겨 다시 부른다. 회수된 클레임은 `nerv_task_claim` 으로 다시 잡는다.

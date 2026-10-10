@@ -206,7 +206,7 @@ export const ko = {
   'error.mcp.invalid_input':
     '입력이 스키마와 맞지 않습니다. details에 적힌 항목을 확인하고 다시 호출하세요.',
   'error.mcp.no_session':
-    '활성 세션이 없습니다. nerv_bootstrap으로 세션을 시작하거나 재개하세요. 30분 동안 활동이 없으면 세션이 만료됩니다.',
+    '활성 세션이 없습니다. nerv_bootstrap으로 세션을 시작하거나 재개하세요. 30분 동안 활동이 없으면 세션이 만료됩니다. 재개할 때는 세션을 시작할 때 받은 NERV 세션 id를 resume_session_id로 넘기세요.',
   'error.mcp.session_ambiguous':
     '이 프로젝트에 활성 세션이 {count}개 있습니다. session_id로 세션을 지정하세요.',
   'error.mcp.pat_only': 'MCP는 개인 토큰(PAT)으로만 호출할 수 있습니다.',
@@ -331,7 +331,8 @@ export const ko = {
     '지금 쓰는 로그인을 알 수 없어 다른 기기만 골라 끊을 수 없습니다.',
   'error.session.not_found': '세션을 찾을 수 없습니다.',
   'error.session.not_owner': '이 세션의 소유자가 아닙니다.',
-  'error.session.resume_not_found': '재개할 세션을 찾을 수 없습니다.',
+  'error.session.resume_not_found':
+    '재개할 세션을 찾을 수 없습니다. resume_session_id 없이 다시 호출하면 새 세션으로 시작합니다.',
   'error.spec.archive_blocked': '보관할 수 없습니다.',
   'error.review.spec_version_required':
     '스펙 정정 처분에는 고친 스펙 버전(spec_version_id)이 필요합니다.',
@@ -365,6 +366,8 @@ export const ko = {
   'agent.no_claim': 'NERV: 활성 클레임이 없다. /nerv:next로 시작한다.',
   'agent.active_claims': 'NERV: 활성 클레임 {claims}.',
   'agent.resume_claim': '새로 클레임하지 말고 이어서 진행한다.',
+  'agent.session_ref':
+    'NERV 세션 id는 {id}다(앞서 다른 id를 받았으면 이것을 쓴다). 쉬다 돌아와 NERV 도구가 session_required를 돌려주면 nerv_bootstrap에 resume_session_id={id}를 넘겨 이 세션을 이어 간다.',
   'agent.unfinished_claims': '아직 정리하지 않은 클레임이 있다: {keys}.',
   // **두 갈래다**(2026-10-09 · REQ-API-276). 해제만 말하던 동안 모델은 백그라운드 리뷰를 기다리는 중에도 클레임을
   // 풀었고, 작업이 ready로 돌아가 다른 세션이 가져갈 수 있었다(clemvion CLE-T-ZTTHXD)
