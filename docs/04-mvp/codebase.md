@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.03 · 2026-10-11 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.04 · 2026-10-11 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.04 변경(2026-10-11 — ingress-nginx 요청 ID 실측): **새 요구사항 없음 · §5.5 앞문 행과 그 아래 한 단락.** "문서화돼 있으나 실측하지 않았다"던 ingress-nginx 의 `X-Request-ID` 동작을 쟀다. 없으면 만들어 넘기고 자기 접근 로그 끝에도 같은 값을 남긴다. 받은 값은 모양을 보지 않고 그대로 넘기고, 응답에는 붙이지 않는다. kind 는 이 작업 환경에서 노드 안의 컨테이너를 띄우지 못했고 registry.k8s.io 이미지는 네트워크 정책으로 받지 못해, k3s 의 API 서버와 Docker Hub 의 ingress-nginx 빌드로 쟀다.
 >
 > v2.03 변경(2026-10-11 — 열한 번째 잡): **새 요구사항 없음 · §2.2 트리 한 줄.** `approval-reminder.job.ts` — 아직 결정되지 않은 결재를 요청 뒤 4시간 · 1일에 한 번씩 다시 알린다([4.4 API 명세](api.md) REQ-API-296). 하트비트 간격으로 돌고, 이미 낸 단계는 이벤트가 기억한다.
 >
@@ -1913,11 +1915,23 @@ server {
 | 요청 ID | `common/request-context.ts` | 받은 `X-Request-Id` 가 `[A-Za-z0-9._:-]{8,128}` 이면 그 값, 아니면 **`CF-Ray`**(같은 모양 검사 — Cloudflare 오류 화면의 Ray ID 로 찾는다 · REQ-CB-055), 둘 다 아니면 새로 만든다(개행·공백을 받으면 가짜 로그 줄을 끼워 넣을 수 있다). 응답 헤더로 되돌리고 CORS 노출 헤더에 든다([4.4](api.md) §1.3b) |
 | 로그 맥락 | `common/nerv-logger.ts` | 요청 안에서 남긴 모든 줄에 `[req=…]` 가 붙는다 — AsyncLocalStorage 가 요청 ID 를 들고 로거가 읽는다. 서비스 코드는 모른다(D-05) |
 | 형식 | `common/nerv-logger.ts` — `NERV_LOG_FORMAT` | `text`(기본 — 개발 루프) · `json`(컨테이너 배치 — compose·k8s 가 넘긴다). `json` 은 한 줄에 JSON 하나이고 고정 키는 `level`·`pid`·`timestamp`(epoch ms)·`message`·`context`·`stack`·`req_id` 다. 접근 로그는 여기에 `event: "access"` 와 필드를 펼친다 — 구조화 필드는 고정 키를 덮지 못한다 |
-| 앞문 | §5.4 | 받은 `X-Request-Id` 를, 없으면 `CF-Ray` 를, 그것도 없으면 `$request_id` 를 넘기고 자기 접근 로그에도 싣는다(`cf_ray=` 함께). k8s 의 API 호스트는 이 템플릿을 거치지 않는다 — ingress-nginx 는 기본 설정에서 `X-Request-ID` 를 만들어 넘기는 것으로 문서화돼 있으나 **이 저장소에서 실측하지 않았다.** 그렇게 하면 ingress 의 ID 가 `CF-Ray` 보다 먼저라 요청 ID 가 Ray ID 가 아니게 되는데, 그때도 `cf_ray` 필드로 찾는다 |
+| 앞문 | §5.4 | 받은 `X-Request-Id` 를, 없으면 `CF-Ray` 를, 그것도 없으면 `$request_id` 를 넘기고 자기 접근 로그에도 남긴다(`cf_ray=` 함께). k8s 의 API 호스트는 이 템플릿을 거치지 않는다 — ingress-nginx 는 기본 설정에서 받은 `X-Request-ID` 를 그대로, 없으면 32자리 16진수를 만들어 넘긴다(**2026-10-11 실측** — 아래 단락). 그래서 k8s 에서는 ingress 의 ID 가 `CF-Ray` 보다 먼저라 요청 ID 가 Ray ID 가 아닌데, 그때도 `cf_ray` 필드로 찾는다 |
 | 클라이언트 주소 | `common/client-ip.ts` — `NERV_TRUSTED_PROXIES` · `NERV_CLIENT_IP_HEADER` | ① api 에 직접 붙은 소켓이 신뢰 목록 밖이면 그 소켓(헤더는 무시) ② 설정한 헤더의 값이 IP 면 그 값 ③ 아니면 `X-Forwarded-For` 를 오른쪽부터 읽어 신뢰 hop 을 건너뛴 첫 주소 — 주소가 아닌 칸에서 멈춘다. 줄에 `ip_source`(`socket`·`header`·`xff`)가 실린다. `::ffff:` 로 감싼 IPv4 는 편다 |
 | MCP 도구 호출 | `mcp/tool-call-log.ts` — `tools/call` 마다 | `tools/call <도구> <ok 또는 코드> 소요 kind=… session=… ignored_args=…`. JSON-RPC 는 실패도 200 이라 접근 로그만으로는 전부 `POST /mcp 200` 이다 — 같은 `req_id` 로 이어진다. 인자 값·결과 본문·에러 문장은 싣지 않는다. 모르는 도구 이름은 `(unknown)` 이다(부르는 쪽이 적은 문자열이다). 수준은 접근 로그와 같은 결 — `UNAVAILABLE` 은 `error`, 권한·인증·쿼터는 `warn` |
 | 워커 잡 | `worker/job-log.ts` — 판마다 | `잡 <이름> 소요 <결과 수치…>` · 실패는 `잡 실패 [<이름>] 소요 — 원인`. 결과는 수치·참거짓만 싣는다. **할 일이 없던 판은 `debug`** — 기본 수준에서는 일을 한 판과 실패한 판만 보이고, "돌기는 하는가" 는 `NERV_LOG_LEVEL=debug` 로 연다 |
 | WebSocket | `modules/event/ws-log.ts` — 연결·거절·해제 | `ws <connect · reject · disconnect> sid=… user=… code=… rooms=… 소요`. 업그레이드는 socket.io 가 직접 받아 접근 로그에 닿지 않는다. 앞문이 업그레이드에 실은 `X-Request-Id` 가 연결의 ID 라 연결과 해제가 같은 `req_id` 다. 룸 참가는 거절만 기본 수준에서 보인다 |
+
+**ingress-nginx 의 요청 ID — 실측**(2026-10-11). 기본 설정(어노테이션 · ConfigMap 없음)의 컨트롤러 앞에 요청 헤더를 그대로 돌려주는 에코 서버를 두고 쟀다. ingress-nginx `1.12.1`(nginx `1.25.5`) · Docker Hub 의 Bitnami 빌드 · k3s `v1.31.6` 의 API 서버. kind 는 이 작업 환경에서 노드 안의 컨테이너를 띄우지 못했고(`runc create failed`) registry.k8s.io 이미지는 네트워크 정책이 막아, 컨트롤러를 노드 없이 API 서버에만 붙였다. 생성된 `nginx.conf` 는 `map $http_x_request_id $req_id`(없으면 `$request_id`)와 `proxy_set_header X-Request-ID $req_id` 다.
+
+| 들어온 요청 | upstream(api)이 받은 `X-Request-ID` | ingress 접근 로그의 마지막 칸 |
+|---|---|---|
+| 헤더 없음 | 요청마다 새 32자리 16진수(`b2d4cd00eb74dd93c8afa02e7d8811d1`) — api 의 모양 검사(`[A-Za-z0-9._:-]{8,128}`)를 지나 그대로 요청 ID 가 된다 | 같은 값 |
+| `X-Request-ID: abcd-1234-front` | 그대로 | 같은 값 |
+| `CF-Ray` 만 | 새 32자리 — `CF-Ray` 는 따로 그대로 넘어간다. 요청 ID 는 Ray ID 가 아니고 `cf_ray` 필드로 찾는다 | 새 값 |
+| 둘 다 | 받은 `X-Request-ID` | 받은 값 |
+| 공백이 든 값 | **그대로**(ingress 는 모양을 보지 않는다) — api 가 받지 않고 `CF-Ray` 나 새 ID 를 쓴다. 이때만 ingress 로그와 api 로그의 ID 가 다르다 | 받은 값 그대로 |
+
+응답에는 `X-Request-ID` 를 붙이지 않는다 — 브라우저가 보는 값은 api 가 되돌린 응답 헤더 하나다. 결론: k8s 배치에서도 ingress 접근 로그의 마지막 칸과 api 의 `req_id` 가 같은 값이라 두 로그를 잇는 데 설정을 더할 것이 없다.
 
 **싣지 않는 것**: 쿼리 문자열(라우트 템플릿만 — `/api/v1/projects/:proj/tasks`) · 요청·응답 본문 · `Authorization`·`Cookie`·`Idempotency-Key` · 이메일과 표시 이름(사람은 `user_id` 로만 가리킨다). 이 줄은 수집기로 흘러가고, 거기서 누가 읽을지는 이 저장소가 정하지 않는다.
 
