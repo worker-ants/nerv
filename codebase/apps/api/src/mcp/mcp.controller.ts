@@ -10,7 +10,17 @@
 // 이것이 가능한 이유는 **NERV 의 세션이 MCP 프로토콜 세션이 아니기 때문**이다 —
 // AgentSession 은 nerv_bootstrap 이 발급하고 PAT 에 묶이므로 리비전 변화의 영향을 받지 않는다.
 
-import { Body, Controller, Headers, Post, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Headers,
+  Post,
+  Req,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import { createTranslator, msg, negotiateLocale, renderMessage, NERV_ERROR } from '@nerv/schema';
 import type { Locale, Translator } from '@nerv/schema';
@@ -38,6 +48,45 @@ export const SUPPORTED_REVISIONS = [
 ] as const;
 
 export const LATEST_REVISION = SUPPORTED_REVISIONS[0];
+
+/** 헤더도 본문도 리비전을 대지 않을 때 — Streamable HTTP 가 그렇게 가정하라고 정한 값이다 */
+const FALLBACK_REVISION = '2025-03-26';
+
+type OnSendDone = (error: Error | null, payload?: unknown) => void;
+
+/** `fastify.addHook` 의 필요한 만큼 — apps/api 는 fastify 를 직접 의존하지 않는다 */
+export interface McpAcceptedHost {
+  addHook(
+    name: 'onSend',
+    hook: (request: never, reply: never, payload: never, done: never) => void,
+  ): unknown;
+}
+
+/**
+ * 알림(`id` 가 없는 JSON-RPC 메시지)에는 **202 · 본문 없음**으로 답한다 — Streamable HTTP 의
+ * 약속이다. 핸들러는 요청에 표시만 하고, 상태와 본문은 보내기 직전에 바꾼다 — Nest 가 핸들러의
+ * 상태를 `@HttpCode` 로 덮기 때문이다.
+ *
+ * 2026-10-11 실측(E06-S04 · agent-integration.md §2.6a): 200 과 본문 `null` 을 주던 동안 Codex 0.162.1 은
+ * `notifications/initialized` 의 응답을 JSON-RPC 메시지로 읽다 실패해 세 번 다시 붙고 포기했다 —
+ * 도구가 하나도 붙지 않았다. Claude Code 는 그 본문을 읽지 않아서 드러나지 않았다.
+ */
+export function registerMcpAccepted(host: McpAcceptedHost): void {
+  host.addHook('onSend', ((
+    request: { nervMcpAccepted?: boolean },
+    reply: { code(status: number): unknown; removeHeader(name: string): unknown },
+    payload: unknown,
+    done: OnSendDone,
+  ) => {
+    if (request.nervMcpAccepted !== true) {
+      done(null, payload);
+      return;
+    }
+    reply.code(HttpStatus.ACCEPTED);
+    reply.removeHeader('content-type');
+    done(null, '');
+  }) as never);
+}
 
 /**
  * 서버 instructions — 도구 정의는 지연 로딩되므로 검색 힌트로 쓰인다(2KB 에서 잘림).
@@ -86,7 +135,12 @@ export class McpController {
   async handle(
     @Body() body: JsonRpcRequest,
     @Headers('mcp-protocol-version') revisionHeader: string | undefined,
-    @Req() req: { nervPrincipal?: Principal; headers: Record<string, string | undefined> },
+    @Req()
+    req: {
+      nervPrincipal?: Principal;
+      nervMcpAccepted?: boolean;
+      headers: Record<string, string | undefined>;
+    },
   ): Promise<unknown> {
     // 에이전트가 보내는 Accept-Language 를 그대로 존중한다 — 헤더가 없으면 기본 로케일이다
     const locale = negotiateLocale(req.headers['accept-language'] ?? null);
@@ -105,20 +159,27 @@ export class McpController {
     }
 
     const revision = this.negotiate(revisionHeader);
+    // `id` 가 없으면 알림이다 — 무엇이든 받기만 하고 202 · 본문 없음으로 답한다(registerMcpAccepted).
+    // `notifications/initialized` 말고도 Claude Code 는 `roots` 를 선언하고 그 변경을 알린다.
+    // 배열(구 리비전의 일괄 요청)과 `method` 없는 본문은 알림이 아니다 — 지금처럼 아래에서 거절한다.
+    if (isNotification(body)) {
+      req.nervMcpAccepted = true;
+      return null;
+    }
     const id = body.id ?? null;
 
     switch (body.method) {
       case 'initialize':
         return jsonRpc(id, {
-          protocolVersion: revision,
+          // 첫 요청에서는 **본문이 리비전을 고른다** — 구 리비전 클라이언트는 이 요청에 헤더를
+          // 보내지 않는다(실측: Claude Code 2.1.296 은 2025-11-25 · Codex 0.162.1 은 2025-06-18 을
+          // 본문에만 넣었고, 서버는 2025-03-26 으로 깎아 답했다). 지원하는 값이면 그대로 돌려준다.
+          protocolVersion: this.negotiateInitialize(body.params, revision),
           // tools 만 선언한다 — resources·prompts 는 없다(tools-first)
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: 'nerv', version: '0.1.0' },
           instructions: INSTRUCTION_KEYS.map((key) => t(key)).join(' '),
         });
-
-      case 'notifications/initialized':
-        return null;
 
       case 'ping':
         return jsonRpc(id, {});
@@ -164,11 +225,24 @@ export class McpController {
   }
 
   /**
+   * **서버가 먼저 보내는 스트림은 없다** — 구 리비전 클라이언트가 `GET /mcp` 로 그 스트림을 열려고
+   * 하면 405 로 답한다. 그 리비전들이 "스트림을 주지 않는 서버" 에게 정한 답이다(최신 리비전은 GET
+   * 스트림을 없앴다). 2026-10-11 실측: Claude Code 2.1.296 은 2025-11-25 로 붙은 뒤 이 요청을 보냈고,
+   * 그전까지는 라우트가 없어 404 를 받았다.
+   */
+  @Get()
+  @HttpCode(HttpStatus.METHOD_NOT_ALLOWED)
+  @Header('Allow', 'POST')
+  noServerStream(): void {
+    // 본문 없음 — 상태와 Allow 헤더가 답이다
+  }
+
+  /**
    * 리비전 협상 — 헤더가 없으면 구 클라이언트로 보고 그쪽 리비전을 쓴다.
    * 최신 리비전은 헤더를 요구하지만, 없다고 400 을 내면 구 클라이언트가 통째로 막힌다.
    */
   private negotiate(header: string | undefined): string {
-    if (header === undefined || header === '') return '2025-03-26';
+    if (header === undefined || header === '') return FALLBACK_REVISION;
     const found = SUPPORTED_REVISIONS.find((r) => r === header);
     if (found === undefined) {
       throw new NervError(
@@ -181,6 +255,18 @@ export class McpController {
       );
     }
     return found;
+  }
+
+  /**
+   * `initialize` 의 리비전 — 본문의 `protocolVersion` 이 지원하는 값이면 그 값이다. 아니면
+   * 헤더로 고른 값(없으면 2025-03-26)을 준다 — 받아들일지는 클라이언트가 정한다.
+   */
+  private negotiateInitialize(
+    params: Record<string, unknown> | undefined,
+    fallback: string,
+  ): string {
+    const requested = params?.['protocolVersion'];
+    return SUPPORTED_REVISIONS.find((r) => r === requested) ?? fallback;
   }
 
   private async callTool(
@@ -426,6 +512,17 @@ function asObject(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object'
     ? (value as Record<string, unknown>)
     : { result: value };
+}
+
+/** JSON-RPC 알림 — `method` 는 있고 `id` 는 없는 객체 하나 */
+function isNotification(body: unknown): boolean {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    !Array.isArray(body) &&
+    !('id' in body) &&
+    typeof (body as JsonRpcRequest).method === 'string'
+  );
 }
 
 function jsonRpc(id: string | number | null, result: unknown): unknown {

@@ -358,6 +358,56 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect((body['result'] as Record<string, unknown>)['protocolVersion']).toBe('2025-03-26');
   });
 
+  // 2026-10-11 실측(E06-S04): 실제 클라이언트는 첫 요청에 헤더를 싣지 않고 본문에만 리비전을 넣는다 —
+  // Claude Code 2.1.296 은 2025-11-25, Codex 0.162.1 은 2025-06-18. 서버가 헤더만 보던 동안 둘 다
+  // 2025-03-26 으로 깎여 답을 받았다.
+  it('initialize 는 본문이 고른 리비전을 그대로 돌려준다 — 헤더가 없어도', async () => {
+    for (const revision of ['2025-11-25', '2025-06-18', '2025-03-26']) {
+      const { body } = await rpc('initialize', { protocolVersion: revision }, { revision: null });
+      expect((body['result'] as Record<string, unknown>)['protocolVersion']).toBe(revision);
+    }
+    // 모르는 값이면 서버가 받는 값을 준다 — 받아들일지는 클라이언트가 정한다
+    const { body } = await rpc('initialize', { protocolVersion: '2024-11-05' }, { revision: null });
+    expect((body['result'] as Record<string, unknown>)['protocolVersion']).toBe('2025-03-26');
+  });
+
+  // 200 과 본문 `null` 을 주던 동안 Codex 0.162.1 은 그 본문을 JSON-RPC 메시지로 읽다 실패해
+  // 핸드셰이크를 세 번 다시 하고 포기했다 — 도구가 하나도 붙지 않았다.
+  it('알림에는 202 · 본문 없음으로 답한다 — 무슨 알림이든', async () => {
+    for (const method of ['notifications/initialized', 'notifications/roots/list_changed']) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+          'mcp-protocol-version': '2025-11-25',
+        },
+        payload: { jsonrpc: '2.0', method },
+      });
+      expect(res.statusCode).toBe(202);
+      expect(res.body).toBe('');
+    }
+    // 배열(구 리비전의 일괄 요청)은 알림이 아니다 — 202 로 삼키면 보낸 쪽은 답을 기다리다 멈춘다
+    const batch = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      payload: [{ jsonrpc: '2.0', id: 1, method: 'ping' }],
+    });
+    expect(batch.statusCode).not.toBe(202);
+  });
+
+  it('GET 스트림은 열지 않는다 — 405 와 Allow: POST', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/mcp',
+      headers: { authorization: `Bearer ${token}`, accept: 'text/event-stream' },
+    });
+    expect(res.statusCode).toBe(405);
+    expect(res.headers['allow']).toBe('POST');
+  });
+
   it('모르는 리비전은 거부한다', async () => {
     const res = await app.inject({
       method: 'POST',

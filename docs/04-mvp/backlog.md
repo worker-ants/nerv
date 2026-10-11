@@ -3,6 +3,7 @@ id: SPC-MVP-BACKLOG
 status: approved
 updated: 2026-09-24
 referenced_by:
+  - 03-proposal/agent-integration.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
@@ -19,8 +20,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.76 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.77 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v2.77 변경(2026-10-11 — E06-S04 실측 리포트): §1.4 부분 구현 표의 E06-S04 칸. 리포트는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6a 에 있다. 남은 것은 2026-07-28 의 첫 요청 하나라 `부분` 은 그대로다.
+
 > v2.76 변경(2026-10-11 — E06-S03 스파이크 리포트): §1.4 부분 구현 표의 E06-S03 칸. 리포트는 [4.2 코드베이스와 배포](codebase.md) §6.3b 에 있다. 남은 것은 k8s Job 파드를 실제 클러스터에서 한 번 돌린 기록 하나라 `부분` 은 그대로다.
 
 > v2.75 변경(2026-10-11 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **md ↔ html 대조가 html 의 글자를 링크로 읽었다**를 적는다. 스토리 수 · `done` 수는 그대로다.
@@ -614,7 +617,7 @@ referenced_by:
 | ID | 들어온 것 | **남은 것** |
 | --- | --- | --- |
 | E06-S03 | 마이그레이션 파이프라인 양쪽 경로가 실제로 돈다 · **스파이크 리포트**([4.2 코드베이스와 배포](codebase.md) §6.3b — 신규 DB 와 지난 릴리스 세 시점의 기존 DB 에서 왕복 멱등, compose 경로 실행, 두 안 비교 · 선정 근거 · 롤백 절차) | **k8s Job 파드를 실제 클러스터에서 한 번 돌린 기록**(재시도 `backoffLimit` 포함) — 이 작업 환경에서는 파드 샌드박스가 뜨지 않아 API 서버까지만 쟀다. 다음 배포의 `kubectl -n nerv logs job/nerv-migrate` 한 줄이면 된다 |
-| E06-S04 | 리비전 협상·병행 서빙 코드 | Claude Code·Codex **두 클라이언트 실측 리포트** |
+| E06-S04 | 리비전 협상·병행 서빙 코드 · **두 클라이언트 실측 리포트**([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6a — Claude Code 2.1.296 은 2025-11-25, Codex 0.162.1 은 2025-06-18 로 협상해 각자 `nerv_bootstrap` 완주) · 실측이 찾은 결함 셋 수정([4.4 API](api.md) REQ-API-298 · 299 — 고치기 전에는 Codex 가 붙지 못했다) | **2026-07-28 의 첫 요청(`server/discover`)** — 서버에 없어 Claude Code 가 구 리비전으로 내려간다. 구현할지, 그때까지 지원 목록에서 뺄지 사람이 정한다 |
 | E06-S06 | degrade 경로·1024차원 검증 | **3프로필 지연 실측·한국어 질의 품질 비교·go/no-go 판정**([4.4 API](api.md)가 임베딩 p95 를 아직 보류로 둔다) |
 | E12-S07 | 플러그인 본체(규칙 표 · 검사기 · 훅 여섯 · 스킬 셋) · git · 서버 카탈로그 · 이 저장소 설정(`.ko-style.json` · `.claude/settings.json`) · L1(`ko-style.spec.ts`) · L2(`plugin.spec.ts`) · CI 게이트(`check-ko-style.mjs` · REQ-CB-058) · `claude plugin eval` 사례 셋(`evals/` · 평균 차이 +0.04 — [4.6](plugin.md) §7.7) | **Codex 매니페스트 · 훅** — 실측 뒤([4.6](plugin.md) §7.6) |
 
