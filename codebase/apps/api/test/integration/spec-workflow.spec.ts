@@ -997,17 +997,23 @@ describe('제출 권한 (REQ-API-139)', () => {
 });
 
 describe('E09-S03 지시자≠승인자 (D-06 · §2.3)', () => {
-  it('작성자는 자기 스펙을 승인할 수 없다', async () => {
+  // **planner 는 자기 스펙을 승인한다**(2026-10-11 — 사람 결정 · REQ-API-288). 세 축이 서는 직군 자리는
+  // 받은 요청 스위트(approval.spec.ts)가 본다 — 여기서는 예외가 감사에 남는지를 본다
+  it('planner 작성자는 자기 스펙을 승인한다 — 그 사실이 감사에 남는다', async () => {
     const { specId, versionId } = await newDraft('SPC-SELF');
     await raiseTier(specId, versionId);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
 
-    await expect(decideOn(versionId, planner, 'approve')).rejects.toMatchObject({
-      code: NERV_ERROR.FORBIDDEN,
-      // 이 사람은 요청자이자 작성자다 — 축은 요청자가 먼저다(작성자 축은 남이 제출한
-      // 경우에 뜻이 있고, 그 경우는 '제출과 승인' 스위트가 본다)
-      details: { kind: 'self_approval', self_kind: 'requester' },
+    await expect(decideOn(versionId, planner, 'approve')).resolves.toMatchObject({
+      decision: 'approve',
+      self_approved: true,
     });
+    const { rows } = await pool.query<{ payload: { self_kind?: string } }>(
+      `SELECT payload FROM event WHERE type = $1 AND payload->>'subject_id' = $2`,
+      [NERV_EVENT.APPROVAL_DECIDED, versionId],
+    );
+    // 이 사람은 요청자이자 작성자다 — 축은 요청자가 먼저다
+    expect(rows[0]?.payload?.self_kind).toBe('requester');
   });
 
   it('다른 사람은 승인할 수 있다', async () => {

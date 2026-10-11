@@ -11,7 +11,7 @@
 //   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
 //   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
 
-import { rolesWithScope } from '@nerv/schema';
+import { rolesWithScope, SELF_APPROVAL_ROLES } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
@@ -51,9 +51,20 @@ function hasAssigneeRole(userId: string): SQL {
   )`;
 }
 
-/** admin 인가 — 자기 승인 완화(2026-08-30 결정)와 역할 큐의 상위 문이다. */
+/** admin 인가 — 역할 큐의 상위 문이다(지정 · 직군 슬롯을 지난다). */
 export function isAdminSql(userId: string): SQL {
   return hasRole(userId, ['admin']);
+}
+
+/**
+ * **자기 결재를 승인할 수 있는 역할인가**(admin 2026-08-30 · planner 2026-10-11 사람 결정 · REQ-API-288).
+ *
+ * admin 의 상위 문(`isAdminSql`)과 다른 축이다 — planner 는 자기 결재의 세 축(요청자 · 작성자 · 작성
+ * 세션의 소유자)만 지나고, 지정 · 직군 슬롯은 그대로 지킨다. designer 자리의 결재를 planner 가 내리면
+ * 직군 교차라는 게이트의 뜻이 사라진다.
+ */
+export function selfApproverSql(userId: string): SQL {
+  return hasRole(userId, SELF_APPROVAL_ROLES);
 }
 
 /**
@@ -138,7 +149,7 @@ export function canApproveExpr(userId: string): SQL {
     AND ${notAlreadyApprovedSql(userId)}
     AND (
       ${notSelfSql(userId)}
-      OR ${isAdminSql(userId)}
+      OR ${selfApproverSql(userId)}
       OR ${otherApproverCountSql(userId)} = 0
     )
   )`;
@@ -164,6 +175,7 @@ export function canApproveReasonExpr(userId: string): SQL {
          AND NOT ${hasRole(userId, DECIDER_ROLES)} THEN 'missing_role'
     WHEN NOT ${notAlreadyApprovedSql(userId)} THEN 'already_approved'
     WHEN ${otherApproverCountSql(userId)} = 0 THEN NULL
+    WHEN ${selfApproverSql(userId)} THEN NULL
     WHEN a.requested_by_user_id = ${userId} THEN 'self_requested'
     WHEN sv.author_user_id = ${userId} THEN 'author'
     WHEN owner.user_id = ${userId} THEN 'session_owner'

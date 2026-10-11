@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.69 · 2026-10-10 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.70 · 2026-10-11 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.70 변경(2026-10-11 — 초안을 바로 승인한다, **사람 결정**): **새 테이블 · 열 · 마이그레이션 없음 — §2.9 `api_token.scopes` 주석 한 줄.** 권한 어휘가 11종이 됐다(`spec:approve`가 옵트인 토큰 권한으로 옮겨 왔다 · [4.4 API](api.md) REQ-API-291). 바로 승인은 있는 자리 — `event.actor_session_id`와 페이로드(`direct` · `via`) — 에 남는다.
 >
 > v0.69 변경(2026-10-10 — 진행하지 않을 작업을 정리할 길이 없었다, clemvion 보고 · **사람 결정**): **REQ-DB-040 신설 · §2.1 enum 43 → 44종(`task_archive_reason`) · §2.5 `task` 열 여섯과 CHECK 둘 · 마이그레이션 `0047`.** 작업 보관은 상태와 따로 가는 표시다 — 보관 시각 · 사유 · 메모 · 대신할 작업 · 보관한 사람(에이전트면 세션). 끝난 작업은 보관하지 않는다. 계약 정본은 [4.4 API](api.md) REQ-API-284~286이다.
 >
@@ -313,7 +315,7 @@ CREATE TABLE api_token (
   name         text NOT NULL,                          -- 예: "노트북 Claude Code"
   token_hash   bytea NOT NULL UNIQUE,                  -- 원문 미저장
   prefix       text NOT NULL,                          -- 앞 8자(식별·감사용)
-  scopes       text[] NOT NULL DEFAULT '{}',           -- 'spec:read' 'spec:draft' 'task:claim' … (AGENT_SCOPES 10종)
+  scopes       text[] NOT NULL DEFAULT '{}',           -- 'spec:read' 'spec:draft' 'task:claim' … (AGENT_SCOPES 11종)
   expires_at   timestamptz,
   revoked_at   timestamptz,
   last_used_at timestamptz,

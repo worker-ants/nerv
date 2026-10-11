@@ -7,13 +7,15 @@ import { EventModule } from '../event/event.module.js';
 import { SpecModule } from '../spec/spec.module.js';
 import { ApprovalController, ApprovalInboxController } from './approval.controller.js';
 import { ApprovalService } from './approval.service.js';
+// 세션에서 사람이 대답한 승인(nerv_spec_approve · A3 — 2026-10-11 사람 결정)
+import { ApprovalTools } from './approval.tools.js';
 import { QuestionService } from './question.service.js';
 import { QuestionTools } from './question.tools.js';
 
 @Module({
   imports: [EventModule, AuthModule, SpecModule],
   controllers: [ApprovalController, ApprovalInboxController],
-  providers: [ApprovalService, QuestionService, QuestionTools, ProjectAccessGuard],
+  providers: [ApprovalService, ApprovalTools, QuestionService, QuestionTools, ProjectAccessGuard],
   exports: [ApprovalService, QuestionService],
 })
 export class ApprovalModule {}

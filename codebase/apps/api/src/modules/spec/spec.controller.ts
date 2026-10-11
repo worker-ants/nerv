@@ -330,9 +330,10 @@ export class SpecController {
     });
   }
 
-  // 승인·거절 REST 는 **없다**(api.md §2.2). 전이는 EP-APR-03 `POST /approvals/{id}/decision`
-  // 한 경로다 — 결재 카드가 남고, 지시자≠승인자와 자기승인 완화가 거기서 판정되며,
-  // 결정과 문서 상태가 같은 트랜잭션에서 함께 움직인다(REQ-API-063).
+  // 승인·거절 REST 는 **여기 없다**(api.md §2.2). 전이는 결재의 결정(`ApprovalService.decideInTx`) 한 자리다 —
+  // 결재 카드(EP-APR-03 · 06)와 바로 승인(EP-SPEC-27 · 28 — 2026-10-11, approval.controller 에 있다)이 모두
+  // 그것을 부른다. 결재 행이 남고, 지시자≠승인자와 자기승인 완화가 거기서 판정되며, 결정과 문서 상태가
+  // 같은 트랜잭션에서 함께 움직인다(REQ-API-063).
   //
   // 예전에는 `POST specs/approve`·`specs/reject` 가 열려 있었고 문턱이 `requireHuman` 뿐이라
   // **결재를 거치지 않고** 문서를 확정할 수 있었다. 거절은 `project_id` 조차 보지 않아 다른

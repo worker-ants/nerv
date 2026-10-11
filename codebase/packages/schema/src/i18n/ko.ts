@@ -113,6 +113,8 @@ export const ko = {
   'error.approval.not_in_role_queue': '{role} 역할이 결재할 항목입니다.',
   'error.approval.bulk_limit': '한 번에 {max}건까지 결정할 수 있습니다.',
   'error.approval.bulk_not_eligible': '일괄 승인할 수 없는 항목입니다. 한 건씩 결정하세요.',
+  // 바로 승인(2026-10-11 · REQ-API-287)
+  'error.approval.direct_role': '바로 승인은 admin과 planner만 할 수 있습니다.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
   // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
   'error.approval.bypass_kind_forbidden':
@@ -649,6 +651,20 @@ export const ko = {
   'specs.arrange.toggle': '정리',
   'specs.arrange.pending_on': '결재 대기를 보는 동안에는 정리할 수 없습니다. 결재 대기를 끄세요.',
   'specs.pending_only': '결재 대기',
+  // 초안 바로 승인(2026-10-11 · REQ-WEB-304)
+  'specs.drafts_only': '초안 승인',
+  'specs.arrange.drafts_on': '초안 승인을 보는 동안에는 정리할 수 없습니다. 초안 승인을 끄세요.',
+  'specs.drafts.bar': '초안 바로 승인',
+  'specs.drafts.none': '바로 승인할 초안이 없습니다.',
+  'specs.drafts.hint':
+    '초안 {count}편이 있습니다. 고른 뒤 바로 승인하면 검토 요청과 승인을 한 번에 합니다.',
+  'specs.drafts.select_all': '보이는 초안 고르기',
+  'specs.drafts.approve': '바로 승인',
+  'specs.drafts.confirm_hint':
+    '검토 요청과 승인을 한 번에 합니다. 사전 검토에 막히거나 다른 승인자가 필요한 문서(T3)는 처리하지 않고 이유를 남깁니다.',
+  'specs.drafts.done': '{n}편을 승인했습니다.',
+  'specs.drafts.partial':
+    '승인 {n}편 · 다른 승인자를 기다림 {waiting}편 · 처리하지 못함 {failed}편',
   'specs.decide.bar': '한꺼번에 결재',
   'specs.decide.none': '지금 결정할 수 있는 검토 중 문서가 없습니다.',
   'specs.decide.hint': '결정할 수 있는 문서 {count}편이 남았습니다. 고른 뒤 승인하거나 거절합니다.',
@@ -808,6 +824,10 @@ export const ko = {
   'mcp.tool.attach':
     '디자인 시안·산출물을 스펙에 붙일 때. **이 도구를 두 번 부르고, 그 사이에 파일을 직접 올린다**: ① filename·content_type으로 부르면 upload_url을 준다 → ② 그 주소에 파일을 PUT 한다(헤더는 Content-Type만) → ③ attachment_id만 넣어 다시 불러 확정한다. 확정 응답의 url이 파일을 받는 주소다. 파일 내용을 이 도구의 인자로 넣지 않는다',
   'mcp.arg.attachment_id': '둘째 단계. 파일을 올린 뒤 이것만 넣어 다시 부른다(확정)',
+  'mcp.arg.approve_version':
+    '승인할 버전의 spec_version_id — 초안 저장 응답이나 nerv_spec_get(basis: "latest")이 준다',
+  'mcp.arg.seen_content_hash':
+    '사람에게 보여 준 버전의 content_hash. 그 뒤 본문이 바뀌었으면 승인하지 않고 거절한다',
   'mcp.arg.baseline':
     '기준선 이름 — 그 세트가 이 문서에 묶어 둔 버전을 읽는다. basis · version · task와 함께 줄 수 없다',
   'mcp.arg.basis':
@@ -943,6 +963,8 @@ export const ko = {
   'mcp.tool.hookless_fallback': '훅 없는 실행 환경의 폴백',
   'mcp.tool.on_transition': '상태 변화 시점(done 시도는 서버 게이트)',
   'mcp.tool.request_review': '초안 완료 후 사람 검토 요청',
+  'mcp.tool.approve_on_reply':
+    '사람이 이 세션에서 승인한다고 답했을 때 — 초안을 검토 요청과 승인 한 번으로 확정한다',
   'mcp.tool.session_end': '세션 종료·작업 전환·중단',
   'mcp.tool.spec_explore': '스펙 탐색 시작',
   'mcp.tool.start_work': '작업 착수',
@@ -1615,6 +1637,14 @@ export const ko = {
   'spec.impact_send': '검토 요청 보내기',
   'spec.impact_tasks': '파생 작업 {count}건. 기준 버전이 바뀌면 지시 재확인이 필요합니다',
   'spec.impact_title': '이 변경의 영향',
+  // 바로 승인(2026-10-11 · REQ-WEB-303)
+  'spec.direct_approve': '바로 승인',
+  'spec.direct_approve_dialog': '바로 승인 영향',
+  'spec.direct_approve_hint':
+    '검토 요청과 내 승인을 한 번에 합니다. 등급이 T3이면 다른 승인자 한 명이 더 승인해야 확정됩니다.',
+  'spec.direct_approve_send': '승인하기',
+  'spec.direct_approve_done': '승인했습니다({tier}).',
+  'spec.direct_approve_waiting': '승인을 남겼습니다. 다른 승인자 한 명이 더 승인해야 확정됩니다.',
   // 직전 버전과 견준 본문 크기 — 검토 요청 창 · 승인 카드(2026-10-08 · REQ-WEB-297 · 298)
   'spec.body_change.line': '직전 버전 v{n} 대비 · {detail}',
   'spec.body_change.shrunk_badge': '본문이 크게 줄었음',
@@ -2119,7 +2149,7 @@ export const ko = {
   'scope.desc.agent-session:launch': '에이전트 세션을 엽니다. 연결하려면 필요합니다',
   'scope.desc.spec:evidence': '요구사항에 검증 증적을 붙입니다(CI)',
   'scope.desc.import:write': '기존 문서를 가져옵니다',
-  'scope.desc.spec:approve': '스펙을 승인합니다',
+  'scope.desc.spec:approve': '에이전트 세션에서 사람이 대답으로 승인한 초안을 승인합니다',
   'scope.desc.approval:decide': '받은 요청을 결정합니다',
   'settings.tokens.revoke': '폐기',
   'settings.tokens.revoke_done': '토큰을 폐기했습니다. 바로 쓸 수 없게 됩니다.',

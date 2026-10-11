@@ -105,6 +105,8 @@ export const en = {
   'error.approval.not_in_role_queue': 'This approval belongs to the {role} queue.',
   'error.approval.bulk_limit': 'You can decide up to {max} items at once.',
   'error.approval.bulk_not_eligible': 'This item cannot be approved in bulk. Decide it on its own.',
+  // Direct approval (2026-10-11 · REQ-API-287)
+  'error.approval.direct_role': 'Only admins and planners can approve a draft directly.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.approval.bypass_kind_forbidden':
     'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
@@ -651,6 +653,21 @@ export const en = {
   'specs.arrange.pending_on':
     'You can’t arrange while viewing pending decisions. Turn off Awaiting my decision first.',
   'specs.pending_only': 'Awaiting my decision',
+  // Approving drafts now (2026-10-11 · REQ-WEB-304)
+  'specs.drafts_only': 'Drafts to approve',
+  'specs.arrange.drafts_on':
+    'You can’t arrange while viewing drafts to approve. Turn off Drafts to approve first.',
+  'specs.drafts.bar': 'Approve drafts now',
+  'specs.drafts.none': 'There are no drafts to approve.',
+  'specs.drafts.hint':
+    '{count} drafts. Select some and approve them now — this requests review and approves in one step.',
+  'specs.drafts.select_all': 'Select visible drafts',
+  'specs.drafts.approve': 'Approve now',
+  'specs.drafts.confirm_hint':
+    'Requests review and approves in one step. Documents that fail the pre-check or need another approver (T3) are left as they are, with the reason.',
+  'specs.drafts.done': 'Approved {n} documents.',
+  'specs.drafts.partial':
+    'Approved {n} · waiting for another approver {waiting} · not processed {failed}',
   'specs.decide.bar': 'Decide in bulk',
   'specs.decide.none': 'No documents in review are waiting for your decision.',
   'specs.decide.hint':
@@ -823,6 +840,10 @@ export const en = {
   'mcp.tool.attach':
     'Attaching a design mock or an output artifact to a spec. **Call this tool twice, uploading the file yourself in between**: (1) call with filename and content_type to get an upload_url, (2) PUT the file to that URL (Content-Type header only), (3) call again with just attachment_id to commit. The commit response includes the url for downloading the file. Never pass file contents as an argument to this tool',
   'mcp.arg.attachment_id': 'Second call: after uploading, call again with only this to commit',
+  'mcp.arg.approve_version':
+    'spec_version_id of the version to approve — the draft save response or nerv_spec_get (basis: "latest") gives it',
+  'mcp.arg.seen_content_hash':
+    'content_hash of the version you showed the person. If the body has changed since, the approval is refused',
   'mcp.arg.baseline_tree':
     'Baseline name. Returns only the documents in that baseline, at their baseline versions (nothing outside it)',
   'mcp.arg.baseline':
@@ -963,6 +984,8 @@ export const en = {
   'mcp.tool.hookless_fallback': 'Fallback for environments without hooks',
   'mcp.tool.on_transition': 'On a status change (moving to done is checked by the server gate)',
   'mcp.tool.request_review': 'Requesting human review once a draft is done',
+  'mcp.tool.approve_on_reply':
+    'When the person says in this session to approve — submits the draft for review and approves it in one step',
   'mcp.tool.session_end': 'Ending a session, switching tasks, stopping',
   'mcp.tool.spec_explore': 'Starting to explore specs',
   'mcp.tool.start_work': 'Starting work',
@@ -1648,6 +1671,15 @@ export const en = {
   'spec.body_change.shrunk_ack':
     'The body shrank sharply. The save confirmed it as an intended deletion. Check that what was dropped is right.',
   'spec.impact_title': 'Impact of this change',
+  // Approve now (2026-10-11 · REQ-WEB-303)
+  'spec.direct_approve': 'Approve now',
+  'spec.direct_approve_dialog': 'Approve now — impact',
+  'spec.direct_approve_hint':
+    'Requests review and records your approval in one step. If the tier is T3, one more approver is needed before it is final.',
+  'spec.direct_approve_send': 'Approve',
+  'spec.direct_approve_done': 'Approved ({tier}).',
+  'spec.direct_approve_waiting':
+    'Your approval is recorded. One more approver is needed before it is final.',
   'spec.mermaid_zoom_in': 'Zoom in',
   'spec.mermaid_zoom_out': 'Zoom out',
   'spec.mermaid_zoom_fit': 'Reset zoom',
@@ -2152,7 +2184,7 @@ export const en = {
   'scope.desc.agent-session:launch': 'Open agent sessions (required to connect)',
   'scope.desc.spec:evidence': 'Attach verification evidence to requirements (CI)',
   'scope.desc.import:write': 'Import existing documents',
-  'scope.desc.spec:approve': 'Approve specs',
+  'scope.desc.spec:approve': 'Approve a draft after the person approves it in the agent session',
   'scope.desc.approval:decide': 'Decide on inbox requests',
   'settings.tokens.revoke': 'Revoke',
   'settings.tokens.revoke_done': 'Token revoked. It can no longer be used.',

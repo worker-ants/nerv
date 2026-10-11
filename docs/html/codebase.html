@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v1.99 (2026-10-08)</span>
+      <span>버전 v2.00 (2026-10-11)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -278,7 +278,7 @@ overrides:
 
       <rect x="188" y="44" width="172" height="56" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="274" y="67" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">MCP 게이트웨이</text>
-      <text x="274" y="85" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">POST /mcp · nerv_* 26종</text>
+      <text x="274" y="85" text-anchor="middle" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">POST /mcp · nerv_* 27종</text>
 
       <rect x="372" y="44" width="158" height="56" rx="9" fill="var(--bg-elev)" stroke="var(--border-strong)"/>
       <text x="451" y="67" text-anchor="middle" fill="var(--text)" font-family="var(--font)" font-size="12.5" font-weight="700">ingest 컨트롤러</text>
@@ -413,7 +413,8 @@ overrides:
       approval-policy.ts      # 결재 판정 한 벌 — 3축·정족수·역할 큐가 같은 술어를 쓴다
       approval.controller.ts
       approval.module.ts
-      approval.service.ts     # 받은 요청 — 결정 · 지시자≠승인자 검사
+      approval.service.ts     # 받은 요청 — 결정 · 지시자≠승인자 검사 · 바로 승인(제출 + 내 결정)
+      approval.tools.ts       # MCP — nerv_spec_approve (A3 · 사람이 세션에서 대답한 승인)
       question.service.ts     # 질문 생성 · 폴링 · awaiting_input 전이
       question.tools.ts       # MCP — nerv_question_create
     auth/
@@ -536,7 +537,7 @@ overrides:
       <tr><td><code>SpecModule</code></td><td><code>spec</code> <code>spec_version</code> <code>requirement</code> <code>requirement_version</code> <code>spec_relation</code> <code>spec_comment</code> <code>change_request</code> <code>spec_baseline</code> <code>spec_baseline_item</code> <b><code>attachment</code></b></td><td><code>nerv_spec_tree</code> <code>nerv_spec_search</code> <code>nerv_spec_get</code>(P0) · <code>nerv_spec_draft_upsert</code> <code>nerv_spec_submit_review</code> <code>nerv_spec_check</code> <code>nerv_spec_comment_resolve</code>(P1)</td><td><code>…/projects/{p}/specs</code> · <code>…/projects/{p}/baselines</code></td></tr>
       <tr><td><code>TaskModule</code></td><td><code>task</code> <code>task_dependency</code> <code>claim</code> <code>evidence</code></td><td><code>nerv_task_next</code> <code>nerv_task_claim</code> <code>nerv_task_heartbeat</code> <code>nerv_task_release</code>(P0) · <code>nerv_task_update</code>(P1)</td><td><code>…/projects/{p}/tasks</code></td></tr>
       <tr><td><code>SessionModule</code></td><td><code>agent_session</code> <code>activity</code> <b><code>activity_summary</code></b></td><td><code>nerv_bootstrap</code>(P0) · <code>nerv_session_event</code>(P1)</td><td><code>…/projects/{p}/sessions</code> + <code>/ingest/hooks/*</code></td></tr>
-      <tr><td><code>ApprovalModule</code></td><td><code>approval</code> <code>question</code></td><td><code>nerv_question_create</code>(P1)</td><td><code>…/projects/{p}/approvals</code> · <code>…/questions</code></td></tr>
+      <tr><td><code>ApprovalModule</code></td><td><code>approval</code> <code>question</code></td><td><code>nerv_question_create</code> <code>nerv_spec_approve</code>(P1)</td><td><code>…/projects/{p}/approvals</code> · <code>…/questions</code></td></tr>
       <tr><td><code>ReviewModule</code></td><td><code>review_session</code> <code>reviewer_report</code> <code>finding</code> <code>finding_occurrence</code> <code>resolution</code> <b><code>finding_comment</code></b></td><td><code>nerv_review_submit</code> <code>nerv_finding_resolve</code></td><td><code>…/projects/{p}/reviews</code> 계열 7종</td></tr>
       <tr><td><code>EventModule</code></td><td><code>event</code> <code>notification</code></td><td>—</td><td><code>…/projects/{p}/events</code> + WebSocket · SSE(<code>/sse/*</code>)</td></tr>
       <tr><td><code>ImportModule</code></td><td>(소유 테이블 없음 — Spec·Task 계열에 소급 적재)</td><td>— (도구 없음 — <a href="importer.html">4.7 스펙 임포터</a> §3.6)</td><td><code>…/projects/{p}/import/*</code></td></tr>
@@ -545,7 +546,7 @@ overrides:
 
   <p><b>모듈이 소유하지 않는 넷</b>(2026-09-06 명시 — 예전에는 "29종 전수 배정" 이라 적고 실제로는 넷이 어느 모듈에도 없었다). <code>idempotency_key</code> 는 <b>횡단 인프라</b>라 <code>common/idempotency.*</code> 가 소유하고 모듈에 붙지 않는다(멱등은 표면의 성질이지 도메인의 성질이 아니다). <code>spec_chunk_embedding</code> 은 <b>파생 인덱스</b>라 소유자가 아니라 워커 잡(<code>embedding.job.ts</code>)이 갱신한다. 인증 인프라 3종(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>)은 better-auth 가 소유한다 — 우리 모듈이 읽지도 쓰지도 않는다. <b>넷은 도메인 33종 밖이고, 그래서 위 표의 검산 대상이 아니다.</b></p>
 
-  <p>합계 검산(2026-09-28 실측): <b>카탈로그 26종</b> = P0 8 · P1 15 · P2 3 — 정본은 <a href="agent-integration.html">3.4</a> §2.3 이고 MVP 범위(23종)는 <a href="scope.html">4.1</a> §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(<code>nerv_spec_get</code>의 <code>baseline</code>)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = <b>29종</b>.</p>
+  <p>합계 검산(2026-10-11 실측): <b>카탈로그 27종</b> = P0 8 · P1 16 · P2 3 — 정본은 <a href="agent-integration.html">3.4</a> §2.3 이고 MVP 범위(24종)는 <a href="scope.html">4.1</a> §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(<code>nerv_spec_get</code>의 <code>baseline</code>)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = <b>29종</b>.</p>
 
   <h3>2.4 표면별 규약</h3>
 

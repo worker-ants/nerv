@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { EVIDENCE_NOTE_MAX } from '../constants.js';
+import { BULK_DECISION_LIMIT } from './review.js';
 
 /**
  * 선언 관계 한 줄 — `refines`·`depends_on`·`duplicates`·`supersedes`.
@@ -90,6 +91,37 @@ export const SpecArrangeInput = z
   .object({
     parent_key: z.string().nullable(),
     keys: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
+
+/**
+ * EP-SPEC-27 — **바로 승인**(2026-10-11 사람 결정 · REQ-API-287). 초안을 검토 요청과 내 승인 한 번으로
+ * 확정한다. `seen_content_hash` 가 **필수**인 것이 결재 카드(EP-APR-03)와 다른 점이다 — 초안은 아직
+ * 가변이라 에이전트가 그 사이 고쳐 쓸 수 있고, 사람이 본 것과 승인되는 것이 같아야 한다.
+ */
+export const SpecDirectApproveInput = z
+  .object({
+    seen_content_hash: z.string().min(1),
+  })
+  .strict();
+
+/**
+ * EP-SPEC-28 — **일괄 바로 승인**(REQ-API-289). 항목마다 버전과 본 지문을 싣는다 — 받은 요청의 일괄
+ * 결정(EP-APR-06)과 같은 규율이고 상한도 같은 값이다.
+ */
+export const SpecDirectApproveBulkInput = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            version_id: z.string().min(1),
+            seen_content_hash: z.string().min(1),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(BULK_DECISION_LIMIT, 'error.approval.bulk_limit'),
   })
   .strict();
 

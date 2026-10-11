@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v1.99 · 2026-10-08 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.00 · 2026-10-11 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.00 변경(2026-10-11 — 세션에서 초안을 승인한다, **사람 결정**): **새 요구사항 없음 · §2.2 트리 한 줄 · §2.3 대응표 한 칸과 합계 검산 · 그림의 수.** `approval/approval.tools.ts` 가 MCP `nerv_spec_approve`(P1 · A3)를 낸다 — 판정은 결재 서비스 한 곳이다(D-05). 카탈로그는 27종(P0 8 · P1 16 · P2 3)이다([4.4 API 명세](api.md) REQ-API-291).
 >
 > v1.99 변경(2026-10-08 — 본문 축소 판정을 한 곳으로): **새 요구사항 없음 · §3.1 트리 한 줄.** `packages/schema/src/body-shrink.ts` — 초안 저장이 덮어쓸 본문을 크게 줄였는지 재는 `bodyChange`. 저장의 거절 · 사전 검토의 지적 · 검토 요청 창과 승인 카드의 표시가 같은 판정을 쓴다([4.4 API](api.md) REQ-API-270 · 271).
 >
@@ -398,7 +400,7 @@ REST·MCP·WebSocket·SSE가 **같은 도메인 서비스를 DI로 공유**한�
 flowchart TB
   subgraph SURF["표면 5종 — 번역만, 규칙 없음"]
     REST["REST 컨트롤러<br/>/api/v1/*"]
-    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 26종"]
+    MCP["MCP 게이트웨이<br/>POST /mcp · nerv_* 도구 27종"]
     WS["WS 게이트웨이<br/>/ws · 룸 join"]
     SSE["SSE 스트림<br/>GET /sse/* · 단방향"]
     ING["ingest 컨트롤러<br/>/ingest/hooks/* 5종"]
@@ -492,7 +494,8 @@ apps/api/src/
       approval-policy.ts      # 결재 판정 한 벌 — 3축·정족수·역할 큐가 같은 술어를 쓴다
       approval.controller.ts
       approval.module.ts
-      approval.service.ts     # 받은 요청 — 결정 · 지시자≠승인자 검사
+      approval.service.ts     # 받은 요청 — 결정 · 지시자≠승인자 검사 · 바로 승인(제출 + 내 결정)
+      approval.tools.ts       # MCP — nerv_spec_approve (A3 · 사람이 세션에서 대답한 승인)
       question.service.ts     # 질문 생성 · 폴링 · awaiting_input 전이
       question.tools.ts       # MCP — nerv_question_create
     auth/
@@ -612,7 +615,7 @@ apps/api/src/
 | `SpecModule` | `spec` `spec_version` `requirement` `requirement_version` `spec_relation` `spec_comment` `change_request` `spec_baseline` `spec_baseline_item` **`attachment`** | `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get`(P0) · `nerv_spec_draft_upsert` `nerv_spec_submit_review` `nerv_spec_check` `nerv_spec_comment_resolve`(P1) | `…/projects/{p}/specs` · `…/projects/{p}/baselines` |
 | `TaskModule` | `task` `task_dependency` `claim` `evidence` | `nerv_task_next` `nerv_task_claim` `nerv_task_heartbeat` `nerv_task_release`(P0) · `nerv_task_update`(P1) | `…/projects/{p}/tasks` |
 | `SessionModule` | `agent_session` `activity` **`activity_summary`** | `nerv_bootstrap`(P0) · `nerv_session_event`(P1) | `…/projects/{p}/sessions` + `/ingest/hooks/*` |
-| `ApprovalModule` | `approval` `question` | `nerv_question_create`(P1) | `…/projects/{p}/approvals` · `…/questions` |
+| `ApprovalModule` | `approval` `question` | `nerv_question_create` `nerv_spec_approve`(P1) | `…/projects/{p}/approvals` · `…/questions` |
 | `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` **`finding_comment`** | `nerv_review_submit` `nerv_finding_resolve` | `…/projects/{p}/reviews` 계열 7종 |
 | `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket · SSE(`/sse/*`) |
 | `ImportModule` | (소유 테이블 없음 — Spec·Task 계열에 소급 적재) | — (도구 없음 — [4.7 스펙 임포터](importer.md) §3.6) | `…/projects/{p}/import/*` |
@@ -621,7 +624,7 @@ apps/api/src/
 
 **모듈이 소유하지 않는 넷**(2026-09-06 명시 — 예전에는 "29종 전수 배정" 이라 적고 실제로는 넷이 어느 모듈에도 없었다). `idempotency_key` 는 **횡단 인프라**라 `common/idempotency.*` 가 소유하고 모듈에 붙지 않는다(멱등은 표면의 성질이지 도메인의 성질이 아니다). `spec_chunk_embedding` 은 **파생 인덱스**라 소유자가 아니라 워커 잡(`embedding.job.ts`)이 갱신한다. 인증 인프라 3종(`auth_session`·`auth_account`·`auth_verification`)은 better-auth 가 소유한다 — 우리 모듈이 읽지도 쓰지도 않는다. **넷은 도메인 33종 밖이고, 그래서 위 표의 검산 대상이 아니다.** 워크플로우 전이 검사 우회가 이 모듈에서만 열린다는 것이 그 대가이며, admin + `import:write` 권한이 그 문을 지킨다([4.4 API 명세](api.md) §2.10).
 
-합계 검산(2026-09-28 실측): **카탈로그 26종** = P0 8 · P1 15 · P2 3 — 정본은 [3.4](../03-proposal/agent-integration.md) §2.3 이고 MVP 범위(23종)는 [4.1](scope.md) §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
+합계 검산(2026-10-11 실측): **카탈로그 27종** = P0 8 · P1 16 · P2 3 — 정본은 [3.4](../03-proposal/agent-integration.md) §2.3 이고 MVP 범위(24종)는 [4.1](scope.md) §4.2 다. 예전에는 "P0 8 + P1 8 = 16종, 카탈로그 18종" 이라 적혀 있었다. 기준선은 새 도구 없이 기존 도구의 입력 확장(`nerv_spec_get`의 `baseline`)과 REST(EP-SPEC-11~14)로 노출된다. 테이블 5+9+4+2+2+5+2 = **29종**.
 
 ### 2.4 표면별 규약
 

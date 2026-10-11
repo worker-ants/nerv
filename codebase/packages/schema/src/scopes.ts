@@ -2,18 +2,23 @@
 //
 // `resource:action` 표기다. 두 가지가 이 파일의 존재 이유다.
 //
-//   ① **사람 전용 권한은 토큰에 부여 자체가 불가능하다.** `spec:approve` 와
-//      `approval:decide` 는 정책이 아니라 **시스템 불변식**이다(agent-integration §6.1 ④).
-//      "설정에서 끄면 되는 것"이 아니라 발급 경로에 존재하지 않아야 한다.
+//   ① **사람 전용 권한은 토큰에 부여 자체가 불가능하다.** `approval:decide` 는 정책이 아니라
+//      **시스템 불변식**이다(agent-integration §6.1 ④). "설정에서 끄면 되는 것"이 아니라 발급
+//      경로에 존재하지 않아야 한다. `spec:approve` 도 오래 이 자리에 있었는데, 2026-10-11 사람
+//      결정으로 **옵트인 토큰 권한**이 됐다 — 에이전트 세션에서 사람이 대답으로 승인하는
+//      `nerv_spec_approve`(A3) 하나만 이 권한을 본다. 권장 묶음에는 넣지 않고, 역할에 그 권한이
+//      없는 사람(admin · planner 밖)의 토큰에서는 검증할 때 교집합으로 빠진다.
 //   ② **MCP 도구 대응이 없는 권한이 셋 있다** — `import:write`(admin 전용 이관 표면) ·
-//      `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). 나머지 일곱이 도구 26종을
-//      덮는다. "도구 표와 1:1" 은 그 일곱에 대한 말이고, 이 셋은 REST 축이다(api.md §1.3).
+//      `spec:meta`(EP-SPEC-12·15~17) · `spec:evidence`(EP-REQ-03). 나머지 여덟이 도구 27종을
+//      덮는다. "도구 표와 1:1" 은 그 여덟에 대한 말이고, 이 셋은 REST 축이다(api.md §1.3).
 
 /** 토큰에 부여할 수 있는 권한. */
 export const AGENT_SCOPES = [
   'spec:read',
   'spec:draft',
   'spec:meta',
+  // 옵트인 — 사람이 세션에서 대답으로 승인할 때만 쓴다(nerv_spec_approve · A3). 권장 묶음에 없다
+  'spec:approve',
   'task:claim',
   'task:update',
   'review:submit',
@@ -47,8 +52,12 @@ export const AGENT_RECOMMENDED_SCOPES = [
 /**
  * 사람 전용 — 어떤 자율성 레벨에서도 토큰이 가질 수 없다.
  * 카탈로그에 대응 MCP 도구가 **존재하지 않는 것**이 설계다(agent-integration §2.1 원칙 3).
+ *
+ * `spec:approve` 는 여기 없다(2026-10-11 사람 결정). 결재 카드를 내리는 권한(`approval:decide`)은
+ * 그대로 사람 전용이고, 토큰의 `spec:approve` 는 **세션에서 사람이 대답한 승인**을 서버에 전하는
+ * 문 하나다 — 그 문은 클라이언트의 승인 창(A3)과 역할(admin · planner)을 함께 지나야 열린다.
  */
-export const HUMAN_ONLY_SCOPES = ['spec:approve', 'approval:decide'] as const;
+export const HUMAN_ONLY_SCOPES = ['approval:decide'] as const;
 
 export type HumanOnlyScope = (typeof HUMAN_ONLY_SCOPES)[number];
 
@@ -235,6 +244,32 @@ export const SPEC_APPROVER_ROLES: Readonly<Record<string, string>> = {
  * 있었고, 그러면 **작성자가 자기 초안을 승인**할 수 있었다(요청자만 비교했기 때문이다).
  */
 export const SPEC_SUBMIT_ROLES = ['admin', 'planner'] as const;
+
+/**
+ * **자기 결재를 승인할 수 있는 역할**(2026-10-11 사람 결정 · api.md REQ-API-288).
+ *
+ * 지시자≠승인자(spec-workflow §2.3)는 요청자 · 작성자 · 작성 세션의 소유자가 그 결재를 승인하지
+ * 못하게 한다. admin 은 2026-08-30 부터 예외였고, 이 결정으로 planner 도 예외가 됐다 — 기획자가
+ * 자기 세션이 쓴 초안을 그 자리에서 승인하는 것이 이 플랫폼의 주 경로라서다. 예외를 허용하는
+ * 것과 감추는 것은 다른 일이라 결정 이벤트에 `self_approved` 가 남는다. 정족수의 "서로 다른
+ * 사용자"(T3)는 이 목록과 상관없이 그대로다.
+ */
+export const SELF_APPROVAL_ROLES = ['admin', 'planner'] as const;
+
+/**
+ * **바로 승인을 할 수 있는가**(2026-10-11 · api.md REQ-API-287) — 초안을 검토 요청과 승인 한 번으로
+ * 확정하는 동작이다. 제출(`spec:approve` 를 가진 역할)과 결재(`approval:decide`)를 함께 하므로 둘 다
+ * 있어야 한다. 서버와 화면이 같은 식을 본다 — 화면이 역할 목록을 따로 적으면 두 벌이 된다.
+ */
+export function canDirectApprove(roles: readonly string[]): boolean {
+  const scopes = scopesForRoles(roles);
+  return scopes.has('spec:approve') && scopes.has('approval:decide');
+}
+
+/** 바로 승인을 할 수 있는 역할 — 잠긴 단추가 "누가 할 수 있는가" 를 말할 때 쓴다(위 식에서 파생한다) */
+export const DIRECT_APPROVE_ROLES: readonly string[] = Object.keys(ROLE_SCOPES).filter((role) =>
+  canDirectApprove([role]),
+);
 
 /**
  * **리뷰 종류마다 면제할 수 있는 역할**(2026-10-09 · api.md REQ-API-274). 정본은 spec-workflow §1.6 의 권한표다 —

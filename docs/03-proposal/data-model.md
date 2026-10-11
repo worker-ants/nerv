@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.24 · 2026-10-10 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.25 · 2026-10-11 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.25 변경(2026-10-11 — 초안을 바로 승인한다, **사람 결정**): §2.9 `api_token.scopes` 한 칸. 권한 어휘가 11종이 됐다 — `spec:approve`가 사람 전용에서 옵트인 토큰 권한으로 옮겨 왔고, 사람 전용은 `approval:decide` 하나다([4.4 API](../04-mvp/api.md) REQ-API-291).
 >
 > v0.24 변경(2026-10-10 — 진행하지 않을 작업을 정리할 길이 없었다, clemvion 보고 · **사람 결정**): §2.4 `task` 에 보관 필드 여섯을 적는다. 보관은 상태와 따로 가는 표시다. 계약 정본은 [4.4 API](../04-mvp/api.md) REQ-API-284~286이다.
 >
@@ -270,7 +272,7 @@ stateDiagram-v2
 | `name` | text | "노트북 Claude Code" 같은 사람용 라벨 |
 | `token_hash` | bytea | 원문 미저장 |
 | `prefix` | text | 앞 8자(식별·감사용) |
-| `scopes` | text[] | `spec:read`, `spec:draft`, `task:claim`, `task:update` … — 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES`(10종)이고, 사람 전용 둘(`spec:approve`·`approval:decide`)은 토큰이 가질 수 없다(2026-09-05 정정) |
+| `scopes` | text[] | `spec:read`, `spec:draft`, `task:claim`, `task:update` … — 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES`(11종)이고, 사람 전용 권한 `approval:decide`는 토큰이 가질 수 없다(2026-09-05 정정). `spec:approve`는 2026-10-11 부터 옵트인 토큰 권한이다 — 사람이 세션에서 대답한 승인을 전하는 도구 하나만 본다([4.4 API](../04-mvp/api.md) REQ-API-291) |
 | `expires_at` · `revoked_at` · `last_used_at` | timestamptz | |
 | `last_used_hostname` | text NULL | 마지막으로 쓰인 머신(`X-NERV-Host`, `0002`). 헤더 값이라 **신뢰하지 않으며 권한 판정이 아니라 표시 전용**이다 — 유출 판단의 첫 단서다(NFR-03) |
 

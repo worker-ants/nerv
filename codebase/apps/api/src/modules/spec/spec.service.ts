@@ -4,8 +4,9 @@
 // 본문이 동결된다(spec-workflow §1.2) — DB 트리거가 그것을 최종 강제한다(4.3 §2.13).
 // 승인된 버전을 고치는 유일한 경로는 새 draft 를 만드는 것이다.
 //
-// 에이전트는 **draft 까지만** 만들 수 있다. spec:approve 는 어떤 자율성 설정에서도 사람 전용이고
-// 카탈로그에 대응 도구가 처음부터 없다(agent-integration §2.1 원칙 3).
+// 에이전트는 **draft 까지만** 만들 수 있다. 승인은 사람이 한다 — 2026-10-11 부터 에이전트 세션에서도
+// 사람이 대답으로 승인할 수 있지만(`nerv_spec_approve` · A3 · 토큰의 옵트인 `spec:approve`), 그 판정은
+// 결재 쪽(`ApprovalService.approveDirect`) 한 곳이고 이 서비스는 전이만 한다(agent-integration §2.1 원칙 3).
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
@@ -92,6 +93,24 @@ import { SpecRelationService, extractLinkedKeys } from './spec-relation.service.
 import type { RelationSyncResult } from './spec-relation.service.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
+
+/** 검토 요청(EP-SPEC-10 · `nerv_spec_submit_review`)의 입력 — 바로 승인도 같은 입력으로 제출한다 */
+export interface SubmitReviewInput {
+  projectId: string;
+  specVersionId: string;
+  userId: string;
+  sessionId?: string | null;
+  /** 제출 권한의 축 — 표면이 실어 준다(2026-09-07 · REQ-API-139) */
+  roles?: readonly string[];
+}
+
+export interface SubmitReviewResult {
+  status: string;
+  gate: GateDecision;
+  approval_id: string | null;
+  /** 사람이 이어서 볼 곳 — 에이전트가 대화에 붙일 딥링크다(E10-S04) */
+  web_url: string;
+}
 
 /** 정렬 키의 폭과 간격 — 임포터의 `0` + 여섯 자리(`0000007`)와 같은 폭이다(REQ-API-265 · 266) */
 const SORT_KEY_WIDTH = 7;
@@ -1494,205 +1513,210 @@ export class SpecService {
    * T2·T3 은 승인 대기로 보낸다(D-06). 자동 통과 경로가 없으면 "버그 하나에 16개 인수 기준"
    * 비판을 그대로 실현하는 도구가 된다(§2.4).
    */
-  async submitReview(input: {
-    projectId: string;
-    specVersionId: string;
-    userId: string;
-    sessionId?: string | null;
-    /** 제출 권한의 축 — 표면이 실어 준다(2026-09-07 · REQ-API-139) */
-    roles?: readonly string[];
-  }): Promise<{
-    status: string;
-    gate: GateDecision;
-    approval_id: string | null;
-    /** 사람이 이어서 볼 곳 — 에이전트가 대화에 붙일 딥링크다(E10-S04) */
-    web_url: string;
-  }> {
-    return this.events.transact(async (tx, emit) => {
-      const { rows } = await tx.execute<{
-        id: string;
-        spec_id: string;
-        status: string;
-        spec_type: string;
-        author_user_id: string;
-      }>(sql`
-        SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type,
-               sv.author_user_id
-          FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
-         WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
-         FOR UPDATE OF sv
-      `);
-      const version = rows[0];
-      if (version === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.draft_not_found'), {
-          kind: 'not_found',
-        });
-      }
-      await this.requireLiveSpec(tx, input.projectId, version.spec_id);
-      if (version.status !== 'draft') {
-        throw new NervError(
-          NERV_ERROR.PRECONDITION,
-          msg('error.spec.not_draft', { status: version.status }),
-          {
-            kind: 'not_draft',
-            status: version.status,
-          },
-        );
-      }
+  async submitReview(input: SubmitReviewInput): Promise<SubmitReviewResult> {
+    return this.events.transact((tx, emit) => this.submitInTx(tx, emit, input));
+  }
 
-      // **제출은 작성자 본인 또는 planner·admin 이다**(2026-09-07 · REQ-API-139).
-      //
-      // 이 문이 없던 동안 아무나 남의 초안을 제출할 수 있었고, 그것이 지시자≠승인자 규칙의
-      // 구멍이었다: 남이 제출해 주면 요청자는 그 남이 되고 **작성자는 자기 초안을 승인**할
-      // 수 있었다. 세 축 판정(REQ-API-136)이 그 뒷문을 닫았고, 이 문은 앞문을 닫는다.
-      if (
-        version.author_user_id !== input.userId &&
-        !(input.roles ?? []).some((r) => (SPEC_SUBMIT_ROLES as readonly string[]).includes(r))
-      ) {
-        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.spec.submit_not_author'), {
-          kind: 'not_author',
-          author_user_id: version.author_user_id,
-          allowed_roles: SPEC_SUBMIT_ROLES,
-        });
-      }
+  /**
+   * 같은 제출을 **남의 트랜잭션 안에서** 한다 — 바로 승인(2026-10-11 · REQ-API-287)이 부르는 자리다.
+   *
+   * 바로 승인은 "검토 요청 + 내 승인" 이 한 번이어야 한다. 둘을 따로 부르면 그 사이의 실패(자기 승인
+   * 판정 · stale · 정족수)가 **아무도 승인하지 않은 검토 중 문서**를 남긴다 — 사람은 승인을 눌렀는데
+   * 받은 요청에 카드가 하나 생긴다. 판정은 제출과 한 벌이다: 사전 검토 · 등급 · 슬롯을 여기서 다시
+   * 적지 않는다(D-05).
+   *
+   * `direct` 가 다른 것은 둘뿐이다 — 자동 통과(T0 · T1)여도 **누른 사람을 승인자로 적고**(사람이 승인을
+   * 눌렀다는 사실이 참이다), 제출 이벤트에 `direct: true` 를 남긴다. 슬롯의 결정은 결재 쪽이 한다.
+   */
+  async submitInTx(
+    tx: Tx,
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: SubmitReviewInput & { direct?: { approverUserId: string } },
+  ): Promise<SubmitReviewResult> {
+    const { rows } = await tx.execute<{
+      id: string;
+      spec_id: string;
+      status: string;
+      spec_type: string;
+      author_user_id: string;
+    }>(sql`
+      SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type,
+             sv.author_user_id
+        FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+       WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
+       FOR UPDATE OF sv
+    `);
+    const version = rows[0];
+    if (version === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.draft_not_found'), {
+        kind: 'not_found',
+      });
+    }
+    await this.requireLiveSpec(tx, input.projectId, version.spec_id);
+    if (version.status !== 'draft') {
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.spec.not_draft', { status: version.status }),
+        {
+          kind: 'not_draft',
+          status: version.status,
+        },
+      );
+    }
 
-      // 사전 검토 — block 이 있으면 제출 자체가 막힌다(§1.2 전이 가드).
-      // clemvion 의 "쓰기 직전 consistency-check 의무"가 여기로 옮겨 온 것이다.
-      const check = await this.checks.check({
+    // **제출은 작성자 본인 또는 planner·admin 이다**(2026-09-07 · REQ-API-139).
+    //
+    // 이 문이 없던 동안 아무나 남의 초안을 제출할 수 있었고, 그것이 지시자≠승인자 규칙의
+    // 구멍이었다: 남이 제출해 주면 요청자는 그 남이 되고 **작성자는 자기 초안을 승인**할
+    // 수 있었다. 세 축 판정(REQ-API-136)이 그 뒷문을 닫았고, 이 문은 앞문을 닫는다.
+    if (
+      version.author_user_id !== input.userId &&
+      !(input.roles ?? []).some((r) => (SPEC_SUBMIT_ROLES as readonly string[]).includes(r))
+    ) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.spec.submit_not_author'), {
+        kind: 'not_author',
+        author_user_id: version.author_user_id,
+        allowed_roles: SPEC_SUBMIT_ROLES,
+      });
+    }
+
+    // 사전 검토 — block 이 있으면 제출 자체가 막힌다(§1.2 전이 가드).
+    // clemvion 의 "쓰기 직전 consistency-check 의무"가 여기로 옮겨 온 것이다.
+    const check = await this.checks.check({
+      projectId: input.projectId,
+      specVersionId: input.specVersionId,
+    });
+    if (check.verdict === 'block') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.check_blocked'), {
+        kind: 'precheck_blocked',
+        findings: check.findings.filter((f) => f.severity === 'block'),
+      });
+    }
+    // **직전 버전과 견준 크기를 결재 요청에 남긴다**(2026-10-08 · REQ-API-271 · REQ-WEB-298). 제출 뒤 본문은
+    // 동결되므로 지금 잰 값이 결재 때의 값이다. 승인 카드가 등급 근거처럼 이벤트에서 그대로 읽는다 — 용어 사전
+    // v4 는 34.7KB 가 484바이트가 된 채 승인됐는데 카드는 버전 번호와 변경 요약만 보여 줬다
+    const bodyChangePayload = check.body_change === null ? {} : { body_change: check.body_change };
+
+    const gate = await this.assessGate(
+      tx,
+      input.projectId,
+      version.spec_id,
+      version.spec_type,
+      input.specVersionId,
+      input.sessionId ?? null,
+    );
+
+    // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
+    await tx.execute(sql`
+      UPDATE spec_version
+         SET status = 'in_review', submitted_at = now(),
+             edit_lease_user_id = NULL, edit_lease_session_id = NULL, edit_lease_expires_at = NULL
+       WHERE id = ${input.specVersionId}
+    `);
+    await emit({
+      type: NERV_EVENT.SPEC_SUBMITTED,
+      projectId: input.projectId,
+      subjectType: 'spec_version',
+      subjectId: input.specVersionId,
+      subjectKey: await this.keyOfVersion(tx, input.specVersionId),
+      actorUserId: input.userId,
+      actorSessionId: input.sessionId ?? null,
+      isAgent: input.sessionId != null,
+      fromState: 'draft',
+      toState: 'in_review',
+      // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188)
+      payload: {
+        ...gateEventPayload(gate),
+        ...bodyChangePayload,
+        // 검토 요청과 승인이 한 번이었다는 사실 — 감사가 바로 승인을 셀 수 있어야 한다(REQ-API-287)
+        ...(input.direct === undefined ? {} : { direct: true }),
+      },
+    });
+
+    if (gate.autoPass) {
+      // T0·T1 — 승인 없이 approved. T1 은 24시간 이의제기 창이 열린다
+      await this.approveInTx(tx, emit, {
         projectId: input.projectId,
         specVersionId: input.specVersionId,
+        specId: version.spec_id,
+        // 바로 승인이면 누른 사람이 승인자다 — 등급이 사람을 요구하지 않았어도 사람이 승인을 눌렀다
+        approverUserId: input.direct?.approverUserId ?? null,
+        // 사람이 승인한 것은 아니지만 **누가 제출했는지는 안다**(REQ-API-128)
+        actor: {
+          userId: input.userId,
+          sessionId: input.sessionId ?? null,
+          isAgent: input.sessionId != null,
+        },
+        gate,
       });
-      if (check.verdict === 'block') {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.check_blocked'), {
-          kind: 'precheck_blocked',
-          findings: check.findings.filter((f) => f.severity === 'block'),
-        });
-      }
-      // **직전 버전과 견준 크기를 결재 요청에 남긴다**(2026-10-08 · REQ-API-271 · REQ-WEB-298). 제출 뒤 본문은
-      // 동결되므로 지금 잰 값이 결재 때의 값이다. 승인 카드가 등급 근거처럼 이벤트에서 그대로 읽는다 — 용어 사전
-      // v4 는 34.7KB 가 484바이트가 된 채 승인됐는데 카드는 버전 번호와 변경 요약만 보여 줬다
-      const bodyChangePayload =
-        check.body_change === null ? {} : { body_change: check.body_change };
+      return {
+        status: 'approved',
+        gate,
+        approval_id: null,
+        web_url: await this.webUrl(tx, input.projectId, version.spec_id),
+      };
+    }
 
-      const gate = await this.assessGate(
-        tx,
-        input.projectId,
-        version.spec_id,
-        version.spec_type,
-        input.specVersionId,
-        input.sessionId ?? null,
-      );
-
-      // 제출 = 본문 동결. 트리거가 이후 UPDATE 를 막는다(4.3 §2.13)
-      await tx.execute(sql`
-        UPDATE spec_version
-           SET status = 'in_review', submitted_at = now(),
-               edit_lease_user_id = NULL, edit_lease_session_id = NULL, edit_lease_expires_at = NULL
-         WHERE id = ${input.specVersionId}
-      `);
+    // T2·T3 — 승인 대기. 필요 수만큼 **슬롯**을 세우고, 남아 있는 대기 슬롯은 재사용한다(§2.5)
+    const cards = await this.ensurePendingApproval(tx, {
+      projectId: input.projectId,
+      specVersionId: input.specVersionId,
+      specType: version.spec_type,
+      requestedByUserId: input.userId,
+      requestedBySessionId: input.sessionId ?? null,
+      requiredApprovers: gate.requiredApprovers,
+    });
+    const approvalId = cards.approvalId;
+    // **슬롯마다 낸다**(2026-09-07). 알림 수신자는 그 결재 행의 지정·직군으로 정해지므로
+    // (`notification.service#approvalTargets`) 첫 슬롯만 이벤트를 내면 둘째 자리의 직군은
+    // 자기 카드가 생긴 것을 모른다 — 그 사람이 누르지 않으면 문서는 확정되지 않는다.
+    for (const slot of cards.created.length > 0 ? cards.created : [{ id: approvalId, role: null }])
       await emit({
-        type: NERV_EVENT.SPEC_SUBMITTED,
+        type: NERV_EVENT.APPROVAL_REQUESTED,
         projectId: input.projectId,
-        subjectType: 'spec_version',
-        subjectId: input.specVersionId,
-        subjectKey: await this.keyOfVersion(tx, input.specVersionId),
+        subjectType: 'approval',
+        subjectId: slot.id,
         actorUserId: input.userId,
         actorSessionId: input.sessionId ?? null,
         isAgent: input.sessionId != null,
-        fromState: 'draft',
-        toState: 'in_review',
-        // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188)
-        payload: { ...gateEventPayload(gate), ...bodyChangePayload },
+        payload: {
+          // 카드가 티어 곁에 근거를 그린다(§6.4 · REQ-API-188) — 배지만으로는 왜 사람이
+          // 불렸는지 모른다
+          ...gateEventPayload(gate),
+          ...bodyChangePayload,
+          required_approvers: cards.slots,
+          // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
+          // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다
+          ...(cards.relaxed ? { quorum_relaxed: true, quorum_wanted: gate.requiredApprovers } : {}),
+          ...(cards.slots > 1 && cards.roleSlot === null && SPEC_APPROVER_ROLES[version.spec_type]
+            ? { role_slot_fallback: SPEC_APPROVER_ROLES[version.spec_type] }
+            : {}),
+          ...(slot.role === null ? {} : { role_slot: slot.role }),
+        },
       });
 
-      if (gate.autoPass) {
-        // T0·T1 — 승인 없이 approved. T1 은 24시간 이의제기 창이 열린다
-        await this.approveInTx(tx, emit, {
-          projectId: input.projectId,
-          specVersionId: input.specVersionId,
-          specId: version.spec_id,
-          approverUserId: null,
-          // 사람이 승인한 것은 아니지만 **누가 제출했는지는 안다**(REQ-API-128)
-          actor: {
-            userId: input.userId,
-            sessionId: input.sessionId ?? null,
-            isAgent: input.sessionId != null,
-          },
-          gate,
-        });
-        return {
-          status: 'approved',
-          gate,
-          approval_id: null,
-          web_url: await this.webUrl(tx, input.projectId, version.spec_id),
-        };
-      }
+    // **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11).
+    //
+    // `awaiting_input` 을 세우는 자리는 질문 하나뿐이었다. 그래서 T2·T3 제출을 올린
+    // 에이전트 세션은 사람의 결재를 기다리는 동안 S5 에 **`active`** 로 보였다 — 화면은
+    // 일하고 있는 세션과 사람을 기다리는 세션을 구별하지 못했고, 그 구별이 P7 이 세우려던
+    // 것이다. 결정이 나면 `decide()` 가 되돌린다.
+    if (input.sessionId != null) {
+      await tx.execute(sql`
+        UPDATE agent_session SET state = 'awaiting_input'
+         WHERE id = ${input.sessionId} AND state IN ('pending', 'active')
+      `);
+    }
 
-      // T2·T3 — 승인 대기. 필요 수만큼 **슬롯**을 세우고, 남아 있는 대기 슬롯은 재사용한다(§2.5)
-      const cards = await this.ensurePendingApproval(tx, {
-        projectId: input.projectId,
-        specVersionId: input.specVersionId,
-        specType: version.spec_type,
-        requestedByUserId: input.userId,
-        requestedBySessionId: input.sessionId ?? null,
-        requiredApprovers: gate.requiredApprovers,
-      });
-      const approvalId = cards.approvalId;
-      // **슬롯마다 낸다**(2026-09-07). 알림 수신자는 그 결재 행의 지정·직군으로 정해지므로
-      // (`notification.service#approvalTargets`) 첫 슬롯만 이벤트를 내면 둘째 자리의 직군은
-      // 자기 카드가 생긴 것을 모른다 — 그 사람이 누르지 않으면 문서는 확정되지 않는다.
-      for (const slot of cards.created.length > 0
-        ? cards.created
-        : [{ id: approvalId, role: null }])
-        await emit({
-          type: NERV_EVENT.APPROVAL_REQUESTED,
-          projectId: input.projectId,
-          subjectType: 'approval',
-          subjectId: slot.id,
-          actorUserId: input.userId,
-          actorSessionId: input.sessionId ?? null,
-          isAgent: input.sessionId != null,
-          payload: {
-            // 카드가 티어 곁에 근거를 그린다(§6.4 · REQ-API-188) — 배지만으로는 왜 사람이
-            // 불렸는지 모른다
-            ...gateEventPayload(gate),
-            ...bodyChangePayload,
-            required_approvers: cards.slots,
-            // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
-            // 게이트가 있다고 믿는 사람에게 없는 게이트를 주는 것과 같다
-            ...(cards.relaxed
-              ? { quorum_relaxed: true, quorum_wanted: gate.requiredApprovers }
-              : {}),
-            ...(cards.slots > 1 && cards.roleSlot === null && SPEC_APPROVER_ROLES[version.spec_type]
-              ? { role_slot_fallback: SPEC_APPROVER_ROLES[version.spec_type] }
-              : {}),
-            ...(slot.role === null ? {} : { role_slot: slot.role }),
-          },
-        });
-
-      // **기다리는 세션은 기다린다고 말한다**(2026-09-07 · REQ-API-134 · FR-11).
-      //
-      // `awaiting_input` 을 세우는 자리는 질문 하나뿐이었다. 그래서 T2·T3 제출을 올린
-      // 에이전트 세션은 사람의 결재를 기다리는 동안 S5 에 **`active`** 로 보였다 — 화면은
-      // 일하고 있는 세션과 사람을 기다리는 세션을 구별하지 못했고, 그 구별이 P7 이 세우려던
-      // 것이다. 결정이 나면 `decide()` 가 되돌린다.
-      if (input.sessionId != null) {
-        await tx.execute(sql`
-          UPDATE agent_session SET state = 'awaiting_input'
-           WHERE id = ${input.sessionId} AND state IN ('pending', 'active')
-        `);
-      }
-
-      // T2·T3 은 받은 요청이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다. **그 카드로**
-      // 보낸다(2026-09-24 · REQ-API-177) — 맨 `/inbox` 는 첫 카드에 서서, 사람은 방금 에이전트가
-      // 말한 요청을 목록에서 다시 찾아야 했다
-      return {
-        status: 'in_review',
-        gate,
-        approval_id: approvalId,
-        web_url: this.inboxUrl(approvalId),
-      };
-    });
+    // T2·T3 은 받은 요청이 다음 목적지다 — 문서가 아니라 결정할 곳으로 보낸다. **그 카드로**
+    // 보낸다(2026-09-24 · REQ-API-177) — 맨 `/inbox` 는 첫 카드에 서서, 사람은 방금 에이전트가
+    // 말한 요청을 목록에서 다시 찾아야 했다
+    return {
+      status: 'in_review',
+      gate,
+      approval_id: approvalId,
+      web_url: this.inboxUrl(approvalId),
+    };
   }
 
   /**
@@ -1708,7 +1732,16 @@ export class SpecService {
   async approveInTxForApproval(
     tx: Tx,
     emit: Parameters<Parameters<EventService['transact']>[0]>[1],
-    input: { projectId: string; specVersionId: string; approverUserId: string },
+    input: {
+      projectId: string;
+      specVersionId: string;
+      approverUserId: string;
+      /**
+       * 에이전트 세션에서 사람이 대답으로 승인했으면 그 세션(2026-10-11 · REQ-API-291) — 승인한 사람은
+       * 여전히 그 사람이고, 이벤트가 어느 세션을 거쳤는지 남긴다
+       */
+      viaSessionId?: string | null;
+    },
   ): Promise<void> {
     const { rows } = await tx.execute<{ spec_id: string; status: string; spec_type: string }>(sql`
       SELECT sv.spec_id, sv.status::text AS status, s.type::text AS spec_type
@@ -1726,7 +1759,11 @@ export class SpecService {
       specVersionId: input.specVersionId,
       specId: version.spec_id,
       approverUserId: input.approverUserId,
-      actor: { userId: input.approverUserId, sessionId: null, isAgent: false },
+      actor: {
+        userId: input.approverUserId,
+        sessionId: input.viaSessionId ?? null,
+        isAgent: input.viaSessionId != null,
+      },
       // 제출 때의 판정을 옮겨 적는다 — 다시 계산하지 않는다(슬롯과 기록이 어긋나지 않게)
       gate: await this.submittedGate(tx, {
         projectId: input.projectId,
@@ -2802,7 +2839,25 @@ export class SpecService {
    * 받은 요청의 **그 카드** 주소 — 문서 주소(`webUrl`)와 같은 규칙으로 앞문을 붙인다. 예전에는 이
    * 자리만 `'/inbox'` 를 그대로 돌려줘, 배포에서도 터미널에 누를 수 없는 상대 경로가 찍혔다.
    */
-  private inboxUrl(approvalId: string): string {
+  /**
+   * 그 버전의 문서 주소 — 바로 승인의 응답이 쓴다(REQ-API-287). 승인됐으면 기본 주소(승인본)이고,
+   * 아직 검토 중이면 그 버전을 연다(`webUrl` 의 규칙 그대로).
+   */
+  async versionWebUrl(tx: Tx | NervDb, projectId: string, specVersionId: string): Promise<string> {
+    const { rows } = await tx.execute<{ spec_id: string; version_no: number }>(sql`
+      SELECT spec_id, version_no FROM spec_version WHERE id = ${specVersionId}
+    `);
+    const row = rows[0];
+    // 부르는 쪽은 방금 같은 트랜잭션에서 그 버전을 옮겼다 — 없으면 문서를 못 찾은 `webUrl` 과 같은 답이다
+    if (row === undefined) {
+      const base = process.env['NERV_WEB_URL'];
+      return base === undefined || base === '' ? '/' : `${base.replace(/\/$/, '')}/`;
+    }
+    return this.webUrl(tx, projectId, row.spec_id, Number(row.version_no));
+  }
+
+  /** 받은 요청의 그 카드 — 결정을 기다리는 곳이다(REQ-API-177) */
+  inboxUrl(approvalId: string): string {
     const path = `/inbox?focus=${approvalId}`;
     const base = process.env['NERV_WEB_URL'];
     return base === undefined || base === '' ? path : `${base.replace(/\/$/, '')}${path}`;

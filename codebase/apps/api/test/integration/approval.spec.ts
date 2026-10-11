@@ -303,7 +303,9 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
     ).resolves.toMatchObject({ decision: 'approve' });
   });
 
-  it('planner 는 자기 요청을 승인하지 못한다 — 규칙은 그대로다', async () => {
+  // **planner 도 자기 요청을 승인한다**(2026-10-11 — 사람 결정 · REQ-API-288). 기획자가 자기 세션이 쓴 초안을
+  // 그 자리에서 승인하는 것이 주 경로다. 예외를 허용하는 것과 감추는 것은 다른 일이라 감사에 남는다
+  it('planner 는 자기 요청을 승인한다 — 감사에 self_approved 가 남는다 (REQ-API-288)', async () => {
     const { approval_id } = await approvals.request({
       projectId,
       subjectType: 'plan',
@@ -316,6 +318,31 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
         projectId,
         approvalId: approval_id,
         userId: planner,
+        decision: 'approve',
+      }),
+    ).resolves.toMatchObject({ decision: 'approve', self_approved: true });
+    const { rows } = await pool.query<{ payload: { self_approved?: boolean; self_kind?: string } }>(
+      `SELECT payload FROM event WHERE subject_id = $1 AND type = $2`,
+      [approval_id, NERV_EVENT.APPROVAL_DECIDED],
+    );
+    expect(rows[0]?.payload).toMatchObject({ self_approved: true, self_kind: 'requester' });
+  });
+
+  it('직군 자리의 자기 요청은 그대로 막힌다 — 예외는 admin · planner 뿐이다', async () => {
+    // designer 자리(직군 슬롯)는 designer 가 내린다. 그 사람이 요청자이면 규칙이 선다 — 다른 승인자가 있다
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: designer,
+      assigneeRole: 'designer',
+    });
+    await expect(
+      approvals.decide({
+        actor: person(designer),
+        projectId,
+        approvalId: approval_id,
+        userId: designer,
         decision: 'approve',
       }),
     ).rejects.toMatchObject({
@@ -351,8 +378,23 @@ describe('자기 승인 — 두 가지 완화 (REQ-API-062)', () => {
       subjectId: newId(),
       requestedByUserId: planner,
     });
+    // planner 의 자기 요청은 누를 수 있다(REQ-API-288) — 그래도 자기 요청이라는 사실은 카드가 말한다
     const mine = (await projectInbox(planner, person(planner))).find((c) => c.id === approval_id);
-    expect(mine).toMatchObject({ self_requested: true, can_approve: false });
+    expect(mine).toMatchObject({ self_requested: true, can_approve: true });
+    // 직군 자리의 자기 요청은 잠긴다 — 이유와 함께
+    const { approval_id: slotId } = await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: designer,
+      assigneeRole: 'designer',
+    });
+    const locked = (await projectInbox(designer, person(designer))).find((c) => c.id === slotId);
+    expect(locked).toMatchObject({
+      self_requested: true,
+      can_approve: false,
+      can_approve_reason: 'self_requested',
+    });
 
     const others = (await projectInbox(reviewer, person(reviewer))).find(
       (c) => c.id === approval_id,
@@ -483,18 +525,24 @@ describe('결재가 남기는 사실 (REQ-API-128)', () => {
  * 되고, 작성자는 자기 초안을 자기 손으로 승인할 수 있었다.
  */
 describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
-  /** 남이 제출한 초안 — 요청자와 작성자가 다른 상황을 만든다 */
+  /**
+   * 남이 제출한 초안 — 요청자와 작성자가 다른 상황을 만든다.
+   *
+   * **결재는 designer 자리다**(2026-10-11). admin · planner 는 자기 결재를 승인할 수 있게 됐으므로(REQ-API-288)
+   * 세 축이 실제로 서는 곳은 직군 슬롯이다 — design 문서의 designer 자리가 그 자리다.
+   */
   async function draftSubmittedByOther(
     key: string,
     authorUserId: string,
     authorSessionId: string | null = null,
+    requestedBy: string = reviewer,
   ): Promise<{ versionId: string; approvalId: string }> {
     const created = await specs.draftUpsert({
       roles: ['planner'],
       projectId,
       key,
       title: key,
-      type: 'feature',
+      type: 'design',
       bodyMd: `# ${key}\n\n본문`,
       userId: authorUserId,
     });
@@ -511,24 +559,36 @@ describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
         WHERE id = $1`,
       [versionId],
     );
-    // 제출한 사람은 reviewer 다 — 요청자 축은 그 사람이 된다
+    // 제출한 사람은 reviewer 다 — 요청자 축은 그 사람이 된다. 자리는 designer 의 것이다
     const { approval_id } = await approvals.request({
       projectId,
       subjectType: 'spec_version',
       subjectId: versionId,
-      requestedByUserId: reviewer,
+      requestedByUserId: requestedBy,
+      assigneeRole: 'designer',
     });
     return { versionId, approvalId: approval_id };
   }
 
+  /** designer 가 소유한 에이전트 세션 — 세션 소유자 축을 보려면 그 사람의 세션이 있어야 한다 */
+  async function designerSession(): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'claude-code','mac-09','active')`,
+      [id, projectId, designer],
+    );
+    return id;
+  }
+
   it('남이 제출해 줘도 작성자는 자기 초안을 승인하지 못한다', async () => {
-    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-AUTHOR', planner);
+    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-AUTHOR', designer);
     await expect(
       approvals.decide({
-        actor: person(planner),
+        actor: person(designer),
         projectId,
         approvalId,
-        userId: planner,
+        userId: designer,
         decision: 'approve',
       }),
     ).rejects.toMatchObject({
@@ -539,10 +599,10 @@ describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
     // 거절·코멘트는 여전히 할 수 있다 — 막는 것은 승인뿐이다
     await expect(
       approvals.decide({
-        actor: person(planner),
+        actor: person(designer),
         projectId,
         approvalId,
-        userId: planner,
+        userId: designer,
         decision: 'comment',
         comment: '내가 쓴 것이지만 이 부분은 다시 본다',
       }),
@@ -553,14 +613,14 @@ describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
     const { approvalId } = await draftSubmittedByOther(
       'SPC-AXIS-SESSION',
       reviewer,
-      sessionId, // sessionId 의 소유자는 planner 다
+      await designerSession(), // 그 세션의 소유자는 designer 다
     );
     await expect(
       approvals.decide({
-        actor: person(planner),
+        actor: person(designer),
         projectId,
         approvalId,
-        userId: planner,
+        userId: designer,
         decision: 'approve',
       }),
     ).rejects.toMatchObject({
@@ -569,15 +629,59 @@ describe('지시자≠승인자 세 축 (REQ-API-136)', () => {
     });
   });
 
+  it('planner 는 자기 세션이 쓴 초안을 승인한다 — 2026-10-11 사람 결정 (REQ-API-288)', async () => {
+    // 기본 큐의 결재다(직군 자리가 아니다). 작성자는 reviewer, 그 초안을 쓴 세션의 주인은 planner 다
+    const created = await specs.draftUpsert({
+      roles: ['planner'],
+      projectId,
+      key: 'SPC-AXIS-PLANNER',
+      title: 'SPC-AXIS-PLANNER',
+      type: 'feature',
+      bodyMd: '# SPC-AXIS-PLANNER\n\n본문',
+      userId: reviewer,
+    });
+    const versionId = created['spec_version_id'] as string;
+    await pool.query(
+      `UPDATE spec_version SET author_session_id = $1, status = 'in_review', submitted_at = now(),
+              edit_lease_user_id = NULL, edit_lease_session_id = NULL, edit_lease_expires_at = NULL
+        WHERE id = $2`,
+      [sessionId, versionId],
+    );
+    const { approval_id } = await approvals.request({
+      projectId,
+      subjectType: 'spec_version',
+      subjectId: versionId,
+      requestedByUserId: reviewer,
+    });
+    await expect(
+      approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId: approval_id,
+        userId: planner,
+        decision: 'approve',
+      }),
+    ).resolves.toMatchObject({ decision: 'approve', self_approved: true });
+    const { rows } = await pool.query<{ payload: { self_kind?: string } }>(
+      `SELECT payload FROM event WHERE subject_id = $1 AND type = $2`,
+      [approval_id, NERV_EVENT.APPROVAL_DECIDED],
+    );
+    expect(rows[0]?.payload?.self_kind).toBe('session_owner');
+  });
+
   it('카드가 이유를 함께 준다 — 잠긴 단추에는 이유가 있어야 한다', async () => {
-    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-REASON', planner);
-    const mine = (await projectInbox(planner, person(planner))).find((c) => c.id === approvalId);
+    const { approvalId } = await draftSubmittedByOther('SPC-AXIS-REASON', designer);
+    const mine = (await projectInbox(designer, person(designer))).find((c) => c.id === approvalId);
     expect(mine).toMatchObject({ can_approve: false, can_approve_reason: 'author' });
 
-    const theirs = (await projectInbox(reviewer, person(reviewer))).find(
-      (c) => c.id === approvalId,
+    // 요청자 축 — designer 가 남의 초안을 제출했다
+    const { approvalId: requested } = await draftSubmittedByOther(
+      'SPC-AXIS-REASON-REQ',
+      reviewer,
+      null,
+      designer,
     );
-    // 요청자 축 — 제출한 사람은 reviewer 다
+    const theirs = (await projectInbox(designer, person(designer))).find((c) => c.id === requested);
     expect(theirs).toMatchObject({ can_approve: false, can_approve_reason: 'self_requested' });
   });
 });
@@ -1240,28 +1344,30 @@ describe('E13-S01 결정 — stale 승인 차단', () => {
   });
 
   it('요청자는 자기 요청을 승인할 수 없다 — 거절·코멘트는 할 수 있다', async () => {
+    // 직군 자리의 요청자다 — admin · planner 는 2026-10-11 부터 예외다(REQ-API-288)
     const { approval_id } = await approvals.request({
       projectId,
       subjectType: 'plan',
       subjectId: newId(),
-      requestedByUserId: planner,
+      requestedByUserId: designer,
+      assigneeRole: 'designer',
     });
     await expect(
       approvals.decide({
-        actor: { userId: planner, isAgent: false },
+        actor: person(designer),
         projectId,
         approvalId: approval_id,
-        userId: planner,
+        userId: designer,
         decision: 'approve',
       }),
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
 
     await expect(
       approvals.decide({
-        actor: { userId: planner, isAgent: false },
+        actor: person(designer),
         projectId,
         approvalId: approval_id,
-        userId: planner,
+        userId: designer,
         decision: 'comment',
       }),
     ).resolves.toBeDefined();
@@ -2310,9 +2416,19 @@ describe('REQ-API-217·218 받은 요청의 범위', () => {
       const row = scopes.items.find((r) => r['project_id'] === projectId);
       expect(row).toMatchObject({ org_slug: 'nerv', project_slug: 'clemvion' });
     }
-    // planner 는 자기가 요청한 것을 승인할 수 없다 — 수에는 있지만 누를 수 있는 수에서는 빠진다
-    const mine = await approvals.inboxScopes({ actor: person(planner), userId: planner });
-    const row = mine.items.find((r) => r['project_id'] === projectId)!;
+    // 직군 자리의 자기 요청은 누를 수 없다 — 수에는 있지만 누를 수 있는 수에서는 빠진다
+    // (admin · planner 의 자기 요청은 2026-10-11 부터 누를 수 있다 · REQ-API-288)
+    await approvals.request({
+      projectId,
+      subjectType: 'plan',
+      subjectId: newId(),
+      requestedByUserId: designer,
+      assigneeRole: 'designer',
+    });
+    const scopes = await approvals.inboxScopes({ actor: person(designer), userId: designer });
+    const inbox = await approvals.inboxGlobal({ actor: person(designer), userId: designer });
+    expect(scopes.total).toEqual({ pending: inbox.total, actionable: inbox.actionable_total });
+    const row = scopes.items.find((r) => r['project_id'] === projectId)!;
     expect(Number(row['pending'])).toBeGreaterThan(Number(row['actionable']));
   });
 
@@ -2757,7 +2873,10 @@ describe('받은 요청의 쪽 넘김 (REQ-API-166)', () => {
  * 한가운데 끼어 누를 수 있는 카드를 뒤 쪽으로 밀어냈다.
  */
 describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)', () => {
-  /** planner 가 볼 대기 — 잠긴 것(자기 요청)은 **더 오래** 기다린 것으로 심는다 */
+  /**
+   * designer 가 볼 대기 — 잠긴 것(자기 요청)은 **더 오래** 기다린 것으로 심는다. 자리는 designer 의 것이다:
+   * admin · planner 의 자기 요청은 2026-10-11 부터 누를 수 있어(REQ-API-288) 잠기는 것은 직군 자리뿐이다.
+   */
   async function seedMixed(): Promise<{ open: string[]; locked: string[] }> {
     const open: string[] = [];
     const locked: string[] = [];
@@ -2766,9 +2885,9 @@ describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)
       locked.push(id);
       await pool.query(
         `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                               requested_at)
-         VALUES ($1,$2,'plan',$3,$4, now() - ($5 || ' hours')::interval)`,
-        [id, projectId, newId(), planner, String(20 - i)],
+                               requested_at, assignee_role)
+         VALUES ($1,$2,'plan',$3,$4, now() - ($5 || ' hours')::interval, 'designer')`,
+        [id, projectId, newId(), designer, String(20 - i)],
       );
     }
     for (let i = 0; i < 3; i += 1) {
@@ -2776,8 +2895,8 @@ describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)
       open.push(id);
       await pool.query(
         `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
-                               requested_at)
-         VALUES ($1,$2,'plan',$3,$4, now() - ($5 || ' hours')::interval)`,
+                               requested_at, assignee_role)
+         VALUES ($1,$2,'plan',$3,$4, now() - ($5 || ' hours')::interval, 'designer')`,
         [id, projectId, newId(), reviewer, String(5 - i)],
       );
     }
@@ -2787,7 +2906,7 @@ describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)
   it('누를 수 있는 수를 따로 준다 — 잠긴 카드는 전체에만 든다', async () => {
     await seedMixed();
     await questions.create({ projectId, sessionId, title: '어느 쪽으로 갈까' });
-    const page = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    const page = await approvals.inboxGlobal({ actor: person(designer), userId: designer });
     // 결재 여섯(잠김 셋) + 질문 하나
     expect(page.total).toBe(7);
     expect(page.actionable_total).toBe(4);
@@ -2800,7 +2919,7 @@ describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)
 
   it('잠긴 카드는 뒤로 간다 — 더 오래 기다렸어도 누를 수 있는 것이 먼저다', async () => {
     const { open, locked } = await seedMixed();
-    const page = await approvals.inboxGlobal({ actor: person(planner), userId: planner });
+    const page = await approvals.inboxGlobal({ actor: person(designer), userId: designer });
     const ids = page.items.map((c) => String(c['id']));
     // 앞 구역 안에서는 여전히 오래 기다린 것이 위다(REQ-WEB-024)
     expect(ids).toEqual([...open, ...locked]);
@@ -2817,8 +2936,8 @@ describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)
     let cursor: string | null = null;
     for (let guard = 0; guard < 10; guard += 1) {
       const page: Awaited<ReturnType<typeof approvals.inboxGlobal>> = await approvals.inboxGlobal({
-        actor: person(planner),
-        userId: planner,
+        actor: person(designer),
+        userId: designer,
         cursor,
         limit: 2,
       });
@@ -2836,8 +2955,8 @@ describe('누를 수 있는 것이 먼저 · 누를 수 있는 수 (REQ-API-184)
   it('처리됨에는 누를 수 있는 수가 없다 — 누를 것이 없는 목록이다', async () => {
     await seedMixed();
     const page = await approvals.inboxGlobal({
-      actor: person(planner),
-      userId: planner,
+      actor: person(designer),
+      userId: designer,
       state: 'decided',
     });
     expect(page).not.toHaveProperty('actionable_total');

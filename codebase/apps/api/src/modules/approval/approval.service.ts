@@ -13,6 +13,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   APPROVAL_INBOX_STATES,
   approvalDecision,
+  bodyChange,
+  canDirectApprove,
   canWaiveReviewKind,
   CODE_EVIDENCE_KINDS,
   CODE_REVIEW_KINDS,
@@ -23,6 +25,7 @@ import {
   questionStatus,
   reviewKind,
   scopesForRoles,
+  SELF_APPROVAL_ROLES,
 } from '@nerv/schema';
 import type { Message, NervErrorCode } from '@nerv/schema';
 import { createHash } from 'node:crypto';
@@ -30,6 +33,7 @@ import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import {
   DECIDER_ROLES,
+  approvalsRequiredExpr,
   bulkBlockReasonSql,
   canApproveReasonSql,
   canBulkApproveSql,
@@ -62,6 +66,47 @@ import { SpecService } from '../spec/spec.service.js';
 import { AuthService } from '../auth/auth.service.js';
 
 export type ApprovalDecision = 'approve' | 'reject' | 'comment';
+
+/** 바로 승인 한 건의 결과(EP-SPEC-27 · `nerv_spec_approve` · REQ-API-287) */
+export interface DirectApproveResult {
+  /** `approved` 면 확정, `in_review` 면 다른 사람의 승인을 기다린다(T3) */
+  status: 'approved' | 'in_review';
+  spec_key: string;
+  version_id: string;
+  version_no: number;
+  gate_tier: string | null;
+  /** 등급이 사람을 요구하지 않았나(T0 · T1) — 그래도 승인자는 누른 사람이다 */
+  auto_passed: boolean;
+  /** 아직 기다리는 결재 — 확정됐으면 null */
+  approval_id: string | null;
+  quorum?: { given: number; required: number; satisfied: boolean };
+  self_approved?: true;
+  /** 확정이면 그 문서, 기다리면 남은 자리의 카드 */
+  web_url: string;
+}
+
+/** 일괄 바로 승인의 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(REQ-API-289) */
+export interface DirectBulkResult {
+  version_id: string;
+  ok: boolean;
+  status?: 'approved' | 'in_review';
+  spec_key?: string;
+  quorum?: { given: number; required: number; satisfied: boolean };
+  code?: NervErrorCode;
+  kind?: string | null;
+  descriptor?: Message;
+}
+
+/** 결정 한 건의 결과(EP-APR-03) */
+export interface DecideResult {
+  decision: ApprovalDecision;
+  subject_type: string;
+  subject_id: string;
+  /** 정족수 — 스펙 승인에만 있다. `satisfied: false` 면 **아직 확정이 아니다** */
+  quorum?: { given: number; required: number; satisfied: boolean };
+  /** 자기 결재를 승인했는가(완화로 지났다 — 감사에 남는 사실을 응답에도 준다) */
+  self_approved?: true;
+}
 
 /**
  * 일괄이 받는 결정 — 어휘에서 `comment` 만 뺀다(EP-APR-06).
@@ -218,7 +263,13 @@ export class ApprovalService {
   private async applyToSubject(
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
     emit: Parameters<Parameters<EventService['transact']>[0]>[1],
-    input: { projectId: string; userId: string; decision: ApprovalDecision; comment?: string },
+    input: {
+      projectId: string;
+      userId: string;
+      decision: ApprovalDecision;
+      comment?: string;
+      viaSessionId?: string | null;
+    },
     approval: { subject_type: string; subject_id: string; submitted_at?: string | null },
   ): Promise<{ given: number; required: number; satisfied: boolean } | null> {
     if (approval.subject_type !== 'spec_version') return null;
@@ -244,6 +295,7 @@ export class ApprovalService {
         projectId: input.projectId,
         specVersionId: approval.subject_id,
         approverUserId: input.userId,
+        viaSessionId: input.viaSessionId ?? null,
       });
       return { given, required, satisfied: true };
     }
@@ -889,211 +941,238 @@ export class ApprovalService {
      * 반사적 승인(OWASP ASI09 가 지목한 consent fatigue)은 감사에서 단건과 구별되지 않는다.
      */
     batchId?: string;
-  }): Promise<{
-    decision: ApprovalDecision;
-    subject_type: string;
-    subject_id: string;
-    /** 정족수 — 스펙 승인에만 있다. `satisfied: false` 면 **아직 확정이 아니다** */
-    quorum?: { given: number; required: number; satisfied: boolean };
-  }> {
+  }): Promise<DecideResult> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     const decision = assertVocab([input.decision], approvalDecision.enumValues, 'decision')[0];
     assertHuman(input.actor, 'inbox_decide', '/inbox');
-    return this.events.transact(async (tx, emit) => {
-      const { rows } = await tx.execute<{
-        id: string;
-        subject_type: string;
-        subject_id: string;
-        requested_by_user_id: string;
-        requested_by_session_id: string | null;
-        assignee_user_id: string | null;
-        assignee_role: string | null;
-        decision: string | null;
-        content_hash: string | null;
-        author_user_id: string | null;
-        author_owner_user_id: string | null;
-        subject_status: string | null;
-        submitted_at: string | null;
-      }>(sql`
-        SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
-               a.requested_by_user_id, a.requested_by_session_id,
-               a.assignee_user_id, a.assignee_role::text AS assignee_role,
-               a.decision::text AS decision,
-               encode(sv.content_hash, 'hex') AS content_hash,
-               sv.author_user_id, owner.user_id AS author_owner_user_id,
-               sv.status::text AS subject_status, sv.submitted_at::text AS submitted_at
-          FROM approval a
-     LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
-     LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
-         WHERE a.id = ${input.approvalId} AND a.project_id = ${input.projectId}
-         FOR UPDATE OF a
-      `);
-      const approval = rows[0];
-      if (approval === undefined) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.not_found'), {
-          kind: 'not_found',
-        });
-      }
-      // **이 결재를 내릴 수 있는 사람인가**(EP-APR-03 "지정 승인자·해당 역할 큐").
-      //
-      // 예전에는 이 문이 "사람인가" 하나였다 — 전역 경로(`/api/v1/approvals/...`)라
-      // 프로젝트 가드가 소속을 채우지 않고 지나가고, 서비스는 멤버십만 확인했다.
-      // 그래서 `viewer` 도 스펙 승인을 확정할 수 있었다(그 다음은 문서가 approved 다).
-      await this.assertMayDecide(
-        input.projectId,
-        input.userId,
-        approval.assignee_user_id,
-        approval.assignee_role,
-      );
+    return this.events.transact((tx, emit) =>
+      this.decideInTx(tx, emit, { ...input, decision: decision as ApprovalDecision }),
+    );
+  }
 
-      if (approval.decision !== null) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.already_decided'), {
-          kind: 'already_decided',
-          decision: approval.decision,
-        });
-      }
-
-      // stale 승인 차단 — 사람이 본 것과 승인되는 것이 같아야 한다
-      if (
-        input.seenContentHash != null &&
-        approval.content_hash !== null &&
-        input.seenContentHash !== approval.content_hash
-      ) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.content_changed'), {
-          kind: 'stale_approval',
-          seen: input.seenContentHash,
-          current: approval.content_hash,
-        });
-      }
-
-      // **지시자≠승인자는 세 축이다**(2026-09-07 · REQ-API-136 · spec-workflow §2.3).
-      //
-      // 요청자만 비교하던 동안 구멍이 하나 있었다: 작성자가 남에게 제출을 부탁하면 요청자는
-      // 그 남이 되고, 작성자는 자기 초안을 자기 손으로 승인할 수 있었다. 에이전트가 쓴
-      // 초안도 같다 — 그 세션의 소유자가 승인하면 사람이 검토한 것이 아니라 자기가 시킨
-      // 것을 자기가 통과시킨 것이다(D-01 이 막으려는 바로 그것).
-      //
-      // approve 에만 적용한다 — 코멘트·거절은 요청자도 작성자도 할 수 있다.
-      const selfKind = selfKindOf(approval, input.userId);
-      if (input.decision === 'approve' && selfKind !== null) {
-        await this.assertSelfApprovalAllowed(tx, input.projectId, input.userId, approval, selfKind);
-      }
-      const selfApprove = selfKind !== null && input.decision === 'approve';
-
-      // **한 사람은 한 번**(2026-09-07 · REQ-API-140). 정족수가 "서로 다른 사용자 2인" 인데
-      // 같은 사람이 슬롯 둘을 채우면 그 게이트는 이름만 남는다. 라운드 경계는
-      // `submitted_at` 이라, 거절 뒤 다시 제출하면 옛 승인은 세지 않는다.
-      if (input.decision === 'approve') {
-        const { rows: mine } = await tx.execute<{ n: number }>(sql`
-          SELECT count(*)::int AS n FROM approval prev
-           WHERE prev.subject_type = ${approval.subject_type}
-             AND prev.subject_id = ${approval.subject_id}
-             AND prev.decision = 'approve' AND prev.decided_by_user_id = ${input.userId}
-             AND NOT prev.is_bypass
-             AND (${approval.submitted_at}::timestamptz IS NULL
-                  OR prev.decided_at >= ${approval.submitted_at}::timestamptz)
-        `);
-        if ((mine[0]?.n ?? 0) > 0) {
-          throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.already_approved'), {
-            kind: 'already_approved',
-            subject_id: approval.subject_id,
-          });
-        }
-      }
-
-      await tx.execute(sql`
-        UPDATE approval
-           SET decision = ${decision}::approval_decision,
-               comment_md = ${input.comment ?? null},
-               decided_at = now(),
-               assignee_user_id = COALESCE(assignee_user_id, ${input.userId}),
-               -- **누른 사람은 여기 남는다**(2026-09-24 · 마이그레이션 0029). 바로 위의
-               -- assignee_user_id 로 겸할 수 없다: 지정 카드를 admin 이 대신 결정하면
-               -- COALESCE 가 지정된 사람을 지키므로 그 열은 **결정자가 아닌 사람**을
-               -- 가리킨 채 남는다. 처리됨 탭이 그 열을 읽는 동안 admin 은 자기가 내린
-               -- 결정을 못 보고, 지정된 사람은 자기가 내리지 않은 결정을 봤다.
-               decided_by_user_id = ${input.userId}
-         WHERE id = ${input.approvalId}
-      `);
-
-      // **결정은 대상을 움직여야 한다**(2026-08-31 — 사람 보고 · REQ-API-063).
-      //
-      // 예전에는 여기서 결재 행만 고치고 끝냈다. 그래서 받은편지함에서 스펙을 거절하면
-      // 결재는 사라지는데(`decision IS NOT NULL`) **문서는 `in_review` 에 갇혔다** —
-      // 가변 구간은 draft 하나뿐이라(D-02) 고칠 수도, 다시 제출할 수도 없는 상태다.
-      // 실측(sudoku 2026-08-31): 거절 2건, 둘 다 `in_review` 로 남아 있었다.
-      //
-      // **같은 트랜잭션이다.** 웹이 두 번 부르게 하면 그 사이의 실패가 정확히 이 상태를
-      // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
-      const quorum = await this.applyToSubject(tx, emit, input, approval);
-
-      // **결정을 요청한 세션에게 돌려준다**(2026-09-07 · REQ-API-133 · FR-11).
-      //
-      // 이 자리는 오래 결재 행만 고쳤다. 그래서 A3 승인을 기다리는 에이전트는 승인이 나도
-      // **영영 듣지 못했다** — 서버→세션 방향의 보장 채널은 하트비트 하나인데(§2.4) 결재
-      // 결정이 거기 실리지 않았기 때문이다. 실데이터 결재 11건 중 4건이 세션 기원이었다.
-      //
-      // 깨우는 조건이 둘 더 있다: **다른 대기 사유가 남아 있으면 깨우지 않는다.** 열린
-      // blocking 질문이나 아직 결정되지 않은 다른 결재가 있으면 그 세션은 여전히 사람을
-      // 기다리는 중이고, 여기서 `active` 로 돌려놓으면 S5 는 일하고 있는 세션으로 그린다.
-      if (approval.requested_by_session_id !== null) {
-        await tx.execute(sql`
-          UPDATE agent_session SET state = 'active'
-           WHERE id = ${approval.requested_by_session_id}
-             AND state = 'awaiting_input'
-             AND NOT EXISTS (
-               SELECT 1 FROM question q
-                WHERE q.agent_session_id = ${approval.requested_by_session_id}
-                  AND q.status = 'open' AND q.urgency = 'blocking'
-             )
-             AND NOT EXISTS (
-               SELECT 1 FROM approval a2
-                WHERE a2.requested_by_session_id = ${approval.requested_by_session_id}
-                  AND a2.id <> ${input.approvalId} AND a2.decision IS NULL
-                  -- **닫힌 라운드의 형제 슬롯은 기다림이 아니다**(2026-09-26). T3 의 한 슬롯이 거절되면 문서는
-                  -- 초안으로 가고 다른 슬롯은 결정 없이 남는다 — 그 슬롯이 세션을 붙잡아 거절을 받고도
-                  -- awaiting_input 에 머물렀다. 문서가 검토 중이 아닌 스펙 슬롯은 세지 않는다
-                  AND NOT EXISTS (
-                    SELECT 1 FROM spec_version sv2
-                     WHERE a2.subject_type = 'spec_version' AND sv2.id = a2.subject_id
-                       AND sv2.status <> 'in_review'
-                  )
-             )
-        `);
-      }
-
-      // 요청의 그림자 알림을 함께 닫는다 — 받은 요청 배지만 줄고 알림 배지는 남던 자리(REQ-API-176)
-      await closeRequestNotifications(tx, 'approval', input.approvalId);
-
-      await emit({
-        // **결재는 결재다**(2026-09-07 · REQ-API-128). 대상이 질문이든 스펙이든 이 자리가
-        // 남기는 사실은 "결재가 결정됐다" 이고, 질문에 답한 사실은 `QuestionService` 가
-        // 자기 자리에서 남긴다 — 하나의 이름이 둘을 가리키면 어느 쪽도 셀 수 없다.
-        type: NERV_EVENT.APPROVAL_DECIDED,
-        projectId: input.projectId,
-        subjectType: 'approval',
-        subjectId: input.approvalId,
-        actorUserId: input.userId,
-        isAgent: false,
-        toState: input.decision,
-        // **자기 승인은 그 사실을 남긴다.** 규칙의 예외를 허용하는 것과 그것을 감추는 것은
-        // 다른 일이다 — 감사가 나중에 "이 결재는 한 사람이 양쪽에 섰다" 를 셀 수 있어야 한다.
-        payload: {
-          decision: input.decision,
-          subject_type: approval.subject_type,
-          subject_id: approval.subject_id,
-          ...(selfApprove ? { self_approved: true, self_kind: selfKind } : {}),
-          ...(input.batchId === undefined ? {} : { bulk: true, batch_id: input.batchId }),
-        },
+  /**
+   * 결정 한 건 — **남의 트랜잭션 안에서**. 바로 승인(REQ-API-287)은 제출과 이 결정을 한 트랜잭션으로
+   * 묶는다. 판정(자격 · 지시자≠승인자 · 한 사람 한 번 · stale · 정족수)은 여기 한 벌이다.
+   *
+   * 사람 전용 게이트는 부르는 쪽이 이미 지났다 — `decide()` 는 사람만, `approveDirect()` 는 사람 또는
+   * 세션에서 사람이 대답한 승인(`viaSessionId`)만 여기 온다.
+   */
+  private async decideInTx(
+    tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: {
+      projectId: string;
+      approvalId: string;
+      userId: string;
+      decision: ApprovalDecision;
+      comment?: string;
+      seenContentHash?: string | null;
+      batchId?: string;
+      /** 검토 요청과 한 번에 내린 결정인가(바로 승인 · REQ-API-287) — 감사가 셀 수 있게 남긴다 */
+      direct?: boolean;
+      /** 에이전트 세션에서 사람이 대답으로 승인했으면 그 세션(REQ-API-291) */
+      viaSessionId?: string | null;
+    },
+  ): Promise<DecideResult> {
+    const decision = input.decision;
+    const { rows } = await tx.execute<{
+      id: string;
+      subject_type: string;
+      subject_id: string;
+      requested_by_user_id: string;
+      requested_by_session_id: string | null;
+      assignee_user_id: string | null;
+      assignee_role: string | null;
+      decision: string | null;
+      content_hash: string | null;
+      author_user_id: string | null;
+      author_owner_user_id: string | null;
+      subject_status: string | null;
+      submitted_at: string | null;
+    }>(sql`
+      SELECT a.id, a.subject_type::text AS subject_type, a.subject_id,
+             a.requested_by_user_id, a.requested_by_session_id,
+             a.assignee_user_id, a.assignee_role::text AS assignee_role,
+             a.decision::text AS decision,
+             encode(sv.content_hash, 'hex') AS content_hash,
+             sv.author_user_id, owner.user_id AS author_owner_user_id,
+             sv.status::text AS subject_status, sv.submitted_at::text AS submitted_at
+        FROM approval a
+   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+   LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
+       WHERE a.id = ${input.approvalId} AND a.project_id = ${input.projectId}
+       FOR UPDATE OF a
+    `);
+    const approval = rows[0];
+    if (approval === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.not_found'), {
+        kind: 'not_found',
       });
+    }
+    // **이 결재를 내릴 수 있는 사람인가**(EP-APR-03 "지정 승인자·해당 역할 큐").
+    //
+    // 예전에는 이 문이 "사람인가" 하나였다 — 전역 경로(`/api/v1/approvals/...`)라
+    // 프로젝트 가드가 소속을 채우지 않고 지나가고, 서비스는 멤버십만 확인했다.
+    // 그래서 `viewer` 도 스펙 승인을 확정할 수 있었다(그 다음은 문서가 approved 다).
+    await this.assertMayDecide(
+      input.projectId,
+      input.userId,
+      approval.assignee_user_id,
+      approval.assignee_role,
+    );
 
-      return {
+    if (approval.decision !== null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.already_decided'), {
+        kind: 'already_decided',
+        decision: approval.decision,
+      });
+    }
+
+    // stale 승인 차단 — 사람이 본 것과 승인되는 것이 같아야 한다
+    if (
+      input.seenContentHash != null &&
+      approval.content_hash !== null &&
+      input.seenContentHash !== approval.content_hash
+    ) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.content_changed'), {
+        kind: 'stale_approval',
+        seen: input.seenContentHash,
+        current: approval.content_hash,
+      });
+    }
+
+    // **지시자≠승인자는 세 축이다**(2026-09-07 · REQ-API-136 · spec-workflow §2.3).
+    //
+    // 요청자만 비교하던 동안 구멍이 하나 있었다: 작성자가 남에게 제출을 부탁하면 요청자는
+    // 그 남이 되고, 작성자는 자기 초안을 자기 손으로 승인할 수 있었다. 에이전트가 쓴
+    // 초안도 같다 — 그 세션의 소유자가 승인하면 사람이 검토한 것이 아니라 자기가 시킨
+    // 것을 자기가 통과시킨 것이다(D-01 이 막으려는 바로 그것).
+    //
+    // approve 에만 적용한다 — 코멘트·거절은 요청자도 작성자도 할 수 있다.
+    const selfKind = selfKindOf(approval, input.userId);
+    if (input.decision === 'approve' && selfKind !== null) {
+      await this.assertSelfApprovalAllowed(tx, input.projectId, input.userId, approval, selfKind);
+    }
+    const selfApprove = selfKind !== null && input.decision === 'approve';
+
+    // **한 사람은 한 번**(2026-09-07 · REQ-API-140). 정족수가 "서로 다른 사용자 2인" 인데
+    // 같은 사람이 슬롯 둘을 채우면 그 게이트는 이름만 남는다. 라운드 경계는
+    // `submitted_at` 이라, 거절 뒤 다시 제출하면 옛 승인은 세지 않는다.
+    if (input.decision === 'approve') {
+      const { rows: mine } = await tx.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM approval prev
+         WHERE prev.subject_type = ${approval.subject_type}
+           AND prev.subject_id = ${approval.subject_id}
+           AND prev.decision = 'approve' AND prev.decided_by_user_id = ${input.userId}
+           AND NOT prev.is_bypass
+           AND (${approval.submitted_at}::timestamptz IS NULL
+                OR prev.decided_at >= ${approval.submitted_at}::timestamptz)
+      `);
+      if ((mine[0]?.n ?? 0) > 0) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.already_approved'), {
+          kind: 'already_approved',
+          subject_id: approval.subject_id,
+        });
+      }
+    }
+
+    await tx.execute(sql`
+      UPDATE approval
+         SET decision = ${decision}::approval_decision,
+             comment_md = ${input.comment ?? null},
+             decided_at = now(),
+             assignee_user_id = COALESCE(assignee_user_id, ${input.userId}),
+             -- **누른 사람은 여기 남는다**(2026-09-24 · 마이그레이션 0029). 바로 위의
+             -- assignee_user_id 로 겸할 수 없다: 지정 카드를 admin 이 대신 결정하면
+             -- COALESCE 가 지정된 사람을 지키므로 그 열은 **결정자가 아닌 사람**을
+             -- 가리킨 채 남는다. 처리됨 탭이 그 열을 읽는 동안 admin 은 자기가 내린
+             -- 결정을 못 보고, 지정된 사람은 자기가 내리지 않은 결정을 봤다.
+             decided_by_user_id = ${input.userId}
+       WHERE id = ${input.approvalId}
+    `);
+
+    // **결정은 대상을 움직여야 한다**(2026-08-31 — 사람 보고 · REQ-API-063).
+    //
+    // 예전에는 여기서 결재 행만 고치고 끝냈다. 그래서 받은편지함에서 스펙을 거절하면
+    // 결재는 사라지는데(`decision IS NOT NULL`) **문서는 `in_review` 에 갇혔다** —
+    // 가변 구간은 draft 하나뿐이라(D-02) 고칠 수도, 다시 제출할 수도 없는 상태다.
+    // 실측(sudoku 2026-08-31): 거절 2건, 둘 다 `in_review` 로 남아 있었다.
+    //
+    // **같은 트랜잭션이다.** 웹이 두 번 부르게 하면 그 사이의 실패가 정확히 이 상태를
+    // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
+    const quorum = await this.applyToSubject(tx, emit, input, approval);
+
+    // **결정을 요청한 세션에게 돌려준다**(2026-09-07 · REQ-API-133 · FR-11).
+    //
+    // 이 자리는 오래 결재 행만 고쳤다. 그래서 A3 승인을 기다리는 에이전트는 승인이 나도
+    // **영영 듣지 못했다** — 서버→세션 방향의 보장 채널은 하트비트 하나인데(§2.4) 결재
+    // 결정이 거기 실리지 않았기 때문이다. 실데이터 결재 11건 중 4건이 세션 기원이었다.
+    //
+    // 깨우는 조건이 둘 더 있다: **다른 대기 사유가 남아 있으면 깨우지 않는다.** 열린
+    // blocking 질문이나 아직 결정되지 않은 다른 결재가 있으면 그 세션은 여전히 사람을
+    // 기다리는 중이고, 여기서 `active` 로 돌려놓으면 S5 는 일하고 있는 세션으로 그린다.
+    if (approval.requested_by_session_id !== null) {
+      await tx.execute(sql`
+        UPDATE agent_session SET state = 'active'
+         WHERE id = ${approval.requested_by_session_id}
+           AND state = 'awaiting_input'
+           AND NOT EXISTS (
+             SELECT 1 FROM question q
+              WHERE q.agent_session_id = ${approval.requested_by_session_id}
+                AND q.status = 'open' AND q.urgency = 'blocking'
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM approval a2
+              WHERE a2.requested_by_session_id = ${approval.requested_by_session_id}
+                AND a2.id <> ${input.approvalId} AND a2.decision IS NULL
+                -- **닫힌 라운드의 형제 슬롯은 기다림이 아니다**(2026-09-26). T3 의 한 슬롯이 거절되면 문서는
+                -- 초안으로 가고 다른 슬롯은 결정 없이 남는다 — 그 슬롯이 세션을 붙잡아 거절을 받고도
+                -- awaiting_input 에 머물렀다. 문서가 검토 중이 아닌 스펙 슬롯은 세지 않는다
+                AND NOT EXISTS (
+                  SELECT 1 FROM spec_version sv2
+                   WHERE a2.subject_type = 'spec_version' AND sv2.id = a2.subject_id
+                     AND sv2.status <> 'in_review'
+                )
+           )
+      `);
+    }
+
+    // 요청의 그림자 알림을 함께 닫는다 — 받은 요청 배지만 줄고 알림 배지는 남던 자리(REQ-API-176)
+    await closeRequestNotifications(tx, 'approval', input.approvalId);
+
+    await emit({
+      // **결재는 결재다**(2026-09-07 · REQ-API-128). 대상이 질문이든 스펙이든 이 자리가
+      // 남기는 사실은 "결재가 결정됐다" 이고, 질문에 답한 사실은 `QuestionService` 가
+      // 자기 자리에서 남긴다 — 하나의 이름이 둘을 가리키면 어느 쪽도 셀 수 없다.
+      type: NERV_EVENT.APPROVAL_DECIDED,
+      projectId: input.projectId,
+      subjectType: 'approval',
+      subjectId: input.approvalId,
+      actorUserId: input.userId,
+      // 세션에서 사람이 대답한 승인이면 그 세션을 거쳤다는 사실이 남는다 — 결정한 사람은 그대로 그 사람이다
+      actorSessionId: input.viaSessionId ?? null,
+      isAgent: input.viaSessionId != null,
+      toState: input.decision,
+      // **자기 승인은 그 사실을 남긴다.** 규칙의 예외를 허용하는 것과 그것을 감추는 것은
+      // 다른 일이다 — 감사가 나중에 "이 결재는 한 사람이 양쪽에 섰다" 를 셀 수 있어야 한다.
+      payload: {
         decision: input.decision,
         subject_type: approval.subject_type,
         subject_id: approval.subject_id,
-        ...(quorum === null ? {} : { quorum }),
-      };
+        ...(selfApprove ? { self_approved: true, self_kind: selfKind } : {}),
+        ...(input.batchId === undefined ? {} : { bulk: true, batch_id: input.batchId }),
+        ...(input.direct === true ? { direct: true } : {}),
+        ...(input.viaSessionId == null ? {} : { via: 'agent_session' }),
+      },
     });
+
+    return {
+      decision: input.decision,
+      subject_type: approval.subject_type,
+      subject_id: approval.subject_id,
+      ...(quorum === null ? {} : { quorum }),
+      ...(selfApprove ? { self_approved: true } : {}),
+    };
   }
 
   /**
@@ -1240,6 +1319,342 @@ export class ApprovalService {
       decided,
       failed: results.length - decided,
       results,
+    };
+  }
+
+  /**
+   * EP-SPEC-27 · `nerv_spec_approve` — **바로 승인**(2026-10-11 사람 결정 · REQ-API-287 · 291).
+   *
+   * admin · planner 가 초안을 **검토 요청과 내 승인 한 번으로** 확정한다. 새 판정을 만들지 않는다 — 제출
+   * (`SpecService.submitInTx` — 사전 검토 · 등급 · 슬롯)과 결정(`decideInTx` — 자격 · 지시자≠승인자 · 한
+   * 사람 한 번 · 정족수)을 **한 트랜잭션에** 차례로 부를 뿐이다. 둘로 나누면 그 사이의 실패가 아무도
+   * 승인하지 않은 검토 중 문서를 남긴다.
+   *
+   * - 등급은 그대로다: T0 · T1 은 바로 승인되고(승인자는 누른 사람), T2 는 내 승인으로 확정되며, T3 은
+   *   내 승인이 한 자리를 채우고 **다른 사람 한 명**을 기다린다(정족수는 서로 다른 2인).
+   * - 이미 검토 중인 버전이면 제출을 건너뛰고 내가 누를 수 있는 자리를 결정한다 — 세션이 먼저 검토
+   *   요청을 올린 뒤 사람이 그 자리에서 승인을 말한 경우다.
+   * - **본 지문이 필수다.** 초안은 가변이라 에이전트가 그 사이 고쳐 쓸 수 있다. 다르면 아무것도 바꾸지
+   *   않고 409 `stale_approval` 과 다시 읽을 호출을 준다.
+   * - **토큰은 MCP 도구로만 온다**(A3 — 클라이언트가 호출마다 사람에게 묻는다). REST 는 사람만이다:
+   *   스킬이 허용한 `curl` 로 같은 일을 하면 그 승인 창을 건너뛴다.
+   */
+  async approveDirect(input: {
+    actor: Actor;
+    /** 어느 표면에서 왔나 — 판정은 여기 있고 표면은 그 사실만 전한다(D-05) */
+    surface: 'rest' | 'mcp';
+    projectId: string;
+    specVersionId: string;
+    userId: string;
+    seenContentHash: string;
+    /** 도구 호출의 세션 — MCP 에서만 있다 */
+    sessionId?: string | null;
+    /** 일괄의 한 건인가(EP-SPEC-28) */
+    batchId?: string;
+  }): Promise<DirectApproveResult> {
+    const viaSessionId = input.surface === 'mcp' ? (input.sessionId ?? null) : null;
+    // 도구로 온 승인은 **세션을 거쳤다는 사실**이 남아야 한다 — 없으면 감사가 사람이 화면에서 누른 것으로 읽는다
+    if (input.surface === 'mcp' && viaSessionId === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.no_session'), {
+        kind: 'session_required',
+      });
+    }
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      input.specVersionId,
+    );
+    if (input.surface === 'rest' && input.actor.isAgent) {
+      // 막기만 하지 않는다 — 사람이 누를 곳(그 문서)을 함께 준다
+      assertHuman(
+        input.actor,
+        'approve',
+        isUuid
+          ? await this.specs.versionWebUrl(this.db, input.projectId, input.specVersionId)
+          : undefined,
+      );
+    }
+    const roles = await this.auth.assertMembership(input.userId, input.projectId);
+    if (!canDirectApprove(roles)) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.direct_role'), {
+        kind: 'missing_role',
+        required: ['spec:approve', 'approval:decide'],
+        roles,
+      });
+    }
+    if (!isUuid) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.draft_not_found'), {
+        kind: 'not_found',
+      });
+    }
+
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{
+        status: string;
+        content_hash: string;
+        spec_key: string;
+        version_no: number;
+      }>(sql`
+        SELECT sv.status::text AS status, encode(sv.content_hash, 'hex') AS content_hash,
+               s.key AS spec_key, sv.version_no
+          FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+         WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
+         FOR UPDATE OF sv
+      `);
+      const version = rows[0];
+      if (version === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.draft_not_found'), {
+          kind: 'not_found',
+        });
+      }
+      const versionNo = Number(version.version_no);
+      // **사람이 본 것과 승인되는 것이 같아야 한다** — 제출보다 먼저 본다(바뀐 초안을 동결하지 않는다)
+      if (version.content_hash !== input.seenContentHash.toLowerCase()) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.content_changed'), {
+          kind: 'stale_approval',
+          seen: input.seenContentHash,
+          current: version.content_hash,
+          version_no: versionNo,
+          // 다시 읽을 곳 — 그 버전 그대로(REQ-API-199 와 같은 규율)
+          reread: {
+            tool: 'nerv_spec_get',
+            args: { spec_id: version.spec_key, version: versionNo },
+          },
+        });
+      }
+
+      if (version.status === 'draft') {
+        const submitted = await this.specs.submitInTx(tx, emit, {
+          projectId: input.projectId,
+          specVersionId: input.specVersionId,
+          userId: input.userId,
+          sessionId: viaSessionId,
+          roles,
+          direct: { approverUserId: input.userId },
+        });
+        if (submitted.status === 'approved') {
+          return {
+            status: 'approved',
+            spec_key: version.spec_key,
+            version_id: input.specVersionId,
+            version_no: versionNo,
+            gate_tier: submitted.gate.tier,
+            auto_passed: true,
+            approval_id: null,
+            web_url: await this.specs.versionWebUrl(tx, input.projectId, input.specVersionId),
+          };
+        }
+      } else if (version.status !== 'in_review') {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.not_draft', { status: version.status }),
+          { kind: 'not_draft', status: version.status, version_no: versionNo },
+        );
+      }
+
+      // **내가 누를 자리를 고른다** — 판정 식은 받은 요청과 한 벌이다(`canApproveSql`). 누를 자리가 없으면
+      // 맨 앞 자리로 `decideInTx` 를 불러 **그 판정의 거절**을 그대로 돌려준다(이유를 두 벌로 적지 않는다)
+      const { rows: slots } = await tx.execute<{ id: string; approvals_required: number }>(sql`
+        SELECT a.id, ${approvalsRequiredExpr()} AS approvals_required
+          FROM approval a
+          JOIN spec_version sv ON sv.id = a.subject_id
+     LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
+         WHERE a.subject_type = 'spec_version' AND a.subject_id = ${input.specVersionId}
+           AND a.project_id = ${input.projectId} AND a.decision IS NULL
+         ORDER BY ${canApproveExpr(input.userId)} DESC, a.assignee_role NULLS FIRST,
+                  a.requested_at, a.id
+      `);
+      const slot = slots[0];
+      if (slot === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.not_found'), {
+          kind: 'not_found',
+        });
+      }
+      // **일괄은 정족수 2 이상(T3)을 건너뛴다** — 받은 요청의 일괄과 같은 규칙이고 admin 은 면제다
+      // (REQ-API-163 · 289). 던지면 이 건의 트랜잭션이 되돌려져 초안은 초안으로 남는다
+      if (input.batchId !== undefined && !roles.includes('admin') && slot.approvals_required > 1) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.bulk_not_eligible'), {
+          kind: 'bulk_quorum',
+        });
+      }
+      const decided = await this.decideInTx(tx, emit, {
+        projectId: input.projectId,
+        approvalId: slot.id,
+        userId: input.userId,
+        decision: 'approve',
+        seenContentHash: input.seenContentHash.toLowerCase(),
+        direct: true,
+        viaSessionId,
+        ...(input.batchId === undefined ? {} : { batchId: input.batchId }),
+      });
+      const { rows: gate } = await tx.execute<{ tier: string | null }>(sql`
+        SELECT e.payload->>'gate_tier' AS tier FROM event e
+         WHERE e.type = ${NERV_EVENT.SPEC_SUBMITTED} AND e.subject_id = ${input.specVersionId}
+         ORDER BY e.occurred_at DESC LIMIT 1
+      `);
+      const satisfied = decided.quorum?.satisfied ?? true;
+      const { rows: waiting } = satisfied
+        ? { rows: [] as { id: string }[] }
+        : await tx.execute<{ id: string }>(sql`
+            SELECT id FROM approval
+             WHERE subject_type = 'spec_version' AND subject_id = ${input.specVersionId}
+               AND decision IS NULL
+             ORDER BY assignee_role NULLS FIRST, requested_at, id
+             LIMIT 1
+          `);
+      const waitingId = waiting[0]?.id ?? null;
+      return {
+        status: satisfied ? 'approved' : 'in_review',
+        spec_key: version.spec_key,
+        version_id: input.specVersionId,
+        version_no: versionNo,
+        gate_tier: gate[0]?.tier ?? null,
+        auto_passed: false,
+        approval_id: waitingId,
+        ...(decided.quorum === undefined ? {} : { quorum: decided.quorum }),
+        ...(decided.self_approved === true ? { self_approved: true as const } : {}),
+        // 확정됐으면 그 문서, 아직이면 **남은 자리의 카드**다 — 거기서 다른 사람이 결정한다
+        web_url:
+          waitingId === null
+            ? await this.specs.versionWebUrl(tx, input.projectId, input.specVersionId)
+            : this.specs.inboxUrl(waitingId),
+      };
+    });
+  }
+
+  /**
+   * EP-SPEC-28 — **일괄 바로 승인**(2026-10-11 사람 결정 · REQ-API-289). 받은 요청의 일괄(EP-APR-06)과 같은
+   * 규율이다: 건마다 제 트랜잭션 · 순차 · 지문은 건마다 · 항목별 결과. 판정은 `approveDirect` 그대로다 —
+   * 일괄이 더하는 것은 **정족수 2 이상(T3)을 건너뛰는 것**뿐이다(admin 은 면제).
+   */
+  async approveDirectBulk(input: {
+    actor: Actor;
+    projectId: string;
+    userId: string;
+    items: { versionId: string; seenContentHash: string }[];
+  }): Promise<{
+    ok: true;
+    batch_id: string;
+    approved: number;
+    waiting: number;
+    failed: number;
+    results: DirectBulkResult[];
+  }> {
+    assertHuman(input.actor, 'approve');
+    const batchId = newId();
+    const results: DirectBulkResult[] = [];
+    for (const item of input.items) {
+      try {
+        const done = await this.approveDirect({
+          actor: input.actor,
+          surface: 'rest',
+          projectId: input.projectId,
+          specVersionId: item.versionId,
+          userId: input.userId,
+          seenContentHash: item.seenContentHash,
+          batchId,
+        });
+        results.push({
+          version_id: item.versionId,
+          ok: true,
+          status: done.status,
+          spec_key: done.spec_key,
+          ...(done.quorum === undefined ? {} : { quorum: done.quorum }),
+        });
+      } catch (error) {
+        if (!(error instanceof NervError)) throw error;
+        // 역할이 없으면 건마다 같은 답이다 — 배치 전체의 거절로 올린다(목록을 50번 같은 문장으로 채우지 않는다)
+        if (error.details['kind'] === 'missing_role') throw error;
+        results.push({
+          version_id: item.versionId,
+          ok: false,
+          code: error.code,
+          kind: typeof error.details['kind'] === 'string' ? error.details['kind'] : null,
+          descriptor: error.descriptor,
+        });
+      }
+    }
+    const approved = results.filter((r) => r.ok && r.status === 'approved').length;
+    const waiting = results.filter((r) => r.ok && r.status === 'in_review').length;
+    // 일괄이 일어났다는 사실 자체를 남긴다 — 전부 실패한 배치는 건별 이벤트가 없다(decideBulk 와 같다)
+    this.logger.log(
+      `일괄 바로 승인 ${batchId} — ${String(approved + waiting)}/${String(results.length)} (user ${input.userId})`,
+    );
+    return {
+      ok: true,
+      batch_id: batchId,
+      approved,
+      waiting,
+      failed: results.length - approved - waiting,
+      results,
+    };
+  }
+
+  /**
+   * EP-SPEC-29 — **내가 바로 승인할 수 있는 초안**(2026-10-11 사람 결정 · REQ-API-290). 스펙 목록의 "초안
+   * 승인" 칩이 켜질 때만 부른다. EP-SPEC-26 과 같은 이유로 트리 노드에 얹지 않는다 — 사람마다 다른 값이
+   * 트리 응답에 섞이면 모든 트리 요청이 무거워진다.
+   *
+   * 항목마다 **본 지문**(`content_hash`)을 준다 — 일괄이 그 값을 그대로 돌려보내야 그 사이에 바뀐 초안이
+   * 막힌다. 바로 승인할 수 없는 역할이면 빈 목록이다(받은 요청처럼 "내가 할 일" 의 목록이다).
+   * 등급은 검토 요청 때 정해지므로 여기서 미리 셈하지 않는다 — 일괄에서 빠지는 T3 은 결과가 말한다.
+   */
+  async approvableDrafts(input: {
+    actor: Actor;
+    userId: string;
+    projectId: string;
+  }): Promise<{ items: Record<string, unknown>[] }> {
+    assertHuman(input.actor, 'approve');
+    const roles = await this.auth.assertMembership(input.userId, input.projectId);
+    if (!canDirectApprove(roles)) return { items: [] };
+    const { rows } = await this.db.execute<{
+      version_id: string;
+      version_no: number;
+      spec_key: string;
+      spec_title: string;
+      spec_type: string;
+      content_hash: string;
+      updated_at: string;
+      author_name: string | null;
+      by_agent: boolean;
+      approved_version_no: number | null;
+      body_md: string;
+      base_body: string | null;
+      base_version_no: number | null;
+      acknowledged: boolean;
+    }>(sql`
+      SELECT sv.id AS version_id, sv.version_no, s.key AS spec_key, s.title AS spec_title,
+             s.type::text AS spec_type, encode(sv.content_hash, 'hex') AS content_hash,
+             sv.updated_at::text AS updated_at, u.display_name AS author_name,
+             (sv.author_session_id IS NOT NULL) AS by_agent,
+             (SELECT max(o.version_no) FROM spec_version o
+               WHERE o.spec_id = s.id AND o.status = 'approved')::int AS approved_version_no,
+             sv.body_md, base.body_md AS base_body, base.version_no AS base_version_no,
+             (sv.shrink_ack_at IS NOT NULL) AS acknowledged
+        FROM spec_version sv
+        JOIN spec s ON s.id = sv.spec_id
+        JOIN project p ON p.id = s.project_id
+   LEFT JOIN "user" u ON u.id = sv.author_user_id
+   LEFT JOIN spec_version base ON base.id = sv.base_version_id
+       WHERE s.project_id = ${input.projectId} AND sv.status = 'draft'
+         AND s.archived_at IS NULL AND p.archived_at IS NULL
+       ORDER BY s.key
+    `);
+    return {
+      items: rows.map(({ body_md, base_body, base_version_no, acknowledged, ...row }) => ({
+        ...row,
+        // 확인 목록이 크게 줄어든 초안을 따로 표시한다(REQ-WEB-298) — 사전 검토와 같은 함수다
+        body_change:
+          base_body === null
+            ? null
+            : {
+                ...bodyChange(base_body, body_md),
+                base_version_no: Number(base_version_no),
+                acknowledged,
+              },
+        can_approve: true,
+        can_approve_reason: null,
+        can_bulk_approve: true,
+        bulk_block_reason: null,
+      })),
     };
   }
 
@@ -1465,6 +1880,9 @@ export class ApprovalService {
    *    스스로 결재할 수 있다. 지시자≠승인자 규칙이 막으려는 것은 **에이전트가 자기 산출물을
    *    통과시키는 것**이고(D-01), 사람 admin 이 자기 판단에 서명하는 것은 다른 일이다 —
    *    admin 이 없으면 그 프로젝트의 어떤 결재도 끝나지 않는 상황이 생긴다.
+   *    **planner 도 같다**(2026-10-11 — 사람 결정 · REQ-API-288). 기획자가 자기 세션이 쓴 초안을
+   *    읽고 그 자리에서 승인하는 것이 주 경로라, 그 사람에게 매번 다른 승인자를 찾게 하면 결재가
+   *    형식이 된다. 정족수(T3 의 서로 다른 2인)는 이 완화와 상관없이 그대로다.
    *
    * 둘 다 **감사에 남는다**: 이벤트 페이로드의 `self_approved` 가 그 자리다.
    * 예외를 허용하는 것과 그것을 감추는 것은 다른 일이다.
@@ -1500,16 +1918,21 @@ export class ApprovalService {
 
     // 프로젝트 멤버십과 **조직 단위 멤버십**을 함께 본다 — 조직 admin 만 가진 사람은
     // 프로젝트 행이 없어서 한 행 판정에서는 아무 역할도 없는 사람이 된다(2026-08-24 와 같은 함정).
-    const { rows: admin } = await tx.execute<{ ok: boolean }>(sql`
-      SELECT true AS ok FROM membership
-       WHERE user_id = ${userId} AND role = 'admin'
+    // 목록은 `SELF_APPROVAL_ROLES` 다 — admin(2026-08-30) · planner(2026-10-11 사람 결정 · REQ-API-288).
+    const { rows: allowed } = await tx.execute<{ role: string }>(sql`
+      SELECT role::text AS role FROM membership
+       WHERE user_id = ${userId}
+         AND role::text IN (${sql.join(
+           SELF_APPROVAL_ROLES.map((r) => sql`${r}`),
+           sql`, `,
+         )})
          AND (project_id = ${projectId}
               OR (project_id IS NULL
                   AND org_id = (SELECT org_id FROM project WHERE id = ${projectId})))
        LIMIT 1
     `);
-    if (admin[0]?.ok === true) {
-      this.logger.warn(`admin 자기 승인 — 허용한다(감사 기록됨) user=${userId}`);
+    if (allowed[0] !== undefined) {
+      this.logger.warn(`${allowed[0].role} 자기 승인 — 허용한다(감사 기록됨) user=${userId}`);
       return;
     }
 

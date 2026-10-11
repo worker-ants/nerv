@@ -39,7 +39,7 @@ import { RelationTabs } from '../../components/relation-tabs.js';
 import type { RelationDirection } from '../../components/relation-tabs.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { SPEC_VERSION_TOKEN } from '../../components/status-token.js';
-import { scopesForRoles, statusLabelKey, TASK_CREATE_ROLES } from '@nerv/schema';
+import { canDirectApprove, scopesForRoles, statusLabelKey, TASK_CREATE_ROLES } from '@nerv/schema';
 import { apiFetch, NervApiError } from '../../lib/api.js';
 import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
@@ -280,6 +280,8 @@ function SpecDetail(): React.JSX.Element {
   const submitBodyChange = parseBodyChange(check.data?.['body_change']);
 
   const [showImpact, setShowImpact] = useState(false);
+  /** 영향 창이 무엇을 보내는가 — 검토 요청 또는 바로 승인(REQ-WEB-303). 무엇이 흔들리나는 같은 질문이라 한 창이다 */
+  const [impactFor, setImpactFor] = useState<'submit' | 'approve'>('submit');
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다.
   //
@@ -567,6 +569,61 @@ function SpecDetail(): React.JSX.Element {
       onApiError(error);
     },
   });
+
+  /**
+   * **바로 승인**(2026-10-11 사람 결정 · REQ-WEB-303) — 검토 요청과 내 승인을 한 번에 한다. **본 지문을 싣는다**:
+   * 초안은 가변이라 그 사이 에이전트가 고쳐 쓸 수 있고, 사람이 본 것과 승인되는 것이 같아야 한다(REQ-API-287).
+   * 바뀌었으면 서버가 거절하고 화면은 문서를 다시 읽는다 — 사람은 바뀐 본문을 보고 다시 누른다.
+   */
+  const approvePress = usePressKey('approve');
+  const approve = useMutation({
+    mutationFn: () =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/spec-versions/${versionId}/approve`, {
+        method: 'POST',
+        body: { seen_content_hash: String(viewed?.['content_hash'] ?? '') },
+        idempotencyKey: approvePress.take(),
+      }),
+    onSettled: approvePress.release,
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
+      if (projectUuid !== undefined) {
+        for (const key of [
+          queryKeys.projectSpecTree(projectUuid),
+          queryKeys.projectSpecGraph(projectUuid),
+          queryKeys.projectPendingApprovals(projectUuid),
+          queryKeys.projectApprovableDrafts(projectUuid),
+        ])
+          void queryClient.invalidateQueries({ queryKey: key });
+      }
+      const waiting = typeof result['approval_id'] === 'string' ? result['approval_id'] : null;
+      if (result['status'] === 'approved') {
+        pushToast({
+          tone: 'ok',
+          message: t('spec.direct_approve_done', { tier: String(result['gate_tier'] ?? '') }),
+        });
+        // 승인됐으면 기본(최신 승인본)이 곧 그 버전이다 — 보던 `?v=` 를 내려놓는다
+        void navigate({ to: '.', search: ({ v: _v, diff: _diff, ...rest }) => rest });
+        return;
+      }
+      // T3 — 내 승인이 한 자리를 채웠다. 남은 자리의 카드로 데려간다(거기서 다른 사람이 결정한다)
+      pushToast({
+        tone: 'ok',
+        message: t('spec.direct_approve_waiting'),
+        ...(waiting === null
+          ? {}
+          : {
+              href: `/inbox?focus=${encodeURIComponent(waiting)}`,
+              hrefLabel: t('spec.next.open_inbox'),
+            }),
+      });
+    },
+    onError: (error: Error) => {
+      // 본문이 바뀌었으면(stale) 다시 읽어 바뀐 본문을 보인다 — 거절 문장은 서버가 준다
+      void queryClient.invalidateQueries({ queryKey: queryKeys.spec(spec) });
+      onApiError(error);
+    },
+  });
+  const canApproveDirect = canDirectApprove(rolesInProject(me.data, orgSlug, proj));
 
   const relationItems = relations.data?.items ?? [];
   // 참조 갱신 — 서버 판정(REQ-WEB-037). 배지는 이 값만 본다.
@@ -887,18 +944,36 @@ function SpecDetail(): React.JSX.Element {
             requirementCount={rows(requirements.data).length}
             canCreateTask={canCreateTask}
             submitting={submit.isPending}
-            onSubmit={() => setShowImpact(true)}
+            onSubmit={() => {
+              setImpactFor('submit');
+              setShowImpact(true);
+            }}
+            canDirectApprove={canApproveDirect}
+            approving={approve.isPending}
+            onDirectApprove={() => {
+              setImpactFor('approve');
+              setShowImpact(true);
+            }}
             onRail={openRail}
           />
         )}
         {showImpact && (
           <div
             role="dialog"
-            aria-label={t('spec.impact_dialog')}
+            aria-label={
+              impactFor === 'approve' ? t('spec.direct_approve_dialog') : t('spec.impact_dialog')
+            }
             data-testid="impact-preview"
+            data-intent={impactFor}
             className="mb-3 w-full rounded-nerv border border-border bg-bg-elev p-3 text-sm"
           >
             <p className="font-medium">{t('spec.impact_title')}</p>
+            {/* 바로 승인은 **무엇을 한꺼번에 하는지** 먼저 말한다 — 검토 요청이 함께 나가고, T3 이면 끝이 아니다 */}
+            {impactFor === 'approve' && (
+              <p data-testid="direct-approve-hint" className="mt-0.5 text-2xs text-text-faint">
+                {t('spec.direct_approve_hint')}
+              </p>
+            )}
             <ul className="mt-1 flex flex-col gap-0.5 text-text-mute">
               {/* 승인 전에 "무엇이 흔들리나"를 보이는 것이 이 화면의 요점이다 —
                   승인하고 나서 알게 되면 되돌리는 비용이 훨씬 크다 */}
@@ -915,13 +990,14 @@ function SpecDetail(): React.JSX.Element {
                 size="sm"
                 variant="primary"
                 data-testid="impact-confirm"
-                disabled={submit.isPending}
+                disabled={submit.isPending || approve.isPending}
                 onClick={() => {
                   setShowImpact(false);
-                  submit.mutate();
+                  if (impactFor === 'approve') approve.mutate();
+                  else submit.mutate();
                 }}
               >
-                {t('spec.impact_send')}
+                {impactFor === 'approve' ? t('spec.direct_approve_send') : t('spec.impact_send')}
               </Button>
               <Button size="sm" onClick={() => setShowImpact(false)}>
                 {t('common.cancel')}
