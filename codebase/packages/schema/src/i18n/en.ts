@@ -1854,6 +1854,8 @@ export const en = {
   'task.transition_rejected': 'Could not change the status: {message}',
   'tasks.basis_superseded': 'Basis version updated',
   'tasks.empty_column': 'Empty',
+  'tasks.filter.q': 'Find by title or task key',
+  'tasks.filter.q_placeholder': 'Find by title or key (Enter)',
   'tasks.filter.spec': 'Filter by spec',
   'tasks.filter.spec_all': 'Spec: all',
   'tasks.filter.assignee': 'Filter by assignee',

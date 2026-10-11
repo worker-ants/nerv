@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.71 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.72 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v2.72 변경(2026-10-11 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **작업 보드 제목 검색**을 적는다. 스토리 수 · `done` 수는 그대로다.
+
 > v2.71 변경(2026-10-11 — 스토리 없이 들어온 구현 둘, **사람 결정**): §1.4 셋째 표에 **범위 없는 게이트 면제를 역할로 풀어 읽기**와 **발견 코멘트를 참여로**를 적는다. 스토리 수 · `done` 수는 그대로다.
 
 > v2.70 변경(2026-10-11 — 문서끼리 어긋난 곳 정리): **새 구현 없음 · §1.4 요약 표 E12 칸 · 셋째 표 한 칸 · §3 화면 범위 · E06-S06 행.** 스킬은 7종이다. 합쇼체 반대 방향 검사는 2026-09-26 에 들어왔는데 "하지 않은 것" 으로 남아 있었다. S6 리뷰 센터는 MVP 에 들어왔다. 로컬 임베딩은 ollama 다.
@@ -866,6 +868,7 @@ referenced_by:
 | 토큰 이름 · 권한 고치기 | `auth.service.ts`(`updateToken` · `tokenScopes` — 발급과 한 벌의 권한 검사 · 주인만 · 살아 있는 토큰만 · 그 프로젝트의 멤버 · 바꾸기 전과 뒤를 감사에) · `auth.controller.ts`(EP-TOK-05 · 사람 전용) · `@nerv/schema`(`TokenUpdateInput` · `TOKEN_NAME_MAX` · ★`token.updated`) · 웹 `features/settings/token-parts.tsx`(`ScopeChecklist` — 발급 폼과 고치기 줄이 함께 쓰는 권한 칸 · `useUpdateToken`) · `routes/settings/tokens.tsx`([편집] · 고치기 줄) · `event-invalidation.ts` · 플러그인 `skills/approve` · `skills/next`(권한이 모자라면 [편집]으로 켜 달라고 안내 · 0.3.26) · 매뉴얼 ko · en `install.md` · `settings.md` · L2 `token-update.spec.ts` 일곱과 `rest-surface` 한 줄 · L1 `tokens.spec.tsx` 넷 | 사람 요청(2026-10-11) · 사람 결정 둘 — 주인만 고친다 · 넓히기와 좁히기 모두([4.4 API](api.md) REQ-API-292 · [4.5 화면 명세](screens.md) REQ-WEB-306) |
 | 범위 없는 게이트 면제를 역할로 풀어 읽기 | `approval.service.ts`(`bypass` — 종류가 없으면 admin만 범위 없는 면제, 아니면 역할이 면제할 수 있는 종류 전부로 풀어 읽어 범위 있는 면제와 같은 판정 · 기록과 `gate.bypassed`에 `expanded` · 면제할 종류가 없으면 403 `bypass_unscoped_forbidden`) · `@nerv/schema`(`waivableReviewKinds` · `canBypassUnscoped`) · 매뉴얼 ko · en `tasks.md` · L2 `review-gate.spec.ts` 넷(planner · developer의 풀어 읽기 · 코드 증적 · 면제할 종류 없는 역할과 작업이 아닌 대상 · 정책이 `true`인 프로젝트) | 사람 결정(2026-10-11) — 범위 없는 면제가 권한표의 "스펙 계열만 · 코드 계열만"을 넘었다([4.4](api.md) REQ-API-293 · [3.5](../03-proposal/spec-workflow.md) §7) |
 | 발견 코멘트를 참여로 | `review.controller.ts`(EP-REV-05 `review:submit` · 감사의 `is_agent`를 주체에서) · `review.service.ts`(`comment`의 `isAgent`) · 웹 `features/review-center/finding-rail.tsx`(`canComment` — 처분과 다른 축) · `routes/p.$proj/reviews.index.tsx` · 문구 `reviews.comment_no_permission` · 매뉴얼 ko · en `reviews.md` · L2 `rest-surface.spec.ts` 둘 · L1 `review-center.spec.tsx` 둘 | 사람 결정(2026-10-11) — developer · designer가 자기 코드에 달린 발견에 답할 수 없었다([4.4](api.md) REQ-API-294 · [4.5](screens.md) REQ-WEB-307) |
+| 작업 보드 제목 검색 | `task.service.ts`(`list`의 `q` — 제목 · 작업 키 부분 일치 · `strpos`라 `%` · `_`는 글자 그대로) · `task.controller.ts`(EP-TASK-01 `?q=`) · `@nerv/schema`(`TASK_QUERY_MAX` · 문구 `tasks.filter.q`) · 웹 `features/task-board/board.tsx`(필터 줄의 검색 칸 · Enter로 건다 · [필터 지우기]가 함께 푼다) · `board-search.ts`(`?q=`) · `archived-lane.tsx` · `lib/queries.ts`(`useTaskLane`) · 매뉴얼 ko · en `tasks.md` · L2 `rest-surface.spec.ts` 셋 · L1 `board-filters-lanes.spec.tsx` 둘 | 관례로 채운 빈자리(2026-10-11) — 보드 필터 규칙([4.5](screens.md) REQ-WEB-221)에 검색이 없어 작업이 많으면 레인을 훑어야 했다([4.4](api.md) REQ-API-295 · [4.5](screens.md) REQ-WEB-308) |
 
 #### 이 절은 언제 갱신되는가
 

@@ -21,10 +21,11 @@ import {
   TASK_CREATE_ROLES,
   TASK_DONE_WINDOW_DAYS,
   TASK_EDIT_ROLES,
+  TASK_QUERY_MAX,
 } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/api.js';
 import { useApiError } from '../../lib/api-errors.js';
@@ -49,6 +50,7 @@ import { cn } from '../../lib/utils.js';
 import {
   Avatar,
   Button,
+  Input,
   LoadMore,
   PageBody,
   PageHeader,
@@ -124,6 +126,7 @@ export function TaskBoard(): React.JSX.Element {
   const {
     spec,
     assignee,
+    q,
     ai: agentOnly = false,
     backlog: backlogParam,
     archived: showArchived = false,
@@ -157,8 +160,9 @@ export function TaskBoard(): React.JSX.Element {
     ...(spec === undefined ? {} : { spec }),
     ...(assignee === undefined ? {} : { assignee }),
     ...(agentOnly ? { ai: true } : {}),
+    ...(q === undefined ? {} : { q }),
   };
-  const filtered = spec !== undefined || assignee !== undefined || agentOnly;
+  const filtered = spec !== undefined || assignee !== undefined || agentOnly || q !== undefined;
   /** 뷰 상태는 서로를 지우지 않는다 — 하나를 바꿀 때 나머지를 그대로 싣는다(`null` 은 푼다) */
   const searchWith = (patch: {
     backlog?: boolean;
@@ -167,9 +171,11 @@ export function TaskBoard(): React.JSX.Element {
     ai?: boolean;
     spec?: string | null;
     assignee?: string | null;
+    q?: string | null;
   }): {
     spec?: string;
     assignee?: string;
+    q?: string;
     ai?: true;
     backlog?: false;
     archived?: true;
@@ -177,9 +183,11 @@ export function TaskBoard(): React.JSX.Element {
   } => {
     const nextSpec = patch.spec === undefined ? spec : (patch.spec ?? undefined);
     const nextAssignee = patch.assignee === undefined ? assignee : (patch.assignee ?? undefined);
+    const nextQ = patch.q === undefined ? q : (patch.q ?? undefined);
     return {
       ...(nextSpec === undefined ? {} : { spec: nextSpec }),
       ...(nextAssignee === undefined ? {} : { assignee: nextAssignee }),
+      ...(nextQ === undefined || nextQ.trim() === '' ? {} : { q: nextQ.trim() }),
       ...((patch.ai ?? agentOnly) ? { ai: true as const } : {}),
       ...((patch.backlog ?? showBacklog) ? {} : { backlog: false as const }),
       ...((patch.archived ?? showArchived) ? { archived: true as const } : {}),
@@ -325,10 +333,11 @@ export function TaskBoard(): React.JSX.Element {
         projectId={id}
         spec={spec}
         assignee={assignee}
+        q={q}
         meId={meId}
         filtered={filtered}
         onChange={(patch) => toBoard(searchWith(patch))}
-        onClear={() => toBoard(searchWith({ spec: null, assignee: null, ai: false }))}
+        onClear={() => toBoard(searchWith({ spec: null, assignee: null, ai: false, q: null }))}
       />
 
       <SummaryStrip
@@ -403,6 +412,7 @@ function BoardFilters({
   projectId,
   spec,
   assignee,
+  q,
   meId,
   filtered,
   onChange,
@@ -412,12 +422,18 @@ function BoardFilters({
   projectId: ProjectId | undefined;
   spec: string | undefined;
   assignee: string | undefined;
+  /** 주소의 검색어(`?q=`) — 입력 칸은 Enter 로 주소에 옮긴다 */
+  q: string | undefined;
   meId: string | undefined;
   filtered: boolean;
-  onChange: (patch: { spec?: string | null; assignee?: string | null }) => void;
+  onChange: (patch: { spec?: string | null; assignee?: string | null; q?: string | null }) => void;
   onClear: () => void;
 }): React.JSX.Element {
   const t = useT();
+  // **글자마다 주소를 바꾸지 않는다** — 칠 때마다 레인 다섯이 다시 불린다. Enter 로 건다(스펙 목록 검색과 같다).
+  // 주소가 바뀌면(필터 지우기 · 뒤로 가기) 칸도 그 값을 따른다
+  const [draft, setDraft] = useState(q ?? '');
+  useEffect(() => setDraft(q ?? ''), [q]);
   const { orgSlug } = useScope(proj);
   const specTree = useSpecTree(proj, projectId);
   const memberList = useMembers(orgSlug);
@@ -435,6 +451,26 @@ function BoardFilters({
   const assigneeKnown = assignee === undefined || assignee === meId || people.has(assignee);
   return (
     <div data-testid="board-filters" className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+      {/* **제목으로 찾는다**(2026-10-11 · REQ-WEB-308). 작업이 수백 개가 되면 레인을 훑어서는 찾을 수 없다 —
+          제목 · 작업 키 부분 일치이고 판정은 서버다(REQ-API-295) */}
+      <form
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onChange({ q: draft.trim() === '' ? null : draft });
+        }}
+      >
+        <Input
+          type="search"
+          data-testid="filter-q"
+          aria-label={t('tasks.filter.q')}
+          placeholder={t('tasks.filter.q_placeholder')}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={TASK_QUERY_MAX}
+          className="h-7 w-56 text-xs"
+        />
+      </form>
       <Select
         data-testid="filter-spec"
         aria-label={t('tasks.filter.spec')}
@@ -475,7 +511,7 @@ function BoardFilters({
           <span data-testid="board-filtered" className="text-text-faint">
             {t('tasks.filter.applied')}
           </span>
-          // 필터를 푸는 명령이다 — 이동 링크의 모양이 아니라 단추다(REQ-WEB-272)
+          {/* 필터를 푸는 명령이다 — 이동 링크의 모양이 아니라 단추다(REQ-WEB-272) */}
           <Button size="xs" variant="subtle" data-testid="filter-clear" onClick={onClear}>
             {t('tasks.filter.clear')}
           </Button>

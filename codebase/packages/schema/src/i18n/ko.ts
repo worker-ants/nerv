@@ -1824,6 +1824,8 @@ export const ko = {
   'task.transition_rejected': '상태를 바꾸지 못했습니다: {message}',
   'tasks.basis_superseded': '기준 버전 갱신됨',
   'tasks.empty_column': '비어 있음',
+  'tasks.filter.q': '제목 · 작업 키로 찾기',
+  'tasks.filter.q_placeholder': '제목 · 키로 찾기 (Enter)',
   'tasks.filter.spec': '스펙 필터',
   'tasks.filter.spec_all': '스펙: 전체',
   'tasks.filter.assignee': '담당 필터',

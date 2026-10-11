@@ -176,6 +176,35 @@ describe('걸린 필터가 보이고 풀 수 있다 (WORK-04)', () => {
   });
 });
 
+// 2026-10-11 — 작업이 수백 개가 되면 레인을 훑어서는 찾을 수 없다(REQ-WEB-308 · 서버 REQ-API-295)
+describe('제목으로 찾는다 (REQ-WEB-308)', () => {
+  it('Enter 를 누르면 검색어가 주소에 남고 모든 레인이 그 검색어로 묻는다', async () => {
+    const history = renderAt('/p/clemvion/tasks');
+    const input = (await screen.findByTestId('filter-q')) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '위젯 100%' } });
+    // 글자마다 묻지 않는다 — Enter 전에는 주소가 그대로다
+    expect(params(history).get('q')).toBeNull();
+    fireEvent.submit(input.closest('form')!);
+    await waitFor(() => expect(params(history).get('q')).toBe('위젯 100%'));
+    await waitFor(() => {
+      const ready = asked.filter((u) => /status=ready(&|$)/.test(u) && u.includes('q='));
+      expect(ready.length).toBeGreaterThan(0);
+      expect(ready[0]).toContain(`q=${encodeURIComponent('위젯 100%')}`);
+    });
+    expect(screen.getByTestId('board-filtered').textContent).toContain('필터 적용 중');
+  });
+
+  it('주소의 검색어로 들어오면 칸이 그 값을 보이고, [필터 지우기] 가 함께 푼다', async () => {
+    const history = renderAt('/p/clemvion/tasks?q=widget&backlog=0');
+    const input = (await screen.findByTestId('filter-q')) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe('widget'));
+    fireEvent.click(screen.getByTestId('filter-clear'));
+    await waitFor(() => expect(params(history).get('q')).toBeNull());
+    expect(params(history).get('backlog')).toBe('false');
+    await waitFor(() => expect(input.value).toBe(''));
+  });
+});
+
 describe('레인은 한 쪽에서 끝나지 않는다 (WORK-10)', () => {
   it('받아 둔 카드를 다 펼치면 [더 받아 오기] 가 다음 쪽을 부른다', async () => {
     pages['ready'] = [

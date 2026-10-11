@@ -32,6 +32,7 @@ import {
   TASK_RECLAIMABLE_STATUSES,
   TASK_TRANSITION_TARGETS,
   TASK_DONE_WINDOW_DAYS,
+  TASK_QUERY_MAX,
   taskPriority,
   taskStatus,
   text,
@@ -282,6 +283,8 @@ export class TaskService {
     includeArchived?: boolean;
     /** **보관한 작업**(2026-10-10 · REQ-API-286) — 없으면 빼고, `include` 면 함께, `only` 면 그것만 */
     archived?: 'include' | 'only' | null;
+    /** **제목 · 작업 키 부분 일치**(2026-10-11 · REQ-API-295) — 대소문자를 가리지 않는다. 앞뒤 공백만 있으면 거르지 않는다 */
+    q?: string | null;
     limit?: number;
     cursor?: string | undefined;
   }): Promise<{ items: Record<string, unknown>[]; next_cursor: string | null }> {
@@ -337,6 +340,14 @@ export class TaskService {
         : input.archived === 'only'
           ? sql` AND t.archived_at IS NOT NULL`
           : sql` AND t.archived_at IS NULL`;
+
+    // **제목 · 작업 키 부분 일치**(2026-10-11 · REQ-API-295). `LIKE` 가 아니라 `strpos` 다 — 사람이 친 `%` · `_` 가
+    // 와일드카드가 되지 않는다(키 검색 search.service.ts 와 같은 방식). 길이는 자른다: 제목보다 긴 검색어는 맞을 수 없다
+    const q = (input.q ?? '').trim().slice(0, TASK_QUERY_MAX);
+    const titleFilter =
+      q === ''
+        ? sql``
+        : sql` AND (strpos(lower(t.title), lower(${q})) > 0 OR strpos(lower(t.key), lower(${q})) > 0)`;
 
     // 커서는 정렬 키와 **같은 순서**를 따라야 한다 — (priority ASC, updated_at DESC, id ASC).
     // id 를 마지막에 두는 이유는 동률 때문이다: priority·updated_at 이 같은 두 행이 있으면
@@ -410,7 +421,7 @@ export class TaskService {
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN claim c ON c.task_id = t.id AND c.status = 'active'
    LEFT JOIN agent_session cs ON cs.id = c.agent_session_id
-       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${agent}${spec}${doneWindow}${archivedFilter}${seek}
+       WHERE t.project_id = ${input.projectId}${statusFilter}${assignee}${agent}${spec}${doneWindow}${archivedFilter}${titleFilter}${seek}
        ORDER BY t.priority, t.updated_at DESC, t.id
        LIMIT ${limit + 1}
     `);

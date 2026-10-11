@@ -865,6 +865,49 @@ describe('리뷰 처분 REST — 웹이 보내는 값이 그대로 저장된다 
 });
 
 /**
+ * **작업 보드 제목 검색**(2026-10-11 · REQ-API-295 · 화면 REQ-WEB-308). 작업이 수백 개가 되면 레인을 훑어서는 찾을 수
+ * 없다. `?q=` 는 제목과 작업 키를 부분 일치로 견주고, 사람이 친 `%` · `_` 는 글자 그대로다.
+ */
+describe('작업 목록 검색어 (EP-TASK-01 `q` · REQ-API-295)', () => {
+  const list = async (query: string): Promise<string[]> => {
+    const res = await call('GET', `/api/v1/projects/clemvion/tasks?${query}`);
+    expect(res.status).toBe(200);
+    return (res.body as { items: Record<string, unknown>[] }).items.map((t) => String(t['title']));
+  };
+  const make = async (title: string): Promise<string> => {
+    const res = await call('POST', '/api/v1/projects/clemvion/tasks', { payload: { title } });
+    return (res.body as Record<string, unknown>)['key'] as string;
+  };
+
+  it('제목의 일부로 찾는다 — 대소문자를 가리지 않고 다른 필터와 함께 건다', async () => {
+    await make('Widget 임베드 스크립트');
+    await make('위젯 세션 복원');
+    await make('결제 웹훅');
+    expect(await list(`q=${encodeURIComponent('widget')}`)).toEqual(['Widget 임베드 스크립트']);
+    expect((await list(`q=${encodeURIComponent('위젯')}&status=backlog`)).sort()).toEqual([
+      '위젯 세션 복원',
+    ]);
+    expect(await list(`q=${encodeURIComponent('위젯')}&status=ready`)).toEqual([]);
+  });
+
+  it('작업 키의 일부로도 찾는다', async () => {
+    const key = await make('키로 찾을 작업');
+    await make('다른 작업');
+    expect(await list(`q=${encodeURIComponent(key.slice(-6).toLowerCase())}`)).toEqual([
+      '키로 찾을 작업',
+    ]);
+  });
+
+  it('`%` · `_` 는 와일드카드가 아니다 — 빈 검색어는 거르지 않는다', async () => {
+    await make('진행률 100% 표시');
+    await make('진행률 표시');
+    expect(await list(`q=${encodeURIComponent('100%')}`)).toEqual(['진행률 100% 표시']);
+    expect(await list(`q=${encodeURIComponent('_')}`)).toEqual([]);
+    expect((await list(`q=${encodeURIComponent('   ')}`)).length).toBe(2);
+  });
+});
+
+/**
  * **코멘트는 참여이고 처분은 권한이다**(2026-10-11 · REQ-API-294 · 사람 결정). 발견 코멘트가 처분과 같은 `review:resolve` 를
  * 요구해 developer · designer 가 자기 코드에 달린 발견에 답하지 못했다. 코멘트는 `review:submit` 으로 낮추고 처분은 그대로
  * 둔다 — 두 축이 갈렸는지는 권한 하나씩만 가진 토큰으로 실제 HTTP 에서 본다.

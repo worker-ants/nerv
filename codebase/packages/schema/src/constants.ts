@@ -337,6 +337,13 @@ export const GATE_BRANCH_LIMIT_MAX = 200;
 export const TASK_DONE_WINDOW_DAYS = 7;
 
 /**
+ * **작업 목록 검색어의 길이 상한**(2026-10-11 · api.md REQ-API-295). 보드 위의 제목 검색(`?q=`)이 제목 · 작업 키와 부분
+ * 일치로 견준다. 그보다 긴 입력은 잘라서 견준다 — 거절하지 않는 것은 붙여 넣은 긴 문장으로 화면이 오류를 띄우지 않게
+ * 하려는 것이다.
+ */
+export const TASK_QUERY_MAX = 200;
+
+/**
  * 표시 키를 **텍스트에서 찾는 규칙** — `<project.key>-<타입>-<base32 6자>`(data-model §5.1).
  *
  * 발급은 `@nerv/schema/keys`(node 전용, 해시를 쓴다)이고 여기에는 **모양만** 둔다.
