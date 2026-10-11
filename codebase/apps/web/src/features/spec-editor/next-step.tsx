@@ -5,7 +5,8 @@
 // 검토 중이면 결재가 어디서 기다리는지, 승인본이면 무엇을 하면 되는지를 말하지 않았다. 이 줄은
 // **보는 버전의 상태**로 그 셋을 말한다:
 //
-//   초안     → [검토 요청] (막혔으면 "사전 검토 block N건" 이 그 자리로 데려간다)
+//   초안     → [검토 요청] · [바로 승인](admin · planner — 2026-10-11 · REQ-WEB-303)
+//              (막혔으면 "사전 검토 block N건" 이 그 자리로 데려간다)
 //   검토 중  → "결재는 받은 요청의 카드에서" + [받은 요청에서 열기] — 그 카드로 곧장
 //   승인본   → [작업 만들기] — 약속을 작업으로 옮기는 문(SPEC-08). 요구사항이 없는 문서도 된다
 //   거절·대체 → 무엇이 일어났는지와 갈 곳
@@ -13,7 +14,7 @@
 // 곁에는 열린 코멘트 수(2026-09-24 사람 결정 D6 — 레일의 기본 탭은 두고 칩만 둔다)와 요구사항 수가
 // 서고, 누르면 레일의 그 탭이 열린다.
 
-import { TASK_CREATE_ROLES } from '@nerv/schema';
+import { DIRECT_APPROVE_ROLES, TASK_CREATE_ROLES } from '@nerv/schema';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useT } from '../../lib/i18n.js';
 import { Button, buttonClass } from '../../components/ui/primitives.js';
@@ -33,6 +34,13 @@ export interface NextStepProps {
   canCreateTask: boolean;
   submitting: boolean;
   onSubmit: () => void;
+  /**
+   * **바로 승인**(2026-10-11 사람 결정 · REQ-WEB-303) — 검토 요청과 내 승인을 한 번에 한다. 판정은 서버의
+   * 것이고(`canDirectApprove` 와 같은 식) 할 수 없는 역할이면 잠긴 채 이유를 보인다(REQ-WEB-003)
+   */
+  canDirectApprove: boolean;
+  approving: boolean;
+  onDirectApprove: () => void;
   /** 레일의 그 탭을 연다 — 이 줄이 여는 것은 둘뿐이다 */
   onRail: (tab: 'comments' | 'requirements') => void;
 }
@@ -48,6 +56,9 @@ export function NextStep({
   canCreateTask,
   submitting,
   onSubmit,
+  canDirectApprove,
+  approving,
+  onDirectApprove,
   onRail,
 }: NextStepProps): React.JSX.Element | null {
   const t = useT();
@@ -78,6 +89,16 @@ export function NextStep({
           onClick={onSubmit}
         >
           {t('spec.submit_review')}
+        </Button>
+        {/* **바로 승인**(REQ-WEB-303) — 사전 검토에 막히면 검토 요청처럼 잠긴다(같은 판정이 제출을 막는다) */}
+        <Button
+          size="sm"
+          data-testid="direct-approve"
+          disabled={!canDirectApprove || approving || submitting || checkBlocks > 0}
+          disabledReason={canDirectApprove ? undefined : rolesOnly(DIRECT_APPROVE_ROLES)}
+          onClick={onDirectApprove}
+        >
+          {t('spec.direct_approve')}
         </Button>
         {/* **잠긴 이유를 단추 곁에서 말하고, 그 자리로 데려간다** — 툴팁 하나로는 고칠 곳을 모른다 */}
         {checkBlocks > 0 && (

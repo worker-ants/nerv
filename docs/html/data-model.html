@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.24 (2026-10-10)</span>
+      <span>버전 v0.25 (2026-10-11)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -442,7 +442,7 @@
       <tr><td><code>name</code></td><td>text</td><td>"노트북 Claude Code" 같은 사람용 라벨</td></tr>
       <tr><td><code>token_hash</code></td><td>bytea</td><td>원문 미저장</td></tr>
       <tr><td><code>prefix</code></td><td>text</td><td>앞 8자(식별·감사용)</td></tr>
-      <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:draft</code>, <code>task:claim</code>, <code>task:update</code> … — 어휘 정본은 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(10종)이고, 사람 전용 둘(<code>spec:approve</code>·<code>approval:decide</code>)은 토큰이 가질 수 없다(2026-09-05 정정)</td></tr>
+      <tr><td><code>scopes</code></td><td>text[]</td><td><code>spec:read</code>, <code>spec:draft</code>, <code>task:claim</code>, <code>task:update</code> … — 어휘 정본은 <code>@nerv/schema</code> 의 <code>AGENT_SCOPES</code>(11종)이고, 사람 전용 권한 <code>approval:decide</code>는 토큰이 가질 수 없다(2026-09-05 정정). <code>spec:approve</code>는 2026-10-11 부터 옵트인 토큰 권한이다 — 사람이 세션에서 대답한 승인을 전하는 도구 하나만 본다(<a href="api.html">4.4 API</a> REQ-API-291)</td></tr>
       <tr><td><code>expires_at</code> · <code>revoked_at</code> · <code>last_used_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>last_used_hostname</code></td><td>text NULL</td><td>마지막으로 쓰인 머신(<code>X-NERV-Host</code>, <code>0002</code>). 헤더 값이라 <b>신뢰하지 않으며 권한 판정이 아니라 표시 전용</b>이다 — 유출 판단의 첫 단서다(NFR-03)</td></tr>
     </tbody>

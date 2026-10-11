@@ -22,9 +22,18 @@
     "https://api.nerv.example.com/ingest/hooks/stop",
     "https://api.nerv.example.com/ingest/hooks/session-end"
   ],
+  "$comment_permissions": "A3 도구는 어느 스킬의 allowed-tools 에도 없어서 호출마다 사람에게 묻는다(4.6 §2.0). 누가 저장소 설정의 allow 에 mcp__nerv__* 를 넓게 적어도 그 확인이 사라지지 않게, 관리형 설정이 ask 로 묶어 둔다 — 검토 요청과 세션에서의 승인(nerv_spec_approve · 2026-10-11)이다. 설치 경로마다 도구 이름이 둘이다(4.6 §2.0).",
+  "permissions": {
+    "ask": [
+      "mcp__nerv__nerv_spec_submit_review",
+      "mcp__plugin_nerv_nerv__nerv_spec_submit_review",
+      "mcp__nerv__nerv_spec_approve",
+      "mcp__plugin_nerv_nerv__nerv_spec_approve"
+    ]
+  },
   "$comment_statusline": "설치본 경로는 plugins/cache/<마켓플레이스>/<플러그인>/<버전>/ 세 단계다(4.6 §3.6 실측). 마켓플레이스 이름은 위 enabledPlugins 의 @ 뒤(여기서는 nerv-internal; GitHub 경로로 설치했으면 nerv)이고, 버전 자리는 릴리스마다 바뀐다 — 플러그인을 올릴 때 이 줄도 같이 고친다.",
   "statusLine": {
     "type": "command",
-    "command": "$HOME/.claude/plugins/cache/nerv-internal/nerv/0.3.24/statusline/nerv-statusline.sh"
+    "command": "$HOME/.claude/plugins/cache/nerv-internal/nerv/0.3.25/statusline/nerv-statusline.sh"
   }
 }

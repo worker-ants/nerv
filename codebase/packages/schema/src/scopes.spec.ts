@@ -7,8 +7,12 @@ import {
   HUMAN_ONLY_SCOPES,
   ROLE_SCOPES,
   SPEC_APPROVER_ROLES,
+  SELF_APPROVAL_ROLES,
   SPEC_SUBMIT_ROLES,
+  AGENT_RECOMMENDED_SCOPES,
   canCreateSpecType,
+  canDirectApprove,
+  DIRECT_APPROVE_ROLES,
   rolesWithScope,
   isAgentScope,
   isHumanOnlyScope,
@@ -21,7 +25,13 @@ describe('PAT 권한 어휘', () => {
       expect(isAgentScope(human)).toBe(false);
       expect(AGENT_SCOPES as readonly string[]).not.toContain(human);
     }
-    expect([...HUMAN_ONLY_SCOPES]).toEqual(['spec:approve', 'approval:decide']);
+    expect([...HUMAN_ONLY_SCOPES]).toEqual(['approval:decide']);
+  });
+
+  it('spec:approve 는 옵트인이다 — 줄 수는 있지만 권장 묶음에는 없다(2026-10-11 사람 결정)', () => {
+    expect(isAgentScope('spec:approve')).toBe(true);
+    expect(isHumanOnlyScope('spec:approve')).toBe(false);
+    expect(AGENT_RECOMMENDED_SCOPES as readonly string[]).not.toContain('spec:approve');
   });
 
   it('전부 resource:action 표기다', () => {
@@ -74,8 +84,12 @@ describe('역할 → 권한 매트릭스 (0003_multi_role)', () => {
 
   it('사람 전용 권한은 역할에는 있어도 토큰에는 못 간다', () => {
     // 역할 매트릭스와 토큰 발급 가능 여부는 **다른 축**이다(§1.3).
-    expect(scopesForRoles(['planner']).has('spec:approve')).toBe(true);
-    expect(isAgentScope('spec:approve')).toBe(false);
+    expect(scopesForRoles(['planner']).has('approval:decide')).toBe(true);
+    expect(isAgentScope('approval:decide')).toBe(false);
+  });
+
+  it('spec:approve 를 가진 역할은 admin · planner 뿐이다 — 다른 역할의 토큰에서는 교집합으로 빠진다', () => {
+    expect(rolesWithScope('spec:approve').sort()).toEqual(['admin', 'planner']);
   });
 
   it('스펙 생성 타입은 역할이 가른다 (EP-SPEC-07 의 ● / ○)', () => {
@@ -122,5 +136,20 @@ describe('역할 → 권한 매트릭스 (0003_multi_role)', () => {
 
   it('제출은 작성자 본인 또는 planner·admin 이다', () => {
     expect([...SPEC_SUBMIT_ROLES].sort()).toEqual(['admin', 'planner']);
+  });
+
+  it('자기 승인 예외는 admin · planner 다(2026-10-11 사람 결정)', () => {
+    expect([...SELF_APPROVAL_ROLES].sort()).toEqual(['admin', 'planner']);
+  });
+
+  it('바로 승인은 제출과 결재 권한을 함께 가진 역할만 한다', () => {
+    expect(canDirectApprove(['planner'])).toBe(true);
+    expect(canDirectApprove(['admin'])).toBe(true);
+    for (const role of ['designer', 'developer', 'qa', 'viewer']) {
+      expect(canDirectApprove([role])).toBe(false);
+    }
+    // 겸직은 합집합이다
+    expect(canDirectApprove(['developer', 'planner'])).toBe(true);
+    expect([...DIRECT_APPROVE_ROLES].sort()).toEqual(['admin', 'planner']);
   });
 });

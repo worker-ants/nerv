@@ -2,7 +2,8 @@
 //
 // 이 표면이 Phase 1 종료 게이트의 대상이다: 파일럿 2주간 **플랫폼 밖에서 처리된 승인 0건**.
 // 그러려면 승인이 여기서 되는 것만으로는 부족하고, 여기서 **되어야만** 해야 한다 —
-// 그래서 결정은 사람 전용이고 에이전트는 도구로도 도달할 수 없다.
+// 그래서 결정은 사람 전용이다. 에이전트 세션에서 사람이 대답으로 승인하는 길(`nerv_spec_approve` · A3 ·
+// 2026-10-11 사람 결정)도 이 서비스의 같은 판정을 지나고, 이 REST 표면에는 토큰이 오지 못한다.
 
 import {
   Body,
@@ -25,6 +26,8 @@ import {
   NERV_ERROR,
   QuestionAnswerInput,
   renderMessage,
+  SpecDirectApproveBulkInput,
+  SpecDirectApproveInput,
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
@@ -76,6 +79,73 @@ export class ApprovalController {
   pendingSpecApprovals(@Req() req: ProjectRequest): Promise<unknown> {
     const { projectId, userId, actor } = human(req);
     return this.approvals.pendingSpecApprovals({ projectId, userId, actor });
+  }
+
+  /**
+   * EP-SPEC-29 — 내가 바로 승인할 수 있는 초안(2026-10-11 · REQ-API-290). 스펙 목록의 "초안 승인" 칩이
+   * 켜질 때만 부른다. **사람 전용**이고, 바로 승인할 수 없는 역할이면 빈 목록이다
+   */
+  @RequireScope('spec:read')
+  @Get('specs/approvable-drafts')
+  approvableDrafts(@Req() req: ProjectRequest): Promise<unknown> {
+    const { projectId, userId, actor } = human(req);
+    return this.approvals.approvableDrafts({ projectId, userId, actor });
+  }
+
+  /**
+   * EP-SPEC-28 — 일괄 바로 승인(2026-10-11 · REQ-API-289). 문구 재료는 요청 로케일로 렌더한다 — 도메인은
+   * 로케일을 모른다(EP-APR-06 과 같다). 만드는 것이 아니라 결정하는 동작이라 200 이다.
+   */
+  @RequireScope('spec:approve')
+  @Post('specs/approve-drafts')
+  @HttpCode(HttpStatus.OK)
+  async approveDrafts(
+    @Req() req: ProjectRequest,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const { projectId, userId, actor } = human(req);
+    const input = parseBody(SpecDirectApproveBulkInput, body);
+    const locale = negotiateLocale(req.headers?.['accept-language'] ?? null);
+    const outcome = await this.approvals.approveDirectBulk({
+      actor,
+      projectId,
+      userId,
+      items: input.items.map((item) => ({
+        versionId: item.version_id,
+        seenContentHash: item.seen_content_hash,
+      })),
+    });
+    return {
+      ...outcome,
+      results: outcome.results.map(({ descriptor, ...rest }) => ({
+        ...rest,
+        ...(descriptor === undefined ? {} : { message: renderMessage(descriptor, locale) }),
+      })),
+    };
+  }
+
+  /**
+   * EP-SPEC-27 — **바로 승인**(2026-10-11 사람 결정 · REQ-API-287). 검토 요청과 내 승인을 한 번에 한다.
+   * REST 는 **사람 전용**이다 — 토큰은 MCP 도구(`nerv_spec_approve` · A3)로만 온다. 판정은 서비스에 있다.
+   */
+  @RequireScope('spec:approve')
+  @Post('spec-versions/:ver/approve')
+  @HttpCode(HttpStatus.OK)
+  approveDraft(
+    @Req() req: ProjectRequest,
+    @Param('ver') ver: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const { projectId, userId, actor } = human(req);
+    const input = parseBody(SpecDirectApproveInput, body);
+    return this.approvals.approveDirect({
+      actor,
+      surface: 'rest',
+      projectId,
+      specVersionId: ver,
+      userId,
+      seenContentHash: input.seen_content_hash,
+    });
   }
 
   /** EP-QST-01 — 질문 목록(기본 `open` · 어휘 판정은 서비스가 한다 · REQ-API-126) */

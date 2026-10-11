@@ -114,6 +114,7 @@ export function BulkConfirm({
   onSubmit,
   onCancel,
   showScope = true,
+  hint,
 }: {
   confirming: BulkDecision;
   chosen: readonly Row[];
@@ -124,6 +125,11 @@ export function BulkConfirm({
   onCancel: () => void;
   /** 받은 요청은 조직 · 프로젝트를 가로지르므로 줄마다 범위를 단다 — 한 프로젝트 안이면 뺀다 */
   showScope?: boolean;
+  /**
+   * 무엇을 하는 결정인지 한 줄 — 기본은 "본문을 열지 않고 결정한다" 다. 스펙 목록의 초안 바로 승인은 검토
+   * 요청이 함께 나간다는 것을 먼저 말한다(REQ-WEB-304)
+   */
+  hint?: string;
 }): React.JSX.Element {
   const t = useT();
   const approvable = chosen.filter(bulkApprovable);
@@ -143,7 +149,9 @@ export function BulkConfirm({
           ? t('inbox.bulk.confirm_approve', { count: targets.length })
           : t('inbox.bulk.confirm_reject', { count: targets.length })}
       </p>
-      <p className="mt-0.5 text-2xs text-text-faint">{t('inbox.bulk.confirm_hint')}</p>
+      <p data-testid="bulk-hint" className="mt-0.5 text-2xs text-text-faint">
+        {hint ?? t('inbox.bulk.confirm_hint')}
+      </p>
       {/* **빠지는 것과 그 까닭**(REQ-WEB-182). 수만 적으면 사람은 어느 것이 왜 빠졌는지
           카드를 하나씩 열어 봐야 한다 — 서버가 카드마다 이유를 준다(REQ-API-163) */}
       {confirming === 'approve' && chosen.length > approvable.length && (

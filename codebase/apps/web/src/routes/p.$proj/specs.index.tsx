@@ -4,7 +4,14 @@
 // 것이 요점 — 관계는 관련성의 근거이지 질의 일치가 아니다. 섞으면 사람은 왜 이게 나왔는지
 // 알 수 없고, 그러면 검색을 믿지 않게 된다.
 
-import { BULK_DECISION_LIMIT, specType, specVersionStatus, statusLabelKey } from '@nerv/schema';
+import {
+  BULK_DECISION_LIMIT,
+  canDirectApprove,
+  DIRECT_APPROVE_ROLES,
+  specType,
+  specVersionStatus,
+  statusLabelKey,
+} from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
@@ -44,6 +51,7 @@ import {
 import type { StatusToken } from '../../components/status-badge.js';
 import { ArrangeBar } from '../../features/spec-editor/arrange-bar.js';
 import { DecisionBar } from '../../features/spec-editor/decision-bar.js';
+import { DraftApproveBar } from '../../features/spec-editor/draft-approve-bar.js';
 import { asProjectId, queryKeys } from '../../lib/query-keys.js';
 import {
   NEWER_STATUS,
@@ -63,6 +71,7 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     attach?: true;
     baseline?: string;
     pending?: true;
+    drafts?: true;
     basis?: 'latest';
     focus?: string;
     layout?: number;
@@ -82,6 +91,11 @@ export const Route = createFileRoute('/p/$proj/specs/')({
     // **결재 대기**도 뷰 상태다(2026-10-04 · REQ-WEB-292) — "내가 결정할 문서" 목록을 링크로 다시 연다
     ...(search['pending'] === true || search['pending'] === 1 || search['pending'] === '1'
       ? { pending: true as const }
+      : {}),
+    // **초안 승인**도 뷰 상태다(2026-10-11 · REQ-WEB-304) — 결재 대기와 배타다(둘 다 줄을 고른다)
+    ...((search['drafts'] === true || search['drafts'] === 1 || search['drafts'] === '1') &&
+    !(search['pending'] === true || search['pending'] === 1 || search['pending'] === '1')
+      ? { drafts: true as const }
       : {}),
     // **검색어도 뷰 상태다**(§2.4 (3) · screens.md:583 — "검색·타입·상태 필터는 URL 쿼리로
     // 보존"). 컴포넌트 state 로 두면 "이 검색 결과를 봐 달라" 를 링크로 건넬 수 없고,
@@ -152,6 +166,7 @@ function SpecListScreen(): React.JSX.Element {
     archived = false,
     attach = false,
     pending = false,
+    drafts = false,
     baseline,
     basis,
     focus,
@@ -190,6 +205,7 @@ function SpecListScreen(): React.JSX.Element {
     archived?: boolean;
     attach?: boolean;
     pending?: boolean;
+    drafts?: boolean;
     baseline?: string | null;
     basis?: 'latest' | null;
     focus?: string | null;
@@ -202,6 +218,7 @@ function SpecListScreen(): React.JSX.Element {
     archived?: true;
     attach?: true;
     pending?: true;
+    drafts?: true;
     baseline?: string;
     basis?: 'latest';
     focus?: string;
@@ -237,6 +254,8 @@ function SpecListScreen(): React.JSX.Element {
       ...((patch.archived ?? archived) ? { archived: true as const } : {}),
       ...((patch.attach ?? attach) ? { attach: true as const } : {}),
       ...((patch.pending ?? pending) ? { pending: true as const } : {}),
+      // 결재 대기와 초안 승인은 배타다 — 하나를 켜면 다른 하나는 꺼진다
+      ...((patch.drafts ?? drafts) && !(patch.pending ?? pending) ? { drafts: true as const } : {}),
       ...(nextBaseline === undefined || nextBaseline === '' ? {} : { baseline: nextBaseline }),
       ...(nextBasis === undefined ? {} : { basis: nextBasis }),
       ...(nextQuery === undefined || nextQuery === '' ? {} : { q: nextQuery }),
@@ -313,6 +332,30 @@ function SpecListScreen(): React.JSX.Element {
     [pendingRows],
   );
   const [decisionPicked, setDecisionPicked] = useState<ReadonlySet<string>>(new Set());
+  /**
+   * **초안 승인**(2026-10-11 사람 결정 · REQ-WEB-304) — 칩을 켤 때만 묻는다(EP-SPEC-29). 결재 대기와 같은 모양이고,
+   * 고른 초안을 검토 요청과 승인 한 번으로 보낸다(EP-SPEC-28). 할 수 없는 역할이면 칩이 잠긴 채 이유를 보인다
+   */
+  const canApproveDrafts = canDirectApprove(rolesInProject(me.data, orgSlug, proj));
+  const approvableDrafts = useQuery({
+    queryKey: queryKeys.projectApprovableDrafts(asProjectId(projectId) ?? (proj as never)),
+    queryFn: () => apiFetch<{ items: Row[] }>(`/projects/${proj}/specs/approvable-drafts`),
+    enabled: drafts && canApproveDrafts && projectId !== undefined,
+  });
+  const draftRows = approvableDrafts.data?.items ?? [];
+  const draftKeys = useMemo(
+    () => new Set(draftRows.map((row) => String(row['spec_key']))),
+    [draftRows],
+  );
+  const [draftPicked, setDraftPicked] = useState<ReadonlySet<string>>(new Set());
+  const toggleDraft = useCallback((key: string) => {
+    setDraftPicked((now) => {
+      const next = new Set(now);
+      if (next.has(key)) next.delete(key);
+      else if (next.size < BULK_DECISION_LIMIT) next.add(key);
+      return next;
+    });
+  }, []);
   const toggleDecision = useCallback((key: string) => {
     setDecisionPicked((now) => {
       const next = new Set(now);
@@ -413,13 +456,15 @@ function SpecListScreen(): React.JSX.Element {
           size="sm"
           data-testid="arrange-toggle"
           aria-pressed={arranging}
-          disabled={!canFreeze || pending}
+          disabled={!canFreeze || pending || drafts}
           disabledReason={
             !canFreeze
               ? t('spec.meta.edit_role')
               : pending
                 ? t('specs.arrange.pending_on')
-                : undefined
+                : drafts
+                  ? t('specs.arrange.drafts_on')
+                  : undefined
           }
           onClick={() => {
             setArranging((on) => !on);
@@ -651,10 +696,11 @@ function SpecListScreen(): React.JSX.Element {
               aria-pressed={pending}
               onClick={() => {
                 setDecisionPicked(new Set());
+                setDraftPicked(new Set());
                 void navigate({
                   to: '/p/$proj/specs',
                   params: { proj },
-                  search: searchWith({ pending: !pending, view: 'tree' }),
+                  search: searchWith({ pending: !pending, drafts: false, view: 'tree' }),
                 });
               }}
               className={cn(
@@ -666,6 +712,33 @@ function SpecListScreen(): React.JSX.Element {
             >
               {t('specs.pending_only')}
               {pending && pendingApprovals.data !== undefined ? ` ${pendingRows.length}` : ''}
+            </button>
+            {/* **초안 승인**(2026-10-11 사람 결정 · REQ-WEB-304) — 켜면 내가 바로 승인할 수 있는 초안만 트리에 남고
+                줄마다 고르는 칸이 생긴다. 할 수 없는 역할에는 잠긴 채 누가 할 수 있는지 보인다(REQ-WEB-003) */}
+            <button
+              type="button"
+              data-testid="spec-drafts-only"
+              aria-pressed={drafts}
+              disabled={!canApproveDrafts}
+              title={canApproveDrafts ? undefined : rolesOnly(DIRECT_APPROVE_ROLES)}
+              onClick={() => {
+                setDraftPicked(new Set());
+                setDecisionPicked(new Set());
+                void navigate({
+                  to: '/p/$proj/specs',
+                  params: { proj },
+                  search: searchWith({ drafts: !drafts, pending: false, view: 'tree' }),
+                });
+              }}
+              className={cn(
+                'rounded-nerv-sm border px-2 py-0.5 tabular-nums disabled:cursor-not-allowed disabled:opacity-45',
+                drafts
+                  ? 'border-status-action bg-status-action-soft font-medium text-status-action'
+                  : 'border-status-action text-status-action hover:bg-status-action-soft',
+              )}
+            >
+              {t('specs.drafts_only')}
+              {drafts && approvableDrafts.data !== undefined ? ` ${draftRows.length}` : ''}
             </button>
           </div>
         )}
@@ -693,7 +766,16 @@ function SpecListScreen(): React.JSX.Element {
                   onSelect={setDecisionPicked}
                 />
               )}
-              {arranging && !pending && (
+              {drafts && !pending && (
+                <DraftApproveBar
+                  projectSlug={proj}
+                  projectId={asProjectId(projectId)}
+                  drafts={draftRows}
+                  selected={draftPicked}
+                  onSelect={setDraftPicked}
+                />
+              )}
+              {arranging && !pending && !drafts && (
                 <ArrangeBar
                   projectSlug={proj}
                   projectId={asProjectId(projectId)}
@@ -728,9 +810,18 @@ function SpecListScreen(): React.JSX.Element {
                         selectable: (key: string) => pendingKeys.has(key),
                       },
                     }
-                  : arranging
-                    ? { selection: { selected, onToggle: toggleSelected } }
-                    : {})}
+                  : drafts
+                    ? {
+                        onlyKeys: draftKeys,
+                        selection: {
+                          selected: draftPicked,
+                          onToggle: toggleDraft,
+                          selectable: (key: string) => draftKeys.has(key),
+                        },
+                      }
+                    : arranging
+                      ? { selection: { selected, onToggle: toggleSelected } }
+                      : {})}
                 onTitleFilter={setTitleFiltered}
               />
             </Card>

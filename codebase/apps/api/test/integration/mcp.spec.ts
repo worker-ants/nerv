@@ -181,7 +181,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     }
   });
 
-  it('tools/list 가 26종을 노출한다 — MVP 23(P0 8 + P1 15) + 리뷰 3(P2)', async () => {
+  it('tools/list 가 27종을 노출한다 — MVP 24(P0 8 + P1 16) + 리뷰 3(P2)', async () => {
     const { body } = await rpc('tools/list');
     const tools = (body['result'] as { tools: { name: string; inputSchema: unknown }[] }).tools;
     // 카탈로그와 MVP 를 섞지 않는다 — 리뷰 수집(FR-09) 2종이 Phase 2 에서 위에 얹혔다.
@@ -190,7 +190,9 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     // (`nerv_question_cancel` — 답이 필요 없어진 것을 아는 쪽은 물어본 쪽뿐이다), 09-28 에 23
     // (`nerv_spec_attachment_hide` — 시안을 바꾸면 옛 시안을 내린다. 지우는 것은 사람이다).
     // 2026-09-28 — 리뷰가 3(`nerv_finding_list` — 열린 발견을 읽는다. 제출 응답은 수만 준다 · REQ-API-242 · 278)
-    expect(tools).toHaveLength(26);
+    // 2026-10-11 — MVP 24(`nerv_spec_approve` — 사람이 세션에서 대답한 승인 · A3 · REQ-API-291)
+    expect(tools).toHaveLength(27);
+    expect(tools.map((t) => t.name)).toContain('nerv_spec_approve');
     expect(tools.map((t) => t.name)).toContain('nerv_finding_list');
     expect(tools.map((t) => t.name)).toContain('nerv_spec_attachment_hide');
     expect(tools.map((t) => t.name)).toContain('nerv_question_cancel');
@@ -208,7 +210,7 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
   /**
    * "권한은 도구 표의 '필요 권한' 열과 1:1" 은 **사실이 아니었다**(2026-09-04 실측).
    *
-   * 도구 23종이 쓰는 권한은 일곱이고 셋(`spec:meta`·`spec:evidence`·`import:write`)은
+   * 도구 23종이 쓰는 권한은 일곱이었고(2026-10-11 부터 여덟 — `spec:approve`) 셋(`spec:meta`·`spec:evidence`·`import:write`)은
    * 도구가 없는 REST 축이다. 문서가 그 말을 오래 달고 있었으므로 여기서 사실을 못박는다 —
    * 다음에 어긋나면 문장이 아니라 이 테스트가 먼저 말한다.
    */
@@ -222,7 +224,8 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     const used = new Set(tools.map((t) => String(t._meta?.['nerv/scope'])));
 
     for (const scope of REST_ONLY_SCOPES) expect(used.has(scope)).toBe(false);
-    // 남은 일곱이 도구 26종을 덮는다 — 어휘 10 에서 REST 축 3 을 뺀 수와 정확히 같다
+    // 남은 여덟이 도구 27종을 덮는다 — 어휘 11 에서 REST 축 3 을 뺀 수와 정확히 같다(2026-10-11 ·
+    // `spec:approve` 가 옵트인 토큰 권한이 되어 `nerv_spec_approve` 하나가 그것을 본다)
     expect(used.size).toBe(AGENT_SCOPES.length - REST_ONLY_SCOPES.length);
     for (const scope of used) expect(AGENT_SCOPES as readonly string[]).toContain(scope);
   });
@@ -1096,7 +1099,7 @@ describe('E03-S03 스킬이 부르는 인자가 도구에 실재하는가', () =
   const CALL = /`(nerv_[a-z_]+)`\(([^)]*)\)/g;
   const TOKEN = /`([^`]+)`/g;
 
-  it('스킬 6종의 도구 호출 표기를 tools/list 스키마와 대조한다', async () => {
+  it('스킬 7종의 도구 호출 표기를 tools/list 스키마와 대조한다', async () => {
     const { body } = await rpc('tools/list');
     const tools = (
       body['result'] as { tools: { name: string; inputSchema: Record<string, unknown> }[] }
@@ -2047,5 +2050,173 @@ describe('nerv_spec_attachment_hide (REQ-API-231)', () => {
       [attachmentId],
     );
     expect(events).toEqual([{ is_agent: true, mode: 'hidden' }]);
+  });
+});
+
+/**
+ * **세션에서 사람이 대답한 승인**(2026-10-11 사람 결정 · REQ-API-291).
+ *
+ * 문은 셋이 함께 지킨다 — A3(클라이언트가 호출마다 묻는다) · 토큰의 옵트인 권한 `spec:approve` · 역할(admin ·
+ * planner). 여기서는 서버가 지키는 둘(권한 · 역할)과 그 결과가 무엇으로 남는지를 HTTP 그대로 본다.
+ */
+describe('nerv_spec_approve (REQ-API-291)', () => {
+  let plannerId: string;
+  let plannerToken: string;
+  let plannerPlainToken: string;
+
+  beforeAll(async () => {
+    plannerId = newId();
+    await pool.query(
+      `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'mina@example.com','미나','active')`,
+      [plannerId],
+    );
+    await pool.query(
+      `INSERT INTO membership (id, org_id, project_id, user_id, role)
+       SELECT $1, org_id, id, $2, 'planner' FROM project WHERE id = $3`,
+      [newId(), plannerId, projectId],
+    );
+    const auth = app.get(AuthService);
+    const base = ['spec:read', 'spec:draft', 'agent-session:launch'];
+    plannerToken = (
+      await auth.issueToken({
+        projectId,
+        userId: plannerId,
+        name: 'approve',
+        scopes: [...base, 'spec:approve'],
+      })
+    ).token;
+    // 권장 묶음 그대로 — `spec:approve` 를 고르지 않았다
+    plannerPlainToken = (
+      await auth.issueToken({ projectId, userId: plannerId, name: 'plain', scopes: base })
+    ).token;
+  });
+
+  async function plannerDraft(key: string): Promise<{ versionId: string; hash: string }> {
+    const versionId = newId();
+    const specId = newId();
+    const body = `# ${key}\n\n본문`;
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+      [specId, projectId, key],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'draft',$3, digest($3,'sha256'), $4)`,
+      [versionId, specId, body, plannerId],
+    );
+    await pool.query(`UPDATE spec SET current_version_id = $1 WHERE id = $2`, [versionId, specId]);
+    const { rows } = await pool.query<{ h: string }>(
+      `SELECT encode(content_hash, 'hex') AS h FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    return { versionId, hash: rows[0]!.h };
+  }
+
+  it('A3 이고 옵트인 권한을 본다 — 클라이언트가 호출마다 사람에게 묻는다', async () => {
+    const { body } = await rpc('tools/list');
+    const tool = (
+      body['result'] as { tools: { name: string; _meta?: Record<string, unknown> }[] }
+    ).tools.find((t) => t.name === 'nerv_spec_approve');
+    expect(tool?._meta).toEqual({ 'nerv/tier': 'A3', 'nerv/scope': 'spec:approve' });
+  });
+
+  it('권한을 고르지 않은 토큰은 막힌다 — 역할이 planner 여도 그렇다', async () => {
+    const { versionId, hash } = await plannerDraft('SPC-MCP-APPROVE-PLAIN');
+    const out = await callTool(
+      'nerv_spec_approve',
+      { spec_version_id: versionId, seen_content_hash: hash },
+      { token: plannerPlainToken },
+    );
+    expect(out).toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+  });
+
+  it('역할에 없는 권한은 토큰에 있어도 빠진다 — developer 는 승인하지 못한다', async () => {
+    const devToken = (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId,
+        name: 'dev-approve',
+        scopes: ['spec:read', 'spec:approve', 'agent-session:launch'],
+      })
+    ).token;
+    const { versionId, hash } = await plannerDraft('SPC-MCP-APPROVE-DEV');
+    const out = await callTool(
+      'nerv_spec_approve',
+      { spec_version_id: versionId, seen_content_hash: hash },
+      { token: devToken },
+    );
+    expect(out).toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+    const { rows } = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM spec_version WHERE id = $1`,
+      [versionId],
+    );
+    expect(rows[0]?.status).toBe('draft');
+  });
+
+  it('planner 가 세션에서 승인한다 — 그 세션을 거쳤다고 남는다', async () => {
+    const boot = await callTool(
+      'nerv_bootstrap',
+      { agent_type: 'claude-code', hostname: 'mac-21', external_session_id: 'S-approve' },
+      { token: plannerToken },
+    );
+    const { versionId, hash } = await plannerDraft('SPC-MCP-APPROVE');
+    // 결재 자리가 서는 등급(T2)으로 고정한다 — 기본 정책에서 이 초안은 자동 통과라 결정이 남지 않는다
+    const { rows: saved } = await pool.query<{ policy: unknown }>(
+      `SELECT gate_policy AS policy FROM project WHERE id = $1`,
+      [projectId],
+    );
+    await pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify({ spec_gate: { tier_boundaries: [0, 0, 100], dynamic_escalation: false } }),
+      projectId,
+    ]);
+    const out = await callTool(
+      'nerv_spec_approve',
+      {
+        spec_version_id: versionId,
+        seen_content_hash: hash,
+        session_id: boot['session_id'],
+        idempotency_key: 'approve-1',
+      },
+      { token: plannerToken },
+    );
+    expect(out).toMatchObject({ ok: true, status: 'approved', spec_key: 'SPC-MCP-APPROVE' });
+    const { rows } = await pool.query<{ is_agent: boolean; session: string; via: string }>(
+      `SELECT is_agent, actor_session_id AS session, payload->>'via' AS via FROM event
+        WHERE type = 'approval.decided' AND payload->>'subject_id' = $1`,
+      [versionId],
+    );
+    expect(rows).toEqual([{ is_agent: true, session: boot['session_id'], via: 'agent_session' }]);
+    await pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify(saved[0]?.policy ?? {}),
+      projectId,
+    ]);
+  });
+
+  it('spec:approve 를 고른 토큰도 기준선은 만들지 못한다 — 사람 전용 게이트가 막는다', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects/clemvion/baselines',
+      headers: { authorization: `Bearer ${plannerToken}`, 'content-type': 'application/json' },
+      payload: { name: 'by-token' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as Record<string, unknown>)['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+  });
+
+  it('REST 의 바로 승인은 같은 토큰으로 부르면 사람 전용에서 막힌다', async () => {
+    const { versionId, hash } = await plannerDraft('SPC-REST-APPROVE-PAT');
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/clemvion/spec-versions/${versionId}/approve`,
+      headers: { authorization: `Bearer ${plannerToken}`, 'content-type': 'application/json' },
+      payload: { seen_content_hash: hash },
+    });
+    expect(res.statusCode).toBe(403);
+    const body = res.json() as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.HUMAN_ONLY);
+    // 막기만 하지 않는다 — 사람이 누를 곳(그 문서)을 준다
+    expect(String((body['details'] as Record<string, unknown>)['web_url'])).toContain(
+      '/specs/SPC-REST-APPROVE-PAT',
+    );
   });
 });

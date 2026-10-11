@@ -48,6 +48,8 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
       queryKeys.projectSpecTree(PRJ),
       // 표·그래프도 스펙이 생기면 낡는다(2026-09-02 — 어떤 이벤트에도 걸려 있지 않았다)
       queryKeys.projectSpecGraph(PRJ),
+      // 초안 승인 목록도 낡는다(2026-10-11 · REQ-WEB-304) — 고쳐 쓴 초안의 지문이 바뀐다
+      queryKeys.projectApprovableDrafts(PRJ),
     ]);
   });
 
@@ -65,6 +67,7 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
       queryKeys.specVersions('spc-7'),
       queryKeys.projectSpecTree(PRJ),
       queryKeys.projectSpecGraph(PRJ),
+      queryKeys.projectApprovableDrafts(PRJ),
     ]);
   });
 

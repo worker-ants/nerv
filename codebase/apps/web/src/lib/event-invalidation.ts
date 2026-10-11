@@ -43,6 +43,9 @@ const specAxis: KeyBuilder = (e) => {
     // 표·그래프(EP-SPEC-19)도 스펙이 생기거나 승인되면 낡는다 — 어떤 이벤트에도
     // 걸려 있지 않아 새로고침 전까지 옛 그림을 보여 주고 있었다
     queryKeys.projectSpecGraph(e.project_id),
+    // "초안 승인" 목록(REQ-WEB-304)은 초안이 생기고 고쳐지고 제출 · 승인 · 보관될 때 낡는다 — 고쳐 쓴 초안의
+    // 지문이 그대로면 일괄 승인이 stale 로 거절된다
+    queryKeys.projectApprovableDrafts(e.project_id),
   ];
 };
 // 코멘트·Task 도 **같은 축**이다(2026-09-02). 스펙 축만 2026-08-29 에 고정 ID로 옮겼고

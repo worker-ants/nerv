@@ -107,6 +107,6 @@ An agent raises a question when it cannot decide on its own. There are two urgen
 - `blocking` — the agent does not continue until it gets an answer. The session goes to `awaiting_input`.
 - `normal` — the agent keeps working while it waits for an answer.
 
-**A session that submits a review request (T2/T3) or a `critical` downgrade request also stops and waits for a decision.** When you decide in the inbox, the session receives the result on its next heartbeat and continues. If it still has other pending items (an unanswered question, or another request without a decision), it keeps waiting.
+**A session that submits a review request (T2/T3) or a `critical` downgrade request also stops and waits for a decision.** When you decide in the inbox, the session receives the result on its next heartbeat and continues. If it still has other pending items (an unanswered question, or another request without a decision), it keeps waiting. A T3 document approved from the session ([`/nerv:approve`](/help/agents#skills)) waits the same way until another approver decides.
 
 Questions arrive **as cards in the inbox** (see [Inbox and notifications](/help/inbox)). Once you answer, the session picks up where it left off.

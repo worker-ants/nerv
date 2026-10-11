@@ -56,6 +56,8 @@ export const queryKeys = {
   projectSpecGraph: (projId: ProjectId) => ['project', projId, 'specGraph'] as const,
   /** 스펙 목록의 "결재 대기" — 이 프로젝트에서 내가 결정할 수 있는 스펙 결재(EP-SPEC-26 · REQ-WEB-292) */
   projectPendingApprovals: (projId: ProjectId) => ['project', projId, 'pendingApprovals'] as const,
+  /** 스펙 목록의 "초안 승인" — 내가 바로 승인할 수 있는 초안(EP-SPEC-29 · REQ-WEB-304) */
+  projectApprovableDrafts: (projId: ProjectId) => ['project', projId, 'approvableDrafts'] as const,
   projectTasks: (projId: ProjectId) => ['project', projId, 'tasks'] as const,
   projectSessions: (projId: ProjectId) => ['project', projId, 'sessions'] as const,
   projectBaselines: (projId: ProjectId) => ['project', projId, 'baselines'] as const,

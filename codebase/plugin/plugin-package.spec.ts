@@ -55,7 +55,12 @@ function httpHooks(): { event: string; hook: Record<string, unknown> }[] {
 // 부르는 스킬이라 설치한 쪽에서는 첫 Bash 호출이 해석되지 않았다. 근거와 선택지는 4.6 §2.5.
 // `mirror` 는 2026-10-07 에 들어왔다(4.6 §2.7). MCP 도구 대신 플러그인이 배달하는 스크립트(`bin/nerv-mirror`)를
 // 부른다 — `import` 와 달리 부르는 것이 패키지 안에 있다.
-const SKILLS = ['next', 'spec', 'impl', 'question', 'review', 'mirror'] as const;
+// `approve` 는 2026-10-11 에 들어왔다(4.6 §2.8 · 사람 결정). 사람이 세션에서 대답한 승인을 전한다 — 그 도구는
+// A3 라 이 스킬의 `allowed-tools` 에도 없다.
+const SKILLS = ['next', 'spec', 'impl', 'question', 'review', 'mirror', 'approve'] as const;
+
+/** A3 도구 — 호출마다 사람이 허용한다. 어느 스킬의 `allowed-tools` 에도 넣지 않는다(4.6 §2.0) */
+const A3_TOOLS = ['nerv_spec_submit_review', 'nerv_spec_approve'] as const;
 
 describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', () => {
   it.each(SKILLS)('skills/%s/SKILL.md', (skill) => {
@@ -103,20 +108,52 @@ describe('REQ-PLG-001 — 배치된 파일이 문서 §2~§3 전문과 같다', 
 });
 
 describe('REQ-PLG-003 — A3 도구는 어느 스킬의 allowed-tools 에도 없다', () => {
-  it('nerv_spec_submit_review 는 목록에 없다 — 검토 요청은 사람이 누른다', () => {
+  it.each(A3_TOOLS)('%s 는 목록에 없다 — 사람이 그 자리에서 허용한다', (tool) => {
     for (const skill of SKILLS) {
       const content = file(`skills/${skill}/SKILL.md`);
       const frontmatter = content.split('---')[1] ?? '';
-      expect(frontmatter).not.toContain('nerv_spec_submit_review');
+      expect(frontmatter, `${skill} 스킬의 머리말에 ${tool} 이 있다`).not.toContain(tool);
     }
   });
 
-  it('사람 전용 권한 도구도 없다 — 승인·결정은 카탈로그에 도구가 없다', () => {
+  it('결재 카드를 내리는 도구는 없다 — 그 권한(approval:decide)은 사람 전용이다', () => {
     for (const skill of SKILLS) {
       const frontmatter = file(`skills/${skill}/SKILL.md`).split('---')[1] ?? '';
-      expect(frontmatter).not.toContain('nerv_spec_approve');
       expect(frontmatter).not.toContain('nerv_approval_decide');
     }
+  });
+});
+
+/**
+ * **세션에서의 승인은 사람의 대답이 있어야 한다**(2026-10-11 사람 결정 · REQ-PLG-029).
+ *
+ * 문은 셋이다 — 스킬이 대답을 받고, 클라이언트가 호출마다 묻고(A3), 서버가 토큰 권한 · 역할 · 본 지문을 본다.
+ * 이 검사는 첫째와 둘째가 문장과 설정으로 살아 있는지 센다. 셋째는 4.4 REQ-API-291 의 L2 가 센다.
+ */
+describe('REQ-PLG-029 — approve 스킬은 사람의 대답 뒤에만 승인한다', () => {
+  const md = file('skills/approve/SKILL.md');
+
+  it('대답 · 본 지문 · 큐 금지를 말한다', () => {
+    expect(md).toContain('분명히 답했을 때만');
+    expect(md).toContain('미리 받은 허락은 대답이 아니다');
+    expect(md).toContain('seen_content_hash');
+    expect(md).toContain('큐에 넣지 않는다');
+    // 문서 하나에 대답 하나다 — 한꺼번에 승인하는 것은 웹의 일이다
+    expect(md).toContain('문서마다 묻는다');
+  });
+
+  it('관리형 설정이 A3 도구를 ask 로 묶는다 — 설치 경로마다 이름이 둘이다', () => {
+    const settings = JSON.parse(file('managed-settings.example.json')) as {
+      permissions?: { ask?: string[] };
+    };
+    for (const tool of A3_TOOLS) {
+      expect(settings.permissions?.ask).toContain(`mcp__nerv__${tool}`);
+      expect(settings.permissions?.ask).toContain(`mcp__plugin_nerv_nerv__${tool}`);
+    }
+  });
+
+  it('Codex 초안은 승인 도구를 부르지 말라고 한다 — 호출마다 묻는 창이 보장되지 않는다', () => {
+    expect(readShipped('codex/AGENTS.md')).toContain('`nerv_spec_approve` 는 부르지 않는다');
   });
 });
 

@@ -117,13 +117,21 @@ describe('PAT 발급 (EP-TOK-02)', () => {
         projectId,
         userId,
         name: '위험한 토큰',
-        scopes: ['spec:read', 'spec:approve'],
+        scopes: ['spec:read', 'approval:decide'],
       }),
     ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+  });
 
+  it('spec:approve 는 고르면 준다 — 옵트인 권한이다(2026-10-11 사람 결정)', async () => {
+    // 세션에서 사람이 대답한 승인(`nerv_spec_approve` · A3)만 이 권한을 본다. 역할에 없으면 검증할 때 빠진다
     await expect(
-      auth.issueToken({ projectId, userId, name: 'x', scopes: ['approval:decide'] }),
-    ).rejects.toMatchObject({ code: NERV_ERROR.FORBIDDEN });
+      auth.issueToken({
+        projectId,
+        userId,
+        name: '승인 옵트인',
+        scopes: ['spec:read', 'spec:approve'],
+      }),
+    ).resolves.toMatchObject({ scopes: ['spec:read', 'spec:approve'] });
   });
 
   it('알 수 없는 권한은 거부한다', async () => {

@@ -240,14 +240,40 @@ describe('권한은 무엇을 허락하는지 말한다 (2026-09-25 · UI/UX 검
       (label) => label.querySelector('code')?.textContent === 'agent-session:launch',
     );
     expect(launch?.textContent).toContain('연결하려면 필요합니다');
+    // `spec:approve` 는 옵트인 권한이 됐다(2026-10-11 사람 결정) — 사람 전용 줄이 아니라 고를 수 있는 줄에 있다
+    const approve = scopes.find(
+      (label) => label.querySelector('code')?.textContent === 'spec:approve',
+    );
+    expect(approve?.textContent).toContain('사람이 대답으로 승인한 초안을 승인합니다');
     const human = screen.getAllByTestId('human-only-scope');
     expect(human.map((label) => label.textContent)).toEqual([
-      expect.stringContaining('스펙을 승인합니다'),
       expect.stringContaining('받은 요청을 결정합니다'),
     ]);
     // 설계 문서의 결정 번호가 아니라 까닭을 말한다
     expect(human[0]?.getAttribute('title')).not.toContain('D-08');
     expect(human[0]?.getAttribute('title')).toContain('사람만 할 수 있어');
+  });
+
+  it('spec:approve 는 권장 묶음에 없고, 역할에 없으면 잠긴다 (2026-10-11 사람 결정)', async () => {
+    const box = (scope: string): HTMLInputElement =>
+      screen
+        .getAllByTestId('token-scope')
+        .find((label) => label.querySelector('code')?.textContent === scope)
+        ?.querySelector('input') as HTMLInputElement;
+    await renderTab(DEVELOPER);
+    await screen.findAllByTestId('token-scope');
+    // 권장 묶음 — 보여 주기만 하고 고르지 않았다
+    expect(box('spec:approve').checked).toBe(false);
+    // developer 는 직접 고르기로 바꿔도 고를 수 없다 — 역할 밖이다
+    fireEvent.click(screen.getByTestId('scope-custom'));
+    await waitFor(() => expect(box('spec:read').disabled).toBe(false));
+    expect(box('spec:approve').disabled).toBe(true);
+    expect(
+      screen
+        .getAllByTestId('token-scope')
+        .find((label) => label.querySelector('code')?.textContent === 'spec:approve')
+        ?.getAttribute('title'),
+    ).toContain('내 역할에 없는 권한');
   });
 
   it('토큰 표의 머리가 카탈로그를 읽는다 — "prefix" 가 박혀 있지 않다', async () => {
