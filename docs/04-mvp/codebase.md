@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.01 · 2026-10-11 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.02 · 2026-10-11 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.02 변경(2026-10-11 — 문서끼리 어긋난 곳 정리): **새 요구사항 없음 · §5.1 `.env` 전표 한 칸.** 로컬 임베딩 프로필은 ollama 다(§5.2a — 2026-08-23 교체).
 >
 > v2.01 변경(2026-10-11 — 낡은 스킬 수): **새 요구사항 없음 · §1 `plugin` 행 한 칸.** 패키지의 스킬은 7종이다.
 >
@@ -1154,7 +1156,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_VALKEY_URL` | dev 루프 시 | `redis://localhost:6379` | api · worker | 실시간 방송 MQ(§2.1). compose 내부에서는 `redis://valkey:6379`로 자동 조립(Valkey는 RESP 프로토콜 — `redis://` 스킴) |
 | `NERV_EMBED_URL` | dev 루프 시 | `http://localhost:8090/v1` | api(질의 임베딩) · worker(`embedding.job`) | **OpenAI 호환 base URL(`/v1`까지)** — 프로필 §5.2a. compose 내부 기본은 `http://embed:11434/v1`. 무응답 시 검색은 렉시컬 degrade(REQ-API-026). **미설정과 빈 값은 다르다**(2026-09-14 · REQ-CB-040): 미설정은 개발 루프의 기본값(`:8090`)이고 **빈 값은 제공자 없음**이라 임베딩이 꺼진다 — 서비스 주소를 비운 배치를 기본값으로 떨어뜨리면 컨테이너가 자기 안의 포트를 찌르고, 사람은 degrade 의 이유를 연결 거부 로그에서 거꾸로 짚어야 한다. k8s ConfigMap 이 이 키를 비워 두는 이유가 그것이다 |
 | `NERV_EMBED_MODEL` | | `BAAI/bge-m3` | `/v1/embeddings`의 `model` 인자 · 재임베딩 관리(`spec_chunk_embedding.model` — [4.3](database.md) §2.15) | 제공자·모델 교체 시 전량 재임베딩 후 구 모델 행 드랍 |
-| `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 TEI는 불요. k8s는 `nerv-secrets`(§6.2) |
+| `NERV_EMBED_API_KEY` | 외부 제공자 시 | — | `Authorization: Bearer` 헤더 | **secret** — 로컬 ollama는 불요. k8s는 `nerv-secrets`(§6.2) |
 | `NERV_EMBED_SEND_DIMENSIONS` | 운영 OpenAI 는 **필수** | `false` | api(질의 임베딩) · worker(`embedding.job`) — `EmbeddingClient.fromEnv` | 요청에 `dimensions` 를 실을 것인가. 1024 를 그대로 내는 모델(bge-m3)은 `false`, 절단이 필요한 모델(`text-embedding-3-*`)은 **`true`**. 2026-09-07 까지 주소에 `api.openai.com` 이 있는지로 **추정**했다 — 게이트웨이(Azure·LiteLLM·사내) 뒤의 같은 모델은 그 주소가 아니라 1536 차원이 돌아왔고, 검색은 오류 없이 렉시컬로 degrade 했다(REQ-CB-033) |
 | `NERV_EMBED_TRUNCATE` | 아니요 | `false` | api(질의 임베딩) · worker(`embedding.job`) — `EmbeddingClient.fromEnv` | 받은 벡터가 스키마 차원(`EMBEDDING_DIMENSIONS`)보다 **길 때** 앞에서 자르고 다시 정규화할 것인가. **MRL(Matryoshka)로 학습한 모델에서만 켠다** — 그렇지 않은 모델에서 켜면 검색 품질이 조용히 나빠진다(REQ-CB-047). 짧은 벡터는 이 값과 무관하게 거절이다(늘릴 방법이 없다). 켜면 기동 때 그 사실을 로그에 한 번 남긴다 |
 | `NERV_EMBED_PORT` | | `8090` | compose 포트 노출(127.0.0.1 한정) | 로컬 프로필 전용 |
