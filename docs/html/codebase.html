@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v2.04 (2026-10-11)</span>
+      <span>버전 v2.05 (2026-10-11)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -2306,7 +2306,7 @@ kubectl -n nerv rollout status deploy/nerv-api &amp;&amp; \
 kubectl -n nerv rollout status deploy/nerv-worker &amp;&amp; \
 kubectl -n nerv rollout status deploy/nerv-web                                    # (4) 롤아웃 확인</code></pre>
 
-  <p>마이그레이션은 <b>expand-contract</b>(하위호환 additive 우선)를 원칙으로 한다 — (2)~(3) 사이 구버전 파드가 새 스키마 위에서 잠시 돌 수 있어야 한다. 파괴적 변경(컬럼 삭제·rename)은 2회 릴리스로 나눈다. 규칙 상세는 <a href="database.html">4.3 데이터베이스 스키마</a> §1.</p>
+  <p>마이그레이션은 <b>expand-contract</b>(하위호환 additive 우선)를 원칙으로 한다 — (2)~(3) 사이 구버전 파드가 새 스키마 위에서 잠시 돌 수 있어야 한다. 파괴적 변경(컬럼 삭제·rename)은 2회 릴리스로 나눈다. 규칙 상세는 <a href="database.html">4.3 데이터베이스 스키마</a> §1. 두 경로의 실측과 롤백 절차는 §6.3b 다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>요구(EARS)</th></tr></thead>
@@ -2338,6 +2338,78 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
   <p><b>되돌리는 길은 3번 하나를 되돌리는 것</b>이다: 오버레이의 호스트 패치와 ConfigMap 의 주소 둘을 옛 이름으로 되돌리고 적용한다. 5번까지 갔다면 플러그인도 함께 되돌려야 하는데, 그것은 <b>버전을 한 번 더 올리는 일</b>이라 시간이 든다 — 그래서 5번을 4번 뒤에 두었다.</p>
 
   <p><b>CDN 배치는 3번이 다르다.</b> 웹 파드 대신 CDN 에 화면을 올리고 <code>/config.json</code> 을 그 자리에 놓는다(§5.2d) — 오버레이는 <code>../../base/web</code> 을 더하지 않고, <code>app.</code> Ingress 도 서지 않는다. 그 배치에서 이 문서가 세는 것은 API 호스트뿐이다.</p>
+
+  <h3>6.3b 마이그레이션 파이프라인 — 실측과 롤백 절차 (E06-S03 · 2026-10-11)</h3>
+
+  <p>E06-S03 스파이크의 결과다. 후보는 둘이다. <b>compose 기동 시 적용</b>은 한 번 돌고 끝나는 <code>migrate</code> 서비스와 <code>depends_on: service_completed_successfully</code> 로 이루어지고(§5.3), <b>k8s Job</b> 은 §6.3 절차 (1)~(3)의 <code>nerv-migrate</code> 다. 둘 다 같은 엔트리(<code>apps/api/dist/migrate.js</code> → <code>@nerv/schema</code> 의 <code>runMigrations</code>)를 부른다. 그래서 왕복 멱등은 엔트리에서 재고, 두 안에서는 엔트리를 부르는 방식과 실패했을 때 무엇이 멈추는지를 쟀다.</p>
+
+  <ul>
+    <li>마이그레이션 48건(<code>0000_init</code>~<code>0047_task_archive</code>) · drizzle-orm 0.45.3. 엔트리는 저장소 밖의 일회용 Postgres 16.15 에서, compose 는 저장소 compose 와 같은 <code>pgvector/pgvector:pg18</code> 에서 쟀다.</li>
+    <li><b>기존 DB 는 지난 릴리스 세 시점으로 만들었다.</b> 그 커밋의 <code>drizzle/</code> 과 <code>seed/dev-seed.sql</code> 을 꺼내 적용하고 시드를 넣은 뒤 지금 엔트리로 따라잡았다.</li>
+    <li>시간은 node 프로세스 기동(약 0.7초)을 포함한다.</li>
+  </ul>
+
+  <p><b>① 왕복 멱등 — 엔트리</b></p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>경우</th><th>1회째</th><th>2회째 이후</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td>신규 DB</td><td>48건 적용 · 2.1초</td><td>변경 0건 · 0.9초(3회째도 같다)</td><td>세 번의 <code>pg_dump -s</code> 가 모두 같다</td></tr>
+      <tr><td>기존 DB — <code>0019</code> 시점(2026-09-05) + 시드</td><td>남은 28건 적용 · 0.9초</td><td>변경 0건</td><td>스키마가 신규 DB + 시드와 같다 · 행 수 그대로(72행)</td></tr>
+      <tr><td>기존 DB — <code>0032</code> 시점(2026-09-25) + 시드</td><td>남은 15건 적용 · 1.1초</td><td>변경 0건</td><td>같다 · 행 수 그대로(148행)</td></tr>
+      <tr><td>기존 DB — <code>0044</code> 시점(2026-10-09) + 시드</td><td>남은 3건 적용 · 1.0초</td><td>변경 0건</td><td>같다 · 행 수 그대로(148행)</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>기존 DB 는 <b>신규 DB 에 시드를 넣은 것</b>과 견준다. 시드가 지난달 파티션을 하나 더 만들기 때문이다(<code>nerv_ensure_month_partitions(current_date - 1 month)</code>). 그 파티션 말고는 한 줄도 다르지 않다.</p>
+
+  <p><b>② 두 안의 실행</b></p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>무엇을 쟀나</th><th>compose 기동 시 적용</th><th>k8s Job</th></tr></thead>
+    <tbody>
+      <tr><td>처음 기동</td><td><code>up -d</code> 25초(postgres healthcheck 포함). migrate 가 11.1초 뒤 exit 0 으로 끝나고 그다음에 api 가 떴다</td><td>파드 실행은 재지 못했다(아래)</td></tr>
+      <tr><td>다시 기동</td><td>그대로 <code>up -d</code> 하면 끝난 migrate 컨테이너가 다시 돈다(변경 0건). <code>down</code> 뒤 <code>up -d</code> 도 같다. <code>restart api</code> 는 마이그레이션을 돌리지 않는다</td><td>(1)이 Job 을 지우고 (2)가 다시 만든다. 같은 내용을 다시 적용하면 <code>unchanged</code> 다</td></tr>
+      <tr><td>매니페스트를 고쳐 다시 적용</td><td>—</td><td>지우지 않고 이미지 태그만 바꿔 적용하면 <code>spec.template</code> 불변 오류로 거부된다(rc 1). 절차 (1)이 있는 이유다</td></tr>
+      <tr><td>마이그레이션 실패</td><td><code>up -d</code> 가 rc 1 과 <code>service "migrate" didn't complete successfully: exit 1</code> 로 끝난다. 이미 떠 있던 api 는 그대로 돌고, 새로 띄우던 api 는 <code>created</code> 에서 멈춘다</td><td><code>kubectl wait --for=condition=complete</code> 가 시한에서 rc 1 로 끝나 (4)로 넘어가지 않는다(<code>&amp;&amp;</code>)</td></tr>
+      <tr><td>고친 뒤</td><td>다시 <code>up -d</code> 하면 migrate exit 0 → api 기동</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>compose 는 nerv-api 이미지 대신 node 24 이미지에 코드를 마운트해 같은 엔트리를 돌렸다(이 작업 환경의 Docker 빌드가 프록시 인증서를 신뢰하지 않는다). <b>k8s 는 API 서버까지만 쟀다.</b> k3s v1.31.6 노드(Docker 런타임)는 Ready 까지 올라왔지만 파드 샌드박스가 뜨지 않았다 — 이 작업 환경은 <code>oom_score_adj</code> 를 낮추지 못하는데 kubelet 이 샌드박스에 -998 을 준다. Job 은 prod 오버레이의 렌더 결과를 그대로 적용했다. 파드가 부르는 엔트리는 ①에서 쟀고, 파드 재시도(<code>backoffLimit: 2</code>)와 <code>ttlSecondsAfterFinished</code> 는 실제 클러스터에서 확인하지 못했다.</p>
+
+  <p><b>③ 엔트리의 성질 — 롤백 절차의 근거</b></p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>실험</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td>한 판의 중간 실패 — 칸을 더하는 파일 다음에 실패하는 파일</td><td>적용기는 남은 파일 전부를 <b>한 트랜잭션</b>으로 돌린다. 실패하면 앞 파일이 더한 칸까지 되돌아간다 — 이력 48건 그대로, 더한 칸 없음. 기동 검사(REQ-CB-056)도 그 DB 를 "따라왔다" 로 본다</td></tr>
+      <tr><td>앞선 DB — 새 릴리스가 칸 하나를 더한 뒤 옛 이미지로 되돌린다</td><td>옛 코드의 기동 검사가 적용 49 · 코드 48 · 남은 것 없음으로 보고 기동을 허락한다. 옛 엔트리를 다시 돌려도 변경 0건이다</td></tr>
+      <tr><td>동시 실행 — 파드마다 기동할 때 적용하면 생기는 모양</td><td>신규 DB 에 2개 · 3개를 동시에 돌린 여섯 번 모두 <b>하나만</b> 성공했고 나머지는 exit 1 이다(<code>pg_extension_name_index</code> 중복 키). 남은 3건이 있는 기존 DB 에서는 세 번 중 한 번이 <code>already exists</code> 로 실패했다. 어느 경우든 이력과 스키마는 한 벌이다 — 진 쪽의 트랜잭션이 통째로 되돌아간다. 적용기에는 잠금이 없다(drizzle-orm <code>pg-core/dialect.js</code> 의 <code>migrate</code>)</td></tr>
+      <tr><td>순서표의 <code>when</code> 이 거꾸로인 파일 — 나중에 머지한 브랜치가 더 이른 시각에 만든 마이그레이션</td><td>기존 DB 에서는 <b>오류 없이 건너뛴다</b>(칸이 생기지 않는다). 신규 DB 에서는 적용된다. 기동 검사도 같은 규칙이라 남은 것이 없다고 본다. 적용기가 이력의 가장 늦은 시각보다 나중인 파일만 돌리기 때문이다. 이 순서는 L1 <code>packages/schema/src/migrate.spec.ts</code> 의 "시각이 순서대로 늘어난다" 가 지킨다 — 머지 충돌을 손으로 풀며 <code>when</code> 을 그대로 두면 거기서 멈춘다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>판정: 두 안을 모두 쓴다 — 배치마다 하나씩, 엔트리는 하나.</b> compose 배치는 기동 시 적용, k8s 배치는 Job 이다(지금 트리 그대로). 두 안은 배치 대상만 다른 같은 단계다.</p>
+
+  <ol>
+    <li><b>실행 주체가 하나다.</b> 두 안 모두 한 프로세스가 한 번 돌린다. 동시에 돌리면 하나만 성공하고 나머지는 실패로 끝났다(③). 파드마다 기동할 때 적용하는 안(initContainer · api 프로세스 안)은 replicas 3 인 운영 배치에서 배포마다 실패한 파드를 남긴다 — 셋째 후보로 보고 버렸다.</li>
+    <li><b>실패하면 다음 단계가 멈춘다.</b> compose 는 <code>service_completed_successfully</code> 가, k8s 는 (3)의 <code>wait</code> 와 <code>&amp;&amp;</code> 가 멈춘다(②). 새 파드가 먼저 떠도 기동 검사가 남은 파일을 이름으로 대며 기동을 거부한다 — ①의 기존 DB 셋 모두 따라잡기 전에는 <code>pending</code> 이 비지 않았다.</li>
+    <li><b>엔트리가 하나라 두 경로가 따로 놀지 않는다.</b> compose 에서 잰 것이 k8s 에서도 성립한다. 다른 것은 부르는 방식(서비스 의존 · Job 대기)뿐이다.</li>
+  </ol>
+
+  <p><b>롤백 절차.</b> drizzle 에는 되돌리는 마이그레이션(down)이 없고 따로 만들지도 않는다 — 손으로 쓴 down 파일은 필요한 날까지 한 번도 돌지 않는 코드다. 경우를 셋으로 나눈다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>언제</th><th>무엇을 하나</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>마이그레이션이 실패했다</td><td>스키마는 손대지 않는다 — DB 는 그 판 이전 그대로다. 실패한 파일을 고쳐 다시 배포한다. 그 파일이 다른 DB(개발 · CI)에서 이미 적용됐다면 고친 결과가 그 DB 와 같아야 한다(스냅샷 불변 · <a href="database.html">4.3 데이터베이스 스키마</a> §1.2)</td><td>③ 첫 줄 — 판 전체가 한 트랜잭션이다</td></tr>
+      <tr><td>마이그레이션은 성공했고 새 이미지가 문제다</td><td>이미지만 이전 태그로 되돌린다(<code>kubectl -n nerv rollout undo</code> 또는 이전 SHA 로 §6.3 절차). 스키마는 그대로 둔다</td><td>③ 둘째 줄 — expand-contract 덕에 옛 코드가 새 스키마에서 돌고, 옛 기동 검사는 앞선 DB 를 막지 않는다</td></tr>
+      <tr><td>수축(contract) 마이그레이션이 지운 것이 필요했다</td><td>그것을 다시 만드는 새 마이그레이션으로 앞으로 고친다. 지운 데이터가 필요하면 §6.5 로 백업에서 되살린다 — 백업 이후의 쓰기는 잃는다</td><td>수축은 확장 다음 릴리스에 따로 내므로(§6.3) 직전 릴리스 코드도 쓰지 않는 것만 지운다. 이 경우는 그 판단이 틀렸을 때만 생긴다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>열린 것 — 워커가 빠지는 시간(사람 확인 전).</b> 절차 (2)는 Job 과 Deployment 를 한 번에 적용한다. api 는 롤링이라 새 파드가 기동 검사에서 멈춰도 옛 파드가 계속 응답한다. <b>워커는 <code>Recreate</code></b> 라(REQ-CB-011) 옛 워커가 먼저 내려가고, 새 워커는 마이그레이션이 끝날 때까지 기동을 거부한다. 성공하면 재시작 백오프만큼 늦게 뜨고, 실패하면 고칠 때까지 워커가 없다 — 리스 만료 · 알림 · 메일 잡이 멈춘다. Job 만 먼저 적용하고 기다린 뒤 나머지를 적용하면 그 시간이 없어진다. 매니페스트에서 읽은 것이고 실제 클러스터에서는 재지 않았다.</p>
 
   <h3>6.4 이미지 태깅과 overlay</h3>
 

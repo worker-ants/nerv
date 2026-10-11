@@ -19,6 +19,7 @@ import { NervExceptionFilter } from './common/nerv-exception.filter.js';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.js';
 import { nervLoggerFromEnv } from './common/nerv-logger.js';
 import { registerAccessLog } from './common/access-log.js';
+import { registerMcpAccepted } from './mcp/mcp.controller.js';
 import { assertClientIpConfig, clientIpResolverFromEnv } from './common/client-ip.js';
 import { REQUEST_ID_HEADER, requestIdFrom } from './common/request-context.js';
 import { REPLAYED_HEADER } from './common/idempotency.service.js';
@@ -58,6 +59,8 @@ export async function createApp(): Promise<NestFastifyApplication> {
   // better-auth 경로까지 전부 탄다. 운영 로그에 호출된 API 가 한 줄도 없던 자리다.
   // 클라이언트 주소는 신뢰하는 프록시를 기준으로 가린다(REQ-CB-055) — 설정은 기동 때 한 번 읽는다
   registerAccessLog(app.getHttpAdapter().getInstance(), { clientIp: clientIpResolverFromEnv() });
+  // MCP 알림에는 202 · 본문 없음 — Nest 가 덮은 상태를 보내기 직전에 바꾼다(agent-integration §2.6a)
+  registerMcpAccepted(app.getHttpAdapter().getInstance());
 
   app.useGlobalFilters(new NervExceptionFilter());
   // 멱등은 **응답을 만드는 일**이라 인터셉터다(§1.5) — 재생은 핸들러를 건너뛴다.
