@@ -344,6 +344,23 @@ export const TASK_DONE_WINDOW_DAYS = 7;
 export const TASK_QUERY_MAX = 200;
 
 /**
+ * **결재 리마인더**(2026-10-11 · api.md REQ-API-296). 정본은 spec-workflow §2.6 의 SLA 표다 — 요청 뒤 4시간에 1회째(앱
+ * 안), 1일에 2회째(앱 안과 메일 요약). 워커가 하트비트 간격으로 보고 단계마다 한 번만 낸다. 같은 결재의 리마인더는
+ * 알림 한 줄로 묶인다.
+ */
+export const APPROVAL_REMINDER_STEPS: readonly { level: 1 | 2; afterSeconds: number }[] = [
+  { level: 1, afterSeconds: 4 * 3600 },
+  { level: 2, afterSeconds: 24 * 3600 },
+];
+
+/**
+ * 리마인더를 내는 창 — 요청 뒤 **7일**까지다. SLA 표에서 T+7d 는 만료다. 만료 처리는 아직 없지만(그 뒤를 어떻게 할지는
+ * 사람이 정한다) 그보다 오래된 결재를 다시 알리지는 않는다. 배포한 날 몇 주 묵은 결재가 한꺼번에 알림을 내지 않게 하는
+ * 경계이기도 하다.
+ */
+export const APPROVAL_REMINDER_WINDOW_SECONDS = 7 * 24 * 3600;
+
+/**
  * 표시 키를 **텍스트에서 찾는 규칙** — `<project.key>-<타입>-<base32 6자>`(data-model §5.1).
  *
  * 발급은 `@nerv/schema/keys`(node 전용, 해시를 쓴다)이고 여기에는 **모양만** 둔다.

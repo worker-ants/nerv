@@ -70,6 +70,7 @@ describe('JobRunner — 판마다 한 줄', () => {
       'mail',
       'digest',
       'requirement-backfill',
+      'approval-reminder',
     ];
     return names.map((name) => ({
       name,
@@ -95,8 +96,8 @@ describe('JobRunner — 판마다 한 줄', () => {
     });
 
     const ran = await runner.tick(0);
-    expect(ran).toHaveLength(9); // 실패한 mail 만 빠진다
-    expect(lines).toHaveLength(10);
+    expect(ran).toHaveLength(10); // 실패한 mail 만 빠진다
+    expect(lines).toHaveLength(11);
     expect(lines.find((line) => line.message.startsWith('잡 lease-reaper'))?.level).toBe('log');
     expect(lines.find((line) => line.message.startsWith('잡 notification'))?.level).toBe('debug');
     expect(lines.find((line) => line.message.startsWith('잡 실패 [mail]'))?.level).toBe('warn');

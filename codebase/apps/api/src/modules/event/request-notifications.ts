@@ -20,6 +20,20 @@ export const REQUEST_OPENING_EVENTS = {
   question: NERV_EVENT.QUESTION_CREATED,
 } as const;
 
+/**
+ * 같은 요청을 **다시 알리는** 이벤트 — 요청이 닫히면 함께 닫힌다(2026-10-11 · REQ-API-296). 결재 리마인더 줄이 결정 뒤에도
+ * 안 읽음으로 남으면 이미 끝난 결재를 사람이 다시 찾으러 간다.
+ */
+const REQUEST_FOLLOWUP_EVENTS: Record<keyof typeof REQUEST_OPENING_EVENTS, readonly string[]> = {
+  approval: [NERV_EVENT.APPROVAL_REMINDED],
+  question: [],
+};
+
+const requestEventTypes = (subjectType: keyof typeof REQUEST_OPENING_EVENTS): string[] => [
+  REQUEST_OPENING_EVENTS[subjectType],
+  ...REQUEST_FOLLOWUP_EVENTS[subjectType],
+];
+
 export async function closeRequestNotifications(
   tx: Pick<NervDb, 'execute'>,
   subjectType: keyof typeof REQUEST_OPENING_EVENTS,
@@ -29,7 +43,10 @@ export async function closeRequestNotifications(
     UPDATE notification n SET state = 'read', read_at = now(), batch_open = false
       FROM event e
      WHERE e.id = n.event_id
-       AND e.type = ${REQUEST_OPENING_EVENTS[subjectType]}
+       AND e.type IN (${sql.join(
+         requestEventTypes(subjectType).map((type) => sql`${type}`),
+         sql`, `,
+       )})
        AND e.subject_id = ${subjectId}
        AND n.state = 'unread'
     RETURNING n.id
@@ -45,7 +62,7 @@ export async function requestAlreadyClosed(
   db: Pick<NervDb, 'execute'>,
   event: { type: string; subject_id: string },
 ): Promise<boolean> {
-  if (event.type === REQUEST_OPENING_EVENTS.approval) {
+  if (requestEventTypes('approval').includes(event.type)) {
     const { rows } = await db.execute<{ closed: boolean }>(
       sql`SELECT (decision IS NOT NULL) AS closed FROM approval WHERE id = ${event.subject_id}`,
     );

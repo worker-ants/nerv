@@ -982,6 +982,7 @@ export const ko = {
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
   'event.approval.decided': '결재 완료',
   'event.approval.requested': '승인 요청',
+  'event.approval.reminded': '결재 리마인더',
   'event.baseline.created': '기준선 생성',
   'event.claim.conflict_blocked': '범위 겹침으로 클레임 거부',
   'event.claim.conflict_warn': '범위 겹침 경고',

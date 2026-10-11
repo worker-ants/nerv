@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.33 · 2026-10-11 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.34 · 2026-10-11 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.34 변경(2026-10-11 — 결재 리마인더): **§1.4 이벤트 표 한 줄.** ★`approval.reminded`는 받은 요청을 바꾸지 않는다 — 프로젝트 피드만 되읽고, 받는 사람의 종은 `notification.created`가 되읽는다([4.4 API 명세](api.md) REQ-API-296).
 >
 > v2.33 변경(2026-10-11 — 작업 보드 제목 검색): **REQ-WEB-308 신설 · §2.5 필터 항목.** 보드 위 필터 줄의 맨 앞에 제목 · 작업 키 검색 칸을 둔다. Enter로 걸고 주소(`?q=`)에 남는다. [필터 지우기]가 함께 푼다([4.4 API 명세](api.md) REQ-API-295). 곁들여 [필터 지우기] 옆에 코드 주석이 글자로 보이던 것을 고쳤다.
 >
@@ -648,6 +650,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`claim.released` | `['project', projId, 'tasks']` · `['project', projId, 'sessions']` | `project:{id}` |
 | `session.started` `session.stale` `session.complete` · ★`session.steered` | `['project', projId, 'sessions']` · `['session', sessionId]` | `project:{id}` |
 | `approval.requested` `question.created` | `['inbox']` + 헤더 배지 · `question.created` 는 `['project', projId, 'sessions']` 도(질문이 세션을 응답 대기로 세운다 — 2026-09-25) | `user:{id}` + `project:{id}` |
+| ★`approval.reminded` | `['project', projId, 'events']` — 받은 요청의 카드는 그대로다. 받는 사람의 종은 개인 룸의 `notification.created`가 되읽는다(2026-10-11 · [4.4 API 명세](api.md) REQ-API-296) | `project:{id}` |
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` | `['project', projId, 'events']` + 게이트 배너/카운터 | `project:{id}`(bypassed는 admin `user:{id}`에도) |

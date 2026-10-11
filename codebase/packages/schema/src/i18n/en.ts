@@ -1003,6 +1003,7 @@ export const en = {
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
   'event.approval.decided': 'Approval decided',
   'event.approval.requested': 'Approval requested',
+  'event.approval.reminded': 'Approval reminder',
   'event.baseline.created': 'Baseline created',
   'event.claim.conflict_blocked': 'Claim blocked by declared-scope overlap',
   'event.claim.conflict_warn': 'Declared-scope overlap warning',

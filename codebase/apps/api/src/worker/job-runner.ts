@@ -13,6 +13,7 @@ import { HEARTBEAT_INTERVAL_SECONDS } from '@nerv/schema';
 import { AdvisoryLock } from './advisory-lock.js';
 import { jobLevel, jobMessage } from './job-log.js';
 import type { JobOutcome } from './job-log.js';
+import { ApprovalReminderJob } from './jobs/approval-reminder.job.js';
 import { DigestJob } from './jobs/digest.job.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
@@ -53,6 +54,7 @@ export class JobRunner {
     mail: MailJob,
     digest: DigestJob,
     requirementBackfill: RequirementBackfillJob,
+    approvalReminder: ApprovalReminderJob,
   ) {
     const heartbeat = HEARTBEAT_INTERVAL_SECONDS * 1000;
     this.schedule = [
@@ -64,6 +66,14 @@ export class JobRunner {
       // 시각이 다르기** 때문이다 — 판마다 "현지 시각이 정한 시를 지났고 오늘 아직 안 본 사람" 만 고른다. 그러면
       // 정한 시각에서 늦어도 1분이다. "오늘 보냈는가" 는 행이 든다(재기동하면 이 잡도 곧바로 한 번 돈다).
       { name: digest.name, everyMs: heartbeat, run: () => digest.run(), lastRunAt: null },
+      // 결재 리마인더도 하트비트 간격이다(2026-10-11 · REQ-API-296). 4시간 · 1일이라는 경계를 넘긴 뒤 늦어도 1분 안에
+      // 낸다. 이미 낸 단계는 이벤트가 기억하므로 자주 돌아도 같은 리마인더가 두 번 나가지 않는다
+      {
+        name: approvalReminder.name,
+        everyMs: heartbeat,
+        run: () => approvalReminder.run(),
+        lastRunAt: null,
+      },
       {
         name: sessionStale.name,
         everyMs: heartbeat,
