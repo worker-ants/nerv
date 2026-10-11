@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.74 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.75 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v2.75 변경(2026-10-11 — 스토리 없이 들어온 수정 하나): §1.4 셋째 표에 **md ↔ html 대조가 html 의 글자를 링크로 읽었다**를 적는다. 스토리 수 · `done` 수는 그대로다.
+
 > v2.74 변경(2026-10-11 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **구현 현황 영역별 분해**를 적는다. 스토리 수 · `done` 수는 그대로다.
 
 > v2.73 변경(2026-10-11 — 스토리 없이 들어온 구현 하나): §1.4 셋째 표에 **결재 리마인더**를 적는다. 스토리 수 · `done` 수는 그대로다.
@@ -875,6 +877,7 @@ referenced_by:
 | 작업 보드 제목 검색 | `task.service.ts`(`list`의 `q` — 제목 · 작업 키 부분 일치 · `strpos`라 `%` · `_`는 글자 그대로) · `task.controller.ts`(EP-TASK-01 `?q=`) · `@nerv/schema`(`TASK_QUERY_MAX` · 문구 `tasks.filter.q`) · 웹 `features/task-board/board.tsx`(필터 줄의 검색 칸 · Enter로 건다 · [필터 지우기]가 함께 푼다) · `board-search.ts`(`?q=`) · `archived-lane.tsx` · `lib/queries.ts`(`useTaskLane`) · 매뉴얼 ko · en `tasks.md` · L2 `rest-surface.spec.ts` 셋 · L1 `board-filters-lanes.spec.tsx` 둘 | 관례로 채운 빈자리(2026-10-11) — 보드 필터 규칙([4.5](screens.md) REQ-WEB-221)에 검색이 없어 작업이 많으면 레인을 훑어야 했다([4.4](api.md) REQ-API-295 · [4.5](screens.md) REQ-WEB-308) |
 | 결재 리마인더 | `approval.service.ts`(`remindDue` — 받은 요청과 같은 대기 조건 · 단계마다 한 번 · 7일 창) · `worker/jobs/approval-reminder.job.ts`(하트비트 간격) · `notification.service.ts`(보통 알림 · `approval:{id}:reminder` 묶음 · 받는 사람은 결재 요청과 한 벌 · 1회째는 메일 요약에서 뺌) · `request-notifications.ts`(결정하면 리마인더도 읽음) · `@nerv/schema`(★`approval.reminded` · `APPROVAL_REMINDER_STEPS` · `APPROVAL_REMINDER_WINDOW_SECONDS`) · 웹 `event-invalidation.ts` · 매뉴얼 ko · en `inbox.md` · L2 `approval-reminder.spec.ts` | 관례로 채운 빈자리(2026-10-11) — SLA 표의 T+4h · T+1d를 집행하는 코드가 없었다. 대체 승인자 후보 · 에스컬레이션 · 만료는 남는다([4.4](api.md) REQ-API-296 · [3.5](../03-proposal/spec-workflow.md) §2.6) |
 | 구현 현황 영역별 분해 | `spec.service.ts`(`coverage` — 스펙마다 가장 가까운 `area` 조상을 재귀로 찾아 `area_key`를 넣고 같은 지표를 영역마다 더한 `areas[]` · 영역 밖은 마지막 한 줄 · 요구사항이 없는 영역은 뺌) · 웹 `routes/p.$proj/index.tsx`(`AreaBreakdown` — 영역마다 막대와 수 · 경고는 0이 아닌 것만 · 제목은 그 영역 문서로) · 문구 `project.coverage.areas` · 매뉴얼 ko · en `specs.md` · L2 `spec-workflow.spec.ts` 하나 · L1 `coverage-areas.spec.tsx` 둘 | 관례로 채운 빈자리(2026-10-11) — 화면 명세가 "영역별 분해는 아직 없다"고 적어 둔 자리다([4.4](api.md) REQ-API-297 · [4.5](screens.md) REQ-WEB-309) |
+| md ↔ html 대조가 html 의 글자를 링크로 읽었다 | `scripts/check-md-html.mjs`(정규화를 md · html 둘로 나눔 — 마크다운 링크 식은 md 에만, 인라인 코드 안은 빼고 · 결함 사례를 자가 점검으로) | 2026-10-11 실측 — html 의 `<code>areas[]</code>(…)` 가 태그를 걷은 뒤 링크로 읽혀 괄호 안이 지워졌고, 같은 말을 하는 EP-COV-01 행이 닮은 정도 0.49 로 걸렸다(REQ-CB-051) |
 
 #### 이 절은 언제 갱신되는가
 

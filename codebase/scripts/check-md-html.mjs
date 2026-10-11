@@ -78,13 +78,44 @@ const unescape = (s) =>
     .replaceAll('&nbsp;', ' ')
     .replaceAll('&amp;', '&');
 
-/** 표식을 걷고 공백을 접는다 — 굵게·인라인 코드·링크는 같은 제목의 다른 표기다 */
-const norm = (s) =>
-  unescape(s.replace(/<[^>]+>/g, ''))
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[*`~]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+/** 굵게·인라인 코드 표식을 걷고 공백을 접는다 — 같은 제목의 다른 표기다 */
+const squash = (s) => s.replace(/[*`~]/g, '').replace(/\s+/g, ' ').trim();
+const MD_LINK = /\[([^\]]*)\]\([^)]*\)/g;
+
+/**
+ * md 쪽 — 링크 `[글자](주소)` 는 글자만 남긴다. **인라인 코드 안은 건드리지 않는다**: 코드로 적은 `[…](…)` 는
+ * html 에서도 글자 그대로라, 여기서만 걷으면 같은 칸이 양쪽에서 다르게 읽힌다.
+ */
+const normMd = (s) =>
+  squash(
+    unescape(s.replace(/<[^>]+>/g, ''))
+      .split(/(`[^`]*`)/)
+      .map((part, i) => (i % 2 === 1 ? part : part.replace(MD_LINK, '$1')))
+      .join(''),
+  );
+
+/**
+ * html 쪽 — 링크는 `<a>` 태그라 태그를 걷으면 글자만 남는다. **마크다운 링크 식을 여기 대지 않는다**(2026-10-11).
+ * 예전에는 md 와 같은 함수를 써서, 태그를 걷은 `<code>areas[]</code>(영역별 …)` 가 `areas[](영역별 …)` 가 되고 그 괄호
+ * 안이 링크로 읽혀 통째로 지워졌다 — 같은 말을 하는 EP-COV-01 행이 닮은 정도 0.49 로 걸렸다. 반대로 진짜 차이도 그렇게
+ * 숨을 수 있다.
+ */
+const normHtml = (s) => squash(unescape(s.replace(/<[^>]+>/g, '')));
+
+// 자가 점검 — 위의 결함이 돌아오면 문서가 아니라 이 검사가 먼저 멈춘다
+for (const [got, want] of [
+  [normHtml('<b><code>areas[]</code></b>(영역별 분해)'), 'areas[](영역별 분해)'],
+  [normMd('**`areas[]`**(영역별 분해)'), 'areas[](영역별 분해)'],
+  [normMd('[4.4 API](api.md) §1.6'), '4.4 API §1.6'],
+  [normHtml('<a href="api.html">4.4 API</a> §1.6'), '4.4 API §1.6'],
+  [normMd('`[글자](주소)` 표기'), '[글자](주소) 표기'],
+  [normHtml('<code>[글자](주소)</code> 표기'), '[글자](주소) 표기'],
+]) {
+  if (got !== want) {
+    console.error(`check-md-html 자가 점검 실패: ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`);
+    process.exit(1);
+  }
+}
 
 /** 목차의 `버전` 열 — 관리 규약 4 의 동기화를 대조하라고 세운 열이다 */
 const declaredVersion = new Map();
@@ -111,7 +142,7 @@ function tableRowsOfMd(body) {
       .replace(/^\|/, '')
       .replace(/\|\s*$/, '')
       .split('|')
-      .map(norm);
+      .map(normMd);
     if (cells.every((c) => /^:?-+:?$/.test(c.replace(/\s/g, '')))) continue;
     rows.push(cells);
   }
@@ -121,7 +152,7 @@ function tableRowsOfMd(body) {
 /** html 본문의 표 행 */
 function tableRowsOfHtml(body) {
   return [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) =>
-    [...m[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((c) => norm(c[1])),
+    [...m[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((c) => normHtml(c[1])),
   );
 }
 
@@ -217,9 +248,9 @@ for (const md of mdFiles) {
   const fenced = source.replace(/^```[\s\S]*?^```/gm, '');
   const numbers = (heads) =>
     heads.map((h) => /^(\d+(?:\.\d+)*)\.?\s/.exec(`${h} `)?.[1]).filter((n) => n !== undefined);
-  const mdNums = numbers([...fenced.matchAll(/^#{2,3} (.+)$/gm)].map((m) => norm(m[1])));
+  const mdNums = numbers([...fenced.matchAll(/^#{2,3} (.+)$/gm)].map((m) => normMd(m[1])));
   const htmlNums = numbers(
-    [...html.matchAll(/<h([23])[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => norm(m[2])),
+    [...html.matchAll(/<h([23])[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => normHtml(m[2])),
   );
   if (mdNums.join(' ') !== htmlNums.join(' ')) {
     const at = mdNums.findIndex((n, i) => n !== htmlNums[i]);
