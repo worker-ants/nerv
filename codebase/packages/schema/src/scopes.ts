@@ -275,7 +275,7 @@ export const DIRECT_APPROVE_ROLES: readonly string[] = Object.keys(ROLE_SCOPES).
  * **리뷰 종류마다 면제할 수 있는 역할**(2026-10-09 · api.md REQ-API-274). 정본은 spec-workflow §1.6 의 권한표다 —
  * 게이트 면제(BYPASS)는 admin ● · planner ○ 스펙 계열만 · developer ○ 코드 계열만 · 에이전트 불가. 코드 계열은 `code` ·
  * `merge`, 스펙 계열은 `consistency` · `spec_coverage` 다. 범위를 고른 면제(`kinds`)가 이 표로 판정한다. 범위 없는 면제는
- * 예전 그대로다.
+ * admin만 내고, planner · developer의 범위 없는 면제는 이 표로 풀어 읽는다(2026-10-11 · REQ-API-293).
  */
 export const REVIEW_WAIVER_ROLES: Readonly<Record<string, readonly string[]>> = {
   code: ['admin', 'developer'],
@@ -288,6 +288,21 @@ export const REVIEW_WAIVER_ROLES: Readonly<Record<string, readonly string[]>> = 
 export function canWaiveReviewKind(roles: readonly string[], kind: string): boolean {
   const allowed = REVIEW_WAIVER_ROLES[kind] ?? [];
   return roles.some((role) => allowed.includes(role));
+}
+
+/** 그 역할들로 면제할 수 있는 리뷰 종류 전부(표의 순서) — 범위 없는 면제를 풀어 읽을 때 쓴다 */
+export function waivableReviewKinds(roles: readonly string[]): string[] {
+  return Object.keys(REVIEW_WAIVER_ROLES).filter((kind) => canWaiveReviewKind(roles, kind));
+}
+
+/**
+ * **범위 없는 면제는 admin만 낸다**(2026-10-11 · api.md REQ-API-293 · 사람 결정). 권한표의 admin ● 자리다. planner ·
+ * developer가 종류를 고르지 않고 면제하면 그 역할이 면제할 수 있는 종류 전부(`waivableReviewKinds`)로 풀어 읽는다 —
+ * 범위 없는 면제가 "스펙 계열만 · 코드 계열만" 을 넘지 않게 한다. 종류로 나뉘지 않은 조건(정책이 `true`인 리뷰 커버리지)
+ * 과 작업이 아닌 대상의 면제도 그래서 admin만 낸다.
+ */
+export function canBypassUnscoped(roles: readonly string[]): boolean {
+  return roles.includes('admin');
 }
 
 /**

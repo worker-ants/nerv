@@ -97,6 +97,7 @@ The buttons to the right of the task title **move the task from its current stat
 **A review the task cannot get is waived with a reason.** When the project's done criteria require review kinds (for example `code` and `consistency`), a task that produced no code has no way to get a `code` review. Re-reviewing approved specs or only drafting specs are such tasks. Instead of faking a review, open **[Waive a review]** in the finish form, pick the kinds to waive, write a reason and press **[Record waiver]**. The done criteria then skip only those kinds.
 
 - Code reviews (`code` · `merge`) are waived by a developer or an admin, spec reviews (`consistency` · `spec_coverage`) by a planner or an admin. You can pick only the kinds your role can waive.
+- Only an admin can skip the review criteria wholesale with a waiver that names no kinds (possible only through the API). When a planner or developer records a waiver without kinds, it is recorded as **every kind their role can waive**. So when a project asks for just one review of any kind instead of specific kinds, only an admin can waive it.
 - A task with commit, PR or code path evidence cannot have its code review waived. If such evidence is attached after a waiver, that waiver no longer applies.
 - A waiver is a permanent record. Who waived which kinds, when and why always shows below the review list.
 - Agents cannot waive. When an agent asks for a waiver through a question, a person records it on this screen.

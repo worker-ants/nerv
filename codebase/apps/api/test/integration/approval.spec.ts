@@ -1421,6 +1421,8 @@ describe('E13-S01 게이트 면제 — 면제도 결재 레코드다 (FR-10)', (
       userId: planner,
       actor: person(planner),
       reason: '릴리스 임박 — 팀장 구두 승인',
+      // 범위 없는 면제는 admin 만 낸다(2026-10-11 · REQ-API-293) — planner 의 범위 없는 면제는 review-gate.spec.ts 가 본다
+      roles: ['admin'],
     });
     const { rows } = await pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM approval WHERE is_bypass AND bypass_reason IS NOT NULL`,
@@ -2562,6 +2564,8 @@ describe('처리됨 탭 — 내가 결정한 것 (REQ-API-165)', () => {
       subjectType: 'spec_version',
       subjectId: await makeSpecVersion('# 면제\n\n본문'),
       reason: '핫픽스 배포, 사후 리뷰 예약',
+      // 작업이 아닌 대상의 면제는 범위 없는 면제라 admin 역할로 낸다(2026-10-11 · REQ-API-293)
+      roles: ['admin'],
     });
     expect((await decidedOf(planner)).map((c) => c['id'])).toContain(approval_id);
     expect((await decidedOf(reviewer)).map((c) => c['id'])).not.toContain(approval_id);

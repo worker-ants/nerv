@@ -119,6 +119,9 @@ export const ko = {
   // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
   'error.approval.bypass_kind_forbidden':
     '이 역할로는 {kinds} 리뷰를 면제할 수 없습니다. 코드 계열(code · merge)은 developer · admin이, 스펙 계열(consistency · spec_coverage)은 planner · admin이 면제합니다.',
+  // 범위 없는 면제는 admin만(2026-10-11 · REQ-API-293)
+  'error.approval.bypass_unscoped_forbidden':
+    '종류를 고르지 않은 면제는 admin만 낼 수 있습니다. 면제할 리뷰 종류를 고르세요.',
   'error.approval.bypass_has_code':
     '코드 증적(커밋 · PR · 코드 경로)이 붙은 작업은 {kinds} 리뷰를 면제할 수 없습니다. 코드를 낸 작업은 코드 리뷰를 받습니다.',
   'error.auth.admin_only': 'admin만 할 수 있습니다.',
@@ -531,6 +534,8 @@ export const ko = {
   'reviews.gate.title': '게이트 현황',
   'reviews.gate.verdict': '판정',
   'reviews.no_permission': '처분에는 review:resolve 권한이 필요합니다.',
+  'reviews.comment_no_permission':
+    '코멘트에는 review:submit 권한이 필요합니다. viewer는 읽기만 합니다.',
   'reviews.promote_no_permission': 'Task로 올리려면 task:update 권한이 필요합니다.',
   'reviews.occurrence': '{count}회 발견 · 최근 {round}회차',
   'reviews.provenance.code': '코드',

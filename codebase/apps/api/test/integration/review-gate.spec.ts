@@ -671,10 +671,140 @@ describe('범위를 고른 리뷰 면제 — 코드 없는 작업을 정직하�
     expect((await pool.query(`SELECT count(*)::int AS n FROM approval`)).rows[0].n).toBe(0);
   });
 
-  it('범위 없는 면제는 예전 그대로 리뷰 커버리지를 통째로 넘긴다', async () => {
+  it('admin 의 범위 없는 면제는 리뷰 커버리지를 통째로 넘긴다', async () => {
     await policy();
     const taskId = await task('CLV-T-ALL001', [['review', 'r']]);
-    await waive(taskId, undefined, ['planner'], { reason: '릴리스 임박 — 사후 리뷰 예약' });
+    await waive(taskId, undefined, ['admin'], { reason: '릴리스 임박 — 사후 리뷰 예약' });
+    const { rows } = await pool.query(
+      `SELECT bypass_kinds FROM approval WHERE is_bypass AND subject_id = $1`,
+      [taskId],
+    );
+    expect(rows[0]).toMatchObject({ bypass_kinds: null });
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
+  });
+});
+
+/**
+ * **범위 없는 면제는 admin 만 낸다**(2026-10-11 · REQ-API-293 · 사람 결정 B). 권한표(spec-workflow §1.6)는 planner 에게
+ * 스펙 계열만, developer 에게 코드 계열만 면제를 준다. 그런데 종류를 고르지 않은 면제는 누구에게나 리뷰 커버리지 전부를
+ * 넘겼다 — planner 가 code 리뷰를, developer 가 스펙 리뷰를 통째로 넘길 수 있었다. 이제 admin 이 아니면 그 역할이 면제할
+ * 수 있는 종류 전부로 풀어 읽고, 기록에 풀어 읽은 종류를 남긴다.
+ */
+describe('범위 없는 면제 — 역할이 면제할 수 있는 종류로 풀어 읽는다 (REQ-API-293)', () => {
+  const policy = (coverage: unknown = ['code', 'consistency']): Promise<unknown> =>
+    pool.query(`UPDATE project SET gate_policy = $1::jsonb WHERE id = $2`, [
+      JSON.stringify({ done_gate: { evidence_source: 'any', review_coverage: coverage } }),
+      projectId,
+    ]);
+  async function task(key: string, evidence: [string, string][]): Promise<string> {
+    const taskId = newId();
+    await pool.query(
+      `INSERT INTO task (id, project_id, key, title, status, goal_md, output_format_md,
+                         tools_sources_md, boundaries_md)
+       VALUES ($1,$2,$3,'작업','in_progress','목표','리뷰 레코드','도구','경계')`,
+      [taskId, projectId, key],
+    );
+    for (const [kind, locator] of [['review', 'r'], ...evidence]) {
+      await pool.query(
+        `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+         VALUES ($1,$2,$3,$4,$5,'agent')`,
+        [newId(), projectId, taskId, kind, locator],
+      );
+    }
+    return taskId;
+  }
+  const close = (taskId: string): Promise<unknown> =>
+    app
+      .get(TaskService)
+      .transition({
+        projectId,
+        taskId,
+        status: 'done',
+        userId,
+        roles: ['planner'],
+        specImpact: { none: true },
+      })
+      .catch((e: unknown) => e);
+  const waiveAll = (subject: string, roles: string[]): Promise<unknown> =>
+    app
+      .get(ApprovalService)
+      .bypass({
+        projectId,
+        subjectType: 'gate_bypass',
+        subjectId: subject,
+        userId,
+        reason: '릴리스 임박 — 사후 리뷰 예약',
+        actor: { userId, isAgent: false },
+        roles,
+      })
+      .catch((e: unknown) => e);
+  const approvals = async (): Promise<number> =>
+    (await pool.query(`SELECT count(*)::int AS n FROM approval`)).rows[0].n as number;
+
+  it('planner 는 스펙 계열 전부로 풀어 읽는다 — 기록에 종류가 펼쳐 남고 code 는 그대로 요구한다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-EXP001', []);
+    expect(await waiveAll('CLV-T-EXP001', ['planner'])).toMatchObject({
+      task_key: 'CLV-T-EXP001',
+      kinds: ['consistency', 'spec_coverage'],
+      expanded: true,
+    });
+    const { rows } = await pool.query(
+      `SELECT bypass_kinds::text[] AS kinds FROM approval WHERE is_bypass AND subject_id = $1`,
+      [taskId],
+    );
+    expect(rows[0]).toMatchObject({ kinds: ['consistency', 'spec_coverage'] });
+    const { rows: ev } = await pool.query(
+      `SELECT payload FROM event WHERE type = 'gate.bypassed' ORDER BY occurred_at DESC LIMIT 1`,
+    );
+    expect(ev[0].payload).toMatchObject({
+      kinds: ['consistency', 'spec_coverage'],
+      task_key: 'CLV-T-EXP001',
+      expanded: true,
+    });
+    const refused = (await close(taskId)) as { details?: Record<string, unknown> };
+    expect(refused.details?.['uncovered_kinds']).toEqual(['code']);
+  });
+
+  it('developer 는 코드 계열 전부로 풀어 읽는다 — 코드를 낸 작업이면 아무것도 기록하지 않는다', async () => {
+    await policy();
+    const plain = await task('CLV-T-EXP002', []);
+    expect(await waiveAll(plain, ['developer'])).toMatchObject({ kinds: ['code', 'merge'] });
+    const refused = (await close(plain)) as { details?: Record<string, unknown> };
+    expect(refused.details?.['uncovered_kinds']).toEqual(['consistency']);
+
+    const coded = await task('CLV-T-EXP003', [['commit', 'a1b2c3d']]);
+    expect(await waiveAll(coded, ['developer'])).toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'bypass_has_code', kinds: ['code', 'merge'] },
+    });
+    expect(await approvals()).toBe(1);
+  });
+
+  it('면제할 종류가 없는 역할 · 작업이 아닌 대상은 거절한다 — admin 은 작업이 아닌 대상도 면제한다', async () => {
+    await policy();
+    const taskId = await task('CLV-T-EXP004', []);
+    expect(await waiveAll(taskId, ['qa'])).toMatchObject({
+      code: NERV_ERROR.FORBIDDEN,
+      details: { kind: 'bypass_unscoped_forbidden', roles: ['qa'] },
+    });
+    const notTask = newId();
+    expect(await waiveAll(notTask, ['planner'])).toMatchObject({
+      details: { kind: 'not_found' },
+    });
+    expect(await approvals()).toBe(0);
+    expect(await waiveAll(notTask, ['admin'])).toMatchObject({ approval_id: expect.any(String) });
+    expect(await approvals()).toBe(1);
+  });
+
+  it('정책이 종류 목록이 아니면(true) 풀어 읽은 면제로는 넘지 못하고 admin 의 면제만 넘는다', async () => {
+    await policy(true);
+    const taskId = await task('CLV-T-EXP005', []);
+    await waiveAll(taskId, ['planner', 'developer']);
+    expect(await close(taskId)).toMatchObject({
+      details: { missing: ['이 작업을 검토한 리뷰가 없습니다'] },
+    });
+    await waiveAll(taskId, ['admin']);
     expect(await close(taskId)).toMatchObject({ status: 'done' });
   });
 });

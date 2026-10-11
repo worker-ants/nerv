@@ -864,6 +864,68 @@ describe('리뷰 처분 REST — 웹이 보내는 값이 그대로 저장된다 
   });
 });
 
+/**
+ * **코멘트는 참여이고 처분은 권한이다**(2026-10-11 · REQ-API-294 · 사람 결정). 발견 코멘트가 처분과 같은 `review:resolve` 를
+ * 요구해 developer · designer 가 자기 코드에 달린 발견에 답하지 못했다. 코멘트는 `review:submit` 으로 낮추고 처분은 그대로
+ * 둔다 — 두 축이 갈렸는지는 권한 하나씩만 가진 토큰으로 실제 HTTP 에서 본다.
+ */
+describe('발견 코멘트 REST — 코멘트는 review:submit, 처분은 review:resolve (EP-REV-05 · REQ-API-294)', () => {
+  async function seedFinding(): Promise<string> {
+    const reviewSessionId = newId();
+    const findingId = newId();
+    const fingerprint = findingId.replaceAll('-', '').slice(0, 32);
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, branch, base_sha, head_sha, changeset_hash,
+                                   kind, trigger)
+       VALUES ($1,$2,'feat/c','base','head',decode($3,'hex'),'code','manual')`,
+      [reviewSessionId, projectId, fingerprint],
+    );
+    await pool.query(
+      `INSERT INTO finding (id, project_id, fingerprint, category, severity, status, title,
+                            first_session_id, last_session_id)
+       VALUES ($1,$2,decode($3,'hex'),'bug','warning','open','경계값이 빠졌다',$4,$4)`,
+      [findingId, projectId, fingerprint, reviewSessionId],
+    );
+    return findingId;
+  }
+
+  it('review:submit 만 가진 토큰은 코멘트를 남기고 처분은 하지 못한다 — 감사에는 에이전트로 남는다', async () => {
+    const findingId = await seedFinding();
+    const res = await call('POST', `/api/v1/projects/clemvion/findings/${findingId}/comments`, {
+      token: reviewToken,
+      payload: { body_md: '의도된 동작이다 — 상한은 호출부가 막는다' },
+    });
+    expect(res.status).toBe(201);
+    const { rows } = await pool.query<{ is_agent: boolean }>(
+      `SELECT is_agent FROM event WHERE type = 'finding.commented' AND subject_id = $1`,
+      [findingId],
+    );
+    expect(rows).toEqual([{ is_agent: true }]);
+
+    const resolve = await call('POST', `/api/v1/projects/clemvion/findings/${findingId}/resolve`, {
+      token: reviewToken,
+      payload: { resolution: 'dismissed', rationale: '오탐' },
+    });
+    expect(resolve.status).toBe(403);
+  });
+
+  it('review:submit 이 없으면 코멘트도 막는다 — 읽기 권한만으로는 쓰지 못한다', async () => {
+    const findingId = await seedFinding();
+    for (const token of [narrowToken, viewerToken]) {
+      const res = await call('POST', `/api/v1/projects/clemvion/findings/${findingId}/comments`, {
+        token,
+        payload: { body_md: '읽기만 하는 토큰' },
+      });
+      expect(res.status).toBe(403);
+    }
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM finding_comment WHERE finding_id = $1`,
+      [findingId],
+    );
+    expect(rows[0]?.n).toBe(0);
+  });
+});
+
 describe('세션 보드 상태 필터 (EP-SES-01) — 값은 조립되지 않는다', () => {
   /** 다른 프로젝트의 세션 하나 — WHERE 절이 무너지면 이 행이 응답에 새어 나온다 */
   async function seedOtherProjectSession(): Promise<string> {

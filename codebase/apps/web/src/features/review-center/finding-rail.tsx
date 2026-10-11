@@ -36,6 +36,7 @@ export function FindingRail({
   projectSlug,
   projectId,
   canResolve,
+  canComment,
   canPromote,
   resolveAction = null,
   onResolve,
@@ -44,8 +45,13 @@ export function FindingRail({
   finding: Row;
   projectSlug: string;
   projectId?: ProjectId | undefined;
-  /** 처분과 **코멘트** 둘 다의 기준 — 서버가 코멘트에도 `review:resolve` 를 요구한다 */
+  /** 처분의 기준 — 서버가 `review:resolve` 를 요구한다 */
   canResolve: boolean;
+  /**
+   * 코멘트의 기준 — `review:submit`(viewer 를 뺀 모든 역할 · 2026-10-11 · REQ-WEB-307). 예전에는 처분과 같은 축이라
+   * developer · designer 가 자기 코드에 달린 발견에 답하지 못했다
+   */
+  canComment: boolean;
   /** 승격은 작업을 만드는 일이라 `task:update` 가 기준이다(처분과 다른 축) */
   canPromote: boolean;
   /**
@@ -269,8 +275,8 @@ export function FindingRail({
             size="xs"
             variant="subtle"
             data-testid="comment-submit"
-            disabled={!canResolve || draft.trim() === '' || add.isPending}
-            disabledReason={canResolve ? undefined : t('reviews.no_permission')}
+            disabled={!canComment || draft.trim() === '' || add.isPending}
+            disabledReason={canComment ? undefined : t('reviews.comment_no_permission')}
             onClick={() => add.mutate(draft)}
           >
             {t('reviews.rail.comment_submit')}

@@ -486,6 +486,36 @@ describe('승격은 처분과 다른 축이다 (07)', () => {
   });
 });
 
+// 2026-10-11 사람 결정 — 코멘트는 참여이고 처분은 권한이다(REQ-WEB-307 · 서버 REQ-API-294).
+describe('코멘트는 처분과 다른 축이다 (REQ-WEB-307)', () => {
+  it('developer 는 처분은 못 해도 자기 코드에 달린 발견에 답한다', async () => {
+    roles = ['developer'];
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+    const rail = await screen.findByTestId('finding-rail');
+
+    fireEvent.change(within(rail).getByTestId('comment-input'), {
+      target: { value: '경계값은 호출부가 막는다' },
+    });
+    expect(lockedFor(within(rail).getByTestId('comment-submit'))).toBeNull();
+    fireEvent.click(within(rail).getByTestId('comment-submit'));
+    await waitFor(() => expect(posted.some((p) => p.url.includes('/comments'))).toBe(true));
+    const cards = screen.getAllByTestId('finding-card');
+    expect(lockedFor(within(cards[0]!).getByTestId('resolve-fixed'))).toContain('review:resolve');
+  });
+
+  it('viewer 는 코멘트도 못 한다 — 잠긴 까닭에 필요한 권한을 적는다', async () => {
+    roles = ['viewer'];
+    await renderCenter();
+    fireEvent.click(await screen.findByText('세션 토큰이 localStorage 에 평문 저장'));
+    const rail = await screen.findByTestId('finding-rail');
+    fireEvent.change(within(rail).getByTestId('comment-input'), {
+      target: { value: '읽기만 하는 사람' },
+    });
+    expect(lockedFor(within(rail).getByTestId('comment-submit'))).toContain('review:submit');
+  });
+});
+
 // ── 세 칸의 스크롤 상자 (2026-09-10 · 사람 지시 · REQ-WEB-158) ────────────────────
 //
 // 스크롤 상자가 페이지였다 — 큐가 화면보다 길면 바퀴를 **레일 위에서 굴려도 움직이는

@@ -110,6 +110,8 @@ export const en = {
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.approval.bypass_kind_forbidden':
     'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
+  'error.approval.bypass_unscoped_forbidden':
+    'Only admins can record a waiver without choosing review kinds. Choose the review kinds to waive.',
   'error.approval.bypass_has_code':
     'A task with code evidence (commit · PR · code path) cannot have its {kinds} review waived. A task that produced code gets a code review.',
   'error.auth.admin_only': 'Only admins can do this.',
@@ -531,6 +533,8 @@ export const en = {
   'reviews.gate.title': 'Gate status',
   'reviews.gate.verdict': 'Verdict',
   'reviews.no_permission': 'Resolving requires the review:resolve scope.',
+  'reviews.comment_no_permission':
+    'Commenting requires the review:submit scope. Viewers can only read.',
   'reviews.promote_no_permission': 'Adding as a task requires the task:update scope.',
   'reviews.occurrence': 'seen {count}× · latest round {round}',
   'reviews.provenance.code': 'Code',

@@ -14,6 +14,7 @@ import {
   APPROVAL_INBOX_STATES,
   approvalDecision,
   bodyChange,
+  canBypassUnscoped,
   canDirectApprove,
   canWaiveReviewKind,
   CODE_EVIDENCE_KINDS,
@@ -26,6 +27,7 @@ import {
   reviewKind,
   scopesForRoles,
   SELF_APPROVAL_ROLES,
+  waivableReviewKinds,
 } from '@nerv/schema';
 import type { Message, NervErrorCode } from '@nerv/schema';
 import { createHash } from 'node:crypto';
@@ -1710,23 +1712,38 @@ export class ApprovalService {
     actor: Actor;
     /**
      * **면제할 리뷰 종류**(2026-10-09 · REQ-API-274). 주면 `subjectId` 는 이 프로젝트의 작업(키 또는 UUID)이고,
-     * 그 작업의 done 게이트가 이 종류만 요구에서 뺀다. 주지 않으면 예전 그대로 범위 없는 면제다.
+     * 그 작업의 done 게이트가 이 종류만 요구에서 뺀다. 주지 않으면 범위 없는 면제다 — admin 이 아니면 역할이 면제할 수
+     * 있는 종류 전부로 풀어 읽는다(2026-10-11 · REQ-API-293).
      */
     kinds?: readonly string[] | undefined;
     /** 면제한 사람의 이 프로젝트 역할 — 종류마다 면제할 수 있는 역할이 다르다(spec-workflow §1.6) */
     roles?: readonly string[] | undefined;
-  }): Promise<{ approval_id: string; task_key?: string; kinds?: string[] }> {
+  }): Promise<{ approval_id: string; task_key?: string; kinds?: string[]; expanded?: true }> {
     assertHuman(input.actor, 'bypass');
     if (input.reason.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
         kind: 'bypass_reason_required',
       });
     }
+    const roles = input.roles ?? [];
+    // **범위 없는 면제는 admin 만 낸다**(2026-10-11 · REQ-API-293 · 사람 결정). planner · developer 가 종류를 고르지
+    // 않으면 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다 — 범위 없는 면제가 권한표(spec-workflow §1.6)의
+    // "스펙 계열만 · 코드 계열만" 을 넘지 않게 한다. 기록(`bypass_kinds` · 이벤트)에는 풀어 읽은 종류가 남는다
+    const expanded = input.kinds === undefined && !canBypassUnscoped(roles);
     // 어휘의 정본은 `review_kind` 다 — 모르는 종류는 거절이지 무시가 아니다(REQ-API-112)
     const kinds =
-      input.kinds === undefined
-        ? null
-        : [...new Set(assertVocab([...input.kinds], reviewKind.enumValues, 'kinds'))];
+      input.kinds !== undefined
+        ? [...new Set(assertVocab([...input.kinds], reviewKind.enumValues, 'kinds'))]
+        : expanded
+          ? waivableReviewKinds(roles)
+          : null;
+    if (kinds !== null && kinds.length === 0) {
+      // 면제할 수 있는 종류가 하나도 없는 역할이다 — 범위 없는 면제는 admin 의 것이라 넘길 것이 없다
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.bypass_unscoped_forbidden'), {
+        kind: 'bypass_unscoped_forbidden',
+        roles,
+      });
+    }
     return this.events.transact(async (tx, emit) => {
       let subjectId = input.subjectId;
       let taskKey: string | null = null;
@@ -1760,12 +1777,12 @@ export class ApprovalService {
         taskKey = task.key;
         // **역할마다 면제할 수 있는 종류가 다르다**(spec-workflow §1.6 권한표) — 코드 계열은 developer · admin,
         // 스펙 계열은 planner · admin. 하나라도 못 하면 아무것도 기록하지 않는다
-        const forbidden = kinds.filter((kind) => !canWaiveReviewKind(input.roles ?? [], kind));
+        const forbidden = kinds.filter((kind) => !canWaiveReviewKind(roles, kind));
         if (forbidden.length > 0) {
           throw new NervError(
             NERV_ERROR.FORBIDDEN,
             msg('error.approval.bypass_kind_forbidden', { kinds: forbidden.join(' · ') }),
-            { kind: 'bypass_kind_forbidden', kinds: forbidden, roles: input.roles ?? [] },
+            { kind: 'bypass_kind_forbidden', kinds: forbidden, roles },
           );
         }
         // **코드를 낸 작업의 코드 리뷰는 면제하지 않는다** — 면제의 전제는 "코드 산출물이 없다" 이다
@@ -1810,11 +1827,18 @@ export class ApprovalService {
         payload: {
           reason: input.reason,
           ...(kinds === null ? {} : { kinds, task_id: subjectId, task_key: taskKey }),
+          // 종류를 고르지 않았는데 역할로 풀어 읽은 면제 — 감사가 "범위 없이 냈다" 는 사실을 잃지 않게 한다
+          ...(expanded ? { expanded: true } : {}),
         },
       });
       return kinds === null
         ? { approval_id: approvalId }
-        : { approval_id: approvalId, task_key: taskKey ?? '', kinds };
+        : {
+            approval_id: approvalId,
+            task_key: taskKey ?? '',
+            kinds,
+            ...(expanded ? { expanded: true as const } : {}),
+          };
     });
   }
 
