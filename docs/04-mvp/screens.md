@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.34 · 2026-10-11 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.35 · 2026-10-11 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.35 변경(2026-10-11 — 구현 현황 영역별 분해): **REQ-WEB-309 신설 · §2.3 구현 현황 카드 행.** 카드의 여섯 칸 아래에 영역마다 막대 하나와 구현 · 검증 수를 보인다. 경고 셋은 0이 아닐 때만 적는다([4.4 API 명세](api.md) REQ-API-297).
 >
 > v2.34 변경(2026-10-11 — 결재 리마인더): **§1.4 이벤트 표 한 줄.** ★`approval.reminded`는 받은 요청을 바꾸지 않는다 — 프로젝트 피드만 되읽고, 받는 사람의 종은 `notification.created`가 되읽는다([4.4 API 명세](api.md) REQ-API-296).
 >
@@ -1127,7 +1129,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
 | 스펙 트리 + 상태 배지 | EP-SPEC-01 `GET /api/v1/projects/{proj}/specs/tree` | 노드: id·title·type(6종)·현재 버전 문서 상태 — `nerv_spec_tree`와 같은 서비스(D-05) |
-| 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 여섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다 · 2026-09-26 여섯째): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`** · **`reverify_required`**(다시 검증 필요 — REQ-WEB-241). 영역별 분해는 아직 없다. Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
+| 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 여섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다 · 2026-09-26 여섯째): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`** · **`reverify_required`**(다시 검증 필요 — REQ-WEB-241). **영역별 분해**는 그 아래에 `area` 문서마다 한 줄이다(2026-10-11 · REQ-WEB-309). Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
 | 활성 세션 스트립 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (`state=pending,active,awaiting_input` — `ACTIVE_SESSION_STATES`) | 미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)). **머리의 수는 요약(`summary`)의 세 상태 합**이고 응답 대기가 먼저 선다. 도는 것이 없으면 그렇다고 말하고, 세션이 있었던 프로젝트면 세션 화면으로 보낸다(2026-09-25 · REQ-WEB-219) |
 | 기다리는 것 한 줄 | EP-APR-05 `GET /api/v1/projects/{proj}/inbox`(`actionable_total`) · EP-SES-01 요약의 `awaiting_input` · EP-PRJ-03 `open_critical_findings` | 머리 아래 한 줄 — 내 결정 · 응답 대기 세션 · 열린 critical, 수는 링크. 0 인 것은 그리지 않는다(2026-09-25 · REQ-WEB-220) |
 | 최근 활동 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` (커서 페이지네이션 — [더 보기]) | 항목마다 사람 아바타 / 에이전트 **AI** 표식(D-08 · 기계·에이전트 종류는 툴팁) · 대상 키(버전)·제목 링크 · 잇달아 같은 일 ×N(REQ-WEB-210) |
@@ -2113,6 +2115,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | REQ-WEB-306 | WHEN 내 토큰 표의 살아 있는 줄에서 [편집]을 누르면 THE SYSTEM SHALL 그 줄 아래에 지금의 이름과 권한에서 시작하는 편집 칸을 펼치고, 권한 칸을 발급 폼과 같은 규칙(역할 밖은 잠금 · 사람 전용은 비활성)으로 그 토큰의 프로젝트에서 내 역할을 기준으로 잠그되 이미 담긴 권한은 뺄 수 있게 두며, [저장]이면 EP-TOK-05로 앞뒤 공백을 자른 이름과 고른 권한을 보낸다. WHILE 이름이 비어 있는 동안 THE SYSTEM SHALL [저장]을 잠근다. 만료된 줄과 조직 전체 표에는 [편집]을 두지 않는다(2026-10-11 · 사람 결정) | L1(`tokens.spec.tsx` — 시작 값과 PATCH 본문 · 역할 밖과 사람 전용 잠금 · 빈 이름과 [취소] · 만료된 줄과 조직 표) |
 | REQ-WEB-307 | WHEN 리뷰 센터에서 발견의 레일(곁레일 또는 카드 아래)을 열면 THE SYSTEM SHALL 코멘트 입력의 [코멘트]를 `review:submit` 권한을 가진 역할(viewer를 뺀 모두)에게 열고, 처분 단추는 그대로 `review:resolve` 역할에게만 연다. 권한이 없어 잠긴 [코멘트]는 필요한 권한(`review:submit`)을 까닭으로 보여 준다([4.4 API](api.md) REQ-API-294 · 2026-10-11 · 사람 결정 — developer · designer가 자기 코드에 달린 발견에 답할 수 없었다) |
 | REQ-WEB-308 | WHEN 작업 보드의 검색 칸에 글자를 넣고 Enter를 누르면 THE SYSTEM SHALL 그 검색어를 주소(`?q=`)에 남기고 모든 레인 · 요약 숫자 · 보관함을 같은 검색어로 거르며 "필터 적용 중"과 [필터 지우기]를 보인다. Enter 전에는 묻지 않는다. WHEN 검색어가 걸린 주소로 들어오면 THE SYSTEM SHALL 칸에 그 값을 보이고, [필터 지우기]는 스펙 · 담당 · 에이전트와 함께 검색어도 푼다(2026-10-11 · [4.4 API 명세](api.md) REQ-API-295) |
+| REQ-WEB-309 | WHEN 프로젝트 개요의 구현 현황 카드가 커버리지를 받았고 `areas[]`가 비어 있지 않으면 THE SYSTEM SHALL 여섯 칸 아래 **영역별**에 영역마다 한 줄을 보인다 — 영역 문서의 제목(누르면 그 문서) · 막대(검증 · 구현) · `구현 · 검증 / 요구사항` 수, 그리고 증적 없음 · 작업 없음 · 다시 검증 필요 가운데 0이 아닌 것만. 영역에 들지 않은 스펙은 "영역에 들지 않은 스펙" 한 줄로 맨 뒤다([4.4 API 명세](api.md) REQ-API-297 · 2026-10-11) |
 | REQ-WEB-028 | WHEN admin이 아닌 사용자가 멤버·역할 탭을 열면 THE SYSTEM SHALL 매트릭스를 읽기 전용으로 표시하고 편집 컨트롤을 비활성화한다(FR-14) |
 | REQ-WEB-167 | WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL **대상 프로젝트를 그 폼에서 고르게** 하고 고른 값이 권한 칸의 잠금과 기본 이름을 정한다 — 헤더가 고른 값에 기대지 않는다. WHERE 고를 프로젝트가 없으면 THE SYSTEM SHALL [발급]을 비활성으로 두고 **그 이유를 같은 자리에서** 말한다(§1.5). WHEN 발급에 성공하면 THE SYSTEM SHALL 원문과 함께 **프로젝트·권한·만료**와 그대로 붙여넣을 설정 한 줄을 보인다([4.4](api.md) REQ-API-160). WHEN 토큰 목록을 그리면 THE SYSTEM SHALL **프로젝트를 첫 열로** 두고 만료를 함께 보이며, 폐기·만료된 토큰은 기본으로 접고 토글로 편다 |
 | REQ-WEB-207 | WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL 권한을 **권장 묶음**(스킬 여섯 — next · spec · impl · question · review · mirror — 을 쓰는 데 드는 권한 · `agent-session:launch` 포함)과 내 역할의 교집합으로 시작하고, [직접 고르기]로 바꿀 수 있게 한다. WHEN 발급에 성공하면 THE SYSTEM SHALL 토큰(복사) · 플러그인 설치 · 설치 캐시 경로로 부르는 설정 한 줄의 **연결 3단계**와 설치 장으로 가는 링크를 보이고, 카드가 열려 있는 동안 그 토큰의 첫 사용을 감지해 연결됐음과 그 기계를 말한다. WHEN 토큰 탭에서 이 화면 도움말을 열면 THE SYSTEM SHALL 설치 장으로 보낸다 |

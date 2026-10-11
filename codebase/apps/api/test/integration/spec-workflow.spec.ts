@@ -1705,3 +1705,71 @@ describe('검증 서명은 그 문장에 대한 것이다 (REQ-API-190 · 2026-0
     expect((await listed(key))?.['reverify_required']).toBe(true);
   });
 });
+
+/**
+ * **구현 현황의 영역별 분해**(2026-10-11 · REQ-API-297 · 화면 REQ-WEB-309). 프로젝트 전체의 여섯 칸만으로는 "어느
+ * 영역이 비었나" 에 답하지 못했다. 스펙마다 가장 가까운 `area` 조상으로 묶어 같은 지표를 더한다 — 다른 스위트의
+ * 문서가 섞이지 않게 프로젝트를 따로 만든다.
+ */
+describe('구현 현황 — 영역별 분해 (REQ-API-297)', () => {
+  it('area 아래의 스펙(손주까지)은 그 영역으로, 영역 밖 스펙은 마지막 한 줄로 묶는다 — 요구사항이 없는 영역은 빠진다', async () => {
+    const { rows: orgs } = await pool.query<{ org_id: string }>(
+      `SELECT org_id FROM project WHERE id = $1`,
+      [projectId],
+    );
+    const areaProject = newId();
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'areas','ARE','areas')`,
+      [areaProject, orgs[0]?.org_id],
+    );
+    const spec = async (key: string, type: string, parent: string | null): Promise<string> => {
+      const id = newId();
+      await pool.query(
+        `INSERT INTO spec (id, project_id, parent_id, type, key, title) VALUES ($1,$2,$3,$4,$5,$5)`,
+        [id, areaProject, parent, type, key],
+      );
+      return id;
+    };
+    const requirements = async (specId: string, statuses: string[]): Promise<void> => {
+      const versionId = newId();
+      await pool.query(
+        `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+         VALUES ($1,$2,1,'approved','본문',decode(md5($4),'hex'),$3)`,
+        [versionId, specId, planner, versionId],
+      );
+      for (const status of statuses) {
+        await pool.query(
+          `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, impl_status,
+                                    introduced_in_version_id, current_version_id)
+           VALUES ($1,$2,$3,$4,'문장',$5::impl_status,$6,$6)`,
+          [newId(), areaProject, specId, `REQ-ARE-${newId().slice(-6)}`, status, versionId],
+        );
+      }
+    };
+    const vision = await spec('vision', 'vision', null);
+    const chat = await spec('area-chat', 'area', vision);
+    const widget = await spec('chat-widget', 'feature', chat);
+    const embed = await spec('chat-embed', 'design', widget);
+    const pay = await spec('area-pay', 'area', vision);
+    await spec('area-empty', 'area', vision);
+    const loose = await spec('loose', 'convention', null);
+    await requirements(widget, ['implemented', 'unimplemented']);
+    await requirements(embed, ['verified']);
+    await requirements(pay, ['unimplemented']);
+    await requirements(loose, ['implemented']);
+    await requirements(vision, ['unimplemented']);
+
+    const coverage = await specs.coverage({ projectId: areaProject });
+    const areas = coverage['areas'] as Record<string, unknown>[];
+    expect(areas.map((a) => a['area_key'])).toEqual(['area-chat', 'area-pay', null]);
+    expect(areas[0]).toMatchObject({ total: 3, implemented: 2, verified: 1, empty_promises: 1 });
+    expect(areas[1]).toMatchObject({ total: 1, implemented: 0, empty_promises: 1 });
+    // 영역 밖 — vision(조상이 없다) · loose(트리 밖)
+    expect(areas[2]).toMatchObject({ area_title: null, total: 2, implemented: 1 });
+    // 행마다 자기 영역을 든다 — area 문서는 자기 자신이 영역이다
+    const specRows = coverage['specs'] as Record<string, unknown>[];
+    expect(specRows.find((r) => r['key'] === 'chat-embed')?.['area_key']).toBe('area-chat');
+    expect(specRows.find((r) => r['key'] === 'area-pay')?.['area_key']).toBe('area-pay');
+    expect(specRows.find((r) => r['key'] === 'loose')?.['area_key']).toBeNull();
+  });
+});

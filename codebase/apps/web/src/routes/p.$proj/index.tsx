@@ -75,6 +75,13 @@ function ProjectOverview(): React.JSX.Element {
   const missing = Number(totals['evidence_missing'] ?? 0);
   const empty = Number(totals['empty_promises'] ?? 0);
   const reverify = Number(totals['reverify_required'] ?? 0);
+  /**
+   * **영역별 분해**(2026-10-11 · REQ-WEB-309 · 서버 REQ-API-297). 프로젝트 전체의 여섯 칸만으로는 "어느 영역이 비었나"
+   * 에 답하지 못했다 — 스펙 트리의 `area` 문서마다 같은 지표를 묶는다. 영역에 들지 않은 스펙은 마지막 한 줄이다
+   */
+  const areas = (
+    Array.isArray(coverage.data?.['areas']) ? coverage.data['areas'] : []
+  ) as AreaCoverage[];
 
   return (
     <PageBody wide>
@@ -159,6 +166,7 @@ function ProjectOverview(): React.JSX.Element {
                   tone={reverify > 0 ? 'waiting' : undefined}
                 />
               </dl>
+              {areas.length > 0 && <AreaBreakdown proj={proj} areas={areas} />}
             </>
           )}
         </Card>
@@ -328,6 +336,98 @@ function WaitingLine({
           <span aria-hidden="true"> ▸</span>
         </Link>
       )}
+    </div>
+  );
+}
+
+/** 영역 한 줄 — 서버의 `areas[]`(REQ-API-297) */
+interface AreaCoverage {
+  area_key: string | null;
+  area_title: string | null;
+  total: number;
+  implemented: number;
+  verified: number;
+  evidence_missing: number;
+  empty_promises: number;
+  reverify_required: number;
+}
+
+/**
+ * 영역마다 막대 하나와 수 — 전체 카드와 **같은 지표**를 같은 색으로 쓴다(REQ-WEB-309). 경고 셋은 0 이면 적지 않는다:
+ * 영역이 열이면 0 이 서른 번 서고, 그러면 0 이 아닌 하나가 묻힌다.
+ */
+function AreaBreakdown({
+  proj,
+  areas,
+}: {
+  proj: string;
+  areas: AreaCoverage[];
+}): React.JSX.Element {
+  const t = useT();
+  return (
+    <div data-testid="coverage-areas" className="mt-4 border-t border-border pt-3">
+      <h3 className="mb-2 text-xs font-medium text-text-mute">{t('project.coverage.areas')}</h3>
+      <ul className="flex flex-col gap-2.5">
+        {areas.map((area) => {
+          const warnings = [
+            [area.evidence_missing, 'project.metric.evidence_missing'],
+            [area.empty_promises, 'project.metric.empty_promises'],
+            [area.reverify_required, 'project.metric.reverify_required'],
+          ] as const;
+          return (
+            <li key={area.area_key ?? ''} data-testid="coverage-area" className="text-xs">
+              <div className="flex items-baseline justify-between gap-2">
+                {area.area_key === null ? (
+                  <span className="truncate text-text-mute">{t('project.coverage.no_area')}</span>
+                ) : (
+                  <Link
+                    to="/p/$proj/specs/$spec"
+                    params={{ proj, spec: area.area_key }}
+                    className="truncate text-text hover:underline"
+                  >
+                    {area.area_title ?? area.area_key}
+                  </Link>
+                )}
+                <span className="shrink-0 text-text-mute tabular-nums">
+                  {t('project.coverage.area_counts', {
+                    implemented: area.implemented,
+                    verified: area.verified,
+                    total: area.total,
+                  })}
+                </span>
+              </div>
+              <div
+                className="mt-1 flex h-1 overflow-hidden rounded-full bg-bg-sunken"
+                role="img"
+                aria-label={t('project.coverage.alt', {
+                  total: area.total,
+                  verified: area.verified,
+                  implemented: area.implemented,
+                })}
+              >
+                <span
+                  className="bg-status-ok"
+                  style={{ width: `${pct(area.verified, area.total)}%` }}
+                />
+                <span
+                  className="bg-status-done"
+                  style={{
+                    width: `${pct(Math.max(0, area.implemented - area.verified), area.total)}%`,
+                  }}
+                />
+              </div>
+              {warnings.some(([n]) => n > 0) && (
+                <p className="mt-0.5 text-text-faint">
+                  {warnings
+                    .filter(([n]) => n > 0)
+                    .map(([n, label]) => `${t(label)} ${n}`)
+                    .join(' · ')}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -2406,8 +2406,23 @@ export class SpecService {
     specKey?: string | null;
   }): Promise<Record<string, unknown>> {
     const specFilter = input.specKey == null ? sql`` : sql` AND s.key = ${input.specKey}`;
+    // **영역**(2026-10-11 · REQ-API-297) — 스펙마다 가장 가까운 `area` 타입 조상(자기 자신이 area 면 자기)이다. 트리를
+    // 위로 따라가다 area 를 만나면 멈춘다. 깊이는 조상 조회와 같은 상한(`ANCESTOR_DEPTH_LIMIT`)으로 자른다 — 고리가 있어도 끝난다
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
+      WITH RECURSIVE up AS (
+        SELECT s.id AS spec_id, s.id AS node_id, s.parent_id, s.type::text AS type, 0 AS depth
+          FROM spec s WHERE s.project_id = ${input.projectId}
+        UNION ALL
+        SELECT up.spec_id, p.id, p.parent_id, p.type::text, up.depth + 1
+          FROM up JOIN spec p ON p.id = up.parent_id
+         WHERE up.type <> 'area' AND up.depth < ${ANCESTOR_DEPTH_LIMIT}
+      ),
+      area_of AS (
+        SELECT DISTINCT ON (spec_id) spec_id, node_id AS area_id
+          FROM up WHERE type = 'area' ORDER BY spec_id, depth
+      )
       SELECT s.id AS spec_id, s.key, s.title,
+             area.key AS area_key, area.title AS area_title,
              count(r.id)::int AS total,
              count(*) FILTER (WHERE r.impl_status IN ('implemented', 'verified'))::int AS implemented,
              count(*) FILTER (WHERE r.impl_status = 'verified')::int AS verified,
@@ -2427,9 +2442,11 @@ export class SpecService {
              -- **다시 검증 필요**(2026-09-26 · REQ-API-190) — 서명은 있는데 모두 지금 문장보다 앞선다
              count(*) FILTER (WHERE ${reverifyRequiredSql()})::int AS reverify_required
         FROM spec s
+   LEFT JOIN area_of ON area_of.spec_id = s.id
+   LEFT JOIN spec area ON area.id = area_of.area_id
    LEFT JOIN requirement r ON r.spec_id = s.id AND r.removed_in_version_id IS NULL
        WHERE s.project_id = ${input.projectId} AND s.archived_at IS NULL${specFilter}
-       GROUP BY s.id, s.key, s.title
+       GROUP BY s.id, s.key, s.title, area.key, area.title
        ORDER BY s.key
     `);
 
@@ -2463,6 +2480,41 @@ export class SpecService {
       },
     );
 
+    // **영역별 분해**(2026-10-11 · REQ-API-297) — 같은 여섯 지표를 영역마다 더한다. 요구사항이 없는 영역은 빼고(빈
+    // 줄은 읽을 것이 없다), 영역에 들지 않은 스펙은 `area_key: null` 한 줄로 모아 맨 뒤에 둔다
+    const byArea = new Map<
+      string,
+      CoverageTotals & { area_key: string | null; area_title: string | null }
+    >();
+    for (const row of rows) {
+      const key = typeof row['area_key'] === 'string' ? row['area_key'] : null;
+      const id = key ?? '';
+      const acc = byArea.get(id) ?? {
+        area_key: key,
+        area_title: typeof row['area_title'] === 'string' ? row['area_title'] : null,
+        total: 0,
+        implemented: 0,
+        verified: 0,
+        in_progress: 0,
+        evidence_missing: 0,
+        empty_promises: 0,
+        reverify_required: 0,
+      };
+      acc.total += Number(row['total'] ?? 0);
+      acc.implemented += Number(row['implemented'] ?? 0);
+      acc.verified += Number(row['verified'] ?? 0);
+      acc.in_progress += Number(row['in_progress'] ?? 0);
+      acc.evidence_missing += Number(row['evidence_missing'] ?? 0);
+      acc.empty_promises += Number(row['empty_promises'] ?? 0);
+      acc.reverify_required += Number(row['reverify_required'] ?? 0);
+      byArea.set(id, acc);
+    }
+    const areas = [...byArea.values()]
+      .filter((a) => a.total > 0)
+      .sort((a, b) =>
+        a.area_key === null ? 1 : b.area_key === null ? -1 : a.area_key.localeCompare(b.area_key),
+      );
+
     return {
       totals: {
         ...totals,
@@ -2470,6 +2522,7 @@ export class SpecService {
         impl_ratio: totals.total === 0 ? null : totals.implemented / totals.total,
         verified_ratio: totals.total === 0 ? null : totals.verified / totals.total,
       },
+      areas,
       specs: rows,
     };
   }

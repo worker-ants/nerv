@@ -1553,6 +1553,9 @@ export const ko = {
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '활성 세션 {count}개',
   'project.coverage': '구현 현황',
+  'project.coverage.areas': '영역별',
+  'project.coverage.area_counts': '구현 {implemented} · 검증 {verified} / {total}',
+  'project.coverage.no_area': '영역에 들지 않은 스펙',
   'project.coverage.alt': '요구사항 {total}건 중 검증 {verified}건 · 구현 {implemented}건',
   'project.metric.empty_promises': '작업 없음',
   'project.metric.reverify_required': '다시 검증 필요',

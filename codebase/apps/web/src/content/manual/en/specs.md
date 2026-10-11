@@ -268,6 +268,8 @@ Agents get the number from the server, so nobody numbers requirements by hand. *
 
 **No evidence** means "you said it was done, but there is nothing to show". **No task** means "you wrote it down, but nobody took it on". Reduce the first by attaching evidence, and the second by creating a task and linking it to the requirement (see [Tasks](/help/tasks)). **Needs re-verification** is explained below.
 
+**You can also see it by area.** If the spec tree has `area` documents, **By area** below the numbers shows one row per area. It gathers the requirements of the specs under that area document (at any depth) into one bar with implemented and verified counts, and lists No evidence, No task and Needs re-verification only when they are not zero. Click an area name to open its document. Specs that belong to no area are gathered into the last row, **Specs outside any area**. Areas with no requirements are not shown.
+
 **To find out which requirements they are, look at the document.** The project screen shows only counts. The **Requirements** tab on the right of a spec lists that document's requirements, one per row, with derived-task and evidence counts on each. A row where both are zero is shown in **red**. Below it, **Derived tasks** lists the tasks from this document that are `ready`, `in_progress` or `blocked`. [See all on the board] opens the task board with the same filter.
 
 Requirement rows are created from the body **when a version is approved**. Writing EARS sentences in a draft does not create them, because a draft is not yet a commitment. When a sentence is removed in a later version, the row is not deleted. Instead, **the version that removed it** is recorded.

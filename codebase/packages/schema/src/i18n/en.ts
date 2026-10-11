@@ -1578,6 +1578,9 @@ export const en = {
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '{count} active sessions',
   'project.coverage': 'Implementation status',
+  'project.coverage.areas': 'By area',
+  'project.coverage.area_counts': '{implemented} implemented · {verified} verified / {total}',
+  'project.coverage.no_area': 'Specs outside any area',
   'project.coverage.alt':
     '{verified} verified and {implemented} implemented of {total} requirements',
   'project.metric.empty_promises': 'No task',
