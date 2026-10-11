@@ -168,6 +168,8 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.INVITATION_DECLINED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.TOKEN_CREATED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
   [E.TOKEN_REVOKED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
+  // 이름 · 권한을 고쳤다(2026-10-11 · REQ-API-292) — 다른 탭의 토큰 표도 바뀐 권한을 보여야 한다
+  [E.TOKEN_UPDATED]: (e) => [queryKeys.myTokens(), queryKeys.projectEvents(e.project_id)],
   // 첨부 수는 트리와 표(그래프 응답) 둘 다에 있다(REQ-WEB-289) — 트리만 다시 읽어 표가 낡아 있었다
   [E.SPEC_ATTACHMENT_ADDED]: specListAxis,
   [E.SPEC_ATTACHMENT_REMOVED]: specListAxis,

@@ -105,9 +105,11 @@ An agent token cannot change your name or sign out your devices. Only you can ch
 
 ## Tokens {#tokens}
 
-This is where you issue and revoke **your own** tokens for agents. The list includes your tokens from every organization you belong to. **The steps from issuing a token to connecting an agent are in the [Installing the plugin](/help/install) chapter.** Opening help from this screen also takes you there.
+This is where you issue, edit and revoke **your own** tokens for agents. The list includes your tokens from every organization you belong to. **The steps from issuing a token to connecting an agent are in the [Installing the plugin](/help/install) chapter.** Opening help from this screen also takes you there.
 
 After you issue a token, a card shows **three connection steps** in order (token · plugin install · one setup line). The first time the token is used, the card changes to **"Connected"**. Scopes start with the **[Recommended]** set selected. Tokens are **tied to a project**, so you cannot issue one while the organization has no projects. In that case, organization admins see **[Create a project]** in its place.
+
+**Change the name and scopes of a token with [Edit].** A name field and the scope list open under that row, and the scopes lock by the same rules as the issue form. New scopes apply from the token's next call, so the token value and your settings stay as they are. The project and expiry cannot change; issue a new token for that. Only the person who issued a token can edit it. Revoked and expired tokens have no [Edit].
 
 **Revoking cannot be undone, so you are asked to confirm.** The confirmation shows the **host that last used** the token. Once the token is revoked, agents on that host are disconnected on their next call.
 

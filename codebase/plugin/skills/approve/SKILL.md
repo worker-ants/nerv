@@ -67,7 +67,7 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_FORBIDDEN `missing_scope`(`spec:approve`) | 토큰에 승인 권한이 없다. 이 권한은 권장 묶음에 없다 — 사람에게 웹 설정의 에이전트 토큰에서 [직접 고르기]로 `spec:approve` 를 골라 새로 발급하라고 안내한다. 그동안의 승인은 웹의 문서 화면 [바로 승인]에서 한다 |
+| NERV_FORBIDDEN `missing_scope`(`spec:approve`) | 토큰에 승인 권한이 없다. 이 권한은 권장 묶음에 없다 — 사람에게 웹 설정의 에이전트 토큰 목록에서 이 토큰의 [편집]으로 `spec:approve` 를 켜 달라고 안내한다. 토큰 값과 설정 파일은 그대로다. 켰다고 하면 5단계를 다시 한다 — 같은 버전 · 같은 지문이면 사람의 대답은 그대로다. 켜지 않으면 승인은 웹의 문서 화면 [바로 승인]에서 한다 |
 | NERV_FORBIDDEN `missing_role` | 바로 승인은 admin · planner 만 한다. /nerv:spec submit 으로 검토를 요청하자고 제안한다 |
 | NERV_PRECONDITION `stale_approval` | 보여 준 뒤 본문이 바뀌었다. details 의 `reread` 대로 다시 읽고 3단계부터 다시 한다 — 앞의 대답으로 바뀐 본문을 승인하지 않는다 |
 | NERV_PRECONDITION `precheck_blocked` | 사전 검토가 막았다. details 의 `findings` 를 보고한다 |

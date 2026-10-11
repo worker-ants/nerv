@@ -94,7 +94,7 @@ allowed-tools:
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 재로그인·토큰 재발급을 사람에게 안내. 권한 확대를 시도하지 않는다 |
+| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 재로그인·토큰 재발급을 사람에게 안내. `missing_scope` 면 웹 설정의 에이전트 토큰 목록에서 그 토큰의 [편집]으로 권한을 켜 달라고 안내한다(토큰 값은 그대로다). 권한 확대를 스스로 시도하지 않는다 |
 | NERV_CONFLICT_SCOPE | 다음 후보로 이동, 없으면 nerv_question_create |
 | NERV_PRECONDITION `spec_archived` | 근거 문서(`details.spec`)가 보관돼 그 작업은 시작할 수 없다 — 다음 후보로 이동하고, 작업 키와 문서 키를 사람에게 보고한다 |
 | NERV_PRECONDITION `task_archived` | 그 작업은 진행하지 않기로 보관됐다. `details.superseded_by`가 있으면 그 작업을 `nerv_task_get`으로 읽고 그것을 클레임한다. 없으면 다음 후보로 이동한다 |

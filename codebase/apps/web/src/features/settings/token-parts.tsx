@@ -5,6 +5,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UseMutationResult } from '@tanstack/react-query';
+import { AGENT_SCOPES, HUMAN_ONLY_SCOPES } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { apiFetch } from '../../lib/api.js';
 import { useRealtime } from '../../lib/realtime.js';
@@ -19,6 +20,119 @@ export function isExpired(value: unknown): boolean {
 /** 표의 날짜 칸 — 시각까지 적으면 열이 읽히지 않는다. 없으면 "없음" 이라고 말한다. */
 export function day(value: unknown, absent: string): string {
   return typeof value === 'string' && value !== '' ? value.slice(0, 10) : absent;
+}
+
+/**
+ * **권한 칸** — 발급 폼과 고치기 줄이 같은 것을 쓴다(2026-10-11 · REQ-WEB-306). 잠그는 규칙이 두 벌이면
+ * 한쪽만 역할 밖 권한을 열어 두는 날이 온다.
+ *
+ * - 내 역할에 없는 권한은 **보이되 잠긴다** — 목록에서 빼면 "왜 이건 못 주지" 가 화면 밖에 남는다.
+ *   단 `keep` 에 있는 것(이미 토큰에 담긴 것)은 풀어 둔다: 빼는 것은 언제나 안전하고, 역할이 좁아진 뒤에
+ *   남은 권한을 사람이 치울 길이 있어야 한다.
+ * - 사람 전용 권한은 **숨기지 않고 비활성으로 보인다**(REQ-WEB-027 · D-08). 보이되 고를 수 없는 것이 규칙을
+ *   가르친다.
+ * - 권한마다 **무엇을 허락하는지** 한 줄을 붙인다(SET-14) — 코드는 그대로 둔다: 스킬 · 매뉴얼이 그 이름으로 부른다.
+ */
+export function ScopeChecklist({
+  myScopes,
+  checked,
+  editable,
+  keep = [],
+  onToggle,
+  testId = 'token-scope',
+  humanOnlyTestId = 'human-only-scope',
+}: {
+  /** 그 프로젝트에서 내 역할이 가진 권한 */
+  myScopes: ReadonlySet<string>;
+  checked: readonly string[];
+  /** 거짓이면 보여 주기만 한다(발급 폼의 [권장]) */
+  editable: boolean;
+  /** 역할 밖이어도 뺄 수 있게 풀어 둘 권한 — 고치기 줄이 그 토큰의 지금 권한을 넘긴다 */
+  keep?: readonly string[];
+  onToggle: (scope: string, on: boolean) => void;
+  testId?: string;
+  humanOnlyTestId?: string;
+}): React.JSX.Element {
+  const t = useT();
+  return (
+    <fieldset className="mt-2 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
+      <legend className="sr-only">{t('settings.tokens.scopes')}</legend>
+      {AGENT_SCOPES.map((scope) => {
+        const mineScope = myScopes.has(scope);
+        const open = mineScope || keep.includes(scope);
+        return (
+          <label
+            key={scope}
+            data-testid={testId}
+            className={
+              open
+                ? 'flex cursor-pointer items-start gap-1.5'
+                : 'flex items-start gap-1.5 opacity-45'
+            }
+            title={mineScope ? undefined : t('settings.tokens.out_of_role')}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={checked.includes(scope)}
+              disabled={!open || !editable}
+              onChange={(e) => onToggle(scope, e.target.checked)}
+            />
+            <span className="flex flex-col">
+              <code className="font-mono">{scope}</code>
+              <span className="text-text-faint">{t(`scope.desc.${scope}`)}</span>
+            </span>
+          </label>
+        );
+      })}
+      {HUMAN_ONLY_SCOPES.map((scope) => (
+        <label
+          key={scope}
+          data-testid={humanOnlyTestId}
+          title={t('settings.tokens.human_only_title')}
+          className="flex cursor-not-allowed items-start gap-1.5 opacity-50"
+        >
+          <input type="checkbox" className="mt-0.5" disabled checked={false} readOnly />
+          <span className="flex flex-col">
+            <span>
+              <code className="font-mono">{scope}</code>{' '}
+              <span className="text-text-faint">{t('settings.tokens.human_only')}</span>
+            </span>
+            <span className="text-text-faint">{t(`scope.desc.${scope}`)}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+/**
+ * 고치기 — 내 토큰의 이름과 권한(EP-TOK-05 · REQ-API-292). 주인만 고치므로 내 표에만 있다(조직 전체 표는 폐기만).
+ * 바뀐 권한은 그 토큰의 다음 호출부터 적용된다 — 토스트가 그 사실을 말한다.
+ */
+export function useUpdateToken(
+  orgSlug: string | null,
+): UseMutationResult<
+  { changed?: boolean },
+  Error,
+  { id: string; name?: string; scopes?: readonly string[] }
+> {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; scopes?: readonly string[] }) =>
+      apiFetch<{ changed?: boolean }>(`/me/tokens/${id}`, { method: 'PATCH', body }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ['me', 'tokens'] });
+      void queryClient.invalidateQueries({ queryKey: ['org', orgSlug, 'tokens'] });
+      pushToast(
+        result.changed === false
+          ? { tone: 'info', message: t('settings.tokens.edit_no_change') }
+          : { tone: 'ok', message: t('settings.tokens.edit_done') },
+      );
+    },
+  });
 }
 
 /**

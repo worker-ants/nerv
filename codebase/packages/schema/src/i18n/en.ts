@@ -148,6 +148,12 @@ export const en = {
     'Your session wrote this draft. Someone else must approve it.',
   'error.auth.session_invalid': 'This session is no longer valid.',
   'error.auth.token_not_found': 'No such token to revoke.',
+  'error.auth.token_name': 'A token name must be 1–{max} characters.',
+  'error.auth.token_name_empty': 'Enter a token name.',
+  'error.auth.token_inactive': 'A revoked or expired token can’t be edited. Issue a new one.',
+  'error.auth.token_not_mine':
+    'No such token to edit. Only the person who issued a token can edit it.',
+  'error.auth.token_update_empty': 'Send a new name or new scopes.',
   'error.auth.unavailable': 'The authentication service is not ready.',
   'error.auth.unknown_scope': 'Unknown scope.',
   'error.auth.user_not_found': 'User not found.',
@@ -194,6 +200,7 @@ export const en = {
     'Only a person can change document info, archive, or restore. Open Document info on that document in the web app.',
   'error.human_only.steer': 'Only humans can steer or stop a session.',
   'error.human_only.token_issue': 'Only humans can issue tokens.',
+  'error.human_only.token_update': 'Only humans can edit tokens.',
   'error.human_only.task_archive':
     'Only a person can make this archive or restore. An agent can archive only a task that was never started, together with the task that replaces it.',
   'error.idempotency.mismatch':
@@ -1047,6 +1054,7 @@ export const en = {
   'event.spec.attachment_removed': 'Attachment removed',
   'event.token.created': 'Token issued',
   'event.token.revoked': 'Token revoked',
+  'event.token.updated': 'Token updated',
   // ── 상태 라벨 — 배지에 뜨는 말 (식별자는 번역하지 않는다) ────────────────────────────────────
   'status.requirement.implemented': 'Implemented',
   'status.requirement.in_progress': 'In progress',
@@ -2188,6 +2196,11 @@ export const en = {
   'scope.desc.approval:decide': 'Decide on inbox requests',
   'settings.tokens.revoke': 'Revoke',
   'settings.tokens.revoke_done': 'Token revoked. It can no longer be used.',
+  'settings.tokens.edit': 'Edit',
+  'settings.tokens.edit_hint':
+    'Only the name and scopes can change. New scopes apply from this token’s next call. To change the project or expiry, issue a new token.',
+  'settings.tokens.edit_done': 'Token updated. The new scopes apply from the next call.',
+  'settings.tokens.edit_no_change': 'Nothing has changed.',
   'settings.tokens.revoked': 'Revoked',
   'settings.tokens.scopes': 'Scopes',
   'settings.tokens.unused': 'never',

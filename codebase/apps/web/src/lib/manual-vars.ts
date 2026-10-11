@@ -37,7 +37,7 @@ export const MANUAL_EXAMPLE: Readonly<Record<ManualVarName, string>> = {
   server: 'https://api.nerv.example.com',
   project: 'clemvion',
   role: 'developer',
-  version: '0.3.25',
+  version: '0.3.26',
 };
 
 export interface ManualVars {

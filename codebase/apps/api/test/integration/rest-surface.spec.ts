@@ -1820,6 +1820,8 @@ describe('사람 전용 라우트는 토큰을 받지 않는다 (REQ-API-111)', 
     ['GET', '/api/v1/approvals/scopes', undefined],
     ['POST', '/api/v1/projects/clemvion/gates/bypass', { subject_id: newId(), reason: '검사' }],
     ['POST', `/api/v1/projects/clemvion/questions/${newId()}/answer`, { answer_key: 'a' }],
+    // 2026-10-11 — 토큰이 자기 권한을 넓히는 길이 되면 발급의 규칙(D-08)이 뒷문으로 깨진다(REQ-API-292)
+    ['PATCH', `/api/v1/me/tokens/${newId()}`, { scopes: ['spec:read'] }],
   ] as const)('%s %s 는 에이전트 토큰에 HUMAN_ONLY 로 답한다', async (method, url, payload) => {
     // adminToken 은 PAT 다 — PAT 주체는 에이전트다(사람은 세션 쿠키로 온다)
     const res = await call(method as 'GET' | 'POST' | 'PATCH', url, {

@@ -12,7 +12,7 @@
 // 판정하고(REQ-API-112), 여기서 보는 것은 **모양**이다 — 둘은 다른 물음이라 자리를 나눈다.
 
 import { z } from 'zod';
-import { DISPLAY_NAME_MAX } from '../constants.js';
+import { DISPLAY_NAME_MAX, TOKEN_NAME_MAX } from '../constants.js';
 
 /**
  * EP-AUTH-02 — 내 표시 이름(2026-09-25 · REQ-API-186). 앞뒤 공백은 이름이 아니다 — 잘라 낸 뒤에 센다.
@@ -91,3 +91,26 @@ export const TokenCreateInput = z
     expires_at: z.string().nullish(),
   })
   .strict();
+
+/**
+ * EP-TOK-05 — 토큰의 이름과 권한을 고친다(2026-10-11 · 사람 결정 · REQ-API-292).
+ *
+ * **바꿀 수 있는 것은 둘뿐이다.** 프로젝트는 토큰의 뜻을 정하는 값이고(그 토큰을 쓰는 설정 파일이 slug 를 적는다),
+ * 만료는 발급 때 사람이 고른 약속이다 — 둘을 바꾸려면 새로 발급한다(`.strict()` 가 거절한다). 권한 어휘 · 사람 전용 ·
+ * 역할의 판정은 발급과 같은 곳(서비스)에서 하고, 여기서는 모양만 본다. 둘 다 빠진 본문은 아무것도 바꾸지 않는
+ * 요청이라 받지 않는다.
+ */
+export const TokenUpdateInput = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'error.auth.token_name_empty')
+      .max(TOKEN_NAME_MAX, 'error.auth.token_name')
+      .optional(),
+    scopes: z.array(z.string()).optional(),
+  })
+  .strict()
+  .refine((input) => input.name !== undefined || input.scopes !== undefined, {
+    message: 'error.auth.token_update_empty',
+  });
