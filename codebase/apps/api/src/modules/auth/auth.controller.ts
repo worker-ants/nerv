@@ -28,6 +28,7 @@ import {
   ProjectCreateInput,
   ProjectUpdateInput,
   TokenCreateInput,
+  TokenUpdateInput,
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
@@ -319,6 +320,34 @@ export class AuthController {
       name: input.name,
       scopes: input.scopes,
       expiresAt: input.expires_at == null ? null : new Date(input.expires_at),
+    });
+  }
+
+  /**
+   * EP-TOK-05 — 이름과 권한을 고친다(2026-10-11 · REQ-API-292). **사람 전용이다** — 토큰이 자기 권한을 넓히는
+   * 길이 되면 권한의 사슬이 사람에서 시작한다는 발급의 규칙(D-08)이 뒷문으로 깨진다. 주인만 고친다(서비스가 본다).
+   */
+  @Patch('me/tokens/:id')
+  async updateToken(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = principalOf(req);
+    if (principal.isAgent) {
+      throw new NervError(NERV_ERROR.HUMAN_ONLY, msg('error.human_only.token_update'), {
+        kind: 'human_only',
+        // 무엇을 대신 하라는지 — 사람에게 설정 화면에서 고쳐 달라고 말하면 된다
+        action: 'token_update',
+        web_url: '/settings/tokens',
+      });
+    }
+    const input = parseBody(TokenUpdateInput, body);
+    return this.auth.updateToken({
+      tokenId: id,
+      userId: principal.userId,
+      name: input.name,
+      scopes: input.scopes,
     });
   }
 

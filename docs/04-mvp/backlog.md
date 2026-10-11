@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.68 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.69 · 2026-10-11 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.69 변경(2026-10-11 — 스토리 없이 들어온 구현 하나, 사람 요청 · **사람 결정**): §1.4 셋째 표에 **토큰 이름 · 권한 고치기**를 적는다. 스토리 수 · `done` 수는 그대로다. 곁들여 E12 머리의 스킬 수를 7종으로 고쳤다.
 >
 > v2.68 변경(2026-10-11 — 스토리 없이 들어온 구현 하나, 사람 요청 · **사람 결정**): §1.4 셋째 표에 **초안 바로 승인**을 적는다. 스토리 수 · `done` 수는 그대로다.
 >
@@ -857,6 +859,7 @@ referenced_by:
 | 도구로 위임 명세 채우기 | `task.tools.ts`(`nerv_task_update`가 위임 명세 네 칸과 `base_brief_hash`를 받음 · 본문과 같은 역할) · `task.service.ts`(`briefHash` · `briefMissing` · `update`의 409 `stale_brief` · 만들기 응답의 `delegation_missing` · `brief_hash` · 상세의 `brief_hash`) · `TaskUpdateInput.base_brief_hash`(REST) · 플러그인 `skills/impl`(0.3.23) · L2 `task-body.spec.ts` 넷 | clemvion 보고(2026-10-10 · CLE-T-V54M21 · 2K6CDJ · CYS6YF) — 위임 명세를 비운 채 만든 작업을 도구로 고칠 길이 없어 같은 내용으로 다시 만들었고, 진행하지 않을 중복이 백로그에 남았다(REQ-API-282 · 283) |
 | 작업 보관 | `task.service.ts`(`archive` · `restore` — 사유 넷 · 대신할 작업 · 에이전트는 시작한 적 없는 작업만 · 기다리던 의존을 옮기거나 풂 · 클레임 · 전이 · 수정은 `task_archived` · 의존을 다시 걸면 `depends_on_archived` · 작업 큐 · 목록 · 계획 승인 형제 수에서 뺌) · `spec/impl-status.ts`(보관한 작업과 그 증적을 세지 않음 · 모두 보관된 요구사항은 손대지 않음) · `spec.service.ts`(커버리지 · 작업 수 · 게이트 파생 수 · 재브리핑) · `approval.service.ts`(받은 요청의 계획 카드 · 리뷰 면제) · `webhook.service.ts`(증적을 붙이지 않고 사유만) · `0047_task_archive`(REQ-DB-040) · `apps/web/src/features/task-board/task-archive.tsx`(상세의 [보관] · 보관됨 줄 · [복원]) · `archived-lane.tsx`(보드의 보관함) · 「지난 완료 보기」 개명 · 플러그인 `skills/impl` · `skills/next`(0.3.24) · L2 `task-archive.spec.ts` 열셋 · L1 작업 화면 넷 | clemvion 보고(2026-10-10 · CLE-T-V54M21 · 2K6CDJ · CYS6YF) — 작업에는 보관도 취소도 없어 다른 작업으로 대체된 중복이 백로그에 남았다. 사람이 권장 묶음을 골랐다(REQ-API-284~286 · REQ-WEB-301 · 302) |
 | 초안 바로 승인 | `approval.service.ts`(`approveDirect` · `approveDirectBulk` · `approvableDrafts` · `decideInTx` — 제출과 결재 결정을 한 트랜잭션에서 차례로 부른다 · 등급 그대로 · 본 지문 필수 · 거절이면 아무것도 바뀌지 않음) · `approval-policy.ts`(`selfApproverSql` — 자기 승인 예외를 planner로 · `SELF_APPROVAL_ROLES`) · `approval.controller.ts`(EP-SPEC-27 · 28 · 29) · `approval.tools.ts`(MCP `nerv_spec_approve` · A3 · 결정이 그 세션을 거쳤다고 남김) · `spec.service.ts`(`submitInTx`) · `@nerv/schema`(`spec:approve` 옵트인 토큰 권한 · `canDirectApprove` · `SpecDirectApproveInput` · `SpecDirectApproveBulkInput`) · 웹 `specs.$spec.tsx` · `next-step.tsx`([바로 승인] · 영향 확인 창) · `specs.index.tsx`(「초안 승인」 칩 · `?drafts=1`) · `draft-approve-bar.tsx` · 토큰 발급 폼(`spec:approve` 고르기) · 플러그인 `skills/approve`(`/nerv:approve`) · `skills/spec` · `managed-settings.example.json`(0.3.25) · 매뉴얼 ko · en 다섯 장 · L2 `spec-direct-approve.spec.ts` 열여덟과 `approval` · `mcp` 열하나 · L1 웹 `spec-direct-approve.spec.tsx` 아홉 | 사람 요청(2026-10-11) · 사람 결정 넷 — planner 자기 승인 · A3 도구와 옵트인 권한 · 일괄 승인 · 제출과 내 승인 한 번([4.4 API](api.md) REQ-API-287 ~ 291 · [4.5 화면 명세](screens.md) REQ-WEB-303 ~ 305 · [4.6 플러그인](plugin.md) REQ-PLG-029) |
+| 토큰 이름 · 권한 고치기 | `auth.service.ts`(`updateToken` · `tokenScopes` — 발급과 한 벌의 권한 검사 · 주인만 · 살아 있는 토큰만 · 그 프로젝트의 멤버 · 바꾸기 전과 뒤를 감사에) · `auth.controller.ts`(EP-TOK-05 · 사람 전용) · `@nerv/schema`(`TokenUpdateInput` · `TOKEN_NAME_MAX` · ★`token.updated`) · 웹 `features/settings/token-parts.tsx`(`ScopeChecklist` — 발급 폼과 고치기 줄이 함께 쓰는 권한 칸 · `useUpdateToken`) · `routes/settings/tokens.tsx`([편집] · 고치기 줄) · `event-invalidation.ts` · 플러그인 `skills/approve` · `skills/next`(권한이 모자라면 [편집]으로 켜 달라고 안내 · 0.3.26) · 매뉴얼 ko · en `install.md` · `settings.md` · L2 `token-update.spec.ts` 일곱과 `rest-surface` 한 줄 · L1 `tokens.spec.tsx` 넷 | 사람 요청(2026-10-11) · 사람 결정 둘 — 주인만 고친다 · 넓히기와 좁히기 모두([4.4 API](api.md) REQ-API-292 · [4.5 화면 명세](screens.md) REQ-WEB-306) |
 
 #### 이 절은 언제 갱신되는가
 
@@ -1018,7 +1021,7 @@ MVP 화면 범위는 S1~S5·S7·S8 + 로그인/온보딩이다(S6 리뷰 센터�
 
 ### 3.5 E12 — 플러그인 v1 + 훅 수집기
 
-Claude Code 배포 평면. 스킬 5종(`/nerv:review` 포함 — 2026-08-23 배포 · `/nerv:import` 는 2026-09-06 에 걷었다)·훅 번들과 사내 마켓플레이스 배포(성공 기준 1-10).
+Claude Code 배포 평면. 스킬 7종(`/nerv:review` 포함 — 2026-08-23 배포 · `/nerv:mirror` 2026-10-07 · `/nerv:approve` 2026-10-11 · `/nerv:import` 는 2026-09-06 에 걷었다)·훅 번들과 사내 마켓플레이스 배포(성공 기준 1-10).
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |

@@ -133,6 +133,8 @@ export const NERV_EVENT = {
   /** 토큰 발급 — 값은 남기지 않는다. 접두·권한·만료만이 감사가 묻는 것이다 */
   TOKEN_CREATED: 'token.created',
   TOKEN_REVOKED: 'token.revoked',
+  /** 토큰의 이름 · 권한을 고쳤다(2026-10-11 · REQ-API-292) — 바꾸기 전과 뒤를 함께 남긴다. 값은 여전히 남기지 않는다 */
+  TOKEN_UPDATED: 'token.updated',
   /** 첨부 — S3 는 자기에게 무엇이 올라왔는지 화면에 알려 주지 못한다 */
   SPEC_ATTACHMENT_ADDED: 'spec.attachment_added',
   SPEC_ATTACHMENT_REMOVED: 'spec.attachment_removed',

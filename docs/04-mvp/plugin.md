@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.00 · 2026-10-11 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.01 · 2026-10-11 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.01 변경(2026-10-11 — 토큰은 고친다, 사람 결정): **새 요구사항 없음 · §2.1 `next` · §2.8 `approve` 에러 표 한 칸씩 · 패키지 0.3.25 → 0.3.26.** 권한이 모자라면 새로 발급하라고 안내했는데, 이제 웹의 토큰 목록에서 그 토큰의 [편집]으로 권한을 켠다 — 토큰 값과 설정 파일은 그대로다([4.4 API 명세](api.md) REQ-API-292). 곁들여 낡은 스킬 수(5종)를 실제(7종)에 맞췄다 — §5 Codex 표 · §3.4 · 참고 자료.
 >
 > v1.00 변경(2026-10-11 — 세션에서 초안을 승인한다, **사람 결정**): **REQ-PLG-029 신설 · REQ-PLG-001 · 003 · 006 개정 · §2.8 `approve` 스킬 · §2.2 `spec` 스킬 · §5.3 Codex AGENTS.md 초안 · 관리형 settings 예시 · 패키지 0.3.24 → 0.3.25.** admin · planner가 에이전트 세션 안에서 초안을 보고 "승인"이라고 답하면 그 승인을 서버에 전하는 스킬 `/nerv:approve`를 더했다. 문은 셋이 함께 지킨다 — 스킬이 그 버전을 보여 주고 사람의 분명한 대답을 받는다, 도구 `nerv_spec_approve`는 A3라 어느 스킬의 `allowed-tools`에도 없어 Claude Code가 호출마다 다시 묻는다, 서버가 토큰의 옵트인 권한 `spec:approve` · 역할 · 본 지문을 본다([4.4 API 명세](api.md) REQ-API-287 · 291). 관리형 settings 예시가 A3 도구 둘을 `permissions.ask`로 묶는다. Codex 초안은 승인 도구를 부르지 말라고 적는다 — 호출마다 묻는 창이 보장되지 않는다. `spec` 스킬은 검토 요청 대신 승인까지 하겠다는 사람에게 `/nerv:approve`를 안내한다.
 >
@@ -186,7 +188,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.25
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.26
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -213,7 +215,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.25",
+  "version": "0.3.26",
   "license": "Apache-2.0"
 }
 ```
@@ -355,7 +357,7 @@ allowed-tools:
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 재로그인·토큰 재발급을 사람에게 안내. 권한 확대를 시도하지 않는다 |
+| NERV_UNAUTHENTICATED / NERV_FORBIDDEN | 재로그인·토큰 재발급을 사람에게 안내. `missing_scope` 면 웹 설정의 에이전트 토큰 목록에서 그 토큰의 [편집]으로 권한을 켜 달라고 안내한다(토큰 값은 그대로다). 권한 확대를 스스로 시도하지 않는다 |
 | NERV_CONFLICT_SCOPE | 다음 후보로 이동, 없으면 nerv_question_create |
 | NERV_PRECONDITION `spec_archived` | 근거 문서(`details.spec`)가 보관돼 그 작업은 시작할 수 없다 — 다음 후보로 이동하고, 작업 키와 문서 키를 사람에게 보고한다 |
 | NERV_PRECONDITION `task_archived` | 그 작업은 진행하지 않기로 보관됐다. `details.superseded_by`가 있으면 그 작업을 `nerv_task_get`으로 읽고 그것을 클레임한다. 없으면 다음 후보로 이동한다 |
@@ -960,7 +962,7 @@ awaiting_input 상태로 받은 요청(S7)과 세션 모니터(S5)에 보인다.
 
 ### 2.6 `skills/review/SKILL.md` — 리뷰 제출과 발견 처분 (2026-08-23 · **배포된다**)
 
-리뷰 수집(FR-09)의 도구 2종이 들어오면서 이 스킬이 가능해졌다([4.1 범위](scope.md) §5 착수 기록). 다섯 스킬이 "무엇을 어떤 순서로 하느냐"를 배포하듯, 이 스킬이 배포하는 것은 **리뷰 결과가 가는 곳이 저장소가 아니라 서버라는 규약**이다.
+리뷰 수집(FR-09)의 도구 2종이 들어오면서 이 스킬이 가능해졌다([4.1 범위](scope.md) §5 착수 기록). 다른 스킬이 "무엇을 어떤 순서로 하느냐"를 배포하듯, 이 스킬이 배포하는 것은 **리뷰 결과가 가는 곳이 저장소가 아니라 서버라는 규약**이다.
 
 `allowed-tools`에 `nerv_finding_resolve`가 들어 있는 것은 §2.0의 A3 규칙과 어긋나지 않는다 — 이 도구의 카탈로그 티어는 **A2**이고, critical 하향만 서버가 승인 큐로 보낸다(입력을 봐야 아는 판정이라 정적 티어가 아니다). 즉 강제는 허용 목록이 아니라 **서버 게이트**가 한다.
 
@@ -1228,7 +1230,7 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_FORBIDDEN `missing_scope`(`spec:approve`) | 토큰에 승인 권한이 없다. 이 권한은 권장 묶음에 없다 — 사람에게 웹 설정의 에이전트 토큰에서 [직접 고르기]로 `spec:approve` 를 골라 새로 발급하라고 안내한다. 그동안의 승인은 웹의 문서 화면 [바로 승인]에서 한다 |
+| NERV_FORBIDDEN `missing_scope`(`spec:approve`) | 토큰에 승인 권한이 없다. 이 권한은 권장 묶음에 없다 — 사람에게 웹 설정의 에이전트 토큰 목록에서 이 토큰의 [편집]으로 `spec:approve` 를 켜 달라고 안내한다. 토큰 값과 설정 파일은 그대로다. 켰다고 하면 5단계를 다시 한다 — 같은 버전 · 같은 지문이면 사람의 대답은 그대로다. 켜지 않으면 승인은 웹의 문서 화면 [바로 승인]에서 한다 |
 | NERV_FORBIDDEN `missing_role` | 바로 승인은 admin · planner 만 한다. /nerv:spec submit 으로 검토를 요청하자고 제안한다 |
 | NERV_PRECONDITION `stale_approval` | 보여 준 뒤 본문이 바뀌었다. details 의 `reread` 대로 다시 읽고 3단계부터 다시 한다 — 앞의 대답으로 바뀐 본문을 승인하지 않는다 |
 | NERV_PRECONDITION `precheck_blocked` | 사전 검토가 막았다. details 의 `findings` 를 보고한다 |
@@ -1700,7 +1702,7 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
 
 ### 3.4 오프라인 폴백 실물 — `.nerv/cache/` · `.nerv/outbox/`
 
-스킬 5종의 에러 대응 표가 참조하는 `NERV_UNAVAILABLE` 폴백(NFR-05, [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §5.4 정책 정본)의 파일 실물이다. 위치는 **작업 저장소 루트의 `.nerv/`**(오버라이드: `NERV_CACHE_DIR` — §3.3 전표)이며, 플러그인 설치가 `.gitignore`에 `.nerv/`를 추가한다 — 캐시·큐가 커밋되면 그 자체가 clemvion식 git 비대화(P6)다.
+스킬들의 에러 대응 표가 참조하는 `NERV_UNAVAILABLE` 폴백(NFR-05, [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §5.4 정책 정본)의 파일 실물이다. 위치는 **작업 저장소 루트의 `.nerv/`**(오버라이드: `NERV_CACHE_DIR` — §3.3 전표)이며, 플러그인 설치가 `.gitignore`에 `.nerv/`를 추가한다 — 캐시·큐가 커밋되면 그 자체가 clemvion식 git 비대화(P6)다.
 
 ```text
 .nerv/
@@ -1932,7 +1934,7 @@ export NERV_HOSTNAME="$(hostname -s)"
 | 축 | MVP(P0+P1)에서 되는 것 | Phase 2로 미루는 것 |
 | --- | --- | --- |
 | MCP 접속 | `.codex/config.toml` 초안으로 tools-only 접속 — `bootstrap→next→claim→heartbeat→질문·답·리뷰→done→session-end` 완주([3.7 로드맵](../03-proposal/roadmap.md) Phase 0 검증 0-8 · 판정 수단은 [4.8 백로그](backlog.md) §5.6 시나리오 F) | — |
-| 규약 전달 | AGENTS.md 초안 제공(아래 전문). SKILL.md 5종은 오픈 표준이라 같은 파일 재사용 | AGENTS.md를 스펙에서 **자동 생성·갱신**하는 배포 평면 |
+| 규약 전달 | AGENTS.md 초안 제공(아래 전문). SKILL.md는 오픈 표준이라 같은 파일 재사용(`/nerv:approve`는 Codex에서 쓰지 않는다 — §2.8) | AGENTS.md를 스펙에서 **자동 생성·갱신**하는 배포 평면 |
 | 훅 텔레메트리 | 없음 — Codex 세션은 저해상도(`nerv_session_event`로 마일스톤 보고) | `.codex/hooks.json`·notify 포워더 매핑(스키마 자체가 Phase 0 실측 항목) |
 | 온보딩 | 초안 파일 2종을 저장소에 커밋해 두는 수동 경로 — **템플릿은 플러그인 패키지가 배포한다**(`plugin/codex/`, 2026-08-23 신설) | 온보딩 스크립트(생성+검증), `/nerv:review` 포함 스킬 5종 |
 
@@ -2177,13 +2179,13 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — `nerv_*` 도구 카탈로그(§2.3)·위험 티어 A1~A4(§2.2)·에러 규약과 리스 만료(§2.7)·플러그인 구성(§3.1)·스킬 책임(§3.2)·hooks.json(§3.3)·`.mcp.json`(§3.4)·statusline(§3.5)·Codex(§4)·에이전트 규약(§5)·비신뢰 규약(§6.3)
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 초안 편집 리스(§1.2)·클레임과 리스(§4.3)·하트비트/리스/stale 상수 표(§4.5)·위임 명세 4요소(§4.1)
-- [3.7 로드맵](../03-proposal/roadmap.md) — Phase 1 "플러그인 v1"(로드맵 표기는 스킬 4종 → 현황 5종 — `/nerv:review` 가 앞당겨 들어오고 `/nerv:import` 가 걷혔다)·검증 0-8(tools-only 완주)·1-10(플러그인 활성화율)·1-11(기획자 웹·터미널 왕복)·Phase 2 Codex 지원
+- [3.7 로드맵](../03-proposal/roadmap.md) — Phase 1 "플러그인 v1"(로드맵 표기는 스킬 4종 → 현황 7종 — `/nerv:review` 가 앞당겨 들어오고 `/nerv:import` 가 걷혔으며 `/nerv:mirror` · `/nerv:approve` 가 더해졌다)·검증 0-8(tools-only 완주)·1-10(플러그인 활성화율)·1-11(기획자 웹·터미널 왕복)·Phase 2 Codex 지원
 - [3.6 화면 설계](../03-proposal/ui-wireframes.md) — S8 토큰 발급 화면·S5 세션 모니터·S3 "터미널에서 이어쓰기"(⑫)
 - [3.1 비전과 핵심 시나리오](../03-proposal/vision.md) — `/nerv:spec edit SPC-CWC-007` 기획자 터미널 왕복 시나리오
 
 ### 4부 형제 문서
 
-- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 24종(카탈로그 27종)·스킬 5종 범위와 PAT-먼저 인증 결정
+- [4.1 MVP 범위와 스택 확정](scope.md) — 도구 24종(카탈로그 27종)·스킬 7종 범위와 PAT-먼저 인증 결정
 - [4.4 API 명세](api.md) — `/mcp`·`/ingest/hooks/*` 엔드포인트의 요청/응답 계약
 - [4.8 백로그](backlog.md) — 훅 헤더 토큰 주입 실측(E06-S06)·플러그인 v1 스토리·E2E 수용 시나리오
 

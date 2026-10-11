@@ -1248,21 +1248,7 @@ export class AuthService {
      */
     project: { slug: string; name: string };
   }> {
-    const humanOnly = input.scopes.filter(isHumanOnlyScope);
-    if (humanOnly.length > 0) {
-      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.human_only_scope'), {
-        kind: 'human_only_scope',
-        scopes: humanOnly,
-      });
-    }
-    const unknown = input.scopes.filter((s) => !isAgentScope(s));
-    if (unknown.length > 0) {
-      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.unknown_scope'), {
-        kind: 'unknown_scope',
-        scopes: unknown,
-      });
-    }
-    const scopes = input.scopes.filter(isAgentScope);
+    const scopes = this.tokenScopes(input.scopes);
 
     // 발급자는 그 프로젝트의 멤버여야 한다 — 권한은 소유 사용자의 부분집합을 넘지 못한다(D-08).
     //
@@ -1312,6 +1298,129 @@ export class AuthService {
       expires_at: input.expiresAt?.toISOString() ?? null,
       project,
     };
+  }
+
+  /**
+   * 토큰에 담을 권한 — 발급(EP-TOK-02)과 고치기(EP-TOK-05)가 **같은 검사**를 쓴다. 두 벌이면 언젠가 한쪽만
+   * 사람 전용 권한을 막는다. 사람 전용은 403, 어휘 밖은 409 이고, 중복은 한 번만 담는다.
+   *
+   * **역할과 교집합하지 않는다**(아래 `issueToken` 의 결정과 같다). 상한은 검증(`verifyPat`)이 그 순간의 역할로 건다.
+   */
+  private tokenScopes(requested: readonly string[]): AgentScope[] {
+    const humanOnly = requested.filter(isHumanOnlyScope);
+    if (humanOnly.length > 0) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.human_only_scope'), {
+        kind: 'human_only_scope',
+        scopes: humanOnly,
+      });
+    }
+    const unknown = requested.filter((s) => !isAgentScope(s));
+    if (unknown.length > 0) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.unknown_scope'), {
+        kind: 'unknown_scope',
+        scopes: unknown,
+      });
+    }
+    return [...new Set(requested.filter(isAgentScope))];
+  }
+
+  /**
+   * EP-TOK-05 — **토큰의 이름과 권한을 고친다**(2026-10-11 사람 결정 · REQ-API-292).
+   *
+   * 권한 하나를 더하거나 빼려고 토큰을 새로 발급하면, 그 토큰을 쓰던 기계마다 설정을 다시 해야 했다.
+   * 고칠 수 있는 것은 이름과 권한뿐이다 — 프로젝트와 만료는 발급 때의 약속이라 바꾸려면 새로 발급한다.
+   *
+   * - **주인만**(사람 결정). 조직 admin 은 남의 토큰을 보고 폐기할 수 있지만 고치지는 못한다 — 남의 에이전트가
+   *   하는 일을 다른 사람이 조용히 바꾸면 안 되고, 유출 대응은 폐기로 충분하다. 남의 토큰이면 없는 것과 같다
+   *   (`token_not_mine` — 폐기와 같은 모양이다).
+   * - **넓히기와 좁히기 모두**(사람 결정). 검사는 발급과 같다(`tokenScopes`) — 새로 발급하는 것과 할 수 있는
+   *   일이 같아 새 위험이 없다. 그 프로젝트의 멤버여야 한다는 것도 발급과 같다.
+   * - **살아 있는 토큰만.** 폐기 · 만료된 토큰은 되살리는 길이 아니다(`token_inactive`).
+   * - 바뀐 권한은 **다음 호출부터** 적용된다 — 검증이 매번 행을 읽기 때문이다(캐시가 없다).
+   * - 감사에 바꾸기 전과 뒤를 함께 남긴다. 아무것도 바뀌지 않았으면 이벤트를 내지 않는다.
+   */
+  async updateToken(input: {
+    tokenId: string;
+    userId: string;
+    name?: string | undefined;
+    scopes?: readonly string[] | undefined;
+  }): Promise<Record<string, unknown>> {
+    const scopes = input.scopes === undefined ? undefined : this.tokenScopes(input.scopes);
+    const result = await this.db.transaction(async (tx) => {
+      // 같은 토큰을 두 탭이 동시에 고치면 뒤의 것이 이긴다 — 잠가 두면 감사의 "바꾸기 전" 이 실제 직전 값이다
+      const { rows } = await tx.execute<{
+        id: string;
+        project_id: string;
+        name: string;
+        prefix: string;
+        scopes: string[];
+        expires_at: Date | string | null;
+        revoked_at: Date | string | null;
+      }>(sql`
+        SELECT id, project_id, name, prefix, scopes, expires_at, revoked_at
+          FROM api_token
+         WHERE id = ${input.tokenId} AND user_id = ${input.userId}
+         FOR UPDATE
+      `);
+      const token = rows[0];
+      if (token === undefined) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.token_not_mine'), {
+          kind: 'not_found',
+          token_id: input.tokenId,
+        });
+      }
+      const expired =
+        token.expires_at !== null && new Date(token.expires_at).getTime() <= Date.now();
+      if (token.revoked_at !== null || expired) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.auth.token_inactive'), {
+          kind: 'token_inactive',
+          revoked: token.revoked_at !== null,
+          expired,
+        });
+      }
+      // 발급과 같은 규칙 — 그 프로젝트를 떠난 사람이 권한을 넓혀 두는 길을 남기지 않는다
+      await this.assertMembership(input.userId, token.project_id);
+
+      const before: { name: string; scopes: string[] } = {
+        name: token.name,
+        scopes: [...token.scopes],
+      };
+      const after: { name: string; scopes: string[] } = {
+        name: input.name ?? token.name,
+        scopes: scopes ?? [...token.scopes],
+      };
+      const same =
+        before.name === after.name &&
+        before.scopes.length === after.scopes.length &&
+        before.scopes.every((scope) => after.scopes.includes(scope));
+      if (!same) {
+        await tx.execute(sql`
+          UPDATE api_token SET name = ${after.name}, scopes = ${sqlArray(after.scopes, 'text')}
+           WHERE id = ${input.tokenId}
+        `);
+      }
+      return { token, before, after, changed: !same };
+    });
+
+    if (result.changed) {
+      // 바꾼 사람은 언제나 주인이다 — 그래도 액터를 따로 적는 것은 폐기와 같은 모양으로 세기 위해서다
+      await this.audit({
+        projectId: result.token.project_id,
+        type: NERV_EVENT.TOKEN_UPDATED,
+        subjectType: 'api_token',
+        subjectId: input.tokenId,
+        actorUserId: input.userId,
+        payload: {
+          prefix: result.token.prefix,
+          before: result.before,
+          after: result.after,
+          added: result.after.scopes.filter((scope) => !result.before.scopes.includes(scope)),
+          removed: result.before.scopes.filter((scope) => !result.after.scopes.includes(scope)),
+        },
+      });
+    }
+    const updated = (await this.tokens(input.userId)).find((row) => row['id'] === input.tokenId);
+    return { ...(updated ?? {}), changed: result.changed };
   }
 
   /**

@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.49 · 2026-10-11 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.50 · 2026-10-11 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.50 변경(2026-10-11 — 토큰 고치기와 낡은 스킬 수): **§6.1 ① 한 구절 · §3.2 제목과 한 행.** 발급한 토큰의 이름과 권한을 주인이 고친다([4.4 API](../04-mvp/api.md) REQ-API-292). §3.2 가 "스킬 5종" 이라 적고 `/nerv:mirror` 행이 없었다 — 패키지는 7종이다.
 >
 > v0.49 변경(2026-10-11 — 세션에서 초안을 승인한다, **사람 결정**): **§2.1 원칙 3 개정 · §2.2 A3 행 · §2.3 카탈로그 한 행(도구 27종) · §3.1 · §3.2 한 행 · §6.1 ③ ④ · §6.2 · §6.3 넷째 · §6.4 한 행.** admin · planner가 에이전트 세션에서 초안을 보고 승인한다고 답하면 그 승인을 서버에 전하는 도구 `nerv_spec_approve`(A3)를 더했다. "승인 권한을 가진 도구는 만들지 않는다"는 원칙을 버리지 않고 좁혔다 — 결재 카드를 내리는 권한(`approval:decide`)은 그대로 사람 전용이고, 이 도구는 사람의 대답을 전하는 것 하나다. 문은 셋이다: 스킬이 대답을 받고, 클라이언트가 호출마다 묻고(A3), 서버가 토큰의 옵트인 권한 `spec:approve` · 역할 · 본 지문을 본다. `spec:approve`는 사람 전용에서 옵트인 토큰 권한으로 옮겼다(권장 묶음 밖 · admin · planner만). 자기 승인 예외를 planner로 넓혔다([3.5 스펙 워크플로우](spec-workflow.md) §2.3).
 >
@@ -368,7 +370,7 @@ nerv-plugin/
 - [Create custom subagents — Claude Code Docs](https://code.claude.com/docs/en/sub-agents) (2026-08-13 확인): 플러그인 배포 시 `hooks`/`mcpServers`/`permissionMode` frontmatter 무시, `SubagentStart`/`SubagentStop` 훅의 `agent_id`/`agent_type`.
 - [Agent Skills 오픈 표준 — agentskills.io](https://agentskills.io/) (2026-08-13 확인): SKILL.md를 40여 개 도구가 지원 — Claude Code와 Codex에 같은 파일을 배포할 수 있는 근거.
 
-### 3.2 스킬 5종의 책임
+### 3.2 스킬 7종의 책임
 
 | 스킬 | 트리거 | 하는 일 | 호출 도구 |
 | --- | --- | --- | --- |
@@ -377,6 +379,7 @@ nerv-plugin/
 | `/nerv:impl` | 구현 착수 | 하트비트 60초 루프, 진행 보고, 증적 수집(commit/PR/test) | `nerv_task_heartbeat`, `nerv_task_update` |
 | `/nerv:review` | 구현 완료 후 강제 단계 | 리뷰 실행 후 **파일이 아니라 도구로 제출**, finding 해소 추적 | `nerv_review_submit`, `nerv_finding_resolve` |
 | `/nerv:question` | 판단 불가·경계 이탈 | 선택지를 만들어 에스컬레이션하고 답변 폴링 | `nerv_question_create` |
+| `/nerv:mirror` | 사람이 스펙 문서를 로컬 폴더에 받아 두려 할 때(2026-10-07) | 목록과 다운로드를 스크립트(`bin/nerv-mirror`)에 맡기고 받은 파일은 읽지 않는다 — 문서 본문이 대화에 들어오지 않는다 | 없음(MCP 도구를 쓰지 않는다 · [4.6 플러그인](../04-mvp/plugin.md) §2.7) |
 | `/nerv:approve` | admin · planner가 세션에서 승인하겠다고 할 때(2026-10-11) | 그 버전을 서버가 준 값 그대로 보여 주고, 사람이 승인한다고 답한 뒤에만 승인을 전한다 — 문서 하나에 대답 하나 | `nerv_spec_get`, `nerv_spec_check` → `nerv_spec_approve`(A3) |
 
 스킬 frontmatter의 `allowed-tools`로 해당 턴 동안 `nerv_*` 도구를 무승인 허용하되, **A3 도구는 목록에서 제외**해 승인 강제를 유지한다.
@@ -751,7 +754,7 @@ Claude Code on the web과 Codex cloud는 관리 VM에서 실행되므로 로컬 
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-- ① 토큰 발급·폐기는 S8 설정 화면의 1급 기능이다(FR-14). 상세 화면은 [3.6 화면 설계](../03-proposal/ui-wireframes.md).
+- ① 토큰 발급·폐기는 S8 설정 화면의 1급 기능이다(FR-14). 상세 화면은 [3.6 화면 설계](../03-proposal/ui-wireframes.md). 발급한 토큰의 이름과 권한은 주인이 고친다 — 조직 admin 은 남의 토큰을 폐기만 한다(2026-10-11 · [4.4 API](../04-mvp/api.md) REQ-API-292).
 - ② 소유자가 곧 책임자다 — 에이전트가 한 모든 행동은 이 사람의 권한으로 기록된다(D-08).
 - ③ 권한은 `resource:action` 표기이고 **11종**이다(2026-10-11 — `spec:approve` 가 토큰 어휘로 옮겨 왔다). 그중 여덟이 §2.3 도구 표의 "필요 권한" 열을 덮고, 나머지 셋(`spec:meta`·`spec:evidence`·`import:write`)은 도구 대응이 없는 **REST 축**이다(2026-09-04 정정 — 예전 서술은 전체가 1:1 이라고 적고 있었다). 어휘 정본은 `@nerv/schema` 의 `AGENT_SCOPES` 다.
 - ④ `approval:decide`는 **체크박스가 비활성**이다. 정책이 아니라 시스템 불변식이다. `spec:approve`는 2026-10-11 부터 **옵트인**이다 — 권장 묶음에 없고, 역할이 admin · planner 인 사람만 고를 수 있으며, 그 권한을 보는 것은 세션에서 사람이 대답한 승인을 전하는 A3 도구(`nerv_spec_approve`) 하나다. 예전에는 둘 다 비활성이었다.

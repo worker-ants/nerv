@@ -108,6 +108,7 @@ const ORG_TOKENS = [
 
 interface Call {
   path: string;
+  method: string;
   body: Record<string, unknown> | null;
 }
 
@@ -127,10 +128,11 @@ function stub(me: unknown): void {
   calls = [];
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: unknown, init?: { body?: string }) => {
+    vi.fn(async (url: unknown, init?: { body?: string; method?: string }) => {
       const path = String(url);
       calls.push({
         path,
+        method: init?.method ?? 'GET',
         body: init?.body === undefined ? null : (JSON.parse(init.body) as Record<string, unknown>),
       });
       const json = path.includes('/me/tokens')
@@ -340,5 +342,80 @@ describe('조직 전체 토큰 — admin 만', () => {
     await waitFor(() => expect(screen.getByText('clemvion/내 에이전트')).toBeDefined());
     expect(screen.queryByTestId('org-token-project')).toBeNull();
     expect(calls.some((c) => c.path.includes('/orgs/') && c.path.includes('/tokens'))).toBe(false);
+  });
+});
+
+/**
+ * **발급한 토큰의 이름과 권한을 고친다**(2026-10-11 · 사람 결정 · REQ-WEB-306). 권한 하나를 더하려고 새로
+ * 발급하면 그 토큰을 쓰던 기계마다 설정을 다시 해야 했다. 주인만 고치고(조직 전체 표에는 없다), 권한 칸은
+ * 발급 폼과 같은 규칙으로 잠긴다 — 기준은 **그 토큰의 프로젝트에서 내 역할**이다.
+ */
+describe('토큰 고치기 — 이름과 권한 (REQ-WEB-306)', () => {
+  const editBox = (scope: string): HTMLInputElement =>
+    screen
+      .getAllByTestId('token-edit-scope')
+      .find((label) => label.querySelector('code')?.textContent === scope)
+      ?.querySelector('input') as HTMLInputElement;
+
+  async function openEditor(me: unknown): Promise<void> {
+    await renderTab(me);
+    await waitFor(() => expect(screen.getByText('clemvion/내 에이전트')).toBeDefined());
+    const row = screen.getByText('clemvion/내 에이전트').closest('tr') as HTMLElement;
+    fireEvent.click(within(row).getByTestId('token-edit'));
+    await screen.findByTestId('token-editor');
+  }
+
+  it('지금의 이름과 권한에서 시작하고, 고친 것을 PATCH 로 보낸다', async () => {
+    await openEditor(DEVELOPER);
+    expect((screen.getByTestId('token-edit-name') as HTMLInputElement).value).toBe(
+      'clemvion/내 에이전트',
+    );
+    expect(editBox('spec:read').checked).toBe(true);
+    expect(editBox('task:claim').checked).toBe(false);
+
+    fireEvent.change(screen.getByTestId('token-edit-name'), {
+      target: { value: '  사무실 맥  ' },
+    });
+    fireEvent.click(editBox('task:claim'));
+    fireEvent.click(screen.getByTestId('token-edit-save'));
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+    const sent = calls.find((c) => c.method === 'PATCH');
+    expect(sent?.path).toContain('/me/tokens/t-1');
+    // 앞뒤 공백은 이름이 아니다 — 서버도 자르지만 화면이 보낸 것이 곧 저장될 것이어야 한다
+    expect(sent?.body).toEqual({ name: '사무실 맥', scopes: ['spec:read', 'task:claim'] });
+    // 저장하면 줄이 닫힌다
+    await waitFor(() => expect(screen.queryByTestId('token-editor')).toBeNull());
+  });
+
+  it('역할 밖 권한은 잠기고, 사람 전용 권한은 고를 수 없다 — 발급 폼과 같은 규칙', async () => {
+    await openEditor(DEVELOPER);
+    // developer 에게 spec:approve 는 역할 밖이다(admin · planner 만)
+    expect(editBox('spec:approve').disabled).toBe(true);
+    expect(editBox('spec:read').disabled).toBe(false);
+    const human = screen.getAllByTestId('token-edit-human-only');
+    expect(human.every((label) => label.querySelector('input')?.disabled === true)).toBe(true);
+  });
+
+  it('이름을 비우면 저장할 수 없고, [취소]는 아무것도 보내지 않는다', async () => {
+    await openEditor(DEVELOPER);
+    fireEvent.change(screen.getByTestId('token-edit-name'), { target: { value: '   ' } });
+    expect((screen.getByTestId('token-edit-save') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('token-edit-cancel'));
+    expect(screen.queryByTestId('token-editor')).toBeNull();
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
+  });
+
+  it('만료된 토큰과 조직 전체 표에는 [편집]이 없다 — 되살리는 길이 아니고, 고치는 것은 주인뿐이다', async () => {
+    await renderTab(DEVELOPER);
+    await waitFor(() => expect(screen.getByText('clemvion/내 에이전트')).toBeDefined());
+    fireEvent.click(screen.getByTestId('token-show-revoked'));
+    const expired = screen.getByText('sudoku/옛것').closest('tr') as HTMLElement;
+    expect(within(expired).queryByTestId('token-edit')).toBeNull();
+    cleanup();
+
+    await renderTab(ADMIN, '/settings/org-tokens');
+    await waitFor(() => expect(screen.getByText('mac-02')).toBeDefined());
+    expect(screen.queryByTestId('token-edit')).toBeNull();
   });
 });

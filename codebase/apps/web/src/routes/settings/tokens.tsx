@@ -21,18 +21,21 @@
 // 와이어프레임(docs/03-proposal/ui-wireframes.md §2.8)도 그 열을
 // 그리고 있었는데 화면만 빠져 있었다. 세 자리에서 말한다: **고를 때**(폼의 선택기) ·
 // **받을 때**(원문 카드) · **나중에**(목록의 열).
+//
+// **발급한 토큰의 이름과 권한을 고친다**(2026-10-11 사람 결정 · REQ-WEB-306). 권한 하나를 더하려고 새로
+// 발급하면 그 토큰을 쓰던 기계마다 설정을 다시 해야 했다. 주인만 고치므로 이 표에만 [편집]이 있고(조직 전체
+// 표는 폐기만), 프로젝트와 만료는 고치지 않는다 — 바꾸려면 새로 발급한다.
 
 import { useT } from '../../lib/i18n.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   AGENT_RECOMMENDED_SCOPES,
-  AGENT_SCOPES,
   checkPluginInstallUrl,
-  HUMAN_ONLY_SCOPES,
   scopesForRoles,
+  TOKEN_NAME_MAX,
 } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { deployedServerOrigin } from '../../lib/manual-vars.js';
@@ -63,7 +66,9 @@ import {
   isExpired,
   ProjectCell,
   RevokeButton,
+  ScopeChecklist,
   useRevoke,
+  useUpdateToken,
 } from '../../features/settings/token-parts.js';
 import { helpLink } from '../../lib/manual-chapters.js';
 
@@ -161,6 +166,8 @@ function TokensTab(): React.JSX.Element {
   });
 
   const revoke = useRevoke(orgSlug);
+  // 한 번에 한 줄만 고친다 — 둘을 열어 두면 어느 [저장]이 어느 토큰인지 눈으로 맞춰야 한다
+  const [editing, setEditing] = useState<string | null>(null);
 
   // 죽은 토큰은 기본으로 접는다 — 폐기·만료는 목록에서 **자라기만 하는** 줄이고, 관리가
   // 힘들어지는 자리가 정확히 여기다. 지우지는 않는다: 감사가 묻는 것은 지금 살아 있는
@@ -291,65 +298,16 @@ function TokensTab(): React.JSX.Element {
           </label>
           <span className="text-text-faint">{t('settings.tokens.preset_hint')}</span>
         </div>
-        {/* 권한마다 **무엇을 허락하는지** 한 줄을 붙인다(2026-09-25 · UI/UX 검토 SET-14) — `spec:read` 같은 코드만
-            늘어놓으면 고르는 사람은 설계 문서를 열어 봐야 한다. 코드는 그대로 둔다: 스킬·매뉴얼이 그 이름으로 부른다 */}
-        <fieldset className="mt-2 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
-          <legend className="sr-only">{t('settings.tokens.scopes')}</legend>
-          {AGENT_SCOPES.map((scope) => {
-            // 내 역할에 없는 권한은 **보이되 잠긴다**. 사람 전용 권한과 같은 규율이다 —
-            // 목록에서 빼면 "왜 이건 못 주지"가 화면 밖에 남는다.
-            const mineScope = myScopes.has(scope);
-            return (
-              <label
-                key={scope}
-                data-testid="token-scope"
-                className={
-                  mineScope
-                    ? 'flex cursor-pointer items-start gap-1.5'
-                    : 'flex items-start gap-1.5 opacity-45'
-                }
-                title={mineScope ? undefined : t('settings.tokens.out_of_role')}
-              >
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={granted.includes(scope)}
-                  // 권장일 때는 묶음을 **보여 주기만** 한다 — 고치려면 [직접 고르기]
-                  disabled={!mineScope || !customScopes}
-                  onChange={(e) =>
-                    setScopes((prev) =>
-                      e.target.checked ? [...prev, scope] : prev.filter((s) => s !== scope),
-                    )
-                  }
-                />
-                <span className="flex flex-col">
-                  <code className="font-mono">{scope}</code>
-                  <span className="text-text-faint">{t(`scope.desc.${scope}`)}</span>
-                </span>
-              </label>
-            );
-          })}
-          {/* 사람 전용 권한은 **숨기지 않고 비활성으로 보인다**(REQ-WEB-027 · D-08).
-              목록에서 빼버리면 "왜 승인 권한을 토큰에 못 주지?"라는 질문이 화면 밖에 남고,
-              그 답이 어디에도 없다. 보이되 고를 수 없는 것이 규칙을 가르친다. */}
-          {HUMAN_ONLY_SCOPES.map((scope) => (
-            <label
-              key={scope}
-              data-testid="human-only-scope"
-              title={t('settings.tokens.human_only_title')}
-              className="flex cursor-not-allowed items-start gap-1.5 opacity-50"
-            >
-              <input type="checkbox" className="mt-0.5" disabled checked={false} readOnly />
-              <span className="flex flex-col">
-                <span>
-                  <code className="font-mono">{scope}</code>{' '}
-                  <span className="text-text-faint">{t('settings.tokens.human_only')}</span>
-                </span>
-                <span className="text-text-faint">{t(`scope.desc.${scope}`)}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
+        {/* 권한 칸은 고치기 줄과 같은 부품이다 — 잠그는 규칙(역할 밖 · 사람 전용)과 권한마다의 설명이 한 벌이다 */}
+        <ScopeChecklist
+          myScopes={myScopes}
+          checked={granted}
+          // 권장일 때는 묶음을 **보여 주기만** 한다 — 고치려면 [직접 고르기]
+          editable={customScopes}
+          onToggle={(scope, on) =>
+            setScopes((prev) => (on ? [...prev, scope] : prev.filter((s) => s !== scope)))
+          }
+        />
         {issued !== null && <RevealOnce issued={issued} onClose={() => setIssued(null)} />}
       </Card>
 
@@ -406,43 +364,77 @@ function TokensTab(): React.JSX.Element {
             }
           >
             {mine.map((token) => (
-              <Tr key={String(token['id'])}>
-                <Td>
-                  <ProjectCell token={token} />
-                </Td>
-                <Td className="font-medium">{String(token['name'])}</Td>
-                <Td className="font-mono text-xs">{String(token['prefix'])}…</Td>
-                <Td className="text-xs text-text-mute">
-                  {(token['scopes'] as string[] | undefined)?.join(' · ')}
-                </Td>
-                <Td
-                  className={
-                    isExpired(token['expires_at'])
-                      ? 'text-xs text-status-danger'
-                      : 'text-xs text-text-mute'
-                  }
-                >
-                  {day(token['expires_at'], t('settings.tokens.no_expiry'))}
-                </Td>
-                <Td className="text-xs text-text-mute">
-                  {token['last_used_at'] === null
-                    ? t('settings.tokens.unused')
-                    : day(token['last_used_at'], '—')}
-                </Td>
-                {/* 어느 머신이 이 토큰을 쓰는가 — 유출 판단의 첫 단서다(NFR-03) */}
-                <Td className="font-mono text-xs text-text-mute">
-                  {token['last_used_hostname'] === null || token['last_used_hostname'] === undefined
-                    ? '—'
-                    : String(token['last_used_hostname'])}
-                </Td>
-                <Td className="text-right">
-                  {token['revoked_at'] === null ? (
-                    <RevokeButton token={token} revoke={revoke} />
-                  ) : (
-                    <span className="text-xs text-text-faint">{t('settings.tokens.revoked')}</span>
-                  )}
-                </Td>
-              </Tr>
+              <Fragment key={String(token['id'])}>
+                <Tr>
+                  <Td>
+                    <ProjectCell token={token} />
+                  </Td>
+                  <Td className="font-medium">{String(token['name'])}</Td>
+                  <Td className="font-mono text-xs">{String(token['prefix'])}…</Td>
+                  <Td className="text-xs text-text-mute">
+                    {(token['scopes'] as string[] | undefined)?.join(' · ')}
+                  </Td>
+                  <Td
+                    className={
+                      isExpired(token['expires_at'])
+                        ? 'text-xs text-status-danger'
+                        : 'text-xs text-text-mute'
+                    }
+                  >
+                    {day(token['expires_at'], t('settings.tokens.no_expiry'))}
+                  </Td>
+                  <Td className="text-xs text-text-mute">
+                    {token['last_used_at'] === null
+                      ? t('settings.tokens.unused')
+                      : day(token['last_used_at'], '—')}
+                  </Td>
+                  {/* 어느 머신이 이 토큰을 쓰는가 — 유출 판단의 첫 단서다(NFR-03) */}
+                  <Td className="font-mono text-xs text-text-mute">
+                    {token['last_used_hostname'] === null ||
+                    token['last_used_hostname'] === undefined
+                      ? '—'
+                      : String(token['last_used_hostname'])}
+                  </Td>
+                  <Td className="text-right">
+                    {token['revoked_at'] === null ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        {/* 만료된 토큰은 고치지 않는다 — 되살리는 길이 아니다(서버도 거절한다 · REQ-API-292) */}
+                        {!isExpired(token['expires_at']) && (
+                          <Button
+                            size="sm"
+                            variant="subtle"
+                            data-testid="token-edit"
+                            aria-expanded={editing === token['id']}
+                            onClick={() =>
+                              setEditing((prev) =>
+                                prev === token['id'] ? null : String(token['id']),
+                              )
+                            }
+                          >
+                            {t('settings.tokens.edit')}
+                          </Button>
+                        )}
+                        <RevokeButton token={token} revoke={revoke} />
+                      </span>
+                    ) : (
+                      <span className="text-xs text-text-faint">
+                        {t('settings.tokens.revoked')}
+                      </span>
+                    )}
+                  </Td>
+                </Tr>
+                {editing === token['id'] && (
+                  <Tr>
+                    <Td colSpan={8}>
+                      <TokenEditor
+                        token={token}
+                        orgSlug={orgSlug}
+                        onDone={() => setEditing(null)}
+                      />
+                    </Td>
+                  </Tr>
+                )}
+              </Fragment>
             ))}
           </Table>
         )}
@@ -459,6 +451,84 @@ function TokensTab(): React.JSX.Element {
           </Link>
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * **토큰 고치기 줄**(2026-10-11 · REQ-WEB-306) — 이름과 권한만이다.
+ *
+ * 권한 칸은 발급 폼과 같은 부품이고, 기준은 **그 토큰의 프로젝트에서 내 역할**이다(발급 폼이 고른 프로젝트가
+ * 아니다). 이미 담긴 권한은 역할 밖이어도 뺄 수 있다 — 역할이 좁아진 뒤 남은 권한을 치울 길이다. 바뀐 권한은 그
+ * 토큰의 다음 호출부터 적용된다는 사실을 [저장] 앞에서 말한다.
+ */
+function TokenEditor({
+  token,
+  orgSlug,
+  onDone,
+}: {
+  token: Record<string, unknown>;
+  orgSlug: string | null;
+  onDone: () => void;
+}): React.JSX.Element {
+  const t = useT();
+  const me = useMe();
+  const onApiError = useApiError();
+  const update = useUpdateToken(orgSlug);
+  const current = (token['scopes'] as string[] | undefined) ?? [];
+  const [name, setName] = useState(String(token['name'] ?? ''));
+  const [scopes, setScopes] = useState<string[]>([...current]);
+  // 내 토큰은 모든 조직의 것이다 — 그 토큰의 조직과 프로젝트로 역할을 본다(목록이 조직을 싣는다 · REQ-API-170)
+  const tokenOrg = typeof token['org_slug'] === 'string' ? token['org_slug'] : orgSlug;
+  const myScopes = scopesForRoles(
+    rolesInProject(me.data, tokenOrg, String(token['project_slug'] ?? '')),
+  );
+  const trimmed = name.trim();
+
+  return (
+    <div data-testid="token-editor" className="flex flex-col gap-2 py-1">
+      <FieldRow>
+        <Field label={t('settings.tokens.name')} className="w-72">
+          <Input
+            data-testid="token-edit-name"
+            value={name}
+            maxLength={TOKEN_NAME_MAX}
+            onChange={(e) => setName(e.target.value)}
+            aria-label={t('settings.tokens.name')}
+          />
+        </Field>
+      </FieldRow>
+      <ScopeChecklist
+        myScopes={myScopes}
+        checked={scopes}
+        editable
+        keep={current}
+        onToggle={(scope, on) =>
+          setScopes((prev) => (on ? [...prev, scope] : prev.filter((s) => s !== scope)))
+        }
+        testId="token-edit-scope"
+        humanOnlyTestId="token-edit-human-only"
+      />
+      <p className="text-xs text-text-mute">{t('settings.tokens.edit_hint')}</p>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          data-testid="token-edit-save"
+          disabled={update.isPending || trimmed === ''}
+          onClick={() =>
+            update.mutate(
+              { id: String(token['id']), name: trimmed, scopes },
+              { onSuccess: onDone, onError: onApiError },
+            )
+          }
+        >
+          {t('common.save')}
+        </Button>
+        <Button size="sm" variant="subtle" data-testid="token-edit-cancel" onClick={onDone}>
+          {t('common.cancel')}
+        </Button>
+      </div>
     </div>
   );
 }
