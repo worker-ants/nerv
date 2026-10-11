@@ -9,8 +9,10 @@ import { MailModule } from '../modules/mail/mail.module.js';
 import { SpecModule } from '../modules/spec/spec.module.js';
 import { SessionModule } from '../modules/session/session.module.js';
 import { TaskModule } from '../modules/task/task.module.js';
+import { ApprovalModule } from '../modules/approval/approval.module.js';
 import { AdvisoryLock } from './advisory-lock.js';
 import { JobRunner } from './job-runner.js';
+import { ApprovalReminderJob } from './jobs/approval-reminder.job.js';
 import { DigestJob } from './jobs/digest.job.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
@@ -23,7 +25,15 @@ import { RetentionJob } from './jobs/retention.job.js';
 import { SessionStaleJob } from './jobs/session-stale.job.js';
 
 @Module({
-  imports: [TaskModule, SessionModule, EventModule, SpecModule, MailModule, DigestModule],
+  imports: [
+    TaskModule,
+    SessionModule,
+    EventModule,
+    SpecModule,
+    MailModule,
+    DigestModule,
+    ApprovalModule,
+  ],
   providers: [
     AdvisoryLock,
     JobRunner,
@@ -37,6 +47,7 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
     MailJob,
     DigestJob,
     RequirementBackfillJob,
+    ApprovalReminderJob,
   ],
   exports: [AdvisoryLock, JobRunner],
 })

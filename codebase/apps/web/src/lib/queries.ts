@@ -559,7 +559,14 @@ export function useTaskLane(
   slug: string,
   projectId: ProjectId | undefined,
   lane: string,
-  options?: { includeArchived?: boolean; assignee?: string; spec?: string; ai?: boolean },
+  options?: {
+    includeArchived?: boolean;
+    assignee?: string;
+    spec?: string;
+    ai?: boolean;
+    /** 제목 · 작업 키 부분 일치(REQ-WEB-308) — 판정은 서버다(REQ-API-295) */
+    q?: string;
+  },
 ): UseInfiniteQueryResult<{ items: Row[]; next_cursor: string | null }> {
   const refetchInterval = useLivePolling();
   const archived = options?.includeArchived === true;
@@ -569,6 +576,7 @@ export function useTaskLane(
   const spec = options?.spec ?? '';
   /** `?ai=1` — 에이전트 세션이 쥔 것만(REQ-API-122). 서버가 판정한다 */
   const ai = options?.ai === true;
+  const q = options?.q?.trim() ?? '';
   return useInfiniteQuery({
     // **slug 로 대신 잡지 않는다.** projectId 는 프로젝트 조회가 끝나야 오는데, 그때
     // 키가 slug → id 로 바뀌면 새 쿼리가 되어 레인이 빈 채로 한 번 더 그려진다 —
@@ -582,6 +590,7 @@ export function useTaskLane(
       assignee,
       spec,
       ai,
+      q,
     ],
     queryFn: ({ pageParam }) =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
@@ -590,6 +599,7 @@ export function useTaskLane(
           (assignee === '' ? '' : `&assignee=${encodeURIComponent(assignee)}`) +
           (spec === '' ? '' : `&spec=${encodeURIComponent(spec)}`) +
           (ai ? '&ai=1' : '') +
+          (q === '' ? '' : `&q=${encodeURIComponent(q)}`) +
           (pageParam === null ? '' : `&cursor=${encodeURIComponent(pageParam)}`),
       ),
     initialPageParam: null as string | null,

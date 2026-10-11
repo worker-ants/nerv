@@ -20,7 +20,7 @@ export function ArchivedLane({
   proj: string;
   projectId: ProjectId | undefined;
   /** 보드에 걸린 필터 — 레인과 같은 조건으로 거른다 */
-  filters: { spec?: string; assignee?: string; ai?: boolean };
+  filters: { spec?: string; assignee?: string; ai?: boolean; q?: string };
 }): React.JSX.Element {
   const t = useT();
   // 레인과 같은 쿼리 키 축이다 — 보관 · 복원 이벤트가 작업 목록을 무효화하면 이 칸도 함께 낡는다
@@ -31,6 +31,7 @@ export function ArchivedLane({
       filters.spec ?? '',
       filters.assignee ?? '',
       filters.ai === true,
+      filters.q ?? '',
     ],
     queryFn: () =>
       apiFetch<{ items: Row[]; next_cursor: string | null }>(
@@ -39,7 +40,8 @@ export function ArchivedLane({
           (filters.assignee === undefined
             ? ''
             : `&assignee=${encodeURIComponent(filters.assignee)}`) +
-          (filters.ai === true ? '&ai=1' : ''),
+          (filters.ai === true ? '&ai=1' : '') +
+          (filters.q === undefined ? '' : `&q=${encodeURIComponent(filters.q)}`),
       ),
     enabled: projectId !== undefined,
   });

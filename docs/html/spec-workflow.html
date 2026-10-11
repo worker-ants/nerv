@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.33 (2026-10-11)</span>
+      <span>버전 v0.36 (2026-10-11)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -369,7 +369,8 @@
       <tr><td>Task 생성·분해</td><td>●</td><td>●</td><td>—</td><td>●</td><td>○</td><td>—</td><td>○ 제안만</td></tr>
       <tr><td>Task 클레임·리스 갱신</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
       <tr><td>리뷰 제출(ReviewSession)</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
-      <tr><td>finding 해결 판정</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>○ <code>fixed</code>만</td></tr>
+      <tr><td>finding 코멘트(처분 없이 말만 남긴다 — 2026-10-11 · 아래)</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>—</td><td>●</td></tr>
+      <tr><td>finding 해결 판정(처분 — <code>review:resolve</code>)</td><td>●</td><td>●</td><td>—</td><td>—</td><td>●</td><td>—</td><td>○ <code>fixed</code>만</td></tr>
       <tr><td>검증 서명(<code>kind=test</code> 증적 — <code>verified</code> 는 서버가 파생한다 · §1.3)</td><td>●</td><td>—</td><td>—</td><td>—</td><td>●</td><td>—</td><td>—</td></tr>
       <tr><td><b>게이트 면제(BYPASS)</b></td><td>●</td><td>○ 스펙 계열</td><td>—</td><td>○ 코드 계열</td><td>—</td><td>—</td><td><b>불가</b></td></tr>
       <tr><td>게이트 정책·위험도 임계 편집</td><td>●</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
@@ -378,6 +379,8 @@
   </table></div>
 
   <p><b>●</b> 가능 · <b>○</b> 조건부(지정 시 또는 명시 범위) · <b>—</b> 불가</p>
+  <p><b>발견 코멘트는 참여다</b>(2026-10-11 — 사람 결정 · <a href="api.html">4.4 API</a> REQ-API-294). 발견에 말을 남기는 일(EP-REV-05)이 처분과 같은 <code>review:resolve</code>를 요구해서 developer · designer는 자기 코드에 달린 발견에 답하지 못했다. 스펙 코멘트는 처음부터 "권한이 아니라 참여"로 보고 viewer까지 받는다. 같은 원칙으로 발견 코멘트를 <code>review:submit</code>(viewer를 뺀 모든 역할)으로 낮추고 처분은 그대로 둔다 — 대화는 참여이고 결정은 권한이다. 에이전트 토큰도 <code>review:submit</code>이 있으면 코멘트한다. 리뷰 루프에서 해명을 남기는 데 쓸모가 있어 막지 않는다.</p>
+  <p><b>발견 처분은 admin · planner · qa의 것이다</b>(2026-10-11 — 사람 결정). 이 표는 오래 designer · developer에게도 「finding 해결 판정」을 ● 로 적었다. 실물은 처음부터 <code>review:resolve</code>(admin · planner · qa)만 받았고(<a href="api.html">4.4 API</a> EP-REV-02 · 화면도 같다), 2026-09-07에는 발견 코멘트의 권한을 문서가 코드에 맞춘 적이 있다. 표를 실물에 맞춘다. 코드를 표에 맞추는 안(developer · designer에게 처분을 연다)은 택하지 않았다 — 자기 코드에 달린 발견을 스스로 닫을 수 있게 되면 리뷰의 뜻이 약해진다. developer · designer는 코멘트로 답하고(위 단락) 처분은 qa · planner가 한다.</p>
 
   <div class="callout evidence"><span class="ico">📊</span><div class="body">
     <b class="title">근거 · 역할 분리는 계승, 강제 수단은 교체</b>
@@ -587,6 +590,8 @@
       <tr><td>T+7d</td><td>요청 <b>만료</b> 처리, 대상은 draft로 복귀하고 요청자에게 통지</td><td>다이제스트</td></tr>
     </tbody>
   </table></div>
+
+  <p><b>집행 범위</b>(2026-10-11 · <a href="api.html">4.4 API</a> REQ-API-296). 리마인더 둘(T+4h · T+1d)을 집행한다. 워커가 아직 결정되지 않은 결재마다 단계에 한 번씩 <code>approval.reminded</code>를 내고, 그 결재 요청을 받는 사람(요청자 제외)에게 결재마다 한 줄로 묶어 알린다. 1회째는 앱 안에만, 2회째는 메일 요약(켠 사람 · §6.5)에도 든다. 결정하면 리마인더 알림도 요청 알림과 함께 읽음이 된다. 요청 뒤 7일이 지난 결재는 다시 알리지 않는다. 대체 승인자 후보 표시는 후보를 고르는 규칙이 없어 하지 않았고, T+2d 에스컬레이션과 T+7d 만료는 아직 없다 — 만료 상태를 둘지와 draft로 되돌릴 때 T3의 채워진 자리를 어떻게 할지는 사람이 정한다.</p>
 
   <p><code>awaiting_input</code>으로 사람을 기다리는 에이전트 세션은 이 SLA와 별개로 하트비트를 유지한다(D-13). 승인이 며칠 걸려도 세션은 죽지 않아야 하며, 이는 "리뷰가 오래 걸리면 상태를 직렬화해 저장하고 나중에 재개하라 — 그것은 여전히 같은 run이다"라는 에이전트 승인 설계의 정석과 같다. 반대로 <b>에이전트가</b> 응답하지 않는 경우는 무활동 30분에 <code>stale</code>로 자동 전이하고 클레임을 회수한다(§4.5).</p>
 
@@ -1092,6 +1097,7 @@ SELECT EXISTS (
     <thead><tr><th>이벤트</th><th>티어</th><th>수신자</th><th>batch key</th></tr></thead>
     <tbody>
       <tr><td><code>approval.requested</code> (스펙/CR/플랜)</td><td><span class="badge blocked">critical</span></td><td>필수 승인자</td><td>없음</td></tr>
+      <tr><td><code>approval.reminded</code>(T+4h · T+1d — §2.6)</td><td><span class="badge impl">standard</span></td><td>그 결재 요청의 수신자(요청자 제외)</td><td><code>approval:{id}:reminder</code></td></tr>
       <tr><td><code>question.created</code></td><td><span class="badge blocked">critical</span></td><td>대상 역할 또는 지정자</td><td>없음</td></tr>
       <tr><td><code>claim.conflict_blocked</code></td><td><span class="badge blocked">critical</span></td><td>양쪽 세션 소유자</td><td>없음</td></tr>
       <tr><td><code>finding.opened</code> (critical severity)</td><td><span class="badge blocked">critical</span></td><td>Task 담당자 + 리뷰 요청자</td><td>없음</td></tr>
@@ -1237,7 +1243,8 @@ SELECT EXISTS (
   <div class="callout note"><span class="ico">📝</span><div class="body">
     <b class="title">BYPASS는 우회가 아니라 기록이다</b>
     <p>clemvion에도 <code>BYPASS_DEFAULT_BRANCH_GUARD=1</code> 같은 환경변수 탈출구가 있었지만 <b>사용 사실이 어디에도 남지 않았다</b>. NERV의 BYPASS는 Approval 엔티티(대상: 게이트 면제)로 만들어지고, 사유·범위·유효 시간을 받으며, admin 알림과 감사 로그에 남는다. 같은 경로에서 면제가 반복되면 그것은 게이트 설계가 틀렸다는 신호이며 정책 조정 대상이 된다 — clemvion이 실패 이력에서 게이트를 사후에 키워 온 방식을 데이터로 앞당기는 장치다.</p>
-      <p><b>범위는 리뷰 종류다</b>(2026-10-09 — clemvion 보고 · <a href="api.html">4.4 API</a> REQ-API-274). 완료 조건이 <code>code</code> · <code>consistency</code> 리뷰를 요구하는 프로젝트에서 코드를 내지 않은 작업(승인된 스펙 14편의 일관성 재검토 · 스펙 초안만 쓴 작업)은 <code>code</code> 라운드를 받을 길이 없었다. 면제는 리뷰 커버리지를 통째로 넘기는 것밖에 없었고, 그 면제를 낼 화면도 없었다 — 남은 길은 변경 없이 code 리뷰를 꾸며 내는 것이었고, 그러면 하지 않은 리뷰가 기록에 남는다. 면제가 종류(<code>kinds</code>)를 받는다. done 게이트는 그 종류만 요구에서 빼고 나머지는 그대로 본다. 누가 면제할 수 있는지는 §1.6 표 그대로다 — 코드 계열(<code>code</code>·<code>merge</code>)은 developer · admin, 스펙 계열(<code>consistency</code>·<code>spec_coverage</code>)은 planner · admin. <b>코드를 낸 작업의 코드 리뷰는 면제되지 않는다</b> — 커밋 · PR · 코드 경로 증적이 붙은 작업에서는 그 면제를 받지 않고, 면제 뒤에 붙으면 done 게이트가 그 면제를 세지 않는다. 증적만으로 "코드 없음"을 추정해 자동으로 빼는 안은 택하지 않았다 — 코드를 내고 증적을 빼면 게이트를 피할 수 있고, 그 판단은 사람이 기록으로 지는 편이 맞다. done이 아닌 종료 상태(<code>closed</code>)도 두지 않았다 — 이 작업들은 할 일을 끝냈고, 구현 축은 done을 끝난 것으로 센다. <b>남은 일</b>: 범위를 고르지 않은 면제는 예전처럼 admin · planner · developer 누구나 낼 수 있어 §1.6 표(admin ●)와 어긋난다. 바꾸면 기존 면제 경로의 동작이 바뀌므로 따로 정한다.</p>
+      <p><b>범위는 리뷰 종류다</b>(2026-10-09 — clemvion 보고 · <a href="api.html">4.4 API</a> REQ-API-274). 완료 조건이 <code>code</code> · <code>consistency</code> 리뷰를 요구하는 프로젝트에서 코드를 내지 않은 작업(승인된 스펙 14편의 일관성 재검토 · 스펙 초안만 쓴 작업)은 <code>code</code> 라운드를 받을 길이 없었다. 면제는 리뷰 커버리지를 통째로 넘기는 것밖에 없었고, 그 면제를 낼 화면도 없었다 — 남은 길은 변경 없이 code 리뷰를 꾸며 내는 것이었고, 그러면 하지 않은 리뷰가 기록에 남는다. 면제가 종류(<code>kinds</code>)를 받는다. done 게이트는 그 종류만 요구에서 빼고 나머지는 그대로 본다. 누가 면제할 수 있는지는 §1.6 표 그대로다 — 코드 계열(<code>code</code>·<code>merge</code>)은 developer · admin, 스펙 계열(<code>consistency</code>·<code>spec_coverage</code>)은 planner · admin. <b>코드를 낸 작업의 코드 리뷰는 면제되지 않는다</b> — 커밋 · PR · 코드 경로 증적이 붙은 작업에서는 그 면제를 받지 않고, 면제 뒤에 붙으면 done 게이트가 그 면제를 세지 않는다. 증적만으로 "코드 없음"을 추정해 자동으로 빼는 안은 택하지 않았다 — 코드를 내고 증적을 빼면 게이트를 피할 수 있고, 그 판단은 사람이 기록으로 지는 편이 맞다. done이 아닌 종료 상태(<code>closed</code>)도 두지 않았다 — 이 작업들은 할 일을 끝냈고, 구현 축은 done을 끝난 것으로 센다.</p>
+      <p><b>범위를 고르지 않은 면제는 admin의 것이다</b>(2026-10-11 — 사람 결정 · <a href="api.html">4.4 API</a> REQ-API-293). 2026-10-09에 남겨 둔 일이다. 범위 없는 면제는 admin · planner · developer 누구나 낼 수 있어서 planner가 code 리뷰를, developer가 스펙 리뷰를 통째로 넘길 수 있었다 — §1.6 표(admin ●)와 어긋났다. 이제 admin만 범위 없는 면제로 리뷰 커버리지 전부를 넘긴다. planner · developer가 종류 없이 면제하면 <b>그 역할이 면제할 수 있는 종류 전부</b>로 풀어 읽는다(planner는 <code>consistency</code> · <code>spec_coverage</code>, developer는 <code>code</code> · <code>merge</code>). 기록(<code>bypass_kinds</code> · <code>gate.bypassed</code>)에는 풀어 읽은 종류와 그렇게 읽었다는 표시(<code>expanded</code>)를 남긴다 — 감사가 "무엇을 넘겼나"에 바로 답한다. 종류로 나뉘지 않은 조건(정책이 <code>true</code>인 리뷰 커버리지)과 작업이 아닌 대상의 면제는 그래서 admin만 낸다. 고른 안 밖의 둘도 적어 둔다: 범위 없는 면제를 admin 전용으로 막기만 하는 안은 표와 정확히 맞지만 지금 쓰는 요청이 403이 된다. 표를 실물에 맞추는 안은 2026-10-09에 종류를 나눈 뜻을 약하게 한다.</p>
   </div></div>
 
   <div class="table-wrap"><table>

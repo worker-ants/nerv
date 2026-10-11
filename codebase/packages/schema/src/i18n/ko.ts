@@ -119,6 +119,9 @@ export const ko = {
   // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
   'error.approval.bypass_kind_forbidden':
     '이 역할로는 {kinds} 리뷰를 면제할 수 없습니다. 코드 계열(code · merge)은 developer · admin이, 스펙 계열(consistency · spec_coverage)은 planner · admin이 면제합니다.',
+  // 범위 없는 면제는 admin만(2026-10-11 · REQ-API-293)
+  'error.approval.bypass_unscoped_forbidden':
+    '종류를 고르지 않은 면제는 admin만 낼 수 있습니다. 면제할 리뷰 종류를 고르세요.',
   'error.approval.bypass_has_code':
     '코드 증적(커밋 · PR · 코드 경로)이 붙은 작업은 {kinds} 리뷰를 면제할 수 없습니다. 코드를 낸 작업은 코드 리뷰를 받습니다.',
   'error.auth.admin_only': 'admin만 할 수 있습니다.',
@@ -531,6 +534,8 @@ export const ko = {
   'reviews.gate.title': '게이트 현황',
   'reviews.gate.verdict': '판정',
   'reviews.no_permission': '처분에는 review:resolve 권한이 필요합니다.',
+  'reviews.comment_no_permission':
+    '코멘트에는 review:submit 권한이 필요합니다. viewer는 읽기만 합니다.',
   'reviews.promote_no_permission': 'Task로 올리려면 task:update 권한이 필요합니다.',
   'reviews.occurrence': '{count}회 발견 · 최근 {round}회차',
   'reviews.provenance.code': '코드',
@@ -977,6 +982,7 @@ export const ko = {
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
   'event.approval.decided': '결재 완료',
   'event.approval.requested': '승인 요청',
+  'event.approval.reminded': '결재 리마인더',
   'event.baseline.created': '기준선 생성',
   'event.claim.conflict_blocked': '범위 겹침으로 클레임 거부',
   'event.claim.conflict_warn': '범위 겹침 경고',
@@ -1547,6 +1553,9 @@ export const ko = {
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '활성 세션 {count}개',
   'project.coverage': '구현 현황',
+  'project.coverage.areas': '영역별',
+  'project.coverage.area_counts': '구현 {implemented} · 검증 {verified} / {total}',
+  'project.coverage.no_area': '영역에 들지 않은 스펙',
   'project.coverage.alt': '요구사항 {total}건 중 검증 {verified}건 · 구현 {implemented}건',
   'project.metric.empty_promises': '작업 없음',
   'project.metric.reverify_required': '다시 검증 필요',
@@ -1819,6 +1828,8 @@ export const ko = {
   'task.transition_rejected': '상태를 바꾸지 못했습니다: {message}',
   'tasks.basis_superseded': '기준 버전 갱신됨',
   'tasks.empty_column': '비어 있음',
+  'tasks.filter.q': '제목 · 작업 키로 찾기',
+  'tasks.filter.q_placeholder': '제목 · 키로 찾기 (Enter)',
   'tasks.filter.spec': '스펙 필터',
   'tasks.filter.spec_all': '스펙: 전체',
   'tasks.filter.assignee': '담당 필터',

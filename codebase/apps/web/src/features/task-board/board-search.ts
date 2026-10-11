@@ -18,6 +18,8 @@ export interface TaskBoardSearch {
   spec?: string;
   assignee?: string;
   ai?: true;
+  /** **제목 · 작업 키 부분 일치**(2026-10-11 · REQ-WEB-308 · 서버 REQ-API-295) */
+  q?: string;
   /** 기본이 켜짐이라 **끈 상태만** 주소에 남는다(`?backlog=0`) */
   backlog?: false;
   /** **지난 완료**(done 창 밖) — 이름이 오래돼 `archived` 다. 작업 보관은 아래 `archived_tasks` 다(REQ-WEB-302) */
@@ -49,6 +51,11 @@ export function validateBoardSearch(search: Record<string, unknown>): TaskBoardS
       ? { assignee: search['assignee'] }
       : {}),
     ...(isOn(search['ai']) ? { ai: true as const } : {}),
+    // 숫자만 친 검색어(`?q=123`)는 기본 파서가 수로 준다 — 글자로 되돌린다
+    ...((typeof search['q'] === 'string' || typeof search['q'] === 'number') &&
+    String(search['q']).trim() !== ''
+      ? { q: String(search['q']) }
+      : {}),
     ...(isOff(search['backlog']) ? { backlog: false as const } : {}),
     ...(isOn(search['archived']) ? { archived: true as const } : {}),
     ...(isOn(search['archived_tasks']) ? { archived_tasks: true as const } : {}),
@@ -76,6 +83,7 @@ export function boardFilters(search: TaskBoardSearch): TaskBoardSearch {
     ...(search.spec === undefined ? {} : { spec: search.spec }),
     ...(search.assignee === undefined ? {} : { assignee: search.assignee }),
     ...(search.ai === true ? { ai: true as const } : {}),
+    ...(search.q === undefined ? {} : { q: search.q }),
     ...(search.backlog === false ? { backlog: false as const } : {}),
     ...(search.archived === true ? { archived: true as const } : {}),
     ...(search.archived_tasks === true ? { archived_tasks: true as const } : {}),

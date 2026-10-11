@@ -110,6 +110,8 @@ export const en = {
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
   'error.approval.bypass_kind_forbidden':
     'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
+  'error.approval.bypass_unscoped_forbidden':
+    'Only admins can record a waiver without choosing review kinds. Choose the review kinds to waive.',
   'error.approval.bypass_has_code':
     'A task with code evidence (commit · PR · code path) cannot have its {kinds} review waived. A task that produced code gets a code review.',
   'error.auth.admin_only': 'Only admins can do this.',
@@ -531,6 +533,8 @@ export const en = {
   'reviews.gate.title': 'Gate status',
   'reviews.gate.verdict': 'Verdict',
   'reviews.no_permission': 'Resolving requires the review:resolve scope.',
+  'reviews.comment_no_permission':
+    'Commenting requires the review:submit scope. Viewers can only read.',
   'reviews.promote_no_permission': 'Adding as a task requires the task:update scope.',
   'reviews.occurrence': 'seen {count}× · latest round {round}',
   'reviews.provenance.code': 'Code',
@@ -999,6 +1003,7 @@ export const en = {
   // ── 이벤트 — 알림·활동 피드가 같은 문구를 쓴다 ───────────────────────────────────────────
   'event.approval.decided': 'Approval decided',
   'event.approval.requested': 'Approval requested',
+  'event.approval.reminded': 'Approval reminder',
   'event.baseline.created': 'Baseline created',
   'event.claim.conflict_blocked': 'Claim blocked by declared-scope overlap',
   'event.claim.conflict_warn': 'Declared-scope overlap warning',
@@ -1573,6 +1578,9 @@ export const en = {
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '{count} active sessions',
   'project.coverage': 'Implementation status',
+  'project.coverage.areas': 'By area',
+  'project.coverage.area_counts': '{implemented} implemented · {verified} verified / {total}',
+  'project.coverage.no_area': 'Specs outside any area',
   'project.coverage.alt':
     '{verified} verified and {implemented} implemented of {total} requirements',
   'project.metric.empty_promises': 'No task',
@@ -1850,6 +1858,8 @@ export const en = {
   'task.transition_rejected': 'Could not change the status: {message}',
   'tasks.basis_superseded': 'Basis version updated',
   'tasks.empty_column': 'Empty',
+  'tasks.filter.q': 'Find by title or task key',
+  'tasks.filter.q_placeholder': 'Find by title or key (Enter)',
   'tasks.filter.spec': 'Filter by spec',
   'tasks.filter.spec_all': 'Spec: all',
   'tasks.filter.assignee': 'Filter by assignee',

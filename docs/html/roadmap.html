@@ -53,7 +53,7 @@
     <h1>로드맵</h1>
     <p class="lead">NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 <b>조정 → 가시성 → 거버넌스 → 고도화</b>로 고정하고, 각 Phase에 기간·범위(FR 번호)·산출물과 함께 <b>수치로 된 종료 조건</b>을 붙인다. 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.11 (2026-09-28)</span>
+      <span>버전 v0.13 (2026-10-11)</span>
       <span>원본: <code>docs/03-proposal/roadmap.md</code></span>
       <span>주로 다루는 결정: D-12 · D-06 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
@@ -231,7 +231,7 @@
       <tr><td>FR-09 리뷰 수집</td><td>○</td><td>○</td><td>●</td><td>●</td><td></td></tr>
       <tr><td>FR-10 게이트 판정 API</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 Task done 전이 조건만(리뷰 커버리지 제외)</td></tr>
       <tr><td>FR-11 받은 요청(Inbox)</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 스펙 승인·플랜·질문 3유형과 스펙 코멘트 왕복, CR·에스컬레이션 카드는 P2</td></tr>
-      <tr><td>FR-12 알림</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1 인앱, P2 Slack·메일·다이제스트</td></tr>
+      <tr><td>FR-12 알림</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1 인앱(앱 안 묶음 2026-09-27 · 메일 요약 2026-09-28 에 앞당김), P2 Slack</td></tr>
       <tr><td>FR-13 증적·커버리지</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 PR 링크 수집, P2에 커버리지 계산</td></tr>
       <tr><td>FR-14 멀티테넌시</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 단일 조직·단일 프로젝트 고정</td></tr>
       <tr><td>FR-15 에이전트 연동</td><td>◐</td><td>◐</td><td>●</td><td>●</td><td>P0 MCP tools 8종+PAT, P1 Claude 플러그인·OAuth, P2 Codex·<code>AGENTS.md</code> 배포</td></tr>
@@ -258,12 +258,38 @@
   <table>
     <thead><tr><th>게이트</th><th>판정일</th><th>판정</th><th>미달 항목과 처분</th></tr></thead>
     <tbody>
-      <tr><td><b>G0</b> Phase 0 종료</td><td>—</td><td><b>기록 없음</b></td><td>2026-09-06 실측: 성공 기준 0-1~0-8 의 판정 기록이 저장소 어디에도 없다. Phase 1·2 작업은 그 사이에 진행됐다. <b>소급 판정은 하지 않는다</b>(아래) — 다만 0-8 은 2026-09-07 부터 판정 수단이 생겼다(L3 시나리오 F 가 매 PR 에서 돈다)</td></tr>
-      <tr><td><b>G1</b> Phase 1 종료</td><td>—</td><td><b>기록 없음</b></td><td>같음</td></tr>
+      <tr><td><b>G0</b> Phase 0 종료</td><td>—</td><td><b>기록 없음</b></td><td>2026-09-06 실측: 성공 기준 0-1~0-8 의 판정 기록이 저장소 어디에도 없다. Phase 1·2 작업은 그 사이에 진행됐다. <b>소급 판정은 하지 않는다</b>(아래) — 다만 0-8 은 2026-09-07 부터 판정 수단이 생겼다(L3 시나리오 F 가 매 PR 에서 돈다). 사후 측정은 아래 표다(2026-10-11 · 판정이 아니다)</td></tr>
+      <tr><td><b>G1</b> Phase 1 종료</td><td>—</td><td><b>기록 없음</b></td><td>같음 — 사후 측정은 아래 표다</td></tr>
       <tr><td><b>G2</b> Phase 2 종료</td><td>—</td><td>—</td><td>진행 전</td></tr>
     </tbody>
   </table>
-  <div class="callout"><div class="body"><b class="title">소급 판정은 하지 않는다</b><p>지난 일을 지금 "통과" 로 적으면 규칙 1(수치가 종료 조건)이 무의미해진다. 대신 <b>다음 게이트부터 이 표를 채운다</b> — 채우는 시점은 그 Phase 의 마지막 커밋과 같은 날이다. G0·G1 을 소급해 판정할지는 사람 결정으로 남긴다.</p></div></div>
+  <div class="callout"><div class="body"><b class="title">소급 판정은 하지 않는다</b><p>지난 일을 지금 "통과" 로 적으면 규칙 1(수치가 종료 조건)이 무의미해진다. 대신 <b>다음 게이트부터 이 표를 채운다</b> — 채우는 시점은 그 Phase 의 마지막 커밋과 같은 날이다. G0·G1 을 소급해 판정할지는 사람 결정으로 남겼고, <b>2026-10-11 사람이 정했다: 판정하지 않고 사후 측정만 남긴다</b>(아래 표).</p></div></div>
+
+  <p><b>G0 · G1 사후 측정</b>(2026-10-11 — 사람 결정). 표의 값은 판정하지 않은 <b>지금 잰 값</b>이다. 그래서 통과 · 미달 칸이 없다. 그때 통과했다는 뜻으로 읽지 않고, G2 를 판정할 때 비교할 기준선으로 쓴다. 수단은 자동 테스트와 이벤트 로그뿐이다(규칙 4). CI 실행은 <code>main</code> <code>5f042d2</code> 의 <code>ci</code> 562번이다 — L2(실제 Postgres)와 L3(compose 스택)가 모두 성공했다. 파일럿 기록이 있어야 잴 수 있는 기준은 <b>측정 불가</b>로 두고 무엇이 없어서인지 적는다.</p>
+  <table>
+    <thead><tr><th>기준</th><th>측정값</th><th>수단</th><th>측정일</th></tr></thead>
+    <tbody>
+      <tr><td>0-1 중복 클레임</td><td>측정 불가 — 90분 동시 작업 세션의 이벤트 로그가 없다. 짧은 재현(두 호스트가 같은 작업을 잡으면 하나만 성공)은 L3 시나리오 A 1 · 2단계가 매 PR 에서 본다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>0-2 클레임 원자성</td><td>3세션 × 100회 요청묶음마다 성공 정확히 1</td><td>L3 시나리오 A 3단계</td><td>2026-10-11</td></tr>
+      <tr><td>0-3 scope 겹침 검출</td><td>겹치는 10회 중 10회 경고 · 겹치지 않는 20회 중 오탐 0</td><td>L3 시나리오 B</td><td>2026-10-11</td></tr>
+      <tr><td>0-4 리스 만료 자동 회수</td><td>리스를 만료시킨 클레임 1건이 사람 개입 없이 <code>stale</code> 로 회수되고 다시 클레임된다. TTL 을 기다리지 않고 만료 시각을 당겨 잰다</td><td>L3 시나리오 C</td><td>2026-10-11</td></tr>
+      <tr><td>0-5 세션 보드 반영 지연</td><td>측정 불가 — 상태 전이 시각과 보드 반영 시각을 함께 남기는 계측이 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>0-6 임포트 성공률</td><td>측정 불가 — <code>clemvion:spec/</code> 135 md 체크아웃이 CI 에 없다. 같은 규칙은 픽스처 3편으로 본다(L3 시나리오 E)</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>0-7 임포트 멱등성</td><td>픽스처 3편을 2회 연속 실행했을 때 두 번째 실행의 신규 레코드 0. 135 md 로 잰 값은 아니다</td><td>L3 시나리오 E 4단계</td><td>2026-10-11</td></tr>
+      <tr><td>0-8 tools-only 완주</td><td><code>claude-code</code> · <code>codex</code> 두 세션이 각각 <code>bootstrap → next → claim → heartbeat → 질문 · 답 → 리뷰 → done → session-end</code> 를 도구로만 걷는다. 걷는 쪽은 두 CLI 와 같은 MCP 호출을 내는 테스트 클라이언트다</td><td>L3 시나리오 F</td><td>2026-10-11</td></tr>
+      <tr><td>1-1 플랫폼 밖 승인 0</td><td>측정 불가 — 파일럿 2주 기록이 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>1-2 직군 참여</td><td>측정 불가 — 파일럿 승인 기록이 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>1-3 승인 리드타임</td><td>측정 불가 — 파일럿 승인 기록이 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>1-4 질문 응답 리드타임</td><td>측정 불가 — 파일럿 세션 기록이 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>1-5 세션 가시성</td><td>측정 불가 — 파일럿 세션 기록이 없고 반영 지연 계측도 없다(0-5 와 같다)</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>1-6 승인 스냅샷 불변성</td><td>제출 뒤 본문 UPDATE 를 DB 트리거가 거부하고, 승인은 이전 승인본을 <code>superseded</code> 로 넘길 뿐 덮어쓰지 않는다 — 시도한 경우 모두 거부</td><td>L2 <code>spec-workflow.spec.ts</code></td><td>2026-10-11</td></tr>
+      <tr><td>1-7 위임 명세 강제</td><td>네 칸 중 하나라도 빈 작업의 <code>ready</code> 전이를 서비스 판정과 DB CHECK 가 모두 거부한다 — 시도한 경우 모두 거부</td><td>L2 <code>claim.spec.ts</code> · <code>migrate.spec.ts</code></td><td>2026-10-11</td></tr>
+      <tr><td>1-8 감사 재구성</td><td>측정 불가 — 무작위 엔티티 20건을 재구성하는 검사가 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>1-9 백업 · 복구</td><td>백업 → 새 데이터베이스로 복원 왕복 1회. 행 수 대조로 손실 0, 복원본에서 스펙 조회 · 세션 보드가 돈다</td><td>L2 <code>restore-roundtrip.spec.ts</code></td><td>2026-10-11</td></tr>
+      <tr><td>1-10 플러그인 배포</td><td>측정 불가 — 활성화 신호(<code>X-NERV-Plugin</code> 헤더 · <a href="api.html">4.4 API</a> EP-SES-06)는 있지만 그 신호를 읽을 파일럿 인스턴스의 기록이 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>1-11 기획자 웹 · 터미널 왕복</td><td>웹 편집 → 터미널 이어쓰기(명시 인계) → 웹 복귀 → 제출 · 코멘트 · 해소 · 승인까지 한 초안을 완성한다. 저장은 모두 한 번에 성공했다 — 리스 · 지문(<code>base_hash</code>) 충돌로 막힌 호출 0, 리스 관련 이벤트 0건</td><td>L3 시나리오 D</td><td>2026-10-11</td></tr>
+    </tbody>
+  </table>
 
   <h2 id="sec-2">2. Phase 0 — PoC: 조정이 되는가 (2~3주)</h2>
 

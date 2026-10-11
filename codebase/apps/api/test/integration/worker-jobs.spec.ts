@@ -37,6 +37,8 @@ import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 import { DigestJob } from '../../src/worker/jobs/digest.job.js';
+import { ApprovalReminderJob } from '../../src/worker/jobs/approval-reminder.job.js';
+import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { DigestService } from '../../src/modules/digest/digest.service.js';
 
 let db: ScratchDb;
@@ -94,6 +96,15 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
     // 메일 요약도 같다 — 발송이 꺼진 배치에서는 판정조차 하지 않는다(받은 요청 판정을 부르기 전에 끝난다)
     new DigestJob(new DigestService(drizzleDb, new MailOutbox(drizzleDb), null as never)),
     new RequirementBackfillJob(drizzleDb),
+    // 결재 리마인더는 이벤트와 DB 만 쓴다(REQ-API-296)
+    new ApprovalReminderJob(
+      new ApprovalService(
+        new EventService(drizzleDb, silent),
+        null as never,
+        null as never,
+        drizzleDb,
+      ),
+    ),
   );
   return { runner, lock };
 }

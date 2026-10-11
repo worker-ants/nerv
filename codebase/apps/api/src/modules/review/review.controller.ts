@@ -168,19 +168,27 @@ export class ReviewController {
       escalateReason: typeof body['escalate_reason'] === 'string' ? body['escalate_reason'] : null,
     });
   }
-  /** EP-REV-05 · EP-REV-06 — 발견에 사람의 말을 남기고 읽는다(2026-08-30 신설) */
-  @RequireScope('review:resolve')
+  /**
+   * EP-REV-05 · EP-REV-06 — 발견에 말을 남기고 읽는다(2026-08-30 신설).
+   *
+   * **코멘트는 참여이고 처분은 권한이다**(2026-10-11 · REQ-API-294 · 사람 결정). 예전에는 처분과 같은 `review:resolve` 를
+   * 요구해 developer · designer 가 자기 코드에 달린 발견에 답하지 못했다. 이제 `review:submit`(viewer 를 뺀 모든 역할)이고,
+   * 처분(EP-REV-04)은 그대로 `review:resolve` 다 — 스펙 코멘트(EP-CMT-02)와 같은 원칙이다. 에이전트 토큰도 남긴다.
+   */
+  @RequireScope('review:submit')
   @Post('findings/:id/comments')
   comment(
     @Req() req: ProjectRequest,
     @Param('id') id: string,
     @Body() body: Record<string, unknown>,
   ): Promise<unknown> {
-    // 처분과 같은 권한다 — 발견에 개입하는 같은 축의 행동이다
+    const principal = principalOf(req);
     return this.reviews.comment({
       projectId: req.nervProjectId!,
       findingId: id,
-      userId: principalOf(req).userId,
+      userId: principal.userId,
+      // 감사의 주체는 토큰에서 읽는다(FR-16) — 세션 id 가 없는 REST 호출도 에이전트면 에이전트로 남는다
+      isAgent: principal.isAgent,
       bodyMd: parseBody(FindingCommentInput, body).body_md,
     });
   }

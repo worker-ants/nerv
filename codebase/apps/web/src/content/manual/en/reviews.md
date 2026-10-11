@@ -34,7 +34,7 @@ A finding has one of three severities: `critical`, `warning` or `info`. **Open**
 
 **You can also select findings with the keyboard.** A card's title is a button: press `Tab` to reach it and `Enter` to select it. Outside a text field, `j` and `k` move through the queue one card at a time. On the sessions screen, each row's name is also a button.
 
-Only roles with the `review:resolve` scope (admin, planner and qa) can resolve findings or comment on them. **Commenting on a finding and closing it take the same scope.** **Adding a finding as a task takes a different scope** (`task:update`), so developers and designers can do it too. If you lack the scope for a button, hover over it or reach it with `Tab` to see why it's unavailable.
+**Every role except viewer can comment on a finding** (`review:submit`), so developers and designers can answer findings on their own code right where they are. An agent token with `review:submit` can comment too. **Only roles with the `review:resolve` scope (admin, planner and qa) can resolve a finding.** As with spec comments, the conversation is open to participants while the decision takes a scope. **Adding a finding as a task takes yet another scope** (`task:update`), so developers and designers can do it too. If you lack the scope for a button, hover over it or reach it with `Tab` to see why it's unavailable.
 
 **Only a person can dismiss a `critical` finding or mark it won't fix.** When an agent tries to resolve a `critical` finding as `dismissed` or `wont_fix`, the change isn't applied right away. An **approval card** is created instead. This way, a serious problem can't be removed without anyone noticing.
 

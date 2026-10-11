@@ -122,6 +122,9 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
 
   // 스펙 목록의 결재 대기(REQ-WEB-292)도 같은 판정의 다른 모양이다 — 함께 낡는다
   [E.APPROVAL_REQUESTED]: (e) => [...inboxAxis(e), queryKeys.projectPendingApprovals(e.project_id)],
+  // **결재 리마인더**(2026-10-11 · REQ-API-296)는 받은 요청을 바꾸지 않는다 — 카드는 그대로다. 받는 사람의 종은
+  // 개인 룸의 `notification.created` 가 되읽고, 여기서는 프로젝트 피드만 되읽는다
+  [E.APPROVAL_REMINDED]: (e) => [queryKeys.projectEvents(e.project_id)],
   // 결정이 나면 카드는 수신함에서 사라진다 — 대상(스펙)은 자기 이벤트가 따로 바꾼다
   // **그 요청의 알림도 함께 닫힌다**(REQ-API-176) — 알림 목록과 배지도 되읽는다. 빠뜨리면 받은
   // 요청 배지만 줄고 알림 배지는 새로고침 전까지 그대로다

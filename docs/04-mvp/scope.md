@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 **24종**(P0 8 + P1 16 · 카탈로그 27종 — 리뷰 3종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.43 · 2026-10-11 · HTML 파생본: [scope.html](../html/scope.html)
+> 문서 버전 v0.44 · 2026-10-11 · HTML 파생본: [scope.html](../html/scope.html)
+>
+> v0.44 변경(2026-10-11 — 문서끼리 어긋난 곳 정리): **새 결정 없음 · FR-10 행 · §5 두 칸과 착수 기록 · §2.1 · §2.2 · §6.2 임베딩 · §6.1 운영 Postgres.** 리뷰 커버리지는 정책으로 켜면 2026-09-28 부터 `done` 을 막는다([4.4 API](api.md) REQ-API-250) — 이 문서가 아직 Phase 2 라 적었다. 로컬 임베딩은 2026-08-23 점화로 ollama 다([4.2](codebase.md) §5.2a). 운영 Postgres 위치는 2026-08-22 에 클러스터 외부로 확정됐다(§6.0).
 >
 > v0.43 변경(2026-10-11 — 낡은 스킬 수): **§4.3 표 두 행 · 스킬 수 5 → 7.** 패키지에 `/nerv:mirror`(2026-10-07)와 `/nerv:approve`(2026-10-11)가 들어왔는데 이 문서는 "패키지 5종" 이라 적고 두 행이 없었다. mirror 는 MVP 약속 밖(○), approve 는 그 도구를 P1 에 넣은 v0.42 와 같이 MVP(●)로 적는다.
 >
@@ -170,7 +172,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 웹 | **Vite + React SPA** | 2026-08-14 | 정적 자산 배포. SSR 없음 |
 | API | **NestJS(Fastify 어댑터)** | 2026-08-14 | REST·MCP·WebSocket이 **같은 도메인 서비스를 DI로 공유**(D-05). 게이트 판정이 표면마다 갈라지는 것이 최악의 실패 |
 | DB | **Postgres** + **Drizzle** | Postgres 2026-08-13 · Drizzle 2026-08-20 | 스키마는 `packages/schema`에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw `sql` 1급 |
-| 검색 | **하이브리드** — Postgres FTS(`simple`) + **pg_trgm**(한국어·부분 일치) + **pgvector**(HNSW·cosine) + 임베딩(**OpenAI 호환 `/v1/embeddings` 단일 계약**, 1024차원 고정) + **관계 확장(graph RAG)** | 2026-08-22 (제공자 추상화 같은 날 개정) | 파이프라인(ID 직행 → 렉시컬+벡터 RRF 병합 → 1-hop 관계 확장)은 [4.4 API 명세](api.md) §2.2b 정본. **임베딩 제공자는 env 프로필** — 로컬 TEI(CPU·compose `embed`) / 스테이징 LM Studio / 운영 OpenAI(`text-embedding-3-small`, `dimensions=1024`). 프로필 정본 [4.2](codebase.md) §5.2a. 기본값은 자가호스팅이고 외부 전송은 운영 주체의 env 명시 선택(REQ-CB-020). 제공자 무응답 시 렉시컬 degrade(REQ-API-026) |
+| 검색 | **하이브리드** — Postgres FTS(`simple`) + **pg_trgm**(한국어·부분 일치) + **pgvector**(HNSW·cosine) + 임베딩(**OpenAI 호환 `/v1/embeddings` 단일 계약**, 1024차원 고정) + **관계 확장(graph RAG)** | 2026-08-22 (제공자 추상화 같은 날 개정) | 파이프라인(ID 직행 → 렉시컬+벡터 RRF 병합 → 1-hop 관계 확장)은 [4.4 API 명세](api.md) §2.2b 정본. **임베딩 제공자는 env 프로필** — 로컬 ollama(`bge-m3` · CPU · compose `embed` — 2026-08-23 TEI 에서 교체, [4.2](codebase.md) §5.2a) / 스테이징 LM Studio / 운영 OpenAI(`text-embedding-3-small`, `dimensions=1024`). 프로필 정본 [4.2](codebase.md) §5.2a. 기본값은 자가호스팅이고 외부 전송은 운영 주체의 env 명시 선택(REQ-CB-020). 제공자 무응답 시 렉시컬 degrade(REQ-API-026) |
 | 인증 | **better-auth** | 2026-08-20 (구성 정정 2026-09-24) | **웹 세션만 맡긴다**(이메일+비밀번호·세션 쿠키). 조직·멤버십은 도메인 테이블이 소유하고 **organization 플러그인은 켜지 않는다**(2026-08-22 구현 확정 — 켜면 역할의 정본이 둘이 된다 · [4.3](database.md) §2.16). PAT 는 api-key 플러그인이 아니라 **자체 `api_token` 테이블**이다(해시 저장·프로젝트 소속 · [4.3](database.md) §2.2 — 2026-09-24 사람 결정으로 문서를 실물에 맞춤: apiKey 테이블을 함께 쓰면 토큰이 두 곳에 살게 된다). OAuth 2.1 리소스 서버는 Phase 2 |
 | 발신(메일) | **nodemailer(SMTP)** — 가입 이메일 인증 · 초대 메일 | 2026-09-22 | 제공자 SDK 를 들이지 않는다: SMTP 하나면 사내 메일 서버·SES·Resend·Postmark 가 같은 계약이고, 갈아도 코드가 그대로다. **표면은 `email_outbox` 에 행을 넣고 워커가 보낸다**([4.3](database.md) §2.17) — 인라인 발송은 응답 시간으로 이메일의 존재를 흘리고, 실패를 기록할 곳도 없다. 비어 있으면 꺼진다(`NERV_MAIL_HOST` — 접속 정보는 여섯 키다. 2026-09-24 부터, [4.2](codebase.md) §5.2) |
 | 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
@@ -198,7 +200,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | Valkey pub/sub(무영속 단일 인스턴스) | 방송 유실로 인한 재조회 비용이 실측 임계를 넘거나 이벤트 재전송(replay) 요구가 생길 때 | Valkey Streams(적재형)·HA(센티널/관리형) 재검토 |
 | TipTap | md 직렬화 왕복 손실 실측 발생 | Milkdown 재검토 — **2026-09-22 종료**(조건 소멸: 웹이 md 를 되돌려 보내지 않는다 · 아래 점화 기록 ②) |
 | Vitest + Playwright | L3 유지 비용이 개발 흐름을 끊는 수준으로 증가 | E2E 범위 축소(시나리오 5종 고정) 또는 러너 통합 재검토 |
-| 임베딩 제공자 프로필(로컬 TEI / 스테이징 LM Studio / 운영 OpenAI) | 질의 임베딩 p95가 검색 응답 목표(보류 — E06-S06 실측 후 확정, [4.4](api.md) §2.2b)를 잠식, 검색 만족도 실측 미달, 또는 운영 API 비용·정책 변화 | 제공자·모델은 env 교체 + 재임베딩으로 해소(코드 불변 — OpenAI 호환 단일 계약). 그래도 부족하면 전용 검색엔진 재검토(그 전에는 재론 금지) |
+| 임베딩 제공자 프로필(로컬 ollama / 스테이징 LM Studio / 운영 OpenAI) | 질의 임베딩 p95가 검색 응답 목표(보류 — E06-S06 실측 후 확정, [4.4](api.md) §2.2b)를 잠식, 검색 만족도 실측 미달, 또는 운영 API 비용·정책 변화 | 제공자·모델은 env 교체 + 재임베딩으로 해소(코드 불변 — OpenAI 호환 단일 계약). 그래도 부족하면 전용 검색엔진 재검토(그 전에는 재론 금지) |
 | 실시간 공동 편집 미도입 | 버전 충돌(409 재시도) 주 20건 이상 또는 동시 편집 요구 반복(로드맵 §5.1) | Yjs + Hocuspocus |
 | 이중 배포 타깃(compose+k8s) | 운영 규모가 단일 노드로 충분(NFR-04) | k8s 생략 |
 
@@ -265,7 +267,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR-07 | 세션 레지스트리 | ● | ◐ | ● | 등록·하트비트·상태 머신(`pending→active↔awaiting_input→complete/error/stale`, stale 임계 30분)(P0), 사용자·hostname·에이전트 종류 전체 뷰(P1) | — |
 | FR-08 | 활동 스트림·미션 컨트롤 | ● | ○ | ● | typed Activity 타임라인, 전역 보드, steer/stop(P1) | — |
 | FR-09 | 리뷰 수집 | ○ | ○ | ○ | — | ReviewSession→Finding→Resolution 은 Phase 2 로 계획했으나 **2026-08-23 이후 전부 들어왔다**(§5 착수 기록) — 서버·도구·REST 7종·S6 리뷰 센터 화면·`/nerv:review` 스킬(패키지에 배포됨)·소급 임포터까지. 남은 것은 게이트의 리뷰 커버리지 조건이다(FR-10 행) |
-| FR-10 | 게이트 판정 API | ◐ | ○ | ◐ | Task `done` 전이 조건 판정 | 리뷰 커버리지 조건·커밋 범위 판정은 Phase 2 |
+| FR-10 | 게이트 판정 API | ◐ | ○ | ◐ | Task `done` 전이 조건 판정 · 리뷰 커버리지 조건(프로젝트 정책으로 켜면 `done`을 막는다 — 2026-09-28 · [4.4 API](api.md) REQ-API-146 · 250) | 커밋 범위 판정은 Phase 2 |
 | FR-11 | 받은 요청(Inbox) | ◐ | ○ | ◐ | 스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트 | CR·에스컬레이션 카드(5유형 완성)는 Phase 2 |
 | FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack · 메일 다이제스트는 Phase 2. **앱 안 묶음은 MVP 다**(2026-09-27 사람 결정 G1 — 보통 알림을 같은 대상마다 읽을 때까지 한 줄로 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5). **알림 메일 요약은 Phase 2 를 앞당겨 착수했다**(2026-09-28 사람 결정 EM1 — 켠 사람에게 하루 한 번 · §5 착수 기록). 수신 설정(켜기 · 시각 · 시간대 · 언어)이 함께 들어왔다. Slack 은 Phase 2 그대로다 |
 | FR-13 | 증적·커버리지 | ◐ | ○ | ◐ | PR·커밋 웹훅 수신, Task↔PR 링크 | 커버리지 계산·대시보드는 Phase 2 |
@@ -319,7 +321,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | S3 | 스펙 상세 | ● | 에디터·코멘트·승인 패널·편집 리스 UI·터미널 이어쓰기(§3.3) |
 | S4 | 작업 보드 | ● | 칸반, 위임 명세 4요소 강제 |
 | S5 | 세션 모니터(미션 컨트롤) | ● | Phase 0은 읽기 전용 축소판 → Phase 1에 steer/stop 승격 |
-| S6 | 리뷰 센터 | ● | **Phase 2 로 계획했으나 2026-08-23 구현 완료**(§5 · [4.5 화면 명세](screens.md) §2.6a). 남은 것은 게이트 **집행**이다 — 화면은 판정을 표시할 뿐 아직 막지 않는다 |
+| S6 | 리뷰 센터 | ● | **Phase 2 로 계획했으나 2026-08-23 구현 완료**(§5 · [4.5 화면 명세](screens.md) §2.6a). 게이트 현황은 판정을 표시한다 — `done` 을 막는 것은 정책으로 켠 done 게이트다(2026-09-28 · REQ-API-250) |
 | S7 | 받은 요청(Inbox) | ● | 3유형 카드(스펙 승인·플랜·질문) — CR·에스컬레이션 카드는 Phase 2 |
 | S8 | 설정 · 멤버 · 토큰 | ● | MVP 탭 **4종**(2026-09-06 현황 — 워크스페이스 탭이 더해졌다): 워크스페이스, 멤버·역할, 에이전트 토큰(PAT 발급·폐기), 스펙 게이트 정책(T0~T3 티어 매핑 — 저위험 자동 통과는 로드맵 §3.5가 첫날부터 요구). git 연동 탭·리뷰 게이트 정책은 Phase 2 |
 
@@ -394,7 +396,7 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 
 | 하지 않는 것 | 언제 하나 | 왜 MVP가 아닌가 |
 | --- | --- | --- |
-| 리뷰 센터 S6 | **Phase 2 · 2026-08-23 구현 완료** | [4.5 화면 명세](screens.md) §2.6a. 남은 것은 spec_drift → CR 라우팅(FR-04 의존)과 게이트 **집행**(FR-10 둘째 단) — 화면은 판정을 표시할 뿐 아직 막지 않는다 |
+| 리뷰 센터 S6 | **Phase 2 · 2026-08-23 구현 완료** | [4.5 화면 명세](screens.md) §2.6a. 남은 것은 spec_drift → CR 라우팅(FR-04 의존)이다. 게이트 현황 화면은 브랜치 판정을 표시하고, `done` 은 정책으로 켜면 done 게이트가 막는다(2026-09-28 · REQ-API-250) |
 | 리뷰 도구 2종 `nerv_review_submit` · `nerv_finding_resolve` | **Phase 2 · 2026-08-23 착수 완료** | 아래 착수 기록. **MVP 약속과 카탈로그는 다른 수다** — 두 수를 섞지 않는다(2026-09-28 현황: 카탈로그 26종) |
 | `/nerv:review` 스킬 | **Phase 2 · 2026-08-23 배포 완료** | [4.6 플러그인](plugin.md) §2.6. MVP 약속 밖이다(§4.3 표의 ○) |
 | Codex 완전 지원 | Phase 2 | P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·`AGENTS.md` 배포는 Phase 2. MVP는 `config.toml`·`AGENTS.md` **초안 제공**까지 — 경계는 [4.6 플러그인과 온보딩](plugin.md) §5 |
@@ -408,7 +410,7 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 | 서버 watch 테이블 | Phase 2 | 워치 서버 동기화는 알림 확장과 함께. ※ **전역 관계 그래프 뷰는 이 행에서 빠졌다**(2026-08-23 정정) — 2026-08-23 v1.8 에서 MVP 로 들어왔는데(§2.4a 신설 · REQ-WEB-050·051) 이 행이 낡은 채 남아 있었다 |
 | git 미러 export | Phase 2 말(M2 컷오버 시점) | MVP 기간에는 spec/plan의 SoT가 git이라 export할 것이 없다(로드맵 §7.4). **HTTP md 미러(`GET …/specs/{id}.md` · `llms.txt`)는 별개로 MVP 포함** — [4.4 API 명세](api.md) §2 |
 
-> **착수 기록 — FR-09 리뷰 수집(2026-08-23, 사람 지시).** Phase 2 항목 중 **리뷰 수집의 서버·도구**를 앞당겨 구현했다. 들어온 것: `ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution` 적재, MCP 도구 2종(`nerv_review_submit` A2 · `nerv_finding_resolve` A2 / critical→dismissed·wont_fix 는 A3), REST 3종(EP-REV-01~03 — [4.4 API 명세](api.md) §2.6a). 같은 날 이어서 **S6 리뷰 센터 화면**([4.5](screens.md) §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 **`/nerv:review` 스킬**([4.6](plugin.md) §2.6)까지 들어왔다. 남은 것: 게이트 둘째 단의 **집행**(리뷰 커버리지가 Task `done` 을 막는 것 — FR-10 의 Phase 2 몫. 지금은 판정을 **표시**만 한다), `spec_drift` → CR 라우팅(FR-04 의존), 리뷰 서브에이전트 2종.
+> **착수 기록 — FR-09 리뷰 수집(2026-08-23, 사람 지시).** Phase 2 항목 중 **리뷰 수집의 서버·도구**를 앞당겨 구현했다. 들어온 것: `ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution` 적재, MCP 도구 2종(`nerv_review_submit` A2 · `nerv_finding_resolve` A2 / critical→dismissed·wont_fix 는 A3), REST 3종(EP-REV-01~03 — [4.4 API 명세](api.md) §2.6a). 같은 날 이어서 **S6 리뷰 센터 화면**([4.5](screens.md) §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 **`/nerv:review` 스킬**([4.6](plugin.md) §2.6)까지 들어왔다. 남은 것: `spec_drift` → CR 라우팅(FR-04 의존), 리뷰 서브에이전트 2종. 게이트 둘째 단의 **집행**은 2026-09-28 에 들어왔다 — 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 리뷰 커버리지가 Task `done` 을 막는다([4.4 API](api.md) REQ-API-250). 병합(push · CI)은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다.
 >
 > **MVP 범위 표(§3.2·§4.2)는 바꾸지 않았다.** FR-09 는 여전히 MVP 가 아니고 MVP 약속은 그대로이고 **카탈로그만 자랐다** — 2026-08-23 의 18종에서 2026-10-11 현재 **27종**이다(그 사이 범위 확정 여덟 번으로 MVP 도구도 16 → 24 가 됐다 · §4.2). 두 수를 하나로 합치면 "MVP 에서 무엇을 약속했는가"를 다시 셀 수 없게 된다(도구 정의의 `phase` 필드가 그 구분을 나른다).
 >
@@ -436,7 +438,7 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 | 5b | 임포트 실행 위치 | 서버는 임포트 대상 저장소의 체크아웃에 접근할 수 없다는 전제다 — 임포터 CLI는 원본이 있는 장비에서 돌고 서버에는 `import:write` PAT로만 붙는다([4.7 스펙 임포터](importer.md) §3.2 · [4.2 코드베이스와 배포](codebase.md) §1.3) |
 | 6 | 파일럿 구성 | 프로젝트 2개 — 신규 1 + clemvion 미러(읽기 전용) 1. 동시 세션 상한 프로젝트당 3에서 시작(로드맵 §3.5) |
 | 7 | 저위험 자동 통과 | T0 자동 통과 경로를 파일럿 첫날부터 켠다(로드맵 §3.5, D-06) |
-| 8 | 운영 Postgres 위치 | 미확정 — 클러스터 외부 권장 vs CloudNativePG. 백로그 확인 태스크([4.8 백로그](backlog.md)) |
+| 8 | 운영 Postgres 위치 | **클러스터 외부**(2026-08-22 확정 — E06-S05 · [4.2 코드베이스와 배포](codebase.md) §6.0). 재검토 트리거는 관리형을 쓸 수 없는 설치 환경 요구 또는 외부 DB 지연이 L2 실측 임계를 넘을 때다 |
 
 ### 6.2 검증 스파이크 — 확정 결정의 검증 태스크
 
@@ -448,7 +450,7 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 | TipTap md 왕복 검증 | 지원 노드 화이트리스트의 md 직렬화 왕복 | 노드 8종 각각 md→에디터→md 왕복 손실 0 |
 | drizzle 마이그레이션 파이프라인 | `packages/schema` 선언 → drizzle-kit 생성 → compose 기동/k8s Job 적용 | 신규 DB에서 초기 스냅샷 적용·재실행 멱등 |
 | MCP 리비전 병행 서빙 | 2026-07-28 리비전 + 구 리비전(세션 ID 시대) 동시 서빙 | Claude Code·Codex 현행 클라이언트 각각 `nerv_bootstrap` 호출 성공 |
-| 임베딩 제공자·하이브리드 검색 | OpenAI 호환 클라이언트 3프로필 스모크(로컬 TEI CPU p95 · LM Studio · OpenAI `dimensions=1024`) + FTS/trgm/하이브리드(RRF) 한국어 품질 비교([4.8 백로그](backlog.md) E06-S06) | 프로필별 지연·차원 검증 통과, 하이브리드가 렉시컬 단독 대비 품질 우위 확인 |
+| 임베딩 제공자·하이브리드 검색 | OpenAI 호환 클라이언트 3프로필 스모크(로컬 ollama CPU p95 · LM Studio · OpenAI `dimensions=1024`) + FTS/trgm/하이브리드(RRF) 한국어 품질 비교([4.8 백로그](backlog.md) E06-S06) | 프로필별 지연·차원 검증 통과, 하이브리드가 렉시컬 단독 대비 품질 우위 확인 |
 
 ---
 

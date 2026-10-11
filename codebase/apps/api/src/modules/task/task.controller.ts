@@ -42,6 +42,7 @@ export class TaskController {
     @Query('ai') ai?: string,
     @Query('include_archived') includeArchived?: string,
     @Query('archived') archived?: string,
+    @Query('q') q?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ): Promise<unknown> {
@@ -57,6 +58,8 @@ export class TaskController {
       includeArchived: includeArchived === 'true',
       // **보관한 작업**(REQ-API-286) — 어휘는 도메인이 본다(모르는 값은 400)
       archived: archivedParam(archived),
+      // 제목 · 작업 키 부분 일치(2026-10-11 · REQ-API-295) — 빈 값은 거르지 않는 것이다
+      ...(q === undefined ? {} : { q }),
       ...(limit === undefined ? {} : { limit: Number(limit) }),
       ...(cursor === undefined ? {} : { cursor }),
     });

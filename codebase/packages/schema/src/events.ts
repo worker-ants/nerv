@@ -85,6 +85,12 @@ export const NERV_EVENT = {
    */
   APPROVAL_DECIDED: 'approval.decided',
   /**
+   * ★ 아직 결정되지 않은 결재를 다시 알린다(2026-10-11 · api.md REQ-API-296 · spec-workflow §2.6). 워커가 요청 뒤
+   * 4시간(1회째 · 앱 안)과 1일(2회째 · 앱 안과 메일 요약)에 한 번씩 낸다. payload 의 `level` 이 몇 번째인지다.
+   * 행위자는 없다 — 사람이 한 일이 아니라 시간이 지난 것이다.
+   */
+  APPROVAL_REMINDED: 'approval.reminded',
+  /**
    * ★ EP-QST-03 — 취소(2026-09-05). 사람이 내리거나 **만든 세션이 스스로** 거둔다.
    * 답변과 다른 이벤트인 이유는 수신함이 이 둘을 다르게 세기 때문이다:
    * 답변은 처리된 것이고 취소는 처리할 필요가 없어진 것이다.

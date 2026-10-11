@@ -85,7 +85,8 @@ export const GateBypassInput = z
     reason: z.string().min(1),
     /**
      * **면제할 리뷰 종류**(2026-10-09 · REQ-API-274). 주면 `subject_id` 는 이 프로젝트의 작업(키 또는 UUID)이고, done
-     * 게이트가 그 종류만 요구에서 뺀다. 주지 않으면 예전처럼 범위 없는 면제다
+     * 게이트가 그 종류만 요구에서 뺀다. 주지 않으면 범위 없는 면제다 — admin만 리뷰 커버리지 전부를 넘기고, planner ·
+     * developer는 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다(2026-10-11 · REQ-API-293)
      */
     kinds: z.array(z.string().min(1)).min(1).optional(),
   })

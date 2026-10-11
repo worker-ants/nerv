@@ -154,6 +154,9 @@ function ReviewCenter(): React.JSX.Element {
   // 화면만 `review:resolve` 로 잠가서, developer 는 권한이 있는데 누를 수 없었다 —
   // 지적을 받은 사람이 그것을 자기 백로그로 넘기지 못하던 자리다(2026-09-05 감사).
   const canPromote = scopesForRoles(roles).has('task:update');
+  // **코멘트는 참여이고 처분은 권한이다**(2026-10-11 · REQ-WEB-307 · 서버 REQ-API-294). 처분과 같은 축으로 잠그면
+  // developer · designer 가 자기 코드에 달린 발견에 답하지 못한다 — viewer 만 빼고 남긴다
+  const canComment = scopesForRoles(roles).has('review:submit');
   // **레일은 넓은 화면의 향상이지 유일한 경로가 아니다**(2026-09-10 — 사람 보고 · REQ-WEB-161).
   // 곁레일은 `xl`(1280px) 부터만 서는데, 그 아래에서는 발견을 눌러도 **카드 배경만** 옅게
   // 바뀌고 레일이 펴는 것(갈래·심볼·전체 경로·코멘트·Task 승격)에 닿을 길이 아예 없었다 —
@@ -459,6 +462,7 @@ function ReviewCenter(): React.JSX.Element {
                         projectSlug={proj}
                         projectId={id}
                         canResolve={canResolve}
+                        canComment={canComment}
                         canPromote={canPromote}
                         {...railResolve(finding)}
                       />
@@ -509,6 +513,7 @@ function ReviewCenter(): React.JSX.Element {
                 projectSlug={proj}
                 projectId={id}
                 canResolve={canResolve}
+                canComment={canComment}
                 canPromote={canPromote}
                 {...railResolve(selected)}
               />

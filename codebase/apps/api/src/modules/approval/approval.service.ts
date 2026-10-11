@@ -12,8 +12,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   APPROVAL_INBOX_STATES,
+  APPROVAL_REMINDER_STEPS,
+  APPROVAL_REMINDER_WINDOW_SECONDS,
   approvalDecision,
   bodyChange,
+  canBypassUnscoped,
   canDirectApprove,
   canWaiveReviewKind,
   CODE_EVIDENCE_KINDS,
@@ -26,6 +29,7 @@ import {
   reviewKind,
   scopesForRoles,
   SELF_APPROVAL_ROLES,
+  waivableReviewKinds,
 } from '@nerv/schema';
 import type { Message, NervErrorCode } from '@nerv/schema';
 import { createHash } from 'node:crypto';
@@ -54,7 +58,7 @@ import {
 } from '../../common/cursor.js';
 import { entityRef } from '../../common/entity-ref.js';
 import { assertVocab } from '../../common/query-vocab.js';
-import { sqlArray } from '../../common/sql-array.js';
+import { sqlArray, sqlSeconds } from '../../common/sql-array.js';
 import type { NervDb } from '../../common/database.module.js';
 import { memberOfProjectSql, scopeFilterSql } from '../../common/member-scope.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
@@ -1710,23 +1714,38 @@ export class ApprovalService {
     actor: Actor;
     /**
      * **면제할 리뷰 종류**(2026-10-09 · REQ-API-274). 주면 `subjectId` 는 이 프로젝트의 작업(키 또는 UUID)이고,
-     * 그 작업의 done 게이트가 이 종류만 요구에서 뺀다. 주지 않으면 예전 그대로 범위 없는 면제다.
+     * 그 작업의 done 게이트가 이 종류만 요구에서 뺀다. 주지 않으면 범위 없는 면제다 — admin 이 아니면 역할이 면제할 수
+     * 있는 종류 전부로 풀어 읽는다(2026-10-11 · REQ-API-293).
      */
     kinds?: readonly string[] | undefined;
     /** 면제한 사람의 이 프로젝트 역할 — 종류마다 면제할 수 있는 역할이 다르다(spec-workflow §1.6) */
     roles?: readonly string[] | undefined;
-  }): Promise<{ approval_id: string; task_key?: string; kinds?: string[] }> {
+  }): Promise<{ approval_id: string; task_key?: string; kinds?: string[]; expanded?: true }> {
     assertHuman(input.actor, 'bypass');
     if (input.reason.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
         kind: 'bypass_reason_required',
       });
     }
+    const roles = input.roles ?? [];
+    // **범위 없는 면제는 admin 만 낸다**(2026-10-11 · REQ-API-293 · 사람 결정). planner · developer 가 종류를 고르지
+    // 않으면 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다 — 범위 없는 면제가 권한표(spec-workflow §1.6)의
+    // "스펙 계열만 · 코드 계열만" 을 넘지 않게 한다. 기록(`bypass_kinds` · 이벤트)에는 풀어 읽은 종류가 남는다
+    const expanded = input.kinds === undefined && !canBypassUnscoped(roles);
     // 어휘의 정본은 `review_kind` 다 — 모르는 종류는 거절이지 무시가 아니다(REQ-API-112)
     const kinds =
-      input.kinds === undefined
-        ? null
-        : [...new Set(assertVocab([...input.kinds], reviewKind.enumValues, 'kinds'))];
+      input.kinds !== undefined
+        ? [...new Set(assertVocab([...input.kinds], reviewKind.enumValues, 'kinds'))]
+        : expanded
+          ? waivableReviewKinds(roles)
+          : null;
+    if (kinds !== null && kinds.length === 0) {
+      // 면제할 수 있는 종류가 하나도 없는 역할이다 — 범위 없는 면제는 admin 의 것이라 넘길 것이 없다
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.bypass_unscoped_forbidden'), {
+        kind: 'bypass_unscoped_forbidden',
+        roles,
+      });
+    }
     return this.events.transact(async (tx, emit) => {
       let subjectId = input.subjectId;
       let taskKey: string | null = null;
@@ -1760,12 +1779,12 @@ export class ApprovalService {
         taskKey = task.key;
         // **역할마다 면제할 수 있는 종류가 다르다**(spec-workflow §1.6 권한표) — 코드 계열은 developer · admin,
         // 스펙 계열은 planner · admin. 하나라도 못 하면 아무것도 기록하지 않는다
-        const forbidden = kinds.filter((kind) => !canWaiveReviewKind(input.roles ?? [], kind));
+        const forbidden = kinds.filter((kind) => !canWaiveReviewKind(roles, kind));
         if (forbidden.length > 0) {
           throw new NervError(
             NERV_ERROR.FORBIDDEN,
             msg('error.approval.bypass_kind_forbidden', { kinds: forbidden.join(' · ') }),
-            { kind: 'bypass_kind_forbidden', kinds: forbidden, roles: input.roles ?? [] },
+            { kind: 'bypass_kind_forbidden', kinds: forbidden, roles },
           );
         }
         // **코드를 낸 작업의 코드 리뷰는 면제하지 않는다** — 면제의 전제는 "코드 산출물이 없다" 이다
@@ -1810,11 +1829,86 @@ export class ApprovalService {
         payload: {
           reason: input.reason,
           ...(kinds === null ? {} : { kinds, task_id: subjectId, task_key: taskKey }),
+          // 종류를 고르지 않았는데 역할로 풀어 읽은 면제 — 감사가 "범위 없이 냈다" 는 사실을 잃지 않게 한다
+          ...(expanded ? { expanded: true } : {}),
         },
       });
       return kinds === null
         ? { approval_id: approvalId }
-        : { approval_id: approvalId, task_key: taskKey ?? '', kinds };
+        : {
+            approval_id: approvalId,
+            task_key: taskKey ?? '',
+            kinds,
+            ...(expanded ? { expanded: true as const } : {}),
+          };
+    });
+  }
+
+  /**
+   * **결재 리마인더**(2026-10-11 · REQ-API-296 · spec-workflow §2.6 SLA 표). 워커가 하트비트 간격으로 부른다.
+   *
+   * 아직 결정되지 않은 결재를 요청 뒤 4시간에 한 번(1회째 · 앱 안), 1일에 한 번(2회째 · 앱 안과 메일 요약) 다시
+   * 알린다. 단계마다 **한 번만** 낸다 — 이미 낸 단계는 `approval.reminded` 이벤트가 기억한다(새 열을 두지 않는다:
+   * 이벤트 로그가 정본이고, 워커는 advisory lock 아래 하나만 돈다). 워커가 멈춰 있다가 1일을 넘겨 처음 보면
+   * 2회째만 낸다 — 지난 1회째를 뒤늦게 내지 않는다.
+   *
+   * 대기의 조건은 받은 요청과 같다(보관한 프로젝트 · 거절로 draft 가 된 문서의 남은 자리 · 보관한 작업의 계획 승인은
+   * 대기가 아니다). 요청 뒤 7일이 지난 결재는 다시 알리지 않는다(SLA 의 만료 자리 · 만료 처리는 따로 정한다).
+   * "대체 승인자 후보 표시"는 후보를 고르는 규칙이 없어 하지 않는다. 받는 사람은 알림 라우팅이 정한다.
+   */
+  async remindDue(): Promise<{ reminded: number }> {
+    // 높은 단계부터 — 지금 닿은 가장 높은 단계 하나만 낸다
+    const steps = [...APPROVAL_REMINDER_STEPS].sort((a, b) => b.afterSeconds - a.afterSeconds);
+    const first = Math.min(...APPROVAL_REMINDER_STEPS.map((s) => s.afterSeconds));
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{
+        id: string;
+        project_id: string;
+        requested_by_user_id: string;
+        subject_type: string;
+        subject_id: string;
+        age: number;
+        reminded: number;
+      }>(sql`
+        SELECT a.id, a.project_id, a.requested_by_user_id, a.subject_type::text AS subject_type,
+               a.subject_id, extract(epoch FROM now() - a.requested_at)::int AS age,
+               COALESCE((SELECT max((e.payload->>'level')::int) FROM event e
+                          WHERE e.subject_type = 'approval' AND e.subject_id = a.id
+                            AND e.type = ${NERV_EVENT.APPROVAL_REMINDED}), 0) AS reminded
+          FROM approval a
+          JOIN project p ON p.id = a.project_id
+     LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+     LEFT JOIN task plan_task ON plan_task.id = a.subject_id AND a.subject_type = 'plan'
+         WHERE a.decision IS NULL AND NOT a.is_bypass
+           AND a.requested_at <= now() - ${sqlSeconds(first)}
+           AND a.requested_at > now() - ${sqlSeconds(APPROVAL_REMINDER_WINDOW_SECONDS)}
+           AND p.archived_at IS NULL
+           AND (sv.id IS NULL OR sv.status = 'in_review')
+           AND NOT (a.subject_type = 'plan' AND plan_task.archived_at IS NOT NULL)
+         ORDER BY a.requested_at
+      `);
+      let reminded = 0;
+      for (const row of rows) {
+        const step = steps.find((s) => row.age >= s.afterSeconds);
+        if (step === undefined || step.level <= row.reminded) continue;
+        await emit({
+          type: NERV_EVENT.APPROVAL_REMINDED,
+          projectId: row.project_id,
+          subjectType: 'approval',
+          subjectId: row.id,
+          // 사람이 한 일이 아니다 — 시간이 지난 것이다. 받는 사람에서 뺄 요청자는 payload 가 든다
+          actorUserId: null,
+          isAgent: false,
+          payload: {
+            level: step.level,
+            requested_by_user_id: row.requested_by_user_id,
+            approval_subject_type: row.subject_type,
+            approval_subject_id: row.subject_id,
+          },
+        });
+        reminded += 1;
+      }
+      return { reminded };
     });
   }
 

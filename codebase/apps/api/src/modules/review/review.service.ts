@@ -776,6 +776,8 @@ export class ReviewService {
     findingId: string;
     userId: string;
     sessionId?: string | null;
+    /** 주체가 에이전트 토큰인가 — 없으면 세션 id 로 판정한다 */
+    isAgent?: boolean;
     bodyMd: string;
   }): Promise<Record<string, unknown>> {
     if (input.bodyMd.trim() === '') {
@@ -806,7 +808,7 @@ export class ReviewService {
         subjectId: input.findingId,
         actorUserId: input.userId,
         actorSessionId: input.sessionId ?? null,
-        isAgent: input.sessionId != null,
+        isAgent: input.isAgent ?? input.sessionId != null,
       });
       return { comment_id: id, finding_id: input.findingId };
     });

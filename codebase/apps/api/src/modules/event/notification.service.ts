@@ -60,6 +60,9 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.SPEC_COMMENT_ADDED]: 'standard',
   [NERV_EVENT.SPEC_RECHECK_REQUESTED]: 'standard',
   [NERV_EVENT.TASK_READY]: 'standard',
+  // 결재 리마인더(2026-10-11 · REQ-API-296) — 결재 요청 자체가 이미 중요 알림이다. 리마인더까지 중요로 세면 같은 결재가
+  // 배지를 두 번 올린다. 같은 결재의 리마인더는 한 줄로 묶는다(spec-workflow §2.6 "같은 승인 건은 1건으로")
+  [NERV_EVENT.APPROVAL_REMINDED]: 'standard',
   // 부른 사람만 받는다 — 결정을 기다리는 일은 아니라 배지를 올리지 않는다(REQ-API-178)
   [NERV_EVENT.INVITATION_DECLINED]: 'standard',
   [NERV_EVENT.SESSION_STARTED]: 'low',
@@ -94,11 +97,22 @@ export function batchKeyOf(event: {
       return `finding:${event.subject_id}:comments`;
     case NERV_EVENT.TASK_READY:
       return `project:${event.project_id}:ready`;
+    case NERV_EVENT.APPROVAL_REMINDED:
+      return `approval:${event.subject_id}:reminder`;
     case NERV_EVENT.INVITATION_DECLINED:
       return `invitation:${event.subject_id}`;
     default:
       return null;
   }
+}
+
+/**
+ * 이 알림을 **메일 요약에도** 넣는가(2026-10-11 · REQ-API-296). 기본은 넣는다. 결재 리마인더의 1회째(T+4h)만 앱 안에
+ * 머문다 — SLA 표가 메일을 2회째(T+1d)부터 쓰라고 적었다(spec-workflow §2.6).
+ */
+function mailsNow(event: { type: string; payload?: Record<string, unknown> | null }): boolean {
+  if (event.type !== NERV_EVENT.APPROVAL_REMINDED) return true;
+  return Number(event.payload?.['level'] ?? 0) >= 2;
 }
 
 /** 한 실행이 넘기는 페이지 상한 — 밀린 이력이 길어도 한 틱이 무한히 돌지 않게 한다 */
@@ -188,7 +202,9 @@ export class NotificationService {
             const added =
               batchKey === null
                 ? await this.insertOne(event, userId, importance, read)
-                : await this.addToBatch(event, userId, importance, read, batchKey);
+                : await this.addToBatch(event, userId, importance, read, batchKey, {
+                    mailed: !mailsNow(event),
+                  });
             if (!added) continue;
             if (!read) loud.push(userId);
             created += 1;
@@ -258,8 +274,15 @@ export class NotificationService {
     importance: 'immediate' | 'digest',
     read: boolean,
     batchKey: string,
+    /**
+     * **메일 요약에 넣지 않는다**(2026-10-11 · REQ-API-296). 결재 리마인더의 1회째(T+4h)는 앱 안에만 알린다 — 그 줄을
+     * 이미 보낸 것으로 표시해(`delivered_at`) 요약이 건너뛰게 한다. 2회째가 같은 줄에 더해지면 `last_at` 이 그보다
+     * 뒤라 다음 요약에 든다.
+     */
+    options: { mailed?: boolean } = {},
   ): Promise<boolean> {
     const state = read ? 'read' : 'unread';
+    const delivered = options.mailed === true ? sql`now()` : sql`NULL`;
     try {
       await this.db.transaction(async (tx) => {
         await tx.execute(sql`
@@ -269,11 +292,11 @@ export class NotificationService {
         `);
         const { rows } = await tx.execute<{ id: string }>(sql`
           INSERT INTO notification (id, project_id, user_id, event_id, importance, channel, state,
-                                    read_at, batch_key, batch_size, last_at, batch_open)
+                                    read_at, batch_key, batch_size, last_at, batch_open, delivered_at)
           VALUES (${newId()}, ${event.project_id}, ${userId}, ${event.id},
                   ${importance}::notification_importance,
                   'inapp', ${state}::notification_state, ${read ? sql`now()` : sql`NULL`},
-                  ${batchKey}, 1, now(), true)
+                  ${batchKey}, 1, now(), true, ${delivered})
           ON CONFLICT (user_id, batch_key) WHERE batch_open DO UPDATE
              SET batch_size = notification.batch_size + 1,
                  last_at = now(),
@@ -345,6 +368,16 @@ export class NotificationService {
     subject_id: string;
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
+    if (event.type === NERV_EVENT.APPROVAL_REMINDED) {
+      // **리마인더는 그 결재 요청을 받는 사람에게 간다**(2026-10-11 · REQ-API-296) — 라우팅은 요청과 한 벌이고, 뺄
+      // 사람은 리마인더의 행위자(없다)가 아니라 그 결재를 요청한 사람이다
+      const requester = event.payload?.['requested_by_user_id'];
+      const asRequest = {
+        ...event,
+        actor_user_id: typeof requester === 'string' ? requester : null,
+      };
+      return (await this.approvalTargets(asRequest)) ?? this.roleQueue(asRequest);
+    }
     if (event.type === NERV_EVENT.APPROVAL_REQUESTED) {
       const targeted = await this.approvalTargets(event);
       // 지정이 없는 승인 요청만 역할 큐로 내려간다

@@ -21,7 +21,17 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.30 · 2026-10-11 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.35 · 2026-10-11 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.35 변경(2026-10-11 — 구현 현황 영역별 분해): **REQ-WEB-309 신설 · §2.3 구현 현황 카드 행.** 카드의 여섯 칸 아래에 영역마다 막대 하나와 구현 · 검증 수를 보인다. 경고 셋은 0이 아닐 때만 적는다([4.4 API 명세](api.md) REQ-API-297).
+>
+> v2.34 변경(2026-10-11 — 결재 리마인더): **§1.4 이벤트 표 한 줄.** ★`approval.reminded`는 받은 요청을 바꾸지 않는다 — 프로젝트 피드만 되읽고, 받는 사람의 종은 `notification.created`가 되읽는다([4.4 API 명세](api.md) REQ-API-296).
+>
+> v2.33 변경(2026-10-11 — 작업 보드 제목 검색): **REQ-WEB-308 신설 · §2.5 필터 항목.** 보드 위 필터 줄의 맨 앞에 제목 · 작업 키 검색 칸을 둔다. Enter로 걸고 주소(`?q=`)에 남는다. [필터 지우기]가 함께 푼다([4.4 API 명세](api.md) REQ-API-295). 곁들여 [필터 지우기] 옆에 코드 주석이 글자로 보이던 것을 고쳤다.
+>
+> v2.32 변경(2026-10-11 — 열린 결정 둘, **사람 결정**): **REQ-WEB-307 신설 · §1.2 S6 행 · §1.5 D9 단락.** ① 리뷰 센터의 발견 코멘트는 `review:submit`을 가진 모든 역할(viewer 제외)이 남긴다 — 처분과 다른 축이다([4.4 API](api.md) REQ-API-294). ② 주소에 조직을 넣는 안(D9)은 보류를 유지한다. 재검토 트리거가 점화되면 경로에 넣는 안보다 화면 링크에 `?org=` 한정자를 붙이는 안을 먼저 검토한다.
+>
+> v2.31 변경(2026-10-11 — 문서끼리 어긋난 곳 정리): **새 요구사항 없음 · §1.9 ④ 다시 대조 · 오류 코드 표 두 줄 · §2.5 두 자리 · §2.6a 게이트 현황 · 초대 메일 세 자리.** "기능째 없다" 열다섯 가운데 열셋은 다른 이름으로 들어왔거나(`ImplStatusCard` → 개요의 구현 현황 등) 필요 없어졌다(`EditLeaseBadge` — 웹은 본문을 쓰지 않는다). 남은 것은 `FailOpenBanner` · `SlaBadge` 둘이다. 리뷰 커버리지는 정책으로 켜면 `done` 을 막고(REQ-API-250), 초대 메일은 2026-09-22 부터 자동으로 나간다.
 >
 > v2.30 변경(2026-10-11 — 토큰의 이름과 권한을 고친다, **사람 결정**): **REQ-WEB-306 신설 · §2.8 토큰 항목 하나 · 데이터 소스 한 칸 · §1.4 이벤트 한 줄 · REQ-WEB-207 문구.** 내 토큰 표의 [편집]이 그 줄 아래에 이름 칸과 권한 칸을 펼친다. 권한 칸은 발급 폼과 같은 부품이고 기준은 그 토큰의 프로젝트에서 내 역할이다. 주인만 고치므로 조직 전체 표에는 [편집]이 없다([4.4 API 명세](api.md) REQ-API-292). 곁들여 권장 묶음이 덮는 스킬을 다섯에서 여섯(mirror 포함)으로 고쳤다.
 >
@@ -497,7 +507,7 @@ referenced_by:
 | `/p/:proj/sessions` | S5 세션 모니터 | 멤버십 | 쿼리: `?state=<상태>` `?s=<세션 id>`(레일에 편 세션 · REQ-WEB-212) |
 | `/p/:proj/sessions/:session` | 세션 상세(Activity 타임라인) | 멤버십 | |
 | `/p/:proj/coverage` | 커버리지 드릴다운 | — | **Phase 2** — 라우트만 예약(로드맵 §3 비범위) |
-| `/p/:proj/reviews` | S6 리뷰 센터 | 멤버십 | **Phase 2** — 2026-08-23 구현(§2.6a). 처분은 `review:resolve` 보유 역할. 쿼리: `?severity=` `?status=`(없으면 `open` · `all` 은 거르지 않음) `?area=` `?tag=`(쉼표 목록) `?branch=` `?finding=`(REQ-WEB-209·212) |
+| `/p/:proj/reviews` | S6 리뷰 센터 | 멤버십 | **Phase 2** — 2026-08-23 구현(§2.6a). 처분은 `review:resolve` 보유 역할, 발견 코멘트는 `review:submit` 보유 역할(viewer 제외 · 2026-10-11 · REQ-WEB-307). 쿼리: `?severity=` `?status=`(없으면 `open` · `all` 은 거르지 않음) `?area=` `?tag=`(쉼표 목록) `?branch=` `?finding=`(REQ-WEB-209·212) |
 | `/p/:proj/crs/:cr` | CR 델타 | — | **Phase 2** — 라우트만 예약(FR-04) |
 
 ```text
@@ -642,6 +652,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`claim.released` | `['project', projId, 'tasks']` · `['project', projId, 'sessions']` | `project:{id}` |
 | `session.started` `session.stale` `session.complete` · ★`session.steered` | `['project', projId, 'sessions']` · `['session', sessionId]` | `project:{id}` |
 | `approval.requested` `question.created` | `['inbox']` + 헤더 배지 · `question.created` 는 `['project', projId, 'sessions']` 도(질문이 세션을 응답 대기로 세운다 — 2026-09-25) | `user:{id}` + `project:{id}` |
+| ★`approval.reminded` | `['project', projId, 'events']` — 받은 요청의 카드는 그대로다. 받는 사람의 종은 개인 룸의 `notification.created`가 되읽는다(2026-10-11 · [4.4 API 명세](api.md) REQ-API-296) | `project:{id}` |
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` | `['project', projId, 'events']` + 게이트 배너/카운터 | `project:{id}`(bypassed는 admin `user:{id}`에도) |
@@ -739,10 +750,10 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | --- | --- |
 | `NERV_UNAUTHENTICATED` | `/login`으로 리다이렉트(원래 경로 보존) |
 | `NERV_FORBIDDEN` | 버튼 비활성 + 사유 툴팁(숨기지 않는다 — ui-wireframes §1.5) |
-| `NERV_PRECONDITION` | `base_hash` 불일치 409(본문 지문 — 2026-08-30 개정) — S3 저장 충돌 다이얼로그(§3.4) |
+| `NERV_PRECONDITION` | 사유(`details.kind`)를 사람 말로 보인다. `base_hash` 불일치 409 는 웹이 받지 않는다 — 웹은 본문을 쓰지 않는다(2026-09-22 · REQ-WEB-173). 에이전트가 받고 [4.6 플러그인](plugin.md) 스킬의 에러 표가 대응한다 |
 | `NERV_CONFLICT_SCOPE` | 클레임 겹침 모달 — 상대 세션의 사용자·hostname·scope 표시 |
 | `NERV_LEASE_EXPIRED` | 리스 만료 배너 + 재클레임 안내 |
-| `NERV_DRAFT_LEASED` | S3 읽기 전용 전환 + 보유자 배지 + [인계 요청] 버튼(§3.4) |
+| `NERV_DRAFT_LEASED` | 웹은 받지 않는다(본문을 쓰지 않는다 · 2026-09-22). 편집 리스는 에이전트 세션끼리의 일이다 |
 | `NERV_APPROVAL_REQUIRED` | "승인 대기 항목이 생성됨" 안내 + 받은 요청 딥링크 |
 | `NERV_HUMAN_ONLY` | (에이전트 전용 코드 — 웹에서는 도달하지 않음. 도달 시 일반 에러 카드) |
 | `NERV_RATE_LIMIT` | 재시도 대기 안내(Retry-After 존중) |
@@ -762,7 +773,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
 **다른 조직의 것은 조직을 바꿔 연다.** 조직은 주소가 아니라 기억(§1.8)에 있고 서버는 지금 조직 안에서만 찾는다. 그래서 받은 요청·알림처럼 **조직을 가로지르는 목록**(REQ-WEB-192)의 링크와 붙여넣은 다른 조직 프로젝트의 주소는 "없다" 에 막혔다 — 목록은 다른 조직의 일을 보여 주면서 그리로 가는 길은 막았다. 이제 그런 링크는 조직 전환(`/o/:org?next=`)을 거친다: 전환이 기억을 바꾸고 캐시를 비우고 "○○(으)로 전환했습니다" 라고 말한 뒤 **주소 그대로**(알림이 짚은 `?rail=comments` 같은 뷰 상태까지) 착지한다. 지금 조직에 없는 프로젝트의 주소는 그 프로젝트를 가진 조직이 내 멤버십에서 하나로 정해지면 그리로 옮기고, 아니면 후보를 고르게 한다 — 조용히 옮기지 않는다(전환이 말한다).
 
-**주소에 조직을 싣지 않는다 — 보류**(2026-09-25 — 사람 결정 D9 · UI/UX 검토 NAV-01). 조직을 주소에 싣는 안(`/o/:org/p/:proj`)은 모든 링크의 모양과 훅·MCP 가 돌려주는 딥링크([3.6 화면 설계](../03-proposal/ui-wireframes.md) §1.4)까지 바꾸는 일이라, 위의 전환 링크와 조직 찾기로 먼저 막는다. **재검토 트리거**: 붙여넣은 다른 조직의 주소가 조직 찾기로도 열리지 않는다는 보고가 거듭되면 — 그때 점화 기록을 남기고 다시 연다.
+**주소에 조직을 넣지 않는다 — 보류**(2026-09-25 — 사람 결정 D9 · UI/UX 검토 NAV-01). 조직을 주소에 넣는 안(`/o/:org/p/:proj`)은 모든 링크의 모양과 훅·MCP 가 돌려주는 딥링크([3.6 화면 설계](../03-proposal/ui-wireframes.md) §1.4)까지 바꾸는 일이라, 위의 전환 링크와 조직 찾기로 먼저 막는다. **재검토 트리거**: 붙여넣은 다른 조직의 주소가 조직 찾기로도 열리지 않는다는 보고가 거듭되면 — 그때 점화 기록을 남기고 다시 연다. **2026-10-11 사람이 보류 유지를 확인했다**(트리거는 점화되지 않았다). 점화되면 경로에 넣는 안보다 **화면이 만드는 링크에 `?org=` 한정자를 붙이는 안을 먼저 검토한다** — 서버가 이미 같은 한정자를 알아([4.4 API](api.md) REQ-API-152) 바꿀 자리가 화면의 링크뿐이다. 경로에 넣는 안은 모든 링크 · 딥링크 · 매뉴얼 · 스킬 안내를 바꾸고 옛 주소의 리다이렉트를 계속 지켜야 한다.
 
 **되돌리기 어려운 조작은 한 모양으로 묻는다**(2026-09-24 — UI/UX 검토 · REQ-WEB-200). 확인이 네 모양이었다 — 같은 자리에서 문장과 단추로 바뀌는 것(조직 삭제), `role="dialog"` 를 단 인라인 카드(세션 중단), 떠 있는 모달, 그리고 **확인 없음**. 되돌릴 수 없는 토큰 폐기가 한 번 클릭이었고, 사람은 어느 단추가 다시 묻는지 예측할 수 없었다 — 한 번 "묻지 않는 단추" 를 겪으면 모든 단추를 망설이며 누른다. 모양은 조직 삭제가 쓰던 **같은 자리 두 단계** 하나다(`components/ui/confirm-action.tsx`): 누른 자리에 무엇이 일어나는지(되돌릴 수 없는가 · 누구에게 미치는가)와 [실행]·[취소]가 서고, 포커스는 [취소]에(Enter 를 연달아 눌러 실행되지 않게), Esc 는 그 확인만 닫고 누른 단추로 포커스를 돌린다 — 창 안에서도 창까지 닫지 않는다. 사유가 필요한 조작은 같은 자리에 **자기 칸**을 연다. 켜 둔 채 떠난 확인은 잠시 뒤 거둔다(나중에 그 자리를 눌러 실행되지 않게). 되돌리기 쉬운 조작(역할 켜기 · 복구)은 묻지 않는다 — 모든 것을 물으면 확인은 읽히지 않는다.
 
@@ -919,7 +930,9 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
 **③ 컴포넌트가 아니라 zod 스키마 이름이다** — 정본은 `@nerv/schema` 이고 [4.4 API 명세](api.md) §1.7 이 규약이다: `SpecCreateInput` · `SpecDraftUpsertInput` · `TokenCreateInput` · `CommentCreateInput`. ※ `LoginInput` 은 **어디에도 없다** — §2.1 이 "react-hook-form + zod(`LoginInput`: password min 8)" 이라 적지만 로그인 화면은 평범한 `useState` 다.
 
-**④ 기능째 없다**(○ 미구현 — 2026-09-06 실측): `FailOpenBanner` · `ScopeChips`(§2.6) · `ImplStatusCard`(§2.3) · `VersionPicker` · `DiffToggle` · `EditLeaseBadge` · `CommentThread`(§2.4 — 기능은 라우트 안에 인라인) · `ImpactPreview` · `ArchiveConfirmDialog`(2026-09-24 — 공용 확인으로 들어왔다 · REQ-WEB-200) · `BlockedLane` · `InboxFilterRail` · `ProcessedTrail` · `SlaBadge` · `StatusPanel` · `SubmitReviewButton`.
+**④ 기능째 없다**(2026-10-11 다시 대조): `FailOpenBanner`(fail-open 카운터 — Phase 2) · `SlaBadge`(결재 SLA — 이월 · [4.4 API](api.md) §2.6).
+
+**④-0 다른 이름으로 들어왔다**(2026-10-11 다시 대조 — 2026-09-06 실측에는 열다섯이 "기능째 없다" 였다): `ScopeChips`(§2.6) → `features/session-monitor/session-card.tsx` 의 클레임 범위 · `ImplStatusCard`(§2.3) → 개요의 구현 현황(`routes/p.$proj/index.tsx` · REQ-WEB-241) · `VersionPicker` · `DiffToggle` → 레일의 버전 탭과 `features/spec-editor/version-diff.tsx` · `CommentThread` → 라우트 안 인라인과 `comment-list.tsx` · `ImpactPreview` → 영향 확인 창(`impact-preview`) · `ArchiveConfirmDialog` → 공용 확인(REQ-WEB-200) · `BlockedLane` → 보드의 `blocked` 레인(`board.tsx`) · `InboxFilterRail` → `features/inbox/scope-rail.tsx` · `ProcessedTrail` → 받은 요청의 결정한 것 보기(`?state=decided`) · `StatusPanel` · `SubmitReviewButton` → 다음 할 일 줄(`next-step.tsx` · REQ-WEB-214). `EditLeaseBadge` 는 **필요 없어졌다** — 웹은 본문을 쓰지 않는다(2026-09-22 · REQ-WEB-173). 편집 리스는 에이전트 세션끼리의 일이다.
 
 **④-1 2026-09-06 에 들어온 것**: `SourceViewToggle`·`SourceView`(`features/spec-editor/source-view.tsx`) · `RequirementPanel`·`DerivedTaskPanel`(`requirement-panel.tsx`) · `TerminalHandoffCard`(`terminal-handoff.tsx`) — 넷 다 §2.4 가 이름까지 적어 두고 저장소에는 없던 것들이다.
 
@@ -988,7 +1001,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 ```
 
 1. **조직 생성**(`OrgCreateForm`) — EP-ORG-03(2026-09-24 정정 — better-auth organization 플러그인 경로가 아니다: 조직은 도메인 테이블이 소유한다). 첫 프로젝트를 같이 만든다.
-2. **초대 수락**(`InviteAcceptCard`) — 조직 생성과 배타적 분기. MVP 초대는 기존 사용자 배정이다(메일 발송은 Phase 2 — [api.md](api.md) §2.1).
+2. **초대 수락**(`InviteAcceptCard`) — 조직 생성과 배타적 분기. 초대 메일은 2026-09-22 부터 자동으로 나간다([api.md](api.md) EP-INV-01 `queued`). 메일이 꺼졌거나 막힌 배치에서는 admin 이 링크를 전한다.
 3. **역할 확인** — `membership.roles`(복수 — 겸직이 있으므로 합집합이다, §1.8) 6종 기준으로 이 역할이 받게 될 게이트·카드를 한 줄로 설명한다.
 4. **다음 행동** — 역할별 첫 화면 규칙(ui-wireframes §1.5, qa는 MVP에서 작업 보드로)대로 착지 링크. 에이전트 연결(PAT 발급→플러그인 설치)은 [plugin.md](plugin.md) §4로 링크만 둔다.
 
@@ -1067,7 +1080,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 **설정 → 멤버 탭의 초대 구역**(범위의 admin — 조직 전체는 조직 admin 만 · REQ-API-169): 조직(보이기만) · 이메일 · 역할 · 적용 범위(조직 전체 / 그 조직의 프로젝트 전부 — 2026-09-24 · REQ-WEB-191) → 링크와 요약. 그 아래 보낸 초대 목록(대기·수락·회수·만료)과 회수 버튼.
 
 - **링크는 만들 때 한 번만 보인다.** 서버는 해시만 갖고 있어 다시 보여 줄 수 없다(PAT 와 같은 규율) — 그 사실을 화면이 먼저 말하고 복사 버튼을 붙인다.
-- 메일 발송은 Phase 2 다. MVP 는 **admin 이 링크를 직접 전달한다** — 없는 기능을 있는 것처럼 그리지 않는다.
+- **초대 메일은 자동으로 나간다**(2026-09-22). 응답의 `queued` 가 메일을 줄 세웠는지를 말하고, 화면은 "보냈습니다" 와 "링크를 전달하세요" 를 그 값으로 나눠 말한다 — 메일이 꺼진 배치에서도 링크 한 길은 남는다. 이 줄이 오래 "메일 발송은 Phase 2" 라 적었다.
 
 **`/invite/:token`** — 셸 밖이고 **공개**다(아직 이 조직의 멤버가 아니라 헤더의 두 select 가 가리킬 것이 없고, 모르는 것에 가입부터 하라고 요구할 수도 없다). 한 장이 셋을 처리한다:
 
@@ -1116,7 +1129,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
 | 스펙 트리 + 상태 배지 | EP-SPEC-01 `GET /api/v1/projects/{proj}/specs/tree` | 노드: id·title·type(6종)·현재 버전 문서 상태 — `nerv_spec_tree`와 같은 서비스(D-05) |
-| 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 여섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다 · 2026-09-26 여섯째): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`** · **`reverify_required`**(다시 검증 필요 — REQ-WEB-241). 영역별 분해는 아직 없다. Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
+| 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 여섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다 · 2026-09-26 여섯째): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`** · **`reverify_required`**(다시 검증 필요 — REQ-WEB-241). **영역별 분해**는 그 아래에 `area` 문서마다 한 줄이다(2026-10-11 · REQ-WEB-309). Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
 | 활성 세션 스트립 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (`state=pending,active,awaiting_input` — `ACTIVE_SESSION_STATES`) | 미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)). **머리의 수는 요약(`summary`)의 세 상태 합**이고 응답 대기가 먼저 선다. 도는 것이 없으면 그렇다고 말하고, 세션이 있었던 프로젝트면 세션 화면으로 보낸다(2026-09-25 · REQ-WEB-219) |
 | 기다리는 것 한 줄 | EP-APR-05 `GET /api/v1/projects/{proj}/inbox`(`actionable_total`) · EP-SES-01 요약의 `awaiting_input` · EP-PRJ-03 `open_critical_findings` | 머리 아래 한 줄 — 내 결정 · 응답 대기 세션 · 열린 critical, 수는 링크. 0 인 것은 그리지 않는다(2026-09-25 · REQ-WEB-220) |
 | 최근 활동 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` (커서 페이지네이션 — [더 보기]) | 항목마다 사람 아바타 / 에이전트 **AI** 표식(D-08 · 기계·에이전트 종류는 툴팁) · 대상 키(버전)·제목 링크 · 잇달아 같은 일 ×N(REQ-WEB-210) |
@@ -1668,7 +1681,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 - **아카이브를 상태값으로 만들지 않는다.** 종단 상태가 늘면 "왜 끝났는가"(done 인가 blocked 인가)를 잃고 전이 규칙 표 전체가 바뀐다(D-05 판정 단일 지점). 창은 `done_at` 에서 파생하므로 마이그레이션도 잡도 필요 없다 — 상수 `TASK_DONE_WINDOW_DAYS`.
 - **레인마다 따로 조회한다**(EP-TASK-01 · 커서). 한 목록을 받아 화면에서 가르면 자를 수가 없다: 우선순위 순 30건이 전부 done 이고 ready 가 한 건도 없는 페이지가 나온다. 실측으로 1요청 229 KB → 6요청 1 KB.
 - 한 페이지를 채운 레인은 건수에 **`+`**를 붙인다 — 그냥 `30`이라고 적으면 사람은 그것이 전부라고 읽는다. 받아 둔 카드를 다 펼치면 같은 자리의 단추가 **다음 쪽을 부른다**(2026-09-25 · REQ-WEB-221 — 예전에는 받아 둔 것만 펼쳐 31번째부터 닿을 길이 없었다).
-- 필터는 **보드 위**에 둔다. 레인 머리에 붙이면 어느 레인의 설정인지 헷갈리고 `지난 완료 보기`는 done만 바꾸지만 `백로그 보기`는 레인 자체를 늘린다. **걸린 필터는 보인다**(2026-09-25 · REQ-WEB-221): 스펙·담당 고르개가 걸린 값을 그대로 보이고 하나라도 걸리면 "필터 적용 중"과 [필터 지우기]가 선다. 요약 숫자와 레인은 **같은 조건**으로 센다 — `?assignee=`가 레인에만 실려 두 줄이 다른 말을 했다. "내 담당" 숫자는 `?assignee=<나>`로 간다.
+- 필터는 **보드 위**에 둔다. 레인 머리에 붙이면 어느 레인의 설정인지 헷갈리고 `지난 완료 보기`는 done만 바꾸지만 `백로그 보기`는 레인 자체를 늘린다. **걸린 필터는 보인다**(2026-09-25 · REQ-WEB-221): 스펙·담당 고르개가 걸린 값을 그대로 보이고 하나라도 걸리면 "필터 적용 중"과 [필터 지우기]가 선다. **제목으로 찾는다**(2026-10-11 · REQ-WEB-308): 고르개 앞의 검색 칸이 제목 · 작업 키를 부분 일치로 찾는다. 글자마다 묻지 않고 Enter로 건다 — 칠 때마다 레인 다섯이 다시 불리면 화면이 깜빡인다. 요약 숫자와 레인은 **같은 조건**으로 센다 — `?assignee=`가 레인에만 실려 두 줄이 다른 말을 했다. "내 담당" 숫자는 `?assignee=<나>`로 간다.
 - **`백로그 보기`는 켜고 시작한다**(2026-09-08 — 사람 지시 · REQ-WEB-155). 2026-09-06 까지는 `지난 완료 보기`(그때 이름은 `보관 보기`)와 함께 꺼진 채로 열렸는데 둘이 감추는 것은 성질이 다르다: 보관은 **끝난 일**을, 백로그는 **막 시작된 일**을 감춘다. 생성은 언제나 `backlog`이므로(EP-TASK-03 · FR-05 — 4요소를 다 채워 보내도 승격은 다음 `PATCH`다) 방금 만든 티켓은 기본 화면의 어느 레인에도 없었고 만든 사람이 본 것은 빈 상태도 오류도 아닌 **침묵**이었다. 기본값은 주소에 적지 않고 **끈 상태만** 남긴다(`?backlog=0`).
 - **작업 보관은 따로 본다**(2026-10-10 — 사람 결정 D2 · REQ-WEB-301 · 302 · [4.4 API](api.md) REQ-API-284~286). 진행하지 않기로 한 작업을 정리할 길이 없어 다른 작업으로 대체된 중복이 백로그에 남았다(clemvion). 작업 상세 머리의 **[보관]** 이 사유(중복 · 다른 작업으로 대체 · 더 이상 필요 없음 · 하지 않기로 함)와 대신할 작업 또는 이유 한 줄을 받는다. 보관한 작업은 상태를 그대로 가지고 있어 상태 레인에 섞이면 진행하지 않을 작업이 "진행 중" 칸에 앉는다 — 레인에서 빼고 보드의 **`보관 보기`** 가 끝에 **보관함** 칸 하나를 연다(`?archived_tasks=1` · EP-TASK-01 `archived=only`). 오래 `보관 보기`라 부르던 done 창 토글은 **`지난 완료 보기`** 로 이름을 바꿨다 — 「보관」은 스펙 · 프로젝트와 같은 뜻(진행하지 않기로 치운 것)으로만 쓴다. 상세는 키로 그대로 열리고 보관됨 줄(사유 · 대신할 작업 · 누가 언제)과 **[복원]** 이 다음 행동 단추를 대신한다
 
@@ -1733,7 +1746,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
 > **기준선으로 개발하는 작업은 기준선을 바꾼다**(2026-09-27 사람 결정 · REQ-WEB-252). 근거 카드에 작업의 기준선 이름이 보이고, 위임 명세를 고칠 수 있는 사람(planner·developer·admin)에게는 그 옆에 기준선 선택기가 있다. 다른 기준선을 고르면 기준선과 기준 버전이 함께 옮겨 가고(출처 문서가 새 세트에 없으면 기준 버전은 그대로) 재브리핑 표시가 지워진다. [기준선 풀기]는 기준선을 빼고, 그다음부터는 여느 작업처럼 재브리핑을 받는다. 재브리핑 표시가 남은 기준선 작업에는 [기준 갱신] 대신 "기준선을 바꾸면 이 표시가 지워집니다" 가 보인다 — 기준 버전만 옮기면 대상 문서는 지금 것이고 주변 문서는 옛 세트가 되어, 서버가 그 재브리핑을 거절한다([4.4](api.md) REQ-API-210).
 5. **의존 그래프** — 미해소 의존은 ready 불가 사유로 표기. `FR-05`
-6. **Evidence** — PR·커밋 링크(FR-13). 리뷰 커버리지 표시는 Phase 2.
+6. **Evidence** — PR·커밋 링크(FR-13). 이 작업을 지난 리뷰는 리뷰 카드가 보인다(REQ-WEB-148). 정책이 요구하는 종류마다 통과했는지를 미리 보이는 표시는 아직 없다 — `done` 을 누르면 거절 사유로 보인다.
 
 > **그 링크가 2026-09-10 까지 없었다**(사람 지시 · REQ-WEB-159). 이 줄은 처음부터 "PR·커밋 링크" 라고 적혀 있었는데 화면은 종류와 위치를 **글자로만** 그렸다 — 증적은 "보일 것을 붙였다" 는 약속이고, 그것을 확인하러 갈 길이 없으면 약속이 절반만 지켜진다. **종류가 갈 곳을 정한다**: `pr` 은 locator 자체가 절대 URL 이고(서버가 이미 검증한다 — [4.4](api.md) REQ-API-147), `commit` 은 `{repo_url}/commit/{sha}`, `code_path` 는 `{repo_url}/blob/{default_branch}/{경로}`(`:줄` 꼬리는 앵커로 옮긴다), `review` 는 발견 하나를 가리킬 때 리뷰 센터의 `?finding=` 이다(REQ-WEB-120 이 거기서 받는다). `user_guide` 는 **실재하는 매뉴얼 장일 때만** `/help/<장>` 으로 잇는다(2026-09-10 · REQ-WEB-161 — 장 이름의 정본이 코드에 있으므로 짐작이 아니라 대조다. `/help/tasks` 처럼 경로째 적어 둔 값도 받는다). `test` 는 저장소마다 모양이 달라 **짐작하지 않는다** — 누를 수 없는 링크보다 틀린 곳으로 데려가는 링크가 나쁘다. **새 탭으로 연다**: 이 화면에서 done 전이를 채우는 중이라 같은 탭에서 나가면 폼(스펙 영향·증적)이 사라진다. **증적이 자기 저장소를 달고 있으면 그것이 이긴다**(2026-09-10 · REQ-WEB-160 · [4.4](api.md) REQ-API-157) — `evidence.repo` 는 주소가 아니라 경로(`org/repo`)라 호스트는 프로젝트 주소에서 빌린다. 저장소가 둘 이상인 프로젝트에서 커밋 링크가 조용히 남의 저장소를 가리키던 자리다. 그리고 **증적을 붙이는 셀렉트는 어휘 여섯을 전부 보인다**: 화면이 넷을 손으로 적어 두어 `review`·`user_guide` 는 웹에서 붙일 길이 없었는데 서버는 처음부터 여섯을 받았다. 목록의 정본은 `@nerv/schema` 의 `EVIDENCE_KINDS` 다(REQ-CB-006). 저장소 주소의 모양은 **프로젝트가 고른 종류**가 정한다(2026-09-10 · REQ-WEB-162 · [4.4](api.md) REQ-API-158 — `github` 기본 · `gitlab` 은 경로에 `/-/` 가 낀다). 검증에서 "GitHub 를 박지 않는다" 고 정한 것과 어긋나지 않는다 — 그쪽은 무엇을 받아들일지의 규칙이고 이쪽은 표시 규칙이다. `repo_url` 이 비어 있으면 커밋·코드 경로는 글자로 남고 **화면이 그 이유를 적는다**: 빈칸은 "링크 없는 증적" 으로 읽히지 "설정이 비었다" 로 읽히지 않는다(§1.5).
 7. **전이 버튼** — 서버 게이트 거부 시 사유 툴팁(REQ-WEB-018). 권한 없는 버튼은 숨기지 않고 비활성(REQ-WEB-003). [완료로 전이] 는 활성 클레임 보유자·담당자·planner·admin 에게만 활성이고([4.4](api.md) REQ-API-130), 활성 클레임이 없는 `claimed`·`진행 중` 작업에는 **되돌리기 단추**가 함께 선다(REQ-WEB-144) — 4요소가 차 있으면 [준비됨으로 되돌리기], 비어 있으면 [백로그로 되돌리기]. **머리의 단추는 상태가 정한다**(2026-09-24 · REQ-WEB-202): 백로그 → [준비됨으로 올리기]·[위임 명세 채우기] · 준비됨 → [클레임] · 맡음 → [진행 시작] · 진행 중 → [검토 요청]·[완료] · 검토 중 → [완료] · 막힘 → [막힘 풀기]. 그림의 ⑦ 줄이 그 자리다.
@@ -1767,7 +1780,7 @@ export const TaskCreateInput = z
   .strict();   // 모르는 키는 400 — 조용히 버리지 않는다
 ```
 
-- **done 전이**: MVP의 서버 게이트는 `spec_impact` 선언 + Evidence 연결이다. 스펙 영향은 **고르지 않음에서 시작한다**(2026-09-24 · REQ-WEB-202) — "없음"을 미리 체크해 두던 동안 건드리지 않고 완료를 눌러도 선언한 것이 됐다. "있음"이면 메모가 있어야 하고, 붙은 증적이 없으면 누르기 전에 그렇다고 적는다. 증적 종류는 라벨로 고른다. 리뷰 커버리지 판정(FR-10 게이트 전체)은 Phase 2(로드맵 §3 비범위) — 카드의 "리뷰 n/n" 표시는 Phase 2에 함께 온다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다. **리뷰 면제**(2026-10-09 · REQ-WEB-299): 완료 조건이 리뷰 종류 목록이면 완료 조건 카드에 [리뷰 면제]를 접어 둔다. 펼치면 내 역할로 면제할 수 있는 종류(코드 계열은 developer · admin, 스펙 계열은 planner · admin)만 고를 수 있고, 사유가 있어야 기록한다. 코드 증적이 붙은 작업은 코드 계열을 고르지 못하고 그 까닭을 적는다. 면제 기록(누가 · 언제 · 왜 · 어느 종류)은 리뷰 목록 카드 아래에 늘 보인다.
+- **done 전이**: MVP의 서버 게이트는 `spec_impact` 선언 + Evidence 연결이다. 스펙 영향은 **고르지 않음에서 시작한다**(2026-09-24 · REQ-WEB-202) — "없음"을 미리 체크해 두던 동안 건드리지 않고 완료를 눌러도 선언한 것이 됐다. "있음"이면 메모가 있어야 하고, 붙은 증적이 없으면 누르기 전에 그렇다고 적는다. 증적 종류는 라벨로 고른다. 리뷰 커버리지는 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 done 게이트가 본다(2026-09-28 · [4.4 API](api.md) REQ-API-250) — 보드 카드의 "리뷰 n/n" 표시는 아직 없다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다. **리뷰 면제**(2026-10-09 · REQ-WEB-299): 완료 조건이 리뷰 종류 목록이면 완료 조건 카드에 [리뷰 면제]를 접어 둔다. 펼치면 내 역할로 면제할 수 있는 종류(코드 계열은 developer · admin, 스펙 계열은 planner · admin)만 고를 수 있고, 사유가 있어야 기록한다. 코드 증적이 붙은 작업은 코드 계열을 고르지 못하고 그 까닭을 적는다. 면제 기록(누가 · 언제 · 왜 · 어느 종류)은 리뷰 목록 카드 아래에 늘 보인다.
 - **빈 상태**: ready 0건 — "ready인 Task가 없습니다 — blocked N건의 의존성 보기 ▸"(ui-wireframes §3.4). 구현(2026-09-25 · REQ-WEB-221): "준비된 작업이 없습니다" 아래 **막힘 N건 보기**(막힘 레인으로) · **백로그 N건 채우기**(백로그 레인으로 — 꺼져 있으면 켠다), 수가 0 인 것은 세우지 않는다.
 
 | ID | 수용 기준(EARS) |
@@ -1862,7 +1875,7 @@ export const TaskCreateInput = z
 | finding 큐 | EP-REV-03 `GET /api/v1/projects/{proj}/findings` (`severity[]`·`status[]`·`tag[]`·`cursor`) | 응답에 **facet 건수**가 함께 온다 — 필터 칸의 숫자가 별도 요청이 아니다 |
 | provenance 3종 | 같은 응답 — 코드 위치(`file_path:line_start`) · 검토 커밋(`head_sha`·`branch`·`round_no`) · 유래 스펙/Requirement | 셋이 다 있어야 P5(리뷰 출처 추적 곤란)가 닫힌다 |
 | 해소 액션 | EP-REV-02 `POST …/findings/{id}/resolve` | `fixed`는 커밋 SHA 필수. **에이전트가 아니라 사람이 부르는 경로**라 critical 하향에 A3 게이트가 걸리지 않는다([4.4](api.md) §2.6a) |
-| 게이트 현황 | EP-REV-04 `GET /api/v1/projects/{proj}/gates/reviews` | 브랜치별 커버 리뷰·해소 비율·판정·면제. **판정을 표시할 뿐 집행하지 않는다** — 집행(Task `done` 차단)은 FR-10의 Phase 2 몫이다 |
+| 게이트 현황 | EP-REV-04 `GET /api/v1/projects/{proj}/gates/reviews` | 브랜치별 커버 리뷰·해소 비율·판정·면제. **이 표는 판정을 표시한다.** Task `done` 은 정책으로 켜면 done 게이트가 막고(2026-09-28 · REQ-API-250), 병합은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다 |
 
 - **실시간**: `project:{id}` 룸 — `finding.opened` · `finding.resolved` → 큐와 facet 재조회. 두 이름은 MVP 무효화 표(§1.4)에 없던 것이라 구현의 `NO_SCREEN_YET` 예외 목록에서 빠지고 매핑을 갖는다 — 화면이 생겼으니 더는 "의도한 공백"이 아니다.
 - **컴포넌트**: `FindingQueue` · `FindingCard`(severity 룰 + provenance 3줄 + 액션 · 제목이 고르는 단추) · `FindingFilters`(facet 건수) · `ResolveDialog`(사유 필수 · `fixed`는 커밋 SHA · **레일 안에 열린다** — 2026-09-25 · REQ-WEB-222) · `GateCoverageTable`.
@@ -2066,7 +2079,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
-| 멤버 매트릭스 | EP-MBR-01 `GET /api/v1/orgs/{org}/members` · EP-MBR-02 `POST`(기존 사용자 배정 — 초대 메일 발송은 Phase 2, [api.md](api.md) §2.1) · EP-MBR-03 `PATCH /api/v1/memberships/{id}`(역할) · EP-MBR-04 `DELETE /api/v1/memberships/{id}`(역할 끄기 — 2026-09-24) · EP-MBR-05 `GET …/members/{user}/removal`(빼기의 미리보기) · EP-MBR-06 `DELETE …/members/{user}/projects/{proj}`(한 프로젝트에서 빼기) · EP-MBR-07 `DELETE …/members/{user}`(조직에서 내보내기 — 2026-09-27) | `membership.role` 6종: `admin / planner / designer / developer / qa / viewer`. 사람 × 프로젝트 n:n(FR-14) |
+| 멤버 매트릭스 | EP-MBR-01 `GET /api/v1/orgs/{org}/members` · EP-MBR-02 `POST`(기존 사용자 배정 — 아직 가입하지 않은 사람은 초대로, 초대 메일은 2026-09-22 부터 자동 발송 · [api.md](api.md) EP-INV-01) · EP-MBR-03 `PATCH /api/v1/memberships/{id}`(역할) · EP-MBR-04 `DELETE /api/v1/memberships/{id}`(역할 끄기 — 2026-09-24) · EP-MBR-05 `GET …/members/{user}/removal`(빼기의 미리보기) · EP-MBR-06 `DELETE …/members/{user}/projects/{proj}`(한 프로젝트에서 빼기) · EP-MBR-07 `DELETE …/members/{user}`(조직에서 내보내기 — 2026-09-27) | `membership.role` 6종: `admin / planner / designer / developer / qa / viewer`. 사람 × 프로젝트 n:n(FR-14) |
 | 토큰 목록·발급·고치기·폐기 | EP-TOK-01 `GET /api/v1/me/tokens` · EP-TOK-02 `POST /api/v1/me/tokens` · EP-TOK-05 `PATCH /api/v1/me/tokens/{id}`(이름 · 권한 — 주인만 · 2026-10-11) · EP-TOK-03 `DELETE /api/v1/me/tokens/{id}` · EP-TOK-04 `GET /api/v1/orgs/{org}/tokens`(admin 조직 전체) | `api_token`: 라벨·소유자·프로젝트 소속·`prefix`·`last_used_at`(hostname 포함 표기). 조직 admin 은 조직 전체 목록을 열람하고 남의 살아 있는 토큰을 폐기한다(EP-TOK-03 · 2026-09-24) |
 | 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | 편집 항목 = `spec_gate.*` 2키: 티어 경계(`tier_boundaries`)·동적 강화(`dynamic_escalation`) + `done_gate.*` 2키: 구현 증적(`evidence_source`)·리뷰(`review_coverage` — 보지 않음 · 종류 무관 · 고른 종류마다, 2026-09-28 · REQ-WEB-285) + 종류마다 필수 리뷰어 역할(`review_roles` — REQ-WEB-286). 둘 다 2026-09-02 부터 **판정이 실제로 읽는다** — 그 전까지 판정은 상수를 썼다. 동적 강화의 신호는 둘이다 — **첫 승인 버전** · **같은 실패 3회 신고**, 여럿이어도 한 단계(2026-09-26 사람 결정 · 롤백 이력은 뺐다 · [3.5](../03-proposal/spec-workflow.md) §2.4) — 안내 문구도 그 둘을 말한다. `t1_objection_hours` 는 같은 날 뺐다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). `failopen`·`retention`은 읽기 전용 표시(편집 UI는 Phase 2). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. fail-open 임계는 Phase 2와 함께 활성화 |
 
@@ -2100,6 +2113,9 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | REQ-WEB-027 | WHEN 토큰 권한 선택 UI를 렌더링하면 THE SYSTEM SHALL `approval:decide` 체크박스를 항상 비활성으로 표시한다(사람 전용). `spec:approve`는 2026-10-11부터 고를 수 있는 줄에 있다(REQ-WEB-305) |
 | REQ-WEB-305 | WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL `spec:approve`를 고를 수 있는 권한 줄에 두고 권장 묶음에는 넣지 않으며, 그 프로젝트에서 내 역할에 그 권한이 없으면(admin · planner 밖) 다른 역할 밖 권한처럼 잠긴 채 이유를 보인다. 설명 줄은 "에이전트 세션에서 사람이 대답으로 승인한 초안을 승인합니다" 다(2026-10-11 · 사람 결정 · [4.4](api.md) REQ-API-291) |
 | REQ-WEB-306 | WHEN 내 토큰 표의 살아 있는 줄에서 [편집]을 누르면 THE SYSTEM SHALL 그 줄 아래에 지금의 이름과 권한에서 시작하는 편집 칸을 펼치고, 권한 칸을 발급 폼과 같은 규칙(역할 밖은 잠금 · 사람 전용은 비활성)으로 그 토큰의 프로젝트에서 내 역할을 기준으로 잠그되 이미 담긴 권한은 뺄 수 있게 두며, [저장]이면 EP-TOK-05로 앞뒤 공백을 자른 이름과 고른 권한을 보낸다. WHILE 이름이 비어 있는 동안 THE SYSTEM SHALL [저장]을 잠근다. 만료된 줄과 조직 전체 표에는 [편집]을 두지 않는다(2026-10-11 · 사람 결정) | L1(`tokens.spec.tsx` — 시작 값과 PATCH 본문 · 역할 밖과 사람 전용 잠금 · 빈 이름과 [취소] · 만료된 줄과 조직 표) |
+| REQ-WEB-307 | WHEN 리뷰 센터에서 발견의 레일(곁레일 또는 카드 아래)을 열면 THE SYSTEM SHALL 코멘트 입력의 [코멘트]를 `review:submit` 권한을 가진 역할(viewer를 뺀 모두)에게 열고, 처분 단추는 그대로 `review:resolve` 역할에게만 연다. 권한이 없어 잠긴 [코멘트]는 필요한 권한(`review:submit`)을 까닭으로 보여 준다([4.4 API](api.md) REQ-API-294 · 2026-10-11 · 사람 결정 — developer · designer가 자기 코드에 달린 발견에 답할 수 없었다) |
+| REQ-WEB-308 | WHEN 작업 보드의 검색 칸에 글자를 넣고 Enter를 누르면 THE SYSTEM SHALL 그 검색어를 주소(`?q=`)에 남기고 모든 레인 · 요약 숫자 · 보관함을 같은 검색어로 거르며 "필터 적용 중"과 [필터 지우기]를 보인다. Enter 전에는 묻지 않는다. WHEN 검색어가 걸린 주소로 들어오면 THE SYSTEM SHALL 칸에 그 값을 보이고, [필터 지우기]는 스펙 · 담당 · 에이전트와 함께 검색어도 푼다(2026-10-11 · [4.4 API 명세](api.md) REQ-API-295) |
+| REQ-WEB-309 | WHEN 프로젝트 개요의 구현 현황 카드가 커버리지를 받았고 `areas[]`가 비어 있지 않으면 THE SYSTEM SHALL 여섯 칸 아래 **영역별**에 영역마다 한 줄을 보인다 — 영역 문서의 제목(누르면 그 문서) · 막대(검증 · 구현) · `구현 · 검증 / 요구사항` 수, 그리고 증적 없음 · 작업 없음 · 다시 검증 필요 가운데 0이 아닌 것만. 영역에 들지 않은 스펙은 "영역에 들지 않은 스펙" 한 줄로 맨 뒤다([4.4 API 명세](api.md) REQ-API-297 · 2026-10-11) |
 | REQ-WEB-028 | WHEN admin이 아닌 사용자가 멤버·역할 탭을 열면 THE SYSTEM SHALL 매트릭스를 읽기 전용으로 표시하고 편집 컨트롤을 비활성화한다(FR-14) |
 | REQ-WEB-167 | WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL **대상 프로젝트를 그 폼에서 고르게** 하고 고른 값이 권한 칸의 잠금과 기본 이름을 정한다 — 헤더가 고른 값에 기대지 않는다. WHERE 고를 프로젝트가 없으면 THE SYSTEM SHALL [발급]을 비활성으로 두고 **그 이유를 같은 자리에서** 말한다(§1.5). WHEN 발급에 성공하면 THE SYSTEM SHALL 원문과 함께 **프로젝트·권한·만료**와 그대로 붙여넣을 설정 한 줄을 보인다([4.4](api.md) REQ-API-160). WHEN 토큰 목록을 그리면 THE SYSTEM SHALL **프로젝트를 첫 열로** 두고 만료를 함께 보이며, 폐기·만료된 토큰은 기본으로 접고 토글로 편다 |
 | REQ-WEB-207 | WHEN 토큰 발급 폼을 그리면 THE SYSTEM SHALL 권한을 **권장 묶음**(스킬 여섯 — next · spec · impl · question · review · mirror — 을 쓰는 데 드는 권한 · `agent-session:launch` 포함)과 내 역할의 교집합으로 시작하고, [직접 고르기]로 바꿀 수 있게 한다. WHEN 발급에 성공하면 THE SYSTEM SHALL 토큰(복사) · 플러그인 설치 · 설치 캐시 경로로 부르는 설정 한 줄의 **연결 3단계**와 설치 장으로 가는 링크를 보이고, 카드가 열려 있는 동안 그 토큰의 첫 사용을 감지해 연결됐음과 그 기계를 말한다. WHEN 토큰 탭에서 이 화면 도움말을 열면 THE SYSTEM SHALL 설치 장으로 보낸다 |
