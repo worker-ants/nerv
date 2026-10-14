@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v5.41 · 2026-10-12 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v5.42 · 2026-10-15 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v5.42 변경(2026-10-15 — 문체 플러그인을 Codex에서 실측): **REQ-PLG-020 · 024 · 026 개정 · E12-S07 `done`.** Codex 0.162.1은 이 저장소의 카탈로그와 Claude 매니페스트를 그대로 읽고 `ko-style` 훅 여섯을 같은 파일로 실행합니다. 실측에서 나온 결함 둘(`hooks.json`의 `$comment` 때문에 훅 전체가 빠짐 · 문서 쓰기 `apply_patch`를 검사하지 못함)을 고쳤고, Codex가 약 2,500토큰에서 잘라 내므로 세션 요약에 9,000바이트 상한을 더했습니다([4.6 플러그인](04-mvp/plugin.md) §7.6). 매뉴얼에 Codex 설치 방법을 적었습니다.
 >
 > v5.41 변경(2026-10-12 — 스파이크가 남긴 결정 다섯, **사람 결정**): **REQ-API-300 · 301 · 302 · REQ-DB-041 신설 · REQ-CB-010 개정.** ① 검색의 질의 임베딩은 2초까지만 기다리고 실패하면 1분 동안 부르지 않습니다. ② FTS 는 저장한 본문 벡터를 쓰고 ③ FTS 와 trgm 을 순위로 합칩니다 — 같은 질의 15개에서 조사 변형 MRR 0.40 → 0.57, 검색 p95 829 → 62ms 입니다([4.4 API](04-mvp/api.md) §2.2c). ④ `/mcp` 가 2026-07-28 을 받습니다 — 이제 Claude Code 는 2026-07-28 로, Codex 는 2025-06-18 로 도구를 부르고 E06-S04 가 끝났습니다([3.4 에이전트 연동 설계](03-proposal/agent-integration.md) §2.6a). ⑤ k8s 배포는 마이그레이션 Job 만 먼저 적용하고 기다린 뒤 나머지를 적용합니다([4.2 코드베이스와 배포](04-mvp/codebase.md) §6.3).
 >
@@ -898,9 +900,9 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.71` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v2.35` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v2.35` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.01` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.02` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.25` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v2.79` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v2.80` | Phase 0·1 에픽/스토리 분해(`E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

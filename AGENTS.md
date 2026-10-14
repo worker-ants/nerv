@@ -70,7 +70,7 @@ nerv/
 - 쓰지 않는 말의 전체 목록과 문장 습관은 [용어 사전](docs/glossary.md) §3.4 가 정본이다. 말투(합쇼체 · 해라체)는 같은 문서 §3.1 이다.
 - 조사는 코드 · 영문 뒤에도 붙여 쓴다("`nerv`이고", "admin만"). 새로 쓰는 문장부터 지키고, 예외(굵은 글씨가 부호로 끝날 때)는 [용어 사전](docs/glossary.md) §3.5에 있다(2026-09-27 사람 결정).
 - 쓰고 나서 소리 내어 읽었을 때 한국어 화자가 그렇게 말하지 않을 문장이면 고친다. 영어도 같다 — 한국어 비유를 직역하지 않는다.
-- **검사기가 있다**(2026-09-27). 이 저장소는 문체 플러그인 `ko-style` 을 켠다(`.claude/settings.json` · [4.6 플러그인](docs/04-mvp/plugin.md) §7). 커밋 메시지 · PR 본문 · 문서 파일에서 새로 쓴 줄을 검사해 걸린 표현을 알리고, CI 게이트(`check-ko-style.mjs` · REQ-CB-058)는 새로 쓴 줄에 남은 것을 막는다. 그대로 둘 줄은 그 줄 끝에 `ko-style-ignore: <이유>` 를 단다. 규칙은 저장소 루트 `.ko-style.json`(§3.4 표의 사본)에 있고, §3.4 표를 고치면 이 파일도 같은 커밋에서 고친다. 플러그인이 없는 도구(Codex 등)에서는 커밋 전에 `node codebase/ko-style/skills/ko-style/scripts/ko-lint.mjs check --staged` 로 직접 검사한다.
+- **검사기가 있다**(2026-09-27). 이 저장소는 문체 플러그인 `ko-style` 을 켠다(`.claude/settings.json` · [4.6 플러그인](docs/04-mvp/plugin.md) §7). 커밋 메시지 · PR 본문 · 문서 파일에서 새로 쓴 줄을 검사해 걸린 표현을 알리고, CI 게이트(`check-ko-style.mjs` · REQ-CB-058)는 새로 쓴 줄에 남은 것을 막는다. 그대로 둘 줄은 그 줄 끝에 `ko-style-ignore: <이유>` 를 단다. 규칙은 저장소 루트 `.ko-style.json`(§3.4 표의 사본)에 있고, §3.4 표를 고치면 이 파일도 같은 커밋에서 고친다. 훅이 돌지 않는 도구(플러그인이 없거나, Codex에서 훅을 신뢰 처리하지 않았을 때)에서는 커밋 전에 `node codebase/ko-style/skills/ko-style/scripts/ko-lint.mjs check --staged` 로 직접 검사한다.
 
 ## 에이전트 행동 원칙
 

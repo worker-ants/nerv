@@ -1,4 +1,4 @@
-# ko-style v0.1.2
+# ko-style v0.1.3
 
 한국어 문체 플러그인이다. 번역투, 사물에 사람의 동작을 붙이는 비유, 이중 피동, 줄표로 길게 잇는 문장, 말투 섞임을 찾아 고치게 한다. NERV 서버 없이도 동작한다. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md) §7** 이고, 두 쪽이 다르면 문서가 맞고 여기가 결함이다.
 
@@ -26,6 +26,17 @@ NERV 플러그인과 같은 마켓플레이스에 있다.
 ```
 
 설치하면 모든 저장소에서 켜진다. 팀 어휘와 글 종류별 말투는 저장소마다 `.ko-style.json` 으로 정한다(`/ko-style:init`). 이 파일이 없으면 `*.md` 문서를 공통 규칙으로만 검사하고 말투는 강제하지 않는다. 특정 저장소에서 끄려면 `.ko-style.json` 에 `"enabled": false` 를 두고, 잠깐 끄려면 환경 변수 `KO_STYLE_DISABLE=1` 을 준다.
+
+### Codex
+
+Codex 는 이 저장소의 카탈로그와 매니페스트를 그대로 읽는다(Codex 0.162.1 실측). 서버 카탈로그는 받지 않으므로 GitHub 경로로 설치한다.
+
+```bash
+codex plugin marketplace add worker-ants/nerv
+codex plugin add ko-style@nerv
+```
+
+**훅은 신뢰 처리해야 돈다.** Codex 는 사람이 `/hooks` 에서 확인한 훅만 실행한다. 처리하기 전에는 스킬만 쓰인다. 훅 여섯은 Claude Code 와 같은 파일이고, 문서 쓰기는 Codex 의 `apply_patch` 를 읽어 검사한다. 답변이 끝난 뒤의 알림은 `codex exec` 출력에는 보이지 않는다. 다음 요청 때 모델에게 알리는 것은 같다.
 
 ## 규칙을 고칠 때
 

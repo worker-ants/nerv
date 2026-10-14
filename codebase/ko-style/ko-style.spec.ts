@@ -29,6 +29,7 @@ import {
   loadCoreRules,
   maskText,
   messagesOf,
+  patchFiles,
   settingsOf,
   skillRulesTable,
   staticDigestJson,
@@ -238,6 +239,24 @@ describe('REQ-PLG-020 — 세션 요약', () => {
     expect(out?.['hookSpecificOutput']?.['hookEventName']).toBe('SessionStart');
     expect(text).toContain('ko-style');
     expect(text.length).toBeLessThan(4000);
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThan(9000);
+  });
+
+  it('팀 어휘가 많아도 4,000자 · 9,000바이트를 넘지 않는다 — 뒤에서부터 줄이고 줄였다고 적는다', () => {
+    // Codex 는 바이트/4 로 토큰을 어림해 약 2,500토큰을 넘으면 가운데를 잘라 낸다(2026-10-15 실측)
+    const team = Array.from({ length: 200 }, (_, i) => ({
+      id: `T-${i}`,
+      name: `긴 팀 어휘 ${i}번 항목`,
+      avoid: [`측정어${i}`],
+      use: `대신 쓸 표현 ${i}번`,
+    }));
+    const { out } = hook('session-start', { cwd: tempRepo({ team }) });
+    const text = out?.['hookSpecificOutput']?.['additionalContext'] as string;
+    expect(text.length).toBeLessThanOrEqual(4000);
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(9000);
+    expect(text).toMatch(/그 밖에 \d+개는 요약에서 뺐다/);
+    expect(text).toContain('긴 팀 어휘 0번');
+    expect(text).toContain('대화 답변은 끝난 뒤'); // 끝맺는 안내는 남는다
   });
 
   it('저장소 설정의 팀 어휘와 글 종류별 말투가 요약에 들어간다', () => {
@@ -334,6 +353,65 @@ describe('REQ-PLG-024 — 문서 저장 직후 검사', () => {
       hook('post-edit', { cwd: repo, tool_name: 'Write', tool_input: { file_path: file, content } })
         .out,
     ).toBeNull();
+  });
+
+  it('Codex 의 apply_patch 도 새로 쓴 줄만 본다 — 패치 글은 tool_input.command 로 온다', () => {
+    // 2026-10-15 실측(Codex 0.162.1): tool_name "apply_patch", tool_input { command: <패치 글> }
+    const repo = tempRepo();
+    mkdirSync(join(repo, 'docs'));
+    const old = '이전 문장은 권한을 필요로 한다.';
+    writeFileSync(join(repo, 'docs/a.md'), `${old}\n새 문장도 설정을 필요로 한다.\n`);
+    writeFileSync(join(repo, 'docs/b.md'), '문제없는 새 문서다.\n');
+    const command = [
+      '*** Begin Patch',
+      '*** Update File: docs/a.md',
+      '@@',
+      ` ${old}`,
+      '+새 문장도 설정을 필요로 한다.',
+      '*** Add File: docs/b.md',
+      '+문제없는 새 문서다.',
+      '*** End Patch',
+    ].join('\n');
+    const { out } = hook('post-edit', {
+      cwd: repo,
+      tool_name: 'apply_patch',
+      tool_input: { command },
+    });
+    expect(out?.['decision']).toBe('block');
+    expect(out?.['reason']).toContain('docs/a.md 에 새로 쓴 문장');
+    expect(out?.['reason']).toContain('2행');
+    expect(out?.['reason']).not.toContain('docs/b.md');
+    expect((out?.['reason'] as string).match(/KO-N-03/g)).toHaveLength(1);
+  });
+
+  it('apply_patch 글을 파일과 덩어리로 나눈다 — 지운 파일은 빼고 옮긴 파일은 새 경로로 센다', () => {
+    const patch = [
+      '*** Begin Patch',
+      '*** Add File: new.md',
+      '+첫 줄',
+      '+둘째 줄',
+      '*** Delete File: gone.md',
+      '*** Update File: old.md',
+      '*** Move to: moved.md',
+      '@@ 제목',
+      ' 맥락',
+      '-이전 줄',
+      '+새 줄',
+      ' 맥락',
+      '+끝에 더한 줄',
+      '*** End of File',
+      '*** End Patch',
+    ].join('\n');
+    expect(patchFiles(patch)).toEqual([
+      { path: 'new.md', edits: [{ old_string: '', new_string: '첫 줄\n둘째 줄' }] },
+      {
+        path: 'moved.md',
+        edits: [
+          { old_string: '이전 줄', new_string: '새 줄' },
+          { old_string: '', new_string: '끝에 더한 줄' },
+        ],
+      },
+    ]);
   });
 
   it('어느 글 종류에도 들지 않거나 제외한 파일은 검사하지 않는다', () => {
@@ -450,6 +528,12 @@ describe('REQ-PLG-026 — 패키지와 카탈로그', () => {
     expect(commands.length).toBe(6);
     for (const c of commands)
       expect(c.startsWith('sh "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh" ')).toBe(true);
+  });
+
+  it('hooks.json 의 최상위 키는 description · hooks 뿐이다 — Codex 는 다른 키가 있으면 훅 전체를 버린다', () => {
+    // 2026-10-15 실측(Codex 0.162.1): "$comment" 가 있으면 "unknown field" 경고와 함께 훅 여섯이 모두 빠졌다
+    const hooks = JSON.parse(readFileSync(join(here, 'hooks/hooks.json'), 'utf8')) as object;
+    expect(Object.keys(hooks).sort()).toEqual(['description', 'hooks']);
   });
 });
 

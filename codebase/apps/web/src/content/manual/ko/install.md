@@ -179,9 +179,18 @@ cd <작업 저장소>
 
 **검사에는 node가 필요합니다.** node가 없으면 규칙 요약만 전달하고 검사는 건너뜁니다.
 
+**Codex에서도 쓸 수 있습니다.** GitHub 경로로 마켓플레이스를 추가하고 설치합니다.
+
+```bash
+codex plugin marketplace add worker-ants/nerv
+codex plugin add ko-style@nerv
+```
+
+Codex는 사람이 확인한 훅만 실행합니다. 설치한 뒤 Codex에서 `/hooks`를 열고 `ko-style` 훅 여섯을 신뢰 처리합니다. 신뢰 처리하기 전에는 규칙 안내(스킬)만 쓰입니다. `codex exec`에서는 답변이 끝난 뒤의 한 줄 알림이 보이지 않습니다. 고칠 표현을 다음 요청 때 에이전트에게 알리는 것은 같습니다.
+
 ## 3-B. Codex에 연결 {#codex}
 
-Codex에는 플러그인 형식이 없습니다. 대신 Codex를 쓰는 저장소에 **파일 두 개를 둡니다.** 두 파일의 초안은 플러그인 패키지의 `codex/`에 담겨 함께 배포됩니다.
+NERV 플러그인은 Codex에서 확인하지 않았습니다. 대신 Codex를 쓰는 저장소에 **파일 두 개를 둡니다.** 두 파일의 초안은 플러그인 패키지의 `codex/`에 담겨 함께 배포됩니다.
 
 ```bash
 mkdir -p <내 저장소>/.codex

@@ -179,9 +179,18 @@ Put your team's terms and the speech level for each kind of text in `.ko-style.j
 
 **The checks need node.** Without node, the agent still gets the rule summary, but the checks are skipped.
 
+**It works in Codex too.** Add the marketplace from GitHub and install the plugin.
+
+```bash
+codex plugin marketplace add worker-ants/nerv
+codex plugin add ko-style@nerv
+```
+
+Codex runs only the hooks a person has reviewed. After installing, open `/hooks` in Codex and trust the six `ko-style` hooks. Until you do, only the rule guide (the skills) is used. In `codex exec`, the one-line notice after a reply does not appear. The agent is still told about the flagged phrases with your next request.
+
 ## 3-B. Connect Codex {#codex}
 
-Codex has no plugin format. Instead, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.
+The NERV plugin has not been verified with Codex. Instead, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.
 
 ```bash
 mkdir -p <your repo>/.codex
