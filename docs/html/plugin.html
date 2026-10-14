@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>6종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code> <code>/nerv:mirror</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v1.02 (2026-10-15)</span>
+      <span>버전 v1.03 (2026-10-15)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1875,6 +1875,30 @@ log_user_prompt = false</code></pre>
   <p>CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인식하지 않으므로 import가 공식 우회):</p>
 
 <pre><code>@AGENTS.md</code></pre>
+
+  <h3>5.4 NERV 플러그인을 Codex에 설치하면 (2026-10-15 실측)</h3>
+
+  <p><b>Codex 0.162.1은 NERV 플러그인을 설치하고 스킬 일곱을 읽는다. 훅은 지금 그대로는 하나도 실행되지 않는다.</b> 훅을 살리면 Codex 세션이 Claude Code 세션으로 기록되고 MCP 세션과 따로 하나 더 생긴다. 사람 결정(2026-10-15 · 실측만 한다)에 따라 범위와 코드는 바꾸지 않았다. 아래 표는 Phase 2(§5.1)의 입력이다.</p>
+
+  <p>측정 방법은 <code>ko-style</code>(§7.6)과 같다. 격리한 <code>CODEX_HOME</code>에 이 저장소를 카탈로그로 추가하고 <code>codex plugin add nerv@nerv</code>로 설치했다. 로컬 NERV 서버(일회용 DB · 개발 시드) 앞에 중계 서버를 두어 훅과 MCP 요청을 기록했다. 모델은 가짜 응답으로 <code>nerv_bootstrap</code> → 셸 명령 → <code>apply_patch</code> → 답변 순서로 움직였다. 훅은 <code>--dangerously-bypass-hook-trust</code>로 그 실행에서만 신뢰 확인을 건너뛰었다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>무엇</th><th>실측</th><th>고칠 자리</th></tr></thead>
+    <tbody>
+      <tr><td>설치</td><td>Claude 매니페스트(0.3.26)로 설치된다. <code>skills/</code> · <code>hooks/</code> · <code>bin/</code>과 함께 테스트 파일(<code>*.spec.ts</code>)도 캐시에 복사된다</td><td>패키지에 배포 파일만 담기</td></tr>
+      <tr><td>스킬</td><td>일곱 개가 <code>nerv:next</code> · <code>nerv:spec</code> · <code>nerv:impl</code> · <code>nerv:question</code> · <code>nerv:review</code> · <code>nerv:mirror</code> · <code>nerv:approve</code>로 목록에 오른다. <code>nerv:approve</code> 본문은 "Claude Code 에서만 쓴다"고 적지만 목록에 보이는 설명에는 그 말이 없다</td><td>설명에 Codex 제한 적기</td></tr>
+      <tr><td>서브에이전트 · statusline</td><td><code>agents/nerv-spec-writer.md</code>는 Codex 목록에 없다. statusline은 Claude Code 전용이다</td><td>—</td></tr>
+      <tr><td><code>hooks.json</code></td><td>최상위와 훅 항목 안의 <code>$comment</code> 때문에 "unknown field" 경고를 내고 훅 여섯을 모두 버린다</td><td><code>$comment</code> 빼기(<code>ko-style</code> 0.1.3과 같다)</td></tr>
+      <tr><td>훅 실행(<code>$comment</code>를 뺀 사본)</td><td>session · tool · stop · session-end 요청이 모두 서버에 도착했다(서브에이전트는 재지 않았다). <code>async: true</code> 훅도 실행된다. SessionEnd 시한은 3초로 줄여 실행한다는 경고가 나온다</td><td>SessionEnd 시한</td></tr>
+      <tr><td>에이전트 표시</td><td>포워더가 <code>X-NERV-Agent: claude-code</code>(기본값)와 <code>X-NERV-Plugin: 0.3.26</code>을 보내 서버가 Codex 세션을 Claude Code 세션으로 기록했다. 포워더 주석의 "Codex는 이 파일(<code>plugin.json</code>)이 없다"는 플러그인으로 설치하면 맞지 않는다</td><td>Codex 알아보기(훅 입력에는 에이전트 필드가 없다)</td></tr>
+      <tr><td>훅 응답</td><td>서버 응답의 <code>ok</code> · <code>session_id</code> 필드 때문에 SessionStart와 Stop이 "Failed"로 끝났다. 서버가 준 세션 안내(<code>additionalContext</code>)도 모델에게 가지 않았다. 응답에서 모르는 필드를 빼자 둘 다 성공했고 안내도 전달됐다</td><td>응답을 Codex 형식에 맞추기(포워더나 서버)</td></tr>
+      <tr><td>일반 글 출력</td><td>SessionStart 훅의 일반 글 출력은 개발자 메시지로 들어간다. <code>nerv-init --check</code>는 ".mcp.json 에 nerv 서버가 없다"고 알려 MCP가 연결된 Codex 세션을 잘못 안내한다</td><td>Codex 설정(<code>config.toml</code>)을 아는 점검</td></tr>
+      <tr><td>세션 짝</td><td>실행마다 세션이 둘 생겼다. 훅이 만든 <code>claude-code</code> 세션은 끝나고, <code>nerv_bootstrap</code>이 만든 <code>codex</code> 세션은 active로 남는다. Codex가 MCP 요청에 넣는 <code>_meta.x-codex-turn-metadata.session_id</code>가 훅 입력의 <code>session_id</code>와 같아 서버가 둘을 이을 단서가 있다</td><td>짝 맞추기</td></tr>
+      <tr><td>MCP</td><td>플러그인은 MCP 설정을 담지 않으므로 지금처럼 <code>config.toml</code>(§5.2)로 붙인다. <code>codex exec</code>에서는 MCP 도구 호출이 승인 대기로 막혀 격리 설정에 <code>default_tools_approval_mode = "approve"</code>를 두고 쟀다</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>지금 사람에게 하는 안내.</b> Codex에 NERV 플러그인을 설치하면 스킬은 쓰이고 훅은 경고 하나와 함께 빠진다. MVP의 약속(MCP 도구만으로 완주 · §5.1)은 그대로다. 매뉴얼 설치 장에 이 사실을 적었다.</p>
 
   <h2 id="sec-6">6. 수용 기준 (REQ-PLG-*)</h2>
 
