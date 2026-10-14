@@ -1,9 +1,12 @@
-# 배포 절차상 Deployment 롤아웃 완료 판정보다 먼저 성공해야 한다(REQ-CB-010).
+# 배포 절차상 Deployment 를 적용하기 전에 먼저 성공해야 한다(REQ-CB-010 · 2026-10-12 개정).
 # Job 은 불변 리소스라 재적용 전 삭제한다 — 절차 전문은 docs/04-mvp/codebase.md §6.3.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: nerv-migrate
+  labels:
+    # 배포 절차가 이 라벨로 Job 만 먼저 적용한다(docs/04-mvp/codebase.md §6.3 · REQ-CB-010)
+    app.kubernetes.io/component: migrate
 spec:
   backoffLimit: 2
   ttlSecondsAfterFinished: 3600

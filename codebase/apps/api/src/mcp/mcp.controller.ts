@@ -52,10 +52,34 @@ export const LATEST_REVISION = SUPPORTED_REVISIONS[0];
 /** 헤더도 본문도 리비전을 대지 않을 때 — Streamable HTTP 가 그렇게 가정하라고 정한 값이다 */
 const FALLBACK_REVISION = '2025-03-26';
 
+/**
+ * 요청마다 리비전을 본문에 선언하는 리비전(2026-07-28) — 이 이름을 `_meta` 에 실은 요청을 그 규칙으로 다룬다.
+ * 그 앞의 리비전은 `initialize` 로 한 번 협상한다.
+ */
+const MODERN_REVISION = '2026-07-28';
+/** 2026-07-28 의 요청마다 붙는 `_meta` 키 — 리비전 선언 · 서버 정보 */
+const META_PROTOCOL_VERSION = 'io.modelcontextprotocol/protocolVersion';
+const META_SERVER_INFO = 'io.modelcontextprotocol/serverInfo';
+/** 2026-07-28 의 오류 코드 — 헤더와 본문이 어긋남 · 지원하지 않는 리비전(둘 다 HTTP 400) */
+const HEADER_MISMATCH = -32020;
+const UNSUPPORTED_PROTOCOL_VERSION = -32022;
+/** `Mcp-Name` 헤더가 비추는 본문의 칸 — NERV 는 도구만 있으므로 `tools/call` 하나다 */
+const NAME_HEADER_SOURCE: Record<string, string> = { 'tools/call': 'name' };
+
+const SERVER_INFO = { name: 'nerv', version: '0.1.0' } as const;
+
+/**
+ * 2026-07-28 의 목록 결과가 반드시 싣는 캐시 표시 — **바로 낡음 · 사용자마다**로 둔다. 도구 설명은 요청
+ * 로케일을 타므로 사람마다 다르고, 오래 두어도 될 시간을 정한 적이 없다(값을 새로 만들지 않는다). 빠지면
+ * 그 리비전의 클라이언트가 결과를 버린다 — Claude Code 2.1.296 이 `tools/list` 를 네 번 다시 받고 도구 없이
+ * 시작했다(2026-10-11 실측).
+ */
+const NO_CACHE = { ttlMs: 0, cacheScope: 'private' } as const;
+
 type OnSendDone = (error: Error | null, payload?: unknown) => void;
 
 /** `fastify.addHook` 의 필요한 만큼 — apps/api 는 fastify 를 직접 의존하지 않는다 */
-export interface McpAcceptedHost {
+export interface McpStatusHost {
   addHook(
     name: 'onSend',
     hook: (request: never, reply: never, payload: never, done: never) => void,
@@ -63,28 +87,33 @@ export interface McpAcceptedHost {
 }
 
 /**
- * 알림(`id` 가 없는 JSON-RPC 메시지)에는 **202 · 본문 없음**으로 답한다 — Streamable HTTP 의
- * 약속이다. 핸들러는 요청에 표시만 하고, 상태와 본문은 보내기 직전에 바꾼다 — Nest 가 핸들러의
- * 상태를 `@HttpCode` 로 덮기 때문이다.
+ * `/mcp` 의 HTTP 상태를 핸들러가 고른다. 핸들러는 요청에 상태를 적기만 하고 보내기 직전에 바꾼다 — Nest 가
+ * 핸들러의 상태를 `@HttpCode` 로 덮기 때문이다. 두 곳에서 쓴다.
  *
- * 2026-10-11 실측(E06-S04 · agent-integration.md §2.6a): 200 과 본문 `null` 을 주던 동안 Codex 0.162.1 은
- * `notifications/initialized` 의 응답을 JSON-RPC 메시지로 읽다 실패해 세 번 다시 붙고 포기했다 —
- * 도구가 하나도 붙지 않았다. Claude Code 는 그 본문을 읽지 않아서 드러나지 않았다.
+ * - 알림(`id` 가 없는 JSON-RPC 메시지)에는 **202 · 본문 없음** — Streamable HTTP 의 약속이다. 2026-10-11
+ *   실측(E06-S04 · agent-integration.md §2.6a): 200 과 본문 `null` 을 주던 동안 Codex 0.162.1 은
+ *   `notifications/initialized` 의 응답을 JSON-RPC 메시지로 읽다 실패해 세 번 다시 붙고 포기했다.
+ * - 2026-07-28 요청의 헤더 · 본문 불일치와 리비전 거절은 **400** — 그 리비전이 정한 상태다(REQ-API-302).
  */
-export function registerMcpAccepted(host: McpAcceptedHost): void {
+export function registerMcpStatus(host: McpStatusHost): void {
   host.addHook('onSend', ((
-    request: { nervMcpAccepted?: boolean },
+    request: { nervMcpStatus?: number },
     reply: { code(status: number): unknown; removeHeader(name: string): unknown },
     payload: unknown,
     done: OnSendDone,
   ) => {
-    if (request.nervMcpAccepted !== true) {
+    const status = request.nervMcpStatus;
+    if (status === undefined) {
       done(null, payload);
       return;
     }
-    reply.code(HttpStatus.ACCEPTED);
-    reply.removeHeader('content-type');
-    done(null, '');
+    reply.code(status);
+    if (status === Number(HttpStatus.ACCEPTED)) {
+      reply.removeHeader('content-type');
+      done(null, '');
+      return;
+    }
+    done(null, payload);
   }) as never);
 }
 
@@ -138,7 +167,7 @@ export class McpController {
     @Req()
     req: {
       nervPrincipal?: Principal;
-      nervMcpAccepted?: boolean;
+      nervMcpStatus?: number;
       headers: Record<string, string | undefined>;
     },
   ): Promise<unknown> {
@@ -158,18 +187,58 @@ export class McpController {
       });
     }
 
-    const revision = this.negotiate(revisionHeader);
-    // `id` 가 없으면 알림이다 — 무엇이든 받기만 하고 202 · 본문 없음으로 답한다(registerMcpAccepted).
+    // **2026-07-28 은 본문이 리비전을 선언한다**(REQ-API-302 · agent-integration §2.6a). `_meta` 에 그 이름을
+    // 실은 요청만 그 규칙으로 다루고, 헤더만 그 이름을 대는 요청은 지금처럼 받는다 — 플러그인 아웃박스가
+    // 그렇게 보내고, 이미 깔린 사본을 한꺼번에 바꿀 수 없다.
+    const era = classifyEra(body, req.headers);
+    if (era.kind === 'reject') {
+      req.nervMcpStatus = HttpStatus.BAD_REQUEST;
+      return jsonRpcError(body.id ?? null, era.code, era.render(t), era.data);
+    }
+    const modern = era.kind === 'modern';
+    // 선언한 요청은 헤더를 위에서 대조했다 — 협상은 선언이 없는 요청의 일이다
+    const revision = modern ? MODERN_REVISION : this.negotiate(revisionHeader);
+    // `id` 가 없으면 알림이다 — 무엇이든 받기만 하고 202 · 본문 없음으로 답한다(registerMcpStatus).
     // `notifications/initialized` 말고도 Claude Code 는 `roots` 를 선언하고 그 변경을 알린다.
     // 배열(구 리비전의 일괄 요청)과 `method` 없는 본문은 알림이 아니다 — 지금처럼 아래에서 거절한다.
     if (isNotification(body)) {
-      req.nervMcpAccepted = true;
+      req.nervMcpStatus = HttpStatus.ACCEPTED;
       return null;
     }
     const id = body.id ?? null;
+    // 2026-07-28 의 결과는 `resultType` 을 반드시 싣는다 — 빠지면 그 리비전의 클라이언트가 결과를 버린다
+    const complete = (result: Record<string, unknown>, always = false): unknown =>
+      modern || always
+        ? jsonRpc(id, {
+            ...result,
+            resultType: 'complete',
+            _meta: { ...(result['_meta'] as object | undefined), [META_SERVER_INFO]: SERVER_INFO },
+          })
+        : jsonRpc(id, result);
 
     switch (body.method) {
+      // 2026-07-28 의 첫 요청 — 서버가 받는 리비전과 능력을 알린다. Claude Code 2.1.296 은 이것부터 묻고,
+      // 답이 없으면(-32601) 구 리비전 핸드셰이크로 내려갔다(2026-10-11 실측).
+      case 'server/discover':
+        return complete(
+          {
+            ...NO_CACHE,
+            supportedVersions: [...SUPPORTED_REVISIONS],
+            capabilities: { tools: { listChanged: false } },
+            instructions: INSTRUCTION_KEYS.map((key) => t(key)).join(' '),
+          },
+          true,
+        );
+
       case 'initialize':
+        // 2026-07-28 에는 핸드셰이크가 없다 — 그 리비전을 선언한 요청에는 모르는 메서드다
+        if (modern) {
+          return jsonRpcError(
+            id,
+            -32601,
+            t('mcp.error.unsupported_method', { method: 'initialize' }),
+          );
+        }
         return jsonRpc(id, {
           // 첫 요청에서는 **본문이 리비전을 고른다** — 구 리비전 클라이언트는 이 요청에 헤더를
           // 보내지 않는다(실측: Claude Code 2.1.296 은 2025-11-25 · Codex 0.162.1 은 2025-06-18 을
@@ -177,15 +246,16 @@ export class McpController {
           protocolVersion: this.negotiateInitialize(body.params, revision),
           // tools 만 선언한다 — resources·prompts 는 없다(tools-first)
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'nerv', version: '0.1.0' },
+          serverInfo: SERVER_INFO,
           instructions: INSTRUCTION_KEYS.map((key) => t(key)).join(' '),
         });
 
       case 'ping':
-        return jsonRpc(id, {});
+        return complete({});
 
       case 'tools/list':
-        return jsonRpc(id, {
+        return complete({
+          ...(modern ? NO_CACHE : {}),
           tools: this.registry.list().map((tool) => ({
             name: tool.name,
             description: t(tool.summaryKey),
@@ -212,7 +282,7 @@ export class McpController {
         const outcome = toolCallOutcome(result);
         const durationMs = Math.round(performance.now() - startedAt);
         this.logger[toolCallLevel(outcome)](toolCallMessage(note, outcome, durationMs));
-        return jsonRpc(id, result);
+        return complete(result as Record<string, unknown>);
       }
 
       default:
@@ -514,6 +584,85 @@ function asObject(value: unknown): Record<string, unknown> {
     : { result: value };
 }
 
+type Era =
+  | { kind: 'legacy' }
+  | { kind: 'modern' }
+  | {
+      kind: 'reject';
+      code: number;
+      /** 문장은 요청 로케일로 만든다 — 분류는 로케일을 모른다 */
+      render: (t: Translator) => string;
+      data?: Record<string, unknown>;
+    };
+
+/**
+ * 이 요청을 어느 리비전의 규칙으로 다루나 — **본문이 정하고 헤더는 대조한다**(REQ-API-302).
+ *
+ * `params._meta` 에 2026-07-28 을 선언한 요청이 그 리비전이다. 그 요청은 `MCP-Protocol-Version` ·
+ * `Mcp-Method` 헤더가 있어야 하고 본문과 같아야 하며, `tools/call` 은 `Mcp-Name` 이 도구 이름과 같아야 한다 —
+ * 어긋나면 -32020 · HTTP 400 이다. 선언한 리비전을 모르면 -32022 와 받는 목록을 준다. 헤더만 2026-07-28 을
+ * 대는 요청(선언 없음)은 구 리비전처럼 받는다 — 참조 구현은 이것을 거절하지만, NERV 플러그인의 아웃박스가
+ * 그렇게 보내고 깔린 사본을 한꺼번에 바꿀 수 없다.
+ */
+function classifyEra(body: unknown, headers: Record<string, string | undefined>): Era {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return { kind: 'legacy' };
+  const message = body as JsonRpcRequest;
+  const meta = message.params?.['_meta'];
+  if (typeof meta !== 'object' || meta === null || !(META_PROTOCOL_VERSION in meta)) {
+    return { kind: 'legacy' };
+  }
+  const claimed = (meta as Record<string, unknown>)[META_PROTOCOL_VERSION];
+  if (typeof claimed !== 'string') {
+    return { kind: 'reject', code: -32602, render: (t) => t('mcp.error.envelope_invalid') };
+  }
+  if (!SUPPORTED_REVISIONS.some((r) => r === claimed)) {
+    return {
+      kind: 'reject',
+      code: UNSUPPORTED_PROTOCOL_VERSION,
+      render: (t) => t('error.mcp.bad_revision', { revision: claimed }),
+      data: { supported: [...SUPPORTED_REVISIONS], requested: claimed },
+    };
+  }
+  // 앞선 리비전을 선언한 요청 — 그 리비전은 헤더 규칙이 없다
+  if (claimed !== MODERN_REVISION) return { kind: 'legacy' };
+
+  const mismatch = (header: string, sent: string | undefined, expected: string): Era => ({
+    kind: 'reject',
+    code: HEADER_MISMATCH,
+    render: (t) => t('mcp.error.header_mismatch', { header, sent: sent ?? '-', expected }),
+    data: { mismatch: { header: sent ?? '(missing)', body: expected } },
+  });
+  const versionHeader = headers['mcp-protocol-version']?.trim();
+  if (versionHeader !== claimed) return mismatch('MCP-Protocol-Version', versionHeader, claimed);
+  const method = String(message.method ?? '');
+  const methodHeader = headers['mcp-method']?.trim();
+  const isRequest = 'id' in message;
+  // 알림은 헤더가 있을 때만 대조한다 — 그 리비전이 헤더를 요구하는 것은 요청이다
+  if ((isRequest || methodHeader !== undefined) && methodHeader !== method) {
+    return mismatch('Mcp-Method', methodHeader, method);
+  }
+  const field = NAME_HEADER_SOURCE[method];
+  const named = field === undefined ? undefined : message.params?.[field];
+  if (isRequest && typeof named === 'string') {
+    const nameHeader = headers['mcp-name']?.trim();
+    const decoded = nameHeader === undefined ? undefined : decodeMcpName(nameHeader);
+    if (decoded !== named) return mismatch('Mcp-Name', nameHeader, named);
+  }
+  return { kind: 'modern' };
+}
+
+/**
+ * `Mcp-Name` 값 — 헤더에 실을 수 없는 글자는 `=?base64?…?=` 로 감싸 보낸다. 감싼 값이 base64 가 아니면
+ * undefined(본문과 맞지 않는 것으로 본다).
+ */
+function decodeMcpName(value: string): string | undefined {
+  const wrapped = /^=\?base64\?(.*)\?=$/i.exec(value);
+  if (wrapped === null) return value;
+  const encoded = wrapped[1] ?? '';
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) return undefined;
+  return Buffer.from(encoded, 'base64').toString('utf8');
+}
+
 /** JSON-RPC 알림 — `method` 는 있고 `id` 는 없는 객체 하나 */
 function isNotification(body: unknown): boolean {
   return (
@@ -529,8 +678,13 @@ function jsonRpc(id: string | number | null, result: unknown): unknown {
   return { jsonrpc: '2.0', id, result };
 }
 
-function jsonRpcError(id: string | number | null, code: number, message: string): unknown {
-  return { jsonrpc: '2.0', id, error: { code, message } };
+function jsonRpcError(
+  id: string | number | null,
+  code: number,
+  message: string,
+  data?: Record<string, unknown>,
+): unknown {
+  return { jsonrpc: '2.0', id, error: { code, message, ...(data === undefined ? {} : { data }) } };
 }
 
 /**

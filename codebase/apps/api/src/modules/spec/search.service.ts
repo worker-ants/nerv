@@ -190,7 +190,7 @@ export class SearchService {
         ? await this.byKeyFragment(input.projectId, query, limit, pick, input.includeArchived)
         : [];
 
-    // ② 렉시컬 — FTS(영문·ID 토큰) + trgm(한국어 조사 변형). 둘은 서로의 사각을 덮는다.
+    // ② 렉시컬 — FTS(영문·ID 토큰) + trgm(한국어 조사 변형). 둘은 서로의 사각을 덮고, 순위로만 합친다.
     const lexical = await this.lexical(
       input.projectId,
       query,
@@ -200,12 +200,13 @@ export class SearchService {
     );
 
     // ③ 벡터 — 무응답이면 건너뛴다. 검색은 조정 경로가 아니라 fail-open 이 맞다(D-14의 정신).
-    const vectors = await this.embedding.embedOrNull([query]);
-    const degraded = vectors === null ? 'lexical-only' : null;
+    //    질의 임베딩은 짧게 기다리고, 실패하면 한동안 부르지 않는다(EmbeddingClient.embedQuery).
+    const queryVector = await this.embedding.embedQuery(query);
+    const degraded = queryVector === null ? 'lexical-only' : null;
     const semantic =
-      vectors === null || vectors[0] === undefined
+      queryVector === null
         ? []
-        : await this.vector(input.projectId, vectors[0], limit * 3, pick, input.includeArchived);
+        : await this.vector(input.projectId, queryVector, limit * 3, pick, input.includeArchived);
 
     // ④ RRF 병합 — 점수 정규화 없이 **순위만** 쓴다. 렉시컬 점수와 코사인 거리는 단위가 달라
     //    가중합이 성립하지 않는다. 순위 역수 합은 그 비교를 아예 피한다.
@@ -381,7 +382,63 @@ export class SearchService {
     return [...top.values(), ...rest];
   }
 
+  /**
+   * ② 렉시컬 — FTS 와 trgm 의 **순위를 따로 매겨 순위로만 합친다**(2026-10-12 · 사람 결정 · REQ-API-301).
+   *
+   * 예전에는 `ts_rank` 와 `similarity` 를 `GREATEST` 로 섞었다. 단위가 다른 점수라 FTS 의 부분 일치가 위를
+   * 채웠고, 조사 변형 질의에서 현행이 trgm 단독보다 못했다("알림 메일 요약을 끄려면" 이 trgm 2위 · 현행 7위 —
+   * E06-S06 실측 · api.md §2.2c). ④ 가 렉시컬과 벡터를 순위로만 합치는 이유가 ② 안에서도 그대로 성립한다.
+   */
   private async lexical(
+    projectId: string,
+    query: string,
+    limit: number,
+    pick: Pick,
+    includeArchived?: boolean,
+  ): Promise<SearchHit[]> {
+    const fullText = await this.fullText(projectId, query, limit, pick, includeArchived);
+    const trigram = await this.trigram(projectId, query, limit, pick, includeArchived);
+    // 상태 가산점은 ④ 에서 한 번만 준다 — 여기서 주면 렉시컬로 들어온 결과만 두 번 받는다
+    return this.rrf([fullText, trigram], { boost: false }).slice(0, limit);
+  }
+
+  /**
+   * FTS — 저장해 둔 본문 벡터(`spec_version.body_tsv`)와 제목. 질의의 낱말 **가운데 하나라도** 든 문서를 먼저
+   * 거르고(`@@`) 그 안에서만 점수를 매긴다. 낱말을 모두 요구하면 조사가 붙은 한국어 질의가 거의 늘 비고,
+   * 거르지 않으면 질의마다 모든 문서의 점수를 계산한다(실측 p95 0.8초 — 그 거의 전부가 이것이었다).
+   */
+  private async fullText(
+    projectId: string,
+    query: string,
+    limit: number,
+    pick: Pick,
+    includeArchived?: boolean,
+  ): Promise<SearchHit[]> {
+    const archived = includeArchived === true ? sql`` : sql` AND s.archived_at IS NULL`;
+    const { rows } = await this.db.execute<SearchHit & { rank: number }>(sql`
+      WITH q AS (
+        SELECT replace(plainto_tsquery('simple', ${query})::text, '&', '|')::tsquery AS tsq
+      )
+      SELECT s.id AS spec_id, s.key, s.title, s.type::text AS type,
+             sv.status::text AS doc_status, sv.version_no, NULL::text AS anchor,
+             left(coalesce(sv.body_md, ''), 240) AS snippet, s.archived_at,
+             GREATEST(
+               coalesce(ts_rank(sv.body_tsv, q.tsq), 0),
+               ts_rank(to_tsvector('simple', s.title), q.tsq)
+             ) AS rank
+        FROM spec s
+  CROSS JOIN q
+   LEFT JOIN spec_version sv ON sv.id = ${pick.versionId}
+       WHERE s.project_id = ${projectId}${archived}${pick.member}
+         AND (sv.body_tsv @@ q.tsq OR to_tsvector('simple', s.title) @@ q.tsq)
+       ORDER BY rank DESC
+       LIMIT ${limit}
+    `);
+    return rows.map((r) => ({ ...r, score: r.rank, matched_by: ['lexical'] }));
+  }
+
+  /** trgm — 한국어 조사 변형 · 부분 문자열. 대상은 제목 · 본문 앞부분 · 요구사항 문장이다 */
+  private async trigram(
     projectId: string,
     query: string,
     limit: number,
@@ -395,8 +452,6 @@ export class SearchService {
                sv.status::text AS doc_status, sv.version_no, NULL::text AS anchor,
                left(coalesce(sv.body_md, ''), 240) AS snippet, s.archived_at,
                GREATEST(
-                 ts_rank(to_tsvector('simple', coalesce(sv.body_md, '')), plainto_tsquery('simple', ${query})),
-                 ts_rank(to_tsvector('simple', s.title), plainto_tsquery('simple', ${query})),
                  similarity(s.title, ${query}),
                  similarity(left(coalesce(sv.body_md, ''), 4000), ${query})
                ) AS rank
@@ -513,7 +568,7 @@ export class SearchService {
    * RRF — 각 랭커의 **순위**만 쓰는 결정적 병합. 같은 스펙이 여러 경로로 들어오면 합쳐지고,
    * 그때 matched_by 가 누적된다. 문서 상태 부스트는 마지막에 얹는다(같은 순위대의 타이브레이크).
    */
-  private rrf(rankings: SearchHit[][]): SearchHit[] {
+  private rrf(rankings: SearchHit[][], opts: { boost?: boolean } = {}): SearchHit[] {
     const acc = new Map<string, SearchHit & { score: number }>();
     for (const ranking of rankings) {
       ranking.forEach((hit, index) => {
@@ -530,8 +585,12 @@ export class SearchService {
         }
       });
     }
+    const boost = opts.boost ?? true;
     return [...acc.values()]
-      .map((hit) => ({ ...hit, score: hit.score + (STATUS_BOOST[hit.doc_status ?? ''] ?? 0) }))
+      .map((hit) => ({
+        ...hit,
+        score: hit.score + (boost ? (STATUS_BOOST[hit.doc_status ?? ''] ?? 0) : 0),
+      }))
       .sort((a, b) => b.score - a.score);
   }
 

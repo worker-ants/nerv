@@ -581,3 +581,16 @@ export const DIGEST_MAX_LINES = 20;
 
 /** 메일 요약을 켤 때의 기본 시(時) — 와이어프레임의 "다이제스트 09:00"(3.x ui-wireframes) */
 export const DIGEST_DEFAULT_HOUR = 9;
+
+/**
+ * 검색이 질의 하나를 임베딩할 때 기다리는 **상한(ms)**(2026-10-12 · 사람 결정 — api.md §2.2b). 색인은
+ * `NERV_EMBED_TIMEOUT_MS`(기본 30초)를 그대로 쓴다. 같은 값을 쓰던 동안 멈춘 제공자 앞에서 검색 한 번이
+ * 30.6초를 기다린 뒤에야 렉시컬로 내려갔다(E06-S06 실측 · §2.2c).
+ */
+export const EMBED_QUERY_TIMEOUT_MS = 2_000;
+
+/**
+ * 질의 임베딩이 한 번 실패하면 **그동안 임베딩을 건너뛰는 시간(ms)**(2026-10-12 · 사람 결정). 장애 동안
+ * 검색마다 시한을 다시 기다리지 않고 바로 렉시컬로 답한다. 시간이 지나면 다음 검색이 다시 시도한다.
+ */
+export const EMBED_QUERY_COOLDOWN_MS = 60_000;

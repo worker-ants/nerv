@@ -13,8 +13,9 @@
 
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
+import { EMBED_QUERY_COOLDOWN_MS, EMBED_QUERY_TIMEOUT_MS } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { EmbeddingClient } from '../../src/modules/spec/embedding.client.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -115,8 +116,63 @@ describe('E06-S06 임베딩 제공자 계약 (REQ-CB-020)', () => {
     // degrade 는 예외를 삼키는 것이 아니라 **검색이 렉시컬로 내려가는 것**이다.
     // 그 판정은 SpecService.search 가 하고(E09-S10), 여기서는 클라이언트가 실패를 숨기지
     // 않는다는 것까지 확인한다 — 조용히 빈 벡터를 주면 검색이 조용히 나빠진다.
-    const degraded = await dead.embedOrNull(['x']);
+    const degraded = await dead.embedQuery('x');
     expect(degraded).toBeNull();
+  });
+
+  // 2026-10-12 · 사람 결정(REQ-API-300). 질의도 색인과 같은 30초를 기다리던 동안, 받기만 하고 답하지
+  // 않는 제공자 앞에서 검색 한 번이 30.6초였다(E06-S06 실측 · api.md §2.2c).
+  it('멈춘 제공자 앞에서 질의는 2초 안에 포기하고, 그 뒤 1분은 부르지 않는다 (REQ-API-300)', async () => {
+    let calls = 0;
+    const hung = createServer((req) => {
+      calls += 1;
+      req.resume(); // 받기만 하고 답하지 않는다
+    });
+    await new Promise<void>((r) => hung.listen(0, '127.0.0.1', r));
+    const port = (hung.address() as { port: number }).port;
+    let clock = 1_000_000;
+    const client = new EmbeddingClient({
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      model: 'm',
+      timeoutMs: 30_000, // 색인의 시한 — 질의는 이것을 쓰지 않는다
+      now: () => clock,
+    });
+    try {
+      const startedAt = performance.now();
+      expect(await client.embedQuery('파티션')).toBeNull();
+      const waited = performance.now() - startedAt;
+      expect(waited).toBeGreaterThanOrEqual(EMBED_QUERY_TIMEOUT_MS - 50);
+      expect(waited).toBeLessThan(EMBED_QUERY_TIMEOUT_MS + 3_000);
+      expect(calls).toBe(1);
+
+      // 쉬는 동안은 부르지 않고 바로 null 이다 — 검색은 기다리지 않고 렉시컬로 답한다
+      clock += EMBED_QUERY_COOLDOWN_MS - 1;
+      const skippedAt = performance.now();
+      expect(await client.embedQuery('파티션')).toBeNull();
+      expect(performance.now() - skippedAt).toBeLessThan(100);
+      expect(calls).toBe(1);
+    } finally {
+      hung.closeAllConnections();
+      await new Promise<void>((r) => hung.close(() => r()));
+    }
+  });
+
+  it('쉬는 시간이 지나면 다시 부른다 — 살아난 제공자는 다음 검색부터 쓰인다 (REQ-API-300)', async () => {
+    let clock = 5_000_000;
+    const client = new EmbeddingClient({
+      baseUrl: 'http://127.0.0.1:1/v1',
+      model: 'm',
+      now: () => clock,
+    });
+    expect(await client.embedQuery('x')).toBeNull(); // 연결 거부 — 쉬기 시작한다
+    // 같은 객체의 주소를 살아 있는 스텁으로 바꿀 수는 없으니, 쉬는 동안과 그 뒤의 차이를 호출로 본다
+    const spy = vi.spyOn(client, 'embed');
+    clock += EMBED_QUERY_COOLDOWN_MS - 1;
+    await client.embedQuery('x');
+    expect(spy).not.toHaveBeenCalled();
+    clock += 2;
+    await client.embedQuery('x');
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('세 프로필이 같은 코드 경로를 쓴다 — env 3키만 다르다(§5.2a)', async () => {

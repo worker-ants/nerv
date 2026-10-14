@@ -945,6 +945,9 @@ export const ko = {
   'mcp.error.tool_failed': '도구 실행에 실패했다.',
   'mcp.error.unknown_tool': '알 수 없는 도구: {name}',
   'mcp.error.unsupported_method': '지원하지 않는 메서드: {method}',
+  'mcp.error.header_mismatch':
+    '요청 헤더와 본문이 맞지 않다 — {header} 헤더: {sent} · 본문: {expected}',
+  'mcp.error.envelope_invalid': '요청 _meta의 프로토콜 리비전이 문자열이 아니다',
   'mcp.instructions.ask':
     '판단이 막히면 임의로 결정하지 말고 nerv_question_create로 사람에게 올린다.',
   'mcp.instructions.bootstrap': '세션 시작 직후 nerv_bootstrap을 첫 도구로 호출한다.',

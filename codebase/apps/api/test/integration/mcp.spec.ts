@@ -408,6 +408,125 @@ describe('E03-S01 게이트웨이 — tools-first (성공 기준 0-8)', () => {
     expect(res.headers['allow']).toBe('POST');
   });
 
+  // 2026-10-12 · 사람 결정(REQ-API-302). 2026-07-28 은 요청마다 `_meta` 에 리비전을 선언하고 헤더로 대조한다.
+  // Claude Code 2.1.296 은 `server/discover` 부터 묻는데 서버에 그것이 없어 구 리비전으로 내려갔다(§2.6a).
+  describe('2026-07-28 — 본문이 선언하고 헤더가 대조한다 (REQ-API-302)', () => {
+    const META = 'io.modelcontextprotocol/protocolVersion';
+    async function modern(
+      method: string,
+      params: Record<string, unknown> = {},
+      headers: Record<string, string | undefined> = {},
+      claim = '2026-07-28',
+    ): Promise<{ status: number; body: Record<string, unknown> }> {
+      const sent: Record<string, string> = {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+        'mcp-protocol-version': claim,
+        'mcp-method': method,
+      };
+      for (const [k, v] of Object.entries(headers)) {
+        if (v === undefined) delete sent[k];
+        else sent[k] = v;
+      }
+      const res = await app.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: sent,
+        payload: {
+          jsonrpc: '2.0',
+          id: 7,
+          method,
+          params: {
+            ...params,
+            _meta: {
+              [META]: claim,
+              'io.modelcontextprotocol/clientInfo': { name: 'l2', version: '0' },
+              'io.modelcontextprotocol/clientCapabilities': {},
+            },
+          },
+        },
+      });
+      return { status: res.statusCode, body: res.json() as Record<string, unknown> };
+    }
+
+    it('server/discover 는 받는 리비전과 능력을 알린다', async () => {
+      const { status, body } = await modern('server/discover');
+      expect(status).toBe(200);
+      const result = body['result'] as Record<string, unknown>;
+      expect(result['supportedVersions']).toEqual([
+        '2026-07-28',
+        '2025-11-25',
+        '2025-06-18',
+        '2025-03-26',
+      ]);
+      expect(result['capabilities']).toEqual({ tools: { listChanged: false } });
+      expect(result['resultType']).toBe('complete');
+      expect(
+        (result['_meta'] as Record<string, unknown>)['io.modelcontextprotocol/serverInfo'],
+      ).toEqual({ name: 'nerv', version: '0.1.0' });
+    });
+
+    it('선언한 요청의 결과는 resultType 을 싣는다 — tools/list · tools/call', async () => {
+      const list = await modern('tools/list');
+      // 목록 결과는 캐시 표시가 필수다 — 빠지면 Claude Code 2.1.296 이 목록을 버리고 도구 없이 시작했다
+      expect(list.body['result']).toMatchObject({
+        resultType: 'complete',
+        ttlMs: 0,
+        cacheScope: 'private',
+      });
+      const call = await modern(
+        'tools/call',
+        { name: 'nerv_spec_tree', arguments: {} },
+        { 'mcp-name': 'nerv_spec_tree' },
+      );
+      expect(call.status).toBe(200);
+      expect((call.body['result'] as Record<string, unknown>)['resultType']).toBe('complete');
+    });
+
+    it('헤더와 본문이 어긋나면 -32020 · 400 이다 — 리비전 · 메서드 · 도구 이름', async () => {
+      const cases = [
+        await modern('tools/list', {}, { 'mcp-protocol-version': '2025-11-25' }),
+        await modern('tools/list', {}, { 'mcp-protocol-version': undefined }),
+        await modern('tools/list', {}, { 'mcp-method': 'tools/call' }),
+        await modern('tools/list', {}, { 'mcp-method': undefined }),
+        await modern('tools/call', { name: 'nerv_spec_tree', arguments: {} }, { 'mcp-name': 'x' }),
+        await modern('tools/call', { name: 'nerv_spec_tree', arguments: {} }),
+      ];
+      for (const { status, body } of cases) {
+        expect(status).toBe(400);
+        expect((body['error'] as Record<string, unknown>)['code']).toBe(-32020);
+      }
+      // 헤더에 실을 수 없는 이름은 base64 로 감싸 보낸다 — 풀어서 대조한다
+      const wrapped = `=?base64?${Buffer.from('nerv_spec_tree').toString('base64')}?=`;
+      const ok = await modern(
+        'tools/call',
+        { name: 'nerv_spec_tree', arguments: {} },
+        { 'mcp-name': wrapped },
+      );
+      expect(ok.status).toBe(200);
+    });
+
+    it('모르는 리비전을 선언하면 -32022 와 받는 목록이다', async () => {
+      const { status, body } = await modern('tools/list', {}, {}, '2099-01-01');
+      expect(status).toBe(400);
+      const error = body['error'] as Record<string, unknown>;
+      expect(error['code']).toBe(-32022);
+      expect((error['data'] as Record<string, unknown>)['supported']).toContain('2026-07-28');
+    });
+
+    it('2026-07-28 을 선언한 initialize 는 모르는 메서드다 — 그 리비전에는 핸드셰이크가 없다', async () => {
+      const { body } = await modern('initialize');
+      expect((body['error'] as Record<string, unknown>)['code']).toBe(-32601);
+    });
+
+    it('헤더만 2026-07-28 인 요청(선언 없음)은 지금처럼 받는다 — 플러그인 아웃박스가 그렇게 보낸다', async () => {
+      const { status, body } = await rpc('tools/list', {}, { revision: '2026-07-28' });
+      expect(status).toBe(200);
+      expect((body['result'] as Record<string, unknown>)['tools']).toBeDefined();
+      expect((body['result'] as Record<string, unknown>)['resultType']).toBeUndefined();
+    });
+  });
+
   it('모르는 리비전은 거부한다', async () => {
     const res = await app.inject({
       method: 'POST',

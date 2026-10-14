@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.51 · 2026-10-11 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.52 · 2026-10-12 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.52 변경(2026-10-12 — 2026-07-28 을 실제로 받는다, **사람 결정**): **§2.6a 끝 한 덩이.** `server/discover` 와 그 리비전의 헤더 · 결과 규칙을 구현했다. 이제 Claude Code 2.1.296 은 2026-07-28 로, Codex 0.162.1 은 2025-06-18 로 같은 엔드포인트에서 `nerv_bootstrap` 까지 부른다. 목록 결과의 캐시 표시가 빠지면 Claude Code 가 도구 없이 시작한다는 것도 실측에서 나왔다. 헤더만 2026-07-28 인 요청(플러그인 아웃박스)은 지금처럼 받는다([4.4 API](../04-mvp/api.md) REQ-API-302).
 >
 > v0.51 변경(2026-10-11 — MCP 리비전 실측 E06-S04): **§2.6a 신설 · §2.6 한 줄.** Claude Code 2.1.296 과 Codex 0.162.1 을 같은 엔드포인트에 붙여 `nerv_bootstrap` 까지 불렀다. 실측이 결함 셋을 찾았다 — 서버가 `initialize` 의 리비전을 헤더로만 골라 두 클라이언트 모두 2025-03-26 으로 깎였고 알림에 200 과 `null` 을 주어 **Codex 는 아예 붙지 못했고**, `GET /mcp` 는 404 였다. 셋 다 고쳤다([4.4 API](../04-mvp/api.md) REQ-API-298 · 299). 2026-07-28 의 첫 요청(`server/discover`)은 서버에 없어 Claude Code 가 구 리비전으로 내려간다 — 구현할지는 사람이 정한다.
 >
@@ -314,7 +316,15 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | 알림의 응답 | 200 과 본문 `null` | **Codex 는 붙지 못했다.** rmcp 가 그 본문을 JSON-RPC 메시지로 읽다 실패해 핸드셰이크를 세 번 다시 하고 포기했다 — 도구 0개. Claude Code 는 그 본문을 읽지 않아 드러나지 않았다 | 메서드와 무관하게 202 · 본문 없음(REQ-API-299) |
 | `GET /mcp` | 라우트가 없어 404 | Claude Code 가 2025-11-25 로 붙은 뒤 서버발 스트림을 열려고 보낸다. 404 여도 다음으로 넘어갔다 | 405 · `Allow: POST`(REQ-API-299) |
 
-**열린 것 — 2026-07-28 로 실제로 붙는 클라이언트는 아직 없다(사람 확인 전).** Claude Code 는 먼저 `server/discover` 로 2026-07-28 을 묻는다. NERV 에는 이 메서드가 없어 -32601 로 답하고 Claude Code 는 구 리비전 핸드셰이크로 내려간다. 서버는 그 리비전 이름의 헤더를 받아 주지만(L2 가 헤더로 확인한다) 그 리비전의 첫 요청은 처리하지 못한다 — 내려가지 않는 2026-07-28 전용 클라이언트가 나오면 붙지 못한다. 참조 구현(`@modelcontextprotocol/server` 2.3.1)은 `server/discover` 를 처리한다. 이 메서드를 구현할지, 그때까지 지원 목록에서 2026-07-28 을 뺄지는 사람이 정한다.
+**2026-07-28 — 구현했다(2026-10-12 · 사람 결정 · [4.4 API](../04-mvp/api.md) REQ-API-302).** 실측 때 Claude Code 는 먼저 `server/discover` 로 2026-07-28 을 물었는데 NERV 에는 그 메서드가 없어 -32601 을 받고 구 리비전으로 내려갔다. 이제 서버는 요청 본문의 `_meta` 에 2026-07-28 을 선언한 요청을 그 리비전의 규칙으로 다룬다 — 헤더(`MCP-Protocol-Version` · `Mcp-Method` · `tools/call` 의 `Mcp-Name`)를 본문과 대조해 어긋나면 -32020 · 400, 결과에는 `resultType: "complete"`, `tools/list` 에는 캐시 표시(`ttlMs` · `cacheScope`)를 넣는다. 참조 구현(`@modelcontextprotocol/server` · `client` 2.3.1)의 규칙을 따랐다.
+
+| 클라이언트 | 순서(구현한 뒤) | 협상된 리비전 | `nerv_bootstrap` |
+| --- | --- | --- | --- |
+| Claude Code 2.1.296 | ① `server/discover` → 받는 리비전 넷 ② `tools/list`(헤더 `2026-07-28` · `Mcp-Method`) ③ `tools/call`(`Mcp-Name`) — `initialize` · 알림 · `GET` 이 없다 | 2026-07-28 | `ok: true` |
+| Codex 0.162.1 | 그대로다 — ① `initialize`(본문 `2025-06-18`) ② 알림 → 202 ③ `tools/list` ④ `tools/call` | 2025-06-18 | `ok: true` |
+
+- **캐시 표시가 빠지면 도구가 0개다.** 메서드만 두었을 때 Claude Code 는 `tools/list` 를 네 번 다시 받고 도구 없이 시작했다. 참조 클라이언트가 그 이유를 말했다 — 그 리비전의 목록 결과는 `ttlMs` 와 `cacheScope` 가 필수다. 값을 새로 만들지 않으려고 `ttlMs: 0`(바로 낡음) · `cacheScope: "private"` 로 둔다.
+- **헤더만 2026-07-28 인 요청은 지금처럼 받는다.** 참조 구현은 선언 없는 그 요청을 거절하지만 NERV 플러그인의 아웃박스(`bin/nerv-outbox`)가 그렇게 보내고, 이미 깔린 사본을 한꺼번에 바꿀 수 없다. 그 요청에는 `resultType` 을 넣지 않는다(구 리비전의 모양 그대로).
 
 ### 2.7 에러 규약과 리스 만료
 

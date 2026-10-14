@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.05 · 2026-10-11 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.06 · 2026-10-12 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.06 변경(2026-10-12 — 마이그레이션 Job 을 먼저 적용한다, **사람 결정**): **REQ-CB-010 개정 · §6.3 배포 절차 · §6.2 Job 블록 라벨 한 줄 · §6.3b 끝 한 문단 · §6.5 복구 ②.** 배포 절차가 Job 과 Deployment 를 한 번에 적용하던 동안, 워커(`Recreate`)는 마이그레이션이 끝날 때까지 기동을 거부해서 마이그레이션이 실패하면 고칠 때까지 워커가 없었다. 이제 한 번 렌더하고 Job 만 먼저 적용해(라벨 `app.kubernetes.io/component: migrate`) 끝나기를 기다린 뒤 나머지를 적용한다. 실패하면 옛 파드와 옛 워커가 그대로 돈다. 라벨로 고르는 적용은 k3s API 서버에서 확인했다.
 >
 > v2.05 변경(2026-10-11 — 마이그레이션 파이프라인 스파이크 E06-S03): **새 요구사항 없음 · §6.3b 신설 · §6.3 한 문장.** compose 기동 시 적용과 k8s Job 은 같은 엔트리를 부른다. 신규 DB 와 지난 릴리스 세 시점(`0019` · `0032` · `0044`)의 기존 DB 에서 왕복 멱등을 쟀고, 따라잡은 스키마는 신규 DB 와 같았다. 판정은 둘 다 쓰는 것이다(배치마다 하나). 동시 실행은 하나만 성공해서 파드마다 적용하는 셋째 안은 버렸다. 롤백은 down 없이 셋으로 나눈다 — 실패한 판은 한 트랜잭션이라 저절로 되돌아가고, 이미지 문제는 이미지만 되돌리고, 수축이 틀렸으면 앞으로 고치거나 백업에서 되살린다. 워커가 `Recreate` 라 마이그레이션 동안 빠지는 시간은 사람이 정할 것으로 남겼다. k8s 는 이 작업 환경에서 파드가 뜨지 않아 API 서버까지만 쟀다.
 >
@@ -2287,6 +2289,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: nerv-migrate
+  labels:
+    app.kubernetes.io/component: migrate       # 배포 절차 (3)이 이 라벨로 Job 만 먼저 적용한다
 spec:
   backoffLimit: 2
   ttlSecondsAfterFinished: 3600
@@ -2360,22 +2364,26 @@ spec:
 
 k8s 경로에서 `/mcp` Origin 검증의 최종 강제는 앱 가드(`mcp-origin.guard.ts`)다 — Ingress 컨트롤러의 스니펫 주입은 조직 보안 정책상 비활성인 클러스터가 많아 **의존하지 않는다**(REQ-CB-013).
 
-배포 절차(마이그레이션 Job 선행 — Job은 불변 리소스라 재적용 전 삭제). **저장소 루트에서 실행한다** — `deploy/k8s`가 저장소 루트 기준이기 때문이다(REQ-CB-015, §1.1):
+배포 절차(마이그레이션 Job 을 **먼저 적용하고 기다린 뒤** 나머지를 적용한다 — 2026-10-12 · 사람 결정 · §6.3b). **저장소 루트에서 실행한다** — `deploy/k8s`가 저장소 루트 기준이기 때문이다(REQ-CB-015, §1.1):
 
 ```bash
-kubectl -n nerv delete job nerv-migrate --ignore-not-found                        # (1) Job 은 불변 리소스 — 재적용 전 삭제
-kustomize build deploy/k8s/overlays/prod | kubectl apply -f -                     # (2) 적용 — migrate Job 이 함께 생성된다
-kubectl -n nerv wait --for=condition=complete --timeout=300s job/nerv-migrate     # (3) 마이그레이션 완료 대기
+kustomize build deploy/k8s/overlays/prod > /tmp/nerv-deploy.yaml                      # (1) 한 번 렌더한다 — (3)과 (5)가 같은 내용을 쓴다
+kubectl -n nerv delete job nerv-migrate --ignore-not-found                             # (2) Job 은 불변 리소스 — 재적용 전 삭제
+kubectl apply -f /tmp/nerv-deploy.yaml -l app.kubernetes.io/component=migrate          # (3) 마이그레이션 Job 만 먼저 — 옛 파드는 그대로 돈다
+kubectl -n nerv wait --for=condition=complete --timeout=300s job/nerv-migrate          # (4) 마이그레이션 완료 대기 — 실패하면 여기서 멈춘다
+kubectl apply -f /tmp/nerv-deploy.yaml                                                 # (5) 나머지 — 이제 새 파드가 뜬다
 kubectl -n nerv rollout status deploy/nerv-api && \
 kubectl -n nerv rollout status deploy/nerv-worker && \
-kubectl -n nerv rollout status deploy/nerv-web                                    # (4) 롤아웃 확인
+kubectl -n nerv rollout status deploy/nerv-web                                         # (6) 롤아웃 확인
 ```
 
-마이그레이션은 **expand-contract**(하위호환 additive 우선)를 원칙으로 한다 — (2)~(3) 사이 구버전 파드가 새 스키마 위에서 잠시 돌 수 있어야 한다. 파괴적 변경(컬럼 삭제·rename)은 2회 릴리스로 나눈다. 규칙 상세는 [4.3 데이터베이스 스키마](database.md) §1. 두 경로의 실측과 롤백 절차는 §6.3b 다.
+(3)은 Job 의 라벨(`app.kubernetes.io/component: migrate`)로 Job 하나만 고른다. 네임스페이스와 `nerv-secrets` 는 첫 배포 전에 이미 있다 — Secret 은 base 가 만들지 않고 조직의 경로로 그 네임스페이스에 넣는다(§6.2). **(4)가 실패하면 (5)로 가지 않는다** — 옛 api 와 옛 워커가 그대로 돌고, DB 는 그 판 이전 그대로다(§6.3b ③).
+
+마이그레이션은 **expand-contract**(하위호환 additive 우선)를 원칙으로 한다 — (3)~(5) 사이 구버전 파드가 새 스키마 위에서 돌 수 있어야 한다. 파괴적 변경(컬럼 삭제·rename)은 2회 릴리스로 나눈다. 규칙 상세는 [4.3 데이터베이스 스키마](database.md) §1. 두 경로의 실측과 롤백 절차는 §6.3b 다.
 
 | ID | 요구(EARS) |
 | --- | --- |
-| **REQ-CB-010** | WHEN 새 이미지가 k8s에 배포될 때, THE SYSTEM SHALL `nerv-migrate` Job의 성공 완료를 확인한 뒤에만 Deployment 롤아웃을 완료 판정한다(위 절차 (3)→(4) 순서 고정). |
+| **REQ-CB-010** | WHEN 새 이미지가 k8s에 배포될 때, THE SYSTEM SHALL `nerv-migrate` Job 만 먼저 적용해 그 성공 완료를 확인한 뒤에만 나머지 리소스(Deployment 등)를 적용한다(위 절차 (3)→(4)→(5) 순서 고정). (2026-10-12 개정 · 사람 결정 — 예전에는 Job 과 Deployment 를 한 번에 적용하고 롤아웃의 **완료 판정**만 Job 뒤에 두었다. 워커는 `Recreate` 라 옛 워커가 먼저 내려가고 새 워커는 마이그레이션이 끝날 때까지 기동을 거부해서, 마이그레이션이 실패하면 고칠 때까지 워커가 없었다 · §6.3b) |
 | **REQ-CB-011** | WHEN `nerv-worker` 인스턴스가 어떤 이유로든 2개 이상 동시에 떠 있을 때, THE SYSTEM SHALL `pg_advisory_lock(WORKER_ADVISORY_LOCK_KEY)`을 보유한 1개만 잡 루프를 실행한다 — replica 1은 배포 규칙이고, lock이 최종 방어선이다. |
 | **REQ-CB-012** | WHEN 이미지가 빌드되면, THE SYSTEM SHALL `nerv-api`·`nerv-worker`·`nerv-web` 3종에 같은 git SHA 태그를 붙이고 그 태그를 재사용(overwrite)하지 않는다. |
 | **REQ-CB-013** | WHEN `POST /mcp` 요청의 `Origin` 헤더가 존재하고 **`NERV_API_URL` 과 허용 오리진 목록(§5.2c) 어느 것과도 다를 때**, THE SYSTEM SHALL 앱 가드에서 403을 반환한다 — 전단(nginx·Ingress)의 차단 여부와 무관하게. (2026-09-13 개정 — 대조 대상이 **둘**이 됐다: 전에는 이름 하나가 화면과 API 의 주소를 겸해 하나로 보였다 · REQ-CB-036. 2026-09-20 개정 — 거기에 `NERV_TRUSTED_ORIGINS` 가 **함께 든다**: 허용 오리진을 CORS·better-auth·이 가드가 한 출처에서 읽지 않으면, 운영자가 화면을 띄우라고 선언한 오리진이 표면마다 다르게 취급된다 · REQ-CB-041. 값이 같은 배치에서는 판정이 한 건도 달라지지 않는다. **앞문은 여전히 오리진 하나만 안다** — nginx `map` 은 envsubst 치환이 한 줄이고 같은 값 두 줄이면 기동을 거부하므로, 1차 차단은 화면 주소 하나를 보고 최종 강제는 이 가드다) |
@@ -2400,7 +2408,7 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
 
 ### 6.3b 마이그레이션 파이프라인 — 실측과 롤백 절차 (E06-S03 · 2026-10-11)
 
-E06-S03 스파이크의 결과다. 후보는 둘이다. **compose 기동 시 적용**은 한 번 돌고 끝나는 `migrate` 서비스와 `depends_on: service_completed_successfully` 로 이루어지고(§5.3), **k8s Job** 은 §6.3 절차 (1)~(3)의 `nerv-migrate` 다. 둘 다 같은 엔트리(`apps/api/dist/migrate.js` → `@nerv/schema` 의 `runMigrations`)를 부른다. 그래서 왕복 멱등은 엔트리에서 재고, 두 안에서는 엔트리를 부르는 방식과 실패했을 때 무엇이 멈추는지를 쟀다.
+E06-S03 스파이크의 결과다. 후보는 둘이다. **compose 기동 시 적용**은 한 번 돌고 끝나는 `migrate` 서비스와 `depends_on: service_completed_successfully` 로 이루어지고(§5.3), **k8s Job** 은 §6.3 절차의 `nerv-migrate` 다. 둘 다 같은 엔트리(`apps/api/dist/migrate.js` → `@nerv/schema` 의 `runMigrations`)를 부른다. 그래서 왕복 멱등은 엔트리에서 재고, 두 안에서는 엔트리를 부르는 방식과 실패했을 때 무엇이 멈추는지를 쟀다.
 
 - 마이그레이션 48건(`0000_init`~`0047_task_archive`) · drizzle-orm 0.45.3. 엔트리는 저장소 밖의 일회용 Postgres 16.15 에서, compose 는 저장소 compose 와 같은 `pgvector/pgvector:pg18` 에서 쟀다.
 - **기존 DB 는 지난 릴리스 세 시점으로 만들었다.** 그 커밋의 `drizzle/` 과 `seed/dev-seed.sql` 을 꺼내 적용하고 시드를 넣은 뒤 지금 엔트리로 따라잡았다.
@@ -2423,7 +2431,7 @@ E06-S03 스파이크의 결과다. 후보는 둘이다. **compose 기동 시 적
 | --- | --- | --- |
 | 처음 기동 | `up -d` 25초(postgres healthcheck 포함). migrate 가 11.1초 뒤 exit 0 으로 끝나고 그다음에 api 가 떴다 | 파드 실행은 재지 못했다(아래) |
 | 다시 기동 | 그대로 `up -d` 하면 끝난 migrate 컨테이너가 다시 돈다(변경 0건). `down` 뒤 `up -d` 도 같다. `restart api` 는 마이그레이션을 돌리지 않는다 | (1)이 Job 을 지우고 (2)가 다시 만든다. 같은 내용을 다시 적용하면 `unchanged` 다 |
-| 매니페스트를 고쳐 다시 적용 | — | 지우지 않고 이미지 태그만 바꿔 적용하면 `spec.template` 불변 오류로 거부된다(rc 1). 절차 (1)이 있는 이유다 |
+| 매니페스트를 고쳐 다시 적용 | — | 지우지 않고 이미지 태그만 바꿔 적용하면 `spec.template` 불변 오류로 거부된다(rc 1). 절차의 Job 삭제 단계가 있는 이유다 |
 | 마이그레이션 실패 | `up -d` 가 rc 1 과 `service "migrate" didn't complete successfully: exit 1` 로 끝난다. 이미 떠 있던 api 는 그대로 돌고, 새로 띄우던 api 는 `created` 에서 멈춘다 | `kubectl wait --for=condition=complete` 가 시한에서 rc 1 로 끝나 (4)로 넘어가지 않는다(`&&`) |
 | 고친 뒤 | 다시 `up -d` 하면 migrate exit 0 → api 기동 | — |
 
@@ -2441,7 +2449,7 @@ compose 는 nerv-api 이미지 대신 node 24 이미지에 코드를 마운트�
 **판정: 두 안을 모두 쓴다 — 배치마다 하나씩, 엔트리는 하나.** compose 배치는 기동 시 적용, k8s 배치는 Job 이다(지금 트리 그대로). 두 안은 배치 대상만 다른 같은 단계다.
 
 1. **실행 주체가 하나다.** 두 안 모두 한 프로세스가 한 번 돌린다. 동시에 돌리면 하나만 성공하고 나머지는 실패로 끝났다(③). 파드마다 기동할 때 적용하는 안(initContainer · api 프로세스 안)은 replicas 3 인 운영 배치에서 배포마다 실패한 파드를 남긴다 — 셋째 후보로 보고 버렸다.
-2. **실패하면 다음 단계가 멈춘다.** compose 는 `service_completed_successfully` 가, k8s 는 (3)의 `wait` 와 `&&` 가 멈춘다(②). 새 파드가 먼저 떠도 기동 검사가 남은 파일을 이름으로 대며 기동을 거부한다 — ①의 기존 DB 셋 모두 따라잡기 전에는 `pending` 이 비지 않았다.
+2. **실패하면 다음 단계가 멈춘다.** compose 는 `service_completed_successfully` 가, k8s 는 절차의 대기 단계(`kubectl wait`)가 멈춘다(②). 새 파드가 먼저 떠도 기동 검사가 남은 파일을 이름으로 대며 기동을 거부한다 — ①의 기존 DB 셋 모두 따라잡기 전에는 `pending` 이 비지 않았다.
 3. **엔트리가 하나라 두 경로가 따로 놀지 않는다.** compose 에서 잰 것이 k8s 에서도 성립한다. 다른 것은 부르는 방식(서비스 의존 · Job 대기)뿐이다.
 
 **롤백 절차.** drizzle 에는 되돌리는 마이그레이션(down)이 없고 따로 만들지도 않는다 — 손으로 쓴 down 파일은 필요한 날까지 한 번도 돌지 않는 코드다. 경우를 셋으로 나눈다.
@@ -2452,7 +2460,7 @@ compose 는 nerv-api 이미지 대신 node 24 이미지에 코드를 마운트�
 | 마이그레이션은 성공했고 새 이미지가 문제다 | 이미지만 이전 태그로 되돌린다(`kubectl -n nerv rollout undo` 또는 이전 SHA 로 §6.3 절차). 스키마는 그대로 둔다 | ③ 둘째 줄 — expand-contract 덕에 옛 코드가 새 스키마에서 돌고, 옛 기동 검사는 앞선 DB 를 막지 않는다 |
 | 수축(contract) 마이그레이션이 지운 것이 필요했다 | 그것을 다시 만드는 새 마이그레이션으로 앞으로 고친다. 지운 데이터가 필요하면 §6.5 로 백업에서 되살린다 — 백업 이후의 쓰기는 잃는다 | 수축은 확장 다음 릴리스에 따로 내므로(§6.3) 직전 릴리스 코드도 쓰지 않는 것만 지운다. 이 경우는 그 판단이 틀렸을 때만 생긴다 |
 
-**열린 것 — 워커가 빠지는 시간(사람 확인 전).** 절차 (2)는 Job 과 Deployment 를 한 번에 적용한다. api 는 롤링이라 새 파드가 기동 검사에서 멈춰도 옛 파드가 계속 응답한다. **워커는 `Recreate`** 라(REQ-CB-011) 옛 워커가 먼저 내려가고, 새 워커는 마이그레이션이 끝날 때까지 기동을 거부한다. 성공하면 재시작 백오프만큼 늦게 뜨고, 실패하면 고칠 때까지 워커가 없다 — 리스 만료 · 알림 · 메일 잡이 멈춘다. Job 만 먼저 적용하고 기다린 뒤 나머지를 적용하면 그 시간이 없어진다. 매니페스트에서 읽은 것이고 실제 클러스터에서는 재지 않았다.
+**결정 — Job 을 먼저 적용한다(2026-10-12 · 사람 결정 · REQ-CB-010 개정).** 그때의 절차는 Job 과 Deployment 를 한 번에 적용했다. api 는 롤링이라 새 파드가 기동 검사에서 멈춰도 옛 파드가 계속 응답했지만, **워커는 `Recreate`** 라(REQ-CB-011) 옛 워커가 먼저 내려가고 새 워커는 마이그레이션이 끝날 때까지 기동을 거부했다 — 성공하면 재시작 백오프만큼 늦게 떴고, 실패하면 고칠 때까지 워커가 없었다(리스 만료 · 알림 · 메일 잡이 멈춘다). 이제 §6.3 절차는 Job 만 먼저 적용하고 기다린 뒤 나머지를 적용한다. 라벨로 Job 만 고르는 적용과 나머지 적용은 k3s v1.31.6 API 서버에서 확인했다(파드 실행은 위와 같은 이유로 재지 못했다).
 
 ### 6.4 이미지 태깅과 overlay
 
@@ -2505,7 +2513,7 @@ patches:
 # ① 신규 Postgres에 복원 — 스키마 포함 custom format
 pg_restore -d "$DATABASE_URL" --clean --if-exists nerv-<date>.dump
 # ② 마이그레이션 정합 — 백업 이후 릴리스가 있었으면 여기서 따라잡는다 (멱등)
-kubectl -n nerv delete job nerv-migrate --ignore-not-found && kustomize build deploy/k8s/overlays/prod | kubectl apply -f -
+kubectl -n nerv delete job nerv-migrate --ignore-not-found && kustomize build deploy/k8s/overlays/prod | kubectl apply -f - -l app.kubernetes.io/component=migrate
 kubectl -n nerv wait --for=condition=complete --timeout=300s job/nerv-migrate
 # ③ 첨부 되돌리기 — 버킷이 비었으면 복원 스크립트에 NERV_RESTORE_BLOBS_DIR=<백업>/blobs 를 준다(mc mirror 역방향)
 # ④ api·worker 롤아웃 재시작 — Valkey는 빈 채로 시작해도 무방
