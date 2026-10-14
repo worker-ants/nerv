@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.79 · 2026-10-12 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.80 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.80 변경(2026-10-15 — E12-S07 의 남은 것): **E12-S07 `done`** — Codex 0.162.1 에서 `ko-style`을 실측했다. Codex는 이 저장소의 카탈로그와 Claude 매니페스트를 그대로 읽고 훅 여섯을 같은 파일로 실행한다. 실측에서 나온 결함 둘(`hooks.json`의 `$comment` 때문에 훅 전체가 빠짐 · 문서 쓰기 `apply_patch`를 검사하지 못함)과 세션 요약의 바이트 상한을 0.1.3에서 고쳤다([4.6 플러그인](plugin.md) §7.6). E12 는 `done` 7 · 부분 0, 합계 74 · 2 다.
 >
 > v2.79 변경(2026-10-12 — 스파이크가 남긴 결정 다섯, **사람 결정**): **E06-S04 `done`** — Claude Code 2.1.296 은 2026-07-28 로, Codex 0.162.1 은 2025-06-18 로 같은 엔드포인트에서 도구를 부른다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.6a). E06 은 `done` 5 · 부분 2, 합계 73 · 3 이다. E06-S03 칸에 배포 절차의 결정을, E06-S06 칸에 검색의 결정 셋을 적었다 — 둘 다 남은 것은 그대로라 `부분` 이다.
 
@@ -607,10 +609,10 @@ referenced_by:
 | E09 스펙 워크플로우·승인 게이트 | 12 | — | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
 | E10 기획자 터미널 경로 | 4 | — | `spec.service.ts`(`NERV_DRAFT_LEASED`·takeover) · `spec-comment.service.ts` |
 | E11 plan 임포터 | 2 | — | `apps/cli/src/parse/plan.ts` · `apps/cli/src/run.ts` |
-| E12 플러그인 v1 + 훅 수집기 | 6 | 1 | `ko-style/`(문체 플러그인) · `plugin/skills/`(7종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` · `plugin-coverage.spec.ts`(활성화 현황) |
+| E12 플러그인 v1 + 훅 수집기 | 7 | — | `ko-style/`(문체 플러그인) · `plugin/skills/`(7종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` · `plugin-coverage.spec.ts`(활성화 현황) |
 | E13 받은 요청·질문·알림 | 3 | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
 | E14 운영·연동 | 4 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
-| **합계** | **73** | **3** | `backlog` 0 |
+| **합계** | **74** | **2** | `backlog` 0 |
 
 §5 의 **E2E 수용 시나리오 A~F 도 여섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts` · `scenario-f-journey.spec.ts`(2026-09-07 신설 — 그전까지 A~C 는 클레임까지만 태웠고 그 **이후**의 계약은 L2 조각들만 봤다).
 
@@ -622,7 +624,6 @@ referenced_by:
 | --- | --- | --- |
 | E06-S03 | 마이그레이션 파이프라인 양쪽 경로가 실제로 돈다 · **스파이크 리포트**([4.2 코드베이스와 배포](codebase.md) §6.3b — 신규 DB 와 지난 릴리스 세 시점의 기존 DB 에서 왕복 멱등, compose 경로 실행, 두 안 비교 · 선정 근거 · 롤백 절차) · Job 을 먼저 적용하는 배포 절차(2026-10-12 · 사람 결정 · REQ-CB-010 개정) | **k8s Job 파드를 실제 클러스터에서 한 번 돌린 기록**(재시도 `backoffLimit` 포함) — 이 작업 환경에서는 파드 샌드박스가 뜨지 않아 API 서버까지만 쟀다. 다음 배포의 `kubectl -n nerv logs job/nerv-migrate` 한 줄이면 된다 |
 | E06-S06 | degrade 경로·1024차원 검증 · **렉시컬 절반의 실측**([4.4 API](api.md) §2.2c — 이 저장소의 문서 세트로 한국어 질의 15개) · 실측이 남긴 결정 셋(2026-10-12 · 사람 결정 — 질의 임베딩 2초 · 1분 쉬기 REQ-API-300, FTS 저장 열과 순위 합치기 REQ-API-301 · REQ-DB-041 — 검색 p95 829 → 62ms) | **임베딩 3프로필의 지연 · 하이브리드 품질 · go/no-go 판정** — 이 작업 환경에서는 모델을 받을 길이 없었다. 같은 질의 15개로 다시 잰다 |
-| E12-S07 | 플러그인 본체(규칙 표 · 검사기 · 훅 여섯 · 스킬 셋) · git · 서버 카탈로그 · 이 저장소 설정(`.ko-style.json` · `.claude/settings.json`) · L1(`ko-style.spec.ts`) · L2(`plugin.spec.ts`) · CI 게이트(`check-ko-style.mjs` · REQ-CB-058) · `claude plugin eval` 사례 셋(`evals/` · 평균 차이 +0.04 — [4.6](plugin.md) §7.7) | **Codex 매니페스트 · 훅** — 실측 뒤([4.6](plugin.md) §7.6) |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
 

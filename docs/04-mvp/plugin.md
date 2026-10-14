@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.01 · 2026-10-11 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.02 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.02 변경(2026-10-15 — `ko-style`을 Codex에서 실측했다): **REQ-PLG-020 · 024 · 026 개정 · §7.1 Codex 행 · §7.2 · §7.4 · §7.6 · `ko-style` 0.1.2 → 0.1.3.** Codex 0.162.1은 이 저장소의 카탈로그와 Claude 매니페스트를 그대로 읽고 훅 여섯도 같은 파일로 실행한다. 그런데 `hooks.json`의 `$comment` 때문에 훅 전체가 빠지고 있었다. 문서 쓰기는 `apply_patch`로 들어와 검사하지 못했다. 둘을 고쳤다. Codex는 훅이 넣는 글의 토큰을 바이트/4로 어림해 약 2,500토큰에서 가운데를 잘라 내므로 세션 요약에 9,000바이트 상한을 더했다(§7.6).
 >
 > v1.01 변경(2026-10-11 — 토큰은 고친다, 사람 결정): **새 요구사항 없음 · §2.1 `next` · §2.8 `approve` 에러 표 한 칸씩 · 패키지 0.3.25 → 0.3.26.** 권한이 모자라면 새로 발급하라고 안내했는데, 이제 웹의 토큰 목록에서 그 토큰의 [편집]으로 권한을 켠다 — 토큰 값과 설정 파일은 그대로다([4.4 API 명세](api.md) REQ-API-292). 곁들여 낡은 스킬 수(5종)를 실제(7종)에 맞췄다 — §5 Codex 표 · §3.4 · 참고 자료.
 >
@@ -2042,13 +2044,13 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-013 | WHEN 플러그인이 설치되면 THE SYSTEM SHALL `.gitignore`에 `.nerv/`를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다 | 설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측. `.gitignore` 쪽은 `bin/nerv-init` 이 실행한다(§3.7) |
 | REQ-PLG-018 | WHEN 사람이 작업 저장소에서 `bin/nerv-init` 을 실행하면 THE SYSTEM SHALL `.mcp.json`·`.claude/settings.local.json` 의 `env`(`NERV_SERVER`·`NERV_PROJECT`·`NERV_TOKEN`)·`.gitignore` 의 `.nerv/` 중 **없는 것만** 만들고, 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다. WHILE 세션이 시작되는 동안 THE SYSTEM SHALL `--check` 로 덜 된 설정을 보고하되 **아무것도 쓰지 않고**, 설정의 흔적(`.mcp.json` 의 `nerv`·`.nerv/`·`NERV_*`)이 하나도 없는 저장소에서는 침묵한다 | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 빈 저장소(파일 셋 생성) · 남의 `settings.local.json`(다른 키·기존 값 보존) · 다시 실행(멱등) · 흔적 없는 저장소의 `--check`(출력 0바이트) |
 | REQ-PLG-019 | WHEN 세션을 만드는 훅(`session`)을 보내면 THE SYSTEM SHALL 포워더 옆 `plugin.json` 의 `version` 을 `X-NERV-Plugin` 헤더로 싣고, 다른 훅에는 싣지 않는다 | L1(`plugin-package.spec.ts`) — `curl` 을 가로채 실제 실행: `session` 은 `plugin.json` 과 같은 값 · `tool`·`stop`·`session-end` 는 헤더 없음 |
-| REQ-PLG-020 | WHEN 세션이나 서브에이전트가 시작되면 THE SYSTEM SHALL `ko-style` 규칙 요약(공통 규칙과 저장소 `.ko-style.json` 의 팀 어휘 · 글 종류별 말투)을 `additionalContext` 로 넣고 4,000자를 넘기지 않는다. WHILE 기계에 node 가 없는 동안 THE SYSTEM SHALL 미리 만든 요약(`hooks/digest.json`)만 넣고 자동 검사가 돌지 않는다는 사실을 적는다. WHEN 저장소 설정이 `"enabled": false` 이거나 `KO_STYLE_DISABLE=1` 이면 THE SYSTEM SHALL 아무것도 하지 않는다 | L1(`ko-style.spec.ts`) — `hooks/run.sh` 를 실제로 실행: 요약 길이 · 팀 어휘와 말투 포함 · node 가 없는 PATH · 끈 저장소 |
+| REQ-PLG-020 | WHEN 세션이나 서브에이전트가 시작되면 THE SYSTEM SHALL `ko-style` 규칙 요약(공통 규칙과 저장소 `.ko-style.json` 의 팀 어휘 · 글 종류별 말투)을 `additionalContext` 로 넣고 4,000자와 UTF-8 9,000바이트를 넘기지 않는다. 넘으면 팀 어휘를 뒤에서부터 줄이고 줄였다고 적는다(2026-10-15 개정 · Codex 실측 §7.6). WHILE 기계에 node 가 없는 동안 THE SYSTEM SHALL 미리 만든 요약(`hooks/digest.json`)만 넣고 자동 검사가 돌지 않는다는 사실을 적는다. WHEN 저장소 설정이 `"enabled": false` 이거나 `KO_STYLE_DISABLE=1` 이면 THE SYSTEM SHALL 아무것도 하지 않는다 | L1(`ko-style.spec.ts`) — `hooks/run.sh` 를 실제로 실행: 요약 길이 · 팀 어휘와 말투 포함 · 팀 어휘 200개 저장소의 자 수와 바이트 수 · node 가 없는 PATH · 끈 저장소 |
 | REQ-PLG-021 | WHEN 문체 규칙을 더하거나 고치면 THE SYSTEM SHALL 규칙마다 걸려야 할 예문(`examples.bad`)과 걸리지 않아야 할 예문(`examples.good`)을 두고 모든 예문이 그대로 판정되는지 검사한다. WHILE 검사하는 동안 THE SYSTEM SHALL 활용형을 한글 경계에서만 잡고, 코드 · 링크 주소 · URL · 따옴표 안(인용)을 검사하지 않으며, 입력을 NFC 로 정규화한다 줄 끝에 `ko-style-ignore: <이유>` 가 있는 줄은 검사하지 않고, 이유가 없으면 듣지 않는다 | L1 — 공통 규칙과 이 저장소 팀 어휘의 예문 전부 · 가림 · NFD · "머리말" 같은 한글 경계 |
 | REQ-PLG-022 | WHILE 규칙 표(`rules/core.json`)가 바뀌는 동안 THE SYSTEM SHALL 모델이 읽는 글(SKILL.md 의 규칙 표 · `hooks/digest.json`)을 그 표에서 생성하고(`ko-lint.mjs sync`) 손으로 고친 사본을 두지 않는다 | L1 — 생성 결과와 파일이 같은가 · SKILL.md 가 스스로 걸리지 않는가 |
 | REQ-PLG-023 | WHEN 에이전트가 `git commit` · `gh pr create` · `gh pr edit` 를 실행하려 하면 THE SYSTEM SHALL 메시지(heredoc · `-m` · `-F` · `--title` · `--body`)를 검사해 차단 · 경고 규칙에 걸리면 이유와 함께 한 번 거부하고, 같은 메시지로 다시 실행하면 통과시킨다 | L1 — 거부한 뒤 같은 메시지 재실행은 통과 · 깨끗한 메시지와 다른 명령은 출력 없음 |
-| REQ-PLG-024 | WHEN 에이전트가 글 종류(`surfaces`)에 드는 파일을 Write · Edit 로 고치면 THE SYSTEM SHALL **새로 쓴 줄만** 검사해 걸린 표현을 `decision:"block"` 과 이유로 돌려준다(Edit 는 바뀐 문자열, Write 는 커밋된 내용과 달라진 줄). 어느 글 종류에도 들지 않거나 `ignore` 에 든 파일은 검사하지 않는다 | L1 — 이전부터 있던 문장 제외 · Write 비교 · 제외 경로 |
+| REQ-PLG-024 | WHEN 에이전트가 글 종류(`surfaces`)에 드는 파일을 Write · Edit(Claude Code)나 apply_patch(Codex)로 고치면 THE SYSTEM SHALL **새로 쓴 줄만** 검사해 걸린 표현을 `decision:"block"` 과 이유로 돌려준다(Edit 는 바뀐 문자열, Write 는 커밋된 내용과 달라진 줄, apply_patch는 파일마다 `+` 줄 · 2026-10-15 개정). 어느 글 종류에도 들지 않거나 `ignore` 에 든 파일은 검사하지 않는다 | L1 — 이전부터 있던 문장 제외 · Write 비교 · 제외 경로 · apply_patch 패치 글(고친 파일 · 새 파일 · 옮긴 파일 · 지운 파일) |
 | REQ-PLG-025 | WHEN 답변이 끝나면 THE SYSTEM SHALL 한국어 답변을 검사해 걸린 표현을 사용자에게 한 줄로 알리고(`systemMessage`) 다음 요청 때 모델에게 알린 뒤 지운다. 답변을 다시 쓰게 하지 않는다. WHERE 저장소 설정이 `reply.mode: "rewrite"` 이면 THE SYSTEM SHALL 한 번만 다시 쓰게 하고 `stop_hook_active` 동안에는 막지 않는다 | L1 — 알림 → 다음 요청에 알림 → 지움 · rewrite · 영어 답변과 `off` 는 보지 않음 |
-| REQ-PLG-026 | WHEN `ko-style` 의 배포 파일이 바뀌면 THE SYSTEM SHALL 그 플러그인의 `plugin.json` `version` 을 올리고 저장소 루트 카탈로그 · `package.json` · README 제목을 같은 값으로 맞춘다(nerv 와 버전을 따로 간다). WHILE 패키지를 만드는 동안 THE SYSTEM SHALL 스킬에 Agent Skills 표준 필드만 쓰고, 최상위 `bin/` 을 두지 않고, 훅을 `sh hooks/run.sh` 로 부른다 | L1(`ko-style.spec.ts`) + `check-plugin-version.mjs`(플러그인마다) |
+| REQ-PLG-026 | WHEN `ko-style` 의 배포 파일이 바뀌면 THE SYSTEM SHALL 그 플러그인의 `plugin.json` `version` 을 올리고 저장소 루트 카탈로그 · `package.json` · README 제목을 같은 값으로 맞춘다(nerv 와 버전을 따로 간다). WHILE 패키지를 만드는 동안 THE SYSTEM SHALL 스킬에 Agent Skills 표준 필드만 쓰고 최상위 `bin/` 을 두지 않으며 훅을 `sh hooks/run.sh` 로 부른다. `hooks/hooks.json` 최상위에는 `description` · `hooks` 말고 다른 키를 두지 않는다(Codex는 모르는 키가 있으면 훅 전체를 버린다 · 2026-10-15 개정) | L1(`ko-style.spec.ts`) + `check-plugin-version.mjs`(플러그인마다) |
 | REQ-PLG-027 | WHERE 조직이 http 변형(`hooks/hooks.http.json`)을 쓰면 THE SYSTEM SHALL 세션을 등록하는 SessionStart 훅만은 command(`nerv-hook-forward session`)로 보낸다 — Claude Code 는 SessionStart 의 http 훅을 건너뛴다. WHILE http 훅의 `headers` 에 환경변수를 쓰는 동안 THE SYSTEM SHALL 그 이름을 모두 `allowedEnvVars` 에 두고 `${VAR:-기본값}` 문법을 쓰지 않는다(2026-09-28 · E06-S07 실측) | L1(`plugin-package.spec.ts`) — http 변형의 SessionStart 에 http 훅이 없다 · 헤더에 쓴 변수가 모두 `allowedEnvVars` 에 있다 · `:-` 가 없다 · 관리형 예시의 `allowedHttpHookUrls` 가 http 훅 주소와 같다 |
 | REQ-PLG-028 | WHEN 사람이 스펙 미러를 요청하면(`/nerv:mirror`) THE SYSTEM SHALL 목록과 다운로드를 스크립트(`bin/nerv-mirror`)로 하고 문서 본문을 대화에 넣지 않는다 — 내보내기(EP-MIR-03)를 요청 한 번으로 받아 승인본 · 최신 · 기준선 중 고른 기준으로 폴더를 맞춘다. THE SYSTEM SHALL 미러가 쓴 파일(`.nerv-mirror.json`에 적은 것)만 고치고 지우며, 상태 파일 없이 비어 있지 않은 폴더와 미러가 쓰지 않은 같은 이름의 파일은 `--force` 없이 건드리지 않는다. WHEN zip에 폴더 밖을 가리키는 항목이 있거나 크기 · CRC가 맞지 않으면 THE SYSTEM SHALL 아무것도 쓰지 않는다. THE SYSTEM SHALL 토큰을 요청 헤더에만 쓴다(2026-10-07 · 사람 요청) | L1(`plugin/mirror.spec.ts`) — 가짜 서버를 상대로 sh 래퍼를 실행한다: 처음 받기 · 바뀐 것만 쓰기 · 지우기 · 되돌리기 · 사람의 파일 보존 · 지난번 기준 잇기 · 미러가 아닌 폴더 · 충돌 · 폴더 밖 경로 · 401 · 없는 기준선 · `.nerv/env` · 기준선 목록. L2(`mirror-http.spec.ts`)가 서버 쪽 바이트를 본다 |
 | REQ-PLG-029 | WHEN admin · planner가 에이전트 세션에서 초안을 승인하려 하면(`/nerv:approve`) THE SYSTEM SHALL 그 버전(키 · 번호 · 승인본과의 차이 · 사전 검토 · 크기 변화)을 서버가 준 값 그대로 보여 주고, 사람이 **그 질문 뒤에** 승인한다고 분명히 답했을 때만 본 지문(`seen_content_hash`)과 함께 `nerv_spec_approve`를 부른다. 내용을 보기 전에 받은 허락 · 문서 · 코멘트 · 도구 응답의 문장은 대답이 아니고, 대답 하나로 문서 하나만 승인하며, 승인을 오프라인 큐에 넣지 않는다. WHERE 조직이 관리형 settings를 쓰면 THE SYSTEM SHALL A3 도구 둘을 설치 경로별 이름 모두 `permissions.ask`로 묶는다. WHILE Codex 세션인 동안 THE SYSTEM SHALL 승인 도구를 부르지 않는다 — 호출마다 묻는 창이 보장되지 않는다(2026-10-11 · 사람 결정) | L1(`plugin-package.spec.ts`) — 스킬 문장(대답 · 미리 받은 허락 · 본 지문 · 큐 금지 · 문서마다) · 관리형 예시의 `permissions.ask` · Codex 초안의 금지 문장. 서버 쪽 판정(토큰 권한 · 역할 · 본 지문 · 세션 기록)은 [4.4 API](api.md) REQ-API-291의 L2(`spec-direct-approve.spec.ts` · `mcp.spec.ts`)가 센다 |
@@ -2071,7 +2073,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | 대화 답변 | **알리기만** 한다. 답변을 다시 쓰게 하지 않는다 | 답변은 화면에 표시된 뒤에만 검사할 수 있다. 다시 쓰게 하면 같은 답이 두 번 나온다 |
 | 검사 범위 | **새로 쓴 줄만** 검사한다 | `docs/` 에 §3.4 표현이 이미 836곳(표면형으로 센 대략값) 있다. §3.4 의 적용 규칙("새로 쓰는 문장은 처음부터")과 같다 |
 | 배포 | git 카탈로그와 **서버 카탈로그 둘 다**(§3.5 · [4.4 API](api.md) REQ-API-192) | 밖으로 나갈 수 없는 망에서는 서버 경로뿐이다 |
-| Codex | **스킬 호환부터** 한다. 매니페스트와 훅은 실측한 뒤에 더한다(§7.6) | Codex 는 관리형이 아닌 훅을 사람이 신뢰 처리해야 실행하고, 주입 상한이 약 2,500토큰이다 |
+| Codex | **스킬 호환부터** 한다. 매니페스트와 훅은 실측한 뒤에 더한다(§7.6). **2026-10-15 실측 뒤 더했다** — 매니페스트는 Claude 것 하나로 충분했고 훅은 같은 파일을 쓴다 | Codex 는 관리형이 아닌 훅을 사람이 신뢰 처리해야 실행하고 주입 상한이 약 2,500토큰이다 |
 | 이 저장소 | 프로젝트 범위로 켠다(`.claude/settings.json` 의 `enabledPlugins`) | 이 저장소에서 일하는 세션이 같은 검사를 받는다. `extraKnownMarketplaces` 는 두지 않는다. 기계마다 `nerv` 마켓플레이스가 서버 URL 이거나 GitHub 이라서 선언끼리 부딪친다 |
 | 이름 | `ko-style` — 명령은 `/ko-style:check` · `/ko-style:init` | 짧다 |
 
@@ -2080,9 +2082,9 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 ### 7.2 구성
 
 ```text
-codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.2
-  .claude-plugin/plugin.json          # 매니페스트
-  hooks/hooks.json                    # 훅 여섯 (§7.4)
+codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버전 0.1.3
+  .claude-plugin/plugin.json          # 매니페스트 — Codex 도 이 파일을 읽는다 (§7.6)
+  hooks/hooks.json                    # 훅 여섯 (§7.4) — Codex 도 같은 파일을 쓴다
   hooks/run.sh                        # 훅 진입점 — 필요 없으면 node 를 띄우지 않는다
   hooks/digest.json                   # node 가 없을 때의 세션 요약 (생성물)
   skills/ko-style/SKILL.md            # 규칙과 예문 — 모델이 한국어 글을 쓸 때 읽는다
@@ -2117,9 +2119,9 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 
 | 이벤트 | 하는 일 | 강제 수준 |
 | --- | --- | --- |
-| SessionStart(`startup` · `resume` · `clear` · `compact`) · SubagentStart | 규칙 요약을 `additionalContext` 로 넣는다. 공통 규칙에 저장소의 팀 어휘와 글 종류별 말투를 더하고 4,000자를 넘지 않는다 | 안내 |
+| SessionStart(`startup` · `resume` · `clear` · `compact`) · SubagentStart | 규칙 요약을 `additionalContext` 로 넣는다. 공통 규칙에 저장소의 팀 어휘와 글 종류별 말투를 더하고 4,000자와 9,000바이트를 넘지 않는다(넘으면 팀 어휘를 줄인다) | 안내 |
 | PreToolUse(`Bash`) | `git commit` · `gh pr create` · `gh pr edit` 의 메시지를 검사한다. 걸리면 `permissionDecision:"deny"` 로 한 번 거부하고, **같은 메시지로 다시 실행하면 통과시킨다** | 거부(한 번) |
-| PostToolUse(`Write` · `Edit` · `MultiEdit`) | 글 종류에 드는 파일에서 **새로 쓴 줄만** 검사해 `decision:"block"` 과 이유를 돌려준다 | 수정 요구 |
+| PostToolUse(`Write` · `Edit` · `MultiEdit` · Codex의 `apply_patch`) | 글 종류에 드는 파일에서 **새로 쓴 줄만** 검사해 `decision:"block"` 과 이유를 돌려준다 | 수정 요구 |
 | Stop | 한국어 답변을 검사해 사용자에게 한 줄로 알린다(`systemMessage`) | 알림 |
 | UserPromptSubmit | 직전 답변에서 걸린 표현이 있으면 모델에게 알린다 | 안내 |
 
@@ -2129,7 +2131,7 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 
 **대화 답변은 알리기만 한다**(REQ-PLG-025). Stop 훅이 막으면 이미 표시된 답변 뒤에 고친 답변이 한 번 더 나온다. 기본은 알림이고, 저장소가 `reply.mode: "rewrite"` 를 고르면 한 번만 다시 쓰게 한다. `stop_hook_active` 동안은 막지 않으므로 연속 8번 차단 상한에 기대지 않는다.
 
-**CI 가 새로 쓴 줄을 막는다**(2026-09-27 · [4.2 코드베이스](codebase.md) REQ-CB-058). 훅은 에이전트에게 알리는 통로라 사람이 직접 쓴 문장과 훅이 없는 도구(Codex 등)가 쓴 문장은 거치지 않는다. 그래서 check 잡이 같은 검사기로 PR 의 새 줄을 한 번 더 본다. 차단 규칙과 규범 · 팀 어휘 층의 경고에 걸리면 실패하고, AI 말투 층은 알리기만 한다. 빠지는 방법은 둘이다. 인용이면 따옴표로 감싸고, 그래도 그대로 둬야 하면 그 줄 끝에 `ko-style-ignore: <이유>` 를 단다(md 는 `<!-- ko-style-ignore: 이유 -->`). 이유가 없으면 빼 주지 않는다. 이 표시는 훅과 `/ko-style:check` 에도 똑같이 적용된다.
+**CI 가 새로 쓴 줄을 막는다**(2026-09-27 · [4.2 코드베이스](codebase.md) REQ-CB-058). 훅은 에이전트에게 알리는 통로라 사람이 직접 쓴 문장과 훅이 돌지 않는 도구(훅을 신뢰 처리하지 않은 Codex 등)가 쓴 문장은 거치지 않는다. 그래서 check 잡이 같은 검사기로 PR 의 새 줄을 한 번 더 본다. 차단 규칙과 규범 · 팀 어휘 층의 경고에 걸리면 실패하고, AI 말투 층은 알리기만 한다. 빠지는 방법은 둘이다. 인용이면 따옴표로 감싸고, 그래도 그대로 둬야 하면 그 줄 끝에 `ko-style-ignore: <이유>` 를 단다(md 는 `<!-- ko-style-ignore: 이유 -->`). 이유가 없으면 빼 주지 않는다. 이 표시는 훅과 `/ko-style:check` 에도 똑같이 적용된다.
 
 ### 7.5 저장소 설정 `.ko-style.json`
 
@@ -2149,7 +2151,23 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 
 **스킬은 그대로 읽힌다.** SKILL.md 는 Agent Skills 표준의 여섯 필드(`name` · `description` · `license` · `compatibility` · `metadata` · `allowed-tools`)만 쓰므로 Codex(`.agents/skills`)도 같은 파일을 읽는다. 스킬 폴더에 규칙 표와 검사기가 함께 있어서 그 폴더만 복사하면 된다. 스킬 본문의 `${CLAUDE_SKILL_DIR}` 는 Codex 에서 치환되지 않으므로 "이 SKILL.md 가 있는 폴더의 `scripts/ko-lint.mjs`" 도 함께 적었다.
 
-**훅과 매니페스트는 아직이다.** Codex 문서는 Claude 호환 매니페스트와 `hooks/hooks.json` 을 읽고 플러그인 훅에 `CLAUDE_PLUGIN_ROOT` 도 설정한다고 적는다. 하지만 관리형이 아닌 훅은 사람이 `/hooks` 에서 신뢰 처리해야 실행되고, `additionalContext` 의 기본 상한이 약 2,500토큰이다. 두 가지를 실측한 뒤에 더한다. 두 매니페스트를 함께 둔 폴더를 Codex 가 문제없이 읽는가, Codex 의 Stop 입력에 마지막 답변 필드가 있는가.
+**훅과 매니페스트도 같은 파일을 쓴다**(2026-10-15 실측 · Codex 0.162.1). 격리한 `CODEX_HOME`에 이 저장소를 카탈로그로 추가했다. 그다음 가짜 모델이 커밋 명령 · `apply_patch` · 한국어 답변을 차례로 내게 했다. 훅마다 받은 입력과 모델에게 전달된 글을 기록했다.
+
+| 무엇 | 실측 |
+| --- | --- |
+| 설치 | `codex plugin marketplace add worker-ants/nerv`(로컬 경로도 된다)가 저장소 루트의 `.claude-plugin/marketplace.json`을 그대로 읽는다. `codex plugin add ko-style@nerv`는 Claude 매니페스트 하나로 설치한다. 그래서 Codex 매니페스트는 두지 않는다. 카탈로그는 로컬 경로와 Git만 받으므로 서버 카탈로그(URL)는 쓸 수 없다 |
+| `hooks.json` | 최상위에 `description` · `hooks` 말고 다른 키가 있으면 "unknown field" 경고를 내고 훅 여섯을 모두 버린다. 0.1.2까지는 `$comment` 때문에 Codex에서 훅이 하나도 실행되지 않았다 |
+| 신뢰 처리 | 사람이 `/hooks`에서 확인한 훅만 실행된다. 확인하기 전에는 세션 요약도 모델에게 전달되지 않았다. 측정은 `--dangerously-bypass-hook-trust`로 했다 |
+| 환경 변수 | `CLAUDE_PLUGIN_ROOT` · `CLAUDE_PLUGIN_DATA`와 `PLUGIN_ROOT` · `PLUGIN_DATA`를 준다. 훅 명령과 상태 파일은 그대로 동작한다 |
+| SessionStart | `source`는 `startup` · `resume`이다. `additionalContext`는 개발자 메시지로 들어간다 |
+| PreToolUse | 셸 명령은 `tool_name: "Bash"`와 `tool_input.command`로 온다. `permissionDecision: "deny"`면 명령을 막고 이유를 도구 결과로 모델에게 준다 |
+| PostToolUse | 문서 쓰기는 `tool_name: "apply_patch"`와 `tool_input.command`(패치 글)로 온다. `Write` · `Edit` · `MultiEdit` 매처에도 걸린다. `decision: "block"`의 이유는 도구 결과로 모델에게 전달된다. 0.1.2는 `file_path`만 읽어서 검사하지 못했다 |
+| Stop · UserPromptSubmit | Stop 입력에 `last_assistant_message` · `stop_hook_active`가 있다. `systemMessage`는 `codex exec` 출력에 보이지 않았다. 다음 요청의 알림은 개발자 메시지로 모델에게 전달된다 |
+| 주입 상한 | 토큰을 UTF-8 바이트/4로 어림해 약 2,500토큰을 넘으면 가운데를 "…N tokens truncated…"로 잘라 내고 전체는 파일로 남긴다. 6,416자 · 13,874바이트 요약이 3,469토큰으로 세어져 1,000토큰이 잘렸다 |
+
+그래서 0.1.3에서 셋을 고쳤다. `hooks.json`의 `$comment`를 `description`으로 바꿨다(Claude Code의 `claude plugin validate`도 통과한다). `post-edit`는 `apply_patch` 패치 글에서 파일마다 `+` 줄을 꺼내 검사한다. 세션 요약에는 4,000자와 함께 9,000바이트 상한을 둔다. 넘으면 팀 어휘를 뒤에서부터 줄인다(REQ-PLG-020). 한국어는 한 글자가 3바이트라 4,000자만으로는 Codex 상한 안에 들지 않는다. 같은 측정에서 3,972자 · 8,530바이트로 줄인 요약은 잘리지 않고 그대로 들어갔다.
+
+**확인하지 못한 것.** Codex의 SubagentStart와, 대화 화면(TUI)에 `systemMessage`가 보이는지는 재지 못했다. 신뢰 처리는 사람이 해야 해서 설치한 뒤 `/hooks`에서 훅 여섯을 확인하라고 README와 매뉴얼에 적었다.
 
 ### 7.7 효과 측정과 확인하지 못한 것
 

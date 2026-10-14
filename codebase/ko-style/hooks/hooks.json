@@ -1,5 +1,5 @@
 {
-  "$comment": "ko-style 훅 — 세션 요약 둘(SessionStart·SubagentStart), 검사 셋(커밋·PR 명령 전 · 문서 저장 직후 · 답변이 끝난 뒤), 알림 하나(다음 요청 때 모델에게). 정본은 docs/04-mvp/plugin.md §7.",
+  "description": "ko-style 훅 — 세션 요약 둘(SessionStart·SubagentStart), 검사 셋(커밋·PR 명령 전 · 문서 저장 직후 · 답변이 끝난 뒤), 알림 하나(다음 요청 때 모델에게). 정본은 docs/04-mvp/plugin.md §7.",
   "hooks": {
     "SessionStart": [
       {
@@ -49,7 +49,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit|apply_patch",
         "hooks": [
           {
             "type": "command",

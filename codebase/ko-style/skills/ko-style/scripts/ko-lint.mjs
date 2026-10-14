@@ -546,6 +546,15 @@ function pluginVersion() {
   }
 }
 
+/**
+ * 세션 요약의 상한 — 4,000자와 UTF-8 9,000바이트를 둘 다 넘지 않는다(REQ-PLG-020).
+ * 바이트 상한은 Codex 때문이다. Codex 는 훅이 넣는 글의 토큰을 바이트/4 로 어림해 약 2,500토큰을
+ * 넘으면 가운데를 잘라 낸다(2026-10-15 실측 · Codex 0.162.1 — 6,416자 · 13,874바이트가 3,469토큰으로
+ * 세어져 1,000토큰이 잘렸다). 한국어는 한 글자가 3바이트라 4,000자만으로는 그 안에 들지 않는다.
+ */
+export const DIGEST_MAX_CHARS = 4000;
+export const DIGEST_MAX_BYTES = 9000;
+
 /** 세션 요약 — 규칙 표에서 만든다. 사람이 따로 쓰지 않는다(두 벌이면 어긋난다) */
 export function digest(st, conf, { staticMode = false } = {}) {
   const core = loadCoreRules();
@@ -558,7 +567,7 @@ export function digest(st, conf, { staticMode = false } = {}) {
         : `→ ${r.use}`;
   const strong = core.filter((r) => !r.custom && r.level !== 'hint' && !r.freq);
   const hints = core.filter((r) => !r.custom && r.level === 'hint');
-  const out = [
+  const head = [
     `ko-style 한국어 문체 규칙${version ? ` (플러그인 v${version})` : ''}`,
     '한국어로 답하거나 한국어 문서·커밋 메시지·PR 본문·화면 문구를 쓸 때 적용된다. 영어 글에는 적용되지 않는다.',
     '- 한국의 개발자와 사용자가 실제로 쓰는 말로 쓴다. 영어를 옮긴 듯한 표현과 사물에 사람의 동작을 붙이는 비유를 쓰지 않는다.',
@@ -570,23 +579,33 @@ export function digest(st, conf, { staticMode = false } = {}) {
     ...strong.map((r) => `- ${r.name}: ${pair(r)}`),
     `- 문맥을 보고 판단한다: ${hints.map((r) => r.name).join(', ')}`,
   ];
-  if (!staticMode && st.team.length > 0) {
-    out.push('', `이 저장소의 팀 어휘 (${CONFIG_NAME})`);
-    for (const r of st.team) out.push(`- ${r.name}: ${pair(r)}`);
-  }
+  const team = staticMode ? [] : st.team.map((r) => `- ${r.name}: ${pair(r)}`);
+  const tail = [];
   const toned = staticMode ? [] : st.surfaces.filter((s) => TONE_OK[s.tone]);
   if (toned.length > 0) {
-    out.push('', '글 종류별 말투');
-    for (const s of toned) out.push(`- ${s.name} (${(s.files ?? []).join(', ')}): ${TONE_NAME[s.tone]}`);
+    tail.push('', '글 종류별 말투');
+    for (const s of toned) tail.push(`- ${s.name} (${(s.files ?? []).join(', ')}): ${TONE_NAME[s.tone]}`);
   }
-  out.push(
+  tail.push(
     '',
     staticMode
       ? '이 기계에는 node 가 없어서 자동 검사는 돌지 않는다. 위 규칙은 그대로 적용된다.'
       : '커밋 메시지와 PR 본문은 만들기 전에, 문서 파일은 저장한 직후에 검사해서 걸린 표현을 알려 준다. 인용·고유명사·예문은 그대로 둔다. 대화 답변은 끝난 뒤 검사해서 걸린 표현을 사용자에게 알린다.',
   );
-  if (!staticMode && conf?.error) out.push(`${CONFIG_NAME} 를 읽지 못해 기본값으로 검사한다: ${conf.error}`);
-  return out.join('\n');
+  if (!staticMode && conf?.error) tail.push(`${CONFIG_NAME} 를 읽지 못해 기본값으로 검사한다: ${conf.error}`);
+  // 상한을 넘으면 팀 어휘를 뒤에서부터 줄인다 — 줄인 항목도 검사는 그대로 한다
+  const compose = (n) =>
+    [
+      ...head,
+      ...(team.length > 0 ? ['', `이 저장소의 팀 어휘 (${CONFIG_NAME})`, ...team.slice(0, n)] : []),
+      ...(n < team.length ? [`- 그 밖에 ${team.length - n}개는 요약에서 뺐다. 검사는 그대로 한다(전체는 ${CONFIG_NAME})`] : []),
+      ...tail,
+    ].join('\n');
+  const fits = (text) => text.length <= DIGEST_MAX_CHARS && Buffer.byteLength(text, 'utf8') <= DIGEST_MAX_BYTES;
+  let n = team.length;
+  let text = compose(n);
+  while (n > 0 && !fits(text)) text = compose(--n);
+  return text;
 }
 
 const SKILL_PATH = join(HERE, '..', 'SKILL.md');
@@ -698,6 +717,41 @@ export function messagesOf(command, cwd = process.cwd()) {
   return out;
 }
 
+/**
+ * Codex 의 apply_patch 글에서 파일마다 고친 덩어리를 꺼낸다 — `-` 줄이 이전 글, `+` 줄이 새 글이다.
+ * Codex 는 문서 쓰기를 이 도구 하나로 하고 패치 글을 `tool_input.command` 로 준다(2026-10-15 실측 ·
+ * Codex 0.162.1). 지운 파일은 건너뛰고, 옮긴 파일(`*** Move to:`)은 새 경로로 센다.
+ */
+export function patchFiles(patch) {
+  const files = [];
+  let file = null;
+  let hunk = { old: [], next: [] };
+  const flush = () => {
+    if (file && (hunk.old.length > 0 || hunk.next.length > 0)) file.edits.push(hunk);
+    hunk = { old: [], next: [] };
+  };
+  for (const line of patch.split('\n')) {
+    const head = /^\*\*\* (Add|Update|Delete) File: (.+)$/.exec(line);
+    if (head) {
+      flush();
+      file = head[1] === 'Delete' ? null : { path: head[2].trim(), edits: [] };
+      if (file) files.push(file);
+      continue;
+    }
+    if (!file) continue;
+    const move = /^\*\*\* Move to: (.+)$/.exec(line);
+    if (move) file.path = move[1].trim();
+    else if (line.startsWith('+')) hunk.next.push(line.slice(1));
+    else if (line.startsWith('-')) hunk.old.push(line.slice(1));
+    else flush(); // 맥락 줄 · `@@` · `*** End …` 에서 덩어리가 끝난다
+  }
+  flush();
+  return files.map((f) => ({
+    path: f.path,
+    edits: f.edits.map((h) => ({ old_string: h.old.join('\n'), new_string: h.next.join('\n') })),
+  }));
+}
+
 async function readStdin() {
   const chunks = [];
   for await (const c of process.stdin) chunks.push(c);
@@ -713,6 +767,42 @@ function safeRead(path) {
 }
 
 const strong = (findings) => findings.filter((f) => f.level === 'block' || f.level === 'warn');
+
+/**
+ * 파일 하나에 새로 쓴 문장을 검사한 보고 — 걸린 것이 없거나 검사할 파일이 아니면 null.
+ * `content` 가 있으면(Write) 커밋된 내용과 비교하고, 없으면 고친 덩어리(`edits`)마다 본다.
+ */
+function writtenReport({ path, content, edits }, cwd) {
+  const abs = isAbsolute(path) ? path : resolve(cwd, path);
+  const conf = findRepoConfig(dirname(abs));
+  const st = settingsOf(conf.config);
+  if (!st.enabled) return null;
+  const rel = toPosix(relative(conf.root, abs));
+  const surface = surfaceFor(rel, st);
+  if (!surface) return null;
+  const rules = compileRules(loadCoreRules(), st);
+  const current = safeRead(abs) ?? content ?? '';
+  const chunks = [];
+  if (content !== undefined) {
+    const before = git(['show', `HEAD:./${basename(abs)}`], dirname(abs)) ?? '';
+    chunks.push({ text: addedText(before, content ?? current), offset: 0 });
+  } else {
+    for (const e of edits) {
+      const next = e.new_string ?? '';
+      const at = next ? current.indexOf(next) : -1;
+      const offset = at >= 0 ? current.slice(0, at).split('\n').length - 1 : 0;
+      chunks.push({ text: addedText(e.old_string ?? '', next), offset });
+    }
+  }
+  const found = chunks.flatMap((c) =>
+    strong(lint(c.text, { rules, ...lintOptions(surface, rel) })).map((f) => ({ ...f, line: f.line + c.offset })),
+  );
+  if (found.length === 0) return null;
+  return [
+    `ko-style: ${rel} 에 새로 쓴 문장에서 고칠 표현 ${found.length}곳을 찾았다 (글 종류: ${surface.name ?? '문서'}).`,
+    listFor(found),
+  ].join('\n');
+}
 
 export function handleHook(event, input, { data }) {
   const cwd = input.cwd || process.cwd();
@@ -762,42 +852,27 @@ export function handleHook(event, input, { data }) {
   }
 
   if (event === 'post-edit') {
-    const tool = input.tool_name;
     const ti = input.tool_input ?? {};
-    if (!ti.file_path) return null;
-    const abs = isAbsolute(ti.file_path) ? ti.file_path : resolve(cwd, ti.file_path);
-    const conf = findRepoConfig(dirname(abs));
-    const st = settingsOf(conf.config);
-    if (!st.enabled) return null;
-    const rel = toPosix(relative(conf.root, abs));
-    const surface = surfaceFor(rel, st);
-    if (!surface) return null;
-    const rules = compileRules(loadCoreRules(), st);
-    const current = safeRead(abs) ?? ti.content ?? '';
-    const chunks = [];
-    if (tool === 'Write') {
-      const before = git(['show', `HEAD:./${basename(abs)}`], dirname(abs)) ?? '';
-      chunks.push({ text: addedText(before, ti.content ?? current), offset: 0 });
-    } else {
-      const edits = Array.isArray(ti.edits) ? ti.edits : [{ old_string: ti.old_string, new_string: ti.new_string }];
-      for (const e of edits) {
-        const next = e.new_string ?? '';
-        const at = next ? current.indexOf(next) : -1;
-        const offset = at >= 0 ? current.slice(0, at).split('\n').length - 1 : 0;
-        chunks.push({ text: addedText(e.old_string ?? '', next), offset });
-      }
-    }
-    const found = chunks.flatMap((c) =>
-      strong(lint(c.text, { rules, ...lintOptions(surface, rel) })).map((f) => ({ ...f, line: f.line + c.offset })),
-    );
-    if (found.length === 0) return null;
+    // Claude Code 는 Write · Edit · MultiEdit 로 파일 하나를, Codex 는 apply_patch 로 여러 파일을 고친다
+    const targets =
+      input.tool_name === 'apply_patch'
+        ? patchFiles(String(ti.command ?? ''))
+        : ti.file_path
+          ? [
+              {
+                path: ti.file_path,
+                content: input.tool_name === 'Write' ? (ti.content ?? null) : undefined,
+                edits: Array.isArray(ti.edits) ? ti.edits : [{ old_string: ti.old_string, new_string: ti.new_string }],
+              },
+            ]
+          : [];
+    const reports = targets.map((t) => writtenReport(t, cwd)).filter(Boolean);
+    if (reports.length === 0) return null;
     return {
       decision: 'block',
-      reason: [
-        `ko-style: ${rel} 에 새로 쓴 문장에서 고칠 표현 ${found.length}곳을 찾았다 (글 종류: ${surface.name ?? '문서'}).`,
-        listFor(found),
-        '고칠 수 있으면 고친다. 인용·고유명사·예문이라 그대로 둬야 하면 그대로 두고 넘어간다.',
-      ].join('\n'),
+      reason: [...reports, '고칠 수 있으면 고친다. 인용·고유명사·예문이라 그대로 둬야 하면 그대로 두고 넘어간다.'].join(
+        '\n',
+      ),
     };
   }
 
