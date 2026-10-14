@@ -1646,6 +1646,27 @@ describe('E09-S10 하이브리드 검색', () => {
     expect(result.items.map((i) => i.key)).toContain('SPC-KR-001');
   });
 
+  // 2026-10-12 · 사람 결정(REQ-API-301). FTS 는 저장해 둔 본문 벡터를 쓰고, 질의의 낱말 가운데 **하나라도** 든
+  // 문서를 후보로 둔다. trgm 은 본문 앞 4000자만 보므로 뒤쪽의 낱말은 FTS 만 찾는다 — 낱말을 모두 요구하면
+  // 조사가 붙은 한국어 질의가 거의 늘 빈다.
+  it('본문 뒤쪽의 낱말 하나만 맞아도 FTS 가 찾는다 — 저장한 본문 벡터 · 낱말 가운데 하나 (REQ-API-301)', async () => {
+    const filler = 'lorem ipsum dolor sit amet '.repeat(200); // 5,400자 — trgm 이 보는 앞부분을 다 채운다
+    const s = await draft(
+      'SPC-TSV-001',
+      `# 긴 문서\n\n${filler}\n\n파티션창고 를 정리한다`,
+      '긴 문서',
+    );
+    await approve(s.versionId);
+    const { rows } = await pool.query<{ has: boolean }>(
+      `SELECT body_tsv @@ to_tsquery('simple', '파티션창고') AS has FROM spec_version WHERE id = $1`,
+      [s.versionId],
+    );
+    expect(rows[0]?.has).toBe(true);
+
+    const result = await search.search({ projectId, query: '파티션창고 아무데도없는낱말' });
+    expect(result.items.map((i) => i.key)).toContain('SPC-TSV-001');
+  });
+
   it('임베딩 제공자가 없으면 렉시컬만으로 200 + degraded 다 (REQ-API-026)', async () => {
     const s = await draft('SPC-DEG-001', '# 문서\n\n세션 복원 API 설계', '세션 복원');
     await approve(s.versionId);

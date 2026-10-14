@@ -965,6 +965,9 @@ export const en = {
   'mcp.error.tool_failed': 'The tool call failed.',
   'mcp.error.unknown_tool': 'Unknown tool: {name}',
   'mcp.error.unsupported_method': 'Unsupported method: {method}',
+  'mcp.error.header_mismatch':
+    'Request headers and body disagree — {header} header: {sent} · body: {expected}',
+  'mcp.error.envelope_invalid': 'The protocol revision in the request _meta is not a string',
   'mcp.instructions.ask':
     'When you are stuck, do not decide on your own. Ask a human with nerv_question_create.',
   'mcp.instructions.bootstrap':

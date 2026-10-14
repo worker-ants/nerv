@@ -12,7 +12,11 @@
 // 남아 **모든 배치가 거절된다** — 재선언 금지(REQ-CB-006)가 막으려는 것이 그것이다.
 
 import { Logger } from '@nestjs/common';
-import { EMBEDDING_DIMENSIONS } from '@nerv/schema';
+import {
+  EMBED_QUERY_COOLDOWN_MS,
+  EMBED_QUERY_TIMEOUT_MS,
+  EMBEDDING_DIMENSIONS,
+} from '@nerv/schema';
 
 /**
  * 기본 타임아웃 — **가장 느린 프로필이 기준이다.**
@@ -49,6 +53,8 @@ export interface EmbeddingClientOptions {
    */
   truncate?: boolean;
   timeoutMs?: number;
+  /** 지금 시각(ms) — 질의 임베딩을 쉬는 시간을 테스트가 앞당길 수 있게 */
+  now?: () => number;
 }
 
 interface EmbeddingResponse {
@@ -58,13 +64,20 @@ interface EmbeddingResponse {
 export class EmbeddingClient {
   private readonly logger = new Logger(EmbeddingClient.name);
 
+  /** 질의 임베딩이 실패한 뒤 이 시각까지는 제공자를 부르지 않는다(`EMBED_QUERY_COOLDOWN_MS`) */
+  private queryPausedUntil = 0;
+
   constructor(private readonly options: EmbeddingClientOptions) {}
 
-  /** 실패를 숨기지 않는다 — 조용히 빈 벡터를 주면 검색이 조용히 나빠진다. */
-  async embed(inputs: string[]): Promise<number[][]> {
+  /**
+   * 실패를 숨기지 않는다 — 조용히 빈 벡터를 주면 검색이 조용히 나빠진다.
+   *
+   * `timeoutMs` 를 주면 그 값까지만 기다린다 — 검색 질의가 쓴다(`embedQuery`).
+   */
+  async embed(inputs: string[], opts: { timeoutMs?: number } = {}): Promise<number[][]> {
     if (inputs.length === 0) return [];
 
-    // **제공자가 없으면 호출하지 않고 실패한다**(REQ-CB-040). `embedOrNull` 이 이것을
+    // **제공자가 없으면 호출하지 않고 실패한다**(REQ-CB-040). `embedQuery` 가 이것을
     // 렉시컬 degrade 로 바꾸고(REQ-API-026), 색인 경로는 리포트의 `error` 로 받는다.
     // 빈 주소로 fetch 하면 결말은 같지만 사람이 받는 것은 URL 파싱 오류다 — 무엇을
     // 설정하지 않았는지 말해 주지 않는다.
@@ -80,7 +93,7 @@ export class EmbeddingClient {
     const body: Record<string, unknown> = { model: this.options.model, input: inputs };
     if (this.options.sendDimensions === true) body['dimensions'] = EMBEDDING_DIMENSIONS;
 
-    const timeoutMs = this.options.timeoutMs ?? defaultTimeoutMs();
+    const timeoutMs = opts.timeoutMs ?? this.options.timeoutMs ?? defaultTimeoutMs();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const chars = inputs.reduce((sum, text) => sum + text.length, 0);
@@ -101,8 +114,12 @@ export class EmbeddingClient {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(
           `임베딩 제공자가 ${timeoutMs}ms 안에 응답하지 않았다(입력 ${inputs.length}개 · ${chars}자 · ` +
-            `${this.options.baseUrl}). 느린 프로필이면 NERV_EMBED_TIMEOUT_MS 를 올리거나 ` +
-            `NERV_EMBED_BATCH_CHARS 를 줄인다`,
+            `${this.options.baseUrl}). ` +
+            (opts.timeoutMs === undefined
+              ? // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그 문구다(REQ-CB-022 예외)
+                '느린 프로필이면 NERV_EMBED_TIMEOUT_MS 를 올리거나 NERV_EMBED_BATCH_CHARS 를 줄인다'
+              : // eslint-disable-next-line no-restricted-syntax -- 운영자용 로그 문구다(REQ-CB-022 예외)
+                '검색 질의는 이 시간까지만 기다린다(EMBED_QUERY_TIMEOUT_MS)'),
           { cause: error },
         );
       }
@@ -154,14 +171,25 @@ export class EmbeddingClient {
   }
 
   /**
-   * 실패를 null 로 바꾼다 — 호출부(검색)가 **렉시컬 degrade** 를 고를 수 있게(REQ-API-026).
-   * degrade 는 예외를 삼키는 것이 아니라 검색 품질을 한 단계 내리는 명시적 선택이다.
+   * 검색 질의 하나를 임베딩한다 — 실패하면 null 이고 호출부(검색)가 **렉시컬 degrade** 를 고른다
+   * (REQ-API-026). degrade 는 예외를 삼키는 것이 아니라 검색 품질을 한 단계 내리는 명시적 선택이다.
+   *
+   * 색인과 다른 규칙이 둘 있다(2026-10-12 · 사람 결정 · api.md §2.2b · REQ-API-300). 시한이 짧고
+   * (`EMBED_QUERY_TIMEOUT_MS`), 한 번 실패하면 `EMBED_QUERY_COOLDOWN_MS` 동안 제공자를 부르지 않는다.
+   * 색인은 기다려도 되지만 검색은 사람이 기다린다 — 같은 30초를 쓰던 동안 멈춘 제공자 앞에서 검색
+   * 한 번이 30.6초였다(E06-S06 실측 · §2.2c). 쉬는 동안에는 경고도 다시 남기지 않는다.
    */
-  async embedOrNull(inputs: string[]): Promise<number[][] | null> {
+  async embedQuery(query: string): Promise<number[] | null> {
+    const now = this.options.now ?? Date.now;
+    if (now() < this.queryPausedUntil) return null;
     try {
-      return await this.embed(inputs);
+      const [vector] = await this.embed([query], { timeoutMs: EMBED_QUERY_TIMEOUT_MS });
+      return vector ?? null;
     } catch (error) {
-      this.logger.warn(`임베딩 실패 — 렉시컬로 degrade 한다. ${String(error)}`);
+      this.queryPausedUntil = now() + EMBED_QUERY_COOLDOWN_MS;
+      this.logger.warn(
+        `질의 임베딩 실패 — ${EMBED_QUERY_COOLDOWN_MS / 1000}초 동안 렉시컬로만 검색한다. ${String(error)}`,
+      );
       return null;
     }
   }

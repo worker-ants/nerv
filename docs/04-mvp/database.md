@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.70 · 2026-10-11 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.71 · 2026-10-12 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.71 변경(2026-10-12 — 본문의 FTS 벡터를 저장한다, **사람 결정**): **REQ-DB-041 신설 · §2.3 `spec_version.body_tsv` 생성 열 · §2.12 인덱스 한 줄 · 마이그레이션 `0048`.** 검색이 질의마다 문서 본문 전체를 `to_tsvector` 로 다시 분석했고 그것이 렉시컬 지연의 거의 전부였다(이 저장소의 문서 세트에서 p95 0.8초 · [4.4 API](api.md) §2.2c). 생성 열은 본문이 바뀔 때만 다시 만든다. 옛 식 인덱스(`spec_version_body_fts`)는 질의의 식과 달라 한 번도 쓰이지 않아 지웠다. 확장만 하므로 옛 코드는 영향이 없다.
 >
 > v0.70 변경(2026-10-11 — 초안을 바로 승인한다, **사람 결정**): **새 테이블 · 열 · 마이그레이션 없음 — §2.9 `api_token.scopes` 주석 한 줄.** 권한 어휘가 11종이 됐다(`spec:approve`가 옵트인 토큰 권한으로 옮겨 왔다 · [4.4 API](api.md) REQ-API-291). 바로 승인은 있는 자리 — `event.actor_session_id`와 페이로드(`direct` · `via`) — 에 남는다.
 >
@@ -390,6 +392,8 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   shrink_ack_user_id        uuid REFERENCES "user"(id),         -- 그 저장을 한 사람. 한 번 남기면 그 버전에서 지우지 않는다
   created_at                timestamptz NOT NULL DEFAULT now(),
   updated_at                timestamptz NOT NULL DEFAULT now(), -- 본문이 **바뀐** 시각(저장된 시각이 아니다)
+  body_tsv                  tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(body_md, ''))) STORED,
+                                             -- 본문의 FTS 벡터 — 2026-10-12 · 0048 · REQ-DB-041. 검색이 질의마다 다시 분석하지 않게 둔다
   CONSTRAINT spec_version_no_uq UNIQUE (spec_id, version_no),
   CONSTRAINT spec_version_no_positive_ck CHECK (version_no >= 1),
   -- data-model §5.5 규칙 9: 편집 리스는 draft에서만 non-NULL
@@ -1033,7 +1037,7 @@ CREATE INDEX spec_comment_open ON spec_comment (spec_id, status);               
 
 -- 검색 — data-model §5.3(하이브리드)의 렉시컬 축. 파이프라인 정본은 4.4 §2.2b.
 -- ① FTS: 영문·고정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
-CREATE INDEX spec_version_body_fts ON spec_version USING gin (to_tsvector('simple', body_md));
+CREATE INDEX spec_version_body_tsv ON spec_version USING gin (body_tsv);   -- 저장한 벡터(0048). 옛 식 인덱스는 질의와 식이 달라 쓰인 적이 없어 지웠다
 CREATE INDEX spec_title_fts        ON spec         USING gin (to_tsvector('simple', title));
 -- ② trigram: 한국어 조사 변형·부분 문자열. 'simple' 토크나이저는 공백 분리라 한국어에서
 --    "위젯"≠"위젯을"이 된다 — trigram이 이 갭을 막는다(REQ-DB-016). 형태소 분석기는 도입하지 않는다.
@@ -1355,6 +1359,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-038 | WHEN 사람이 게이트 면제에 리뷰 종류를 고르면 THE SYSTEM SHALL `approval.bypass_kinds`(`review_kind[]`)에 그 종류를 남기고, CHECK(`approval_bypass_kinds_ck`)로 면제 행에만 · 비어 있지 않게 둔다. NULL은 범위 없는 면제(리뷰 커버리지 전부)이고 마이그레이션 `0045` 이전의 면제가 모두 그렇다([4.4 API](api.md) REQ-API-274 · 2026-10-09) |
 | REQ-DB-039 | WHEN 하트비트가 대기 표시를 남기면 THE SYSTEM SHALL 그것을 `claim.awaiting_kind` · `awaiting_refs` · `awaiting_until`에, 그때의 작업 상태를 `awaiting_task_status`에 저장하고, 종류 · 시각 · 상태는 함께 있거나 함께 없으며 대상은 종류가 있을 때만 두게(`claim_awaiting_ck`) 한다. 작업 상태가 바뀌어도 이 행에 쓰지 않는다 — 읽는 쪽이 상태를 견준다(잠금 순서). 이 열이 생기기 전의 행은 모두 대기 없음이다(마이그레이션 `0046` · 2026-10-09 · clemvion 보고 CLE-T-ZTTHXD — 백그라운드 리뷰를 기다리는 세션이 클레임을 풀었다) |
 | REQ-DB-040 | WHEN 작업을 보관하면 THE SYSTEM SHALL `task.archived_at` · `archive_reason` · `archive_note` · `superseded_by_task_id` · `archived_by_user_id` · `archived_by_session_id`에 남기고, 시각 · 사유 · 보관한 사람은 함께 있거나 함께 없게, `duplicate`·`superseded`는 대신할 작업이 있고 자기 자신이 아니게(`task_archive_ck`), 끝난 작업은 보관하지 않게(`task_archive_not_done_ck`) 한다. 상태 열은 바꾸지 않는다. 이 열이 생기기 전의 행은 모두 보관하지 않은 작업이다(마이그레이션 `0047` · 2026-10-10 · 사람 결정) |
+| REQ-DB-041 | WHEN `spec_version.body_md` 가 쓰이면 THE SYSTEM SHALL 같은 행의 `body_tsv`(생성 열 · `to_tsvector('simple', coalesce(body_md, ''))`)를 같은 쓰기에서 다시 만들고, 검색의 FTS 는 그 열과 GIN 인덱스(`spec_version_body_tsv`)를 쓴다(2026-10-12 · 사람 결정 · 0048 — 질의마다 본문 전체를 다시 분석하던 동안 이 저장소의 문서 세트에서 렉시컬 p95 가 0.8초였다 · [4.4 API](api.md) §2.2c · REQ-API-301). 검증은 L2 `spec-domain.spec.ts` 다 — 본문 뒤쪽의 낱말이 `body_tsv @@` 로 잡힌다 |
 
 ---
 

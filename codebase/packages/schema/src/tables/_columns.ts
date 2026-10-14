@@ -19,6 +19,11 @@ export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => 'bytea',
 });
 
+/** tsvector — 저장해 두는 전문 검색 벡터(spec_version.body_tsv) */
+export const tsvector = customType<{ data: string; driverData: string }>({
+  dataType: () => 'tsvector',
+});
+
 /** vector(N) — pgvector. 차원은 전 프로필 1024 고정(REQ-CB-021) */
 export const vector = (name: string, dimensions: number) =>
   customType<{ data: number[]; driverData: string }>({

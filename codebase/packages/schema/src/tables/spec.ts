@@ -26,7 +26,7 @@ import {
   specType,
   specVersionStatus,
 } from '../enums.js';
-import { bytea, createdAt, idPk, ts } from './_columns.js';
+import { bytea, createdAt, idPk, ts, tsvector } from './_columns.js';
 import { agentSession } from './session.js';
 import { project, user } from './tenancy.js';
 
@@ -130,6 +130,14 @@ export const specVersion = pgTable(
     updatedAt: ts('updated_at')
       .notNull()
       .default(sql`now()`),
+    /**
+     * 본문의 전문 검색 벡터 — **생성 열**이라 본문이 바뀔 때만 다시 만든다(2026-10-12 · 사람 결정 ·
+     * REQ-API-301). 검색이 질의마다 문서 본문 전체를 `to_tsvector` 로 다시 분석하던 동안 렉시컬 p95 가
+     * 0.8초였고(E06-S06 실측 · api.md §2.2c) 그 거의 전부가 이 분석이었다.
+     */
+    bodyTsv: tsvector('body_tsv').generatedAlwaysAs(
+      sql`to_tsvector('simple', coalesce(body_md, ''))`,
+    ),
   },
   (t) => [
     uniqueIndex('spec_version_no_uq').on(t.specId, t.versionNo),
@@ -140,7 +148,7 @@ export const specVersion = pgTable(
       sql`${t.status} = 'draft' OR (${t.editLeaseUserId} IS NULL AND ${t.editLeaseSessionId} IS NULL AND ${t.editLeaseExpiresAt} IS NULL)`,
     ),
     index('spec_version_spec_status').on(t.specId, t.status),
-    index('spec_version_body_fts').using('gin', sql`to_tsvector('simple', ${t.bodyMd})`),
+    index('spec_version_body_tsv').using('gin', t.bodyTsv),
     index('spec_version_body_trgm').using('gin', sql`${t.bodyMd} gin_trgm_ops`),
   ],
 );

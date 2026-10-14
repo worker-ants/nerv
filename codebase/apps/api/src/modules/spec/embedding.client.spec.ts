@@ -25,8 +25,8 @@ describe('제공자 없음 — 빈 NERV_EMBED_URL (REQ-CB-040)', () => {
     await expect(client.embed(['질의'])).rejects.toThrow(/NERV_EMBED_URL/);
   });
 
-  it('embedOrNull 은 그것을 **렉시컬 degrade** 로 바꾼다(REQ-API-026)', async () => {
-    expect(await new EmbeddingClient(options).embedOrNull(['질의'])).toBeNull();
+  it('embedQuery 는 그것을 **렉시컬 degrade** 로 바꾼다(REQ-API-026)', async () => {
+    expect(await new EmbeddingClient(options).embedQuery('질의')).toBeNull();
   });
 
   it('입력이 없으면 제공자를 보지 않는다 — 빈 배치에 오류를 만들지 않는다', async () => {
