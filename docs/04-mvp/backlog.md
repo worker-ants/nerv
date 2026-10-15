@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
 >
-> 문서 버전 v2.80 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.81 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.81 변경(2026-10-15 — 게이트 정책 버전과 판정 감사, **사람 결정**): §1.4 셋째 표에 한 줄. 스토리 없는 구현이다 — 판정 이벤트(스펙 제출 · 승인 · done)가 적용 정책 지문을 남기고 정책을 고칠 때의 감사가 정책 본문을 남긴다([4.4 API](api.md) REQ-API-303). 스토리 수 · `done` 수는 그대로다.
 >
 > v2.80 변경(2026-10-15 — E12-S07 의 남은 것): **E12-S07 `done`** — Codex 0.162.1 에서 `ko-style`을 실측했다. Codex는 이 저장소의 카탈로그와 Claude 매니페스트를 그대로 읽고 훅 여섯을 같은 파일로 실행한다. 실측에서 나온 결함 둘(`hooks.json`의 `$comment` 때문에 훅 전체가 빠짐 · 문서 쓰기 `apply_patch`를 검사하지 못함)과 세션 요약의 바이트 상한을 0.1.3에서 고쳤다([4.6 플러그인](plugin.md) §7.6). E12 는 `done` 7 · 부분 0, 합계 74 · 2 다.
 >
@@ -887,6 +889,7 @@ referenced_by:
 | 결재 리마인더 | `approval.service.ts`(`remindDue` — 받은 요청과 같은 대기 조건 · 단계마다 한 번 · 7일 창) · `worker/jobs/approval-reminder.job.ts`(하트비트 간격) · `notification.service.ts`(보통 알림 · `approval:{id}:reminder` 묶음 · 받는 사람은 결재 요청과 한 벌 · 1회째는 메일 요약에서 뺌) · `request-notifications.ts`(결정하면 리마인더도 읽음) · `@nerv/schema`(★`approval.reminded` · `APPROVAL_REMINDER_STEPS` · `APPROVAL_REMINDER_WINDOW_SECONDS`) · 웹 `event-invalidation.ts` · 매뉴얼 ko · en `inbox.md` · L2 `approval-reminder.spec.ts` | 관례로 채운 빈자리(2026-10-11) — SLA 표의 T+4h · T+1d를 집행하는 코드가 없었다. 대체 승인자 후보 · 에스컬레이션 · 만료는 남는다([4.4](api.md) REQ-API-296 · [3.5](../03-proposal/spec-workflow.md) §2.6) |
 | 구현 현황 영역별 분해 | `spec.service.ts`(`coverage` — 스펙마다 가장 가까운 `area` 조상을 재귀로 찾아 `area_key`를 넣고 같은 지표를 영역마다 더한 `areas[]` · 영역 밖은 마지막 한 줄 · 요구사항이 없는 영역은 뺌) · 웹 `routes/p.$proj/index.tsx`(`AreaBreakdown` — 영역마다 막대와 수 · 경고는 0이 아닌 것만 · 제목은 그 영역 문서로) · 문구 `project.coverage.areas` · 매뉴얼 ko · en `specs.md` · L2 `spec-workflow.spec.ts` 하나 · L1 `coverage-areas.spec.tsx` 둘 | 관례로 채운 빈자리(2026-10-11) — 화면 명세가 "영역별 분해는 아직 없다"고 적어 둔 자리다([4.4](api.md) REQ-API-297 · [4.5](screens.md) REQ-WEB-309) |
 | md ↔ html 대조가 html 의 글자를 링크로 읽었다 | `scripts/check-md-html.mjs`(정규화를 md · html 둘로 나눔 — 마크다운 링크 식은 md 에만, 인라인 코드 안은 빼고 · 결함 사례를 자가 점검으로) | 2026-10-11 실측 — html 의 `<code>areas[]</code>(…)` 가 태그를 걷은 뒤 링크로 읽혀 괄호 안이 지워졌고, 같은 말을 하는 EP-COV-01 행이 닮은 정도 0.49 로 걸렸다(REQ-CB-051) |
+| 판정 이벤트의 적용 정책 지문 · done 판정 기록 | `@nerv/schema`(`effectiveGatePolicy` · `canonicalPolicyJson` · `policyFingerprint`(`/keys`) · 상수 `POLICY_FINGERPRINT_LENGTH` · 타입 `GateInputs` · `DONE_GATE_CONDITIONS` · `DONE_GATE_RESULTS`) · `spec/gate-tier.ts`(`GateAudit` · `gateEventPayload`의 `gate_inputs` · `policy_fingerprint` · `policy_fallback`) · `spec.service.ts`(`assessGate` — 판정 결과와 감사 재료를 나눠 돌려준다 · `submittedGate` — 제출 때의 지문을 승인에 그대로 기록한다) · `task.service.ts`(`assertDoneGate` — 조건마다의 결과와 면제를 썼는지 · `task.done` 페이로드, 응답은 그대로) · `auth.service.ts`(`project.updated`에 바뀐 뒤의 유효 정책 본문 · 지문 · 바꾸기 전 지문) · L1 `policy.spec.ts` 넷 · `gate-tier.spec.ts` 하나 · L2 `policy-fingerprint.spec.ts` 여덟 · `spec-workflow.spec.ts`(제출 이벤트의 모양) | 사람 결정(2026-10-15) — 정책 버전 대신 지문으로 지난 판정을 다시 계산한다([4.4](api.md) REQ-API-303). 낡은 플러그인 안내(REQ-PLG-030)는 계획으로만 적었다. done 을 A3로 두지 않는다는 2026-09-28 결정도 같은 날 다시 확인했다(코드 변경 없음) |
 
 #### 이 절은 언제 갱신되는가
 

@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.52 · 2026-10-12 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.53 · 2026-10-15 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.53 변경(2026-10-15 — 게이트 정책 버전과 판정 감사 · done 을 A3 로 둘지, **사람 결정**): **§1.1 표 (c) 행 · §1.3 표 한 행 · §2.2 A3 행과 한 문단 · §6.4 표 한 행 · §6.5 감사 스키마.** ① 정책 버전은 두지 않는다. 판정 이벤트가 적용 정책 지문을 남기고 정책을 고칠 때의 감사가 정책 본문을 남긴다([4.4 API](../04-mvp/api.md) REQ-API-303). 낡은 플러그인 안내는 세션의 `plugin_version`으로 하는 계획으로 옮겼다([4.6 플러그인과 온보딩](../04-mvp/plugin.md) REQ-PLG-030 · 구현 없음). ② done 은 A3가 아니다 — 2026-09-28 결정을 다시 확인하고 "제안 · 미구현" 표시를 결정 기록과 재검토 트리거로 바꿨다.
 >
 > v0.52 변경(2026-10-12 — 2026-07-28 을 실제로 받는다, **사람 결정**): **§2.6a 끝 한 덩이.** `server/discover` 와 그 리비전의 헤더 · 결과 규칙을 구현했다. 이제 Claude Code 2.1.296 은 2026-07-28 로, Codex 0.162.1 은 2025-06-18 로 같은 엔드포인트에서 `nerv_bootstrap` 까지 부른다. 목록 결과의 캐시 표시가 빠지면 Claude Code 가 도구 없이 시작한다는 것도 실측에서 나왔다. 헤더만 2026-07-28 인 요청(플러그인 아웃박스)은 지금처럼 받는다([4.4 API](../04-mvp/api.md) REQ-API-302).
 >
@@ -150,7 +152,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | (a) 데이터 — MCP | 에이전트 → NERV | 동기 요청/응답, **상태를 바꾸는 유일한 경로** | FR-01·FR-05·FR-06·FR-09·FR-15 | 작업 진행 불가 → 로컬 폴백 캐시로 읽기만(NFR-05) |
 | (b) 텔레메트리 — 훅/OTel | 에이전트 → NERV(훅은 응답으로 제어) | 훅은 즉시·차단 가능, OTel은 단방향 관측 | FR-07·FR-08·FR-12·FR-16 | 세션 관측이 저해상도로 낮아질 뿐, 게이트는 서버가 유지 |
-| (c) 배포 — 플러그인/AGENTS.md | NERV → 에이전트 | 규약·스킬·설정의 일괄 전달 | FR-15 | 개별 세션이 구버전 규약으로 동작 → **감지 수단은 아직 없다**(2026-09-07 실측 — 정책 버전 개념이 서버에 없다. `nerv_bootstrap` 은 `gate_policy` 본문을 주고, 규약의 버전은 플러그인 매니페스트에만 있다). 이월 |
+| (c) 배포 — 플러그인/AGENTS.md | NERV → 에이전트 | 규약·스킬·설정의 일괄 전달 | FR-15 | 개별 세션이 구버전 규약으로 동작 → **감지 수단은 아직 없다**. 세션에 남는 `plugin_version`을 이 서버가 묶은 플러그인 버전과 견주어 다시 받으라고 알리는 것이 계획이다([4.6](../04-mvp/plugin.md) REQ-PLG-030). 게이트 정책에는 버전을 두지 않는다 — 판정이 어느 정책으로 났는지는 판정 이벤트의 적용 정책 지문이 남긴다(2026-10-15 사람 결정 · [4.4](../04-mvp/api.md) REQ-API-303) |
 
 세 평면의 분리가 중요한 이유는 **강제력의 위치**다. clemvion은 규칙을 전부 로컬 훅에 두었고, 그래서 훅 미설치 클론 하나면 규칙 전체가 무효였다. NERV에서 (b)와 (c)는 편의와 해상도를 담당하고, **강제는 (a)의 서버 판정에만 존재한다.**
 
@@ -173,7 +175,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | MCP 게이트웨이 무응답 | 로컬 캐시로 읽기 계속, 쓰기는 `.nerv/outbox/`에 멱등 키와 함께 큐잉 | `gate.failopen` 이벤트 | 신규 클레임 발급 정지 — 조정 행위는 낙관적으로 진행하지 않는다 |
 | 훅 POST 실패 | 세션 진행(차단 안 함) | ingest 누락 카운터 | 연속 3회 초과 시 세션 카드에 "관측 저해상도" 배지 |
 | 훅이 아예 없는 환경 | `nerv_session_event`로 굵직한 마일스톤만 보고 | `execution_env=cloud` 표기 | 해당 세션은 저해상도 추적 대상으로 분류(§5.5) |
-| ~~정책 버전 불일치~~ | — | — | **미도입**(2026-09-07 실측): 정책 버전도 `policy.stale` 이벤트도 서버에 없다. 강제는 규약 비교가 아니라 **서버 게이트**가 한다 — 구버전 플러그인이 낡은 절차를 밟아도 판정은 서버에서 같다. 감지·안내는 이월([4.6](../04-mvp/plugin.md) REQ-PLG-009) |
+| 낡은 플러그인(옛 이름 「정책 버전 불일치」) | 진행한다 — 판정은 서버 게이트가 하므로 낡은 플러그인이 낡은 절차를 밟아도 판정은 같다 | 세션의 `plugin_version`(이미 남는다 · [4.4](../04-mvp/api.md) REQ-API-168) | **계획**(2026-10-15 사람 결정): 세션의 `plugin_version`이 서버가 묶은 버전보다 낮으면 그 세션의 주인에게 다시 받으라고 알린다([4.6](../04-mvp/plugin.md) REQ-PLG-030). 정책 버전과 `policy.stale` 이벤트는 두지 않는다 — 판정에 쓴 정책은 판정 이벤트의 적용 정책 지문이 남긴다([4.4](../04-mvp/api.md) REQ-API-303) |
 
 ---
 
@@ -195,7 +197,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 | --- | --- | --- | --- | --- |
 | **A1 Low** | 읽기·검색·후보 조회 | 없음(자동 실행) | `nerv_bootstrap` `nerv_spec_tree` `nerv_spec_search` `nerv_spec_get` `nerv_spec_check` `nerv_task_next` `nerv_task_heartbeat` `nerv_session_event` `nerv_finding_list` | 승인 프롬프트 없음 |
 | **A2 Medium** | 되돌릴 수 있는 상태 변경 | 실행 후 통지(soft) — Event + 알림, undo 경로 존재 | `nerv_spec_draft_upsert` `nerv_spec_comment_resolve` `nerv_task_claim` `nerv_task_update` `nerv_task_release` `nerv_review_submit` `nerv_finding_resolve`(fixed) `nerv_question_create` `nerv_spec_attachment_hide` | 기본 권한 규칙으로 허용 |
-| **A3 High** | 사람의 시간·판단을 소비하거나 되돌리기 비싼 변경 | 실행 전 승인(hard) | `nerv_spec_submit_review`, `nerv_spec_approve`(세션에서 사람이 대답한 승인 · 2026-10-11), `nerv_finding_resolve`(critical → dismissed/wont_fix), 정책상 지정된 `nerv_task_update(status=done)`(제안 · 미구현 — 2026-09-28 확인: done 은 done 게이트가 판정하고 사람 승인을 걸지 않는다. 넘을 수 없으면 사람이 면제 결재를 한다) | Claude: `_meta["anthropic/requiresUserInteraction"]: true` / Codex: 승인 정책 + 질문 폴링 |
+| **A3 High** | 사람의 시간·판단을 소비하거나 되돌리기 비싼 변경 | 실행 전 승인(hard) | `nerv_spec_submit_review`, `nerv_spec_approve`(세션에서 사람이 대답한 승인 · 2026-10-11), `nerv_finding_resolve`(critical → dismissed/wont_fix). `nerv_task_update(status=done)`은 A3가 아니다(결정 2026-09-28 · 2026-10-15 재확인 — 아래 「done 은 A3에 두지 않는다」) | Claude: `_meta["anthropic/requiresUserInteraction"]: true` / Codex: 승인 정책 + 질문 폴링 |
 | **A4 Critical** | 삭제·배포·권한 변경·게이트 면제 | **도구 미제공** — 웹 UI에서 사람만 | (없음) — 첨부는 **내리기**만 A2 도구로 준다(파일은 남는다 · 2026-09-28) | 요청 시 `NERV_HUMAN_ONLY` 에러와 딥링크 반환 |
 
 - [Designing Approval Gates for High-Risk AI Agent Actions — C# Corner](https://www.c-sharpcorner.com/article/designing-approval-gates-for-high-risk-ai-agent-actions/) (2026-08-13 확인): 부작용·민감도·가역성·영향 범위 4요소 분류와 Low/Medium/High/Critical 4단계 매핑, "모델은 액션을 요청할 수 있을 뿐 실행 허용은 애플리케이션이 결정한다"는 원칙, 승인 만료 윈도우·스테일 승인 거부.
@@ -203,6 +205,8 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 - [Guardrails and human review — OpenAI API Docs](https://developers.openai.com/api/docs/guides/agents/guardrails-approvals) (2026-08-13 확인): 도구에 승인 필요를 표시하면 실행 대신 interruption이 기록되고 직렬화된 state로 나중에 재개 가능 — A3 도구가 사람 승인을 몇 시간 기다려도 같은 실행으로 이어지는 모델의 근거.
 
 **동적 강화.** 티어는 고정값이 아니다. 같은 세션에서 게이트 거부·리뷰 실패가 반복되면(기본 3회) 그 세션의 A2 도구가 A3으로 승격된다. 반대로 되돌리기 쉬운 저위험 도구 호출은 정책으로 **A2 자동 통과 경로**에 둔다 — 이것이 "버그 하나에 16개 수용 기준" 워터폴 비판에 대한 제품 차원의 답이다(D-06).
+
+**done 은 A3에 두지 않는다**(결정 — 2026-09-28 확정 · clemvion 요청 N9 · 사람 결정 D10, 2026-10-15 재확인 · 사람 결정). `nerv_task_update(status=done)`은 다른 상태 전이와 같은 A2다. done 은 done 게이트(증적 · 스펙 영향 · 정책이 켜면 리뷰 — [스펙 워크플로우와 거버넌스](spec-workflow.md) §4.6)가 판정하고 사람 승인을 걸지 않는다. 근거는 D-06 이다 — 사람 게이트 4+1 가운데 구현이 사람에게 가는 자리는 ④ PR 머지 · CI 실행이고, done 에 승인을 하나 더 걸면 같은 변경을 두 번 묻는다. 묻는 횟수가 늘면 확인은 읽히지 않는다(ASI09). 사람이 개입하는 수단은 둘이다 — 정책 `done_gate.evidence_source: ci_or_human`(에이전트가 스스로 올린 증적만으로는 닫지 못한다)과 넘을 수 없는 조건을 사유와 함께 넘기는 면제 결재다. 사람이 보지 않는 판정이라 `task.done`이 적용 정책 지문과 조건별 결과 · 면제를 썼는지를 남긴다([4.4 API](../04-mvp/api.md) REQ-API-303). **재검토 트리거**: done 뒤의 재작업이 실측되거나(done 으로 닫은 작업의 결함을 고치는 작업이 다시 생긴다), `ci_or_human`을 켜고도 부족하다는 요청이 오면 done 에 사람 승인을 거는 정책 키를 다시 검토한다.
 
 ### 2.3 도구 카탈로그
 
@@ -836,7 +840,7 @@ A3 도구에는 티어를 `_meta` 에 실어 보낸다 — **실물의 이름은
 | `nerv_spec_submit_review` | requiresUserInteraction | `approval_policy` + `NERV_APPROVAL_REQUIRED` | pending Approval 생성 후 대기 |
 | `nerv_spec_approve`(2026-10-11) | allowed-tools 에서 빼서 호출마다 묻는다 + 관리형 settings 의 `permissions.ask` | 부르지 않는다(Codex 초안의 금지 — 호출마다 묻는 창이 보장되지 않는다) | 옵트인 권한 · 역할 · 본 지문을 판정한 뒤 결정. 결정은 그 세션을 거쳤다고 남긴다 |
 | `nerv_finding_resolve`(critical → dismissed/wont_fix) | requiresUserInteraction | 동상 | 승인 큐 경유 |
-| `nerv_task_update(status=done)` — 정책이 요구할 때(제안 · 미구현 — 2026-09-28 확인) | requiresUserInteraction | 동상 | 게이트 판정 + 승인 — 지금은 게이트 판정만 한다 |
+| `nerv_task_update(status=done)` — A3가 아니다(결정 2026-09-28 · 2026-10-15 재확인 · §2.2) | 묻지 않는다(A2) | 동상 | done 게이트 판정만 한다 — 사람은 `ci_or_human` · 면제 결재로 개입하고 `task.done`이 판정을 남긴다 |
 | A4 액션 전체 | 도구 없음 | 도구 없음 | `NERV_HUMAN_ONLY` + 딥링크 |
 
 Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권한 모드 → allow → 런타임 콜백)와 NERV 게이트는 동형이다. 특히 "조직이 ask로 지정한 도구는 어떤 모드·allow 규칙에서도 항상 사람에게 온다"는 강제 승인 레인이 NERV 거버넌스의 클라이언트 측 훅 포인트다.
@@ -849,7 +853,7 @@ Claude Code의 권한 평가 순서(훅 → deny → ask 강제 레인 → 권�
 - **훅 URL 통제** — `allowedHttpHookUrls`로 훅이 POST할 수 있는 URL을 NERV 도메인으로 제한한다. **적용 범위는 `type:"http"` 훅뿐이다**(2026-09-03 정정 — 공식 문서 확인). NERV 의 기본 훅은 `command` 변형이므로 이 목록이 그것들을 덮지 않고, command 훅에 대한 동등한 통제는 문서에 없다. 그 성질이 필요한 배치는 둘 중 하나다: `hooks/hooks.http.json` 을 기본 자리에 두거나, **관리형 settings 로 훅 정의 자체를 내린다**(`hooks` 키는 관리형 파일에서도 유효하며 플러그인 기본값을 이긴다 — §3.4의 강제력 등급이 그대로 적용된다). 어느 쪽이든 가장 강한 강제는 서버 게이트 판정이다(D-14). http 변형도 SessionStart(세션 등록)는 `command` 라 그 주소는 이 목록에 들지 않는다(2026-09-28 실측 · [4.6 플러그인](../04-mvp/plugin.md) §3.1).
 - **ingest 인증 필수** — 토큰 없는 이벤트는 버린다. hostname은 헤더(`X-NERV-Host`)로, MCP 경로에서는 `nerv_bootstrap` 인자로 받는다.
 - **민감정보 최소화** — OTel의 프롬프트·툴 상세는 기본 마스킹이며 opt-in으로만 켠다. 리뷰 프롬프트 페이로드는 TTL 오브젝트에 두고 결론만 영구 보존한다(D-07).
-- **감사 스키마** — `actor{type,id,is_agent}` · `action`(`spec.approved`·`session.started` 식) · `targets[]` · `context`. 승인 이벤트에는 **그때의 판정 근거**를 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다. 실물 payload 는 `gate_tier`·`gate_score`·`auto_passed` 이고(2026-09-07 실측), 판정 전체(`GateDecision`)를 싣는 것과 정책 버전 개념은 이월이다.
+- **감사 스키마** — `actor{type,id,is_agent}` · `action`(`spec.approved`·`session.started` 식) · `targets[]` · `context`. 판정 이벤트에는 **그때의 판정 근거**를 남긴다 — 사후에 "그때 왜 자동 승인됐나"를 재구성하기 위해서다. 제출(`spec.submitted`)은 티어 · 점수 · 축별 점수 · 신호(2026-09-26)와 축 산출에 넣은 값(`gate_inputs`) · 적용 정책 지문(`policy_fingerprint`)을 남기고, 승인(`spec.approved`)은 제출 때의 티어 · 자동 통과 여부 · 지문을 그대로 기록한다. done(`task.done`)은 지문과 조건별 결과 · 면제를 썼는지를 남긴다. 정책 본문은 정책을 고칠 때 `project.updated`에 남는다 — 지문으로 그 본문을 찾으면 지난 판정을 다시 계산할 수 있다. 정책 버전은 두지 않는다(2026-10-15 사람 결정 · [4.4 API](../04-mvp/api.md) REQ-API-303).
 
 ---
 

@@ -554,6 +554,56 @@ export interface GateEvidence {
   at: string;
 }
 
+// ── 적용 정책 지문 · 판정 감사 (2026-10-15 · 사람 결정 · api.md REQ-API-303) ─────────────────────
+/**
+ * **적용 정책 지문의 길이**(16진 글자 수). 판정에 실제로 쓴 유효 정책(기본값까지 채운 `GatePolicySchema` 의 결과)을
+ * 키 정렬한 JSON 의 sha256 앞 16자다(`policyFingerprint` · `@nerv/schema/keys`). 64비트라 한 프로젝트가 정책을
+ * 수천 번 고쳐도 겹칠 일이 없고, 사람이 감사 기록에서 눈으로 견줄 수 있는 길이다.
+ *
+ * 정책에 버전 번호를 두지 않은 이유: 번호는 누군가 올려야 하고, 올리지 않은 수정은 같은 번호로 다른 판정을 낸다.
+ * 지문은 내용에서 나오므로 잊을 수 없다. `gate_policy.version` 은 스키마 마이그레이션용이라 이것과 다르다.
+ */
+export const POLICY_FINGERPRINT_LENGTH = 16;
+/**
+ * 스펙 게이트가 **축을 산출한 입력** — 제출 이벤트(`spec.submitted` · `approval.requested`)의 `gate_inputs`.
+ * 판정은 `decideGate(inferAxes(입력), 신호, 정책)` 이므로 이 값과 지문이 가리키는 정책 본문(`project.updated`)이
+ * 있으면 그때의 판정을 다시 계산할 수 있다. 신호 셋은 판정에 넣은 값이다 — 동적 강화를 끈 정책이면 재시도 신고는
+ * 찾지 않으므로 `retry_reported` 는 `false` 다.
+ */
+export interface GateInputs {
+  spec_type: string;
+  requirements_added: number;
+  requirements_removed: number;
+  requirements_modified: number;
+  referencing_specs: number;
+  derived_tasks: number;
+  approved_requirements_removed: boolean;
+  first_approved_version: boolean;
+  retry_reported: boolean;
+  body_shrunk: boolean;
+}
+/**
+ * done 게이트의 **조건** — `task.done` 의 `done_gate.conditions[].condition`. 정책이 켠 조건만 적는다.
+ * `spec_impact`(스펙 영향 선언) · `evidence`(증적 — 정책의 출처 조건 포함) · `review_coverage`(`true` — 종류 무관 라운드와
+ * 열린 critical 0) · `review_kind`(종류 목록 — 종류마다 한 줄).
+ */
+export const DONE_GATE_CONDITIONS = [
+  'spec_impact',
+  'evidence',
+  'review_coverage',
+  'review_kind',
+] as const;
+export type DoneGateCondition = (typeof DONE_GATE_CONDITIONS)[number];
+/** 조건의 결과 — 통과 · 면제(게이트 면제 결재가 그 조건을 넘겼다) · 실패. `task.done` 에는 실패가 남지 않는다 */
+export const DONE_GATE_RESULTS = ['passed', 'waived', 'failed'] as const;
+export type DoneGateResult = (typeof DONE_GATE_RESULTS)[number];
+/** done 게이트가 본 조건 하나 — `kind` 는 `review_kind` 일 때만 */
+export interface DoneGateCheck {
+  condition: DoneGateCondition;
+  result: DoneGateResult;
+  kind?: string;
+}
+
 // ── 본문 축소 (2026-10-08 · api.md REQ-API-270 · 271) ─────────────────────────────────────────
 /**
  * **이 비율 아래로 줄면 "크게 줄었다"**(크기 · 제목 수 · 남은 요구사항 수에 같은 값을 쓴다). 사람 요청의 말이

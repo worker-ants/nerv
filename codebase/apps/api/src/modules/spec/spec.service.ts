@@ -15,7 +15,7 @@ import {
   canCreateSpecType,
   evidenceKind,
   EVIDENCE_NOTE_MAX,
-  GatePolicySchema,
+  effectiveGatePolicy,
   implStatus,
   LEASE_HEARTBEAT_GRACE_SECONDS,
   LEASE_TTL_SECONDS,
@@ -33,6 +33,7 @@ import {
   text,
 } from '@nerv/schema';
 import type { GateEvidence, SpecReadAs } from '@nerv/schema';
+import { policyFingerprint } from '@nerv/schema/keys';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { evidenceExistsSql, normalizedStatementSql, reverifyRequiredSql } from './impl-status.js';
@@ -72,7 +73,7 @@ const DIFF_LINE_CAP = 400;
 const ANCESTOR_DEPTH_LIMIT = 64;
 import { EventService } from '../event/event.service.js';
 import { decideGate, gateEventPayload, inferAxes } from './gate-tier.js';
-import type { GateDecision } from './gate-tier.js';
+import type { GateAudit, GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
@@ -103,6 +104,9 @@ export interface SubmitReviewInput {
   /** 제출 권한의 축 — 표면이 실어 준다(2026-09-07 · REQ-API-139) */
   roles?: readonly string[];
 }
+
+/** 승인 이벤트가 그대로 기록하는 판정 — 티어 · 자동 통과 · 적용 정책 지문(지문이 생기기 전의 제출이면 `null`) */
+type ApprovedGate = Pick<GateDecision, 'tier' | 'autoPass'> & { policyFingerprint: string | null };
 
 export interface SubmitReviewResult {
   status: string;
@@ -1597,7 +1601,7 @@ export class SpecService {
     // v4 는 34.7KB 가 484바이트가 된 채 승인됐는데 카드는 버전 번호와 변경 요약만 보여 줬다
     const bodyChangePayload = check.body_change === null ? {} : { body_change: check.body_change };
 
-    const gate = await this.assessGate(
+    const { gate, audit } = await this.assessGate(
       tx,
       input.projectId,
       version.spec_id,
@@ -1624,9 +1628,10 @@ export class SpecService {
       isAgent: input.sessionId != null,
       fromState: 'draft',
       toState: 'in_review',
-      // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188)
+      // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188) · 적용 정책 지문과 축 산출 입력(2026-10-15 ·
+      // REQ-API-303) — 판정은 여기서 한 번이고 승인은 이 판정을 그대로 기록한다
       payload: {
-        ...gateEventPayload(gate),
+        ...gateEventPayload(gate, audit),
         ...bodyChangePayload,
         // 검토 요청과 승인이 한 번이었다는 사실 — 감사가 바로 승인을 셀 수 있어야 한다(REQ-API-287)
         ...(input.direct === undefined ? {} : { direct: true }),
@@ -1647,7 +1652,11 @@ export class SpecService {
           sessionId: input.sessionId ?? null,
           isAgent: input.sessionId != null,
         },
-        gate,
+        gate: {
+          tier: gate.tier,
+          autoPass: gate.autoPass,
+          policyFingerprint: audit.policyFingerprint,
+        },
       });
       return {
         status: 'approved',
@@ -1682,7 +1691,7 @@ export class SpecService {
         payload: {
           // 카드가 티어 곁에 근거를 그린다(§6.4 · REQ-API-188) — 배지만으로는 왜 사람이
           // 불렸는지 모른다
-          ...gateEventPayload(gate),
+          ...gateEventPayload(gate, audit),
           ...bodyChangePayload,
           required_approvers: cards.slots,
           // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
@@ -3214,7 +3223,7 @@ export class SpecService {
     specVersionId: string,
     /** 제출한 세션 — 재시도 신호의 셋째 길(그 세션이 올린 신고) */
     sessionId: string | null,
-  ): Promise<GateDecision> {
+  ): Promise<{ gate: GateDecision; audit: GateAudit }> {
     const { rows } = await tx.execute<{
       referencing: number;
       tasks: number;
@@ -3250,62 +3259,81 @@ export class SpecService {
     const { rows: policyRows } = await tx.execute<{ gate_policy: unknown }>(sql`
       SELECT gate_policy FROM project WHERE id = ${projectId}
     `);
-    const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
-    if (!parsed.success) {
+    // 정책이 깨져 있어도 판정을 멈추지 않는다 — 기본값으로 간다(보존 잡과 같은 규율)
+    const { policy, valid } = effectiveGatePolicy(policyRows[0]?.gate_policy);
+    if (!valid) {
       // **조용히 기본값으로 가지 않는다**(2026-09-28 · REQ-API-240) — 판정은 멈추지 않되 운영자가 알아야 한다.
       // 보존 잡(retention.job.ts)과 같은 규율이다. 예전에는 아무 기록 없이 리뷰 조건을 끈 채 통과시켰다
       this.logger.warn(
         `gate_policy 가 유효하지 않습니다 — 스펙 게이트는 기본값을 씁니다 (project=${projectId})`,
       );
     }
-    // 정책이 깨져 있어도 판정을 멈추지 않는다 — 기본값으로 간다(보존 잡과 같은 규율)
-    const policy = parsed.success ? parsed.data : GatePolicySchema.parse({});
     // 끈 프로젝트에서는 신호를 세지 않으므로 찾지도 않는다
     const retry =
       policy.spec_gate.dynamic_escalation === false
         ? null
         : await this.retryEvidence(tx, { projectId, specId, sessionId });
 
-    const decision = decideGate(
-      inferAxes({
-        specType,
-        requirementsAdded: delta.requirements.added.length,
-        requirementsRemoved: delta.requirements.removed.length,
-        // 본문에서 읽은 수정이 우선이고, 행이 있는 문서(임포트본)는 그 존재도 신호로 쓴다
-        requirementsModified:
-          delta.requirements.modified.length > 0
-            ? delta.requirements.modified.length
-            : counts.requirements > 0
-              ? 1
-              : 0,
-        bodyChanged: true,
-        referencingSpecs: counts.referencing,
-        derivedTasks: counts.tasks,
-        // 승인된 약속이 사라지는 것은 되돌리기 어려운 변경이다(gate-tier 의 축)
-        approvedRequirementsRemoved:
-          bodies[0]?.base_md != null && delta.requirements.removed.length > 0,
-      }),
-      {
-        // **이 문서의 첫 approved 판인가**(2026-09-02 사람 결정). 새 문서는 되돌릴 이전
-        // 버전이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0 이라 축이 구조적으로 낮게
-        // 나온다 — 요구사항을 새로 세우는 feature 스펙이 3점(T1)으로 사람 없이 통과했다.
-        // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
-        firstApprovedVersion: bodies[0]?.base_md == null,
-        repeatedFailures: retry !== null,
-        // 직전 버전(계보)보다 크게 줄었는가 — 사전 검토의 `base-continuity` 와 같은 기준이다(REQ-API-273)
-        bodyShrunk:
-          bodies[0]?.lineage_md != null &&
-          bodyChange(bodies[0].lineage_md, bodies[0].body_md).shrunk.length > 0,
+    const axesInput = {
+      specType,
+      requirementsAdded: delta.requirements.added.length,
+      requirementsRemoved: delta.requirements.removed.length,
+      // 본문에서 읽은 수정이 우선이고, 행이 있는 문서(임포트본)는 그 존재도 신호로 쓴다
+      requirementsModified:
+        delta.requirements.modified.length > 0
+          ? delta.requirements.modified.length
+          : counts.requirements > 0
+            ? 1
+            : 0,
+      bodyChanged: true,
+      referencingSpecs: counts.referencing,
+      derivedTasks: counts.tasks,
+      // 승인된 약속이 사라지는 것은 되돌리기 어려운 변경이다(gate-tier 의 축)
+      approvedRequirementsRemoved:
+        bodies[0]?.base_md != null && delta.requirements.removed.length > 0,
+    };
+    const signals = {
+      // **이 문서의 첫 approved 판인가**(2026-09-02 사람 결정). 새 문서는 되돌릴 이전
+      // 버전이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0 이라 축이 구조적으로 낮게
+      // 나온다 — 요구사항을 새로 세우는 feature 스펙이 3점(T1)으로 사람 없이 통과했다.
+      // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
+      firstApprovedVersion: bodies[0]?.base_md == null,
+      repeatedFailures: retry !== null,
+      // 직전 버전(계보)보다 크게 줄었는가 — 사전 검토의 `base-continuity` 와 같은 기준이다(REQ-API-273)
+      bodyShrunk:
+        bodies[0]?.lineage_md != null &&
+        bodyChange(bodies[0].lineage_md, bodies[0].body_md).shrunk.length > 0,
+    };
+    const decision = decideGate(inferAxes(axesInput), signals, {
+      boundaries: policy.spec_gate.tier_boundaries,
+      dynamicEscalation: policy.spec_gate.dynamic_escalation,
+    });
+    // **다시 계산할 재료를 함께 돌려준다**(2026-10-15 · 사람 결정 · REQ-API-303) — 정책 버전 대신 판정에 쓴 정책의
+    // 지문과 축에 넣은 값이다. 이 둘과 지문이 가리키는 정책 본문(`project.updated`)이면 같은 판정이 다시 나온다
+    const audit: GateAudit = {
+      policyFingerprint: policyFingerprint(policy),
+      policyFallback: !valid,
+      inputs: {
+        spec_type: axesInput.specType,
+        requirements_added: axesInput.requirementsAdded,
+        requirements_removed: axesInput.requirementsRemoved,
+        requirements_modified: axesInput.requirementsModified,
+        referencing_specs: axesInput.referencingSpecs,
+        derived_tasks: axesInput.derivedTasks,
+        approved_requirements_removed: axesInput.approvedRequirementsRemoved,
+        first_approved_version: signals.firstApprovedVersion,
+        retry_reported: signals.repeatedFailures,
+        body_shrunk: signals.bodyShrunk,
       },
-      {
-        boundaries: policy.spec_gate.tier_boundaries,
-        dynamicEscalation: policy.spec_gate.dynamic_escalation,
-      },
-    );
-    // 신호의 근거를 싣는다 — 카드가 신호 곁에 원문으로 가는 링크를 그린다(REQ-API-189)
-    return retry !== null && decision.signals.includes('retry_threshold')
-      ? { ...decision, evidence: [retry] }
-      : decision;
+    };
+    // 신호의 근거를 남긴다 — 카드가 신호 곁에 원문으로 가는 링크를 그린다(REQ-API-189)
+    return {
+      gate:
+        retry !== null && decision.signals.includes('retry_threshold')
+          ? { ...decision, evidence: [retry] }
+          : decision,
+      audit,
+    };
   }
 
   /**
@@ -3393,13 +3421,17 @@ export class SpecService {
    * 승인 때 다시 계산하면 그 사이에 올라온 신고나 늘어난 파생 작업이 기록의 티어만 바꿔 슬롯과
    * 어긋난다(`spec.approved` 의 티어는 플랜 게이트가 읽는다). 제출 이벤트가 없는 옛 버전만
    * 다시 계산한다.
+   *
+   * **적용 정책 지문도 그대로 기록한다**(2026-10-15 · REQ-API-303) — 승인 때의 정책이 아니라 판정 때의 정책이다. 지문이
+   * 생기기 전의 제출이면 `null` 이다(지금 정책으로 채우면 그때의 판정을 거짓으로 설명한다).
    */
   private async submittedGate(
     tx: Tx,
     input: { projectId: string; specId: string; specType: string; specVersionId: string },
-  ): Promise<Pick<GateDecision, 'tier' | 'autoPass'>> {
-    const { rows } = await tx.execute<{ tier: string | null }>(sql`
-      SELECT e.payload->>'gate_tier' AS tier FROM event e
+  ): Promise<ApprovedGate> {
+    const { rows } = await tx.execute<{ tier: string | null; fingerprint: string | null }>(sql`
+      SELECT e.payload->>'gate_tier' AS tier, e.payload->>'policy_fingerprint' AS fingerprint
+        FROM event e
        WHERE e.type = ${NERV_EVENT.SPEC_SUBMITTED} AND e.subject_id = ${input.specVersionId}
          AND e.payload ? 'gate_tier'
        ORDER BY e.occurred_at DESC
@@ -3407,9 +3439,13 @@ export class SpecService {
     `);
     const tier = rows[0]?.tier;
     if (tier === 'T0' || tier === 'T1' || tier === 'T2' || tier === 'T3') {
-      return { tier, autoPass: tier === 'T0' || tier === 'T1' };
+      return {
+        tier,
+        autoPass: tier === 'T0' || tier === 'T1',
+        policyFingerprint: rows[0]?.fingerprint ?? null,
+      };
     }
-    return this.assessGate(
+    const { gate, audit } = await this.assessGate(
       tx,
       input.projectId,
       input.specId,
@@ -3417,6 +3453,7 @@ export class SpecService {
       input.specVersionId,
       null,
     );
+    return { tier: gate.tier, autoPass: gate.autoPass, policyFingerprint: audit.policyFingerprint };
   }
 
   /** 승인 확정 — 이전 approved 를 superseded 로 밀고 참조 전파 신호를 낸다. */
@@ -3441,7 +3478,7 @@ export class SpecService {
        * 물음이라 자리를 나눈다: 액터는 그 제출을 한 사람·세션이다.
        */
       actor: { userId: string | null; sessionId: string | null; isAgent: boolean };
-      gate: Pick<GateDecision, 'tier' | 'autoPass'>;
+      gate: ApprovedGate;
     },
   ): Promise<void> {
     // 같은 Spec 의 이전 approved 를 superseded 로 (서버 자동 전이 — §1.2)
@@ -3478,7 +3515,14 @@ export class SpecService {
       isAgent: input.actor.isAgent,
       fromState: 'in_review',
       toState: 'approved',
-      payload: { gate_tier: input.gate.tier, auto_passed: input.gate.autoPass },
+      // 제출 때의 판정을 그대로 기록한다 — 적용 정책 지문까지(2026-10-15 · REQ-API-303). 지문이 없던 옛 제출이면 빈다
+      payload: {
+        gate_tier: input.gate.tier,
+        auto_passed: input.gate.autoPass,
+        ...(input.gate.policyFingerprint === null
+          ? {}
+          : { policy_fingerprint: input.gate.policyFingerprint }),
+      },
     });
 
     for (const old of superseded) {

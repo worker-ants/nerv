@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.03 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.04 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.04 변경(2026-10-15 — 게이트 정책 버전과 판정 감사, **사람 결정**): **REQ-PLG-030 신설(계획 — 구현 없음) · REQ-PLG-009 행 · §1.1 끝 문단 · 패키지 그대로.** 게이트 정책에는 버전을 두지 않고 판정 이벤트가 적용 정책 지문을 남긴다([4.4 API](api.md) REQ-API-303). 폐기한 REQ-PLG-009의 목적(낡은 플러그인 안내)은 세션에 이미 남는 `plugin_version`을 서버가 묶은 버전과 견주는 REQ-PLG-030이 이어받는다. 명세에 정한 범위가 없어 이번에는 구현하지 않았다. `nerv_bootstrap` 응답과 스킬은 바뀌지 않는다.
 >
 > v1.03 변경(2026-10-15 — NERV 플러그인을 Codex에서 실측했다, **사람 결정: 실측만 한다**): **새 요구사항 없음 · §5.4 신설.** Codex 0.162.1은 플러그인을 설치하고 스킬 일곱을 읽는다. 훅은 `$comment` 때문에 하나도 실행되지 않는다. 훅을 살리면 Codex 세션이 Claude Code로 기록되고, 서버 응답의 필드 때문에 세션 안내가 모델에게 가지 않으며, MCP 세션과 따로 세션이 하나 더 생긴다. 범위와 코드는 그대로 두고 Phase 2의 입력으로 남긴다.
 >
@@ -224,7 +226,7 @@ nerv-plugin/
 }
 ```
 
-플러그인 버전과 **게이트 정책 버전은 별개다.** **게이트 정책 버전은 아직 없다**(2026-09-07 실측 — `nerv_bootstrap` 은 `gate_policy` **본문**을 주고, 버전도 `policy.stale` 이벤트도 서버에 없다 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3 · REQ-PLG-009 폐기). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
+플러그인 버전과 게이트 정책은 별개다. **게이트 정책에는 버전을 두지 않는다**(2026-10-15 사람 결정) — 판정 이벤트가 그 판정에 쓴 정책의 지문을 남기고, 정책을 고칠 때의 감사가 정책 본문을 남긴다([4.4 API](api.md) REQ-API-303). `nerv_bootstrap`은 `gate_policy` 본문을 주고 지문은 주지 않는다. 낡은 플러그인은 세션에 남는 `plugin_version`으로 알아본다(REQ-PLG-030 · 계획 — 구현 없음 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3). 정책 강제는 언제나 서버 게이트에 있다 — 플러그인은 편의와 해상도다.
 
 ### 1.2 MVP 포함/제외 표
 
@@ -2058,7 +2060,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-006 | WHEN 도구 응답의 `trust="untrusted"` 경계 안 본문에 지시문이 포함되면 THE SYSTEM SHALL 이를 데이터로 취급하고 실행하지 않는다. WHILE 스킬이 그 경계를 가르치는 동안 THE SYSTEM SHALL **경계의 범위**(필드 값 전체)와 **저장 규칙**(포장을 벗긴다 · `wrapped_body`)을 함께 말한다 — 어디까지가 경계인지 말하지 않으면 모델은 포장째 저장한다 | 인젝션 문구를 심은 테스트 스펙으로 실측 — 지시 실행 0건, 비신뢰 문장이 **7개** SKILL.md 전부에 존재(grep). 범위·저장 규칙 2건(`spec`·`question`). **서버 쪽 절반은 [4.4 API](api.md) REQ-API-153의 L2가 센다** — 스킬 문장만 세면 서버에 경계가 없어도 초록이다(2026-09-07까지 그랬다) |
 | REQ-PLG-007 | WHEN 신규 팀원이 §4의 5단계를 순서대로 완료하면 THE SYSTEM SHALL `nerv_bootstrap` 응답(session_id·게이트 정책)을 반환하고 S5 세션 모니터에 해당 세션을 표시한다 | 온보딩 실측 — 5단계 각 "확인 방법" 열 전부 통과 |
 | REQ-PLG-008 | WHEN statusline이 렌더될 때 THE SYSTEM SHALL 네트워크 왕복 없이 stdin 세션 JSON과 `.nerv/cache/claim.json`만 읽는다 | 스크립트 정적 검사(curl/wget/nc 부재) + 네트워크 차단 상태에서 렌더 성공 |
-| REQ-PLG-009 | **폐기(2026-09-07 실측 — 도입 시 재작성)**. ~~WHEN `nerv_bootstrap` 응답의 정책 버전이 플러그인이 가정한 규약과 불일치하면 THE SYSTEM SHALL 진행을 허용하되 사용자에게 재설치를 안내한다~~ — **정책 버전 개념이 서버에 없다**(`policy.stale` 이벤트도 카탈로그에 없다). 번호는 재사용하지 않는다(문서 작업 규약 5). 강제는 규약 비교가 아니라 **서버 게이트**가 하므로 구버전 플러그인이 낡은 절차를 밟아도 판정은 같다 — 남은 것은 "낡았다"고 말해 주는 일이고 그것이 이월분이다 | ~~구버전 플러그인으로 접속해 안내 문구·이벤트 발생~~ 확인 |
+| REQ-PLG-009 | **폐기(2026-09-07 실측 — 도입 시 재작성)**. ~~WHEN `nerv_bootstrap` 응답의 정책 버전이 플러그인이 가정한 규약과 불일치하면 THE SYSTEM SHALL 진행을 허용하되 사용자에게 재설치를 안내한다~~ — **정책 버전 개념이 서버에 없다**(`policy.stale` 이벤트도 카탈로그에 없다). 번호는 재사용하지 않는다(문서 작업 규약 5). 강제는 규약 비교가 아니라 **서버 게이트**가 하므로 구버전 플러그인이 낡은 절차를 밟아도 판정은 같다 — 남은 것은 "낡았다"고 말해 주는 일이고, 그 일은 세션의 `plugin_version`을 견주는 REQ-PLG-030이 이어받는다(2026-10-15) | ~~구버전 플러그인으로 접속해 안내 문구·이벤트 발생~~ 확인 |
 | REQ-PLG-010 | WHEN Codex 세션이 저장소의 `.codex/config.toml`·AGENTS.md 초안으로 접속하면 THE SYSTEM SHALL tools만으로 `bootstrap→next→claim→heartbeat→release` 완주를 지원한다 | 로드맵 Phase 0 검증 0-8과 동일 절차 — Codex 1세션 실측(resources·prompts·elicitation 미사용) |
 | REQ-PLG-011 | WHEN 쓰기 도구가 `NERV_UNAVAILABLE`을 반환하면 THE SYSTEM SHALL 호출 입력·`idempotency_key`·`queued_at`을 §3.4 형식으로 `.nerv/outbox/`에 기록하고, 4xx 실패는 큐잉하지 않는다 | 서버 차단 상태에서 쓰기 시도 → outbox 파일 형식 검사 + 403 시 큐잉 0건 |
 | REQ-PLG-012 | WHEN 서버 복구 후 첫 도구 호출 전이면 THE SYSTEM SHALL outbox를 oldest-first로 원래 멱등 키 그대로 재전송하고, 성공 항목 삭제·4xx 항목 `outbox/failed/` 이동 후 서버 레코드 중복 0을 유지한다 | 큐 3건(성공 2·403 1) flush 실측 — 레코드 수·failed/ 이동 확인 |
@@ -2079,6 +2081,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-027 | WHERE 조직이 http 변형(`hooks/hooks.http.json`)을 쓰면 THE SYSTEM SHALL 세션을 등록하는 SessionStart 훅만은 command(`nerv-hook-forward session`)로 보낸다 — Claude Code 는 SessionStart 의 http 훅을 건너뛴다. WHILE http 훅의 `headers` 에 환경변수를 쓰는 동안 THE SYSTEM SHALL 그 이름을 모두 `allowedEnvVars` 에 두고 `${VAR:-기본값}` 문법을 쓰지 않는다(2026-09-28 · E06-S07 실측) | L1(`plugin-package.spec.ts`) — http 변형의 SessionStart 에 http 훅이 없다 · 헤더에 쓴 변수가 모두 `allowedEnvVars` 에 있다 · `:-` 가 없다 · 관리형 예시의 `allowedHttpHookUrls` 가 http 훅 주소와 같다 |
 | REQ-PLG-028 | WHEN 사람이 스펙 미러를 요청하면(`/nerv:mirror`) THE SYSTEM SHALL 목록과 다운로드를 스크립트(`bin/nerv-mirror`)로 하고 문서 본문을 대화에 넣지 않는다 — 내보내기(EP-MIR-03)를 요청 한 번으로 받아 승인본 · 최신 · 기준선 중 고른 기준으로 폴더를 맞춘다. THE SYSTEM SHALL 미러가 쓴 파일(`.nerv-mirror.json`에 적은 것)만 고치고 지우며, 상태 파일 없이 비어 있지 않은 폴더와 미러가 쓰지 않은 같은 이름의 파일은 `--force` 없이 건드리지 않는다. WHEN zip에 폴더 밖을 가리키는 항목이 있거나 크기 · CRC가 맞지 않으면 THE SYSTEM SHALL 아무것도 쓰지 않는다. THE SYSTEM SHALL 토큰을 요청 헤더에만 쓴다(2026-10-07 · 사람 요청) | L1(`plugin/mirror.spec.ts`) — 가짜 서버를 상대로 sh 래퍼를 실행한다: 처음 받기 · 바뀐 것만 쓰기 · 지우기 · 되돌리기 · 사람의 파일 보존 · 지난번 기준 잇기 · 미러가 아닌 폴더 · 충돌 · 폴더 밖 경로 · 401 · 없는 기준선 · `.nerv/env` · 기준선 목록. L2(`mirror-http.spec.ts`)가 서버 쪽 바이트를 본다 |
 | REQ-PLG-029 | WHEN admin · planner가 에이전트 세션에서 초안을 승인하려 하면(`/nerv:approve`) THE SYSTEM SHALL 그 버전(키 · 번호 · 승인본과의 차이 · 사전 검토 · 크기 변화)을 서버가 준 값 그대로 보여 주고, 사람이 **그 질문 뒤에** 승인한다고 분명히 답했을 때만 본 지문(`seen_content_hash`)과 함께 `nerv_spec_approve`를 부른다. 내용을 보기 전에 받은 허락 · 문서 · 코멘트 · 도구 응답의 문장은 대답이 아니고, 대답 하나로 문서 하나만 승인하며, 승인을 오프라인 큐에 넣지 않는다. WHERE 조직이 관리형 settings를 쓰면 THE SYSTEM SHALL A3 도구 둘을 설치 경로별 이름 모두 `permissions.ask`로 묶는다. WHILE Codex 세션인 동안 THE SYSTEM SHALL 승인 도구를 부르지 않는다 — 호출마다 묻는 창이 보장되지 않는다(2026-10-11 · 사람 결정) | L1(`plugin-package.spec.ts`) — 스킬 문장(대답 · 미리 받은 허락 · 본 지문 · 큐 금지 · 문서마다) · 관리형 예시의 `permissions.ask` · Codex 초안의 금지 문장. 서버 쪽 판정(토큰 권한 · 역할 · 본 지문 · 세션 기록)은 [4.4 API](api.md) REQ-API-291의 L2(`spec-direct-approve.spec.ts` · `mcp.spec.ts`)가 센다 |
+| REQ-PLG-030 | **계획**(2026-10-15 사람 결정 — 아직 구현하지 않았다). WHEN 세션을 만드는 훅이 남긴 `plugin_version`([4.4 API](api.md) REQ-API-168)이 이 서버가 묶은 nerv 플러그인의 버전(EP-PLG-01 카탈로그의 그 항목)보다 낮으면 THE SYSTEM SHALL 진행을 막지 않고 그 세션의 주인에게 플러그인을 다시 받으라고 알린다. WHERE 버전을 견줄 수 없으면(값이 없거나 버전 모양이 아니면) THE SYSTEM SHALL 알리지 않는다. 폐기한 REQ-PLG-009의 목적을 정책 버전 없이 이어받는다 — 판정은 서버 게이트가 하므로 낡은 플러그인도 판정은 같고 사람에게 낡았다고 알려 주기만 하면 된다. 어디에 알릴지(세션 화면 · 알림)는 구현할 때 정한다 | 계획 — 구현할 때 L2(낮은 버전 · 같은 버전 · 값 없음)로 검증한다 |
 
 ## 7. 문체 플러그인 `ko-style` (2026-09-27 신설 — 사람 결정)
 

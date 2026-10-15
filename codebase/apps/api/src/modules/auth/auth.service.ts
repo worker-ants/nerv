@@ -15,8 +15,10 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
+import { policyFingerprint } from '@nerv/schema/keys';
 import {
   ACTIVE_SESSION_STATES,
+  effectiveGatePolicy,
   GatePolicySchema,
   isAgentScope,
   isHumanOnlyScope,
@@ -712,6 +714,15 @@ export class AuthService {
       input.repoHost == null
         ? null
         : (assertVocab([input.repoHost], REPO_HOSTS, 'repo_host')[0] ?? null);
+    // 바꾸기 전 정책의 지문 — 감사가 "어느 정책에서 어느 정책으로" 를 말하게 한다(2026-10-15 · REQ-API-303)
+    const policyBefore =
+      gatePolicy == null
+        ? null
+        : (
+            await this.db.execute<{ gate_policy: unknown }>(
+              sql`SELECT gate_policy FROM project WHERE id = ${input.projectId}`,
+            )
+          ).rows[0]?.gate_policy;
     await this.db.execute(sql`
       UPDATE project
          SET name = coalesce(${input.name ?? null}, name),
@@ -726,8 +737,9 @@ export class AuthService {
              retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
        WHERE id = ${input.projectId}
     `);
-    // **무엇이 바뀌었는지만 남긴다** — 정책 본문은 싣지 않는다(게이트 정책은 크고, 그 값은
-    // 프로젝트 행이 이미 가지고 있다). 감사가 묻는 것은 "누가 언제 게이트를 건드렸나" 다.
+    // **무엇이 바뀌었는지 남긴다.** 게이트 정책을 고쳤으면 **바뀐 뒤의 유효 정책 본문과 지문**도 남긴다(2026-10-15 ·
+    // 사람 결정 · REQ-API-303) — 판정 이벤트는 지문만 남기므로, 지난 판정을 다시 계산하려면 그 지문의 본문이 어딘가에
+    // 있어야 한다. 프로젝트 행은 지금 값만 가지고 있다. 예전에는 바뀐 필드 이름만 남겼다
     const fields = (
       [
         ['name', input.name],
@@ -748,7 +760,19 @@ export class AuthService {
         subjectType: 'project',
         subjectId: input.projectId,
         actorUserId: input.actor.userId,
-        payload: { fields },
+        payload: {
+          fields,
+          ...(gatePolicy == null
+            ? {}
+            : {
+                // 저장한 값이 곧 유효 정책이다 — 스키마가 기본값까지 채운 결과를 저장한다
+                gate_policy: gatePolicy,
+                policy_fingerprint: policyFingerprint(gatePolicy),
+                policy_fingerprint_before: policyFingerprint(
+                  effectiveGatePolicy(policyBefore).policy,
+                ),
+              }),
+        },
       });
     }
     return this.project(input.projectId);

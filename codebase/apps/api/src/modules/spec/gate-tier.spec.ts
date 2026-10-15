@@ -220,6 +220,33 @@ describe('산출 근거를 구조로 남긴다 (2026-09-26 · REQ-API-188)', () 
     ]);
     expect(gateEventPayload(decision)).not.toHaveProperty('gate_evidence');
   });
+
+  it('감사 재료가 있으면 지문과 축 산출 입력을 함께 남긴다 — 기본 정책으로 대신 판정했을 때만 그 표시 (REQ-API-303)', () => {
+    const inputs = {
+      spec_type: 'feature',
+      requirements_added: 2,
+      requirements_removed: 0,
+      requirements_modified: 0,
+      referencing_specs: 1,
+      derived_tasks: 0,
+      approved_requirements_removed: false,
+      first_approved_version: true,
+      retry_reported: false,
+      body_shrunk: false,
+    };
+    const decision = decideGate(axes(2, 1, 0, 0), { firstApprovedVersion: true });
+    const audit = { policyFingerprint: '0123456789abcdef', policyFallback: false, inputs };
+    expect(gateEventPayload(decision, audit)).toMatchObject({
+      gate_inputs: inputs,
+      policy_fingerprint: '0123456789abcdef',
+    });
+    expect(gateEventPayload(decision, audit)).not.toHaveProperty('policy_fallback');
+    expect(gateEventPayload(decision, { ...audit, policyFallback: true })).toMatchObject({
+      policy_fallback: true,
+    });
+    // 감사 재료가 없으면 예전 모양 그대로다
+    expect(gateEventPayload(decision)).not.toHaveProperty('policy_fingerprint');
+  });
 });
 
 describe('본문 변화에서 4축 추정', () => {

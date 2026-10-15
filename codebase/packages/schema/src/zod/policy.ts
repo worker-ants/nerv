@@ -90,6 +90,40 @@ export function defaultGatePolicy(): GatePolicy {
   return GatePolicySchema.parse({});
 }
 
+/**
+ * **판정에 쓰는 정책** — 저장된 값을 이 스키마로 읽고, 맞지 않으면 기본 정책이다(REQ-API-240 — 판정을 멈추지 않는다).
+ * 스펙 게이트와 done 게이트가 같은 함수를 쓴다. `valid: false` 면 호출자가 운영 로그에 경고를 남기고 판정 이벤트에
+ * 그 사실을 적는다 — 지문은 대신 쓴 기본 정책의 것이다(2026-10-15 · REQ-API-303).
+ */
+export function effectiveGatePolicy(stored: unknown): { policy: GatePolicy; valid: boolean } {
+  const parsed = GatePolicySchema.safeParse(stored ?? {});
+  return parsed.success
+    ? { policy: parsed.data, valid: true }
+    : { policy: defaultGatePolicy(), valid: false };
+}
+
+/**
+ * 정책의 **정규형 JSON** — 객체 키를 사전순으로 정렬한다. 배열은 순서 그대로다(`tier_boundaries` 는 순서가 뜻이다).
+ * 저장된 키 순서가 달라도 같은 정책이면 같은 글자가 나온다. 적용 정책 지문(`policyFingerprint` · `@nerv/schema/keys`)이
+ * 이 글자를 해시한다 — 해시는 `node:crypto` 라 브라우저 배럴에 두지 않는다.
+ */
+export function canonicalPolicyJson(policy: GatePolicy): string {
+  return JSON.stringify(sortKeys(policy));
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, sortKeys(record[key])]),
+    );
+  }
+  return value;
+}
+
 export function defaultRetention(): Retention {
   return RetentionSchema.parse({});
 }
