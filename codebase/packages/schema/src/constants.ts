@@ -143,9 +143,10 @@ export const CONVENTIONS_LIMIT = 50;
 export const PARTITION_MONTHS_AHEAD = 3;
 
 /**
- * 리뷰 프롬프트 blob 보존 — 30일.
- * MVP 범위가 아니다(Phase 2 리뷰 수집 FR-09 부터 적용) — 참고용 상수.
- * 정본: docs/03-proposal/architecture.md §2.5
+ * 리뷰 프롬프트 원문(blob) 보존의 **기본값** — 30일. 프로젝트 정책 `retention.prompt_blob_ttl_days` 를 비워 두면 이 값이다
+ * (`RetentionSchema` 의 기본값 · 같은 30 을 두 곳에 쓰지 않는다). 리뷰를 받을 때 그 프로젝트의 유효 정책으로 만료
+ * (`prompt_expires_at`)를 정한다(2026-10-15 · 사람 결정 · codebase.md REQ-CB-032 — 예전에는 받을 때 이 상수가 박혀 정책을
+ * 늘려도 효과가 없었다). 정본: docs/03-proposal/architecture.md §2.5
  */
 export const REVIEW_PROMPT_BLOB_TTL_DAYS = 30;
 

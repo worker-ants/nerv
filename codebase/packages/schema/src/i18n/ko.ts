@@ -2053,7 +2053,7 @@ export const ko = {
   'settings.gates.retention_activity': '활동 원문(일)',
   'settings.gates.retention_blob': '리뷰 프롬프트 원문(일)',
   'settings.gates.retention_hint':
-    '기간이 지난 세션 활동 원문은 도구별 횟수만 세션에 남기고 지웁니다. 리뷰 프롬프트 원문도 기간이 지나면 지웁니다. 리뷰가 들어올 때 {max}일 만료가 함께 정해지므로 {max}일보다 길게 남지는 않습니다. 줄이면 다음 보존 작업에서 기간이 지난 원문이 바로 지워집니다. 결론(요약 · 발견 · 처분)은 지우지 않습니다.',
+    '기간이 지난 세션 활동 원문은 도구별 횟수만 세션에 남기고 지웁니다. 리뷰 프롬프트 원문은 리뷰가 들어올 때 이 기간으로 만료가 정해지므로, 늘리면 저장한 뒤에 들어온 리뷰부터 길게 남습니다. 줄이면 이미 들어온 원문에도 적용되어 다음 보존 작업에서 기간이 지난 원문이 바로 지워집니다. 결론(요약 · 발견 · 처분)은 지우지 않습니다.',
   'settings.gates.retention_invalid': '보존 기간은 1 이상의 정수(일)로 적으세요.',
   'settings.gates.change_retention_activity': '활동 원문 보존 {from}일 → {to}일',
   'settings.gates.change_retention_blob': '리뷰 프롬프트 원문 보존 {from}일 → {to}일',

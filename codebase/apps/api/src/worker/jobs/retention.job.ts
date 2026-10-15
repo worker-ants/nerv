@@ -7,12 +7,7 @@
 // 프로젝트별 `retention` jsonb 가 기본값을 덮는다(api.md §2.1a) — 프로젝트마다 규제 요건이
 // 다르기 때문이다. 상수는 최후의 기본값이고 정책이 있으면 정책이 이긴다.
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  IDEMPOTENCY_TTL_HOURS,
-  REVIEW_PROMPT_BLOB_TTL_DAYS,
-  RetentionSchema,
-  SENT_MAIL_RETENTION_DAYS,
-} from '@nerv/schema';
+import { effectiveRetention, IDEMPOTENCY_TTL_HOURS, SENT_MAIL_RETENTION_DAYS } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -30,7 +25,6 @@ export interface RetentionReport {
 @Injectable()
 export class RetentionJob {
   readonly name = 'retention';
-  readonly blobTtlDays = REVIEW_PROMPT_BLOB_TTL_DAYS;
   private readonly logger = new Logger(RetentionJob.name);
 
   constructor(@InjectDb() private readonly db: NervDb) {}
@@ -75,11 +69,10 @@ export class RetentionJob {
 
     for (const project of projects) {
       report.projects_scanned += 1;
-      const parsed = RetentionSchema.safeParse(project.retention ?? {});
       // 정책이 깨져 있어도 잡을 멈추지 않는다 — 기본값으로 돌고 경고를 남긴다.
-      // 여기서 던지면 한 프로젝트의 오타가 전체 보존 정책을 멈춘다.
-      const policy = parsed.success ? parsed.data : RetentionSchema.parse({});
-      if (!parsed.success) {
+      // 여기서 던지면 한 프로젝트의 오타가 전체 보존 정책을 멈춘다. 리뷰 제출이 원문의 만료를 정할 때도 같은 함수다
+      const { retention: policy, valid } = effectiveRetention(project.retention);
+      if (!valid) {
         this.logger.warn(
           `retention 정책이 유효하지 않습니다 — 기본값 사용 (project=${project.id})`,
         );
@@ -147,10 +140,14 @@ export class RetentionJob {
       // 리뷰 수집은 Phase 2 지만 스키마는 MVP 에 있으므로 집행도 지금부터 한다.
       //
       // **행에 적힌 만료 시각도 읽는다**(2026-09-07 · REQ-CB-032). `prompt_expires_at` 은
-      // 삽입 시점에 채워지는데(review.service — `now() + 30 days`) 아무도 읽지 않아,
-      // 그 열은 "만료를 정하는 값" 이 아니라 흔적이었다. 둘 중 **먼저 오는 쪽**이 만료다:
-      // 프로젝트 정책을 줄이면 옛 행도 함께 짧아지고, 행이 스스로 더 짧은 수명을 적었으면
-      // 그것도 지켜진다.
+      // 삽입 시점에 채워지는데 아무도 읽지 않아, 그 열은 "만료를 정하는 값" 이 아니라 흔적이었다.
+      // 둘 중 **먼저 오는 쪽**이 만료다: 프로젝트 정책을 줄이면 옛 행도 함께 짧아지고, 행이
+      // 스스로 더 짧은 수명을 적었으면 그것도 지켜진다.
+      //
+      // **행의 만료는 받을 때의 정책이다**(2026-10-15 · 사람 결정). 예전에는 리뷰를 받을 때 상수
+      // 30일을 적어서, 정책을 30일보다 늘려도 이 줄이 30일에 지웠다 — 늘리는 정책은 효과가 없었다.
+      // 이제 review.service 가 그 프로젝트의 정책으로 적으므로, 늘린 정책은 그 뒤에 받은 원문부터
+      // 길게 남고 줄인 정책은 위의 `created_at` 쪽이 이미 받은 원문에도 적용한다.
       const { rows: expired } = await this.db.execute<{ id: string }>(sql`
         UPDATE review_session
            SET prompt_blob_uri = NULL

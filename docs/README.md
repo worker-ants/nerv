@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v5.58 · 2026-10-15 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v5.59 · 2026-10-15 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v5.59 변경(2026-10-15 — 리뷰 프롬프트 원문의 만료가 보존 정책을 따릅니다, **사람 결정**): **REQ-CB-032 개정.** 리뷰를 받을 때 원문의 만료를 상수 30일로 적어서 게이트 정책 탭의 보존 기간을 30일보다 늘려도 효과가 없었습니다. 이제 받을 때 그 프로젝트의 보존 기간으로 적습니다. 늘리면 그 뒤에 받은 원문부터 길게 남습니다. 줄이면 이미 받은 원문에도 적용됩니다(줄이는 저장은 한 번 더 묻습니다). 화면 안내와 매뉴얼의 "30일보다 길게 남지 않는다" 를 실제 동작대로 고쳤습니다([4.2 코드베이스](04-mvp/codebase.md) · [4.3 데이터베이스 스키마](04-mvp/database.md) · [4.4 API](04-mvp/api.md) · [4.8 백로그](04-mvp/backlog.md)).
 >
 > v5.58 변경(2026-10-15 — 커밋 SHA가 아닌 `head_sha`는 받지 않습니다, **사람 결정**): **REQ-API-321 신설 · REQ-API-314 · 315 개정.** Phase 2 묶음 1에 더하는 수정입니다. ① **리뷰 제출과 임포트가 `head_sha` · `base_sha`를 커밋 SHA로만 받습니다** — `HEAD`나 브랜치 이름은 400이고 라운드가 남지 않습니다. ② **done 게이트의 fail-open은 작업의 커밋을 모를 때만 남습니다.** 리뷰가 본 것이 커밋 SHA가 아니면(이 규칙 전에 들어온 라운드) 예전에는 판정하지 못했다고 넘겼지만 이제 최신 커밋을 다시 리뷰받아야 하는 것으로 막습니다(`stale_reviews`의 `reason: not_a_commit`). 커밋을 모르는 것은 환경의 빈칸이지만 커밋 SHA가 아닌 값은 제출하는 쪽이 고칠 수 있는 입력이라는 판단입니다(D-07). `verified`의 커밋 범위도 같은 규칙입니다. 플러그인 스킬(`review` · `impl`)과 리뷰 서브에이전트 둘도 맞췄습니다. 패키지는 같은 PR의 0.3.31 그대로입니다([3.5 스펙 워크플로우](03-proposal/spec-workflow.md) · [4.4 API](04-mvp/api.md) · [4.6 플러그인](04-mvp/plugin.md) · [4.8 백로그](04-mvp/backlog.md)).
 >
@@ -928,13 +930,13 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.46` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 24종 · 카탈로그 27종)·스킬(7종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v2.14` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
-| [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.75` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
-| [4.4 API 명세](04-mvp/api.md) | `v2.48` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v2.15` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.76` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
+| [4.4 API 명세](04-mvp/api.md) | `v2.49` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v2.41` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.10` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.27` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v2.95` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v2.96` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

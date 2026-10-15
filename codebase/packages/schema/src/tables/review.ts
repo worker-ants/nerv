@@ -71,7 +71,7 @@ export const reviewSession = pgTable(
     block: boolean('block').notNull().default(false),
     /** 재생성 가능한 입력 → 오브젝트 스토리지 */
     promptBlobUri: text('prompt_blob_uri'),
-    /** TTL 30일(data-model §5.4) */
+    /** 받을 때 그 프로젝트의 보존 정책(`prompt_blob_ttl_days`)으로 정한 만료(2026-10-15 · codebase.md REQ-CB-032) */
     promptExpiresAt: ts('prompt_expires_at'),
     startedAt: ts('started_at')
       .notNull()

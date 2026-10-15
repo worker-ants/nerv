@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.75 · 2026-10-15 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.76 · 2026-10-15 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.76 변경(2026-10-15 — 리뷰 프롬프트 원문의 만료가 보존 정책을 따른다, **사람 결정**): **§2.7 `review_session` 한 줄 · §2.14 보존 단락 한 문장.** `prompt_expires_at` 은 리뷰를 받을 때 그 프로젝트의 정책 `prompt_blob_ttl_days` 로 정한 만료다 — 예전 주석은 "TTL 30일" 이었고 실제로도 상수 30일이 박혀 정책을 늘려도 효과가 없었다([4.2 코드베이스](codebase.md) REQ-CB-032). 열과 마이그레이션은 그대로다.
 >
 > v0.75 변경(2026-10-15 — 작업의 증적 인덱스 · 재기동한 알림 워커, Phase 2 묶음 1의 셋째 · **사람 지시**): **REQ-DB-045 신설 · §2.12 인덱스 한 줄 · §3.3 `nerv-worker` 행 · 마이그레이션 `0052`.** ① done 게이트의 커밋 범위([4.4 API 명세](api.md) REQ-API-314 · 315)가 작업의 최신 `commit` 증적을 찾는데 `evidence.task_id` 에 인덱스가 없어 표 전체를 훑었다. `evidence_task (task_id, created_at, id) WHERE task_id IS NOT NULL` 을 둔다 — 최신 커밋 · 증적 목록 · 수 · 웹훅 dedup 이 그 작업의 행만 읽는다. ② §3.3 의 `nerv-worker` 행은 워커가 채널을 구독해 알림을 파생한다고 적었는데 실물은 하트비트 간격의 폴링 하나다. 실물대로 고치고 재기동 뒤의 규칙(최근 한 시간만 다시 본다 — [4.4 API 명세](api.md) REQ-API-317)을 더했다.
 >
@@ -736,7 +738,7 @@ CREATE TABLE review_session (
   risk                review_risk,               -- 완료 시 산출, running 동안 NULL
   block               boolean NOT NULL DEFAULT false, -- consistency의 BLOCK: YES/NO 계승
   prompt_blob_uri     text,                      -- 재생성 가능 입력 → 오브젝트 스토리지
-  prompt_expires_at   timestamptz,               -- TTL 30일(data-model §5.4)
+  prompt_expires_at   timestamptz,               -- 받을 때 정책 prompt_blob_ttl_days 로 정한 만료(4.2 REQ-CB-032)
   started_at          timestamptz NOT NULL DEFAULT now(),
   completed_at        timestamptz,
   created_at          timestamptz NOT NULL DEFAULT now()
@@ -1209,7 +1211,7 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);
 
 **아직 없는 것**: 12개월 지난 `event` 파티션의 `DETACH`, 보존 기간을 넘긴 `activity` 파티션의 드랍. 아래 문단이 워커 잡으로 약속하지만 구현은 없다 — 파티션은 계속 쌓인다. 지금 규모에서 급하지 않아 남겨 두되, **문서가 있다고 말하지 않게** 여기에 적는다.
 
-**보존 정책도 절반만 집행된다**(2026-09-07 확인 — 실측). [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 의 표는 아홉 줄인데 `retention` 잡이 집행하는 것은 **둘**이다 — `activity` 원문(`activity_days`, 기본 90일 · 지우기 전에 `agent_session.activity_summary` 로 접는다)과 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 **먼저 오는 쪽**). 프로젝트 정책 스키마(`RetentionSchema`)의 키도 그 **둘뿐**이라, 나머지는 정책으로 적을 자리조차 없다.
+**보존 정책도 절반만 집행된다**(2026-09-07 확인 — 실측). [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 의 표는 아홉 줄인데 `retention` 잡이 집행하는 것은 **둘**이다 — `activity` 원문(`activity_days`, 기본 90일 · 지우기 전에 `agent_session.activity_summary` 로 접는다)과 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 **먼저 오는 쪽** — 행의 만료는 리뷰를 받을 때 그 프로젝트의 정책으로 적는다, 2026-10-15 · [4.2 코드베이스](codebase.md) REQ-CB-032). 프로젝트 정책 스키마(`RetentionSchema`)의 키도 그 **둘뿐**이라, 나머지는 정책으로 적을 자리조차 없다.
 
 | §5.4 가 약속한 것 | 상태 | 그래서 지금 |
 | --- | --- | --- |

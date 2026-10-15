@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import { NERV_ERROR, NERV_EVENT_PHASE2, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -23,6 +24,7 @@ import type { ToolContext } from '../../src/mcp/tool-context.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
+import { RetentionJob } from '../../src/worker/jobs/retention.job.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -1825,5 +1827,109 @@ describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
     const narrowed = await reviews.findings({ projectId, status: ['open'], branch: 'feat/only-a' });
     expect(narrowed.items.map((i) => i['title'])).toEqual(['가 브랜치의 지적']);
     expect(narrowed.facets.severity).toEqual({ info: 1 });
+  });
+});
+
+/**
+ * **리뷰 프롬프트 원문의 만료가 보존 정책을 따른다** (2026-10-15 · 사람 결정 · codebase.md REQ-CB-032). 예전에는 받을 때
+ * 상수 30일을 `prompt_expires_at` 에 적고 보존 잡이 정책과 그 값 가운데 먼저 오는 쪽으로 지워서, 정책을 30일보다 늘려도
+ * 30일에 지워졌다. 이제 받을 때 그 프로젝트의 정책으로 적는다. 시각은 행을 직접 당겨 흉내 낸다.
+ */
+describe('리뷰 프롬프트 원문의 만료는 보존 정책을 따른다 (REQ-CB-032)', () => {
+  const retain = async (days: number | null): Promise<void> => {
+    await pool.query(`UPDATE project SET retention = $1::jsonb WHERE id = $2`, [
+      JSON.stringify(days === null ? {} : { prompt_blob_ttl_days: days }),
+      projectId,
+    ]);
+  };
+  const submitWithPrompt = async (headSha: string): Promise<string> =>
+    (
+      await reviews.submit(
+        submitInput({ headSha, payloadRef: `s3://nerv-blobs/prompts/${headSha}.json` }),
+      )
+    ).review_session_id;
+  /** 그 라운드를 `days` 일 전에 받은 것으로 당긴다 — 받은 시각과 행의 만료를 함께 */
+  const age = async (id: string, days: number): Promise<void> => {
+    await pool.query(
+      `UPDATE review_session
+          SET created_at = created_at - make_interval(days => $2),
+              started_at = started_at - make_interval(days => $2),
+              prompt_expires_at = prompt_expires_at - make_interval(days => $2)
+        WHERE id = $1`,
+      [id, days],
+    );
+  };
+  const blobOf = async (id: string): Promise<string | null> =>
+    (
+      await pool.query<{ uri: string | null }>(
+        `SELECT prompt_blob_uri AS uri FROM review_session WHERE id = $1`,
+        [id],
+      )
+    ).rows[0]!.uri;
+  const sweep = (): Promise<unknown> => new RetentionJob(drizzle(pool)).run();
+
+  afterAll(async () => {
+    await retain(null);
+  });
+
+  it('정책 60일 — 받을 때 60일 뒤로 만료를 적고, 30일이 지나도 남으며 60일이 지나면 지운다', async () => {
+    await retain(60);
+    const id = await submitWithPrompt('ac60001');
+    const { rows } = await pool.query<{ days: number }>(
+      `SELECT round(extract(epoch FROM prompt_expires_at - created_at) / 86400)::int AS days
+         FROM review_session WHERE id = $1`,
+      [id],
+    );
+    expect(rows[0]!.days).toBe(60);
+
+    await age(id, 31);
+    await sweep();
+    expect(await blobOf(id)).toBe('s3://nerv-blobs/prompts/ac60001.json');
+
+    await age(id, 30);
+    await sweep();
+    expect(await blobOf(id)).toBeNull();
+  });
+
+  it('정책 7일 — 6일에는 남고 8일에는 지운다', async () => {
+    await retain(7);
+    const id = await submitWithPrompt('ac70001');
+    await age(id, 6);
+    await sweep();
+    expect(await blobOf(id)).not.toBeNull();
+    await age(id, 2);
+    await sweep();
+    expect(await blobOf(id)).toBeNull();
+  });
+
+  it('정책을 줄이면 이미 받은 원문에도 적용된다 — 게이트 정책 탭이 한 번 더 묻는 까닭이다', async () => {
+    await retain(60);
+    const id = await submitWithPrompt('ac60002');
+    await retain(7);
+    await age(id, 8);
+    await sweep();
+    expect(await blobOf(id)).toBeNull();
+  });
+
+  it('정책을 늘리면 그 뒤에 받은 원문부터 길게 남는다 — 이미 받은 원문은 받을 때 정한 만료를 따른다', async () => {
+    await retain(null);
+    const before = await submitWithPrompt('ac30001');
+    await retain(60);
+    const after = await submitWithPrompt('ac60003');
+    await age(before, 31);
+    await age(after, 31);
+    await sweep();
+    expect(await blobOf(before)).toBeNull();
+    expect(await blobOf(after)).not.toBeNull();
+  });
+
+  it('원문 위치가 없으면 만료도 적지 않는다', async () => {
+    await retain(60);
+    const { review_session_id: id } = await reviews.submit(submitInput({ headSha: 'ac00001' }));
+    const { rows } = await pool.query<{ expires: Date | null }>(
+      `SELECT prompt_expires_at AS expires FROM review_session WHERE id = $1`,
+      [id],
+    );
+    expect(rows[0]!.expires).toBeNull();
   });
 });

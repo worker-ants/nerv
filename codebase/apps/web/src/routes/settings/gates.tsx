@@ -18,12 +18,7 @@ import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import {
-  GatePolicySchema,
-  RetentionSchema,
-  REVIEW_PROMPT_BLOB_TTL_DAYS,
-  reviewKind,
-} from '@nerv/schema';
+import { GatePolicySchema, RetentionSchema, reviewKind } from '@nerv/schema';
 import type { GatePolicy } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useMembers, useProject } from '../../lib/queries.js';
@@ -766,9 +761,7 @@ function GatesTab(): React.JSX.Element {
                 />
               </Field>
             </div>
-            <p className="text-2xs text-text-faint">
-              {t('settings.gates.retention_hint', { max: REVIEW_PROMPT_BLOB_TTL_DAYS })}
-            </p>
+            <p className="text-2xs text-text-faint">{t('settings.gates.retention_hint')}</p>
             {!retentionValid && (
               <p
                 role="alert"

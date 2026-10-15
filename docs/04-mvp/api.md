@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **27종**(2026-10-11 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.48 · 2026-10-15 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.49 · 2026-10-15 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.49 변경(2026-10-15 — 리뷰 프롬프트 원문의 만료가 보존 정책을 따른다, **사람 결정**): **§2.1a `retention` 의 `prompt_blob_ttl_days` 설명 한 줄.** 리뷰를 받을 때 그 프로젝트의 이 값으로 원문의 만료를 정한다. 줄이면 이미 받은 원문에도 적용되고 늘리면 그 뒤에 받은 원문부터 적용된다 — 예전에는 받을 때 상수 30일이 적혀 30일보다 늘려도 효과가 없었다(정본은 [4.2 코드베이스](codebase.md) REQ-CB-032).
 >
 > v2.48 변경(2026-10-15 — 커밋 SHA 가 아닌 `head_sha` 는 받지 않는다, Phase 2 묶음 1에 더하는 수정 · **사람 결정**): **REQ-API-321 신설 · REQ-API-314 · 315 개정 · EP-REV-01 · EP-TASK-09 · EP-IMP-06 행 · §2.3 한 문장 · §2.6a 계약 1 · §3.3 `gate.failopen` 행 · §4 `nerv_review_submit` 행.** ① 리뷰 제출(REST · MCP)과 임포트가 `head_sha` · `base_sha` 를 커밋 SHA(16진수 7~40자)로만 받는다. `HEAD` · 브랜치 이름은 400 이고 라운드가 남지 않는다(REQ-API-321). ② done 게이트는 작업의 커밋을 아는데 그 종류의 라운드가 본 것이 커밋 SHA 가 아니면(이 규칙 전에 들어온 라운드) fail-open 으로 넘기지 않고 다시 리뷰가 필요한 것으로 막는다. `stale_reviews` 항목에 까닭 `reason`(`newer_commit` · `not_a_commit`)을 더했다. fail-open 은 작업의 커밋을 모를 때(`commit_unknown`)만 남는다. v2.44 가 만든 `review_commit_unknown` 은 배포된 적이 없어 뺐다. `verified` 의 커밋 범위도 같은 규칙이다(REQ-API-315). 근거는 D-07 의 "입력 커밋 스냅샷 필수"다 — 커밋을 모르는 것은 환경의 빈칸이지만 커밋 SHA 가 아닌 값은 제출하는 쪽이 고칠 수 있는 입력이다.
 >
@@ -1164,7 +1166,7 @@ EP-PRJ-03 응답·EP-PRJ-04 입력의 두 jsonb 필드는 웹 폼(S8 게이트 �
 // retention — 워커 retention.job이 읽는다(4.2 §2.2)
 {
   "activity_days": 90,                 // Activity 세션 요약 압축 후 파티션 드랍(4.3 §2.14)
-  "prompt_blob_ttl_days": 30           // 리뷰 프롬프트 blob TTL — 상수 REVIEW_PROMPT_BLOB_TTL_DAYS의 프로젝트 오버라이드
+  "prompt_blob_ttl_days": 30           // 리뷰 프롬프트 blob TTL — 기본값은 상수 REVIEW_PROMPT_BLOB_TTL_DAYS. 리뷰를 받을 때 이 값으로 만료를 정하고 줄이면 이미 받은 원문에도 적용(2026-10-15 · 4.2 REQ-CB-032)
 }
 ```
 

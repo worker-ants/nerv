@@ -12,6 +12,7 @@
 // 마이그레이션 0016 이 지운다(`.strict()` 라 남아 있으면 정책 저장이 400 이 된다).
 
 import { z } from 'zod';
+import { REVIEW_PROMPT_BLOB_TTL_DAYS } from '../constants.js';
 import { reviewKind } from '../enums.js';
 
 export const GatePolicySchema = z
@@ -77,8 +78,11 @@ export const RetentionSchema = z
   .object({
     /** Activity 원문 보존 — 요약은 영구다(spec-workflow §5.6) */
     activity_days: z.number().int().min(1).default(90),
-    /** 리뷰 프롬프트 blob TTL — 상수의 프로젝트 오버라이드 */
-    prompt_blob_ttl_days: z.number().int().min(1).default(30),
+    /**
+     * 리뷰 프롬프트 원문(blob) 보존 — 기본값은 상수 `REVIEW_PROMPT_BLOB_TTL_DAYS` 다. 리뷰를 받을 때 이 값으로 만료를 정하고,
+     * 줄이면 이미 받은 원문에도 적용된다(2026-10-15 · codebase.md REQ-CB-032)
+     */
+    prompt_blob_ttl_days: z.number().int().min(1).default(REVIEW_PROMPT_BLOB_TTL_DAYS),
   })
   .strict();
 
@@ -126,4 +130,16 @@ function sortKeys(value: unknown): unknown {
 
 export function defaultRetention(): Retention {
   return RetentionSchema.parse({});
+}
+
+/**
+ * **집행에 쓰는 보존 기간** — 저장된 값을 이 스키마로 읽고, 맞지 않으면 기본값이다(`effectiveGatePolicy` 와 같은 규칙).
+ * 보존 잡과 리뷰 제출(원문의 만료를 정할 때)이 같은 함수를 쓴다 — 둘이 다른 값을 보면 화면의 보존 기간과 실제 만료가
+ * 어긋난다(2026-10-15 · codebase.md REQ-CB-032). `valid: false` 면 호출자가 운영 로그에 경고를 남긴다.
+ */
+export function effectiveRetention(stored: unknown): { retention: Retention; valid: boolean } {
+  const parsed = RetentionSchema.safeParse(stored ?? {});
+  return parsed.success
+    ? { retention: parsed.data, valid: true }
+    : { retention: defaultRetention(), valid: false };
 }

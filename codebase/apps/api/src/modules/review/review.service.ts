@@ -16,6 +16,7 @@
 
 import { Injectable } from '@nestjs/common';
 import {
+  effectiveRetention,
   ESCALATE_REASONS,
   FINDING_PAGE_LIMIT_DEFAULT,
   FINDING_PAGE_LIMIT_MAX,
@@ -626,6 +627,13 @@ export class ReviewService {
     if (taskId === null && input.sessionId != null) {
       taskId = await this.claimedTask(tx, input.sessionId);
     }
+    // **원문의 만료는 그 프로젝트의 보존 정책이 정한다**(2026-10-15 · 사람 결정 · REQ-CB-032). 예전에는 상수 30일을
+    // 박아서 정책을 30일보다 늘려도 보존 잡이 "먼저 오는 쪽" 인 이 값으로 지웠다 — 줄이는 것만 효과가 있었다. 받을 때의
+    // 정책으로 정하므로 늘린 정책은 그 뒤에 받은 원문부터 적용되고, 줄인 정책은 보존 잡이 받은 시각으로 다시 본다
+    const promptExpiry =
+      input.payloadRef == null
+        ? null
+        : sql`now() + make_interval(days => ${await this.promptTtlDays(tx, input.projectId)})`;
     await tx.execute(sql`
       INSERT INTO review_session (id, project_id, kind, "trigger", agent_session_id, task_id,
                                   branch, head_sha, base_sha, changeset_hash, round_no,
@@ -637,10 +645,18 @@ export class ReviewService {
               ${input.branch}, ${input.headSha}, ${input.baseSha}, decode(${hash}, 'hex'),
               ${roundNo}, ${previous?.id ?? null}, 'running'::review_state,
               ${input.payloadRef ?? null},
-              ${input.payloadRef == null ? null : sql`now() + interval '30 days'`},
+              ${promptExpiry},
               coalesce(${input.reviewedAt ?? null}::timestamptz, now()))
     `);
     return { id: sessionId, roundNo, fresh: true, taskId };
+  }
+
+  /** 리뷰 프롬프트 원문의 보존 일수 — 그 프로젝트의 유효 정책(깨졌으면 기본값 · 보존 잡과 같은 함수) */
+  private async promptTtlDays(tx: Tx, projectId: string): Promise<number> {
+    const { rows } = await tx.execute<{ retention: unknown }>(
+      sql`SELECT retention FROM project WHERE id = ${projectId}`,
+    );
+    return effectiveRetention(rows[0]?.retention).retention.prompt_blob_ttl_days;
   }
 
   /** 그 세션이 지금 쥔 Task — 활성 클레임 중 가장 최근 것(REQ-API-148) */
