@@ -39,6 +39,8 @@ export const queryKeys = {
   myNotifications: () => ['me', 'notifications'] as const,
   /** 내 로그인 세션(로그인된 기기 · REQ-WEB-284) */
   mySessions: () => ['me', 'sessions'] as const,
+  /** 이메일 바꾸기의 진행 상태(EP-AUTH-06 · REQ-WEB-229) */
+  myEmailChange: () => ['me', 'email-change'] as const,
   inbox: () => ['inbox'] as const,
 
   /**

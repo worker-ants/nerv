@@ -12,6 +12,7 @@
     "dev": "node --env-file-if-exists=../../.env --watch dist/main.js",
     "db:migrate": "node --env-file-if-exists=../../.env dist/migrate.js",
     "db:seed": "node --env-file-if-exists=../../.env dist/seed.js",
+    "auth:reset-link": "node --env-file-if-exists=../../.env dist/reset-link.js",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },

@@ -30,6 +30,7 @@
     "db:generate": "pnpm --filter @nerv/schema db:generate",
     "db:migrate": "node --env-file-if-exists=.env apps/api/dist/migrate.js",
     "db:seed": "node --env-file-if-exists=.env apps/api/dist/seed.js",
+    "auth:reset-link": "node --env-file-if-exists=.env apps/api/dist/reset-link.js",
     "compose:up": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build",
     "compose:infra": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d postgres minio valkey embed",
     "compose:down": "docker compose -f ../deploy/compose/docker-compose.yml --env-file .env down",

@@ -2026,7 +2026,24 @@ export const ko = {
   'account.name_hint': '멤버 목록·카드·활동에 이 이름이 표시됩니다.',
   'account.name_saved': '이름을 바꿨습니다.',
   'account.email': '이메일',
-  'account.email_hint': '로그인 아이디라서 바꿀 수 없습니다.',
+  'account.email_hint':
+    '로그인 아이디입니다. 바꾸려면 지금 주소와 새 주소의 메일함을 모두 열 수 있어야 합니다.',
+  // ── 이메일 바꾸기 (2026-10-15 · 사람 결정 · screens.md REQ-WEB-229 · api.md REQ-API-310) ──────────
+  'account.email_change': '이메일 바꾸기',
+  'account.email_new': '새 이메일',
+  'account.email_steps':
+    '보내면 지금 주소로 승인 메일이 갑니다. 승인하면 새 주소로 확인 메일이 가고, 그 링크를 열면 바뀝니다. 바뀌면 다른 기기의 로그인이 모두 끊기고 에이전트 토큰은 그대로입니다.',
+  'account.email_submit': '승인 메일 보내기',
+  'auth.email_same': '지금 주소와 같습니다.',
+  'account.email_off_server':
+    '이 서버는 메일을 보내지 않아서 여기서 이메일을 바꿀 수 없습니다. 서버 운영자에게 문의해 주세요.',
+  'account.email_pending_approve':
+    '{email} 주소로 바꾸는 중입니다. 지금 주소의 메일함에서 승인 링크를 여세요.',
+  'account.email_pending_confirm':
+    '{email} 주소로 바꾸는 중입니다. 승인을 마쳤습니다. 새 주소의 메일함에서 확인 링크를 열면 바뀝니다.',
+  'account.email_pending_hint':
+    '링크는 {minutes}분 동안 쓸 수 있습니다. 다른 주소로 다시 보내면 앞의 요청은 취소됩니다.',
+  'account.email_requested': '지금 주소로 승인 메일을 보냈습니다.',
   'account.password': '비밀번호',
   'account.digest': '메일 요약',
   'account.digest_hint':
@@ -2102,6 +2119,23 @@ export const ko = {
   'reset.invalid': '쓸 수 없는 링크입니다',
   'reset.invalid_body': '만료됐거나({minutes}분) 이미 쓴 링크입니다. 새 링크를 받으세요.',
   'reset.request_again': '재설정 링크 다시 받기',
+  // ── 이메일 바꾸기 결과 화면 /email-change (2026-10-15 · 사람 결정 · screens.md REQ-WEB-314) ──────────
+  'email_change.lead': '이메일 바꾸기',
+  'email_change.approved': '승인했습니다',
+  'email_change.approved_body':
+    '새 주소로 확인 메일을 보냈습니다. 새 주소의 메일함에서 링크를 열면 이메일이 바뀝니다. 링크는 {minutes}분 동안 쓸 수 있습니다.',
+  'email_change.done': '이메일을 바꿨습니다',
+  'email_change.done_signed_in':
+    '이제 새 주소로 로그인합니다. 이 브라우저는 로그인 상태 그대로이고, 다른 기기의 로그인은 모두 끊었습니다.',
+  'email_change.done_signed_out':
+    '이제 새 주소로 로그인합니다. 모든 기기의 로그인을 끊었으니 새 주소로 다시 로그인하세요.',
+  'email_change.invalid': '쓸 수 없는 링크입니다',
+  'email_change.invalid_body':
+    '만료됐거나({minutes}분) 이미 쓴 링크이거나, 더 새 요청으로 바뀐 링크입니다. 내 계정에서 다시 요청하세요.',
+  'email_change.other_account':
+    '다른 계정으로 로그인한 브라우저입니다. 로그아웃한 뒤 링크를 다시 여세요.',
+  'email_change.to_account': '내 계정으로',
+  'email_change.to_login': '로그인하기',
   'unsubscribe.lead': '메일 요약을 끕니다.',
   'unsubscribe.title': '알림 메일 요약을 끄겠습니까?',
   'unsubscribe.body':
@@ -2322,6 +2356,16 @@ export const ko = {
   'mail.reset.subject': '[NERV] 비밀번호를 새로 정하는 링크입니다',
   'mail.reset.body':
     '{name} 님,\n\n비밀번호를 새로 정해 달라는 요청을 받았습니다. 아래 주소를 열어 새 비밀번호를 정하세요.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다. 새 비밀번호를 정하면 모든 기기에서 로그아웃됩니다.\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 링크를 열어 새 비밀번호를 정하지 않으면 비밀번호는 바뀌지 않습니다.',
+  // 이메일 바꾸기의 메일 셋(2026-10-15 · 사람 결정 · api.md REQ-API-310) — 옛 주소의 승인 · 새 주소의 확인 · 바뀐 뒤의 알림
+  'mail.change_email.approve.subject': '[NERV] 이메일 주소를 바꾸려면 승인해 주세요',
+  'mail.change_email.approve.body':
+    '{name} 님,\n\nNERV 계정의 이메일 주소를 바꿔 달라는 요청을 받았습니다.\n\n지금 주소: {email}\n새 주소: {new_email}\n\n직접 요청했다면 아래 주소를 열어 승인하세요. 승인하면 새 주소로 확인 메일이 가고, 그 메일의 링크까지 열어야 주소가 바뀝니다.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다.\n\n요청한 적이 없다면 이 링크를 열지 마세요. 링크를 열지 않으면 아무것도 바뀌지 않습니다. 누군가 비밀번호를 알고 있을 수 있으니 비밀번호를 바꾸세요.',
+  'mail.change_email.confirm.subject': '[NERV] 새 이메일 주소를 확인해 주세요',
+  'mail.change_email.confirm.body':
+    '{name} 님,\n\nNERV 계정의 이메일 주소를 이 주소({email})로 바꾸는 중입니다. 지금 주소에서 승인을 마쳤습니다.\n\n아래 주소를 열면 확인이 끝나고 이메일 주소가 바뀝니다.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다. 바뀌면 다른 기기의 로그인이 모두 끊기고, 그다음부터는 이 주소로 로그인합니다.\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 링크를 열지 않으면 아무것도 바뀌지 않습니다.',
+  'mail.change_email.done.subject': '[NERV] 계정의 이메일 주소가 바뀌었습니다',
+  'mail.change_email.done.body':
+    '{name} 님,\n\nNERV 계정의 이메일 주소가 바뀌었습니다.\n\n옛 주소: {email}\n새 주소: {new_email}\n\n이제 새 주소로 로그인합니다. 이 주소로는 더 이상 로그인할 수 없고, NERV 메일은 앞으로 새 주소로 갑니다. 다른 기기의 로그인은 모두 끊었습니다.\n\n직접 바꾸지 않았다면 서버 운영자에게 바로 알려 주세요.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '문서 {nodes} · 관계 {edges}',
   'graph.empty': '관계가 아직 없습니다.',

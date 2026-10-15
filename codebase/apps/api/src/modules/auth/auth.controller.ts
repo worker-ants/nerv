@@ -92,6 +92,16 @@ export class AuthController {
     });
   }
 
+  /**
+   * EP-AUTH-06 — 이메일 바꾸기의 진행 상태(2026-10-15 · 사람 결정 · REQ-API-310). 바꾸는 문은 인증 스택의
+   * `/api/auth/change-email` 이고, 여기서는 내 계정이 양식을 보일지(메일을 보내는 서버인가)와 대기 중인 요청을 읽는다.
+   * **사람만** — 에이전트 토큰이 사람의 로그인 주소를 다루지 않는다(D-08).
+   */
+  @Get('me/email-change')
+  myEmailChange(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.auth.myEmailChange(humanPrincipal(req).userId);
+  }
+
   /** EP-ORG-01 */
   @Get('orgs')
   orgs(@Req() req: ProjectRequest): Promise<unknown> {

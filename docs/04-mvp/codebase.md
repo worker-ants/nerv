@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.07 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.08 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.08 변경(2026-10-15 — 운영자 비밀번호 재설정 도구 · 이메일 바꾸기, **사람 결정**): **REQ-CB-061 신설 · §2.2 트리 세 파일 · §5.1 명령 한 줄 · §5.2 `NERV_MAIL_HOST` 행과 운영자 절차 한 절 · §6.3 한 단락.** 메일을 보내지 않는 배치에서 비밀번호를 잊은 사람은 "서버 운영자에게 문의" 에서 멈췄고, 그 운영자의 도구가 없었다. api 이미지 안의 명령(`node dist/reset-link.js <이메일>` · 로컬은 `pnpm auth:reset-link`)이 인증 스택과 같은 재설정 링크(60분 · 한 번)를 출력하고, 사람은 화면에서 비밀번호를 직접 정한다. 새 HTTP 경로도 새 역할도 없다. 이메일 바꾸기([4.4 API](api.md) REQ-API-310)의 파일도 트리에 더한다.
 >
 > v2.07 변경(2026-10-15 — 결재 만료와 에스컬레이션, **사람 결정**): **새 요구사항 없음 · §2.2 트리 한 줄.** `approval-reminder.job.ts`가 한 판에서 만료(7일) → 지연(2일) → 리마인더(4시간 · 1일)를 본다. 이름은 리마인더만 하던 때의 것을 그대로 둔다 — 로그와 운영 문서가 이 이름으로 잡을 찾는다([4.4 API 명세](api.md) REQ-API-296 · 304 · 305).
 >
@@ -462,6 +464,7 @@ apps/api/src/
   app.module.ts
   main.ts        # HTTP 엔트리 — Nest(Fastify) 부트스트랩: REST + MCP + WS + SSE + ingest
   migrate.ts     # drizzle 마이그레이션 적용 후 종료 — compose 기동·k8s Job 공용 엔트리 (§5.3·§6.3)
+  reset-link.ts  # 운영자 비밀번호 재설정 링크 — 메일을 보내지 않는 배치에서 쓴다 (§5.2 · REQ-CB-061)
   seed.ts        # 개발 시드 — 자격증명을 도메인 행과 함께 심는다
   worker.ts      # 워커 엔트리 — 같은 AppModule 조립에서 HTTP 표면 제외, 잡 러너만 (REQ-CB-005)
   common/
@@ -517,8 +520,10 @@ apps/api/src/
       auth.module.ts
       auth.service.ts           # PAT(자체 api_token 테이블) 발급·검증, 멤버십·역할 조회 — better-auth 는 웹 세션만
       better-auth.ts            # better-auth 배선 — 세션 쿠키 경로
+      email-change.ts           # 이메일 바꾸기의 대기 줄 · 사람당 시도 — 인증 스택에 없는 보장 (api.md REQ-API-310)
       invitation.controller.ts  # 조직 초대 표면
       invitation.service.ts     # 초대 발급·수락 — 자동 수락 경로는 없다
+      operator-reset.ts         # 운영자 재설정 링크 — 인증 스택과 같은 검증 행을 만든다 (§5.2)
     digest/
       digest.controller.ts  # REST — 내 메일 요약 설정 (EP-NTF-07·08)
       digest.module.ts
@@ -1119,6 +1124,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `pnpm e2e:logs` / `pnpm e2e:env` | 스택 로그 / `eval $(pnpm -s e2e:env)` — 사람이 직접 `curl`·`psql` 할 때 |
 | `pnpm test:e2e` | L3 전량(API 시나리오 A~E + 브라우저). 대상 주소를 E2E 스택으로 고정해서 넘긴다 |
 | `pnpm db:seed` | 개발 시드 적재(빌드 산출물 `apps/api/dist/seed.js` — `db:migrate` 와 같은 전제) — TRUNCATE 후 재삽입이라 재실행 멱등([4.3 데이터베이스 스키마](database.md) §4, REQ-DB-002). **로그인 자격증명도 함께 심는다**: 시드 사용자 5명(`jimin`·`seoyeon`·`dohyun`·`yuna`·`hana`@example.com)의 비밀번호는 `nerv-dev-1234`이고 `NERV_SEED_PASSWORD`로 바꾼다. 도메인 행만 심으면 로그인 화면까지 가고도 들어갈 수 없다 — 자격증명은 인증 스택(better-auth)의 것이라 `apps/api`의 시드 엔트리가 심고 `@nerv/schema`는 도메인만 심는다 |
+| `pnpm auth:reset-link <이메일>` | **운영자 비밀번호 재설정 링크**(빌드 산출물 `apps/api/dist/reset-link.js` — `db:migrate` 와 같은 전제). 출력의 마지막 줄이 링크다(60분 · 한 번) — 메일을 보내지 않는 배치에서 비밀번호를 잊은 사람에게 전한다(§5.2 · REQ-CB-061) |
 | `pnpm compose:up` | `docker compose -f ../deploy/compose/docker-compose.yml --env-file .env --profile local-embed up -d --build` — 외부 임베딩 제공자 사용 시 `--profile local-embed` 생략(§5.2a) |
 | `pnpm compose:infra` | 위 명령 + `postgres minio valkey embed` 서비스만(`embed`는 local-embed 프로필일 때) |
 | `pnpm compose:down` | 스택 정지(볼륨 유지) |
@@ -1188,7 +1194,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
 | `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
-| `NERV_MAIL_HOST` | | — | api · worker | **메일 발신의 스위치다**(2026-09-22 결정 · 2026-09-24 이 이름으로). 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 메일을 켠 날 몇 달 치가 한꺼번에 나간다. **비밀번호 재설정도 함께 꺼진다**(2026-09-25) — 재설정 요청이 400 `RESET_PASSWORD_DISABLED` 로 답하고 화면이 "서버 운영자에게 문의" 를 말한다([4.4](api.md) REQ-API-187). 메일 없이 비밀번호를 되돌리는 운영자 도구는 아직 없다. 호스트를 스위치로 고른 이유는 그것만이 없어서는 안 되는 값이기 때문이다(포트·TLS 는 기본값이 서고, 사용자·비밀번호는 인증 없는 사내 릴레이에서 아예 빈다). compose 기본값은 `mailpit`(개발용 받이 · 받은 편지함 `:8025`) |
+| `NERV_MAIL_HOST` | | — | api · worker | **메일 발신의 스위치다**(2026-09-22 결정 · 2026-09-24 이 이름으로). 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 메일을 켠 날 몇 달 치가 한꺼번에 나간다. **비밀번호 재설정도 함께 꺼진다**(2026-09-25) — 재설정 요청이 400 `RESET_PASSWORD_DISABLED` 로 답하고 화면에 "서버 운영자에게 문의" 가 표시된다([4.4](api.md) REQ-API-187). 그 배치에서 비밀번호를 잊은 사람은 운영자가 재설정 링크 명령으로 돕는다(아래 「운영자 비밀번호 재설정 링크」 · REQ-CB-061 · 2026-10-15). **이메일 바꾸기도 꺼진다**(2026-10-15 — 옛 주소의 승인과 새 주소의 확인이 둘 다 메일이다 · [4.4 API](api.md) REQ-API-310). 호스트를 스위치로 고른 이유는 그것만이 없어서는 안 되는 값이기 때문이다(포트·TLS 는 기본값이 서고, 사용자·비밀번호는 인증 없는 사내 릴레이에서 아예 빈다). compose 기본값은 `mailpit`(개발용 받이 · 받은 편지함 `:8025`) |
 | `NERV_MAIL_PORT` | | `587` | api · worker | submission(STARTTLS) 포트다. 25 를 기본으로 두지 않는 이유는 그것이 **서버 간 릴레이** 포트이고 클라우드 사업자 대부분이 막아 두기 때문이다. **읽을 수 없는 값이면 기동을 거부한다** — 조용히 587 로 떨어지면 운영자는 자기 오타를 영영 모른다 |
 | `NERV_MAIL_SECURE` | | **포트에서 유도** | api · worker | 접속하자마자 TLS 인가(465)와 평문으로 열어 `STARTTLS` 로 올리는가(587·25)의 구분이다. **비우면 포트가 정한다** — 465 면 참, 그 밖은 거짓. 기본값을 두지 않는 이유는 여기가 사람이 가장 자주 틀리는 자리이고, 바꿔 적으면 연결이 걸린 채 타임아웃하거나 핸드셰이크가 깨지는데 **어느 쪽도 원인을 가리키지 않기** 때문이다. 명시하면 그 값이 이긴다(비표준 포트에서 암묵 TLS 를 받는 게이트웨이가 있다) |
 | `NERV_MAIL_USER` · `NERV_MAIL_PASS` | | — | api · worker | 릴레이 인증. **둘 다 있거나 둘 다 없어야 하고, 한쪽만 있으면 기동을 거부한다** — nodemailer 는 짝이 맞지 않으면 `auth` 를 만들지 못해 **인증 없이 붙고**, 사내 릴레이가 그대로 받아 주면 비밀번호가 읽히지 않는다는 사실이 영영 드러나지 않는다. **k8s 는 이 둘을 `nerv-secrets` 에 함께 둔다**(§6.2) — 사용자 이름은 비밀이 아니지만 비밀번호와 한 벌이고, 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 **한쪽만 채워진 상태가 실제로 생긴다**(`NERV_S3_ACCESS_KEY` 가 같은 자리다). 주소 셋(`_HOST`·`_PORT`·`_SECURE`)은 ConfigMap 이다. 전에는 URL 한 줄이라 통째로 Secret 이었고, 그래서 운영자는 이 배치가 **어디로 보내는지** 설정을 읽어서는 알 수 없었다 |
@@ -1218,6 +1224,29 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_SMTP_URL` | 2026-09-24 | `NERV_MAIL_HOST` · `_PORT` · `_SECURE` · `_USER` · `_PASS` (위 전표) | 한 줄이 호스트·포트·TLS·사용자·비밀번호를 겸하고 있었다 — **자격증명이 문자열 안에 섞여 있어 배포에서 통째로 비밀이 되고, 운영자는 이 배치가 어디로 보내는지 설정을 읽어서는 알 수 없었다.** `NERV_MAIL_HOST` 가 비어 있으면 **기동을 거부하고**, 거부 문구가 그 URL 을 풀어 다섯 줄로 적어 준다 — **비밀번호만 빼고**(기동 로그를 읽을 수 있는 사람이 곧 그 릴레이를 쓸 수 있는 사람이 된다). "메일 꺼짐" 으로 떨어뜨리지 않는 이유는 그러면 초대가 나가지 않는다는 것을 **아무도 받지 못했다는 신고로** 알게 되고, 아웃박스에 줄조차 쌓이지 않아 뒤늦게 보낼 수도 없기 때문이다(REQ-CB-050). `NERV_HTTP_PORT` 와 같은 대가가 있다 — compose 가 이 이름을 넘겨야 거부가 실물이고(§5.3), compose 를 거치지 않는 배치에서는 여전히 조용히 무시된다 |
 
 **왜 이름을 물려주지 않았는가.** 한 이름이 화면의 주소와 API 의 주소를 겸하고 있었고, 둘이 우연히 같은 오리진이라 맞고 있었을 뿐이다. 한쪽이 옛 이름을 물려받으면 "어느 뜻을 물려받았는가" 가 소비자마다 다시 물어야 할 질문이 된다. 둘 다 새 이름이면 그 질문이 없다 — 대가는 **기존 배치가 전부 깨진다**는 것이고, 위 거부가 그 대가를 침묵이 아니라 문구로 바꾼다. 결정 기록은 [4.1 MVP 범위와 스택 확정](scope.md) §2.3.
+
+#### 운영자 비밀번호 재설정 링크 — 메일을 보내지 않는 배치 (2026-10-15 — 사람 결정)
+
+`NERV_MAIL_HOST` 가 빈 배치에서 비밀번호를 잊은 사람은 로그인 화면에서 "서버 운영자에게 문의해 주세요" 를 본다([4.4 API](api.md) REQ-API-187). 그 운영자 — **셸과 DB 에 들어갈 수 있는 사람** — 가 쓰는 명령이 api 이미지 안에 있다(`migrate.js` 와 같은 자리). 새 HTTP 경로도 새 역할도 없다 — 플랫폼 운영자 역할은 명세에 없고([4.3 데이터베이스](database.md) §2.2), 이 길의 권한은 셸 접근 그 자체다.
+
+```bash
+# compose
+docker compose -f deploy/compose/docker-compose.yml exec api node dist/reset-link.js jimin@example.com
+# k8s
+kubectl -n nerv exec deploy/nerv-api -- node dist/reset-link.js jimin@example.com
+# 로컬 개발 루프 — 빌드 산출물과 codebase/.env 를 쓴다
+pnpm auth:reset-link jimin@example.com
+```
+
+- **출력의 마지막 줄이 링크다** — 메일로 보내는 재설정 링크와 같은 모양(`<API>/api/auth/reset-password/<토큰>?callbackURL=<화면>/reset-password`)이고 **60분 동안 한 번** 쓴다(`PASSWORD_RESET_TTL_MINUTES`). 운영자는 그 링크를 본인에게 전하고, 본인이 화면의 `/reset-password` 에서 비밀번호를 직접 정한다 — 운영자는 비밀번호를 보지도 정하지도 않는다.
+- **인증 스택의 재설정 문을 그대로 쓴다.** 명령은 인증 스택의 저장 계층으로 검증 행(`reset-password:<토큰>` · 값은 사용자 id)을 만들 뿐이고, 링크를 연 뒤의 일은 메일로 받은 링크와 같다 — 토큰은 한 번이고, 정하면 그 사람의 **모든** 세션이 끊기며, 이메일이 확인된 것으로 적힌다. 인증 스택의 거절은 **요청** 쪽(`sendResetPassword` 가 없을 때)에만 있어서 이 길은 메일 없이 돈다.
+- 이메일은 대소문자 · 앞뒤 공백을 가리지 않는다. **그 이메일의 계정이 없거나 설정이 빠졌으면 1, 이메일을 주지 않으면 2** 로 끝난다 — 운영자에게는 계정이 있는지 숨기지 않는다(그는 이미 DB 를 볼 수 있다).
+- 개발 시드(`seed.ts`)와 달리 **production 에서 실행을 거부하지 않는다** — 운영에서 쓰라고 있는 명령이다.
+- 기록은 로그 한 줄이다(어떤 사용자에게 언제까지 유효한 링크를 발급했는지 · 주소는 적지 않는다). 이벤트 표는 `project_id` 가 필수라([4.3 데이터베이스](database.md) §2.10) 프로젝트가 없는 계정 일을 담지 않는다. `exec` 로 돈 명령의 출력은 **실행한 사람의 터미널에만** 남는다 — 지속되는 감사 기록이 필요하면 운영자가 따로 남긴다.
+
+| ID | 요구(EARS) |
+| --- | --- |
+| **REQ-CB-061** | WHEN 운영자가 api 이미지 안에서 `node dist/reset-link.js <이메일>`(로컬은 `pnpm auth:reset-link`)을 실행하면, THE SYSTEM SHALL 그 이메일의 계정(대소문자 무관)에 인증 스택과 같은 모양의 비밀번호 재설정 검증 행(`reset-password:<토큰>` · 수명 `PASSWORD_RESET_TTL_MINUTES`)을 만들고 화면의 `/reset-password` 로 가는 재설정 링크를 출력의 마지막 줄로 내며, 어떤 사용자에게 언제까지의 링크를 발급했는지를 로그 한 줄로 남긴다. WHERE 계정이 없거나 이메일을 주지 않았으면 THE SYSTEM SHALL 0 이 아닌 코드로 끝난다. WHEN 그 링크로 새 비밀번호를 정하면 THE SYSTEM SHALL 메일로 받은 링크와 똑같이 한 번만 받고 그 사람의 모든 세션을 끊는다 — 메일 발신이 꺼진 배치에서도 그렇다. THE SYSTEM SHALL 이 명령을 위해 HTTP 경로나 역할을 더하지 않고, production 에서도 거부하지 않는다(2026-10-15 · 사람 결정). |
 
 ### 5.2a 임베딩 제공자 프로필 — OpenAI 호환 단일 계약
 
@@ -2382,6 +2411,8 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
 (3)은 Job 의 라벨(`app.kubernetes.io/component: migrate`)로 Job 하나만 고른다. 네임스페이스와 `nerv-secrets` 는 첫 배포 전에 이미 있다 — Secret 은 base 가 만들지 않고 조직의 경로로 그 네임스페이스에 넣는다(§6.2). **(4)가 실패하면 (5)로 가지 않는다** — 옛 api 와 옛 워커가 그대로 돌고, DB 는 그 판 이전 그대로다(§6.3b ③).
 
 마이그레이션은 **expand-contract**(하위호환 additive 우선)를 원칙으로 한다 — (3)~(5) 사이 구버전 파드가 새 스키마 위에서 돌 수 있어야 한다. 파괴적 변경(컬럼 삭제·rename)은 2회 릴리스로 나눈다. 규칙 상세는 [4.3 데이터베이스 스키마](database.md) §1. 두 경로의 실측과 롤백 절차는 §6.3b 다.
+
+**운영자 명령도 같은 이미지에 있다**(2026-10-15 — 사람 결정 · REQ-CB-061). 메일을 보내지 않는 배치의 비밀번호 재설정 링크는 `kubectl -n nerv exec deploy/nerv-api -- node dist/reset-link.js <이메일>` 이다 — 절차와 결과는 §5.2 「운영자 비밀번호 재설정 링크」다. Job 으로 두지 않는다 — 한 사람을 위한 한 번의 명령이고, 출력(링크)을 실행한 사람이 바로 받아야 한다.
 
 | ID | 요구(EARS) |
 | --- | --- |

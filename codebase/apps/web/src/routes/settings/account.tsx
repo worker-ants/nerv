@@ -1,12 +1,13 @@
-// /settings/account — 내 계정: 표시 이름 · 이메일(보기만) · 비밀번호 (2026-09-25 — 사람 결정 D10 · UI/UX 검토 SET-13 ·
+// /settings/account — 내 계정: 표시 이름 · 이메일 · 비밀번호 (2026-09-25 — 사람 결정 D10 · UI/UX 검토 SET-13 ·
 // REQ-WEB-229 · REQ-API-186)
 //
 // 가입할 때 적은 이름은 멤버 표·카드·활동에 그대로 박히는데 고칠 길이 없었고, 사용자 메뉴에도 설정 네 탭에도
-// "내 계정" 이 없었다 — 비밀번호를 바꾸려면 서버에 직접 요청을 보낼 줄 알아야 했다. 서버의 문은 둘이다:
+// "내 계정" 이 없었다 — 비밀번호를 바꾸려면 서버에 직접 요청을 보낼 줄 알아야 했다. 서버의 문은 셋이다:
 // 이름은 `PATCH /api/v1/me`(길이·공백 검사 · 사람만), 비밀번호는 인증 스택의 `/change-password`(지금 비밀번호를
-// 맞혀야 한다). 이메일은 로그인 아이디라 바꾸지 않는다 — 그 사실을 칸 옆에서 말한다.
+// 맞혀야 한다), 이메일은 인증 스택의 `/change-email`(2026-10-15 · 사람 결정 · REQ-API-310 — 지금 비밀번호를 다시 묻고,
+// 옛 주소의 승인과 새 주소의 확인을 거친다). 메일을 보내지 않는 서버에서는 이메일 양식을 보이지 않는다.
 
-import { DISPLAY_NAME_MAX, PASSWORD_MIN_LENGTH } from '@nerv/schema';
+import { DISPLAY_NAME_MAX, EMAIL_VERIFY_TTL_MINUTES, PASSWORD_MIN_LENGTH } from '@nerv/schema';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -23,7 +24,12 @@ import { EmailDigestSection } from '../../features/inbox/email-digest.js';
 import { levelOf, NotificationLevelControl } from '../../features/inbox/notification-level.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
-import { authFailureText, changePassword, updateDisplayName } from '../../lib/session.js';
+import {
+  authFailureText,
+  changePassword,
+  requestEmailChange,
+  updateDisplayName,
+} from '../../lib/session.js';
 import type { AuthFailure } from '../../lib/session.js';
 import {
   Button,
@@ -75,13 +81,7 @@ function AccountTab(): React.JSX.Element {
         <>
           {/* 받아 온 이름이 바뀌면 칸을 새로 만든다 — `useState(name)` 은 첫 렌더의 값을 붙잡는다 */}
           <NameSection key={me.data.display_name} current={me.data.display_name} />
-          <div>
-            <SectionTitle>{t('account.email')}</SectionTitle>
-            <p data-testid="account-email" className="text-sm">
-              {me.data.email}
-            </p>
-            <p className="mt-1 text-xs text-text-mute">{t('account.email_hint')}</p>
-          </div>
+          <EmailSection current={me.data.email} />
         </>
       )}
       {active === 'notifications' && (
@@ -359,6 +359,148 @@ function NameSection({ current }: { current: string }): React.JSX.Element {
         </div>
       </Field>
     </form>
+  );
+}
+
+/** EP-AUTH-06 — 이메일 바꾸기의 진행 상태 */
+interface EmailChangeStatus {
+  mail_enabled: boolean;
+  pending: { new_email: string; stage: 'approve' | 'confirm'; expires_at: string } | null;
+}
+
+/**
+ * **이메일 바꾸기**(2026-10-15 · 사람 결정 · REQ-WEB-229 · REQ-API-310). 새 주소와 지금 비밀번호를 보내면 지금 주소로 승인
+ * 메일이 가고, 승인하면 새 주소로 확인 메일이 가며, 그 링크를 열어야 바뀐다 — 그래서 보낸 뒤에는 칸 위에 **어디까지
+ * 왔는지**를 보인다(새로 고쳐도 남는다 · 서버의 대기 줄을 읽는다). 이미 다른 계정이 쓰는 주소도 같은 답이라 화면은 그
+ * 차이를 모른다. 메일을 보내지 않는 서버면 양식 대신 운영자에게 문의하라고 적는다.
+ */
+function EmailSection({ current }: { current: string }): React.JSX.Element {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const { pushToast } = useRealtime();
+  const status = useQuery({
+    queryKey: queryKeys.myEmailChange(),
+    queryFn: () => apiFetch<EmailChangeStatus>('/me/email-change'),
+  });
+  const [next, setNext] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<AuthFailure | null>(null);
+  /** 보내 보니 서버가 꺼져 있다고 했다 — 상태를 받은 뒤에 설정이 바뀐 경우다 */
+  const [refused, setRefused] = useState(false);
+  const trimmed = next.trim();
+  // 같은 주소면 **보내기 전에** 말한다 — 대소문자는 가리지 않는다(서버도 가리지 않는다)
+  const same = trimmed !== '' && trimmed.toLowerCase() === current.toLowerCase();
+  const ready = trimmed !== '' && !same && password !== '' && !busy;
+  const pending = status.data?.pending ?? null;
+
+  const submit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    if (!ready) return;
+    setBusy(true);
+    setFailure(null);
+    const result = await requestEmailChange({ newEmail: trimmed, password });
+    setBusy(false);
+    setPassword('');
+    if (result === 'sent') {
+      setNext('');
+      pushToast({ tone: 'ok', message: t('account.email_requested') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.myEmailChange() });
+      return;
+    }
+    if (result === 'disabled') {
+      setRefused(true);
+      return;
+    }
+    setFailure(result);
+  };
+
+  return (
+    <div data-testid="account-email-section" className="flex flex-col gap-2">
+      <div>
+        <SectionTitle>{t('account.email')}</SectionTitle>
+        <p data-testid="account-email" className="text-sm">
+          {current}
+        </p>
+        <p className="mt-1 text-xs text-text-mute">{t('account.email_hint')}</p>
+      </div>
+      {failedWithoutData(status) ? (
+        <ErrorState error={status.error} onRetry={() => void status.refetch()} />
+      ) : status.data === undefined ? (
+        <Skeleton rows={2} />
+      ) : !status.data.mail_enabled || refused ? (
+        <p data-testid="account-email-off" className="text-sm text-text-mute">
+          {t('account.email_off_server')}
+        </p>
+      ) : (
+        <form data-testid="account-email-form" onSubmit={(e) => void submit(e)}>
+          <Card className="flex flex-col gap-3">
+            <p className="text-sm font-medium">{t('account.email_change')}</p>
+            {pending !== null && (
+              <div
+                data-testid="account-email-pending"
+                data-stage={pending.stage}
+                role="status"
+                className="rounded-nerv-sm bg-status-action-soft px-2 py-1.5 text-sm"
+              >
+                <p>
+                  {t(
+                    pending.stage === 'approve'
+                      ? 'account.email_pending_approve'
+                      : 'account.email_pending_confirm',
+                    { email: pending.new_email },
+                  )}
+                </p>
+                <p className="mt-0.5 text-xs text-text-mute">
+                  {t('account.email_pending_hint', { minutes: EMAIL_VERIFY_TTL_MINUTES })}
+                </p>
+              </div>
+            )}
+            <Field label={t('account.email_new')} error={same ? t('auth.email_same') : undefined}>
+              <Input
+                type="email"
+                data-testid="account-email-new"
+                autoComplete="email"
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+                className="max-w-xs"
+                aria-invalid={same}
+              />
+            </Field>
+            <Field label={t('account.password_current')}>
+              <Input
+                type="password"
+                data-testid="account-email-password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="max-w-xs"
+              />
+            </Field>
+            <p className="text-xs text-text-mute">{t('account.email_steps')}</p>
+            {failure !== null && (
+              <p
+                data-testid="account-email-error"
+                role="alert"
+                className="rounded-nerv-sm bg-status-danger-soft px-2 py-1.5 text-sm text-status-danger"
+              >
+                ⚠ {authFailureText(t, failure)}
+              </p>
+            )}
+            <div>
+              <Button
+                type="submit"
+                variant="primary"
+                data-testid="account-email-submit"
+                disabled={!ready}
+              >
+                {t('account.email_submit')}
+              </Button>
+            </div>
+          </Card>
+        </form>
+      )}
+    </div>
   );
 }
 

@@ -281,6 +281,14 @@ export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_RESET_TTL_MINUTES = 60;
 
 /**
+ * 이메일 확인 링크의 수명(분) — 가입 확인 링크와 **이메일 바꾸기**의 두 링크(옛 주소의 승인 · 새 주소의 확인)가 같은
+ * 값을 쓴다(2026-10-15 · 사람 결정 · api.md REQ-API-310). 인증 스택이 확인 링크의 수명을 한 값
+ * (`emailVerification.expiresIn`)으로 두기 때문이다. 값은 인증 스택의 기본값(1시간)과 같아서 가입 확인 링크의 수명은
+ * 바뀌지 않는다 — 메일 본문이 "몇 분 동안" 을 말해야 하고 그 숫자가 두 곳에 있으면 갈라지므로 여기 둔다.
+ */
+export const EMAIL_VERIFY_TTL_MINUTES = 60;
+
+/**
  * WS 연결 거절을 알리는 이벤트 이름.
  *
  * socket.io 의 `connect_error` 를 **서버가 emit 할 수 없다** — 예약된 이름이라 예외를 던지고,

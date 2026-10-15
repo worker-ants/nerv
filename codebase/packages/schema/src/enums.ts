@@ -408,9 +408,15 @@ export const notificationLevel = pgEnum('notification_level', NOTIFICATION_LEVEL
 // **알림 메일 요약**(2026-09-28 · 사람 결정 EM1~EM9)이 넷째 값이다. 마이그레이션이 그 값을 쓰지 않고(워커가
 // 런타임에만 쓴다) 더하기만 하므로 파일 하나로 된다 — 위 주석의 "둘로 쪼개야" 는 값을 같은 마이그레이션
 // 안에서 쓸 때의 이야기다.
+// **이메일 바꾸기**(2026-10-15 · 사람 결정 · api.md REQ-API-310)가 다섯째 · 여섯째 · 일곱째 값이다 — 옛 주소의 승인
+// (`change_email_approve`) · 새 주소의 확인(`change_email_confirm`) · 바뀐 뒤 옛 주소로 가는 알림(`email_changed`).
+// 마이그레이션은 값을 더하기만 하므로 파일 하나로 된다(넷째 값과 같은 까닭).
 export const emailKind = pgEnum('email_kind', [
   'verify_email',
   'invite',
   'reset_password',
   'notification_digest',
+  'change_email_approve',
+  'change_email_confirm',
+  'email_changed',
 ]);

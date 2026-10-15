@@ -2053,7 +2053,24 @@ export const en = {
   'account.name_hint': 'This name appears in member lists, cards and activity.',
   'account.name_saved': 'Name updated.',
   'account.email': 'Email',
-  'account.email_hint': 'This is your sign-in ID, so it cannot be changed.',
+  'account.email_hint':
+    'This is your sign-in ID. To change it, you need access to both your current and your new mailbox.',
+  // ── 이메일 바꾸기 (2026-10-15 · 사람 결정 · screens.md REQ-WEB-229 · api.md REQ-API-310) ──────────
+  'account.email_change': 'Change email',
+  'account.email_new': 'New email',
+  'account.email_steps':
+    'We first send an approval email to your current address. Once you approve, a confirmation email goes to the new address, and opening its link completes the change. After the change, you are signed out on all other devices. Agent tokens keep working.',
+  'account.email_submit': 'Send approval email',
+  'auth.email_same': 'This is your current address.',
+  'account.email_off_server':
+    'This server does not send email, so you cannot change your email here. Please contact the server operator.',
+  'account.email_pending_approve':
+    'Changing to {email}. Open the approval link in your current mailbox.',
+  'account.email_pending_confirm':
+    'Changing to {email}. Approved. Open the confirmation link in the new mailbox to finish.',
+  'account.email_pending_hint':
+    'Links work for {minutes} minutes. Sending to another address cancels the earlier request.',
+  'account.email_requested': 'Approval email sent to your current address.',
   'account.password': 'Password',
   'account.digest': 'Email digest',
   'account.digest_hint':
@@ -2129,6 +2146,23 @@ export const en = {
   'reset.invalid_body':
     'It expired ({minutes} minutes) or has already been used. Request a new link.',
   'reset.request_again': 'Get a new reset link',
+  // ── 이메일 바꾸기 결과 화면 /email-change (2026-10-15 · 사람 결정 · screens.md REQ-WEB-314) ──────────
+  'email_change.lead': 'Change email',
+  'email_change.approved': 'Approved',
+  'email_change.approved_body':
+    'We sent a confirmation email to the new address. Open its link to finish changing your email. The link works for {minutes} minutes.',
+  'email_change.done': 'Email changed',
+  'email_change.done_signed_in':
+    'From now on, sign in with the new address. This browser stays signed in, and all other devices were signed out.',
+  'email_change.done_signed_out':
+    'From now on, sign in with the new address. All devices were signed out, so sign in again with the new address.',
+  'email_change.invalid': 'This link cannot be used',
+  'email_change.invalid_body':
+    'It has expired ({minutes} minutes), was already used, or was replaced by a newer request. Request the change again from My account.',
+  'email_change.other_account':
+    'This browser is signed in to a different account. Sign out, then open the link again.',
+  'email_change.to_account': 'Go to My account',
+  'email_change.to_login': 'Sign in',
   'unsubscribe.lead': 'Turn off the email digest.',
   'unsubscribe.title': 'Turn off the notification email digest?',
   'unsubscribe.body':
@@ -2348,6 +2382,16 @@ export const en = {
   'mail.reset.subject': '[NERV] Reset your password',
   'mail.reset.body':
     'Hi {name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n{url}\n\nThe link can be used once within {minutes} minutes. Setting a new password signs you out on all devices.\n\nIf you did not request this, you can delete this email. Your password will not change unless a new one is set through this link.',
+  // 이메일 바꾸기의 메일 셋(2026-10-15 · 사람 결정 · api.md REQ-API-310) — 옛 주소의 승인 · 새 주소의 확인 · 바뀐 뒤의 알림
+  'mail.change_email.approve.subject': '[NERV] Approve your email address change',
+  'mail.change_email.approve.body':
+    'Hi {name},\n\nWe received a request to change the email address of your NERV account.\n\nCurrent address: {email}\nNew address: {new_email}\n\nIf you made this request, open this link to approve it. After you approve, a confirmation email goes to the new address, and the change happens only when that link is opened too.\n{url}\n\nThe link can be used once within {minutes} minutes.\n\nIf you did not request this, do not open the link. Nothing changes unless it is opened. Someone may know your password, so change it.',
+  'mail.change_email.confirm.subject': '[NERV] Confirm your new email address',
+  'mail.change_email.confirm.body':
+    'Hi {name},\n\nYour NERV account email is being changed to this address ({email}). The change was approved from the current address.\n\nOpen this link to confirm and complete the change:\n{url}\n\nThe link can be used once within {minutes} minutes. After the change, you are signed out on all other devices and you sign in with this address.\n\nIf you did not request this, you can delete this email. Nothing changes unless the link is opened.',
+  'mail.change_email.done.subject': '[NERV] Your account email address was changed',
+  'mail.change_email.done.body':
+    'Hi {name},\n\nThe email address of your NERV account was changed.\n\nOld address: {email}\nNew address: {new_email}\n\nFrom now on, sign in with the new address. You can no longer sign in with this one, and NERV emails will go to the new address. All other devices were signed out.\n\nIf you did not make this change, tell the server operator right away.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '{nodes} docs · {edges} relations',
   'graph.empty': 'No relations yet.',

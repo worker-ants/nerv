@@ -9,6 +9,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   DEFAULT_LOCALE,
+  EMAIL_VERIFY_TTL_MINUTES,
   INVITATION_TTL_DAYS,
   MAIL_BATCH_SIZE,
   MAIL_MAX_ATTEMPTS,
@@ -17,7 +18,7 @@ import {
   msg,
   renderMessage,
 } from '@nerv/schema';
-import type { Locale } from '@nerv/schema';
+import type { Locale, Message } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { newId } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
@@ -25,7 +26,7 @@ import type { NervDb } from '../../common/database.module.js';
 import { apiUrlFromEnv, webUrlFromEnv } from '../../common/origins.js';
 import { mailEnabled } from './mail.config.js';
 import { hashUnsubscribeToken, unsubscribeApiUrl } from './unsubscribe-link.js';
-import { resetPasswordLink, verifyEmailLink } from './verify-link.js';
+import { changeEmailLink, resetPasswordLink, verifyEmailLink } from './verify-link.js';
 
 /** 워커가 집어 가는 한 줄 */
 export interface DueMail extends Record<string, unknown> {
@@ -164,6 +165,99 @@ export class MailOutbox {
   }
 
   /**
+   * 이메일 바꾸기 ① — **옛 주소로** 승인 링크를 보낸다(2026-10-15 · 사람 결정 · REQ-API-310). 인증 스택의
+   * `sendChangeEmailConfirmation` 이 부른다. 재설정 메일과 같은 까닭으로 트랜잭션을 받지 않고 INSERT 하나다. 본문에
+   * 지금 주소와 새 주소를 함께 적는다 — 요청한 적이 없는 사람이 무엇이 바뀌려 했는지 알아야 한다.
+   */
+  async enqueueChangeEmailApprove(input: {
+    email: string;
+    name: string;
+    newEmail: string;
+    token: string;
+    userId: string;
+    locale?: string | null;
+  }): Promise<boolean> {
+    const url = changeEmailLink({
+      api: apiUrlFromEnv(),
+      web: webUrlFromEnv(),
+      token: input.token,
+      step: 'approved',
+    });
+    const values = {
+      name: nameOf(input),
+      email: input.email,
+      new_email: input.newEmail,
+      url,
+      minutes: EMAIL_VERIFY_TTL_MINUTES,
+    };
+    return this.enqueueAccountMail('change_email_approve', input, {
+      subject: msg('mail.change_email.approve.subject'),
+      body: msg('mail.change_email.approve.body', values),
+    });
+  }
+
+  /** 이메일 바꾸기 ② — **새 주소로** 확인 링크를 보낸다. 옛 주소가 승인한 뒤 인증 스택의 확인 메일 콜백이 부른다 */
+  async enqueueChangeEmailConfirm(input: {
+    email: string;
+    name: string;
+    token: string;
+    userId: string;
+    locale?: string | null;
+  }): Promise<boolean> {
+    const url = changeEmailLink({
+      api: apiUrlFromEnv(),
+      web: webUrlFromEnv(),
+      token: input.token,
+      step: 'done',
+    });
+    const values = {
+      name: nameOf(input),
+      email: input.email,
+      url,
+      minutes: EMAIL_VERIFY_TTL_MINUTES,
+    };
+    return this.enqueueAccountMail('change_email_confirm', input, {
+      subject: msg('mail.change_email.confirm.subject'),
+      body: msg('mail.change_email.confirm.body', values),
+    });
+  }
+
+  /**
+   * 이메일 바꾸기 ③ — 바뀐 뒤 **옛 주소로** 알린다. 인증 스택은 이 일을 하지 않는다. 주소를 가져간 사람이 본인이 아니면
+   * 옛 주소의 주인이 이 메일로 처음 알게 된다.
+   */
+  async enqueueEmailChanged(input: {
+    email: string;
+    name: string;
+    newEmail: string;
+    userId: string;
+    locale?: string | null;
+  }): Promise<boolean> {
+    const values = { name: nameOf(input), email: input.email, new_email: input.newEmail };
+    return this.enqueueAccountMail('email_changed', input, {
+      subject: msg('mail.change_email.done.subject'),
+      body: msg('mail.change_email.done.body', values),
+    });
+  }
+
+  /** 계정 메일 한 통 — 받는 사람의 언어로 넣을 때 만든다. 메일이 꺼진 배치에서는 넣지 않는다 */
+  private async enqueueAccountMail(
+    kind: 'change_email_approve' | 'change_email_confirm' | 'email_changed',
+    to: { email: string; userId: string; locale?: string | null | undefined },
+    text: { subject: Message; body: Message },
+  ): Promise<boolean> {
+    if (!mailEnabled()) return false;
+    const locale: Locale = isLocale(to.locale) ? to.locale : DEFAULT_LOCALE;
+    await this.db.execute(sql`
+      INSERT INTO email_outbox (id, kind, to_email, locale, subject, body_text, ref_type, ref_id)
+      VALUES (${newId()}, ${kind}, ${to.email}, ${locale},
+              ${renderMessage(text.subject, locale)}, ${renderMessage(text.body, locale)},
+              'user', ${to.userId})
+    `);
+    return true;
+  }
+
+  /**
    * 알림 메일 요약을 줄 세운다(2026-09-28 · 사람 결정 EM1~EM9 · REQ-API-232). 본문은 요약 서비스가 받는
    * 사람의 언어로 만들어 온다 — 다른 메일과 같이 **넣을 때 만든다**. 요약에 담은 알림 줄에 이 행의 id 를
    * 적으므로(`notification.digest_batch_id`) 같은 트랜잭션에서 넣고 id 를 돌려준다.
@@ -259,6 +353,11 @@ export class MailOutbox {
        WHERE id = ${mail.id}
     `);
   }
+}
+
+/** 메일의 호칭 — 이름이 비었으면 주소로 부른다(다른 계정 메일과 같다) */
+function nameOf(input: { name: string; email: string }): string {
+  return input.name === '' ? input.email : input.name;
 }
 
 /**

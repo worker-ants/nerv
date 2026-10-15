@@ -148,6 +148,9 @@ describe('메일이 꺼진 배치', () => {
           calls.push(email);
           return false;
         },
+        enqueueChangeEmailApprove: async () => false,
+        enqueueChangeEmailConfirm: async () => false,
+        enqueueEmailChanged: async () => false,
       });
       const res = await auth.handler(
         new Request(`${apiUrlFromEnv().replace(/\/+$/, '')}/api/auth/request-password-reset`, {
