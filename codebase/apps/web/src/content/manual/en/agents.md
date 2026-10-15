@@ -72,3 +72,5 @@ Without `--apply`, the command runs as a **dry run**: it writes nothing and only
 Running the same command again is safe. Items that were already imported are not created again, and only empty links are filled in.
 
 **Requirement numbers that belong to another document are not overwritten.** If a file defines a requirement number that another document already owns, that file is not imported, and the report gives the number and the document that owns it as the reason. Other files in the same run are still imported. To move a requirement to another document, first remove the line in a new version of the original document, get it approved, then import again. This is the same rule as approving on the web ([Requirements](/help/specs#requirements)).
+
+**Importing alone never moves a number.** The document that owns a number changes only on approval. When you import a number that was removed from the original document's approved version, it moves to this document, and the report lists it as a **warning** (`req-moved`), one line per number, together with the original document. Nothing went wrong, so the exit code does not change.

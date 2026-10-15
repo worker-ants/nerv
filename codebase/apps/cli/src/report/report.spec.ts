@@ -2,9 +2,19 @@
 // 규칙 하나: 파일·줄·사유·건너뜀/중단 구분이 있어야 하고 원문은 보존한다(정보 손실 0).
 
 import { setLocaleForTesting } from '../i18n.js';
-import { beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { conversionRate, exitCode, renderJsonl, renderMarkdown, RULES } from './index.js';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runImport } from '../run.js';
+import {
+  conversionRate,
+  exitCode,
+  renderJsonl,
+  renderMarkdown,
+  RULES,
+  withHints,
+} from './index.js';
 import type { Disposition, Rule } from './index.js';
 import type { ImportReport } from './index.js';
 
@@ -153,5 +163,94 @@ describe('규칙 전표가 문서와 같다 (importer.md §4.1)', () => {
     const want = declared.get(slug);
     expect(want, `전표에 \`${slug}\` 행이 없다`).toBeDefined();
     expect(RULES[slug as Rule]).toBe(CLASS[want as string]);
+  });
+});
+
+/**
+ * **옮겨 온 요구사항 번호를 적는다**(2026-10-15 · REQ-IMP-034 · `req-moved`).
+ *
+ * 서버는 소유가 풀린 번호를 이 문서로 옮기면 응답 항목에 `requirements_moved` 를 준다. CLI 가 그 칸을
+ * 읽지 않던 동안 번호의 주인이 바뀐 사실이 리포트 어디에도 없었다. 서버 응답은 다른 패스의 검사처럼
+ * `fetch` 를 흉내 내어 준다.
+ */
+describe('옮겨 온 요구사항 번호 (REQ-IMP-034)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function importWith(moved: { ref: string; from_key: string }[] | undefined) {
+    // 뿌리에 둔다 — 디렉터리 아래면 그 영역의 본문이 없다는 수동 확인 항목이 함께 남는다
+    const root = mkdtempSync(join(tmpdir(), 'nerv-moved-'));
+    writeFileSync(
+      join(root, 'b.md'),
+      '---\nid: SPC-B\nstatus: approved\n---\n\n# B\n\n| ID | 설명 | 우선순위 |\n| --- | --- | --- |\n' +
+        '| REQ-B-001 | 새 요구사항 | 필수 |\n| REQ-A-002 | 옮겨 온 요구사항 | 필수 |\n',
+    );
+    vi.stubGlobal('fetch', async (url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as { kind?: string };
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          String(url).includes('preflight')
+            ? { items: [] }
+            : body.kind === 'document'
+              ? {
+                  items: [
+                    {
+                      source_path: 'b.md',
+                      status: 'ok',
+                      spec_id: 's-b',
+                      ...(moved === undefined ? {} : { requirements_moved: moved }),
+                    },
+                  ],
+                }
+              : { items: [] },
+      };
+    });
+    return runImport({
+      command: 'spec',
+      root,
+      project: 'p',
+      apply: true,
+      batchSize: 50,
+      reportDir: join(root, 'report'),
+      mapPath: join(root, 'map.json'),
+      profile: 'nerv-docs',
+      server: 'http://stub',
+      token: 'nerv_x',
+    });
+  }
+
+  it('응답에 있으면 번호마다 경고 한 줄 — 원래 문서의 키와 정의한 행 · 종료 코드는 그대로', async () => {
+    const report = await importWith([{ ref: 'REQ-A-002', from_key: 'SPC-A' }]);
+    const moved = report.entries.filter((e) => e.rule === 'req-moved');
+    expect(moved).toEqual([
+      expect.objectContaining({
+        file: 'b.md',
+        // 그 번호를 정의한 표의 행 — 다른 요구사항 규칙과 같이 frontmatter 를 뺀 본문의 줄이다
+        line: 7,
+        disposition: 'warn',
+        reason: expect.stringContaining('SPC-A') as unknown as string,
+      }),
+    ]);
+    expect(moved[0]?.reason).toContain('REQ-A-002');
+    // 잘못된 것은 없다 — 경고는 종료 코드를 올리지 않는다
+    expect(report.entries).toEqual(moved);
+    expect(exitCode(report)).toBe(0);
+
+    const md = renderMarkdown(withHints(report));
+    expect(md).toContain('`req-moved`');
+    expect(md).toContain('SPC-A에서 옮겨 온 요구사항이다');
+    expect(md).toContain('원래 문서와 대조한다');
+    expect(renderJsonl(report)).toContain('"rule":"req-moved"');
+  });
+
+  it('칸이 없거나 비었으면 아무것도 더하지 않는다', async () => {
+    for (const moved of [undefined, []]) {
+      const report = await importWith(moved);
+      expect(report.entries.filter((e) => e.rule === 'req-moved')).toEqual([]);
+      expect(renderMarkdown(report)).not.toContain('req-moved');
+    }
   });
 });

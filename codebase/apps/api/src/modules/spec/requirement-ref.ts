@@ -5,6 +5,8 @@
 // `requirement_id` 와 작업의 `source_requirement_id` 는 uuid 열에 그대로 들어가서, 고정 ID 를 넣으면 요청 전체가
 // 22P02(형식 오류)로 거절되고 리뷰 라운드도 남지 않았다. 반대로 다른 프로젝트의 요구사항 UUID 는 FK 를 지나 그대로
 // 들어갔다. 리뷰 제출과 작업 생성이 이 함수 하나로 푼다(D-05) — 표면마다 따로 풀면 한쪽만 고정 ID 를 받게 된다.
+// 검색의 `requirement_id`(그 요구사항이 속한 스펙으로 좁히기 · REQ-API-110)도 같은 날 이 함수로 옮겼다 — 따로 풀던
+// 동안 거절의 문구와 칸이 달라 같은 값의 거절을 도구마다 다르게 읽어야 했다.
 
 import { sql } from 'drizzle-orm';
 import { msg, NERV_ERROR } from '@nerv/schema';

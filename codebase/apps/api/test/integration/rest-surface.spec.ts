@@ -1747,20 +1747,89 @@ describe('REST 가 전표대로 입력을 받는다 (REQ-API-043·081 · EP-SPEC
       expect(keys).not.toContain('SPC-OTHER');
     }
 
+    // 문서에서 빠진 요구사항도 푼다 — 리뷰 제출 · 작업 생성과 같은 판정이다(REQ-API-311)
+    await pool.query(`UPDATE requirement SET removed_in_version_id = $1 WHERE id = $2`, [
+      ver[0]?.id,
+      reqId,
+    ]);
+    const removed = await call(
+      'GET',
+      '/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=REQ-SCOPE-001',
+    );
+    expect(removed.status).toBe(200);
+    const removedKeys = (
+      (removed.body as Record<string, unknown>)['items'] as { key: string }[]
+    ).map((i) => i.key);
+    expect(removedKeys).toContain('SPC-REQOWN');
+    expect(removedKeys).not.toContain('SPC-OTHER');
+
+    // 공백만 준 값은 안 준 것이다 — 예전에는 조건이 모두 빠져 아무 요구사항 하나로 좁혔다
+    const blank = await call(
+      'GET',
+      '/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=%20%20',
+    );
+    expect(blank.status).toBe(200);
+    expect(
+      ((blank.body as Record<string, unknown>)['items'] as { key: string }[]).map((i) => i.key),
+    ).toEqual(expect.arrayContaining(['SPC-REQOWN', 'SPC-OTHER']));
+
     // 없는 요구사항은 **빈 결과가 아니라 거절**이다 — 빈 결과는 오타를 사실로 만든다.
     // 409 인 것은 §1.4 의 기준대로다: 없는 참조는 모양이 아니라 **상태**이고,
-    // 같은 요청이 그 요구사항이 생긴 뒤에는 성공한다.
+    // 같은 요청이 그 요구사항이 생긴 뒤에는 성공한다. 거절의 모양은 리뷰 제출 · 작업 생성과
+    // 같다(2026-10-15 · REQ-API-311) — 예전의 `requirement` 칸은 `value` 로 바뀌었다.
     const missing = await call(
       'GET',
       '/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=REQ-NOPE-999',
     );
     expect(missing.status).toBe(409);
-    expect((missing.body as Record<string, unknown>)['details']).toMatchObject({
+    const body = missing.body as Record<string, unknown>;
+    expect(body['code']).toBe(NERV_ERROR.PRECONDITION);
+    expect(body['details']).toEqual({
       kind: 'not_found',
       field: 'requirement_id',
+      value: 'REQ-NOPE-999',
     });
+    expect(String(body['message'])).toContain('REQ-NOPE-999');
 
-    await pool.query(`DELETE FROM requirement WHERE id = $1`, [reqId]);
+    // 다른 프로젝트의 요구사항은 UUID 로도 풀리지 않는다 — 예전에도 그랬고 같은 판정이 지킨다
+    const otherProjectId = newId();
+    const suffix = otherProjectId.slice(-6);
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,'다른 프로젝트')`,
+      [otherProjectId, orgId, `other-${suffix}`, `O${suffix.toUpperCase()}`],
+    );
+    const otherSpecId = newId();
+    const otherVersionId = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,'남의 문서')`,
+      [otherSpecId, otherProjectId, `SPC-${otherSpecId}`],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'draft','# 남의 문서', decode('00','hex'), $3)`,
+      [otherVersionId, otherSpecId, adminId],
+    );
+    const otherReqId = newId();
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,'REQ-SCOPE-002','WHEN … THE SYSTEM SHALL …','must',$4,$4)`,
+      [otherReqId, otherProjectId, otherSpecId, otherVersionId],
+    );
+    for (const ref of ['REQ-SCOPE-002', otherReqId]) {
+      const foreign = await call(
+        'GET',
+        `/api/v1/projects/clemvion/specs/search?q=요구사항주변&requirement_id=${ref}`,
+      );
+      expect(foreign.status).toBe(409);
+      expect((foreign.body as Record<string, unknown>)['details']).toMatchObject({
+        kind: 'not_found',
+        field: 'requirement_id',
+        value: ref,
+      });
+    }
+
+    await pool.query(`DELETE FROM requirement WHERE id = ANY($1::uuid[])`, [[reqId, otherReqId]]);
   });
 
   it('증적 종류의 오타는 400 이다 — 22P02 로 죽던 마지막 자리', async () => {

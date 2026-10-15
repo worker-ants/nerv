@@ -61,6 +61,7 @@ export const ko = {
     '프로파일 이름이나 파일을 고친다. 잘못된 매핑으로 전부 적재하는 것보다 시작 전에 멈추는 편이 낫다',
   'cli.hint.req_id_duplicate':
     '중복된 요구사항 ID 중 하나에 새 번호를 붙인다. 지금은 처음 정의한 것만 적재됐다',
+  'cli.hint.req_moved': '옮긴 것이 맞는지 원래 문서와 대조한다. 맞으면 그대로 두면 된다',
   'cli.hint.req_priority_missing': '원본에 우선순위를 적는다. 지금은 빈 값으로 적재됐다',
   'cli.hint.research_doc': '참고 문서라서 Task를 만들지 않았다. 그대로 두면 된다',
   'cli.hint.review_no_snapshot':
@@ -945,7 +946,6 @@ export const ko = {
     '첨부 저장소가 설정되지 않았습니다. 다시 시도해도 해결되지 않습니다.',
   'error.spec.baseline_not_found': '그 이름의 기준선이 없습니다.',
   'error.spec.not_found': '스펙을 찾을 수 없습니다.',
-  'error.spec.requirement_not_found': '요구사항을 찾을 수 없습니다.',
   'error.spec.parent_archived': '상위 문서가 보관된 상태입니다.',
   'error.spec.archived': '보관된 문서입니다({key}). 이어서 쓰려면 먼저 복구해야 합니다.',
   'error.spec.title_required': '제목이 필요합니다.',
@@ -2451,6 +2451,8 @@ export const ko = {
   'cli.reason.code_glob_no_match': '`code:` glob에 맞는 파일이 없다. stale로 적재한다({glob})',
   'cli.reason.user_guide_no_match': '`user_guide:` 경로에 문서가 없다. stale로 적재한다({path})',
   'cli.reason.req_id_duplicate': '같은 ref가 두 번 정의됐다. 첫 번째만 적재한다({ref})',
+  'cli.reason.req_moved':
+    '{from}에서 옮겨 온 요구사항이다. 그 문서의 승인본에서 빠진 번호라 이 문서로 옮겼다({ref})',
   'cli.reason.req_priority_missing': '우선순위가 없다. 빈 값으로 적재한다({ref})',
   'cli.reason.reference_doc': '참고 문서',
   'cli.reason.research_dir': 'research/는 참고 문서로 분류한다(Task를 만들지 않음)',

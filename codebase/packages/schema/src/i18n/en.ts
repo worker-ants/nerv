@@ -52,6 +52,8 @@ export const en = {
     'Fix the profile name or file. Stopping before the run is better than loading everything through a wrong mapping',
   'cli.hint.req_id_duplicate':
     'Give one of the duplicate requirement IDs a new number. Only the first definition was loaded',
+  'cli.hint.req_moved':
+    'Check against the original document that the move was intended. If it was, no action needed',
   'cli.hint.req_priority_missing': 'Add the priority to the source. It was loaded as NULL',
   'cli.hint.research_doc': 'Reference document, so no Task was created. No action needed',
   'cli.hint.review_no_snapshot':
@@ -955,7 +957,6 @@ export const en = {
   'error.attachment.storage_unset': "Attachment storage is not configured. Retrying won't help.",
   'error.spec.baseline_not_found': 'No baseline by that name.',
   'error.spec.not_found': 'Spec not found.',
-  'error.spec.requirement_not_found': 'Requirement not found.',
   'error.spec.parent_archived': 'The parent spec is archived.',
   'error.spec.archived': 'This document is archived ({key}). Restore it before you continue.',
   'error.spec.title_required': 'A title is required.',
@@ -2476,6 +2477,8 @@ export const en = {
   'cli.reason.user_guide_no_match':
     'No document at the `user_guide:` path. Loaded as stale ({path})',
   'cli.reason.req_id_duplicate': 'Duplicate ref definition. Only the first one is loaded ({ref})',
+  'cli.reason.req_moved':
+    "Moved from {from}. The number was dropped from that document's approved version, so this document now owns it ({ref})",
   'cli.reason.req_priority_missing': 'Priority not stated. Loaded as NULL ({ref})',
   'cli.reason.reference_doc': 'Reference document',
   'cli.reason.research_dir': 'research/ is classified as reference (no task created)',
