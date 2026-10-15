@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.02 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.03 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.03 변경(2026-10-15 — NERV 플러그인을 Codex에서 실측했다, **사람 결정: 실측만 한다**): **새 요구사항 없음 · §5.4 신설.** Codex 0.162.1은 플러그인을 설치하고 스킬 일곱을 읽는다. 훅은 `$comment` 때문에 하나도 실행되지 않는다. 훅을 살리면 Codex 세션이 Claude Code로 기록되고, 서버 응답의 필드 때문에 세션 안내가 모델에게 가지 않으며, MCP 세션과 따로 세션이 하나 더 생긴다. 범위와 코드는 그대로 두고 Phase 2의 입력으로 남긴다.
 >
 > v1.02 변경(2026-10-15 — `ko-style`을 Codex에서 실측했다): **REQ-PLG-020 · 024 · 026 개정 · §7.1 Codex 행 · §7.2 · §7.4 · §7.6 · `ko-style` 0.1.2 → 0.1.3.** Codex 0.162.1은 이 저장소의 카탈로그와 Claude 매니페스트를 그대로 읽고 훅 여섯도 같은 파일로 실행한다. 그런데 `hooks.json`의 `$comment` 때문에 훅 전체가 빠지고 있었다. 문서 쓰기는 `apply_patch`로 들어와 검사하지 못했다. 둘을 고쳤다. Codex는 훅이 넣는 글의 토큰을 바이트/4로 어림해 약 2,500토큰에서 가운데를 잘라 내므로 세션 요약에 9,000바이트 상한을 더했다(§7.6).
 >
@@ -2016,6 +2018,29 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 ```markdown
 @AGENTS.md
 ```
+
+### 5.4 NERV 플러그인을 Codex에 설치하면 (2026-10-15 실측)
+
+**Codex 0.162.1은 NERV 플러그인을 설치하고 스킬 일곱을 읽는다. 훅은 지금 그대로는 하나도 실행되지 않는다.** 훅을 살리면 Codex 세션이 Claude Code 세션으로 기록되고 MCP 세션과 따로 하나 더 생긴다. 사람 결정(2026-10-15 · 실측만 한다)에 따라 범위와 코드는 바꾸지 않았다. 아래 표는 Phase 2(§5.1)의 입력이다.
+
+측정 방법은 `ko-style`(§7.6)과 같다. 격리한 `CODEX_HOME`에 이 저장소를 카탈로그로 추가하고 `codex plugin add nerv@nerv`로 설치했다. 로컬 NERV 서버(일회용 DB · 개발 시드) 앞에 중계 서버를 두어 훅과 MCP 요청을 기록했다. 모델은 가짜 응답으로 `nerv_bootstrap` → 셸 명령 → `apply_patch` → 답변 순서로 움직였다. 훅은 `--dangerously-bypass-hook-trust`로 그 실행에서만 신뢰 확인을 건너뛰었다.
+
+| 무엇 | 실측 | 고칠 자리 |
+| --- | --- | --- |
+| 설치 | Claude 매니페스트(0.3.26)로 설치된다. `skills/` · `hooks/` · `bin/`과 함께 테스트 파일(`*.spec.ts`)도 캐시에 복사된다 | 패키지에 배포 파일만 담기 |
+| 스킬 | 일곱 개가 `nerv:next` · `nerv:spec` · `nerv:impl` · `nerv:question` · `nerv:review` · `nerv:mirror` · `nerv:approve`로 목록에 오른다. `nerv:approve` 본문은 "Claude Code 에서만 쓴다"고 적지만 목록에 보이는 설명에는 그 말이 없다 | 설명에 Codex 제한 적기 |
+| 서브에이전트 · statusline | `agents/nerv-spec-writer.md`는 Codex 목록에 없다. statusline은 Claude Code 전용이다 | — |
+| `hooks.json` | 최상위와 훅 항목 안의 `$comment` 때문에 "unknown field" 경고를 내고 훅 여섯을 모두 버린다 | `$comment` 빼기(`ko-style` 0.1.3과 같다) |
+| 훅 실행(`$comment`를 뺀 사본) | session · tool · stop · session-end 요청이 모두 서버에 도착했다(서브에이전트는 재지 않았다). `async: true` 훅도 실행된다. SessionEnd 시한은 3초로 줄여 실행한다는 경고가 나온다 | SessionEnd 시한 |
+| 에이전트 표시 | 포워더가 `X-NERV-Agent: claude-code`(기본값)와 `X-NERV-Plugin: 0.3.26`을 보내 서버가 Codex 세션을 Claude Code 세션으로 기록했다. 포워더 주석의 "Codex는 이 파일(`plugin.json`)이 없다"는 플러그인으로 설치하면 맞지 않는다 | Codex 알아보기(훅 입력에는 에이전트 필드가 없다) |
+| 훅 응답 | 서버 응답의 `ok` · `session_id` 필드 때문에 SessionStart와 Stop이 "Failed"로 끝났다. 서버가 준 세션 안내(`additionalContext`)도 모델에게 가지 않았다. 응답에서 모르는 필드를 빼자 둘 다 성공했고 안내도 전달됐다 | 응답을 Codex 형식에 맞추기(포워더나 서버) |
+| 일반 글 출력 | SessionStart 훅의 일반 글 출력은 개발자 메시지로 들어간다. `nerv-init --check`는 ".mcp.json 에 nerv 서버가 없다"고 알려 MCP가 연결된 Codex 세션을 잘못 안내한다 | Codex 설정(`config.toml`)을 아는 점검 |
+| 세션 짝 | 실행마다 세션이 둘 생겼다. 훅이 만든 `claude-code` 세션은 끝나고, `nerv_bootstrap`이 만든 `codex` 세션은 active로 남는다. Codex가 MCP 요청에 넣는 `_meta.x-codex-turn-metadata.session_id`가 훅 입력의 `session_id`와 같아 서버가 둘을 이을 단서가 있다 | 짝 맞추기 |
+| MCP | 플러그인은 MCP 설정을 담지 않으므로 지금처럼 `config.toml`(§5.2)로 붙인다. `codex exec`에서는 MCP 도구 호출이 승인 대기로 막혀 격리 설정에 `default_tools_approval_mode = "approve"`를 두고 쟀다 | — |
+
+**지금 사람에게 하는 안내.** Codex에 NERV 플러그인을 설치하면 스킬은 쓰이고 훅은 경고 하나와 함께 빠진다. MVP의 약속(MCP 도구만으로 완주 · §5.1)은 그대로다. 매뉴얼 설치 장에 이 사실을 적었다.
+
+**결정 — Phase 2에서 한 묶음으로 고친다**(2026-10-15 · 사람 결정). `$comment`만 먼저 빼면 위 표의 문제(Claude Code로 기록 · 세션 안내 유실 · 세션 중복)가 그대로 드러난다. 지금은 훅이 실행되지 않아 틀린 기록도 생기지 않는다. 그래서 고칠 자리를 함께 고칠 때까지 훅은 이대로 둔다.
 
 ---
 

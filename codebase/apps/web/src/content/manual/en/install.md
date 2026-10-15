@@ -190,7 +190,7 @@ Codex runs only the hooks a person has reviewed. After installing, open `/hooks`
 
 ## 3-B. Connect Codex {#codex}
 
-The NERV plugin has not been verified with Codex. Instead, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.
+The NERV plugin is not adapted for Codex yet. If you install it in Codex, the skills work but the hooks do not run. To connect, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.
 
 ```bash
 mkdir -p <your repo>/.codex
