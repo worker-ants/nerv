@@ -104,6 +104,8 @@ const ROUTE_HELP: readonly (readonly [RegExp, HelpTarget])[] = [
   [/^\/p\/[^/]+\/tasks(\/|$)/, help('tasks')],
   [/^\/p\/[^/]+\/sessions(\/|$)/, help('sessions')],
   [/^\/p\/[^/]+\/reviews(\/|$)/, help('reviews')],
+  // 구현 현황 드릴다운(2026-10-15 · REQ-WEB-315) — 스펙 장의 끝 절이 이 화면을 설명한다
+  [/^\/p\/[^/]+\/coverage(\/|$)/, help('specs', 'coverage')],
   [/^\/notifications(\/|$)/, help('inbox', 'notifications')],
   [/^\/inbox(\/|$)/, help('inbox')],
   // 토큰 탭은 **설치 장**이다(2026-09-24 · SET-10). 설정 장의 토큰 절은 한 줄로 개념 장을 가리키고

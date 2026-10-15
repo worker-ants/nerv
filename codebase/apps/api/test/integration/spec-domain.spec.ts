@@ -2288,6 +2288,8 @@ describe('REQ-API-197~209 읽는 기준과 편집 기준', () => {
         statement_md: 'WHEN 가 THE SYSTEM SHALL 다르게 한다',
         priority: null,
         impl_status: 'implemented',
+        // 구현 상태의 출처도 지금 행에서 잇는다(2026-10-15 · REQ-API-312)
+        impl_status_source: 'derived',
         in_current: true,
       },
       {
@@ -2295,6 +2297,7 @@ describe('REQ-API-197~209 읽는 기준과 편집 기준', () => {
         statement_md: 'WHEN 다 THE SYSTEM SHALL 라 한다',
         priority: null,
         impl_status: null,
+        impl_status_source: null,
         in_current: false,
       },
     ]);

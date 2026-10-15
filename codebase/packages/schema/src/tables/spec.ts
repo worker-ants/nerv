@@ -20,6 +20,7 @@ import {
   changeRisk,
   commentStatus,
   implStatus,
+  implStatusSource,
   memberRole,
   requirementPriority,
   specRelationKind,
@@ -190,6 +191,12 @@ export const requirement = pgTable(
      */
     priority: requirementPriority('priority'),
     implStatus: implStatus('impl_status').notNull().default('unimplemented'),
+    /**
+     * **그 값을 누가 정했나**(2026-10-15 · 사람 결정 · REQ-DB-044). 임포트가 새 요구사항을 만들 때 `import`, 파생이 값을
+     * 다시 쓸 때 `derived` 다. 작업이 없는 요구사항은 파생하지 않으므로 임포트 값이 남고, 화면 · API 가 「출처: 임포트」로
+     * 표시한다 — 값을 지우지 않고 어디서 왔는지 보여 D-03 을 지킨다(성공 기준 2-8 은 두 수로 센다).
+     */
+    implStatusSource: implStatusSource('impl_status_source').notNull().default('derived'),
     introducedInVersionId: uuid('introduced_in_version_id')
       .notNull()
       .references(() => specVersion.id),

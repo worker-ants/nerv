@@ -5,6 +5,7 @@ updated: 2026-09-24
 referenced_by:
   - 03-proposal/agent-integration.md
   - 03-proposal/spec-workflow.md
+  - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
@@ -22,7 +23,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.89 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.90 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.90 변경(2026-10-15 — Phase 2 묶음 1의 첫째, **사람 결정 ④**): **E15-S01 · E15-S02 `done` · §1.4 E15 행과 합계 · §6.2 첫 단락.** 커버리지 드릴다운(`/p/:proj/coverage` — 영역 → 문서 → 요구사항, 거르기 넷, 펼친 요구사항의 작업 · 증적 · 발견 · 최근 리뷰와 [검증 작업 만들기])과 구현 상태의 출처(`requirement.impl_status_source` · 「출처: 임포트」 · 성공 기준 2-8 의 두 수)가 들어왔다([4.4 API](api.md) REQ-API-312 · 313 · [4.5 화면 명세](screens.md) REQ-WEB-315~317 · [4.3 데이터베이스](database.md) REQ-DB-044). 합계는 `done` 77 · 부분 1 · `backlog` 23 이다. L3(`apps/web/test/e2e/coverage.spec.ts`)는 이 작업 환경에 Docker 데몬이 없어 돌리지 못했다 — CI 가 PR 에서 본다.
 >
 > v2.89 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **§6 신설 — Phase 2 에픽 8개(E15~E22) · 스토리 25개 · §1.3 다시 씀 · §1.4 표에 `backlog` 열.** ① Phase 2 스토리를 이 문서에 둔다. 범위의 정본은 그대로 [3.7 로드맵](../03-proposal/roadmap.md) §4이고 착수한 뒤의 스토리 분해와 현황은 이 문서가 맡는다(§1.3의 "여기 스토리로 분해하지 않는다"를 고쳤다). ② 남은 항목을 네 묶음으로 나눈 순서를 §6.1에 적는다. 첫 묶음은 묶음 1이다. ③ §1.4 에픽 표에 착수 전 스토리를 세는 `backlog` 열을 더하고 검사기(`check-backlog-status.mjs`)를 `done + 부분 + backlog == 스토리 수`로 고쳤다([4.2 코드베이스](codebase.md) REQ-CB-029). 합계는 `done` 75 · 부분 1 · `backlog` 25다. ④ §1.3의 "화면은 판정을 표시할 뿐 아직 막지 않는다"는 2026-09-28부터 사실이 아니었다 — 리뷰 커버리지는 정책으로 켜면 `done`을 막는다([4.4 API](api.md) REQ-API-250). 절 번호를 바꾸지 않으려고 Phase 2 에픽을 §5 뒤의 §6에 두었다(§5.6을 인용하는 자리가 다섯이다).
 
@@ -597,7 +600,7 @@ referenced_by:
 ### 1.1 ID·상태·표기 규약
 
 - **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 75 · 부분 1 · `backlog` 25(Phase 2 스토리 — §6)다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 77 · 부분 1 · `backlog` 23(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -634,7 +637,7 @@ referenced_by:
 | E12 플러그인 v1 + 훅 수집기 | 7 | — | — | `ko-style/`(문체 플러그인) · `plugin/skills/`(7종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` · `plugin-coverage.spec.ts`(활성화 현황) |
 | E13 받은 요청·질문·알림 | 3 | — | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
 | E14 운영·연동 | 4 | — | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
-| E15 커버리지 · 구현 축 | — | — | 3 | 착수 전 — 이어받는 실물: `spec/impl-status.ts` · `spec.service.ts`(`coverage`) · `routes/p.$proj/index.tsx`(구현 현황 카드) |
+| E15 커버리지 · 구현 축 | 2 | — | 1 | `routes/p.$proj/coverage.tsx` · `features/coverage-drilldown/`(E15-S01 드릴다운) · `spec/impl-status.ts`(출처를 쓴다) · `import.service.ts` · `drizzle/0051`(E15-S02 출처) · `spec.service.ts`(`coverage` · `requirement`) · `test/integration/coverage-drilldown.spec.ts` — 남은 E15-S03 은 착수 전 |
 | E16 게이트 판정 완성 | — | — | 4 | 착수 전 — `task.service.ts`(done 게이트 — `roundVerdicts`를 `headSha: null`로 부른다) · `review/review-gate.ts`(EP-REV-08) |
 | E17 알림 확장 | — | — | 3 | 착수 전 — `event/notification.service.ts`(`recipientsFor` — 역할 큐로 보내는 자리) |
 | E18 fail-open · 보존 | — | — | 3 | 착수 전 — `zod/policy.ts`(`failopen`) · `routes/settings/gates.tsx`(보기 전용) · `worker/jobs/retention.job.ts` |
@@ -642,7 +645,7 @@ referenced_by:
 | E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |
 | E21 이관 · 운영 | — | — | 4 | 착수 전 — `plugin/bin/nerv-outbox` · `worker/jobs/export.job.ts` |
 | E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **75** | **1** | **25** | `backlog` 25는 모두 Phase 2 스토리다(§6) |
+| **합계** | **77** | **1** | **23** | `backlog` 23은 모두 Phase 2 스토리다(§6) |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -1288,7 +1291,7 @@ Phase 2의 목표는 [3.7 로드맵](../03-proposal/roadmap.md) §4.1 그대로�
 
 ### 6.2 E15 — 커버리지 · 구현 축 (FR-03 · FR-13)
 
-FR-03 ◐ → ●, FR-13 ◐ → ●. 성공 기준 2-8의 대상이다. **이미 있는 것**: 구현 축의 자동 파생(`spec/impl-status.ts` — `verified`까지 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.3)과 구현 현황 수치 · 영역별 분해(EP-COV-01 · [4.4 API](api.md) REQ-API-297). 남은 것은 드릴다운 화면 · 임포트 값의 출처 · `verified`의 커밋 범위다.
+FR-03 ◐ → ●, FR-13 ◐ → ●. 성공 기준 2-8의 대상이다. **이미 있는 것**: 구현 축의 자동 파생(`spec/impl-status.ts` — `verified`까지 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.3)과 구현 현황 수치 · 영역별 분해(EP-COV-01 · [4.4 API](api.md) REQ-API-297). 드릴다운 화면(E15-S01)과 임포트 값의 출처(E15-S02)는 2026-10-15 에 들어왔다. 남은 것은 `verified`의 커밋 범위(E15-S03)다.
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |

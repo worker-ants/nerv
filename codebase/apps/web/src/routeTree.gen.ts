@@ -36,6 +36,7 @@ import { Route as SettingsTokensRouteImport } from './routes/settings/tokens'
 import { Route as SettingsWorkspaceRouteImport } from './routes/settings/workspace'
 import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
 import { Route as PProjIndexRouteImport } from './routes/p.$proj/index'
+import { Route as PProjCoverageRouteImport } from './routes/p.$proj/coverage'
 import { Route as PProjTasksRouteImport } from './routes/p.$proj/tasks'
 import { Route as PProjReviewsIndexRouteImport } from './routes/p.$proj/reviews.index'
 import { Route as PProjSessionsIndexRouteImport } from './routes/p.$proj/sessions.index'
@@ -180,6 +181,11 @@ const PProjIndexRoute = PProjIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PProjRouteRoute,
 } as any)
+const PProjCoverageRoute = PProjCoverageRouteImport.update({
+  id: '/coverage',
+  path: '/coverage',
+  getParentRoute: () => PProjRouteRoute,
+} as any)
 const PProjTasksRoute = PProjTasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
@@ -248,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/p/$proj/coverage': typeof PProjCoverageRoute
   '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
   '/p/$proj/': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
@@ -282,6 +289,7 @@ export interface FileRoutesByTo {
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/help': typeof HelpIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/p/$proj/coverage': typeof PProjCoverageRoute
   '/p/$proj': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
   '/p/$proj/specs/$spec': typeof PProjSpecsSpecRoute
@@ -319,6 +327,7 @@ export interface FileRoutesById {
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/help/': typeof HelpIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/p/$proj/coverage': typeof PProjCoverageRoute
   '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
   '/p/$proj/': typeof PProjIndexRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
@@ -358,6 +367,7 @@ export interface FileRouteTypes {
     | '/unsubscribe/$token'
     | '/help/'
     | '/settings/'
+    | '/p/$proj/coverage'
     | '/p/$proj/tasks'
     | '/p/$proj/'
     | '/p/$proj/sessions/$session'
@@ -392,6 +402,7 @@ export interface FileRouteTypes {
     | '/unsubscribe/$token'
     | '/help'
     | '/settings'
+    | '/p/$proj/coverage'
     | '/p/$proj'
     | '/p/$proj/sessions/$session'
     | '/p/$proj/specs/$spec'
@@ -428,6 +439,7 @@ export interface FileRouteTypes {
     | '/unsubscribe/$token'
     | '/help/'
     | '/settings/'
+    | '/p/$proj/coverage'
     | '/p/$proj/tasks'
     | '/p/$proj/'
     | '/p/$proj/sessions/$session'
@@ -648,6 +660,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PProjIndexRouteImport
       parentRoute: typeof PProjRouteRoute
     }
+    '/p/$proj/coverage': {
+      id: '/p/$proj/coverage'
+      path: '/coverage'
+      fullPath: '/p/$proj/coverage'
+      preLoaderRoute: typeof PProjCoverageRouteImport
+      parentRoute: typeof PProjRouteRoute
+    }
     '/p/$proj/tasks': {
       id: '/p/$proj/tasks'
       path: '/tasks'
@@ -764,6 +783,7 @@ const PProjTasksRouteWithChildren = PProjTasksRoute._addFileChildren(
 )
 
 interface PProjRouteRouteChildren {
+  PProjCoverageRoute: typeof PProjCoverageRoute
   PProjTasksRoute: typeof PProjTasksRouteWithChildren
   PProjIndexRoute: typeof PProjIndexRoute
   PProjSessionsSessionRoute: typeof PProjSessionsSessionRoute
@@ -774,6 +794,7 @@ interface PProjRouteRouteChildren {
 }
 
 const PProjRouteRouteChildren: PProjRouteRouteChildren = {
+  PProjCoverageRoute: PProjCoverageRoute,
   PProjTasksRoute: PProjTasksRouteWithChildren,
   PProjIndexRoute: PProjIndexRoute,
   PProjSessionsSessionRoute: PProjSessionsSessionRoute,

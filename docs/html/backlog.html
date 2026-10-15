@@ -53,10 +53,10 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.</p>
     <div class="meta-line">
-      <span>버전 v2.89 (2026-10-15)</span>
+      <span>버전 v2.90 (2026-10-15)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 22 · 스토리 101 · E2E 시나리오 6</span>
-      <span class="refs">참조하는 문서: <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
+      <span class="refs">참조하는 문서: <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
     </div>
   </header>
 
@@ -78,7 +78,7 @@
   <h3>1.1 ID·상태·표기 규약</h3>
   <ul>
     <li><b>에픽/스토리 ID</b> — <code>E01-S01</code> 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.</li>
-    <li><b>상태 어휘</b> — 스토리는 Task 축 상태 머신(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.4)의 어휘를 그대로 쓴다: <code>backlog → ready → claimed → in_progress → in_review → done</code>, 예외 상태 <code>blocked</code>(사유 코드 필수). <b>스토리별 현재 상태는 §1.4 가 정본이다</b> — 2026-10-15 현재 <code>done</code> 75 · 부분 1 · <code>backlog</code> 25(Phase 2 스토리 — §6)다. (2026-08-22 신설 당시의 "모든 스토리는 현재 <code>backlog</code>다" 를 그대로 두어 <b>74개 중 73개에 대해 거짓인 문장</b>이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)</li>
+    <li><b>상태 어휘</b> — 스토리는 Task 축 상태 머신(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.4)의 어휘를 그대로 쓴다: <code>backlog → ready → claimed → in_progress → in_review → done</code>, 예외 상태 <code>blocked</code>(사유 코드 필수). <b>스토리별 현재 상태는 §1.4 가 정본이다</b> — 2026-10-15 현재 <code>done</code> 77 · 부분 1 · <code>backlog</code> 23(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 <code>backlog</code>다" 를 그대로 두어 <b>74개 중 73개에 대해 거짓인 문장</b>이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)</li>
     <li><b>근거</b> — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호(<a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.</li>
     <li><b>EARS 수용 기준</b> — 행동 요구는 <code>WHEN … THE SYSTEM SHALL …</code> 형식으로 쓴다. 스토리당 1~3개.</li>
     <li><b>의존</b> — 의존 스토리 ID를 표기한다. 의존이 <code>done</code>이 아니면 해당 스토리는 <code>ready</code>로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).</li>
@@ -111,7 +111,7 @@
       <tr><td>E12 플러그인 v1 + 훅 수집기</td><td>7</td><td>—</td><td>—</td><td><code>ko-style/</code>(문체 플러그인) · <code>plugin/skills/</code>(7종) · <code>session/ingest.controller.ts</code> · <code>plugin/bin/nerv-outbox</code> · <code>plugin-coverage.spec.ts</code>(활성화 현황)</td></tr>
       <tr><td>E13 받은 요청·질문·알림</td><td>3</td><td>—</td><td>—</td><td><code>approval.service.ts</code>(<code>content_hash</code> stale) · <code>question.service.ts</code> · <code>notification.service.ts</code></td></tr>
       <tr><td>E14 운영·연동</td><td>4</td><td>—</td><td>—</td><td><code>deploy/k8s/base/</code> · <code>deploy/scripts/nerv-backup.sh</code> + <code>restore-roundtrip.spec.ts</code> · <code>task/webhook.service.ts</code> · <code>apps/api/src/common/origins.ts</code></td></tr>
-      <tr><td>E15 커버리지 · 구현 축</td><td>—</td><td>—</td><td>3</td><td>착수 전 — 이어받는 실물: <code>spec/impl-status.ts</code> · <code>spec.service.ts</code>(<code>coverage</code>) · <code>routes/p.$proj/index.tsx</code>(구현 현황 카드)</td></tr>
+      <tr><td>E15 커버리지 · 구현 축</td><td>2</td><td>—</td><td>1</td><td><code>routes/p.$proj/coverage.tsx</code> · <code>features/coverage-drilldown/</code>(E15-S01 드릴다운) · <code>spec/impl-status.ts</code>(출처를 쓴다) · <code>import.service.ts</code> · <code>drizzle/0051</code>(E15-S02 출처) · <code>spec.service.ts</code>(<code>coverage</code> · <code>requirement</code>) · <code>test/integration/coverage-drilldown.spec.ts</code> — 남은 E15-S03 은 착수 전</td></tr>
       <tr><td>E16 게이트 판정 완성</td><td>—</td><td>—</td><td>4</td><td>착수 전 — <code>task.service.ts</code>(done 게이트 — <code>roundVerdicts</code>를 <code>headSha: null</code>로 부른다) · <code>review/review-gate.ts</code>(EP-REV-08)</td></tr>
       <tr><td>E17 알림 확장</td><td>—</td><td>—</td><td>3</td><td>착수 전 — <code>event/notification.service.ts</code>(<code>recipientsFor</code> — 역할 큐로 보내는 자리)</td></tr>
       <tr><td>E18 fail-open · 보존</td><td>—</td><td>—</td><td>3</td><td>착수 전 — <code>zod/policy.ts</code>(<code>failopen</code>) · <code>routes/settings/gates.tsx</code>(보기 전용) · <code>worker/jobs/retention.job.ts</code></td></tr>
@@ -119,7 +119,7 @@
       <tr><td>E20 Codex 완전 지원</td><td>—</td><td>—</td><td>4</td><td>착수 전 — <a href="plugin.html">4.6 플러그인</a> §5.4 실측 표 · <code>plugin/codex/</code></td></tr>
       <tr><td>E21 이관 · 운영</td><td>—</td><td>—</td><td>4</td><td>착수 전 — <code>plugin/bin/nerv-outbox</code> · <code>worker/jobs/export.job.ts</code></td></tr>
       <tr><td>E22 OAuth 2.1 리소스 서버</td><td>—</td><td>—</td><td>1</td><td>착수 전</td></tr>
-      <tr><td><b>합계</b></td><td><b>75</b></td><td><b>1</b></td><td><b>25</b></td><td><code>backlog</code> 25는 모두 Phase 2 스토리다(§6)</td></tr>
+      <tr><td><b>합계</b></td><td><b>77</b></td><td><b>1</b></td><td><b>23</b></td><td><code>backlog</code> 23은 모두 Phase 2 스토리다(§6)</td></tr>
     </tbody>
   </table>
   <p><b><code>backlog</code> 열은 착수 전 스토리다</b>(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 <code>done</code>으로 옮기고, 부분이면 <i>남은 것</i>을 둘째 표에 적는다.</p>
@@ -877,7 +877,7 @@
 
   <h3>6.2 E15 — 커버리지 · 구현 축 (FR-03 · FR-13)</h3>
 
-  <p>FR-03 ◐ → ●, FR-13 ◐ → ●. 성공 기준 2-8의 대상이다. <b>이미 있는 것</b>: 구현 축의 자동 파생(<code>spec/impl-status.ts</code> — <code>verified</code>까지 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.3)과 구현 현황 수치 · 영역별 분해(EP-COV-01 · <a href="api.html">4.4 API</a> REQ-API-297). 남은 것은 드릴다운 화면 · 임포트 값의 출처 · <code>verified</code>의 커밋 범위다.</p>
+  <p>FR-03 ◐ → ●, FR-13 ◐ → ●. 성공 기준 2-8의 대상이다. <b>이미 있는 것</b>: 구현 축의 자동 파생(<code>spec/impl-status.ts</code> — <code>verified</code>까지 · <a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.3)과 구현 현황 수치 · 영역별 분해(EP-COV-01 · <a href="api.html">4.4 API</a> REQ-API-297). 드릴다운 화면(E15-S01)과 임포트 값의 출처(E15-S02)는 2026-10-15 에 들어왔다. 남은 것은 <code>verified</code>의 커밋 범위(E15-S03)다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>

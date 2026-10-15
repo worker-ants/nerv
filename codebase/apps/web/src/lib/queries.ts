@@ -666,6 +666,24 @@ export function useRequirements(slug: string, specKey: string): UseQueryResult<R
 }
 
 /**
+ * EP-REQ-02 — 요구사항 하나의 상세: 파생 작업 · 증적 · 발견 · 최근 리뷰 라운드(2026-10-15 · REQ-WEB-316 · 서버 REQ-API-313).
+ * 키는 그 문서의 요구사항 목록 **아래**다 — 목록을 무효화하는 자리(증적 서명 · 이벤트)가 펼친 상세도 함께 되읽는다.
+ */
+export function useRequirementDetail(
+  slug: string,
+  specKey: string,
+  ref: string,
+): UseQueryResult<Row> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.spec(specKey), 'requirements', ref],
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/requirements/${encodeURIComponent(ref)}`),
+    enabled: ref !== '',
+    refetchInterval,
+  });
+}
+
+/**
  * EP-REQ-04 — 그 접두의 다음 요구사항 번호(2026-10-15 · 사람 결정 · REQ-WEB-313). **제안이고 예약하지 않는다** —
  * 서버가 승인된 행과 열린 초안의 줄을 함께 세서 준다(REQ-API-145). 접두가 어휘 밖이면 묻지 않는다(400 을 받을 일이다).
  */
