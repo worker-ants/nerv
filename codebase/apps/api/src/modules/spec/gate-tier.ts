@@ -3,6 +3,7 @@ import {
   text,
   type GateAxis,
   type GateEvidence,
+  type GateInputs,
   type GateSignal,
 } from '@nerv/schema';
 // 스펙 변경 게이트 티어 T0~T3 — 정본: docs/03-proposal/spec-workflow.md §2.4 (D-06)
@@ -156,16 +157,38 @@ export function decideGate(
 }
 
 /**
- * 판정을 **이벤트에 싣는 모양**(2026-09-26 · REQ-API-188) — `spec.submitted` 와 `approval.requested`
+ * **판정을 다시 계산할 재료**(2026-10-15 · 사람 결정 · REQ-API-303). 판정 결과(`GateDecision`)는 제출 응답으로도 나가므로
+ * 거기에 섞지 않고 따로 든다 — 응답이 바뀌면 스킬이 읽는 계약이 바뀐다.
+ */
+export interface GateAudit {
+  /** 판정에 쓴 유효 정책의 지문(`policyFingerprint`) — 정책이 깨졌으면 대신 쓴 기본 정책의 것이다 */
+  policyFingerprint: string;
+  /** 저장된 정책이 스키마에 맞지 않아 기본 정책으로 판정했다(REQ-API-240) */
+  policyFallback: boolean;
+  /** 축 산출에 넣은 값 */
+  inputs: GateInputs;
+}
+
+/**
+ * 판정을 **이벤트에 남기는 모양**(2026-09-26 · REQ-API-188) — `spec.submitted` 와 `approval.requested`
  * 가 같은 모양을 쓴다. 키는 `@nerv/schema` 의 `GATE_AXES`·`GATE_SIGNALS` 이고, 받은 요청 카드가
  * 결재 요청 이벤트에서 그대로 읽는다(`approval.service` 의 `gate_*` 칸).
+ *
+ * `audit` 이 있으면 적용 정책 지문(`policy_fingerprint`)과 축 산출 입력(`gate_inputs`)을 함께 남긴다(2026-10-15 ·
+ * REQ-API-303) — 지문이 가리키는 정책 본문은 정책을 고칠 때의 감사(`project.updated`)에 있다.
  */
-export function gateEventPayload(gate: GateDecision): {
+export function gateEventPayload(
+  gate: GateDecision,
+  audit?: GateAudit,
+): {
   gate_tier: GateTier;
   gate_score: number;
   gate_axes: Record<GateAxis, number>;
   gate_signals: GateSignal[];
   gate_evidence?: GateEvidence[];
+  gate_inputs?: GateInputs;
+  policy_fingerprint?: string;
+  policy_fallback?: true;
 } {
   return {
     gate_tier: gate.tier,
@@ -181,6 +204,14 @@ export function gateEventPayload(gate: GateDecision): {
     ...(gate.evidence !== undefined && gate.evidence.length > 0
       ? { gate_evidence: gate.evidence }
       : {}),
+    ...(audit === undefined
+      ? {}
+      : {
+          gate_inputs: audit.inputs,
+          policy_fingerprint: audit.policyFingerprint,
+          // 기본 정책으로 대신 판정했을 때만 — 지문만 보면 "기본 정책을 골랐다" 와 구별되지 않는다
+          ...(audit.policyFallback ? { policy_fallback: true as const } : {}),
+        }),
   };
 }
 

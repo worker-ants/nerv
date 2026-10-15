@@ -54,6 +54,11 @@ allowed-tools:
     `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다 — 우회하지 않는다.
     `spec_version` 이면 결과를 보고한다(`approve` 는 approved, `reject` 는 draft 로 복귀했다는 뜻).
     **같은 결재는 1시간 동안 매 하트비트에 다시 온다** — `approval_id` 로 한 번만 처리한다.
+  - `approval_expired`(내가 낸 스펙 검토 요청을 7일 동안 아무도 결정하지 않아 만료됐다 — `approval_id`·
+    `subject_key`·`version_no`·`expired_at` 이 함께 온다) → 그 버전은 draft 로 돌아갔다. 사람에게 보고하고,
+    다시 검토를 요청할지는 사람에게 묻는다(/nerv:spec submit — A3). 그 사이 채워진 승인은 다시 낸 검토에서
+    세지 않는다. 계획 승인 · critical 하향 카드는 만료되지 않는다. **같은 만료도 1시간 동안 매 하트비트에 다시
+    온다** — `approval_id` 로 한 번만 처리한다.
   - steer 지시 → 지시를 다음 행동에 즉시 반영.
   - stop 지시 → 현재 편집을 안전 지점까지 마무리하고
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.

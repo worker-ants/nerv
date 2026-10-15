@@ -136,6 +136,29 @@ export async function changePassword(input: {
 }
 
 /**
+ * 이메일을 바꿔 달라고 부탁한다 — 인증 스택의 `/change-email`(2026-10-15 · 사람 결정 · REQ-API-310 · REQ-WEB-229).
+ * 지금 비밀번호를 함께 보낸다(인증 스택은 묻지 않지만 서버가 다시 묻는다). 바로 바뀌지 않는다 — 지금 주소로 승인 메일이
+ * 가고, 승인하면 새 주소로 확인 메일이 간다. **이미 다른 계정이 쓰는 주소도 같은 답이다**(계정이 있는지 알려 주지 않는다).
+ * 가르는 것은 사람이 할 일이 달라지는 것뿐이다: 메일을 보내지 않는 서버(`disabled`) · 비밀번호 · 같은 주소 · 한도.
+ */
+export async function requestEmailChange(input: {
+  newEmail: string;
+  password: string;
+}): Promise<'sent' | 'disabled' | AuthFailure> {
+  const res = await authFetch('/change-email', {
+    newEmail: input.newEmail,
+    password: input.password,
+  });
+  if (res.ok) return 'sent';
+  if (res.status === 429) return { key: 'auth.too_many' };
+  const body = await readBody(res);
+  if (body.code === 'CHANGE_EMAIL_DISABLED') return 'disabled';
+  if (body.code === 'INVALID_PASSWORD') return { key: 'auth.password_wrong' };
+  if (body.message === 'Email is the same') return { key: 'auth.email_same' };
+  return { key: 'auth.request_failed' };
+}
+
+/**
  * 비밀번호 재설정 메일을 부탁한다(2026-09-25 · REQ-API-187 · REQ-WEB-231).
  *
  * **보냈다와 계정이 없다를 가르지 않는다** — 서버가 같은 답을 하고, 화면도 같은 문장으로 말한다. 가르는 것은

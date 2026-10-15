@@ -7,7 +7,8 @@
 // 승인 축은 clemvion 이 갖지 못했던 것이다(D-01). 그 축이 실제로 서 있는지는 "가변 구간이
 // draft 하나뿐"이라는 성질이 DB 에서 강제되는지로 판정된다.
 
-import { NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { defaultGatePolicy, NERV_ERROR, NERV_EVENT, newId } from '@nerv/schema';
+import { policyFingerprint } from '@nerv/schema/keys';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -234,7 +235,24 @@ describe('E09-S01 문서 축 — 가변 구간은 draft 하나뿐이다', () => 
       `SELECT payload FROM event WHERE type = 'spec.submitted' AND subject_id = $1`,
       [draft['spec_version_id']],
     );
-    expect(submittedEvents[0]?.payload).toEqual(reason);
+    // 판정을 다시 계산할 재료도 함께 남는다(2026-10-15 · REQ-API-303) — 이 프로젝트는 정책을 고치지 않았으므로 기본
+    // 정책의 지문이다
+    expect(submittedEvents[0]?.payload).toEqual({
+      ...reason,
+      policy_fingerprint: policyFingerprint(defaultGatePolicy()),
+      gate_inputs: {
+        spec_type: 'feature',
+        requirements_added: 2,
+        requirements_removed: 0,
+        requirements_modified: 0,
+        referencing_specs: 0,
+        derived_tasks: 0,
+        approved_requirements_removed: false,
+        first_approved_version: true,
+        retry_reported: false,
+        body_shrunk: false,
+      },
+    });
     const { items } = await approvals.inbox({
       projectId,
       userId: reviewer,

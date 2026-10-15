@@ -112,12 +112,12 @@ If your company uses an internal git marketplace, enter that git URL instead and
 
 Four things are installed.
 
-| What                        | What it does                                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Seven skills                | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve` |
-| Hooks                       | Send what the agent does to the sessions screen                                                       |
-| statusline                  | Shows your current claim, time left on the lease, and declared-scope overlaps on the prompt line      |
-| Subagent `nerv-spec-writer` | A dedicated agent that only drafts specs                                                              |
+| What            | What it does                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------- |
+| Seven skills    | `/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`         |
+| Hooks           | Send what the agent does to the sessions screen                                                               |
+| statusline      | Shows your current claim, time left on the lease, and declared-scope overlaps on the prompt line              |
+| Three subagents | `nerv-spec-writer` only drafts specs; `nerv-code-reviewer` and `nerv-consistency-checker` only submit reviews |
 
 **The `nerv_*` tools are not among these four.** To use them, your repository needs a `.mcp.json`. The server address and token differ per project, so the plugin does not include this file.
 

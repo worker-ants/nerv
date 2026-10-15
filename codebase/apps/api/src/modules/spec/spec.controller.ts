@@ -40,6 +40,7 @@ import {
   SpecArchiveInput,
   SpecArrangeInput,
   SpecMetaUpdateInput,
+  SpecRevertInput,
 } from '@nerv/schema';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
@@ -308,6 +309,36 @@ export class SpecController {
               ...(r.base_hash == null ? {} : { baseHash: r.base_hash }),
             })),
           }),
+    });
+  }
+
+  /**
+   * EP-SPEC-30 — **되돌리기**(2026-10-15 · 사람 결정 · REQ-API-308). `{no}` 버전의 본문을 그대로 복사해 새 초안을
+   * 만든다. 권한은 초안 저장과 같다(`spec:draft`). 판정은 서비스 한 곳이다 — MCP 는 `nerv_spec_draft_upsert` 의
+   * `revert_to_version` 으로 같은 자리를 부른다(D-05).
+   */
+  @RequireScope('spec:draft')
+  @Post('specs/:spec/versions/:no/revert')
+  revert(
+    @Req() req: ProjectRequest,
+    @Param('spec') spec: string,
+    @Param('no') no: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = req.nervPrincipal;
+    if (principal === undefined) {
+      throw new NervError(NERV_ERROR.UNAUTHENTICATED, msg('error.auth.missing'), {
+        kind: 'missing',
+      });
+    }
+    const input = parseBody(SpecRevertInput, body ?? {});
+    return this.specs.revertToVersion({
+      projectId: projectOf(req),
+      specId: spec,
+      versionNo: /^\d+$/.test(no) ? Number(no) : Number.NaN,
+      userId: principal.userId,
+      ...(input.base_hash == null ? {} : { baseHash: input.base_hash }),
+      ...(input.change_summary == null ? {} : { changeSummary: input.change_summary }),
     });
   }
 

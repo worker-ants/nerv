@@ -6,6 +6,9 @@
 // `./migrate` 와 같은 이유의 같은 처방이다: **키를 발급하는 쪽은 서버와 CLI 뿐이다.**
 
 import { createHash } from 'node:crypto';
+import { POLICY_FINGERPRINT_LENGTH } from './constants.js';
+import { canonicalPolicyJson } from './zod/policy.js';
+import type { GatePolicy } from './zod/policy.js';
 
 /**
  * 표시 키 — `<project.key>-<타입>-<base32 6자>` (데이터 모델 §5.1 정본. 예: `CLV-T-7QF3K2`)
@@ -143,4 +146,22 @@ export function changesetHash(input: {
   const parts = [input.baseSha.trim(), input.headSha.trim(), ...files];
   if (input.salt != null && input.salt !== '') parts.push(`salt:${input.salt}`);
   return createHash('sha256').update(parts.join('\n'), 'utf8').digest();
+}
+
+/**
+ * **적용 정책 지문**(2026-10-15 · 사람 결정 · api.md REQ-API-303) — 판정에 실제로 쓴 유효 정책을 키 정렬한 JSON 의
+ * sha256 앞 `POLICY_FINGERPRINT_LENGTH`(16)자.
+ *
+ * 인자는 **기본값까지 채운** 정책이다(`GatePolicySchema` 의 결과 · `effectiveGatePolicy`). 그래서 저장된 값이 `{}` 인
+ * 프로젝트와 기본값을 하나하나 적어 둔 프로젝트는 같은 지문을 낸다 — 판정이 같기 때문이다. 정책이 깨져 기본값으로
+ * 판정했으면 지문도 기본 정책의 것이다.
+ *
+ * 판정 이벤트(`spec.submitted` · `spec.approved` · `task.done`)가 이 값을 남기고, 정책을 고칠 때의 감사
+ * (`project.updated`)가 같은 값과 정책 본문을 함께 남긴다 — 지문으로 그 본문을 찾으면 지난 판정을 다시 계산할 수 있다.
+ */
+export function policyFingerprint(policy: GatePolicy): string {
+  return createHash('sha256')
+    .update(canonicalPolicyJson(policy), 'utf8')
+    .digest('hex')
+    .slice(0, POLICY_FINGERPRINT_LENGTH);
 }

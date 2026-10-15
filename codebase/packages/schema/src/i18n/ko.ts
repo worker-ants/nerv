@@ -106,6 +106,8 @@ export const ko = {
   'error.approval.already_approved':
     '이미 승인한 문서입니다. 두 번째 승인은 다른 사람이 해야 합니다.',
   'error.approval.already_decided': '이미 결정된 항목입니다.',
+  'error.approval.expired':
+    '7일 동안 결정되지 않아 만료된 결재입니다. 문서는 초안으로 돌아갔고, 다시 검토를 요청하면 새로 결정할 수 있습니다.',
   'error.approval.content_changed':
     '불러온 뒤 내용이 바뀌었습니다. 바뀐 내용을 확인하고 다시 결정하세요.',
   'error.approval.not_assignee': '지정된 승인자가 아닙니다.',
@@ -276,6 +278,13 @@ export const ko = {
     '처분은 바꿀 수 없습니다. 다시 다뤄야 한다면 새 발견으로 등록하세요.',
   'inbox.card.correct.finding_returned': '에이전트가 다시 요청하면 새 카드가 생깁니다.',
   'inbox.card.correct.bypass': '면제는 기록으로 남습니다. 취소하려면 새로 결정해야 합니다.',
+  // 만료 탭의 카드(2026-10-15 · REQ-WEB-310) — 결정 없이 끝났다. 다시 오는 길을 적는다
+  'inbox.card.correct.spec_expired':
+    '7일 동안 결정되지 않아 문서가 초안으로 돌아갔습니다. 작성자가 다시 검토를 요청하면 새 카드가 생깁니다.',
+  'inbox.card.expired_at': '만료 · {when}',
+  /** 요청 뒤 2일을 넘긴 카드(2026-10-15 · REQ-WEB-310) */
+  'inbox.card.overdue': '지연',
+  'inbox.card.overdue_hint': '요청 뒤 2일이 지났습니다.',
   'inbox.card.to_session': '세션으로',
   // 티어 곁의 근거 한 줄(2026-09-26 · REQ-WEB-240) — 축별 점수와 신호가 뒤따른다
   'inbox.card.gate_score': '위험도 {score}점',
@@ -305,6 +314,8 @@ export const ko = {
     '다른 세션이 가진 편집 리스를 넘겨받는다. 끊긴 세션이 리스를 놓지 않았을 때 쓴다',
   'mcp.arg.allow_shrink':
     '덮어쓸 본문보다 크게 줄이는 저장임을 밝힌다(크기 · 제목 수 · 남은 요구사항 가운데 하나가 절반 아래). 없으면 body_shrunk로 거절된다. 사람이 삭제를 확인했을 때만 준다',
+  'mcp.arg.revert_to_version':
+    '되돌리기 — 이 번호의 옛 버전(승인됨 · 대체됨) 본문을 서버가 그대로 복사해 새 초안을 만든다. spec_id와 base_hash(지금 최신 버전의 지문)를 함께 주고 본문은 넣지 않는다. 열린 초안이 있으면 open_draft_exists로 거절된다',
   'notif.scope_all': '내가 속한 모든 조직의 알림입니다. 줄마다 조직과 프로젝트가 표시됩니다.',
   'scope.elsewhere': '지금 선택한 조직이 아닌 {org}의 항목입니다',
   'scope.org_wide': '조직 전체',
@@ -411,6 +422,9 @@ export const ko = {
     '직전 버전 v{n}보다 본문이 크게 줄었습니다({detail}). 의도하지 않았으면 빠진 내용을 되살리세요. 의도한 삭제면 `allow_shrink: true`를 넣어 다시 저장해 확인을 남기세요.',
   'check.body_shrunk_ack':
     '직전 버전 v{n}보다 본문이 크게 줄었습니다({detail}). 저장할 때 의도한 삭제로 확인했습니다.',
+  // 문서 간 소유(2026-10-15 · REQ-API-309) — 다른 문서가 가진 번호를 이 문서가 정의한다
+  'check.requirement_owned':
+    '{ref}은(는) {owner} 문서의 요구사항입니다. 같은 번호를 정의한 문서는 승인할 수 없습니다. 새 번호를 받아 바꾸세요. {owner}에서 옮겨 오는 것이면 먼저 그 문서의 새 버전에서 이 줄을 빼고 승인받으세요.',
   'body_change.bytes': '크기 {before} → {after}',
   'body_change.headings': '제목 {before} → {after}개',
   'body_change.requirements': '요구사항 {before}개 중 {kept}개 남음',
@@ -650,6 +664,13 @@ export const ko = {
   'spec.requirements.draft_open_diff': 'v{from}..v{to} 비교 보기',
   'spec.requirements.format': '- REQ-<접두>-<번호> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다',
   'spec.requirements.no_priority': '우선순위 없음',
+  'spec.requirements.next_title': '새 요구사항 한 줄',
+  'spec.requirements.next_prefix': '접두',
+  'spec.requirements.next_line': '- {ref} WHEN <조건>이면 THE SYSTEM SHALL <동작>한다',
+  'spec.requirements.next_hint':
+    '복사해서 에이전트에게 넘기면 에이전트가 요구사항 줄의 끝에 넣습니다. 번호는 제안이고 문서가 승인될 때 확정됩니다.',
+  'spec.requirements.next_prefix_invalid':
+    '접두는 영문 대문자로 시작하고 영문 대문자와 숫자만 씁니다(16자까지).',
   'specs.basis': '버전 기준',
   'specs.basis_approved': '승인본',
   'specs.basis_latest': '최신 (초안 포함)',
@@ -894,6 +915,13 @@ export const ko = {
     '기준선으로 읽을 때는 상태 필터를 함께 지정할 수 없습니다. 기준선에 담긴 문서는 담을 때 모두 승인본이었습니다.',
   'error.spec.in_review_pending':
     '검토 중인 버전(v{n})이 있어 새 초안을 만들 수 없습니다. 결재가 끝나거나 거절되어 초안으로 돌아오면 그 위에서 이어 쓰세요.',
+  'error.spec.open_draft_exists':
+    '열린 초안(v{n})이 있어 되돌릴 수 없습니다. 그 초안을 덮어쓰지 않습니다. 그 초안을 이어 쓸지 사람에게 확인하세요.',
+  'error.spec.revert_no_change':
+    '되돌릴 버전(v{n})의 본문이 지금 최신 버전(v{latest})과 같습니다. 되돌릴 것이 없습니다.',
+  'error.spec.requirement_owned':
+    '다른 문서의 요구사항 번호를 정의하고 있어 승인하지 않았습니다({refs}). 이 버전을 거절하고 번호를 바꾸게 하세요.',
+  'spec.revert_summary': 'v{n} 본문으로 되돌림',
   'error.task.rebrief_baseline':
     '기준선으로 개발하는 작업은 기준 버전만 옮길 수 없습니다. 작업의 기준선을 새 기준선으로 바꾸세요.',
   'error.task.baseline_pin_mismatch':
@@ -986,6 +1014,9 @@ export const ko = {
   'event.approval.decided': '결재 완료',
   'event.approval.requested': '승인 요청',
   'event.approval.reminded': '결재 리마인더',
+  // 결재 SLA(2026-10-15 · REQ-API-304 · 305) — 2일을 넘긴 결재 · 7일 동안 결정되지 않아 초안으로 돌아간 검토
+  'event.approval.overdue': '결재 지연',
+  'event.approval.expired': '결재 만료',
   'event.baseline.created': '기준선 생성',
   'event.claim.conflict_blocked': '범위 겹침으로 클레임 거부',
   'event.claim.conflict_warn': '범위 겹침 경고',
@@ -1491,11 +1522,13 @@ export const ko = {
   'inbox.card.untitled': '(제목 없음)',
   'inbox.count_decided': '처리됨 {count}건',
   'inbox.count_pending': '대기 {count}건',
+  'inbox.count_expired': '만료 {count}건',
   'inbox.decision.approve': '승인',
   'inbox.decision.comment': '코멘트',
   'inbox.decision.reject': '거절',
   'inbox.empty_decided_hint': '승인·거절·코멘트한 요청이 여기 남습니다.',
   'inbox.empty_pending_hint': '에이전트가 승인을 요청하면 여기에 표시됩니다.',
+  'inbox.empty_expired_hint': '7일 동안 결정되지 않아 초안으로 돌아간 스펙 결재가 여기 남습니다.',
   'inbox.key.approve': '승인',
   'inbox.key.bulk': '일괄 승인·거절',
   'inbox.key.comment': '코멘트',
@@ -1504,6 +1537,7 @@ export const ko = {
   'inbox.key.select': '선택',
   'inbox.tab.decided': '처리됨',
   'inbox.tab.pending': '대기',
+  'inbox.tab.expired': '만료',
   'inbox.title': '받은 요청',
   'inbox.waited.days': '{n}일 대기',
   'inbox.waited.hours': '{n}시간 대기',
@@ -1581,6 +1615,14 @@ export const ko = {
   'project.waiting.notifications': '중요 알림 {count}건',
   'project.waiting.sessions': '응답 대기 세션 {count}개',
   'project.waiting.critical': '열린 critical {count}건',
+  // 지연 결재 · 역할 큐 재검토 지표(2026-10-15 · REQ-WEB-311)
+  'project.waiting.overdue': '지연 결재 {count}건',
+  'project.waiting.overdue_hint': '요청 뒤 2일이 지나도 결정되지 않은 결재입니다.',
+  'project.approval_lag.label': '결재 흐름',
+  'project.approval_lag.summary':
+    '최근 {days}일 결재 {total}건 가운데 {late}건({percent}%)이 하루를 넘겼습니다.',
+  'project.approval_lag.review':
+    '{threshold}%를 넘었습니다. 결재를 역할 큐 대신 특정인에게 맡길지 검토할 때입니다.',
   'project.no_sessions_hint_post': '로 작업을 맡으면 여기에 표시됩니다.',
   'project.no_sessions_hint_pre': '에이전트가',
   'project.recent_events': '최근 활동',
@@ -1650,6 +1692,14 @@ export const ko = {
   'spec.diff.no_previous': '첫 버전이라 비교할 이전 버전이 없습니다',
   'spec.diff.open': '이전 버전과 비교',
   'spec.version.open': '이 버전 전체 보기',
+  'spec.version.reverted': 'v{n} 본문으로 되돌림',
+  'spec.revert.title': '이 버전으로 되돌리기',
+  'spec.revert.hint':
+    'v{n} 본문을 그대로 복사한 새 초안을 에이전트가 만듭니다. 그 초안도 다른 초안처럼 검토를 거칩니다.',
+  'spec.revert.blocked_draft':
+    '열린 초안(v{n})이 있어 새 초안을 만들 수 없습니다. 되돌리려면 그 초안을 v{m} 본문으로 바꾸도록 에이전트에게 맡기세요.',
+  'spec.revert.blocked_review':
+    '검토 중인 버전(v{n})이 있어 지금은 되돌릴 수 없습니다. 결재가 끝난 뒤에 되돌리세요.',
   'spec.gate_passed': '{tier}: 승인 없이 통과했습니다(이벤트로 기록됨).',
   'spec.impact_backlinks': '이 문서를 참조하는 문서 {count}건. 승인되면 재확인 요청이 갑니다',
   'spec.impact_dialog': '검토 요청 영향',
@@ -1976,7 +2026,24 @@ export const ko = {
   'account.name_hint': '멤버 목록·카드·활동에 이 이름이 표시됩니다.',
   'account.name_saved': '이름을 바꿨습니다.',
   'account.email': '이메일',
-  'account.email_hint': '로그인 아이디라서 바꿀 수 없습니다.',
+  'account.email_hint':
+    '로그인 아이디입니다. 바꾸려면 지금 주소와 새 주소의 메일함을 모두 열 수 있어야 합니다.',
+  // ── 이메일 바꾸기 (2026-10-15 · 사람 결정 · screens.md REQ-WEB-229 · api.md REQ-API-310) ──────────
+  'account.email_change': '이메일 바꾸기',
+  'account.email_new': '새 이메일',
+  'account.email_steps':
+    '보내면 지금 주소로 승인 메일이 갑니다. 승인하면 새 주소로 확인 메일이 가고, 그 링크를 열면 바뀝니다. 바뀌면 다른 기기의 로그인이 모두 끊기고 에이전트 토큰은 그대로입니다.',
+  'account.email_submit': '승인 메일 보내기',
+  'auth.email_same': '지금 주소와 같습니다.',
+  'account.email_off_server':
+    '이 서버는 메일을 보내지 않아서 여기서 이메일을 바꿀 수 없습니다. 서버 운영자에게 문의해 주세요.',
+  'account.email_pending_approve':
+    '{email} 주소로 바꾸는 중입니다. 지금 주소의 메일함에서 승인 링크를 여세요.',
+  'account.email_pending_confirm':
+    '{email} 주소로 바꾸는 중입니다. 승인을 마쳤습니다. 새 주소의 메일함에서 확인 링크를 열면 바뀝니다.',
+  'account.email_pending_hint':
+    '링크는 {minutes}분 동안 쓸 수 있습니다. 다른 주소로 다시 보내면 앞의 요청은 취소됩니다.',
+  'account.email_requested': '지금 주소로 승인 메일을 보냈습니다.',
   'account.password': '비밀번호',
   'account.digest': '메일 요약',
   'account.digest_hint':
@@ -2052,6 +2119,23 @@ export const ko = {
   'reset.invalid': '쓸 수 없는 링크입니다',
   'reset.invalid_body': '만료됐거나({minutes}분) 이미 쓴 링크입니다. 새 링크를 받으세요.',
   'reset.request_again': '재설정 링크 다시 받기',
+  // ── 이메일 바꾸기 결과 화면 /email-change (2026-10-15 · 사람 결정 · screens.md REQ-WEB-314) ──────────
+  'email_change.lead': '이메일 바꾸기',
+  'email_change.approved': '승인했습니다',
+  'email_change.approved_body':
+    '새 주소로 확인 메일을 보냈습니다. 새 주소의 메일함에서 링크를 열면 이메일이 바뀝니다. 링크는 {minutes}분 동안 쓸 수 있습니다.',
+  'email_change.done': '이메일을 바꿨습니다',
+  'email_change.done_signed_in':
+    '이제 새 주소로 로그인합니다. 이 브라우저는 로그인 상태 그대로이고, 다른 기기의 로그인은 모두 끊었습니다.',
+  'email_change.done_signed_out':
+    '이제 새 주소로 로그인합니다. 모든 기기의 로그인을 끊었으니 새 주소로 다시 로그인하세요.',
+  'email_change.invalid': '쓸 수 없는 링크입니다',
+  'email_change.invalid_body':
+    '만료됐거나({minutes}분) 이미 쓴 링크이거나, 더 새 요청으로 바뀐 링크입니다. 내 계정에서 다시 요청하세요.',
+  'email_change.other_account':
+    '다른 계정으로 로그인한 브라우저입니다. 로그아웃한 뒤 링크를 다시 여세요.',
+  'email_change.to_account': '내 계정으로',
+  'email_change.to_login': '로그인하기',
   'unsubscribe.lead': '메일 요약을 끕니다.',
   'unsubscribe.title': '알림 메일 요약을 끄겠습니까?',
   'unsubscribe.body':
@@ -2144,6 +2228,7 @@ export const ko = {
   'session.stale_note_task':
     '30분 동안 활동이 없어 무응답으로 바뀌었습니다. {key}의 클레임은 회수됐습니다.',
   'inbox.empty_decided': '처리한 항목이 없습니다',
+  'inbox.empty_expired': '만료된 요청이 없습니다',
   'inbox.see_pending': '대기 중인 요청 보기',
   'notif.empty_action': '받은 요청 보기',
   'reviews.queue.empty_action': '리뷰가 들어오는 방법',
@@ -2271,6 +2356,16 @@ export const ko = {
   'mail.reset.subject': '[NERV] 비밀번호를 새로 정하는 링크입니다',
   'mail.reset.body':
     '{name} 님,\n\n비밀번호를 새로 정해 달라는 요청을 받았습니다. 아래 주소를 열어 새 비밀번호를 정하세요.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다. 새 비밀번호를 정하면 모든 기기에서 로그아웃됩니다.\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 링크를 열어 새 비밀번호를 정하지 않으면 비밀번호는 바뀌지 않습니다.',
+  // 이메일 바꾸기의 메일 셋(2026-10-15 · 사람 결정 · api.md REQ-API-310) — 옛 주소의 승인 · 새 주소의 확인 · 바뀐 뒤의 알림
+  'mail.change_email.approve.subject': '[NERV] 이메일 주소를 바꾸려면 승인해 주세요',
+  'mail.change_email.approve.body':
+    '{name} 님,\n\nNERV 계정의 이메일 주소를 바꿔 달라는 요청을 받았습니다.\n\n지금 주소: {email}\n새 주소: {new_email}\n\n직접 요청했다면 아래 주소를 열어 승인하세요. 승인하면 새 주소로 확인 메일이 가고, 그 메일의 링크까지 열어야 주소가 바뀝니다.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다.\n\n요청한 적이 없다면 이 링크를 열지 마세요. 링크를 열지 않으면 아무것도 바뀌지 않습니다. 누군가 비밀번호를 알고 있을 수 있으니 비밀번호를 바꾸세요.',
+  'mail.change_email.confirm.subject': '[NERV] 새 이메일 주소를 확인해 주세요',
+  'mail.change_email.confirm.body':
+    '{name} 님,\n\nNERV 계정의 이메일 주소를 이 주소({email})로 바꾸는 중입니다. 지금 주소에서 승인을 마쳤습니다.\n\n아래 주소를 열면 확인이 끝나고 이메일 주소가 바뀝니다.\n{url}\n\n이 링크는 {minutes}분 동안 한 번만 쓸 수 있습니다. 바뀌면 다른 기기의 로그인이 모두 끊기고, 그다음부터는 이 주소로 로그인합니다.\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 링크를 열지 않으면 아무것도 바뀌지 않습니다.',
+  'mail.change_email.done.subject': '[NERV] 계정의 이메일 주소가 바뀌었습니다',
+  'mail.change_email.done.body':
+    '{name} 님,\n\nNERV 계정의 이메일 주소가 바뀌었습니다.\n\n옛 주소: {email}\n새 주소: {new_email}\n\n이제 새 주소로 로그인합니다. 이 주소로는 더 이상 로그인할 수 없고, NERV 메일은 앞으로 새 주소로 갑니다. 다른 기기의 로그인은 모두 끊었습니다.\n\n직접 바꾸지 않았다면 서버 운영자에게 바로 알려 주세요.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '문서 {nodes} · 관계 {edges}',
   'graph.empty': '관계가 아직 없습니다.',

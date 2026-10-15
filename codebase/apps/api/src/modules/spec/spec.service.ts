@@ -15,7 +15,7 @@ import {
   canCreateSpecType,
   evidenceKind,
   EVIDENCE_NOTE_MAX,
-  GatePolicySchema,
+  effectiveGatePolicy,
   implStatus,
   LEASE_HEARTBEAT_GRACE_SECONDS,
   LEASE_TTL_SECONDS,
@@ -25,6 +25,7 @@ import {
   NERV_EVENT,
   newId,
   normalizeEvidenceNote,
+  REQUIREMENT_PREFIX,
   SPEC_APPROVER_ROLES,
   SPEC_SUBMIT_ROLES,
   sizeLabel,
@@ -33,6 +34,7 @@ import {
   text,
 } from '@nerv/schema';
 import type { GateEvidence, SpecReadAs } from '@nerv/schema';
+import { policyFingerprint } from '@nerv/schema/keys';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { evidenceExistsSql, normalizedStatementSql, reverifyRequiredSql } from './impl-status.js';
@@ -72,7 +74,7 @@ const DIFF_LINE_CAP = 400;
 const ANCESTOR_DEPTH_LIMIT = 64;
 import { EventService } from '../event/event.service.js';
 import { decideGate, gateEventPayload, inferAxes } from './gate-tier.js';
-import type { GateDecision } from './gate-tier.js';
+import type { GateAudit, GateDecision } from './gate-tier.js';
 import { SpecCheckService } from './spec-check.service.js';
 import { SpecCommentService } from './spec-comment.service.js';
 import type { CheckResult } from './spec-check.service.js';
@@ -103,6 +105,9 @@ export interface SubmitReviewInput {
   /** 제출 권한의 축 — 표면이 실어 준다(2026-09-07 · REQ-API-139) */
   roles?: readonly string[];
 }
+
+/** 승인 이벤트가 그대로 기록하는 판정 — 티어 · 자동 통과 · 적용 정책 지문(지문이 생기기 전의 제출이면 `null`) */
+type ApprovedGate = Pick<GateDecision, 'tier' | 'autoPass'> & { policyFingerprint: string | null };
 
 export interface SubmitReviewResult {
   status: string;
@@ -216,6 +221,11 @@ function specMatch(ref: string): SQL {
   return parsed.id === null ? sql`s.key = ${ref}` : sql`s.id = ${parsed.id}`;
 }
 
+/** 되돌리기로 만든 버전의 이벤트 칸(REQ-API-308) — 아니면 칸을 두지 않는다 */
+function revertedPayload(versionNo: number | null): { reverted_to_version_no?: number } {
+  return versionNo === null ? {} : { reverted_to_version_no: Number(versionNo) };
+}
+
 @Injectable()
 export class SpecService {
   private readonly logger = new Logger(SpecService.name);
@@ -259,20 +269,41 @@ export class SpecService {
   private async syncRequirements(
     tx: Tx,
     input: { projectId: string; specId: string; specVersionId: string },
-  ): Promise<void> {
+  ): Promise<{ moved: { ref: string; from_key: string }[] }> {
     const { rows } = await tx.execute<{ body_md: string }>(
       sql`SELECT body_md FROM spec_version WHERE id = ${input.specVersionId}`,
     );
     const found = requirementsOf(rows[0]?.body_md ?? '');
 
+    // **다른 문서가 가진 번호는 덮지 않는다**(2026-10-15 · REQ-API-309). `ON CONFLICT` 가 `spec_id` 를 보지 않던
+    // 동안 다른 문서가 같은 번호를 정의해 승인하면 그 문서의 요구사항 문장을 조용히 덮었다(소유는 옛 문서인 채).
+    // 소유가 풀린 번호 — 가진 문서의 최신 승인본에서 그 줄이 빠진 것(`removed_in_version_id`) — 는 옮겨 온다.
+    // 판정을 갱신 조건에 두어 동시에 승인하는 두 문서도 덮지 못한다(나중 쪽은 갱신된 행이 없어 거절된다).
+    const { rows: before } = await tx.execute<{ ref: string; owner_key: string }>(sql`
+      SELECT r.ref, s.key AS owner_key
+        FROM requirement r JOIN spec s ON s.id = r.spec_id
+       WHERE r.project_id = ${input.projectId} AND r.spec_id <> ${input.specId}
+         AND r.removed_in_version_id IS NOT NULL
+         AND r.ref = ANY(${sqlArray([...found.keys()], 'text')})
+    `);
+    const releasedFrom = new Map(before.map((row) => [row.ref, row.owner_key]));
+    const refused: string[] = [];
+    const moved: { ref: string; from_key: string }[] = [];
+
     for (const [ref, statement] of found) {
-      await tx.execute(sql`
+      const { rows: written } = await tx.execute<{ id: string }>(sql`
         INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
                                  introduced_in_version_id, current_version_id)
         VALUES (${newId()}, ${input.projectId}, ${input.specId}, ${ref}, ${statement},
                 'must'::requirement_priority, ${input.specVersionId}, ${input.specVersionId})
         ON CONFLICT (project_id, ref) DO UPDATE
-              SET statement_md = ${statement},
+              SET spec_id = ${input.specId},
+                  -- 옮겨 온 요구사항은 이 문서의 이 버전에서 들어온 것이다 — 기준선 검색이 버전 번호를 견주는
+                  -- 축이 문서마다라서, 옛 문서의 버전을 가리키면 견줄 수 없다
+                  introduced_in_version_id = CASE WHEN requirement.spec_id = ${input.specId}
+                                                  THEN requirement.introduced_in_version_id
+                                                  ELSE ${input.specVersionId}::uuid END,
+                  statement_md = ${statement},
                   -- **문장이 바뀐 시각**(2026-09-26 · REQ-API-190). 검증 서명은 그 문장에 대한
                   -- 것이라, 이 시각보다 앞선 서명은 지금 문장을 보증하지 않는다. 공백·서식만
                   -- 바뀐 것은 바뀐 것으로 치지 않는다
@@ -283,7 +314,30 @@ export class SpecService {
                   current_version_id = ${input.specVersionId},
                   -- 빠졌다가 돌아온 요구사항은 다시 살아 있는 것으로 본다
                   removed_in_version_id = NULL
+          WHERE requirement.spec_id = ${input.specId}
+             OR requirement.removed_in_version_id IS NOT NULL
+        RETURNING id
       `);
+      if (written.length === 0) refused.push(ref);
+      else if (releasedFrom.has(ref)) moved.push({ ref, from_key: releasedFrom.get(ref) ?? '' });
+    }
+    if (refused.length > 0) {
+      const { rows: owners } = await tx.execute<{ ref: string; owner_key: string }>(sql`
+        SELECT r.ref, s.key AS owner_key
+          FROM requirement r JOIN spec s ON s.id = r.spec_id
+         WHERE r.project_id = ${input.projectId} AND r.ref = ANY(${sqlArray(refused, 'text')})
+         ORDER BY r.ref
+      `);
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.spec.requirement_owned', {
+          refs: owners.map((o) => `${o.ref} → ${o.owner_key}`).join(', '),
+        }),
+        {
+          kind: 'requirement_owned',
+          owned: owners.map((o) => ({ ref: o.ref, owner_key: o.owner_key })),
+        },
+      );
     }
 
     // 문장이 바뀐 요구사항은 다시 파생한다 — 옛 문장에 한 서명으로 선 검증은 여기서 풀린다.
@@ -293,13 +347,14 @@ export class SpecService {
     `);
     for (const row of restated) await recomputeImplStatus(tx, row.id);
 
-    // 본문에서 사라진 것 — 지우지 않고 이 버전에서 빠졌다고 적는다
+    // 본문에서 사라진 것 — 지우지 않고 이 버전에서 빠졌다고 적는다. 이것이 소유가 풀리는 자리다(REQ-API-309)
     await tx.execute(sql`
       UPDATE requirement
          SET removed_in_version_id = ${input.specVersionId}
        WHERE spec_id = ${input.specId} AND removed_in_version_id IS NULL
          AND NOT (ref = ANY(${sqlArray([...found.keys()], 'text')}))
     `);
+    return { moved };
   }
 
   /**
@@ -1162,37 +1217,7 @@ export class SpecService {
       // 예전에는 열린 초안이 없으면 승인본의 지문과 견줘, 검토 중인 개정판을 건너뛴 새 초안이 경고 없이
       // 생겼고(계보는 그 개정판을 가리켰다) 개정판이 거절되면 초안이 둘이 됐다. "가변 구간은 초안
       // 하나" 라는 문서 축의 규칙대로, 결재가 끝나거나 거절되어 초안으로 돌아오면 그 위에서 잇는다.
-      if (isExisting && draft === null) {
-        const { rows: reviewing } = await tx.execute<{
-          version_no: number;
-          approval_id: string | null;
-        }>(sql`
-          SELECT sv.version_no,
-                 (SELECT a.id FROM approval a
-                   WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id
-                     AND a.decision IS NULL
-                   ORDER BY a.requested_at DESC LIMIT 1) AS approval_id
-            FROM spec_version sv
-           WHERE sv.spec_id = ${specId} AND sv.status = 'in_review'
-           ORDER BY sv.version_no DESC LIMIT 1
-        `);
-        const pending = reviewing[0];
-        if (pending !== undefined) {
-          throw new NervError(
-            NERV_ERROR.PRECONDITION,
-            msg('error.spec.in_review_pending', { n: pending.version_no }),
-            {
-              kind: 'in_review_pending',
-              version_no: pending.version_no,
-              approval_id: pending.approval_id,
-              web_url:
-                pending.approval_id === null
-                  ? await this.webUrl(tx, input.projectId, specId, pending.version_no)
-                  : this.inboxUrl(pending.approval_id),
-            },
-          );
-        }
-      }
+      if (isExisting && draft === null) await this.assertNoReview(tx, input.projectId, specId);
 
       // **비교-교환**(§1.4g). 부른 쪽이 말하는 것은 **"어느 내용을 보고 썼는가" 하나**다.
       // "어느 행에서 갈라졌는가"(계보)는 서버가 아는 사실이라 묻지 않는다 — 예전에는
@@ -1507,6 +1532,198 @@ export class SpecService {
   }
 
   /**
+   * **되돌리기**(2026-10-15 · 사람 결정 · REQ-API-308 · 3.5 §2.4) — 옛 버전의 본문을 바이트 그대로 복사해 **새 초안**을
+   * 만든다. EP-SPEC-30 과 `nerv_spec_draft_upsert`(`revert_to_version`)가 이 한 자리를 부른다(D-05).
+   *
+   * **승인본을 직접 되돌리지 않는다.** 문서 축(D-02)에 승인본에서 뒤로 가는 전이가 없고, 있으면 D-06 게이트를 건너뛴다.
+   * 새 초안은 보통 초안과 같이 제출 → 판정 → 결재를 지난다. 손으로도 할 수 있던 일(옛 본문을 읽어 저장)이지만 그 길로는
+   * 어느 버전을 되살렸는지가 남지 않았다 — 버전 행(`reverted_to_version_no`)과 제출 · 승인 이벤트가 그것을 남긴다.
+   *
+   * 규칙 넷.
+   * - **열린 초안이 있으면 거절한다**(409 `open_draft_exists` · 그 초안의 번호). 덮어쓰면 남의 작업이 조용히 사라진다 —
+   *   그 초안을 마치거나 버릴지는 사람이 정한다. 검토 중인 버전이 있으면 초안 저장과 같은 `in_review_pending` 이다.
+   * - **되살릴 수 있는 것은 본문이 확정된 버전이다**(승인됨 · 대체됨 · 폐기됨). 위 둘을 지나면 남은 버전은 모두 그렇다.
+   *   지금 최신 버전과 본문이 같으면 되돌릴 것이 없다(409 `revert_no_change`).
+   * - **본문이 크게 줄어도 받는다** — 되살리는 것은 사람이 고른 일이라 `allow_shrink` 를 따로 묻지 않고, 그 확인을 버전에
+   *   남긴다(사전 검토는 warning). 축소 신호는 그대로라 제출하면 게이트가 최소 T2 로 올린다(REQ-API-273).
+   * - `base_hash` 는 지금 최신 버전의 지문이다 — 사람이 본 최신과 되돌릴 때의 최신이 같아야 한다(§1.4g).
+   */
+  async revertToVersion(input: {
+    projectId: string;
+    /** 문서 — 키든 UUID 든 받는다(§1.4b) */
+    specId: string;
+    /** 본문을 되살릴 옛 버전의 번호 */
+    versionNo: number;
+    baseHash?: string | undefined;
+    changeSummary?: string | undefined;
+    userId: string;
+    sessionId?: string | null;
+  }): Promise<Record<string, unknown>> {
+    if (!Number.isInteger(input.versionNo) || input.versionNo < 1) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        wrong_type: ['revert_to_version'],
+      });
+    }
+    return this.events.transact(async (tx, emit) => {
+      const specId = await this.resolveSpecId(tx, input.projectId, input.specId);
+      if (specId === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+          kind: 'not_found',
+          spec: input.specId,
+        });
+      }
+      await this.requireLiveSpec(tx, input.projectId, specId);
+
+      // 열린 초안 — 잠그고 읽는다(동시 저장과 같은 자리를 다툰다)
+      const draft = await this.currentDraft(tx, specId);
+      if (draft !== null) {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.open_draft_exists', { n: Number(draft.version_no) }),
+          {
+            kind: 'open_draft_exists',
+            version_no: Number(draft.version_no),
+            spec_version_id: draft.id,
+            web_url: await this.webUrl(tx, input.projectId, specId, Number(draft.version_no)),
+          },
+        );
+      }
+      await this.assertNoReview(tx, input.projectId, specId);
+
+      const { rows: targets } = await tx.execute<{
+        id: string;
+        version_no: number;
+        status: string;
+        body_md: string;
+      }>(sql`
+        SELECT id, version_no, status::text AS status, body_md
+          FROM spec_version WHERE spec_id = ${specId} AND version_no = ${input.versionNo}
+      `);
+      const target = targets[0];
+      if (target === undefined || target.status === 'draft' || target.status === 'in_review') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_not_found'), {
+          kind: 'not_found',
+          field: 'revert_to_version',
+          version_no: input.versionNo,
+        });
+      }
+      const { rows: latest } = await tx.execute<{
+        id: string;
+        version_no: number;
+        body_md: string;
+      }>(sql`
+        SELECT id, version_no, body_md FROM spec_version
+         WHERE spec_id = ${specId} ORDER BY version_no DESC LIMIT 1
+      `);
+      const prior = latest[0];
+      if (prior === undefined || prior.body_md === target.body_md) {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.revert_no_change', {
+            n: input.versionNo,
+            latest: Number(prior?.version_no ?? input.versionNo),
+          }),
+          {
+            kind: 'revert_no_change',
+            version_no: input.versionNo,
+            latest_version_no: Number(prior?.version_no ?? input.versionNo),
+          },
+        );
+      }
+
+      // 비교-교환 — 초안 저장과 같은 기준(읽는 사람이 보는 버전)이다. 열린 초안도 검토 중도 없으니 최신 승인본이다
+      const reader = await readerVersion(tx, specId);
+      if (reader !== null) {
+        const reread = {
+          current_hash: reader.content_hash,
+          current_version_no: Number(reader.version_no),
+          current_status: reader.status,
+          reread: {
+            tool: 'nerv_spec_get',
+            args: { spec_id: await this.keyOfSpec(tx, specId), version: Number(reader.version_no) },
+          },
+          web_url: await this.webUrl(tx, input.projectId, specId, Number(reader.version_no)),
+        };
+        if (input.baseHash == null || input.baseHash === '') {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_hash_required'), {
+            kind: 'base_hash_required',
+            ...reread,
+          });
+        }
+        if (input.baseHash !== reader.content_hash) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.stale_body'), {
+            kind: 'stale_body',
+            received: input.baseHash,
+            ...reread,
+          });
+        }
+      }
+
+      const body = target.body_md;
+      const change = bodyChange(prior.body_md, body);
+      // 사람이 고른 되살림이라 축소를 확인한 것으로 남긴다 — 사전 검토는 warning, 게이트의 축소 신호는 그대로다
+      const shrunk = change.shrunk.length > 0;
+      const hash = createHash('sha256').update(body, 'utf8').digest('hex');
+      const leaseExpires = new Date(Date.now() + this.draftLeaseTtlSeconds * 1000);
+      const versionNo = Number(prior.version_no) + 1;
+      const versionId = newId();
+      const summary =
+        input.changeSummary !== undefined && input.changeSummary.trim() !== ''
+          ? input.changeSummary
+          : text('spec.revert_summary', { n: input.versionNo });
+
+      await tx.execute(sql`
+        INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
+                                  change_summary_md,
+                                  author_user_id, author_session_id, base_version_id,
+                                  edit_lease_user_id, edit_lease_session_id, edit_lease_expires_at,
+                                  shrink_ack_at, shrink_ack_user_id, reverted_to_version_no)
+        VALUES (${versionId}, ${specId}, ${versionNo}, 'draft', ${body},
+                decode(${hash}, 'hex'), ${summary},
+                ${input.userId}, ${input.sessionId ?? null},
+                ${prior.id}, ${input.userId}, ${input.sessionId ?? null},
+                ${leaseExpires.toISOString()},
+                ${shrunk ? sql`now()` : null},
+                ${shrunk ? input.userId : null},
+                ${input.versionNo})
+      `);
+
+      await emit({
+        payload: {
+          change_summary: summary,
+          reverted_to_version_no: input.versionNo,
+          ...(shrunk ? { shrink_allowed: true } : {}),
+        },
+        type: NERV_EVENT.SPEC_DRAFT_CREATED,
+        projectId: input.projectId,
+        subjectType: 'spec_version',
+        subjectId: versionId,
+        subjectKey: await this.keyOfSpec(tx, specId),
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: input.sessionId != null,
+        toState: 'draft',
+      });
+
+      // 본문의 링크가 관계의 주인이다 — 옛 본문의 링크로 다시 맞춘다. 선언 관계는 건드리지 않는다
+      const relations = await this.syncRelations(tx, input.projectId, specId, body);
+      return {
+        spec_id: specId,
+        spec_version_id: versionId,
+        version_no: versionNo,
+        created: true,
+        reverted_to_version_no: input.versionNo,
+        content_hash: hash,
+        delta: specDelta(prior.body_md, body),
+        body_change: change,
+        relations: { ...relations, declared: null },
+        web_url: await this.webUrl(tx, input.projectId, specId, versionNo),
+      };
+    });
+  }
+
+  /**
    * nerv_spec_submit_review · EP-SPEC-10 (A3 — 사람 승인 필요).
    *
    * 제출은 **본문을 동결한다**. 게이트 티어를 산출해 T0·T1 은 자동 통과시키고
@@ -1539,9 +1756,10 @@ export class SpecService {
       status: string;
       spec_type: string;
       author_user_id: string;
+      reverted_to_version_no: number | null;
     }>(sql`
       SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type,
-             sv.author_user_id
+             sv.author_user_id, sv.reverted_to_version_no
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
        WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
        FOR UPDATE OF sv
@@ -1597,7 +1815,7 @@ export class SpecService {
     // v4 는 34.7KB 가 484바이트가 된 채 승인됐는데 카드는 버전 번호와 변경 요약만 보여 줬다
     const bodyChangePayload = check.body_change === null ? {} : { body_change: check.body_change };
 
-    const gate = await this.assessGate(
+    const { gate, audit } = await this.assessGate(
       tx,
       input.projectId,
       version.spec_id,
@@ -1624,12 +1842,15 @@ export class SpecService {
       isAgent: input.sessionId != null,
       fromState: 'draft',
       toState: 'in_review',
-      // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188)
+      // 티어와 **그 근거**(축별 점수 · 발동한 신호 — 2026-09-26 · REQ-API-188) · 적용 정책 지문과 축 산출 입력(2026-10-15 ·
+      // REQ-API-303) — 판정은 여기서 한 번이고 승인은 이 판정을 그대로 기록한다
       payload: {
-        ...gateEventPayload(gate),
+        ...gateEventPayload(gate, audit),
         ...bodyChangePayload,
         // 검토 요청과 승인이 한 번이었다는 사실 — 감사가 바로 승인을 셀 수 있어야 한다(REQ-API-287)
         ...(input.direct === undefined ? {} : { direct: true }),
+        // 되돌리기로 만든 버전이면 되살린 옛 버전(2026-10-15 · REQ-API-308) — 롤백 신호를 계산할 재료다
+        ...revertedPayload(version.reverted_to_version_no),
       },
     });
 
@@ -1647,7 +1868,11 @@ export class SpecService {
           sessionId: input.sessionId ?? null,
           isAgent: input.sessionId != null,
         },
-        gate,
+        gate: {
+          tier: gate.tier,
+          autoPass: gate.autoPass,
+          policyFingerprint: audit.policyFingerprint,
+        },
       });
       return {
         status: 'approved',
@@ -1682,7 +1907,7 @@ export class SpecService {
         payload: {
           // 카드가 티어 곁에 근거를 그린다(§6.4 · REQ-API-188) — 배지만으로는 왜 사람이
           // 불렸는지 모른다
-          ...gateEventPayload(gate),
+          ...gateEventPayload(gate, audit),
           ...bodyChangePayload,
           required_approvers: cards.slots,
           // 게이트가 요구한 수와 실제 슬롯이 다르면 그 사실을 남긴다 — 조용한 완화는
@@ -1774,6 +1999,34 @@ export class SpecService {
     });
   }
 
+  /**
+   * **검토 중인 버전을 초안으로 되돌린다** — 거절 · 코멘트 · 만료가 이 한 전이를 쓴다(D-02: 가변 구간은 초안 하나뿐).
+   * `submitted_at` 을 비우는 것이 라운드 경계다 — 다시 제출하면 그 시각보다 앞선 승인은 정족수에 들지 않는다
+   * (REQ-API-140). 옮겼으면 참이다(이미 옮겨졌으면 거짓 — 오류가 아니다).
+   */
+  private async reviewToDraft(tx: Tx, projectId: string, specVersionId: string): Promise<boolean> {
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
+        FROM spec s
+       WHERE sv.spec_id = s.id AND sv.id = ${specVersionId}
+         AND s.project_id = ${projectId} AND sv.status = 'in_review'
+      RETURNING sv.id
+    `);
+    return rows.length > 0;
+  }
+
+  /**
+   * **결재 만료**(2026-10-15 · 사람 결정 · REQ-API-304) — 7일 동안 결정되지 않은 검토를 초안으로 되돌린다. 거절과
+   * 같은 전이 · 같은 라운드 규칙이고, 사실은 결재 서비스가 ★`approval.expired` 로 남긴다(문서 축 이벤트를 따로 내지
+   * 않는다 — 한 사건에 이름이 둘이면 셀 때 둘로 센다).
+   */
+  async expireInTxForApproval(
+    tx: Tx,
+    input: { projectId: string; specVersionId: string },
+  ): Promise<boolean> {
+    return this.reviewToDraft(tx, input.projectId, input.specVersionId);
+  }
+
   /** 같은 이유로 여는 거절 버전 — in_review → draft */
   async rejectInTxForApproval(
     tx: Tx,
@@ -1787,14 +2040,7 @@ export class SpecService {
       asComment?: boolean;
     },
   ): Promise<void> {
-    const { rows } = await tx.execute<{ id: string }>(sql`
-      UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
-        FROM spec s
-       WHERE sv.spec_id = s.id AND sv.id = ${input.specVersionId}
-         AND s.project_id = ${input.projectId} AND sv.status = 'in_review'
-      RETURNING sv.id
-    `);
-    if (rows.length === 0) return;
+    if (!(await this.reviewToDraft(tx, input.projectId, input.specVersionId))) return;
     await emit({
       type: input.asComment === true ? NERV_EVENT.SPEC_COMMENT_ADDED : NERV_EVENT.SPEC_REJECTED,
       projectId: input.projectId,
@@ -2301,7 +2547,9 @@ export class SpecService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT sv.id, sv.version_no, sv.status::text AS status, sv.change_summary_md, sv.updated_at,
              sv.author_user_id, sv.approved_by_user_id, sv.submitted_at, sv.approved_at,
-             sv.created_at
+             sv.created_at,
+             -- 되돌리기로 만든 버전이면 되살린 옛 버전(2026-10-15 · REQ-API-308) — 목록이 "v3 되돌림" 을 보인다
+             sv.reverted_to_version_no
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
        -- 키든 UUID 든 받는다(§1.4b) — \`nerv_spec_get\` 의 \`include: ["versions"]\` 가 이것을 부른다
        WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
@@ -2536,25 +2784,43 @@ export class SpecService {
    *
    * 접두는 부르는 쪽이 정한다(보통 스펙 키의 가운데 토막) — 서버는 그 접두의 최대 번호에
    * 1을 더한다. **예약하지 않는다**: 이 값은 제안이고, 실제 소유는 승인된 본문이 정한다.
+   *
+   * **열린 초안의 줄도 센다**(2026-10-15 · REQ-API-145 개정). 요구사항 행은 승인 때 생기므로 행만 세던 동안에는
+   * 동시에 쓰는 초안 둘(검토 중 포함)이 같은 번호를 받았다. 초안 본문은 요구사항 추출기(`requirementsOf` — 승인이
+   * 행을 만들 때 쓰는 그 함수)로 읽는다. 인용만 한 번호는 세지 않는다 — 정의한 줄만 번호를 차지한다.
    */
   async nextRequirementRef(input: {
     projectId: string;
     prefix: string;
   }): Promise<{ ref: string; prefix: string }> {
     const prefix = input.prefix.trim().toUpperCase();
-    if (!/^[A-Z][A-Z0-9]{0,15}$/.test(prefix)) {
+    if (!REQUIREMENT_PREFIX.test(prefix)) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
         kind: 'invalid_input',
         field: 'prefix',
         value: input.prefix,
       });
     }
+    const head = `REQ-${prefix}-`;
     const { rows } = await this.db.execute<{ max: number | null }>(sql`
       SELECT max(substring(ref from '[0-9]+$')::int) AS max
         FROM requirement
-       WHERE project_id = ${input.projectId} AND ref LIKE ${`REQ-${prefix}-%`}
+       WHERE project_id = ${input.projectId} AND ref LIKE ${`${head}%`}
     `);
-    const next = (rows[0]?.max ?? 0) + 1;
+    const { rows: open } = await this.db.execute<{ body_md: string }>(sql`
+      SELECT sv.body_md
+        FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+       WHERE s.project_id = ${input.projectId} AND sv.status IN ('draft', 'in_review')
+         AND strpos(sv.body_md, ${head}) > 0
+    `);
+    let max = Number(rows[0]?.max ?? 0);
+    for (const { body_md } of open) {
+      for (const ref of requirementsOf(body_md).keys()) {
+        const tail = ref.startsWith(head) ? ref.slice(head.length) : '';
+        if (/^\d+$/.test(tail)) max = Math.max(max, Number(tail));
+      }
+    }
+    const next = max + 1;
     return { ref: `REQ-${prefix}-${String(next).padStart(3, '0')}`, prefix };
   }
 
@@ -3066,6 +3332,41 @@ export class SpecService {
    * 이 초안의 본문이 **직전 버전**(계보 `base_version_id`)보다 크게 줄었는가 — 사전 검토가 block 으로 잡는 그 판정이다
    * (REQ-API-271). `allow_shrink` 를 준 이어쓰기가 확인 기록을 남길지는 이것만 정한다. 첫 버전이면(계보가 없으면) 거짓이다.
    */
+  /**
+   * **검토 중인 개정판이 있으면 새 초안을 만들지 않는다**(2026-09-27 사람 결정 M4 · REQ-API-200). 초안 저장과
+   * 되돌리기(REQ-API-308)가 같은 판정을 쓴다 — 가변 구간은 문서마다 하나다(3.5 §1.2).
+   */
+  private async assertNoReview(tx: Tx, projectId: string, specId: string): Promise<void> {
+    const { rows: reviewing } = await tx.execute<{
+      version_no: number;
+      approval_id: string | null;
+    }>(sql`
+      SELECT sv.version_no,
+             (SELECT a.id FROM approval a
+               WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id
+                 AND a.decision IS NULL
+               ORDER BY a.requested_at DESC LIMIT 1) AS approval_id
+        FROM spec_version sv
+       WHERE sv.spec_id = ${specId} AND sv.status = 'in_review'
+       ORDER BY sv.version_no DESC LIMIT 1
+    `);
+    const pending = reviewing[0];
+    if (pending === undefined) return;
+    throw new NervError(
+      NERV_ERROR.PRECONDITION,
+      msg('error.spec.in_review_pending', { n: pending.version_no }),
+      {
+        kind: 'in_review_pending',
+        version_no: pending.version_no,
+        approval_id: pending.approval_id,
+        web_url:
+          pending.approval_id === null
+            ? await this.webUrl(tx, projectId, specId, pending.version_no)
+            : this.inboxUrl(pending.approval_id),
+      },
+    );
+  }
+
   private async shrunkFromBase(tx: Tx, draftId: string, nextBody: string): Promise<boolean> {
     const { rows } = await tx.execute<{ body_md: string }>(sql`
       SELECT b.body_md FROM spec_version d JOIN spec_version b ON b.id = d.base_version_id
@@ -3214,7 +3515,7 @@ export class SpecService {
     specVersionId: string,
     /** 제출한 세션 — 재시도 신호의 셋째 길(그 세션이 올린 신고) */
     sessionId: string | null,
-  ): Promise<GateDecision> {
+  ): Promise<{ gate: GateDecision; audit: GateAudit }> {
     const { rows } = await tx.execute<{
       referencing: number;
       tasks: number;
@@ -3250,62 +3551,81 @@ export class SpecService {
     const { rows: policyRows } = await tx.execute<{ gate_policy: unknown }>(sql`
       SELECT gate_policy FROM project WHERE id = ${projectId}
     `);
-    const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
-    if (!parsed.success) {
+    // 정책이 깨져 있어도 판정을 멈추지 않는다 — 기본값으로 간다(보존 잡과 같은 규율)
+    const { policy, valid } = effectiveGatePolicy(policyRows[0]?.gate_policy);
+    if (!valid) {
       // **조용히 기본값으로 가지 않는다**(2026-09-28 · REQ-API-240) — 판정은 멈추지 않되 운영자가 알아야 한다.
       // 보존 잡(retention.job.ts)과 같은 규율이다. 예전에는 아무 기록 없이 리뷰 조건을 끈 채 통과시켰다
       this.logger.warn(
         `gate_policy 가 유효하지 않습니다 — 스펙 게이트는 기본값을 씁니다 (project=${projectId})`,
       );
     }
-    // 정책이 깨져 있어도 판정을 멈추지 않는다 — 기본값으로 간다(보존 잡과 같은 규율)
-    const policy = parsed.success ? parsed.data : GatePolicySchema.parse({});
     // 끈 프로젝트에서는 신호를 세지 않으므로 찾지도 않는다
     const retry =
       policy.spec_gate.dynamic_escalation === false
         ? null
         : await this.retryEvidence(tx, { projectId, specId, sessionId });
 
-    const decision = decideGate(
-      inferAxes({
-        specType,
-        requirementsAdded: delta.requirements.added.length,
-        requirementsRemoved: delta.requirements.removed.length,
-        // 본문에서 읽은 수정이 우선이고, 행이 있는 문서(임포트본)는 그 존재도 신호로 쓴다
-        requirementsModified:
-          delta.requirements.modified.length > 0
-            ? delta.requirements.modified.length
-            : counts.requirements > 0
-              ? 1
-              : 0,
-        bodyChanged: true,
-        referencingSpecs: counts.referencing,
-        derivedTasks: counts.tasks,
-        // 승인된 약속이 사라지는 것은 되돌리기 어려운 변경이다(gate-tier 의 축)
-        approvedRequirementsRemoved:
-          bodies[0]?.base_md != null && delta.requirements.removed.length > 0,
-      }),
-      {
-        // **이 문서의 첫 approved 판인가**(2026-09-02 사람 결정). 새 문서는 되돌릴 이전
-        // 버전이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0 이라 축이 구조적으로 낮게
-        // 나온다 — 요구사항을 새로 세우는 feature 스펙이 3점(T1)으로 사람 없이 통과했다.
-        // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
-        firstApprovedVersion: bodies[0]?.base_md == null,
-        repeatedFailures: retry !== null,
-        // 직전 버전(계보)보다 크게 줄었는가 — 사전 검토의 `base-continuity` 와 같은 기준이다(REQ-API-273)
-        bodyShrunk:
-          bodies[0]?.lineage_md != null &&
-          bodyChange(bodies[0].lineage_md, bodies[0].body_md).shrunk.length > 0,
+    const axesInput = {
+      specType,
+      requirementsAdded: delta.requirements.added.length,
+      requirementsRemoved: delta.requirements.removed.length,
+      // 본문에서 읽은 수정이 우선이고, 행이 있는 문서(임포트본)는 그 존재도 신호로 쓴다
+      requirementsModified:
+        delta.requirements.modified.length > 0
+          ? delta.requirements.modified.length
+          : counts.requirements > 0
+            ? 1
+            : 0,
+      bodyChanged: true,
+      referencingSpecs: counts.referencing,
+      derivedTasks: counts.tasks,
+      // 승인된 약속이 사라지는 것은 되돌리기 어려운 변경이다(gate-tier 의 축)
+      approvedRequirementsRemoved:
+        bodies[0]?.base_md != null && delta.requirements.removed.length > 0,
+    };
+    const signals = {
+      // **이 문서의 첫 approved 판인가**(2026-09-02 사람 결정). 새 문서는 되돌릴 이전
+      // 버전이 없어 가역성 0, 아직 아무도 참조하지 않아 파급 0 이라 축이 구조적으로 낮게
+      // 나온다 — 요구사항을 새로 세우는 feature 스펙이 3점(T1)으로 사람 없이 통과했다.
+      // §2.4 표가 같은 문서에서 "신규 feature 스펙" 을 T2 예시로 드는데도 그랬다.
+      firstApprovedVersion: bodies[0]?.base_md == null,
+      repeatedFailures: retry !== null,
+      // 직전 버전(계보)보다 크게 줄었는가 — 사전 검토의 `base-continuity` 와 같은 기준이다(REQ-API-273)
+      bodyShrunk:
+        bodies[0]?.lineage_md != null &&
+        bodyChange(bodies[0].lineage_md, bodies[0].body_md).shrunk.length > 0,
+    };
+    const decision = decideGate(inferAxes(axesInput), signals, {
+      boundaries: policy.spec_gate.tier_boundaries,
+      dynamicEscalation: policy.spec_gate.dynamic_escalation,
+    });
+    // **다시 계산할 재료를 함께 돌려준다**(2026-10-15 · 사람 결정 · REQ-API-303) — 정책 버전 대신 판정에 쓴 정책의
+    // 지문과 축에 넣은 값이다. 이 둘과 지문이 가리키는 정책 본문(`project.updated`)이면 같은 판정이 다시 나온다
+    const audit: GateAudit = {
+      policyFingerprint: policyFingerprint(policy),
+      policyFallback: !valid,
+      inputs: {
+        spec_type: axesInput.specType,
+        requirements_added: axesInput.requirementsAdded,
+        requirements_removed: axesInput.requirementsRemoved,
+        requirements_modified: axesInput.requirementsModified,
+        referencing_specs: axesInput.referencingSpecs,
+        derived_tasks: axesInput.derivedTasks,
+        approved_requirements_removed: axesInput.approvedRequirementsRemoved,
+        first_approved_version: signals.firstApprovedVersion,
+        retry_reported: signals.repeatedFailures,
+        body_shrunk: signals.bodyShrunk,
       },
-      {
-        boundaries: policy.spec_gate.tier_boundaries,
-        dynamicEscalation: policy.spec_gate.dynamic_escalation,
-      },
-    );
-    // 신호의 근거를 싣는다 — 카드가 신호 곁에 원문으로 가는 링크를 그린다(REQ-API-189)
-    return retry !== null && decision.signals.includes('retry_threshold')
-      ? { ...decision, evidence: [retry] }
-      : decision;
+    };
+    // 신호의 근거를 남긴다 — 카드가 신호 곁에 원문으로 가는 링크를 그린다(REQ-API-189)
+    return {
+      gate:
+        retry !== null && decision.signals.includes('retry_threshold')
+          ? { ...decision, evidence: [retry] }
+          : decision,
+      audit,
+    };
   }
 
   /**
@@ -3393,13 +3713,17 @@ export class SpecService {
    * 승인 때 다시 계산하면 그 사이에 올라온 신고나 늘어난 파생 작업이 기록의 티어만 바꿔 슬롯과
    * 어긋난다(`spec.approved` 의 티어는 플랜 게이트가 읽는다). 제출 이벤트가 없는 옛 버전만
    * 다시 계산한다.
+   *
+   * **적용 정책 지문도 그대로 기록한다**(2026-10-15 · REQ-API-303) — 승인 때의 정책이 아니라 판정 때의 정책이다. 지문이
+   * 생기기 전의 제출이면 `null` 이다(지금 정책으로 채우면 그때의 판정을 거짓으로 설명한다).
    */
   private async submittedGate(
     tx: Tx,
     input: { projectId: string; specId: string; specType: string; specVersionId: string },
-  ): Promise<Pick<GateDecision, 'tier' | 'autoPass'>> {
-    const { rows } = await tx.execute<{ tier: string | null }>(sql`
-      SELECT e.payload->>'gate_tier' AS tier FROM event e
+  ): Promise<ApprovedGate> {
+    const { rows } = await tx.execute<{ tier: string | null; fingerprint: string | null }>(sql`
+      SELECT e.payload->>'gate_tier' AS tier, e.payload->>'policy_fingerprint' AS fingerprint
+        FROM event e
        WHERE e.type = ${NERV_EVENT.SPEC_SUBMITTED} AND e.subject_id = ${input.specVersionId}
          AND e.payload ? 'gate_tier'
        ORDER BY e.occurred_at DESC
@@ -3407,9 +3731,13 @@ export class SpecService {
     `);
     const tier = rows[0]?.tier;
     if (tier === 'T0' || tier === 'T1' || tier === 'T2' || tier === 'T3') {
-      return { tier, autoPass: tier === 'T0' || tier === 'T1' };
+      return {
+        tier,
+        autoPass: tier === 'T0' || tier === 'T1',
+        policyFingerprint: rows[0]?.fingerprint ?? null,
+      };
     }
-    return this.assessGate(
+    const { gate, audit } = await this.assessGate(
       tx,
       input.projectId,
       input.specId,
@@ -3417,6 +3745,7 @@ export class SpecService {
       input.specVersionId,
       null,
     );
+    return { tier: gate.tier, autoPass: gate.autoPass, policyFingerprint: audit.policyFingerprint };
   }
 
   /** 승인 확정 — 이전 approved 를 superseded 로 밀고 참조 전파 신호를 낸다. */
@@ -3441,9 +3770,14 @@ export class SpecService {
        * 물음이라 자리를 나눈다: 액터는 그 제출을 한 사람·세션이다.
        */
       actor: { userId: string | null; sessionId: string | null; isAgent: boolean };
-      gate: Pick<GateDecision, 'tier' | 'autoPass'>;
+      gate: ApprovedGate;
     },
   ): Promise<void> {
+    // 되돌리기로 만든 버전인가(REQ-API-308) — 승인 이벤트가 제출 이벤트와 같은 값을 남긴다
+    const { rows: origin } = await tx.execute<{ reverted_to_version_no: number | null }>(
+      sql`SELECT reverted_to_version_no FROM spec_version WHERE id = ${input.specVersionId}`,
+    );
+
     // 같은 Spec 의 이전 approved 를 superseded 로 (서버 자동 전이 — §1.2)
     const { rows: superseded } = await tx.execute<{ id: string }>(sql`
       UPDATE spec_version
@@ -3461,7 +3795,7 @@ export class SpecService {
       sql`UPDATE spec SET current_version_id = ${input.specVersionId} WHERE id = ${input.specId}`,
     );
 
-    await this.syncRequirements(tx, {
+    const { moved } = await this.syncRequirements(tx, {
       projectId: input.projectId,
       specId: input.specId,
       specVersionId: input.specVersionId,
@@ -3478,7 +3812,17 @@ export class SpecService {
       isAgent: input.actor.isAgent,
       fromState: 'in_review',
       toState: 'approved',
-      payload: { gate_tier: input.gate.tier, auto_passed: input.gate.autoPass },
+      // 제출 때의 판정을 그대로 기록한다 — 적용 정책 지문까지(2026-10-15 · REQ-API-303). 지문이 없던 옛 제출이면 빈다
+      payload: {
+        gate_tier: input.gate.tier,
+        auto_passed: input.gate.autoPass,
+        ...(input.gate.policyFingerprint === null
+          ? {}
+          : { policy_fingerprint: input.gate.policyFingerprint }),
+        ...revertedPayload(origin[0]?.reverted_to_version_no ?? null),
+        // 다른 문서에서 소유가 풀린 번호를 옮겨 왔으면 남긴다(REQ-API-309) — 요구사항의 주인이 바뀐 기록이다
+        ...(moved.length === 0 ? {} : { requirements_moved: moved }),
+      },
     });
 
     for (const old of superseded) {
@@ -3623,10 +3967,14 @@ export class SpecService {
 
     let first = existing[0]?.id ?? null;
     const created: { id: string; role: string | null }[] = [];
+    // **빠진 쪽을 채운다**(2026-10-15 · REQ-API-304). 슬롯 하나는 기본 큐(NULL), 나머지가 직군 슬롯이다. 순번으로 정하던
+    // 동안 남은 자리가 직군 슬롯이면(기본 큐 자리가 승인 · 거절된 뒤 만료 · 거절로 라운드가 닫혔다) 새 자리도 직군 슬롯이
+    // 되어 두 자리가 모두 같은 역할이었다 — 기본 큐 자리가 없으면 그것부터 만든다
+    let hasDefault = existing.some((row) => row.assignee_role === null);
     for (let i = existing.length; i < required; i += 1) {
       const approvalId = newId();
-      // 슬롯 1 은 기본 큐(NULL), 둘째부터가 직군 슬롯이다
-      const role = i === 0 ? null : roleSlot;
+      const role = hasDefault ? roleSlot : null;
+      hasDefault = true;
       await tx.execute(sql`
         INSERT INTO approval (id, project_id, subject_type, subject_id,
                               requested_by_user_id, requested_by_session_id, assignee_role)

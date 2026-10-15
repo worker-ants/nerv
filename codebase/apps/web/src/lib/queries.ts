@@ -9,6 +9,8 @@ import { apiFetch } from './api.js';
 import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
 import { PENDING_PROJECT, queryKeys } from './query-keys.js';
 import type { ProjectId } from './query-keys.js';
+import { REQUIREMENT_PREFIX } from '@nerv/schema';
+import type { ApprovalInboxState } from '@nerv/schema';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
 import type { Me } from './session.js';
@@ -94,7 +96,8 @@ export interface InboxPage {
  * 에 겪은 것과 같은 자리이고, 거기서 배운 대로 **배지와 목록이 같은 수를 보게** 한다.
  */
 export function useInbox(
-  state: 'pending' | 'decided' = 'pending',
+  /** `expired` — 결정 없이 만료된 것(2026-10-15 · REQ-WEB-310) */
+  state: ApprovalInboxState = 'pending',
   /**
    * **범위**(2026-09-27 · 사람 결정 N1 · REQ-WEB-256) — 알림 목록과 같은 칸이다. 비우면 모든 조직이고,
    * 그때의 캐시 키는 예전 그대로다(헤더 배지 · 홈이 같은 칸을 본다).
@@ -143,6 +146,33 @@ export function inboxTotal(data: InfiniteData<InboxPage> | undefined): number {
  * "기다리는 것" 한 줄이 쓴다 — 전역 목록은 쪽으로 나뉘어 받아 온 카드로는 셀 수 없고, 서버가
  * 같은 판정으로 센 `actionable_total` 이 정본이다. 카드는 한 장만 받는다(수만 필요하다).
  */
+/** 결재 흐름(EP-APR-08 · 2026-10-15 · REQ-API-305 · 307) — 개요의 지연 결재 수와 역할 큐 재검토 지표 */
+export interface ApprovalFlow {
+  overdue: number;
+  lag: {
+    window_days: number;
+    total: number;
+    late: number;
+    ratio: number | null;
+    threshold: number;
+    review_due: boolean;
+  };
+}
+
+/**
+ * 프로젝트의 **결재 흐름**(2026-10-15 · REQ-WEB-311). `['inbox', …]` 접두라 결재 · 알림 이벤트가 받은 요청을 되읽을 때
+ * 함께 간다 — 지연 수는 결정 · 만료로 줄고, 지표는 리마인더로 바뀐다.
+ */
+export function useApprovalFlow(slug: string, projectId?: ProjectId): UseQueryResult<ApprovalFlow> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.inbox(), 'flow', projectId ?? PENDING_PROJECT],
+    queryFn: () => apiFetch<ApprovalFlow>(`/projects/${slug}/approvals/flow`),
+    refetchInterval,
+    enabled: projectId !== undefined,
+  });
+}
+
 export function useProjectInboxCount(slug: string, projectId?: ProjectId): UseQueryResult<number> {
   const refetchInterval = useLivePolling();
   return useQuery({
@@ -631,6 +661,26 @@ export function useRequirements(slug: string, specKey: string): UseQueryResult<R
     queryKey: [...queryKeys.spec(specKey), 'requirements'],
     queryFn: () =>
       apiFetch<Row[]>(`/projects/${slug}/requirements?spec=${encodeURIComponent(specKey)}`),
+    refetchInterval,
+  });
+}
+
+/**
+ * EP-REQ-04 — 그 접두의 다음 요구사항 번호(2026-10-15 · 사람 결정 · REQ-WEB-313). **제안이고 예약하지 않는다** —
+ * 서버가 승인된 행과 열린 초안의 줄을 함께 세서 준다(REQ-API-145). 접두가 어휘 밖이면 묻지 않는다(400 을 받을 일이다).
+ */
+export function useNextRequirementRef(
+  slug: string,
+  prefix: string,
+): UseQueryResult<{ ref: string; prefix: string }> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: ['requirements', slug, 'next-ref', prefix],
+    queryFn: () =>
+      apiFetch<{ ref: string; prefix: string }>(
+        `/projects/${slug}/requirements/next-ref?prefix=${encodeURIComponent(prefix)}`,
+      ),
+    enabled: REQUIREMENT_PREFIX.test(prefix),
     refetchInterval,
   });
 }

@@ -55,6 +55,9 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.TASK_BLOCKED]: 'high',
   [NERV_EVENT.TASK_REBRIEF_REQUIRED]: 'high',
   [NERV_EVENT.GATE_BYPASSED]: 'high',
+  // **지연 결재**(2026-10-15 · 사람 결정 · REQ-API-305) — 결정할 수 있는데 요청 알림을 받지 못한 사람(직군 자리 결재의
+  // admin)에게 가는 첫 알림이다. 그 사람에게는 오늘 볼 일이라 중요다. 기본 큐 결재는 받는 사람이 없다(아래 라우팅)
+  [NERV_EVENT.APPROVAL_OVERDUE]: 'high',
   // 발견 코멘트는 스펙 코멘트와 같은 무게다 — 사람이 남긴 말이고, 답을 기다린다
   [NERV_EVENT_PHASE2.FINDING_COMMENTED]: 'standard',
   [NERV_EVENT.SPEC_COMMENT_ADDED]: 'standard',
@@ -63,6 +66,9 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   // 결재 리마인더(2026-10-11 · REQ-API-296) — 결재 요청 자체가 이미 중요 알림이다. 리마인더까지 중요로 세면 같은 결재가
   // 배지를 두 번 올린다. 같은 결재의 리마인더는 한 줄로 묶는다(spec-workflow §2.6 "같은 승인 건은 1건으로")
   [NERV_EVENT.APPROVAL_REMINDED]: 'standard',
+  // **결재 만료**(2026-10-15 · 사람 결정 · REQ-API-304) — 요청자에게 알린다. 결정을 기다리는 일이 아니라 이미 일어난
+  // 일이라 보통이다(SLA 표의 채널이 다이제스트다). 라운드마다 한 이벤트라 묶지 않고 한 줄이다
+  [NERV_EVENT.APPROVAL_EXPIRED]: 'standard',
   // 부른 사람만 받는다 — 결정을 기다리는 일은 아니라 배지를 올리지 않는다(REQ-API-178)
   [NERV_EVENT.INVITATION_DECLINED]: 'standard',
   [NERV_EVENT.SESSION_STARTED]: 'low',
@@ -368,6 +374,12 @@ export class NotificationService {
     subject_id: string;
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
+    if (event.type === NERV_EVENT.APPROVAL_OVERDUE) return this.escalationTargets(event);
+    if (event.type === NERV_EVENT.APPROVAL_EXPIRED) {
+      // **요청자에게 알린다**(2026-10-15 · REQ-API-304) — 다시 낼지 정할 사람이다. 행위자(없다)가 아니라 payload 가 든다
+      const requester = event.payload?.['requested_by_user_id'];
+      return typeof requester === 'string' ? [requester] : [];
+    }
     if (event.type === NERV_EVENT.APPROVAL_REMINDED) {
       // **리마인더는 그 결재 요청을 받는 사람에게 간다**(2026-10-11 · REQ-API-296) — 라우팅은 요청과 한 벌이고, 뺄
       // 사람은 리마인더의 행위자(없다)가 아니라 그 결재를 요청한 사람이다
@@ -452,6 +464,53 @@ export class NotificationService {
       .map((o) => (o as { user_id?: unknown }).user_id)
       .filter((id): id is string => typeof id === 'string' && id !== event.actor_user_id);
     return [...new Set(holders)];
+  }
+
+  /**
+   * **지연 결재를 누구에게 알리나**(2026-10-15 · 사람 결정 · REQ-API-305) — **결정할 수 있는데 아직 알림을 받지 못한
+   * 사람**에게만. 결정할 수 있는 사람은 `assertMayDecide` 가 정한다: 지정 결재는 그 사람과 admin, 직군 자리 결재는 그
+   * 역할과 admin, 기본 큐는 `approval:decide` 를 가진 역할. 요청 알림은 지정된 사람 · 그 역할 · 기본 큐에 갔으므로(위
+   * `approvalTargets` · `roleQueue`) 받지 못한 사람은 **지정 · 직군 자리 결재의 admin** 뿐이다 — 그 역할을 함께 가진
+   * admin 은 이미 받았다. 기본 큐 결재는 admin · planner 가 모두 받았으므로 아무에게도 보내지 않는다(카드와 개요의
+   * "지연" 표시가 그 자리다). 요청자는 뺀다 — 리마인더와 같다.
+   */
+  private async escalationTargets(event: {
+    project_id: string;
+    subject_id: string;
+    payload?: Record<string, unknown> | null;
+  }): Promise<string[]> {
+    const { rows } = await this.db.execute<{
+      assignee_user_id: string | null;
+      assignee_role: string | null;
+      requested_by_user_id: string;
+    }>(sql`
+      SELECT assignee_user_id, assignee_role::text AS assignee_role, requested_by_user_id
+        FROM approval WHERE id = ${event.subject_id} AND project_id = ${event.project_id}
+    `);
+    const approval = rows[0];
+    if (approval === undefined) return [];
+    if (approval.assignee_user_id === null && approval.assignee_role === null) return [];
+    // 조직 경계는 요청 알림과 같다(REQ-API-125) — 조직 단위 멤버십은 그 조직의 것만 센다
+    const { rows: admins } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT m.user_id FROM membership m
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role = 'admin'
+         AND m.user_id <> ${approval.requested_by_user_id}
+         ${approval.assignee_user_id === null ? sql`` : sql`AND m.user_id <> ${approval.assignee_user_id}`}
+         -- 그 역할을 함께 가진 admin 은 요청 알림을 이미 받았다
+         ${
+           approval.assignee_role === null
+             ? sql``
+             : sql`AND NOT EXISTS (
+                 SELECT 1 FROM membership r
+                  WHERE r.user_id = m.user_id AND r.org_id = p.org_id
+                    AND (r.project_id = p.id OR r.project_id IS NULL)
+                    AND r.role = ${approval.assignee_role}::member_role)`
+         }
+    `);
+    return admins.map((r) => r.user_id);
   }
 
   /**

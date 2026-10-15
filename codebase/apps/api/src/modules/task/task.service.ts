@@ -24,7 +24,7 @@ import {
   checkEvidenceLocator,
   normalizeEvidenceNote,
   EVIDENCE_NOTE_MAX,
-  GatePolicySchema,
+  effectiveGatePolicy,
   DELEGATION_PLACEHOLDER_TEXTS,
   isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
@@ -37,6 +37,7 @@ import {
   taskStatus,
   text,
 } from '@nerv/schema';
+import type { DoneGateCheck, DoneGateResult } from '@nerv/schema';
 import {
   cursorId,
   cursorTimestamp,
@@ -44,7 +45,7 @@ import {
   encodeCursor,
   pageLimit,
 } from '../../common/cursor.js';
-import { displayKey } from '@nerv/schema/keys';
+import { displayKey, policyFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { entityRef } from '../../common/entity-ref.js';
@@ -2526,9 +2527,18 @@ export class TaskService {
           isAgent: input.sessionId != null,
           fromState: task.status,
           toState: 'done',
+          // **done 게이트가 무엇을 봤는지 남긴다**(2026-10-15 · 사람 결정 · REQ-API-303). done 에는 사람 승인이 없으므로
+          // (2026-09-28 결정 · 10-15 재확인) 이 기록이 그 판정의 감사다 — 적용 정책 지문 · 조건별 결과 · 면제를 썼는가
+          payload: {
+            policy_fingerprint: gate.audit.policyFingerprint,
+            ...(gate.audit.policyFallback ? { policy_fallback: true } : {}),
+            done_gate: { conditions: gate.audit.checks, waiver_used: gate.audit.waiverUsed },
+          },
         });
         await this.refreshImplStatus(tx, task.source_requirement_id);
-        return { status: 'done', gate };
+        // 응답은 그대로다 — 감사 재료는 이벤트의 것이다
+        const verdict = { ok: gate.ok, missing: gate.missing, uncoveredKinds: gate.uncoveredKinds };
+        return { status: 'done', gate: verdict };
       }
 
       // **`ready` 는 도착지가 아니라 판정이다**(2026-09-07 · REQ-API-131). 큐에 들어간다는 것은
@@ -2627,32 +2637,46 @@ export class TaskService {
     taskId: string,
     projectId: string,
     specImpact: Record<string, unknown> | null | undefined,
-  ): Promise<{ ok: boolean; missing: string[]; uncoveredKinds: string[] }> {
+  ): Promise<{
+    ok: boolean;
+    missing: string[];
+    uncoveredKinds: string[];
+    /** `task.done` 이 남기는 감사 재료(2026-10-15 · REQ-API-303) — 응답에는 넣지 않는다 */
+    audit: {
+      policyFingerprint: string;
+      policyFallback: boolean;
+      checks: DoneGateCheck[];
+      waiverUsed: boolean;
+    };
+  }> {
     const missing: string[] = [];
     const uncoveredKinds: string[] = [];
+    // **본 조건과 결과를 함께 적는다**(2026-10-15 · 사람 결정 · REQ-API-303). done 에는 사람 승인이 없어서, 나중에
+    // "그때 무엇을 보고 닫았나" 를 물으면 답할 곳이 이 기록뿐이다. 정책이 켠 조건만 적는다
+    const checks: DoneGateCheck[] = [];
+    let waiverUsed = false;
 
     // 조건 5 — 스펙 영향 선언. none sentinel 을 허용하되 선언 자체는 필수다
     const impact = specImpact;
-    if (impact === null || impact === undefined || Object.keys(impact).length === 0) {
-      missing.push(text('task.missing.spec_impact'));
-    }
+    const impactMissing =
+      impact === null || impact === undefined || Object.keys(impact).length === 0;
+    if (impactMissing) missing.push(text('task.missing.spec_impact'));
+    checks.push({ condition: 'spec_impact', result: impactMissing ? 'failed' : 'passed' });
 
     // **강화는 프로젝트가 켠다**(2026-09-07 · REQ-API-146). 기본은 오늘과 같다 —
     // 서버가 일괄로 켜면 오늘 통과하던 작업이 내일 막히고, 그 이유를 아무도 고르지 않았다.
     const { rows: policyRows } = await tx.execute<{ gate_policy: unknown }>(
       sql`SELECT gate_policy FROM project WHERE id = ${projectId}`,
     );
-    const parsed = GatePolicySchema.safeParse(policyRows[0]?.gate_policy ?? {});
-    if (!parsed.success) {
+    const { policy: gatePolicy, valid } = effectiveGatePolicy(policyRows[0]?.gate_policy);
+    if (!valid) {
       // **조용히 기본값으로 가지 않는다**(2026-09-28 · REQ-API-240) — 판정은 멈추지 않되 운영자가 알아야 한다.
       // 보존 잡(retention.job.ts)과 같은 규율이다. 예전에는 아무 기록 없이 리뷰 조건을 끈 채 통과시켰다
       this.logger.warn(
         `gate_policy 가 유효하지 않습니다 — done 게이트는 기본값을 씁니다 (project=${projectId})`,
       );
     }
-    const policy = parsed.success
-      ? parsed.data.done_gate
-      : { evidence_source: 'any' as const, review_coverage: false };
+    const policy = gatePolicy.done_gate;
 
     // 조건 4 — Requirement ↔ 구현 Evidence 1건 이상.
     // `ci_or_human` 이면 **에이전트가 스스로 올린 것은 세지 않는다** — 자기 신고 문자열
@@ -2663,13 +2687,15 @@ export class TaskService {
       sql`SELECT count(*)::int AS n FROM evidence
            WHERE task_id = ${taskId}${sourceFilter}`,
     );
-    if ((rows[0]?.n ?? 0) === 0) {
+    const evidenceMissing = (rows[0]?.n ?? 0) === 0;
+    if (evidenceMissing) {
       missing.push(
         policy.evidence_source === 'ci_or_human'
           ? text('task.missing.evidence_source')
           : text('task.missing.evidence'),
       );
     }
+    checks.push({ condition: 'evidence', result: evidenceMissing ? 'failed' : 'passed' });
 
     // 조건 1~3 — 리뷰 커버리지. FR-10 이 오래 이월해 온 조건이고, 이제 **정책으로 켠다**.
     // 면제(`gate_bypass` 결재)가 있으면 둘 다 넘어간다 — 면제는 기록된 예외다(FR-10).
@@ -2683,6 +2709,10 @@ export class TaskService {
       `);
       const waivedAll = waivers.some((w) => w.kinds === null);
       const waivedKinds = new Set(waivers.flatMap((w) => w.kinds ?? []));
+      // 정책이 요구하는 종류 — 종류 목록이 아니면 비어 있다(종류 무관 조건 하나)
+      const requiredKinds = Array.isArray(policy.review_coverage)
+        ? [...new Set(policy.review_coverage)]
+        : [];
       // **코드를 낸 작업의 코드 계열 면제는 세지 않는다** — 면제 뒤에 커밋 · PR · 코드 경로 증적이 붙었으면 그 전제가
       // 깨졌다. 코드가 있는 작업의 code 리뷰 요구는 약해지지 않는다
       const codeWaived = [...waivedKinds].filter((k) =>
@@ -2703,19 +2733,31 @@ export class TaskService {
           }
         }
       }
-      if (!waivedAll && Array.isArray(policy.review_coverage)) {
+      if (waivedAll) {
+        // 범위 없는 면제는 리뷰 조건을 통째로 넘긴다 — 정책이 요구한 조건마다 면제로 적는다
+        waiverUsed = true;
+        if (requiredKinds.length > 0) {
+          for (const kind of requiredKinds)
+            checks.push({ condition: 'review_kind', kind, result: 'waived' });
+        } else {
+          checks.push({ condition: 'review_coverage', result: 'waived' });
+        }
+      } else if (Array.isArray(policy.review_coverage)) {
         // **종류 목록이면 종류마다 게이트 판정을 통과해야 한다**(2026-09-28 · clemvion 요청 N6 · REQ-API-250).
         // 판정은 게이트 판정 조회(EP-REV-08)와 한 곳이다 — CI 가 본 값과 done 이 본 값이 다르면 어느 쪽도 믿지 못한다
-        const kinds = [...new Set(policy.review_coverage)].filter((k) => !waivedKinds.has(k));
+        const kinds = requiredKinds.filter((k) => !waivedKinds.has(k));
+        const results = new Map<string, DoneGateResult>();
+        for (const kind of requiredKinds) if (waivedKinds.has(kind)) results.set(kind, 'waived');
         const verdicts = await roundVerdicts(tx, {
           projectId,
           taskId,
           kinds,
           headSha: null,
           // 종류마다 반드시 보고해야 하는 역할(REQ-API-252) — 게이트 판정과 같은 정책 값이다
-          requiredRoles: parsed.success ? parsed.data.review_roles : {},
+          requiredRoles: gatePolicy.review_roles,
         });
         for (const v of verdicts) {
+          const before = missing.length;
           if (v.state === 'uncovered') {
             if (voidKinds.has(v.kind)) {
               missing.push(text('task.missing.review_waiver_void', { kind: v.kind }));
@@ -2741,8 +2783,17 @@ export class TaskService {
               }),
             );
           }
+          results.set(v.kind, missing.length > before ? 'failed' : 'passed');
         }
-      } else if (!waivedAll) {
+        // 정책에 적힌 순서대로 — 면제한 종류도 그 자리에 둔다
+        for (const kind of requiredKinds) {
+          const result = results.get(kind);
+          if (result === undefined) continue;
+          if (result === 'waived') waiverUsed = true;
+          checks.push({ condition: 'review_kind', kind, result });
+        }
+      } else {
+        const before = missing.length;
         const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
           SELECT count(*)::int AS rounds,
                  COALESCE(sum((SELECT count(*) FROM finding f
@@ -2756,9 +2807,24 @@ export class TaskService {
         else if ((reviews[0]?.open_critical ?? 0) > 0) {
           missing.push(text('task.missing.open_critical'));
         }
+        checks.push({
+          condition: 'review_coverage',
+          result: missing.length > before ? 'failed' : 'passed',
+        });
       }
     }
-    return { ok: missing.length === 0, missing, uncoveredKinds };
+    return {
+      ok: missing.length === 0,
+      missing,
+      uncoveredKinds,
+      audit: {
+        // 판정에 쓴 정책의 지문이다 — 정책이 깨졌으면 대신 쓴 기본 정책의 것(REQ-API-240)
+        policyFingerprint: policyFingerprint(gatePolicy),
+        policyFallback: !valid,
+        checks,
+        waiverUsed,
+      },
+    };
   }
 
   private async findOwnActiveClaim(

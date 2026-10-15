@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.25 (2026-10-11)</span>
+      <span>버전 v0.26 (2026-10-15)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -489,10 +489,11 @@
       <tr><td><code>edit_lease_user_id</code></td><td>uuid FK NULL</td><td>초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — <code>base_hash_id</code> 409는 그대로 최후 방어선이다</td></tr>
       <tr><td><code>edit_lease_session_id</code></td><td>uuid FK NULL</td><td>보유 표면. 에이전트 세션이면 그 세션, NULL = 웹</td></tr>
       <tr><td><code>edit_lease_expires_at</code></td><td>timestamptz NULL</td><td>리스 만료. TTL 30분 — Task 클레임 리스·stale 임계와 같은 상수</td></tr>
+      <tr><td><code>reverted_to_version_no</code></td><td>int NULL</td><td>되돌리기로 만든 초안이면 본문을 복사한 옛 버전의 번호(2026-10-15). 초안을 이어 고쳐도 지우지 않는다 — 어디서 출발했는지의 기록이고 롤백 신호를 계산할 재료다</td></tr>
       <tr><td><code>updated_at</code></td><td>timestamptz</td><td>본문이 <b>바뀐</b> 시각(저장된 시각이 아니다). draft 는 같은 행을 덮어쓰므로 <code>created_at</code> 만으로는 "언제 바뀌었나"에 답하지 못한다</td></tr>
     </tbody>
   </table></div>
-  <p><b>무결성 규칙:</b> <code>status = 'approved'</code> 이후 <code>body_md</code>·<code>content_hash</code> UPDATE를 트리거로 금지한다. 과거 버전 복원은 편집이 아니라 <b>새 버전 생성</b>이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다.</p>
+  <p><b>무결성 규칙:</b> <code>status = 'approved'</code> 이후 <code>body_md</code>·<code>content_hash</code> UPDATE를 트리거로 금지한다. 과거 버전으로 <b>되돌리기</b>는 편집이 아니라 <b>새 버전 생성</b>이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다. 서버가 옛 버전의 본문을 그대로 복사해 새 초안을 만들고 그 초안은 보통 게이트(제출 → 판정 → 결재)를 지난다. 승인본을 직접 되돌리는 전이는 없다(2026-10-15 사람 결정 · <a href="api.html">4.4 API</a> REQ-API-308). 이 기능을 「복원」이라 부르지 않는다 — 그 말은 보관한 문서를 되살리는 일이다.</p>
 
   <h4><code>requirement</code> — 구현 추적의 단위(D-03)</h4>
   <div class="table-wrap"><table>

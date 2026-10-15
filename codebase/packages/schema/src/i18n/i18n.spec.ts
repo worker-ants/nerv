@@ -160,9 +160,10 @@ const AGENT_PREFIXES = ['mcp.', 'agent.', 'cli.', 'import.', 'export.'];
 describe('말투 — 사람이 보는 화면은 합쇼체다', () => {
   /**
    * 해라체가 맞는 화면 문구 — **문구 자체가 해라체로 쓰는 형식의 견본**이다. 요구사항 문장의 모양
-   * (`… THE SYSTEM SHALL <동작>한다`)을 보여 주는 자리라, 합쇼체로 바꾸면 틀린 견본이 된다.
+   * (`… THE SYSTEM SHALL <동작>한다`)을 보여 주는 자리라, 합쇼체로 바꾸면 틀린 견본이 된다. 다음 번호로 만든
+   * 요구사항 한 줄(2026-10-15 · REQ-WEB-313)도 사람이 복사해 본문에 넣는 견본이다.
    */
-  const HAERA_SAMPLES = new Set(['spec.requirements.format']);
+  const HAERA_SAMPLES = new Set(['spec.requirements.format', 'spec.requirements.next_line']);
   const screen = Object.entries(ko).filter(
     ([key]) => !AGENT_PREFIXES.some((prefix) => key.startsWith(prefix)),
   );

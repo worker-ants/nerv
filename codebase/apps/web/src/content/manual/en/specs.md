@@ -142,6 +142,18 @@ While comparing, you see the **changes** instead of the body. Added or removed r
 
 **What you see is kept in the URL.** `?v=3` shows version 3 in full (read-only), and `?diff=v2..v3` shows the changes between two versions. Copy the URL and the other person sees the same screen, so there is no need to say "look at the third paragraph". Opening a comparison, switching to another pair, or closing it **keeps the rail tab and the baseline** as they were.
 
+**Reverting to an earlier version.** When you open an earlier version (approved or superseded), a **[Revert to this version]** card appears above the body. Copy its command into a terminal and an agent creates **a new draft that copies the body of that version as is**.
+
+```text
+claude "/nerv:spec revert SPC-CWC-007 3"
+```
+
+- The approved version is not changed. The new draft goes through review and approval like any other draft.
+- While a draft is open or a version is in review, a new draft cannot be created. The card then shows that version and what to do instead of the command, and the server refuses to overwrite the open draft.
+- If the restored body is much smaller than the current one, the submission is raised to at least T2, so a person looks at it once (see "Checks and submission" below).
+- In the version list, a version created by reverting shows where it came from, such as **reverted to the body of v3**.
+- Roles that cannot write drafts (viewer) don't see the card.
+
 ## Attachments {#attachments}
 
 Use the **Attachments** tab in the rail to attach mockups and documents. Drag files in or choose them.
@@ -253,7 +265,7 @@ Requirements in a spec body are extracted, and each one tracks its own implement
 - REQ-CWC-033 IF the conversation to restore is older than 30 days THE SYSTEM SHALL start a new one
 ```
 
-Agents get the number from the server, so nobody numbers requirements by hand. **Requirement rows are created from these lines when the document is approved.** That is why the Requirements tab lists nothing for a draft that has never been approved. Instead, the top of the tab shows **the requirements the draft will create once approved**. For a draft of a document that already has an approved version, it shows **what is added, changed and removed since that version**, and **[Compare vN..vM]** opens the comparison. Lines that don't follow the format appear as warnings in the pre-submit check.
+Agents get the number from the server, so nobody numbers requirements by hand. The **New requirement line** box at the end of the Requirements tab shows a line built from the next number the server suggests (`- REQ-CWC-034 WHEN <condition> THE SYSTEM SHALL <behaviour>`) with a copy button. Copy it and hand it to an agent, and the agent adds it after the existing requirement lines. The prefix defaults to the one this document uses, and you can change it in the box. The number is only a suggestion and becomes final when the document is approved. The server also counts the numbers written in other drafts, so two drafts written at the same time don't get the same number. Defining **a number that belongs to another document** is blocked by the pre-submit check, and approval is refused too. To move a requirement to another document, first remove the line in a new version of the original document and get it approved. **Requirement rows are created from these lines when the document is approved.** That is why the Requirements tab lists nothing for a draft that has never been approved. Instead, the top of the tab shows **the requirements the draft will create once approved**. For a draft of a document that already has an approved version, it shows **what is added, changed and removed since that version**, and **[Compare vN..vM]** opens the comparison. Lines that don't follow the format appear as warnings in the pre-submit check.
 
 **Implementation status** on the project screen shows counts for these statuses. Of its six numbers, the last three matter most.
 

@@ -348,6 +348,13 @@ export function ApprovalCard({
   const isQuestion = card['subject_type'] === 'question';
   // 결정된 카드인가 — 처리됨 탭의 카드는 조작 대상이 아니라 기록이다(2026-09-03)
   const decided = (card['decision'] ?? null) as string | null;
+  /**
+   * **만료된 카드**(2026-10-15 · 사람 결정 · REQ-WEB-310) — 결정 없이 끝났다(7일 동안 아무도 결정하지 않아 문서가 초안으로
+   * 돌아갔다). 결정이 아니므로 `decision` 은 비어 있고 서버가 만료 시각을 준다. 처리됨 카드처럼 조작 대상이 아니다
+   */
+  const expiredAt = typeof card['expired_at'] === 'string' ? card['expired_at'] : null;
+  /** 끝난 카드 — 결정했거나 만료됐다. 단추 · 코멘트 칸 · 결정 키가 없다 */
+  const closed = decided !== null || expiredAt !== null;
   const [showBody, setShowBody] = useState(false);
   // 카드의 주어 — 승인은 스펙 한 편이고, 질문은 아래 `context` 가 여럿을 잇는다
   const subjectLink = subjectLinkOf(card);
@@ -550,7 +557,7 @@ export function ApprovalCard({
       // `a` 를 누르면 요청이 나가고 `already_decided` 오류 토스트가 떴다 — 이 파일이
       // 아래에서 "누를 수 있는 것은 할 수 있다는 뜻이어야 한다" 고 적어 두고 키에는
       // 적용하지 않은 자리다(2026-09-05 감사).
-      if (decided !== null) return;
+      if (closed) return;
       // 들고 있는 결정을 무른다 — 들고 있거나 보내는 동안에는 다른 결정 키를 받지 않는다
       if (e.key === 'z' && grace.pending !== null) {
         e.preventDefault();
@@ -574,7 +581,7 @@ export function ApprovalCard({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, keysOff, card, isQuestion, decided, requestDecision, busy, grace.pending]);
+  }, [active, keysOff, card, isQuestion, closed, requestDecision, busy, grace.pending]);
 
   return (
     <article
@@ -700,7 +707,22 @@ export function ApprovalCard({
         {/* **결정된 카드는 기다리는 중이 아니다**(2026-09-03). 처리됨 탭에서도 대기 시간이
             계속 흘러 "9일 대기" 라고 적혀 있었다 — 그 값은 requested_at 기준이라 결정한
             뒤에도 자란다. 결정된 것은 무엇을 언제 정했는지를 말한다. */}
-        {decided === null ? (
+        {/* **지연**(2026-10-15 · 사람 결정 · REQ-WEB-310) — 요청 뒤 2일을 넘긴 결재다. 판정은 서버의 `overdue` 다(화면이
+            시간을 다시 재지 않는다). 기본 큐 결재는 알림을 더 보내지 않으므로 이 표시가 그 자리를 맡는다 */}
+        {!closed && card['overdue'] === true && (
+          <StatusBadge
+            data-testid="overdue"
+            token="danger"
+            mark={null}
+            label={t('inbox.card.overdue')}
+            title={t('inbox.card.overdue_hint')}
+          />
+        )}
+        {expiredAt !== null ? (
+          <span data-testid="expired-at" className="shrink-0 text-xs text-text-faint">
+            {t('inbox.card.expired_at', { when: relativeTime(t, expiredAt) })}
+          </span>
+        ) : decided === null ? (
           <span
             data-testid="waited"
             className={cn(
@@ -894,10 +916,19 @@ export function ApprovalCard({
               currentOrg={currentOrg}
             />
           )}
+          {/* 만료된 카드도 **다시 오는 길**을 적는다 — 작성자가 다시 검토를 요청하면 새 카드가 생긴다 */}
+          {expiredAt !== null && (
+            <CorrectionPath
+              card={card}
+              decided="expired"
+              subjectLink={subjectLink}
+              currentOrg={currentOrg}
+            />
+          )}
           {/* 결정된 카드에는 입력 칸을 두지 않는다(2026-09-03) — 처리됨 탭에서 코멘트를
               적고 [승인] 을 눌러도 서버는 already_decided 로 거절한다. 누를 수 있는 것은
               할 수 있다는 뜻이어야 한다. */}
-          {decided === null && (
+          {!closed && (
             <Textarea
               ref={commentRef}
               value={comment}
@@ -980,7 +1011,7 @@ export function ApprovalCard({
         </Link>
       )}
 
-      {!(compact ?? false) && decided === null && (
+      {!(compact ?? false) && !closed && (
         <footer ref={footerRef} className="mt-2.5 flex items-center gap-2">
           {heldLabel !== null || sending ? (
             <GraceStrip
@@ -1124,13 +1155,20 @@ function CorrectionPath({
   const entry = CORRECTION[String(card['subject_type']) as keyof typeof CORRECTION] as
     (typeof CORRECTION)[keyof typeof CORRECTION] | undefined;
   if (entry === undefined) return null;
+  // 만료는 스펙 결재에만 있다 — 결정이 아니라 시간이 닫았다(REQ-WEB-310)
+  const line =
+    decided === 'expired'
+      ? 'inbox.card.correct.spec_expired'
+      : decided === 'approve'
+        ? entry.approve
+        : entry.other;
   return (
     <p
       data-testid="correction-path"
       data-subject={String(card['subject_type'])}
       className="mt-2 flex flex-wrap items-baseline gap-x-2 text-xs text-text-mute"
     >
-      <span>{t(decided === 'approve' ? entry.approve : entry.other)}</span>
+      <span>{t(line)}</span>
       {subjectLink !== null && (
         <CardLink
           orgSlug={card['org_slug']}

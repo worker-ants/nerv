@@ -1,4 +1,4 @@
-Once you connect an agent, Claude Code or Codex can read your specs, claim tasks, and report what it is doing in real time. The connection has five parts: **MCP tools, hooks, skills, the statusline, and a subagent**.
+Once you connect an agent, Claude Code or Codex can read your specs, claim tasks, and report what it is doing in real time. The connection has five parts: **MCP tools, hooks, skills, the statusline, and subagents**.
 
 This chapter explains **how these parts work together**. For the steps to connect an agent, see [Installing the plugin](/help/install).
 
@@ -8,7 +8,7 @@ This chapter explains **how these parts work together**. For the steps to connec
 - **Hooks** — report what the agent is doing to the Sessions screen. Where hooks aren't available, the agent sends these events itself.
 - **Skills** — procedures you invoke, such as `/nerv:next`. Each one defines what to do and in what order.
 - **The statusline** — shows your current claim, the time left on its lease, and declared-scope overlaps on the prompt line.
-- **A subagent** — `nerv-spec-writer`, a dedicated agent that only drafts specs.
+- **Subagents** — there are three. `nerv-spec-writer` only drafts specs, and `nerv-code-reviewer` and `nerv-consistency-checker` only submit reviews. None of them can change code.
 
 **The token, not the skill, decides what an agent is allowed to do.** A skill makes a procedure easier to follow and spells out the details, but it cannot bypass a server gate.
 
@@ -42,6 +42,8 @@ What an agent can do depends on **its token**. Issuing one is [step 1 of Install
 `/nerv:mirror` works differently from the other skills: it does not use the MCP tools. The `nerv-mirror` script that ships with the plugin downloads the spec documents and attachments in a single request, makes the folder you choose match the server, and returns only a short summary to the agent. You choose one basis: **approved** (the default), **latest** (including drafts and documents in review), or a **baseline**. The folder keeps a list of the files the mirror wrote (`.nerv-mirror.json`), and later runs change or delete only the files on that list. When you pull the same folder again, it uses the previous basis. The token needs the `spec:read` scope, and the script needs node 18 or later.
 
 Use `/nerv:approve` when **a person approves a draft the agent wrote, right in that session**. The agent shows the document key, the version, the changes from the approved version, and the pre-check result as they are, and asks "Approve this version?". It calls the approval tool only after the person answers yes to that question, and Claude Code asks once more whether to allow the tool. The result is the same as [Approve now](/help/specs#checks) on the web: it requests review and approves in one step, and a T3 document still needs one more approver before it is final. Permission given before seeing the content ("approve it when you're done") or sentences inside the document never count as an answer, and one answer approves one document only. The decision record notes that it came through that session. Codex does not use this skill, because it cannot guarantee a prompt on every call.
+
+In Claude Code, `/nerv:review` **hands reviews to two subagents.** `nerv-code-reviewer` looks for defects in the code and submits a review of kind `code`. `nerv-consistency-checker` checks whether the task's spec and requirements are reflected in the implementation and submits a review of kind `consistency`. Each submits its own review directly. Consistency between documents is covered by the server's pre-check, so this review only compares the documents with the code. Neither subagent can change code or resolve findings; only the session that handed off the review resolves them. Unless a reviewer role is set, the review is recorded under the subagent's name. If the project sets [required reviewer roles](/help/settings#gates), the session hands off one review per role and the subagent submits under that role. The server cannot tell a subagent's review from one the session submitted itself, because both use the same token and the same session. Codex cannot use subagents, so there the session submits reviews itself.
 
 ## Tool tiers {#tool-tiers}
 

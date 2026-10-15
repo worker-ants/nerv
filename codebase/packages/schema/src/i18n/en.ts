@@ -98,6 +98,8 @@ export const en = {
   'error.approval.already_approved':
     'You already approved this document. The second approval must come from someone else.',
   'error.approval.already_decided': 'This item has already been decided.',
+  'error.approval.expired':
+    'This approval expired after 7 days without a decision. The document went back to draft; it can be decided again once review is requested again.',
   'error.approval.content_changed':
     'The content changed after you loaded it. Check the new version and decide again.',
   'error.approval.not_assignee': 'You are not the designated approver.',
@@ -270,6 +272,11 @@ export const en = {
     'A resolution can’t be changed. If it needs another look, file a new finding.',
   'inbox.card.correct.finding_returned': 'If the agent asks again, a new card appears.',
   'inbox.card.correct.bypass': 'A bypass stays on record. To withdraw it, make a new decision.',
+  'inbox.card.correct.spec_expired':
+    'No one decided within 7 days, so the document went back to draft. A new card appears when the author requests review again.',
+  'inbox.card.expired_at': 'Expired · {when}',
+  'inbox.card.overdue': 'Overdue',
+  'inbox.card.overdue_hint': 'Requested more than 2 days ago.',
   'inbox.card.to_session': 'Open session',
   'inbox.card.gate_score': 'Risk score {score}',
   'inbox.scope_all':
@@ -299,6 +306,8 @@ export const en = {
     'take over an edit lease held by another session. Use it when a disconnected session has not released the lease',
   'mcp.arg.allow_shrink':
     'declare that this save shrinks the body it overwrites sharply (size, heading count or kept requirements below half). Without it such a save is rejected with body_shrunk. Set it only after a person has confirmed the deletion',
+  'mcp.arg.revert_to_version':
+    'revert: the server copies the body of this earlier version (approved or superseded) as is into a new draft. Give spec_id and base_hash (the hash of the current latest version) and send no body. Rejected with open_draft_exists while a draft is open',
   'notif.scope_all':
     'Notifications from all your organizations. Each row shows its organization and project.',
   'scope.elsewhere': 'This item belongs to {org}, not the currently selected organization',
@@ -407,6 +416,8 @@ export const en = {
     'The body shrank sharply from the previous version v{n} ({detail}). If that was not intended, restore what was dropped. If the deletion is intended, save again with `allow_shrink: true` to record it.',
   'check.body_shrunk_ack':
     'The body shrank sharply from the previous version v{n} ({detail}). The save confirmed it as an intended deletion.',
+  'check.requirement_owned':
+    '{ref} belongs to {owner}. A document that defines the same number cannot be approved. Get a new number and use it. To move the requirement here, first remove the line in a new version of {owner} and get that approved.',
   'body_change.bytes': 'size {before} → {after}',
   'body_change.headings': 'headings {before} → {after}',
   'body_change.requirements': '{kept} of {before} requirements kept',
@@ -651,6 +662,13 @@ export const en = {
   'spec.requirements.format':
     '- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>',
   'spec.requirements.no_priority': 'no priority',
+  'spec.requirements.next_title': 'New requirement line',
+  'spec.requirements.next_prefix': 'Prefix',
+  'spec.requirements.next_line': '- {ref} WHEN <condition> THE SYSTEM SHALL <behaviour>',
+  'spec.requirements.next_hint':
+    'Copy it and hand it to an agent. The agent adds it after the existing requirement lines. The number is a suggestion and becomes final when the document is approved.',
+  'spec.requirements.next_prefix_invalid':
+    'A prefix starts with an uppercase letter and uses only uppercase letters and digits (up to 16).',
   'specs.basis': 'Version basis',
   'specs.basis_approved': 'Approved',
   'specs.basis_latest': 'Latest (incl. drafts)',
@@ -911,6 +929,13 @@ export const en = {
     'A status filter cannot be combined with a baseline. Every document in a baseline was approved when it was captured.',
   'error.spec.in_review_pending':
     'A version is in review (v{n}), so a new draft cannot be started. Continue once the decision is made, or when it returns to draft after a rejection.',
+  'error.spec.open_draft_exists':
+    'A draft is open (v{n}), so the document cannot be reverted. The draft is not overwritten. Ask a person whether to continue that draft.',
+  'error.spec.revert_no_change':
+    'The body of v{n} is the same as the latest version (v{latest}). There is nothing to revert.',
+  'error.spec.requirement_owned':
+    'Not approved: this version defines requirement numbers that belong to another document ({refs}). Reject this version and have the numbers changed.',
+  'spec.revert_summary': 'Reverted to the body of v{n}',
   'error.task.rebrief_baseline':
     "A task developed against a baseline can't move only its basis version. Move the task to a new baseline instead.",
   'error.task.baseline_pin_mismatch':
@@ -1007,6 +1032,8 @@ export const en = {
   'event.approval.decided': 'Approval decided',
   'event.approval.requested': 'Approval requested',
   'event.approval.reminded': 'Approval reminder',
+  'event.approval.overdue': 'Approval overdue',
+  'event.approval.expired': 'Approval expired',
   'event.baseline.created': 'Baseline created',
   'event.claim.conflict_blocked': 'Claim blocked by declared-scope overlap',
   'event.claim.conflict_warn': 'Declared-scope overlap warning',
@@ -1517,11 +1544,14 @@ export const en = {
   'inbox.card.untitled': '(untitled)',
   'inbox.count_decided': '{count} decided',
   'inbox.count_pending': '{count} pending',
+  'inbox.count_expired': '{count} expired',
   'inbox.decision.approve': 'Approval',
   'inbox.decision.comment': 'Comment',
   'inbox.decision.reject': 'Rejection',
   'inbox.empty_decided_hint': 'Requests you approve, reject or comment on stay here.',
   'inbox.empty_pending_hint': 'Approval requests from agents appear here.',
+  'inbox.empty_expired_hint':
+    'Spec approvals that went undecided for 7 days and returned to draft stay here.',
   'inbox.key.approve': 'approve',
   'inbox.key.bulk': 'approve · reject selected',
   'inbox.key.comment': 'comment',
@@ -1530,6 +1560,7 @@ export const en = {
   'inbox.key.select': 'select',
   'inbox.tab.decided': 'Decided',
   'inbox.tab.pending': 'Pending',
+  'inbox.tab.expired': 'Expired',
   'inbox.title': 'Inbox',
   'inbox.waited.days': 'waiting {n}d',
   'inbox.waited.hours': 'waiting {n}h',
@@ -1607,6 +1638,13 @@ export const en = {
   'project.waiting.notifications': '{count} important notifications',
   'project.waiting.sessions': '{count} sessions waiting for a reply',
   'project.waiting.critical': '{count} open critical',
+  'project.waiting.overdue': '{count} overdue approvals',
+  'project.waiting.overdue_hint': 'Approvals still undecided more than 2 days after the request.',
+  'project.approval_lag.label': 'Approval flow',
+  'project.approval_lag.summary':
+    'Of {total} approvals in the last {days} days, {late} ({percent}%) waited more than a day.',
+  'project.approval_lag.review':
+    'That is above {threshold}%. Consider assigning approvals to specific people instead of the role queue.',
   'project.no_sessions_hint_post': ', it shows up here.',
   'project.no_sessions_hint_pre': 'When an agent claims work with',
   'project.recent_events': 'Recent activity',
@@ -1676,6 +1714,14 @@ export const en = {
   'spec.diff.no_previous': 'No earlier version to compare',
   'spec.diff.open': 'Compare with previous',
   'spec.version.open': 'View full text',
+  'spec.version.reverted': 'reverted to the body of v{n}',
+  'spec.revert.title': 'Revert to this version',
+  'spec.revert.hint':
+    'An agent creates a new draft that copies the body of v{n} as is. The draft goes through review like any other draft.',
+  'spec.revert.blocked_draft':
+    'A draft is open (v{n}), so a new draft cannot be created. To revert, ask an agent to replace that draft with the body of v{m}.',
+  'spec.revert.blocked_review':
+    'A version is in review (v{n}), so you cannot revert now. Revert after the decision.',
   'spec.gate_passed': '{tier}: passed without approval (recorded as an event).',
   'spec.impact_backlinks':
     '{count} documents reference this. On approval, they get a re-check request',
@@ -2007,7 +2053,24 @@ export const en = {
   'account.name_hint': 'This name appears in member lists, cards and activity.',
   'account.name_saved': 'Name updated.',
   'account.email': 'Email',
-  'account.email_hint': 'This is your sign-in ID, so it cannot be changed.',
+  'account.email_hint':
+    'This is your sign-in ID. To change it, you need access to both your current and your new mailbox.',
+  // ── 이메일 바꾸기 (2026-10-15 · 사람 결정 · screens.md REQ-WEB-229 · api.md REQ-API-310) ──────────
+  'account.email_change': 'Change email',
+  'account.email_new': 'New email',
+  'account.email_steps':
+    'We first send an approval email to your current address. Once you approve, a confirmation email goes to the new address, and opening its link completes the change. After the change, you are signed out on all other devices. Agent tokens keep working.',
+  'account.email_submit': 'Send approval email',
+  'auth.email_same': 'This is your current address.',
+  'account.email_off_server':
+    'This server does not send email, so you cannot change your email here. Please contact the server operator.',
+  'account.email_pending_approve':
+    'Changing to {email}. Open the approval link in your current mailbox.',
+  'account.email_pending_confirm':
+    'Changing to {email}. Approved. Open the confirmation link in the new mailbox to finish.',
+  'account.email_pending_hint':
+    'Links work for {minutes} minutes. Sending to another address cancels the earlier request.',
+  'account.email_requested': 'Approval email sent to your current address.',
   'account.password': 'Password',
   'account.digest': 'Email digest',
   'account.digest_hint':
@@ -2083,6 +2146,23 @@ export const en = {
   'reset.invalid_body':
     'It expired ({minutes} minutes) or has already been used. Request a new link.',
   'reset.request_again': 'Get a new reset link',
+  // ── 이메일 바꾸기 결과 화면 /email-change (2026-10-15 · 사람 결정 · screens.md REQ-WEB-314) ──────────
+  'email_change.lead': 'Change email',
+  'email_change.approved': 'Approved',
+  'email_change.approved_body':
+    'We sent a confirmation email to the new address. Open its link to finish changing your email. The link works for {minutes} minutes.',
+  'email_change.done': 'Email changed',
+  'email_change.done_signed_in':
+    'From now on, sign in with the new address. This browser stays signed in, and all other devices were signed out.',
+  'email_change.done_signed_out':
+    'From now on, sign in with the new address. All devices were signed out, so sign in again with the new address.',
+  'email_change.invalid': 'This link cannot be used',
+  'email_change.invalid_body':
+    'It has expired ({minutes} minutes), was already used, or was replaced by a newer request. Request the change again from My account.',
+  'email_change.other_account':
+    'This browser is signed in to a different account. Sign out, then open the link again.',
+  'email_change.to_account': 'Go to My account',
+  'email_change.to_login': 'Sign in',
   'unsubscribe.lead': 'Turn off the email digest.',
   'unsubscribe.title': 'Turn off the notification email digest?',
   'unsubscribe.body':
@@ -2177,6 +2257,7 @@ export const en = {
   'session.stale_note_task':
     'No activity for 30 minutes, so the session was marked stale. Its claim on {key} was reclaimed.',
   'inbox.empty_decided': 'Nothing decided yet',
+  'inbox.empty_expired': 'Nothing has expired',
   'inbox.see_pending': 'See pending requests',
   'notif.empty_action': 'Go to inbox',
   'reviews.queue.empty_action': 'Where reviews come from',
@@ -2301,6 +2382,16 @@ export const en = {
   'mail.reset.subject': '[NERV] Reset your password',
   'mail.reset.body':
     'Hi {name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n{url}\n\nThe link can be used once within {minutes} minutes. Setting a new password signs you out on all devices.\n\nIf you did not request this, you can delete this email. Your password will not change unless a new one is set through this link.',
+  // 이메일 바꾸기의 메일 셋(2026-10-15 · 사람 결정 · api.md REQ-API-310) — 옛 주소의 승인 · 새 주소의 확인 · 바뀐 뒤의 알림
+  'mail.change_email.approve.subject': '[NERV] Approve your email address change',
+  'mail.change_email.approve.body':
+    'Hi {name},\n\nWe received a request to change the email address of your NERV account.\n\nCurrent address: {email}\nNew address: {new_email}\n\nIf you made this request, open this link to approve it. After you approve, a confirmation email goes to the new address, and the change happens only when that link is opened too.\n{url}\n\nThe link can be used once within {minutes} minutes.\n\nIf you did not request this, do not open the link. Nothing changes unless it is opened. Someone may know your password, so change it.',
+  'mail.change_email.confirm.subject': '[NERV] Confirm your new email address',
+  'mail.change_email.confirm.body':
+    'Hi {name},\n\nYour NERV account email is being changed to this address ({email}). The change was approved from the current address.\n\nOpen this link to confirm and complete the change:\n{url}\n\nThe link can be used once within {minutes} minutes. After the change, you are signed out on all other devices and you sign in with this address.\n\nIf you did not request this, you can delete this email. Nothing changes unless the link is opened.',
+  'mail.change_email.done.subject': '[NERV] Your account email address was changed',
+  'mail.change_email.done.body':
+    'Hi {name},\n\nThe email address of your NERV account was changed.\n\nOld address: {email}\nNew address: {new_email}\n\nFrom now on, sign in with the new address. You can no longer sign in with this one, and NERV emails will go to the new address. All other devices were signed out.\n\nIf you did not make this change, tell the server operator right away.',
   // ── 스펙 관계 그래프 (screens.md §2.4a) ────────────────────────────────────────
   'graph.counts': '{nodes} docs · {edges} relations',
   'graph.empty': 'No relations yet.',

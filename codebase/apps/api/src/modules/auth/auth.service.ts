@@ -15,8 +15,10 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
+import { policyFingerprint } from '@nerv/schema/keys';
 import {
   ACTIVE_SESSION_STATES,
+  effectiveGatePolicy,
   GatePolicySchema,
   isAgentScope,
   isHumanOnlyScope,
@@ -42,6 +44,9 @@ import type { NervEventName } from '@nerv/schema';
 import type pg from 'pg';
 import { InjectDb, NERV_PG_POOL } from '../../common/database.module.js';
 import { createBetterAuth } from './better-auth.js';
+import { parsePending, pendingIdentifier } from './email-change.js';
+import type { EmailChangeStage } from './email-change.js';
+import { mailEnabled } from '../mail/mail.config.js';
 import { MailOutbox } from '../mail/mail.outbox.js';
 import type { NervAuth } from './better-auth.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -178,6 +183,35 @@ export class AuthService {
       UPDATE "user" SET display_name = ${displayName}, updated_at = now() WHERE id = ${userId}
     `);
     return this.me(userId);
+  }
+
+  /**
+   * EP-AUTH-06 — 이메일 바꾸기의 진행 상태(2026-10-15 · 사람 결정 · REQ-API-310). 메일을 보내지 않는 서버면 양식을 보이지
+   * 않는다(`mail_enabled`). 대기 중인 요청은 하나뿐이고(새로 보내면 갈아 끼운다), 만료됐으면 없는 것이다. 이미 다른 계정이
+   * 쓰는 주소로 보낸 요청도 같은 모양으로 남는다 — 이 응답이 계정이 있는지를 알려 주는 자리가 되지 않게 한다.
+   */
+  async myEmailChange(userId: string): Promise<{
+    mail_enabled: boolean;
+    pending: { new_email: string; stage: EmailChangeStage; expires_at: string } | null;
+  }> {
+    const { rows } = await this.db.execute<{ value: string; expires_at: string }>(sql`
+      SELECT value, expires_at FROM auth_verification
+       WHERE identifier = ${pendingIdentifier(userId)} AND expires_at > now()
+       ORDER BY created_at DESC LIMIT 1
+    `);
+    const row = rows[0];
+    const pending = row === undefined ? null : parsePending(row.value, new Date(row.expires_at));
+    return {
+      mail_enabled: mailEnabled(),
+      pending:
+        pending === null
+          ? null
+          : {
+              new_email: pending.newEmail,
+              stage: pending.stage,
+              expires_at: pending.expiresAt.toISOString(),
+            },
+    };
   }
 
   /** EP-ORG-01 */
@@ -712,6 +746,15 @@ export class AuthService {
       input.repoHost == null
         ? null
         : (assertVocab([input.repoHost], REPO_HOSTS, 'repo_host')[0] ?? null);
+    // 바꾸기 전 정책의 지문 — 감사가 "어느 정책에서 어느 정책으로" 를 말하게 한다(2026-10-15 · REQ-API-303)
+    const policyBefore =
+      gatePolicy == null
+        ? null
+        : (
+            await this.db.execute<{ gate_policy: unknown }>(
+              sql`SELECT gate_policy FROM project WHERE id = ${input.projectId}`,
+            )
+          ).rows[0]?.gate_policy;
     await this.db.execute(sql`
       UPDATE project
          SET name = coalesce(${input.name ?? null}, name),
@@ -726,8 +769,9 @@ export class AuthService {
              retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
        WHERE id = ${input.projectId}
     `);
-    // **무엇이 바뀌었는지만 남긴다** — 정책 본문은 싣지 않는다(게이트 정책은 크고, 그 값은
-    // 프로젝트 행이 이미 가지고 있다). 감사가 묻는 것은 "누가 언제 게이트를 건드렸나" 다.
+    // **무엇이 바뀌었는지 남긴다.** 게이트 정책을 고쳤으면 **바뀐 뒤의 유효 정책 본문과 지문**도 남긴다(2026-10-15 ·
+    // 사람 결정 · REQ-API-303) — 판정 이벤트는 지문만 남기므로, 지난 판정을 다시 계산하려면 그 지문의 본문이 어딘가에
+    // 있어야 한다. 프로젝트 행은 지금 값만 가지고 있다. 예전에는 바뀐 필드 이름만 남겼다
     const fields = (
       [
         ['name', input.name],
@@ -748,7 +792,19 @@ export class AuthService {
         subjectType: 'project',
         subjectId: input.projectId,
         actorUserId: input.actor.userId,
-        payload: { fields },
+        payload: {
+          fields,
+          ...(gatePolicy == null
+            ? {}
+            : {
+                // 저장한 값이 곧 유효 정책이다 — 스키마가 기본값까지 채운 결과를 저장한다
+                gate_policy: gatePolicy,
+                policy_fingerprint: policyFingerprint(gatePolicy),
+                policy_fingerprint_before: policyFingerprint(
+                  effectiveGatePolicy(policyBefore).policy,
+                ),
+              }),
+        },
       });
     }
     return this.project(input.projectId);

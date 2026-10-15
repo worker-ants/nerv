@@ -9,12 +9,14 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
 import { ConnectAgentLinks } from '../../components/connect-agent-links.js';
 import {
+  useApprovalFlow,
   useCoverage,
   useNotificationScopes,
   useProject,
   useProjectInboxCount,
   useSessions,
 } from '../../lib/queries.js';
+import type { ApprovalFlow } from '../../lib/queries.js';
 import { EventFeed } from '../../components/event-feed.js';
 import { cn } from '../../lib/utils.js';
 import {
@@ -45,6 +47,11 @@ function ProjectOverview(): React.JSX.Element {
    */
   const sessions = useSessions(proj, projectId, ACTIVE_SESSION_STATES.join(','));
   const inboxCount = useProjectInboxCount(proj, projectId);
+  /**
+   * **결재 흐름**(2026-10-15 · 사람 결정 · REQ-WEB-311) — 이 프로젝트에서 2일을 넘긴 결재 수와 역할 큐 재검토 지표.
+   * 기본 큐 결재는 2일이 지나도 알림을 더 보내지 않는다 — 그 자리를 이 수가 맡는다. 받지 못했으면 그리지 않는다
+   */
+  const flow = useApprovalFlow(proj, projectId);
   /**
    * **이 프로젝트의 중요 알림**(2026-09-27 · 사람 결정 N1 · REQ-WEB-258). 받은 요청 · 알림은 조직 전체의
    * 화면이지만, 개요에서 그 프로젝트로 좁힌 목록을 바로 연다. 수는 알림 칸과 같은 값이다(EP-NTF-05).
@@ -109,8 +116,13 @@ function ProjectOverview(): React.JSX.Element {
             importantNotifications={importantHere}
             waitingSessions={waitingSessions}
             critical={Number(project.data['open_critical_findings'] ?? 0)}
+            overdue={typeof flow.data?.overdue === 'number' ? flow.data.overdue : 0}
           />
         )}
+      {/* 모양이 다른 응답(옛 서버)은 그리지 않는다 — 한 줄이 개요 전체를 죽이지 않게 */}
+      {typeof flow.data?.lag?.total === 'number' && flow.data.lag.total > 0 && (
+        <ApprovalLagLine lag={flow.data.lag} />
+      )}
 
       <section className="mb-8 grid gap-4 lg:grid-cols-3">
         <Card className="self-start lg:col-span-1">
@@ -260,6 +272,7 @@ function WaitingLine({
   importantNotifications,
   waitingSessions,
   critical,
+  overdue,
 }: {
   proj: string;
   /** 이 프로젝트의 조직 — slug 는 조직 안에서만 유일하다 */
@@ -268,6 +281,8 @@ function WaitingLine({
   importantNotifications: number;
   waitingSessions: number;
   critical: number;
+  /** 요청 뒤 2일을 넘긴 결재 — 프로젝트 전체의 수다(EP-APR-08) */
+  overdue: number;
 }): React.JSX.Element {
   const t = useT();
   // 상태 배지와 같은 옅은 알약이라 표시로 읽혔다 — 이동하는 칩에는 ▸ 를 붙인다(REQ-WEB-274)
@@ -281,7 +296,8 @@ function WaitingLine({
       {approvals === 0 &&
         importantNotifications === 0 &&
         waitingSessions === 0 &&
-        critical === 0 && (
+        critical === 0 &&
+        overdue === 0 && (
           <span className="text-xs text-text-mute">{t('project.waiting.none')}</span>
         )}
       {/* **그 프로젝트로 좁힌 받은 요청을 연다**(2026-09-27 · REQ-WEB-258). 거르지 않은 목록으로 가면
@@ -294,6 +310,20 @@ function WaitingLine({
           className={cn(chip, 'bg-status-action-soft text-status-action')}
         >
           {t('project.waiting.approvals', { count: approvals })}
+          <span aria-hidden="true"> ▸</span>
+        </Link>
+      )}
+      {/* **지연 결재**(2026-10-15 · 사람 결정 · REQ-WEB-311 · spec-workflow §2.6 의 "지연 승인" 배지). 내 결정이 아니어도
+          이 프로젝트의 결재가 2일을 넘겼다는 사실은 모두가 본다 — 받은 요청은 그 프로젝트로 좁혀 열린다 */}
+      {overdue > 0 && (
+        <Link
+          to="/inbox"
+          search={{ ...(orgSlug === undefined ? {} : { org: orgSlug }), project: proj }}
+          data-testid="project-waiting-overdue"
+          title={t('project.waiting.overdue_hint')}
+          className={cn(chip, 'bg-status-danger-soft text-status-danger')}
+        >
+          {t('project.waiting.overdue', { count: overdue })}
           <span aria-hidden="true"> ▸</span>
         </Link>
       )}
@@ -335,6 +365,39 @@ function WaitingLine({
           {t('project.waiting.critical', { count: critical })}
           <span aria-hidden="true"> ▸</span>
         </Link>
+      )}
+    </div>
+  );
+}
+
+/**
+ * **결재 흐름 한 줄 — 역할 큐 재검토 지표**(2026-10-15 · 사람 결정 · REQ-WEB-311 · spec-workflow §2.2). 결재는 특정인이
+ * 아니라 역할 큐로 간다. 같은 역할의 사람이 서로 미루면 그 결정을 다시 본다 — 그 신호를 숫자로 보인다: 최근 30일
+ * 결재 가운데 하루를 넘긴(2회째 리마인더까지 간) 비율. 기준(30%)을 넘으면 재검토 안내를 덧붙인다. 판정은 서버의
+ * `review_due` 다 — 화면은 비율을 다시 견주지 않는다.
+ */
+function ApprovalLagLine({ lag }: { lag: ApprovalFlow['lag'] }): React.JSX.Element {
+  const t = useT();
+  const percent = (ratio: number | null): number => Math.round((ratio ?? 0) * 100);
+  return (
+    <div
+      data-testid="approval-lag"
+      data-review-due={lag.review_due || undefined}
+      className="-mt-4 mb-6 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs"
+    >
+      <span className="text-text-faint">{t('project.approval_lag.label')}</span>
+      <span className={lag.review_due ? 'text-status-waiting' : 'text-text-mute'}>
+        {t('project.approval_lag.summary', {
+          days: lag.window_days,
+          total: lag.total,
+          late: lag.late,
+          percent: percent(lag.ratio),
+        })}
+      </span>
+      {lag.review_due && (
+        <span data-testid="approval-lag-review" className="font-medium text-status-waiting">
+          {t('project.approval_lag.review', { threshold: percent(lag.threshold) })}
+        </span>
       )}
     </div>
   );

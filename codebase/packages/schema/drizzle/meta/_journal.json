@@ -344,6 +344,20 @@
       "when": 1791762735440,
       "tag": "0048_spec_version_body_tsv",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792030633036,
+      "tag": "0049_spec_version_reverted_to",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792033424310,
+      "tag": "0050_email_change_kinds",
+      "breakpoints": true
     }
   ]
 }

@@ -1413,6 +1413,46 @@ describe('발견의 태그 (REQ-API-253)', () => {
   });
 });
 
+/**
+ * **`requirement_id` 는 요구사항의 UUID 다**(2026-10-15 · 4.6 REQ-PLG-031). `review` 스킬과 정합 리뷰 서브에이전트가 이 사실을
+ * 에이전트에게 말한다 — 에이전트가 스펙에서 읽는 요구사항은 고정 ID(`REQ-…`)뿐이라 그것을 넣기 쉽다. 그때 제출 **전체**가
+ * 형식 오류로 거절되고 아무것도 남지 않는다는 것이 그 문장의 근거다. 서버가 고정 ID 를 받게 바뀌면 이 검사와 두 문장을
+ * 함께 고친다.
+ */
+describe('발견의 requirement_id 는 UUID 다 — 고정 ID 를 넣으면 제출 전체가 거절된다', () => {
+  it('REST 로 고정 ID 를 넣으면 형식 오류이고 라운드가 생기지 않는다', async () => {
+    const { token } = await app.get(AuthService).issueToken({
+      projectId,
+      userId,
+      name: 'req-ref',
+      scopes: ['review:submit'],
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects/clemvion/reviews',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        branch: 'feat/req-ref',
+        base_sha: 'aaaa111',
+        head_sha: 'ref0001',
+        kind: 'consistency',
+        reviewer: { role: 'nerv-consistency-checker' },
+        findings: [
+          { severity: 'warning', title: '요구사항이 빠졌다', requirement_id: 'REQ-API-001' },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body) as { code: string; details: Record<string, unknown> };
+    expect(body.code).toBe(NERV_ERROR.PRECONDITION);
+    expect(body.details).toMatchObject({ kind: 'invalid_text_representation', pg_type: 'uuid' });
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM review_session WHERE branch = 'feat/req-ref'`,
+    );
+    expect(rows[0].n).toBe(0);
+  });
+});
+
 describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
   async function taskRow(key: string): Promise<string> {
     const id = newId();

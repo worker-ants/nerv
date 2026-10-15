@@ -1,4 +1,4 @@
-# nerv-plugin v0.3.26
+# nerv-plugin v0.3.29
 
 NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md)**
 이고, 이 디렉터리는 그 문서 §1~§3 전문의 실물이다 — 두 쪽이 다르면 문서가 옳고 여기가 결함이다.
@@ -12,6 +12,8 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | `hooks/hooks.json`                                                | 훅 이벤트 6종(**기본은 `type:"command"`**) — 세션 시작은 둘                                                             | §3.1           |
 | `skills/{next,spec,impl,question,review,mirror,approve}/SKILL.md` | 스킬 7종(`review`는 P2 배포분 · `mirror`는 2026-10-07 · `approve`는 2026-10-11 · `import`는 2026-09-06 제거 — 4.6 §2.5) | §2.1~§2.8      |
 | `agents/nerv-spec-writer.md`                                      | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음)                                                                        | §1.1           |
+| `agents/nerv-code-reviewer.md`                                    | 코드 리뷰 서브에이전트 — 종류 `code` 로 직접 제출한다(코드 쓰기 · 처분 도구 없음 · 2026-10-15)                          | §1.2           |
+| `agents/nerv-consistency-checker.md`                              | 스펙 ↔ 구현 정합 리뷰 서브에이전트 — 종류 `consistency` 로 직접 제출한다(같은 제한 · 2026-10-15)                        | §1.2           |
 | `statusline/nerv-statusline.sh`                                   | 클레임·리스·겹침 표시                                                                                                   | §3.2           |
 | `bin/nerv-hook-forward`                                           | 기본 변형의 훅 전송기 — http 변형도 SessionStart 는 이것을 쓴다                                                         | §3.1           |
 | `bin/nerv-init`                                                   | 설치 부트스트랩 — 저장소의 설정 세 자리를 만든다(덮지 않는다)                                                           | §3.7           |
@@ -82,20 +84,25 @@ cd <작업 저장소>
 
 ```bash
 SRC=/path/to/nerv/codebase/plugin
-for s in next spec impl question review import; do
+for s in next spec impl question review approve; do
   mkdir -p ".claude/skills/nerv-$s"
   sed -e "1,10s/^name: $s$/name: nerv-$s/" -e 's|/nerv:\([a-z]*\)|/nerv-\1|g' \
     "$SRC/skills/$s/SKILL.md" > ".claude/skills/nerv-$s/SKILL.md"
 done
-sed 's|/nerv:\([a-z]*\)|/nerv-\1|g' "$SRC/agents/nerv-spec-writer.md" \
-  > .claude/agents/nerv-spec-writer.md
+mkdir -p .claude/agents
+for a in nerv-spec-writer nerv-code-reviewer nerv-consistency-checker; do
+  sed 's|/nerv:\([a-z]*\)|/nerv-\1|g' "$SRC/agents/$a.md" > ".claude/agents/$a.md"
+done
 ```
+
+`mirror` 는 복사하지 않는다 — 그 스킬은 플러그인이 PATH 에 두는 `bin/nerv-mirror` 를 부르므로 사본만으로는
+돌지 않는다. `import` 는 2026-09-06 에 없앴다([4.6 플러그인](../../docs/04-mvp/plugin.md) §2.5).
 
 맞춰졌는지 확인한다 — 스킬·서브에이전트는 위 변환을 뺀 바이트가 같아야 하고, 훅은 이벤트마다
 항목 수가 같아야 한다.
 
 ```bash
-for s in next spec impl question review import; do
+for s in next spec impl question review approve; do
   diff -q <(sed -e "1,10s/^name: $s$/name: nerv-$s/" -e 's|/nerv:\([a-z]*\)|/nerv-\1|g' \
     "$SRC/skills/$s/SKILL.md") ".claude/skills/nerv-$s/SKILL.md" >/dev/null \
     && echo "$s ok" || echo "$s OUT OF SYNC"

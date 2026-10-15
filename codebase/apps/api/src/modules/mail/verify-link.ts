@@ -50,6 +50,26 @@ export function resetPasswordLink(input: { api: string; web: string; token: stri
   );
 }
 
+/**
+ * 이메일 바꾸기 링크 — 옛 주소의 승인(`approved`)과 새 주소의 확인(`done`)(2026-10-15 · 사람 결정 · REQ-API-310).
+ *
+ * 가입 확인 링크와 같은 모양이다 — 사람이 여는 것은 인증 스택의 `GET /api/auth/verify-email` 이고, 끝나면 화면의
+ * `/email-change` 로 돌아간다. **돌아갈 자리는 요청에서 받지 않는다** — 단계마다 하나뿐이다(재설정 링크와 같은 까닭).
+ * 링크를 쓸 수 없으면 인증 스택이 같은 자리에 `&error=<코드>` 를 붙여 돌려보낸다.
+ */
+export function changeEmailLink(input: {
+  api: string;
+  web: string;
+  token: string;
+  step: 'approved' | 'done';
+}): string {
+  const back = `${input.web.replace(/\/+$/, '')}/email-change?step=${input.step}`;
+  return (
+    `${input.api.replace(/\/+$/, '')}/api/auth/verify-email` +
+    `?token=${encodeURIComponent(input.token)}&callbackURL=${encodeURIComponent(back)}`
+  );
+}
+
 /** 화면 오리진 안의 절대 주소로 — 아니면 null. 상대 경로(`/invite/…`)는 화면 기준으로 편다 */
 function safeReturnTo(web: string, returnTo: string | null): string | null {
   if (returnTo === null || returnTo.trim() === '') return null;

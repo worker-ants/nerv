@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 **24종**(P0 8 + P1 16 · 카탈로그 27종 — 리뷰 3종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.44 · 2026-10-11 · HTML 파생본: [scope.html](../html/scope.html)
+> 문서 버전 v0.45 · 2026-10-15 · HTML 파생본: [scope.html](../html/scope.html)
+>
+> v0.45 변경(2026-10-15 — 리뷰 서브에이전트 둘, **사람 결정**): **§5 표 한 행 · FR-09 행 · 착수 기록의 남은 것.** 리뷰 수집 착수 기록이 남은 것으로 적어 둔 리뷰 서브에이전트 2종이 들어왔다 — `nerv-code-reviewer`와 `nerv-consistency-checker`가 각자 자기 종류로 직접 제출하고, 처분은 메인 세션의 `/nerv:review`가 한다([4.6 플러그인](plugin.md) REQ-PLG-031). MVP 범위 표는 바꾸지 않는다. FR-09처럼 Phase 2를 먼저 들인 것이다.
 >
 > v0.44 변경(2026-10-11 — 문서끼리 어긋난 곳 정리): **새 결정 없음 · FR-10 행 · §5 두 칸과 착수 기록 · §2.1 · §2.2 · §6.2 임베딩 · §6.1 운영 Postgres.** 리뷰 커버리지는 정책으로 켜면 2026-09-28 부터 `done` 을 막는다([4.4 API](api.md) REQ-API-250) — 이 문서가 아직 Phase 2 라 적었다. 로컬 임베딩은 2026-08-23 점화로 ollama 다([4.2](codebase.md) §5.2a). 운영 Postgres 위치는 2026-08-22 에 클러스터 외부로 확정됐다(§6.0).
 >
@@ -266,7 +268,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR-06 | 원자적 클레임·리스 | ● | ● | ● | **P0의 핵심 검증 대상.** 원자 클레임, scope(spec_ids·file_globs) 겹침 감지, 리스 TTL 30분·하트비트 60초·만료 자동 회수. P1에서 초안 편집 리스(문서 축, D-04 확장, 같은 TTL 30분) | — |
 | FR-07 | 세션 레지스트리 | ● | ◐ | ● | 등록·하트비트·상태 머신(`pending→active↔awaiting_input→complete/error/stale`, stale 임계 30분)(P0), 사용자·hostname·에이전트 종류 전체 뷰(P1) | — |
 | FR-08 | 활동 스트림·미션 컨트롤 | ● | ○ | ● | typed Activity 타임라인, 전역 보드, steer/stop(P1) | — |
-| FR-09 | 리뷰 수집 | ○ | ○ | ○ | — | ReviewSession→Finding→Resolution 은 Phase 2 로 계획했으나 **2026-08-23 이후 전부 들어왔다**(§5 착수 기록) — 서버·도구·REST 7종·S6 리뷰 센터 화면·`/nerv:review` 스킬(패키지에 배포됨)·소급 임포터까지. 남은 것은 게이트의 리뷰 커버리지 조건이다(FR-10 행) |
+| FR-09 | 리뷰 수집 | ○ | ○ | ○ | — | ReviewSession→Finding→Resolution 은 Phase 2 로 계획했으나 **2026-08-23 이후 전부 들어왔다**(§5 착수 기록) — 서버·도구·REST 7종·S6 리뷰 센터 화면·`/nerv:review` 스킬(패키지에 배포됨)·소급 임포터까지, 2026-10-15 에는 리뷰 서브에이전트 2종도. 남은 것은 게이트의 리뷰 커버리지 조건이다(FR-10 행) |
 | FR-10 | 게이트 판정 API | ◐ | ○ | ◐ | Task `done` 전이 조건 판정 · 리뷰 커버리지 조건(프로젝트 정책으로 켜면 `done`을 막는다 — 2026-09-28 · [4.4 API](api.md) REQ-API-146 · 250) | 커밋 범위 판정은 Phase 2 |
 | FR-11 | 받은 요청(Inbox) | ◐ | ○ | ◐ | 스펙 승인·플랜 승인·질문 3유형 + 스펙 코멘트 왕복, 원클릭 승인/거절/코멘트 | CR·에스컬레이션 카드(5유형 완성)는 Phase 2 |
 | FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack · 메일 다이제스트는 Phase 2. **앱 안 묶음은 MVP 다**(2026-09-27 사람 결정 G1 — 보통 알림을 같은 대상마다 읽을 때까지 한 줄로 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5). **알림 메일 요약은 Phase 2 를 앞당겨 착수했다**(2026-09-28 사람 결정 EM1 — 켠 사람에게 하루 한 번 · §5 착수 기록). 수신 설정(켜기 · 시각 · 시간대 · 언어)이 함께 들어왔다. Slack 은 Phase 2 그대로다 |
@@ -399,6 +401,7 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 | 리뷰 센터 S6 | **Phase 2 · 2026-08-23 구현 완료** | [4.5 화면 명세](screens.md) §2.6a. 남은 것은 spec_drift → CR 라우팅(FR-04 의존)이다. 게이트 현황 화면은 브랜치 판정을 표시하고, `done` 은 정책으로 켜면 done 게이트가 막는다(2026-09-28 · REQ-API-250) |
 | 리뷰 도구 2종 `nerv_review_submit` · `nerv_finding_resolve` | **Phase 2 · 2026-08-23 착수 완료** | 아래 착수 기록. **MVP 약속과 카탈로그는 다른 수다** — 두 수를 섞지 않는다(2026-09-28 현황: 카탈로그 26종) |
 | `/nerv:review` 스킬 | **Phase 2 · 2026-08-23 배포 완료** | [4.6 플러그인](plugin.md) §2.6. MVP 약속 밖이다(§4.3 표의 ○) |
+| 리뷰 서브에이전트 2종 `nerv-code-reviewer` · `nerv-consistency-checker` | **Phase 2 · 2026-10-15 배포**(사람 결정) | [4.6 플러그인](plugin.md) §2.6 · REQ-PLG-031. 각자 자기 종류(`code` · `consistency`)로 직접 제출하고 처분은 메인 세션이 한다. 서버는 바꾸지 않았다. MVP 약속 밖이다 |
 | Codex 완전 지원 | Phase 2 | P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·`AGENTS.md` 배포는 Phase 2. MVP는 `config.toml`·`AGENTS.md` **초안 제공**까지 — 경계는 [4.6 플러그인과 온보딩](plugin.md) §5 |
 | CR 델타 UI 고도화 | Phase 2 | FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지 |
 | 실시간 공동 편집(CRDT) | Phase 3+ (착수 조건: 409 재시도 주 20건 이상) | 서버 권위 + `base_hash` 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2) |
@@ -410,7 +413,7 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 | 서버 watch 테이블 | Phase 2 | 워치 서버 동기화는 알림 확장과 함께. ※ **전역 관계 그래프 뷰는 이 행에서 빠졌다**(2026-08-23 정정) — 2026-08-23 v1.8 에서 MVP 로 들어왔는데(§2.4a 신설 · REQ-WEB-050·051) 이 행이 낡은 채 남아 있었다 |
 | git 미러 export | Phase 2 말(M2 컷오버 시점) | MVP 기간에는 spec/plan의 SoT가 git이라 export할 것이 없다(로드맵 §7.4). **HTTP md 미러(`GET …/specs/{id}.md` · `llms.txt`)는 별개로 MVP 포함** — [4.4 API 명세](api.md) §2 |
 
-> **착수 기록 — FR-09 리뷰 수집(2026-08-23, 사람 지시).** Phase 2 항목 중 **리뷰 수집의 서버·도구**를 앞당겨 구현했다. 들어온 것: `ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution` 적재, MCP 도구 2종(`nerv_review_submit` A2 · `nerv_finding_resolve` A2 / critical→dismissed·wont_fix 는 A3), REST 3종(EP-REV-01~03 — [4.4 API 명세](api.md) §2.6a). 같은 날 이어서 **S6 리뷰 센터 화면**([4.5](screens.md) §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 **`/nerv:review` 스킬**([4.6](plugin.md) §2.6)까지 들어왔다. 남은 것: `spec_drift` → CR 라우팅(FR-04 의존), 리뷰 서브에이전트 2종. 게이트 둘째 단의 **집행**은 2026-09-28 에 들어왔다 — 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 리뷰 커버리지가 Task `done` 을 막는다([4.4 API](api.md) REQ-API-250). 병합(push · CI)은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다.
+> **착수 기록 — FR-09 리뷰 수집(2026-08-23, 사람 지시).** Phase 2 항목 중 **리뷰 수집의 서버·도구**를 앞당겨 구현했다. 들어온 것: `ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution` 적재, MCP 도구 2종(`nerv_review_submit` A2 · `nerv_finding_resolve` A2 / critical→dismissed·wont_fix 는 A3), REST 3종(EP-REV-01~03 — [4.4 API 명세](api.md) §2.6a). 같은 날 이어서 **S6 리뷰 센터 화면**([4.5](screens.md) §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 **`/nerv:review` 스킬**([4.6](plugin.md) §2.6)까지 들어왔다. 남은 것: `spec_drift` → CR 라우팅(FR-04 의존). 리뷰 서브에이전트 2종은 2026-10-15 에 들어왔다(사람 결정 · [4.6 플러그인](plugin.md) REQ-PLG-031). 게이트 둘째 단의 **집행**은 2026-09-28 에 들어왔다 — 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 리뷰 커버리지가 Task `done` 을 막는다([4.4 API](api.md) REQ-API-250). 병합(push · CI)은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다.
 >
 > **MVP 범위 표(§3.2·§4.2)는 바꾸지 않았다.** FR-09 는 여전히 MVP 가 아니고 MVP 약속은 그대로이고 **카탈로그만 자랐다** — 2026-08-23 의 18종에서 2026-10-11 현재 **27종**이다(그 사이 범위 확정 여덟 번으로 MVP 도구도 16 → 24 가 됐다 · §4.2). 두 수를 하나로 합치면 "MVP 에서 무엇을 약속했는가"를 다시 셀 수 없게 된다(도구 정의의 `phase` 필드가 그 구분을 나른다).
 >

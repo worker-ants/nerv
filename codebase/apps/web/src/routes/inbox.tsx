@@ -50,7 +50,8 @@ import { ErrorState, failedWithoutData } from '../components/query-state.js';
 
 /** 받은 요청의 주소 — 탭 · 착지할 카드 · 범위(REQ-WEB-256) */
 export interface InboxSearch {
-  state?: 'pending' | 'decided';
+  /** 탭 — 대기가 기본이다. `expired` 는 결정 없이 만료된 것(2026-10-15 · REQ-WEB-310) */
+  state?: 'pending' | 'decided' | 'expired';
   focus?: string;
   /** 조직 slug — `project` 없이 오면 그 조직의 프로젝트 전부다 */
   org?: string;
@@ -67,7 +68,9 @@ export const Route = createFileRoute('/inbox')({
     const org = text(search['org']);
     const project = text(search['project']);
     return {
-      ...(search['state'] === 'decided' ? { state: 'decided' as const } : {}),
+      ...(search['state'] === 'decided' || search['state'] === 'expired'
+        ? { state: search['state'] }
+        : {}),
       // **그 카드로 착지한다**(2026-09-24 — UI/UX 검토 · REQ-WEB-204). 홈의 오늘 할 일 · 알림 ·
       // 에이전트가 건넨 `web_url` 이 모두 맨 `/inbox` 라, 사람은 방금 누른 요청을 목록에서 다시 찾았다
       ...(focus === undefined ? {} : { focus }),
@@ -79,9 +82,9 @@ export const Route = createFileRoute('/inbox')({
 });
 
 /** 범위와 탭을 주소로 — 칸의 링크와 탭이 같은 모양을 쓴다 */
-function inboxSearchOf(scope: ScopeSelection, state?: 'pending' | 'decided'): InboxSearch {
+function inboxSearchOf(scope: ScopeSelection, state?: InboxSearch['state']): InboxSearch {
   return {
-    ...(state === 'decided' ? { state } : {}),
+    ...(state === 'decided' || state === 'expired' ? { state } : {}),
     ...(scope.org === undefined ? {} : { org: scope.org }),
     ...(scope.project === undefined ? {} : { project: scope.project }),
   };
@@ -339,7 +342,7 @@ function InboxScreen(): React.JSX.Element {
           scopeLabel === null ? t('inbox.scope_all') : t('inbox.scope_one', { scope: scopeLabel })
         }
         actions={
-          // 탭은 두 개뿐이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 두 링크로 읽힌다
+          // 탭은 셋(대기 · 처리됨 · 만료)이라 세그먼트로 붙여 둔다 — 떨어뜨리면 서로 다른 링크로 읽힌다
           // **앱 안에서 옮긴다**(REQ-WEB-204) — `<a href>` 라 누를 때마다 앱 전체가 다시 로드되고
           // 실시간 연결이 끊겼다 붙었다
           // 주소가 바뀌는 탭이라 **지금 어느 쪽인지는 `aria-current` 가 말한다**(SYS-12) — 배경색만으로는
@@ -377,6 +380,21 @@ function InboxScreen(): React.JSX.Element {
             >
               {t('inbox.tab.decided')}
             </Link>
+            {/* **만료**(2026-10-15 · 사람 결정 · REQ-WEB-310) — 7일 동안 결정되지 않아 문서가 초안으로 돌아간 결재다.
+                결정이 아니라 처리됨과 섞지 않는다(spec-workflow §6.4 의 대기 · 결정 · 만료) */}
+            <Link
+              to="/inbox"
+              search={inboxSearchOf(scope, 'expired')}
+              activeOptions={{ exact: true }}
+              aria-current={state === 'expired' ? 'page' : undefined}
+              data-testid="inbox-tab-expired"
+              className={cn(
+                'rounded-nerv-sm px-2.5 py-1',
+                state === 'expired' ? 'bg-bg-active font-medium' : 'text-text-mute hover:text-text',
+              )}
+            >
+              {t('inbox.tab.expired')}
+            </Link>
           </nav>
         }
         meta={
@@ -386,6 +404,8 @@ function InboxScreen(): React.JSX.Element {
               <SkeletonText className="w-10" />
             ) : state === 'pending' ? (
               t('inbox.count_pending', { count: actionable })
+            ) : state === 'expired' ? (
+              t('inbox.count_expired', { count: total })
             ) : (
               t('inbox.count_decided', { count: total })
             )}
@@ -572,9 +592,19 @@ function InboxScreen(): React.JSX.Element {
           {inbox.data !== undefined && openCards.length === 0 && (
             <EmptyState
               icon="✓"
-              title={state === 'pending' ? t('home.nothing_waiting') : t('inbox.empty_decided')}
+              title={
+                state === 'pending'
+                  ? t('home.nothing_waiting')
+                  : state === 'expired'
+                    ? t('inbox.empty_expired')
+                    : t('inbox.empty_decided')
+              }
               hint={
-                state === 'pending' ? t('inbox.empty_pending_hint') : t('inbox.empty_decided_hint')
+                state === 'pending'
+                  ? t('inbox.empty_pending_hint')
+                  : state === 'expired'
+                    ? t('inbox.empty_expired_hint')
+                    : t('inbox.empty_decided_hint')
               }
               action={
                 state === 'pending' ? (

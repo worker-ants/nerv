@@ -20,7 +20,11 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.71 · 2026-10-12 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.73 · 2026-10-15 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.73 변경(2026-10-15 — 이메일 바꾸기, **사람 결정**): **REQ-DB-043 신설 · §2.16 주석 한 줄 · §2.17 `email_kind` 세 값 · 마이그레이션 `0050`.** `email_kind` 에 이메일 바꾸기의 메일 셋(`change_email_approve` · `change_email_confirm` · `email_changed`)을 더한다. 대기 중인 요청과 사람마다 세는 시도는 새 표 없이 `auth_verification` 에 이름표 둘로 둔다([4.4 API](api.md) REQ-API-310).
+>
+> v0.72 변경(2026-10-15 — 과거 버전을 되살리기, **사람 결정**): **REQ-DB-042 신설 · §2.3 `spec_version` 열 하나와 CHECK 하나 · 마이그레이션 `0049`.** 서버가 옛 버전의 본문을 그대로 복사해 새 초안을 만들 때 그 버전의 번호를 `reverted_to_version_no`에 남긴다([4.4 API](api.md) REQ-API-308). 롤백 신호를 게이트에 더할지는 사람이 정할 일이라 열만 둔다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §2.4).
 >
 > v0.71 변경(2026-10-12 — 본문의 FTS 벡터를 저장한다, **사람 결정**): **REQ-DB-041 신설 · §2.3 `spec_version.body_tsv` 생성 열 · §2.12 인덱스 한 줄 · 마이그레이션 `0048`.** 검색이 질의마다 문서 본문 전체를 `to_tsvector` 로 다시 분석했고 그것이 렉시컬 지연의 거의 전부였다(이 저장소의 문서 세트에서 p95 0.8초 · [4.4 API](api.md) §2.2c). 생성 열은 본문이 바뀔 때만 다시 만든다. 옛 식 인덱스(`spec_version_body_fts`)는 질의의 식과 달라 한 번도 쓰이지 않아 지웠다. 확장만 하므로 옛 코드는 영향이 없다.
 >
@@ -390,12 +394,17 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   edit_lease_expires_at     timestamptz,                        -- TTL 30분(공용 상수)
   shrink_ack_at             timestamptz,                        -- 크게 줄인 것을 확인한 저장(allow_shrink) — 2026-10-08 · 0044 · REQ-DB-037
   shrink_ack_user_id        uuid REFERENCES "user"(id),         -- 그 저장을 한 사람. 한 번 남기면 그 버전에서 지우지 않는다
+  reverted_to_version_no    int,                                -- 되돌리기로 만든 초안이면 본문을 복사한 옛 버전 — 2026-10-15 · 0049 · REQ-DB-042
   created_at                timestamptz NOT NULL DEFAULT now(),
   updated_at                timestamptz NOT NULL DEFAULT now(), -- 본문이 **바뀐** 시각(저장된 시각이 아니다)
   body_tsv                  tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(body_md, ''))) STORED,
                                              -- 본문의 FTS 벡터 — 2026-10-12 · 0048 · REQ-DB-041. 검색이 질의마다 다시 분석하지 않게 둔다
   CONSTRAINT spec_version_no_uq UNIQUE (spec_id, version_no),
   CONSTRAINT spec_version_no_positive_ck CHECK (version_no >= 1),
+  -- 되돌린 대상은 이 버전보다 앞선 버전이다(REQ-DB-042)
+  CONSTRAINT spec_version_reverted_to_ck CHECK (
+    reverted_to_version_no IS NULL OR (reverted_to_version_no >= 1 AND reverted_to_version_no < version_no)
+  ),
   -- data-model §5.5 규칙 9: 편집 리스는 draft에서만 non-NULL
   CONSTRAINT spec_version_lease_draft_only_ck CHECK (
     status = 'draft'
@@ -1268,7 +1277,7 @@ CREATE TABLE auth_account (                  -- 로그인 수단. MVP는 이메�
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE auth_verification (             -- 이메일 검증·비밀번호 재설정 토큰 (메일은 §2.17 아웃박스)
+CREATE TABLE auth_verification (             -- 이메일 검증·비밀번호 재설정 토큰 · 이메일 바꾸기의 대기 줄 (메일은 §2.17 아웃박스 · REQ-DB-043)
   id         uuid PRIMARY KEY,
   identifier text NOT NULL,
   value      text NOT NULL,
@@ -1299,10 +1308,11 @@ ALTER TABLE "user" ADD COLUMN updated_at     timestamptz NOT NULL DEFAULT now();
 
 **본문은 넣을 때 만들어져 들어온다.** 워커는 렌더링하지 않는다 — 템플릿이 바뀌어도 이미 줄 서 있던 메일의 내용은 바뀌지 않아야 하고, 그래야 "그 사람이 받은 것"과 "지금 보이는 것"이 같다. 로케일은 **받는 사람**의 것이다(초대한 사람의 것이 아니다). 가입 확인·비밀번호 재설정은 **요청한 화면의 언어**다 — 받는 사람이 바로 그 화면에서 요청했다(2026-09-25).
 
-`email_kind` 세 값을 한 번에 만드는 것은 의도다 — `ALTER TYPE … ADD VALUE` 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 셋 다 쓴다 — `invite`·`verify_email`(2026-09-22) · `reset_password`(2026-09-25 · [4.4](api.md) REQ-API-187). 넷째 값 `notification_digest`(2026-09-28 · 메일 요약 · REQ-DB-034)는 `ADD VALUE` 로 더했다 — 그 마이그레이션(`0041`) 안에서는 값을 쓰지 않아서 파일 하나로 된다.
+`email_kind` 세 값을 한 번에 만드는 것은 의도다 — `ALTER TYPE … ADD VALUE` 는 트랜잭션 안에서 그 값을 곧바로 쓸 수 없어, 나중에 더하려면 마이그레이션을 둘로 쪼개야 한다. 셋 다 쓴다 — `invite`·`verify_email`(2026-09-22) · `reset_password`(2026-09-25 · [4.4](api.md) REQ-API-187). 넷째 값 `notification_digest`(2026-09-28 · 메일 요약 · REQ-DB-034)는 `ADD VALUE` 로 더했다 — 그 마이그레이션(`0041`) 안에서는 값을 쓰지 않아서 파일 하나로 된다. 다섯째 · 여섯째 · 일곱째 값 `change_email_approve` · `change_email_confirm` · `email_changed`(2026-10-15 · 이메일 바꾸기 · REQ-DB-043)도 같은 방식이다(`0050`).
 
 ```sql
-CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password', 'notification_digest');
+CREATE TYPE email_kind AS ENUM ('verify_email', 'invite', 'reset_password', 'notification_digest',
+                                 'change_email_approve', 'change_email_confirm', 'email_changed');
 
 CREATE TABLE email_outbox (
   id              uuid PRIMARY KEY,
@@ -1360,6 +1370,8 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-039 | WHEN 하트비트가 대기 표시를 남기면 THE SYSTEM SHALL 그것을 `claim.awaiting_kind` · `awaiting_refs` · `awaiting_until`에, 그때의 작업 상태를 `awaiting_task_status`에 저장하고, 종류 · 시각 · 상태는 함께 있거나 함께 없으며 대상은 종류가 있을 때만 두게(`claim_awaiting_ck`) 한다. 작업 상태가 바뀌어도 이 행에 쓰지 않는다 — 읽는 쪽이 상태를 견준다(잠금 순서). 이 열이 생기기 전의 행은 모두 대기 없음이다(마이그레이션 `0046` · 2026-10-09 · clemvion 보고 CLE-T-ZTTHXD — 백그라운드 리뷰를 기다리는 세션이 클레임을 풀었다) |
 | REQ-DB-040 | WHEN 작업을 보관하면 THE SYSTEM SHALL `task.archived_at` · `archive_reason` · `archive_note` · `superseded_by_task_id` · `archived_by_user_id` · `archived_by_session_id`에 남기고, 시각 · 사유 · 보관한 사람은 함께 있거나 함께 없게, `duplicate`·`superseded`는 대신할 작업이 있고 자기 자신이 아니게(`task_archive_ck`), 끝난 작업은 보관하지 않게(`task_archive_not_done_ck`) 한다. 상태 열은 바꾸지 않는다. 이 열이 생기기 전의 행은 모두 보관하지 않은 작업이다(마이그레이션 `0047` · 2026-10-10 · 사람 결정) |
 | REQ-DB-041 | WHEN `spec_version.body_md` 가 쓰이면 THE SYSTEM SHALL 같은 행의 `body_tsv`(생성 열 · `to_tsvector('simple', coalesce(body_md, ''))`)를 같은 쓰기에서 다시 만들고, 검색의 FTS 는 그 열과 GIN 인덱스(`spec_version_body_tsv`)를 쓴다(2026-10-12 · 사람 결정 · 0048 — 질의마다 본문 전체를 다시 분석하던 동안 이 저장소의 문서 세트에서 렉시컬 p95 가 0.8초였다 · [4.4 API](api.md) §2.2c · REQ-API-301). 검증은 L2 `spec-domain.spec.ts` 다 — 본문 뒤쪽의 낱말이 `body_tsv @@` 로 잡힌다 |
+| REQ-DB-042 | WHEN 되돌리기가 옛 버전의 본문으로 새 초안을 만들면 THE SYSTEM SHALL 그 옛 버전의 번호를 새 버전의 `spec_version.reverted_to_version_no`(int · NULL 허용)에 남기고, CHECK(`spec_version_reverted_to_ck`)로 1 이상 · 그 버전의 번호보다 작게 둔다. 초안을 이어 고쳐도 지우지 않는다 — 출발점의 기록이다. 이 열이 생기기 전의 버전은 NULL 이다(마이그레이션 `0049` · [4.4 API 명세](api.md) REQ-API-308 · 2026-10-15 사람 결정) |
+| REQ-DB-043 | WHEN 사람이 이메일 바꾸기를 요청하면 THE SYSTEM SHALL `email_kind` 의 세 값(`change_email_approve` 옛 주소의 승인 · `change_email_confirm` 새 주소의 확인 · `email_changed` 바뀐 뒤 옛 주소로 가는 알림)으로 메일을 줄 세우고, 대기 중인 요청을 `auth_verification` 의 `change-email:<사용자 id>` 한 줄(값은 JSON — 새 주소 · 단계 · 지금 살아 있는 링크 토큰의 SHA-256, 만료는 링크와 같다)로, 사람마다 세는 시도를 `change-email-attempt:<사용자 id>` 줄(시도마다 하나 · 1분 뒤 만료)로 둔다. 새 요청은 그 사람의 대기 줄을 갈아 끼우고, 끝난 요청의 줄은 지운다. 새 표는 없다(마이그레이션 `0050` · [4.4 API 명세](api.md) REQ-API-310 · 2026-10-15 사람 결정) |
 
 ---
 

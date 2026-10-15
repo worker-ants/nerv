@@ -42,3 +42,56 @@ export function TerminalHandoffCard({ specKey }: { specKey: string }): React.JSX
     </section>
   );
 }
+
+/**
+ * **되돌리기도 터미널로 넘긴다**(2026-10-15 · 사람 결정 · REQ-WEB-312). 웹은 본문을 쓰지 않으므로(REQ-WEB-173) 옛 버전 보기에
+ * 단추를 두지 않고, 에이전트에게 맡길 명령을 보인다 — 에이전트가 `nerv_spec_draft_upsert`(`revert_to_version`)로 그 버전의
+ * 본문을 그대로 복사한 새 초안을 만들고, 그 초안은 다른 초안처럼 검토를 거친다.
+ *
+ * 열린 초안이나 검토 중인 버전이 있으면 서버가 거절한다(REQ-API-308) — 명령 대신 그 까닭과 할 일을 보인다.
+ */
+export function RevertHandoffCard({
+  specKey,
+  versionNo,
+  blockedBy,
+}: {
+  specKey: string;
+  /** 본문을 되살릴 옛 버전 */
+  versionNo: number;
+  /** 새 초안을 막는 버전 — 열린 초안 또는 검토 중 */
+  blockedBy: { versionNo: number; status: 'draft' | 'in_review' } | null;
+}): React.JSX.Element {
+  const t = useT();
+  const command = `claude "/nerv:spec revert ${specKey} ${String(versionNo)}"`;
+
+  return (
+    <section
+      data-testid="revert-handoff"
+      className="mb-2 rounded-nerv border border-border bg-bg-sunken px-3 py-2"
+    >
+      <p className="text-xs font-medium text-text">{t('spec.revert.title')}</p>
+      {blockedBy === null ? (
+        <>
+          <p className="mt-0.5 text-2xs text-text-faint">
+            {t('spec.revert.hint', { n: versionNo })}
+          </p>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <code
+              data-testid="revert-command"
+              className="min-w-0 flex-1 truncate rounded-nerv bg-bg-elev px-2 py-1 font-mono text-2xs"
+            >
+              {command}
+            </code>
+            <CopyButton value={command} testId="revert-copy" />
+          </div>
+        </>
+      ) : (
+        <p data-testid="revert-blocked" className="mt-0.5 text-2xs text-text-mute">
+          {blockedBy.status === 'draft'
+            ? t('spec.revert.blocked_draft', { n: blockedBy.versionNo, m: versionNo })
+            : t('spec.revert.blocked_review', { n: blockedBy.versionNo })}
+        </p>
+      )}
+    </section>
+  );
+}

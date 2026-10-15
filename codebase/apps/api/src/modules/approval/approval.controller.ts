@@ -148,6 +148,17 @@ export class ApprovalController {
     });
   }
 
+  /**
+   * EP-APR-08 — 결재 흐름(2026-10-15 · REQ-API-305 · 307). 프로젝트 개요의 "지연 결재" 수와 역할 큐 재검토 지표다.
+   * 사람마다 다른 값이 아니라 프로젝트의 수라 읽기 권한이면 된다.
+   */
+  @RequireScope('spec:read')
+  @Get('approvals/flow')
+  flow(@Req() req: ProjectRequest): Promise<unknown> {
+    const { projectId } = human(req);
+    return this.approvals.flow(projectId);
+  }
+
   /** EP-QST-01 — 질문 목록(기본 `open` · 어휘 판정은 서비스가 한다 · REQ-API-126) */
   @RequireScope('spec:read')
   @Get('questions')

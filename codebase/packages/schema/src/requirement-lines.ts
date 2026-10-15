@@ -14,6 +14,12 @@ export const REQUIREMENT_REF_SOURCE = '[A-Z]+-[A-Z][A-Z0-9]*-\\d+';
 /** ID 하나가 그 모양인가 */
 export const REQUIREMENT_REF = new RegExp(`^${REQUIREMENT_REF_SOURCE}$`);
 
+/**
+ * 다음 번호를 물을 때의 접두(가운데 토막) — 영문 대문자로 시작하고 영문 대문자 · 숫자 16자까지다. 다음 번호 발급(EP-REQ-04)과
+ * 요구사항 탭의 복사 칸(2026-10-15 · REQ-WEB-313)이 같은 규칙으로 본다.
+ */
+export const REQUIREMENT_PREFIX = /^[A-Z][A-Z0-9]{0,15}$/;
+
 /** 요구사항 한 줄 — 목록 기호는 있어도 없어도 된다 */
 const REQUIREMENT_LINE = new RegExp(`^[-*]?\\s*(${REQUIREMENT_REF_SOURCE})\\s+(.*)$`);
 

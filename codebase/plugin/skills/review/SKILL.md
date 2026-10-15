@@ -1,6 +1,6 @@
 ---
 name: review
-description: 리뷰를 파일이 아니라 레코드로 제출한다. 검토 후 nerv_review_submit 으로 findings 를 올리고, 수정·판단 후 nerv_finding_resolve 로 처분한다. 리뷰 산출물을 저장소에 커밋하지 않는다.
+description: 리뷰를 파일이 아니라 레코드로 제출한다. Claude Code 에서는 코드 · 정합 리뷰를 서브에이전트 둘에게 맡겨 각자 제출하게 한다. Codex 에서는 이 세션이 nerv_review_submit 으로 직접 올린다. 처분은 이 세션만 nerv_finding_resolve 로 한다. 리뷰 산출물을 저장소에 커밋하지 않는다.
 allowed-tools:
   - mcp__nerv__nerv_review_submit
   - mcp__plugin_nerv_nerv__nerv_review_submit
@@ -25,7 +25,28 @@ allowed-tools:
 
 clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, 그 결과가 md 13,777개·131MB, 리뷰 이력 blob이 `.git` packed blob 바이트의 60%다. 더 나쁜 것은 **자기증식**이다 — 리뷰가 코드와 같은 브랜치에 커밋되어 다음 리뷰의 입력이 되고, 한 changeset이 8라운드를 도는 동안 마지막 라운드 프롬프트 94파일 중 86개가 이전 리뷰 산출물이었다. 결론만 레코드로 남기면 이 고리가 끊긴다(D-01·D-07).
 
+## 누가 제출하나 — 종류마다 서브에이전트가 직접 낸다
+
+Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은 각자 자기 종류로 직접 제출하고 처분은 이 세션만 한다**(2026-10-15 사람 결정). 둘에게는 코드 쓰기 도구도 처분 도구도 없다.
+
+| 서브에이전트 | 종류 | 보는 것 |
+| --- | --- | --- |
+| `nerv-code-reviewer` | `code` | 코드의 결함 — 정확성 · 보안 · 동시성 · 테스트 |
+| `nerv-consistency-checker` | `consistency` | 작업의 스펙 · 요구사항이 구현에 반영됐는가. 문서끼리의 정합은 서버의 `nerv_spec_check` 가 본다 |
+
+1. **범위를 확정하고 diff 를 파일로 쓴다** — `mkdir -p .nerv/review && git diff <base_sha>..<head_sha> > .nerv/review/<head_sha>.diff`. 둘에게는 Bash 가 없어 git 을 부르지 못한다. `.nerv/` 는 커밋되지 않는다.
+2. **맡긴다.** 프롬프트에 `branch` · `base_sha` · `head_sha` · `changeset` · diff 경로를 넣는다. 어느 작업의 리뷰인지 알면 `task_id` 도 넣는다. 정합 리뷰는 작업이나 기준 스펙 키가 있을 때만 맡긴다 — 기준 없이 낸 "문제 없음" 은 게이트에서 통과로 읽힌다. 둘은 종류가 달라 서로 다른 라운드이므로 함께 맡겨도 된다.
+3. **필수 역할이 있으면 역할마다 맡긴다.** `nerv_bootstrap` 응답의 `gate_policy.review_roles` 가 그 종류에 역할을 정해 두었으면 역할 하나에 서브에이전트 호출 하나로, `reviewer.role` 을 그 이름으로 넘긴다. 정해 두지 않았으면 넘기지 않는다 — 서브에이전트는 자기 이름(`nerv-code-reviewer` · `nerv-consistency-checker`)으로 낸다.
+4. **같은 종류를 이 세션이 다시 제출하지 않는다.** 서브에이전트가 돌려준 결과(`findings_new` · `findings_merged` · `round_block` · `blocking_findings`)를 읽고 아래 처분 절차로 간다. 발견을 고쳐 쓰거나 대신 다시 내면 같은 지적이 두 이름표로 남는다.
+5. **서버가 내려가 있었으면** 서브에이전트가 돌려준 인자 그대로 `nerv-outbox` 로 큐잉한다.
+
+서버는 서브에이전트의 제출과 이 세션의 제출을 구별하지 못한다 — 같은 토큰 · 같은 세션이다. 둘을 나누는 것은 서브에이전트의 도구 목록과 이름표뿐이다.
+
+**Codex 에서는 서브에이전트를 쓸 수 없다.** 이 세션이 아래 제출 절차대로 종류마다 직접 제출한다. Claude Code 에서도 맡길 서브에이전트가 없는 종류(`spec_coverage` · `merge`)는 직접 낸다.
+
 ## 제출 절차
+
+이 세션이 직접 낼 때의 절차다. 서브에이전트도 같은 규칙으로 낸다.
 
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
@@ -42,7 +63,7 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
    - **`body`와 `suggestion`을 채운다.** 제목은 손잡이일 뿐이라, 그것만으로는 사람이
      무엇을 말하는지 알 수 없다 — `body`는 왜 문제인가, `suggestion`은 무엇을 하면 되는가다.
    - `file`·`line`·`symbol`을 채운다. 위치 없는 지적은 사람이 다시 찾아야 한다.
-   - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다.
+   - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다. **`requirement_id` 는 요구사항의 UUID 다** — 고정 ID(`REQ-…`)를 넣으면 형식 오류로 제출 전체가 거절된다. UUID 를 알 수 있는 것은 `nerv_task_get` 응답의 `source_requirement_id` 하나뿐이다. 다른 요구사항은 `title` · `body` 에 고정 ID 를 적는다.
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
      비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
@@ -53,6 +74,8 @@ clemvion에서 리뷰 산출물은 `review/**`에 markdown으로 커밋됐고, �
 발견이 0건이어도 제출한다. "봤고 문제가 없었다"는 라운드가 있어야 게이트가 그것을 통과로 읽는다.
 
 ## 처분 절차
+
+**처분은 이 세션만 한다.** 서브에이전트가 낸 발견도 여기서 처분한다 — 자기 발견을 스스로 닫는 리뷰어는 게이트를 형식으로 만든다. 고친 뒤에는 새 `head_sha` 로 다시 리뷰한다(새 라운드다).
 
 - **코드를 고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
 - **스펙을 고쳐 해결했으면** `resolution=spec_change` + `spec_version_id`(그 저장의 버전 id) + `rationale`. 구현이 맞고 스펙이 틀렸던 경우가 이쪽이다 — `spec_drift` 지적의 절반은 여기로 간다. **커밋이 없다고 `dismissed`나 `wont_fix`로 닫지 않는다**: 오탐도 아니었고 미룬 것도 아니라, 둘 다 거짓이 되고 나중에 "이 발견들은 어떻게 해결됐나"의 답이 뭉개진다.

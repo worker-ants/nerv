@@ -11,6 +11,8 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  APPROVAL_ESCALATION_SECONDS,
+  APPROVAL_EXPIRY_SECONDS,
   APPROVAL_INBOX_STATES,
   APPROVAL_REMINDER_STEPS,
   APPROVAL_REMINDER_WINDOW_SECONDS,
@@ -27,11 +29,13 @@ import {
   newId,
   questionStatus,
   reviewKind,
+  ROLE_QUEUE_REVIEW_THRESHOLD,
+  ROLE_QUEUE_REVIEW_WINDOW_DAYS,
   scopesForRoles,
   SELF_APPROVAL_ROLES,
   waivableReviewKinds,
 } from '@nerv/schema';
-import type { Message, NervErrorCode } from '@nerv/schema';
+import type { ApprovalInboxState, Message, NervErrorCode } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -148,6 +152,45 @@ function compareByCursor(a: Record<string, unknown>, b: Record<string, unknown>)
   return String(a['id']) < String(b['id']) ? -1 : 1;
 }
 
+/**
+ * **기다리는 결재 — 결재 SLA 의 대상**(2026-10-11 · REQ-API-296 · 2026-10-15 · REQ-API-304 · 305). 받은 요청의 대기 조건과
+ * 같다: 보관한 프로젝트 · 거절이나 만료로 초안이 된 문서의 남은 자리 · 보관한 작업의 계획 승인은 대기가 아니다. 면제는
+ * 낸 순간 결정이다. 리마인더 · 지연 · 만료 · 개요의 지연 수가 이 한 벌을 쓴다 — 손으로 네 번 적으면 한쪽만 고쳐진다.
+ */
+function waitingApprovalsSql(): { from: SQL; where: SQL } {
+  return {
+    from: sql`FROM approval a
+          JOIN project p ON p.id = a.project_id
+     LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+     LEFT JOIN task plan_task ON plan_task.id = a.subject_id AND a.subject_type = 'plan'`,
+    where: sql`WHERE a.decision IS NULL AND NOT a.is_bypass
+           AND p.archived_at IS NULL
+           AND (sv.id IS NULL OR sv.status = 'in_review')
+           AND NOT (a.subject_type = 'plan' AND plan_task.archived_at IS NOT NULL)`,
+  };
+}
+
+/**
+ * **이 자리가 이번 라운드에 만료됐는가**(2026-10-15 · REQ-API-304). 만료는 결재 행에 결정을 쓰지 않으므로 이벤트에서
+ * 파생한다 — 그 버전의 ★`approval.expired` 가 이 자리의 요청 뒤에 났으면 만료다. 다시 제출하면 남은 자리의 요청 시각이
+ * 그 제출로 바뀌어 다시 대기가 된다. `approval a` 를 전제한다.
+ */
+function expiredInRoundSql(): SQL {
+  return sql`(a.subject_type = 'spec_version' AND EXISTS (
+    SELECT 1 FROM event ex
+     WHERE ex.subject_type = 'spec_version' AND ex.subject_id = a.subject_id
+       AND ex.type = ${NERV_EVENT.APPROVAL_EXPIRED}
+       AND ex.occurred_at >= a.requested_at))`;
+}
+
+/** 그 만료의 시각 — 만료 탭의 정렬 · 커서 · 표시가 쓴다 */
+function expiredAtSql(): SQL {
+  return sql`(SELECT max(ex.occurred_at) FROM event ex
+     WHERE ex.subject_type = 'spec_version' AND ex.subject_id = a.subject_id
+       AND ex.type = ${NERV_EVENT.APPROVAL_EXPIRED}
+       AND ex.occurred_at >= a.requested_at)`;
+}
+
 /** 일괄 결정의 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(REQ-API-164) */
 export interface BulkDecisionResult {
   id: string;
@@ -254,6 +297,42 @@ export class ApprovalService {
         roles,
       },
     );
+  }
+
+  /**
+   * **기다리던 세션을 깨운다** — 다른 대기 사유가 없을 때만(2026-09-07 · REQ-API-134). 결정(`decideInTx`)과 만료
+   * (`expireOne` · 2026-10-15 · REQ-API-304)가 같은 규칙을 쓴다. 열린 blocking 질문이나 아직 결정되지 않은 다른 결재가
+   * 있으면 그 세션은 여전히 사람을 기다리는 중이고, 여기서 `active` 로 돌려놓으면 S5 는 일하고 있는 세션으로 그린다.
+   */
+  private async wakeWaitingSession(
+    tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    sessionId: string,
+    /** 지금 닫히는 결재 — 남은 대기로 세지 않는다 */
+    closedApprovalIds: readonly string[],
+  ): Promise<void> {
+    await tx.execute(sql`
+      UPDATE agent_session SET state = 'active'
+       WHERE id = ${sessionId}
+         AND state = 'awaiting_input'
+         AND NOT EXISTS (
+           SELECT 1 FROM question q
+            WHERE q.agent_session_id = ${sessionId}
+              AND q.status = 'open' AND q.urgency = 'blocking'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM approval a2
+            WHERE a2.requested_by_session_id = ${sessionId}
+              AND a2.id <> ALL(${sqlArray(closedApprovalIds, 'uuid')}) AND a2.decision IS NULL
+              -- **닫힌 라운드의 형제 슬롯은 기다림이 아니다**(2026-09-26). T3 의 한 슬롯이 거절되면 문서는
+              -- 초안으로 가고 다른 슬롯은 결정 없이 남는다 — 그 슬롯이 세션을 붙잡아 거절을 받고도
+              -- awaiting_input 에 머물렀다. 문서가 검토 중이 아닌 스펙 슬롯은 세지 않는다(만료도 같다)
+              AND NOT EXISTS (
+                SELECT 1 FROM spec_version sv2
+                 WHERE a2.subject_type = 'spec_version' AND sv2.id = a2.subject_id
+                   AND sv2.status <> 'in_review'
+              )
+         )
+    `);
   }
 
   /**
@@ -387,7 +466,7 @@ export class ApprovalService {
     assertHuman(input.actor, 'inbox', '/inbox');
     const { approvalFrom, approvalWhere, questionFrom, questionWhere } = this.inboxConditions(
       input.userId,
-      false,
+      'pending',
       sql``,
     );
     const { rows } = await this.db.execute<{
@@ -436,10 +515,16 @@ export class ApprovalService {
    */
   private inboxConditions(
     userId: string,
-    decided: boolean,
+    state: ApprovalInboxState,
     projectFilter: SQL,
   ): { approvalFrom: SQL; approvalWhere: SQL; questionFrom: SQL; questionWhere: SQL } {
-    const stateFilter = decided ? sql`a.decision IS NOT NULL` : sql`a.decision IS NULL`;
+    // **만료는 결정이 아니다**(2026-10-15 · REQ-API-304) — 결재 행에는 결정이 없고, 그 라운드의 만료 이벤트가 사실이다
+    const stateFilter =
+      state === 'decided'
+        ? sql`a.decision IS NOT NULL`
+        : state === 'expired'
+          ? sql`a.decision IS NULL AND ${expiredInRoundSql()}`
+          : sql`a.decision IS NULL`;
     /**
      * **두 탭은 다른 질문에 답한다**(2026-09-24 · 사람 결정 · REQ-API-165).
      *
@@ -454,13 +539,17 @@ export class ApprovalService {
      * 처리됨이 답해야 하는 질문은 하나다 — **내가 결정한 것**(빈 상태 문구가 그렇게 적고,
      * 매뉴얼도 "지워지지 않으므로 나중에도 읽을 수 있습니다" 라고 약속한다).
      */
-    const scopeFilter = decided
-      ? sql`a.decided_by_user_id = ${userId}`
-      : sql`${eligibleSql(userId)}
+    const scopeFilter =
+      state === 'decided'
+        ? sql`a.decided_by_user_id = ${userId}`
+        : state === 'expired'
+          ? // 만료 탭은 **내 큐였던 것**이다 — 결정을 기다리던 카드가 결정 없이 끝났다(문서는 이미 초안이다)
+            eligibleSql(userId)
+          : sql`${eligibleSql(userId)}
          -- **거절로 draft 가 된 문서의 남은 슬롯은 대기가 아니다**(2026-09-07). 슬롯이
          -- 여럿인 결재에서 하나가 reject 되면 문서는 draft 로 돌아가는데, 결정되지 않은
          -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
-         -- 사람이 계속 결재하게 된다.
+         -- 사람이 계속 결재하게 된다. 만료로 초안이 된 문서도 같다(2026-10-15).
          AND (sv.id IS NULL OR sv.status = 'in_review')`;
     /**
      * FROM 과 WHERE 를 조각으로 뽑는다 — 목록과 **총계가 같은 조건을 봐야** 하기 때문이다.
@@ -516,7 +605,7 @@ export class ApprovalService {
     assertHuman(input.actor, 'inbox', '/inbox');
     const { approvalFrom, approvalWhere } = this.inboxConditions(
       input.userId,
-      false,
+      'pending',
       sql` AND p.id = ${input.projectId}`,
     );
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
@@ -574,8 +663,14 @@ export class ApprovalService {
     limit?: string | number | null;
   }): Promise<InboxPage> {
     assertHuman(input.actor, 'inbox', '/inbox');
-    const decided =
-      assertVocab([input.state ?? 'pending'], APPROVAL_INBOX_STATES, 'state')[0] === 'decided';
+    const state = assertVocab(
+      [input.state ?? 'pending'],
+      APPROVAL_INBOX_STATES,
+      'state',
+    )[0] as ApprovalInboxState;
+    const decided = state === 'decided';
+    /** 결정 없이 만료된 것(2026-10-15 · REQ-API-304) — 처리됨처럼 끝난 목록이고, 만료 시각이 최근인 것이 위다 */
+    const expired = state === 'expired';
     const limit = pageLimit(input.limit ?? undefined);
     /**
      * **정렬 방향이 탭마다 다르다** — 그리고 그 방향이 상한과 맞물려 결함이었다.
@@ -596,7 +691,9 @@ export class ApprovalService {
     // 참인 행만 오고 나머지 항은 NULL 을 만들지 않는다).
     const orderBy = decided
       ? sql`a.decided_at DESC, a.id DESC`
-      : sql`can_approve DESC, a.requested_at ASC, a.id ASC`;
+      : expired
+        ? sql`expired_at DESC, a.id DESC`
+        : sql`can_approve DESC, a.requested_at ASC, a.id ASC`;
     /**
      * **커서는 (정렬 키, id) 다**(§1.6 · REQ-API-124). 시각 하나로 seek 하면 같은 시각의
      * 행이 쪽 경계에 걸릴 때 남은 것이 어느 쪽에도 나오지 않는다 — 한 트랜잭션이 슬롯을
@@ -611,12 +708,14 @@ export class ApprovalService {
     const cursorRowId = cursorId(cursor?.[1]);
     const seekable = cursorAt !== null && cursorRowId !== null;
     // 대기 커서의 셋째 칸 — 잠긴 구역에 들어섰는가. 칸이 없는 옛 커서는 앞 구역으로 읽는다
-    const cursorLocked = !decided && cursor?.[2] === 1;
+    const cursorLocked = state === 'pending' && cursor?.[2] === 1;
     const approvalSeek = !seekable
       ? sql``
       : decided
         ? sql` AND (a.decided_at, a.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
-        : sql` AND (NOT COALESCE(${canApproveExpr(input.userId)}, false), a.requested_at, a.id)
+        : expired
+          ? sql` AND (${expiredAtSql()}, a.id) < (${cursorAt}::timestamptz, ${cursorRowId}::uuid)`
+          : sql` AND (NOT COALESCE(${canApproveExpr(input.userId)}, false), a.requested_at, a.id)
                  > (${cursorLocked}::boolean, ${cursorAt}::timestamptz, ${cursorRowId}::uuid)`;
     // 질문은 늘 앞 구역이다 — 잠긴 구역에 들어선 커서 뒤에는 질문이 남아 있지 않다
     const questionSeek = !seekable
@@ -640,16 +739,20 @@ export class ApprovalService {
      * 카드에는 쓸 곳이 없다. 정족수 둘은 **남긴다** — T3 를 하나 승인하고 둘째를 기다리는
      * 중이라면 그 카드의 `1/2 승인` 은 처리됨에서도 사실이다.
      */
-    const verdictColumns = decided
-      ? sql``
-      : sql`${canApproveSql(input.userId)},
+    const verdictColumns =
+      decided || expired
+        ? sql``
+        : sql`${canApproveSql(input.userId)},
              ${canApproveReasonSql(input.userId)},
              -- 일괄 판정도 **서버가 한다**(REQ-API-163). 화면이 "정족수 1 이고 면제가
              -- 아니면 저위험" 을 다시 구현하면 두 벌이 되고, admin 완화가 낀 규칙은 두 벌이
              -- 되는 순간 한쪽만 고쳐진다 — can_approve 가 서버 판정인 이유와 같은 자리다.
              ${canBulkApproveSql(input.userId)},
              ${bulkBlockReasonSql(input.userId)},
-             encode(sv.content_hash, 'hex') AS content_hash,`;
+             encode(sv.content_hash, 'hex') AS content_hash,
+             -- **지연**(2026-10-15 · REQ-API-305) — 요청 뒤 2일을 넘겼다. 카드가 그 사실을 보이는 데 쓰는 값이고,
+             -- 판정은 여기 한 곳이다(화면이 시간을 다시 재지 않는다)
+             (a.requested_at <= now() - ${sqlSeconds(APPROVAL_ESCALATION_SECONDS)}) AS overdue,`;
     // **slug 만으로 거르지 않는다**(2026-09-27 · REQ-API-213). `p.slug = …` 는 두 조직의 같은
     // 이름을 함께 걸렀다 — 내가 속한 프로젝트 하나로 푼 뒤 id 로 거른다
     // `org` 만 오면 그 조직의 프로젝트 전부다(2026-09-27 · 사람 결정 N1 · REQ-API-217) — 알림 목록과
@@ -663,7 +766,7 @@ export class ApprovalService {
           });
     const { approvalFrom, approvalWhere, questionFrom, questionWhere } = this.inboxConditions(
       input.userId,
-      decided,
+      state,
       projectFilter,
     );
 
@@ -672,7 +775,8 @@ export class ApprovalService {
              a.decision::text AS decision, a.requested_at, a.decided_at, a.is_bypass,
              -- 커서가 이 값을 그대로 싣는다 — 표시용 열과 **따로 뽑는다**: 드라이버가 주는
              -- 표시 값의 정밀도에 커서를 매달면, 그 정밀도가 바뀌는 날 동률 판정이 깨진다
-             ${decided ? sql`a.decided_at` : sql`a.requested_at`}::text AS cursor_at,
+             ${decided ? sql`a.decided_at` : expired ? expiredAtSql() : sql`a.requested_at`}::text AS cursor_at,
+             ${expired ? sql`${expiredAtSql()} AS expired_at,` : sql``}
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
              -- **어느 조직의 일인가**(2026-09-24 · REQ-API-170). 이 목록은 조직을 가로지르는데
              -- 조직을 싣지 않아, 두 조직에 같은 slug 가 있으면 화면이 둘을 가를 수 없었다
@@ -727,7 +831,7 @@ export class ApprovalService {
        LIMIT ${limit + 1}
     `);
 
-    if (decided) {
+    if (decided || expired) {
       const { rows: counted } = await this.db.execute<{ total: number }>(sql`
         SELECT count(*)::int AS total ${approvalFrom} ${approvalWhere}
       `);
@@ -1032,6 +1136,20 @@ export class ApprovalService {
       });
     }
 
+    // **만료된 자리는 결정하지 않는다**(2026-10-15 · REQ-API-304). 만료는 결재 행에 결정을 쓰지 않으므로 위 검사를
+    // 지난다 — 낡은 화면 · 알림 링크에서 누른 승인이 초안이 된 문서의 자리에 결정만 남기고 아무것도 옮기지 않는다.
+    // 만료와 결정이 겹치면 이 행의 잠금이 둘을 차례로 지나게 하고 늦은 쪽이 여기서 만료를 본다
+    if (approval.subject_type === 'spec_version') {
+      const { rows: closed } = await tx.execute<{ expired: boolean }>(sql`
+        SELECT ${expiredInRoundSql()} AS expired FROM approval a WHERE a.id = ${input.approvalId}
+      `);
+      if (closed[0]?.expired === true) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.expired'), {
+          kind: 'approval_expired',
+        });
+      }
+    }
+
     // stale 승인 차단 — 사람이 본 것과 승인되는 것이 같아야 한다
     if (
       input.seenContentHash != null &&
@@ -1116,29 +1234,7 @@ export class ApprovalService {
     // blocking 질문이나 아직 결정되지 않은 다른 결재가 있으면 그 세션은 여전히 사람을
     // 기다리는 중이고, 여기서 `active` 로 돌려놓으면 S5 는 일하고 있는 세션으로 그린다.
     if (approval.requested_by_session_id !== null) {
-      await tx.execute(sql`
-        UPDATE agent_session SET state = 'active'
-         WHERE id = ${approval.requested_by_session_id}
-           AND state = 'awaiting_input'
-           AND NOT EXISTS (
-             SELECT 1 FROM question q
-              WHERE q.agent_session_id = ${approval.requested_by_session_id}
-                AND q.status = 'open' AND q.urgency = 'blocking'
-           )
-           AND NOT EXISTS (
-             SELECT 1 FROM approval a2
-              WHERE a2.requested_by_session_id = ${approval.requested_by_session_id}
-                AND a2.id <> ${input.approvalId} AND a2.decision IS NULL
-                -- **닫힌 라운드의 형제 슬롯은 기다림이 아니다**(2026-09-26). T3 의 한 슬롯이 거절되면 문서는
-                -- 초안으로 가고 다른 슬롯은 결정 없이 남는다 — 그 슬롯이 세션을 붙잡아 거절을 받고도
-                -- awaiting_input 에 머물렀다. 문서가 검토 중이 아닌 스펙 슬롯은 세지 않는다
-                AND NOT EXISTS (
-                  SELECT 1 FROM spec_version sv2
-                   WHERE a2.subject_type = 'spec_version' AND sv2.id = a2.subject_id
-                     AND sv2.status <> 'in_review'
-                )
-           )
-      `);
+      await this.wakeWaitingSession(tx, approval.requested_by_session_id, [input.approvalId]);
     }
 
     // 요청의 그림자 알림을 함께 닫는다 — 받은 요청 배지만 줄고 알림 배지는 남던 자리(REQ-API-176)
@@ -1694,7 +1790,27 @@ export class ApprovalService {
          AND a.decided_at > now() - interval '1 hour'
        ORDER BY a.decided_at DESC LIMIT 10
     `);
-    return rows;
+    /**
+     * **만료도 결정처럼 돌려준다**(2026-10-15 · 사람 결정 · REQ-API-306). 만료는 결재 행에 결정을 쓰지 않으므로 위 질의에
+     * 걸리지 않는다 — 그러면 스펙 검토를 올리고 기다리던 세션은 7일 뒤 그 버전이 초안으로 돌아간 사실을 영영 듣지
+     * 못한다. 만료 이벤트가 그 라운드의 요청 세션을 든다(결재 행의 요청 세션은 다시 제출하면 바뀐다). 창과 상한은
+     * 결정과 같다 — 1시간 · 10건 · 전달로 소멸하지 않는다.
+     */
+    const { rows: expired } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT 'approval_expired' AS kind, e.payload->>'approval_id' AS approval_id,
+             'spec_version' AS subject_type, e.subject_id,
+             e.occurred_at::text AS expired_at, s.key AS subject_key, sv.version_no
+        FROM agent_session se
+        JOIN event e ON e.project_id = se.project_id
+   LEFT JOIN spec_version sv ON sv.id = e.subject_id
+   LEFT JOIN spec s ON s.id = sv.spec_id
+       WHERE se.id = ${sessionId}
+         AND e.type = ${NERV_EVENT.APPROVAL_EXPIRED}
+         AND e.occurred_at > now() - interval '1 hour'
+         AND e.payload->>'requested_by_session_id' = ${sessionId}::text
+       ORDER BY e.occurred_at DESC LIMIT 10
+    `);
+    return [...rows, ...expired];
   }
 
   /**
@@ -1845,21 +1961,38 @@ export class ApprovalService {
   }
 
   /**
-   * **결재 리마인더**(2026-10-11 · REQ-API-296 · spec-workflow §2.6 SLA 표). 워커가 하트비트 간격으로 부른다.
+   * **결재 SLA 한 판**(2026-10-15 · 사람 결정 · spec-workflow §2.6 SLA 표). 워커 잡(`approval-reminder`)이 하트비트 간격으로
+   * 부른다. 순서가 뜻을 만든다 — **만료가 먼저다**: 7일을 넘긴 스펙 결재가 초안으로 돌아간 뒤에는 대기가 아니라서 같은
+   * 판의 지연 · 리마인더가 그것을 다시 알리지 않는다. 셋 다 이미 낸 단계를 이벤트가 기억하므로 자주 돌아도 두 번 내지
+   * 않는다(워커는 advisory lock 아래 하나만 돈다 · REQ-CB-011).
+   */
+  async slaDue(): Promise<{ expired: number; escalated: number; reminded: number }> {
+    const { expired } = await this.expireDue();
+    const { escalated } = await this.escalateDue();
+    const { reminded } = await this.remindDue();
+    return { expired, escalated, reminded };
+  }
+
+  /**
+   * **결재 리마인더**(2026-10-11 · REQ-API-296 · spec-workflow §2.6 SLA 표).
    *
    * 아직 결정되지 않은 결재를 요청 뒤 4시간에 한 번(1회째 · 앱 안), 1일에 한 번(2회째 · 앱 안과 메일 요약) 다시
    * 알린다. 단계마다 **한 번만** 낸다 — 이미 낸 단계는 `approval.reminded` 이벤트가 기억한다(새 열을 두지 않는다:
    * 이벤트 로그가 정본이고, 워커는 advisory lock 아래 하나만 돈다). 워커가 멈춰 있다가 1일을 넘겨 처음 보면
    * 2회째만 낸다 — 지난 1회째를 뒤늦게 내지 않는다.
    *
-   * 대기의 조건은 받은 요청과 같다(보관한 프로젝트 · 거절로 draft 가 된 문서의 남은 자리 · 보관한 작업의 계획 승인은
-   * 대기가 아니다). 요청 뒤 7일이 지난 결재는 다시 알리지 않는다(SLA 의 만료 자리 · 만료 처리는 따로 정한다).
-   * "대체 승인자 후보 표시"는 후보를 고르는 규칙이 없어 하지 않는다. 받는 사람은 알림 라우팅이 정한다.
+   * **라운드마다 센다**(2026-10-15 · REQ-API-304). 만료 · 거절 뒤 다시 제출하면 남아 있던 자리를 다시 쓰고 요청 시각이
+   * 그 제출로 바뀐다. 지난 라운드의 리마인더까지 세면 다시 낸 검토는 한 번도 다시 알리지 않는다 — 이번 요청 뒤의
+   * 이벤트만 센다.
+   *
+   * 대기의 조건은 받은 요청과 같다(`waitingApprovalsSql`). 요청 뒤 7일이 지난 결재는 다시 알리지 않는다(스펙 결재는
+   * 그때 만료된다). "대체 승인자 후보 표시"는 후보를 고르는 규칙이 없어 하지 않는다. 받는 사람은 알림 라우팅이 정한다.
    */
   async remindDue(): Promise<{ reminded: number }> {
     // 높은 단계부터 — 지금 닿은 가장 높은 단계 하나만 낸다
     const steps = [...APPROVAL_REMINDER_STEPS].sort((a, b) => b.afterSeconds - a.afterSeconds);
     const first = Math.min(...APPROVAL_REMINDER_STEPS.map((s) => s.afterSeconds));
+    const { from, where } = waitingApprovalsSql();
     return this.events.transact(async (tx, emit) => {
       const { rows } = await tx.execute<{
         id: string;
@@ -1874,17 +2007,11 @@ export class ApprovalService {
                a.subject_id, extract(epoch FROM now() - a.requested_at)::int AS age,
                COALESCE((SELECT max((e.payload->>'level')::int) FROM event e
                           WHERE e.subject_type = 'approval' AND e.subject_id = a.id
-                            AND e.type = ${NERV_EVENT.APPROVAL_REMINDED}), 0) AS reminded
-          FROM approval a
-          JOIN project p ON p.id = a.project_id
-     LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
-     LEFT JOIN task plan_task ON plan_task.id = a.subject_id AND a.subject_type = 'plan'
-         WHERE a.decision IS NULL AND NOT a.is_bypass
+                            AND e.type = ${NERV_EVENT.APPROVAL_REMINDED}
+                            AND e.occurred_at >= a.requested_at), 0) AS reminded
+          ${from} ${where}
            AND a.requested_at <= now() - ${sqlSeconds(first)}
            AND a.requested_at > now() - ${sqlSeconds(APPROVAL_REMINDER_WINDOW_SECONDS)}
-           AND p.archived_at IS NULL
-           AND (sv.id IS NULL OR sv.status = 'in_review')
-           AND NOT (a.subject_type = 'plan' AND plan_task.archived_at IS NOT NULL)
          ORDER BY a.requested_at
       `);
       let reminded = 0;
@@ -1910,6 +2037,235 @@ export class ApprovalService {
       }
       return { reminded };
     });
+  }
+
+  /**
+   * **지연 결재 — T+2d 에스컬레이션**(2026-10-15 · 사람 결정 · REQ-API-305 · spec-workflow §2.6).
+   *
+   * 결정되지 않은 채 요청 뒤 2일을 넘긴 결재마다(라운드마다) ★`approval.overdue` 를 한 번 낸다. **누구에게 알릴지는
+   * 알림 라우팅이 정한다** — 결정할 수 있는데 요청 알림을 받지 못한 사람(직군 자리 · 지정 결재의 admin)에게만 중요
+   * 알림이 간다. 기본 큐 결재는 요청 알림을 이미 admin · planner 가 받았으므로 받는 사람이 없고, 받은 요청 카드와
+   * 프로젝트 개요의 "지연" 표시가 그 자리를 맡는다(`overdue` · EP-APR-08). 이벤트는 그래도 남긴다 — 감사와 활동이
+   * "이 결재가 2일을 넘겼다" 를 셀 수 있게.
+   *
+   * 만료하지 않는 결재(계획 · 발견 하향)는 7일이 지나도 여기서 한 번 알린 뒤로는 표시만 남는다(2026-10-15 — 돌아갈
+   * 초안이 없는 결재는 만료하지 않는다. 사람이 다시 정할 수 있는 기본값이다).
+   */
+  async escalateDue(): Promise<{ escalated: number }> {
+    const { from, where } = waitingApprovalsSql();
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{
+        id: string;
+        project_id: string;
+        requested_by_user_id: string;
+        subject_type: string;
+        subject_id: string;
+        assignee_user_id: string | null;
+        assignee_role: string | null;
+        waited_seconds: number;
+      }>(sql`
+        SELECT a.id, a.project_id, a.requested_by_user_id, a.subject_type::text AS subject_type,
+               a.subject_id, a.assignee_user_id, a.assignee_role::text AS assignee_role,
+               extract(epoch FROM now() - a.requested_at)::int AS waited_seconds
+          ${from} ${where}
+           AND a.requested_at <= now() - ${sqlSeconds(APPROVAL_ESCALATION_SECONDS)}
+           -- 라운드마다 한 번 — 이번 요청 뒤에 낸 에스컬레이션이 있으면 지난다
+           AND NOT EXISTS (
+             SELECT 1 FROM event e
+              WHERE e.subject_type = 'approval' AND e.subject_id = a.id
+                AND e.type = ${NERV_EVENT.APPROVAL_OVERDUE}
+                AND e.occurred_at >= a.requested_at)
+         ORDER BY a.requested_at
+      `);
+      for (const row of rows) {
+        await emit({
+          type: NERV_EVENT.APPROVAL_OVERDUE,
+          projectId: row.project_id,
+          subjectType: 'approval',
+          subjectId: row.id,
+          // 리마인더와 같다 — 시간이 지난 것이고, 받는 사람에서 뺄 요청자는 payload 가 든다
+          actorUserId: null,
+          isAgent: false,
+          payload: {
+            requested_by_user_id: row.requested_by_user_id,
+            approval_subject_type: row.subject_type,
+            approval_subject_id: row.subject_id,
+            // 누구의 큐인가 — 받는 사람이 여기서 갈린다(지정 · 직군 자리면 admin, 기본 큐면 없음)
+            queue:
+              row.assignee_user_id !== null
+                ? 'assignee'
+                : row.assignee_role !== null
+                  ? 'role_slot'
+                  : 'default',
+            ...(row.assignee_role === null ? {} : { assignee_role: row.assignee_role }),
+            waited_seconds: row.waited_seconds,
+          },
+        });
+      }
+      return { escalated: rows.length };
+    });
+  }
+
+  /**
+   * **결재 만료 — T+7d**(2026-10-15 · 사람 결정 · REQ-API-304 · spec-workflow §2.6).
+   *
+   * 스펙 결재가 요청 뒤 7일 동안 결정되지 않으면 그 버전을 **거절과 같은 전이**로 초안에 되돌린다 — `submitted_at` 을
+   * 비우므로 라운드 규칙도 거절과 같다: T3 에서 이미 채워진 승인은 다시 제출한 라운드에서 세지 않는다. **결재 행에는
+   * 결정을 쓰지 않는다** — 결정은 사람의 것이고(결정된 행에는 결정자가 있다 · `approval_decided_by_ck`), 결정 어휘를 늘리지
+   * 않는다. 만료라는 사실은 ★`approval.expired`(대상은 그 버전 · 라운드마다 한 번)가 남기고, 받은 요청의 만료 탭 · 하트비트
+   * 역채널(`approval_expired`)이 그 이벤트에서 파생한다. 요청자에게 보통 알림이 간다.
+   *
+   * 돌아갈 초안이 없는 결재(계획 · 발견 하향)는 만료하지 않는다 — 에스컬레이션만 한다(2026-10-15 기본값).
+   * 문서마다 제 트랜잭션이다 — 한 문서의 실패가 다른 문서의 만료를 되돌리지 않는다.
+   */
+  async expireDue(): Promise<{ expired: number }> {
+    const { from, where } = waitingApprovalsSql();
+    const { rows } = await this.db.execute<{ project_id: string; spec_version_id: string }>(sql`
+      SELECT DISTINCT a.project_id, a.subject_id AS spec_version_id
+        ${from} ${where}
+         AND a.subject_type = 'spec_version'
+         AND a.requested_at <= now() - ${sqlSeconds(APPROVAL_EXPIRY_SECONDS)}
+    `);
+    let expired = 0;
+    for (const row of rows) {
+      if (await this.expireOne(row.project_id, row.spec_version_id)) expired += 1;
+    }
+    return { expired };
+  }
+
+  /** 문서 하나의 만료 — 잠근 뒤 다시 본다(그 사이 사람이 결정했을 수 있다) */
+  private expireOne(projectId: string, specVersionId: string): Promise<boolean> {
+    return this.events.transact(async (tx, emit) => {
+      // **결재 자리를 먼저, 문서를 다음에 잠근다** — 결정(`decideInTx` → `applyToSubject`)과 같은 순서다. 그러면 같은
+      // 문서를 두고 결정과 만료가 겹쳐도 한쪽이 기다릴 뿐 교착하지 않는다
+      const { rows: slots } = await tx.execute<{
+        id: string;
+        requested_by_user_id: string;
+        requested_by_session_id: string | null;
+        requested_at: string;
+        due: boolean;
+      }>(sql`
+        SELECT a.id, a.requested_by_user_id, a.requested_by_session_id,
+               a.requested_at::text AS requested_at,
+               (a.requested_at <= now() - ${sqlSeconds(APPROVAL_EXPIRY_SECONDS)}) AS due
+          FROM approval a
+         WHERE a.project_id = ${projectId} AND a.subject_type = 'spec_version'
+           AND a.subject_id = ${specVersionId} AND a.decision IS NULL AND NOT a.is_bypass
+         ORDER BY a.assignee_role NULLS FIRST, a.id
+           FOR UPDATE OF a
+      `);
+      const first = slots[0];
+      if (first === undefined || !slots.some((slot) => slot.due)) return false;
+      const { rows: docs } = await tx.execute<{
+        status: string;
+        submitted_at: string | null;
+        spec_key: string;
+        version_no: number;
+      }>(sql`
+        SELECT sv.status::text AS status, sv.submitted_at::text AS submitted_at,
+               s.key AS spec_key, sv.version_no
+          FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+         WHERE sv.id = ${specVersionId} AND s.project_id = ${projectId}
+           FOR UPDATE OF sv
+      `);
+      const doc = docs[0];
+      if (doc === undefined || doc.status !== 'in_review') return false;
+      // 이번 라운드에 채워진 승인 — 다시 제출하면 세지 않는다. 감사가 "무엇이 무효가 됐나" 에 답하게 남긴다
+      const { rows: counted } = await tx.execute<{ required: number; given: number }>(
+        quorumSql(specVersionId, doc.submitted_at),
+      );
+      if (!(await this.specs.expireInTxForApproval(tx, { projectId, specVersionId }))) return false;
+      const ids = slots.map((slot) => slot.id);
+      // 끝난 요청의 그림자 알림(요청 · 리마인더 · 지연)을 함께 닫는다 — 결정과 같은 규율이다(REQ-API-176)
+      for (const id of ids) await closeRequestNotifications(tx, 'approval', id);
+      // 기다리던 세션을 깨운다 — 결정과 같은 조건이다(REQ-API-134)
+      const sessions = new Set(
+        slots.map((slot) => slot.requested_by_session_id).filter((id): id is string => id !== null),
+      );
+      for (const sessionId of sessions) await this.wakeWaitingSession(tx, sessionId, ids);
+      await emit({
+        type: NERV_EVENT.APPROVAL_EXPIRED,
+        projectId,
+        subjectType: 'spec_version',
+        subjectId: specVersionId,
+        subjectKey: doc.spec_key,
+        // 사람이 한 일이 아니다 — 7일이 지났다
+        actorUserId: null,
+        isAgent: false,
+        fromState: 'in_review',
+        toState: 'draft',
+        payload: {
+          approval_id: first.id,
+          approval_ids: ids,
+          requested_by_user_id: first.requested_by_user_id,
+          // 하트비트 역채널이 이 값으로 기다리던 세션을 찾는다(REQ-API-306)
+          requested_by_session_id: first.requested_by_session_id,
+          requested_at: first.requested_at,
+          version_no: doc.version_no,
+          // 이번 라운드에 채워진 승인과 필요한 수 — 다시 제출한 라운드에서는 세지 않는다
+          approvals_given: counted[0]?.given ?? 0,
+          approvals_required: counted[0]?.required ?? ids.length,
+        },
+      });
+      return true;
+    });
+  }
+
+  /**
+   * EP-APR-08 — **결재 흐름**(2026-10-15 · 사람 결정 · REQ-API-305 · REQ-API-307). 프로젝트 개요가 쓴다.
+   *
+   * ① `overdue` — 지금 요청 뒤 2일을 넘긴 결재 수(받은 요청과 같은 대기 조건 · 프로젝트 전체). 개요의 "지연 결재" 칩이다.
+   * ② `lag` — **역할 큐 재검토 지표**(spec-workflow §2.2). 결재는 특정인을 지정하지 않고 역할 큐로 간다(2026-09-28). 같은
+   *    역할의 사람이 많아 서로 미루면 그 결정을 다시 본다 — 그 신호를 숫자로 정했다: 최근 30일에 요청된 결재 가운데
+   *    2회째 리마인더(T+1d)까지 간 비율이 30%를 넘으면 재검토한다. 분모는 그 창에 요청된 결재(면제 제외) 가운데
+   *    **결정됐거나 2회째 리마인더까지 간 것**이다 — 아직 하루가 안 된 결재는 어느 쪽인지 모르므로 세지 않는다. 다시
+   *    제출한 결재 자리는 새 라운드로 센다(리마인더와 같은 규칙). 창과 기준은 시작값이다(`ROLE_QUEUE_REVIEW_*`).
+   */
+  async flow(projectId: string): Promise<{
+    overdue: number;
+    lag: {
+      window_days: number;
+      total: number;
+      late: number;
+      ratio: number | null;
+      threshold: number;
+      review_due: boolean;
+    };
+  }> {
+    const { from, where } = waitingApprovalsSql();
+    const lateLevel = Math.max(...APPROVAL_REMINDER_STEPS.map((s) => s.level));
+    const { rows } = await this.db.execute<{ overdue: number; total: number; late: number }>(sql`
+      SELECT (SELECT count(*) ${from} ${where}
+                 AND a.project_id = ${projectId}
+                 AND a.requested_at <= now() - ${sqlSeconds(APPROVAL_ESCALATION_SECONDS)})::int AS overdue,
+             count(*) FILTER (WHERE x.decided OR x.late)::int AS total,
+             count(*) FILTER (WHERE x.late)::int AS late
+        FROM (
+          SELECT a.decision IS NOT NULL AS decided,
+                 EXISTS (
+                   SELECT 1 FROM event e
+                    WHERE e.subject_type = 'approval' AND e.subject_id = a.id
+                      AND e.type = ${NERV_EVENT.APPROVAL_REMINDED}
+                      AND (e.payload->>'level')::int >= ${lateLevel}
+                      AND e.occurred_at >= a.requested_at) AS late
+            FROM approval a
+           WHERE a.project_id = ${projectId} AND NOT a.is_bypass
+             AND a.requested_at > now() - make_interval(days => ${ROLE_QUEUE_REVIEW_WINDOW_DAYS})
+        ) x
+    `);
+    const row = rows[0] ?? { overdue: 0, total: 0, late: 0 };
+    const ratio = row.total === 0 ? null : row.late / row.total;
+    return {
+      overdue: row.overdue,
+      lag: {
+        window_days: ROLE_QUEUE_REVIEW_WINDOW_DAYS,
+        total: row.total,
+        late: row.late,
+        ratio,
+        threshold: ROLE_QUEUE_REVIEW_THRESHOLD,
+        review_due: ratio !== null && ratio > ROLE_QUEUE_REVIEW_THRESHOLD,
+      },
+    };
   }
 
   /** 승인 요청 생성 — SpecService 가 부르는 것과 같은 재사용 규칙을 쓴다. */

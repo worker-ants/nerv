@@ -26,7 +26,10 @@ import {
   RequirementPanel,
 } from '../../features/spec-editor/requirement-panel.js';
 import { SourceView } from '../../features/spec-editor/source-view.js';
-import { TerminalHandoffCard } from '../../features/spec-editor/terminal-handoff.js';
+import {
+  RevertHandoffCard,
+  TerminalHandoffCard,
+} from '../../features/spec-editor/terminal-handoff.js';
 import { VersionDiff } from '../../features/spec-editor/version-diff.js';
 import { NextStep } from '../../features/spec-editor/next-step.js';
 import { SpecToc } from '../../features/spec-editor/spec-toc.js';
@@ -682,6 +685,25 @@ function SpecDetail(): React.JSX.Element {
   // 첨부를 올리고 내리고 지우는 사람 — 서버 가드(`spec:draft`)와 같은 값을 본다(REQ-WEB-265).
   // 예전에는 planner·admin 만 보여서, 서버가 받는 designer 가 자기 시안을 화면에서 치우지 못했다.
   const canAttach = scopesForRoles(rolesInProject(me.data, orgSlug, proj)).has('spec:draft');
+  // **되돌리기**(2026-10-15 · REQ-WEB-312) — 본문이 확정된 옛 버전을 볼 때 그 버전으로 되돌리는 명령을 보인다. 가장 새
+  // 버전이 초안이나 검토 중이면 서버가 새 초안을 거절하므로(REQ-API-308) 명령 대신 그 까닭을 보인다
+  const latestRow = versionRows[0];
+  const revertable =
+    viewing !== null &&
+    canAttach &&
+    ['approved', 'superseded', 'deprecated'].includes(
+      String(pastVersion.data?.['doc_status'] ?? ''),
+    ) &&
+    latestRow !== undefined &&
+    Number(latestRow['version_no']) !== viewing;
+  const revertBlockedBy =
+    latestRow !== undefined &&
+    (latestRow['status'] === 'draft' || latestRow['status'] === 'in_review')
+      ? {
+          versionNo: Number(latestRow['version_no']),
+          status: latestRow['status'] as 'draft' | 'in_review',
+        }
+      : null;
   // 작업을 만드는 역할 — 정본은 `@nerv/schema` 다(보드의 [+ 새 작업]과 같은 목록)
   const canCreateTask = rolesInProject(me.data, orgSlug, proj).some((r) =>
     (TASK_CREATE_ROLES as readonly string[]).includes(r),
@@ -1256,6 +1278,9 @@ function SpecDetail(): React.JSX.Element {
                 {t('spec.version_current')}
               </Button>
             </div>
+            {revertable && (
+              <RevertHandoffCard specKey={spec} versionNo={viewing} blockedBy={revertBlockedBy} />
+            )}
             {/* 옛 버전을 받기 전에는 빈 본문이 아니라 골격이다 — 빈 편집기는 "본문이 없다" 로 읽힌다(REQ-WEB-293) */}
             {pastVersion.isPending ? (
               <Skeleton rows={6} />
@@ -1593,6 +1618,12 @@ function SpecDetail(): React.JSX.Element {
                       }
                       label={t(statusLabelKey('spec', String(v['status'])))}
                     />
+                    {/* 되돌리기로 만든 버전이면 어느 버전의 본문인지(REQ-WEB-312 · REQ-API-308) */}
+                    {typeof v['reverted_to_version_no'] === 'number' && (
+                      <span data-testid="version-reverted" className="text-2xs text-text-faint">
+                        {t('spec.version.reverted', { n: v['reverted_to_version_no'] })}
+                      </span>
+                    )}
                     {/* **바뀐 시각**이지 만든 시각이 아니다 — draft 는 같은 행을
                           덮어쓰므로 created_at 을 적으면 방금 고친 문서가 "2시간 전"이 된다 */}
                     <span className="ml-auto shrink-0 text-2xs text-text-faint">

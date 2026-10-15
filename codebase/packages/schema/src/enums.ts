@@ -206,8 +206,11 @@ export type ClaimReleaseReason = (typeof CLAIM_RELEASE_INPUTS)[number];
 /**
  * 받은 요청 목록의 `state` — **pg enum 이 아니라 파생 어휘다**(결재의 `decision IS NULL` 여부).
  * 그래도 정본은 여기다: 표면이 리터럴로 들고 있으면 검사도 리터럴로 다시 적게 된다.
+ *
+ * `expired` 는 결정 없이 만료된 결재다(2026-10-15 · api.md REQ-API-304) — 결재 행에는 결정을 쓰지 않고,
+ * 그 라운드에 ★`approval.expired` 가 났다는 사실에서 파생한다.
  */
-export const APPROVAL_INBOX_STATES = ['pending', 'decided'] as const;
+export const APPROVAL_INBOX_STATES = ['pending', 'decided', 'expired'] as const;
 export type ApprovalInboxState = (typeof APPROVAL_INBOX_STATES)[number];
 
 /** 관계 목록의 방향 — 같은 이유로 여기 둔다(EP-SPEC-18) */
@@ -405,9 +408,15 @@ export const notificationLevel = pgEnum('notification_level', NOTIFICATION_LEVEL
 // **알림 메일 요약**(2026-09-28 · 사람 결정 EM1~EM9)이 넷째 값이다. 마이그레이션이 그 값을 쓰지 않고(워커가
 // 런타임에만 쓴다) 더하기만 하므로 파일 하나로 된다 — 위 주석의 "둘로 쪼개야" 는 값을 같은 마이그레이션
 // 안에서 쓸 때의 이야기다.
+// **이메일 바꾸기**(2026-10-15 · 사람 결정 · api.md REQ-API-310)가 다섯째 · 여섯째 · 일곱째 값이다 — 옛 주소의 승인
+// (`change_email_approve`) · 새 주소의 확인(`change_email_confirm`) · 바뀐 뒤 옛 주소로 가는 알림(`email_changed`).
+// 마이그레이션은 값을 더하기만 하므로 파일 하나로 된다(넷째 값과 같은 까닭).
 export const emailKind = pgEnum('email_kind', [
   'verify_email',
   'invite',
   'reset_password',
   'notification_digest',
+  'change_email_approve',
+  'change_email_confirm',
+  'email_changed',
 ]);

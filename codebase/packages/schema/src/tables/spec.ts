@@ -119,6 +119,12 @@ export const specVersion = pgTable(
      */
     shrinkAckAt: ts('shrink_ack_at'),
     shrinkAckUserId: uuid('shrink_ack_user_id').references(() => user.id),
+    /**
+     * **되돌리기로 만든 초안이면 그 본문을 복사한 옛 버전의 번호**(2026-10-15 · 사람 결정 · REQ-API-308).
+     * 서버가 옛 버전(승인됨 · 대체됨 · 폐기됨)의 본문을 그대로 복사해 새 초안을 만들 때 채운다. 그 뒤 초안을 이어
+     * 고쳐도 지우지 않는다 — 이 버전이 어디서 출발했는지의 기록이고, 롤백 신호를 계산할 재료다(3.5 §2.4).
+     */
+    revertedToVersionNo: integer('reverted_to_version_no'),
     createdAt: createdAt(),
     /**
      * 본문이 마지막으로 **바뀐** 시각 — 저장된 시각이 아니다.
@@ -142,6 +148,11 @@ export const specVersion = pgTable(
   (t) => [
     uniqueIndex('spec_version_no_uq').on(t.specId, t.versionNo),
     check('spec_version_no_positive_ck', sql`${t.versionNo} >= 1`),
+    // 되돌린 대상은 이 버전보다 앞선 버전이다(REQ-DB-042)
+    check(
+      'spec_version_reverted_to_ck',
+      sql`${t.revertedToVersionNo} IS NULL OR (${t.revertedToVersionNo} >= 1 AND ${t.revertedToVersionNo} < ${t.versionNo})`,
+    ),
     // data-model §5.5 규칙 9 — 편집 리스는 draft 에서만 non-NULL
     check(
       'spec_version_lease_draft_only_ck',

@@ -119,7 +119,7 @@ On the sign-in screen, click **"Forgot your password?"** just below the password
 - **An expired or already used link** shows **"This link cannot be used"** and **[Get a new reset link]** instead of the form, so you find out before you enter a password.
 - **Reset also works for an account whose email is not confirmed yet.** Setting a password through the emailed link proves the address is yours, so you can sign in with the new password right away, without waiting for a confirmation email.
 - **Reset requests have the same limit as signing in (10 per minute).** If you go over it, a message appears in the form.
-- **On a server that does not send email** (`NERV_MAIL_HOST` is empty), you cannot reset your password here. Submitting the form shows **"Contact the server operator."** This keeps you from waiting for an email that will never arrive.
+- **On a server that does not send email** (`NERV_MAIL_HOST` is empty), you cannot reset your password here. Submitting the form shows **"Contact the server operator."** This keeps you from waiting for an email that will never arrive. The operator can **create a reset link** on the server and give it to you (by running `node dist/reset-link.js <email>` inside the api container). It is the same link the email would contain: it works once within 60 minutes, and opening it takes you to steps 3 and 4 above to set a new password yourself. The operator never sees your password.
 
 If you **know your password and want to change it**, go to the **Password** tab of [My account](/help/settings#account) in Settings.
 

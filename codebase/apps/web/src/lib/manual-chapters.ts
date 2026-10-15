@@ -98,6 +98,8 @@ export const MANUAL_SECTION_IDS = {
     'keyboard',
     'card-links',
     'notifications',
+    // 지연과 만료(2026-10-15 · REQ-WEB-310) — 새 절은 끝에 둔다
+    'sla',
   ],
   agents: ['components', 'tokens', 'skills', 'tool-tiers', 'import'],
   install: [

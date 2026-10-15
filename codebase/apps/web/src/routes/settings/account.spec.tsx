@@ -30,6 +30,12 @@ let sent: Sent[] = [];
 let me: Record<string, unknown>;
 /** 비밀번호 바꾸기에 서버가 돌려줄 것 */
 let passwordReply: { status: number; json: unknown };
+/** 이메일 바꾸기 — 진행 상태(EP-AUTH-06)와 인증 스택의 답 */
+let emailChange: {
+  mail_enabled: boolean;
+  pending: { new_email: string; stage: string; expires_at: string } | null;
+};
+let emailReply: { status: number; json: unknown };
 /** 로그인된 기기 — 서버가 돌려줄 세션 목록 */
 let sessions: {
   id: string;
@@ -50,6 +56,8 @@ beforeEach(() => {
     memberships: [{ org_slug: 'nerv', org_name: 'NERV', project_slug: null, roles: ['developer'] }],
   };
   passwordReply = { status: 200, json: { token: 't', user: {} } };
+  emailChange = { mail_enabled: true, pending: null };
+  emailReply = { status: 200, json: { status: true } };
   const now = new Date().toISOString();
   sessions = [
     {
@@ -86,6 +94,22 @@ beforeEach(() => {
       const method = init?.method ?? 'GET';
       if (method !== 'GET')
         sent.push({ url: u, method, body: JSON.parse(String(init?.body ?? '{}')) as never });
+      if (u.includes('/api/auth/change-email')) {
+        if (emailReply.status < 400) {
+          const body = JSON.parse(String(init?.body ?? '{}')) as { newEmail: string };
+          emailChange = {
+            ...emailChange,
+            pending: { new_email: body.newEmail, stage: 'approve', expires_at: '' },
+          };
+        }
+        return {
+          ok: emailReply.status < 400,
+          status: emailReply.status,
+          json: async () => emailReply.json,
+        };
+      }
+      if (u.endsWith('/me/email-change'))
+        return { ok: true, status: 200, json: async () => emailChange };
       if (u.includes('/api/auth/change-password'))
         return {
           ok: passwordReply.status < 400,
@@ -166,11 +190,84 @@ describe('표시 이름 (REQ-WEB-229)', () => {
     );
     expect(await screen.findByText('이름을 바꿨습니다.')).toBeDefined();
   });
+});
 
-  it('이메일은 보이기만 한다 — 로그인 아이디다', async () => {
+describe('이메일 바꾸기 (2026-10-15 · 사람 결정 · REQ-WEB-229)', () => {
+  const fill = (next: string, password: string): void => {
+    fireEvent.change(screen.getByTestId('account-email-new'), { target: { value: next } });
+    fireEvent.change(screen.getByTestId('account-email-password'), {
+      target: { value: password },
+    });
+  };
+
+  it('메일을 보내지 않는 서버면 양식 대신 운영자에게 문의하라고 적는다', async () => {
+    emailChange = { mail_enabled: false, pending: null };
     mount('/settings/account');
     expect((await screen.findByTestId('account-email')).textContent).toBe('jimin@example.com');
-    expect(screen.getByText('로그인 아이디라서 바꿀 수 없습니다.')).toBeDefined();
+    expect((await screen.findByTestId('account-email-off')).textContent).toContain(
+      '서버 운영자에게 문의해 주세요',
+    );
+    expect(screen.queryByTestId('account-email-form')).toBeNull();
+  });
+
+  it('새 주소와 지금 비밀번호를 인증 스택에 보내고, 어디까지 왔는지 칸 위에 보인다', async () => {
+    mount('/settings/account');
+    await screen.findByTestId('account-email-form');
+    expect((screen.getByTestId('account-email-submit') as HTMLButtonElement).disabled).toBe(true);
+    fill('  next@example.com ', 'my-password');
+    fireEvent.click(screen.getByTestId('account-email-submit'));
+    await waitFor(() => expect(sent.some((x) => x.url.includes('/change-email'))).toBe(true));
+    expect(sent.find((x) => x.url.includes('/change-email'))?.body).toEqual({
+      newEmail: 'next@example.com',
+      password: 'my-password',
+    });
+    const pending = await screen.findByTestId('account-email-pending');
+    expect(pending.getAttribute('data-stage')).toBe('approve');
+    expect(pending.textContent).toContain('next@example.com');
+    expect(pending.textContent).toContain('지금 주소의 메일함에서 승인 링크를 여세요');
+    expect(await screen.findByText('지금 주소로 승인 메일을 보냈습니다.')).toBeDefined();
+    // 비밀번호 칸은 비운다 — 다음 요청에 남겨 두지 않는다
+    expect((screen.getByTestId('account-email-password') as HTMLInputElement).value).toBe('');
+  });
+
+  it('새 주소의 확인을 기다리는 중이면 그렇게 적는다', async () => {
+    emailChange = {
+      mail_enabled: true,
+      pending: { new_email: 'next@example.com', stage: 'confirm', expires_at: '' },
+    };
+    mount('/settings/account');
+    const pending = await screen.findByTestId('account-email-pending');
+    expect(pending.textContent).toContain('새 주소의 메일함에서 확인 링크를 열면 바뀝니다');
+  });
+
+  it('지금 주소와 같으면 보내기 전에 말한다 — 대소문자는 가리지 않는다', async () => {
+    mount('/settings/account');
+    await screen.findByTestId('account-email-form');
+    fill('JIMIN@example.com', 'my-password');
+    expect(screen.getByText('지금 주소와 같습니다.')).toBeDefined();
+    expect((screen.getByTestId('account-email-submit') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('지금 비밀번호가 틀리면 그 폼 안에서 말한다', async () => {
+    emailReply = { status: 400, json: { code: 'INVALID_PASSWORD', message: 'Invalid password' } };
+    mount('/settings/account');
+    await screen.findByTestId('account-email-form');
+    fill('next@example.com', 'wrong');
+    fireEvent.click(screen.getByTestId('account-email-submit'));
+    expect((await screen.findByTestId('account-email-error')).textContent).toContain(
+      '지금 비밀번호가 맞지 않습니다.',
+    );
+    expect(screen.queryByTestId('account-email-pending')).toBeNull();
+  });
+
+  it('보내 보니 서버가 꺼져 있다고 하면 양식을 거두고 운영자에게 문의하라고 적는다', async () => {
+    emailReply = { status: 400, json: { code: 'CHANGE_EMAIL_DISABLED' } };
+    mount('/settings/account');
+    await screen.findByTestId('account-email-form');
+    fill('next@example.com', 'my-password');
+    fireEvent.click(screen.getByTestId('account-email-submit'));
+    expect(await screen.findByTestId('account-email-off')).toBeDefined();
+    expect(screen.queryByTestId('account-email-form')).toBeNull();
   });
 });
 

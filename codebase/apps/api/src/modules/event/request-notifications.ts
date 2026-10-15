@@ -25,7 +25,8 @@ export const REQUEST_OPENING_EVENTS = {
  * 안 읽음으로 남으면 이미 끝난 결재를 사람이 다시 찾으러 간다.
  */
 const REQUEST_FOLLOWUP_EVENTS: Record<keyof typeof REQUEST_OPENING_EVENTS, readonly string[]> = {
-  approval: [NERV_EVENT.APPROVAL_REMINDED],
+  // 지연(2026-10-15 · REQ-API-305)도 같은 요청을 다시 알린다 — 결정 · 만료로 요청이 닫히면 함께 닫힌다
+  approval: [NERV_EVENT.APPROVAL_REMINDED, NERV_EVENT.APPROVAL_OVERDUE],
   question: [],
 };
 
@@ -63,9 +64,14 @@ export async function requestAlreadyClosed(
   event: { type: string; subject_id: string },
 ): Promise<boolean> {
   if (requestEventTypes('approval').includes(event.type)) {
-    const { rows } = await db.execute<{ closed: boolean }>(
-      sql`SELECT (decision IS NOT NULL) AS closed FROM approval WHERE id = ${event.subject_id}`,
-    );
+    // **검토 중이 아닌 문서의 자리도 닫힌 요청이다**(2026-10-15 · REQ-API-304) — 만료는 결재 행에 결정을 쓰지 않고
+    // 문서를 초안으로 돌린다. 결정만 보면 만료 뒤에 파생된 요청 · 리마인더가 안 읽음으로 들어와 배지를 올린다
+    const { rows } = await db.execute<{ closed: boolean }>(sql`
+      SELECT (a.decision IS NOT NULL OR coalesce(sv.status <> 'in_review', false)) AS closed
+        FROM approval a
+   LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
+       WHERE a.id = ${event.subject_id}
+    `);
     return rows[0]?.closed === true;
   }
   if (event.type === REQUEST_OPENING_EVENTS.question) {

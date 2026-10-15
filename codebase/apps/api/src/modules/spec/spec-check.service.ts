@@ -4,6 +4,7 @@ import {
   createTranslator,
   REQUIREMENT_REF,
   requirementRefsIn,
+  requirementsOf,
   text,
 } from '@nerv/schema';
 import type { BodyChange } from '@nerv/schema';
@@ -147,24 +148,46 @@ export class SpecCheckService {
     ];
     const refs = requirementRefsIn(body);
     if (refs.length === 0) return findings;
+    // 이 문서가 **정의한** 번호 — 요구사항 줄(승인이 행을 만들 때 읽는 그 추출기)이다. 나머지는 인용이다
+    const defined = new Set(requirementsOf(body).keys());
 
-    // 이 문서가 언급한 요구사항 ID 중 **다른 스펙이 이미 소유한** 것 — 중복 정의의 신호다
-    const { rows } = await this.db.execute<{ ref: string; owner_key: string }>(sql`
-      SELECT r.ref, s.key AS owner_key
+    // 이 문서가 언급한 요구사항 ID 중 **다른 스펙이 이미 소유한** 것
+    const { rows } = await this.db.execute<{
+      ref: string;
+      owner_key: string;
+      released: boolean;
+    }>(sql`
+      SELECT r.ref, s.key AS owner_key, r.removed_in_version_id IS NOT NULL AS released
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${projectId} AND r.spec_id <> ${specId}
          AND r.ref = ANY(${sqlArray(refs, 'text')})
     `);
 
     return findings.concat(
-      rows.map((row) => ({
-        checker: 'cross-spec' as const,
-        // 인용은 정상이므로 경고다. 차단은 같은 ID 를 **정의**할 때인데 그 판정은
-        // 요구사항 블록 파싱이 필요해 requirement-shape 가 본다.
-        severity: 'warning' as const,
-        message: `${row.ref} 은 ${row.owner_key} 가 소유한다 — 재정의라면 중복이다`,
-        anchor: row.ref,
-      })),
+      rows.flatMap((row): CheckFinding[] => {
+        if (defined.has(row.ref)) {
+          // **정의는 block 이다**(2026-10-15 · REQ-API-309). 승인이 다른 문서가 가진 번호를 덮지 않고 거절하므로,
+          // 제출 전에 같은 이유로 막는다. 가진 문서의 최신 승인본에서 그 줄이 빠졌으면 소유가 풀린 것이라 옮겨 온다
+          if (row.released) return [];
+          return [
+            {
+              checker: 'cross-spec',
+              severity: 'block',
+              message: text('check.requirement_owned', { ref: row.ref, owner: row.owner_key }),
+              anchor: row.ref,
+            },
+          ];
+        }
+        // 인용은 정상이므로 경고다 — 정의가 아니라 다른 문서의 약속을 가리킨 것이다
+        return [
+          {
+            checker: 'cross-spec',
+            severity: 'warning',
+            message: `${row.ref} 은 ${row.owner_key} 가 소유한다 — 재정의라면 중복이다`,
+            anchor: row.ref,
+          },
+        ];
+      }),
     );
   }
 
