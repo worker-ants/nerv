@@ -11,7 +11,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import { msg, NERV_ERROR, REQUIREMENT_REF, specType, specVersionStatus } from '@nerv/schema';
-import { entityRef, looksLikeUuid } from '../../common/entity-ref.js';
+import { looksLikeUuid } from '../../common/entity-ref.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { InjectDb } from '../../common/database.module.js';
 import { assertVocab } from '../../common/query-vocab.js';
@@ -20,6 +20,7 @@ import { EmbeddingClient } from './embedding.client.js';
 import { baselineIdOf, resolveBasis, taskBasisOf, versionOfSpec } from './spec-basis.js';
 import { chunkMarkdown } from './embedding.service.js';
 import { requirementsOf } from './spec-delta.js';
+import { resolveRequirementRef } from './requirement-ref.js';
 
 /** RRF 상수 — 순위 역수 합의 완충항. 60 은 원논문 기본값이고 여기서 튜닝 대상이 아니다. */
 const RRF_K = 60;
@@ -600,28 +601,23 @@ export class SearchService {
    * 없는 요구사항은 `not_found` 다. 빈 결과로 답하면 오타가 "그런 요구사항 주변에는
    * 아무것도 없다" 라는 사실이 되어 돌아온다 — 이 저장소가 `around` 에서 이미 겪은
    * 실패 모양이라 같은 규율을 쓴다.
+   *
+   * **푸는 판정은 리뷰 제출 · 작업 생성과 같은 함수다**(2026-10-15 · 사람 결정 · REQ-API-311 · D-05).
+   * 예전에는 여기서 따로 풀어 거절의 문구(`error.spec.requirement_not_found`)와 칸(`requirement`)이 달랐다 —
+   * 같은 고정 ID 를 넣고 도구마다 다른 거절을 받으면 에이전트는 읽는 법을 둘 배워야 한다. 공백만 준 값은
+   * 안 준 것으로 본다(예전에는 조건이 모두 빠져 그 프로젝트의 아무 요구사항 하나로 좁혔다).
    */
   private async filterByRequirement(
     projectId: string,
     items: SearchHit[],
     ref: string,
   ): Promise<SearchHit[]> {
-    const { id, key } = entityRef(ref);
-    const { rows } = await this.db.execute<{ spec_id: string }>(sql`
-      SELECT spec_id FROM requirement
-       WHERE project_id = ${projectId}
-         AND (${id}::uuid IS NULL OR id = ${id}::uuid)
-         AND (${key}::text IS NULL OR ref = ${key}::text)
-       LIMIT 1
-    `);
+    const requirementId = await resolveRequirementRef(this.db, projectId, ref, 'requirement_id');
+    if (requirementId === null) return items;
+    const { rows } = await this.db.execute<{ spec_id: string }>(
+      sql`SELECT spec_id FROM requirement WHERE id = ${requirementId}`,
+    );
     const specId = rows[0]?.spec_id;
-    if (specId === undefined) {
-      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.requirement_not_found'), {
-        kind: 'not_found',
-        field: 'requirement_id',
-        requirement: ref,
-      });
-    }
     return items.filter((i) => i.spec_id === specId);
   }
 

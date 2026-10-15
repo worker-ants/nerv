@@ -55,6 +55,7 @@ export const RULES = {
   'frontmatter-missing': 'warn',
   'research-doc': 'warn',
   'frontmatter-unmapped': 'warn',
+  'req-moved': 'warn',
 } as const satisfies Record<string, Disposition>;
 
 export type Rule = keyof typeof RULES;

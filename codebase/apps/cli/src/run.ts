@@ -193,6 +193,7 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
         // 판정 축이고, 링크 재작성·`spec_impact` 경로 변환이 쓰는 별칭 표다.
         const scanned = files.find((f) => f.path === item.source_path);
         const front = scanned === undefined ? null : parseFrontmatter(scanned.content);
+        movedRequirementEntries(item, front?.body ?? null, profile, entries);
         upsertManifestItem(manifest, {
           source_path: item.source_path,
           kind: 'spec',
@@ -216,6 +217,35 @@ export async function runImport(options: CliOptions): Promise<ImportReport> {
   }
 
   return report;
+}
+
+/**
+ * **다른 문서에서 옮겨 온 요구사항 번호를 리포트에 남긴다**(2026-10-15 · REQ-IMP-034 · `req-moved`).
+ *
+ * 서버는 소유가 풀린 번호(가진 문서의 최신 승인본에서 그 줄이 빠진 것)를 이 문서로 옮기고 응답 항목의
+ * `requirements_moved` 로 알린다. 예전에는 CLI 가 그 칸을 읽지 않아, 번호의 주인이 바뀐 사실이 리포트에
+ * 없었다 — 잘못된 것은 아니라서 `warn` 이고(종료 코드를 올리지 않는다) 번호마다 한 줄이다. 줄 번호는 그
+ * 번호를 정의한 표의 행이다(다른 요구사항 규칙과 같은 기준). 칸이 없거나 비었으면 아무것도 더하지 않는다.
+ */
+function movedRequirementEntries(
+  item: ImportBatchResult['items'][number],
+  body: string | null,
+  profile: ImportProfile,
+  entries: ReportEntry[],
+): void {
+  const moved = item.requirements_moved ?? [];
+  if (moved.length === 0) return;
+  const defined =
+    body === null ? [] : extractRequirements(body, profile.requirement.id_pattern).requirements;
+  for (const requirement of moved) {
+    entries.push({
+      file: item.source_path,
+      line: defined.find((r) => r.ref === requirement.ref)?.line ?? null,
+      rule: 'req-moved',
+      reason: t()('cli.reason.req_moved', { ref: requirement.ref, from: requirement.from_key }),
+      disposition: 'warn',
+    });
+  }
 }
 
 /**
