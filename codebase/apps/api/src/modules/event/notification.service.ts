@@ -20,6 +20,7 @@ import {
 } from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { notificationImportance } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
@@ -58,10 +59,15 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   // **지연 결재**(2026-10-15 · 사람 결정 · REQ-API-305) — 결정할 수 있는데 요청 알림을 받지 못한 사람(직군 자리 결재의
   // admin)에게 가는 첫 알림이다. 그 사람에게는 오늘 볼 일이라 중요다. 기본 큐 결재는 받는 사람이 없다(아래 라우팅)
   [NERV_EVENT.APPROVAL_OVERDUE]: 'high',
+  // **critical 발견이 열리면 관여자에게 중요 알림**(2026-10-15 · E17-S01 · REQ-API-316) — 카탈로그는 `finding.opened`
+  // (critical severity)만 적는다. 다른 심각도는 알림을 만들지 않는다(`tierFor` 가 거른다). 받는 사람은 관여자뿐이다
+  [NERV_EVENT_PHASE2.FINDING_OPENED]: 'critical',
   // 발견 코멘트는 스펙 코멘트와 같은 무게다 — 사람이 남긴 말이고, 답을 기다린다
   [NERV_EVENT_PHASE2.FINDING_COMMENTED]: 'standard',
   [NERV_EVENT.SPEC_COMMENT_ADDED]: 'standard',
   [NERV_EVENT.SPEC_RECHECK_REQUESTED]: 'standard',
+  // 발견 처분(2026-10-15 · REQ-API-316) — 이미 일어난 일이라 보통이다. 같은 라운드의 처분은 한 줄로 묶는다
+  [NERV_EVENT_PHASE2.FINDING_RESOLVED]: 'standard',
   [NERV_EVENT.TASK_READY]: 'standard',
   // 결재 리마인더(2026-10-11 · REQ-API-296) — 결재 요청 자체가 이미 중요 알림이다. 리마인더까지 중요로 세면 같은 결재가
   // 배지를 두 번 올린다. 같은 결재의 리마인더는 한 줄로 묶는다(spec-workflow §2.6 "같은 승인 건은 1건으로")
@@ -82,6 +88,26 @@ export function tierOf(type: string): ImportanceTier | null {
 }
 
 /**
+ * **관여자에게도 가는 이벤트**(§6.1 ③ · 2026-10-15 · E17-S01 · REQ-API-316) — 카탈로그가 수신자를 작성자 · 담당자 ·
+ * 스레드 참여자 · 리뷰 요청자로 적은 것이다. 역할 큐로 가던 것은 그대로 가고 관여자를 더한다.
+ */
+const INVOLVED_EVENTS: ReadonlySet<string> = new Set([
+  NERV_EVENT.SPEC_APPROVED,
+  NERV_EVENT.SPEC_REJECTED,
+  NERV_EVENT.SPEC_COMMENT_ADDED,
+  NERV_EVENT.TASK_BLOCKED,
+  NERV_EVENT.TASK_REBRIEF_REQUIRED,
+  NERV_EVENT_PHASE2.FINDING_OPENED,
+  NERV_EVENT_PHASE2.FINDING_RESOLVED,
+]);
+
+/** 관여자에게만 가는 이벤트 — 카탈로그 수신자에 역할이 없다 */
+const FINDING_EVENTS: ReadonlySet<string> = new Set([
+  NERV_EVENT_PHASE2.FINDING_OPENED,
+  NERV_EVENT_PHASE2.FINDING_RESOLVED,
+]);
+
+/**
  * **배치 키**(spec-workflow §6.3 · 2026-09-27 사람 결정 G2 · G3 · REQ-API-223).
  *
  * 보통 등급만 묶는다 — 중요 알림(승인 요청 · 스펙 승인 · 세션 무응답 …)은 헤더 배지가 세는 것이라,
@@ -92,9 +118,15 @@ export function batchKeyOf(event: {
   type: string;
   project_id: string;
   subject_id: string;
+  payload?: Record<string, unknown> | null;
 }): string | null {
   if (tierOf(event.type) !== 'standard') return null;
   switch (event.type) {
+    case NERV_EVENT_PHASE2.FINDING_RESOLVED: {
+      // 같은 라운드의 처분은 한 줄이다(§6.3 `review:{id}:resolutions`). 라운드를 모르는 옛 이벤트는 한 건이 한 줄이다
+      const round = event.payload?.['review_session_id'];
+      return typeof round === 'string' ? `review:${round}:resolutions` : null;
+    }
     case NERV_EVENT.SPEC_RECHECK_REQUESTED:
       return `spec:${event.subject_id}:recheck`;
     case NERV_EVENT.SPEC_COMMENT_ADDED:
@@ -172,11 +204,12 @@ export class NotificationService {
         project_id: string;
         type: string;
         actor_user_id: string | null;
+        subject_type: string;
         subject_id: string;
         payload: Record<string, unknown> | null;
         occurred_at: string;
       }>(sql`
-        SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_id, e.payload,
+        SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_type, e.subject_id, e.payload,
                e.occurred_at::text AS occurred_at
           FROM event e
          WHERE NOT EXISTS (SELECT 1 FROM notification n WHERE n.event_id = e.id)
@@ -189,14 +222,16 @@ export class NotificationService {
       if (events.length === 0) break;
 
       for (const event of events) {
-        const tier = tierOf(event.type);
+        const tier = await this.tierFor(event);
         // 카탈로그 밖 · 배경 활동은 알림이 아니다 — 건너뛰되 **커서는 지나간다**
         if (tier !== null && tier !== 'low') {
           const recipients = await this.recipientsFor(event);
           // **이미 닫힌 요청의 알림은 읽은 채로 만든다**(REQ-API-176). 파생은 워커가 나중에 하므로
           // 그 사이 결정·답변이 먼저 나면, 닫는 쪽이 읽음으로 바꿀 행이 아직 없었다 — 그러면 처리된
           // 요청의 안 읽은 알림이 뒤늦게 생겨 배지를 올린다. 기록은 남기고 수에는 넣지 않는다
-          const closed = await requestAlreadyClosed(this.db, event);
+          // 이미 처분된 발견의 「열림」 알림도 같다 — 파생보다 처분이 먼저면 배지를 올릴 일이 끝났다(REQ-API-316)
+          const closed =
+            (await requestAlreadyClosed(this.db, event)) || (await this.findingClosed(event));
           const importance = tier === 'critical' || tier === 'high' ? 'immediate' : 'digest';
           // **사람이 고른 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-219). 고른 수준 밖의 알림은
           // 버리지 않고 읽음으로 넣는다 — 닫힌 요청과 같은 방식이다. 받은 요청에는 닿지 않는다
@@ -364,13 +399,15 @@ export class NotificationService {
    * 전원은 자기가 결정할 수 없는 카드의 알림을 받았다. 결정할 수 없는 카드의 알림은
    * 알림 자체를 못 믿게 만들고, 그러면 받은 요청이 파괴된다(§6.6 원칙 3).
    *
-   * 나머지 이벤트는 역할 큐다. ②워치·④지정 확장은 Phase 2 다(워치 테이블이 없다 —
-   * screens.md §2.4 말미).
+   * 나머지 이벤트는 역할 큐다. **③관여는 2026-10-15 에 들어왔다**(E17-S01 · REQ-API-316) — 카탈로그가 작성자 ·
+   * 담당자 · 스레드 참여자 · 리뷰 요청자로 적은 이벤트는 역할 큐에 그 사람들을 더한다(`involvedTargets`). ②워치는
+   * 아직이다(워치 테이블이 없다 — E17-S02 · screens.md §2.4 말미).
    */
   private async recipientsFor(event: {
     project_id: string;
     actor_user_id: string | null;
     type: string;
+    subject_type?: string;
     subject_id: string;
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
@@ -410,7 +447,132 @@ export class NotificationService {
       const owners = await this.specOwnerTargets(event);
       if (owners !== null) return owners;
     }
+    if (INVOLVED_EVENTS.has(event.type)) {
+      const involved = await this.involvedTargets(event);
+      // 발견 이벤트는 카탈로그 수신자가 관여자뿐이다 — 역할 큐로 흩뿌리면 열린 critical 마다 admin · planner 전원이 받는다
+      const queue = FINDING_EVENTS.has(event.type) ? [] : await this.roleQueue(event);
+      // 겹치면 한 번이다 — 같은 이벤트 · 같은 사람은 한 줄(유일 인덱스가 겹친 파생도 막는다)
+      return [...new Set([...queue, ...involved])];
+    }
     return this.roleQueue(event);
+  }
+
+  /**
+   * 이 이벤트가 알림을 만드는 등급 — 카탈로그(`tierOf`)를 따르되 **열린 발견은 critical 만**이다(§6.3 `finding.opened`
+   * (critical severity) · REQ-API-316). 심각도는 이벤트가 아니라 발견 행에서 읽는다 — 그 값이 진실이고, 옛 이벤트에도 맞다.
+   */
+  private async tierFor(event: {
+    type: string;
+    subject_id: string;
+  }): Promise<ImportanceTier | null> {
+    const tier = tierOf(event.type);
+    if (tier === null || event.type !== NERV_EVENT_PHASE2.FINDING_OPENED) return tier;
+    const { rows } = await this.db.execute<{ severity: string }>(
+      sql`SELECT severity::text AS severity FROM finding WHERE id = ${event.subject_id}`,
+    );
+    return rows[0]?.severity === 'critical' ? tier : null;
+  }
+
+  /** 열림 알림의 발견이 이미 처분됐는가 — 그 밖의 이벤트면 거짓이다 */
+  private async findingClosed(event: { type: string; subject_id: string }): Promise<boolean> {
+    if (event.type !== NERV_EVENT_PHASE2.FINDING_OPENED) return false;
+    const { rows } = await this.db.execute<{ closed: boolean }>(
+      sql`SELECT (status <> 'open') AS closed FROM finding WHERE id = ${event.subject_id}`,
+    );
+    return rows[0]?.closed === true;
+  }
+
+  /**
+   * **관여자**(§6.1 ③ — 내가 작성 · 클레임 · 코멘트한 대상의 후속 이벤트 · 2026-10-15 · E17-S01 · REQ-API-316).
+   *
+   * 카탈로그(§6.3)가 수신자로 적은 사람을 표 없이 쓸 수 있는 열에서 찾는다. 워치(②)는 테이블이 없어 아직이다(E17-S02).
+   *
+   * | 이벤트 | 관여자 |
+   * | --- | --- |
+   * | `spec.approved` · `spec.rejected` | 그 스펙 버전의 작성자 |
+   * | `spec.comment_added` | 본문 코멘트면 같은 문서 · 같은 앵커의 열린 코멘트를 쓴 사람(스레드), 리뷰 결정 「코멘트」면 그 버전의 작성자 |
+   * | `task.blocked` | 작업 담당자 |
+   * | `task.rebrief_required` | 작업 담당자 + 활성 클레임을 가진 사람(세션 소유자) |
+   * | `finding.opened` · `finding.resolved` | 그 발견을 관찰한 라운드의 작업(과 발견에서 만든 작업)의 담당자 · 그 라운드를 제출한 세션의 사람(리뷰 요청자) · 발견이 가리키는 스펙 버전의 작성자 |
+   *
+   * **행위자 자신은 뺀다** — 자기가 한 일의 알림은 소음이다. **지금 그 프로젝트의 멤버만** 받는다 — 문서를 쓴 뒤 프로젝트를
+   * 떠난 사람에게 알림을 남기면 볼 수 없는 프로젝트의 키 · 제목이 그 사람에게 간다(조직 경계는 REQ-API-125 와 같다).
+   */
+  private async involvedTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+    type: string;
+    subject_type?: string;
+    subject_id: string;
+    payload?: Record<string, unknown> | null;
+  }): Promise<string[]> {
+    const candidates = this.involvedSql(event);
+    if (candidates === null) return [];
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT x.user_id
+        FROM (${candidates}) x
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE x.user_id IS NOT NULL
+         ${event.actor_user_id === null ? sql`` : sql`AND x.user_id <> ${event.actor_user_id}`}
+         AND EXISTS (SELECT 1 FROM membership m
+                      WHERE m.user_id = x.user_id AND m.org_id = p.org_id
+                        AND (m.project_id = p.id OR m.project_id IS NULL))
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
+  /** 이벤트마다 관여자를 고르는 질의(`user_id` 한 열) — 관여자가 없는 이벤트면 `null` */
+  private involvedSql(event: {
+    type: string;
+    subject_type?: string;
+    subject_id: string;
+    payload?: Record<string, unknown> | null;
+  }): SQL | null {
+    const subject = event.subject_id;
+    const versionAuthor = sql`SELECT author_user_id AS user_id FROM spec_version WHERE id = ${subject}`;
+    switch (event.type) {
+      case NERV_EVENT.SPEC_APPROVED:
+      case NERV_EVENT.SPEC_REJECTED:
+        return versionAuthor;
+      case NERV_EVENT.SPEC_COMMENT_ADDED: {
+        // 리뷰 결정 「코멘트」는 대상이 스펙 버전이다 — 검토를 낸 문서가 초안으로 돌아왔으니 그 작성자가 관여자다
+        if (event.subject_type === 'spec_version') return versionAuthor;
+        const comment = event.payload?.['comment_id'];
+        if (typeof comment !== 'string') return null;
+        // 스레드 = 같은 문서 · 같은 앵커의 열린 코멘트. 처분된 코멘트는 끝난 대화다
+        return sql`
+          SELECT c.author_user_id AS user_id
+            FROM spec_comment c JOIN spec_comment me ON me.id = ${comment}
+           WHERE c.spec_id = me.spec_id AND c.anchor = me.anchor AND c.status = 'open'`;
+      }
+      case NERV_EVENT.TASK_BLOCKED:
+        return sql`SELECT assignee_user_id AS user_id FROM task WHERE id = ${subject}`;
+      case NERV_EVENT.TASK_REBRIEF_REQUIRED:
+        return sql`
+          SELECT assignee_user_id AS user_id FROM task WHERE id = ${subject}
+          UNION
+          SELECT user_id FROM claim WHERE task_id = ${subject} AND status = 'active'`;
+      case NERV_EVENT_PHASE2.FINDING_OPENED:
+      case NERV_EVENT_PHASE2.FINDING_RESOLVED:
+        return sql`
+          WITH f AS (SELECT * FROM finding WHERE id = ${subject}),
+               rounds AS (
+                 SELECT rs.task_id, rs.agent_session_id FROM review_session rs
+                  WHERE rs.id IN (SELECT o.review_session_id FROM finding_occurrence o
+                                   WHERE o.finding_id = ${subject})
+                     OR rs.id = (SELECT last_session_id FROM f))
+          SELECT t.assignee_user_id AS user_id FROM task t
+           WHERE t.id IN (SELECT task_id FROM rounds) OR t.id = (SELECT promoted_task_id FROM f)
+          UNION
+          SELECT s.user_id FROM agent_session s WHERE s.id IN (SELECT agent_session_id FROM rounds)
+          UNION
+          SELECT sv.author_user_id AS user_id FROM spec_version sv
+           WHERE sv.id = coalesce((SELECT spec_version_id FROM f),
+                                  (SELECT r.current_version_id FROM requirement r
+                                    WHERE r.id = (SELECT requirement_id FROM f)))`;
+      default:
+        return null;
+    }
   }
 
   /**

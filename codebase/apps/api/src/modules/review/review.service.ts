@@ -995,8 +995,12 @@ export class ReviewService {
     }
 
     return this.events.transact(async (tx, emit) => {
-      const { rows } = await tx.execute<{ severity: string; status: string }>(sql`
-        SELECT severity::text AS severity, status::text AS status FROM finding
+      const { rows } = await tx.execute<{
+        severity: string;
+        status: string;
+        last_session_id: string;
+      }>(sql`
+        SELECT severity::text AS severity, status::text AS status, last_session_id FROM finding
          WHERE id = ${input.findingId} AND project_id = ${input.projectId}
          FOR UPDATE
       `);
@@ -1035,7 +1039,13 @@ export class ReviewService {
         subjectId: input.findingId,
         fromState: finding.status,
         toState: input.status,
-        payload: { kind: input.kind, severity: finding.severity, downgrade },
+        // 라운드는 알림을 묶는 열쇠다(§6.3 `review:{id}:resolutions` · 2026-10-15 · REQ-API-316) — 발견을 마지막으로 본 라운드
+        payload: {
+          kind: input.kind,
+          severity: finding.severity,
+          downgrade,
+          review_session_id: finding.last_session_id,
+        },
       });
 
       // **처분은 검증의 재료다**(2026-10-15 · E15-S03 · REQ-API-315) — 그 발견이 가리키는 요구사항과, 그 발견을 관찰한

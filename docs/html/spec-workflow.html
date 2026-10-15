@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.43 (2026-10-15)</span>
+      <span>버전 v0.44 (2026-10-15)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -1144,10 +1144,10 @@ SELECT EXISTS (
     <p>도구 호출·파일 수정 같은 세션 진행 이벤트는 세션 모니터(S5)와 활동 피드에서 WebSocket으로 흐를 뿐이다. 이걸 알림으로 만들면 동시 세션 수십 개(NFR-04) 환경에서 받은 요청이 즉시 파괴된다.</p>
   </div></div>
 
-  <p><b>구현 범위</b>(2026-09-02 실측 기준). MVP 는 위 표의 수신자 어휘 중 둘만 산출한다.</p>
+  <p><b>구현 범위</b>(2026-09-02 실측 기준 · 2026-10-15 관여). 위 표의 수신자 가운데 워처만 아직 산출하지 못한다.</p>
   <ul>
     <li><code>approval.requested</code> 는 <b>지정을 본다</b> — <code>assignee_user_id</code> 가 있으면 그 사람에게만, <code>assignee_role</code> 이 있으면 그 역할의 멤버에게, 둘 다 없으면 역할 큐(admin·planner)로 간다. 같은 날 사람 결정으로 붙였다: 결재 경로(EP-APR)는 처음부터 지정을 보는데 알림만 보지 않아, 지정 승인자가 designer·qa 면 <b>자기 앞으로 온 카드의 알림을 못 받았고</b> admin·planner 전원은 결정할 수 없는 카드의 알림을 받았다. 결정할 수 없는 카드의 알림은 §6.6 원칙 3 이 막으려는 바로 그 소음이다.</li>
-    <li>나머지 이벤트는 역할 큐(admin·planner)다. 표의 "작성자 · 워처"·"담당자"·"스레드 참여자"는 <b>워치 테이블이 없어</b> Phase 2 다(<a href="screens.html">4.5 화면 명세</a> §2.4 말미).</li>
+    <li><b>관여(③)는 2026-10-15 에 들어왔다</b>(<a href="backlog.html">4.8 백로그</a> E17-S01 · <a href="api.html">4.4 API</a> REQ-API-316). 표가 수신자로 적은 작성자(그 스펙 버전을 쓴 사람) · 담당자(작업 담당자) · 클레임 보유 세션 소유자 · 스레드 참여자(같은 문서 · 같은 앵커에 열린 코멘트를 쓴 사람) · 리뷰 요청자(그 발견을 관찰한 라운드를 제출한 사람)를 산출한다. 리뷰 결정 「코멘트」(<code>spec.comment_added</code> 의 대상이 스펙 버전)는 그 버전의 작성자에게 간다. 역할 큐(admin·planner)로 가던 이벤트는 역할 큐가 그대로 받고 관여자를 더한다 — 겹치면 한 번이다. <code>finding.opened</code>(critical 만) · <code>finding.resolved</code> 는 역할 큐 없이 관여자 — 그 발견을 관찰한 라운드의 작업(과 발견에서 만든 작업)의 담당자 · 리뷰 요청자 · 발견이 가리키는 스펙 버전의 작성자 — 에게만 간다. 지금 그 프로젝트의 멤버가 아닌 사람은 받지 않는다. 그 밖의 이벤트는 역할 큐다. 표의 "워처" 는 <b>워치 테이블이 없어</b> 아직이다(E17-S02 · <a href="screens.html">4.5 화면 명세</a> §2.4 말미).</li>
     <li>어느 경우든 <b>행위자 자신은 제외한다</b> — 자기가 한 일의 알림은 소음이다.</li>
   </ul>
   <p>수신자에게 실제로 닿는 경로는 <code>notification.created</code> 방송이다(<a href="api.html">4.4 API 명세</a> §3.3 — 개인 룸).</p>

@@ -23,7 +23,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.91 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.92 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.92 변경(2026-10-15 — Phase 2 묶음 1의 둘째, **사람 결정**): **E17-S01 `done` · §1.4 E17 행과 합계 · §1.1 · §6.4 첫 단락.** 알림이 카탈로그의 관여자(작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자)에게 간다. 역할 큐로 가던 이벤트는 그대로 가고 관여자를 더하며, `finding.opened`(critical) · `finding.resolved` 는 관여자에게만 간다([4.4 API](api.md) REQ-API-316). 합계는 `done` 80 · 부분 1 · `backlog` 20 이다.
 >
 > v2.91 변경(2026-10-15 — Phase 2 묶음 1의 둘째, **사람 결정**): **E16-S01 · E15-S03 `done` · §1.4 E15 · E16 행과 합계 · §1.1 · §1.3 · §6.2 · §6.3 첫 단락.** done 게이트의 리뷰 조건이 작업의 최신 커밋을 본 라운드만 센다 — 리뷰 뒤에 새 커밋이 오면 막고 `stale_reviews` 로 다시 리뷰받을 종류와 커밋을 알린다. 커밋을 모르면 신선도만 넘기고 `gate.failopen` 을 남긴다. `verified` 의 열린 critical 0 도 같은 커밋의 라운드에서 센다([4.4 API](api.md) REQ-API-314 · 315). 합계는 `done` 79 · 부분 1 · `backlog` 21 이다.
 >
@@ -602,7 +604,7 @@ referenced_by:
 ### 1.1 ID·상태·표기 규약
 
 - **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 79 · 부분 1 · `backlog` 21(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 80 · 부분 1 · `backlog` 20(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -641,13 +643,13 @@ referenced_by:
 | E14 운영·연동 | 4 | — | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
 | E15 커버리지 · 구현 축 | 3 | — | — | `routes/p.$proj/coverage.tsx` · `features/coverage-drilldown/`(E15-S01 드릴다운) · `spec/impl-status.ts`(출처를 쓴다 · `commitScopeClearSql` — E15-S03 커밋 범위) · `import.service.ts` · `drizzle/0051`(E15-S02 출처) · `spec.service.ts`(`coverage` · `requirement`) · `review/commit-scope.ts` · `test/integration/coverage-drilldown.spec.ts` · `commit-scope.spec.ts` |
 | E16 게이트 판정 완성 | 1 | — | 3 | `task.service.ts`(done 게이트 — `judgeReviewKinds` · `judgeAnyReview`가 작업의 최신 커밋을 본 라운드만 센다 · `stale_reviews` · `gate.failopen`) · `review/commit-scope.ts`(최신 커밋 · 같은 커밋 판정) · `review/review-gate.ts`(`headMatch: 'commit'`) · `test/integration/commit-scope.spec.ts`(E16-S01) — 남은 S02~S04 는 착수 전 |
-| E17 알림 확장 | — | — | 3 | 착수 전 — `event/notification.service.ts`(`recipientsFor` — 역할 큐로 보내는 자리) |
+| E17 알림 확장 | 1 | — | 2 | `event/notification.service.ts`(`involvedTargets` — 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자 · E17-S01) · `review.service.ts`(`finding.resolved` 의 `review_session_id`) · `test/integration/notification-involved.spec.ts` — 남은 S02(워치) · S03(Slack)은 착수 전 |
 | E18 fail-open · 보존 | — | — | 3 | 착수 전 — `zod/policy.ts`(`failopen`) · `routes/settings/gates.tsx`(보기 전용) · `worker/jobs/retention.job.ts` |
 | E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
 | E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |
 | E21 이관 · 운영 | — | — | 4 | 착수 전 — `plugin/bin/nerv-outbox` · `worker/jobs/export.job.ts` |
 | E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **79** | **1** | **21** | `backlog` 21은 모두 Phase 2 스토리다(§6) |
+| **합계** | **80** | **1** | **20** | `backlog` 20은 모두 Phase 2 스토리다(§6) |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -1314,7 +1316,7 @@ FR-10 ◐ → ●. 성공 기준 2-2 · 2-6 · 2-7의 대상이다. **이미 있
 
 ### 6.4 E17 — 알림 확장 (FR-12)
 
-FR-12 ◐ → ●. 성공 기준 2-10의 대상이다. **이미 있는 것**: 중요도 티어 라우팅 · 앱 안 알림 묶음(2026-09-27) · 메일 요약(2026-09-28 — [4.1 범위](scope.md) §5 착수 기록). 남은 것: 알림 카탈로그([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.3)의 수신자 가운데 작성자 · 담당자 · 스레드 참여자 · 워처를 산출하지 못해 역할 큐로 보내고(`event/notification.service.ts`의 `recipientsFor`), `finding.opened` · `finding.resolved`는 알림 카탈로그 코드에 없어 알림을 만들지 않는다. Slack 채널도 없다.
+FR-12 ◐ → ●. 성공 기준 2-10의 대상이다. **이미 있는 것**: 중요도 티어 라우팅 · 앱 안 알림 묶음(2026-09-27) · 메일 요약(2026-09-28 — [4.1 범위](scope.md) §5 착수 기록). 관여 라우팅(E17-S01)은 2026-10-15 에 들어왔다 — 알림 카탈로그([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.3)의 수신자 가운데 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자를 산출하고, 알림을 만들지 않던 `finding.opened`(critical) · `finding.resolved`도 그 사람들에게 보낸다([4.4 API](api.md) REQ-API-316). 남은 것: 워처(워치 테이블이 없다 — E17-S02)와 Slack 채널(E17-S03)이다.
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
