@@ -354,11 +354,38 @@ export const APPROVAL_REMINDER_STEPS: readonly { level: 1 | 2; afterSeconds: num
 ];
 
 /**
- * 리마인더를 내는 창 — 요청 뒤 **7일**까지다. SLA 표에서 T+7d 는 만료다. 만료 처리는 아직 없지만(그 뒤를 어떻게 할지는
- * 사람이 정한다) 그보다 오래된 결재를 다시 알리지는 않는다. 배포한 날 몇 주 묵은 결재가 한꺼번에 알림을 내지 않게 하는
- * 경계이기도 하다.
+ * **결재 만료** — 요청 뒤 **7일**(2026-10-15 · 사람 결정 · api.md REQ-API-304 · spec-workflow §2.6 SLA 표의 T+7d). 스펙
+ * 결재가 이만큼 결정되지 않으면 워커가 그 버전을 초안으로 되돌리고(거절과 같은 전이 · 같은 라운드 규칙) 요청자에게
+ * 알린다. 돌아갈 초안이 없는 결재(계획 · 발견 하향)는 만료하지 않는다.
  */
-export const APPROVAL_REMINDER_WINDOW_SECONDS = 7 * 24 * 3600;
+export const APPROVAL_EXPIRY_SECONDS = 7 * 24 * 3600;
+
+/**
+ * 리마인더를 내는 창 — 요청 뒤 **7일**까지다. 그 자리는 만료다(`APPROVAL_EXPIRY_SECONDS`). 만료하지 않는 결재(계획 ·
+ * 발견 하향)도 그보다 오래되면 다시 알리지 않는다. 배포한 날 몇 주 묵은 결재가 한꺼번에 알림을 내지 않게 하는 경계이기도
+ * 하다.
+ */
+export const APPROVAL_REMINDER_WINDOW_SECONDS = APPROVAL_EXPIRY_SECONDS;
+
+/**
+ * **지연 결재** — 요청 뒤 **2일**(2026-10-15 · 사람 결정 · api.md REQ-API-305 · SLA 표의 T+2d). 그만큼 결정되지 않은
+ * 결재는 받은 요청 카드와 프로젝트 개요에 "지연"으로 표시하고, 워커가 결재마다 한 번 ★`approval.overdue`를 낸다. 그
+ * 알림(중요)은 결정할 수 있는데 요청 알림을 받지 못한 사람에게만 간다 — 직군 자리 결재의 admin. 기본 큐 결재는 요청
+ * 알림을 이미 admin · planner 가 받았으므로 알림을 더 보내지 않는다.
+ */
+export const APPROVAL_ESCALATION_SECONDS = 2 * 24 * 3600;
+
+/**
+ * **역할 큐 재검토 지표의 창** — 최근 **30일**(2026-10-15 · 사람 결정 · api.md REQ-API-307 · spec-workflow §2.2). 이
+ * 창에 요청된 결재 가운데 2회째 리마인더(T+1d)까지 간 비율을 프로젝트 개요에 보인다. **시작값이고 조정할 수 있다.**
+ */
+export const ROLE_QUEUE_REVIEW_WINDOW_DAYS = 30;
+
+/**
+ * **역할 큐 재검토 기준** — 위 비율이 **30%를 넘으면** 결재를 특정인에게 맡길지 다시 본다(2026-10-15 · 사람 결정). 넘으면
+ * 개요가 재검토 안내를 보인다. 다음 단계는 사람 지정이다(자동 지정이 아니다). **시작값이고 조정할 수 있다.**
+ */
+export const ROLE_QUEUE_REVIEW_THRESHOLD = 0.3;
 
 /**
  * 표시 키를 **텍스트에서 찾는 규칙** — `<project.key>-<타입>-<base32 6자>`(data-model §5.1).

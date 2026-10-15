@@ -125,6 +125,19 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   // **결재 리마인더**(2026-10-11 · REQ-API-296)는 받은 요청을 바꾸지 않는다 — 카드는 그대로다. 받는 사람의 종은
   // 개인 룸의 `notification.created` 가 되읽고, 여기서는 프로젝트 피드만 되읽는다
   [E.APPROVAL_REMINDED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // **지연**(2026-10-15 · REQ-API-305)도 카드를 바꾸지 않는다 — 카드의 "지연" 은 서버가 시간으로 판정한다. 개요의 결재
+  // 흐름(`['inbox', 'flow', …]`)과 피드만 되읽는다. 받는 사람의 종은 `notification.created` 가 되읽는다
+  [E.APPROVAL_OVERDUE]: (e) => [queryKeys.inbox(), queryKeys.projectEvents(e.project_id)],
+  // **만료**(2026-10-15 · REQ-API-304)는 결정처럼 카드를 대기에서 빼고(만료 탭으로 간다) 그림자 알림을 닫으며, 문서를
+  // 초안으로 돌리고 기다리던 세션을 깨운다 — 대상이 스펙 버전이라 스펙 축(키)도 함께 낡는다
+  [E.APPROVAL_EXPIRED]: (e) => [
+    ...specAxis(e),
+    queryKeys.inbox(),
+    queryKeys.myNotifications(),
+    queryKeys.projectPendingApprovals(e.project_id),
+    queryKeys.projectSessions(e.project_id),
+    queryKeys.projectEvents(e.project_id),
+  ],
   // 결정이 나면 카드는 수신함에서 사라진다 — 대상(스펙)은 자기 이벤트가 따로 바꾼다
   // **그 요청의 알림도 함께 닫힌다**(REQ-API-176) — 알림 목록과 배지도 되읽는다. 빠뜨리면 받은
   // 요청 배지만 줄고 알림 배지는 새로고침 전까지 그대로다

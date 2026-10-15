@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.06 · 2026-10-12 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.07 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.07 변경(2026-10-15 — 결재 만료와 에스컬레이션, **사람 결정**): **새 요구사항 없음 · §2.2 트리 한 줄.** `approval-reminder.job.ts`가 한 판에서 만료(7일) → 지연(2일) → 리마인더(4시간 · 1일)를 본다. 이름은 리마인더만 하던 때의 것을 그대로 둔다 — 로그와 운영 문서가 이 이름으로 잡을 찾는다([4.4 API 명세](api.md) REQ-API-296 · 304 · 305).
 >
 > v2.06 변경(2026-10-12 — 마이그레이션 Job 을 먼저 적용한다, **사람 결정**): **REQ-CB-010 개정 · §6.3 배포 절차 · §6.2 Job 블록 라벨 한 줄 · §6.3b 끝 한 문단 · §6.5 복구 ②.** 배포 절차가 Job 과 Deployment 를 한 번에 적용하던 동안, 워커(`Recreate`)는 마이그레이션이 끝날 때까지 기동을 거부해서 마이그레이션이 실패하면 고칠 때까지 워커가 없었다. 이제 한 번 렌더하고 Job 만 먼저 적용해(라벨 `app.kubernetes.io/component: migrate`) 끝나기를 기다린 뒤 나머지를 적용한다. 실패하면 옛 파드와 옛 워커가 그대로 돈다. 라벨로 고르는 적용은 k3s API 서버에서 확인했다.
 >
@@ -603,7 +605,7 @@ apps/api/src/
     job-log.ts        # 잡 한 판의 한 줄 — 할 일이 없던 판은 debug (§5.5 · REQ-CB-054)
     worker.module.ts
     jobs/
-      approval-reminder.job.ts  # 결재 리마인더 — 요청 뒤 4시간 · 1일에 한 번씩 (4.4 REQ-API-296, 2026-10-11)
+      approval-reminder.job.ts  # 결재 SLA — 만료 7일 · 지연 2일 · 리마인더 4시간 · 1일 (4.4 REQ-API-296 · 304 · 305, 2026-10-15)
       digest.job.ts         # 메일 요약 — 켠 사람의 현지 시각에 하루 한 번 (4.4 REQ-API-233, 2026-09-28)
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
       export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)

@@ -206,8 +206,11 @@ export type ClaimReleaseReason = (typeof CLAIM_RELEASE_INPUTS)[number];
 /**
  * 받은 요청 목록의 `state` — **pg enum 이 아니라 파생 어휘다**(결재의 `decision IS NULL` 여부).
  * 그래도 정본은 여기다: 표면이 리터럴로 들고 있으면 검사도 리터럴로 다시 적게 된다.
+ *
+ * `expired` 는 결정 없이 만료된 결재다(2026-10-15 · api.md REQ-API-304) — 결재 행에는 결정을 쓰지 않고,
+ * 그 라운드에 ★`approval.expired` 가 났다는 사실에서 파생한다.
  */
-export const APPROVAL_INBOX_STATES = ['pending', 'decided'] as const;
+export const APPROVAL_INBOX_STATES = ['pending', 'decided', 'expired'] as const;
 export type ApprovalInboxState = (typeof APPROVAL_INBOX_STATES)[number];
 
 /** 관계 목록의 방향 — 같은 이유로 여기 둔다(EP-SPEC-18) */

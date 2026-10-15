@@ -98,6 +98,8 @@ export const en = {
   'error.approval.already_approved':
     'You already approved this document. The second approval must come from someone else.',
   'error.approval.already_decided': 'This item has already been decided.',
+  'error.approval.expired':
+    'This approval expired after 7 days without a decision. The document went back to draft; it can be decided again once review is requested again.',
   'error.approval.content_changed':
     'The content changed after you loaded it. Check the new version and decide again.',
   'error.approval.not_assignee': 'You are not the designated approver.',
@@ -270,6 +272,11 @@ export const en = {
     'A resolution can’t be changed. If it needs another look, file a new finding.',
   'inbox.card.correct.finding_returned': 'If the agent asks again, a new card appears.',
   'inbox.card.correct.bypass': 'A bypass stays on record. To withdraw it, make a new decision.',
+  'inbox.card.correct.spec_expired':
+    'No one decided within 7 days, so the document went back to draft. A new card appears when the author requests review again.',
+  'inbox.card.expired_at': 'Expired · {when}',
+  'inbox.card.overdue': 'Overdue',
+  'inbox.card.overdue_hint': 'Requested more than 2 days ago.',
   'inbox.card.to_session': 'Open session',
   'inbox.card.gate_score': 'Risk score {score}',
   'inbox.scope_all':
@@ -1007,6 +1014,8 @@ export const en = {
   'event.approval.decided': 'Approval decided',
   'event.approval.requested': 'Approval requested',
   'event.approval.reminded': 'Approval reminder',
+  'event.approval.overdue': 'Approval overdue',
+  'event.approval.expired': 'Approval expired',
   'event.baseline.created': 'Baseline created',
   'event.claim.conflict_blocked': 'Claim blocked by declared-scope overlap',
   'event.claim.conflict_warn': 'Declared-scope overlap warning',
@@ -1517,11 +1526,14 @@ export const en = {
   'inbox.card.untitled': '(untitled)',
   'inbox.count_decided': '{count} decided',
   'inbox.count_pending': '{count} pending',
+  'inbox.count_expired': '{count} expired',
   'inbox.decision.approve': 'Approval',
   'inbox.decision.comment': 'Comment',
   'inbox.decision.reject': 'Rejection',
   'inbox.empty_decided_hint': 'Requests you approve, reject or comment on stay here.',
   'inbox.empty_pending_hint': 'Approval requests from agents appear here.',
+  'inbox.empty_expired_hint':
+    'Spec approvals that went undecided for 7 days and returned to draft stay here.',
   'inbox.key.approve': 'approve',
   'inbox.key.bulk': 'approve · reject selected',
   'inbox.key.comment': 'comment',
@@ -1530,6 +1542,7 @@ export const en = {
   'inbox.key.select': 'select',
   'inbox.tab.decided': 'Decided',
   'inbox.tab.pending': 'Pending',
+  'inbox.tab.expired': 'Expired',
   'inbox.title': 'Inbox',
   'inbox.waited.days': 'waiting {n}d',
   'inbox.waited.hours': 'waiting {n}h',
@@ -1607,6 +1620,13 @@ export const en = {
   'project.waiting.notifications': '{count} important notifications',
   'project.waiting.sessions': '{count} sessions waiting for a reply',
   'project.waiting.critical': '{count} open critical',
+  'project.waiting.overdue': '{count} overdue approvals',
+  'project.waiting.overdue_hint': 'Approvals still undecided more than 2 days after the request.',
+  'project.approval_lag.label': 'Approval flow',
+  'project.approval_lag.summary':
+    'Of {total} approvals in the last {days} days, {late} ({percent}%) waited more than a day.',
+  'project.approval_lag.review':
+    'That is above {threshold}%. Consider assigning approvals to specific people instead of the role queue.',
   'project.no_sessions_hint_post': ', it shows up here.',
   'project.no_sessions_hint_pre': 'When an agent claims work with',
   'project.recent_events': 'Recent activity',
@@ -2177,6 +2197,7 @@ export const en = {
   'session.stale_note_task':
     'No activity for 30 minutes, so the session was marked stale. Its claim on {key} was reclaimed.',
   'inbox.empty_decided': 'Nothing decided yet',
+  'inbox.empty_expired': 'Nothing has expired',
   'inbox.see_pending': 'See pending requests',
   'notif.empty_action': 'Go to inbox',
   'reviews.queue.empty_action': 'Where reviews come from',

@@ -106,6 +106,8 @@ export const ko = {
   'error.approval.already_approved':
     '이미 승인한 문서입니다. 두 번째 승인은 다른 사람이 해야 합니다.',
   'error.approval.already_decided': '이미 결정된 항목입니다.',
+  'error.approval.expired':
+    '7일 동안 결정되지 않아 만료된 결재입니다. 문서는 초안으로 돌아갔고, 다시 검토를 요청하면 새로 결정할 수 있습니다.',
   'error.approval.content_changed':
     '불러온 뒤 내용이 바뀌었습니다. 바뀐 내용을 확인하고 다시 결정하세요.',
   'error.approval.not_assignee': '지정된 승인자가 아닙니다.',
@@ -276,6 +278,13 @@ export const ko = {
     '처분은 바꿀 수 없습니다. 다시 다뤄야 한다면 새 발견으로 등록하세요.',
   'inbox.card.correct.finding_returned': '에이전트가 다시 요청하면 새 카드가 생깁니다.',
   'inbox.card.correct.bypass': '면제는 기록으로 남습니다. 취소하려면 새로 결정해야 합니다.',
+  // 만료 탭의 카드(2026-10-15 · REQ-WEB-310) — 결정 없이 끝났다. 다시 오는 길을 적는다
+  'inbox.card.correct.spec_expired':
+    '7일 동안 결정되지 않아 문서가 초안으로 돌아갔습니다. 작성자가 다시 검토를 요청하면 새 카드가 생깁니다.',
+  'inbox.card.expired_at': '만료 · {when}',
+  /** 요청 뒤 2일을 넘긴 카드(2026-10-15 · REQ-WEB-310) */
+  'inbox.card.overdue': '지연',
+  'inbox.card.overdue_hint': '요청 뒤 2일이 지났습니다.',
   'inbox.card.to_session': '세션으로',
   // 티어 곁의 근거 한 줄(2026-09-26 · REQ-WEB-240) — 축별 점수와 신호가 뒤따른다
   'inbox.card.gate_score': '위험도 {score}점',
@@ -986,6 +995,9 @@ export const ko = {
   'event.approval.decided': '결재 완료',
   'event.approval.requested': '승인 요청',
   'event.approval.reminded': '결재 리마인더',
+  // 결재 SLA(2026-10-15 · REQ-API-304 · 305) — 2일을 넘긴 결재 · 7일 동안 결정되지 않아 초안으로 돌아간 검토
+  'event.approval.overdue': '결재 지연',
+  'event.approval.expired': '결재 만료',
   'event.baseline.created': '기준선 생성',
   'event.claim.conflict_blocked': '범위 겹침으로 클레임 거부',
   'event.claim.conflict_warn': '범위 겹침 경고',
@@ -1491,11 +1503,13 @@ export const ko = {
   'inbox.card.untitled': '(제목 없음)',
   'inbox.count_decided': '처리됨 {count}건',
   'inbox.count_pending': '대기 {count}건',
+  'inbox.count_expired': '만료 {count}건',
   'inbox.decision.approve': '승인',
   'inbox.decision.comment': '코멘트',
   'inbox.decision.reject': '거절',
   'inbox.empty_decided_hint': '승인·거절·코멘트한 요청이 여기 남습니다.',
   'inbox.empty_pending_hint': '에이전트가 승인을 요청하면 여기에 표시됩니다.',
+  'inbox.empty_expired_hint': '7일 동안 결정되지 않아 초안으로 돌아간 스펙 결재가 여기 남습니다.',
   'inbox.key.approve': '승인',
   'inbox.key.bulk': '일괄 승인·거절',
   'inbox.key.comment': '코멘트',
@@ -1504,6 +1518,7 @@ export const ko = {
   'inbox.key.select': '선택',
   'inbox.tab.decided': '처리됨',
   'inbox.tab.pending': '대기',
+  'inbox.tab.expired': '만료',
   'inbox.title': '받은 요청',
   'inbox.waited.days': '{n}일 대기',
   'inbox.waited.hours': '{n}시간 대기',
@@ -1581,6 +1596,14 @@ export const ko = {
   'project.waiting.notifications': '중요 알림 {count}건',
   'project.waiting.sessions': '응답 대기 세션 {count}개',
   'project.waiting.critical': '열린 critical {count}건',
+  // 지연 결재 · 역할 큐 재검토 지표(2026-10-15 · REQ-WEB-311)
+  'project.waiting.overdue': '지연 결재 {count}건',
+  'project.waiting.overdue_hint': '요청 뒤 2일이 지나도 결정되지 않은 결재입니다.',
+  'project.approval_lag.label': '결재 흐름',
+  'project.approval_lag.summary':
+    '최근 {days}일 결재 {total}건 가운데 {late}건({percent}%)이 하루를 넘겼습니다.',
+  'project.approval_lag.review':
+    '{threshold}%를 넘었습니다. 결재를 역할 큐 대신 특정인에게 맡길지 검토할 때입니다.',
   'project.no_sessions_hint_post': '로 작업을 맡으면 여기에 표시됩니다.',
   'project.no_sessions_hint_pre': '에이전트가',
   'project.recent_events': '최근 활동',
@@ -2144,6 +2167,7 @@ export const ko = {
   'session.stale_note_task':
     '30분 동안 활동이 없어 무응답으로 바뀌었습니다. {key}의 클레임은 회수됐습니다.',
   'inbox.empty_decided': '처리한 항목이 없습니다',
+  'inbox.empty_expired': '만료된 요청이 없습니다',
   'inbox.see_pending': '대기 중인 요청 보기',
   'notif.empty_action': '받은 요청 보기',
   'reviews.queue.empty_action': '리뷰가 들어오는 방법',

@@ -1783,6 +1783,34 @@ export class SpecService {
     });
   }
 
+  /**
+   * **검토 중인 버전을 초안으로 되돌린다** — 거절 · 코멘트 · 만료가 이 한 전이를 쓴다(D-02: 가변 구간은 초안 하나뿐).
+   * `submitted_at` 을 비우는 것이 라운드 경계다 — 다시 제출하면 그 시각보다 앞선 승인은 정족수에 들지 않는다
+   * (REQ-API-140). 옮겼으면 참이다(이미 옮겨졌으면 거짓 — 오류가 아니다).
+   */
+  private async reviewToDraft(tx: Tx, projectId: string, specVersionId: string): Promise<boolean> {
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
+        FROM spec s
+       WHERE sv.spec_id = s.id AND sv.id = ${specVersionId}
+         AND s.project_id = ${projectId} AND sv.status = 'in_review'
+      RETURNING sv.id
+    `);
+    return rows.length > 0;
+  }
+
+  /**
+   * **결재 만료**(2026-10-15 · 사람 결정 · REQ-API-304) — 7일 동안 결정되지 않은 검토를 초안으로 되돌린다. 거절과
+   * 같은 전이 · 같은 라운드 규칙이고, 사실은 결재 서비스가 ★`approval.expired` 로 남긴다(문서 축 이벤트를 따로 내지
+   * 않는다 — 한 사건에 이름이 둘이면 셀 때 둘로 센다).
+   */
+  async expireInTxForApproval(
+    tx: Tx,
+    input: { projectId: string; specVersionId: string },
+  ): Promise<boolean> {
+    return this.reviewToDraft(tx, input.projectId, input.specVersionId);
+  }
+
   /** 같은 이유로 여는 거절 버전 — in_review → draft */
   async rejectInTxForApproval(
     tx: Tx,
@@ -1796,14 +1824,7 @@ export class SpecService {
       asComment?: boolean;
     },
   ): Promise<void> {
-    const { rows } = await tx.execute<{ id: string }>(sql`
-      UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
-        FROM spec s
-       WHERE sv.spec_id = s.id AND sv.id = ${input.specVersionId}
-         AND s.project_id = ${input.projectId} AND sv.status = 'in_review'
-      RETURNING sv.id
-    `);
-    if (rows.length === 0) return;
+    if (!(await this.reviewToDraft(tx, input.projectId, input.specVersionId))) return;
     await emit({
       type: input.asComment === true ? NERV_EVENT.SPEC_COMMENT_ADDED : NERV_EVENT.SPEC_REJECTED,
       projectId: input.projectId,
@@ -3667,10 +3688,14 @@ export class SpecService {
 
     let first = existing[0]?.id ?? null;
     const created: { id: string; role: string | null }[] = [];
+    // **빠진 쪽을 채운다**(2026-10-15 · REQ-API-304). 슬롯 하나는 기본 큐(NULL), 나머지가 직군 슬롯이다. 순번으로 정하던
+    // 동안 남은 자리가 직군 슬롯이면(기본 큐 자리가 승인 · 거절된 뒤 만료 · 거절로 라운드가 닫혔다) 새 자리도 직군 슬롯이
+    // 되어 두 자리가 모두 같은 역할이었다 — 기본 큐 자리가 없으면 그것부터 만든다
+    let hasDefault = existing.some((row) => row.assignee_role === null);
     for (let i = existing.length; i < required; i += 1) {
       const approvalId = newId();
-      // 슬롯 1 은 기본 큐(NULL), 둘째부터가 직군 슬롯이다
-      const role = i === 0 ? null : roleSlot;
+      const role = hasDefault ? roleSlot : null;
+      hasDefault = true;
       await tx.execute(sql`
         INSERT INTO approval (id, project_id, subject_type, subject_id,
                               requested_by_user_id, requested_by_session_id, assignee_role)

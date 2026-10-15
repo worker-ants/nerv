@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.35 · 2026-10-11 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.36 · 2026-10-15 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.36 변경(2026-10-15 — 결재 만료와 에스컬레이션 · 결재를 특정인에게 맡기기, **사람 결정**): **REQ-WEB-310 · 311 신설 · §1.4 이벤트 표 두 줄 · §1.9 ④ 한 이름 · §2.3 표 한 칸과 한 행 · §2.7 표 한 행과 컴포넌트 한 이름.** 받은 요청의 대기 카드는 요청 뒤 2일을 넘기면 "지연"으로 표시한다. 셋째 탭 [만료]는 결정 없이 만료된 카드를 만료 시각과 다시 오는 길과 함께 보인다. 프로젝트 개요의 "기다리는 것"에 지연 결재 수를 보이고 그 아래에 최근 30일 결재 가운데 하루를 넘긴 비율을 보인다. 30%를 넘으면 결재를 특정인에게 맡길지 검토하라는 안내를 덧붙인다([4.4 API 명세](api.md) REQ-API-304 · 305 · 307).
 >
 > v2.35 변경(2026-10-11 — 구현 현황 영역별 분해): **REQ-WEB-309 신설 · §2.3 구현 현황 카드 행.** 카드의 여섯 칸 아래에 영역마다 막대 하나와 구현 · 검증 수를 보인다. 경고 셋은 0이 아닐 때만 적는다([4.4 API 명세](api.md) REQ-API-297).
 >
@@ -653,6 +655,8 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | `session.started` `session.stale` `session.complete` · ★`session.steered` | `['project', projId, 'sessions']` · `['session', sessionId]` | `project:{id}` |
 | `approval.requested` `question.created` | `['inbox']` + 헤더 배지 · `question.created` 는 `['project', projId, 'sessions']` 도(질문이 세션을 응답 대기로 세운다 — 2026-09-25) | `user:{id}` + `project:{id}` |
 | ★`approval.reminded` | `['project', projId, 'events']` — 받은 요청의 카드는 그대로다. 받는 사람의 종은 개인 룸의 `notification.created`가 되읽는다(2026-10-11 · [4.4 API 명세](api.md) REQ-API-296) | `project:{id}` |
+| ★`approval.overdue` | `['inbox']`(개요의 결재 흐름 `['inbox', 'flow', projId]` 가 그 아래다) — 카드의 "지연"은 서버가 시간으로 판정하므로 이 이벤트로 바뀌지 않는다. 받는 사람의 종은 `notification.created`가 되읽는다(2026-10-15 · [4.4 API 명세](api.md) REQ-API-305) | `project:{id}` |
+| ★`approval.expired` | 스펙 축(키 · 트리 · 초안 승인 목록) + `['inbox']` + 알림 + 스펙 목록의 결재 대기 + 세션 — 문서가 초안으로 돌아가고 카드는 만료 탭으로 가며 그림자 알림이 닫히고 기다리던 세션이 깨어난다(2026-10-15 · [4.4 API 명세](api.md) REQ-API-304) | `project:{id}` |
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` | `['project', projId, 'events']` + 게이트 배너/카운터 | `project:{id}`(bypassed는 admin `user:{id}`에도) |
@@ -930,7 +934,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
 **③ 컴포넌트가 아니라 zod 스키마 이름이다** — 정본은 `@nerv/schema` 이고 [4.4 API 명세](api.md) §1.7 이 규약이다: `SpecCreateInput` · `SpecDraftUpsertInput` · `TokenCreateInput` · `CommentCreateInput`. ※ `LoginInput` 은 **어디에도 없다** — §2.1 이 "react-hook-form + zod(`LoginInput`: password min 8)" 이라 적지만 로그인 화면은 평범한 `useState` 다.
 
-**④ 기능째 없다**(2026-10-11 다시 대조): `FailOpenBanner`(fail-open 카운터 — Phase 2) · `SlaBadge`(결재 SLA — 이월 · [4.4 API](api.md) §2.6).
+**④ 기능째 없다**(2026-10-11 다시 대조): `FailOpenBanner`(fail-open 카운터 — Phase 2). `SlaBadge`는 2026-10-15 에 받은 요청 카드의 "지연" 배지로 들어왔다(`features/inbox/approval-card.tsx` · REQ-WEB-310).
 
 **④-0 다른 이름으로 들어왔다**(2026-10-11 다시 대조 — 2026-09-06 실측에는 열다섯이 "기능째 없다" 였다): `ScopeChips`(§2.6) → `features/session-monitor/session-card.tsx` 의 클레임 범위 · `ImplStatusCard`(§2.3) → 개요의 구현 현황(`routes/p.$proj/index.tsx` · REQ-WEB-241) · `VersionPicker` · `DiffToggle` → 레일의 버전 탭과 `features/spec-editor/version-diff.tsx` · `CommentThread` → 라우트 안 인라인과 `comment-list.tsx` · `ImpactPreview` → 영향 확인 창(`impact-preview`) · `ArchiveConfirmDialog` → 공용 확인(REQ-WEB-200) · `BlockedLane` → 보드의 `blocked` 레인(`board.tsx`) · `InboxFilterRail` → `features/inbox/scope-rail.tsx` · `ProcessedTrail` → 받은 요청의 결정한 것 보기(`?state=decided`) · `StatusPanel` · `SubmitReviewButton` → 다음 할 일 줄(`next-step.tsx` · REQ-WEB-214). `EditLeaseBadge` 는 **필요 없어졌다** — 웹은 본문을 쓰지 않는다(2026-09-22 · REQ-WEB-173). 편집 리스는 에이전트 세션끼리의 일이다.
 
@@ -1131,7 +1135,8 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | 스펙 트리 + 상태 배지 | EP-SPEC-01 `GET /api/v1/projects/{proj}/specs/tree` | 노드: id·title·type(6종)·현재 버전 문서 상태 — `nerv_spec_tree`와 같은 서비스(D-05) |
 | 구현 현황 카드 | EP-COV-01 `GET /api/v1/projects/{proj}/coverage` (requirement `impl_status` 집계) | MVP는 여섯 칸이다(2026-09-06 현황 — `api.md` §2.9 와 매뉴얼이 이미 그렇게 적는다 · 2026-09-26 여섯째): `total` · `implemented` · `verified` · **`evidence_missing`** · **`empty_promises`** · **`reverify_required`**(다시 검증 필요 — REQ-WEB-241). **영역별 분해**는 그 아래에 `area` 문서마다 한 줄이다(2026-10-11 · REQ-WEB-309). Evidence 기반 자동 계산·드릴다운은 Phase 2(로드맵 §3 — FR-03 ◐, 커버리지 대시보드 비범위) |
 | 활성 세션 스트립 | EP-SES-01 `GET /api/v1/projects/{proj}/sessions` (`state=pending,active,awaiting_input` — `ACTIVE_SESSION_STATES`) | 미니 세션 카드 — hostname·에이전트 종류·하트비트·diff 생략 금지(ui-wireframes §2.2 (3)). **머리의 수는 요약(`summary`)의 세 상태 합**이고 응답 대기가 먼저 선다. 도는 것이 없으면 그렇다고 말하고, 세션이 있었던 프로젝트면 세션 화면으로 보낸다(2026-09-25 · REQ-WEB-219) |
-| 기다리는 것 한 줄 | EP-APR-05 `GET /api/v1/projects/{proj}/inbox`(`actionable_total`) · EP-SES-01 요약의 `awaiting_input` · EP-PRJ-03 `open_critical_findings` | 머리 아래 한 줄 — 내 결정 · 응답 대기 세션 · 열린 critical, 수는 링크. 0 인 것은 그리지 않는다(2026-09-25 · REQ-WEB-220) |
+| 기다리는 것 한 줄 | EP-APR-05 `GET /api/v1/projects/{proj}/inbox`(`actionable_total`) · EP-SES-01 요약의 `awaiting_input` · EP-PRJ-03 `open_critical_findings` · EP-APR-08 `overdue` | 제목 아래 한 줄 — 내 결정 · 지연 결재(2026-10-15 · REQ-WEB-311) · 응답 대기 세션 · 열린 critical, 수는 링크. 0 인 것은 그리지 않는다(2026-09-25 · REQ-WEB-220) |
+| 결재 흐름 한 줄 | EP-APR-08 `GET /api/v1/projects/{proj}/approvals/flow`(`lag`) | 기다리는 것 아래 한 줄 — 최근 30일 결재 가운데 하루를 넘긴(2회째 리마인더까지 간) 비율. 기준(30%)을 넘으면 재검토 안내를 덧붙인다. 셀 결재가 없으면 그리지 않는다(2026-10-15 · REQ-WEB-311) |
 | 최근 활동 | EP-EVT-01 `GET /api/v1/projects/{proj}/events` (커서 페이지네이션 — [더 보기]) | 항목마다 사람 아바타 / 에이전트 **AI** 표식(D-08 · 기계·에이전트 종류는 툴팁) · 대상 키(버전)·제목 링크 · 잇달아 같은 일 ×N(REQ-WEB-210) |
 
 - **실시간**: `project:{id}` 룸 — `spec.*` → 트리, `session.*` → 세션 스트립, 이벤트 피드는 모든 수신 이벤트를 prepend 후 재조회(§1.4 공통 규칙 ① — 2026-09-25 까지 감사 축에만 걸려 있었다). 사이드바의 세션·리뷰 배지도 머리를 바꾸는 이벤트에 되읽힌다(공통 규칙 ②).
@@ -1144,6 +1149,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | REQ-WEB-010 | WHEN 이벤트 피드 항목을 렌더링하면 THE SYSTEM SHALL `event.is_agent` 값에 따라 사람/에이전트 아이콘을 구분 표기한다(FR-16 · D-08) |
 | REQ-WEB-210 | WHEN 활동 피드(홈·개요)의 항목을 그리면 THE SYSTEM SHALL 그 이벤트의 대상의 키(스펙이면 버전)와 제목을 적고 그 대상으로 가는 링크를 주며, 행위자가 에이전트면 어느 기계의 무엇인지를 함께 보인다. WHEN 같은 종류·대상·행위자의 이벤트가 잇달아 오면 THE SYSTEM SHALL 한 줄로 접어 그 수를 보이고 펼칠 수 있게 한다. WHEN 개요의 피드에 다음 쪽이 있으면 THE SYSTEM SHALL 이어 받는 길을 준다. WHEN 홈이 내 프로젝트의 숫자(활성 세션·미결 결재·열린 critical — 2026-09-25 개정 · REQ-WEB-220, 처음에는 한 프로젝트의 요구사항·활성 세션·승인 대기였다)를 그리면 THE SYSTEM SHALL 각 숫자를 그 레코드가 있는 화면으로 가는 링크로 그린다. WHEN 알림 행을 그리면 THE SYSTEM SHALL 대상의 키·버전·제목을 적고, 같은 종류·대상의 알림이 잇달아 오면 한 줄로 접어 그 줄을 누르면 묶음을 함께 읽음 처리한다(2026-09-27 개정 — 서버가 묶지 않은 알림만 화면이 접는다. 서버의 묶음은 REQ-WEB-262) |
 | REQ-WEB-219 | WHEN 활성 세션을 세거나 나열하면(개요 · 홈 · 사이드바) THE SYSTEM SHALL 끝나지 않은 세 상태(`ACTIVE_SESSION_STATES`)만 쓰고, 개요의 머리 수는 받아 온 쪽이 아니라 요약의 합이며, 응답 대기 세션을 먼저 세운다. WHEN 매핑이 있는 프로젝트 이벤트를 받으면 THE SYSTEM SHALL 그 프로젝트의 활동 피드를 되읽고(`spec.approved`·`task.done` 은 커버리지도), WHEN 세션·결재·발견·프로젝트·알림 이벤트가 오면 THE SYSTEM SHALL 사이드바 배지와 조직의 프로젝트 목록이 읽는 머리를 5초 안에 되읽는다(REQ-WEB-004) |
+| REQ-WEB-311 | WHEN 프로젝트 개요를 그리면 THE SYSTEM SHALL "기다리는 것" 한 줄에 그 프로젝트에서 요청 뒤 2일을 넘긴 결재 수(EP-APR-08 `overdue` — 0 이면 그리지 않는다)를 그 프로젝트로 좁힌 받은 요청으로 가는 링크로 보이고 그 아래에 최근 30일 결재 가운데 하루를 넘긴 비율(`lag` — `total` · `late` · 백분율)을 한 줄로 보인다. WHEN 서버가 `review_due` 를 참으로 주면 THE SYSTEM SHALL 그 줄에 기준(`threshold`)을 넘었다는 사실과 결재를 역할 큐 대신 특정인에게 맡길지 검토하라는 안내를 덧붙인다 — 화면은 비율을 다시 견주지 않는다. WHERE `total` 이 0 이면 THE SYSTEM SHALL 그 줄을 그리지 않는다(2026-10-15 사람 결정 · [4.4 API](api.md) REQ-API-305 · 307) |
 
 ### 2.4 S3 스펙 상세 — [ui-wireframes §2.3](../03-proposal/ui-wireframes.md)
 
@@ -1973,13 +1979,14 @@ MVP 카드 유형은 **5종**이다(2026-09-06 현황) — **스펙 승인 · �
 | --- | --- | --- |
 | 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 프로젝트 필터 — 유형 필터는 서버가 읽지 않는다) | `approval.subject_type`: `spec_version / plan / question / finding / gate_bypass`(MVP · 2026-09-06 현황) — data-model §2.7 |
 | 처리됨 목록 | EP-APR-01 `GET /api/v1/approvals` (state=decided) | **내가 결정한 것**이다(`decided_by_user_id` — [4.3](database.md) §2.8 · 마이그레이션 0029). 대기 탭의 조건을 함께 쓰면 결정이 문서를 움직인 순간 기록째 사라진다(REQ-API-165) |
+| 만료 목록 | EP-APR-01 `GET /api/v1/approvals` (state=expired) | **내 큐였는데 결정 없이 만료된 결재**다(2026-10-15 · REQ-API-304) — 7일 동안 결정되지 않아 문서가 초안으로 돌아갔다. 결정이 아니라 처리됨과 섞지 않는다. 카드마다 만료 시각(`expired_at`)과 다시 오는 길을 보이고 단추는 두지 않는다(REQ-WEB-310) |
 | 결정 | EP-APR-03 `POST /api/v1/approvals/{id}/decision` | `decision`: `approve / reject / comment`(spec-workflow §2.5) |
 | 조직 · 프로젝트 칸 | EP-APR-07 `GET /api/v1/approvals/scopes` | 줄마다 내가 결정할 수(`actionable`) — 합계는 헤더 배지와 같은 조건이다. 고르면 EP-APR-01 이 `org` · `project` 로 좁힌다(REQ-WEB-256) |
 | 질문 답변 | EP-QST-02 `POST /api/v1/projects/{proj}/questions/{id}/answer` | `answer_key`(선택지) 또는 `answer_md` — 내부적으로 승인 결정과 한 경로([api.md](api.md) §2.6) |
 | 카드 본문 | EP-APR-01 응답 `ApprovalCard`에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지) · 스펙 카드는 직전 버전과 견준 크기(`body_change` — 제출 때 잰 값 · 2026-10-08 · REQ-WEB-298) | 요약문이 아니라 **원문 우선**(spec-workflow §6.4 — OWASP ASI09 방어) |
 
 - **실시간**: `user:{id}` 룸 — `approval.requested` `question.created` → `['inbox']` + 배지, `question.answered` → 카드의 "요청 세션에 전달됨" 반영.
-- **컴포넌트**: `InboxFilterRail` · `ApprovalCard`(S1과 공유) · `SpecApprovalCard`(변경분 미리보기 + 자동 사전 검토 결과 인라인) · `PlanApprovalCard`(승인/수정 요청/거절 3분기) · `QuestionCard`(라디오 선택지 + 코멘트 필드 + "처리 시 요청 세션에 즉시 전달" 고지) · `ProcessedTrail` · `SlaBadge`(24h 초과 경고 — spec-workflow §2.6) · **`BulkBar`**(대기 탭에 고를 카드가 있으면 늘 보인다 · 고르기 전에는 고를 수 있는 수와 일괄 승인 가능 수, 고른 뒤에는 고른 수 + **승인 가능 수** · 맨 앞의 3상태 칸 · 승인 가능한 것만 고르기 · 일괄 승인·거절·해제) · **`BulkConfirm`**(대상 나열 + 빠지는 건수 + 거절 사유 — 본문을 열지 않고 결정하는 조작이라 이 목록이 곧 동의의 범위다).
+- **컴포넌트**: `InboxFilterRail` · `ApprovalCard`(S1과 공유) · `SpecApprovalCard`(변경분 미리보기 + 자동 사전 검토 결과 인라인) · `PlanApprovalCard`(승인/수정 요청/거절 3분기) · `QuestionCard`(라디오 선택지 + 코멘트 필드 + "처리 시 요청 세션에 즉시 전달" 고지) · `ProcessedTrail` · `SlaBadge`(지연 — 요청 뒤 2일 · 서버의 `overdue` 를 읽는다 · 2026-10-15 · REQ-WEB-310. 처음 이름표는 24h 초과 경고였다 — spec-workflow §2.6) · **`BulkBar`**(대기 탭에 고를 카드가 있으면 늘 보인다 · 고르기 전에는 고를 수 있는 수와 일괄 승인 가능 수, 고른 뒤에는 고른 수 + **승인 가능 수** · 맨 앞의 3상태 칸 · 승인 가능한 것만 고르기 · 일괄 승인·거절·해제) · **`BulkConfirm`**(대상 나열 + 빠지는 건수 + 거절 사유 — 본문을 열지 않고 결정하는 조작이라 이 목록이 곧 동의의 범위다).
 - **결정 규칙의 UI 반영**: 지시자≠승인자 — 요청자와 승인자가 같으면 승인 버튼 비활성 + 툴팁, 에이전트 작성 초안은 세션 소유자 단독 승인 불가 배너(spec-workflow §2.3). 소규모 완화 시 차단 대신 배너 + 감사 이벤트.
 - **키보드**: `j/k` 이동 · `a` 승인 · `r` 거절 · `c` 코멘트(ui-wireframes §4.6) · **`z` 들고 있는 결정 무르기**(2026-09-25 · REQ-WEB-237) · **`x` 선택 · `⇧X` 보이는 것에서 50건까지 · `⇧A` 일괄 승인 · `⇧R` 일괄 거절 · `Esc` 해제**(2026-09-22). 대문자를 쓰는 것은 **소문자 단건 키와 겹치지 않게** 하기 위해서다 — 같은 손가락이 한 건과 스무 건을 가른다면 그 차이는 Shift 만큼은 되어야 한다.
 **조직 · 프로젝트 칸**(2026-09-27 · 사람 결정 N1 · REQ-WEB-256). 받은 요청은 하나이고(FR-14), 알림 센터와 같은 칸(§2.9 ⑤)이 그 목록을 조직 · 프로젝트 하나로 좁힌다 — 수는 내가 결정할 수다. 주소 `?org=` · `?project=` 는 탭을 바꿔도 남고, `⇧X` 는 좁힌 목록의 카드만 고른다. 헤더 배지는 모든 조직의 수 그대로다(REQ-WEB-193). 와이어프레임의 `InboxFilterRail` 가운데 프로젝트 거름이 이것이다.
@@ -2035,6 +2042,7 @@ export const ApprovalDecisionInput = z
 | REQ-WEB-268 | WHEN 매뉴얼 절을 렌더하면 THE SYSTEM SHALL 제목 끝의 로케일 공통 이름(`{#이름}` — 영문 소문자로 시작하고 소문자 · 숫자 · `-` 만)을 앵커로 쓰고 글자와 목차에서 뺀다. 이름이 없는 `##` 는 순서(`sec-N`)다. WHILE 매뉴얼이 두 로케일이면 THE SYSTEM SHALL 모든 `##` 가 이름을 갖고 ko · en 이 같은 이름을 같은 순서로 갖는지 L1 로 대조한다. WHEN 옛 순서 앵커(`#sec-N`)로 들어오면 THE SYSTEM SHALL 같은 순서의 절 이름으로 옮긴다. WHEN 화면의 도움말 링크("이 화면 도움말" · 요구사항 · 관계 그래프 · 가져오기 · 터미널 카드 · 토큰 발급 카드)를 그리면 THE SYSTEM SHALL 그 화면을 설명하는 절까지 잇는다(2026-09-28 사람 결정 — 2026-09-25 의 "장 매핑만" 을 넓힌다) |
 | REQ-WEB-269 | WHEN 사람이 내 계정을 열면 THE SYSTEM SHALL 프로젝트별 알림 위에 메일 요약 칸을 두고, 켤 때 이 브라우저의 시간대(IANA 이름)와 지금 화면 언어를 보낸다. WHILE 켜져 있으면 THE SYSTEM SHALL 받는 시각과 메일 언어를 고르게 하고, 브라우저의 시간대가 저장된 것과 다르면 한 번에 맞추는 링크를 보인다. WHILE 서버가 메일을 보내지 않으면(`mail_enabled: false`) THE SYSTEM SHALL 켜는 단추 대신 그 까닭을 보인다(2026-09-28 사람 결정 EM3 · EM5 · [4.4](api.md) REQ-API-232) |
 | REQ-WEB-270 | WHEN 사람이 메일 요약의 끄는 링크(`/unsubscribe/:token`)를 열면 THE SYSTEM SHALL 로그인을 요구하지 않고 셸 밖 틀에 무엇을 끄는지(메일 요약만 — 다른 메일과 앱 안 알림은 그대로)와 [메일 요약 끄기]를 보이며, 여는 것만으로는 끄지 않는다. WHEN 누르면 THE SYSTEM SHALL EP-NTF-09 를 부르고, 끄면 내 계정으로 가는 길을 보인다. WHEN 서버가 `not_found` 로 답하면 THE SYSTEM SHALL 링크의 수명(보낸 뒤 7일)과 내 계정으로 가는 길을 보인다(2026-09-28 사람 결정 EM8 · [4.4 API 명세](api.md) REQ-API-234) |
+| REQ-WEB-310 | WHEN 받은 요청의 대기 카드를 그리고 서버가 `overdue` 를 참으로 주면 THE SYSTEM SHALL 카드 제목 줄에 "지연" 배지(요청 뒤 2일이 지났다는 풀이와 함께)를 보인다 — 화면은 시간을 다시 재지 않는다. THE SYSTEM SHALL 대기 · 처리됨 옆에 셋째 탭 [만료]를 두고(주소 `?state=expired` · 범위를 유지한다), 만료 카드에는 결정 단추 · 코멘트 칸 · 결정 키 대신 만료 시각과 "문서가 초안으로 돌아갔고 작성자가 다시 검토를 요청하면 새 카드가 생긴다"는 한 줄과 그 문서로 가는 링크를 보인다. WHEN 만료된 것이 없으면 THE SYSTEM SHALL 그렇다고 말한다(2026-10-15 사람 결정 · [4.4 API](api.md) REQ-API-304 · 305) |
 
 **받은 요청을 믿고 누를 수 있게**(2026-09-24 — UI/UX 검토 · REQ-WEB-204). 이 화면의 약속은 "키보드로 완결한다" 인데, 키가 **무엇에** 꽂히는지를 사람이 볼 수 없었다 — 커서는 `j`·`k` 로만 움직였고, 트랙패드로 내려가 다섯째 카드의 [본문 보기]를 누른 뒤 `a` 를 치면 화면 위로 밀려난 첫째 카드가 확인 없이 승인됐다. 눈앞에 없는 스펙이 게이트를 지나는 결함이다. 이제 누르거나 들어간 카드가 커서이고, 보이지 않는 카드에는 결정 키가 꽂히지 않는다(첫 키는 데려와 보여 줄 뿐이다). 카드는 **무엇을 · 누가 · 왜** 를 싣는다 — 플랜·발견 카드는 대상조차 가리키지 않았고(critical 하향 승인이 무엇을 내리는지 모른 채 켜져 있었다), 스펙 카드는 몇 번째 버전인지·무엇이 바뀌었는지·어느 세션이 멈춰 있는지를 말하지 않았다. 들어오는 링크(홈의 오늘 할 일 · 요청 알림 · 에이전트가 건네는 `web_url`)는 `?focus=` 로 **그 카드**에 착지한다. 코멘트 칸은 ⌘↵ 로 보내고 Esc 로 나온다. [본문 보기]는 여전히 md 원문이다 — 스펙 상세의 렌더러를 여기로 옮기는 것은 이 묶음 밖이다.
 

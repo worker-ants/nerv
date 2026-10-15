@@ -67,7 +67,8 @@ export class JobRunner {
       // 정한 시각에서 늦어도 1분이다. "오늘 보냈는가" 는 행이 든다(재기동하면 이 잡도 곧바로 한 번 돈다).
       { name: digest.name, everyMs: heartbeat, run: () => digest.run(), lastRunAt: null },
       // 결재 리마인더도 하트비트 간격이다(2026-10-11 · REQ-API-296). 4시간 · 1일이라는 경계를 넘긴 뒤 늦어도 1분 안에
-      // 낸다. 이미 낸 단계는 이벤트가 기억하므로 자주 돌아도 같은 리마인더가 두 번 나가지 않는다
+      // 낸다. 이미 낸 단계는 이벤트가 기억하므로 자주 돌아도 같은 리마인더가 두 번 나가지 않는다. 지연(2일)과
+      // 만료(7일)도 같은 판에서 본다(2026-10-15 · REQ-API-304 · 305)
       {
         name: approvalReminder.name,
         everyMs: heartbeat,

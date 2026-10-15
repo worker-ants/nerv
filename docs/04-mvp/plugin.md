@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.04 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.05 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.05 변경(2026-10-15 — 결재 만료, **사람 결정**): **새 요구사항 없음 · §2.2 `spec` 제출 절과 에러 표 한 칸 · §2.3 `impl` 하트비트 규약 한 항목 · §2.8 `approve` 6단계 한 줄 · 패키지 0.3.26 → 0.3.27.** 스펙 검토가 7일 동안 결정되지 않으면 만료되어 그 버전이 초안으로 돌아간다. 하트비트 `pending`의 `approval_expired`를 받으면 사람에게 보고하고 다시 낼지는 사람에게 묻는다 — 스스로 다시 내지 않는다. 계획 승인 · critical 하향 카드는 만료되지 않는다([4.4 API](api.md) REQ-API-304 · 306).
 >
 > v1.04 변경(2026-10-15 — 게이트 정책 버전과 판정 감사, **사람 결정**): **REQ-PLG-030 신설(계획 — 구현 없음) · REQ-PLG-009 행 · §1.1 끝 문단 · 패키지 그대로.** 게이트 정책에는 버전을 두지 않고 판정 이벤트가 적용 정책 지문을 남긴다([4.4 API](api.md) REQ-API-303). 폐기한 REQ-PLG-009의 목적(낡은 플러그인 안내)은 세션에 이미 남는 `plugin_version`을 서버가 묶은 버전과 견주는 REQ-PLG-030이 이어받는다. 명세에 정한 범위가 없어 이번에는 구현하지 않았다. `nerv_bootstrap` 응답과 스킬은 바뀌지 않는다.
 >
@@ -194,7 +196,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.26
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.27
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -221,7 +223,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.26",
+  "version": "0.3.27",
   "license": "Apache-2.0"
 }
 ```
@@ -624,9 +626,10 @@ convention-compliance / requirement-shape / task-coherence / base-continuity) �
 2. `nerv_spec_submit_review`(`spec_version_id`)를 호출한다. 이 도구는 allowed-tools에 없다 — **매 호출 사람 승인을 거치는 것이 정상이다.**
    **성공 응답이 `status: in_review` 와 `approval_id`·`web_url`(받은 요청)이다** — 이 도구는
    `NERV_APPROVAL_REQUIRED` 를 내지 않는다. 결정을 기다리는 동안 이 세션은 `awaiting_input`
-   이고, 결과는 두 길로 온다: /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided`,
+   이고, 결과는 두 길로 온다: /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided`
+   (7일 동안 아무도 결정하지 않아 만료됐으면 `approval_expired`),
    아니면 `nerv_spec_get`(`spec_id`, `version`=<제출한 버전 번호>)의 `doc_status`(approved,
-   또는 거절되어 draft 로 복귀). **버전 번호를 넣는다** — 빼면 기본(이전 승인본)이 와서 거절된
+   또는 거절되거나 만료되어 draft 로 복귀). **버전 번호를 넣는다** — 빼면 기본(이전 승인본)이 와서 거절된
    개정판도 approved 로 읽힌다. 승인을 읽는 도구는 없다. 그동안 다른 작업을 시작하지 않는다.
 3. 성공 응답의 `web_url`을 터미널에 표시한다. 같은 `spec_version_id` 재호출은 기존
    pending Approval을 재사용하므로 받은 요청 카드가 중복 생성되지 않는다.
@@ -641,7 +644,7 @@ convention-compliance / requirement-shape / task-coherence / base-continuity) �
 | --- | --- |
 | NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — details 의 `reread` 대로 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문 · `current_version_no` · web_url 이 온다 |
 | NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — details 의 `reread` 대로 읽고 그 `content_hash` 를 넣어 다시 부른다 |
-| NERV_PRECONDITION `in_review_pending` | 검토 중인 개정판(`version_no`)이 있어 새 초안을 만들 수 없다 — details 의 `approval_id`·`web_url` 을 사람에게 알리고 기다린다. 거절되면 그 버전이 초안으로 돌아오니 그 위에서 잇는다 |
+| NERV_PRECONDITION `in_review_pending` | 검토 중인 개정판(`version_no`)이 있어 새 초안을 만들 수 없다 — details 의 `approval_id`·`web_url` 을 사람에게 알리고 기다린다. 거절되거나 7일 뒤 만료되면 그 버전이 초안으로 돌아오니 그 위에서 잇는다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 이 스킬의 도구는 내지 않는다 — 오면 `approval_id` 를 사람에게 보고하고 멈춘다 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(삭제 · 결재 카드의 결정 등은 도구가 존재하지 않는다. 세션에서의 승인은 /nerv:approve 다) |
@@ -725,6 +728,11 @@ allowed-tools:
     `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다 — 우회하지 않는다.
     `spec_version` 이면 결과를 보고한다(`approve` 는 approved, `reject` 는 draft 로 복귀했다는 뜻).
     **같은 결재는 1시간 동안 매 하트비트에 다시 온다** — `approval_id` 로 한 번만 처리한다.
+  - `approval_expired`(내가 낸 스펙 검토 요청을 7일 동안 아무도 결정하지 않아 만료됐다 — `approval_id`·
+    `subject_key`·`version_no`·`expired_at` 이 함께 온다) → 그 버전은 draft 로 돌아갔다. 사람에게 보고하고,
+    다시 검토를 요청할지는 사람에게 묻는다(/nerv:spec submit — A3). 그 사이 채워진 승인은 다시 낸 검토에서
+    세지 않는다. 계획 승인 · critical 하향 카드는 만료되지 않는다. **같은 만료도 1시간 동안 매 하트비트에 다시
+    온다** — `approval_id` 로 한 번만 처리한다.
   - steer 지시 → 지시를 다음 행동에 즉시 반영.
   - stop 지시 → 현재 편집을 안전 지점까지 마무리하고
     `nerv_task_release`(`claim_id`, `reason=handoff`, `state_note`) 후 종료.
@@ -1230,7 +1238,9 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
    - `status: "in_review"` — T3 이다. 내 승인이 한 자리를 채웠고 다른 승인자 한 명을 기다린다. `quorum` 과
      `web_url`(받은 요청의 그 카드)을 전한다. 기다리는 동안 이 세션은 `awaiting_input` 이다 — 다른 작업을
      시작하지 않는다. 결정은 /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided` 로, 아니면
-     `nerv_spec_get`(`spec_id`, `version`=<그 번호>)의 `doc_status` 로 확인한다.
+     `nerv_spec_get`(`spec_id`, `version`=<그 번호>)의 `doc_status` 로 확인한다. 7일 안에 아무도 결정하지
+     않으면 만료되어 draft 로 돌아간다(하트비트에는 `approval_expired`) — 다시 검토를 요청하면 내 승인은 세지
+     않으니 그때 다시 묻는다.
 
 ## 에러 대응
 

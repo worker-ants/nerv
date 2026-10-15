@@ -61,7 +61,9 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
    - `status: "in_review"` — T3 이다. 내 승인이 한 자리를 채웠고 다른 승인자 한 명을 기다린다. `quorum` 과
      `web_url`(받은 요청의 그 카드)을 전한다. 기다리는 동안 이 세션은 `awaiting_input` 이다 — 다른 작업을
      시작하지 않는다. 결정은 /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided` 로, 아니면
-     `nerv_spec_get`(`spec_id`, `version`=<그 번호>)의 `doc_status` 로 확인한다.
+     `nerv_spec_get`(`spec_id`, `version`=<그 번호>)의 `doc_status` 로 확인한다. 7일 안에 아무도 결정하지
+     않으면 만료되어 draft 로 돌아간다(하트비트에는 `approval_expired`) — 다시 검토를 요청하면 내 승인은 세지
+     않으니 그때 다시 묻는다.
 
 ## 에러 대응
 
