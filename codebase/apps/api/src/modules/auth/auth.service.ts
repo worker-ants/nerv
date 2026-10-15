@@ -51,6 +51,7 @@ import { MailOutbox } from '../mail/mail.outbox.js';
 import type { NervAuth } from './better-auth.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { failopenStatus } from '../task/failopen.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
@@ -695,7 +696,10 @@ export class AuthService {
         kind: 'not_found',
       });
     }
-    return project;
+    // **fail-open 격상 상태**(2026-10-15 · 사람 결정 · REQ-API-320) — S5 · S6 배너와 사이드바가 같은 조회를 읽는다. 판정은
+    // `task/failopen.ts` 한 곳이고, 정책이 스키마에 맞지 않으면 기본 정책으로 센다(REQ-API-240)
+    const failopen = effectiveGatePolicy(project['gate_policy']).policy.failopen;
+    return { ...project, failopen_status: await failopenStatus(this.db, projectId, failopen) };
   }
 
   /**
@@ -804,6 +808,9 @@ export class AuthService {
                   effectiveGatePolicy(policyBefore).policy,
                 ),
               }),
+          // **보존 기간도 바뀐 뒤의 값을 남긴다**(2026-10-15 · REQ-API-318). 화면에서 고칠 수 있게 되자 줄인 기간이 다음
+          // 보존 잡에서 활동 원문을 지운다 — 누가 언제 몇 일로 줄였는지가 감사에 있어야 한다
+          ...(retention == null ? {} : { retention }),
         },
       });
     }

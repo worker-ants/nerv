@@ -38,6 +38,8 @@ import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 import { DigestJob } from '../../src/worker/jobs/digest.job.js';
 import { ApprovalReminderJob } from '../../src/worker/jobs/approval-reminder.job.js';
+import { FailopenJob } from '../../src/worker/jobs/failopen.job.js';
+import { FailopenService } from '../../src/modules/task/failopen.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { DigestService } from '../../src/modules/digest/digest.service.js';
 
@@ -105,6 +107,8 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
         drizzleDb,
       ),
     ),
+    // fail-open 격상도 이벤트와 DB 만 쓴다(REQ-API-319)
+    new FailopenJob(new FailopenService(new EventService(drizzleDb, silent), drizzleDb)),
   );
   return { runner, lock };
 }

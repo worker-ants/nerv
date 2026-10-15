@@ -16,6 +16,7 @@ import { PluginCoverage } from '../../features/session-monitor/plugin-coverage.j
 import { SessionBoard } from '../../features/session-monitor/session-board.js';
 import { useProject, useSessions } from '../../lib/queries.js';
 import { PageBody, PageHeader } from '../../components/ui/primitives.js';
+import { FailOpenBanner } from '../../components/failopen-banner.js';
 import type { SessionCard } from '../../features/session-monitor/types.js';
 import { asProjectId } from '../../lib/query-keys.js';
 
@@ -69,6 +70,8 @@ function SessionMonitor(): React.JSX.Element {
       <div className="min-w-0 flex-1">
         <PageBody wide>
           <PageHeader title={t('sessions.title')} />
+          {/* fail-open 격상(REQ-WEB-319) — 게이트가 사실상 꺼졌으면 세션을 보기 전에 그것부터 보인다 */}
+          <FailOpenBanner projectSlug={proj} />
           <PluginCoverage projectSlug={proj} projectId={asProjectId(projectId)} />
           <SessionBoard
             projectSlug={proj}

@@ -6,7 +6,7 @@
 // 서버가 대상의 키·버전·제목을 싣고(event-subject.ts — 두 목록이 같은 조각이다), 화면은 여기 한 곳에서
 // 그것을 읽는다. 알림은 이벤트 참조라 문구를 행에 굳혀 저장하지 않는다(D-10) — 링크도 여기서 만든다.
 
-import { NERV_EVENT } from '@nerv/schema';
+import { NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
 
 export type EventRow = Record<string, unknown>;
 
@@ -88,6 +88,13 @@ export function eventTarget(n: EventRow, requests: 'inbox' | 'subject' = 'inbox'
   // 초대를 거절했다 — 부른 사람이 보는 초대 탭으로(REQ-API-178 · REQ-WEB-242). 다시 부를지 거기서 정한다
   if (type === NERV_EVENT.INVITATION_DECLINED) {
     return { to: '/settings/members', search: { tab: 'invites' } };
+  }
+  // fail-open 격상 · 풀림은 프로젝트에 일어난 일이다 — 그 기록으로 거른 개요로 간다(2026-10-15 · REQ-WEB-319)
+  if (
+    type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED ||
+    type === NERV_EVENT_PHASE2.GATE_FAILOPEN_CLEARED
+  ) {
+    return { to: `/p/${project}`, search: { events: 'failopen' } };
   }
   return { to: `/p/${project}` };
 }

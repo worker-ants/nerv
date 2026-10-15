@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.13 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.14 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.14 변경(2026-10-15 — fail-open 정책 편집과 격상, Phase 2 묶음 1의 셋째 · **사람 결정**): **새 요구사항 없음 · §2.2 트리 세 줄.** `modules/task/`에 `failopen.ts`(격상 상태 판정)와 `failopen.service.ts`(격상 · 해제 이벤트), 열두 번째 잡 `failopen.job.ts`(하트비트 간격 — 창이 지나면 풀고 기준을 넘으면 올린다)를 더했다([4.4 API 명세](api.md) REQ-API-319).
 >
 > v2.13 변경(2026-10-15 — 커밋 범위를 한 곳에서, Phase 2 묶음 1의 둘째 · **사람 결정**): **§2.2 트리 한 줄.** `modules/review/`에 `commit-scope.ts`(작업의 최신 커밋 · 같은 커밋 판정 — done 게이트의 커밋 신선도와 구현 축 `verified` 가 함께 쓴다 · [4.4 API](api.md) REQ-API-314 · 315)가 들어왔다.
 >
@@ -604,6 +606,8 @@ apps/api/src/
     task/
       claim.module.ts
       claim.service.ts       # 원자적 클레임 · scope 겹침 검사 · 리스 연장 (D-04)
+      failopen.service.ts    # fail-open 격상 · 해제 이벤트 — 직후 확인과 잡이 부른다 · 프로젝트마다 advisory lock (REQ-API-319)
+      failopen.ts            # 격상 상태 판정 — 창 안의 수 · 가장 나중 격상/해제 이벤트 (REQ-API-319 · 320)
       task.controller.ts
       task.module.ts
       task.service.ts        # 상태 전이 · 위임 명세 · 증적(evidence)
@@ -627,6 +631,7 @@ apps/api/src/
       digest.job.ts         # 메일 요약 — 켠 사람의 현지 시각에 하루 한 번 (4.4 REQ-API-233, 2026-09-28)
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
       export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
+      failopen.job.ts       # fail-open 격상 상태 맞추기 — 창이 지나면 풀고 기준을 넘으면 올린다 (4.4 REQ-API-319, 2026-10-15)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
       mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정·메일 요약 (4.3 §2.17, 2026-09-22)
       notification.job.ts   # event → notification 라우팅 (인앱 — 메일은 digest.job 이 모아 보낸다, Slack 은 P2)

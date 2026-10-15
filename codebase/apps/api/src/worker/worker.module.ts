@@ -16,6 +16,7 @@ import { ApprovalReminderJob } from './jobs/approval-reminder.job.js';
 import { DigestJob } from './jobs/digest.job.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
+import { FailopenJob } from './jobs/failopen.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
 import { MailJob } from './jobs/mail.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
@@ -48,6 +49,7 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
     DigestJob,
     RequirementBackfillJob,
     ApprovalReminderJob,
+    FailopenJob,
   ],
   exports: [AdvisoryLock, JobRunner],
 })

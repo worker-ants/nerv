@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.44 · 2026-10-15 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.45 · 2026-10-15 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.45 변경(2026-10-15 — fail-open 정책 편집과 격상, Phase 2 묶음 1의 셋째 · **사람 결정** · [4.8 백로그](../04-mvp/backlog.md) E18-S01 · E18-S02): **§4.6 격상 규칙 한 단락 · §6.3 카탈로그 한 줄.** 격상이 구현됐다 — fail-open 을 남긴 직후와 워커 잡이 같은 판정을 보고, 격상 상태는 가장 나중의 격상 · 해제 이벤트에서 파생한다. 카탈로그에 `gate.failopen_escalated`(high · admin)를 더했다. 해제(`gate.failopen_cleared`)는 기록만 하고 알림을 만들지 않는다([4.4 API](../04-mvp/api.md) REQ-API-319).
 >
 > v0.44 변경(2026-10-15 — 알림 관여 라우팅, Phase 2 묶음 1의 둘째 · **사람 결정** · [4.8 백로그](../04-mvp/backlog.md) E17-S01): **§6.3 구현 범위 한 단락과 한 항목.** 구독 규칙 ③관여를 구현했다. 카탈로그가 수신자로 적은 작성자 · 담당자 · 클레임 보유 세션 소유자 · 스레드 참여자 · 리뷰 요청자를 표 없이 쓸 수 있는 열에서 찾는다. 역할 큐로 가던 이벤트는 역할 큐가 그대로 받고 관여자를 더한다(겹치면 한 번). `finding.opened`(critical 만) · `finding.resolved` 는 관여자에게만 간다. 워처는 워치 테이블이 없어 아직이다([4.4 API](../04-mvp/api.md) REQ-API-316).
 >
@@ -660,7 +662,7 @@ clemvion의 GC reaper는 "merge는 대부분 GitHub 웹에서 일어나 로컬�
 
 > **D-14 — 게이트는 fail-open + 관측 + 격상, 진실은 서버 산출물.** 판정 불가(예: git forge 웹훅 지연으로 커밋 범위를 모름) 시 진행을 허용하되 배너와 연속 카운터를 남기고, 임계 초과 시 "게이트가 사실상 꺼짐"으로 격상한다. 그리고 에이전트의 자기보고(STATUS 한 줄)와 실제 산출물 업로드를 분리 검증한다 — **서버에 업로드된 산출물만 진실이다.**
 
-**격상은 시간 창 안의 횟수로 판정한다**(2026-10-15 — 사람 결정). 프로젝트 정책의 `failopen.window_hours` 안에 fail-open 이 `failopen.escalate_count` 회 이상이면 격상한다 — admin 에게 중요 알림을 보내고 S5 세션 모니터 · S6 리뷰 센터에 배너를 표시한다. 그 창 동안 새 fail-open 이 없으면 풀린다. 격상과 해제는 이벤트로 남긴다. 위 결정의 "연속 카운터 · 임계 초과" 를 이 모양으로 읽는 이유는 정책 키 둘([4.4 API](../04-mvp/api.md) §2.1a — 기본 3회 · 24시간)이 이미 "횟수 + 시간 창" 이라 새 키가 필요 없어서다. 구현은 [4.8 백로그](../04-mvp/backlog.md) E18-S02 다.
+**격상은 시간 창 안의 횟수로 판정한다**(2026-10-15 — 사람 결정). 프로젝트 정책의 `failopen.window_hours` 안에 fail-open 이 `failopen.escalate_count` 회 이상이면 격상한다 — admin 에게 중요 알림을 보내고 S5 세션 모니터 · S6 리뷰 센터에 배너를 표시한다. 그 창 동안 새 fail-open 이 없으면 풀린다. 격상과 해제는 이벤트로 남긴다. 위 결정의 "연속 카운터 · 임계 초과" 를 이 모양으로 읽는 이유는 정책 키 둘([4.4 API](../04-mvp/api.md) §2.1a — 기본 3회 · 24시간)이 이미 "횟수 + 시간 창" 이라 새 키가 필요 없어서다. 구현은 2026-10-15 에 들어왔다([4.8 백로그](../04-mvp/backlog.md) E18-S01 · E18-S02 · [4.4 API](../04-mvp/api.md) REQ-API-318 ~ 320). fail-open 을 남긴 직후와 워커 잡이 같은 판정을 보고, 격상 상태는 표 없이 그 프로젝트의 가장 나중 격상 · 해제 이벤트(`gate.failopen_escalated` · `gate.failopen_cleared`)에서 파생한다. 격상 알림은 high 등급으로 admin 에게만 가고 해제는 알림을 만들지 않는다(§6.3). 두 키는 admin 이 S8 게이트 정책 탭에서 고친다.
 
 **커밋 범위는 작업의 최신 커밋이다**(2026-10-15 — [4.8 백로그](../04-mvp/backlog.md) E16-S01 · [4.4 API](../04-mvp/api.md) REQ-API-314). 조건 1~3 의 "커밋 범위" 는 그 작업에 붙은 `commit` 증적 가운데 서버가 가장 나중에 받은 커밋이다 — 서버는 git 의 커밋 그래프를 갖고 있지 않고 커밋 시각은 rebase 가 바꾸므로 받은 순서를 쓴다(§5.4 가 경로 타임스탬프를 버린 이유와 같다). push 웹훅의 커밋과 done 에 함께 붙인 커밋이 모두 여기 든다. done 게이트는 그 커밋을 `head_sha` 로 본 라운드만 센다. 리뷰 뒤에 새 커밋이 왔으면 막고 다시 리뷰받을 종류와 커밋을 알린다. 짧은 SHA 와 대소문자는 같은 커밋으로 본다. 작업에 `commit` 증적이 없어 커밋을 모르거나 리뷰가 본 것이 커밋 SHA 모양이 아니면 D-14 대로 신선도만 넘기고 `gate.failopen` 을 남긴다 — 리뷰가 없거나 열린 발견이 있으면 그대로 막는다.
 
@@ -824,6 +826,7 @@ Event (append-only, D-10)
 | `task.blocked` | high | 담당자 + planner | `task:{id}:state` |
 | `task.rebrief_required` | high | 담당자 + 클레임 보유 세션 소유자 | `task:{id}:state` |
 | `gate.bypassed` | high | admin | `project:{id}:bypass` |
+| `gate.failopen_escalated`(시간 창 안의 fail-open 이 기준 이상 — §4.6) | high | admin | 없음 |
 | `spec.comment_added` | standard | 스레드 참여자 · 워처 | `spec:{id}:comments` |
 | `spec.recheck_requested`(참조 문서 전파 — §3.3) | standard | 대상 문서 `owner_role` | `spec:{id}:recheck` |
 | `task.ready`(내 영역) | standard | 영역 워처 | `project:{id}:ready` |

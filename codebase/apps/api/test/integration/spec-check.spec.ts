@@ -21,6 +21,7 @@ import { AttachmentService } from '../../src/modules/spec/attachment.service.js'
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
+import { FailopenService } from '../../src/modules/task/failopen.service.js';
 import { RequirementBackfillJob } from '../../src/worker/jobs/requirement-backfill.job.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { worstOf } from '../../src/modules/spec/spec-check.service.js';
@@ -66,6 +67,7 @@ beforeAll(async () => {
     // 서비스는 들고 있어야 한다(AuthService 는 이 경로에서 쓰이지 않는다)
     new ApprovalService(events, specs, null as never, drizzleDb),
     drizzleDb,
+    new FailopenService(events, drizzleDb),
   );
   await seed();
 });

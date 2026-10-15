@@ -1060,6 +1060,8 @@ export const en = {
   'event.finding.resolved': 'Review finding resolved',
   'event.gate.bypassed': 'Gate passed automatically',
   'event.gate.failopen': 'Gate check failed (recorded and proceeded)',
+  'event.gate.failopen_escalated': 'Gate escalated (undecided passes over the limit)',
+  'event.gate.failopen_cleared': 'Gate escalation cleared',
   'event.import.applied': 'Import applied',
   'event.notification.created': 'Notification created',
   'event.question.answered': 'Question answered',
@@ -1672,6 +1674,12 @@ export const en = {
   'project.metric.total': 'Requirements',
   'project.metric.verified': 'Verified',
   'project.no_events': 'No activity recorded yet.',
+  'project.events_failopen': 'Cases the gate let through undecided',
+  'project.events_all': 'Show all activity',
+  'failopen.banner.title': 'The gate is effectively off',
+  'failopen.banner.body':
+    'In the last {hours} hours the gate could not decide and let things through {count} times (the limit is {threshold}). This clears when no new case comes in for that long.',
+  'failopen.banner.events': 'See the records',
   'project.no_sessions': 'No sessions are running.',
   'home.project.sessions': 'Active sessions',
   'home.project.approvals': 'Open approvals',
@@ -2047,11 +2055,26 @@ export const en = {
   'settings.gates.dynamic': 'Dynamic escalation',
   'settings.gates.dynamic_hint':
     "Raises the tier by one for a document's first approved version, when an agent reports the same failure three times, or when the body shrank sharply against the previous version. Only one step even if several apply. A sharply shrunk body is raised to at least T2 so a person sees it once",
-  'settings.gates.failopen': 'When it cannot decide (read-only)',
+  'settings.gates.failopen': 'When it cannot decide',
   'settings.gates.failopen_body':
-    'When it cannot decide, it does not block. It proceeds and logs the case. If this happens {count} times within {hours} hours, the tier goes up.',
+    'When it cannot decide, it does not block. It proceeds and logs the case. If this happens {count} or more times within {hours} hours, the gate is escalated: admins get an important notification and a banner appears on the session monitor and the review center. It clears when no new case comes in for that long.',
+  'settings.gates.failopen_count': 'Escalate after (times)',
+  'settings.gates.failopen_hours': 'Time window (hours)',
+  'settings.gates.failopen_invalid': 'Times and hours must be whole numbers of 1 or more.',
+  'settings.gates.failopen_value': '{count} times in {hours} hours',
+  'settings.gates.change_failopen': 'Escalation {from} → {to}',
+  'settings.gates.retention': 'Retention',
+  'settings.gates.retention_activity': 'Raw activity (days)',
+  'settings.gates.retention_blob': 'Review prompt text (days)',
+  'settings.gates.retention_hint':
+    'After its period, raw session activity is deleted and only per-tool counts stay on the session. Review prompt text is also deleted after its period. Each review also gets a {max}-day expiry when it comes in, so its prompt text never stays longer than {max} days. A shorter period deletes older text at the next retention run. Conclusions (summaries · findings · resolutions) are never deleted.',
+  'settings.gates.retention_invalid': 'Retention periods must be whole numbers of days, 1 or more.',
+  'settings.gates.change_retention_activity': 'Raw activity retention {from} → {to} days',
+  'settings.gates.change_retention_blob': 'Review prompt text retention {from} → {to} days',
+  'settings.gates.retention_shrink_confirm':
+    'This shortens retention. At the next retention run, older raw text is deleted and cannot be restored.',
   'settings.gates.lead':
-    'You can edit tier boundaries, dynamic escalation and task completion criteria here. The "When it cannot decide" values below are read-only.',
+    'You can edit tier boundaries, dynamic escalation, task completion criteria, the escalation threshold for undecided checks, and retention here.',
   'settings.gates.done_gate': 'Task completion criteria',
   'settings.gates.done_gate_hint':
     'Checked before a task moves to done. A task that does not meet them stays open, and you are told what is missing.',

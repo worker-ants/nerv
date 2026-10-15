@@ -1,7 +1,9 @@
 // /settings/gates — S8 게이트 정책 (api.md §2.1a · D-06 · FR-14)
 //
 // 여기서 고치는 것은 `spec_gate.*` 두 키(`tier_boundaries` · `dynamic_escalation`)와 `done_gate.*` 두 키(`evidence_source` ·
-// `review_coverage` — 2026-09-28 · REQ-WEB-285)다. `failopen`·`retention` 은 표시만 한다(§2.1a).
+// `review_coverage` — 2026-09-28 · REQ-WEB-285) · `review_roles`, 그리고 `failopen` 두 키(`escalate_count` · `window_hours`)와
+// `retention` 두 키(`activity_days` · `prompt_blob_ttl_days`)다(2026-10-15 · 사람 결정 · REQ-WEB-318). 예전 이 주석은
+// `failopen` · `retention` 을 "표시만 한다" 고 적었는데 화면은 `failopen` 문장 하나만 보였고 `retention` 은 어디에도 없었다.
 // **admin 아닌 역할에는 API 와 UI 양쪽이 거부한다**: 여기서는 비활성 + 사유, 서버에서는 403.
 // 둘 중 하나만 있으면 게이트가 우회 가능해지거나 사용자가 이유 없이 막힌다.
 //
@@ -16,7 +18,12 @@ import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { GatePolicySchema, reviewKind } from '@nerv/schema';
+import {
+  GatePolicySchema,
+  RetentionSchema,
+  REVIEW_PROMPT_BLOB_TTL_DAYS,
+  reviewKind,
+} from '@nerv/schema';
 import type { GatePolicy } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useMembers, useProject } from '../../lib/queries.js';
@@ -102,6 +109,12 @@ function parseBoundary(value: string): number | null {
   return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
 }
 
+/** 1 이상의 정수인가 — 격상 기준 · 보존 기간 칸마다의 표시에 쓴다. 저장 판정은 스키마가 한다 */
+function positiveInt(value: string): boolean {
+  const n = parseBoundary(value);
+  return n !== null && n >= 1 && Number.isSafeInteger(n);
+}
+
 /** 경계 셋이 성립하는가 — 0 이상의 정수이고 T1 ≤ T2 ≤ T3(같으면 그 사이 티어가 비어 있을 뿐이다) */
 export function validBoundaries(values: readonly (number | null)[]): values is number[] {
   return (
@@ -182,7 +195,10 @@ function GatesTab(): React.JSX.Element {
   // **읽지 못한 정책은 저장하지 않는다**(2026-09-28 · REQ-WEB-280). 저장 본문은 정책 전체를 펼쳐
   // 보내므로, 읽지 못해 기본값으로 그린 정책을 저장하면 `done_gate` 처럼 이 화면에 없는 설정이
   // 통째로 기본값으로 덮였다 — 서버가 이 화면보다 새 정책 모양을 쓰는 동안 그럴 수 있다
-  const unreadable = loaded && !stored.success;
+  // 보존 기간도 같은 규칙이다 — 읽지 못한 값을 기본값으로 그려 저장하면 그 프로젝트의 보존 기간이 덮인다
+  const storedRetention = RetentionSchema.safeParse(project.data?.['retention'] ?? {});
+  const retention = storedRetention.success ? storedRetention.data : RetentionSchema.parse({});
+  const unreadable = loaded && (!stored.success || !storedRetention.success);
   const current = policy.spec_gate.tier_boundaries;
 
   /** 고친 칸 — 손대지 않았으면 `null` 이고 저장된 값을 그린다 */
@@ -195,6 +211,12 @@ function GatesTab(): React.JSX.Element {
   } | null>(null);
   /** 종류마다 쉼표로 적은 필수 역할 — 손대지 않았으면 `null` 이다(REQ-WEB-286) */
   const [rolesDraft, setRolesDraft] = useState<Record<string, string> | null>(null);
+  /** 판정할 수 없을 때의 격상 기준 — 손대지 않았으면 `null` 이다(REQ-WEB-318) */
+  const [failopenDraft, setFailopenDraft] = useState<{ count: string; hours: string } | null>(null);
+  /** 보존 기간(일) — 손대지 않았으면 `null` 이다(REQ-WEB-318) */
+  const [retentionDraft, setRetentionDraft] = useState<{ activity: string; blob: string } | null>(
+    null,
+  );
   /** 고친 채 다른 프로젝트를 고르면 — 버릴지 묻는 동안 여기 둔다 */
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
 
@@ -247,20 +269,66 @@ function GatesTab(): React.JSX.Element {
   const evidenceChanged = evidence !== done.evidence_source;
   const coverageChanged =
     kindsValid && JSON.stringify(coverage) !== JSON.stringify(done.review_coverage);
+  // **판정할 수 없을 때 · 보존 기간**(2026-10-15 · 사람 결정 · REQ-WEB-318). 서버와 **같은 스키마**로 검증한다 —
+  // 범위 밖이면 [저장]이 잠기고 그 자리에서 이유를 보인다(서버도 같은 스키마로 400 을 낸다 · REQ-CB-006)
+  const failopen = policy.failopen;
+  const failopenTexts = failopenDraft ?? {
+    count: String(failopen.escalate_count),
+    hours: String(failopen.window_hours),
+  };
+  const failopenParsed = GatePolicySchema.shape.failopen.safeParse({
+    escalate_count: parseBoundary(failopenTexts.count),
+    window_hours: parseBoundary(failopenTexts.hours),
+  });
+  const failopenValid = failopenParsed.success;
+  const nextFailopen = failopenParsed.success ? failopenParsed.data : failopen;
+  const failopenChanged =
+    failopenValid &&
+    (nextFailopen.escalate_count !== failopen.escalate_count ||
+      nextFailopen.window_hours !== failopen.window_hours);
+  const retentionTexts = retentionDraft ?? {
+    activity: String(retention.activity_days),
+    blob: String(retention.prompt_blob_ttl_days),
+  };
+  const retentionParsed = RetentionSchema.safeParse({
+    activity_days: parseBoundary(retentionTexts.activity),
+    prompt_blob_ttl_days: parseBoundary(retentionTexts.blob),
+  });
+  const retentionValid = retentionParsed.success;
+  const nextRetention = retentionParsed.success ? retentionParsed.data : retention;
+  const retentionChanged =
+    retentionValid &&
+    (nextRetention.activity_days !== retention.activity_days ||
+      nextRetention.prompt_blob_ttl_days !== retention.prompt_blob_ttl_days);
+  // 보존 기간을 줄이면 다음 보존 작업에서 원문이 지워진다 — 되돌릴 수 없어 한 번 더 묻는다
+  const retentionShrinks =
+    retentionChanged &&
+    (nextRetention.activity_days < retention.activity_days ||
+      nextRetention.prompt_blob_ttl_days < retention.prompt_blob_ttl_days);
   const dirty =
     draft !== null ||
     dynamicEscalation !== null ||
     evidenceDraft !== null ||
     coverageDraft !== null ||
-    rolesDraft !== null;
-  const changed =
-    boundariesChanged || dynamicChanged || evidenceChanged || coverageChanged || rolesChanged;
+    rolesDraft !== null ||
+    failopenDraft !== null ||
+    retentionDraft !== null;
+  /** 게이트 정책이 바뀌었나 — 보존 기간만 고쳤으면 정책은 보내지 않는다(감사에 바뀌지 않은 정책이 남지 않게) */
+  const policyChanged =
+    boundariesChanged ||
+    dynamicChanged ||
+    evidenceChanged ||
+    coverageChanged ||
+    rolesChanged ||
+    failopenChanged;
+  const changed = policyChanged || retentionChanged;
   // **자동 통과가 넓어지는 방향** — 경계 하나라도 올리거나 동적 강화를 끄면 사람을 덜 거친다
   const specLoosens =
     (boundariesChanged && next.some((n, i) => n > (current[i] ?? 0))) ||
     (dynamicChanged && !dynamic);
-  const loosens =
-    specLoosens || (kindsValid && doneGateLoosens(done, nextDone)) || (rolesValid && rolesLoosen);
+  const doneLoosens =
+    (kindsValid && doneGateLoosens(done, nextDone)) || (rolesValid && rolesLoosen);
+  const loosens = specLoosens || doneLoosens || retentionShrinks;
 
   const switchTo = (target: string): void => {
     // 고르면 주소가 바뀐다 — 이력은 쌓지 않는다(고를 때마다 뒤로가기가 한 칸씩 늘지 않게)
@@ -271,6 +339,8 @@ function GatesTab(): React.JSX.Element {
     setEvidenceDraft(null);
     setCoverageDraft(null);
     setRolesDraft(null);
+    setFailopenDraft(null);
+    setRetentionDraft(null);
     setPendingSwitch(null);
   };
 
@@ -278,13 +348,20 @@ function GatesTab(): React.JSX.Element {
     mutationFn: () =>
       apiFetch(`/projects/${slug}`, {
         method: 'PATCH',
+        // 바뀐 것만 보낸다 — 고치지 않은 정책을 보내면 감사(`project.updated`)에 "정책을 고쳤다" 가 남는다
         body: {
-          gate_policy: {
-            ...policy,
-            spec_gate: { tier_boundaries: next, dynamic_escalation: dynamic },
-            done_gate: nextDone,
-            review_roles: nextRoles,
-          },
+          ...(policyChanged
+            ? {
+                gate_policy: {
+                  ...policy,
+                  spec_gate: { tier_boundaries: next, dynamic_escalation: dynamic },
+                  done_gate: nextDone,
+                  review_roles: nextRoles,
+                  failopen: nextFailopen,
+                },
+              }
+            : {}),
+          ...(retentionChanged ? { retention: nextRetention } : {}),
         },
       }),
     onSuccess: () => {
@@ -293,6 +370,8 @@ function GatesTab(): React.JSX.Element {
       setEvidenceDraft(null);
       setCoverageDraft(null);
       setRolesDraft(null);
+      setFailopenDraft(null);
+      setRetentionDraft(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectBySlug(slug) });
       pushToast({ tone: 'ok', message: t('settings.gates.saved') });
     },
@@ -331,6 +410,29 @@ function GatesTab(): React.JSX.Element {
           }),
         )
       : []),
+    failopenChanged &&
+      t('settings.gates.change_failopen', {
+        from: t('settings.gates.failopen_value', {
+          count: failopen.escalate_count,
+          hours: failopen.window_hours,
+        }),
+        to: t('settings.gates.failopen_value', {
+          count: nextFailopen.escalate_count,
+          hours: nextFailopen.window_hours,
+        }),
+      }),
+    retentionChanged &&
+      nextRetention.activity_days !== retention.activity_days &&
+      t('settings.gates.change_retention_activity', {
+        from: retention.activity_days,
+        to: nextRetention.activity_days,
+      }),
+    retentionChanged &&
+      nextRetention.prompt_blob_ttl_days !== retention.prompt_blob_ttl_days &&
+      t('settings.gates.change_retention_blob', {
+        from: retention.prompt_blob_ttl_days,
+        to: nextRetention.prompt_blob_ttl_days,
+      }),
   ].filter((line): line is string => typeof line === 'string');
 
   const saveBlocked =
@@ -341,6 +443,8 @@ function GatesTab(): React.JSX.Element {
     !valid ||
     !kindsValid ||
     !rolesValid ||
+    !failopenValid ||
+    !retentionValid ||
     !changed;
   const saveTitle = !isAdmin
     ? t('settings.gates.admin_only_title')
@@ -354,9 +458,13 @@ function GatesTab(): React.JSX.Element {
             ? t('settings.gates.coverage_kinds_empty')
             : !rolesValid
               ? t('settings.gates.roles_invalid')
-              : !changed
-                ? t('settings.gates.nothing_changed')
-                : undefined;
+              : !failopenValid
+                ? t('settings.gates.failopen_invalid')
+                : !retentionValid
+                  ? t('settings.gates.retention_invalid')
+                  : !changed
+                    ? t('settings.gates.nothing_changed')
+                    : undefined;
 
   return (
     <section className="flex max-w-2xl flex-col gap-5">
@@ -580,6 +688,97 @@ function GatesTab(): React.JSX.Element {
               )}
             </div>
           </fieldset>
+          {/* 판정할 수 없을 때(REQ-WEB-318) — 2026-10-15 전까지 볼 수만 있었고, 문장이 결정과 다르게 "티어를 올립니다" 라
+              적었다. 격상은 티어가 아니라 admin 알림과 배너다(spec-workflow §4.6) */}
+          <fieldset
+            data-testid="gates-failopen"
+            className="flex flex-col gap-2 border-t border-border pt-4"
+          >
+            <legend className="sr-only">{t('settings.gates.failopen')}</legend>
+            <SectionTitle>{t('settings.gates.failopen')}</SectionTitle>
+            <div className="flex flex-wrap gap-3">
+              <Field label={t('settings.gates.failopen_count')} className="w-40">
+                <Input
+                  data-testid="gates-failopen-count"
+                  inputMode="numeric"
+                  value={failopenTexts.count}
+                  aria-invalid={!positiveInt(failopenTexts.count) || undefined}
+                  onChange={(e) => setFailopenDraft({ ...failopenTexts, count: e.target.value })}
+                  disabled={!isAdmin}
+                />
+              </Field>
+              <Field label={t('settings.gates.failopen_hours')} className="w-40">
+                <Input
+                  data-testid="gates-failopen-hours"
+                  inputMode="numeric"
+                  value={failopenTexts.hours}
+                  aria-invalid={!positiveInt(failopenTexts.hours) || undefined}
+                  onChange={(e) => setFailopenDraft({ ...failopenTexts, hours: e.target.value })}
+                  disabled={!isAdmin}
+                />
+              </Field>
+            </div>
+            {/* 칸의 값으로 바로 다시 그린다 — 몇 시간 안에 몇 번이면 무엇이 일어나는지 한 문장으로 */}
+            <p data-testid="gates-failopen-body" className="text-2xs text-text-faint">
+              {t('settings.gates.failopen_body', {
+                count: nextFailopen.escalate_count,
+                hours: nextFailopen.window_hours,
+              })}
+            </p>
+            {!failopenValid && (
+              <p
+                role="alert"
+                data-testid="gates-failopen-invalid"
+                className="text-xs text-status-danger"
+              >
+                {t('settings.gates.failopen_invalid')}
+              </p>
+            )}
+          </fieldset>
+          {/* 보존 기간(REQ-WEB-318) — 워커의 보존 작업이 읽는 값이다(4.2 §2.2) */}
+          <fieldset
+            data-testid="gates-retention"
+            className="flex flex-col gap-2 border-t border-border pt-4"
+          >
+            <legend className="sr-only">{t('settings.gates.retention')}</legend>
+            <SectionTitle>{t('settings.gates.retention')}</SectionTitle>
+            <div className="flex flex-wrap gap-3">
+              <Field label={t('settings.gates.retention_activity')} className="w-40">
+                <Input
+                  data-testid="gates-retention-activity"
+                  inputMode="numeric"
+                  value={retentionTexts.activity}
+                  aria-invalid={!positiveInt(retentionTexts.activity) || undefined}
+                  onChange={(e) =>
+                    setRetentionDraft({ ...retentionTexts, activity: e.target.value })
+                  }
+                  disabled={!isAdmin}
+                />
+              </Field>
+              <Field label={t('settings.gates.retention_blob')} className="w-40">
+                <Input
+                  data-testid="gates-retention-blob"
+                  inputMode="numeric"
+                  value={retentionTexts.blob}
+                  aria-invalid={!positiveInt(retentionTexts.blob) || undefined}
+                  onChange={(e) => setRetentionDraft({ ...retentionTexts, blob: e.target.value })}
+                  disabled={!isAdmin}
+                />
+              </Field>
+            </div>
+            <p className="text-2xs text-text-faint">
+              {t('settings.gates.retention_hint', { max: REVIEW_PROMPT_BLOB_TTL_DAYS })}
+            </p>
+            {!retentionValid && (
+              <p
+                role="alert"
+                data-testid="gates-retention-invalid"
+                className="text-xs text-status-danger"
+              >
+                {t('settings.gates.retention_invalid')}
+              </p>
+            )}
+          </fieldset>
           {changes.length > 0 && (
             <div data-testid="gates-unsaved" className="text-xs">
               <p className="font-medium text-status-waiting">{t('settings.gates.unsaved')}</p>
@@ -598,11 +797,14 @@ function GatesTab(): React.JSX.Element {
                 size="md"
                 testId="gates-save"
                 block
-                message={t(
-                  specLoosens
-                    ? 'settings.gates.loosen_confirm'
-                    : 'settings.gates.loosen_done_confirm',
-                )}
+                // 해당하는 까닭을 모두 말한다 — 둘이 함께면 하나만 말하던 때가 있었다
+                message={[
+                  specLoosens && t('settings.gates.loosen_confirm'),
+                  doneLoosens && t('settings.gates.loosen_done_confirm'),
+                  retentionShrinks && t('settings.gates.retention_shrink_confirm'),
+                ]
+                  .filter((line): line is string => typeof line === 'string')
+                  .join(' ')}
                 detail={changes.join(' · ')}
                 confirmLabel={t('settings.gates.loosen_save')}
                 pending={save.isPending}
@@ -622,16 +824,6 @@ function GatesTab(): React.JSX.Element {
           </div>
         </Card>
       )}
-
-      <Card>
-        <SectionTitle>{t('settings.gates.failopen')}</SectionTitle>
-        <p className="text-sm text-text-mute">
-          {t('settings.gates.failopen_body', {
-            count: policy.failopen.escalate_count,
-            hours: policy.failopen.window_hours,
-          })}
-        </p>
-      </Card>
     </section>
   );
 }

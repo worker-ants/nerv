@@ -31,6 +31,8 @@ export interface EventFeedProps {
   emptyText: string;
   /** 홈은 여백 있는 줄, 개요는 선으로 가른 목록 */
   variant?: 'airy' | 'ruled';
+  /** 이 종류만 — 개요가 fail-open 기록으로 거를 때(REQ-WEB-319) */
+  types?: readonly string[];
 }
 
 /** 같은 일인가 — 행위자는 이름이 아니라 id 로 가른다(동명이인을 한 줄로 접지 않게) */
@@ -45,9 +47,10 @@ export function EventFeed({
   max,
   emptyText,
   variant = 'ruled',
+  types,
 }: EventFeedProps): React.JSX.Element {
   const t = useT();
-  const feed = useEventFeed(projectSlug, projectId);
+  const feed = useEventFeed(projectSlug, projectId, types);
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const items = (feed.data?.pages ?? []).flatMap((page) => rows(page.items));
   const groups = collapseRepeats(items, repeatKey);

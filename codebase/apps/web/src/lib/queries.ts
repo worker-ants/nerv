@@ -892,12 +892,20 @@ export function useCoverage(slug: string, projectId?: ProjectId): UseQueryResult
 export function useEventFeed(
   slug: string,
   projectId?: ProjectId,
+  /**
+   * 이 종류만(EP-EVT-01 `type`) — 배너의 [기록 보기]가 fail-open 기록으로 거른다(2026-10-15 · REQ-WEB-319). 키는 피드
+   * 키 아래에 둔다 — 피드를 무효화하는 이벤트가 거른 피드도 함께 다시 읽게 한다
+   */
+  types?: readonly string[],
 ): UseInfiniteQueryResult<InfiniteData<{ items: Row[]; next_cursor: string | null }>> {
   const refetchInterval = useLivePolling();
+  const filter = types === undefined || types.length === 0 ? null : types.join(',');
+  const feedKey = queryKeys.projectEvents(projectId ?? PENDING_PROJECT);
   return useInfiniteQuery({
-    queryKey: queryKeys.projectEvents(projectId ?? PENDING_PROJECT),
+    queryKey: filter === null ? feedKey : [...feedKey, filter],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '30' });
+      if (filter !== null) params.set('type', filter);
       if (pageParam !== null) params.set('before', String(pageParam));
       return apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/projects/${slug}/events?${params.toString()}`,

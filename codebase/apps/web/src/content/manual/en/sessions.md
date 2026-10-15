@@ -1,5 +1,7 @@
 A session is **a single run of an agent**. The session monitor shows what is going on.
 
+**If the gate is effectively off, a red banner appears under the title.** It means the gate could not decide and let things through as many times as the set limit within the set time (escalation). The banner shows how many times it happened in the last few hours and the limit. **[See the records]** opens the project overview's recent activity filtered to those records. When no new record comes in for that long, the banner goes away on its own. An admin changes the limit in the gate policy settings.
+
 ## Reading the monitor {#monitor}
 
 The session list is on the left, and the **activity rail** for the selected session is on the right. Select a row and that session's activity appears on the same screen. A monitor should not make you go to another screen to find out why a session stalled. On a narrow screen, the rail collapses. Open **Details** on the card to see the activity instead. **The detail screen shows the same content as the rail**: **What it did**, **Activity**, collapsed runs, expandable raw payloads, and [Load earlier activity]. You see no less on a narrow screen.

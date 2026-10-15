@@ -1045,6 +1045,8 @@ export const ko = {
   'event.finding.resolved': '리뷰 발견 처분됨',
   'event.gate.bypassed': '게이트 자동 통과',
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
+  'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
+  'event.gate.failopen_cleared': '게이트 격상 풀림',
   'event.import.applied': '임포트 적재',
   'event.notification.created': '알림 생성',
   'event.question.answered': '질문에 답변함',
@@ -1649,6 +1651,12 @@ export const ko = {
   'project.metric.total': '요구사항',
   'project.metric.verified': '검증',
   'project.no_events': '아직 기록된 활동이 없습니다.',
+  'project.events_failopen': '판정하지 못하고 통과시킨 기록',
+  'project.events_all': '모든 활동 보기',
+  'failopen.banner.title': '게이트가 사실상 꺼져 있습니다',
+  'failopen.banner.body':
+    '최근 {hours}시간 동안 게이트가 판정하지 못하고 통과시킨 일이 {count}번입니다(격상 기준 {threshold}번). 그 시간 동안 새로 생기지 않으면 풀립니다.',
+  'failopen.banner.events': '기록 보기',
   'project.no_sessions': '지금 실행 중인 세션이 없습니다.',
   'home.project.sessions': '활성 세션',
   'home.project.approvals': '미결 결재',
@@ -2022,11 +2030,26 @@ export const ko = {
   'settings.gates.dynamic': '동적 강화',
   'settings.gates.dynamic_hint':
     '문서의 첫 승인 버전, 에이전트의 같은 실패 3회 신고, 직전 버전보다 크게 줄어든 본문 가운데 하나라도 있으면 티어를 한 단계 올립니다. 여럿이 해당해도 한 단계만 올립니다. 본문이 크게 줄었으면 최소 T2로 올려 사람이 한 번 봅니다',
-  'settings.gates.failopen': '판정할 수 없을 때 (보기 전용)',
+  'settings.gates.failopen': '판정할 수 없을 때',
   'settings.gates.failopen_body':
-    '판정할 수 없으면 막지 않고 진행한 뒤 기록합니다. {hours}시간 안에 {count}번 반복되면 티어를 올립니다.',
+    '판정할 수 없으면 막지 않고 진행한 뒤 기록합니다. {hours}시간 안에 {count}번 이상 쌓이면 격상합니다. 격상하면 admin에게 중요 알림을 보내고 세션 모니터와 리뷰 센터에 배너를 표시합니다. 그 시간 동안 새로 쌓이지 않으면 풀립니다.',
+  'settings.gates.failopen_count': '격상하는 횟수',
+  'settings.gates.failopen_hours': '시간 창(시간)',
+  'settings.gates.failopen_invalid': '횟수와 시간은 1 이상의 정수로 적으세요.',
+  'settings.gates.failopen_value': '{hours}시간 안에 {count}번',
+  'settings.gates.change_failopen': '격상 기준 {from} → {to}',
+  'settings.gates.retention': '보존 기간',
+  'settings.gates.retention_activity': '활동 원문(일)',
+  'settings.gates.retention_blob': '리뷰 프롬프트 원문(일)',
+  'settings.gates.retention_hint':
+    '기간이 지난 세션 활동 원문은 도구별 횟수만 세션에 남기고 지웁니다. 리뷰 프롬프트 원문도 기간이 지나면 지웁니다. 리뷰가 들어올 때 {max}일 만료가 함께 정해지므로 {max}일보다 길게 남지는 않습니다. 줄이면 다음 보존 작업에서 기간이 지난 원문이 바로 지워집니다. 결론(요약 · 발견 · 처분)은 지우지 않습니다.',
+  'settings.gates.retention_invalid': '보존 기간은 1 이상의 정수(일)로 적으세요.',
+  'settings.gates.change_retention_activity': '활동 원문 보존 {from}일 → {to}일',
+  'settings.gates.change_retention_blob': '리뷰 프롬프트 원문 보존 {from}일 → {to}일',
+  'settings.gates.retention_shrink_confirm':
+    '보존 기간이 줄어듭니다. 다음 보존 작업에서 기간이 지난 원문이 지워지고 되돌릴 수 없습니다.',
   'settings.gates.lead':
-    '여기서는 티어 경계와 동적 강화, 작업 완료 조건을 바꿀 수 있습니다. 아래 "판정할 수 없을 때" 값은 볼 수만 있습니다.',
+    '여기서는 티어 경계와 동적 강화, 작업 완료 조건, 판정할 수 없을 때의 격상 기준, 보존 기간을 바꿀 수 있습니다.',
   'settings.gates.done_gate': '작업 완료 조건',
   'settings.gates.done_gate_hint':
     '작업을 완료로 옮기기 전에 확인하는 조건입니다. 채우지 못한 작업은 완료되지 않고 무엇이 빠졌는지 알려 줍니다.',

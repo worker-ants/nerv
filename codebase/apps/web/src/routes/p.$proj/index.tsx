@@ -3,7 +3,7 @@
 // 진입 시 `project:{id}` 룸에 join 한다(§1.4 룸 2종). join 하지 않으면 이 화면은 조용히
 // 낡은 데이터를 보여준다 — 폴백 폴링이 있지만 그건 끊겼을 때의 안전망이지 기본 경로가 아니다.
 
-import { ACTIVE_SESSION_STATES } from '@nerv/schema';
+import { ACTIVE_SESSION_STATES, NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
@@ -34,11 +34,26 @@ import { asProjectId } from '../../lib/query-keys.js';
 import { NO_AREA } from '../../features/coverage-drilldown/coverage-search.js';
 import type { CoverageFilter } from '../../features/coverage-drilldown/coverage-search.js';
 
-export const Route = createFileRoute('/p/$proj/')({ component: ProjectOverview });
+/**
+ * **fail-open 기록으로 거른 활동**(2026-10-15 · 사람 결정 · REQ-WEB-319). S5 · S6 의 격상 배너가 [기록 보기]로 여기를 연다 —
+ * 판정하지 못하고 통과시킨 일과 격상 · 풀림만 보인다. 주소에 남아 링크로 건넬 수 있다.
+ */
+const FAILOPEN_EVENTS: readonly string[] = [
+  NERV_EVENT.GATE_FAILOPEN,
+  NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED,
+  NERV_EVENT_PHASE2.GATE_FAILOPEN_CLEARED,
+];
+
+export const Route = createFileRoute('/p/$proj/')({
+  validateSearch: (search: Record<string, unknown>): { events?: 'failopen' } =>
+    search['events'] === 'failopen' ? { events: 'failopen' } : {},
+  component: ProjectOverview,
+});
 
 function ProjectOverview(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
+  const { events: eventFilter } = Route.useSearch();
   const project = useProject(proj);
   const projectId = asProjectId(project.data?.['id']);
   const coverage = useCoverage(proj, projectId);
@@ -297,13 +312,28 @@ function ProjectOverview(): React.JSX.Element {
 
       {/* 트리는 **셸 사이드바가 소유한다**(§1.3) — 와이어프레임 §2.2 의 좌측 열이 그것이다.
           여기서 또 그리면 같은 트리가 나란히 두 개 뜬다(문서 대조에서 발견). */}
-      <section className="max-w-content">
-        <SectionTitle>{t('project.recent_events')}</SectionTitle>
+      <section className="max-w-content" data-testid="project-events">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <SectionTitle>
+            {eventFilter === 'failopen' ? t('project.events_failopen') : t('project.recent_events')}
+          </SectionTitle>
+          {eventFilter === 'failopen' && (
+            <Link
+              to="/p/$proj"
+              params={{ proj }}
+              data-testid="project-events-all"
+              className="text-xs text-link hover:underline"
+            >
+              {t('project.events_all')}
+            </Link>
+          )}
+        </div>
         {/* 홈과 **같은 피드**다(REQ-WEB-210) — 이름도 모양도 달랐고, 30줄에서 끝났다 */}
         <EventFeed
           projectSlug={proj}
           projectId={asProjectId(project.data?.['id'])}
           emptyText={t('project.no_events')}
+          {...(eventFilter === 'failopen' ? { types: FAILOPEN_EVENTS } : {})}
         />
       </section>
     </PageBody>

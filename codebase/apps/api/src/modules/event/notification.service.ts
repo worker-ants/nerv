@@ -57,6 +57,10 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.TASK_BLOCKED]: 'high',
   [NERV_EVENT.TASK_REBRIEF_REQUIRED]: 'high',
   [NERV_EVENT.GATE_BYPASSED]: 'high',
+  // **fail-open 격상**(2026-10-15 · 사람 결정 · REQ-API-319) — 게이트가 사실상 꺼졌다. admin 에게 중요 알림이다. 누군가의
+  // 세션이 그 결정을 기다리며 멈춰 있지는 않아 critical 이 아니라 high 다(면제 `gate.bypassed` 와 같은 무게 · 같은 사람).
+  // 풀림(`gate.failopen_cleared`)은 카탈로그에 없다 — 기록과 배너가 사라지는 것으로 충분하다
+  [NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED]: 'high',
   // **지연 결재**(2026-10-15 · 사람 결정 · REQ-API-305) — 결정할 수 있는데 요청 알림을 받지 못한 사람(직군 자리 결재의
   // admin)에게 가는 첫 알림이다. 그 사람에게는 오늘 볼 일이라 중요다. 기본 큐 결재는 받는 사람이 없다(아래 라우팅)
   [NERV_EVENT.APPROVAL_OVERDUE]: 'high',
@@ -444,6 +448,9 @@ export class NotificationService {
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
     if (event.type === NERV_EVENT.APPROVAL_OVERDUE) return this.escalationTargets(event);
+    // **격상은 admin 에게만**(2026-10-15 · REQ-API-319) — 정책을 고칠 수 있는 사람이다. 역할 큐(admin · planner)로 보내면
+    // 고칠 수 없는 사람의 배지가 오른다
+    if (event.type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED) return this.adminTargets(event);
     if (event.type === NERV_EVENT.APPROVAL_EXPIRED) {
       // **요청자에게 알린다**(2026-10-15 · REQ-API-304) — 다시 낼지 정할 사람이다. 행위자(없다)가 아니라 payload 가 든다
       const requester = event.payload?.['requested_by_user_id'];
@@ -759,6 +766,22 @@ export class NotificationService {
    * 조직 단위 멤버십(`project_id IS NULL`)은 조직을 함께 봐야 한다 — 보지 않으면 A 조직의
    * planner 가 B 조직 프로젝트의 알림을 받는다(FR-14 의 경계가 여기서 샜다).
    */
+  /** 그 프로젝트의 admin(조직 단위 admin 포함) — 행위자는 뺀다. 조직 경계는 역할 큐와 같다(REQ-API-125) */
+  private async adminTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+  }): Promise<string[]> {
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT m.user_id FROM membership m
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role = 'admin'
+         ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
   private async roleQueue(event: {
     project_id: string;
     actor_user_id: string | null;

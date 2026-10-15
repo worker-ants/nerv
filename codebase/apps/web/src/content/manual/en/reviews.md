@@ -1,5 +1,7 @@
 The review center is where you see the **findings** about your code and specs in one place. A review is the result of an agent checking the work before a person reads it. A person decides what to fix.
 
+**If the gate is effectively off, a red banner appears under the title.** It is the same banner as on the session monitor: the gate could not decide and let things through as many times as the set limit within the set time. **[See the records]** shows those records, and the banner goes away when no new record comes in for that long.
+
 ## Review sessions and findings {#review-sessions}
 
 A **review session** is the record of one change reviewed under one kind. Findings come from these sessions. There are four kinds of review.

@@ -23,7 +23,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.93 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.94 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.94 변경(2026-10-15 — fail-open 정책 편집과 격상, Phase 2 묶음 1의 셋째 · **사람 결정**): **E18-S01 · E18-S02 `done` · §1.4 E18 행과 합계 · §1.1 · §6.5 첫 단락.** admin 이 S8 게이트 정책 탭에서 격상 기준과 보존 기간을 고치고, 시간 창 안의 fail-open 이 기준 이상이면 격상해 admin 에게 중요 알림을 보내며 S5 · S6 에 배너를 표시한다. 그 창 동안 새 fail-open 이 없으면 풀린다([4.4 API](api.md) REQ-API-318 ~ 320 · [4.5 화면 명세](screens.md) REQ-WEB-318 · 319). 설정 화면 문구와 매뉴얼의 「티어를 올립니다」도 고쳤다. 합계는 `done` 82 · 부분 1 · `backlog` 18 이다.
 >
 > v2.93 변경(2026-10-15 — Phase 2 묶음 1의 셋째 앞, **사람 지시**): **§1.4 E16 · E17 행의 근거.** 묶음 1의 둘째가 남긴 배포 위험 둘을 고쳤다. 새로 뜬 알림 워커가 넓어진 라우팅 규칙을 지난 이벤트에 소급하지 않는다 — 최근 한 시간만 다시 본다([4.4 API](api.md) REQ-API-317). 작업의 최신 커밋을 찾는 질의에 인덱스를 둔다([4.3 데이터베이스](database.md) REQ-DB-045 · `0052`). 스토리 수 · 상태는 그대로다.
 >
@@ -606,7 +608,7 @@ referenced_by:
 ### 1.1 ID·상태·표기 규약
 
 - **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 80 · 부분 1 · `backlog` 20(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 82 · 부분 1 · `backlog` 18(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -646,12 +648,12 @@ referenced_by:
 | E15 커버리지 · 구현 축 | 3 | — | — | `routes/p.$proj/coverage.tsx` · `features/coverage-drilldown/`(E15-S01 드릴다운) · `spec/impl-status.ts`(출처를 쓴다 · `commitScopeClearSql` — E15-S03 커밋 범위) · `import.service.ts` · `drizzle/0051`(E15-S02 출처) · `spec.service.ts`(`coverage` · `requirement`) · `review/commit-scope.ts` · `test/integration/coverage-drilldown.spec.ts` · `commit-scope.spec.ts` |
 | E16 게이트 판정 완성 | 1 | — | 3 | `task.service.ts`(done 게이트 — `judgeReviewKinds` · `judgeAnyReview`가 작업의 최신 커밋을 본 라운드만 센다 · `stale_reviews` · `gate.failopen`) · `review/commit-scope.ts`(최신 커밋 · 같은 커밋 판정) · `review/review-gate.ts`(`headMatch: 'commit'`) · `test/integration/commit-scope.spec.ts`(E16-S01) · `drizzle/0052`(작업의 증적 인덱스 `evidence_task` — 최신 커밋을 표 전체에서 찾지 않는다) — 남은 S02~S04 는 착수 전 |
 | E17 알림 확장 | 1 | — | 2 | `event/notification.service.ts`(`involvedTargets` — 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자 · E17-S01) · `review.service.ts`(`finding.resolved` 의 `review_session_id`) · `resumePoint`(새로 뜬 워커는 최근 한 시간만 다시 본다 — 넓어진 규칙을 지난 이벤트에 소급하지 않는다 · [4.4 API](api.md) REQ-API-317) · `test/integration/notification-involved.spec.ts` — 남은 S02(워치) · S03(Slack)은 착수 전 |
-| E18 fail-open · 보존 | — | — | 3 | 착수 전 — `zod/policy.ts`(`failopen`) · `routes/settings/gates.tsx`(보기 전용) · `worker/jobs/retention.job.ts` |
+| E18 fail-open · 보존 | 2 | — | 1 | `routes/settings/gates.tsx`(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · `task/failopen.ts` · `task/failopen.service.ts`(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · `worker/jobs/failopen.job.ts` · `components/failopen-banner.tsx`(S5 · S6 배너) · `test/integration/failopen-escalation.spec.ts` — 남은 S03(보존 워커 완성)은 착수 전 |
 | E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
 | E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |
 | E21 이관 · 운영 | — | — | 4 | 착수 전 — `plugin/bin/nerv-outbox` · `worker/jobs/export.job.ts` |
 | E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **80** | **1** | **20** | `backlog` 20은 모두 Phase 2 스토리다(§6) |
+| **합계** | **82** | **1** | **18** | `backlog` 18은 모두 Phase 2 스토리다(§6) |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -1328,7 +1330,7 @@ FR-12 ◐ → ●. 성공 기준 2-10의 대상이다. **이미 있는 것**: �
 
 ### 6.5 E18 — fail-open · 보존 (D-14 · NFR-01)
 
-**이미 있는 것**: fail-open 기록(`gate.failopen` — 플랜 승인 게이트) · 정책 키 `failopen.escalate_count` · `failopen.window_hours`(기본 3회 · 24시간) · `retention` 키 둘의 집행. 화면은 두 값을 보기만 하고 격상하는 코드는 없다. 설정 화면 문구와 매뉴얼은 「티어를 올립니다」라 적어 2026-10-15 결정(알림과 배너)과도 다르다.
+**이미 있는 것**: fail-open 기록(`gate.failopen` — 플랜 승인 게이트 · done 게이트) · 정책 키 `failopen.escalate_count` · `failopen.window_hours`(기본 3회 · 24시간) · `retention` 키 둘의 집행. 2026-10-15 에 S01 · S02 가 들어왔다 — 두 값은 S8 게이트 정책 탭에서 admin 이 고치고, 창 안의 횟수로 격상 · 해제하며, S5 · S6 에 배너가 표시된다([4.4 API](api.md) REQ-API-318 ~ 320 · [4.5 화면 명세](screens.md) REQ-WEB-318 · 319). 설정 화면 문구와 매뉴얼의 「티어를 올립니다」도 함께 고쳤다. 남은 것은 S03(보존 워커 완성)이다.
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |

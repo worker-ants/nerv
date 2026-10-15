@@ -72,6 +72,7 @@ import {
 } from '../review/commit-scope.js';
 import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
+import { FailopenService } from './failopen.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
 
 /**
@@ -242,6 +243,8 @@ export class TaskService {
     // 플랜 승인 카드를 만드는 자리 — 결재를 만드는 규칙은 저 서비스 한 곳이다(D-05)
     private readonly approvals: ApprovalService,
     @InjectDb() private readonly db: NervDb,
+    // fail-open 을 남긴 직후 격상을 본다(2026-10-15 · REQ-API-319) — 판정은 저 서비스 한 곳이다
+    private readonly failopen: FailopenService,
   ) {}
 
   /**
@@ -1550,9 +1553,9 @@ export class TaskService {
       // 있고 내는 곳이 없었다. 게이트가 판정하지 못한 채 통과시킨 것은 **감사가 알아야
       // 할 사실**이다: 그것이 fail-open 을 허용하는 조건이었다(D-14 — 통과·관측·격상).
       this.logger.warn(`플랜 승인 게이트 판정 실패 — task=${input.taskId}: ${String(error)}`);
-      await this.events
-        .transact(async (_tx, emit) =>
-          emit({
+      const recorded = await this.events
+        .transact(async (_tx, emit) => {
+          await emit({
             type: NERV_EVENT.GATE_FAILOPEN,
             projectId: input.projectId,
             subjectType: 'task',
@@ -1560,12 +1563,16 @@ export class TaskService {
             actorUserId: null,
             isAgent: false,
             payload: { gate: FAILOPEN_GATE.PLAN_APPROVAL, error: String(error) },
-          }),
-        )
+          });
+          return true;
+        })
         // 기록에 실패해도 통과는 통과다 — fail-open 의 뜻이 그것이다
         .catch((emitError: unknown) => {
           this.logger.warn(`fail-open 기록 실패: ${String(emitError)}`);
+          return false;
         });
+      // 남긴 직후 격상을 본다(2026-10-15 · REQ-API-319) — 실패해도 던지지 않는다
+      if (recorded) await this.failopen.afterFailopen(input.projectId);
       return { required: false, reason: null };
     }
   }
@@ -2430,7 +2437,9 @@ export class TaskService {
     blockedReason?: string | null;
     evidence?: { kind: string; locator: string; note?: string | null | undefined }[];
   }): Promise<{ status: string; gate?: { ok: boolean; missing: string[] } }> {
-    return this.events.transact(async (tx, emit) => {
+    /** done 이 fail-open 을 남겼는가 — 커밋한 뒤에 격상을 본다(2026-10-15 · REQ-API-319) */
+    const after = { failopen: false };
+    const result = await this.events.transact(async (tx, emit) => {
       // 키로 왔든 UUID 로 왔든 같은 작업을 가리킨다(§1.4b)
       const taskId = await this.resolveTaskId(tx, input.projectId, input.taskId);
       const { rows } = await tx.execute<{
@@ -2611,6 +2620,7 @@ export class TaskService {
               ...(gate.failopen.kinds.length > 0 ? { kinds: gate.failopen.kinds } : {}),
             },
           });
+          after.failopen = true;
         }
         await this.refreshImplStatus(tx, task.source_requirement_id);
         // 응답은 그대로다 — 감사 재료는 이벤트의 것이다
@@ -2691,6 +2701,10 @@ export class TaskService {
       await this.refreshImplStatus(tx, task.source_requirement_id);
       return { status: input.status };
     });
+    // **격상은 done 의 트랜잭션 밖에서 본다** — 확인이 실패해도 닫힌 done 은 그대로다(fail-open 의 뜻). 실패해도 던지지
+    // 않고, 워커 잡이 다시 본다(`FailopenService`)
+    if (after.failopen) await this.failopen.afterFailopen(input.projectId);
+    return result;
   }
 
   /**
