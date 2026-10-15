@@ -313,6 +313,8 @@ describe('패키지 구성', () => {
   it.each([
     '.claude-plugin/marketplace.json',
     'agents/nerv-spec-writer.md',
+    'agents/nerv-code-reviewer.md',
+    'agents/nerv-consistency-checker.md',
     'bin/nerv-hook-forward',
     'bin/nerv-outbox',
     'bin/nerv-init',
@@ -338,6 +340,8 @@ describe('패키지 구성', () => {
       'hooks/hooks.json',
       'hooks/hooks.http.json',
       'agents/nerv-spec-writer.md',
+      'agents/nerv-code-reviewer.md',
+      'agents/nerv-consistency-checker.md',
       'codex/config.toml',
       'codex/AGENTS.md',
       'statusline/nerv-statusline.sh',
@@ -377,13 +381,81 @@ describe('패키지 구성', () => {
       expect(frontmatter).not.toContain(`- ${forbidden}`);
     }
   });
+});
 
-  it('리뷰 서브에이전트는 아직 없다 — 스킬만 들어왔다', () => {
-    // `/nerv:review` 는 절차이고, 서브에이전트는 **역할 분리**다. 리뷰를 전담하는
-    // 에이전트를 두는 것은 라우팅·커버리지 판정(FR-10 둘째 단)과 한 몸이라 아직 이르다.
-    expect(existsSync(join(here, 'skills/review/SKILL.md'))).toBe(true);
-    expect(existsSync(join(here, 'agents/nerv-code-reviewer.md'))).toBe(false);
-    expect(existsSync(join(here, 'agents/nerv-consistency-checker.md'))).toBe(false);
+/**
+ * **리뷰 서브에이전트 둘 — 종류마다 직접 제출하고 처분은 메인 세션이 한다**(2026-10-15 사람 결정 · REQ-PLG-031).
+ *
+ * 예전에는 이 자리가 부재를 단언했다 — 리뷰를 전담하는 에이전트는 라우팅 · 커버리지 판정(FR-10 둘째 단)과 한 몸이라
+ * 이르다고 봤다. 그 집행이 2026-09-28 에 들어왔고(REQ-API-250 · 252) 남은 것이 이 둘이었다.
+ *
+ * 서버는 서브에이전트의 제출과 메인 세션의 제출을 구별하지 못한다(같은 토큰 · 같은 세션). 그래서 역할 분리는
+ * **도구 목록**이 전부다 — 이 검사가 그 목록을 센다.
+ */
+describe('REQ-PLG-031 — 리뷰 서브에이전트 둘', () => {
+  const REVIEWERS = [
+    ['nerv-code-reviewer', 'code'],
+    ['nerv-consistency-checker', 'consistency'],
+  ] as const;
+
+  /** frontmatter 의 `tools` 목록 — 줄마다 `  - 이름` 이다 */
+  function toolsOf(agent: string): string[] {
+    const frontmatter = file(`agents/${agent}.md`).split('---')[1] ?? '';
+    return [...frontmatter.matchAll(/^\s+-\s+(\S+)\s*$/gm)].map((m) => m[1]!);
+  }
+
+  it.each(REVIEWERS)('%s 의 이름이 파일 이름과 같다 — 훅의 agent_type 이 이 이름이다', (agent) => {
+    const frontmatter = file(`agents/${agent}.md`).split('---')[1] ?? '';
+    expect(frontmatter).toContain(`name: ${agent}\n`);
+  });
+
+  it.each(REVIEWERS)('%s 는 코드 쓰기 도구와 Bash 를 갖지 않는다', (agent) => {
+    for (const tool of toolsOf(agent)) {
+      expect(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']).not.toContain(tool);
+      expect(tool.startsWith('Bash'), `${agent}: ${tool}`).toBe(false);
+    }
+  });
+
+  it.each(REVIEWERS)(
+    '%s 는 제출 도구를 설치 경로별 이름 둘로 갖고 처분 도구는 갖지 않는다',
+    (agent) => {
+      const tools = toolsOf(agent);
+      expect(tools).toContain('mcp__nerv__nerv_review_submit');
+      expect(tools).toContain('mcp__plugin_nerv_nerv__nerv_review_submit');
+      // 처분은 메인 세션의 몫이다 — 자기 발견을 스스로 닫는 리뷰어는 게이트를 형식으로 만든다
+      expect(tools.some((t) => t.endsWith('nerv_finding_resolve'))).toBe(false);
+      // 쓰는 MCP 도구는 모두 두 이름이 짝이다 — 한쪽만 있으면 그 설치 경로에서 도구가 없는 것과 같다
+      for (const tool of tools.filter((t) => t.startsWith('mcp__nerv__'))) {
+        expect(tools).toContain(tool.replace('mcp__nerv__', 'mcp__plugin_nerv_nerv__'));
+      }
+      for (const tool of A3_TOOLS) expect(tools.some((t) => t.endsWith(tool))).toBe(false);
+    },
+  );
+
+  it.each(REVIEWERS)('%s 는 자기 종류(%s)로 제출한다고 적는다', (agent, kind) => {
+    expect(file(`agents/${agent}.md`)).toContain(`kind: "${kind}"`);
+  });
+
+  it('정합 리뷰어는 스펙 읽기 도구를 갖고 스펙 쓰기 도구는 갖지 않는다 — 문서 간 정합은 서버 사전 검토의 몫이다', () => {
+    const tools = toolsOf('nerv-consistency-checker');
+    for (const tool of ['nerv_spec_get', 'nerv_task_get']) {
+      expect(tools).toContain(`mcp__nerv__${tool}`);
+    }
+    for (const tool of [
+      'nerv_spec_draft_upsert',
+      'nerv_spec_relate',
+      'nerv_spec_comment_resolve',
+    ]) {
+      expect(tools.some((t) => t.endsWith(tool))).toBe(false);
+    }
+    expect(file('agents/nerv-consistency-checker.md')).toContain('`nerv_spec_check` 가 맡는다');
+  });
+
+  it('review 스킬이 둘에게 맡기고 처분은 자기만 하며 Codex 에서는 직접 낸다고 말한다', () => {
+    const md = file('skills/review/SKILL.md');
+    for (const [agent] of REVIEWERS) expect(md).toContain(`\`${agent}\``);
+    expect(md).toContain('처분은 이 세션만 한다');
+    expect(md).toContain('Codex 에서는 서브에이전트를 쓸 수 없다');
   });
 });
 

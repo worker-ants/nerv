@@ -12,6 +12,7 @@ referenced_by:
   - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md
+  - 04-mvp/plugin.md
   - 04-mvp/importer.md
   - 04-mvp/backlog.md
   - README.md

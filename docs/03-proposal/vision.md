@@ -6,6 +6,7 @@ referenced_by:
   - 02-research/collab-platforms.md
   - 02-research/integration-tech.md
   - 03-proposal/architecture.md
+  - 03-proposal/agent-integration.md
   - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md

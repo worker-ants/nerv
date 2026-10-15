@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.55 · 2026-10-15 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.56 · 2026-10-15 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.56 변경(2026-10-15 — 리뷰 서브에이전트 둘, **사람 결정**): **§3.1 트리 주석 두 줄과 결정 기록 · §3.2 `/nerv:review` 행.** 서브에이전트 `nerv-code-reviewer` · `nerv-consistency-checker`를 플러그인에 넣고 각자 자기 리뷰 종류(`code` · `consistency`)로 직접 제출하게 한다(권장안 A). 처분은 메인 세션의 `/nerv:review`만 한다. 서버는 바꾸지 않았고, 서버가 서브에이전트의 제출을 메인 세션의 제출과 구별하지 못한다는 한계를 적었다([4.6 플러그인](../04-mvp/plugin.md) REQ-PLG-031).
 >
 > v0.55 변경(2026-10-15 — 과거 버전을 되살리기, **사람 결정**): **§2.3 `nerv_spec_draft_upsert` 행 · §3.2 `/nerv:spec` 행.** `revert_to_version?`(옛 버전 번호)이 오면 서버가 그 버전의 본문을 그대로 복사해 새 초안을 만든다 — 본문은 넣지 않는다. 도구를 새로 두지 않은 것은 결과가 이 도구의 새 초안과 같기 때문이다. 열린 초안이 있으면 `open_draft_exists`다([4.4 API](../04-mvp/api.md) REQ-API-308).
 >
@@ -401,8 +403,8 @@ nerv-plugin/
     approve/SKILL.md              # /nerv:approve  — 사람이 세션에서 대답한 승인을 전한다(2026-10-11)
   agents/
     nerv-spec-writer.md           # 스펙 초안 전용(코드 쓰기 도구 미보유)
-    nerv-code-reviewer.md         # 리뷰 산출 → 파일 대신 도구 제출
-    nerv-consistency-checker.md   # 스펙 ↔ 구현 일관성
+    nerv-code-reviewer.md         # 코드 리뷰 — 종류 code 로 직접 제출(2026-10-15)
+    nerv-consistency-checker.md   # 스펙 ↔ 구현 정합 리뷰 — 종류 consistency 로 직접 제출(2026-10-15)
   bin/nerv-hook-forward           # Codex 공용 포워더(§4.2)와 동일 바이너리
   statusline/nerv-statusline.sh   # 클레임·리스·겹침 표시(§3.5)
 ```
@@ -410,6 +412,14 @@ nerv-plugin/
 - SKILL.md는 agentskills.io 오픈 표준이라 **같은 파일을 Codex에도 배포**한다. 규약 문서를 두 벌 관리하지 않는 것이 핵심이다.
 - 서브에이전트 frontmatter의 `hooks`/`mcpServers`/`permissionMode`는 **플러그인 배포 시 보안상 무시**되므로, 훅과 MCP 설정은 반드시 플러그인 루트의 `hooks/hooks.json`·`.mcp.json`에 둔다.
 - 역할 분리는 clemvion의 검증된 자산을 계승한다 — 스펙을 쓰는 에이전트와 코드를 쓰는 에이전트를 분리하고, 리뷰어는 자기 리포트를 직접 파일로 쓰지 못하게 한다(`clemvion:.claude/docs/subagent-call-contract.md` §7의 report-file 가드).
+
+**결정 — 리뷰 서브에이전트 둘은 종류마다 직접 제출한다**(2026-10-15 · 사람 결정 · 권장안 A · [4.6 플러그인](../04-mvp/plugin.md) REQ-PLG-031).
+
+- **`nerv-code-reviewer`** 는 커밋 범위의 코드를 읽고 종류 `code` 로, **`nerv-consistency-checker`** 는 작업의 스펙 · 요구사항이 구현에 반영됐는지 대조해 종류 `consistency` 로 `nerv_review_submit` 을 직접 부른다. 정합 리뷰의 범위는 **문서와 diff 사이**다. 문서끼리의 정합(요구사항 번호의 소유 · 링크 · 모순)은 서버의 사전 검토 `nerv_spec_check` 가 맡는다. 기준(작업 · 스펙 키)이 없으면 정합 리뷰는 제출하지 않는다 — 대조할 문서 없이 낸 "문제 없음" 은 게이트에서 통과로 읽힌다.
+- **처분은 메인 세션의 `/nerv:review` 만 한다.** 두 서브에이전트에는 코드 쓰기 도구 · Bash · 처분 도구(`nerv_finding_resolve`)가 없다. 리뷰어는 자기 리포트를 파일로 쓰지 않을 뿐 아니라(위 report-file 가드의 계승) 자기 발견을 닫지도 못한다. diff 는 메인 세션이 `.nerv/review/` 에 파일로 써서 넘긴다.
+- **서버는 바꾸지 않는다.** 필요한 것이 이미 있었다 — 리뷰 종류 넷, 같은 브랜치 · 종류 · 커밋의 제출을 리뷰어 여럿의 한 라운드로 합치기, 종류별 필수 역할(`review_roles`), 서브에이전트 시작 · 종료 훅의 관찰. 제출의 이름표(`reviewer.role`)는 맡긴 쪽이 준 필수 역할, 없으면 서브에이전트 이름이다. 이 이름표는 토큰의 역할과 관계가 없다 — 토큰의 역할은 제출할 수 있는지(`review:submit`)만 정한다.
+- **한계 둘.** ① 서버는 서브에이전트의 제출과 메인 세션의 제출을 구별하지 못한다. 같은 토큰 · 같은 MCP 세션이고, 서브에이전트 훅은 세션 활동에 이름을 남길 뿐 제출과 잇지 않는다. 역할 분리는 서브에이전트의 도구 목록뿐이다 — clemvion 에서도 역할 분리를 강제한 것은 문서뿐이었다([1.1 clemvion 하네스 분석](../01-problem/clemvion-analysis.md) §2.1). ② 리뷰어와 작성자가 같은 모델이라 실패가 상관된다([3.1 비전과 핵심 시나리오](vision.md) §2.6). AI 리뷰는 1차 필터이고 위험 판단은 사람이 한다.
+- **Codex 는 서브에이전트를 읽지 않는다**([4.6 플러그인](../04-mvp/plugin.md) §5.4 실측). Codex 에서는 지금처럼 메인 세션이 종류마다 직접 제출한다.
 
 - [Create plugins — Claude Code Docs](https://code.claude.com/docs/en/plugins) (2026-08-13 확인): 플러그인 구성요소(`skills/`·`agents/`·`hooks/hooks.json`·`.mcp.json`·`bin/`)와 마켓플레이스 배포 경로.
 - [Create custom subagents — Claude Code Docs](https://code.claude.com/docs/en/sub-agents) (2026-08-13 확인): 플러그인 배포 시 `hooks`/`mcpServers`/`permissionMode` frontmatter 무시, `SubagentStart`/`SubagentStop` 훅의 `agent_id`/`agent_type`.
@@ -422,7 +432,7 @@ nerv-plugin/
 | `/nerv:next` | 수동 또는 세션 시작 | 후보 조회 → 위임 명세 확인 → 클레임 → 작업 브랜치 준비 | `nerv_task_next` → `nerv_task_claim` |
 | `/nerv:spec` | 수동(서브커맨드) 또는 스펙 언급 시 자동(`paths` 매칭) | **기획자의 주 작성 경로** — 개발자가 구현 중 스펙 결함을 만났을 때만이 아니다. `new`(트리 위치·타입 확인 후 초안 생성) / `edit`(코멘트·검토 피드백 반영) / `check`(사전 검토 셀프서비스) / `comments`(open 코멘트 조회·해소) / `submit`(검토 요청 — A3 승인 유지) / `revert`(옛 버전의 본문으로 새 초안 — 2026-10-15). 저장·제출 응답의 `web_url`(S3 딥링크)은 터미널에 표시한다. **본문을 비신뢰로 취급하는 규약 포함** | `nerv_spec_tree/search/get(include=comments)`, `nerv_spec_draft_upsert`, `nerv_spec_check`, `nerv_spec_comment_resolve`, `nerv_spec_submit_review` |
 | `/nerv:impl` | 구현 착수 | 하트비트 60초 루프, 진행 보고, 증적 수집(commit/PR/test) | `nerv_task_heartbeat`, `nerv_task_update` |
-| `/nerv:review` | 구현 완료 후 강제 단계 | 리뷰 실행 후 **파일이 아니라 도구로 제출**, finding 해소 추적 | `nerv_review_submit`, `nerv_finding_resolve` |
+| `/nerv:review` | 구현 완료 후 강제 단계 | 리뷰 실행 후 **파일이 아니라 도구로 제출**, finding 해소 추적. Claude Code 에서는 코드 · 정합 리뷰를 서브에이전트 둘(`nerv-code-reviewer` · `nerv-consistency-checker`)에게 맡겨 각자 제출하게 하고 처분만 직접 한다(2026-10-15 · §3.1) | `nerv_review_submit`, `nerv_finding_resolve` |
 | `/nerv:question` | 판단 불가·경계 이탈 | 선택지를 만들어 에스컬레이션하고 답변 폴링 | `nerv_question_create` |
 | `/nerv:mirror` | 사람이 스펙 문서를 로컬 폴더에 받아 두려 할 때(2026-10-07) | 목록과 다운로드를 스크립트(`bin/nerv-mirror`)에 맡기고 받은 파일은 읽지 않는다 — 문서 본문이 대화에 들어오지 않는다 | 없음(MCP 도구를 쓰지 않는다 · [4.6 플러그인](../04-mvp/plugin.md) §2.7) |
 | `/nerv:approve` | admin · planner가 세션에서 승인하겠다고 할 때(2026-10-11) | 그 버전을 서버가 준 값 그대로 보여 주고, 사람이 승인한다고 답한 뒤에만 승인을 전한다 — 문서 하나에 대답 하나 | `nerv_spec_get`, `nerv_spec_check` → `nerv_spec_approve`(A3) |
