@@ -33,6 +33,7 @@ import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
 import { EventService } from '../event/event.service.js';
 import { TaskService } from '../task/task.service.js';
+import { resolveRequirementRef } from '../spec/requirement-ref.js';
 import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
@@ -53,6 +54,10 @@ export interface SubmitFinding {
   file?: string | null;
   line?: number | null;
   symbol?: string | null;
+  /**
+   * 지적이 나온 요구사항 — **고정 ID(`REQ-…`)든 UUID 든** 받는다(2026-10-15 · 사람 결정 · REQ-API-311). 저장 전에
+   * `resolveRequirementRef()` 가 그 프로젝트의 UUID 로 푼다. 못 풀면 제출 전체가 409 `not_found` 다
+   */
   requirement_id?: string | null;
   spec_version_id?: string | null;
   /** `spec_drift` 등 — 필터의 축이다(screens.md §2.6a) */
@@ -339,13 +344,16 @@ export class ReviewService {
         input.taskId == null
           ? null
           : await this.tasks.resolveTaskId(tx, input.projectId, input.taskId);
+      // **요구사항은 고정 ID 로도 온다**(2026-10-15 · 사람 결정 · REQ-API-311). 세션 · 리포트를 쓰기 전에 푼다 —
+      // 하나라도 못 풀면 제출 전체가 거절되고 라운드가 남지 않는다
+      const findings = await this.resolveFindingRequirements(tx, input.projectId, input.findings);
       const session = await this.sessionFor(tx, { ...input, taskId }, hash);
       const reportId = await this.upsertReport(tx, session.id, input);
       await this.recordForcedRoles(tx, input.projectId, session.id);
 
       const created: string[] = [];
       const mergedIds: string[] = [];
-      for (const [index, finding] of input.findings.entries()) {
+      for (const [index, finding] of findings.entries()) {
         const opened = await this.upsertFinding(tx, input, finding, {
           sessionId: session.id,
           reportId,
@@ -460,6 +468,8 @@ export class ReviewService {
         findings: [],
         reviewedAt: input.reviewedAt ?? null,
       };
+      // 임포트 계약에는 요구사항 칸이 없지만 판정은 제출과 같은 자리를 지난다(REQ-API-311)
+      const findings = await this.resolveFindingRequirements(tx, input.projectId, input.findings);
       const session = await this.sessionFor(tx, base, hash);
 
       let displayNo = 0;
@@ -474,7 +484,7 @@ export class ReviewService {
         // 발견은 **세션에 하나씩**이지 리포트마다가 아니다 — 원본 SUMMARY 가 이미
         // 역할을 가로질러 합쳐 놓은 표라, 첫 리포트에 달아 출처만 남긴다.
         if (report !== input.reports[0]) continue;
-        for (const finding of input.findings) {
+        for (const finding of findings) {
           displayNo += 1;
           await this.upsertFinding(tx, base, finding, {
             sessionId: session.id,
@@ -496,6 +506,32 @@ export class ReviewService {
       `);
       return { session_id: session.id, findings: input.findings.length };
     });
+  }
+
+  /**
+   * 발견마다 요구사항 참조를 UUID 로 푼다(2026-10-15 · 사람 결정 · REQ-API-311).
+   *
+   * `finding.requirement_id` 는 uuid 열인데 에이전트가 읽을 수 있는 요구사항은 고정 ID(`REQ-…`)뿐이다. 그대로 넣으면
+   * 22P02 로 제출 전체가 거절됐다. 판정은 `resolveRequirementRef()` 한 곳이다. 여기서는 **어느 발견의 어느 값인지**를
+   * 거절에 붙인다 — 발견이 여럿인 제출에서 "요구사항을 찾을 수 없다" 만으로는 무엇을 고칠지 모른다.
+   */
+  private async resolveFindingRequirements(
+    tx: Tx,
+    projectId: string,
+    findings: readonly SubmitFinding[],
+  ): Promise<SubmitFinding[]> {
+    const resolved: SubmitFinding[] = [];
+    for (const [index, finding] of findings.entries()) {
+      const requirementId = await resolveRequirementRef(
+        tx,
+        projectId,
+        finding.requirement_id,
+        `findings[${index}].requirement_id`,
+        { finding_index: index, finding_title: finding.title },
+      );
+      resolved.push({ ...finding, requirement_id: requirementId });
+    }
+    return resolved;
   }
 
   /**

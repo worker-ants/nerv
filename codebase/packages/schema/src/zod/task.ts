@@ -38,6 +38,7 @@ export const TaskCreateInput = z
     body_md: z.string().nullish(),
     source_spec_version_id: z.string().nullish(),
     baseline: z.string().nullish(),
+    /** 고정 ID(`REQ-…`)든 UUID 든 — 리뷰 발견과 같은 해소다(2026-10-15 · REQ-API-311) */
     source_requirement_id: z.string().nullish(),
     priority: z.string().nullish(),
     goal_md: z.string().nullish(),

@@ -81,6 +81,7 @@ import type { CheckResult } from './spec-check.service.js';
 import { readerVersion } from './reader-hash.js';
 import { requirementsOf, specDelta } from './spec-delta.js';
 import { recomputeImplStatus } from './impl-status.js';
+import { ownershipColumns, refuseOwned, releasedOwners, writableBy } from './requirement-owner.js';
 import { neighborhood, pruneTree } from './spec-tree.js';
 import {
   LATEST_VERSION_ID,
@@ -279,14 +280,12 @@ export class SpecService {
     // 동안 다른 문서가 같은 번호를 정의해 승인하면 그 문서의 요구사항 문장을 조용히 덮었다(소유는 옛 문서인 채).
     // 소유가 풀린 번호 — 가진 문서의 최신 승인본에서 그 줄이 빠진 것(`removed_in_version_id`) — 는 옮겨 온다.
     // 판정을 갱신 조건에 두어 동시에 승인하는 두 문서도 덮지 못한다(나중 쪽은 갱신된 행이 없어 거절된다).
-    const { rows: before } = await tx.execute<{ ref: string; owner_key: string }>(sql`
-      SELECT r.ref, s.key AS owner_key
-        FROM requirement r JOIN spec s ON s.id = r.spec_id
-       WHERE r.project_id = ${input.projectId} AND r.spec_id <> ${input.specId}
-         AND r.removed_in_version_id IS NOT NULL
-         AND r.ref = ANY(${sqlArray([...found.keys()], 'text')})
-    `);
-    const releasedFrom = new Map(before.map((row) => [row.ref, row.owner_key]));
+    // 판정은 `requirement-owner.ts` 한 곳이고 임포터도 같은 것을 쓴다(REQ-IMP-034)
+    const releasedFrom = await releasedOwners(tx, {
+      projectId: input.projectId,
+      specId: input.specId,
+      refs: [...found.keys()],
+    });
     const refused: string[] = [];
     const moved: { ref: string; from_key: string }[] = [];
 
@@ -297,12 +296,8 @@ export class SpecService {
         VALUES (${newId()}, ${input.projectId}, ${input.specId}, ${ref}, ${statement},
                 'must'::requirement_priority, ${input.specVersionId}, ${input.specVersionId})
         ON CONFLICT (project_id, ref) DO UPDATE
-              SET spec_id = ${input.specId},
-                  -- 옮겨 온 요구사항은 이 문서의 이 버전에서 들어온 것이다 — 기준선 검색이 버전 번호를 견주는
-                  -- 축이 문서마다라서, 옛 문서의 버전을 가리키면 견줄 수 없다
-                  introduced_in_version_id = CASE WHEN requirement.spec_id = ${input.specId}
-                                                  THEN requirement.introduced_in_version_id
-                                                  ELSE ${input.specVersionId}::uuid END,
+              SET -- 소유 · 들어온 버전 · 살아 있음(빠졌다가 돌아온 요구사항은 다시 살아 있는 것으로 본다)
+                  ${ownershipColumns(input.specId, input.specVersionId)},
                   statement_md = ${statement},
                   -- **문장이 바뀐 시각**(2026-09-26 · REQ-API-190). 검증 서명은 그 문장에 대한
                   -- 것이라, 이 시각보다 앞선 서명은 지금 문장을 보증하지 않는다. 공백·서식만
@@ -311,34 +306,16 @@ export class SpecService {
                     WHEN ${normalizedStatementSql(sql`requirement.statement_md`)}
                          IS DISTINCT FROM ${normalizedStatementSql(sql`${statement}::text`)}
                     THEN now() ELSE requirement.statement_changed_at END,
-                  current_version_id = ${input.specVersionId},
-                  -- 빠졌다가 돌아온 요구사항은 다시 살아 있는 것으로 본다
-                  removed_in_version_id = NULL
-          WHERE requirement.spec_id = ${input.specId}
-             OR requirement.removed_in_version_id IS NOT NULL
+                  current_version_id = ${input.specVersionId}
+          WHERE ${writableBy(input.specId)}
         RETURNING id
       `);
       if (written.length === 0) refused.push(ref);
       else if (releasedFrom.has(ref)) moved.push({ ref, from_key: releasedFrom.get(ref) ?? '' });
     }
-    if (refused.length > 0) {
-      const { rows: owners } = await tx.execute<{ ref: string; owner_key: string }>(sql`
-        SELECT r.ref, s.key AS owner_key
-          FROM requirement r JOIN spec s ON s.id = r.spec_id
-         WHERE r.project_id = ${input.projectId} AND r.ref = ANY(${sqlArray(refused, 'text')})
-         ORDER BY r.ref
-      `);
-      throw new NervError(
-        NERV_ERROR.PRECONDITION,
-        msg('error.spec.requirement_owned', {
-          refs: owners.map((o) => `${o.ref} → ${o.owner_key}`).join(', '),
-        }),
-        {
-          kind: 'requirement_owned',
-          owned: owners.map((o) => ({ ref: o.ref, owner_key: o.owner_key })),
-        },
-      );
-    }
+    await refuseOwned(tx, input.projectId, refused, (refs) =>
+      msg('error.spec.requirement_owned', { refs }),
+    );
 
     // 문장이 바뀐 요구사항은 다시 파생한다 — 옛 문장에 한 서명으로 선 검증은 여기서 풀린다.
     // `now()` 는 트랜잭션의 시작 시각이라 위에서 찍은 값과 같다
@@ -2500,13 +2477,14 @@ export class SpecService {
           ? sql`SELECT ${spec.id}::uuid AS id`
           : sql`
             WITH RECURSIVE down AS (
-              SELECT id, 0 AS depth FROM spec WHERE id = ${spec.id}
+              SELECT id, key, 0 AS depth FROM spec WHERE id = ${spec.id}
               UNION
-              SELECT c.id, down.depth + 1
+              SELECT c.id, c.key, down.depth + 1
                 FROM spec c JOIN down ON c.parent_id = down.id
                WHERE c.archived_at IS NOT NULL AND c.archive_batch_id = ${batchId}
             )
-            SELECT id FROM down ORDER BY depth`,
+            -- 같은 깊이는 키 순이다 — 보관(위)과 같은 순서. 깊이만 두면 형제의 순서가 실행마다 달랐다
+            SELECT id FROM down ORDER BY depth, key`,
       );
       const order = new Map(branch.map((n, i) => [n.id, i]));
       const { rows: restored } = await tx.execute<{ id: string; key: string }>(sql`

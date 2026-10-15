@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — 이 문서는 기존 markdown 스펙 저장소를 Spec/SpecVersion/Requirement/Task로 옮기는 **프로파일 기반 임포터**를 구현 착수 가능한 수준으로 확정한다. 임포터는 특정 저장소 전용이 아니다 — 스캔 글롭·제외 규칙·frontmatter 매핑·트리 규칙·기대 집계를 선언한 **프로파일**(§1.4)이 대상별 차이를 흡수하고, 엔진은 프로파일만 해석한다. 내장 프로파일은 `clemvion`(FR-17의 대상 — 순수 스펙 135 md + plan 450 md)과 `nerv-docs`(도그푸딩 — §5) 2종이며, 다른 저장소는 프로파일 파일을 얹어 같은 엔진을 재사용한다. 실행 모델은 **읽기는 클라이언트, 쓰기는 API**다(2026-08-22 확정 — §3.2): 원본 체크아웃이 있는 장비에서 `nerv import` CLI가 스캔·파싱·검증·리포트·매니페스트를 만들고(dry-run은 서버 없이 완결), `--apply`만 PAT로 임포트 REST 표면(EP-IMP-01~05)에 배치를 올린다. **서버가 원본 파일에 접근할 수 있다는 전제를 두지 않는 것**이 이 구조의 이유다. 매핑의 의미 정본은 [3.3 데이터 모델](../03-proposal/data-model.md) §3이고 단계 배정의 정본은 [3.7 로드맵](../03-proposal/roadmap.md) §7이다 — spec은 Phase 0, plan은 Phase 1, `review/` 소급은 Phase 2로 이 문서 범위 밖이다. 수용 기준은 REQ-IMP-001~017 — 프로파일 기대 집계에 대한 전수 계정, 원문 바이트 보존(정보 손실 0), 연속 2회 실행 시 신규 생성 0. 마지막 절은 도그푸딩이다: `docs/04-mvp/*.md` 이 문서 세트 자체가 NERV에 임포트될 첫 스펙이고, 그래서 공통 frontmatter 규격을 갖는다.
 >
-> 문서 버전 v0.25 · 2026-09-28 · HTML 파생본: [importer.html](../html/importer.html)
+> 문서 버전 v0.26 · 2026-10-15 · HTML 파생본: [importer.html](../html/importer.html)
+>
+> v0.26 변경(2026-10-15 — 임포트가 다른 문서의 요구사항을 덮었다, **사람 결정**): **REQ-IMP-034 신설 · §2.5 규칙 6 · §3.2 둘째 항목 · §4.1 `server-rejected` 행.** 승인 경로는 다른 문서가 가진 요구사항 번호를 덮지 않게 됐는데([4.4 API](api.md) REQ-API-309) 문서 패스의 `ON CONFLICT` 는 `spec_id` 를 보지 않아, 다른 문서가 가진 행의 `current_version_id` · `acceptance_md` 를 조용히 덮었다(문장과 소유는 그대로라 한 행이 두 문서에 반씩 걸쳤다). 이제 두 경로가 같은 소유 판정을 쓴다. 다른 문서가 가진 번호를 정의한 파일은 그 파일만 되돌리고 응답에 `error`(`requirement_owned`)와 사유를 남기며, CLI 는 그것을 `server-rejected`(skip)로 리포트에 적는다. 소유가 풀린 번호는 승인 경로와 같은 기록으로 옮겨 온다. 같은 문서를 다시 임포트하면 예전 그대로다.
 >
 > v0.25 변경(2026-09-28 — 가운데 토막의 숫자, **사람 결정**): **§2.5 정규식 · §3 기본값 · 프로파일 둘.** 요구사항 ID 의 기본 모양을 `[A-Z]+-[A-Z][A-Z0-9]*-\d+` 로 넓혔다 — 가운데 토막에 숫자가 든 ID(`REQ-C24NODE-001`)가 0건으로 추출됐다. 서버 추출기와 같은 모양이고 정본은 [4.4 API 명세](api.md) REQ-API-241 이다. `nerv-docs` 프로파일도 `REQ-[A-Z][A-Z0-9]*-\d+` 로 같이 넓혔다.
 >
@@ -245,7 +247,7 @@ clemvion의 요구사항 ID는 `NAV-WF-01` · `ED-CV-01` · `ND-AG-24` · `CCH-S
 | 3 | **소속** — `requirement.spec_id` = 그 `_product-overview.md`를 본문으로 갖는 area 노드. feature 단위 재배치가 필요해 보이는 행은 수동 확인 큐로 |
 | 4 | **우선순위** — 필수→`must`, 권장→`should`, 선택→`could`(데이터 모델 §2.2의 매핑). 미표기는 NULL로 두고 추정하지 않는다 — plan `priority` 미선언을 null로 두는 로드맵 §7.3(2)와 같은 원칙. 열 이름(`우선순위`/`priority`)이 있으면 그 셀만 보고, 없으면 어휘가 통째로 든 셀을 찾는다 |
 | 5 | **구현 상태** — `impl_status` 초기값은 소속 문서의 status 복사(§2.3 분해 표), `partial` 유래는 전건 수동 확인 큐 |
-| 6 | **중복 ref** — `UNIQUE (project_id, ref)` 위반이 되는 두 번째 정의 행은 건너뛰고(첫 행 적재) 수동 확인 큐로 |
+| 6 | **중복 ref** — `UNIQUE (project_id, ref)` 위반이 되는 두 번째 정의 행은 건너뛰고(첫 행 적재) 수동 확인 큐로. **서버에 이미 있는 번호를 다른 문서가 가졌으면** 서버가 그 파일을 적재하지 않는다 — 덮지 않는다(2026-10-15 · REQ-IMP-034). 그 문서에서 옮겨 오는 것이면 먼저 그 문서의 새 버전에서 줄을 빼고 승인받는다 |
 | 7 | **버전 델타** — `requirement.introduced_in_version_id` = `current_version_id` = 이번 임포트 버전. `requirement_version` 행은 `change_kind='added'`(재실행에서 기존 ref 를 다시 만나면 `modified`), `ordinal` = **문서 내 정의 순서**(표가 여럿이면 이어서 센다 — 표마다 0부터 세면 한 문서 안에서 순서가 겹쳐 정렬이 답을 못 낸다), `statement_md` = 시점 스냅샷 |
 
 > **`priority` 열은 2026-09-06 까지 `NOT NULL` 이었다.** 규칙 4 가 "미표기는 NULL" 을 요구하는데 저장이 그것을 받지 못했고, 임포터는 전건 `must` 를 넣고 있었다 — 원본에 우선순위가 적힌 적 없는 요구사항이 저장에서 "필수" 가 됐다는 뜻이다. 규칙이 금지한 추정을 **규칙을 어겨서가 아니라 적을 자리가 없어서** 하고 있었고, 그래서 `req-priority-missing`(class manual)도 한 번도 발생할 수 없었다. 마이그레이션 `0020` 이 제약을 풀었다.
@@ -418,7 +420,7 @@ nerv import rebuild-map --profile <p> --root <경로> --project <slug> --map <�
 서버 쪽 두 성질은 v0.1과 동일하게 유지된다:
 
 1. **워크플로우 전이 검사는 우회한다.** 소급 적재는 상태 전이가 아니라 초기 적재다 — `approved` 버전을 승인 절차 없이 만들고, `done` Task를 게이트 판정 없이 만든다. "모든 상태 전이는 Event를 남긴다"(데이터 모델 §5.5-6)와 충돌하지 않는다: 전이가 없으므로 전이 이벤트도 없다. 다만 우회가 **임포트 경로에서만** 열린다는 점이 v0.1과 다르다 — 일반 REST·MCP 표면에는 이 경로가 없고, EP-IMP-*는 admin + `import:write`로만 열린다. 임포트 이후의 첫 편집부터는 정상 워크플로우와 이벤트가 흐른다.
-2. **무결성 제약은 그대로 받는다.** approved 본문 불변 트리거, `UNIQUE (project_id, ref)`, partial unique 등 스키마 제약([4.3 데이터베이스 스키마](database.md))은 임포터에게도 예외가 없다 — API 경유이므로 오히려 우회 불가능하다. 제약 위반은 그 파일 트랜잭션의 실패로 응답에 담기고 리포트에 남는다.
+2. **무결성 제약은 그대로 받는다.** approved 본문 불변 트리거, `UNIQUE (project_id, ref)`, partial unique 등 스키마 제약([4.3 데이터베이스 스키마](database.md))은 임포터에게도 예외가 없다 — API 경유이므로 오히려 우회 불가능하다. 제약 위반은 그 파일 트랜잭션의 실패로 응답에 담기고 리포트에 남는다. 요구사항 번호의 소유도 같다 — 다른 문서가 가진 번호를 정의한 파일은 승인 경로와 같은 판정으로 거절된다(2026-10-15 · REQ-IMP-034).
 
 **감사**: 적재 배치마다 `event` 행 1건(`type='import.applied'`, `is_agent=false`, actor = PAT 소유자, payload에 프로파일 이름·`root_commit`·건수)을 남긴다. 전이 이벤트는 만들지 않는다(위 1). 이 이벤트는 `project:{id}` 룸으로 방송되지만 알림은 만들지 않는다([4.4 API 명세](api.md) §3.3).
 
@@ -508,6 +510,7 @@ CLI 는 **서버 없이도 돈다**(dry-run 은 `--server` 없이 완주한다 �
 | REQ-IMP-030 | WHEN 스펙을 적재하고 매니페스트를 쓰면 THE SYSTEM SHALL 본문 해시와 **선두 frontmatter 블록의 해시를 따로** 적고, 프로파일이 `preserve` 로 선언한 키의 값과 **모르는 키의 이름**을 함께 남긴다(`frontmatter-unmapped` warn). WHEN 선두 블록이 `---` 로 열렸는데 닫히지 않으면 THE SYSTEM SHALL `frontmatter-unparsable` 로 그 파일을 빼고 계속한다 — 조용히 본문으로 읽으면 원본의 고정 ID 를 잃는다. WHERE 프로파일이 `status_default` 를 선언하면 THE SYSTEM SHALL `status` 없는 문서에 그 값을 쓴다 | 해시 둘·보존·미매핑 1건 · nerv-docs 규칙 넷 |
 | REQ-IMP-032 | WHEN 스펙 frontmatter 가 `code:` glob 목록을 선언하고 프로파일이 그것을 `evidence.code_path` 로 옮기면 THE SYSTEM SHALL glob 하나마다 `code_path` 증적을 싣고, WHEN 그 glob 이 스캔 뿌리에서 아무 파일·디렉터리도 가리키지 않으면(`.git`·`node_modules` 제외) THE SYSTEM SHALL 그 증적을 `stale=true` 로 싣고 `code-glob-no-match`(manual)를 리포트에 올린다. WHEN frontmatter 값이 한 줄 목록(`[]` · `[a, b]`)이면 THE SYSTEM SHALL 그것을 목록으로 읽는다 |
 | REQ-IMP-033 | WHEN 스펙 frontmatter 가 `user_guide:` 경로 목록을 선언하고 프로파일이 그것을 `evidence.user_guide` 로 옮기면 THE SYSTEM SHALL 경로 하나마다 `user_guide` 증적을 싣고, WHEN 그 경로가 스캔 뿌리에서 아무것도 가리키지 않으면 THE SYSTEM SHALL 그 증적을 `stale=true` 로 싣고 `user-guide-no-match`(manual)를 리포트에 올린다 |
+| REQ-IMP-034 | WHEN 문서 패스(EP-IMP-02 `kind=document`)가 요구사항 행을 쓰는데 그 번호를 다른 문서가 가졌으면 THE SYSTEM SHALL 그 행을 덮지 않고 **그 파일만** 되돌려 응답 항목에 `error`(`code: requirement_owned` · 사유에 「번호 → 가진 문서 키」)로 남기고 같은 배치의 다른 파일은 계속 적재한다 — 판정은 승인 경로와 같은 함수이고 쓰기의 갱신 조건에 있어 동시에 쓰는 승인 · 임포트도 덮지 못한다([4.4 API](api.md) REQ-API-309). WHERE 그 번호의 소유가 풀렸으면(가진 문서의 최신 승인본에서 그 줄이 빠짐) THE SYSTEM SHALL 이 문서로 옮기고 승인 경로와 같은 기록(소유 · `introduced_in_version_id` · 살아 있음 · 이 문서의 문장과 문장이 바뀐 시각)을 남기며 응답 항목에 `requirements_moved[]{ref, from_key}` 를 준다. WHEN 같은 문서를 다시 임포트하면 THE SYSTEM SHALL 예전처럼 현재 버전과 수용 기준만 쓴다(2026-10-15 · 사람 결정 — 예전 `ON CONFLICT` 가 `spec_id` 를 보지 않아 다른 문서가 가진 행의 `current_version_id` · `acceptance_md` 를 조용히 덮었다) | L2 `import.spec.ts` — 다른 문서의 번호를 정의한 파일만 실패하고 사유가 남으며 같은 배치의 다른 파일은 적재 · 원래 행 그대로 · 실패한 파일의 버전 없음 · 소유가 풀린 번호를 옮긴 기록 · 같은 문서 재임포트 그대로 |
 | REQ-IMP-022 | WHEN 서버가 표시 키를 발급하면 THE SYSTEM SHALL 데이터 모델 §5.1 형식(`<project.key>-<타입>-<base32 6자>`)을 쓴다 — 생성 경로가 달라도 같다(§2.6b) |
 
 ### 3.6 실행 주체 — 운영자 절차 (2026-09-06 개정 · 래퍼 스킬을 걷었다)
@@ -548,7 +551,7 @@ MCP 도구도 추가하지 않는다 — 임포트를 도구 호출 단위로 �
 | `count-mismatch` | abort | 적재 대상 총수 ≠ 프로파일 `expect.spec_total`(clemvion은 135 — §2.1). 미선언 프로파일에서는 발생하지 않는다 |
 | `map-conflict` | abort | 매니페스트 없이 서버에 동일 자연 키 실존 — EP-IMP-01 preflight 판정(§3.3) |
 | `server-unauthorized` | abort | 토큰 없음·만료 또는 `import:write` 권한 부족(401/403 — §3.2). 권한 확대를 시도하지 않는다 |
-| `server-rejected` | skip | 서버가 그 항목을 제약 위반으로 거부(응답의 `NERV_*` 코드와 함께 기록 — §3.2(2)). 배치의 나머지 항목은 계속된다 |
+| `server-rejected` | skip | 서버가 그 항목을 제약 위반으로 거부(응답의 `NERV_*` 코드와 함께 기록 — §3.2(2)). 배치의 나머지 항목은 계속된다. 다른 문서가 가진 요구사항 번호를 정의한 파일도 여기다 — 사유에 번호와 가진 문서의 키가 적힌다(REQ-IMP-034) |
 | `id-collision` | skip | 같은 프로젝트에서 frontmatter `id` 충돌(§2.2) — **그 항목만 빼고 계속한다**(2026-09-07 정정 · 사람 결정). class 는 종료 코드와 재실행 큐를 가르는 축이라 뜻이 하나여야 하고, `abort` 의 뜻은 **실행 전체 중단**이다. 코드는 처음부터 항목만 빼고 계속했는데 등급만 abort 였다 — 신호는 남는다: skip 도 종료 코드 1 이다 |
 | `dist-mismatch` | warn | status 분포 ≠ 117/17/1 |
 | `frontmatter-missing` | warn | 제외 글롭 밖 파일에 선두 frontmatter 블록이 없음 — **적재는 한다**(문서 축이 기본값으로 떨어진다 · 2026-09-07 정정 · 사람 결정). skip 으로 바꾸면 재실행마다 적재 집합이 달라진다 |
