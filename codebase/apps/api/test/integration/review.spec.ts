@@ -9,6 +9,7 @@
 // **동시성·제약은 mock 으로 보지 않는다**(AGENTS.md 테스트 규약) — 실제 Postgres 다.
 // dedup 이 진짜인지는 UNIQUE 제약과 SQL 이 함께 있어야만 답할 수 있다.
 
+import { createHash } from 'node:crypto';
 import { NERV_ERROR, NERV_EVENT_PHASE2, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
 import pg from 'pg';
@@ -137,6 +138,105 @@ describe('FR-09 제출 — 세 층이 한 트랜잭션으로 들어온다', () =
     const { rows } = await pool.query(`SELECT has_report FROM reviewer_report`);
     expect(rows).toHaveLength(1);
     expect(rows[0].has_report).toBe(true);
+  });
+});
+
+/**
+ * **입력 스냅샷은 커밋 SHA 다** (2026-10-15 · 사람 결정 · REQ-API-321). 예전에는 빈 값만 막아서 `HEAD` · 브랜치 이름이
+ * 들어왔고, done 게이트는 그 라운드를 작업의 커밋과 견주지 못해 fail-open 으로 넘겼다 — `head_sha: "HEAD"` 로 내면 커밋
+ * 신선도를 넘었다. 서비스 · REST · MCP 가 같은 스키마(`ReviewSnapshotInput`)로 400 을 내고 라운드는 남지 않는다.
+ */
+describe('입력 스냅샷은 커밋 SHA 다 (REQ-API-321)', () => {
+  const rounds = async (): Promise<number> =>
+    (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM review_session`)).rows[0]!.n;
+  const ctx = (): ToolContext =>
+    ({
+      projectId,
+      sessionId: agentSessionId,
+      principal: { userId, isAgent: true },
+    }) as unknown as ToolContext;
+  const restToken = async (): Promise<string> =>
+    (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId,
+        name: `sha-${newId().slice(-6)}`,
+        scopes: ['review:submit'],
+      })
+    ).token;
+
+  it.each([
+    ['HEAD', 'aaaa111', 'error.review.head_not_commit'],
+    ['feat/widget', 'aaaa111', 'error.review.head_not_commit'],
+    // 짧은 SHA 는 7자부터다
+    ['bbbb22', 'aaaa111', 'error.review.head_not_commit'],
+    // 기준도 diff 의 커밋이다 — 움직이는 브랜치 이름은 나중에 무엇과 견줬는지 답하지 못한다
+    ['bbbb222', 'main', 'error.review.base_not_commit'],
+    ['bbbb222', 'origin/main', 'error.review.base_not_commit'],
+  ])(
+    '서비스 — head_sha %s · base_sha %s 는 400 이고 라운드가 남지 않는다',
+    async (headSha, baseSha, key) => {
+      const error = await reviews
+        .submit(submitInput({ headSha, baseSha }))
+        .catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: NERV_ERROR.PRECONDITION, descriptor: { key } });
+      // REST 본문 검사와 같은 모양이다 — `issues` 가 있으면 400 이다
+      expect((error as { details: Record<string, unknown> }).details).toHaveProperty('issues');
+      expect(await rounds()).toBe(0);
+    },
+  );
+
+  it('REST — HEAD 로 내면 400 이고 무엇을 넣어야 하는지 말한다', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects/clemvion/reviews',
+      headers: {
+        authorization: `Bearer ${await restToken()}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        branch: 'feat/rest-sha',
+        base_sha: 'aaaa111',
+        head_sha: 'HEAD',
+        reviewer: { role: 'security', risk: 'low' },
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body) as { code: string; message: string };
+    expect(body.code).toBe(NERV_ERROR.PRECONDITION);
+    expect(body.message).toContain('git rev-parse');
+    expect(await rounds()).toBe(0);
+  });
+
+  it('MCP — 도구로 내도 같은 스키마가 거절한다', async () => {
+    const tool = app.get(ReviewTools).tools.find((t) => t.name === 'nerv_review_submit')!;
+    await expect(
+      tool.handler(
+        {
+          branch: 'feat/mcp-sha',
+          base_sha: 'main',
+          head_sha: 'bbbb222',
+          reviewer: { role: 'security' },
+        },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      descriptor: { key: 'error.review.base_not_commit' },
+    });
+    expect(await rounds()).toBe(0);
+  });
+
+  it('짧은 SHA · 대문자 · 앞뒤 공백은 받는다 — 공백은 정리해서 남긴다', async () => {
+    await reviews.submit(
+      submitInput({ headSha: '  BBBB222\n', baseSha: 'AAAA1111aaaa1111aaaa1111aaaa1111aaaa1111' }),
+    );
+    const { rows } = await pool.query<{ head_sha: string; base_sha: string }>(
+      `SELECT head_sha, base_sha FROM review_session`,
+    );
+    expect(rows).toEqual([
+      { head_sha: 'BBBB222', base_sha: 'AAAA1111aaaa1111aaaa1111aaaa1111aaaa1111' },
+    ]);
   });
 });
 
@@ -1074,8 +1174,8 @@ describe('리뷰가 Task 에 이어진다 (REQ-API-148)', () => {
       sessionId: agentSessionId,
       kind: 'code',
       branch: 'feat/link',
-      headSha: 'aaa111',
-      baseSha: 'bbb222',
+      headSha: 'aaa1111',
+      baseSha: 'bbb2222',
       reviewer: { role: 'code', risk: 'low' },
       findings: [],
     });
@@ -1116,8 +1216,8 @@ describe('리뷰가 Task 에 이어진다 (REQ-API-148)', () => {
       taskId: other,
       kind: 'code',
       branch: 'feat/explicit',
-      headSha: 'ccc333',
-      baseSha: 'ddd444',
+      headSha: 'ccc3333',
+      baseSha: 'ddd4444',
       reviewer: { role: 'code', risk: 'low' },
       findings: [],
     });
@@ -1194,7 +1294,7 @@ describe('제출의 세션 · Task (REQ-API-238)', () => {
     );
     const foreign = await taskRow('TSK-FOREIGN', otherProject);
     await expect(
-      reviews.submit(submitInput({ sessionId: null, headSha: 'f0reign', taskId: foreign })),
+      reviews.submit(submitInput({ sessionId: null, headSha: 'f0e1a90', taskId: foreign })),
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } });
   });
 
@@ -1230,8 +1330,8 @@ describe('제출의 세션 · Task (REQ-API-238)', () => {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       payload: {
         branch: 'feat/rest',
-        base_sha: 'aaa999',
-        head_sha: 'bbb999',
+        base_sha: 'aaa9999',
+        head_sha: 'bbb9999',
         reviewer: { role: 'security', risk: 'low' },
         session_id: agentSessionId,
       },
@@ -1290,7 +1390,7 @@ describe('이월 발견은 수만 준다 (REQ-API-278)', () => {
       {
         branch: 'feat/other',
         base_sha: 'aaaa111',
-        head_sha: 'oth0001',
+        head_sha: 'beef001',
         reviewer: { role: 'security' },
         findings: [{ severity: 'critical', title: '다른 브랜치의 critical', file: 'src/o.ts' }],
       },
@@ -1303,7 +1403,7 @@ describe('이월 발견은 수만 준다 (REQ-API-278)', () => {
       {
         branch: 'feat/clean',
         base_sha: 'aaaa111',
-        head_sha: 'cln0001',
+        head_sha: 'c1ea001',
         reviewer: { role: 'security' },
         findings: [],
       },
@@ -1366,7 +1466,7 @@ describe('발견의 태그 (REQ-API-253)', () => {
       {
         branch: 'feat/tags',
         base_sha: 'aaaa111',
-        head_sha: 'tag0001',
+        head_sha: 'da90001',
         reviewer: { role: 'security' },
         findings: [
           {
@@ -1398,7 +1498,7 @@ describe('발견의 태그 (REQ-API-253)', () => {
         payload: {
           branch: 'feat/tags',
           base_sha: 'aaaa111',
-          head_sha: 'tag0002',
+          head_sha: 'da90002',
           reviewer: { role: 'security' },
           findings,
         },
@@ -1489,7 +1589,8 @@ describe('발견의 requirement_id 는 고정 ID 도 받는다 — 서버가 프
       payload: {
         branch,
         base_sha: 'aaaa111',
-        head_sha: `${branch.replace(/\W/g, '')}01`,
+        // 브랜치마다 다른 커밋 SHA 다(REQ-API-321 — 예전 픽스처는 브랜치 이름을 그대로 썼다)
+        head_sha: createHash('sha1').update(branch).digest('hex'),
         kind: 'consistency',
         reviewer: { role: 'nerv-consistency-checker' },
         findings,
@@ -1536,7 +1637,7 @@ describe('발견의 requirement_id 는 고정 ID 도 받는다 — 서버가 프
       {
         branch: 'feat/req-uuid',
         base_sha: 'aaaa111',
-        head_sha: 'requuid01',
+        head_sha: 'feed0001',
         kind: 'consistency',
         reviewer: { role: 'nerv-consistency-checker' },
         findings: [
@@ -1694,8 +1795,8 @@ describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
       taskId,
       kind: 'code',
       branch: 'feat/from-task',
-      headSha: 'eee555',
-      baseSha: 'fff666',
+      headSha: 'eee5555',
+      baseSha: 'fff6666',
       reviewer: { role: 'code', risk: 'low' },
       findings: [{ severity: 'warning', title: '작업에서 나온 지적', file: 'src/a.ts', line: 1 }],
     });
@@ -1715,8 +1816,8 @@ describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
         sessionId: agentSessionId,
         kind: 'code',
         branch,
-        headSha: `${branch}-sha`,
-        baseSha: 'base',
+        headSha: createHash('sha1').update(branch).digest('hex'),
+        baseSha: 'ba5e000',
         reviewer: { role: 'code', risk: 'low' },
         findings: [{ severity: 'info', title, file: 'src/b.ts', line: 2 }],
       });

@@ -87,8 +87,8 @@ async function submit(over: {
     sessionId: agentSessionId,
     isAgent: true,
     branch: over.branch ?? BRANCH,
-    baseSha: 'base000',
-    headSha: over.headSha ?? 'head001',
+    baseSha: 'ba5e000',
+    headSha: over.headSha ?? 'feed001',
     kind: over.kind ?? 'code',
     changeset: over.changeset ?? ['src/widget.ts'],
     summaryMd: '봤다.',
@@ -152,7 +152,7 @@ describe('EP-REV-08 게이트 판정 (REQ-API-247)', () => {
     expect(code.reasons).toEqual(['open_critical']);
     expect(code.open).toEqual({ critical: 1, warning: 0, info: 0 });
     expect(code.round_no).toBe(1);
-    expect(code.head_sha).toBe('head001');
+    expect(code.head_sha).toBe('feed001');
 
     const onlyCode = await check(q('&kind=code'));
     expect(onlyCode.items.map((i) => i.kind)).toEqual(['code']);
@@ -192,15 +192,15 @@ describe('EP-REV-08 게이트 판정 (REQ-API-247)', () => {
   });
 
   it('head_sha 를 주면 그 커밋의 라운드만 본다 — 주지 않으면 가장 최근 라운드다', async () => {
-    await submit({ headSha: 'head001', findings: [finding('critical', '옛 커밋의 결함')] });
-    await submit({ headSha: 'head002', changeset: ['src/widget.ts', 'src/other.ts'] });
+    await submit({ headSha: 'feed001', findings: [finding('critical', '옛 커밋의 결함')] });
+    await submit({ headSha: 'feed002', changeset: ['src/widget.ts', 'src/other.ts'] });
 
     const latest = (await check(q())).items[0]!;
-    expect(latest.head_sha).toBe('head002');
+    expect(latest.head_sha).toBe('feed002');
     expect(latest.state).toBe('passed');
 
-    const old = (await check(q('&head_sha=head001'))).items[0]!;
-    expect(old.head_sha).toBe('head001');
+    const old = (await check(q('&head_sha=feed001'))).items[0]!;
+    expect(old.head_sha).toBe('feed001');
     expect(old.state).toBe('pending');
   });
 
@@ -239,7 +239,7 @@ describe('EP-REV-08 게이트 판정 (REQ-API-247)', () => {
     // 커밋이 같으면 변경 묶음이 같아 한 세션으로 합쳐진다 — 다른 브랜치는 다른 커밋으로 둔다
     await submit({
       branch: 'feat/other',
-      headSha: 'other01',
+      headSha: 'a7e0001',
       findings: [finding('critical', '다른 브랜치')],
     });
     await submit({});
@@ -267,7 +267,7 @@ describe('제출 응답의 round_block (REQ-API-248)', () => {
   it('다른 브랜치에 열린 critical 이 있어도 이번 라운드가 깨끗하면 round_block 은 거짓이다 — block 은 그대로다', async () => {
     await submit({
       branch: 'feat/other',
-      headSha: 'other01',
+      headSha: 'a7e0001',
       findings: [finding('critical', '다른 브랜치')],
     });
     const out = await submit({});
@@ -315,7 +315,7 @@ describe('done 게이트의 종류 조건 (REQ-API-250)', () => {
     );
     await pool.query(
       `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
-       VALUES ($1,$2,$3,'commit','a1b2c3d','human')`,
+       VALUES ($1,$2,$3,'commit','feed001','human')`,
       [newId(), projectId, taskId],
     );
     return taskId;
@@ -438,7 +438,7 @@ describe('필수 리뷰어 역할 (REQ-API-252)', () => {
     );
     await pool.query(
       `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
-       VALUES ($1,$2,$3,'commit','a1b2c3d','human')`,
+       VALUES ($1,$2,$3,'commit','feed001','human')`,
       [newId(), projectId, taskId],
     );
     await submit({ taskId, role: 'security' });
@@ -599,7 +599,7 @@ describe('범위를 고른 리뷰 면제 — 코드 없는 작업을 정직하�
 
   it('코드를 낸 작업의 code 리뷰는 면제하지 못한다 — 아무것도 기록하지 않는다', async () => {
     await policy();
-    const taskId = await task('CLV-T-CODE01', [['commit', 'a1b2c3d']]);
+    const taskId = await task('CLV-T-CODE01', [['commit', 'feed001']]);
     const refused = await waive(taskId, ['code'], ['developer', 'admin']);
     expect(refused).toMatchObject({
       code: NERV_ERROR.PRECONDITION,
@@ -634,7 +634,7 @@ describe('범위를 고른 리뷰 면제 — 코드 없는 작업을 정직하�
     await waive(taskId, ['code'], ['developer']);
     await pool.query(
       `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
-       VALUES ($1,$2,$3,'commit','a1b2c3d','agent')`,
+       VALUES ($1,$2,$3,'commit','feed001','agent')`,
       [newId(), projectId, taskId],
     );
     for (const role of SIX) await submit({ taskId, kind: 'code', role });
@@ -773,7 +773,7 @@ describe('범위 없는 면제 — 역할이 면제할 수 있는 종류로 풀�
     const refused = (await close(plain)) as { details?: Record<string, unknown> };
     expect(refused.details?.['uncovered_kinds']).toEqual(['consistency']);
 
-    const coded = await task('CLV-T-EXP003', [['commit', 'a1b2c3d']]);
+    const coded = await task('CLV-T-EXP003', [['commit', 'feed001']]);
     expect(await waiveAll(coded, ['developer'])).toMatchObject({
       code: NERV_ERROR.PRECONDITION,
       details: { kind: 'bypass_has_code', kinds: ['code', 'merge'] },

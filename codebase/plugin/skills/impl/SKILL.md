@@ -138,9 +138,11 @@ allowed-tools:
   커밋 · PR · 코드 경로 증적이 붙은 작업의 코드 리뷰는 면제되지 않는다. 면제가 기록되면 같은 인자로 done을 다시 부른다.
 - **리뷰는 작업의 마지막 커밋을 본 것만 센다.** 정책이 리뷰를 요구하면 done 게이트는 작업의 최신 커밋(가장 나중에 붙은
   `commit` 증적 — done 에 함께 붙인 커밋도 여기 든다)을 `head_sha` 로 본 라운드만 센다. 짧은 SHA 도 같은 커밋으로 본다.
-  거부에 `details.stale_reviews`(`[{kind, head_sha, reviewed_sha}]`)가 있으면 리뷰를 받은 뒤에 새 커밋이 생긴 것이다.
-  면제를 부탁하지 않는다 — `/nerv:review` 로 그 `head_sha` 를 같은 `task_id` 로 다시 리뷰받고 같은 인자로 done 을 다시
-  부른다. 그래서 리뷰를 받은 뒤에는 새로 커밋하지 않고 done 으로 간다. 고쳐야 하면 고친 커밋을 다시 리뷰받는다.
+  거부에 `details.stale_reviews`(`[{kind, head_sha, reviewed_sha, reason}]`)가 있으면 그 종류에 최신 커밋을 본 리뷰가
+  없는 것이다 — `reason` 이 `newer_commit` 이면 리뷰를 받은 뒤에 새 커밋이 생겼고, `not_a_commit` 이면 예전 리뷰가 커밋
+  SHA 가 아닌 값(`reviewed_sha` — `HEAD` 같은 것)을 봤다. 어느 쪽이든 면제를 부탁하지 않는다 — `/nerv:review` 로 그
+  `head_sha` 를 같은 `task_id` 로 다시 리뷰받고 같은 인자로 done 을 다시 부른다. 그래서 리뷰를 받은 뒤에는 새로
+  커밋하지 않고 done 으로 간다. 고쳐야 하면 고친 커밋을 다시 리뷰받는다.
 - **작업 본문을 고쳐야 하면** `nerv_task_update`(`task_id`, `body_md`, `base_hash`)를 부른다. `base_hash` 는
   `nerv_task_get` 이 준 `body_hash` 그대로다. `status` 없이 본문만 고칠 수 있다. 409 `stale_body` 면 그 사이
   사람이 고친 것이다. 다시 읽고 그 위에 고친다(덮지 않는다). **위임 명세 네 칸**(`goal_md`·`output_format_md`·

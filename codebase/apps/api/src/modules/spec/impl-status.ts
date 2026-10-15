@@ -12,7 +12,7 @@
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { NervDb } from '../../common/database.module.js';
-import { commitShapedSql, latestTaskCommitSql, sameCommitSql } from '../review/commit-scope.js';
+import { latestTaskCommitSql, sameCommitSql } from '../review/commit-scope.js';
 
 type Queryable = Pick<NervDb, 'execute'>;
 
@@ -152,9 +152,10 @@ export function emptyPromiseSql(reqAlias = 'r'): SQL {
  * 커밋 신선도와 같은 커밋 · 같은 규칙이다(`commit-scope.ts` · REQ-API-314).
  *
  * 작업마다 셋 중 하나다. ① 커밋을 알고 그 커밋을 본 라운드가 있다 → 그 라운드에서 관찰된 열린 critical 이 없고 도는
- * 세션이 없어야 한다. ② 커밋을 알고 앞 커밋의 라운드만 있다(앞 라운드가 커밋 모양) → 리뷰가 본 뒤에 새 커밋이 왔으니
- * 검증되지 않는다. ③ 커밋을 모르거나 리뷰가 없거나 앞 라운드가 본 것이 커밋 모양이 아니다 → 견줄 수 없다. 커밋 범위로
- * 본 작업(①②)이 하나라도 있으면 그것들로 판정하고, 하나도 없으면 **예전처럼 요구사항 단위로 본다** — 리뷰를 쓰지 않는
+ * 세션이 없어야 한다. ② 커밋을 알고 다른 라운드만 있다 → 검증되지 않는다. 앞 커밋의 라운드면 리뷰가 본 뒤에 새 커밋이
+ * 왔고, 커밋 SHA 가 아닌 라운드(제출이 그것을 거절하기 전에 들어온 것)면 최신 커밋을 봤다고 말할 근거가 없다 — done
+ * 게이트와 같은 규칙이다(2026-10-15 · 사람 결정). ③ 커밋을 모르거나 리뷰가 없다 → 견줄 수 없다. 커밋 범위로 본
+ * 작업(①②)이 하나라도 있으면 그것들로 판정하고, 하나도 없으면 **예전처럼 요구사항 단위로 본다** — 리뷰를 쓰지 않는
  * 프로젝트의 검증이 이 조건 때문에 막히지 않는다.
  */
 export function commitScopeClearSql(reqAlias = 'r'): SQL {
@@ -171,11 +172,10 @@ export function commitScopeClearSql(reqAlias = 'r'): SQL {
                             JOIN finding_occurrence o ON o.review_session_id = rs.id
                             JOIN finding f ON f.id = o.finding_id
                            WHERE ${atHead} AND f.status = 'open' AND f.severity = 'critical')) AS blocked,
-              (SELECT rs.head_sha FROM review_session rs WHERE rs.task_id = t.id
-                ORDER BY rs.created_at DESC, rs.id DESC LIMIT 1) AS last_head
+              EXISTS (SELECT 1 FROM review_session rs WHERE rs.task_id = t.id) AS reviewed
      ) x
      WHERE t.source_requirement_id = ${ref} AND t.archived_at IS NULL AND h.sha IS NOT NULL
-       AND (x.at_head OR coalesce(${commitShapedSql(sql`x.last_head`)}, false))`;
+       AND x.reviewed`;
   return sql`(CASE WHEN EXISTS (${scoped})
                    THEN NOT EXISTS (SELECT 1 FROM (${scoped}) s WHERE NOT s.at_head OR s.blocked)
                    ELSE NOT ${openCriticalSql(reqAlias)}

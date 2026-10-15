@@ -48,9 +48,9 @@ export const reviewSession = pgTable(
     agentSessionId: uuid('agent_session_id').references(() => agentSession.id),
     taskId: uuid('task_id').references(() => task.id),
     branch: text('branch').notNull(),
-    /** 검토한 커밋 */
+    /** 검토한 커밋 — 커밋 SHA 만 받는다(2026-10-15 · api.md REQ-API-321 · 그 전의 행에는 `HEAD` 같은 값이 있을 수 있다) */
     headSha: text('head_sha').notNull(),
-    /** diff 기준 커밋 */
+    /** diff 기준 커밋 — 커밋 SHA 만 받는다(REQ-API-321) */
     baseSha: text('base_sha').notNull(),
     /** 라운드 동일성 판정 */
     changesetHash: bytea('changeset_hash').notNull(),

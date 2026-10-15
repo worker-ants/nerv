@@ -4,6 +4,7 @@
 // 도메인이 본다(REQ-API-112 · `resolutionOf` · `ESCALATE_REASONS`).
 
 import { z } from 'zod';
+import { COMMIT_SHA_PATTERN } from '../evidence-locator.js';
 
 /** 리뷰어 한 명의 자기 보고 — 위험도는 세션 위험도의 재료다 */
 export const ReviewerReportInput = z
@@ -36,17 +37,37 @@ export const ReviewFindingInput = z
   .passthrough();
 
 /**
+ * **리뷰의 입력 커밋 스냅샷 — 둘 다 커밋 SHA 다**(2026-10-15 · 사람 결정 · api.md REQ-API-321). 증적 형식 검사와 같은
+ * 정규식(7~40자 16진수 · 대소문자 무시)이고 앞뒤 공백은 정리한다. `HEAD` · 브랜치 이름은 움직이는 이름이라 나중에 "무엇을
+ * 봤는가" 에 답하지 못하고 작업의 커밋과 견줄 수도 없다 — 예전에는 받았고, done 게이트가 견주지 못해 fail-open 으로
+ * 넘겼다(`head_sha: "HEAD"` 로 신선도를 넘을 수 있었다). 제출하는 쪽이 `git rev-parse` 로 고칠 수 있는 입력이라 막는다.
+ * `base_sha` 도 diff 의 기준 커밋이라(data-model §2.6) 같은 규칙이다.
+ *
+ * REST 의 `ReviewSubmitInput` 이 이 두 칸을 쓰고, MCP 도구와 리뷰 임포트는 서비스가 같은 스키마로 본다(표면이 셋이라도
+ * 규칙은 이 한 벌이다).
+ */
+const commitSha = (message: string) =>
+  z.string().trim().regex(new RegExp(COMMIT_SHA_PATTERN, 'i'), message);
+
+export const ReviewSnapshotInput = z
+  .object({
+    base_sha: commitSha('error.review.base_not_commit'),
+    head_sha: commitSha('error.review.head_not_commit'),
+  })
+  .strict();
+
+/**
  * EP-REV-01 — 제출.
  *
  * **입력 커밋 스냅샷이 필수다**(D-07). 그것 없이는 "어느 코드에 대한 지적인가" 를
- * 나중에 되물을 수 없고, 그러면 발견은 산문으로 되돌아간다.
+ * 나중에 되물을 수 없고, 그러면 발견은 산문으로 되돌아간다. 두 값은 커밋 SHA 여야 한다(`ReviewSnapshotInput`).
  */
 export const ReviewSubmitInput = z
   .object({
     repo: z.string().nullish(),
     branch: z.string().min(1),
-    base_sha: z.string().min(1),
-    head_sha: z.string().min(1),
+    base_sha: ReviewSnapshotInput.shape.base_sha,
+    head_sha: ReviewSnapshotInput.shape.head_sha,
     changeset: z.array(z.string()).default([]),
     kind: z.string().default('code'),
     round_of: z.string().nullish(),

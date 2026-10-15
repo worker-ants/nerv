@@ -26,6 +26,7 @@ import {
   EVIDENCE_NOTE_MAX,
   effectiveGatePolicy,
   FAILOPEN_GATE,
+  STALE_REVIEW_REASON,
   DELEGATION_PLACEHOLDER_TEXTS,
   isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
@@ -38,7 +39,12 @@ import {
   taskStatus,
   text,
 } from '@nerv/schema';
-import type { DoneGateCheck, DoneGateFailopenReason, DoneGateResult } from '@nerv/schema';
+import type {
+  DoneGateCheck,
+  DoneGateFailopenReason,
+  DoneGateResult,
+  StaleReviewReason,
+} from '@nerv/schema';
 import {
   cursorId,
   cursorTimestamp,
@@ -76,15 +82,17 @@ import { FailopenService } from './failopen.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
 
 /**
- * 리뷰가 본 커밋 뒤에 새 커밋이 온 리뷰 조건 하나(2026-10-15 · REQ-API-314) — done 거부의 `details.stale_reviews`.
- * `kind` 는 종류 목록 조건이면 그 종류, 종류 무관 조건(`review_coverage: true`)이면 `null` 이다.
+ * 작업의 최신 커밋을 본 리뷰가 없어 **다시 리뷰받아야 하는** 리뷰 조건 하나(2026-10-15 · REQ-API-314) — done 거부의
+ * `details.stale_reviews`. `kind` 는 종류 목록 조건이면 그 종류, 종류 무관 조건(`review_coverage: true`)이면 `null` 이다.
  */
 export interface StaleReview {
   kind: string | null;
   /** 작업의 최신 커밋 — 이 커밋을 리뷰받아야 한다 */
   head_sha: string;
-  /** 그 조건의 가장 최근 라운드가 본 커밋 */
+  /** 그 조건의 가장 최근 라운드가 본 것 — 받은 값 그대로다(`not_a_commit` 이면 커밋 SHA 가 아닌 글자) */
   reviewed_sha: string;
+  /** `newer_commit` — 리뷰 뒤에 새 커밋이 왔다 · `not_a_commit` — 리뷰가 본 것이 커밋 SHA 가 아니다(규칙 전의 라운드) */
+  reason: StaleReviewReason;
 }
 
 /** 커밋 신선도를 판정하지 못하고 넘긴 것 — `gate.failopen` 의 `error` · `kinds`(종류 무관 조건이면 빈 목록) */
@@ -2894,10 +2902,11 @@ export class TaskService {
    * 종류 목록 조건(REQ-API-250) — 종류마다 **작업의 최신 커밋을 본 라운드**가 게이트 판정을 통과해야 한다(REQ-API-314).
    * 판정은 게이트 판정 조회(EP-REV-08)와 한 곳이다 — CI 가 본 값과 done 이 본 값이 다르면 어느 쪽도 믿지 못한다.
    *
-   * 그 커밋의 라운드가 없는 종류는 셋으로 나뉜다. 라운드가 아예 없으면 지금처럼 「리뷰가 없다」. 앞 커밋의 라운드만
-   * 있으면 「새 커밋을 다시 리뷰받아야 한다」(`stale_reviews` — 면제가 아니라 다시 리뷰가 답이라 `uncovered_kinds` 에
-   * 넣지 않는다). 앞 라운드가 본 것이 커밋 모양이 아니면 견줄 수 없으므로 그 라운드를 예전처럼 판정하고 fail-open 을
-   * 남긴다. 작업의 커밋을 모르면(`headSha` null) 모든 종류를 예전처럼 가장 최근 라운드로 판정하고 fail-open 을 남긴다.
+   * 그 커밋의 라운드가 없는 종류는 둘로 나뉜다. 라운드가 아예 없으면 지금처럼 「리뷰가 없다」. 라운드가 있으면 「최신
+   * 커밋을 다시 리뷰받아야 한다」(`stale_reviews` — 면제가 아니라 다시 리뷰가 답이라 `uncovered_kinds` 에 넣지 않는다).
+   * 앞 라운드가 본 것이 커밋 SHA 가 아니어도(제출이 그것을 거절하기 전에 들어온 라운드) 같다 — 최신 커밋을 봤다고 말할
+   * 근거가 없다(2026-10-15 · 사람 결정 · `not_a_commit`). 작업의 커밋을 모를 때만(`headSha` null) 모든 종류를 예전처럼
+   * 가장 최근 라운드로 판정하고 fail-open 을 남긴다 — 그것은 제출하는 쪽이 고칠 수 없는 환경의 빈칸이다.
    */
   private async judgeReviewKinds(
     tx: Tx,
@@ -2927,44 +2936,40 @@ export class TaskService {
       // 종류마다 반드시 보고해야 하는 역할(REQ-API-252) — 게이트 판정과 같은 정책 값이다
       requiredRoles: input.requiredRoles,
     };
-    let verdicts = await roundVerdicts(tx, {
+    const verdicts = await roundVerdicts(tx, {
       ...base,
       kinds,
       headSha: input.headSha,
       headMatch: 'commit',
     });
     let failopen: DoneGateFailopen | null = null;
-    const staleHeads = new Map<string, string>();
+    // 최신 커밋의 라운드는 없는데 다른 라운드가 있는 종류 — 그 라운드가 본 것(받은 값 그대로)
+    let staleHeads = new Map<string | null, string>();
     if (input.headSha === null) {
       if (kinds.length > 0) failopen = { error: 'commit_unknown', kinds };
     } else {
       const absent = verdicts.filter((v) => v.state === 'uncovered').map((v) => v.kind);
-      const heads = await latestRoundHeads(tx, { ...base, kinds: absent });
-      const unknown: string[] = [];
-      for (const [kind, head] of heads) {
-        if (kind === null) continue;
-        if (isCommitSha(head)) staleHeads.set(kind, head);
-        else unknown.push(kind);
-      }
-      if (unknown.length > 0) {
-        // 견줄 수 없는 라운드는 예전처럼 본다 — 막을 근거가 없는 것을 막지 않는다(D-14)
-        const earlier = await roundVerdicts(tx, { ...base, kinds: unknown, headSha: null });
-        verdicts = verdicts.map((v) => earlier.find((e) => e.kind === v.kind) ?? v);
-        failopen = { error: 'review_commit_unknown', kinds: unknown };
-      }
+      staleHeads = await latestRoundHeads(tx, { ...base, kinds: absent });
     }
     for (const v of verdicts) {
       const before = missing.length;
       const reviewedSha = staleHeads.get(v.kind);
       if (v.state === 'uncovered' && reviewedSha !== undefined && input.headSha !== null) {
+        // 커밋 SHA 가 아닌 라운드도 다시 리뷰다 — 그 라운드가 최신 커밋을 봤는지 알 수 없다(2026-10-15 · 사람 결정)
+        const commit = isCommitSha(reviewedSha);
         missing.push(
-          text('task.missing.review_kind_stale', {
+          text(commit ? 'task.missing.review_kind_stale' : 'task.missing.review_kind_not_commit', {
             kind: v.kind,
             reviewed: shortSha(reviewedSha),
             head: shortSha(input.headSha),
           }),
         );
-        stale.push({ kind: v.kind, head_sha: input.headSha, reviewed_sha: reviewedSha });
+        stale.push({
+          kind: v.kind,
+          head_sha: input.headSha,
+          reviewed_sha: reviewedSha,
+          reason: commit ? STALE_REVIEW_REASON.NEWER_COMMIT : STALE_REVIEW_REASON.NOT_A_COMMIT,
+        });
       } else if (v.state === 'uncovered') {
         if (input.voidKinds.has(v.kind)) {
           missing.push(text('task.missing.review_waiver_void', { kind: v.kind }));
@@ -3004,8 +3009,8 @@ export class TaskService {
 
   /**
    * 종류 무관 조건(`review_coverage: true`) — 끝난 라운드 1회 이상 · 그 라운드에 열린 critical 0(REQ-API-146). 작업의 최신
-   * 커밋을 알면 **그 커밋을 본 세션만** 센다(REQ-API-314). 앞 커밋의 세션만 있으면 다시 리뷰받아야 하고, 앞 세션이 본 것이
-   * 커밋 모양이 아니거나 작업의 커밋을 모르면 예전처럼 작업의 모든 세션을 보고 fail-open 을 남긴다.
+   * 커밋을 알면 **그 커밋을 본 세션만** 센다(REQ-API-314). 다른 세션만 있으면 — 앞 커밋이든 커밋 SHA 가 아닌 값이든 —
+   * 다시 리뷰받아야 한다. 작업의 커밋을 모를 때만 예전처럼 작업의 모든 세션을 보고 fail-open 을 남긴다.
    */
   private async judgeAnyReview(
     tx: Tx,
@@ -3030,32 +3035,35 @@ export class TaskService {
       `);
       return rows[0] ?? { rounds: 0, open_critical: 0 };
     };
-    let reviews = await count(input.headSha);
+    const reviews = await count(input.headSha);
     let staleSha: string | null = null;
     if (input.headSha === null) {
       failopen = { error: 'commit_unknown', kinds: [] };
     } else if (reviews.rounds === 0) {
-      const latest = (
-        await latestRoundHeads(tx, {
-          projectId: input.projectId,
-          taskId: input.taskId,
-          kinds: null,
-        })
-      ).get(null);
-      if (latest !== undefined && isCommitSha(latest)) staleSha = latest;
-      else if (latest !== undefined) {
-        reviews = await count(null);
-        failopen = { error: 'review_commit_unknown', kinds: [] };
-      }
+      staleSha =
+        (
+          await latestRoundHeads(tx, {
+            projectId: input.projectId,
+            taskId: input.taskId,
+            kinds: null,
+          })
+        ).get(null) ?? null;
     }
     if (staleSha !== null && input.headSha !== null) {
+      // 커밋 SHA 가 아닌 세션도 다시 리뷰다 — 그 세션이 최신 커밋을 봤는지 알 수 없다(2026-10-15 · 사람 결정)
+      const commit = isCommitSha(staleSha);
       missing.push(
-        text('task.missing.review_stale', {
+        text(commit ? 'task.missing.review_stale' : 'task.missing.review_not_commit', {
           reviewed: shortSha(staleSha),
           head: shortSha(input.headSha),
         }),
       );
-      stale.push({ kind: null, head_sha: input.headSha, reviewed_sha: staleSha });
+      stale.push({
+        kind: null,
+        head_sha: input.headSha,
+        reviewed_sha: staleSha,
+        reason: commit ? STALE_REVIEW_REASON.NEWER_COMMIT : STALE_REVIEW_REASON.NOT_A_COMMIT,
+      });
     } else if (reviews.rounds === 0) missing.push(text('task.missing.review_coverage'));
     else if (reviews.open_critical > 0) missing.push(text('task.missing.open_critical'));
     return {

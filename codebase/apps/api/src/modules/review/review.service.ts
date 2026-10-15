@@ -28,6 +28,7 @@ import {
   NERV_EVENT_PHASE2,
   newId,
   reviewKind,
+  ReviewSnapshotInput,
 } from '@nerv/schema';
 import { changesetHash, findingFingerprint } from '@nerv/schema/keys';
 import { sql } from 'drizzle-orm';
@@ -37,6 +38,7 @@ import { resolveRequirementRef } from '../spec/requirement-ref.js';
 import { recomputeImplStatus } from '../spec/impl-status.js';
 import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { parseBody } from '../../common/parse-body.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { roundVerdicts, uncoveredVerdict } from './review-gate.js';
 import type { RoundVerdict } from './review-gate.js';
@@ -298,6 +300,22 @@ export interface ResolveResult {
   open_remaining: number;
 }
 
+/**
+ * **입력 커밋 스냅샷은 커밋 SHA 다**(2026-10-15 · 사람 결정 · REQ-API-321). 제출(REST · MCP)과 임포트가 같은 스키마
+ * (`ReviewSnapshotInput`)를 지난다 — REST 는 표면에서 이미 봤지만 MCP 도구와 임포트는 여기가 처음이다. 거절은 REST 의 본문
+ * 검사와 같은 모양(400 · `details.issues`)이고, 받으면 앞뒤 공백을 정리한 값을 쓴다.
+ */
+function commitSnapshot(input: { headSha: string; baseSha: string }): {
+  headSha: string;
+  baseSha: string;
+} {
+  const snapshot = parseBody(ReviewSnapshotInput, {
+    head_sha: input.headSha,
+    base_sha: input.baseSha,
+  });
+  return { headSha: snapshot.head_sha, baseSha: snapshot.base_sha };
+}
+
 /** 리뷰어 위험도 → 세션 위험도. 가장 높은 것이 세션의 값이다. */
 const RISK_ORDER = ['low', 'medium', 'high'] as const;
 
@@ -315,8 +333,8 @@ export class ReviewService {
    * **한 트랜잭션이다.** 세션·리포트·발견이 따로 커밋되면 중간 실패가 "리포트는 있는데
    * 발견이 없는 라운드"를 남기고, 그 라운드는 게이트 판정에서 통과로 읽힌다.
    */
-  async submit(input: SubmitInput): Promise<SubmitResult> {
-    if (input.headSha.trim() === '' || input.baseSha.trim() === '') {
+  async submit(submitted: SubmitInput): Promise<SubmitResult> {
+    if (submitted.headSha.trim() === '' || submitted.baseSha.trim() === '') {
       // 입력 스냅샷이 없는 리뷰는 나중에 "무엇을 봤는지" 답할 수 없다(FR-09 필수 조건).
       // clemvion meta.json 에는 이 필드 자체가 없어 표본 SUMMARY 200개 중 47개만
       // 산문에 해시를 남겼다 — 스키마의 NOT NULL 이 가장 값싼 개선인 이유다.
@@ -324,6 +342,8 @@ export class ReviewService {
         kind: 'missing_head_sha',
       });
     }
+    // 있어도 커밋 SHA 가 아니면 받지 않는다(REQ-API-321) — 세션 · 리포트를 쓰기 전이라 라운드가 남지 않는다
+    const input: SubmitInput = { ...submitted, ...commitSnapshot(submitted) };
     if (input.reviewer.role.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.role_required'), {
         kind: 'missing_reviewer_role',
@@ -445,12 +465,14 @@ export class ReviewService {
    * `finding.opened` 를 3만 번 방송하면 알림이 소음이 되고, 그 소음이 알림을 끄게 만든다.
    * 임포트는 **이미 일어난 일**을 옮기는 것이지 지금 일어나는 일이 아니다.
    */
-  async ingest(input: IngestInput): Promise<{ session_id: string; findings: number }> {
-    if (input.headSha.trim() === '' || input.baseSha.trim() === '') {
+  async ingest(ingested: IngestInput): Promise<{ session_id: string; findings: number }> {
+    if (ingested.headSha.trim() === '' || ingested.baseSha.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.head_required'), {
         kind: 'missing_head_sha',
       });
     }
+    // 임포트도 같은 규칙이다(REQ-API-321) — 그 항목만 실패로 남고 배치는 계속된다(REQ-API-018)
+    const input: IngestInput = { ...ingested, ...commitSnapshot(ingested) };
     const hash = changesetHash({
       baseSha: input.baseSha,
       headSha: input.headSha,

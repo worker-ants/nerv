@@ -1,10 +1,11 @@
 // 커밋 범위 — done 게이트의 커밋 신선도와 `verified` 의 커밋 범위 (2026-10-15 · Phase 2 E16-S01 · E15-S03)
 //
 //   REQ-API-314  done 게이트의 리뷰 조건은 작업의 최신 커밋(가장 나중에 받은 `commit` 증적)을 본 라운드만 센다. 리뷰 뒤에
-//                새 커밋이 왔으면 막고 `stale_reviews` 에 종류 · 그 커밋 · 리뷰가 본 커밋을 준다. 커밋을 모르면 신선도만
-//                넘기고 done 과 함께 `gate.failopen` 을 남긴다(D-14)
+//                새 커밋이 왔거나 라운드가 본 것이 커밋 SHA 가 아니면 막고 `stale_reviews` 에 종류 · 그 커밋 · 리뷰가 본
+//                것 · 까닭을 준다. 커밋을 모를 때만 신선도를 넘기고 done 과 함께 `gate.failopen` 을 남긴다(D-14)
 //   REQ-API-315  `verified` 의 열린 critical 0 은 파생 작업의 최신 커밋을 본 라운드에서 센다 — 커밋을 모르면 예전처럼
 //                요구사항 단위로 본다. 라운드 제출 · 발견 처분 · 웹훅 증적이 그 요구사항을 다시 파생한다
+//   REQ-API-321  리뷰 제출 · 임포트의 `head_sha` · `base_sha` 는 커밋 SHA 여야 한다 — 아니면 400 이고 라운드가 남지 않는다
 //
 // 판정은 실제 Postgres 로 본다 — 커밋의 순서(받은 시각 · id)와 SHA 비교(짧은 SHA · 대소문자)가 SQL 에 있다.
 
@@ -36,6 +37,8 @@ let specId: string;
 /** 커밋 둘 — 40자 SHA 다. 리뷰 뒤에 B 가 온다 */
 const A = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const B = 'b2c3d4e5f60718293a4b5c6d7e8f901234567890';
+/** diff 기준 커밋 — 이것도 커밋 SHA 여야 받는다(REQ-API-321) */
+const BASE = 'ba5e000';
 
 beforeAll(async () => {
   db = await createScratchDb('nerv_commit_scope');
@@ -114,7 +117,7 @@ async function submit(over: {
     sessionId: agentSessionId,
     isAgent: true,
     branch: 'feat/freshness',
-    baseSha: 'base0000',
+    baseSha: BASE,
     headSha: over.headSha,
     kind: over.kind ?? 'code',
     changeset: ['src/widget.ts'],
@@ -172,7 +175,9 @@ describe('done 게이트의 커밋 신선도 (REQ-API-314 · E16-S01)', () => {
     expect(refused['missing']).toEqual([
       '이 작업의 code 리뷰가 본 커밋(a1b2c3d) 뒤에 새 커밋(b2c3d4e)이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
     ]);
-    expect(refused['stale_reviews']).toEqual([{ kind: 'code', head_sha: B, reviewed_sha: A }]);
+    expect(refused['stale_reviews']).toEqual([
+      { kind: 'code', head_sha: B, reviewed_sha: A, reason: 'newer_commit' },
+    ]);
     // 답은 면제가 아니라 다시 리뷰다 — 면제 후보(uncovered_kinds)에 넣지 않는다
     expect(refused['uncovered_kinds']).toBeUndefined();
     // 닫히지 않은 시도는 fail-open 을 남기지 않는다
@@ -219,7 +224,7 @@ describe('done 게이트의 커밋 신선도 (REQ-API-314 · E16-S01)', () => {
 
     const refused = detailsOf(await close(taskId, [{ kind: 'commit', locator: B.slice(0, 10) }]));
     expect(refused['stale_reviews']).toEqual([
-      { kind: 'code', head_sha: B.slice(0, 10), reviewed_sha: A },
+      { kind: 'code', head_sha: B.slice(0, 10), reviewed_sha: A, reason: 'newer_commit' },
     ]);
     const { rows } = await pool.query(`SELECT locator FROM evidence WHERE task_id = $1`, [taskId]);
     expect(rows.map((r) => r.locator)).toEqual([A]);
@@ -253,15 +258,68 @@ describe('done 게이트의 커밋 신선도 (REQ-API-314 · E16-S01)', () => {
     expect(await eventsOf(NERV_EVENT.GATE_FAILOPEN, taskId)).toEqual([]);
   });
 
-  it('리뷰가 본 것이 커밋 SHA 모양이 아니면 견주지 못한다 — 그 라운드로 판정하고 fail-open 을 남긴다', async () => {
+  /**
+   * **커밋 SHA 가 아닌 라운드는 다시 리뷰다**(2026-10-15 · 사람 결정). 예전에는 견주지 못한다고 보고 그 라운드로 판정한 뒤
+   * fail-open(`review_commit_unknown`)을 남겼다 — `head_sha: "HEAD"` 로 내면 신선도를 넘었다. 이제 제출이 그런 값을 받지
+   * 않으므로(REQ-API-321) 그 전에 들어온 라운드만 남는다 — 그 라운드를 흉내 내려고 행을 직접 넣는다.
+   */
+  async function legacyRound(taskId: string, headSha: string, state = 'complete'): Promise<void> {
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, kind, "trigger", task_id, branch, head_sha, base_sha,
+                                   changeset_hash, round_no, state, completed_at)
+       VALUES ($1,$2,'code','manual',$3,'feat/legacy',$4,'main',decode(md5(random()::text),'hex'),1,
+               $5::review_state, now())`,
+      [newId(), projectId, taskId, headSha, state],
+    );
+  }
+
+  it('작업의 커밋을 아는데 라운드가 본 것이 커밋 SHA 가 아니면 다시 리뷰받아야 한다 — fail-open 으로 넘기지 않는다', async () => {
     await setPolicy({ done_gate: { review_coverage: ['code'] } });
     const taskId = await makeTask('CLV-T-FRSH08');
     await attach(taskId, 'commit', B);
-    await submit({ taskId, headSha: 'HEAD' });
+    await legacyRound(taskId, 'HEAD');
+
+    const refused = detailsOf(await close(taskId));
+    expect(refused['missing']).toEqual([
+      '이 작업의 code 리뷰가 본 것(HEAD)이 커밋 SHA가 아니라서 마지막 커밋(b2c3d4e)을 봤는지 알 수 없습니다. 마지막 커밋을 다시 리뷰받아야 합니다',
+    ]);
+    expect(refused['stale_reviews']).toEqual([
+      { kind: 'code', head_sha: B, reviewed_sha: 'HEAD', reason: 'not_a_commit' },
+    ]);
+    expect(refused['uncovered_kinds']).toBeUndefined();
+    expect(await eventsOf(NERV_EVENT.GATE_FAILOPEN, taskId)).toEqual([]);
+
+    // 최신 커밋을 리뷰받으면 닫힌다
+    await submit({ taskId, headSha: B });
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
+    expect(await eventsOf(NERV_EVENT.GATE_FAILOPEN, taskId)).toEqual([]);
+  });
+
+  it('종류 무관 조건(true)도 커밋 SHA 가 아닌 세션을 다시 리뷰로 막는다', async () => {
+    await setPolicy({ done_gate: { review_coverage: true } });
+    const taskId = await makeTask('CLV-T-FRSH0C');
+    await attach(taskId, 'commit', A);
+    await legacyRound(taskId, 'feat/legacy');
+
+    const refused = detailsOf(await close(taskId));
+    expect(refused['missing']).toEqual([
+      '이 작업의 리뷰가 본 것(feat/legacy)이 커밋 SHA가 아니라서 마지막 커밋(a1b2c3d)을 봤는지 알 수 없습니다. 마지막 커밋을 다시 리뷰받아야 합니다',
+    ]);
+    expect(refused['stale_reviews']).toEqual([
+      { kind: null, head_sha: A, reviewed_sha: 'feat/legacy', reason: 'not_a_commit' },
+    ]);
+    expect(await eventsOf(NERV_EVENT.GATE_FAILOPEN, taskId)).toEqual([]);
+  });
+
+  it('작업의 커밋을 모르면 커밋 SHA 가 아닌 라운드라도 예전처럼 판정하고 fail-open(commit_unknown)을 남긴다', async () => {
+    await setPolicy({ done_gate: { review_coverage: ['code'] } });
+    const taskId = await makeTask('CLV-T-FRSH0D');
+    await attach(taskId, 'pr', 'https://git.example.com/pr/3');
+    await legacyRound(taskId, 'HEAD');
 
     expect(await close(taskId)).toMatchObject({ status: 'done' });
     expect(await eventsOf(NERV_EVENT.GATE_FAILOPEN, taskId)).toEqual([
-      { gate: 'done_gate', error: 'review_commit_unknown', kinds: ['code'] },
+      { gate: 'done_gate', error: 'commit_unknown', kinds: ['code'] },
     ]);
   });
 
@@ -284,7 +342,9 @@ describe('done 게이트의 커밋 신선도 (REQ-API-314 · E16-S01)', () => {
     await attach(taskId, 'commit', B);
 
     const refused = detailsOf(await close(taskId));
-    expect(refused['stale_reviews']).toEqual([{ kind: 'code', head_sha: B, reviewed_sha: A }]);
+    expect(refused['stale_reviews']).toEqual([
+      { kind: 'code', head_sha: B, reviewed_sha: A, reason: 'newer_commit' },
+    ]);
 
     await submit({ taskId, headSha: B });
     expect(await close(taskId)).toMatchObject({ status: 'done' });
@@ -308,7 +368,9 @@ describe('done 게이트의 커밋 신선도 (REQ-API-314 · E16-S01)', () => {
     expect(refused['missing']).toEqual([
       '이 작업의 리뷰가 본 커밋(a1b2c3d) 뒤에 새 커밋(b2c3d4e)이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
     ]);
-    expect(refused['stale_reviews']).toEqual([{ kind: null, head_sha: B, reviewed_sha: A }]);
+    expect(refused['stale_reviews']).toEqual([
+      { kind: null, head_sha: B, reviewed_sha: A, reason: 'newer_commit' },
+    ]);
 
     await submit({ taskId, headSha: B, kind: 'consistency' });
     expect(await close(taskId)).toMatchObject({ status: 'done' });
@@ -435,6 +497,39 @@ describe('`verified` 의 커밋 범위 (REQ-API-315 · E15-S03)', () => {
   it('리뷰를 받지 않은 작업은 커밋을 알아도 요구사항 단위로 본다 — 리뷰를 쓰지 않는 프로젝트의 검증이 막히지 않는다', async () => {
     const { reqId, taskId } = await verifiable('REQ-SCOPE-005', 'CLV-T-SCPE05');
     expect(await close(taskId, [{ kind: 'commit', locator: A }])).toMatchObject({ status: 'done' });
+    expect(await statusOf(reqId)).toBe('verified');
+  });
+
+  it('커밋을 아는데 라운드가 본 것이 커밋 SHA 가 아니면 검증되지 않는다 — 최신 커밋을 리뷰받으면 검증된다', async () => {
+    const { reqId, taskId } = await verifiable('REQ-SCOPE-007', 'CLV-T-SCPE07');
+    // 제출이 거절하기 전에 들어온 라운드다(2026-10-15 · 사람 결정) — 예전에는 견주지 못한다고 요구사항 단위로 봐서
+    // 그 요구사항에 열린 critical 이 없으면 검증됐다
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, kind, "trigger", task_id, branch, head_sha, base_sha,
+                                   changeset_hash, round_no, state, completed_at)
+       VALUES ($1,$2,'code','manual',$3,'feat/legacy','HEAD','main',decode(md5(random()::text),'hex'),1,
+               'complete', now())`,
+      [newId(), projectId, taskId],
+    );
+    expect(await close(taskId, [{ kind: 'commit', locator: A }])).toMatchObject({ status: 'done' });
+    expect(await statusOf(reqId)).toBe('implemented');
+
+    await submit({ taskId, headSha: A });
+    expect(await statusOf(reqId)).toBe('verified');
+  });
+
+  it('커밋을 모르면 커밋 SHA 가 아닌 라운드라도 예전처럼 요구사항 단위로 본다', async () => {
+    const { reqId, taskId } = await verifiable('REQ-SCOPE-008', 'CLV-T-SCPE08');
+    await pool.query(
+      `INSERT INTO review_session (id, project_id, kind, "trigger", task_id, branch, head_sha, base_sha,
+                                   changeset_hash, round_no, state, completed_at)
+       VALUES ($1,$2,'code','manual',$3,'feat/legacy','HEAD','main',decode(md5(random()::text),'hex'),1,
+               'complete', now())`,
+      [newId(), projectId, taskId],
+    );
+    expect(await close(taskId, [{ kind: 'code_path', locator: 'src/widget.ts' }])).toMatchObject({
+      status: 'done',
+    });
     expect(await statusOf(reqId)).toBe('verified');
   });
 

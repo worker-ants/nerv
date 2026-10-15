@@ -373,6 +373,10 @@ export const en = {
     'Comma list. A finding matches if it has any of the tags (spec_drift and so on)',
   'mcp.arg.finding_branch_filter': 'Only findings last observed in a review of this branch',
   'mcp.arg.finding_cursor': 'The next_cursor of the previous response',
+  'mcp.arg.review_head_sha':
+    'SHA of the reviewed commit (the value of git rev-parse HEAD, 7 to 40 hex characters); HEAD or a branch name is rejected',
+  'mcp.arg.review_base_sha':
+    'SHA of the diff base commit (7 to 40 hex characters); a branch name is rejected',
   'mcp.arg.commit_sha': 'commit that fixed the code (evidence); required for fixed',
   'error.review.empty_comment': 'Comments cannot be empty.',
   'error.spec.base_hash_required':
@@ -815,6 +819,10 @@ export const en = {
     'the {kind} review of this task saw commit {reviewed}, and a newer commit {head} came after it — have the new commit reviewed',
   'task.missing.review_stale':
     'the review of this task saw commit {reviewed}, and a newer commit {head} came after it — have the new commit reviewed',
+  'task.missing.review_kind_not_commit':
+    'the {kind} review of this task saw {reviewed}, which is not a commit SHA, so it cannot be matched to the latest commit {head} — have the latest commit reviewed',
+  'task.missing.review_not_commit':
+    'the review of this task saw {reviewed}, which is not a commit SHA, so it cannot be matched to the latest commit {head} — have the latest commit reviewed',
   'task.missing.review_kind_open':
     'the {kind} review of this task still has open findings ({critical} critical · {warning} warning)',
   'task.missing.evidence': 'evidence (at least one implementation record)',
@@ -922,6 +930,10 @@ export const en = {
   'error.review.rationale_required': 'A resolution needs a rationale.',
   'error.review.role_required': 'A reviewer role is required.',
   'error.review.head_required': 'A review must name the commit it examined (head_sha).',
+  'error.review.head_not_commit':
+    'head_sha must be a commit SHA (7 to 40 hex characters). Pass the value from git rev-parse, not HEAD or a branch name.',
+  'error.review.base_not_commit':
+    'base_sha must be a commit SHA (7 to 40 hex characters). Pass the value from git rev-parse, not a branch name.',
   'error.spec.meta_change_not_allowed':
     "A spec's title, parent, and type can't be changed here. A person changes the document structure on the web. Resend only the body.",
   'error.spec.key_taken':

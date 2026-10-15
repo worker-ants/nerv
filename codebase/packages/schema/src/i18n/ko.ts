@@ -374,6 +374,9 @@ export const ko = {
   'mcp.arg.finding_tag_filter': '쉼표 목록 — 태그 하나라도 맞으면 나온다(spec_drift 등)',
   'mcp.arg.finding_branch_filter': '그 브랜치의 리뷰에서 마지막으로 관찰된 발견만',
   'mcp.arg.finding_cursor': '앞 응답의 next_cursor',
+  'mcp.arg.review_head_sha':
+    '검토한 커밋의 SHA(git rev-parse HEAD의 값 · 16진수 7~40자). HEAD나 브랜치 이름은 거절한다',
+  'mcp.arg.review_base_sha': 'diff 기준 커밋의 SHA(16진수 7~40자). 브랜치 이름은 거절한다',
   'mcp.arg.commit_sha': '코드를 고쳐 해결했을 때의 근거 커밋. fixed이면 필수다',
   'error.review.empty_comment': '빈 코멘트는 남길 수 없습니다.',
   'error.spec.base_hash_required':
@@ -811,6 +814,10 @@ export const ko = {
     '이 작업의 {kind} 리뷰가 본 커밋({reviewed}) 뒤에 새 커밋({head})이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
   'task.missing.review_stale':
     '이 작업의 리뷰가 본 커밋({reviewed}) 뒤에 새 커밋({head})이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
+  'task.missing.review_kind_not_commit':
+    '이 작업의 {kind} 리뷰가 본 것({reviewed})이 커밋 SHA가 아니라서 마지막 커밋({head})을 봤는지 알 수 없습니다. 마지막 커밋을 다시 리뷰받아야 합니다',
+  'task.missing.review_not_commit':
+    '이 작업의 리뷰가 본 것({reviewed})이 커밋 SHA가 아니라서 마지막 커밋({head})을 봤는지 알 수 없습니다. 마지막 커밋을 다시 리뷰받아야 합니다',
   'task.missing.review_kind_open':
     '이 작업의 {kind} 리뷰에 열린 발견이 남아 있습니다(critical {critical}건 · warning {warning}건)',
   'task.missing.evidence': '증적(evidence): 구현 증적 1건 이상',
@@ -910,6 +917,10 @@ export const ko = {
   'error.review.rationale_required': '처분 근거를 적어야 합니다.',
   'error.review.role_required': '리뷰어 역할이 필요합니다.',
   'error.review.head_required': '리뷰에는 검토한 커밋(head_sha)이 필요합니다.',
+  'error.review.head_not_commit':
+    'head_sha는 커밋 SHA(16진수 7~40자)여야 합니다. HEAD나 브랜치 이름 대신 git rev-parse로 얻은 값을 넣으세요.',
+  'error.review.base_not_commit':
+    'base_sha는 커밋 SHA(16진수 7~40자)여야 합니다. 브랜치 이름 대신 git rev-parse로 얻은 값을 넣으세요.',
   'error.spec.meta_change_not_allowed':
     '스펙의 제목·상위 문서·종류는 여기서 바꿀 수 없습니다. 문서 구조는 사람이 웹에서 바꿉니다. 본문만 다시 보내세요.',
   'error.spec.key_taken':

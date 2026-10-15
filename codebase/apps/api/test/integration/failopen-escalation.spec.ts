@@ -98,7 +98,7 @@ async function prepareFailopenTask(): Promise<string> {
     sessionId: agentSessionId,
     isAgent: true,
     branch: `feat/fo-${seq}`,
-    baseSha: 'base0000',
+    baseSha: 'ba5e0000',
     headSha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
     kind: 'code',
     changeset: [`src/fo-${seq}.ts`],

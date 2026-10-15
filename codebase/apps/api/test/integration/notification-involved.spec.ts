@@ -154,7 +154,7 @@ async function submit(over: {
     sessionId: reviewerSession,
     isAgent: true,
     branch: 'feat/notify',
-    baseSha: 'base0000',
+    baseSha: 'ba5e0000',
     headSha: over.headSha ?? 'a1b2c3d4',
     kind: 'code',
     changeset: over.changeset ?? ['src/widget.ts'],

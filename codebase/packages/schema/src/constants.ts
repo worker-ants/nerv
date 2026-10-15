@@ -646,11 +646,24 @@ export const FAILOPEN_GATE = { PLAN_APPROVAL: 'plan_approval', DONE_GATE: 'done_
 export type FailopenGate = (typeof FAILOPEN_GATE)[keyof typeof FAILOPEN_GATE];
 /**
  * done 게이트가 **커밋 신선도를 판정하지 못한 까닭** — `gate.failopen` 의 `error`. `commit_unknown` 은 작업에 `commit` 증적이
- * 없어 최신 커밋을 모른다, `review_commit_unknown` 은 그 종류의 리뷰 라운드가 본 것이 커밋 SHA 모양이 아니라 견줄 수
- * 없다는 뜻이다. 둘 다 신선도 조건만 넘기고 나머지(리뷰가 있는가 · 열린 발견)는 그대로 본다.
+ * 없어 최신 커밋을 모른다는 뜻이다 — 환경의 빈칸이라 신선도 조건만 넘기고 나머지(리뷰가 있는가 · 열린 발견)는 그대로 본다.
+ *
+ * `review_commit_unknown`(라운드가 본 것이 커밋 SHA 모양이 아니다)은 2026-10-15 에 뺐다(사람 결정 · api.md REQ-API-314 ·
+ * 321). 제출하는 쪽이 고칠 수 있는 입력이라 이제 제출에서 거절하고, 그 전에 들어온 라운드는 다시 리뷰가 필요한 것으로 막는다
+ * (`STALE_REVIEW_REASON.NOT_A_COMMIT`). 배포된 적이 없는 값이다.
  */
-export const DONE_GATE_FAILOPEN_REASONS = ['commit_unknown', 'review_commit_unknown'] as const;
+export const DONE_GATE_FAILOPEN_REASONS = ['commit_unknown'] as const;
 export type DoneGateFailopenReason = (typeof DONE_GATE_FAILOPEN_REASONS)[number];
+/**
+ * done 거부의 `details.stale_reviews[].reason` — **왜 그 리뷰가 작업의 최신 커밋을 본 것이 아닌가**(2026-10-15 · api.md
+ * REQ-API-314). `newer_commit` 은 리뷰가 본 커밋 뒤에 새 커밋이 왔다, `not_a_commit` 은 리뷰가 본 것(`reviewed_sha` — 받은
+ * 값 그대로)이 커밋 SHA 가 아니다(이 규칙 전에 들어온 라운드). 답은 둘 다 최신 커밋의 다시 리뷰다 — 면제 후보가 아니다.
+ */
+export const STALE_REVIEW_REASON = {
+  NEWER_COMMIT: 'newer_commit',
+  NOT_A_COMMIT: 'not_a_commit',
+} as const;
+export type StaleReviewReason = (typeof STALE_REVIEW_REASON)[keyof typeof STALE_REVIEW_REASON];
 
 // ── 본문 축소 (2026-10-08 · api.md REQ-API-270 · 271) ─────────────────────────────────────────
 /**

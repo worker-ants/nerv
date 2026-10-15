@@ -15,7 +15,7 @@ A **review session** is the record of one change reviewed under one kind. Findin
 
 The kind is set when a review is **submitted**. It doesn't appear on screen, and you can't filter the queue by it.
 
-A session moves from `running` to `complete`. It also records which input it reviewed (branch and commit).
+A session moves from `running` to `complete`. It also records which input it reviewed (branch and commit). The reviewed commit and the diff base must be commit SHAs (7 to 40 hex characters); a review sent with `HEAD` or a branch name is rejected.
 
 **If the same change is submitted twice under the same kind, there is still only one session.** No new session is created; another report is added to the existing one. A different reviewer also adds a report, not a session. When new commits on the branch change the diff, a new session is created and the round number goes up. **The same issue stays a single finding across rounds.** Findings with the same category, file, symbol and title count as the same issue, so a shifted line number doesn't create a new finding. The card shows how many times it was seen and the most recent round, in the form "seen N× · latest round M".
 

@@ -35,7 +35,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 | `nerv-consistency-checker` | `consistency` | 작업의 스펙 · 요구사항이 구현에 반영됐는가. 문서끼리의 정합은 서버의 `nerv_spec_check` 가 본다 |
 
 1. **범위를 확정하고 diff 를 파일로 쓴다** — `mkdir -p .nerv/review && git diff <base_sha>..<head_sha> > .nerv/review/<head_sha>.diff`. 둘에게는 Bash 가 없어 git 을 부르지 못한다. `.nerv/` 는 커밋되지 않는다.
-2. **맡긴다.** 프롬프트에 `branch` · `base_sha` · `head_sha` · `changeset` · diff 경로를 넣는다. 어느 작업의 리뷰인지 알면 `task_id` 도 넣는다. 정합 리뷰는 작업이나 기준 스펙 키가 있을 때만 맡긴다 — 기준 없이 낸 "문제 없음" 은 게이트에서 통과로 읽힌다. 둘은 종류가 달라 서로 다른 라운드이므로 함께 맡겨도 된다.
+2. **맡긴다.** 프롬프트에 `branch` · `base_sha` · `head_sha`(둘 다 `git rev-parse` 로 얻은 커밋 SHA) · `changeset` · diff 경로를 넣는다. 어느 작업의 리뷰인지 알면 `task_id` 도 넣는다. 정합 리뷰는 작업이나 기준 스펙 키가 있을 때만 맡긴다 — 기준 없이 낸 "문제 없음" 은 게이트에서 통과로 읽힌다. 둘은 종류가 달라 서로 다른 라운드이므로 함께 맡겨도 된다.
 3. **필수 역할이 있으면 역할마다 맡긴다.** `nerv_bootstrap` 응답의 `gate_policy.review_roles` 가 그 종류에 역할을 정해 두었으면 역할 하나에 서브에이전트 호출 하나로, `reviewer.role` 을 그 이름으로 넘긴다. 정해 두지 않았으면 넘기지 않는다 — 서브에이전트는 자기 이름(`nerv-code-reviewer` · `nerv-consistency-checker`)으로 낸다.
 4. **같은 종류를 이 세션이 다시 제출하지 않는다.** 서브에이전트가 돌려준 결과(`findings_new` · `findings_merged` · `round_block` · `blocking_findings`)를 읽고 아래 처분 절차로 간다. 발견을 고쳐 쓰거나 대신 다시 내면 같은 지적이 두 이름표로 남는다.
 5. **서버가 내려가 있었으면** 서브에이전트가 돌려준 인자 그대로 `nerv-outbox` 로 큐잉한다.
@@ -49,7 +49,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 이 세션이 직접 낼 때의 절차다. 서브에이전트도 같은 규칙으로 낸다.
 
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
-   **`head_sha` 는 실제 커밋 SHA 다**(`git rev-parse HEAD`). 작업의 done 게이트는 그 작업의 최신 커밋을 본 라운드만 센다 — 리뷰한 뒤에 커밋하면 그 커밋을 다시 리뷰받아야 작업이 닫힌다(거부의 `details.stale_reviews`). 커밋 SHA 가 아닌 값(`HEAD` · 브랜치 이름)은 서버가 커밋과 견주지 못해 게이트가 판정 불가로 기록한다.
+   **`head_sha` 와 `base_sha` 는 실제 커밋 SHA 다**(`git rev-parse HEAD` · `git rev-parse <기준 브랜치>`). 작업의 done 게이트는 그 작업의 최신 커밋을 본 라운드만 센다 — 리뷰한 뒤에 커밋하면 그 커밋을 다시 리뷰받아야 작업이 닫힌다(거부의 `details.stale_reviews`). 커밋 SHA 가 아닌 값(`HEAD` · 브랜치 이름 · `origin/main`)은 서버가 400 으로 거절하고 라운드가 남지 않는다 — `git rev-parse` 로 얻은 SHA 로 바꿔 다시 낸다.
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
    **어느 작업의 리뷰인지 알면 그 작업의 기준으로 대조한다** — `nerv_task_get`(`task_id`)으로
    출처 문서(`spec_key`)를 확인하고 `nerv_spec_get`(`spec_id`, `task`)으로 읽는다. 최신 승인본으로
@@ -97,7 +97,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`에 빠진 항목이 적혀 있다. 채워서 재호출 |
+| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`에 빠진 항목이 적혀 있다. 채워서 재호출. 400 이고 `details.issues` 가 `head_sha`·`base_sha` 를 가리키면 커밋 SHA 가 아닌 값이다 — `git rev-parse` 로 얻은 SHA 로 바꿔 재호출 |
 | NERV_APPROVAL_REQUIRED | critical 하향 — 재시도하지 않는다. `approval_id`와 함께 사람에게 보고하고 멈춘다 |
 | NERV_FORBIDDEN | `review:resolve` 미보유 — 처분은 이 역할의 일이 아니다. 제출까지만 하고 보고한다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
