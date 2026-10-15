@@ -23,7 +23,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.92 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.93 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.93 변경(2026-10-15 — Phase 2 묶음 1의 셋째 앞, **사람 지시**): **§1.4 E16 · E17 행의 근거.** 묶음 1의 둘째가 남긴 배포 위험 둘을 고쳤다. 새로 뜬 알림 워커가 넓어진 라우팅 규칙을 지난 이벤트에 소급하지 않는다 — 최근 한 시간만 다시 본다([4.4 API](api.md) REQ-API-317). 작업의 최신 커밋을 찾는 질의에 인덱스를 둔다([4.3 데이터베이스](database.md) REQ-DB-045 · `0052`). 스토리 수 · 상태는 그대로다.
 >
 > v2.92 변경(2026-10-15 — Phase 2 묶음 1의 둘째, **사람 결정**): **E17-S01 `done` · §1.4 E17 행과 합계 · §1.1 · §6.4 첫 단락.** 알림이 카탈로그의 관여자(작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자)에게 간다. 역할 큐로 가던 이벤트는 그대로 가고 관여자를 더하며, `finding.opened`(critical) · `finding.resolved` 는 관여자에게만 간다([4.4 API](api.md) REQ-API-316). 합계는 `done` 80 · 부분 1 · `backlog` 20 이다.
 >
@@ -642,8 +644,8 @@ referenced_by:
 | E13 받은 요청·질문·알림 | 3 | — | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
 | E14 운영·연동 | 4 | — | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
 | E15 커버리지 · 구현 축 | 3 | — | — | `routes/p.$proj/coverage.tsx` · `features/coverage-drilldown/`(E15-S01 드릴다운) · `spec/impl-status.ts`(출처를 쓴다 · `commitScopeClearSql` — E15-S03 커밋 범위) · `import.service.ts` · `drizzle/0051`(E15-S02 출처) · `spec.service.ts`(`coverage` · `requirement`) · `review/commit-scope.ts` · `test/integration/coverage-drilldown.spec.ts` · `commit-scope.spec.ts` |
-| E16 게이트 판정 완성 | 1 | — | 3 | `task.service.ts`(done 게이트 — `judgeReviewKinds` · `judgeAnyReview`가 작업의 최신 커밋을 본 라운드만 센다 · `stale_reviews` · `gate.failopen`) · `review/commit-scope.ts`(최신 커밋 · 같은 커밋 판정) · `review/review-gate.ts`(`headMatch: 'commit'`) · `test/integration/commit-scope.spec.ts`(E16-S01) — 남은 S02~S04 는 착수 전 |
-| E17 알림 확장 | 1 | — | 2 | `event/notification.service.ts`(`involvedTargets` — 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자 · E17-S01) · `review.service.ts`(`finding.resolved` 의 `review_session_id`) · `test/integration/notification-involved.spec.ts` — 남은 S02(워치) · S03(Slack)은 착수 전 |
+| E16 게이트 판정 완성 | 1 | — | 3 | `task.service.ts`(done 게이트 — `judgeReviewKinds` · `judgeAnyReview`가 작업의 최신 커밋을 본 라운드만 센다 · `stale_reviews` · `gate.failopen`) · `review/commit-scope.ts`(최신 커밋 · 같은 커밋 판정) · `review/review-gate.ts`(`headMatch: 'commit'`) · `test/integration/commit-scope.spec.ts`(E16-S01) · `drizzle/0052`(작업의 증적 인덱스 `evidence_task` — 최신 커밋을 표 전체에서 찾지 않는다) — 남은 S02~S04 는 착수 전 |
+| E17 알림 확장 | 1 | — | 2 | `event/notification.service.ts`(`involvedTargets` — 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자 · E17-S01) · `review.service.ts`(`finding.resolved` 의 `review_session_id`) · `resumePoint`(새로 뜬 워커는 최근 한 시간만 다시 본다 — 넓어진 규칙을 지난 이벤트에 소급하지 않는다 · [4.4 API](api.md) REQ-API-317) · `test/integration/notification-involved.spec.ts` — 남은 S02(워치) · S03(Slack)은 착수 전 |
 | E18 fail-open · 보존 | — | — | 3 | 착수 전 — `zod/policy.ts`(`failopen`) · `routes/settings/gates.tsx`(보기 전용) · `worker/jobs/retention.job.ts` |
 | E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
 | E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |

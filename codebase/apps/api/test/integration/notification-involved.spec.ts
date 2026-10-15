@@ -384,6 +384,92 @@ describe('역할 큐에 관여자를 더한다 (REQ-API-316)', () => {
   });
 });
 
+/**
+ * **배포 직후 — 새 워커는 지난 이벤트에 새 규칙을 소급하지 않는다**(2026-10-15 · REQ-API-317).
+ *
+ * 워커의 물마루는 메모리에 있어 재기동하면 빈다. 예전에는 그때 알림이 없는 이벤트를 처음부터 훑어서, 위의 관여 라우팅이
+ * 들어온 배포 뒤 첫 실행에 지난 발견 이벤트 전부가 알림이 됐다. 이제 새 워커는 최근 한 시간의 이벤트만 다시 본다.
+ */
+describe('새 워커의 첫 파생 (REQ-API-317)', () => {
+  /** critical 발견 둘을 열고 그 열림 이벤트를 지운다 — 시각을 골라 다시 넣으려고(이벤트는 append-only 라 고칠 수 없다) */
+  async function openFindings(n: number): Promise<readonly string[]> {
+    const taskId = await task(`CLV-T-RSM${String(n).padStart(3, '0')}`, U.dev);
+    const out = await submit({
+      taskId,
+      // 제목이 달라야 다른 발견이다 — 지문은 제목의 숫자를 지워 같은 지적의 변형을 하나로 접는다
+      findings: ['토큰이 로그에 남는다', '권한을 보지 않는다', '입력을 검증하지 않는다']
+        .slice(0, n)
+        .map((title) => finding('critical', title)),
+    });
+    await pool.query('TRUNCATE event');
+    expect(out.findings_new).toHaveLength(n);
+    return out.findings_new;
+  }
+
+  /** 발견 열림 이벤트를 `ago` 만큼 지난 시각으로 넣는다 */
+  async function opened(findingId: string, ago: string): Promise<string> {
+    const id = newId();
+    await pool.query(`SELECT nerv_ensure_month_partitions((now() - $1::interval)::date)`, [ago]);
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, actor_user_id, actor_session_id, is_agent,
+                          subject_type, subject_id)
+       VALUES ($1,$2, now() - $3::interval, $4, $5, $6, true, 'finding', $7)`,
+      [
+        id,
+        projectId,
+        ago,
+        NERV_EVENT_PHASE2.FINDING_OPENED,
+        U.reviewer,
+        reviewerSession,
+        findingId,
+      ],
+    );
+    return id;
+  }
+
+  /** 이 이벤트들 가운데 알림이 된 것 */
+  async function notified(eventIds: string[]): Promise<string[]> {
+    const { rows } = await pool.query<{ event_id: string }>(
+      `SELECT DISTINCT event_id FROM notification WHERE event_id = ANY($1::uuid[])`,
+      [eventIds],
+    );
+    return rows.map((r) => r.event_id);
+  }
+
+  it('지난 발견 이벤트는 알림이 되지 않고 재기동 직전 몇 분의 놓친 이벤트는 파생된다', async () => {
+    const [old, recent] = await openFindings(2);
+    const before = await opened(old!, '3 days');
+    const missed = await opened(recent!, '5 minutes');
+
+    // 배포한 뒤 새로 뜬 워커 — 물마루가 없다
+    await new NotificationService(drizzle(pool)).route();
+    expect(await notified([before, missed])).toEqual([missed]);
+    expect(await inboxOf(U.dev)).toHaveLength(1);
+  });
+
+  it('한 시간 창 안에서 이미 알림이 된 이벤트는 다시 만들지 않는다 — 다시 훑어도 한 이벤트 · 한 사람 · 한 행이다', async () => {
+    const [done, missed] = await openFindings(2);
+    const before = await opened(done!, '20 minutes');
+    // 옛 워커가 이미 파생했다
+    await notifications.route({ since: new Date(Date.now() - 30 * 60_000) });
+    expect(await notified([before])).toEqual([before]);
+    const after = await opened(missed!, '5 minutes');
+
+    await new NotificationService(drizzle(pool)).route();
+    expect(sorted(await notified([before, after]))).toEqual(sorted([before, after]));
+    expect(await inboxOf(U.dev)).toHaveLength(2);
+  });
+
+  it('물마루가 있는 워커는 그대로 잇는다 — 한 시간 창은 새로 뜬 워커의 첫 실행에만 쓴다', async () => {
+    const worker = new NotificationService(drizzle(pool));
+    await worker.route();
+    const [first] = await openFindings(1);
+    const live = await opened(first!, '0 seconds');
+    await worker.route();
+    expect(await notified([live])).toEqual([live]);
+  });
+});
+
 async function seed(): Promise<void> {
   orgId = newId();
   projectId = newId();

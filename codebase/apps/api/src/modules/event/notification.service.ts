@@ -16,6 +16,7 @@ import {
   NERV_EVENT_PHASE2,
   newId,
   NOTIFICATION_LEVELS,
+  NOTIFICATION_RESUME_WINDOW_SECONDS,
   notificationState,
 } from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
@@ -153,6 +154,18 @@ function mailsNow(event: { type: string; payload?: Record<string, unknown> | nul
   return Number(event.payload?.['level'] ?? 0) >= 2;
 }
 
+/** 파생할 이벤트 한 줄 — `route` 가 읽는 열 */
+type RoutableEvent = {
+  id: string;
+  project_id: string;
+  type: string;
+  actor_user_id: string | null;
+  subject_type: string;
+  subject_id: string;
+  payload: Record<string, unknown> | null;
+  occurred_at: string;
+};
+
 /** 한 실행이 넘기는 페이지 상한 — 밀린 이력이 길어도 한 틱이 무한히 돌지 않게 한다 */
 const MAX_PAGES = 20;
 
@@ -160,7 +173,7 @@ const MAX_PAGES = 20;
 export class NotificationService {
   /**
    * 지난 실행이 어디까지 봤는가(메모리). 워커는 advisory lock 을 쥔 한 프로세스라
-   * 이 값이 곧 그 워커의 물마루다 — 재기동하면 비고, 그때는 밀린 것부터 다시 훑는다.
+   * 이 값이 곧 그 워커의 물마루다 — 재기동하면 비고, 그때는 최근 한 시간에서 시작한다(`resumePoint`).
    */
   private cursor: string | null = null;
 
@@ -184,8 +197,9 @@ export class NotificationService {
    */
   async route(input: { since?: Date | null; limit?: number } = {}): Promise<number> {
     const limit = input.limit ?? 200;
-    // 명시 `since` 는 호출자의 것이고, 없으면 지난 실행이 남긴 물마루에서 잇는다
-    let cursor: string | null = input.since?.toISOString() ?? this.cursor;
+    // 명시 `since` 는 호출자의 것이고, 없으면 지난 실행이 남긴 물마루에서 잇는다. 새로 뜬 워커는 물마루가 없다 —
+    // 그때는 최근 한 시간만 다시 본다(REQ-API-317). 처음부터 훑으면 넓어진 규칙이 지난 이벤트에 소급된다
+    let cursor: string = input.since?.toISOString() ?? this.cursor ?? (await this.resumePoint());
     let created = 0;
 
     // **창이 막히지 않게 앞으로 민다.** 예전에는 "알림 행이 없는 이벤트" 를 시각순 200건만
@@ -196,26 +210,17 @@ export class NotificationService {
     //
     // 그래서 페이지를 넘긴다: 처리한 마지막 시각을 커서로 삼아 건너뛴 것들을 지나간다.
     // 두 조건을 함께 쓰는 것이 요점이다 — 시각 커서는 **전진**을, `NOT EXISTS` 는
-    // **중복 방지**를 맡는다(재기동하면 커서가 비고, 그때는 밀린 것부터 다시 훑는다).
+    // **중복 방지**를 맡는다(재기동하면 최근 한 시간에서 다시 시작한다 — `resumePoint`).
     for (let page = 0; page < MAX_PAGES; page += 1) {
-      const at: string | null = cursor;
-      const { rows: events } = await this.db.execute<{
-        id: string;
-        project_id: string;
-        type: string;
-        actor_user_id: string | null;
-        subject_type: string;
-        subject_id: string;
-        payload: Record<string, unknown> | null;
-        occurred_at: string;
-      }>(sql`
+      const at: string = cursor;
+      const { rows: events }: { rows: RoutableEvent[] } = await this.db.execute<RoutableEvent>(sql`
         SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_type, e.subject_id, e.payload,
                e.occurred_at::text AS occurred_at
           FROM event e
          WHERE NOT EXISTS (SELECT 1 FROM notification n WHERE n.event_id = e.id)
            -- 묶음에 더해진 이벤트는 그 줄의 event_id 가 아니다(줄은 마지막 이벤트를 가리킨다) — 여기서 본다
            AND NOT EXISTS (SELECT 1 FROM notification_batch_event b WHERE b.event_id = e.id)
-           ${at == null ? sql`` : sql`AND e.occurred_at > ${at}`}
+           AND e.occurred_at > ${at}
          ORDER BY e.occurred_at
          LIMIT ${limit}
       `);
@@ -269,6 +274,33 @@ export class NotificationService {
     if (input.since == null) this.cursor = cursor;
     if (created > 0) this.logger.log(`알림 ${created}건 파생`);
     return created;
+  }
+
+  /**
+   * **새로 뜬 워커가 어디서 잇는가**(2026-10-15 · REQ-API-317).
+   *
+   * 예전에는 커서가 비면 알림이 없는 이벤트를 **처음부터** 다시 훑었다. 대부분의 이벤트는 알림을 만들지 않으니(카탈로그 밖 ·
+   * low · 수신자 0명) 그것은 이벤트 표 전체였고, 규칙이 넓어진 배포 뒤에는 지난 이벤트가 새 규칙으로 알림이 됐다 —
+   * 2026-10-15 에 `finding.opened` · `finding.resolved` 가 카탈로그에 든 뒤 첫 실행이면 지난 리뷰의 발견 전부(clemvion
+   * 리뷰 임포트처럼 수천 건)가 그랬다. 밀린 이력이 길면 그동안 새 결재 요청의 알림도 그 뒤에서 기다렸다.
+   *
+   * 이제 최근 `NOTIFICATION_RESUME_WINDOW_SECONDS`(한 시간)의 이벤트만 다시 본다. 재기동 직전 몇 분의 놓친 이벤트는
+   * 여전히 파생되고(이미 만든 알림은 `NOT EXISTS` 와 유일 인덱스가 거른다), 창보다 오래된 이벤트는 규칙이 바뀌어도 알림이
+   * 되지 않는다. 시각은 DB 의 것이다 — `occurred_at` 과 같은 시계로 잰다.
+   *
+   * 「알림을 만든 가장 나중 이벤트」를 물마루로 되살리는 안은 택하지 않았다. 조용한 프로젝트에서는 그 이벤트가 몇 시간 ·
+   * 며칠 전일 수 있어 결국 창이 함께 필요하고, 창 안에서 더 좁히는 이득(한 시간 안의 새 규칙 이벤트 — 어차피 막 생긴 일이다)
+   * 보다 대가가 크다: 이벤트 파티션을 읽어야 하고, 시각이 앞선 이벤트 하나가 시작점을 밀어 그 앞의 놓친 이벤트를 가린다.
+   */
+  private async resumePoint(): Promise<string> {
+    const { rows } = await this.db.execute<{ at: string }>(sql`
+      SELECT (now() - make_interval(secs => ${NOTIFICATION_RESUME_WINDOW_SECONDS}))::text AS at
+    `);
+    // 행은 언제나 하나다 — 없으면 앱의 시계로 같은 창을 잰다
+    const at =
+      rows[0]?.at ?? new Date(Date.now() - NOTIFICATION_RESUME_WINDOW_SECONDS * 1000).toISOString();
+    this.logger.log(`알림 파생을 ${at} 뒤의 이벤트부터 잇는다`);
+    return at;
   }
 
   /**

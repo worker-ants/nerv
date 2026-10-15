@@ -471,6 +471,37 @@ describe('`verified` 의 커밋 범위 (REQ-API-315 · E15-S03)', () => {
   });
 });
 
+describe('작업의 최신 커밋은 인덱스로 찾는다 (REQ-DB-045)', () => {
+  it('`evidence_task` 가 있고 최신 커밋 질의가 그 인덱스로 작업의 행만 읽는다 — 표 전체를 훑지 않는다', async () => {
+    const { rows: indexes } = await pool.query<{ def: string }>(
+      `SELECT indexdef AS def FROM pg_indexes WHERE tablename = 'evidence' AND indexname = 'evidence_task'`,
+    );
+    expect(indexes[0]?.def).toMatch(/\(task_id, created_at, id\) WHERE \(task_id IS NOT NULL\)/);
+
+    // 행이 적으면 플래너는 순차 스캔을 고른다 — 쓸 수 있는가를 보려고 순차 스캔만 끈다
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SET LOCAL enable_seqscan = off');
+      const { rows } = await client.query<{ 'QUERY PLAN': string }>(
+        `EXPLAIN SELECT btrim(e.locator) FROM evidence e
+          WHERE e.task_id = $1 AND e.kind = 'commit' AND NOT e.stale
+          ORDER BY e.created_at DESC, e.id DESC LIMIT 1`,
+        [newId()],
+      );
+      const plan = rows.map((r) => r['QUERY PLAN']).join('\n');
+      // 행이 적을 때는 비트맵으로 읽고 몇 행을 정렬하기도 한다 — 그 작업의 행만 읽는가가 요점이다
+      expect(plan).toMatch(
+        /Index (Only )?Scan.* on evidence_task|Bitmap Index Scan on evidence_task/,
+      );
+      expect(plan).not.toMatch(/Seq Scan/);
+      await client.query('ROLLBACK');
+    } finally {
+      client.release();
+    }
+  });
+});
+
 async function seed(): Promise<void> {
   const orgId = newId();
   projectId = newId();

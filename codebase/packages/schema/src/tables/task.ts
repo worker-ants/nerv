@@ -286,5 +286,13 @@ export const evidence = pgTable(
     index('evidence_requirement')
       .on(t.requirementId)
       .where(sql`NOT ${t.stale}`),
+    // **작업의 증적**(2026-10-15 · REQ-DB-045). done 게이트의 커밋 범위(`review/commit-scope.ts` — 작업의 최신 `commit`
+    // 증적)가 작업마다 이 표를 찾는데 인덱스가 없어 표 전체를 훑었다. 받은 순서(`created_at`, 같으면 `id`)로 둔다 — 최신
+    // 커밋(`ORDER BY created_at DESC, id DESC`)은 이 인덱스를 거꾸로 읽어 첫 행에서 멈출 수 있고, 목록(`ORDER BY created_at`) ·
+    // 수 · 웹훅 dedup 은 그 작업의 행만 읽는다. 오름차순인 이유: drizzle 의 `.desc()` 는 `NULLS LAST` 를 붙여
+    // `DESC`(= `NULLS FIRST`) 정렬과 맞지 않는다. 작업에 묶이지 않은 증적은 넣지 않는다
+    index('evidence_task')
+      .on(t.taskId, t.createdAt, t.id)
+      .where(sql`${t.taskId} IS NOT NULL`),
   ],
 );
