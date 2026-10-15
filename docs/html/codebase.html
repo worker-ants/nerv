@@ -53,7 +53,7 @@
     <h1>코드베이스와 배포</h1>
     <p class="lead">NERV MVP의 저장소 구조와 배포 산출물의 정본. <b>애플리케이션·패키지 코드 전체를 저장소 <code>codebase/</code> 하위에 두는</b> pnpm 모노레포(<code>apps/web</code> · <code>apps/api</code> · <code>apps/cli</code> · <code>packages/schema</code>)와 배포 트리를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 <b>같은 도메인 서비스를 DI로 주입받는</b> NestJS 모듈 맵(D-05의 실물), 실시간 방송 MQ(Valkey pub/sub), docker-compose.yml 전문, <code>.env</code> 전표, kustomize base/overlays와 Deployment·Job·Ingress 스켈레톤까지 — 구현 착수 가능한 실물로 기술한다.</p>
     <div class="meta-line">
-      <span>버전 v2.10 (2026-10-15)</span>
+      <span>버전 v2.11 (2026-10-15)</span>
       <span>원본: <code>docs/04-mvp/codebase.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-CODEBASE</code> · 요구 ID: REQ-CB-001~046</span>
       <span class="refs">참조하는 문서: <a href="scope.html">4.1</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -2406,7 +2406,7 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
   <div class="table-wrap"><table>
     <thead><tr><th>무엇을 쟀나</th><th>compose 기동 시 적용</th><th>k8s Job</th></tr></thead>
     <tbody>
-      <tr><td>처음 기동</td><td><code>up -d</code> 25초(postgres healthcheck 포함). migrate 가 11.1초 뒤 exit 0 으로 끝나고 그다음에 api 가 떴다</td><td>파드 실행은 재지 못했다(아래)</td></tr>
+      <tr><td>처음 기동</td><td><code>up -d</code> 25초(postgres healthcheck 포함). migrate 가 11.1초 뒤 exit 0 으로 끝나고 그다음에 api 가 떴다</td><td>이 작업 환경에서는 재지 못했다. 2026-10-15 실제 클러스터에서 이력 51건까지 적용하고 끝났다(아래)</td></tr>
       <tr><td>다시 기동</td><td>그대로 <code>up -d</code> 하면 끝난 migrate 컨테이너가 다시 돈다(변경 0건). <code>down</code> 뒤 <code>up -d</code> 도 같다. <code>restart api</code> 는 마이그레이션을 돌리지 않는다</td><td>(1)이 Job 을 지우고 (2)가 다시 만든다. 같은 내용을 다시 적용하면 <code>unchanged</code> 다</td></tr>
       <tr><td>매니페스트를 고쳐 다시 적용</td><td>—</td><td>지우지 않고 이미지 태그만 바꿔 적용하면 <code>spec.template</code> 불변 오류로 거부된다(rc 1). 절차의 Job 삭제 단계가 있는 이유다</td></tr>
       <tr><td>마이그레이션 실패</td><td><code>up -d</code> 가 rc 1 과 <code>service "migrate" didn't complete successfully: exit 1</code> 로 끝난다. 이미 떠 있던 api 는 그대로 돌고, 새로 띄우던 api 는 <code>created</code> 에서 멈춘다</td><td><code>kubectl wait --for=condition=complete</code> 가 시한에서 rc 1 로 끝나 (4)로 넘어가지 않는다(<code>&amp;&amp;</code>)</td></tr>
@@ -2415,6 +2415,8 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
   </table></div>
 
   <p>compose 는 nerv-api 이미지 대신 node 24 이미지에 코드를 마운트해 같은 엔트리를 돌렸다(이 작업 환경의 Docker 빌드가 프록시 인증서를 신뢰하지 않는다). <b>k8s 는 API 서버까지만 쟀다.</b> k3s v1.31.6 노드(Docker 런타임)는 Ready 까지 올라왔지만 파드 샌드박스가 뜨지 않았다 — 이 작업 환경은 <code>oom_score_adj</code> 를 낮추지 못하는데 kubelet 이 샌드박스에 -998 을 준다. Job 은 prod 오버레이의 렌더 결과를 그대로 적용했다. 파드가 부르는 엔트리는 ①에서 쟀고, 파드 재시도(<code>backoffLimit: 2</code>)와 <code>ttlSecondsAfterFinished</code> 는 실제 클러스터에서 확인하지 못했다.</p>
+
+  <p><b>실제 클러스터 — 파드 실행(2026-10-15 · 사람 실측).</b> 사람이 실제 클러스터에 배포하며 <code>kubectl -n nerv logs job/nerv-migrate</code> 로 남긴 출력은 <code>[Migrate] 마이그레이션 적용 완료 — 이력 51건</code> 이다. 51건은 그때의 마이그레이션 수(<code>0000_init</code>~<code>0050_email_change_kinds</code>)와 같다 — Job 파드가 실제 클러스터에서 떠서 같은 엔트리를 끝까지 돌렸고 그 DB 는 최신 스키마까지 따라왔다. 한 번에 성공해서 파드 재시도(<code>backoffLimit: 2</code>)와 <code>ttlSecondsAfterFinished</code> 는 이번에도 보지 못했다. 둘 다 쿠버네티스가 Job 에 주는 표준 동작이고 실패했을 때 다음 단계를 멈추는 일은 절차의 대기 단계가 맡는다(②). 그래서 E06-S03 의 남은 것으로 두지 않는다.</p>
 
   <p><b>③ 엔트리의 성질 — 롤백 절차의 근거</b></p>
 
@@ -2447,7 +2449,7 @@ kubectl -n nerv rollout status deploy/nerv-web                                  
     </tbody>
   </table></div>
 
-  <p><b>결정 — Job 을 먼저 적용한다(2026-10-12 · 사람 결정 · REQ-CB-010 개정).</b> 그때의 절차는 Job 과 Deployment 를 한 번에 적용했다. api 는 롤링이라 새 파드가 기동 검사에서 멈춰도 옛 파드가 계속 응답했지만, <b>워커는 <code>Recreate</code></b> 라(REQ-CB-011) 옛 워커가 먼저 내려가고 새 워커는 마이그레이션이 끝날 때까지 기동을 거부했다 — 성공하면 재시작 백오프만큼 늦게 떴고, 실패하면 고칠 때까지 워커가 없었다(리스 만료 · 알림 · 메일 잡이 멈춘다). 이제 §6.3 절차는 Job 만 먼저 적용하고 기다린 뒤 나머지를 적용한다. 라벨로 Job 만 고르는 적용과 나머지 적용은 k3s v1.31.6 API 서버에서 확인했다(파드 실행은 위와 같은 이유로 재지 못했다).</p>
+  <p><b>결정 — Job 을 먼저 적용한다(2026-10-12 · 사람 결정 · REQ-CB-010 개정).</b> 그때의 절차는 Job 과 Deployment 를 한 번에 적용했다. api 는 롤링이라 새 파드가 기동 검사에서 멈춰도 옛 파드가 계속 응답했지만 <b>워커는 <code>Recreate</code></b> 라(REQ-CB-011) 옛 워커가 먼저 내려가고 새 워커는 마이그레이션이 끝날 때까지 기동을 거부했다 — 성공하면 재시작 백오프만큼 늦게 떴고 실패하면 고칠 때까지 워커가 없었다(리스 만료 · 알림 · 메일 잡이 멈춘다). 이제 §6.3 절차는 Job 만 먼저 적용하고 기다린 뒤 나머지를 적용한다. 라벨로 Job 만 고르는 적용과 나머지 적용은 k3s v1.31.6 API 서버에서 확인했다(파드 실행은 그때 재지 못했고 2026-10-15 실제 클러스터의 Job 로그로 확인했다 — 위).</p>
 
   <h3>6.4 이미지 태깅과 overlay</h3>
 
