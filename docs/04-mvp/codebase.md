@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.09 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.10 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.10 변경(2026-10-15 — 요구사항 참조와 소유를 한 곳에서, **사람 결정**): **§2.2 트리 두 줄.** `modules/spec/`에 `requirement-ref.ts`(리뷰 발견 · 작업 생성의 요구사항 참조를 고정 ID 로도 받는다 — [4.4 API](api.md) REQ-API-311)와 `requirement-owner.ts`(승인과 임포트가 같은 소유 판정을 쓴다 — [4.7 임포터](importer.md) REQ-IMP-034)가 들어왔다.
 >
 > v2.09 변경(2026-10-15 — 리뷰 서브에이전트 둘, **사람 결정**): **§1.1 트리 두 줄.** `plugin/agents/`에 `nerv-code-reviewer`와 `nerv-consistency-checker`가 들어왔다([4.6 플러그인](plugin.md) REQ-PLG-031). 같은 트리의 `skills/` 줄이 2026-09-06에 없앤 `import`를 적고 2026-10-07 · 10-11에 들어온 `mirror` · `approve`를 빠뜨리고 있어 함께 고쳤다.
 >
@@ -578,6 +580,8 @@ apps/api/src/
       mirror-frontmatter.ts     # 미러 frontmatter — 값은 JSON 문자열로 인용(YAML 안전 · REQ-API-245)
       mirror.controller.ts      # markdown 미러 — 버전 프리픽스 없이 불변 (§2.8)
       reader-hash.ts            # 읽은 것의 지문 — base_hash 의 재료 (§1.4g)
+      requirement-owner.ts      # 요구사항 번호의 소유 — 승인 · 임포트가 같은 판정을 쓴다 (REQ-API-309 · REQ-IMP-034)
+      requirement-ref.ts        # 요구사항 참조(고정 ID · UUID)를 프로젝트 안에서 푼다 — 리뷰 발견 · 작업 생성 (REQ-API-311)
       search.service.ts         # 하이브리드 검색 — ID 직행 · 렉시컬 · 벡터 RRF (§2.2b)
       spec-basis.ts             # 버전 기준(승인본 · 최신 · 기준선) — 트리 · 문서 · 검색이 같은 판정을 쓴다
       spec-check.service.ts     # 사전 검토 — 제출 게이트의 근거를 미리 보인다

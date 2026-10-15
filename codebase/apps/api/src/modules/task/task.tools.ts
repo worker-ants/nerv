@@ -149,7 +149,8 @@ export class TaskTools implements NervToolProvider {
           // 주변 문서까지 포함한 기준 세트 — 문서 하나의 핀만으로는 그것이 참조하는
           // 문서들의 기준이 흔들린다(spec-workflow §4.1)
           baseline: { type: 'string', description: 'mcp.arg.baseline' },
-          source_requirement_id: { type: 'string' },
+          // 고정 ID(`REQ-…`)든 UUID 든 — 리뷰 발견과 같은 해소다(2026-10-15 · REQ-API-311)
+          source_requirement_id: { type: 'string', description: 'mcp.arg.source_requirement_id' },
           idempotency_key: { type: 'string' },
         },
         required: ['title'],

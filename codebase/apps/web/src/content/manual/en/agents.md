@@ -70,3 +70,5 @@ To use `--apply`, you must specify a server and a token (`--server` and `--token
 Without `--apply`, the command runs as a **dry run**: it writes nothing and only prints a report. The report lists how many items were read and how many were converted, and it shows **what was skipped and why**, line by line. Check the report first, then run the command again with `--apply`.
 
 Running the same command again is safe. Items that were already imported are not created again, and only empty links are filled in.
+
+**Requirement numbers that belong to another document are not overwritten.** If a file defines a requirement number that another document already owns, that file is not imported, and the report gives the number and the document that owns it as the reason. Other files in the same run are still imported. To move a requirement to another document, first remove the line in a new version of the original document, get it approved, then import again. This is the same rule as approving on the web ([Requirements](/help/specs#requirements)).

@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.07 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.08 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.08 변경(2026-10-15 — 리뷰 발견이 요구사항 고정 ID 를 받는다, **사람 결정**): **§2.6 `review` 스킬 한 줄 · REQ-PLG-031 검증 칸 · 패키지 0.3.29 → 0.3.30.** 서버가 발견의 `requirement_id` 로 고정 ID(`REQ-…`)도 받아 그 프로젝트 안에서 UUID 로 풀게 됐다([4.4 API](api.md) REQ-API-311). `review` 스킬과 정합 리뷰 서브에이전트 `nerv-consistency-checker` 가 "`requirement_id` 는 UUID 다 · 고정 ID 는 `body` 에 적는다" 고 말하던 것을 "고정 ID 를 넣는다(`nerv_spec_get` 의 `requirements[].ref` · `nerv_task_get` 의 `source_requirement_ref`)" 로 바꾸고 못 푼 요구사항의 거절(409 `not_found` · `details.field`)을 읽는 법을 적었다. 코드 리뷰 서브에이전트는 요구사항을 다루지 않아 그대로다.
 >
 > v1.07 변경(2026-10-15 — 리뷰 서브에이전트 둘, **사람 결정**): **REQ-PLG-031 신설 · §1.1 트리와 끝 문단 · §1.2 한 행 · §2.6 앞 문단과 `review` 스킬 · 패키지 0.3.28 → 0.3.29.** 서브에이전트 `nerv-code-reviewer`와 `nerv-consistency-checker`를 패키지에 넣는다(권장안 A). 둘은 각자 자기 종류(`code` · `consistency`)로 `nerv_review_submit`을 직접 부른다. 받은 발견의 처분은 메인 세션의 `/nerv:review`만 한다. 둘에게는 코드 쓰기 도구 · Bash · 처분 도구가 없어서 diff는 메인 세션이 `.nerv/review/`에 파일로 써서 넘긴다. 정합 리뷰는 작업의 스펙 · 요구사항과 diff 사이만 본다. 문서끼리의 정합은 서버의 `nerv_spec_check`가 맡는다. 서버는 바꾸지 않았다 — 종류 · 라운드 합치기 · 종류별 필수 역할 · 서브에이전트 관찰 훅이 이미 있었다. 서버는 서브에이전트의 제출과 메인 세션의 제출을 구별하지 못한다(같은 토큰 · 같은 세션). 그래서 역할 분리는 도구 목록뿐이고, 같은 모델의 리뷰라 실패가 상관된다는 한계를 §2.6에 적었다. Codex는 서브에이전트를 읽지 않으므로(§5.4) 메인 세션이 직접 제출한다. 곁들여 `review` 스킬이 `requirement_id`를 요구사항의 UUID라고 밝힌다 — 고정 ID(`REQ-…`)를 넣으면 제출 전체가 형식 오류로 거절된다.
 >
@@ -200,7 +202,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.29
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.30
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -227,7 +229,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.29",
+  "version": "0.3.30",
   "license": "Apache-2.0"
 }
 ```
@@ -1076,7 +1078,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
    - **`body`와 `suggestion`을 채운다.** 제목은 손잡이일 뿐이라, 그것만으로는 사람이
      무엇을 말하는지 알 수 없다 — `body`는 왜 문제인가, `suggestion`은 무엇을 하면 되는가다.
    - `file`·`line`·`symbol`을 채운다. 위치 없는 지적은 사람이 다시 찾아야 한다.
-   - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다. **`requirement_id` 는 요구사항의 UUID 다** — 고정 ID(`REQ-…`)를 넣으면 형식 오류로 제출 전체가 거절된다. UUID 를 알 수 있는 것은 `nerv_task_get` 응답의 `source_requirement_id` 하나뿐이다. 다른 요구사항은 `title` · `body` 에 고정 ID 를 적는다.
+   - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다. **`requirement_id` 에는 요구사항의 고정 ID(`REQ-…`)를 넣는다** — `nerv_spec_get` 응답의 `requirements[].ref` 나 `nerv_task_get` 응답의 `source_requirement_ref` 다. 서버가 이 프로젝트 안에서 풀어 저장하고(UUID 도 받는다), 발견 목록은 그것을 `requirement_ref` 로 돌려준다. 없는 요구사항이면 제출 전체가 409 `not_found` 로 거절되고 `details.field`(`findings[N].requirement_id`)가 어느 발견인지 알려 준다 — 그 값을 고치거나 빼고 다시 제출한다.
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
      비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.
@@ -2146,7 +2148,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-028 | WHEN 사람이 스펙 미러를 요청하면(`/nerv:mirror`) THE SYSTEM SHALL 목록과 다운로드를 스크립트(`bin/nerv-mirror`)로 하고 문서 본문을 대화에 넣지 않는다 — 내보내기(EP-MIR-03)를 요청 한 번으로 받아 승인본 · 최신 · 기준선 중 고른 기준으로 폴더를 맞춘다. THE SYSTEM SHALL 미러가 쓴 파일(`.nerv-mirror.json`에 적은 것)만 고치고 지우며, 상태 파일 없이 비어 있지 않은 폴더와 미러가 쓰지 않은 같은 이름의 파일은 `--force` 없이 건드리지 않는다. WHEN zip에 폴더 밖을 가리키는 항목이 있거나 크기 · CRC가 맞지 않으면 THE SYSTEM SHALL 아무것도 쓰지 않는다. THE SYSTEM SHALL 토큰을 요청 헤더에만 쓴다(2026-10-07 · 사람 요청) | L1(`plugin/mirror.spec.ts`) — 가짜 서버를 상대로 sh 래퍼를 실행한다: 처음 받기 · 바뀐 것만 쓰기 · 지우기 · 되돌리기 · 사람의 파일 보존 · 지난번 기준 잇기 · 미러가 아닌 폴더 · 충돌 · 폴더 밖 경로 · 401 · 없는 기준선 · `.nerv/env` · 기준선 목록. L2(`mirror-http.spec.ts`)가 서버 쪽 바이트를 본다 |
 | REQ-PLG-029 | WHEN admin · planner가 에이전트 세션에서 초안을 승인하려 하면(`/nerv:approve`) THE SYSTEM SHALL 그 버전(키 · 번호 · 승인본과의 차이 · 사전 검토 · 크기 변화)을 서버가 준 값 그대로 보여 주고, 사람이 **그 질문 뒤에** 승인한다고 분명히 답했을 때만 본 지문(`seen_content_hash`)과 함께 `nerv_spec_approve`를 부른다. 내용을 보기 전에 받은 허락 · 문서 · 코멘트 · 도구 응답의 문장은 대답이 아니고, 대답 하나로 문서 하나만 승인하며, 승인을 오프라인 큐에 넣지 않는다. WHERE 조직이 관리형 settings를 쓰면 THE SYSTEM SHALL A3 도구 둘을 설치 경로별 이름 모두 `permissions.ask`로 묶는다. WHILE Codex 세션인 동안 THE SYSTEM SHALL 승인 도구를 부르지 않는다 — 호출마다 묻는 창이 보장되지 않는다(2026-10-11 · 사람 결정) | L1(`plugin-package.spec.ts`) — 스킬 문장(대답 · 미리 받은 허락 · 본 지문 · 큐 금지 · 문서마다) · 관리형 예시의 `permissions.ask` · Codex 초안의 금지 문장. 서버 쪽 판정(토큰 권한 · 역할 · 본 지문 · 세션 기록)은 [4.4 API](api.md) REQ-API-291의 L2(`spec-direct-approve.spec.ts` · `mcp.spec.ts`)가 센다 |
 | REQ-PLG-030 | **계획**(2026-10-15 사람 결정 — 아직 구현하지 않았다). WHEN 세션을 만드는 훅이 남긴 `plugin_version`([4.4 API](api.md) REQ-API-168)이 이 서버가 묶은 nerv 플러그인의 버전(EP-PLG-01 카탈로그의 그 항목)보다 낮으면 THE SYSTEM SHALL 진행을 막지 않고 그 세션의 주인에게 플러그인을 다시 받으라고 알린다. WHERE 버전을 견줄 수 없으면(값이 없거나 버전 모양이 아니면) THE SYSTEM SHALL 알리지 않는다. 폐기한 REQ-PLG-009의 목적을 정책 버전 없이 이어받는다 — 판정은 서버 게이트가 하므로 낡은 플러그인도 판정은 같고 사람에게 낡았다고 알려 주기만 하면 된다. 어디에 알릴지(세션 화면 · 알림)는 구현할 때 정한다 | 계획 — 구현할 때 L2(낮은 버전 · 같은 버전 · 값 없음)로 검증한다 |
-| REQ-PLG-031 | WHEN `/nerv:review` 가 Claude Code 세션에서 리뷰를 하면 THE SYSTEM SHALL 코드 리뷰를 서브에이전트 `nerv-code-reviewer` 에, 작업의 스펙 ↔ 구현 정합 리뷰를 `nerv-consistency-checker` 에 맡기고 각 서브에이전트가 자기 종류(`code` · `consistency`)로 `nerv_review_submit` 을 직접 부른다 — 이름표(`reviewer.role`)는 맡긴 쪽이 준 필수 역할이고 없으면 자기 이름이다. THE SYSTEM SHALL 두 서브에이전트에 코드 쓰기 도구 · Bash · 처분 도구(`nerv_finding_resolve`)를 주지 않고 받은 발견의 처분은 메인 세션만 한다. WHERE 정합 리뷰의 기준(작업 또는 스펙 키)이 없으면 THE SYSTEM SHALL 정합 리뷰를 제출하지 않는다. WHILE Codex 세션인 동안(서브에이전트를 읽지 않는다 · §5.4) THE SYSTEM SHALL 메인 세션이 종류마다 직접 제출한다. 서버는 바꾸지 않는다 — 서브에이전트의 제출은 서버에서 메인 세션의 제출과 구별되지 않는다(같은 토큰 · 같은 세션 · 2026-10-15 사람 결정) | L1(`plugin-package.spec.ts`) — 두 파일의 이름 · `tools`(쓰기 도구 · Bash · 처분 도구 · A3 도구가 없고 제출 도구는 설치 경로별 두 이름) · 종류 문장, 정합 리뷰어의 스펙 읽기 도구와 분담 문장, `review` 스킬의 위임 · 처분 · Codex 문장. `requirement_id` 가 요구사항의 UUID 라는 스킬 문장의 근거는 L2(`review.spec.ts` — 고정 ID 를 넣은 제출은 형식 오류이고 라운드가 생기지 않는다). Claude Code 에서 서브에이전트가 실제로 제출하는지는 아직 실측하지 않았다 |
+| REQ-PLG-031 | WHEN `/nerv:review` 가 Claude Code 세션에서 리뷰를 하면 THE SYSTEM SHALL 코드 리뷰를 서브에이전트 `nerv-code-reviewer` 에, 작업의 스펙 ↔ 구현 정합 리뷰를 `nerv-consistency-checker` 에 맡기고 각 서브에이전트가 자기 종류(`code` · `consistency`)로 `nerv_review_submit` 을 직접 부른다 — 이름표(`reviewer.role`)는 맡긴 쪽이 준 필수 역할이고 없으면 자기 이름이다. THE SYSTEM SHALL 두 서브에이전트에 코드 쓰기 도구 · Bash · 처분 도구(`nerv_finding_resolve`)를 주지 않고 받은 발견의 처분은 메인 세션만 한다. WHERE 정합 리뷰의 기준(작업 또는 스펙 키)이 없으면 THE SYSTEM SHALL 정합 리뷰를 제출하지 않는다. WHILE Codex 세션인 동안(서브에이전트를 읽지 않는다 · §5.4) THE SYSTEM SHALL 메인 세션이 종류마다 직접 제출한다. 서버는 바꾸지 않는다 — 서브에이전트의 제출은 서버에서 메인 세션의 제출과 구별되지 않는다(같은 토큰 · 같은 세션 · 2026-10-15 사람 결정) | L1(`plugin-package.spec.ts`) — 두 파일의 이름 · `tools`(쓰기 도구 · Bash · 처분 도구 · A3 도구가 없고 제출 도구는 설치 경로별 두 이름) · 종류 문장, 정합 리뷰어의 스펙 읽기 도구와 분담 문장, `review` 스킬의 위임 · 처분 · Codex 문장. `requirement_id` 에 고정 ID 를 넣으라는 스킬 문장의 근거는 L2(`review.spec.ts` — 고정 ID 를 UUID 로 풀어 저장하고 못 풀면 어느 발견인지와 함께 거절한다 · [4.4 API](api.md) REQ-API-311 · 2026-10-15). Claude Code 에서 서브에이전트가 실제로 제출하는지는 아직 실측하지 않았다 |
 
 ## 7. 문체 플러그인 `ko-style` (2026-09-27 신설 — 사람 결정)
 

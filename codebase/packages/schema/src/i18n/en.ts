@@ -345,6 +345,8 @@ export const en = {
   'error.request.bad_field': '{field} has an invalid format.',
   'error.request.schema': 'The request body failed schema validation.',
   'error.requirement.not_found': 'Requirement not found.',
+  'error.requirement.unresolved':
+    "Requirement {ref} in {field} was not found in this project. Use the requirement's fixed ID (for example REQ-API-001) or its UUID.",
   'error.session.revoke_current':
     "This page doesn't sign out the session you're using. Sign out instead.",
   'error.session.current_unknown':
@@ -385,6 +387,8 @@ export const en = {
   'home.waiting_count': '{count} waiting on you',
   'import.delegation_missing': '(imported — source had no delegation brief)',
   'import.requirement_not_found': 'Requirement not found. It points outside the target repository',
+  'import.requirement_owned':
+    'Not loaded: this file defines requirement numbers that belong to another document ({refs}). Change the numbers. If you are moving them from that document, first remove the lines in a new version of it, get it approved, then import again',
   'import.spec_not_found': 'target spec not found',
   'agent.no_claim': 'NERV: no active claim. Start with /nerv:next.',
   'agent.active_claims': 'NERV: active claims {claims}.',
@@ -526,6 +530,10 @@ export const en = {
     'fingerprint of the delegation brief you read: required whenever you change any of the four brief fields. Pass brief_hash from nerv_task_get or nerv_task_create as is. If someone changed it since, you get 409 stale_brief; read again (current_brief_hash is in the response)',
   'mcp.arg.finding_tags':
     'labels for the finding (for example spec_drift: the spec is wrong, not the code). Up to 10, each up to 64 characters. The finding list filter and area inference read them',
+  'mcp.arg.finding_requirement_id':
+    'the requirement the finding comes from: its fixed ID (requirements[].ref from nerv_spec_get, for example REQ-API-001) or its UUID. The server resolves it within this project. If there is no such requirement, the whole submission is rejected with 409 not_found',
+  'mcp.arg.source_requirement_id':
+    'the requirement the task comes from: its fixed ID (for example REQ-API-001) or its UUID. 409 not_found if this project has no such requirement',
   'reviews.filter.area': 'Area',
   'area.codebase': 'Code',
   'area.spec': 'Spec',

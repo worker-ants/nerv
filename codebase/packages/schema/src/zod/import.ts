@@ -331,6 +331,12 @@ export const importItemResultSchema = z.object({
   spec_version_id: z.string().optional(),
   task_id: z.string().optional(),
   requirement_refs: z.record(z.string(), z.string()).optional(),
+  /**
+   * 다른 문서에서 옮겨 온 요구사항 번호 — 가진 문서의 최신 승인본에서 그 줄이 빠져 소유가 풀린 것만 옮겨 온다
+   * (2026-10-15 · REQ-IMP-034). 승인 경로가 `spec.approved` 에 남기는 `requirements_moved` 와 같은 모양이다
+   */
+  requirements_moved: z.array(z.object({ ref: z.string(), from_key: z.string() })).optional(),
+  /** 실패의 이름 — 도메인이 이름 붙인 거절이면 그 이름(`requirement_owned` 등), 아니면 `import_failed` */
   code: z.string().optional(),
   detail: z.string().optional(),
 });

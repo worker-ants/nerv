@@ -61,6 +61,7 @@ import { EventService } from '../event/event.service.js';
 import { QuestionService } from '../approval/question.service.js';
 import { ApprovalService } from '../approval/approval.service.js';
 import { recomputeImplStatus } from '../spec/impl-status.js';
+import { resolveRequirementRef } from '../spec/requirement-ref.js';
 import { roundVerdicts } from '../review/review-gate.js';
 import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
@@ -681,6 +682,7 @@ export class TaskService {
     title: string;
     bodyMd?: string | null;
     sourceSpecVersionId?: string | null;
+    /** 출처 요구사항 — 고정 ID(`REQ-…`)든 UUID 든 받는다(REQ-API-311 · `resolveRequirementRef()`) */
     sourceRequirementId?: string | null;
     /**
      * 기준 기준선 **이름**(REQ-API-087 · spec-workflow §4.1).
@@ -711,9 +713,17 @@ export class TaskService {
     if (baselineId !== null && input.sourceSpecVersionId != null) {
       await this.assertPinMatches(baselineId, input.baseline ?? '', input.sourceSpecVersionId);
     }
+    // **출처 요구사항은 고정 ID 로도 온다**(2026-10-15 · 사람 결정 · REQ-API-311) — 에이전트가 읽는 요구사항은 고정 ID
+    // 뿐인데 uuid 열에 그대로 넣어 22P02 였고 다른 프로젝트의 UUID 는 통과했다. 리뷰 발견과 같은 해소를 쓴다
+    const sourceRequirementId = await resolveRequirementRef(
+      this.db,
+      input.projectId,
+      input.sourceRequirementId,
+      'source_requirement_id',
+    );
     await this.assertBasisLive(this.db, {
       specVersionId: input.sourceSpecVersionId ?? null,
-      requirementId: input.sourceRequirementId ?? null,
+      requirementId: sourceRequirementId,
     });
     return this.events.transact(async (tx, emit) => {
       const taskId = newId();
@@ -726,7 +736,7 @@ export class TaskService {
                           goal_md, output_format_md, tools_sources_md, boundaries_md)
         VALUES (${taskId}, ${input.projectId}, ${key}, ${input.title}, ${input.bodyMd ?? null},
                 'backlog', ${priority}::task_priority,
-                ${input.sourceSpecVersionId ?? null}, ${input.sourceRequirementId ?? null},
+                ${input.sourceSpecVersionId ?? null}, ${sourceRequirementId},
                 ${baselineId},
                 ${input.goalMd ?? null}, ${input.outputFormatMd ?? null},
                 ${input.toolsSourcesMd ?? null}, ${input.boundariesMd ?? null})

@@ -21,6 +21,7 @@ import { ReviewTools } from '../../src/modules/review/review.tools.js';
 import type { ToolContext } from '../../src/mcp/tool-context.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
+import { TaskService } from '../../src/modules/task/task.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -1414,42 +1415,246 @@ describe('발견의 태그 (REQ-API-253)', () => {
 });
 
 /**
- * **`requirement_id` 는 요구사항의 UUID 다**(2026-10-15 · 4.6 REQ-PLG-031). `review` 스킬과 정합 리뷰 서브에이전트가 이 사실을
- * 에이전트에게 말한다 — 에이전트가 스펙에서 읽는 요구사항은 고정 ID(`REQ-…`)뿐이라 그것을 넣기 쉽다. 그때 제출 **전체**가
- * 형식 오류로 거절되고 아무것도 남지 않는다는 것이 그 문장의 근거다. 서버가 고정 ID 를 받게 바뀌면 이 검사와 두 문장을
- * 함께 고친다.
+ * **`requirement_id` 는 고정 ID 도 받는다**(2026-10-15 · 사람 결정 · REQ-API-311). 에이전트가 스펙에서 읽는 요구사항은
+ * 고정 ID(`REQ-…` — `nerv_spec_get` 의 `requirements[].ref`)뿐인데 열은 uuid 라, 그것을 넣으면 제출 **전체**가 형식
+ * 오류(22P02 · 400)로 거절되고 라운드가 남지 않았다. 이제 서버가 그 프로젝트 안에서 UUID 로 풀어 저장한다. 못 풀면
+ * 조용히 버리지 않고 어느 발견의 어느 값인지와 함께 거절한다 — `review` 스킬과 정합 리뷰 서브에이전트가 이 사실을
+ * 에이전트에게 말한다(4.6 REQ-PLG-031).
  */
-describe('발견의 requirement_id 는 UUID 다 — 고정 ID 를 넣으면 제출 전체가 거절된다', () => {
-  it('REST 로 고정 ID 를 넣으면 형식 오류이고 라운드가 생기지 않는다', async () => {
-    const { token } = await app.get(AuthService).issueToken({
+describe('발견의 requirement_id 는 고정 ID 도 받는다 — 서버가 프로젝트 안에서 푼다 (REQ-API-311)', () => {
+  let requirementId: string;
+  let specVersionId: string;
+  let otherRequirementId: string;
+  let token: string;
+
+  /** 문서 하나와 그 요구사항 하나 — 승인본이다 */
+  async function seedRequirement(project: string, key: string, ref: string) {
+    const specId = newId();
+    const versionId = newId();
+    const id = newId();
+    await pool.query(
+      `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature',$3,$3)`,
+      [specId, project, key],
+    );
+    await pool.query(
+      `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+       VALUES ($1,$2,1,'approved','# 본문', sha256($3::bytea), $4)`,
+      [versionId, specId, key, userId],
+    );
+    await pool.query(
+      `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
+                                introduced_in_version_id, current_version_id)
+       VALUES ($1,$2,$3,$4,'WHEN 조건이면 THE SYSTEM SHALL 동작한다','must',$5,$5)`,
+      [id, project, specId, ref, versionId],
+    );
+    return { id, versionId };
+  }
+
+  beforeAll(async () => {
+    ({ id: requirementId, versionId: specVersionId } = await seedRequirement(
+      projectId,
+      'SPC-REQREF',
+      'REQ-REF-001',
+    ));
+    // 다른 프로젝트 — 같은 번호(REQ-REF-001)와 이 프로젝트에 없는 번호(REQ-REF-002)를 갖는다
+    const { rows } = await pool.query<{ org_id: string }>(
+      `SELECT org_id FROM project WHERE id = $1`,
+      [projectId],
+    );
+    const otherProject = newId();
+    await pool.query(
+      `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'reqref-other','RRO','다른 프로젝트')`,
+      [otherProject, rows[0]!.org_id],
+    );
+    await seedRequirement(otherProject, 'SPC-REQREF', 'REQ-REF-001');
+    ({ id: otherRequirementId } = await seedRequirement(
+      otherProject,
+      'SPC-REQREF-X',
+      'REQ-REF-002',
+    ));
+    ({ token } = await app.get(AuthService).issueToken({
       projectId,
       userId,
       name: 'req-ref',
       scopes: ['review:submit'],
-    });
-    const res = await app.inject({
+    }));
+  });
+
+  /** REST 제출 — 브랜치마다 따로 센다 */
+  const post = (branch: string, findings: Record<string, unknown>[]) =>
+    app.inject({
       method: 'POST',
       url: '/api/v1/projects/clemvion/reviews',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       payload: {
-        branch: 'feat/req-ref',
+        branch,
         base_sha: 'aaaa111',
-        head_sha: 'ref0001',
+        head_sha: `${branch.replace(/\W/g, '')}01`,
+        kind: 'consistency',
+        reviewer: { role: 'nerv-consistency-checker' },
+        findings,
+      },
+    });
+  const roundsOn = async (branch: string) =>
+    (
+      await pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM review_session WHERE branch = $1`,
+        [branch],
+      )
+    ).rows[0]!.n;
+  const storedRequirement = async (title: string) =>
+    (
+      await pool.query<{ requirement_id: string | null; area: string }>(
+        `SELECT requirement_id, area::text AS area FROM finding WHERE title = $1`,
+        [title],
+      )
+    ).rows[0];
+
+  it('REST 로 고정 ID 를 넣으면 UUID 로 저장되고 발견 목록에 고정 ID 가 보인다', async () => {
+    const res = await post('feat/req-ref', [
+      {
+        severity: 'warning',
+        title: '요구사항이 빠졌다',
+        requirement_id: 'REQ-REF-001',
+        spec_version_id: specVersionId,
+      },
+    ]);
+    expect(res.statusCode).toBe(201);
+    const stored = await storedRequirement('요구사항이 빠졌다');
+    expect(stored?.requirement_id).toBe(requirementId);
+    // 요구사항이 있으면 문서 이야기다 — 추론도 그대로 돈다
+    expect(stored?.area).toBe('spec');
+    const { items } = await reviews.findings({ projectId, status: ['open'] });
+    expect(items.find((i) => i['title'] === '요구사항이 빠졌다')?.['requirement_ref']).toBe(
+      'REQ-REF-001',
+    );
+  });
+
+  it('MCP 로 UUID 를 넣어도 그대로 된다 — 예전 호출은 깨지지 않는다', async () => {
+    const tool = app.get(ReviewTools).tools.find((t) => t.name === 'nerv_review_submit')!;
+    await tool.handler(
+      {
+        branch: 'feat/req-uuid',
+        base_sha: 'aaaa111',
+        head_sha: 'requuid01',
         kind: 'consistency',
         reviewer: { role: 'nerv-consistency-checker' },
         findings: [
-          { severity: 'warning', title: '요구사항이 빠졌다', requirement_id: 'REQ-API-001' },
+          { severity: 'info', title: 'UUID 로 가리킨 요구사항', requirement_id: requirementId },
         ],
       },
-    });
-    expect(res.statusCode).toBe(400);
+      {
+        projectId,
+        sessionId: agentSessionId,
+        principal: { userId, isAgent: true },
+      } as unknown as ToolContext,
+    );
+    expect((await storedRequirement('UUID 로 가리킨 요구사항'))?.requirement_id).toBe(
+      requirementId,
+    );
+  });
+
+  it('없는 고정 ID 는 어느 발견의 어느 값인지와 함께 409 로 거절되고 라운드가 남지 않는다', async () => {
+    const res = await post('feat/req-missing', [
+      { severity: 'info', title: '앞의 멀쩡한 발견', requirement_id: 'REQ-REF-001' },
+      { severity: 'warning', title: '없는 요구사항', requirement_id: 'REQ-NOPE-999' },
+    ]);
+    expect(res.statusCode).toBe(409);
     const body = JSON.parse(res.body) as { code: string; details: Record<string, unknown> };
     expect(body.code).toBe(NERV_ERROR.PRECONDITION);
-    expect(body.details).toMatchObject({ kind: 'invalid_text_representation', pg_type: 'uuid' });
-    const { rows } = await pool.query(
-      `SELECT count(*)::int AS n FROM review_session WHERE branch = 'feat/req-ref'`,
+    expect(body.details).toMatchObject({
+      kind: 'not_found',
+      field: 'findings[1].requirement_id',
+      value: 'REQ-NOPE-999',
+      finding_index: 1,
+      finding_title: '없는 요구사항',
+    });
+    // 제출 전체가 되돌아간다 — 앞의 멀쩡한 발견도 남지 않는다
+    expect(await roundsOn('feat/req-missing')).toBe(0);
+    expect(await storedRequirement('앞의 멀쩡한 발견')).toBeUndefined();
+  });
+
+  it('고정 ID 도 UUID 도 아닌 값도 같은 거절이다 — DB 형식 오류(400)가 아니다', async () => {
+    const res = await post('feat/req-garbage', [
+      { severity: 'info', title: '모양이 틀린 참조', requirement_id: '요구사항 1번' },
+    ]);
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).details).toMatchObject({
+      kind: 'not_found',
+      field: 'findings[0].requirement_id',
+      value: '요구사항 1번',
+    });
+    expect(await roundsOn('feat/req-garbage')).toBe(0);
+  });
+
+  it('다른 프로젝트의 요구사항은 풀리지 않는다 — 고정 ID 도 UUID 도', async () => {
+    // 이 프로젝트에 없는 번호 — 다른 프로젝트에만 있다
+    await expect(
+      reviews.submit(
+        submitInput({
+          branch: 'feat/req-other',
+          findings: [{ severity: 'info', title: '남의 번호', requirement_id: 'REQ-REF-002' }],
+        }),
+      ),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } });
+    // 예전에는 FK 만 보아 남의 프로젝트 UUID 가 그대로 들어갔다
+    await expect(
+      reviews.submit(
+        submitInput({
+          branch: 'feat/req-other',
+          findings: [{ severity: 'info', title: '남의 UUID', requirement_id: otherRequirementId }],
+        }),
+      ),
+    ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } });
+    expect(await roundsOn('feat/req-other')).toBe(0);
+    // 같은 번호가 두 프로젝트에 있으면 이 프로젝트의 것으로 푼다
+    await reviews.submit(
+      submitInput({
+        branch: 'feat/req-mine',
+        findings: [{ severity: 'info', title: '내 번호', requirement_id: 'REQ-REF-001' }],
+      }),
     );
-    expect(rows[0].n).toBe(0);
+    expect((await storedRequirement('내 번호'))?.requirement_id).toBe(requirementId);
+  });
+
+  it('고정 ID 로 낸 발견을 작업으로 올리면 출처 요구사항이 그 UUID 다', async () => {
+    const result = await reviews.submit(
+      submitInput({
+        branch: 'feat/req-promote',
+        findings: [{ ...CRITICAL, title: '승격할 요구사항 지적', requirement_id: 'REQ-REF-001' }],
+      }),
+    );
+    const promoted = await reviews.promote({
+      projectId,
+      findingId: result.findings_new[0]!,
+      userId,
+    });
+    const { rows } = await pool.query<{ source_requirement_id: string | null }>(
+      `SELECT source_requirement_id FROM task WHERE id = $1`,
+      [promoted['task_id']],
+    );
+    expect(rows[0]?.source_requirement_id).toBe(requirementId);
+  });
+
+  it('작업을 만들 때의 source_requirement_id 도 고정 ID 를 받는다 — 같은 해소다', async () => {
+    const tasks = app.get(TaskService);
+    const created = await tasks.create({
+      projectId,
+      userId,
+      title: '요구사항에서 나온 작업',
+      sourceRequirementId: 'REQ-REF-001',
+    });
+    const { rows } = await pool.query<{ source_requirement_id: string | null }>(
+      `SELECT source_requirement_id FROM task WHERE id = $1`,
+      [created['task_id']],
+    );
+    expect(rows[0]?.source_requirement_id).toBe(requirementId);
+    await expect(
+      tasks.create({ projectId, userId, title: '없는 출처', sourceRequirementId: 'REQ-NOPE-1' }),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'not_found', field: 'source_requirement_id', value: 'REQ-NOPE-1' },
+    });
   });
 });
 

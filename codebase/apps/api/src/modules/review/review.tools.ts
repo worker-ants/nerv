@@ -52,7 +52,8 @@ export class ReviewTools implements NervToolProvider {
                 file: { type: 'string' },
                 line: { type: 'integer' },
                 symbol: { type: 'string' },
-                requirement_id: { type: 'string' },
+                // 고정 ID(`REQ-…`)든 UUID 든 — 서버가 이 프로젝트 안에서 푼다(2026-10-15 · REQ-API-311)
+                requirement_id: { type: 'string', description: 'mcp.arg.finding_requirement_id' },
                 spec_version_id: { type: 'string' },
                 // **어디에 대한 지적인가** — 지적한 쪽이 가장 잘 안다. 안 주면 서버가
                 // 출처로 유추하고 그 사실을 남긴다(REQ-API-073)

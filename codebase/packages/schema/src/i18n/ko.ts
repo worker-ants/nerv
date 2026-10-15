@@ -350,6 +350,9 @@ export const ko = {
   'error.request.bad_field': '{field} 형식이 올바르지 않습니다.',
   'error.request.schema': '요청 본문이 스키마와 맞지 않습니다.',
   'error.requirement.not_found': '요구사항을 찾을 수 없습니다.',
+  // 발견 · 작업의 요구사항 참조(2026-10-15 · REQ-API-311) — {field}는 요청 안의 자리다(findings[2].requirement_id 등)
+  'error.requirement.unresolved':
+    '{field}의 요구사항 {ref}을(를) 이 프로젝트에서 찾을 수 없습니다. 요구사항의 고정 ID(예: REQ-API-001)나 UUID를 넣으세요.',
   'error.session.revoke_current': '지금 쓰는 로그인은 여기서 끊지 않습니다. 로그아웃하세요.',
   'error.session.current_unknown':
     '지금 쓰는 로그인을 알 수 없어 다른 기기만 골라 끊을 수 없습니다.',
@@ -386,6 +389,9 @@ export const ko = {
   'home.waiting_count': '{count}건이 결정을 기다립니다',
   'import.delegation_missing': '(임포트 — 원본에 위임 명세 없음)',
   'import.requirement_not_found': '요구사항을 찾지 못했다. 대상 저장소 밖을 가리킨다',
+  // 다른 문서가 가진 번호(2026-10-15 · REQ-IMP-034) — {refs}는 「번호 → 가진 문서 키」를 쉼표로 이은 것이다
+  'import.requirement_owned':
+    '다른 문서가 가진 요구사항 번호를 정의해 이 파일을 적재하지 않았다({refs}). 번호를 바꾼다. 그 문서에서 옮겨 오는 것이면 먼저 그 문서의 새 버전에서 줄을 빼고 승인받은 뒤 다시 임포트한다',
   'import.spec_not_found': '대상 스펙 없음',
   'agent.no_claim': 'NERV: 활성 클레임이 없다. /nerv:next로 시작한다.',
   'agent.active_claims': 'NERV: 활성 클레임 {claims}.',
@@ -530,6 +536,11 @@ export const ko = {
     '읽은 위임 명세의 지문 — 위임 명세 네 칸 중 하나라도 고치면 반드시 준다. nerv_task_get이나 nerv_task_create 응답의 brief_hash를 그대로 넘긴다. 그 사이 누가 고쳤으면 409 stale_brief이고 응답의 current_brief_hash로 다시 읽는다',
   'mcp.arg.finding_tags':
     '발견의 분류(예: spec_drift — 코드가 아니라 스펙이 틀렸다). 10개까지 · 하나 64자까지. 발견 목록의 필터와 대상 추정이 읽는다',
+  // 요구사항 참조는 고정 ID 도 받는다(2026-10-15 · 사람 결정 · REQ-API-311)
+  'mcp.arg.finding_requirement_id':
+    '지적이 나온 요구사항 — 고정 ID(nerv_spec_get의 requirements[].ref · 예: REQ-API-001)나 UUID. 서버가 이 프로젝트 안에서 푼다. 없는 요구사항이면 제출 전체가 409 not_found로 거절된다',
+  'mcp.arg.source_requirement_id':
+    '작업이 나온 요구사항 — 고정 ID(예: REQ-API-001)나 UUID다. 서버가 프로젝트 안에서 풀고 없는 요구사항이면 409 not_found다',
   'reviews.filter.area': '대상',
   'area.codebase': '코드',
   'area.spec': '스펙',

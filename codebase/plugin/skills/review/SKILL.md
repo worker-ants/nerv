@@ -63,7 +63,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
    - **`body`와 `suggestion`을 채운다.** 제목은 손잡이일 뿐이라, 그것만으로는 사람이
      무엇을 말하는지 알 수 없다 — `body`는 왜 문제인가, `suggestion`은 무엇을 하면 되는가다.
    - `file`·`line`·`symbol`을 채운다. 위치 없는 지적은 사람이 다시 찾아야 한다.
-   - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다. **`requirement_id` 는 요구사항의 UUID 다** — 고정 ID(`REQ-…`)를 넣으면 형식 오류로 제출 전체가 거절된다. UUID 를 알 수 있는 것은 `nerv_task_get` 응답의 `source_requirement_id` 하나뿐이다. 다른 요구사항은 `title` · `body` 에 고정 ID 를 적는다.
+   - 스펙에서 나온 지적이면 `spec_version_id`·`requirement_id`를 채운다 — 이것이 리뷰 출처 추적(P5)의 유일한 근거다. **`requirement_id` 에는 요구사항의 고정 ID(`REQ-…`)를 넣는다** — `nerv_spec_get` 응답의 `requirements[].ref` 나 `nerv_task_get` 응답의 `source_requirement_ref` 다. 서버가 이 프로젝트 안에서 풀어 저장하고(UUID 도 받는다), 발견 목록은 그것을 `requirement_ref` 로 돌려준다. 없는 요구사항이면 제출 전체가 409 `not_found` 로 거절되고 `details.field`(`findings[N].requirement_id`)가 어느 발견인지 알려 준다 — 그 값을 고치거나 빼고 다시 제출한다.
    - **`area`로 무엇을 고쳐야 하는지 말한다** — `codebase`(구현) / `spec`(명세) / `task`(작업 정의·범위) /
      `process`(규약·게이트·도구). severity가 얼마나 급한가라면 이것은 **다음에 누가 무엇을 여는가**다.
      비워 두면 서버가 지적 대상을 보고 추론해 화면에 "추론됨"이라 표시하므로, 아는 것은 직접 적는다.

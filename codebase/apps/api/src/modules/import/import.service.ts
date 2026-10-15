@@ -11,7 +11,7 @@
 //     실패로 응답에 담기고 배치 전체를 되돌리지 않는다(REQ-API-018).
 
 import { Injectable, Logger } from '@nestjs/common';
-import { IMPORT_SPEC_IMPACT_UNKNOWN, NERV_EVENT, newId, text } from '@nerv/schema';
+import { IMPORT_SPEC_IMPACT_UNKNOWN, msg, NERV_EVENT, newId, text } from '@nerv/schema';
 import { displayKey } from '@nerv/schema/keys';
 import type {
   ImportBatchResult,
@@ -30,6 +30,14 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { EventService } from '../event/event.service.js';
 import { ReviewService } from '../review/review.service.js';
+import { NervError } from '../../common/nerv-exception.filter.js';
+import { normalizedStatementSql, recomputeImplStatus } from '../spec/impl-status.js';
+import {
+  ownershipColumns,
+  refuseOwned,
+  releasedOwners,
+  writableBy,
+} from '../spec/requirement-owner.js';
 
 interface Actor {
   userId: string;
@@ -440,10 +448,23 @@ export class ImportService {
     `);
     await tx.execute(sql`UPDATE spec SET current_version_id = ${versionId} WHERE id = ${specId}`);
 
+    // **다른 문서가 가진 번호는 덮지 않는다**(2026-10-15 · 사람 결정 · REQ-IMP-034). 예전 `ON CONFLICT` 는 `spec_id` 를
+    // 보지 않아, 다른 문서가 가진 행의 `current_version_id` · `acceptance_md` 를 조용히 덮었다(문장과 소유는 그대로라
+    // 행이 두 문서에 반씩 걸쳤다). 판정은 승인 경로와 같은 `requirement-owner.ts` 이고 갱신 조건에 있다(REQ-API-309).
+    // 소유가 풀린 번호는 승인 경로와 같은 기록으로 옮겨 온다 — 소유 · 들어온 버전 · 살아 있음 · 문장(바뀌었으면 그 시각).
+    // 같은 문서의 행은 예전 그대로다(현재 버전 · 수용 기준만 쓴다)
+    const releasedFrom = await releasedOwners(tx, {
+      projectId: actor.projectId,
+      specId,
+      refs: item.requirements.map((r) => r.ref),
+    });
     const refs: Record<string, string> = {};
+    const refused: string[] = [];
+    const moved: { ref: string; from_key: string }[] = [];
+    const restated: string[] = [];
     for (const requirement of item.requirements) {
       const reqId = newId();
-      const { rows } = await tx.execute<{ id: string }>(sql`
+      const { rows } = await tx.execute<{ id: string; restated: boolean }>(sql`
         INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, acceptance_md,
                                  priority, impl_status,
                                  introduced_in_version_id, current_version_id)
@@ -452,24 +473,52 @@ export class ImportService {
                 ${requirement.priority}::requirement_priority, ${requirement.impl_status}::impl_status,
                 ${versionId}, ${versionId})
         ON CONFLICT (project_id, ref) DO UPDATE
-          SET current_version_id = ${versionId},
+          SET ${ownershipColumns(specId, versionId)},
+              -- 옮겨 온 번호는 이 문서의 문장이다. 같은 문서의 문장은 예전처럼 건드리지 않는다
+              statement_md = CASE WHEN requirement.spec_id = ${specId}
+                                  THEN requirement.statement_md ELSE EXCLUDED.statement_md END,
+              statement_changed_at = CASE
+                WHEN requirement.spec_id <> ${specId}
+                 AND ${normalizedStatementSql(sql`requirement.statement_md`)}
+                     IS DISTINCT FROM ${normalizedStatementSql(sql`EXCLUDED.statement_md`)}
+                THEN now() ELSE requirement.statement_changed_at END,
+              current_version_id = ${versionId},
               acceptance_md = COALESCE(EXCLUDED.acceptance_md, requirement.acceptance_md)
-        RETURNING id
+          WHERE ${writableBy(specId)}
+        RETURNING id, (statement_changed_at = now()) AS restated
       `);
-      const id = rows[0]?.id;
-      if (id === undefined) continue;
+      const row = rows[0];
+      if (row === undefined) {
+        refused.push(requirement.ref);
+        continue;
+      }
+      const id = row.id;
       refs[requirement.ref] = id;
+      // 쓰기 전에 소유가 풀려 있던 다른 문서의 번호를 썼으면 옮겨 온 것이다(승인 경로와 같은 셈)
+      const isMoved = releasedFrom.has(requirement.ref);
+      if (isMoved) {
+        moved.push({ ref: requirement.ref, from_key: releasedFrom.get(requirement.ref) ?? '' });
+        if (row.restated) restated.push(id);
+      }
 
       // **버전 델타는 임포터가 만든다**(§2.5 규칙 7). 이 행이 없으면 스펙 비교 화면의
       // 요구사항 축이 통째로 비고, 조회는 본문 재파싱으로 물러난다(spec.service 의 델타 주석).
+      // 옮겨 온 번호는 이 문서에는 처음 들어온 것이라 `added` 다
       await tx.execute(sql`
         INSERT INTO requirement_version (requirement_id, spec_version_id, change_kind,
                                          statement_md, ordinal)
-        VALUES (${id}, ${versionId}, ${reqId === id ? 'added' : 'modified'}::change_kind,
+        VALUES (${id}, ${versionId}, ${reqId === id || isMoved ? 'added' : 'modified'}::change_kind,
                 ${requirement.text}, ${requirement.ordinal})
         ON CONFLICT (requirement_id, spec_version_id) DO NOTHING
       `);
     }
+    // 하나라도 다른 문서의 것이면 **이 파일 전체를 되돌린다**(파일 1건 = 트랜잭션 1건 · §3.5). 배치의 다른 파일은
+    // 계속되고, 이 파일은 응답에 `error` · `requirement_owned` 와 사유로 남는다
+    await refuseOwned(tx, actor.projectId, refused, (owned) =>
+      msg('import.requirement_owned', { refs: owned }),
+    );
+    // 문장이 바뀐 채 옮겨 온 요구사항은 다시 파생한다 — 승인 경로와 같다(옛 문장의 서명은 지금 문장을 보증하지 않는다)
+    for (const id of restated) await recomputeImplStatus(tx, id);
 
     for (const evidence of item.evidence) {
       // **낡음은 CLI 가 판정해 싣는다**(REQ-IMP-032) — 원본 저장소를 보는 쪽이 CLI 뿐이다.
@@ -487,6 +536,8 @@ export class ImportService {
       spec_id: specId,
       spec_version_id: versionId,
       requirement_refs: refs,
+      // 다른 문서에서 옮겨 온 번호 — 승인 경로가 `spec.approved` 에 남기는 것과 같은 기록이다(REQ-IMP-034)
+      ...(moved.length === 0 ? {} : { requirements_moved: moved }),
     };
   }
 
@@ -554,10 +605,13 @@ function summarize(items: ImportItemResult[]): ImportBatchResult {
 }
 
 function toError(sourcePath: string, error: unknown): ImportItemResult {
+  // 도메인이 이름 붙인 거절이면 그 이름을 코드로 준다(예: `requirement_owned` — REQ-IMP-034). 리포트는 `detail` 을
+  // 사유로 적는다
+  const kind = error instanceof NervError ? error.details['kind'] : undefined;
   return {
     source_path: sourcePath,
     status: 'error',
-    code: 'import_failed',
+    code: typeof kind === 'string' ? kind : 'import_failed',
     detail: error instanceof Error ? error.message : String(error),
   };
 }

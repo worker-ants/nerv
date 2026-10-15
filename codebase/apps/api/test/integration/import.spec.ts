@@ -302,6 +302,175 @@ describe('EP-IMP-02 specs — 소급 적재', () => {
   });
 });
 
+/**
+ * **다른 문서가 가진 요구사항 번호는 덮지 않는다**(2026-10-15 · 사람 결정 · REQ-IMP-034). 승인 경로는 PR #231 에서 소유를
+ * 보게 됐는데(4.4 REQ-API-309) 임포터의 `ON CONFLICT` 는 `spec_id` 를 보지 않아, 다른 문서가 가진 행의
+ * `current_version_id` · `acceptance_md` 를 조용히 덮었다. 이제 두 경로가 같은 판정(`requirement-owner.ts`)을 쓴다.
+ */
+describe('EP-IMP-02 — 다른 문서가 가진 요구사항 번호 (REQ-IMP-034)', () => {
+  const withReq = (
+    key: string,
+    ref: string,
+    text: string,
+    acceptance: string | null,
+    body = `# ${key}\n\n${ref} ${text}`,
+  ) => ({
+    ...docItem(key, body),
+    requirements: [
+      {
+        ref,
+        text,
+        acceptance_md: acceptance,
+        priority: 'must' as const,
+        impl_status: 'unimplemented' as const,
+        ordinal: 0,
+      },
+    ],
+  });
+  const requirementRow = async (ref: string) =>
+    (
+      await pool.query<{
+        spec_key: string;
+        statement_md: string;
+        acceptance_md: string | null;
+        introduced_in_version_id: string;
+        current_version_id: string;
+        removed_in_version_id: string | null;
+        statement_changed_at: Date | null;
+      }>(
+        `SELECT s.key AS spec_key, r.statement_md, r.acceptance_md, r.introduced_in_version_id,
+                r.current_version_id, r.removed_in_version_id, r.statement_changed_at
+           FROM requirement r JOIN spec s ON s.id = r.spec_id
+          WHERE r.project_id = $1 AND r.ref = $2`,
+        [projectId, ref],
+      )
+    ).rows[0]!;
+  const changeKind = async (ref: string, versionId: string) =>
+    (
+      await pool.query<{ change_kind: string }>(
+        `SELECT rv.change_kind::text AS change_kind
+           FROM requirement_version rv JOIN requirement r ON r.id = rv.requirement_id
+          WHERE r.project_id = $1 AND r.ref = $2 AND rv.spec_version_id = $3`,
+        [projectId, ref, versionId],
+      )
+    ).rows[0]?.change_kind;
+  const versionsOf = async (key: string) =>
+    (
+      await pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+          WHERE s.project_id = $1 AND s.key = $2`,
+        [projectId, key],
+      )
+    ).rows[0]!.n;
+
+  it('다른 문서가 가진 번호를 정의한 파일만 실패하고 사유가 남는다 — 원래 행은 그대로다', async () => {
+    const first = await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [withReq('SPC-OWN-A', 'REQ-OWN-001', 'A 문장', 'A 기준')],
+    });
+    expect(first.json).toMatchObject({ applied: 1, errors: 0 });
+    const before = await requirementRow('REQ-OWN-001');
+
+    const res = await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [
+        withReq('SPC-OWN-B', 'REQ-OWN-001', 'B 문장', 'B 기준'),
+        withReq('SPC-OWN-C', 'REQ-OWN-C01', 'C 문장', null),
+      ],
+    });
+    expect(res.status).toBe(201);
+    expect(res.json).toMatchObject({ applied: 1, errors: 1 });
+    const items = res.json['items'] as {
+      source_path: string;
+      status: string;
+      code?: string;
+      detail?: string;
+    }[];
+    const failed = items.find((i) => i.source_path === 'spec/SPC-OWN-B.md');
+    expect(failed).toMatchObject({ status: 'error', code: 'requirement_owned' });
+    // 리포트는 이 문장을 사유로 그대로 적는다(CLI `server-rejected`) — 무엇이 누구의 번호인지가 들어 있다
+    expect(failed?.detail).toContain('REQ-OWN-001 → SPC-OWN-A');
+    // 같은 배치의 다른 파일은 계속된다(파일 1건 = 트랜잭션 1건)
+    expect(items.find((i) => i.source_path === 'spec/SPC-OWN-C.md')?.status).toBe('ok');
+
+    // 원래 행은 문장도 소유도 현재 버전도 수용 기준도 그대로다 — 예전에는 뒤의 둘을 덮었다
+    expect(await requirementRow('REQ-OWN-001')).toEqual(before);
+    expect(before).toMatchObject({ spec_key: 'SPC-OWN-A', acceptance_md: 'A 기준' });
+    // 실패한 파일의 버전도 남지 않는다
+    expect(await versionsOf('SPC-OWN-B')).toBe(0);
+  });
+
+  it('소유가 풀린 번호는 옮겨 온다 — 승인 경로와 같은 기록을 남긴다', async () => {
+    await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [withReq('SPC-REL-A', 'REQ-REL-001', '옛 문장', 'A 기준')],
+    });
+    // 가진 문서의 최신 승인본에서 그 줄이 빠졌다 — 승인 경로가 적는 것과 같다(REQ-API-309)
+    await pool.query(
+      `UPDATE requirement SET removed_in_version_id = current_version_id
+        WHERE project_id = $1 AND ref = 'REQ-REL-001'`,
+      [projectId],
+    );
+
+    const res = await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [withReq('SPC-REL-B', 'REQ-REL-001', '새 문서의 문장', 'B 기준')],
+    });
+    expect(res.json).toMatchObject({ applied: 1, errors: 0 });
+    const item = (res.json['items'] as Record<string, unknown>[])[0]!;
+    expect(item['requirements_moved']).toEqual([{ ref: 'REQ-REL-001', from_key: 'SPC-REL-A' }]);
+
+    const versionId = item['spec_version_id'] as string;
+    const row = await requirementRow('REQ-REL-001');
+    expect(row).toMatchObject({
+      spec_key: 'SPC-REL-B',
+      statement_md: '새 문서의 문장',
+      acceptance_md: 'B 기준',
+      introduced_in_version_id: versionId,
+      current_version_id: versionId,
+      removed_in_version_id: null,
+    });
+    // 문장이 바뀌었으므로 그 시각이 남는다 — 옛 문장의 검증 서명은 지금 문장을 보증하지 않는다
+    expect(row.statement_changed_at).not.toBeNull();
+    // 이 문서에는 처음 들어온 요구사항이다
+    expect(await changeKind('REQ-REL-001', versionId)).toBe('added');
+  });
+
+  it('같은 문서를 다시 임포트하면 예전 그대로다 — 현재 버전과 수용 기준만 바뀐다', async () => {
+    const first = await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [withReq('SPC-REIMP', 'REQ-REIMP-001', '처음 문장', 'v1 기준', '# v1')],
+    });
+    const v1 = (first.json['items'] as Record<string, unknown>[])[0]!['spec_version_id'];
+    const second = await post('specs', {
+      profile: 'clemvion',
+      kind: 'document',
+      items: [withReq('SPC-REIMP', 'REQ-REIMP-001', '바뀐 문장', 'v2 기준', '# v2')],
+    });
+    expect(second.json).toMatchObject({ applied: 1, errors: 0 });
+    const item = (second.json['items'] as Record<string, unknown>[])[0]!;
+    expect(item).not.toHaveProperty('requirements_moved');
+    const v2 = item['spec_version_id'] as string;
+
+    expect(await requirementRow('REQ-REIMP-001')).toMatchObject({
+      spec_key: 'SPC-REIMP',
+      // 같은 문서의 문장은 예전처럼 건드리지 않는다 — 시점 문장은 requirement_version 이 갖는다
+      statement_md: '처음 문장',
+      acceptance_md: 'v2 기준',
+      introduced_in_version_id: v1,
+      current_version_id: v2,
+      removed_in_version_id: null,
+      statement_changed_at: null,
+    });
+    expect(await changeKind('REQ-REIMP-001', v2)).toBe('modified');
+  });
+});
+
 describe('EP-IMP-03 tasks — ready 는 받지 않는다 (REQ-IMP-009)', () => {
   it('ready 상태는 스키마가 거부한다 — 소급 적재가 ready 큐를 오염시키면 안 된다', async () => {
     const res = await post('tasks', {

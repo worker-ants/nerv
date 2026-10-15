@@ -25,6 +25,7 @@ export const ReviewFindingInput = z
     line: z.number().int().nullish(),
     area: z.string().nullish(),
     category: z.string().nullish(),
+    /** 고정 ID(`REQ-…`)든 UUID 든 — 서버가 그 프로젝트 안에서 UUID 로 푼다(2026-10-15 · REQ-API-311) */
     requirement_id: z.string().nullish(),
     /**
      * `spec_drift` 같은 분류 — 발견 목록의 필터와 대상 추론(`inferArea`)이 읽는다. 10개까지 · 하나 64자까지
