@@ -34,6 +34,7 @@ import { sql } from 'drizzle-orm';
 import { EventService } from '../event/event.service.js';
 import { TaskService } from '../task/task.service.js';
 import { resolveRequirementRef } from '../spec/requirement-ref.js';
+import { recomputeImplStatus } from '../spec/impl-status.js';
 import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
@@ -402,6 +403,10 @@ export class ReviewService {
           block,
         },
       });
+
+      // **작업에 묶인 라운드가 들어오면 그 요구사항을 다시 파생한다**(2026-10-15 · E15-S03 · REQ-API-315). `verified` 는
+      // 작업의 최신 커밋을 본 라운드를 보므로, 새 커밋의 리뷰가 들어온 순간이 검증이 설 수 있는 순간이다
+      if (session.taskId != null) await this.refreshTaskRequirement(tx, session.taskId);
 
       for (const findingId of created) {
         // **알림은 새로 열린 발견에만.** 같은 지적이 라운드마다 다시 울리면 알림이
@@ -1033,6 +1038,20 @@ export class ReviewService {
         payload: { kind: input.kind, severity: finding.severity, downgrade },
       });
 
+      // **처분은 검증의 재료다**(2026-10-15 · E15-S03 · REQ-API-315) — 그 발견이 가리키는 요구사항과, 그 발견을 관찰한
+      // 라운드의 작업이 맡은 요구사항을 다시 파생한다. 열린 critical 이 닫힌 순간이 검증이 설 수 있는 순간이다
+      const { rows: affected } = await tx.execute<{ id: string }>(sql`
+        SELECT requirement_id AS id FROM finding
+         WHERE id = ${input.findingId} AND requirement_id IS NOT NULL
+        UNION
+        SELECT t.source_requirement_id AS id
+          FROM finding_occurrence o
+          JOIN review_session rs ON rs.id = o.review_session_id
+          JOIN task t ON t.id = rs.task_id
+         WHERE o.finding_id = ${input.findingId} AND t.source_requirement_id IS NOT NULL
+      `);
+      for (const row of affected) await recomputeImplStatus(tx, row.id);
+
       const { rows: remaining } = await tx.execute<{ n: number }>(sql`
         SELECT count(*)::int AS n FROM finding
          WHERE project_id = ${input.projectId} AND status = 'open'
@@ -1044,6 +1063,15 @@ export class ReviewService {
         open_remaining: remaining[0]?.n ?? 0,
       };
     });
+  }
+
+  /** 작업이 맡은 요구사항의 구현 축을 다시 파생한다 — 요구사항이 없는 작업이면 할 일이 없다 */
+  private async refreshTaskRequirement(tx: Tx, taskId: string): Promise<void> {
+    const { rows } = await tx.execute<{ id: string | null }>(
+      sql`SELECT source_requirement_id AS id FROM task WHERE id = ${taskId}`,
+    );
+    const requirementId = rows[0]?.id ?? null;
+    if (requirementId !== null) await recomputeImplStatus(tx, requirementId);
   }
 
   /** 처분 전 확인 — 없는 발견에 처분을 남기지 않는다. */

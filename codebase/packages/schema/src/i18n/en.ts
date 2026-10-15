@@ -811,6 +811,10 @@ export const en = {
     'the {kind} review waiver applies only without code evidence, and this task has code evidence',
   'task.missing.review_kind_unfinished': 'the {kind} review of this task has not finished',
   'task.missing.review_kind_roles': 'the {kind} review of this task has no report from {roles}',
+  'task.missing.review_kind_stale':
+    'the {kind} review of this task saw commit {reviewed}, and a newer commit {head} came after it — have the new commit reviewed',
+  'task.missing.review_stale':
+    'the review of this task saw commit {reviewed}, and a newer commit {head} came after it — have the new commit reviewed',
   'task.missing.review_kind_open':
     'the {kind} review of this task still has open findings ({critical} critical · {warning} warning)',
   'task.missing.evidence': 'evidence (at least one implementation record)',

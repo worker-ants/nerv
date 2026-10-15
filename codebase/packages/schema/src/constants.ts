@@ -638,6 +638,19 @@ export interface DoneGateCheck {
   result: DoneGateResult;
   kind?: string;
 }
+/**
+ * **판정하지 못하고 통과시킨 게이트** — `gate.failopen` 의 `gate`(D-14). 플랜 승인 게이트는 판정 질의가 실패했을 때,
+ * done 게이트는 커밋 신선도를 판정할 재료가 없을 때 남긴다(2026-10-15 · api.md REQ-API-314).
+ */
+export const FAILOPEN_GATE = { PLAN_APPROVAL: 'plan_approval', DONE_GATE: 'done_gate' } as const;
+export type FailopenGate = (typeof FAILOPEN_GATE)[keyof typeof FAILOPEN_GATE];
+/**
+ * done 게이트가 **커밋 신선도를 판정하지 못한 까닭** — `gate.failopen` 의 `error`. `commit_unknown` 은 작업에 `commit` 증적이
+ * 없어 최신 커밋을 모른다, `review_commit_unknown` 은 그 종류의 리뷰 라운드가 본 것이 커밋 SHA 모양이 아니라 견줄 수
+ * 없다는 뜻이다. 둘 다 신선도 조건만 넘기고 나머지(리뷰가 있는가 · 열린 발견)는 그대로 본다.
+ */
+export const DONE_GATE_FAILOPEN_REASONS = ['commit_unknown', 'review_commit_unknown'] as const;
+export type DoneGateFailopenReason = (typeof DONE_GATE_FAILOPEN_REASONS)[number];
 
 // ── 본문 축소 (2026-10-08 · api.md REQ-API-270 · 271) ─────────────────────────────────────────
 /**

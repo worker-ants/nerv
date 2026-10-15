@@ -11,8 +11,13 @@
 
 import { EVIDENCE_NOTE_MAX } from './constants.js';
 
-/** 커밋 SHA — 짧은 해시(7)부터 전체(40)까지. */
-const COMMIT = /^[0-9a-f]{7,40}$/i;
+/**
+ * 커밋 SHA 의 모양 — 짧은 해시(7)부터 전체(40)까지, 대소문자를 가리지 않는다. 정규식 원문을 내보내는 것은 SQL(`~*`)도
+ * 같은 규칙을 쓰기 때문이다 — done 게이트의 커밋 신선도와 구현 축의 커밋 범위가 이 모양으로 "커밋을 아는가" 를 본다
+ * (2026-10-15 · api.md REQ-API-314 · 315).
+ */
+export const COMMIT_SHA_PATTERN = '^[0-9a-f]{7,40}$';
+const COMMIT = new RegExp(COMMIT_SHA_PATTERN, 'i');
 
 export interface LocatorVerdict {
   ok: boolean;

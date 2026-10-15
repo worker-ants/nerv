@@ -19,7 +19,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.12 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.13 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.13 변경(2026-10-15 — 커밋 범위를 한 곳에서, Phase 2 묶음 1의 둘째 · **사람 결정**): **§2.2 트리 한 줄.** `modules/review/`에 `commit-scope.ts`(작업의 최신 커밋 · 같은 커밋 판정 — done 게이트의 커밋 신선도와 구현 축 `verified` 가 함께 쓴다 · [4.4 API](api.md) REQ-API-314 · 315)가 들어왔다.
 >
 > v2.12 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **REQ-CB-029 개정.** [4.8 백로그](backlog.md)가 Phase 2 스토리를 받으면서(같은 날 사람 결정) §1.4 에픽 표에 착수 전 스토리를 세는 `backlog` 열이 생겼다. 백로그 현황 정합 게이트가 에픽별 `done + 부분 + backlog`를 스토리 수와 대조하고, html 파생본은 합계 행의 세 칸을 순서대로 본다(`scripts/check-backlog-status.mjs`). 그전에는 착수 전 스토리를 셀 칸이 없어 Phase 2 에픽을 더하는 순간 게이트가 막았다.
 >
@@ -561,6 +563,7 @@ apps/api/src/
       plugin.paths.ts       # 아카이브 위치 — NERV_PLUGIN_DIST
       plugin.service.ts     # 마켓플레이스 JSON 조립
     review/
+      commit-scope.ts       # 커밋 범위 — 작업의 최신 커밋과 라운드의 커밋을 맞춘다 · done 게이트와 verified 가 함께 쓴다 (REQ-API-314 · 315)
       review-gate.ts        # 게이트 판정 — 라운드(브랜치 · 종류 · 커밋)가 통과했는가 (REQ-API-247)
       review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts

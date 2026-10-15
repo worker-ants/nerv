@@ -807,6 +807,10 @@ export const ko = {
     '{kind} 리뷰 면제는 코드 증적이 없을 때만 적용됩니다. 이 작업에는 코드 증적이 있습니다',
   'task.missing.review_kind_unfinished': '이 작업의 {kind} 리뷰가 아직 끝나지 않았습니다',
   'task.missing.review_kind_roles': '이 작업의 {kind} 리뷰에 {roles} 역할의 보고가 없습니다',
+  'task.missing.review_kind_stale':
+    '이 작업의 {kind} 리뷰가 본 커밋({reviewed}) 뒤에 새 커밋({head})이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
+  'task.missing.review_stale':
+    '이 작업의 리뷰가 본 커밋({reviewed}) 뒤에 새 커밋({head})이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
   'task.missing.review_kind_open':
     '이 작업의 {kind} 리뷰에 열린 발견이 남아 있습니다(critical {critical}건 · warning {warning}건)',
   'task.missing.evidence': '증적(evidence): 구현 증적 1건 이상',

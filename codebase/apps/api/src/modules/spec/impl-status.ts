@@ -12,6 +12,7 @@
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { NervDb } from '../../common/database.module.js';
+import { commitShapedSql, latestTaskCommitSql, sameCommitSql } from '../review/commit-scope.js';
 
 type Queryable = Pick<NervDb, 'execute'>;
 
@@ -36,8 +37,8 @@ type Queryable = Pick<NervDb, 'execute'>;
  * **`verified` 는 이제 파생한다**(2026-09-07 · REQ-API-141). 오래 "스키마가 담지 못한다" 고
  * 적어 두었는데 열은 처음부터 있었다 — `evidence.verified_by`(누가 검증했는가)와
  * `finding.requirement_id`(그 요구사항의 발견). 조건은 셋이다: 전부 `done` · **검증자가 서명한
- * `test` 증적**이 1건 이상 · 그 요구사항에 열린 `critical` 발견이 0건. 정본이 적은 "그 커밋
- * 범위" 축만 아직 없다 — 커밋과 발견을 잇는 축이 Phase 2 라, 지금은 요구사항 단위로 본다.
+ * `test` 증적**이 1건 이상 · **커밋 범위에** 열린 `critical` 발견이 0건. 커밋 범위는 2026-10-15 에
+ * 들어왔다(E15-S03 · REQ-API-315 — `commitScopeClearSql`). 작업의 커밋을 모르면 예전처럼 요구사항 단위로 본다.
  *
  * **내리지는 않는다.** 이미 `verified` 인 행은 그대로 둔다 — 그 가드가 없으면 발견 하나가
  * 열릴 때마다 검증 사실이 지워졌다 다시 붙는다. **문장이 바뀌었을 때만 예외다**(2026-09-26 ·
@@ -142,7 +143,46 @@ export function emptyPromiseSql(reqAlias = 'r'): SQL {
                                WHERE t.source_requirement_id = ${ref} AND t.archived_at IS NULL))`;
 }
 
-/** 열린 critical 발견 — 있으면 검증됐다고 말할 수 없다(`verified` 의 둘째 조건). */
+/**
+ * **`verified` 의 셋째 조건 — 커밋 범위에 열린 critical 이 없다**(2026-10-15 · Phase 2 E15-S03 · REQ-API-315).
+ *
+ * 예전 조건은 "그 요구사항에 열린 critical 0" 이었다. 그러면 리뷰가 본 커밋 뒤에 새 커밋이 와도 검증이 서고(리뷰가 본
+ * 적 없는 코드), 반대로 이미 고친 커밋의 리뷰에서 다시 보이지 않은 옛 발견이 열린 채 남아 있으면 검증이 서지 못했다.
+ * 정본(spec-workflow §1.3)이 적은 "해당 커밋 범위" 는 **파생 작업의 최신 커밋을 본 리뷰 라운드**다 — done 게이트의
+ * 커밋 신선도와 같은 커밋 · 같은 규칙이다(`commit-scope.ts` · REQ-API-314).
+ *
+ * 작업마다 셋 중 하나다. ① 커밋을 알고 그 커밋을 본 라운드가 있다 → 그 라운드에서 관찰된 열린 critical 이 없고 도는
+ * 세션이 없어야 한다. ② 커밋을 알고 앞 커밋의 라운드만 있다(앞 라운드가 커밋 모양) → 리뷰가 본 뒤에 새 커밋이 왔으니
+ * 검증되지 않는다. ③ 커밋을 모르거나 리뷰가 없거나 앞 라운드가 본 것이 커밋 모양이 아니다 → 견줄 수 없다. 커밋 범위로
+ * 본 작업(①②)이 하나라도 있으면 그것들로 판정하고, 하나도 없으면 **예전처럼 요구사항 단위로 본다** — 리뷰를 쓰지 않는
+ * 프로젝트의 검증이 이 조건 때문에 막히지 않는다.
+ */
+export function commitScopeClearSql(reqAlias = 'r'): SQL {
+  const ref = sql.raw(`${reqAlias}.id`);
+  const atHead = sql`rs.task_id = t.id AND ${sameCommitSql(sql`rs.head_sha`, sql`h.sha`)}`;
+  const scoped = sql`
+    SELECT x.at_head, x.blocked
+      FROM task t
+     CROSS JOIN LATERAL (SELECT ${latestTaskCommitSql(sql`t.id`)} AS sha) h
+     CROSS JOIN LATERAL (
+       SELECT EXISTS (SELECT 1 FROM review_session rs WHERE ${atHead}) AS at_head,
+              (EXISTS (SELECT 1 FROM review_session rs WHERE ${atHead} AND rs.state = 'running')
+               OR EXISTS (SELECT 1 FROM review_session rs
+                            JOIN finding_occurrence o ON o.review_session_id = rs.id
+                            JOIN finding f ON f.id = o.finding_id
+                           WHERE ${atHead} AND f.status = 'open' AND f.severity = 'critical')) AS blocked,
+              (SELECT rs.head_sha FROM review_session rs WHERE rs.task_id = t.id
+                ORDER BY rs.created_at DESC, rs.id DESC LIMIT 1) AS last_head
+     ) x
+     WHERE t.source_requirement_id = ${ref} AND t.archived_at IS NULL AND h.sha IS NOT NULL
+       AND (x.at_head OR coalesce(${commitShapedSql(sql`x.last_head`)}, false))`;
+  return sql`(CASE WHEN EXISTS (${scoped})
+                   THEN NOT EXISTS (SELECT 1 FROM (${scoped}) s WHERE NOT s.at_head OR s.blocked)
+                   ELSE NOT ${openCriticalSql(reqAlias)}
+              END)`;
+}
+
+/** 열린 critical 발견 — 있으면 검증됐다고 말할 수 없다(`verified` 의 둘째 조건 · 커밋을 모를 때). */
 export function openCriticalSql(reqAlias = 'r'): SQL {
   const ref = sql.raw(`${reqAlias}.id`);
   return sql`EXISTS (
@@ -167,7 +207,7 @@ export async function recomputeImplStatus(db: Queryable, requirementId: string):
               WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND t.archived_at IS NULL
            ) AND ${evidenceExistsSql()}
              AND ${verifiedEvidenceSql()}
-             AND NOT ${openCriticalSql()} THEN 'verified'
+             AND ${commitScopeClearSql()} THEN 'verified'
            WHEN NOT EXISTS (
              SELECT 1 FROM task t
               WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND t.archived_at IS NULL

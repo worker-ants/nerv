@@ -25,6 +25,7 @@ import {
   normalizeEvidenceNote,
   EVIDENCE_NOTE_MAX,
   effectiveGatePolicy,
+  FAILOPEN_GATE,
   DELEGATION_PLACEHOLDER_TEXTS,
   isDelegationFilled,
   PLAN_APPROVAL_SIBLINGS,
@@ -37,7 +38,7 @@ import {
   taskStatus,
   text,
 } from '@nerv/schema';
-import type { DoneGateCheck, DoneGateResult } from '@nerv/schema';
+import type { DoneGateCheck, DoneGateFailopenReason, DoneGateResult } from '@nerv/schema';
 import {
   cursorId,
   cursorTimestamp,
@@ -63,9 +64,48 @@ import { ApprovalService } from '../approval/approval.service.js';
 import { recomputeImplStatus } from '../spec/impl-status.js';
 import { resolveRequirementRef } from '../spec/requirement-ref.js';
 import { roundVerdicts } from '../review/review-gate.js';
+import {
+  isCommitSha,
+  latestRoundHeads,
+  latestTaskCommit,
+  sameCommitSql,
+} from '../review/commit-scope.js';
 import { SessionService } from '../session/session.service.js';
 import { ClaimService } from './claim.service.js';
 import type { ClaimScope, Overlap } from './claim.service.js';
+
+/**
+ * 리뷰가 본 커밋 뒤에 새 커밋이 온 리뷰 조건 하나(2026-10-15 · REQ-API-314) — done 거부의 `details.stale_reviews`.
+ * `kind` 는 종류 목록 조건이면 그 종류, 종류 무관 조건(`review_coverage: true`)이면 `null` 이다.
+ */
+export interface StaleReview {
+  kind: string | null;
+  /** 작업의 최신 커밋 — 이 커밋을 리뷰받아야 한다 */
+  head_sha: string;
+  /** 그 조건의 가장 최근 라운드가 본 커밋 */
+  reviewed_sha: string;
+}
+
+/** 커밋 신선도를 판정하지 못하고 넘긴 것 — `gate.failopen` 의 `error` · `kinds`(종류 무관 조건이면 빈 목록) */
+interface DoneGateFailopen {
+  error: DoneGateFailopenReason;
+  kinds: string[];
+}
+
+/** 리뷰 조건 하나의 판정 — done 게이트가 `missing` · 감사 · 거부 상세에 그대로 옮긴다 */
+interface ReviewJudgement {
+  missing: string[];
+  uncoveredKinds: string[];
+  stale: StaleReview[];
+  checks: DoneGateCheck[];
+  waiverUsed: boolean;
+  failopen: DoneGateFailopen | null;
+}
+
+/** 사람에게 보이는 문장 속 커밋 — 짧은 SHA 다(상세에는 받은 값 그대로 준다) */
+function shortSha(sha: string): string {
+  return isCommitSha(sha) ? sha.slice(0, 7) : sha;
+}
 
 /** 클레임을 만지는 주체 — 전표의 "보유자"·"admin" 판정에 필요한 것 전부다 */
 /** 하트비트가 받는 대기 표시 — 모양은 `ClaimAwaitingInput`(zod)이고 어휘 · 시각은 `writeAwaiting` 이 본다 */
@@ -1519,7 +1559,7 @@ export class TaskService {
             subjectId: input.taskId,
             actorUserId: null,
             isAgent: false,
-            payload: { gate: 'plan_approval', error: String(error) },
+            payload: { gate: FAILOPEN_GATE.PLAN_APPROVAL, error: String(error) },
           }),
         )
         // 기록에 실패해도 통과는 통과다 — fail-open 의 뜻이 그것이다
@@ -2519,6 +2559,9 @@ export class TaskService {
             // **어느 리뷰 종류가 비었나**(2026-10-09 · REQ-API-274) — 코드를 내지 않은 작업이면 사람이 그 종류를
             // 사유와 함께 면제한다(작업 화면 · EP-APR-04 `kinds`). 리뷰를 꾸며 내지 않게 기계가 읽을 값을 준다
             ...(gate.uncoveredKinds.length > 0 ? { uncovered_kinds: gate.uncoveredKinds } : {}),
+            // **어느 종류를 어느 커밋에 대해 다시 리뷰받아야 하나**(2026-10-15 · REQ-API-314) — 리뷰가 본 커밋 뒤에 새
+            // 커밋이 왔다. 답은 면제가 아니라 새 커밋의 리뷰라 `uncovered_kinds` 와 나눠 준다
+            ...(gate.staleReviews.length > 0 ? { stale_reviews: gate.staleReviews } : {}),
           });
         }
         await tx.execute(sql`
@@ -2542,9 +2585,33 @@ export class TaskService {
           payload: {
             policy_fingerprint: gate.audit.policyFingerprint,
             ...(gate.audit.policyFallback ? { policy_fallback: true } : {}),
-            done_gate: { conditions: gate.audit.checks, waiver_used: gate.audit.waiverUsed },
+            done_gate: {
+              conditions: gate.audit.checks,
+              waiver_used: gate.audit.waiverUsed,
+              // 리뷰 조건이 견준 작업의 최신 커밋(REQ-API-314) — 몰랐으면 null 이고 아래 `gate.failopen` 이 함께 남는다
+              ...(gate.audit.headSha === undefined ? {} : { head_sha: gate.audit.headSha }),
+            },
           },
         });
+        if (gate.failopen !== null) {
+          // **통과 + 기록**(D-14). 신선도를 판정하지 못하고 닫았다는 사실은 감사가 알아야 한다 — done 과 같은 트랜잭션이라
+          // 닫히지 않은 시도는 남기지 않는다(그때는 아무것도 넘기지 않았다)
+          await emit({
+            type: NERV_EVENT.GATE_FAILOPEN,
+            projectId: input.projectId,
+            subjectType: 'task',
+            subjectId: taskId,
+            subjectKey: task.key,
+            actorUserId: input.userId,
+            actorSessionId: input.sessionId ?? null,
+            isAgent: input.sessionId != null,
+            payload: {
+              gate: FAILOPEN_GATE.DONE_GATE,
+              error: gate.failopen.error,
+              ...(gate.failopen.kinds.length > 0 ? { kinds: gate.failopen.kinds } : {}),
+            },
+          });
+        }
         await this.refreshImplStatus(tx, task.source_requirement_id);
         // 응답은 그대로다 — 감사 재료는 이벤트의 것이다
         const verdict = { ok: gate.ok, missing: gate.missing, uncoveredKinds: gate.uncoveredKinds };
@@ -2630,8 +2697,9 @@ export class TaskService {
    * done 전이 조건 — 기본은 조건 4·5, 강화 둘(증적 출처·리뷰 커버리지)은 **정책이 켠다**.
    * 조건 6(테스트 증적)은 이월이다(4.8 E09-S05).
    *
-   * 판정 불가는 실패가 아니라 fail-open + 관측이다(D-14) — 여기서는 판정에 필요한 데이터가
-   * 전부 서버에 있으므로 그 경로가 열리지 않는다.
+   * 판정 불가는 실패가 아니라 fail-open + 관측이다(D-14). 이 게이트에서 그 경로는 하나다 — 리뷰 조건의 커밋
+   * 신선도를 볼 재료(작업의 `commit` 증적 · 라운드의 커밋 SHA)가 없을 때다(2026-10-15 · REQ-API-314). 그때는 신선도만
+   * 넘기고, 통과하면 `gate.failopen` 을 남긴다. 리뷰가 없거나 열린 발견이 있으면 그대로 막는다.
    */
   /**
    * **게이트는 해소된 것만 본다**(2026-09-10 · REQ-API-156). 예전 시그니처는 `transition()`
@@ -2651,16 +2719,25 @@ export class TaskService {
     ok: boolean;
     missing: string[];
     uncoveredKinds: string[];
+    /** 리뷰가 본 커밋 뒤에 새 커밋이 온 종류(2026-10-15 · REQ-API-314) — 거부의 `details.stale_reviews` */
+    staleReviews: StaleReview[];
+    /** 커밋 신선도를 판정하지 못하고 넘긴 것 — 통과하면 `gate.failopen` 으로 남긴다(D-14) */
+    failopen: DoneGateFailopen | null;
     /** `task.done` 이 남기는 감사 재료(2026-10-15 · REQ-API-303) — 응답에는 넣지 않는다 */
     audit: {
       policyFingerprint: string;
       policyFallback: boolean;
       checks: DoneGateCheck[];
       waiverUsed: boolean;
+      /** 리뷰 조건이 견준 작업의 최신 커밋 — 리뷰를 보지 않았으면 `undefined`, 커밋을 몰랐으면 `null` */
+      headSha: string | null | undefined;
     };
   }> {
     const missing: string[] = [];
     const uncoveredKinds: string[] = [];
+    const staleReviews: StaleReview[] = [];
+    let failopen: DoneGateFailopen | null = null;
+    let headSha: string | null | undefined;
     // **본 조건과 결과를 함께 적는다**(2026-10-15 · 사람 결정 · REQ-API-303). done 에는 사람 승인이 없어서, 나중에
     // "그때 무엇을 보고 닫았나" 를 물으면 답할 곳이 이 기록뿐이다. 정책이 켠 조건만 적는다
     const checks: DoneGateCheck[] = [];
@@ -2752,88 +2829,228 @@ export class TaskService {
         } else {
           checks.push({ condition: 'review_coverage', result: 'waived' });
         }
-      } else if (Array.isArray(policy.review_coverage)) {
-        // **종류 목록이면 종류마다 게이트 판정을 통과해야 한다**(2026-09-28 · clemvion 요청 N6 · REQ-API-250).
-        // 판정은 게이트 판정 조회(EP-REV-08)와 한 곳이다 — CI 가 본 값과 done 이 본 값이 다르면 어느 쪽도 믿지 못한다
-        const kinds = requiredKinds.filter((k) => !waivedKinds.has(k));
-        const results = new Map<string, DoneGateResult>();
-        for (const kind of requiredKinds) if (waivedKinds.has(kind)) results.set(kind, 'waived');
-        const verdicts = await roundVerdicts(tx, {
-          projectId,
-          taskId,
-          kinds,
-          headSha: null,
-          // 종류마다 반드시 보고해야 하는 역할(REQ-API-252) — 게이트 판정과 같은 정책 값이다
-          requiredRoles: gatePolicy.review_roles,
-        });
-        for (const v of verdicts) {
-          const before = missing.length;
-          if (v.state === 'uncovered') {
-            if (voidKinds.has(v.kind)) {
-              missing.push(text('task.missing.review_waiver_void', { kind: v.kind }));
-            }
-            missing.push(text('task.missing.review_kind_uncovered', { kind: v.kind }));
-            uncoveredKinds.push(v.kind);
-          } else if (v.reasons.includes('running') || v.reasons.includes('failed')) {
-            missing.push(text('task.missing.review_kind_unfinished', { kind: v.kind }));
-          } else if (v.reasons.includes('open_critical') || v.reasons.includes('open_warning')) {
-            missing.push(
-              text('task.missing.review_kind_open', {
-                kind: v.kind,
-                critical: v.open.critical,
-                warning: v.open.warning,
-              }),
-            );
-          }
-          if (v.roles.missing.length > 0 && v.state !== 'uncovered') {
-            missing.push(
-              text('task.missing.review_kind_roles', {
-                kind: v.kind,
-                roles: v.roles.missing.join(' · '),
-              }),
-            );
-          }
-          results.set(v.kind, missing.length > before ? 'failed' : 'passed');
-        }
-        // 정책에 적힌 순서대로 — 면제한 종류도 그 자리에 둔다
-        for (const kind of requiredKinds) {
-          const result = results.get(kind);
-          if (result === undefined) continue;
-          if (result === 'waived') waiverUsed = true;
-          checks.push({ condition: 'review_kind', kind, result });
-        }
       } else {
-        const before = missing.length;
-        const { rows: reviews } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
-          SELECT count(*)::int AS rounds,
-                 COALESCE(sum((SELECT count(*) FROM finding f
-                                WHERE f.last_session_id = rs.id
-                                  AND f.severity = 'critical' AND f.status = 'open')), 0)::int
-                   AS open_critical
-            FROM review_session rs
-           WHERE rs.task_id = ${taskId} AND rs.state <> 'running'
-        `);
-        if ((reviews[0]?.rounds ?? 0) === 0) missing.push(text('task.missing.review_coverage'));
-        else if ((reviews[0]?.open_critical ?? 0) > 0) {
-          missing.push(text('task.missing.open_critical'));
-        }
-        checks.push({
-          condition: 'review_coverage',
-          result: missing.length > before ? 'failed' : 'passed',
-        });
+        // **리뷰는 작업의 최신 커밋을 본 것만 센다**(2026-10-15 · Phase 2 E16-S01 · REQ-API-314). 예전에는 종류마다 가장
+        // 최근 라운드를 커밋과 상관없이 봐서, 리뷰를 받은 뒤 새 커밋을 올려도 done 이 통과했다 — 리뷰가 본 적 없는 코드가
+        // "리뷰를 통과한 작업" 으로 닫혔다. 최신 커밋은 그 작업에 붙은 `commit` 증적 가운데 서버가 가장 나중에 받은 것이다
+        // (`commit-scope.ts` — 구현 축의 `verified` 와 같은 함수다). 모르면 신선도만 넘기고 기록을 남긴다(D-14)
+        // 고른 종류를 모두 면제했으면 볼 리뷰가 없다 — 그때는 커밋도 읽지 않고 감사에도 적지 않는다
+        const judged =
+          !Array.isArray(policy.review_coverage) ||
+          requiredKinds.some((kind) => !waivedKinds.has(kind));
+        const head = judged ? await latestTaskCommit(tx, taskId) : null;
+        if (judged) headSha = head;
+        const reviewed = Array.isArray(policy.review_coverage)
+          ? await this.judgeReviewKinds(tx, {
+              projectId,
+              taskId,
+              requiredKinds,
+              waivedKinds,
+              voidKinds,
+              headSha: head,
+              requiredRoles: gatePolicy.review_roles,
+            })
+          : await this.judgeAnyReview(tx, { projectId, taskId, headSha: head });
+        missing.push(...reviewed.missing);
+        uncoveredKinds.push(...reviewed.uncoveredKinds);
+        staleReviews.push(...reviewed.stale);
+        checks.push(...reviewed.checks);
+        if (reviewed.waiverUsed) waiverUsed = true;
+        failopen = reviewed.failopen;
       }
     }
     return {
       ok: missing.length === 0,
       missing,
       uncoveredKinds,
+      staleReviews,
+      failopen,
       audit: {
         // 판정에 쓴 정책의 지문이다 — 정책이 깨졌으면 대신 쓴 기본 정책의 것(REQ-API-240)
         policyFingerprint: policyFingerprint(gatePolicy),
         policyFallback: !valid,
         checks,
         waiverUsed,
+        headSha,
       },
+    };
+  }
+
+  /**
+   * 종류 목록 조건(REQ-API-250) — 종류마다 **작업의 최신 커밋을 본 라운드**가 게이트 판정을 통과해야 한다(REQ-API-314).
+   * 판정은 게이트 판정 조회(EP-REV-08)와 한 곳이다 — CI 가 본 값과 done 이 본 값이 다르면 어느 쪽도 믿지 못한다.
+   *
+   * 그 커밋의 라운드가 없는 종류는 셋으로 나뉜다. 라운드가 아예 없으면 지금처럼 「리뷰가 없다」. 앞 커밋의 라운드만
+   * 있으면 「새 커밋을 다시 리뷰받아야 한다」(`stale_reviews` — 면제가 아니라 다시 리뷰가 답이라 `uncovered_kinds` 에
+   * 넣지 않는다). 앞 라운드가 본 것이 커밋 모양이 아니면 견줄 수 없으므로 그 라운드를 예전처럼 판정하고 fail-open 을
+   * 남긴다. 작업의 커밋을 모르면(`headSha` null) 모든 종류를 예전처럼 가장 최근 라운드로 판정하고 fail-open 을 남긴다.
+   */
+  private async judgeReviewKinds(
+    tx: Tx,
+    input: {
+      projectId: string;
+      taskId: string;
+      requiredKinds: string[];
+      waivedKinds: Set<string>;
+      voidKinds: Set<string>;
+      headSha: string | null;
+      requiredRoles: Readonly<Partial<Record<string, readonly string[]>>>;
+    },
+  ): Promise<ReviewJudgement> {
+    const missing: string[] = [];
+    const uncoveredKinds: string[] = [];
+    const stale: StaleReview[] = [];
+    const checks: DoneGateCheck[] = [];
+    let waiverUsed = false;
+    const kinds = input.requiredKinds.filter((k) => !input.waivedKinds.has(k));
+    const results = new Map<string, DoneGateResult>();
+    for (const kind of input.requiredKinds) {
+      if (input.waivedKinds.has(kind)) results.set(kind, 'waived');
+    }
+    const base = {
+      projectId: input.projectId,
+      taskId: input.taskId,
+      // 종류마다 반드시 보고해야 하는 역할(REQ-API-252) — 게이트 판정과 같은 정책 값이다
+      requiredRoles: input.requiredRoles,
+    };
+    let verdicts = await roundVerdicts(tx, {
+      ...base,
+      kinds,
+      headSha: input.headSha,
+      headMatch: 'commit',
+    });
+    let failopen: DoneGateFailopen | null = null;
+    const staleHeads = new Map<string, string>();
+    if (input.headSha === null) {
+      if (kinds.length > 0) failopen = { error: 'commit_unknown', kinds };
+    } else {
+      const absent = verdicts.filter((v) => v.state === 'uncovered').map((v) => v.kind);
+      const heads = await latestRoundHeads(tx, { ...base, kinds: absent });
+      const unknown: string[] = [];
+      for (const [kind, head] of heads) {
+        if (kind === null) continue;
+        if (isCommitSha(head)) staleHeads.set(kind, head);
+        else unknown.push(kind);
+      }
+      if (unknown.length > 0) {
+        // 견줄 수 없는 라운드는 예전처럼 본다 — 막을 근거가 없는 것을 막지 않는다(D-14)
+        const earlier = await roundVerdicts(tx, { ...base, kinds: unknown, headSha: null });
+        verdicts = verdicts.map((v) => earlier.find((e) => e.kind === v.kind) ?? v);
+        failopen = { error: 'review_commit_unknown', kinds: unknown };
+      }
+    }
+    for (const v of verdicts) {
+      const before = missing.length;
+      const reviewedSha = staleHeads.get(v.kind);
+      if (v.state === 'uncovered' && reviewedSha !== undefined && input.headSha !== null) {
+        missing.push(
+          text('task.missing.review_kind_stale', {
+            kind: v.kind,
+            reviewed: shortSha(reviewedSha),
+            head: shortSha(input.headSha),
+          }),
+        );
+        stale.push({ kind: v.kind, head_sha: input.headSha, reviewed_sha: reviewedSha });
+      } else if (v.state === 'uncovered') {
+        if (input.voidKinds.has(v.kind)) {
+          missing.push(text('task.missing.review_waiver_void', { kind: v.kind }));
+        }
+        missing.push(text('task.missing.review_kind_uncovered', { kind: v.kind }));
+        uncoveredKinds.push(v.kind);
+      } else if (v.reasons.includes('running') || v.reasons.includes('failed')) {
+        missing.push(text('task.missing.review_kind_unfinished', { kind: v.kind }));
+      } else if (v.reasons.includes('open_critical') || v.reasons.includes('open_warning')) {
+        missing.push(
+          text('task.missing.review_kind_open', {
+            kind: v.kind,
+            critical: v.open.critical,
+            warning: v.open.warning,
+          }),
+        );
+      }
+      if (v.roles.missing.length > 0 && v.state !== 'uncovered') {
+        missing.push(
+          text('task.missing.review_kind_roles', {
+            kind: v.kind,
+            roles: v.roles.missing.join(' · '),
+          }),
+        );
+      }
+      results.set(v.kind, missing.length > before ? 'failed' : 'passed');
+    }
+    // 정책에 적힌 순서대로 — 면제한 종류도 그 자리에 둔다
+    for (const kind of input.requiredKinds) {
+      const result = results.get(kind);
+      if (result === undefined) continue;
+      if (result === 'waived') waiverUsed = true;
+      checks.push({ condition: 'review_kind', kind, result });
+    }
+    return { missing, uncoveredKinds, stale, checks, waiverUsed, failopen };
+  }
+
+  /**
+   * 종류 무관 조건(`review_coverage: true`) — 끝난 라운드 1회 이상 · 그 라운드에 열린 critical 0(REQ-API-146). 작업의 최신
+   * 커밋을 알면 **그 커밋을 본 세션만** 센다(REQ-API-314). 앞 커밋의 세션만 있으면 다시 리뷰받아야 하고, 앞 세션이 본 것이
+   * 커밋 모양이 아니거나 작업의 커밋을 모르면 예전처럼 작업의 모든 세션을 보고 fail-open 을 남긴다.
+   */
+  private async judgeAnyReview(
+    tx: Tx,
+    input: { projectId: string; taskId: string; headSha: string | null },
+  ): Promise<ReviewJudgement> {
+    const missing: string[] = [];
+    const stale: StaleReview[] = [];
+    let failopen: DoneGateFailopen | null = null;
+    const count = async (
+      head: string | null,
+    ): Promise<{ rounds: number; open_critical: number }> => {
+      const headFilter =
+        head === null ? sql`` : sql` AND ${sameCommitSql(sql`rs.head_sha`, sql`${head}`)}`;
+      const { rows } = await tx.execute<{ rounds: number; open_critical: number }>(sql`
+        SELECT count(*)::int AS rounds,
+               COALESCE(sum((SELECT count(*) FROM finding f
+                              WHERE f.last_session_id = rs.id
+                                AND f.severity = 'critical' AND f.status = 'open')), 0)::int
+                 AS open_critical
+          FROM review_session rs
+         WHERE rs.task_id = ${input.taskId} AND rs.state <> 'running'${headFilter}
+      `);
+      return rows[0] ?? { rounds: 0, open_critical: 0 };
+    };
+    let reviews = await count(input.headSha);
+    let staleSha: string | null = null;
+    if (input.headSha === null) {
+      failopen = { error: 'commit_unknown', kinds: [] };
+    } else if (reviews.rounds === 0) {
+      const latest = (
+        await latestRoundHeads(tx, {
+          projectId: input.projectId,
+          taskId: input.taskId,
+          kinds: null,
+        })
+      ).get(null);
+      if (latest !== undefined && isCommitSha(latest)) staleSha = latest;
+      else if (latest !== undefined) {
+        reviews = await count(null);
+        failopen = { error: 'review_commit_unknown', kinds: [] };
+      }
+    }
+    if (staleSha !== null && input.headSha !== null) {
+      missing.push(
+        text('task.missing.review_stale', {
+          reviewed: shortSha(staleSha),
+          head: shortSha(input.headSha),
+        }),
+      );
+      stale.push({ kind: null, head_sha: input.headSha, reviewed_sha: staleSha });
+    } else if (reviews.rounds === 0) missing.push(text('task.missing.review_coverage'));
+    else if (reviews.open_critical > 0) missing.push(text('task.missing.open_critical'));
+    return {
+      missing,
+      uncoveredKinds: [],
+      stale,
+      checks: [{ condition: 'review_coverage', result: missing.length > 0 ? 'failed' : 'passed' }],
+      waiverUsed: false,
+      failopen,
     };
   }
 

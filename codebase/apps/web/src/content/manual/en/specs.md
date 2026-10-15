@@ -290,12 +290,12 @@ The default priority is `must`, because an EARS line in the body does not includ
 
 **People don't set implementation status by hand.** The server derives it from the tasks created from that requirement.
 
-| Status          | When                                                                                     |
-| --------------- | ---------------------------------------------------------------------------------------- |
-| `unimplemented` | Nothing started and nothing done (every derived task is `backlog`, `ready` or `blocked`) |
-| `in_progress`   | At least one is **claimed** or in progress, or some are done but not all                 |
-| `implemented`   | All are `done` **and** there is at least one piece of evidence                           |
-| `verified`      | `implemented`, with a test record signed by QA or an admin, and no open `critical`       |
+| Status          | When                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `unimplemented` | Nothing started and nothing done (every derived task is `backlog`, `ready` or `blocked`)                              |
+| `in_progress`   | At least one is **claimed** or in progress, or some are done but not all                                              |
+| `implemented`   | All are `done` **and** there is at least one piece of evidence                                                        |
+| `verified`      | `implemented`, with a test record signed by QA or an admin, and no open `critical` in the review of the latest commit |
 
 ```mermaid
 stateDiagram-v2
@@ -314,7 +314,7 @@ stateDiagram-v2
     verified --> implemented: The statement changes
 ```
 
-**If all tasks are done but there is no evidence, the status stays `in_progress`.** To call it finished, attach something to show. **Verification comes from a test record left by QA or an admin.** Nobody raises the status by hand. When that signature exists, the server marks the requirement `verified`. Open `critical` findings are checked only when the requirement is about to become `verified`. Once verified, it does not drop when a finding opens later. A test record attached by an agent does not count as a signature.
+**If all tasks are done but there is no evidence, the status stays `in_progress`.** To call it finished, attach something to show. **Verification comes from a test record left by QA or an admin.** Nobody raises the status by hand. When that signature exists, the server marks the requirement `verified`. Open `critical` findings are checked only when the requirement is about to become `verified`. They are counted in the reviews of each task's latest commit. If a new commit came after a review, that commit must be reviewed before the requirement is verified, and findings left from earlier reviews do not block it once the new commit's review is clean. If a task has no commit evidence or was never reviewed, the server looks for open `critical` findings on the requirement itself. Once verified, it does not drop when a finding opens later. A test record attached by an agent does not count as a signature.
 
 **Status can also go back.** If a claim is released and no task is in progress any more, it returns to `unimplemented`. If a new task starts on an implemented requirement, it returns to `in_progress`. Both reflect where the work currently stands. Evidence whose target no longer exists does not count. Status values that came in through the importer stay as they are until a task is linked to that requirement. Such a value is marked **Source: import**. It means no task is linked, so the server has not derived it, and the import read it from the document.
 
