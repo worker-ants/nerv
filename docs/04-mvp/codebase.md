@@ -19,8 +19,10 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.10 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.11 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
 >
+> v2.11 변경(2026-10-15 — 실제 클러스터에서 `nerv-migrate` 파드가 돌았다, **사람 실측**): **§6.3b 한 단락 · ② 표 한 칸.** 사람이 실제 클러스터에 배포하며 남긴 Job 로그(`[Migrate] 마이그레이션 적용 완료 — 이력 51건`)로 E06-S03 의 남은 것을 채웠다. 51건은 그때의 마이그레이션 수(`0000`~`0050`)와 같다. 한 번에 성공해 재시도(`backoffLimit: 2`)와 `ttlSecondsAfterFinished` 는 보지 못했다.
+
 > v2.10 변경(2026-10-15 — 요구사항 참조와 소유를 한 곳에서, **사람 결정**): **§2.2 트리 두 줄.** `modules/spec/`에 `requirement-ref.ts`(리뷰 발견 · 작업 생성의 요구사항 참조를 고정 ID 로도 받는다 — [4.4 API](api.md) REQ-API-311)와 `requirement-owner.ts`(승인과 임포트가 같은 소유 판정을 쓴다 — [4.7 임포터](importer.md) REQ-IMP-034)가 들어왔다.
 >
 > v2.09 변경(2026-10-15 — 리뷰 서브에이전트 둘, **사람 결정**): **§1.1 트리 두 줄.** `plugin/agents/`에 `nerv-code-reviewer`와 `nerv-consistency-checker`가 들어왔다([4.6 플러그인](plugin.md) REQ-PLG-031). 같은 트리의 `skills/` 줄이 2026-09-06에 없앤 `import`를 적고 2026-10-07 · 10-11에 들어온 `mirror` · `approve`를 빠뜨리고 있어 함께 고쳤다.
@@ -2468,13 +2470,15 @@ E06-S03 스파이크의 결과다. 후보는 둘이다. **compose 기동 시 적
 
 | 무엇을 쟀나 | compose 기동 시 적용 | k8s Job |
 | --- | --- | --- |
-| 처음 기동 | `up -d` 25초(postgres healthcheck 포함). migrate 가 11.1초 뒤 exit 0 으로 끝나고 그다음에 api 가 떴다 | 파드 실행은 재지 못했다(아래) |
+| 처음 기동 | `up -d` 25초(postgres healthcheck 포함). migrate 가 11.1초 뒤 exit 0 으로 끝나고 그다음에 api 가 떴다 | 이 작업 환경에서는 재지 못했다. 2026-10-15 실제 클러스터에서 이력 51건까지 적용하고 끝났다(아래) |
 | 다시 기동 | 그대로 `up -d` 하면 끝난 migrate 컨테이너가 다시 돈다(변경 0건). `down` 뒤 `up -d` 도 같다. `restart api` 는 마이그레이션을 돌리지 않는다 | (1)이 Job 을 지우고 (2)가 다시 만든다. 같은 내용을 다시 적용하면 `unchanged` 다 |
 | 매니페스트를 고쳐 다시 적용 | — | 지우지 않고 이미지 태그만 바꿔 적용하면 `spec.template` 불변 오류로 거부된다(rc 1). 절차의 Job 삭제 단계가 있는 이유다 |
 | 마이그레이션 실패 | `up -d` 가 rc 1 과 `service "migrate" didn't complete successfully: exit 1` 로 끝난다. 이미 떠 있던 api 는 그대로 돌고, 새로 띄우던 api 는 `created` 에서 멈춘다 | `kubectl wait --for=condition=complete` 가 시한에서 rc 1 로 끝나 (4)로 넘어가지 않는다(`&&`) |
 | 고친 뒤 | 다시 `up -d` 하면 migrate exit 0 → api 기동 | — |
 
 compose 는 nerv-api 이미지 대신 node 24 이미지에 코드를 마운트해 같은 엔트리를 돌렸다(이 작업 환경의 Docker 빌드가 프록시 인증서를 신뢰하지 않는다). **k8s 는 API 서버까지만 쟀다.** k3s v1.31.6 노드(Docker 런타임)는 Ready 까지 올라왔지만 파드 샌드박스가 뜨지 않았다 — 이 작업 환경은 `oom_score_adj` 를 낮추지 못하는데 kubelet 이 샌드박스에 -998 을 준다. Job 은 prod 오버레이의 렌더 결과를 그대로 적용했다. 파드가 부르는 엔트리는 ①에서 쟀고, 파드 재시도(`backoffLimit: 2`)와 `ttlSecondsAfterFinished` 는 실제 클러스터에서 확인하지 못했다.
+
+**실제 클러스터 — 파드 실행(2026-10-15 · 사람 실측).** 사람이 실제 클러스터에 배포하며 `kubectl -n nerv logs job/nerv-migrate` 로 남긴 출력은 `[Migrate] 마이그레이션 적용 완료 — 이력 51건` 이다. 51건은 그때의 마이그레이션 수(`0000_init`~`0050_email_change_kinds`)와 같다 — Job 파드가 실제 클러스터에서 떠서 같은 엔트리를 끝까지 돌렸고 그 DB 는 최신 스키마까지 따라왔다. 한 번에 성공해서 파드 재시도(`backoffLimit: 2`)와 `ttlSecondsAfterFinished` 는 이번에도 보지 못했다. 둘 다 쿠버네티스가 Job 에 주는 표준 동작이고 실패했을 때 다음 단계를 멈추는 일은 절차의 대기 단계가 맡는다(②). 그래서 E06-S03 의 남은 것으로 두지 않는다.
 
 **③ 엔트리의 성질 — 롤백 절차의 근거**
 
@@ -2499,7 +2503,7 @@ compose 는 nerv-api 이미지 대신 node 24 이미지에 코드를 마운트�
 | 마이그레이션은 성공했고 새 이미지가 문제다 | 이미지만 이전 태그로 되돌린다(`kubectl -n nerv rollout undo` 또는 이전 SHA 로 §6.3 절차). 스키마는 그대로 둔다 | ③ 둘째 줄 — expand-contract 덕에 옛 코드가 새 스키마에서 돌고, 옛 기동 검사는 앞선 DB 를 막지 않는다 |
 | 수축(contract) 마이그레이션이 지운 것이 필요했다 | 그것을 다시 만드는 새 마이그레이션으로 앞으로 고친다. 지운 데이터가 필요하면 §6.5 로 백업에서 되살린다 — 백업 이후의 쓰기는 잃는다 | 수축은 확장 다음 릴리스에 따로 내므로(§6.3) 직전 릴리스 코드도 쓰지 않는 것만 지운다. 이 경우는 그 판단이 틀렸을 때만 생긴다 |
 
-**결정 — Job 을 먼저 적용한다(2026-10-12 · 사람 결정 · REQ-CB-010 개정).** 그때의 절차는 Job 과 Deployment 를 한 번에 적용했다. api 는 롤링이라 새 파드가 기동 검사에서 멈춰도 옛 파드가 계속 응답했지만, **워커는 `Recreate`** 라(REQ-CB-011) 옛 워커가 먼저 내려가고 새 워커는 마이그레이션이 끝날 때까지 기동을 거부했다 — 성공하면 재시작 백오프만큼 늦게 떴고, 실패하면 고칠 때까지 워커가 없었다(리스 만료 · 알림 · 메일 잡이 멈춘다). 이제 §6.3 절차는 Job 만 먼저 적용하고 기다린 뒤 나머지를 적용한다. 라벨로 Job 만 고르는 적용과 나머지 적용은 k3s v1.31.6 API 서버에서 확인했다(파드 실행은 위와 같은 이유로 재지 못했다).
+**결정 — Job 을 먼저 적용한다(2026-10-12 · 사람 결정 · REQ-CB-010 개정).** 그때의 절차는 Job 과 Deployment 를 한 번에 적용했다. api 는 롤링이라 새 파드가 기동 검사에서 멈춰도 옛 파드가 계속 응답했지만 **워커는 `Recreate`** 라(REQ-CB-011) 옛 워커가 먼저 내려가고 새 워커는 마이그레이션이 끝날 때까지 기동을 거부했다 — 성공하면 재시작 백오프만큼 늦게 떴고 실패하면 고칠 때까지 워커가 없었다(리스 만료 · 알림 · 메일 잡이 멈춘다). 이제 §6.3 절차는 Job 만 먼저 적용하고 기다린 뒤 나머지를 적용한다. 라벨로 Job 만 고르는 적용과 나머지 적용은 k3s v1.31.6 API 서버에서 확인했다(파드 실행은 그때 재지 못했고 2026-10-15 실제 클러스터의 Job 로그로 확인했다 — 위).
 
 ### 6.4 이미지 태깅과 overlay
 
