@@ -1,6 +1,6 @@
 // 백로그의 구현 현황이 스토리와 맞는가 (AGENTS.md 문서 작업 규약 6 · 4.8 §1.4)
 //
-// **백로그는 첫 임포트 대상이다.** 여기 적힌 상태가 그대로 Task 74건의 초기 상태가 되므로,
+// **백로그는 첫 임포트 대상이다.** 여기 적힌 상태가 그대로 Task 의 초기 상태가 되므로,
 // 표가 실제 스토리와 어긋나면 이미 끝난 일을 에이전트가 다시 클레임한다 — 이 제품이
 // 없애려는 P2(중복 작업) 그 자체다.
 //
@@ -9,10 +9,14 @@
 // 아니라 **세는 것이 사람 손에만 있어서**다.
 //
 // 이 스크립트가 세는 것은 셋이다.
-//   ① 에픽별 `done + 부분` 이 그 에픽의 실제 스토리 수와 같은가
+//   ① 에픽별 `done + 부분 + backlog` 가 그 에픽의 실제 스토리 수와 같은가
 //   ② 합계 행이 에픽별 합과 같은가
 //   ③ 부분으로 센 수만큼 "남은 것" 이 적혀 있는가 — 남은 것 없는 부분 표기는 완료와 같다
-// 그리고 html 파생본이 같은 수를 말하는지도 본다(관리 규약 1).
+// 그리고 html 파생본이 같은 수를 적는지도 본다(관리 규약 1).
+//
+// **`backlog` 열은 2026-10-15 에 더했다**(사람 결정 — Phase 2 스토리를 백로그에 둔다 · 4.8 §1.3).
+// 그전에는 모든 스토리가 착수된 뒤라 `done + 부분` 만 셌고, 착수 전 스토리를 셀 칸이 없어
+// Phase 2 에픽을 더하는 순간 이 검사가 막았다. 착수 전도 상태다 — 세지 않으면 다시 "전부 끝났다" 로 읽힌다.
 //
 // **세지 않는 것**(2026-09-07 명시): 근거 열의 경로가 저장소에 실재하는가 · "남은 것" 이
 // 아직 유효한가 · 셋째 표가 완전한가 · 산문의 계수(`6종`·`0019` 같은 수). 그것은 사람이
@@ -42,11 +46,13 @@ for (const id of storyIds) {
   storiesPerEpic.set(epic, (storiesPerEpic.get(epic) ?? 0) + 1);
 }
 
-/** §1.4 에픽별 표 — `| E01 저장소 부트스트랩 | 5 | — | 근거 |` */
+/** §1.4 에픽별 표 — `| E01 저장소 부트스트랩 | 5 | — | — | 근거 |` (done · 부분 · backlog) */
 const declared = new Map();
-for (const m of md.matchAll(/^\|\s*(E\d{2})\s[^|]*\|\s*(\d+|—)\s*\|\s*(\d+|—)\s*\|/gm)) {
+for (const m of md.matchAll(
+  /^\|\s*(E\d{2})\s[^|]*\|\s*(\d+|—)\s*\|\s*(\d+|—)\s*\|\s*(\d+|—)\s*\|/gm,
+)) {
   const num = (v) => (v === '—' ? 0 : Number(v));
-  declared.set(m[1], { done: num(m[2]), partial: num(m[3]) });
+  declared.set(m[1], { done: num(m[2]), partial: num(m[3]), backlog: num(m[4]) });
 }
 
 if (declared.size === 0) {
@@ -59,11 +65,11 @@ for (const [epic, actual] of [...storiesPerEpic].sort()) {
     fail.push(`${epic}: 스토리 ${actual}개가 있는데 §1.4 표에 행이 없다`);
     continue;
   }
-  const counted = row.done + row.partial;
+  const counted = row.done + row.partial + row.backlog;
   if (counted !== actual) {
     fail.push(
-      `${epic}: §1.4 는 ${counted}개(done ${row.done} · 부분 ${row.partial})를 세는데 ` +
-        `스토리 표에는 ${actual}개가 있다`,
+      `${epic}: §1.4 는 ${counted}개(done ${row.done} · 부분 ${row.partial} · backlog ${row.backlog})를 ` +
+        `세는데 스토리 표에는 ${actual}개가 있다`,
     );
   }
 }
@@ -71,14 +77,15 @@ for (const epic of declared.keys()) {
   if (!storiesPerEpic.has(epic)) fail.push(`${epic}: §1.4 에만 있고 스토리 표에 없다`);
 }
 
-/** 합계 행 — `| **합계** | **64** | **10** | …` */
-const totalRow = /\|\s*\*\*합계\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|/.exec(md);
+/** 합계 행 — `| **합계** | **75** | **1** | **25** | …` (done · 부분 · backlog) */
+const totalRow =
+  /\|\s*\*\*합계\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|/.exec(md);
 if (totalRow === null) {
   fail.push('§1.4 표에 합계 행이 없다');
 } else {
-  const [doneSum, partialSum] = [...declared.values()].reduce(
-    ([d, p], r) => [d + r.done, p + r.partial],
-    [0, 0],
+  const [doneSum, partialSum, backlogSum] = [...declared.values()].reduce(
+    ([d, p, b], r) => [d + r.done, p + r.partial, b + r.backlog],
+    [0, 0, 0],
   );
   if (Number(totalRow[1]) !== doneSum) {
     fail.push(`합계 done ${totalRow[1]} ≠ 에픽별 합 ${doneSum}`);
@@ -86,8 +93,11 @@ if (totalRow === null) {
   if (Number(totalRow[2]) !== partialSum) {
     fail.push(`합계 부분 ${totalRow[2]} ≠ 에픽별 합 ${partialSum}`);
   }
-  if (doneSum + partialSum !== storyIds.size) {
-    fail.push(`합계 ${doneSum + partialSum} ≠ 스토리 총수 ${storyIds.size}`);
+  if (Number(totalRow[3]) !== backlogSum) {
+    fail.push(`합계 backlog ${totalRow[3]} ≠ 에픽별 합 ${backlogSum}`);
+  }
+  if (doneSum + partialSum + backlogSum !== storyIds.size) {
+    fail.push(`합계 ${doneSum + partialSum + backlogSum} ≠ 스토리 총수 ${storyIds.size}`);
   }
 
   // **부분에는 남은 것이 따라온다.** 남은 것을 적지 않은 부분 표기는 "완료" 와 구별되지 않는다.
@@ -100,9 +110,15 @@ if (totalRow === null) {
     fail.push(`부분 구현 표의 행 ${partialRows}개 ≠ 에픽별 부분 합 ${partialSum}개`);
   }
 
-  // 파생본이 같은 수를 말하는가 (관리 규약 1)
-  if (!html.includes(`<b>${totalRow[1]}</b>`) || !html.includes(`<b>${totalRow[2]}</b>`)) {
-    fail.push(`html 파생본의 합계가 md(done ${totalRow[1]} · 부분 ${totalRow[2]})와 다르다`);
+  // 파생본이 같은 수를 적는가 (관리 규약 1) — 합계 행의 세 칸을 그 순서대로 본다
+  const htmlTotal = new RegExp(
+    `<td><b>합계</b></td><td><b>${totalRow[1]}</b></td><td><b>${totalRow[2]}</b></td>` +
+      `<td><b>${totalRow[3]}</b></td>`,
+  );
+  if (!htmlTotal.test(html)) {
+    fail.push(
+      `html 파생본의 합계가 md(done ${totalRow[1]} · 부분 ${totalRow[2]} · backlog ${totalRow[3]})와 다르다`,
+    );
   }
 }
 
@@ -122,5 +138,5 @@ if (fail.length > 0) {
 
 console.log(
   `백로그 현황 정합 — 에픽 ${declared.size} · 스토리 ${storyIds.size} ` +
-    `(done ${totalRow[1]} · 부분 ${totalRow[2]})`,
+    `(done ${totalRow[1]} · 부분 ${totalRow[2]} · backlog ${totalRow[3]})`,
 );

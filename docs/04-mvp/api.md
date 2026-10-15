@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **27종**(2026-10-11 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.41 · 2026-10-15 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.42 · 2026-10-15 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.42 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **새 요구사항 없음 · §2.1a 정책 예시 한 줄과 격상 규칙 한 단락 · §2.3 · §2.7 산문.** ① fail-open 격상 규칙을 정했다 — `failopen.window_hours` 안에 fail-open 이 `escalate_count` 회 이상이면 격상하고(admin 중요 알림 + S5 · S6 배너), 그 창 동안 새 fail-open 이 없으면 풀린다. 키는 늘리지 않는다. 편집 폼과 격상은 [4.8 백로그](backlog.md) E18 이 한다. ② 구현 축이 2026-09 에 파생되기 시작했는데 §2.3 은 "커버리지 계산은 P2", §2.7 은 "EP-COV-01 은 계약 선점이라 수치가 `null` 일 수 있다" 고 적고 있었다 — 실물에 맞췄다. 작업이 없어 파생하지 않은 요구사항은 임포트 값을 그대로 두고 출처를 보인다(2026-10-15 사람 결정 · [4.8 백로그](backlog.md) E15-S02).
 >
 > v2.41 변경(2026-10-15 — 검색의 요구사항 해소를 한 판정으로, **사람 결정**): **REQ-API-311 · REQ-API-110 한 문장씩 · EP-SPEC-02 행 · §1.4b 한 줄.** 검색의 `requirement_id`(그 요구사항이 속한 스펙으로 좁히기)를 리뷰 제출 · 작업 생성과 같은 함수로 푼다(D-05). 따로 풀던 동안 거절의 문구와 칸이 달랐다 — 같은 값을 넣어도 검색은 `requirement` 칸을, 리뷰 · 작업은 `value` 칸을 돌려줬다. 이제 셋 다 409 `not_found` · `field` · `value` 이고 문구도 하나다. 판정은 그대로다(그 프로젝트 안에서만 · 고정 ID 와 UUID · 문서에서 빠진 요구사항도 푼다). 달라진 것은 공백만 준 값 하나다 — 예전에는 조건이 모두 빠져 그 프로젝트의 아무 요구사항 하나로 좁혔고 이제 안 준 것으로 본다. 옛 칸 `requirement` 를 읽는 곳(플러그인 스킬 · 웹 · 테스트 · 명세)이 없어 남기지 않았다.
 >
@@ -1140,7 +1142,7 @@ EP-PRJ-03 응답·EP-PRJ-04 입력의 두 jsonb 필드는 웹 폼(S8 게이트 �
     "code": ["security", "testing"]
   },
   "failopen": {
-    "escalate_count": 3,               // 연속 fail-open 판정 격상 임계(D-14)
+    "escalate_count": 3,               // window_hours 안의 fail-open 이 이 횟수 이상이면 격상(D-14 · 2026-10-15)
     "window_hours": 24
   }
 }
@@ -1155,6 +1157,8 @@ EP-PRJ-03 응답·EP-PRJ-04 입력의 두 jsonb 필드는 웹 폼(S8 게이트 �
 ```
 
 S8 게이트 정책 탭의 편집 항목은 `spec_gate.*` 2키와 `done_gate.*` 2키, `review_roles` 다(2026-09-28 — 작업 완료 조건과 필수 리뷰어 역할을 더했다 · 이의제기 창 키는 2026-09-02 에 뺐다)([4.5 화면 명세](screens.md) §2.8) — `failopen`·`retention`은 표시만 하고 편집은 admin의 API 직접 호출로 남긴다(편집 UI는 Phase 2).
+
+**fail-open 격상 규칙**(2026-10-15 — 사람 결정). `failopen.window_hours` 안에 fail-open 이 `failopen.escalate_count` 회 이상이면 격상한다 — admin 에게 중요 알림을 보내고 S5 세션 모니터 · S6 리뷰 센터에 배너를 표시한다. 그 창 동안 새 fail-open 이 없으면 풀린다. 격상과 해제는 이벤트로 남긴다. 두 키가 이미 "횟수 + 시간 창" 이라 키를 늘리지 않는다. 의미의 정본은 [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.6 이고, 편집 폼과 격상 구현은 [4.8 백로그](backlog.md) E18-S01 · E18-S02 다.
 
 **정책에는 버전 번호가 없다 — 판정이 적용 정책 지문을 남긴다**(2026-10-15 · 사람 결정 · REQ-API-303). 위의 `version`은 이 스키마의 마이그레이션용이고 정책 내용이 몇 번 바뀌었는지와 상관없다. 번호는 누군가 올려야 하고, 올리지 않은 수정은 같은 번호로 다른 판정을 낸다. 지문은 내용에서 나오므로 잊을 수 없다. 스펙 제출과 done 의 판정은 그때 쓴 유효 정책(기본값까지 채운 `GatePolicySchema`의 결과)의 지문 `policy_fingerprint`를 이벤트에 남긴다 — 키를 정렬한 JSON 의 sha256 앞 16자다(`policyFingerprint` · `@nerv/schema/keys` · 상수 `POLICY_FINGERPRINT_LENGTH`). EP-PRJ-04 가 `gate_policy`를 고치면 `project.updated`가 바뀐 뒤의 유효 정책 본문(`gate_policy`)과 그 지문, 바꾸기 전의 지문(`policy_fingerprint_before`)을 남긴다. 저장된 값이 `{}`인 프로젝트와 기본값을 다 적은 프로젝트는 지문이 같다. 판정이 같기 때문이다. 정책이 스키마에 맞지 않아 기본값으로 판정하면(REQ-API-240) 지문도 기본 정책의 것이고 이벤트에 `policy_fallback: true`가 남는다. `nerv_bootstrap`의 `gate_policy`는 저장된 본문 그대로이고 지문은 주지 않는다 — 에이전트가 읽을 계약을 늘리지 않는다.
 
@@ -1347,7 +1351,7 @@ API 를 거친 지연(EP-SPEC-02 · 75번)은 p50 596ms · p95 829ms 이고 응�
 | EP-REQ-02 | `GET /api/v1/projects/{proj}/requirements/{ref}` | 전 역할 | — | `RequirementDetailResult`(버전 이력 + 파생 Task + Evidence — **목록과 같은 범위**: 요구사항에 직접 붙은 것과 파생 Task 의 것, 줄마다 `signed`·`stale` · `reverify_required` · 2026-09-26) | — |
 | EP-REQ-03 | `POST /api/v1/projects/{proj}/requirements/{ref}/evidence` | developer·qa·admin **AND `spec:evidence`** (CI는 PAT — §1.3b) | `EvidenceCreateInput`(kind: **6종** `code_path`/`test`/`pr`/`commit`/`review`/`user_guide` — 어휘 정본은 `evidence_kind` enum 이고 밖의 값은 400 이다(2026-09-05 · REQ-API-101. 그전에는 검사 없이 캐스팅돼 오타가 500 이었다), locator, repo, note — 선택 · 500자 · REQ-API-229) | `EvidenceResult` | ★`evidence.added` |
 
-`impl_status`는 파생 값이라 **직접 쓰는 엔드포인트가 없다** — `verified` 전이도 QA의 검증 Evidence 등록(EP-REQ-03, kind=test)이 파생 규칙([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.3)을 통해 만든다. MVP(P1)의 Evidence는 PR 링크 수집까지이고 커버리지 계산은 P2다([로드맵](../03-proposal/roadmap.md) FR-13).
+`impl_status`는 파생 값이라 **직접 쓰는 엔드포인트가 없다** — `verified` 전이도 QA의 검증 Evidence 등록(EP-REQ-03, kind=test)이 파생 규칙([스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.3)을 통해 만든다. Evidence 는 PR · 커밋 웹훅(EP-WHK-01)과 등록(EP-REQ-03)으로 모이고, 구현 축과 커버리지 수치(EP-COV-01)는 그것에서 파생한다. Phase 2 에 남은 것은 `verified` 의 커밋 범위와, 작업이 없어 파생하지 않은 요구사항의 임포트 값에 붙이는 출처 표시다(2026-10-15 사람 결정 · [4.8 백로그](backlog.md) E15).
 
 ### 2.4 Task·클레임 (S4)
 
@@ -1508,7 +1512,7 @@ EP-SES-01 의 카드도 `plugin_version` 을 싣는다 — 그 세션을 연 플
 | EP-NTF-10 | `GET /api/v1/mail/unsubscribe/{token}` | **공개**(토큰) | — | 302 → 화면의 `/unsubscribe/{token}` — **끄지 않는다**. 한 번에 끄기를 모르는 메일 앱이 머리글의 주소를 브라우저로 열 때의 자리다(REQ-API-234) | — |
 | EP-COV-01 | `GET /api/v1/projects/{proj}/coverage` | 전 역할 | `CoverageQuery`(spec) | `CoverageResult`(스펙별 구현/검증 커버리지·증적 결손·빈 약속·**다시 검증 필요**(`reverify_required` · 2026-09-26) — [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §5.5 산식) · **`areas`** 배열(영역별 분해 `{area_key, area_title, total, implemented, verified, in_progress, evidence_missing, empty_promises, reverify_required}` — 영역 밖 스펙은 `area_key: null` 한 줄로 맨 뒤 · 스펙 행마다 `area_key` · 2026-10-11 · REQ-API-297) | — |
 
-EP-COV-01은 **계약 선점**이다 — 커버리지 계산은 P2([로드맵](../03-proposal/roadmap.md) FR-13)이므로 MVP 응답에서는 커버리지 수치 필드가 `null`일 수 있고, Requirement·Evidence 개수 같은 원자료 필드만 채워진다. S2가 게이지를 그릴 때 `null`은 "집계 준비 중"으로 렌더한다.
+EP-COV-01 의 수치는 **관계에서 파생한 구현 축을 센 값**이다(`verified` 까지 2026-09-07 · REQ-API-141 · 영역별 분해 2026-10-11 · REQ-API-297). 예전 이 문단은 "계약 선점 — 커버리지 계산은 P2 라 수치 필드가 `null` 일 수 있다" 고 적었다(2026-10-15 정정). 지금 `null` 이 되는 것은 요구사항이 하나도 없을 때의 비율(`impl_ratio` · `verified_ratio`)뿐이다. Phase 2 에 남은 것은 드릴다운 화면과 임포트 값의 출처 표시다([4.8 백로그](backlog.md) E15-S01 · E15-S02).
 
 ### 2.8 markdown 미러 (아키텍처 §2.4 인용)
 

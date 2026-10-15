@@ -53,7 +53,7 @@
     <h1>로드맵</h1>
     <p class="lead">NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 <b>조정 → 가시성 → 거버넌스 → 고도화</b>로 고정하고, 각 Phase에 기간·범위(FR 번호)·산출물과 함께 <b>수치로 된 종료 조건</b>을 붙인다. 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.13 (2026-10-11)</span>
+      <span>버전 v0.14 (2026-10-15)</span>
       <span>원본: <code>docs/03-proposal/roadmap.md</code></span>
       <span>주로 다루는 결정: D-12 · D-06 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="scope.html">4.1</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
@@ -213,6 +213,8 @@
     <div class="cap">그림 2. Phase 타임라인(예시 달력) · 종료 게이트 G0~G2 · 이관 마일스톤 M1~M4</div>
   </div>
 
+  <p><b>실제 착수일</b>(2026-10-15 사람 결정). Phase 2 를 <b>2026-10-15(목)</b> 에 착수했다. 기간은 4~6주이고 G2 판정은 6주 뒤인 <b>2026-11-26 전후</b>다 — 위 달력의 Phase 2 칸(11-02~12-11)은 이 날짜로 옮겨 읽는다. 착수 기록은 §4 첫 단락에 있다.</p>
+
   <h3>1.3 FR·NFR × Phase 배분표</h3>
 
   <p>번호와 이름은 <a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4의 정의를 그대로 인용한다(재정의 없음). ●=이 Phase에서 수용 기준 충족, ◐=부분 구현, ○=미착수.</p>
@@ -222,17 +224,17 @@
     <tbody>
       <tr><td>FR-01 스펙 단일 진실 저장소</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 읽기·트리·고정 ID만, P1 기획자 터미널 경로 포함</td></tr>
       <tr><td>FR-02 스펙 버전·문서 상태</td><td>○</td><td>●</td><td>●</td><td>●</td><td>승인은 P1</td></tr>
-      <tr><td>FR-03 Requirement 단위 추적</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>구현 축 완성은 P2(커버리지와 함께)</td></tr>
+      <tr><td>FR-03 Requirement 단위 추적</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1 에 구현 축 자동 파생(<code>verified</code> 까지 — 2026-09-07 · <a href="spec-workflow.html">3.5</a> §1.3). P2 는 <code>verified</code> 의 커밋 범위와 임포트 값의 출처 표시(2026-10-15 사람 결정)</td></tr>
       <tr><td>FR-04 CR·델타 리뷰</td><td>○</td><td>○</td><td>●</td><td>●</td><td></td></tr>
       <tr><td>FR-05 Task 관리·ready 큐</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 ready 판정 + 위임 명세 4요소 검증만</td></tr>
       <tr><td>FR-06 원자적 클레임·리스</td><td>●</td><td>●</td><td>●</td><td>●</td><td><b>P0의 핵심 검증 대상</b>, P1 초안 편집 리스(문서 축, D-04 확장)</td></tr>
       <tr><td>FR-07 세션 레지스트리</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 등록·하트비트·상태 전이</td></tr>
       <tr><td>FR-08 활동 스트림·미션 컨트롤</td><td>○</td><td>●</td><td>●</td><td>●</td><td>steer/stop은 P1</td></tr>
       <tr><td>FR-09 리뷰 수집</td><td>○</td><td>○</td><td>●</td><td>●</td><td></td></tr>
-      <tr><td>FR-10 게이트 판정 API</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 Task done 전이 조건만(리뷰 커버리지 제외)</td></tr>
+      <tr><td>FR-10 게이트 판정 API</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 Task done 전이 조건과 리뷰 커버리지(정책으로 켜면 <code>done</code> 을 막는다 — 2026-09-28 · <a href="api.html">4.4 API</a> REQ-API-250). P2 는 커밋 범위(신선도) 판정</td></tr>
       <tr><td>FR-11 받은 요청(Inbox)</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 스펙 승인·플랜·질문 3유형과 스펙 코멘트 왕복, CR·에스컬레이션 카드는 P2</td></tr>
       <tr><td>FR-12 알림</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1 인앱(앱 안 묶음 2026-09-27 · 메일 요약 2026-09-28 에 앞당김), P2 Slack</td></tr>
-      <tr><td>FR-13 증적·커버리지</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 PR 링크 수집, P2에 커버리지 계산</td></tr>
+      <tr><td>FR-13 증적·커버리지</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 PR 링크 수집과 구현 현황 수치(EP-COV-01 · 영역별 분해 2026-10-11), P2에 커버리지 대시보드(드릴다운 · 검증 작업 만들기)</td></tr>
       <tr><td>FR-14 멀티테넌시</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 단일 조직·단일 프로젝트 고정</td></tr>
       <tr><td>FR-15 에이전트 연동</td><td>◐</td><td>◐</td><td>●</td><td>●</td><td>P0 MCP tools 8종+PAT, P1 Claude 플러그인·OAuth, P2 Codex·<code>AGENTS.md</code> 배포</td></tr>
       <tr><td>FR-16 감사 로그</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 이벤트 테이블만(뷰 없음)</td></tr>
@@ -260,7 +262,7 @@
     <tbody>
       <tr><td><b>G0</b> Phase 0 종료</td><td>—</td><td><b>기록 없음</b></td><td>2026-09-06 실측: 성공 기준 0-1~0-8 의 판정 기록이 저장소 어디에도 없다. Phase 1·2 작업은 그 사이에 진행됐다. <b>소급 판정은 하지 않는다</b>(아래) — 다만 0-8 은 2026-09-07 부터 판정 수단이 생겼다(L3 시나리오 F 가 매 PR 에서 돈다). 사후 측정은 아래 표다(2026-10-11 · 판정이 아니다)</td></tr>
       <tr><td><b>G1</b> Phase 1 종료</td><td>—</td><td><b>기록 없음</b></td><td>같음 — 사후 측정은 아래 표다</td></tr>
-      <tr><td><b>G2</b> Phase 2 종료</td><td>—</td><td>—</td><td>진행 전</td></tr>
+      <tr><td><b>G2</b> Phase 2 종료</td><td>—</td><td>—</td><td>진행 중 — 2026-10-15 착수(사람 결정 · §4). 판정은 6주 뒤(2026-11-26 전후)이고 비교 기준선은 아래 G0 · G1 사후 측정이다</td></tr>
     </tbody>
   </table>
   <div class="callout"><div class="body"><b class="title">소급 판정은 하지 않는다</b><p>지난 일을 지금 "통과" 로 적으면 규칙 1(수치가 종료 조건)이 무의미해진다. 대신 <b>다음 게이트부터 이 표를 채운다</b> — 채우는 시점은 그 Phase 의 마지막 커밋과 같은 날이다. G0·G1 을 소급해 판정할지는 사람 결정으로 남겼고, <b>2026-10-11 사람이 정했다: 판정하지 않고 사후 측정만 남긴다</b>(아래 표).</p></div></div>
@@ -401,7 +403,7 @@
   <h3>3.3 산출물</h3>
   <ol>
     <li>웹앱(Vite + React SPA) — S1·S2·S3·S4·S5·S7·S8(멤버·역할, 에이전트 토큰 탭).</li>
-    <li>API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(P1 에 7종을 더하는 계획이었다 — <b>현황은 카탈로그 26종</b>(P0 8 · P1 15 · P2 3 · 2026-09-28 실측): <code>nerv_spec_draft_upsert</code> · <code>nerv_spec_check</code> · <code>nerv_spec_comment_resolve</code> · <code>nerv_spec_submit_review</code> · <code>nerv_task_update</code> · <code>nerv_question_create</code> · <code>nerv_session_event</code>).</li>
+    <li>API + MCP 게이트웨이(NestJS) — 도구 카탈로그 확장(P1 에 7종을 더하는 계획이었다 — <b>현황은 카탈로그 27종</b>(P0 8 · P1 16 · P2 3 · 2026-10-11 · <a href="api.html">4.4 API 명세</a> §4): <code>nerv_spec_draft_upsert</code> · <code>nerv_spec_check</code> · <code>nerv_spec_comment_resolve</code> · <code>nerv_spec_submit_review</code> · <code>nerv_task_update</code> · <code>nerv_question_create</code> · <code>nerv_session_event</code>).</li>
     <li><b>NERV 플러그인 v1</b>(Claude Code) — 스킬·서브에이전트·훅·statusline + 관리형 settings 배포 가이드. (<code>.mcp.json</code> 은 번들하지 않는다 — 2026-09-04 개정.)</li>
     <li>훅 수집기 — <code>type:"http"</code> 이벤트 수신 엔드포인트(세션 등록·활동 스트림 자동화).</li>
     <li>plan 임포터 + owner 자유 텍스트 → 사용자 계정 수동 매핑 테이블.</li>
@@ -437,6 +439,8 @@
 
   <h2 id="sec-4">4. Phase 2 — 거버넌스: 리뷰와 게이트 (4~6주)</h2>
 
+  <div class="callout decision"><span class="ico">✅</span><div class="body"><b class="title">착수 기록 — Phase 2(2026-10-15, 사람 결정)</b><p>Phase 2 를 2026-10-15 에 착수한다. 기간은 4~6주이고 G2 판정은 6주 뒤(2026-11-26 전후)다. G1 은 「기록 없음」 그대로 둔다 — 소급 판정을 하지 않고(2026-10-11 사람 결정 · §1.4), 사후 측정값은 G2 를 판정할 때 비교할 기준선으로 쓴다. 범위의 정본은 여전히 이 절(§4.2)이고 착수한 뒤의 스토리 분해와 현황은 <a href="backlog.html">4.8 백로그</a> §6(E15~E22)이 맡는다. 남은 항목은 네 묶음으로 나눠 이 순서로 한다 — <b>묶음 1</b>(이 환경에서 바로: 커버리지 대시보드 · 구현 축 정리 · 게이트 판정 커밋 범위 · 알림 관여 라우팅 · fail-open 편집과 격상) → <b>묶음 2</b>(M2 사전 조건 · 결정된 것: 복구 뒤 자동 동기화 · git 미러 export · Codex 완전 지원) → <b>묶음 3</b>(사람 결정 먼저: CR · 델타 리뷰와 CR 카드 · 에스컬레이션 카드 · SoT 컷오버 M1) → <b>묶음 4</b>(바깥 환경: Slack 과 S8 연동 탭 · 부하 시험 · OAuth 2.1 리소스 서버). 이미 앞당겨 들어온 것(리뷰 수집 · S6 · review 임포터 · 메일 요약 · done 게이트의 리뷰 커버리지)은 <a href="scope.html">4.1 범위</a> §5 의 착수 기록에 있다.</p></div></div>
+
   <h3>4.1 목표</h3>
   <p>리뷰를 git 파일에서 플랫폼 엔티티로 옮기고(D-07), 게이트 판정을 정규식 훅이 아니라 서버 질의로 만든다(FR-10). 동시에 Codex를 1급 시민으로 받아들여 에이전트 이종성을 확인한다.</p>
 
@@ -450,7 +454,7 @@
       <tr><td>리뷰 센터(S6)</td><td>FR-09 · FR-13</td><td>finding 큐(severity·상태 필터), finding 상세(코드 위치·커밋·유래 스펙/Requirement·해결 이력), 게이트 현황</td></tr>
       <tr><td>CR 델타 리뷰</td><td><b>FR-04 · FR-11 ●</b></td><td>ADDED/MODIFIED/REMOVED 뷰, 승인 시 파생 Task 재계산(영향 분석), SPEC-DRIFT 역류 경로. 받은 요청에 CR·에스컬레이션 카드가 붙어 5유형이 완성된다</td></tr>
       <tr><td>커버리지 대시보드</td><td><b>FR-03 · FR-13 ●</b></td><td>Requirement↔Task↔PR↔Review 그래프에서 계산. 수동 ✅ 표기 폐지</td></tr>
-      <tr><td>알림 확장</td><td><b>FR-12 ●</b></td><td>Slack·메일 채널, 중요도 라우팅, 다이제스트 배칭</td></tr>
+      <tr><td>알림 확장</td><td><b>FR-12 ●</b></td><td>Slack 채널, 관여 라우팅(작성자 · 담당자 · 스레드 참여자 · 워처). 메일 요약(2026-09-28)과 앱 안 묶음(2026-09-27)은 Phase 1 에 앞당겨 들어왔다(<a href="scope.html">4.1 범위</a> §5)</td></tr>
       <tr><td>Codex 지원</td><td><b>FR-15 ●</b></td><td><code>AGENTS.md</code> + <code>.codex/config.toml</code> + hooks/notify 매핑, elicitation 부재 대응(질문 폴링 도구)</td></tr>
       <tr><td>fail-open 관측·격상</td><td>D-14</td><td>판정 불가 시 진행 허용 + 배너 + 연속 카운터, 임계 초과 시 격상 알림</td></tr>
       <tr><td>보존 정책 워커</td><td>D-07 / NFR-01</td><td>결론(SUMMARY·Finding·Resolution) 영구 / 재생성 가능 입력(프롬프트 페이로드) TTL</td></tr>
@@ -461,7 +465,7 @@
 
   <h3>4.3 산출물</h3>
   <ol>
-    <li><code>nerv_review_submit</code> · <code>nerv_finding_resolve</code> 도구와 fingerprint 알고리즘 명세 + <code>/nerv:review</code> 스킬 추가. <b>셋 다 2026-08-23 에 앞당겨 들어왔다</b>(<a href="scope.html">4.1 범위</a> §5 착수 기록) — 카탈로그는 그 뒤로도 자라 2026-09-28 실측 <b>26종</b>, 스킬은 <b>6종</b>이다.</li>
+    <li><code>nerv_review_submit</code> · <code>nerv_finding_resolve</code> 도구와 fingerprint 알고리즘 명세 + <code>/nerv:review</code> 스킬 추가. <b>셋 다 2026-08-23 에 앞당겨 들어왔다</b>(<a href="scope.html">4.1 범위</a> §5 착수 기록) — 카탈로그는 그 뒤로도 자라 2026-10-11 실측 <b>27종</b>(<a href="api.html">4.4 API 명세</a> §4), 스킬은 <b>7종</b>이다(<a href="scope.html">4.1 범위</a> §4.3).</li>
     <li>게이트 판정 API + git forge 머지 게이트 연동(훅 미설치 클론·타 호스트 push 구멍을 서버가 막는다).</li>
     <li>S6 리뷰 센터 · 커버리지 대시보드 · S8 연동·게이트 정책 탭.</li>
     <li>Codex 온보딩 번들(<code>AGENTS.md</code> · <code>.codex/config.toml</code> · <code>hooks.json</code>) — SKILL.md는 오픈 표준이라 양쪽 재사용.</li>
@@ -486,6 +490,8 @@
       <tr><td>2-10</td><td>알림 피로</td><td>1인당 일 알림 수 / 무시율</td><td>다이제스트 적용 후 <b>증가하지 않을 것</b></td><td>FR-12</td></tr>
     </tbody>
   </table></div>
+
+  <p><b>2-8 은 두 수를 함께 보고한다</b>(2026-10-15 사람 결정). 보관하지 않은 작업이 하나도 없는 요구사항은 서버가 파생하지 않고 임포트가 넣은 값을 그대로 둔다 — <code>unimplemented</code> 로 덮으면 이관한 팀의 현황이 하루아침에 0 이 된다. 그래서 2-8 은 관계에서 파생한 요구사항의 비율과 임포트 값으로 남은 요구사항의 수를 함께 적고 화면 · API 는 그 값에 「출처: 임포트」를 표시한다(<a href="spec-workflow.html">3.5 스펙 워크플로우</a> §1.3). 남은 요구사항마다 검증 작업을 만드는 안은 M2 컷오버 때 clemvion 팀과 정한다(§7.2).</p>
 
   <h3>4.5 회귀 코퍼스 — clemvion 과거 세션 리플레이</h3>
 

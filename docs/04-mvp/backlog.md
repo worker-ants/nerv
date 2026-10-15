@@ -4,6 +4,7 @@ status: approved
 updated: 2026-09-24
 referenced_by:
   - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
@@ -12,16 +13,19 @@ referenced_by:
   - 04-mvp/screens.md
   - 04-mvp/plugin.md
   - 04-mvp/importer.md
+  - glossary.md
   - README.md
   - ../README.md
   - ../AGENTS.md
 ---
 # 백로그
 
-> **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 74개로 확정한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. 마지막 절은 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 5종이다.
+> **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.88 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.89 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v2.89 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **§6 신설 — Phase 2 에픽 8개(E15~E22) · 스토리 25개 · §1.3 다시 씀 · §1.4 표에 `backlog` 열.** ① Phase 2 스토리를 이 문서에 둔다. 범위의 정본은 그대로 [3.7 로드맵](../03-proposal/roadmap.md) §4이고 착수한 뒤의 스토리 분해와 현황은 이 문서가 맡는다(§1.3의 "여기 스토리로 분해하지 않는다"를 고쳤다). ② 남은 항목을 네 묶음으로 나눈 순서를 §6.1에 적는다. 첫 묶음은 묶음 1이다. ③ §1.4 에픽 표에 착수 전 스토리를 세는 `backlog` 열을 더하고 검사기(`check-backlog-status.mjs`)를 `done + 부분 + backlog == 스토리 수`로 고쳤다([4.2 코드베이스](codebase.md) REQ-CB-029). 합계는 `done` 75 · 부분 1 · `backlog` 25다. ④ §1.3의 "화면은 판정을 표시할 뿐 아직 막지 않는다"는 2026-09-28부터 사실이 아니었다 — 리뷰 커버리지는 정책으로 켜면 `done`을 막는다([4.4 API](api.md) REQ-API-250). 절 번호를 바꾸지 않으려고 Phase 2 에픽을 §5 뒤의 §6에 두었다(§5.6을 인용하는 자리가 다섯이다).
+
 > v2.88 변경(2026-10-15 — E06-S03 실제 클러스터 실측, **사람 실측**): §1.4 — **E06-S03 을 `done` 으로 센다.** 남은 것이던 "k8s Job 파드를 실제 클러스터에서 한 번 돌린 기록"을 사람이 남겼다(`[Migrate] 마이그레이션 적용 완료 — 이력 51건` · [4.2 코드베이스와 배포](codebase.md) §6.3b). 한 번에 성공해 재시도(`backoffLimit`)는 보지 못했다 — 쿠버네티스가 Job 에 주는 표준 동작이라 남은 것으로 두지 않는다. E06 은 `done` 6 · 부분 1, 합계 75 · 1 이다.
 
 > v2.87 변경(2026-10-15 — PR #232 뒤의 작은 후속 넷, **사람 결정**): §1.4 셋째 표에 두 줄 — **검색의 요구사항 해소를 한 판정으로** · **CLI 리포트에 옮겨 온 요구사항 번호**. 두 줄의 남은 것을 결정으로 바꾼다 — **결재 리마인더**(대체 승인자 후보는 역할 큐를 재검토할 때 정한다) · **임포트도 다른 문서가 가진 요구사항을 덮지 않는다**(임포트는 소유를 풀지 않는다). 스토리 없는 구현이다 — 스토리 수 · `done` 수는 그대로다.
@@ -592,8 +596,8 @@ referenced_by:
 
 ### 1.1 ID·상태·표기 규약
 
-- **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-09-06 실측으로 `done` 64 · 부분 10 · `backlog` 0 이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 75 · 부분 1 · `backlog` 25(Phase 2 스토리 — §6)다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -604,31 +608,43 @@ referenced_by:
 
 ### 1.3 범위 경계
 
-이 백로그는 MVP = Phase 0 + Phase 1만 다룬다([4.1 MVP 범위와 스택 확정](scope.md) §3). Phase 2 항목은 로드맵 §4가 정본이며 여기 스토리로 분해하지 않는다 — **다만 그중 여섯은 이미 들어와 있다**(2026-09-06 정정): 리뷰 수집·S6 리뷰 센터·`nerv_review_submit`/`nerv_finding_resolve`·`/nerv:review`·review 임포터. 앞당겨 구현한 근거는 [4.1 범위](scope.md) §5 의 착수 기록이고, 실물의 자리는 §1.4 의 "스토리가 없는 구현" 표다. 여전히 분해하지 않는 것은 **게이트 판정 완성**(FR-10 둘째 단 — 화면은 판정을 표시할 뿐 아직 막지 않는다)과 **Codex 완전 지원**이다.
+이 백로그는 MVP = Phase 0 + Phase 1([4.1 MVP 범위와 스택 확정](scope.md) §3)로 시작했고(§2 · §3), **2026-10-15부터 Phase 2 스토리도 여기 둔다**(사람 결정 — §6). Phase 2 범위의 정본은 여전히 [3.7 로드맵](../03-proposal/roadmap.md) §4이고 착수한 뒤의 스토리 분해와 현황은 이 문서가 맡는다. 예전 문장("Phase 2 항목은 로드맵 §4가 정본이며 여기 스토리로 분해하지 않는다")은 착수 전의 규칙이었다. 착수한 뒤에도 스토리가 없으면 §1.4 셋째 표에 스토리 없는 구현만 쌓이고 첫 임포트가 Phase 2의 남은 일을 Task로 옮기지 못한다.
+
+**앞당겨 들어온 Phase 2 항목은 스토리로 다시 만들지 않는다.** 리뷰 수집 · S6 리뷰 센터 · `nerv_review_submit`/`nerv_finding_resolve` · `/nerv:review` · review 임포터(2026-08-23~) · 메일 요약(2026-09-28) · done 게이트의 리뷰 커버리지(2026-09-28)는 §1.4 셋째 표에 있고 앞당긴 근거는 [4.1 범위](scope.md) §5의 착수 기록이다. 리뷰 커버리지는 프로젝트 정책으로 켜면 `done`을 막는다([4.4 API](api.md) REQ-API-250) — 게이트 판정에 남은 것은 커밋 신선도다(E16). §6의 에픽은 남은 것만 다룬다.
 
 
-### 1.4 구현 현황 (2026-09-06 실측)
+### 1.4 구현 현황 (2026-10-15 실측)
 
 **스토리별 상태의 정본은 이 절이다.** 세는 법은 하나다 — 스토리의 EARS 수용 기준을 만족하는 실물이 저장소에 있으면 `done`,
 일부만 있으면 **부분**이고 그때는 *남은 것*을 반드시 적는다. 근거는 파일 경로다.
 
-| 에픽 | `done` | 부분 | 대표 근거 |
-| --- | ---: | ---: | --- |
-| E01 저장소 부트스트랩 | 5 | — | `codebase/pnpm-workspace.yaml` · `apps/api/src/main.ts` · `.github/workflows/ci.yml` |
-| E02 스키마·마이그레이션 | 4 | — | `packages/schema/src/tables/` (테이블 37) · `drizzle/0000`~`0019` · `event.service.ts` |
-| E03 MCP 최소 서버 + PAT | 4 | — | `mcp/mcp.controller.ts` · `*.tools.ts`(도구 24) · `packages/schema/src/errors.ts` |
-| E04 클레임·리스 엔진 | 5 | — | `task.service.ts`(FOR UPDATE) · `claim.service.ts` · `worker/advisory-lock.ts` |
-| E05 세션 보드 최소 | 4 | — | `session.service.ts` · `event/ws.gateway.ts` · `event/sse.controller.ts` |
-| E06 스파이크 + 확인·실측 | 6 | 1 | `test/integration/spike-realtime.spec.ts` · `apps/web/.spike/tiptap-roundtrip.md` · `plugin/hooks/hooks.http.json`(E06-S07 실측 — [4.6](plugin.md) §3.1) |
-| E07 spec 임포터 v0 | 5 | — | `apps/cli/src/profiles/` · `report/index.ts` · `modules/import/import.controller.ts` |
-| E08 웹 화면 | 10 | — | `routes/p.$proj/specs.$spec.tsx`(버전 diff · 영향 미리보기) · `steer-panel.tsx` · `quick-switcher.tsx` · `task-derive.spec.tsx` · `spec-scale.spec.tsx` |
-| E09 스펙 워크플로우·승인 게이트 | 12 | — | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
-| E10 기획자 터미널 경로 | 4 | — | `spec.service.ts`(`NERV_DRAFT_LEASED`·takeover) · `spec-comment.service.ts` |
-| E11 plan 임포터 | 2 | — | `apps/cli/src/parse/plan.ts` · `apps/cli/src/run.ts` |
-| E12 플러그인 v1 + 훅 수집기 | 7 | — | `ko-style/`(문체 플러그인) · `plugin/skills/`(7종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` · `plugin-coverage.spec.ts`(활성화 현황) |
-| E13 받은 요청·질문·알림 | 3 | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
-| E14 운영·연동 | 4 | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
-| **합계** | **75** | **1** | `backlog` 0 |
+| 에픽 | `done` | 부분 | `backlog` | 대표 근거 |
+| --- | ---: | ---: | ---: | --- |
+| E01 저장소 부트스트랩 | 5 | — | — | `codebase/pnpm-workspace.yaml` · `apps/api/src/main.ts` · `.github/workflows/ci.yml` |
+| E02 스키마·마이그레이션 | 4 | — | — | `packages/schema/src/tables/` (테이블 37) · `drizzle/0000`~`0019` · `event.service.ts` |
+| E03 MCP 최소 서버 + PAT | 4 | — | — | `mcp/mcp.controller.ts` · `*.tools.ts`(도구 24) · `packages/schema/src/errors.ts` |
+| E04 클레임·리스 엔진 | 5 | — | — | `task.service.ts`(FOR UPDATE) · `claim.service.ts` · `worker/advisory-lock.ts` |
+| E05 세션 보드 최소 | 4 | — | — | `session.service.ts` · `event/ws.gateway.ts` · `event/sse.controller.ts` |
+| E06 스파이크 + 확인·실측 | 6 | 1 | — | `test/integration/spike-realtime.spec.ts` · `apps/web/.spike/tiptap-roundtrip.md` · `plugin/hooks/hooks.http.json`(E06-S07 실측 — [4.6](plugin.md) §3.1) |
+| E07 spec 임포터 v0 | 5 | — | — | `apps/cli/src/profiles/` · `report/index.ts` · `modules/import/import.controller.ts` |
+| E08 웹 화면 | 10 | — | — | `routes/p.$proj/specs.$spec.tsx`(버전 diff · 영향 미리보기) · `steer-panel.tsx` · `quick-switcher.tsx` · `task-derive.spec.tsx` · `spec-scale.spec.tsx` |
+| E09 스펙 워크플로우·승인 게이트 | 12 | — | — | `0000_init.sql`(동결 트리거) · `spec/gate-tier.ts` · `spec/search.service.ts`(RRF) |
+| E10 기획자 터미널 경로 | 4 | — | — | `spec.service.ts`(`NERV_DRAFT_LEASED`·takeover) · `spec-comment.service.ts` |
+| E11 plan 임포터 | 2 | — | — | `apps/cli/src/parse/plan.ts` · `apps/cli/src/run.ts` |
+| E12 플러그인 v1 + 훅 수집기 | 7 | — | — | `ko-style/`(문체 플러그인) · `plugin/skills/`(7종) · `session/ingest.controller.ts` · `plugin/bin/nerv-outbox` · `plugin-coverage.spec.ts`(활성화 현황) |
+| E13 받은 요청·질문·알림 | 3 | — | — | `approval.service.ts`(`content_hash` stale) · `question.service.ts` · `notification.service.ts` |
+| E14 운영·연동 | 4 | — | — | `deploy/k8s/base/` · `deploy/scripts/nerv-backup.sh` + `restore-roundtrip.spec.ts` · `task/webhook.service.ts` · `apps/api/src/common/origins.ts` |
+| E15 커버리지 · 구현 축 | — | — | 3 | 착수 전 — 이어받는 실물: `spec/impl-status.ts` · `spec.service.ts`(`coverage`) · `routes/p.$proj/index.tsx`(구현 현황 카드) |
+| E16 게이트 판정 완성 | — | — | 4 | 착수 전 — `task.service.ts`(done 게이트 — `roundVerdicts`를 `headSha: null`로 부른다) · `review/review-gate.ts`(EP-REV-08) |
+| E17 알림 확장 | — | — | 3 | 착수 전 — `event/notification.service.ts`(`recipientsFor` — 역할 큐로 보내는 자리) |
+| E18 fail-open · 보존 | — | — | 3 | 착수 전 — `zod/policy.ts`(`failopen`) · `routes/settings/gates.tsx`(보기 전용) · `worker/jobs/retention.job.ts` |
+| E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
+| E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |
+| E21 이관 · 운영 | — | — | 4 | 착수 전 — `plugin/bin/nerv-outbox` · `worker/jobs/export.job.ts` |
+| E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
+| **합계** | **75** | **1** | **25** | `backlog` 25는 모두 Phase 2 스토리다(§6) |
+
+**`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
 §5 의 **E2E 수용 시나리오 A~F 도 여섯 전부 실물**이다 — `apps/api/test/e2e/scenario-a-c.spec.ts` · `scenario-d-e.spec.ts` · `scenario-f-journey.spec.ts`(2026-09-07 신설 — 그전까지 A~C 는 클레임까지만 태웠고 그 **이후**의 계약은 L2 조각들만 봤다).
 
@@ -920,7 +936,7 @@ referenced_by:
 - **스토리를 끝내면 같은 커밋에서 이 표를 고친다.** 나중에 몰아서 세면 그 사이의 커밋들은 자기가 무엇을 바꿨는지 말하지 않는다 — 실제로 §1.1 의 "모든 스토리는 현재 `backlog`다" 가 2주간 그렇게 남았다.
 - **부분으로 두려면 *남은 것*을 함께 적는다.** 남은 것을 적지 않은 부분 표기는 "완료"와 구별되지 않는다.
 - **스토리 없이 들어온 구현은 셋째 표에 한 줄로 남긴다.** 그 줄이 쌓이면 에픽을 새로 여는 신호다(번호는 재사용하지 않고 끝번호에 더한다 — §1.1).
-- 이 문서가 **첫 임포트 대상**이라는 것이 규율의 이유다(§1.2). 임포트는 여기 적힌 상태를 그대로 Task 74건의 초기 상태로 옮긴다 — 틀린 상태로 적재되면 **이미 끝난 일을 에이전트가 다시 클레임한다.**
+- 이 문서가 **첫 임포트 대상**이라는 것이 규율의 이유다(§1.2). 임포트는 여기 적힌 상태를 그대로 Task 의 초기 상태로 옮긴다(`backlog`로 센 스토리는 `backlog`로) — 틀린 상태로 적재되면 **이미 끝난 일을 에이전트가 다시 클레임한다.**
 
 ---
 
@@ -1160,6 +1176,8 @@ flowchart LR
 
 경로의 임계는 **E01 → E02 → E04 → E03(-S03)**다(E03-S03 도구 8종이 E04-S01 클레임 트랜잭션·E04-S03 하트비트에 의존한다). 클레임·리스 엔진(E04)이 Phase 0 종료 게이트(0-1~0-4)의 직접 대상이므로, 이 사슬이 지연되면 로드맵 §1.4 규칙 2에 따라 기간이 아니라 다른 에픽(E05 화면 범위·E07)의 범위를 줄인다.
 
+이 그래프는 Phase 0 · 1만 그린다. Phase 2 에픽(E15~E22)의 순서는 §6.1의 네 묶음이 정하고, 스토리 사이의 의존은 §6 스토리 표의 「의존」 칸에 있다(2026-10-15).
+
 ### 4.2 첫 2주 권장 경로
 
 | 주 | 트랙 A (백엔드) | 트랙 B (프론트·스파이크) | 종료 시 확인 |
@@ -1251,6 +1269,106 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 
 ---
 
+## 6. Phase 2 에픽 — 리뷰와 게이트가 서버 판정이 된다 (2026-10-15 착수)
+
+Phase 2의 목표는 [3.7 로드맵](../03-proposal/roadmap.md) §4.1 그대로다 — 리뷰를 git 파일에서 플랫폼 개체로 옮기고, 게이트 판정을 서버 질의로 만들고 Codex를 1급 시민으로 받아들인다. 종료 게이트 G2는 성공 기준 2-1~2-10이고 판정은 착수 6주 뒤(2026-11-26 전후)다. 범위의 정본은 로드맵 §4.2이고 이 절은 착수한 뒤의 스토리 분해다(2026-10-15 사람 결정 — §1.3). **앞당겨 들어온 것은 다시 스토리로 만들지 않는다** — 리뷰 수집 · S6 리뷰 센터 · review 임포터 · 메일 요약 · done 게이트의 리뷰 커버리지는 §1.4 셋째 표에 있다. 아래 에픽은 남은 것만 다룬다.
+
+### 6.1 착수 순서 — 네 묶음
+
+**2026-10-15 사람 결정.** 남은 항목을 네 묶음으로 나누고 이 순서로 한다. 첫 묶음은 묶음 1이다. 묶음 번호는 스토리 칸의 첫머리에도 적는다.
+
+| 묶음 | 무엇 | 스토리 | 왜 이 순서인가 |
+| --- | --- | --- | --- |
+| **묶음 1** — 이 환경에서 바로 | 커버리지 대시보드(FR-13) · 구현 축 정리(FR-03) · 게이트 판정 커밋 범위(FR-10) · 알림 관여 라우팅(FR-12) · fail-open 편집과 격상(D-14) | E15-S01 · E15-S02 · E15-S03 · E16-S01 · E17-S01 · E18-S01 · E18-S02 | 명세가 이미 정했고 바깥 계정이나 데이터 없이 L2로 검증된다 |
+| **묶음 2** — M2 사전 조건 · 결정된 것 | 복구 뒤 자동 동기화(NFR-05) · git 미러 export · Codex 완전 지원(FR-15 — [4.6 플러그인](plugin.md) §5.4 훅 묶음) | E21-S01 · E21-S02 · E20-S01~S04 · E18-S03 | M2 컷오버는 NFR-05 실사용 검증과 늘 도는 미러를 사전 조건으로 둔다([3.7 로드맵](../03-proposal/roadmap.md) §7.5 · §7.6) |
+| **묶음 3** — 사람 결정 먼저 | CR · 델타 리뷰와 CR 카드(FR-04 · FR-11) · 에스컬레이션 카드(FR-11) · SoT 컷오버 M1(FR-17) | E19-S01~S03 · E21-S03 · E16-S04 · E17-S02 | 수용 기준에 **결정 대기**가 남아 있다. 정해진 뒤에 착수한다 |
+| **묶음 4** — 바깥 환경 | Slack(FR-12)과 S8 연동 탭 · 부하 시험(NFR-04) · OAuth 2.1 리소스 서버 | E17-S03 · E21-S04 · E22-S01 · E16-S02 · E16-S03 | 이 작업 환경 밖의 계정 · 장비 · 데이터가 있어야 검증된다 |
+
+결정 목록에 이름이 없던 다섯은 성격을 보고 넣었다. CI 레시피(E16-S02)와 리플레이 코퍼스(E16-S03)는 실제 git forge와 clemvion 과거 세션이 있어야 검증되므로 묶음 4다. 결재의 브랜치 자리(E16-S04)와 워치(E17-S02)는 스키마 결정이 먼저라 묶음 3이다. 보존 워커(E18-S03)는 이미 정한 표([3.3 데이터 모델](../03-proposal/data-model.md) §5.4)를 집행하는 일이라 묶음 2다. 묶음을 바꾸면 이 표만 고친다.
+
+### 6.2 E15 — 커버리지 · 구현 축 (FR-03 · FR-13)
+
+FR-03 ◐ → ●, FR-13 ◐ → ●. 성공 기준 2-8의 대상이다. **이미 있는 것**: 구현 축의 자동 파생(`spec/impl-status.ts` — `verified`까지 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.3)과 구현 현황 수치 · 영역별 분해(EP-COV-01 · [4.4 API](api.md) REQ-API-297). 남은 것은 드릴다운 화면 · 임포트 값의 출처 · `verified`의 커밋 범위다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E15-S01 | **묶음 1** · 커버리지 드릴다운 — `/p/:proj/coverage`에서 영역 → 스펙 → 요구사항 → 작업 · 증적 · 발견으로 내려가고 검증 증적이 없는 줄에서 [검증 작업 만들기]를 누른다. 요구사항 상세(EP-REQ-02)에 그 요구사항의 발견을 더한다. 라우트는 [4.5 화면 명세](screens.md) §1이 예약한 자리다 — 만들면 [3.6 화면 설계](../03-proposal/ui-wireframes.md) §1.2 IA의 "전용 라우트 없음"도 고친다 | [3.6 화면 설계](../03-proposal/ui-wireframes.md) §4.4 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §5.5 · FR-13 · [3.7 로드맵](../03-proposal/roadmap.md) §4.2 | WHEN 사용자가 S2 구현 현황의 수나 영역을 누르면, THE SYSTEM SHALL `/p/:proj/coverage`에서 영역 → 스펙 → 요구사항 순으로 내려가게 하고 요구사항마다 파생 작업 · PR/커밋 · 리뷰 세션 · 테스트 증적을 링크로 보인다(FR-13 — 양방향 드릴다운)<br>WHEN 요구사항에 검증 증적이 없으면, THE SYSTEM SHALL 그 줄에서 그 요구사항을 출처로 한 검증 작업을 만들게 한다 — 드릴다운의 끝은 행동이다<br>WHEN 요구사항 상세(EP-REQ-02)를 부르면, THE SYSTEM SHALL 그 요구사항에 달린 발견(`finding.requirement_id`)을 함께 돌려준다 | E08-S03 |
+| E15-S02 | **묶음 1** · 임포트 값의 출처 — 작업이 없어 파생하지 않은 요구사항의 구현 상태에 「출처: 임포트」를 표시한다(요구사항 목록 · 상세 · 커버리지 응답과 S2 · S3 요구사항 패널 · 드릴다운). 성공 기준 2-8은 두 수로 보고한다(2026-10-15 사람 결정) | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.3 · [3.7 로드맵](../03-proposal/roadmap.md) §4.4(2-8) · D-03 | WHEN 요구사항에 보관하지 않은 작업이 없고 그 구현 상태를 임포트가 정했으면, THE SYSTEM SHALL 그 값을 `unimplemented`로 덮지 않고 그대로 두며, 요구사항 목록 · 상세 · 커버리지 응답과 화면에 그 값의 출처가 임포트라고 표시한다<br>WHEN 커버리지를 돌려주면, THE SYSTEM SHALL 관계에서 파생한 요구사항의 비율과 임포트 값으로 남은 요구사항의 수를 함께 준다(2-8) | — |
+| E15-S03 | **묶음 1** · `verified`의 커밋 범위 — "그 요구사항에 열린 critical 0"을 "그 요구사항의 작업이 낸 커밋을 본 리뷰 라운드에 열린 critical 0"으로 좁힌다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.3(`verified`의 범위 — 2026-09-07) · FR-03 · FR-10 | WHEN `verified`를 파생하면, THE SYSTEM SHALL 파생 작업의 최신 `commit` 증적(E16-S01과 같은 커밋)을 `head_sha`로 본 리뷰 라운드에 열린 critical이 없는지 본다 — 커밋을 모르면 지금처럼 요구사항 단위로 본다<br>WHILE 이미 `verified`인 동안 THE SYSTEM SHALL 지금처럼 값을 내리지 않는다 — 문장이 바뀔 때만 풀린다 | E16-S01 |
+
+### 6.3 E16 — 게이트 판정 완성 (FR-10)
+
+FR-10 ◐ → ●. 성공 기준 2-2 · 2-6 · 2-7의 대상이다. **이미 있는 것**: done 게이트의 리뷰 커버리지(정책으로 켜면 막는다 — 2026-09-28 · [4.4 API](api.md) REQ-API-250) · 집행용 게이트 판정 EP-REV-08(REQ-API-247) · 종류별 면제(REQ-API-274 · 293). 남은 것의 핵심은 **커밋 신선도**다 — done 게이트가 `roundVerdicts`를 `headSha: null`로 불러, 리뷰 뒤에 새 커밋이 와도 통과한다(`task.service.ts`).
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E16-S01 | **묶음 1** · done 게이트의 커밋 신선도 — 작업의 최신 `commit` 증적과 리뷰 라운드의 `head_sha`를 대조한다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.6(조건 1) · §5.4(신선도는 커밋 동일성) · FR-10 · D-14 | WHEN 작업 완료 조건이 리뷰를 요구하고 그 작업에 `commit` 증적이 있으면, THE SYSTEM SHALL 가장 최근 `commit` 증적의 커밋을 `head_sha`로 본 라운드만 세고 그 커밋의 라운드가 없으면(리뷰 뒤에 새 커밋이 왔으면) `done`을 막고 `missing`에 그 사실을 적는다<br>WHEN 작업에 `commit` 증적이 없어 커밋을 알 수 없으면, THE SYSTEM SHALL 신선도 조건만 통과시키고 `gate.failopen`을 남긴다 — 리뷰가 없거나 열린 critical이 있으면 지금처럼 막는다(D-14) | E14-S03 |
+| E16-S02 | **묶음 4** · CI 레시피 — EP-REV-08을 저장소의 필수 상태 체크로 부르는 예제 워크플로와 설정 절차. 실제 저장소에서 한 번 막아 본 기록까지 | [3.7 로드맵](../03-proposal/roadmap.md) §4.3(산출물 2 — git forge 머지 게이트) · §4.4(2-6) · [4.4 API](api.md) REQ-API-247 | WHEN 저장소가 레시피대로 필수 체크를 켜고 PR head 커밋의 게이트 판정이 `passed`가 아니면, THE SYSTEM SHALL 체크를 실패로 끝내 머지를 막고 그 이유(`reasons[]`)를 체크 결과에 적는다 | E16-S01 |
+| E16-S03 | **묶음 4** · 리플레이 회귀 코퍼스 — clemvion 과거 세션 디렉터리를 게이트 판정에 다시 돌린다 | [3.7 로드맵](../03-proposal/roadmap.md) §4.5 · §4.4(2-2 · 2-3) | WHEN clemvion의 커밋된 575 세션을 판정 API로 리플레이하면, THE SYSTEM SHALL forced 미충족 160건을 전부 검출하고 오탐을 내지 않는다(2-2)<br>WHEN 732 세션을 리플레이하면, THE SYSTEM SHALL CRITICAL → `BLOCK: NO` 하향 24건을 전부 검출한다(2-3) | E16-S01 |
+| E16-S04 | **묶음 3** · 리뷰가 없는 브랜치의 면제 — 결재에 브랜치를 적을 자리 | [4.5 화면 명세](screens.md) §2.6a(리뷰가 없는 브랜치의 면제) · [3.6 화면 설계](../03-proposal/ui-wireframes.md) §2.6 · FR-10 | **결정 대기** — 결재에 브랜치를 적을 자리(스키마 결정 — `approval.subject_id`는 uuid이고 브랜치는 문자열이다 · [4.3 데이터베이스 스키마](database.md) §2.8). 정해지면: WHEN 리뷰가 한 번도 없는 브랜치에 면제를 내면, THE SYSTEM SHALL 그 면제를 게이트 현황의 그 브랜치 줄과 게이트 판정(EP-REV-08)에 보인다 | — |
+
+### 6.4 E17 — 알림 확장 (FR-12)
+
+FR-12 ◐ → ●. 성공 기준 2-10의 대상이다. **이미 있는 것**: 중요도 티어 라우팅 · 앱 안 알림 묶음(2026-09-27) · 메일 요약(2026-09-28 — [4.1 범위](scope.md) §5 착수 기록). 남은 것: 알림 카탈로그([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.3)의 수신자 가운데 작성자 · 담당자 · 스레드 참여자 · 워처를 산출하지 못해 역할 큐로 보내고(`event/notification.service.ts`의 `recipientsFor`), `finding.opened` · `finding.resolved`는 알림 카탈로그 코드에 없어 알림을 만들지 않는다. Slack 채널도 없다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E17-S01 | **묶음 1** · 관여 라우팅 — 작성자 · 담당자 · 리뷰 요청자 · 스레드 참여자에게 보낸다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.3(수신자 열 · 구현 범위) · FR-12 | WHEN 카탈로그가 수신자를 작성자 · 담당자 · 리뷰 요청자 · 스레드 참여자로 정한 이벤트(`spec.approved` · `spec.rejected` · `task.blocked` · `task.rebrief_required` · `spec.comment_added` · `finding.resolved`)가 적재되면, THE SYSTEM SHALL 역할 큐가 아니라 그 사람들에게 알림을 만들고 행위자 자신은 뺀다<br>WHEN critical 발견이 열리면(`finding.opened`), THE SYSTEM SHALL 작업 담당자와 리뷰 요청자에게 중요 알림을 만든다 | E13-S03 |
+| E17-S02 | **묶음 3** · 워치와 ★핀의 서버 저장 — 카탈로그의 「워처」 수신자와 기기를 바꿔도 남는 핀 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.3 · [4.5 화면 명세](screens.md) §1.3a(최근 · 핀은 localStorage) · [4.1 범위](scope.md) §5(서버 watch 테이블) · FR-12(구독 규칙 — 역할 · 워치) | **결정 대기** — 워치 개체([3.3 데이터 모델](../03-proposal/data-model.md)에 없다)와 핀을 워치와 같은 테이블에 둘지. 정해지면: WHEN 사람이 스펙 · 작업 · 영역을 워치하면, THE SYSTEM SHALL 카탈로그가 워처에게 보내는 이벤트를 그 사람에게 라우팅한다<br>WHEN 사람이 핀을 고정하면, THE SYSTEM SHALL 서버에 남겨 다른 기기에서도 같은 핀을 보인다 | E17-S01 |
+| E17-S03 | **묶음 4** · Slack 첫 조각과 S8 연동 탭 — 중요 알림을 Slack으로 보내고 연결은 S8 「연동」 탭에서 한다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.2(채널 열) · §6.4 · [3.7 로드맵](../03-proposal/roadmap.md) §4.3(산출물 3) · FR-12 | **결정 대기** — Slack 앱을 연결하는 방식(봇 토큰 · OAuth 설치)과 사람을 Slack 계정과 잇는 방법. 정해지면: WHEN critical 알림이 만들어지면, THE SYSTEM SHALL Slack을 연결한 사람에게 DM으로 받은 요청 딥링크만 보낸다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.4)<br>WHEN 그 항목이 받은 요청에서 이미 처리됐으면, THE SYSTEM SHALL Slack으로 보내지 않는다(크로스 채널 dedup) | E17-S01 |
+
+### 6.5 E18 — fail-open · 보존 (D-14 · NFR-01)
+
+**이미 있는 것**: fail-open 기록(`gate.failopen` — 플랜 승인 게이트) · 정책 키 `failopen.escalate_count` · `failopen.window_hours`(기본 3회 · 24시간) · `retention` 키 둘의 집행. 화면은 두 값을 보기만 하고 격상하는 코드는 없다. 설정 화면 문구와 매뉴얼은 「티어를 올립니다」라 적어 2026-10-15 결정(알림과 배너)과도 다르다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E18-S01 | **묶음 1** · 정책 편집 폼 — `failopen` · `retention`을 S8 게이트 정책 탭에서 고친다 | [4.4 API](api.md) §2.1a(편집 UI는 Phase 2) · [4.5 화면 명세](screens.md) §2.8 · D-14 | WHEN admin이 S8 게이트 정책 탭에서 `failopen` · `retention` 값을 고쳐 저장하면, THE SYSTEM SHALL 같은 zod 스키마(`GatePolicySchema` · `RetentionSchema`)로 검증해 EP-PRJ-04로 저장하고 범위 밖 값은 저장하지 않고 이유를 보인다<br>WHEN admin이 아닌 역할이 그 값을 보면, THE SYSTEM SHALL 읽기 전용으로 보인다(E08-S08과 같은 규칙) | E08-S08 |
+| E18-S02 | **묶음 1** · fail-open 격상(2026-10-15 사람 결정) — 시간 창 안의 횟수로 격상하고 알림과 배너로 알린다. 설정 화면 문구와 매뉴얼의 「티어를 올립니다」도 함께 고친다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §4.6(격상 규칙) · §7 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §1.3 · D-14 | WHEN 한 프로젝트에서 `failopen.window_hours` 안의 fail-open이 `failopen.escalate_count`회 이상 쌓이면, THE SYSTEM SHALL 격상 이벤트를 남기고 admin에게 중요 알림을 보내며 S5 세션 모니터와 S6 리뷰 센터에 배너를 표시한다<br>WHEN 격상된 프로젝트에 그 창 동안 새 fail-open이 없으면, THE SYSTEM SHALL 격상을 풀고 해제 이벤트를 남긴다 | — |
+| E18-S03 | **묶음 2** · 보존 워커 완성 — [4.3 데이터베이스 스키마](database.md) §2.14가 집행 없음으로 적은 넷과 `activity` 파티션 드랍 | [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 · [4.3 데이터베이스 스키마](database.md) §2.14 · [3.7 로드맵](../03-proposal/roadmap.md) §4.2(보존 정책 워커) · D-07 · NFR-01 | WHEN `retention` 잡이 돌면, THE SYSTEM SHALL [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 표의 나머지 넷 — `notification` 180일 · `reviewer_report.body_md` 365일 뒤 요약 압축 · draft `spec_version` 90일 뒤 압축 · `event` 12개월 뒤 콜드(`DETACH`) — 과 보존 기간을 넘긴 `activity` 파티션의 드랍을 집행한다<br>WHILE 보존을 집행하는 동안 THE SYSTEM SHALL 결론(SUMMARY · Finding · Resolution)과 승인된 버전을 지우지 않는다(D-07) | — |
+
+### 6.6 E19 — CR · 델타 리뷰 (FR-04 · FR-11)
+
+FR-04 ○ → ●, FR-11 ◐ → ●(받은 요청 다섯 유형). **이미 있는 것**: `change_request` 테이블과 결재 대상 `change_request`([4.3 데이터베이스 스키마](database.md) §2.1) · 이벤트 이름 `cr.opened`(상수만) · S6의 `spec_drift` 태그와 유래 스펙 링크 · 버전 diff(FR-02). 화면 라우트 `/p/:proj/crs/:cr`는 예약만 있다([4.5 화면 명세](screens.md) §1). **결정 대기 셋** — CR과 버전 결재의 관계 · `CR-` 표시 키 · 에스컬레이션 카드의 대상 — 이 정해져야 착수한다.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E19-S01 | **묶음 3** · CR과 델타 뷰 — 승인된 스펙의 변경을 요구사항 ID 단위 ADDED / MODIFIED / REMOVED로 보이고 승인 전에 영향(파생 작업 · 진행 중 클레임 · 참조 스펙)을 미리 보인다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.1~3.3 · §3.5 · [3.6 화면 설계](../03-proposal/ui-wireframes.md) §4.3 · FR-04 | **결정 대기** — CR과 버전 결재의 관계(CR의 승인이 그 버전의 스펙 결재와 같은 결재인가 — [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.5는 승인 판정의 진실을 SpecVersion에 둔다)와 `CR-` 표시 키(표시 키의 타입 문자는 지금 `T` · `S` 둘뿐이다 — [3.3 데이터 모델](../03-proposal/data-model.md) §5.1). 정해지면: WHEN CR을 열면, THE SYSTEM SHALL 요구사항 ID 단위 델타와 영향을 보인다<br>WHEN CR이 승인되면, THE SYSTEM SHALL [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.3 표대로 문서 · 구현 · 작업 세 축을 움직이고 진행 중 클레임을 가진 세션에 바로 알린다 | E09-S07 |
+| E19-S02 | **묶음 3** · `spec_drift` → CR — 발견에서 CR 초안을 만들고 planner의 받은 요청에 CR 카드를 올린다 | [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.4 · [4.5 화면 명세](screens.md) §2.6a(`spec_drift`의 CR 라우팅 버튼) · [4.1 범위](scope.md) §5(S6의 남은 것) · FR-04 · FR-11 | WHEN `spec_drift` 태그가 붙은 발견을 처분하면, THE SYSTEM SHALL S6에서 본문 · 근거 · 해당 커밋을 붙인 CR 초안을 만들고 planner의 받은 요청에 CR 카드를 올린다<br>WHEN 그 CR이 거절되면, THE SYSTEM SHALL 발견을 `dismissed`로 닫고 코드 되돌림 작업을 만든다 | E19-S01 |
+| E19-S03 | **묶음 3** · 에스컬레이션 카드 — 받은 요청의 다섯째 유형 | FR-11 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.4 · [3.7 로드맵](../03-proposal/roadmap.md) §4.2(CR 델타 리뷰 행 — 5유형 완성) | **결정 대기** — 에스컬레이션 카드의 대상(발견 처분의 `escalated` · 질문의 `escalate` 사유 · fail-open 격상 가운데 무엇을 카드로 만드는가 — 사유 어휘는 `escalate_reason` 하나다 · [3.3 데이터 모델](../03-proposal/data-model.md) §2.6). 정해지면: WHEN 에스컬레이션이 생기면, THE SYSTEM SHALL 받은 요청에 원문과 기다리는 세션을 보이는 카드를 올리고 결정하면 그 세션을 `awaiting_input`에서 바로 푼다(FR-11) | E13-S01 |
+
+### 6.7 E20 — Codex 완전 지원 (FR-15)
+
+FR-15 ◐ → ●. 성공 기준 2-9의 대상이다. [4.6 플러그인](plugin.md) §5.4가 2026-10-15 Codex 0.162.1 실측으로 고칠 자리를 표로 남겼고 사람 결정으로 **한 묶음으로 고친다**(그 전에는 훅을 지금처럼 둔다). MCP 도구만으로 완주하는 약속은 이미 시나리오 F가 매 PR에서 확인한다(§5.6).
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E20-S01 | **묶음 2** · Codex 훅 묶음 — [4.6 플러그인](plugin.md) §5.4 표의 고칠 자리 전부: `hooks.json`의 `$comment` · 에이전트 표시 · 훅 응답 형식 · SessionEnd 시한 · 세션 짝 · `nerv-init --check`의 Codex 설정 점검 · 패키지에 배포 파일만 · `nerv:approve` 설명의 Codex 제한 | [4.6 플러그인](plugin.md) §5.4(결정 — Phase 2에서 한 묶음으로) · §5.1 · FR-15 | WHEN Codex에 NERV 플러그인을 설치한 세션이 돌면, THE SYSTEM SHALL 훅 여섯을 경고 없이 실행하고 그 세션을 `codex`로 기록하며, 훅이 만든 세션과 `nerv_bootstrap` 세션을 한 세션으로 잇는다<br>WHEN SessionStart 훅이 서버의 세션 안내를 받으면, THE SYSTEM SHALL Codex가 받는 형식으로 돌려 모델에게 전달한다 | E12-S02 |
+| E20-S02 | **묶음 2** · notify 매핑 — Codex `notify`를 훅 수집기로 받고 질문 폴링 폴백까지 2-9 흐름을 완주한다 | [3.7 로드맵](../03-proposal/roadmap.md) §4.2(Codex 지원) · §4.4(2-9) · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.2 · §4.4 · [4.6 플러그인](plugin.md) §5.1(훅 텔레메트리 행) | WHEN Codex 세션이 `notify`를 내면, THE SYSTEM SHALL 그 세션의 활동으로 적재한다<br>WHEN Codex 세션이 질문을 만들면, THE SYSTEM SHALL 사람의 답을 `nerv_question_create` 재호출(폴링)과 하트비트 `pending`으로 전하고 그 세션이 bootstrap → claim → 구현 → 리뷰 제출 → done을 완주하게 한다(2-9) | E20-S01 |
+| E20-S03 | **묶음 2** · AGENTS.md 생성 · 갱신 — 초안을 손으로 커밋하던 것을 서버가 만든다 | [4.6 플러그인](plugin.md) §5.1(규약 전달 행) · §5.3 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.3 · [3.7 로드맵](../03-proposal/roadmap.md) §4.3(산출물 4) · FR-15 | **결정 대기** — 생성의 입력(어느 스펙 · 템플릿에서 만드는가)과 갱신 경로(저장소에 커밋 · 내려받기). 정해지면: WHEN 사람이 프로젝트의 AGENTS.md를 만들면, THE SYSTEM SHALL 그 프로젝트의 서버 주소 · 프로젝트 키와 지금 규약으로 만든 본문을 주고 다시 만들면 바뀐 규약을 반영한다 | E20-S01 |
+| E20-S04 | **묶음 2** · Codex 온보딩 스크립트 — `.codex/config.toml` · AGENTS.md를 만들고 검증한다 | [4.6 플러그인](plugin.md) §5.1(온보딩 행) · [4.6 플러그인](plugin.md) REQ-PLG-018 · FR-15 | WHEN 사람이 작업 저장소에서 Codex 온보딩을 실행하면, THE SYSTEM SHALL `.codex/config.toml` · AGENTS.md 가운데 없는 것만 만들고 이미 있는 값은 덮지 않는다(`bin/nerv-init`과 같은 규칙)<br>WHEN `--check`로 실행하면, THE SYSTEM SHALL 아무것도 쓰지 않고 덜 된 설정을 보고한다 | E20-S03 |
+
+### 6.8 E21 — 이관 · 운영 (FR-17 · NFR-04 · NFR-05)
+
+clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 폴백. 성공 기준 2-1 · 2-5 · 2-7의 대상이다. **이미 있는 것**: 오프라인 outbox와 세션 시작 · 스킬 턴의 flush(E12-S06) · md 미러 잡(`worker/jobs/export.job.ts` — 파일만 쓰고 커밋하지 않는다) · review 임포터.
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E21-S01 | **묶음 2** · 복구 뒤 자동 동기화 — 세션 시작이나 다음 스킬 턴을 기다리지 않고 서버가 돌아오면 outbox를 비운다 | [4.6 플러그인](plugin.md) §3.4 · NFR-05 · [3.7 로드맵](../03-proposal/roadmap.md) §7.5(M2 사전 조건) | WHEN 서버가 다시 응답하면, THE SYSTEM SHALL 세션 시작이나 다음 스킬 턴을 기다리지 않고 `.nerv/outbox/`를 `queued_at` 순으로 원래 멱등 키 그대로 보내고 중복 레코드 0을 유지한다<br>WHEN 재전송이 4xx로 끝나면, THE SYSTEM SHALL 그 항목을 `outbox/failed/`로 옮기고 사람에게 보고한다(NFR-05 — 충돌은 사람에게 보고된다) | E12-S06 |
+| E21-S02 | **묶음 2** · git 커밋 미러 — 승인본 md를 read-only git 저장소에 커밋하고 push한다 | [3.2 시스템 아키텍처](../03-proposal/architecture.md) §3.1 · §5.5 · [3.7 로드맵](../03-proposal/roadmap.md) §7.4 · §7.6 · [4.1 범위](scope.md) §5 | WHEN 스펙 버전이 승인되면, THE SYSTEM SHALL 그 승인본 md를 미러 저장소에 커밋하고 push한다<br>WHILE M2 컷오버 전이라도 THE SYSTEM SHALL 미러를 늘 돌려 최신 승인 버전을 포함하게 한다 — M2 롤백은 그 미러를 SoT로 승격한다([3.7 로드맵](../03-proposal/roadmap.md) §7.6)<br>WHEN 미러 쪽에서 편집이 검출되면, THE SYSTEM SHALL 받아들이지 않고 경고한다([3.7 로드맵](../03-proposal/roadmap.md) §7.4 규칙 1) | — |
+| E21-S03 | **묶음 3** · SoT 컷오버 M1 — `review/` 신규분의 쓰기 경로를 서버로 옮기고, 이중화 기간의 판정 불일치를 이벤트와 지표로 남긴다 | [3.7 로드맵](../03-proposal/roadmap.md) §7.2(M1) · §7.4 · §7.5 · §7.6 · §4.4(2-1 · 2-5) · FR-17 | **결정 대기** — 로컬 훅이 자기 판정을 서버에 알리는 경로(불일치를 세려면 두 판정이 함께 있어야 한다)와 컷오버 실행 시점(clemvion 팀과 정한다). 정해지면: WHILE M1 이중화 기간인 동안 THE SYSTEM SHALL 로컬 훅과 서버 판정이 다르면 서버 판정을 적용하고 불일치를 이벤트로 남긴다<br>WHEN 컷오버 뒤 2주를 관측하면, THE SYSTEM SHALL 대상 경로의 신규 커밋 수와 판정 불일치율을 보고한다 — 1% 미만이 안정화 조건이고 5% 이상이면 롤백 트리거다 | E16-S01 |
+| E21-S04 | **묶음 4** · 부하 시험 — 프로젝트 수십 · 동시 세션 수십 | NFR-04 · [3.7 로드맵](../03-proposal/roadmap.md) §4.2(규모 · 폴백) · §4.4(2-7) | WHEN 프로젝트 수십 개 · 동시 세션 수십 개 부하를 걸면, THE SYSTEM SHALL 세션 보드 반영을 5초 안에 유지하고(NFR-02) 커버리지 대시보드 질의가 페이지 로드를 막지 않게 한다<br>WHEN 그 부하에서 게이트 판정을 부르면, THE SYSTEM SHALL p95 300ms 안에 답한다(2-7) | E15-S01 · E16-S01 |
+
+### 6.9 E22 — OAuth 2.1 리소스 서버 (NFR-03 · FR-15)
+
+2026-08-20 인증 확정(better-auth)으로 Phase 2에 옮겼다. MVP의 에이전트 인증은 PAT이고 OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다([4.1 범위](scope.md) §2.1).
+
+| ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
+| --- | --- | --- | --- | --- |
+| E22-S01 | **묶음 4** · OAuth 2.1 리소스 서버 — `/mcp`가 PAT와 함께 OAuth 토큰을 받는다(대화형 로그인 · 자동 발견) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5 · [4.1 범위](scope.md) §2.1 · §5 · NFR-03 | **결정 대기** — 인가 서버(AS)를 무엇으로 둘지와 권한(`resource:action`)을 토큰에 어떻게 옮길지. 정해지면: WHEN 클라이언트가 `/mcp`의 보호 자원 메타데이터를 찾으면, THE SYSTEM SHALL RFC 9728 PRM을 제공하고 다른 자원(RFC 8707 `resource`)으로 발급된 토큰을 거부한다<br>WHILE OAuth 토큰으로 접속한 동안 THE SYSTEM SHALL PAT와 같이 위임한 사용자의 권한을 넘는 요청을 거부한다(NFR-03) | — |
+
+---
+
 ## 참고 자료
 
 ### 이 문서가 인용한 외부 출처 (기존 13편에서 재인용)
@@ -1261,7 +1379,7 @@ W3에 E04 전체 → E03-S03·S04 → E05를 이어 Phase 0 검증 시나리오(
 
 ### 이 문서와 연결되는 제안서 문서
 
-- [3.7 로드맵](../03-proposal/roadmap.md) — Phase 배분·성공 기준(0-1~0-8, 1-1~1-11)·임포터 상세(§7.3)의 정본. 이 백로그의 상위 문서.
+- [3.7 로드맵](../03-proposal/roadmap.md) — Phase 배분·성공 기준(0-1~0-8, 1-1~1-11, 2-1~2-10)·임포터 상세(§7.3)의 정본. 이 백로그의 상위 문서.
 - [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) — 스토리가 인용하는 FR-01~17 · NFR-01~05의 정의.
 - [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) — MCP 도구 카탈로그(§2.3)·에러/리스 규약(§2.7)·플러그인 구성(§3).
 - [3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) — 상태 머신·권한 매트릭스·클레임 알고리즘·이벤트 이름의 정본.
