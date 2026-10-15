@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 41개</b>다 — 도메인 35 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.71 (2026-10-12)</span>
+      <span>버전 v0.72 (2026-10-15)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -316,12 +316,17 @@ CREATE TABLE spec_version (                  -- 불변 스냅샷. 가변 구간�
   edit_lease_expires_at     timestamptz,                        -- TTL 30분(공용 상수)
   shrink_ack_at             timestamptz,                        -- 크게 줄인 것을 확인한 저장(allow_shrink) — 2026-10-08 · 0044 · REQ-DB-037
   shrink_ack_user_id        uuid REFERENCES "user"(id),         -- 그 저장을 한 사람. 한 번 남기면 그 버전에서 지우지 않는다
+  reverted_to_version_no    int,                                -- 되돌리기로 만든 초안이면 본문을 복사한 옛 버전 — 2026-10-15 · 0049 · REQ-DB-042
   created_at                timestamptz NOT NULL DEFAULT now(),
   updated_at                timestamptz NOT NULL DEFAULT now(), -- 본문이 **바뀐** 시각(저장된 시각이 아니다)
   body_tsv                  tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(body_md, ''))) STORED,
                                              -- 본문의 FTS 벡터 — 2026-10-12 · 0048 · REQ-DB-041. 검색이 질의마다 다시 분석하지 않게 둔다
   CONSTRAINT spec_version_no_uq UNIQUE (spec_id, version_no),
   CONSTRAINT spec_version_no_positive_ck CHECK (version_no &gt;= 1),
+  -- 되돌린 대상은 이 버전보다 앞선 버전이다(REQ-DB-042)
+  CONSTRAINT spec_version_reverted_to_ck CHECK (
+    reverted_to_version_no IS NULL OR (reverted_to_version_no &gt;= 1 AND reverted_to_version_no &lt; version_no)
+  ),
   -- data-model §5.5 규칙 9: 편집 리스는 draft에서만 non-NULL
   CONSTRAINT spec_version_lease_draft_only_ck CHECK (
     status = 'draft'
@@ -1260,6 +1265,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
       <tr><td><code>REQ-DB-039</code></td><td>WHEN 하트비트가 대기 표시를 남기면 THE SYSTEM SHALL 그것을 <code>claim.awaiting_kind</code> · <code>awaiting_refs</code> · <code>awaiting_until</code>에, 그때의 작업 상태를 <code>awaiting_task_status</code>에 저장하고, 종류 · 시각 · 상태는 함께 있거나 함께 없으며 대상은 종류가 있을 때만 두게(<code>claim_awaiting_ck</code>) 한다. 작업 상태가 바뀌어도 이 행에 쓰지 않는다 — 읽는 쪽이 상태를 견준다(잠금 순서). 이 열이 생기기 전의 행은 모두 대기 없음이다(마이그레이션 <code>0046</code> · 2026-10-09 · clemvion 보고 CLE-T-ZTTHXD — 백그라운드 리뷰를 기다리는 세션이 클레임을 풀었다)</td></tr>
       <tr><td><code>REQ-DB-040</code></td><td>WHEN 작업을 보관하면 THE SYSTEM SHALL <code>task.archived_at</code> · <code>archive_reason</code> · <code>archive_note</code> · <code>superseded_by_task_id</code> · <code>archived_by_user_id</code> · <code>archived_by_session_id</code>에 남기고, 시각 · 사유 · 보관한 사람은 함께 있거나 함께 없게, <code>duplicate</code>·<code>superseded</code>는 대신할 작업이 있고 자기 자신이 아니게(<code>task_archive_ck</code>), 끝난 작업은 보관하지 않게(<code>task_archive_not_done_ck</code>) 한다. 상태 열은 바꾸지 않는다. 이 열이 생기기 전의 행은 모두 보관하지 않은 작업이다(마이그레이션 <code>0047</code> · 2026-10-10 · 사람 결정)</td></tr>
       <tr><td><code>REQ-DB-041</code></td><td>WHEN <code>spec_version.body_md</code> 가 쓰이면 THE SYSTEM SHALL 같은 행의 <code>body_tsv</code>(생성 열 · <code>to_tsvector('simple', coalesce(body_md, ''))</code>)를 같은 쓰기에서 다시 만들고, 검색의 FTS 는 그 열과 GIN 인덱스(<code>spec_version_body_tsv</code>)를 쓴다(2026-10-12 · 사람 결정 · 0048 — 질의마다 본문 전체를 다시 분석하던 동안 이 저장소의 문서 세트에서 렉시컬 p95 가 0.8초였다 · <a href="api.html">4.4 API</a> §2.2c · REQ-API-301). 검증은 L2 <code>spec-domain.spec.ts</code> 다 — 본문 뒤쪽의 낱말이 <code>body_tsv @@</code> 로 잡힌다</td></tr>
+      <tr><td><code>REQ-DB-042</code></td><td>WHEN 되돌리기가 옛 버전의 본문으로 새 초안을 만들면 THE SYSTEM SHALL 그 옛 버전의 번호를 새 버전의 <code>spec_version.reverted_to_version_no</code>(int · NULL 허용)에 남기고, CHECK(<code>spec_version_reverted_to_ck</code>)로 1 이상 · 그 버전의 번호보다 작게 둔다. 초안을 이어 고쳐도 지우지 않는다 — 출발점의 기록이다. 이 열이 생기기 전의 버전은 NULL 이다(마이그레이션 <code>0049</code> · <a href="api.html">4.4 API 명세</a> REQ-API-308 · 2026-10-15 사람 결정)</td></tr>
     </tbody>
   </table></div>
 

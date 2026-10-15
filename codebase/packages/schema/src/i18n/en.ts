@@ -306,6 +306,8 @@ export const en = {
     'take over an edit lease held by another session. Use it when a disconnected session has not released the lease',
   'mcp.arg.allow_shrink':
     'declare that this save shrinks the body it overwrites sharply (size, heading count or kept requirements below half). Without it such a save is rejected with body_shrunk. Set it only after a person has confirmed the deletion',
+  'mcp.arg.revert_to_version':
+    'revert: the server copies the body of this earlier version (approved or superseded) as is into a new draft. Give spec_id and base_hash (the hash of the current latest version) and send no body. Rejected with open_draft_exists while a draft is open',
   'notif.scope_all':
     'Notifications from all your organizations. Each row shows its organization and project.',
   'scope.elsewhere': 'This item belongs to {org}, not the currently selected organization',
@@ -414,6 +416,8 @@ export const en = {
     'The body shrank sharply from the previous version v{n} ({detail}). If that was not intended, restore what was dropped. If the deletion is intended, save again with `allow_shrink: true` to record it.',
   'check.body_shrunk_ack':
     'The body shrank sharply from the previous version v{n} ({detail}). The save confirmed it as an intended deletion.',
+  'check.requirement_owned':
+    '{ref} belongs to {owner}. A document that defines the same number cannot be approved. Get a new number and use it. To move the requirement here, first remove the line in a new version of {owner} and get that approved.',
   'body_change.bytes': 'size {before} → {after}',
   'body_change.headings': 'headings {before} → {after}',
   'body_change.requirements': '{kept} of {before} requirements kept',
@@ -658,6 +662,13 @@ export const en = {
   'spec.requirements.format':
     '- REQ-<prefix>-<number> WHEN <condition> THE SYSTEM SHALL <behaviour>',
   'spec.requirements.no_priority': 'no priority',
+  'spec.requirements.next_title': 'New requirement line',
+  'spec.requirements.next_prefix': 'Prefix',
+  'spec.requirements.next_line': '- {ref} WHEN <condition> THE SYSTEM SHALL <behaviour>',
+  'spec.requirements.next_hint':
+    'Copy it and hand it to an agent. The agent adds it after the existing requirement lines. The number is a suggestion and becomes final when the document is approved.',
+  'spec.requirements.next_prefix_invalid':
+    'A prefix starts with an uppercase letter and uses only uppercase letters and digits (up to 16).',
   'specs.basis': 'Version basis',
   'specs.basis_approved': 'Approved',
   'specs.basis_latest': 'Latest (incl. drafts)',
@@ -918,6 +929,13 @@ export const en = {
     'A status filter cannot be combined with a baseline. Every document in a baseline was approved when it was captured.',
   'error.spec.in_review_pending':
     'A version is in review (v{n}), so a new draft cannot be started. Continue once the decision is made, or when it returns to draft after a rejection.',
+  'error.spec.open_draft_exists':
+    'A draft is open (v{n}), so the document cannot be reverted. The draft is not overwritten. Ask a person whether to continue that draft.',
+  'error.spec.revert_no_change':
+    'The body of v{n} is the same as the latest version (v{latest}). There is nothing to revert.',
+  'error.spec.requirement_owned':
+    'Not approved: this version defines requirement numbers that belong to another document ({refs}). Reject this version and have the numbers changed.',
+  'spec.revert_summary': 'Reverted to the body of v{n}',
   'error.task.rebrief_baseline':
     "A task developed against a baseline can't move only its basis version. Move the task to a new baseline instead.",
   'error.task.baseline_pin_mismatch':
@@ -1696,6 +1714,14 @@ export const en = {
   'spec.diff.no_previous': 'No earlier version to compare',
   'spec.diff.open': 'Compare with previous',
   'spec.version.open': 'View full text',
+  'spec.version.reverted': 'reverted to the body of v{n}',
+  'spec.revert.title': 'Revert to this version',
+  'spec.revert.hint':
+    'An agent creates a new draft that copies the body of v{n} as is. The draft goes through review like any other draft.',
+  'spec.revert.blocked_draft':
+    'A draft is open (v{n}), so a new draft cannot be created. To revert, ask an agent to replace that draft with the body of v{m}.',
+  'spec.revert.blocked_review':
+    'A version is in review (v{n}), so you cannot revert now. Revert after the decision.',
   'spec.gate_passed': '{tier}: passed without approval (recorded as an event).',
   'spec.impact_backlinks':
     '{count} documents reference this. On approval, they get a re-check request',

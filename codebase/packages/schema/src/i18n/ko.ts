@@ -314,6 +314,8 @@ export const ko = {
     '다른 세션이 가진 편집 리스를 넘겨받는다. 끊긴 세션이 리스를 놓지 않았을 때 쓴다',
   'mcp.arg.allow_shrink':
     '덮어쓸 본문보다 크게 줄이는 저장임을 밝힌다(크기 · 제목 수 · 남은 요구사항 가운데 하나가 절반 아래). 없으면 body_shrunk로 거절된다. 사람이 삭제를 확인했을 때만 준다',
+  'mcp.arg.revert_to_version':
+    '되돌리기 — 이 번호의 옛 버전(승인됨 · 대체됨) 본문을 서버가 그대로 복사해 새 초안을 만든다. spec_id와 base_hash(지금 최신 버전의 지문)를 함께 주고 본문은 넣지 않는다. 열린 초안이 있으면 open_draft_exists로 거절된다',
   'notif.scope_all': '내가 속한 모든 조직의 알림입니다. 줄마다 조직과 프로젝트가 표시됩니다.',
   'scope.elsewhere': '지금 선택한 조직이 아닌 {org}의 항목입니다',
   'scope.org_wide': '조직 전체',
@@ -420,6 +422,9 @@ export const ko = {
     '직전 버전 v{n}보다 본문이 크게 줄었습니다({detail}). 의도하지 않았으면 빠진 내용을 되살리세요. 의도한 삭제면 `allow_shrink: true`를 넣어 다시 저장해 확인을 남기세요.',
   'check.body_shrunk_ack':
     '직전 버전 v{n}보다 본문이 크게 줄었습니다({detail}). 저장할 때 의도한 삭제로 확인했습니다.',
+  // 문서 간 소유(2026-10-15 · REQ-API-309) — 다른 문서가 가진 번호를 이 문서가 정의한다
+  'check.requirement_owned':
+    '{ref}은(는) {owner} 문서의 요구사항입니다. 같은 번호를 정의한 문서는 승인할 수 없습니다. 새 번호를 받아 바꾸세요. {owner}에서 옮겨 오는 것이면 먼저 그 문서의 새 버전에서 이 줄을 빼고 승인받으세요.',
   'body_change.bytes': '크기 {before} → {after}',
   'body_change.headings': '제목 {before} → {after}개',
   'body_change.requirements': '요구사항 {before}개 중 {kept}개 남음',
@@ -659,6 +664,13 @@ export const ko = {
   'spec.requirements.draft_open_diff': 'v{from}..v{to} 비교 보기',
   'spec.requirements.format': '- REQ-<접두>-<번호> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다',
   'spec.requirements.no_priority': '우선순위 없음',
+  'spec.requirements.next_title': '새 요구사항 한 줄',
+  'spec.requirements.next_prefix': '접두',
+  'spec.requirements.next_line': '- {ref} WHEN <조건>이면 THE SYSTEM SHALL <동작>한다',
+  'spec.requirements.next_hint':
+    '복사해서 에이전트에게 넘기면 에이전트가 요구사항 줄의 끝에 넣습니다. 번호는 제안이고 문서가 승인될 때 확정됩니다.',
+  'spec.requirements.next_prefix_invalid':
+    '접두는 영문 대문자로 시작하고 영문 대문자와 숫자만 씁니다(16자까지).',
   'specs.basis': '버전 기준',
   'specs.basis_approved': '승인본',
   'specs.basis_latest': '최신 (초안 포함)',
@@ -903,6 +915,13 @@ export const ko = {
     '기준선으로 읽을 때는 상태 필터를 함께 지정할 수 없습니다. 기준선에 담긴 문서는 담을 때 모두 승인본이었습니다.',
   'error.spec.in_review_pending':
     '검토 중인 버전(v{n})이 있어 새 초안을 만들 수 없습니다. 결재가 끝나거나 거절되어 초안으로 돌아오면 그 위에서 이어 쓰세요.',
+  'error.spec.open_draft_exists':
+    '열린 초안(v{n})이 있어 되돌릴 수 없습니다. 그 초안을 덮어쓰지 않습니다. 그 초안을 이어 쓸지 사람에게 확인하세요.',
+  'error.spec.revert_no_change':
+    '되돌릴 버전(v{n})의 본문이 지금 최신 버전(v{latest})과 같습니다. 되돌릴 것이 없습니다.',
+  'error.spec.requirement_owned':
+    '다른 문서의 요구사항 번호를 정의하고 있어 승인하지 않았습니다({refs}). 이 버전을 거절하고 번호를 바꾸게 하세요.',
+  'spec.revert_summary': 'v{n} 본문으로 되돌림',
   'error.task.rebrief_baseline':
     '기준선으로 개발하는 작업은 기준 버전만 옮길 수 없습니다. 작업의 기준선을 새 기준선으로 바꾸세요.',
   'error.task.baseline_pin_mismatch':
@@ -1673,6 +1692,14 @@ export const ko = {
   'spec.diff.no_previous': '첫 버전이라 비교할 이전 버전이 없습니다',
   'spec.diff.open': '이전 버전과 비교',
   'spec.version.open': '이 버전 전체 보기',
+  'spec.version.reverted': 'v{n} 본문으로 되돌림',
+  'spec.revert.title': '이 버전으로 되돌리기',
+  'spec.revert.hint':
+    'v{n} 본문을 그대로 복사한 새 초안을 에이전트가 만듭니다. 그 초안도 다른 초안처럼 검토를 거칩니다.',
+  'spec.revert.blocked_draft':
+    '열린 초안(v{n})이 있어 새 초안을 만들 수 없습니다. 되돌리려면 그 초안을 v{m} 본문으로 바꾸도록 에이전트에게 맡기세요.',
+  'spec.revert.blocked_review':
+    '검토 중인 버전(v{n})이 있어 지금은 되돌릴 수 없습니다. 결재가 끝난 뒤에 되돌리세요.',
   'spec.gate_passed': '{tier}: 승인 없이 통과했습니다(이벤트로 기록됨).',
   'spec.impact_backlinks': '이 문서를 참조하는 문서 {count}건. 승인되면 재확인 요청이 갑니다',
   'spec.impact_dialog': '검토 요청 영향',

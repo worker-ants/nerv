@@ -25,6 +25,7 @@ import {
   NERV_EVENT,
   newId,
   normalizeEvidenceNote,
+  REQUIREMENT_PREFIX,
   SPEC_APPROVER_ROLES,
   SPEC_SUBMIT_ROLES,
   sizeLabel,
@@ -220,6 +221,11 @@ function specMatch(ref: string): SQL {
   return parsed.id === null ? sql`s.key = ${ref}` : sql`s.id = ${parsed.id}`;
 }
 
+/** 되돌리기로 만든 버전의 이벤트 칸(REQ-API-308) — 아니면 칸을 두지 않는다 */
+function revertedPayload(versionNo: number | null): { reverted_to_version_no?: number } {
+  return versionNo === null ? {} : { reverted_to_version_no: Number(versionNo) };
+}
+
 @Injectable()
 export class SpecService {
   private readonly logger = new Logger(SpecService.name);
@@ -263,20 +269,41 @@ export class SpecService {
   private async syncRequirements(
     tx: Tx,
     input: { projectId: string; specId: string; specVersionId: string },
-  ): Promise<void> {
+  ): Promise<{ moved: { ref: string; from_key: string }[] }> {
     const { rows } = await tx.execute<{ body_md: string }>(
       sql`SELECT body_md FROM spec_version WHERE id = ${input.specVersionId}`,
     );
     const found = requirementsOf(rows[0]?.body_md ?? '');
 
+    // **다른 문서가 가진 번호는 덮지 않는다**(2026-10-15 · REQ-API-309). `ON CONFLICT` 가 `spec_id` 를 보지 않던
+    // 동안 다른 문서가 같은 번호를 정의해 승인하면 그 문서의 요구사항 문장을 조용히 덮었다(소유는 옛 문서인 채).
+    // 소유가 풀린 번호 — 가진 문서의 최신 승인본에서 그 줄이 빠진 것(`removed_in_version_id`) — 는 옮겨 온다.
+    // 판정을 갱신 조건에 두어 동시에 승인하는 두 문서도 덮지 못한다(나중 쪽은 갱신된 행이 없어 거절된다).
+    const { rows: before } = await tx.execute<{ ref: string; owner_key: string }>(sql`
+      SELECT r.ref, s.key AS owner_key
+        FROM requirement r JOIN spec s ON s.id = r.spec_id
+       WHERE r.project_id = ${input.projectId} AND r.spec_id <> ${input.specId}
+         AND r.removed_in_version_id IS NOT NULL
+         AND r.ref = ANY(${sqlArray([...found.keys()], 'text')})
+    `);
+    const releasedFrom = new Map(before.map((row) => [row.ref, row.owner_key]));
+    const refused: string[] = [];
+    const moved: { ref: string; from_key: string }[] = [];
+
     for (const [ref, statement] of found) {
-      await tx.execute(sql`
+      const { rows: written } = await tx.execute<{ id: string }>(sql`
         INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, priority,
                                  introduced_in_version_id, current_version_id)
         VALUES (${newId()}, ${input.projectId}, ${input.specId}, ${ref}, ${statement},
                 'must'::requirement_priority, ${input.specVersionId}, ${input.specVersionId})
         ON CONFLICT (project_id, ref) DO UPDATE
-              SET statement_md = ${statement},
+              SET spec_id = ${input.specId},
+                  -- 옮겨 온 요구사항은 이 문서의 이 버전에서 들어온 것이다 — 기준선 검색이 버전 번호를 견주는
+                  -- 축이 문서마다라서, 옛 문서의 버전을 가리키면 견줄 수 없다
+                  introduced_in_version_id = CASE WHEN requirement.spec_id = ${input.specId}
+                                                  THEN requirement.introduced_in_version_id
+                                                  ELSE ${input.specVersionId}::uuid END,
+                  statement_md = ${statement},
                   -- **문장이 바뀐 시각**(2026-09-26 · REQ-API-190). 검증 서명은 그 문장에 대한
                   -- 것이라, 이 시각보다 앞선 서명은 지금 문장을 보증하지 않는다. 공백·서식만
                   -- 바뀐 것은 바뀐 것으로 치지 않는다
@@ -287,7 +314,30 @@ export class SpecService {
                   current_version_id = ${input.specVersionId},
                   -- 빠졌다가 돌아온 요구사항은 다시 살아 있는 것으로 본다
                   removed_in_version_id = NULL
+          WHERE requirement.spec_id = ${input.specId}
+             OR requirement.removed_in_version_id IS NOT NULL
+        RETURNING id
       `);
+      if (written.length === 0) refused.push(ref);
+      else if (releasedFrom.has(ref)) moved.push({ ref, from_key: releasedFrom.get(ref) ?? '' });
+    }
+    if (refused.length > 0) {
+      const { rows: owners } = await tx.execute<{ ref: string; owner_key: string }>(sql`
+        SELECT r.ref, s.key AS owner_key
+          FROM requirement r JOIN spec s ON s.id = r.spec_id
+         WHERE r.project_id = ${input.projectId} AND r.ref = ANY(${sqlArray(refused, 'text')})
+         ORDER BY r.ref
+      `);
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.spec.requirement_owned', {
+          refs: owners.map((o) => `${o.ref} → ${o.owner_key}`).join(', '),
+        }),
+        {
+          kind: 'requirement_owned',
+          owned: owners.map((o) => ({ ref: o.ref, owner_key: o.owner_key })),
+        },
+      );
     }
 
     // 문장이 바뀐 요구사항은 다시 파생한다 — 옛 문장에 한 서명으로 선 검증은 여기서 풀린다.
@@ -297,13 +347,14 @@ export class SpecService {
     `);
     for (const row of restated) await recomputeImplStatus(tx, row.id);
 
-    // 본문에서 사라진 것 — 지우지 않고 이 버전에서 빠졌다고 적는다
+    // 본문에서 사라진 것 — 지우지 않고 이 버전에서 빠졌다고 적는다. 이것이 소유가 풀리는 자리다(REQ-API-309)
     await tx.execute(sql`
       UPDATE requirement
          SET removed_in_version_id = ${input.specVersionId}
        WHERE spec_id = ${input.specId} AND removed_in_version_id IS NULL
          AND NOT (ref = ANY(${sqlArray([...found.keys()], 'text')}))
     `);
+    return { moved };
   }
 
   /**
@@ -1166,37 +1217,7 @@ export class SpecService {
       // 예전에는 열린 초안이 없으면 승인본의 지문과 견줘, 검토 중인 개정판을 건너뛴 새 초안이 경고 없이
       // 생겼고(계보는 그 개정판을 가리켰다) 개정판이 거절되면 초안이 둘이 됐다. "가변 구간은 초안
       // 하나" 라는 문서 축의 규칙대로, 결재가 끝나거나 거절되어 초안으로 돌아오면 그 위에서 잇는다.
-      if (isExisting && draft === null) {
-        const { rows: reviewing } = await tx.execute<{
-          version_no: number;
-          approval_id: string | null;
-        }>(sql`
-          SELECT sv.version_no,
-                 (SELECT a.id FROM approval a
-                   WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id
-                     AND a.decision IS NULL
-                   ORDER BY a.requested_at DESC LIMIT 1) AS approval_id
-            FROM spec_version sv
-           WHERE sv.spec_id = ${specId} AND sv.status = 'in_review'
-           ORDER BY sv.version_no DESC LIMIT 1
-        `);
-        const pending = reviewing[0];
-        if (pending !== undefined) {
-          throw new NervError(
-            NERV_ERROR.PRECONDITION,
-            msg('error.spec.in_review_pending', { n: pending.version_no }),
-            {
-              kind: 'in_review_pending',
-              version_no: pending.version_no,
-              approval_id: pending.approval_id,
-              web_url:
-                pending.approval_id === null
-                  ? await this.webUrl(tx, input.projectId, specId, pending.version_no)
-                  : this.inboxUrl(pending.approval_id),
-            },
-          );
-        }
-      }
+      if (isExisting && draft === null) await this.assertNoReview(tx, input.projectId, specId);
 
       // **비교-교환**(§1.4g). 부른 쪽이 말하는 것은 **"어느 내용을 보고 썼는가" 하나**다.
       // "어느 행에서 갈라졌는가"(계보)는 서버가 아는 사실이라 묻지 않는다 — 예전에는
@@ -1511,6 +1532,198 @@ export class SpecService {
   }
 
   /**
+   * **되돌리기**(2026-10-15 · 사람 결정 · REQ-API-308 · 3.5 §2.4) — 옛 버전의 본문을 바이트 그대로 복사해 **새 초안**을
+   * 만든다. EP-SPEC-30 과 `nerv_spec_draft_upsert`(`revert_to_version`)가 이 한 자리를 부른다(D-05).
+   *
+   * **승인본을 직접 되돌리지 않는다.** 문서 축(D-02)에 승인본에서 뒤로 가는 전이가 없고, 있으면 D-06 게이트를 건너뛴다.
+   * 새 초안은 보통 초안과 같이 제출 → 판정 → 결재를 지난다. 손으로도 할 수 있던 일(옛 본문을 읽어 저장)이지만 그 길로는
+   * 어느 버전을 되살렸는지가 남지 않았다 — 버전 행(`reverted_to_version_no`)과 제출 · 승인 이벤트가 그것을 남긴다.
+   *
+   * 규칙 넷.
+   * - **열린 초안이 있으면 거절한다**(409 `open_draft_exists` · 그 초안의 번호). 덮어쓰면 남의 작업이 조용히 사라진다 —
+   *   그 초안을 마치거나 버릴지는 사람이 정한다. 검토 중인 버전이 있으면 초안 저장과 같은 `in_review_pending` 이다.
+   * - **되살릴 수 있는 것은 본문이 확정된 버전이다**(승인됨 · 대체됨 · 폐기됨). 위 둘을 지나면 남은 버전은 모두 그렇다.
+   *   지금 최신 버전과 본문이 같으면 되돌릴 것이 없다(409 `revert_no_change`).
+   * - **본문이 크게 줄어도 받는다** — 되살리는 것은 사람이 고른 일이라 `allow_shrink` 를 따로 묻지 않고, 그 확인을 버전에
+   *   남긴다(사전 검토는 warning). 축소 신호는 그대로라 제출하면 게이트가 최소 T2 로 올린다(REQ-API-273).
+   * - `base_hash` 는 지금 최신 버전의 지문이다 — 사람이 본 최신과 되돌릴 때의 최신이 같아야 한다(§1.4g).
+   */
+  async revertToVersion(input: {
+    projectId: string;
+    /** 문서 — 키든 UUID 든 받는다(§1.4b) */
+    specId: string;
+    /** 본문을 되살릴 옛 버전의 번호 */
+    versionNo: number;
+    baseHash?: string | undefined;
+    changeSummary?: string | undefined;
+    userId: string;
+    sessionId?: string | null;
+  }): Promise<Record<string, unknown>> {
+    if (!Number.isInteger(input.versionNo) || input.versionNo < 1) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        wrong_type: ['revert_to_version'],
+      });
+    }
+    return this.events.transact(async (tx, emit) => {
+      const specId = await this.resolveSpecId(tx, input.projectId, input.specId);
+      if (specId === null) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.not_found'), {
+          kind: 'not_found',
+          spec: input.specId,
+        });
+      }
+      await this.requireLiveSpec(tx, input.projectId, specId);
+
+      // 열린 초안 — 잠그고 읽는다(동시 저장과 같은 자리를 다툰다)
+      const draft = await this.currentDraft(tx, specId);
+      if (draft !== null) {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.open_draft_exists', { n: Number(draft.version_no) }),
+          {
+            kind: 'open_draft_exists',
+            version_no: Number(draft.version_no),
+            spec_version_id: draft.id,
+            web_url: await this.webUrl(tx, input.projectId, specId, Number(draft.version_no)),
+          },
+        );
+      }
+      await this.assertNoReview(tx, input.projectId, specId);
+
+      const { rows: targets } = await tx.execute<{
+        id: string;
+        version_no: number;
+        status: string;
+        body_md: string;
+      }>(sql`
+        SELECT id, version_no, status::text AS status, body_md
+          FROM spec_version WHERE spec_id = ${specId} AND version_no = ${input.versionNo}
+      `);
+      const target = targets[0];
+      if (target === undefined || target.status === 'draft' || target.status === 'in_review') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_not_found'), {
+          kind: 'not_found',
+          field: 'revert_to_version',
+          version_no: input.versionNo,
+        });
+      }
+      const { rows: latest } = await tx.execute<{
+        id: string;
+        version_no: number;
+        body_md: string;
+      }>(sql`
+        SELECT id, version_no, body_md FROM spec_version
+         WHERE spec_id = ${specId} ORDER BY version_no DESC LIMIT 1
+      `);
+      const prior = latest[0];
+      if (prior === undefined || prior.body_md === target.body_md) {
+        throw new NervError(
+          NERV_ERROR.PRECONDITION,
+          msg('error.spec.revert_no_change', {
+            n: input.versionNo,
+            latest: Number(prior?.version_no ?? input.versionNo),
+          }),
+          {
+            kind: 'revert_no_change',
+            version_no: input.versionNo,
+            latest_version_no: Number(prior?.version_no ?? input.versionNo),
+          },
+        );
+      }
+
+      // 비교-교환 — 초안 저장과 같은 기준(읽는 사람이 보는 버전)이다. 열린 초안도 검토 중도 없으니 최신 승인본이다
+      const reader = await readerVersion(tx, specId);
+      if (reader !== null) {
+        const reread = {
+          current_hash: reader.content_hash,
+          current_version_no: Number(reader.version_no),
+          current_status: reader.status,
+          reread: {
+            tool: 'nerv_spec_get',
+            args: { spec_id: await this.keyOfSpec(tx, specId), version: Number(reader.version_no) },
+          },
+          web_url: await this.webUrl(tx, input.projectId, specId, Number(reader.version_no)),
+        };
+        if (input.baseHash == null || input.baseHash === '') {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.base_hash_required'), {
+            kind: 'base_hash_required',
+            ...reread,
+          });
+        }
+        if (input.baseHash !== reader.content_hash) {
+          throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.stale_body'), {
+            kind: 'stale_body',
+            received: input.baseHash,
+            ...reread,
+          });
+        }
+      }
+
+      const body = target.body_md;
+      const change = bodyChange(prior.body_md, body);
+      // 사람이 고른 되살림이라 축소를 확인한 것으로 남긴다 — 사전 검토는 warning, 게이트의 축소 신호는 그대로다
+      const shrunk = change.shrunk.length > 0;
+      const hash = createHash('sha256').update(body, 'utf8').digest('hex');
+      const leaseExpires = new Date(Date.now() + this.draftLeaseTtlSeconds * 1000);
+      const versionNo = Number(prior.version_no) + 1;
+      const versionId = newId();
+      const summary =
+        input.changeSummary !== undefined && input.changeSummary.trim() !== ''
+          ? input.changeSummary
+          : text('spec.revert_summary', { n: input.versionNo });
+
+      await tx.execute(sql`
+        INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
+                                  change_summary_md,
+                                  author_user_id, author_session_id, base_version_id,
+                                  edit_lease_user_id, edit_lease_session_id, edit_lease_expires_at,
+                                  shrink_ack_at, shrink_ack_user_id, reverted_to_version_no)
+        VALUES (${versionId}, ${specId}, ${versionNo}, 'draft', ${body},
+                decode(${hash}, 'hex'), ${summary},
+                ${input.userId}, ${input.sessionId ?? null},
+                ${prior.id}, ${input.userId}, ${input.sessionId ?? null},
+                ${leaseExpires.toISOString()},
+                ${shrunk ? sql`now()` : null},
+                ${shrunk ? input.userId : null},
+                ${input.versionNo})
+      `);
+
+      await emit({
+        payload: {
+          change_summary: summary,
+          reverted_to_version_no: input.versionNo,
+          ...(shrunk ? { shrink_allowed: true } : {}),
+        },
+        type: NERV_EVENT.SPEC_DRAFT_CREATED,
+        projectId: input.projectId,
+        subjectType: 'spec_version',
+        subjectId: versionId,
+        subjectKey: await this.keyOfSpec(tx, specId),
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId ?? null,
+        isAgent: input.sessionId != null,
+        toState: 'draft',
+      });
+
+      // 본문의 링크가 관계의 주인이다 — 옛 본문의 링크로 다시 맞춘다. 선언 관계는 건드리지 않는다
+      const relations = await this.syncRelations(tx, input.projectId, specId, body);
+      return {
+        spec_id: specId,
+        spec_version_id: versionId,
+        version_no: versionNo,
+        created: true,
+        reverted_to_version_no: input.versionNo,
+        content_hash: hash,
+        delta: specDelta(prior.body_md, body),
+        body_change: change,
+        relations: { ...relations, declared: null },
+        web_url: await this.webUrl(tx, input.projectId, specId, versionNo),
+      };
+    });
+  }
+
+  /**
    * nerv_spec_submit_review · EP-SPEC-10 (A3 — 사람 승인 필요).
    *
    * 제출은 **본문을 동결한다**. 게이트 티어를 산출해 T0·T1 은 자동 통과시키고
@@ -1543,9 +1756,10 @@ export class SpecService {
       status: string;
       spec_type: string;
       author_user_id: string;
+      reverted_to_version_no: number | null;
     }>(sql`
       SELECT sv.id, sv.spec_id, sv.status::text AS status, s.type::text AS spec_type,
-             sv.author_user_id
+             sv.author_user_id, sv.reverted_to_version_no
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
        WHERE sv.id = ${input.specVersionId} AND s.project_id = ${input.projectId}
        FOR UPDATE OF sv
@@ -1635,6 +1849,8 @@ export class SpecService {
         ...bodyChangePayload,
         // 검토 요청과 승인이 한 번이었다는 사실 — 감사가 바로 승인을 셀 수 있어야 한다(REQ-API-287)
         ...(input.direct === undefined ? {} : { direct: true }),
+        // 되돌리기로 만든 버전이면 되살린 옛 버전(2026-10-15 · REQ-API-308) — 롤백 신호를 계산할 재료다
+        ...revertedPayload(version.reverted_to_version_no),
       },
     });
 
@@ -2331,7 +2547,9 @@ export class SpecService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT sv.id, sv.version_no, sv.status::text AS status, sv.change_summary_md, sv.updated_at,
              sv.author_user_id, sv.approved_by_user_id, sv.submitted_at, sv.approved_at,
-             sv.created_at
+             sv.created_at,
+             -- 되돌리기로 만든 버전이면 되살린 옛 버전(2026-10-15 · REQ-API-308) — 목록이 "v3 되돌림" 을 보인다
+             sv.reverted_to_version_no
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
        -- 키든 UUID 든 받는다(§1.4b) — \`nerv_spec_get\` 의 \`include: ["versions"]\` 가 이것을 부른다
        WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
@@ -2566,25 +2784,43 @@ export class SpecService {
    *
    * 접두는 부르는 쪽이 정한다(보통 스펙 키의 가운데 토막) — 서버는 그 접두의 최대 번호에
    * 1을 더한다. **예약하지 않는다**: 이 값은 제안이고, 실제 소유는 승인된 본문이 정한다.
+   *
+   * **열린 초안의 줄도 센다**(2026-10-15 · REQ-API-145 개정). 요구사항 행은 승인 때 생기므로 행만 세던 동안에는
+   * 동시에 쓰는 초안 둘(검토 중 포함)이 같은 번호를 받았다. 초안 본문은 요구사항 추출기(`requirementsOf` — 승인이
+   * 행을 만들 때 쓰는 그 함수)로 읽는다. 인용만 한 번호는 세지 않는다 — 정의한 줄만 번호를 차지한다.
    */
   async nextRequirementRef(input: {
     projectId: string;
     prefix: string;
   }): Promise<{ ref: string; prefix: string }> {
     const prefix = input.prefix.trim().toUpperCase();
-    if (!/^[A-Z][A-Z0-9]{0,15}$/.test(prefix)) {
+    if (!REQUIREMENT_PREFIX.test(prefix)) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
         kind: 'invalid_input',
         field: 'prefix',
         value: input.prefix,
       });
     }
+    const head = `REQ-${prefix}-`;
     const { rows } = await this.db.execute<{ max: number | null }>(sql`
       SELECT max(substring(ref from '[0-9]+$')::int) AS max
         FROM requirement
-       WHERE project_id = ${input.projectId} AND ref LIKE ${`REQ-${prefix}-%`}
+       WHERE project_id = ${input.projectId} AND ref LIKE ${`${head}%`}
     `);
-    const next = (rows[0]?.max ?? 0) + 1;
+    const { rows: open } = await this.db.execute<{ body_md: string }>(sql`
+      SELECT sv.body_md
+        FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+       WHERE s.project_id = ${input.projectId} AND sv.status IN ('draft', 'in_review')
+         AND strpos(sv.body_md, ${head}) > 0
+    `);
+    let max = Number(rows[0]?.max ?? 0);
+    for (const { body_md } of open) {
+      for (const ref of requirementsOf(body_md).keys()) {
+        const tail = ref.startsWith(head) ? ref.slice(head.length) : '';
+        if (/^\d+$/.test(tail)) max = Math.max(max, Number(tail));
+      }
+    }
+    const next = max + 1;
     return { ref: `REQ-${prefix}-${String(next).padStart(3, '0')}`, prefix };
   }
 
@@ -3096,6 +3332,41 @@ export class SpecService {
    * 이 초안의 본문이 **직전 버전**(계보 `base_version_id`)보다 크게 줄었는가 — 사전 검토가 block 으로 잡는 그 판정이다
    * (REQ-API-271). `allow_shrink` 를 준 이어쓰기가 확인 기록을 남길지는 이것만 정한다. 첫 버전이면(계보가 없으면) 거짓이다.
    */
+  /**
+   * **검토 중인 개정판이 있으면 새 초안을 만들지 않는다**(2026-09-27 사람 결정 M4 · REQ-API-200). 초안 저장과
+   * 되돌리기(REQ-API-308)가 같은 판정을 쓴다 — 가변 구간은 문서마다 하나다(3.5 §1.2).
+   */
+  private async assertNoReview(tx: Tx, projectId: string, specId: string): Promise<void> {
+    const { rows: reviewing } = await tx.execute<{
+      version_no: number;
+      approval_id: string | null;
+    }>(sql`
+      SELECT sv.version_no,
+             (SELECT a.id FROM approval a
+               WHERE a.subject_type = 'spec_version' AND a.subject_id = sv.id
+                 AND a.decision IS NULL
+               ORDER BY a.requested_at DESC LIMIT 1) AS approval_id
+        FROM spec_version sv
+       WHERE sv.spec_id = ${specId} AND sv.status = 'in_review'
+       ORDER BY sv.version_no DESC LIMIT 1
+    `);
+    const pending = reviewing[0];
+    if (pending === undefined) return;
+    throw new NervError(
+      NERV_ERROR.PRECONDITION,
+      msg('error.spec.in_review_pending', { n: pending.version_no }),
+      {
+        kind: 'in_review_pending',
+        version_no: pending.version_no,
+        approval_id: pending.approval_id,
+        web_url:
+          pending.approval_id === null
+            ? await this.webUrl(tx, projectId, specId, pending.version_no)
+            : this.inboxUrl(pending.approval_id),
+      },
+    );
+  }
+
   private async shrunkFromBase(tx: Tx, draftId: string, nextBody: string): Promise<boolean> {
     const { rows } = await tx.execute<{ body_md: string }>(sql`
       SELECT b.body_md FROM spec_version d JOIN spec_version b ON b.id = d.base_version_id
@@ -3502,6 +3773,11 @@ export class SpecService {
       gate: ApprovedGate;
     },
   ): Promise<void> {
+    // 되돌리기로 만든 버전인가(REQ-API-308) — 승인 이벤트가 제출 이벤트와 같은 값을 남긴다
+    const { rows: origin } = await tx.execute<{ reverted_to_version_no: number | null }>(
+      sql`SELECT reverted_to_version_no FROM spec_version WHERE id = ${input.specVersionId}`,
+    );
+
     // 같은 Spec 의 이전 approved 를 superseded 로 (서버 자동 전이 — §1.2)
     const { rows: superseded } = await tx.execute<{ id: string }>(sql`
       UPDATE spec_version
@@ -3519,7 +3795,7 @@ export class SpecService {
       sql`UPDATE spec SET current_version_id = ${input.specVersionId} WHERE id = ${input.specId}`,
     );
 
-    await this.syncRequirements(tx, {
+    const { moved } = await this.syncRequirements(tx, {
       projectId: input.projectId,
       specId: input.specId,
       specVersionId: input.specVersionId,
@@ -3543,6 +3819,9 @@ export class SpecService {
         ...(input.gate.policyFingerprint === null
           ? {}
           : { policy_fingerprint: input.gate.policyFingerprint }),
+        ...revertedPayload(origin[0]?.reverted_to_version_no ?? null),
+        // 다른 문서에서 소유가 풀린 번호를 옮겨 왔으면 남긴다(REQ-API-309) — 요구사항의 주인이 바뀐 기록이다
+        ...(moved.length === 0 ? {} : { requirements_moved: moved }),
       },
     });
 

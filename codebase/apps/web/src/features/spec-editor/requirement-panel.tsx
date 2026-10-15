@@ -8,23 +8,38 @@
 // "빈 약속"(요구사항은 있는데 Task 도 증적도 0)이 여기서 눈에 띄어야 한다. 커버리지
 // 숫자는 프로젝트 개요가 말하지만, **어느 요구사항인지**는 이 목록만 말할 수 있다.
 
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useT } from '../../lib/i18n.js';
-import { rows, useMe, useRequirements, useSpecDiff, useTaskLane } from '../../lib/queries.js';
+import {
+  rows,
+  useMe,
+  useNextRequirementRef,
+  useRequirements,
+  useSpecDiff,
+  useTaskLane,
+} from '../../lib/queries.js';
 import { apiFetch } from '../../lib/api.js';
 import { useApiError } from '../../lib/api-errors.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { useScope } from '../../lib/scope.js';
 import { rolesInProject } from '../../lib/session.js';
-import { Button, Mono, Skeleton } from '../../components/ui/primitives.js';
+import { Button, Input, Mono, Skeleton } from '../../components/ui/primitives.js';
+import { CopyButton } from '../../components/copy-button.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { StatusBadge } from '../../components/status-badge.js';
 import { REQUIREMENT_TOKEN } from '../../components/status-token.js';
-import { EVIDENCE_SIGNER_ROLES, requirementsOf, statusLabelKey } from '@nerv/schema';
+import {
+  EVIDENCE_SIGNER_ROLES,
+  REQUIREMENT_PREFIX,
+  requirementsOf,
+  scopesForRoles,
+  statusLabelKey,
+} from '@nerv/schema';
 import { taskStatusText } from '../../lib/format.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { ProjectId } from '../../lib/query-keys.js';
@@ -72,9 +87,19 @@ export function RequirementPanel({
   // 검증 서명을 남길 수 있는 사람만 "영향 없음 확인" 을 본다 — 서버의 서명 규칙과 같은 목록이다
   const me = useMe();
   const { orgSlug } = useScope(projectSlug);
-  const canSign = rolesInProject(me.data, orgSlug, projectSlug).some((role) =>
+  const myRoles = rolesInProject(me.data, orgSlug, projectSlug);
+  const canSign = myRoles.some((role) =>
     (EVIDENCE_SIGNER_ROLES as readonly string[]).includes(role),
   );
+  // **다음 번호 복사 칸**(2026-10-15 사람 결정 · REQ-WEB-313) — 초안을 쓸 수 있는 사람(서버 가드 `spec:draft` 와 같은
+  // 값)에게만 보인다. 그 줄을 받아 본문에 넣는 것은 그 사람의 에이전트다
+  const nextLine = scopesForRoles(myRoles).has('spec:draft') ? (
+    <NextRequirementLine
+      projectSlug={projectSlug}
+      specKey={specKey}
+      refs={[...items.map((r) => String(r['ref'])), ...requirementsOf(draftBody ?? '').keys()]}
+    />
+  ) : null;
 
   if (query.isPending) return <Skeleton rows={1} className="[&>div]:h-16" />;
   // 받지 못한 것을 "요구사항이 없습니다" 로 그리지 않는다(REQ-WEB-198)
@@ -106,6 +131,7 @@ export function RequirementPanel({
             {t('spec.requirements.ears_help')} ▸
           </Link>
         </div>
+        {nextLine}
       </div>
     );
   }
@@ -184,7 +210,94 @@ export function RequirementPanel({
           );
         })}
       </ul>
+      {nextLine}
     </div>
+  );
+}
+
+/**
+ * 다음 번호를 물을 접두 — 이 문서가 이미 쓰는 접두가 먼저고, 없으면 스펙 키의 가운데 토막이다(`SPC-CWC-007` → `CWC`).
+ * 고를 것이 없으면 빈 값이다 — 사람이 칸에 적는다.
+ */
+export function requirementPrefixOf(specKey: string, refs: Iterable<string>): string {
+  for (const ref of refs) {
+    const middle = /^[A-Z]+-([A-Z][A-Z0-9]*)-\d+$/.exec(ref)?.[1];
+    if (middle !== undefined && REQUIREMENT_PREFIX.test(middle)) return middle;
+  }
+  const parts = specKey.toUpperCase().split('-');
+  const middle = parts.length >= 2 ? (parts[1] ?? '') : (parts[0] ?? '');
+  return REQUIREMENT_PREFIX.test(middle) ? middle : '';
+}
+
+/**
+ * **다음 번호 + EARS 한 줄 복사 칸**(2026-10-15 · 사람 결정 · REQ-WEB-313). 웹은 본문을 쓰지 않는다(REQ-WEB-173) —
+ * 등록 폼 대신 서버가 제안한 다음 번호(EP-REQ-04)로 요구사항 한 줄의 틀을 보이고, 사람이 그것을 복사해 에이전트에게
+ * 넘긴다. 에이전트가 요구사항 줄 묶음의 끝에 넣는다. 번호는 **예약하지 않는다** — 승인이 확정하고, 다른 문서가 가진
+ * 번호면 승인이 거절한다(REQ-API-309). 서버가 열린 초안의 줄도 세므로 동시에 쓰는 초안 둘이 같은 번호를 받지 않는다.
+ */
+export function NextRequirementLine({
+  projectSlug,
+  specKey,
+  refs,
+}: {
+  projectSlug: string;
+  specKey: string;
+  refs: readonly string[];
+}): React.JSX.Element {
+  const t = useT();
+  const derived = requirementPrefixOf(specKey, refs);
+  // 사람이 고친 접두가 있으면 그것을 쓴다 — 고치지 않았으면 문서를 따라 바뀐다
+  const [typed, setTyped] = useState<string | null>(null);
+  const prefix = (typed ?? derived).trim();
+  const valid = REQUIREMENT_PREFIX.test(prefix);
+  const next = useNextRequirementRef(projectSlug, valid ? prefix : '');
+  const line =
+    valid && next.data !== undefined
+      ? t('spec.requirements.next_line', { ref: next.data.ref })
+      : null;
+
+  return (
+    <section
+      data-testid="next-requirement"
+      className="mx-1 flex flex-col gap-1.5 rounded-nerv border border-border px-2.5 py-2"
+    >
+      <div className="flex items-center gap-2">
+        <p className="text-2xs text-text-faint">{t('spec.requirements.next_title')}</p>
+        <label className="ml-auto flex items-center gap-1 text-2xs text-text-faint">
+          {t('spec.requirements.next_prefix')}
+          <Input
+            data-testid="next-requirement-prefix"
+            value={typed ?? derived}
+            maxLength={16}
+            spellCheck={false}
+            onChange={(e) => setTyped(e.target.value.toUpperCase())}
+            className="h-6 w-24 px-1 font-mono text-2xs"
+          />
+        </label>
+      </div>
+      {!valid ? (
+        <p data-testid="next-requirement-invalid" className="text-2xs text-status-danger">
+          {t('spec.requirements.next_prefix_invalid')}
+        </p>
+      ) : next.isPending ? (
+        <Skeleton rows={1} />
+      ) : failedWithoutData(next) ? (
+        <ErrorState error={next.error} onRetry={() => void next.refetch()} />
+      ) : (
+        line !== null && (
+          <div className="flex items-center gap-1.5">
+            <code
+              data-testid="next-requirement-line"
+              className="min-w-0 flex-1 truncate rounded-nerv bg-bg-elev px-2 py-1 font-mono text-2xs"
+            >
+              {line}
+            </code>
+            <CopyButton value={line} testId="next-requirement-copy" />
+          </div>
+        )
+      )}
+      <p className="text-2xs text-text-faint">{t('spec.requirements.next_hint')}</p>
+    </section>
   );
 }
 

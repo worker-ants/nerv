@@ -9,6 +9,7 @@ import { apiFetch } from './api.js';
 import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
 import { PENDING_PROJECT, queryKeys } from './query-keys.js';
 import type { ProjectId } from './query-keys.js';
+import { REQUIREMENT_PREFIX } from '@nerv/schema';
 import type { ApprovalInboxState } from '@nerv/schema';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
@@ -660,6 +661,26 @@ export function useRequirements(slug: string, specKey: string): UseQueryResult<R
     queryKey: [...queryKeys.spec(specKey), 'requirements'],
     queryFn: () =>
       apiFetch<Row[]>(`/projects/${slug}/requirements?spec=${encodeURIComponent(specKey)}`),
+    refetchInterval,
+  });
+}
+
+/**
+ * EP-REQ-04 — 그 접두의 다음 요구사항 번호(2026-10-15 · 사람 결정 · REQ-WEB-313). **제안이고 예약하지 않는다** —
+ * 서버가 승인된 행과 열린 초안의 줄을 함께 세서 준다(REQ-API-145). 접두가 어휘 밖이면 묻지 않는다(400 을 받을 일이다).
+ */
+export function useNextRequirementRef(
+  slug: string,
+  prefix: string,
+): UseQueryResult<{ ref: string; prefix: string }> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: ['requirements', slug, 'next-ref', prefix],
+    queryFn: () =>
+      apiFetch<{ ref: string; prefix: string }>(
+        `/projects/${slug}/requirements/next-ref?prefix=${encodeURIComponent(prefix)}`,
+      ),
+    enabled: REQUIREMENT_PREFIX.test(prefix),
     refetchInterval,
   });
 }

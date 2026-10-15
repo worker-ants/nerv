@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.25 · 2026-10-11 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.26 · 2026-10-15 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.26 변경(2026-10-15 — 과거 버전을 되살리기, **사람 결정**): **§2.2 `spec_version` 한 행 · 무결성 규칙 문장 하나.** 과거 버전을 되살리는 기능의 이름을 「되돌리기」로 정하고(「복원」은 보관한 것을 되살리는 말이다) 그 일이 무엇인지 적는다 — 서버가 옛 버전의 본문을 그대로 복사해 새 초안을 만들고 그 초안은 보통 게이트를 지난다. 새 버전은 되살린 옛 버전의 번호(`reverted_to_version_no`)를 남긴다([4.4 API](../04-mvp/api.md) REQ-API-308).
 >
 > v0.25 변경(2026-10-11 — 초안을 바로 승인한다, **사람 결정**): §2.9 `api_token.scopes` 한 칸. 권한 어휘가 11종이 됐다 — `spec:approve`가 사람 전용에서 옵트인 토큰 권한으로 옮겨 왔고, 사람 전용은 `approval:decide` 하나다([4.4 API](../04-mvp/api.md) REQ-API-291).
 >
@@ -316,9 +318,10 @@ stateDiagram-v2
 | `edit_lease_user_id` | uuid FK NULL | 초안 편집 리스 보유자(D-04의 문서 축 확장). 리스는 1차 사전 조정 — `base_hash_id` 409는 그대로 최후 방어선이다 |
 | `edit_lease_session_id` | uuid FK NULL | 보유 표면. 에이전트 세션이면 그 세션, NULL = 웹 |
 | `edit_lease_expires_at` | timestamptz NULL | 리스 만료. TTL 30분 — Task 클레임 리스·stale 임계와 같은 상수 |
+| `reverted_to_version_no` | int NULL | 되돌리기로 만든 초안이면 본문을 복사한 옛 버전의 번호(2026-10-15). 초안을 이어 고쳐도 지우지 않는다 — 어디서 출발했는지의 기록이고 롤백 신호를 계산할 재료다 |
 | `updated_at` | timestamptz | 본문이 **바뀐** 시각(저장된 시각이 아니다). draft 는 같은 행을 덮어쓰므로 `created_at` 만으로는 "언제 바뀌었나"에 답하지 못한다 — 요약만 고치는 저장·리스 갱신에는 움직이지 않는다 |
 
-무결성 규칙: `status = 'approved'` 이후 `body_md`·`content_hash` UPDATE를 트리거로 금지한다. 과거 버전 복원은 편집이 아니라 **새 버전 생성**이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다.
+무결성 규칙: `status = 'approved'` 이후 `body_md`·`content_hash` UPDATE를 트리거로 금지한다. 과거 버전으로 **되돌리기**는 편집이 아니라 **새 버전 생성**이다 — Confluence가 20년째 쓰는 인터페이스이고, 요구공학의 baseline 정의("합의·검토·승인된 요구사항 집합의 시점 스냅샷") 그대로다. 서버가 옛 버전의 본문을 그대로 복사해 새 초안을 만들고 그 초안은 보통 게이트(제출 → 판정 → 결재)를 지난다. 승인본을 직접 되돌리는 전이는 없다(2026-10-15 사람 결정 · [4.4 API](../04-mvp/api.md) REQ-API-308). 이 기능을 「복원」이라 부르지 않는다 — 그 말은 보관한 문서를 되살리는 일이다.
 
 **`requirement`** — 구현 추적의 단위(D-03).
 

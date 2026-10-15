@@ -60,6 +60,18 @@ export const SpecDraftUpsertInput = z
   .strict();
 
 /**
+ * EP-SPEC-30 — **되돌리기**(2026-10-15 · 사람 결정 · REQ-API-308). 경로의 `{no}` 버전 본문을 그대로 복사해 새 초안을
+ * 만든다. 본문은 받지 않는다 — 서버가 옛 버전에서 복사한다. `base_hash` 는 지금 최신 버전(되돌림이 덮는 그 버전)의
+ * 지문이다: 사람이 본 최신과 되돌릴 때의 최신이 같아야 한다.
+ */
+export const SpecRevertInput = z
+  .object({
+    base_hash: z.string().nullish(),
+    change_summary: z.string().nullish(),
+  })
+  .strict();
+
+/**
  * EP-SPEC-15 — 메타 수정. **`parent_key: null` 은 "부모에서 떼라"** 이고
  * 키가 아예 없는 것과 다르다 — 그래서 `nullable().optional()` 을 쓴다.
  */

@@ -73,6 +73,7 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 | NERV_FORBIDDEN `missing_role` | 바로 승인은 admin · planner 만 한다. /nerv:spec submit 으로 검토를 요청하자고 제안한다 |
 | NERV_PRECONDITION `stale_approval` | 보여 준 뒤 본문이 바뀌었다. details 의 `reread` 대로 다시 읽고 3단계부터 다시 한다 — 앞의 대답으로 바뀐 본문을 승인하지 않는다 |
 | NERV_PRECONDITION `precheck_blocked` | 사전 검토가 막았다. details 의 `findings` 를 보고한다 |
+| NERV_PRECONDITION `requirement_owned` | 이 버전이 다른 문서가 가진 요구사항 번호를 정의했다(details 의 `owned` — 번호와 가진 문서). 승인되지 않았다 — 그대로 보고하고, 번호를 바꾸는 것은 /nerv:spec edit 절차라고 말한다 |
 | NERV_PRECONDITION `not_draft` | 이미 승인됐거나 대체된 버전이다. 상태를 보고하고 멈춘다 |
 | NERV_FORBIDDEN `already_approved` | T3 에서 내 승인이 이미 있다. 다른 승인자를 기다린다 |
 | NERV_FORBIDDEN `self_approval` | 직군 자리의 결재라 자기 승인이 막혔다. 웹의 받은 요청 카드를 전하고 다른 승인자를 기다린다 |

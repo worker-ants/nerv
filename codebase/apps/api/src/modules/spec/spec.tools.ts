@@ -501,11 +501,52 @@ export class SpecTools implements NervToolProvider {
           // **크게 줄이는 저장의 확인**(REQ-API-270). 잘린 본문과 의도한 삭제를 서버가 구별할 수 없어 부른 쪽이
           // 말한다 — 없이 크게 줄이면 `body_shrunk` 로 거절된다
           allow_shrink: { type: 'boolean', default: false, description: 'mcp.arg.allow_shrink' },
+          // **되돌리기**(2026-10-15 · 사람 결정 · REQ-API-308). 그 번호의 옛 버전 본문을 서버가 그대로 복사해 새 초안을
+          // 만든다 — 본문을 싣지 않는다. 도구를 새로 두지 않은 것은 결과가 이 도구의 새 초안과 같기 때문이다(EP-SPEC-30)
+          revert_to_version: {
+            type: 'integer',
+            minimum: 1,
+            description: 'mcp.arg.revert_to_version',
+          },
         },
         // `required` 로는 "둘 중 하나"를 적을 수 없다 — 그 판정은 핸들러가 한다
         required: [],
       },
       handler: async (input, ctx) => {
+        const revertTo = input['revert_to_version'];
+        if (revertTo !== undefined && revertTo !== null) {
+          // 본문은 옛 버전에서 온다 — 함께 실은 본문 · 메타 · 관계는 쓰이지 않으므로 조용히 버리지 않고 거절한다(§1.4e)
+          const conflicting = [
+            'body_markdown',
+            'body_md',
+            'key',
+            'title',
+            'type',
+            'parent_id',
+            'relations',
+          ].filter((name) => input[name] !== undefined && input[name] !== null);
+          const specKey = input['spec_id'];
+          if (conflicting.length > 0 || typeof specKey !== 'string' || specKey === '') {
+            throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+              kind: 'invalid_input',
+              ...(typeof specKey !== 'string' || specKey === '' ? { missing: ['spec_id'] } : {}),
+              ...(conflicting.length > 0
+                ? { not_allowed: conflicting, reason: 'revert_copies_body' }
+                : {}),
+            });
+          }
+          return this.specs.revertToVersion({
+            projectId: ctx.projectId,
+            specId: specKey,
+            versionNo: Number(revertTo),
+            userId: ctx.principal.userId,
+            sessionId: ctx.sessionId,
+            ...(typeof input['base_hash'] === 'string' ? { baseHash: input['base_hash'] } : {}),
+            ...(typeof input['change_summary'] === 'string' && input['change_summary'].trim() !== ''
+              ? { changeSummary: input['change_summary'] }
+              : {}),
+          });
+        }
         const body = input['body_markdown'] ?? input['body_md'];
         if (typeof body !== 'string') {
           throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {

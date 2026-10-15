@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.05 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.06 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.06 변경(2026-10-15 — 과거 버전을 되살리기 · 요구사항 등록 폼, **사람 결정**): **새 요구사항 없음 · §2.2 `spec` 서브커맨드 하나(`revert`)와 요구사항 줄 절 두 항목 · 에러 표 세 칸 · §2.8 `approve` 에러 표 한 칸 · 패키지 0.3.27 → 0.3.28.** ① `/nerv:spec revert <키> <번호>` — `nerv_spec_draft_upsert`의 `revert_to_version`으로 옛 버전의 본문을 그대로 복사한 새 초안을 만든다. 본문을 직접 읽어 다시 저장하지 않는다(어느 버전을 되살렸는지가 남지 않는다). 열린 초안이 있으면 `open_draft_exists`이고 그 초안을 어떻게 할지 사람에게 묻는다. ② 다음 요구사항 번호는 EP-REQ-04를 `curl`로 받는다 — 서버가 열린 초안의 줄도 센다. 사람이 웹에서 복사한 줄을 건네면 그 번호로 요구사항 줄 묶음의 끝에 넣는다. 다른 문서가 가진 번호는 사전 검토가 막고 승인도 거절한다(`requirement_owned`)([4.4 API](api.md) REQ-API-308 · 145 · 309).
 >
 > v1.05 변경(2026-10-15 — 결재 만료, **사람 결정**): **새 요구사항 없음 · §2.2 `spec` 제출 절과 에러 표 한 칸 · §2.3 `impl` 하트비트 규약 한 항목 · §2.8 `approve` 6단계 한 줄 · 패키지 0.3.26 → 0.3.27.** 스펙 검토가 7일 동안 결정되지 않으면 만료되어 그 버전이 초안으로 돌아간다. 하트비트 `pending`의 `approval_expired`를 받으면 사람에게 보고하고 다시 낼지는 사람에게 묻는다 — 스스로 다시 내지 않는다. 계획 승인 · critical 하향 카드는 만료되지 않는다([4.4 API](api.md) REQ-API-304 · 306).
 >
@@ -196,7 +198,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.27
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.28
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -223,7 +225,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "license": "Apache-2.0"
 }
 ```
@@ -388,7 +390,7 @@ allowed-tools:
 ````markdown
 ---
 name: spec
-description: NERV 스펙의 조회·초안 작성·사전 검토·코멘트 해소·검토 요청. 기획자의 주 작성 경로이며, 개발자가 구현 중 스펙 결함을 만났을 때도 사용한다. 서브커맨드 - new / edit / check / comments / submit.
+description: NERV 스펙의 조회·초안 작성·사전 검토·코멘트 해소·검토 요청·옛 버전으로 되돌리기. 기획자의 주 작성 경로이며, 개발자가 구현 중 스펙 결함을 만났을 때도 사용한다. 서브커맨드 - new / edit / check / comments / submit / revert.
 paths:
   - "spec/**"
 allowed-tools:
@@ -422,7 +424,7 @@ allowed-tools:
 
 # /nerv:spec — 스펙 조회 · 초안 · 검토 요청
 
-사용법: `/nerv:spec <서브커맨드> [SPC-…]` — 예: `/nerv:spec edit SPC-CWC-007`
+사용법: `/nerv:spec <서브커맨드> [SPC-…]` — 예: `/nerv:spec edit SPC-CWC-007` · `/nerv:spec revert SPC-CWC-007 3`
 `spec/**` 파일은 NERV가 내보낸 read-only 미러다. 직접 편집하지 않는다 — 스펙 변경은
 반드시 아래 도구 경로로만 한다.
 
@@ -604,7 +606,9 @@ allowed-tools:
 `feature` 스펙 본문에는 **요구사항 줄**이 있어야 한다. 형식은 하나다 —
 `- REQ-<접두>-<번호 3자리> WHEN <조건>이면 THE SYSTEM SHALL <동작>한다`.
 
-- **ID 는 서버가 발급한다.** 다음 번호는 EP-REQ-04(`requirements/next-ref`)가 준다. 직접 세지 않는다: 같은 번호를 둘이 세면 `requirement-shape` 가 중복으로 막는다. 접두는 보통 스펙 키의 가운데 토막이다(`SPC-CWC-007` → `CWC`).
+- **ID 는 서버가 발급한다.** 다음 번호는 EP-REQ-04 가 준다 — `curl -sL "$NERV_SERVER/api/v1/projects/<프로젝트>/requirements/next-ref?prefix=<접두>" -H "Authorization: Bearer $NERV_TOKEN"` → `ref`. 직접 세지 않는다. 서버는 승인된 요구사항과 **열린 초안(검토 중 포함)의 요구사항 줄**을 함께 센다. 그래서 받은 번호를 바로 본문에 저장하면 다른 초안이 같은 번호를 받지 않는다. 접두는 보통 스펙 키의 가운데 토막이다(`SPC-CWC-007` → `CWC`).
+- **사람이 웹 요구사항 탭에서 복사한 줄**(`- REQ-… WHEN <조건>이면 THE SYSTEM SHALL <동작>한다`)을 건네면 그 번호를 그대로 쓴다. 기존 요구사항 줄 묶음의 **끝**에 넣는다. `<조건>` · `<동작>` 자리는 대화에서 정한 내용으로 채운다 — 정해지지 않았으면 사람에게 묻는다. Bash 가 없는 세션이면 다음 번호를 그 칸에서 받아 달라고 사람에게 부탁한다.
+- **번호는 승인이 확정한다.** 다른 문서가 가진 번호를 정의하면 사전 검토(`cross-spec`)가 block 으로 막고 승인도 거절된다(`requirement_owned`). 같은 문서 안에서 두 번 정의하면 `requirement-shape` 가 막는다. 그때는 새 번호를 받아 바꾼다. 다른 문서의 요구사항을 이 문서로 옮기려면 먼저 그 문서의 새 버전에서 그 줄을 빼고 승인받는다 — 그래야 소유가 풀린다.
 - **문형은 WHEN·WHILE·IF 셋 중 하나로 시작해 THE SYSTEM SHALL 로 잇는다.** 어긴 줄은 경고다.
 - **한 줄도 없으면 그것도 경고다**(2026-09-07). 약속을 적지 않은 문서는 지켜졌는지 물을 수 없고, 구현 축은 셀 것이 없다. 승인본 65건에 요구사항 0건이던 실측이 그 자리다.
 - 규약·ADR·영역 문서(`convention`·`adr`·`area`·`vision`)는 요구사항이 없는 것이 정상이라 이 경고를 받지 않는다.
@@ -638,6 +642,25 @@ convention-compliance / requirement-shape / task-coherence / base-continuity) �
 /nerv:approve 절차를 따른다 — 검토 요청과 승인이 한 번에 된다. 이미 검토 요청을 올린 버전도 같은
 절차로 승인한다. 사람이 그 버전을 보고 승인한다고 답하기 전에는 승인하지 않는다.
 
+### revert — 옛 버전으로 되돌리기
+사람이 웹의 옛 버전 보기에서 복사한 `/nerv:spec revert <SPC-…> <버전 번호>` 를 주거나, 대화에서 "v3 으로 되돌려 달라" 고 할 때 쓴다.
+서버가 그 버전의 본문을 **바이트 그대로 복사한 새 초안**을 만든다 — 승인본을 되돌리는 것이 아니라 새 초안이다. 그 초안은 다른 초안처럼
+검토를 거친다. 본문을 직접 읽어 다시 저장하지 않는다: 그렇게 하면 어느 버전을 되살렸는지가 남지 않는다.
+
+1. `nerv_spec_get`(`spec_id`, `basis`=`latest`, `include=["versions"]`)으로 지금 최신 버전과 버전 목록을 읽는다. 되살릴 버전이
+   승인됨 · 대체됨인지, 최신 버전이 초안 · 검토 중이 아닌지 확인한다. 무엇이 바뀌는지는 `diff_from`(`version`=<되살릴 번호>)으로
+   받아 사람에게 보여 주고 되돌릴지 확인받는다.
+2. `nerv_spec_draft_upsert`(`spec_id`, `revert_to_version`=<번호>, `base_hash`=<1에서 읽은 지문>, `change_summary`) — 본문 ·
+   메타 · 관계는 넣지 않는다(넣으면 `invalid_input` 의 `not_allowed`). `base_hash` 는 1의 응답에 있는 `content_hash` 다.
+   `change_summary` 에는 왜 되돌리는지를 적는다(빼면 서버가 "vN 본문으로 되돌림"을 남긴다). 크게 줄어도 `allow_shrink` 는
+   필요 없다 — 되살리는 것은 사람이 고른 일이다.
+3. 응답의 `version_no` · `reverted_to_version_no` · `delta` · `body_change` · `web_url` 을 사람에게 보고한다. 크게 줄었으면
+   제출할 때 등급이 최소 T2 로 오른다(사람이 한 번 본다)는 것도 함께 말한다. 이어서 submit 절차를 따른다.
+
+- **열린 초안이 있으면 `open_draft_exists`** 로 거절된다(details 의 `version_no` 가 그 초안이다). 서버는 그 초안을 덮지 않는다 —
+  그 초안을 이어 쓸지, 그 초안을 옛 본문으로 바꿀지(edit 절차 · `allow_shrink` 는 사람이 확인한 뒤) 사람에게 묻는다.
+- 검토 중인 버전이 있으면 `in_review_pending` 이다 — 결재가 끝날 때까지 기다린다.
+
 ## 에러 대응
 
 | 코드 | 대응 |
@@ -645,6 +668,9 @@ convention-compliance / requirement-shape / task-coherence / base-continuity) �
 | NERV_PRECONDITION `stale_body` | 그 사이 남이 본문을 바꿨다 — details 의 `reread` 대로 다시 읽고 **내 변경을 그 위에 다시 얹는다.** 같은 본문으로 재시도하면 남의 글을 덮어쓴다. details 에 현재 지문 · `current_version_no` · web_url 이 온다 |
 | NERV_PRECONDITION `base_hash_required` | 기존 문서를 고치면서 지문을 넣지 않았다 — details 의 `reread` 대로 읽고 그 `content_hash` 를 넣어 다시 부른다 |
 | NERV_PRECONDITION `in_review_pending` | 검토 중인 개정판(`version_no`)이 있어 새 초안을 만들 수 없다 — details 의 `approval_id`·`web_url` 을 사람에게 알리고 기다린다. 거절되거나 7일 뒤 만료되면 그 버전이 초안으로 돌아오니 그 위에서 잇는다 |
+| NERV_PRECONDITION `open_draft_exists` | 되돌리려는데 열린 초안(`version_no`)이 있다 — 그 초안을 덮지 않는다. details 의 `web_url` 을 사람에게 알리고 그 초안을 이어 쓸지 옛 본문으로 바꿀지 묻는다 |
+| NERV_PRECONDITION `revert_no_change` | 되살릴 버전의 본문이 지금 최신 버전(`latest_version_no`)과 같다 — 되돌릴 것이 없다고 보고한다 |
+| NERV_PRECONDITION `requirement_owned` | 승인하려는 버전이 다른 문서가 가진 요구사항 번호를 정의했다(details 의 `owned` — 번호와 가진 문서). 결재자에게 거절을 부탁하고 새 번호를 받아 edit 절차로 바꾼다 |
 | NERV_DRAFT_LEASED | 다른 **세션**이 편집 리스 보유(같은 사람이어도 온다) — details 의 `holder`·`expires_at` 를 사람에게 보고한다. 상대가 살아 있으면 기다리거나 nerv_question_create, 죽은 세션이면 `takeover: true` 로 이어받는다 |
 | NERV_APPROVAL_REQUIRED | 이 스킬의 도구는 내지 않는다 — 오면 `approval_id` 를 사람에게 보고하고 멈춘다 |
 | NERV_HUMAN_ONLY | 웹 딥링크를 사람에게 전달하고 대기(삭제 · 결재 카드의 결정 등은 도구가 존재하지 않는다. 세션에서의 승인은 /nerv:approve 다) |
@@ -1250,6 +1276,7 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 | NERV_FORBIDDEN `missing_role` | 바로 승인은 admin · planner 만 한다. /nerv:spec submit 으로 검토를 요청하자고 제안한다 |
 | NERV_PRECONDITION `stale_approval` | 보여 준 뒤 본문이 바뀌었다. details 의 `reread` 대로 다시 읽고 3단계부터 다시 한다 — 앞의 대답으로 바뀐 본문을 승인하지 않는다 |
 | NERV_PRECONDITION `precheck_blocked` | 사전 검토가 막았다. details 의 `findings` 를 보고한다 |
+| NERV_PRECONDITION `requirement_owned` | 이 버전이 다른 문서가 가진 요구사항 번호를 정의했다(details 의 `owned` — 번호와 가진 문서). 승인되지 않았다 — 그대로 보고하고, 번호를 바꾸는 것은 /nerv:spec edit 절차라고 말한다 |
 | NERV_PRECONDITION `not_draft` | 이미 승인됐거나 대체된 버전이다. 상태를 보고하고 멈춘다 |
 | NERV_FORBIDDEN `already_approved` | T3 에서 내 승인이 이미 있다. 다른 승인자를 기다린다 |
 | NERV_FORBIDDEN `self_approval` | 직군 자리의 결재라 자기 승인이 막혔다. 웹의 받은 요청 카드를 전하고 다른 승인자를 기다린다 |
