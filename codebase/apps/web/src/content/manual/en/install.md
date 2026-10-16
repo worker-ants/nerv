@@ -77,6 +77,8 @@ export NERV_TOKEN="<the token from step 1>"
 export NERV_PROJECT="{{project}}"
 ```
 
+**A shell profile only supplies values.** Hooks send to the server only from repositories set up for NERV, so still run the command at the end of 3-A (from plugin 0.3.33).
+
 `NERV_HOSTNAME` is the value the sessions screen shows as "whose machine this is". **We recommend setting it.** Some hooks send events directly to the server and include this value as is. If it is empty, sessions appear in the list with no machine name. Once you run agents on two or more machines, you can no longer tell which session belongs to which machine.
 
 ```bash
@@ -135,6 +137,8 @@ cd <your repository>
 
 In a repository where setup is incomplete, you see what is missing when a session starts. **This is only a notice; no files are created.** Starting the setup is up to you. In a repository with no sign of NERV, nothing is shown.
 
+**Hooks send only from repositories set up for NERV** (from plugin 0.3.33). There is one plugin per machine, so its hooks run in every repository. They send to the server only when the repository has the settings the command above creates: a `nerv` server in `.mcp.json`, `NERV_` values in `.claude/settings.local.json`, or a `.nerv/env` file. Working in a subfolder is fine, because the hooks look for the settings at the top of the repository. In a repository where you only have a token in your shell and never ran the command, the hooks send nothing, so no activity or branch is recorded on the sessions screen. You're told about this when a session starts there. If you run `nerv-init --check` yourself in a terminal, its first line tells you whether hooks send from this repository.
+
 After the files are created, **restart Claude Code**. A newly created `.mcp.json` is read on restart.
 
 To write it by hand, use the content below (together with the environment variables from step 2).
@@ -156,7 +160,7 @@ To write it by hand, use the content below (together with the environment variab
 
 `/mcp` should show `nerv` as connected.
 
-**On a company-managed machine, skip this step.** The managed settings have already registered the marketplace and enabled the plugin, and `NERV_SERVER` and `NERV_PROJECT` come from them too. You only need steps 1, 2, 4, and 5.
+**On a company-managed machine, skip this step.** The managed settings have already registered the marketplace and enabled the plugin, and `NERV_SERVER` and `NERV_PROJECT` come from them too. You only need steps 1, 2, 4, and 5. If the managed settings put `NERV_MANAGED=1` in `env`, hooks also send from repositories where the command above was never run. Without it, they send only from repositories that are set up.
 
 ### Korean writing-style plugin (optional) {#ko-style}
 
@@ -249,7 +253,7 @@ Claude Code does not read `AGENTS.md` automatically yet. If you use both agents 
 notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
 ```
 
-**Only turns in repositories set up for NERV are sent.** Because the line lives in your user config, Codex runs it in every repository. The forwarder sends to the server only when the turn's working folder has NERV settings: a `.nerv/env` file, or a `nerv` server in the repository's `.codex/config.toml` or `.mcp.json`. Nothing is sent without a token either. So replies from repositories that don't use NERV never reach the server.
+**Only turns in repositories set up for NERV are sent.** Because the line lives in your user config, Codex runs it in every repository. The forwarder sends to the server only when the turn's working folder (or the top of the git repository it belongs to) has NERV settings: a `.nerv/env` file, or a `nerv` server in the repository's `.codex/config.toml` or `.mcp.json`. It also sends when the managed settings have `NERV_MANAGED=1`. Nothing is sent without a token. So replies from repositories that don't use NERV never reach the server. Hooks follow the same rule (3-A).
 
 ## 4. Check the connection {#verify}
 
@@ -258,7 +262,7 @@ notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/ne
 
 Either way, the connection is only complete when **your session card appears on the sessions screen** in the web app.
 
-In Claude Code, the session card appears **before** `nerv_bootstrap` is called, because the session-start hook registers the session directly. So if you see the tools but no card, check **the hook**: the token may be empty, `curl` may be missing, or the hook could not connect to the server. The forwarder fails without reporting an error, so nothing is shown.
+In Claude Code, the session card appears **before** `nerv_bootstrap` is called, because the session-start hook registers the session directly. So if you see the tools but no card, check **the hook**: the token may be empty, `curl` may be missing, or the hook could not connect to the server. Hooks also send nothing if this repository is not set up for NERV (3-A). The forwarder fails without reporting an error, so nothing is shown.
 
 ## 5. Your first task {#first-task}
 
@@ -279,7 +283,7 @@ The skill calls `nerv_bootstrap` first, recommends the next task, and walks you 
 | `/nerv:approve` fails with a missing scope | The token does not have `spec:approve`, which is not in the recommended set. In Settings → Agent tokens, click [Edit] on that token and turn it on (only admins and planners can select it). The token value and your settings files stay as they are. Until then, click [Approve now] on the document page on the web |
 | Tools work but the project is not visible  | **That token was issued in a different project.** A token's project is set when it is issued, and no header can change it. Issue a new token in the project you want                                                                                                                                                   |
 | `project_mismatch`                         | `X-NERV-Project` and the token's project differ. The error message shows both values, so fix whichever is wrong                                                                                                                                                                                                        |
-| No session card appears                    | The hook could not connect to the server. Check `NERV_TOKEN`, `NERV_SERVER`, and `curl`. Hooks fail without showing an error                                                                                                                                                                                           |
+| No session card appears                    | The hook could not connect to the server, or this repository is not set up for NERV (3-A: with only a token in your shell, hooks send nothing). Check `NERV_TOKEN`, `NERV_SERVER`, and `curl`. Hooks fail without showing an error                                                                                     |
 | Requesting review just fails               | It is an A3 tool, so a person has to allow every call (see [Agents](/help/agents)). When the terminal asks whether to allow the tool, allow it. In a headless run there is no one to allow it, so the call is denied. Once the request is up, the decision is made in the [Inbox](/help/inbox)                         |
 | `NERV_RATE_LIMIT`                          | Too many requests. The limit is 300 requests per minute per token, and 120 requests per minute per session for hooks. Wait for the `retry_after_s` in the response. Don't try to get around the limit with parallel retries                                                                                            |
 | The session goes `stale`                   | Heartbeats stopped. After 30 minutes, the claim is reclaimed (see [Sessions](/help/sessions))                                                                                                                                                                                                                          |

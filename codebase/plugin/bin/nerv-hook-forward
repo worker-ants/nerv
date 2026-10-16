@@ -31,27 +31,48 @@ fi
 # 본문이 비면 보내지 않는다 — 서버의 빈 훅 처리를 늘리는 것보다 여기서 멈추는 편이 낫다
 [[ -z "${payload}" ]] && exit 0
 
-# **notify 는 NERV 를 설정한 저장소의 턴만 보낸다**(2026-10-16 · REQ-PLG-038 개정 · plugin.md §5.2).
+# **NERV 를 설정한 저장소의 일만 보낸다**(2026-10-16 · 사람 결정 · REQ-PLG-041 · REQ-PLG-038 · plugin.md §3.1).
 #
-# Codex 는 `notify` 를 사용자 설정(`~/.codex/config.toml`)에서만 읽는다 — 기계 전체에 하나라 NERV 를 쓰지 않는 저장소의
-# 턴에도 이 스크립트가 불린다. 예전에는 셸에 토큰이 있으면 그 턴의 답변이 서버로 나갔다(서버가 세션을 못 찾아 버려도
-# 전송은 됐다). 판정 자리는 그 턴의 작업 디렉터리 — 알림의 `cwd`, 없으면 이 프로세스의 디렉터리다. 거기로 옮겨 그 저장소의
-# `.nerv/env` 를 읽는다. 판정은 `nerv-init` 과 같은 함수(`nerv_repo_configured` · nerv-env.sh)이고, 토큰이 비어도 보내지
-# 않는다. 아니면 조용히 끝낸다 — Codex 는 notify 의 출력을 읽지 않는다. 훅은 호스트가 프로젝트 디렉터리에서 부르므로 그대로다.
-if [[ "${endpoint}" == "notify" ]]; then
-  turn_dir="$(printf '%s' "${payload}" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"\\]*\)".*/\1/p' | head -n 1)"
-  if [[ -n "${turn_dir}" ]]; then
-    cd "${turn_dir}" 2>/dev/null || exit 0
-  fi
+# 플러그인은 기계에 하나라 훅이 모든 저장소에서 돌고, Codex 의 `notify` 는 사용자 설정(`~/.codex/config.toml`)에만 둘 수
+# 있어 모든 저장소의 턴에 불린다. 예전에는 셸에 토큰이 있으면 NERV 를 쓰지 않는 저장소의 명령 · 파일 경로(도구 훅)와
+# 답변(notify)까지 서버로 나갔다 — 서버가 세션을 못 찾아 버려도 전송은 됐다. 이제 둘 중 하나일 때만 보낸다.
+#   ① 그 일의 디렉터리가 NERV 를 설정한 저장소다 — 훅 입력 · 알림의 `cwd`(없으면 이 프로세스의 디렉터리)나 그 git 저장소의
+#      맨 위에 설정이 있다(`nerv_config_root` · nerv-env.sh). Claude Code 의 훅은 세션을 연 저장소(`CLAUDE_PROJECT_DIR`)도 본다 —
+#      에이전트가 저장소 밖으로 `cd` 해도 그 세션은 그 저장소의 일이다. Codex 의 훅(`PLUGIN_ROOT`)과 notify 에서는 보지
+#      않는다 — 그 값이 Codex 를 띄운 셸에서 이어진 것일 수 있다(`CLAUDECODE` 를 보지 않는 이유와 같다 · 아래 에이전트 판정).
+#   ② 관리형 설치다 — 조직이 관리형 settings 의 env 에 `NERV_MANAGED=1` 을 두었다(`nerv_managed`). 저장소에 파일이 없어도
+#      그 기계의 모든 작업 저장소가 NERV 대상이라는 조직의 선택이다. 셸에 우연히 있는 토큰과 구별하는 표시다.
+# 그리고 토큰이 있을 때만 보낸다. 아니면 아무것도 보내지 않고 성공으로 끝낸다 — 출력도 없다(세션 안내를 기다리는
+# SessionStart 도 빈 성공이다). 훅이 실패로 보이면 안 된다: Codex 는 훅 출력의 모양에 민감하다(REQ-API-323).
+#
+# 판정은 `nerv-init`(온보딩 · `--check`) · `nerv-outbox` 와 같은 함수다. http 변형(`hooks.http.json`)의 http 훅은 이 스크립트를
+# 거치지 않고 서버로 바로 가서 이 판정이 적용되지 않는다(plugin.md §3.1).
+turn_dir="$(printf '%s' "${payload}" | grep -o '"cwd"[[:space:]]*:[[:space:]]*"[^"\\]*"' | head -n 1 |
+  sed 's/^"cwd"[[:space:]]*:[[:space:]]*"\(.*\)"$/\1/')"
+
+# notify 는 그 턴의 디렉터리로 옮겨 그 저장소의 `.nerv/env` 를 읽는다. 훅은 호스트가 부른 자리 그대로다(브랜치를 거기서 읽는다)
+if [[ "${endpoint}" == "notify" && -n "${turn_dir}" ]]; then
+  cd "${turn_dir}" 2>/dev/null || exit 0
 fi
 
-# 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
+# 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3). 관리형 표시는 파일에서 읽지 않는다
 . "${here}/nerv-env.sh"
 
-if [[ "${endpoint}" == "notify" ]]; then
-  nerv_repo_configured . || exit 0
-  [[ -n "${NERV_TOKEN:-}" ]] || exit 0
+candidates=("${turn_dir:-$PWD}")
+if [[ "${endpoint}" != "notify" && -z "${PLUGIN_ROOT:-}" && -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+  candidates+=("${CLAUDE_PROJECT_DIR}")
 fi
+root=""
+for candidate in "${candidates[@]}"; do
+  root="$(nerv_config_root "${candidate}")" && break
+  root=""
+done
+[[ -n "${root}" ]] || nerv_managed || exit 0
+# 설정을 찾은 자리가 이 디렉터리가 아니면(하위 폴더 · 세션의 저장소) 그 저장소의 `.nerv/env` 로 빈 칸을 채운다
+if [[ -n "${root}" && -z "${NERV_ENV_FILE:-}" ]]; then
+  NERV_ENV_FILE="${root}/.nerv/env" nerv_load_env
+fi
+[[ -n "${NERV_TOKEN:-}" ]] || exit 0
 base="${NERV_SERVER:-https://api.nerv.example.com}"
 
 # **브랜치는 모델이 아니라 git 이 말한다**(2026-09-03 · 사람 결정).

@@ -28,7 +28,8 @@ startup_timeout_sec = 20
 # 없으면 아무것도 하지 않는다. Codex 는 알림 JSON 을 마지막 인자($1)로 붙인다. 포워더는
 # 그 세션 저장소의 .nerv/env 와 셸 환경(NERV_SERVER · NERV_PROJECT · NERV_TOKEN)을 읽는다.
 # 사용자 설정이라 모든 저장소의 턴에 불리지만, 포워더는 NERV 를 설정한 저장소(.nerv/env · 저장소
-# .codex/config.toml 의 [mcp_servers.nerv] · .mcp.json 의 nerv)의 턴만 보낸다(4.6 §5.2 · REQ-PLG-038).
+# .codex/config.toml 의 [mcp_servers.nerv] · .mcp.json 의 nerv — 그 git 저장소의 맨 위까지 본다)나
+# 관리형 설치(NERV_MANAGED=1)의 턴만 보낸다. 훅도 같다(4.6 §3.1 · §5.2 · REQ-PLG-038 · 041).
 # notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
 #
 # [otel]

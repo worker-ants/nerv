@@ -1039,9 +1039,14 @@ describe('REQ-PLG-040 — Codex 온보딩은 없는 것만 만든다', () => {
 describe('REQ-PLG-019 — 세션 훅이 플러그인 버전을 싣는다', () => {
   const script = join(here, 'bin/nerv-hook-forward');
 
-  /** curl 을 가로채 인자를 적는다 — 실제로 무엇을 보내는지가 검사 대상이다 */
+  /**
+   * curl 을 가로채 인자를 적는다 — 실제로 무엇을 보내는지가 검사 대상이다. NERV 를 설정한 저장소(`.nerv/env`)에서 토큰을 갖고
+   * 부른다 — 훅은 그때만 보낸다(REQ-PLG-041).
+   */
   function sentHeaders(endpoint: string): string[] {
     const dir = mkdtempSync(join(tmpdir(), 'nerv-forward-'));
+    mkdirSync(join(dir, '.nerv'));
+    writeFileSync(join(dir, '.nerv/env'), 'NERV_PROJECT=clemvion\n');
     const log = join(dir, 'args.txt');
     writeFileSync(join(dir, 'curl'), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${log}"\n`, {
       mode: 0o755,
@@ -1050,7 +1055,14 @@ describe('REQ-PLG-019 — 세션 훅이 플러그인 버전을 싣는다', () =>
       cwd: dir,
       input: '{"session_id":"S-1"}',
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, PATH: `${dir}:${process.env['PATH'] ?? ''}`, NERV_SERVER: 'http://x' },
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+        NERV_SERVER: 'http://x',
+        NERV_TOKEN: 'sk-test',
+        NERV_ENV_FILE: '',
+        CLAUDE_PROJECT_DIR: '',
+      },
     });
     const args = readFileSync(log, 'utf8').split('\n');
     return args.filter((_, i) => args[i - 1] === '--header');
@@ -1110,7 +1122,8 @@ describe('REQ-PLG-034 — 포워더가 누가 부르는지 싣는다', () => {
 
   /**
    * curl 을 가로채 인자를 적고 서버 응답 하나를 흉내 낸다. 러너의 환경(Claude Code 안에서 돌면 `CLAUDECODE` 가
-   * 있다)이 판정에 새어 들어오지 않게 판정에 쓰는 두 변수를 비우고 시작한다.
+   * 있다)이 판정에 새어 들어오지 않게 판정에 쓰는 두 변수를 비우고 시작한다. NERV 를 설정한 저장소(`.nerv/env`)에서
+   * 토큰을 갖고 부른다 — 훅은 그때만 보낸다(REQ-PLG-041).
    */
   function send(
     args: string[],
@@ -1118,6 +1131,8 @@ describe('REQ-PLG-034 — 포워더가 누가 부르는지 싣는다', () => {
     input = '{"session_id":"S-1"}',
   ): { headers: string[]; args: string[]; stdout: string } {
     const dir = mkdtempSync(join(tmpdir(), 'nerv-agent-'));
+    mkdirSync(join(dir, '.nerv'));
+    writeFileSync(join(dir, '.nerv/env'), 'NERV_PROJECT=clemvion\n');
     const log = join(dir, 'args.txt');
     writeFileSync(
       join(dir, 'curl'),
@@ -1133,8 +1148,11 @@ describe('REQ-PLG-034 — 포워더가 누가 부르는지 싣는다', () => {
         ...process.env,
         PATH: `${dir}:${process.env['PATH'] ?? ''}`,
         NERV_SERVER: 'http://x',
+        NERV_TOKEN: 'sk-test',
         NERV_AGENT_TYPE: '',
+        NERV_ENV_FILE: '',
         PLUGIN_ROOT: '',
+        CLAUDE_PROJECT_DIR: '',
         ...env,
       },
     });
@@ -1304,7 +1322,9 @@ describe('REQ-PLG-038 — Codex notify 를 포워더로 보낸다', () => {
         NERV_PROJECT: '',
         NERV_AGENT_TYPE: '',
         NERV_ENV_FILE: '',
+        NERV_MANAGED: '',
         PLUGIN_ROOT: '',
+        CLAUDE_PROJECT_DIR: '',
         ...env,
       },
     });
@@ -1420,5 +1440,217 @@ describe('REQ-PLG-038 — Codex notify 를 포워더로 보낸다', () => {
       env: { PATH: process.env['PATH'] ?? '', HOME: '/nonexistent', CODEX_HOME: home },
     });
     expect(out).toBe('');
+  });
+});
+
+// ── 훅도 NERV 를 설정한 저장소에서만 보낸다 (2026-10-16 · 사람 결정 · 4.6 §3.1) ──────────────────────────────
+//
+// 플러그인은 기계에 하나라 훅이 모든 저장소에서 돈다. 예전에는 셸에 토큰이 있으면 NERV 를 쓰지 않는 저장소의 명령 · 파일
+// 경로(도구 훅)까지 서버로 나갔다. 이제 notify 와 같은 판정(`nerv_config_root`)이거나 관리형 표시(`NERV_MANAGED=1`)일 때만
+// 보낸다. 아래는 포워더를 실제로 실행해 curl 이 불렸는가를 본다 — 불리지 않았으면 기록 파일이 없다.
+describe('REQ-PLG-041 — 훅도 NERV 를 설정한 저장소에서만 보낸다', () => {
+  const forward = join(here, 'bin/nerv-hook-forward');
+  const ENDPOINTS = ['session', 'tool', 'subagent', 'stop', 'session-end'] as const;
+
+  /** 훅 하나를 부른다. 러너의 환경이 판정에 새어 들어오지 않게 판정에 쓰는 값을 비우고 시작한다 */
+  function hook(
+    endpoint: string,
+    cwd: string,
+    input: Record<string, unknown>,
+    env: Record<string, string> = {},
+  ): { sent: string[] | null; stdout: string } {
+    const bin = mkdtempSync(join(tmpdir(), 'nerv-hook-bin-'));
+    const log = join(bin, 'args.txt');
+    writeFileSync(
+      join(bin, 'curl'),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${log}"\nprintf '{"ok":true}\\n200'\n`,
+      { mode: 0o755 },
+    );
+    const stdout = execFileSync(forward, [endpoint], {
+      cwd,
+      input: JSON.stringify(input),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+        NERV_SERVER: 'http://x',
+        NERV_TOKEN: 'sk-test',
+        NERV_PROJECT: '',
+        NERV_AGENT_TYPE: '',
+        NERV_ENV_FILE: '',
+        NERV_MANAGED: '',
+        PLUGIN_ROOT: '',
+        CLAUDE_PROJECT_DIR: '',
+        ...env,
+      },
+    });
+    return { sent: existsSync(log) ? readFileSync(log, 'utf8').split('\n') : null, stdout };
+  }
+
+  const plainDir = (): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'plain-repo-'));
+    writeFileSync(join(dir, 'AGENTS.md'), '# 다른 저장소\n');
+    return dir;
+  };
+  const codex = { PLUGIN_ROOT: '/home/u/.codex/plugins/cache/nerv/nerv/0.3.33' };
+
+  /** 셸에만 토큰을 둔 사람의 다른 저장소 — 예전에는 여기서도 보냈다 */
+  it('설정이 없는 저장소의 훅은 아무것도 보내지 않고 빈 성공으로 끝난다 — 셸에 토큰이 있어도 · 두 에이전트 모두', () => {
+    const dir = plainDir();
+    for (const env of [{}, codex]) {
+      for (const endpoint of ENDPOINTS) {
+        const { sent, stdout } = hook(endpoint, dir, { session_id: 'S-1', cwd: dir }, env);
+        expect(sent, endpoint).toBeNull();
+        // 세션 안내를 기다리는 SessionStart 도 출력 없이 끝난다 — Codex 는 훅 출력의 모양에 민감하다
+        expect(stdout, endpoint).toBe('');
+      }
+    }
+    // 아무것도 만들지 않는다
+    expect(existsSync(join(dir, '.nerv'))).toBe(false);
+  });
+
+  it('저장소의 설정 넷 가운데 하나만 있어도 보낸다', () => {
+    const setups: Record<string, (dir: string) => void> = {
+      '.nerv/env': (dir) => {
+        mkdirSync(join(dir, '.nerv'));
+        writeFileSync(join(dir, '.nerv/env'), 'NERV_PROJECT=clemvion\n');
+      },
+      '.mcp.json': (dir) => writeFileSync(join(dir, '.mcp.json'), '{"mcpServers":{"nerv":{}}}\n'),
+      '.codex/config.toml': (dir) => {
+        mkdirSync(join(dir, '.codex'));
+        writeFileSync(
+          join(dir, '.codex/config.toml'),
+          '[mcp_servers.nerv]\nurl = "https://x/mcp"\n',
+        );
+      },
+      '.claude/settings.local.json': (dir) => {
+        mkdirSync(join(dir, '.claude'));
+        writeFileSync(
+          join(dir, '.claude/settings.local.json'),
+          '{ "env": { "NERV_PROJECT": "clemvion" } }\n',
+        );
+      },
+    };
+    for (const [name, setup] of Object.entries(setups)) {
+      const dir = mkdtempSync(join(tmpdir(), 'nerv-configured-'));
+      setup(dir);
+      for (const env of [{}, codex]) {
+        expect(hook('tool', dir, { session_id: 'S-1', cwd: dir }, env).sent, name).not.toBeNull();
+      }
+    }
+    // 다른 키만 있는 settings.local.json 은 아니다
+    const other = mkdtempSync(join(tmpdir(), 'nerv-other-'));
+    mkdirSync(join(other, '.claude'));
+    writeFileSync(join(other, '.claude/settings.local.json'), '{ "env": { "FOO": "1" } }\n');
+    expect(hook('tool', other, { session_id: 'S-1', cwd: other }).sent).toBeNull();
+  });
+
+  /** 에이전트는 저장소의 하위 폴더에서도 일한다 — 훅 입력의 `cwd` 가 그 폴더다 */
+  it('하위 폴더에서도 그 git 저장소의 맨 위 설정으로 보내고 그 저장소의 .nerv/env 를 읽는다', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'nerv-git-'));
+    execFileSync('git', ['init', '-q', repo]);
+    mkdirSync(join(repo, '.nerv'));
+    writeFileSync(join(repo, '.nerv/env'), 'NERV_SERVER=http://from-env\nNERV_PROJECT=clemvion\n');
+    const sub = join(repo, 'codebase');
+    mkdirSync(sub);
+    const { sent } = hook('tool', sub, { session_id: 'S-1', cwd: sub }, { NERV_SERVER: '' });
+    expect(sent).toContain('http://from-env/ingest/hooks/tool');
+    expect(sent).toContain('X-NERV-Project: clemvion');
+  });
+
+  /** 판정 자리는 훅 입력의 `cwd` 다 — notify 와 같은 규칙 */
+  it('훅 입력의 cwd 로 판정한다 — 프로세스가 설정한 저장소에서 돌아도 그 일이 다른 저장소의 것이면 보내지 않는다', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'nerv-repo-'));
+    writeFileSync(join(repo, '.mcp.json'), '{"mcpServers":{"nerv":{}}}\n');
+    const plain = plainDir();
+    expect(hook('tool', repo, { session_id: 'S-1', cwd: plain }).sent).toBeNull();
+    expect(hook('tool', plain, { session_id: 'S-1', cwd: repo }).sent).not.toBeNull();
+  });
+
+  /**
+   * Claude Code 의 에이전트가 저장소 밖으로 `cd` 해도 그 세션은 세션을 연 저장소의 일이다. Codex 의 훅에서는 그 값을 보지
+   * 않는다 — Codex 를 띄운 셸에서 이어진 값일 수 있다.
+   */
+  it('Claude Code 의 훅은 세션의 저장소(CLAUDE_PROJECT_DIR)도 본다 — Codex 에서는 보지 않는다', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'nerv-project-'));
+    writeFileSync(join(repo, '.mcp.json'), '{"mcpServers":{"nerv":{}}}\n');
+    const away = plainDir();
+    const input = { session_id: 'S-1', cwd: away };
+    expect(hook('stop', away, input, { CLAUDE_PROJECT_DIR: repo }).sent).not.toBeNull();
+    expect(hook('stop', away, input, { CLAUDE_PROJECT_DIR: repo, ...codex }).sent).toBeNull();
+  });
+
+  /** 관리형 settings 로 플러그인을 내린 기계 — 저장소에 파일이 없어도 모든 작업 저장소가 NERV 대상이다 */
+  it('관리형 표시(NERV_MANAGED=1)만 있으면 보낸다 — 값은 1 만 켜고 저장소 파일의 표시는 읽지 않는다', () => {
+    const dir = plainDir();
+    const input = { session_id: 'S-1', cwd: dir };
+    expect(hook('session', dir, input, { NERV_MANAGED: '1' }).sent).not.toBeNull();
+    expect(hook('session', dir, input, { NERV_MANAGED: '1', ...codex }).sent).not.toBeNull();
+    expect(hook('session', dir, input, { NERV_MANAGED: 'true' }).sent).toBeNull();
+
+    // 프로세스가 도는 저장소의 `.nerv/env` 에 표시를 둬도 그 일의 저장소(cwd)에는 적용되지 않는다
+    const repo = mkdtempSync(join(tmpdir(), 'nerv-marker-'));
+    mkdirSync(join(repo, '.nerv'));
+    writeFileSync(join(repo, '.nerv/env'), 'NERV_MANAGED=1\n');
+    expect(hook('tool', repo, input).sent).toBeNull();
+  });
+
+  it('토큰이 없으면 보내지 않는다 — 설정한 저장소 · 관리형 설치에서도', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'nerv-notoken-'));
+    writeFileSync(join(repo, '.mcp.json'), '{"mcpServers":{"nerv":{}}}\n');
+    const input = { session_id: 'S-1', cwd: repo };
+    expect(hook('session', repo, input, { NERV_TOKEN: '' }).sent).toBeNull();
+    expect(hook('session', repo, input, { NERV_TOKEN: '', NERV_MANAGED: '1' }).sent).toBeNull();
+  });
+
+  /** http 변형의 http 훅은 포워더를 거치지 않는다 — 이 판정은 SessionStart(command)에만 적용된다(4.6 §3.1) */
+  it('http 변형에서 포워더를 거치는 것은 SessionStart 뿐이다 — 나머지는 서버로 바로 간다', () => {
+    const parsed = JSON.parse(file('hooks/hooks.http.json')) as {
+      hooks: Record<string, { hooks: { type: string; command?: string }[] }[]>;
+    };
+    const forwarded = Object.entries(parsed.hooks)
+      .filter(([, groups]) =>
+        groups.some((g) => g.hooks.some((h) => (h.command ?? '').includes('nerv-hook-forward'))),
+      )
+      .map(([event]) => event);
+    expect(forwarded).toEqual(['SessionStart']);
+  });
+
+  /** 셸에만 토큰을 두고 저장소를 설정하지 않은 사람에게 훅이 멈춘 것을 알린다 */
+  describe('nerv-init --check 가 훅의 판정을 말한다', () => {
+    const init = join(here, 'bin/nerv-init');
+    function check(dir: string, env: Record<string, string>): string {
+      return execFileSync(init, ['--dir', dir, '--check'], {
+        cwd: dir,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          NERV_SERVER: '',
+          NERV_PROJECT: '',
+          NERV_TOKEN: '',
+          NERV_AGENT_TYPE: '',
+          NERV_MANAGED: '',
+          PLUGIN_ROOT: '',
+          CLAUDE_PROJECT_DIR: '',
+          ...env,
+        },
+      });
+    }
+
+    it('셸에만 토큰이 있는 저장소에는 훅이 보내지 않는다고 말한다', () => {
+      const out = check(plainDir(), { NERV_TOKEN: 'sk', NERV_PROJECT: 'clemvion' });
+      expect(out).toContain('훅이 서버로 보내지 않는다');
+      expect(out).toContain('NERV_MANAGED=1');
+    });
+
+    it('관리형 표시가 있거나 저장소를 설정했으면 그 줄을 말하지 않는다', () => {
+      const env = { NERV_TOKEN: 'sk', NERV_PROJECT: 'clemvion' };
+      expect(check(plainDir(), { ...env, NERV_MANAGED: '1' })).not.toContain('훅이 서버로');
+      const repo = mkdtempSync(join(tmpdir(), 'nerv-check-'));
+      writeFileSync(join(repo, '.mcp.json'), '{"mcpServers":{"nerv":{}}}\n');
+      expect(check(repo, env)).toBe('');
+    });
   });
 });

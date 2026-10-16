@@ -1,4 +1,4 @@
-# nerv-plugin v0.3.32
+# nerv-plugin v0.3.33
 
 NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md)**
 이고, 이 디렉터리는 그 문서 §1~§3 전문의 실물이다 — 두 쪽이 다르면 문서가 옳고 여기가 결함이다.
@@ -22,7 +22,7 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | `hooks/hooks.http.json`                                           | 훅 URL 을 관리형으로 묶을 때의 변형(`type:"http"` · SessionStart 만 command)                                                                   | §3.1           |
 | `codex/config.toml`                                               | Codex 용 MCP 접속 템플릿 · 사용자 설정에 옮길 notify 줄(주석) — 저장소의 파일은 `nerv-init --codex` 가 만든다                                  | §5.2 · §3.7    |
 | `codex/AGENTS.md`                                                 | AGENTS.md 템플릿의 사본 — 정본은 `@nerv/schema` 의 `agents-md.ts`. 서버가 프로젝트마다 채운 본문을 `nerv-init` 이 받는다                       | §5.3           |
-| `managed-settings.example.json`                                   | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                                                                                                  | §3.5           |
+| `managed-settings.example.json`                                   | 조직 관리형 설정 예시(마켓플레이스·허용 도구·관리형 설치 표시 `NERV_MANAGED`)                                                                  | §3.5           |
 
 **테스트는 이 폴더에 두지 않는다**(2026-10-16 · REQ-PLG-037). 설치하면 이 폴더가 통째로 설치 캐시에 복사된다 —
 Codex 0.162.1 은 `.gitignore` 도 보지 않았다. 문서 대조 · 포워더 · 오프라인 큐 · 미러 테스트는 `../plugin-test/` 에 있다.
@@ -45,7 +45,7 @@ codex plugin add nerv@nerv     # 그다음 Codex 의 /hooks 에서 NERV 훅 여�
 - 턴 완료 알림(notify)은 사용자 설정(`~/.codex/config.toml`)에 한 줄을 둔다 — `codex/config.toml` 의 주석에 있다.
   저장소 설정의 `notify` 는 Codex 가 무시한다. 그 줄이 설치 캐시의 포워더를 찾아 `--event notify` 로 보낸다(REQ-PLG-038).
   사용자 설정이라 모든 저장소의 턴에 불리지만 포워더는 NERV 를 설정한 저장소의 턴만 보낸다 — 판정은 `bin/nerv-env.sh` 의
-  `nerv_repo_configured` 이고 `nerv-init --check` 도 같은 함수를 쓴다.
+  `nerv_config_root` 이고 훅 · 오프라인 큐 · `nerv-init --check` 도 같은 함수를 쓴다(아래).
 - `/nerv:approve` 는 Codex 에서 쓰지 않는다. 서브에이전트는 Codex 목록에 없다.
 
 ## 설계에서 물러서지 않는 두 가지
@@ -91,6 +91,13 @@ cd <작업 저장소>
 
 설정이 덜 된 저장소에서는 세션 시작 훅(`nerv-init --check`)이 무엇이 없는지 말한다. **쓰지는
 않는다** — 설정은 사람이 시작한다. NERV 를 쓰는 흔적이 하나도 없는 저장소에서는 침묵한다.
+
+**훅은 NERV 를 설정한 저장소에서만 보낸다**(2026-10-16 · 사람 결정 · 4.6 §3.1 · REQ-PLG-041). 플러그인은 기계에 하나라
+훅이 모든 저장소에서 돈다. 포워더는 훅 입력의 `cwd` 나 그 git 저장소의 맨 위에 설정(`.nerv/env` · `.mcp.json` 의 `nerv` ·
+`.codex/config.toml` 의 `[mcp_servers.nerv]` · `settings.local.json` 의 `NERV_*`)이 있거나 관리형 settings 의 env 에
+`NERV_MANAGED=1` 이 있을 때만, 토큰이 있을 때만 보낸다. 아니면 출력 없이 성공으로 끝난다. 셸에만 토큰을 두고 `nerv-init`
+하지 않은 저장소의 훅은 아무것도 보내지 않는다 — `--check` 가 그 사실을 알린다. 오프라인 큐도 같은 판정이다. http 변형의
+http 훅은 포워더를 거치지 않아 막지 못한다 — 그 변형은 관리형 settings 로 내리는 기계에만 쓴다.
 
 ## 마켓플레이스 없이 쓰는 저장소 — 사본을 다시 맞추는 법
 

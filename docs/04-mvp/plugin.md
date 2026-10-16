@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.16 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.17 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.17 변경(2026-10-16 — 훅도 NERV를 설정한 저장소에서만 보낸다, **사람 결정**(2026-10-16 — B)): **REQ-PLG-041 신설 · REQ-PLG-038 · 018 개정 · §3.1 절 하나와 http 변형 한 단락 · §3.3 표 한 행과 두 칸 · 규칙 하나 · nerv-env.sh 전문 · §3.4 한 단락 · §3.7 한 항목 · §4 두 단락 · §5.2 한 단락 · 패키지 0.3.32 → 0.3.33.** 셸에 토큰이 있으면 NERV를 쓰지 않는 저장소에서도 훅(도구 훅의 명령 · 파일 경로, 세션 시작 · 끝)이 서버로 나갔다 — 앞서 막은 것은 Codex notify뿐이었다. 이제 포워더는 notify와 같은 판정으로 그 일의 디렉터리(훅 입력의 `cwd`)나 그 git 저장소의 맨 위에 NERV 설정이 있을 때, 또는 관리형 settings의 `env`에 `NERV_MANAGED=1`이 있을 때만 보낸다. 아니면 출력 없이 성공으로 끝난다. 판정에 `.claude/settings.local.json`의 `NERV_*`와 git 저장소의 맨 위를 더했고 Claude Code의 훅은 세션의 저장소(`CLAUDE_PROJECT_DIR`)도 본다. 오프라인 큐도 같은 판정이라 설정이 없는 저장소에서는 큐를 만들지 않는다. http 변형의 http 훅은 포워더를 거치지 않아 이 판정이 적용되지 않는다 — 그 변형은 관리형 settings로 내리는 기기에만 쓴다. 셸에만 토큰을 두고 저장소를 `nerv-init`하지 않은 사람의 훅은 이제 멈추고, 세션 시작의 `--check`가 그 사실을 알린다.
 >
 > v1.16 변경(2026-10-16 — Codex 온보딩은 `nerv-init --codex`다, Phase 2 묶음 2의 넷째 · [4.8 백로그](backlog.md) E20-S04): **REQ-PLG-040 신설 · REQ-PLG-036 개정 · §3.7 절 하나 신설과 한 항목 · §5.1 온보딩 행 · §5.2 한 단락 · §5.4 한 단락 · §1.1 트리 한 줄 · 패키지 0.3.32 그대로.** 별도 명령을 만들지 않고 `nerv-init`에 Codex 모드를 더했다 — 덮지 않는 규칙 · 값의 출처 · `--check`가 같고 `.gitignore` · AGENTS.md는 두 에이전트가 같은 자리를 쓴다. `--codex`는 `.mcp.json` · `settings.local.json` 대신 `.codex/config.toml`(§5.2 전문)과 `.nerv/env`(`NERV_SERVER` · `NERV_PROJECT`)를 없을 때만 만든다. 토큰은 파일에 쓰지 않고 사용자 설정(notify 줄)에도 쓰지 않는다. Codex의 `--check`는 서버 주소와 AGENTS.md도 보고 `nerv-init --codex`를 안내한다.
 >
@@ -219,7 +221,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.32
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.33
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -246,7 +248,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.32",
+  "version": "0.3.33",
   "license": "Apache-2.0"
 }
 ```
@@ -1453,6 +1455,25 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 
 > **포워더는 응답을 흘린다**(2026-09-03 정정 · 실측). `bin/nerv-hook-forward` 는 서버 응답을 `/dev/null` 로 버리고 있었다 — 그래서 `command` 폴백을 쓰는 설치에서는 `SessionStart` 의 컨텍스트 주입도 `Stop` 의 `{"decision":"block"}` 도 **모델에 도달하지 못했다.** 실측한 유일한 실사용 설치가 정확히 그 폴백 경로였다(훅 6종 전부 `type:"command"`). 이제 포워더는 응답 본문이 JSON 이면 stdout 으로 그대로 내보낸다 — `command` 훅의 stdout 은 `http` 훅의 응답 본문과 같은 자리다. JSON 이 아닌 본문(프록시의 HTML 오류 페이지 등)은 내보내지 않는다.
 
+#### 훅도 NERV를 설정한 저장소에서만 보낸다 (2026-10-16 — 사람 결정)
+
+**플러그인은 기계에 하나다.** 그래서 훅은 NERV를 쓰지 않는 저장소에서도 돈다. 예전 포워더는 토큰만 있으면 보냈다 — 셸 프로필에 토큰을 둔 사람의 다른 저장소에서 도구 훅의 명령 · 파일 경로와 세션 시작 · 끝이 서버로 나갔다(서버가 세션을 찾지 못해 버려도 전송은 됐다). 같은 날 Codex notify를 먼저 막았고(§5.2 · REQ-PLG-038) 훅도 같은 판정을 쓴다(REQ-PLG-041).
+
+포워더(`bin/nerv-hook-forward`)는 아래 둘 중 하나이고 토큰이 있을 때만 보낸다. 아니면 아무것도 보내지 않고 출력 없이 성공으로 끝난다 — 세션 안내를 기다리는 SessionStart도 같다. 훅이 실패로 보이면 안 된다. Codex는 훅 출력의 모양에 민감하다([4.4 API](api.md) REQ-API-323).
+
+| 보내는 경우 | 판정 |
+| --- | --- |
+| 그 저장소에 NERV 설정이 있다 | 훅 입력의 `cwd`(없으면 프로세스의 디렉터리)나 그 git 저장소의 맨 위에 `.nerv/env` · 저장소 `.codex/config.toml`의 `[mcp_servers.nerv]` · `.mcp.json`의 `nerv` · `.claude/settings.local.json`의 `NERV_*` 가운데 하나가 있다(`nerv_config_root` · §3.3 전문). Claude Code의 훅은 세션을 연 저장소(`CLAUDE_PROJECT_DIR`)도 본다 |
+| 관리형 설치다 | 관리형 settings의 `env`에 `NERV_MANAGED=1`이 있다(`managed-settings.example.json`) |
+
+- **git 저장소의 맨 위까지 본다.** 에이전트는 하위 폴더에서도 일한다(이 저장소는 명령을 `codebase/`에서 돌린다). 훅 입력의 `cwd`만 보면 설정한 저장소의 훅이 하위 폴더에서 멈춘다. 그보다 위로는 가지 않는다 — 다른 저장소일 수 있다. 설정을 찾은 자리가 그 디렉터리가 아니면 그 저장소의 `.nerv/env`로 빈 칸을 채운다.
+- **Claude Code는 세션의 저장소도 본다.** 에이전트가 저장소 밖으로 `cd`해도 그 세션은 세션을 연 저장소의 일이다 — 그 순간의 Stop 판정이 빠지면 안 된다. Codex의 훅과 notify에서는 이 값을 보지 않는다. Codex를 띄운 셸에서 이어진 값일 수 있기 때문이다(`CLAUDECODE`를 보지 않는 이유와 같다 · §3.3).
+- **관리형 표시는 조직의 선택이다.** 관리형 settings로 플러그인을 내린 기계는 저장소에 `.nerv/env`가 없어도 모든 작업 저장소가 NERV 대상이다. 조직이 정한 일이라 그 선택을 명시적인 표시 하나로 받는다 — 셸에 우연히 있는 토큰과 구별된다. 값은 `1`만 켠다. **환경에서만 읽는다** — `.nerv/env`에 두면 무시한다(저장소의 파일이 기계 전체를 선언하지 못하게).
+- **동작이 바뀐 사람이 있다.** 셸에만 토큰을 두고 저장소를 `nerv-init`하지 않은 사람의 훅은 이제 아무것도 보내지 않는다 — 그 사람의 세션은 MCP `nerv_bootstrap`으로만 들어와 활동 · 브랜치가 남지 않는다. `nerv-init`을 한 번 돌리거나 관리 기기라면 관리형 settings에 표시를 둔다. 세션 시작의 `--check`가 그 사실을 한 줄로 알린다(§3.7).
+- 오프라인 큐도 같은 판정이다(§3.4).
+
+**결정 기록**(2026-10-16 · 사람 결정 — B): 훅도 notify와 같은 판정을 쓴다. 관리형 설정으로 붙인 설치는 그 설정에 표시(환경 변수 하나 — `NERV_MANAGED=1`)를 두어 계속 보낸다. 이유: 저장소에 `.nerv/env`가 없어도 조직이 관리형 settings(`managed-settings.example.json` — `env`에 `NERV_SERVER` · `NERV_PROJECT`)로 플러그인을 내린 기계는 모든 작업 저장소가 NERV 대상이라는 조직의 선택이다. 그 선택을 셸에 우연히 있는 토큰과 구별되는 명시적인 표시로 받는다. 표시의 이름 · 값(`NERV_MANAGED` · `1`만), 판정에 더한 둘(git 저장소의 맨 위 · `.claude/settings.local.json`)과 Claude Code의 `CLAUDE_PROJECT_DIR`은 구현하며 정한 세부다.
+
 #### `hooks/hooks.http.json` 전문 — 관리형 URL 통제가 필요할 때 (2026-09-03)
 
 **기본을 바꾼 이유**(2026-09-03 · 사람 결정). 실측: 실제로 도는 유일한 설치가 `.mcp.json` 을 손으로 다시 쓰고 훅 6종을 손으로 갈아 끼웠다 — 마켓플레이스 설치 경로는 한 번도 쓰인 적이 없다. **패키지가 배포 가능한 물건이 아니면 사람은 포크한다.** 그래서 `hooks/hooks.json`(기본)은 이제 `bin/nerv-hook-forward` 를 거치는 command 변형이고, http 변형은 `hooks/hooks.http.json` 으로 남는다.
@@ -1464,6 +1485,8 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 **http 변형도 SessionStart 는 command 다**(2026-09-28 실측 · REQ-PLG-027). Claude Code 는 SessionStart 의 http 훅을 건너뛴다(위 실측 기록 ⑤). 그래서 이 변형으로는 세션이 등록되지 않았다. 서버는 등록되지 않은 세션의 훅을 버리므로(`resolveSession` 이 `null`) **이 변형으로 설치한 곳에는 아무것도 기록되지 않았다.** 이제 세션 등록만은 기본 변형과 같은 `nerv-hook-forward session` 으로 보낸다. 대가: 세션 등록 주소는 `allowedHttpHookUrls` 가 덮지 않는다 — 관리형 예시에서도 그 주소를 뺐다. 대신 이 변형에서도 `X-NERV-Plugin`(REQ-PLG-019)과 `hostname -s` 폴백이 적용된다.
 
 덧붙여 **"셸을 실행하지 않는다" 는 위안은 어느 변형에도 없었다** — http 변형의 SessionStart 에도 `bin/nerv-outbox flush` 가 command 훅으로 이미 들어 있다. 바뀐 것은 위험의 종류가 아니라 범위다.
+
+**http 변형에는 저장소 판정이 적용되지 않는다**(2026-10-16 · REQ-PLG-041 · 위 절). http 훅은 포워더를 거치지 않고 Claude Code가 서버로 바로 보낸다 — 판정할 스크립트가 없다. 포워더를 거치는 것은 SessionStart(세션 등록)뿐이라, 설정이 없는 저장소에서는 세션이 등록되지 않고 서버가 나머지 훅을 버린다. **그래도 전송은 된다.** 코드로 막을 수 없으므로 막지 않는다. 대안은 배치다 — http 변형은 관리형 settings로 내리는 기계에만 쓴다. 그 기계는 모든 작업 저장소가 NERV 대상이다(관리형 표시와 같은 전제). 셸 토큰으로 쓰는 개인 기기에는 기본 변형을 쓴다.
 
 `.mcp.json` 은 변형이 필요 없다 — `url` 이 `${VAR}` 확장을 받으므로 `${NERV_SERVER:-https://api.nerv.example.com}/mcp` 하나로 둘 다 된다.
 
@@ -1678,6 +1701,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | `NERV_CACHE_DIR` | (선택) 기본 `.nerv/cache` | statusline·오프라인 폴백 캐시 위치 |
 | `NERV_ENV_FILE` | (선택) 기본 `.nerv/env` | 아래 "어디에 두는가"의 파일 경로 — **Codex 폴백 전용**이다 |
 | `NERV_AGENT_TYPE` | (선택) 비우면 포워더가 알아본다 — Codex(`PLUGIN_ROOT`)면 `codex`, 아니면 `claude-code`(2026-10-16 · REQ-PLG-034) | `bin/nerv-hook-forward` 가 보내는 `X-NERV-Agent` 헤더 |
+| `NERV_MANAGED` | (선택) `1`이면 관리형 설치 — NERV 설정이 없는 저장소에서도 훅 · 오프라인 큐가 보낸다(2026-10-16 · REQ-PLG-041 · §3.1). 관리형 settings 의 `env` 에 둔다. `.nerv/env` 에서는 읽지 않는다 | `bin/nerv-hook-forward` · `bin/nerv-outbox` · `bin/nerv-init --check` |
 
 #### 어디에 두는가 — **Claude Code 는 `settings.local.json` 하나다** (2026-09-04 개정 — 사람 결정)
 
@@ -1688,7 +1712,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | 자리 | 쓰는 곳 | 언제 |
 | --- | --- | --- |
 | **저장소 `.claude/settings.local.json` 의 `env`** | **Claude Code 의 유일한 자리** | 기본이자 권장. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. 훅·statusline·프로젝트 `.mcp.json` 이 전부 이 값을 본다(아래 실측) |
-| 관리형 settings 의 `env` | 회사 관리 기기 | 조직이 서버·프로젝트를 정해 준다(§2 · `managed-settings.example.json`). 위를 이긴다 |
+| 관리형 settings 의 `env` | 회사 관리 기기 | 조직이 서버·프로젝트를 정해 준다(§2 · `managed-settings.example.json`). 위를 이긴다. 관리형 설치의 표시 `NERV_MANAGED=1` 도 여기에만 둔다(2026-10-16 · §3.1) |
 | 저장소 `.nerv/env` | **Codex 폴백** — notify·훅 포워더 | Codex 의 훅 포워더가 읽는다(2026-10-16 · §5.4). **MCP 인증에는 쓰이지 않는다** — 토큰은 셸 환경에 둔다. `bin/nerv-env.sh` 가 읽고 이미 있는 값을 덮지 않는다 |
 | 셸 프로필 `export` | 기계 전체 | 그 기계가 **한 프로젝트만** 쓸 때 |
 
@@ -1703,7 +1727,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 
 마지막 줄이 중요하다. **같은 `${VAR}` 문법인데 플러그인이 제공한 것만 프로젝트 환경을 못 본다.** 그래서 서버 주소·토큰처럼 **프로젝트마다 다른 값을 쓰는 MCP 설정은 프로젝트가 갖는다** — 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이다.
 
-**`.nerv/env`는 Codex의 MCP 인증에 쓰이지 않는다**(2026-09-04 확인 · 2026-09-27 정정 · 2026-10-16 정정 — 훅 포워더는 읽는다). 처음 설계는 Codex의 notify가 우리 포워더를 부르고, 포워더가 이 파일을 직접 읽는 것이었다. 2026-10-16부터는 Codex에 NERV 플러그인을 설치하면 훅이 돌고(§5.4) 그 포워더가 이 파일을 읽는다. notify도 같은 날부터 서버가 받는다 — 사용자 설정의 `notify` 줄이 같은 포워더를 부르고 포워더는 그 세션 저장소의 이 파일을 읽는다(§5.2). NERV를 설정한 저장소의 턴만 보낸다 — 판정은 아래 전문의 `nerv_repo_configured`다(2026-10-16 · REQ-PLG-038 개정). **MCP 인증도 이 파일로 채워지지 않는다.** `bearer_token_env_var`·`env_http_headers`는 환경변수의 이름만 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env`를 읽는 프로그램이 없다. 그래서 Codex에서는 `NERV_TOKEN`을 셸 환경에 둔다(`plugin/codex/README.md`).
+**`.nerv/env`는 Codex의 MCP 인증에 쓰이지 않는다**(2026-09-04 확인 · 2026-09-27 정정 · 2026-10-16 정정 — 훅 포워더는 읽는다). 처음 설계는 Codex의 notify가 우리 포워더를 부르고, 포워더가 이 파일을 직접 읽는 것이었다. 2026-10-16부터는 Codex에 NERV 플러그인을 설치하면 훅이 돌고(§5.4) 그 포워더가 이 파일을 읽는다. notify도 같은 날부터 서버가 받는다 — 사용자 설정의 `notify` 줄이 같은 포워더를 부르고 포워더는 그 세션 저장소의 이 파일을 읽는다(§5.2). NERV를 설정한 저장소의 턴만 보낸다 — 판정은 아래 전문의 `nerv_config_root`다(2026-10-16 · REQ-PLG-038 개정). 훅도 같은 판정이다(§3.1 · REQ-PLG-041). **MCP 인증도 이 파일로 채워지지 않는다.** `bearer_token_env_var`·`env_http_headers`는 환경변수의 이름만 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env`를 읽는 프로그램이 없다. 그래서 Codex에서는 `NERV_TOKEN`을 셸 환경에 둔다(`plugin/codex/README.md`).
 
 **다만 길이 하나 있을 수 있다**: Codex 원격 MCP 설정에 **`http_headers_helper`** 키가 있다([2.4 연동 기술](../02-research/integration-tech.md) §3.1). 이름대로 명령이 헤더를 만들어 주는 자리라면 그 명령이 `.nerv/env` 를 읽어 토큰을 실을 수 있다 — Claude Code 의 `headersHelper` 와 같은 모양이다. **의미론을 실측하지 않았으므로 된다고 적지 않는다**(Phase 2 실측 항목).
 
@@ -1711,7 +1735,7 @@ Codex 쪽 대응물도 정확히 맞지는 않는다: `[shell_environment_policy
 
 **`${CLAUDE_PLUGIN_ROOT}` 는 플러그인 컴포넌트 안에서만 풀린다**(2026-09-02 정정). 관리형 settings 는 플러그인 파일이 아니라 그 밖의 설정이므로, 거기 적은 `${CLAUDE_PLUGIN_ROOT}/statusline/…` 은 치환되지 않고 그대로 남아 statusline 이 실행되지 않는다. 예시 파일은 설치 경로를 직접 적는다 — 조직의 배치가 다르면 그 경로로 바꾼다.
 
-`.nerv/env` 의 규칙 셋: **이미 있는 값을 덮지 않는다**(위 표의 강한 자리가 이긴다) · **`NERV_*` 만 읽는다**(저장소에 굴러다니는 파일이 `PATH` 를 갈아 끼우지 못하게) · 없으면 조용히 지나간다(프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다). 파일은 `.nerv/` 아래라 이미 `.gitignore` 대상이다(REQ-PLG-013).
+`.nerv/env` 의 규칙 넷: **이미 있는 값을 덮지 않는다**(위 표의 강한 자리가 이긴다) · **`NERV_*` 만 읽는다**(저장소에 굴러다니는 파일이 `PATH` 를 갈아 끼우지 못하게) · 없으면 조용히 지나간다(프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다) · **관리형 표시 `NERV_MANAGED` 는 읽지 않는다**(2026-10-16 — 저장소의 파일이 기계 전체를 선언하지 못하게 · §3.1). 파일은 `.nerv/` 아래라 이미 `.gitignore` 대상이다(REQ-PLG-013).
 
 **훅 헤더 확장과의 관계**(2026-09-28 실측 · §3.1). http 훅의 `headers` 는 셸 환경과 settings 의 `env` 에서 값을 읽고 `.nerv/env` 는 읽지 않는다 — 그 파일은 포워더(`bin/nerv-hook-forward`)만 읽는다. 그래서 http 변형을 쓰는 곳은 토큰을 `.claude/settings.local.json` 의 `env`(`nerv-init` 이 쓰는 자리)나 셸 환경에 둔다. 기본 변형은 어느 자리에 있어도 된다.
 
@@ -1725,15 +1749,19 @@ Codex 쪽 대응물도 정확히 맞지는 않는다: `[shell_environment_policy
 # 프로젝트를 옮길 때마다 프로필을 고치고 모든 세션을 다시 띄워야 한다 — 제품의 전제와 설치
 # 절차가 어긋난다. 그래서 값을 **저장소 안의 파일**에서도 읽는다.
 #
-# 규칙 셋:
+# 규칙 넷:
 #   ① **이미 있는 값을 덮지 않는다.** 관리형 settings · CLI · 프로젝트 settings 가 더 강한
 #      자리이므로(우선순위 표 §3.3), 이 파일은 비어 있는 칸만 채운다.
 #   ② **`NERV_*` 만 읽는다.** 저장소에 굴러다니는 파일이 PATH 를 갈아 끼우지 못하게.
 #   ③ 없으면 조용히 지나간다 — 셸 프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다.
+#   ④ **관리형 표시(`NERV_MANAGED`)는 파일에서 읽지 않는다**(2026-10-16) — 저장소의 파일이 "이 기계의 모든 저장소가
+#      NERV 대상이다" 를 선언하지 못하게. 그 표시는 조직이 관리형 settings 의 env 로 준다.
 #
 # 사용: 스크립트 머리에서 `. "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"`
 #
-# 이 파일은 판정도 하나 둔다 — `nerv_repo_configured <디렉터리>`: 그 저장소에 NERV 설정이 있는가.
+# 이 파일은 판정도 둔다 — `nerv_repo_configured <디렉터리>`: 그 저장소에 NERV 설정이 있는가.
+# `nerv_config_root <디렉터리>` 는 그 디렉터리나 그 git 저장소의 맨 위에서 설정을 찾아 그 자리를 찍고,
+# `nerv_managed` 는 관리형 설치의 표시가 있는가를 답한다.
 
 nerv_load_env() {
   local file="${NERV_ENV_FILE:-.nerv/env}" line key value
@@ -1743,7 +1771,7 @@ nerv_load_env() {
     line="${line#export }"
     key="${line%%=*}"
     value="${line#*=}"
-    case "$key" in NERV_*) ;; *) continue ;; esac
+    case "$key" in NERV_MANAGED) continue ;; NERV_*) ;; *) continue ;; esac
     value="${value%\"}"
     value="${value#\"}"
     value="${value%\'}"
@@ -1752,22 +1780,49 @@ nerv_load_env() {
   done <"$file"
 }
 
-# **이 저장소가 NERV 를 쓰는가** — 저장소 안의 설정만 본다(2026-10-16 · REQ-PLG-038).
+# **이 저장소가 NERV 를 쓰는가** — 저장소 안의 설정만 본다(2026-10-16 · REQ-PLG-038 · 041).
 #
 # 셸 환경의 토큰 · 사용자 설정(`~/.codex/config.toml`)은 기계 전체의 값이라 NERV 와 무관한 저장소에서도 있다.
-# Codex 의 notify 는 사용자 설정에만 둘 수 있어 모든 저장소의 턴에 불린다 — 그 값으로 판정하면 다른 저장소의 답변이
-# 서버로 나간다. 포워더(notify)와 `nerv-init`(온보딩 · `--check`)이 이 함수 하나로 판정한다.
+# 플러그인도 기계에 하나라 훅은 모든 저장소에서 돌고, Codex 의 notify 는 사용자 설정에만 둘 수 있어 모든 저장소의
+# 턴에 불린다 — 그 값으로 판정하면 다른 저장소의 명령 · 파일 경로 · 답변이 서버로 나간다. 포워더(훅 · notify) ·
+# 오프라인 큐 · `nerv-init`(온보딩 · `--check`)이 이 함수 하나로 판정한다.
 #   ① `.nerv/env` — 훅 · Codex 가 읽는 저장소의 값
 #   ② `.codex/config.toml` 의 `[mcp_servers.nerv]` — Codex 의 MCP 연결
 #   ③ `.mcp.json` 의 `nerv` — Claude Code 의 MCP 연결
+#   ④ `.claude/settings.local.json` 의 `env` 에 있는 `NERV_*` — Claude Code 의 값(`nerv-init` 이 쓰는 자리)
 nerv_repo_configured() {
   local dir="${1:-.}"
   [ -f "$dir/.nerv/env" ] && return 0
   [ -f "$dir/.codex/config.toml" ] &&
     grep -qE '^[[:space:]]*\[mcp_servers\.("nerv"|nerv)\][[:space:]]*(#.*)?$' "$dir/.codex/config.toml" && return 0
   [ -f "$dir/.mcp.json" ] && grep -q '"nerv"' "$dir/.mcp.json" && return 0
+  [ -f "$dir/.claude/settings.local.json" ] &&
+    grep -qE '"NERV_[A-Z_]+"[[:space:]]*:' "$dir/.claude/settings.local.json" && return 0
   return 1
 }
+
+# **설정이 있는 자리**를 찍는다 — 그 디렉터리, 아니면 그 디렉터리가 든 git 저장소의 맨 위(2026-10-16 · REQ-PLG-041).
+#
+# 에이전트는 저장소의 하위 폴더에서도 일한다(이 저장소는 명령을 `codebase/` 에서 돌린다). 훅 입력의 `cwd` 는 그 폴더라
+# 그 자리만 보면 설정한 저장소의 훅이 하위 폴더에서 멈춘다. 그 git 저장소의 맨 위까지만 올라간다 — 더 위의 폴더는
+# 다른 저장소의 것일 수 있다. git 이 없거나 git 저장소가 아니면 그 디렉터리만 본다.
+nerv_config_root() {
+  local dir="${1:-.}" top
+  if nerv_repo_configured "$dir"; then
+    printf '%s\n' "$dir"
+    return 0
+  fi
+  command -v git >/dev/null 2>&1 || return 1
+  top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ -n "$top" ] && nerv_repo_configured "$top" || return 1
+  printf '%s\n' "$top"
+}
+
+# **관리형 설치인가**(2026-10-16 · 사람 결정 · REQ-PLG-041) — 조직이 관리형 settings 의 env 에 둔 표시 `NERV_MANAGED=1`.
+#
+# 관리형 settings 로 플러그인을 내린 기계는 저장소에 설정 파일이 없어도 모든 작업 저장소가 NERV 대상이다 — 조직의 선택이다.
+# 셸에 우연히 있는 토큰과 구별하려고 그 선택을 명시적인 표시 하나로 받는다. 값은 `1` 만 켠다.
+nerv_managed() { [ "${NERV_MANAGED:-}" = "1" ]; }
 
 nerv_load_env
 ```
@@ -1872,6 +1927,8 @@ outbox 항목 형식(1파일 = 1호출):
 - flush 는 할 일이 없었으면 아무것도 출력하지 않는다 — 세션 시작 훅의 출력은 모델의 컨텍스트에 들어간다.
 
 **서버가 거절한 쓰기는 사람에게 알린다**(2026-10-16 · REQ-PLG-033 · [4.4 API 명세](api.md) REQ-API-322). `outbox/failed/` 는 그 기계에만 있어서 예전에는 사람이 그 폴더를 열어 보기 전까지 거절된 쓰기를 아무도 몰랐다 — NFR-05 의 "충돌은 사람에게 보고된다" 가 빈자리였다. 이제 flush 는 옮긴 항목을 `POST /ingest/hooks/outbox-failed` 로 알린다(포워더와 같은 토큰 · 같은 헤더 · 한 번에 100건). 보내는 것은 도구 · 멱등 키 · 큐의 세션 · `queued_at` · `failed_at` · 상태 코드 · 에러 코드 · `kind` 이고 **메시지 원문은 보내지 않는다** — 그때 서버가 만든 문장이라 이 기계의 파일에 남아 있다. 서버는 그 사람의 세션에 `session.outbox_failed` 를 남기고 그 사람에게 중요(high) 알림을 만든다. 알린 항목에는 `reported_at` 을 적는다. 알리는 요청이 서버에 전달되지 못하면 그 항목은 다음 flush(세션 시작 · 다음 2xx)가 다시 알리고 그동안 세션 시작 훅의 출력("서버에 알리지 못한 실패 N건 — 사람에게 그대로 보고한다")과 `nerv-outbox status` 에 남는다. 서버는 같은 멱등 키를 다시 남기지 않는다 — 응답이 끊긴 보고를 다시 보내도 알림은 하나다.
+
+**NERV를 설정한 저장소에서만 큐를 만들고 보낸다**(2026-10-16 · 사람 결정 · REQ-PLG-041). 훅 포워더와 같은 판정이다(§3.1) — 이 디렉터리나 그 git 저장소의 맨 위에 NERV 설정이 있거나 관리형 설치(`NERV_MANAGED=1`)일 때만이다. 아니면 `enqueue` 는 큐에 넣지 않고 실패한다(종료 코드 78). 그 저장소의 flush 는 보내지 않으므로 넣으면 쓰기가 갇히고, 부른 쪽(모델)은 실패를 받아야 그 쓰기를 사람에게 그대로 보고한다. `flush` 는 보내지도 지우지도 않고 남은 항목이 있으면 건수를 한 줄로 말한다 — 이전 버전이 쌓았거나 설정을 지운 저장소다. `kick` 은 아무것도 띄우지 않는다.
 
 **결정 기록**(2026-10-16 · 사람 결정 — Phase 2 묶음 2): 복구 후 자동 동기화를 위해 **데몬을 따로 띄우지 않는다.** 훅 포워더가 서버에서 2xx 를 받는 순간 outbox 에 남은 항목이 있으면 백그라운드로 flush 를 띄운다(분리된 자식 프로세스 · 잠금 파일로 하나만). 상주 프로세스를 두면 그것을 띄우고 끄는 일을 플러그인이 맡아야 하고 서버가 돌아왔는지를 따로 물어야 한다 — 훅은 이미 서버에 묻고 있다. 예전 이 자리는 "복구 후 **자동** 동기화(백그라운드 데몬)는 Phase 2다(NFR-05 ◐ — [4.1 MVP 범위와 스택 확정](scope.md) §3.4). MVP의 flush 주체는 세션 시작과 다음 스킬 턴이다" 였다.
 
@@ -2023,13 +2080,14 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 - **덜 된 것만 말한다.** 무엇이 없는지, 사람이 돌릴 명령은 무엇인지, 그리고 **그때까지 `nerv_*` 도구를 부르지 말라**는 것. 없는 도구를 부르면 승인 프롬프트만 쌓인다.
 - 실패해도 세션을 막지 않는다(`exit 0`) — 훅은 텔레메트리·안내 평면이고 게이트는 서버가 유지한다(§3.1).
 - **AGENTS.md 가 낡았으면 한 줄로 알린다**(2026-10-16 · REQ-PLG-039 · §5.3). 저장소의 AGENTS.md 에 NERV 구역이 있으면 서버의 규약 버전과 견준다(시한 2초 — 훅의 시한 5초 안). 다르면 다시 돌릴 명령을 말하고 쓰지는 않는다. 서버에 이어지지 않거나 토큰이 없으면 말하지 않는다 — 판정할 수 없는 것을 낡았다고 하지 않는다. 구역이 있는 AGENTS.md 도 설정의 흔적으로 센다.
+- **훅이 보내는지도 말한다**(2026-10-16 · REQ-PLG-041 · §3.1). 설정의 흔적은 있는데 훅이 보내지 않는 저장소 — 셸에만 토큰을 두고 `nerv-init`하지 않은 저장소다 — 에서는 덜 된 목록에 "훅이 서버로 보내지 않는다" 한 줄을 더한다. 사람이 셸에서 `--check`를 돌리면(TTY) 판정(설정한 저장소 · 관리형 설치 · 보내지 않음)을 첫 줄로 말한다. 훅이 부를 때는 그 줄을 내지 않는다 — 세션마다 같은 줄이 모델의 컨텍스트에 쌓인다.
 - **Codex에서는 `config.toml`을 본다**(2026-10-16 · REQ-PLG-036 · §5.4). Codex는 `.mcp.json`을 읽지 않는다 — 2026-10-15 실측에서 이 점검은 MCP가 붙은 Codex 세션에 ".mcp.json 에 nerv 서버가 없다"고 알렸다. 포워더와 같은 판정(REQ-PLG-034)으로 Codex면 저장소의 `.codex/config.toml`과 사용자 설정(`$CODEX_HOME/config.toml`)에서 `[mcp_servers.nerv]`를 찾는다. 토큰은 Codex 프로세스의 환경에 있어야 한다 — `.nerv/env`의 값은 훅만 쓴다(§3.3). 안내는 Codex 온보딩(`nerv-init --codex` · 2026-10-16 개정 — 예전에는 `codex/config.toml` 템플릿 복사였다)과 셸 환경의 `NERV_TOKEN`이고 Claude Code의 세 자리는 권하지 않는다. 훅과 notify가 읽는 서버 주소(`NERV_SERVER`)가 없거나 AGENTS.md가 없어도 말한다 — 사람이 쓴 AGENTS.md(구역 없음)는 사람의 선택이라 재촉하지 않는다(REQ-PLG-040).
 
 **그 세션에서 바로 붙지는 않는다.** 새로 생긴 `.mcp.json` 은 Claude Code 가 다시 뜰 때 읽히고, 프로젝트 MCP 서버는 신뢰 프롬프트를 한 번 탄다. 그래서 스크립트의 마지막 줄은 재시작과 `/mcp` 확인을 말한다 — 그 두 줄이 없으면 사람은 "만들었는데 안 붙는다"에서 멈춘다.
 
 ## 4. 사람 온보딩 절차
 
-목표: 신규 팀원이 아래 5단계로 **첫 `nerv_bootstrap` 성공**까지 도달한다. 관리 기기는 2단계(플러그인 설치)가 관리형 settings로 자동이므로 1·3·4·5만 수행한다.
+목표: 신규 팀원이 아래 5단계로 **첫 `nerv_bootstrap` 성공**까지 도달한다. 관리 기기는 2단계(플러그인 설치)가 관리형 settings로 자동이므로 1·3·4·5만 수행한다. 관리형 settings의 `env`에 `NERV_MANAGED=1`이 있으면 3단계를 하지 않은 저장소에서도 훅이 보낸다(2026-10-16 · §3.1). 도구(`nerv_*`)는 3단계의 `.mcp.json`이 붙인다.
 
 **순서가 바뀌었다**(2026-09-20 · §3.7): 설정을 만드는 것이 `bin/nerv-init` 이고 그것은 플러그인이 배달하는 파일이라, **플러그인 설치가 먼저**다. 옛 2·2a 단계(환경변수·`.mcp.json` 을 손으로)는 한 명령이 됐다 — 손으로 하던 길은 아래에 그대로 남긴다(그 명령이 무엇을 만드는지가 곧 그 길이다).
 
@@ -2080,6 +2138,8 @@ export NERV_TOKEN="<S8에서 발급한 PAT — 발급 시 1회만 표시>"
 export NERV_PROJECT="clemvion"
 export NERV_HOSTNAME="$(hostname -s)"
 ```
+
+**셸 프로필은 값만 준다.** 훅은 NERV를 설정한 저장소에서만 보내므로(2026-10-16 · §3.1) 3단계는 그대로 한다.
 
 - 5단계에서 클레임까지 이어가면 그것이 곧 수용 기준 REQ-PLG-002의 검증 시나리오다(§6).
 - 헤드리스/CI 경로(`claude -p`)는 PAT를 단일 호출 권한으로 주입하고, 플러그인·MCP 적재는 stream-json의 `system/init` 메시지로 확인한다.
@@ -2136,7 +2196,7 @@ log_user_prompt = false
 
 **실측이 정한 두 가지**(2026-10-16 · §5.4). ① 예전 초안은 `approval_policy` · `sandbox_mode` · `notify`를 `[mcp_servers.nerv]` 뒤에 두어 TOML에서 그 표의 키가 됐다. Codex 0.162.1은 "`mcp_servers.nerv.approval_policy` is ignored"처럼 셋을 무시한다고 경고했다 — 사람 승인 레인도 적용되지 않던 셈이다. 최상위 키를 표 이름 앞으로 옮겼다. ② 저장소 설정의 `notify` · `[otel]`은 "unsupported project-local config keys"로 무시된다. 그래서 그 둘은 사용자 설정에 둔다.
 
-**notify는 NERV를 설정한 저장소의 턴만 보낸다**(2026-10-16 개정 · REQ-PLG-038). 사용자 설정은 기계에 하나라 NERV를 쓰지 않는 저장소의 턴에도 포워더가 불린다. 예전 포워더는 그 저장소의 `.nerv/env`를 읽고 셸에 토큰이 있으면 그대로 보냈다 — 서버가 세션을 찾지 못해 버리더라도 다른 저장소의 답변이 서버로 나갔다. 이제 포워더는 그 턴의 작업 디렉터리(알림의 `cwd`, 없으면 프로세스의 디렉터리)로 옮겨 판정한다. 그 저장소에 NERV 설정(`.nerv/env` · 저장소 `.codex/config.toml`의 `[mcp_servers.nerv]` · `.mcp.json`의 `nerv`)이 있고 토큰이 있을 때만 보낸다. 아니면 아무것도 보내지 않고 끝낸다. 셸 환경과 사용자 설정은 보지 않는다 — 둘 다 기계 전체의 값이다. 판정은 `bin/nerv-env.sh`의 `nerv_repo_configured` 하나이고 `nerv-init --check`도 같은 함수를 쓴다(§3.3 전문). 훅은 그대로다 — 훅 포워더는 호스트가 프로젝트 디렉터리에서 부른다. 관리형 설정만으로 붙인 설치는 저장소에 파일이 없다(§3.3).
+**notify는 NERV를 설정한 저장소의 턴만 보낸다**(2026-10-16 개정 · REQ-PLG-038). 사용자 설정은 기계에 하나라 NERV를 쓰지 않는 저장소의 턴에도 포워더가 불린다. 예전 포워더는 그 저장소의 `.nerv/env`를 읽고 셸에 토큰이 있으면 그대로 보냈다 — 서버가 세션을 찾지 못해 버리더라도 다른 저장소의 답변이 서버로 나갔다. 이제 포워더는 그 턴의 작업 디렉터리(알림의 `cwd`, 없으면 프로세스의 디렉터리)로 옮겨 판정한다. 그 디렉터리나 그 git 저장소의 맨 위에 NERV 설정(`.nerv/env` · 저장소 `.codex/config.toml`의 `[mcp_servers.nerv]` · `.mcp.json`의 `nerv` · `.claude/settings.local.json`의 `NERV_*`)이 있거나 관리형 설치(`NERV_MANAGED=1`)이고 토큰이 있을 때만 보낸다. 아니면 아무것도 보내지 않고 끝낸다. 셸 환경의 토큰과 사용자 설정은 보지 않는다 — 둘 다 기계 전체의 값이다. 판정은 `bin/nerv-env.sh`의 `nerv_config_root` 하나이고 훅 · 오프라인 큐 · `nerv-init --check`도 같은 함수를 쓴다(§3.3 전문). 훅도 2026-10-16부터 같은 판정이다(§3.1 · REQ-PLG-041) — 예전 이 자리는 "훅은 그대로다"였다.
 
 **템플릿을 어디에 두는가(2026-08-23 정정).** 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 **쓰는 쪽 저장소**다. NERV 저장소 루트에 `.codex/config.toml` 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(`api.nerv.example.com`)로 접속하려 든다. 그래서 플러그인 패키지가 `plugin/codex/{config.toml, AGENTS.md, README.md}` 로 **템플릿을 배포하고 사람이 복사한다** — 그것이 §5.1 이 말한 "수동 경로"의 실물이다. 이 절과 §5.2 의 전문이 그 템플릿의 정본이며, 플러그인 패키지 테스트가 둘의 정합을 지킨다. **AGENTS.md 는 2026-10-16 부터 복사하지 않는다** — 서버가 본문을 만들고 `nerv-init` 이 표시한 구역만 바꾼다(§5.3). `.codex/config.toml` 도 같은 날부터 `nerv-init --codex` 가 서버 주소 · 프로젝트를 채워 만든다(§3.7) — 템플릿은 손으로 둘 사람을 위해 남긴다.
 
@@ -2255,7 +2315,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-016 | WHEN 세션이 시작되면 THE SYSTEM SHALL `.nerv/outbox/` 를 `queued_at` 순으로 비우고, 실패한 항목은 남긴 채 세션을 진행한다 | 서버 중단 중 큐잉 1건 → 서버 복구 후 세션 시작 1회: 첫 도구 호출 이전에 전송 완료, 중복 실행 0건 |
 | REQ-PLG-015 | WHEN `nerv_finding_resolve`가 `NERV_APPROVAL_REQUIRED`를 반환하면 THE SYSTEM SHALL 재시도하지 않고 `approval_id`와 함께 사람에게 보고한 뒤 멈춘다 | critical → wont_fix 1회 실측: 재호출 0건 + 보고에 approval_id 포함 |
 | REQ-PLG-013 | WHEN 플러그인이 설치되면 THE SYSTEM SHALL `.gitignore`에 `.nerv/`를 추가하고, WHEN 세션이 종료될 때 outbox 잔량이 있으면 THE SYSTEM SHALL 건수와 최고령 항목을 사용자에게 보고한다 | 설치 후 .gitignore diff + 잔량 1건 상태로 SessionEnd 실측. `.gitignore` 쪽은 `bin/nerv-init` 이 실행한다(§3.7) |
-| REQ-PLG-018 | WHEN 사람이 작업 저장소에서 `bin/nerv-init` 을 실행하면 THE SYSTEM SHALL `.mcp.json`·`.claude/settings.local.json` 의 `env`(`NERV_SERVER`·`NERV_PROJECT`·`NERV_TOKEN`)·`.gitignore` 의 `.nerv/` 중 **없는 것만** 만들고, 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다. WHILE 세션이 시작되는 동안 THE SYSTEM SHALL `--check` 로 덜 된 설정을 보고하되 **아무것도 쓰지 않고**, 설정의 흔적(`.mcp.json` 의 `nerv`·`.nerv/`·`NERV_*`)이 하나도 없는 저장소에서는 침묵한다 | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 빈 저장소(파일 셋 생성) · 남의 `settings.local.json`(다른 키·기존 값 보존) · 다시 실행(멱등) · 흔적 없는 저장소의 `--check`(출력 0바이트) |
+| REQ-PLG-018 | WHEN 사람이 작업 저장소에서 `bin/nerv-init` 을 실행하면 THE SYSTEM SHALL `.mcp.json`·`.claude/settings.local.json` 의 `env`(`NERV_SERVER`·`NERV_PROJECT`·`NERV_TOKEN`)·`.gitignore` 의 `.nerv/` 중 **없는 것만** 만들고, 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다. WHILE 세션이 시작되는 동안 THE SYSTEM SHALL `--check` 로 덜 된 설정을 보고하되 **아무것도 쓰지 않고**, 설정의 흔적(`.mcp.json` 의 `nerv`·`.nerv/`·`NERV_*`)이 하나도 없는 저장소에서는 침묵한다. WHEN 흔적은 있는데 훅이 보내지 않는 저장소면(REQ-PLG-041) THE SYSTEM SHALL 덜 된 목록에 그 사실을 한 줄로 더하고, 사람이 셸(TTY)에서 `--check` 를 돌리면 훅의 판정(설정한 저장소 · 관리형 설치 · 보내지 않음)을 첫 줄로 말한다(2026-10-16) | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 빈 저장소(파일 셋 생성) · 남의 `settings.local.json`(다른 키·기존 값 보존) · 다시 실행(멱등) · 흔적 없는 저장소의 `--check`(출력 0바이트) · 셸에만 토큰이 있는 저장소의 `--check`(훅 줄) · 관리형 표시나 설정이 있으면 그 줄 없음. TTY 의 첫 줄은 손으로 확인했다(`script`) |
 | REQ-PLG-019 | WHEN 세션을 만드는 훅(`session`)을 보내면 THE SYSTEM SHALL 포워더 옆 `plugin.json` 의 `version` 을 `X-NERV-Plugin` 헤더로 싣고, 다른 훅에는 싣지 않는다 | L1(`plugin-package.spec.ts`) — `curl` 을 가로채 실제 실행: `session` 은 `plugin.json` 과 같은 값 · `tool`·`stop`·`session-end` 는 헤더 없음 |
 | REQ-PLG-020 | WHEN 세션이나 서브에이전트가 시작되면 THE SYSTEM SHALL `ko-style` 규칙 요약(공통 규칙과 저장소 `.ko-style.json` 의 팀 어휘 · 글 종류별 말투)을 `additionalContext` 로 넣고 4,000자와 UTF-8 9,000바이트를 넘기지 않는다. 넘으면 팀 어휘를 뒤에서부터 줄이고 줄였다고 적는다(2026-10-15 개정 · Codex 실측 §7.6). WHILE 기계에 node 가 없는 동안 THE SYSTEM SHALL 미리 만든 요약(`hooks/digest.json`)만 넣고 자동 검사가 돌지 않는다는 사실을 적는다. WHEN 저장소 설정이 `"enabled": false` 이거나 `KO_STYLE_DISABLE=1` 이면 THE SYSTEM SHALL 아무것도 하지 않는다 | L1(`ko-style.spec.ts`) — `hooks/run.sh` 를 실제로 실행: 요약 길이 · 팀 어휘와 말투 포함 · 팀 어휘 200개 저장소의 자 수와 바이트 수 · node 가 없는 PATH · 끈 저장소 |
 | REQ-PLG-021 | WHEN 문체 규칙을 더하거나 고치면 THE SYSTEM SHALL 규칙마다 걸려야 할 예문(`examples.bad`)과 걸리지 않아야 할 예문(`examples.good`)을 두고 모든 예문이 그대로 판정되는지 검사한다. WHILE 검사하는 동안 THE SYSTEM SHALL 활용형을 한글 경계에서만 잡고, 코드 · 링크 주소 · URL · 따옴표 안(인용)을 검사하지 않으며, 입력을 NFC 로 정규화한다 줄 끝에 `ko-style-ignore: <이유>` 가 있는 줄은 검사하지 않고, 이유가 없으면 듣지 않는다 | L1 — 공통 규칙과 이 저장소 팀 어휘의 예문 전부 · 가림 · NFD · "머리말" 같은 한글 경계 |
@@ -2275,9 +2335,10 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-035 | WHILE `hooks/hooks.json` 을 배포하는 동안 THE SYSTEM SHALL 최상위에 `description` · `hooks` 만, 훅 묶음에 `matcher` · `hooks` 만, 훅 항목에 `type` · `command` · `timeout` · `async` 만 두고 SessionEnd 시한을 3초 이하로 둔다 — Codex 는 모르는 키가 하나라도 있으면 훅 전체를 버리고 3초보다 긴 SessionEnd 시한은 줄인다(2026-10-16 · E20-S01 · `ko-style` 의 REQ-PLG-026 과 같은 규칙) | L1(`plugin-package.spec.ts`) — 키 목록 · `$comment` 없음 · SessionEnd 시한. 문서 §3.1 전문과의 바이트 대조는 REQ-PLG-001 |
 | REQ-PLG-036 | WHEN Codex 의 세션 시작 훅이 `nerv-init --check` 를 부르면(포워더와 같은 판정 — REQ-PLG-034) THE SYSTEM SHALL `.mcp.json` 대신 저장소의 `.codex/config.toml` 과 사용자 설정(`$CODEX_HOME/config.toml`)에서 `[mcp_servers.nerv]` 를 찾고, 토큰은 `.nerv/env` 를 읽기 전의 프로세스 환경에서 본다. WHEN 덜 됐으면 THE SYSTEM SHALL Codex 온보딩(`bin/nerv-init --codex` — REQ-PLG-040)과 셸 환경의 `NERV_TOKEN` 을 안내하고 Claude Code 의 세 자리는 권하지 않으며 아무것도 쓰지 않는다(2026-10-16 · E20-S01 · 같은 날 E20-S04 개정 — 예전 안내는 `codex/config.toml` 템플릿 복사였다) | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 저장소 설정 · 사용자 설정이면 침묵 · 없으면 `config.toml` 과 `nerv-init --codex` 안내(`.mcp.json` 을 말하지 않는다) · 토큰이 `.nerv/env` 에만 있다 |
 | REQ-PLG-037 | WHILE 플러그인 폴더(`codebase/plugin/`)를 저장소에 두는 동안 THE SYSTEM SHALL 배달되는 파일만 둔다 — 테스트(`*.spec.ts`)와 워크스페이스 표기(`package.json`)는 `codebase/plugin-test/` 에 둔다. Codex 는 카탈로그가 가리키는 폴더를 통째로 설치 캐시에 복사한다(2026-10-15 실측 · 2026-10-16 · E20-S01) | L1(`plugin-package.spec.ts`) — `git ls-files codebase/plugin` 에 `*.spec.ts` · `package.json` · `node_modules/` 가 없다. 서버가 내려 주는 아카이브는 따로 걸러 낸다(`scripts/pack-plugin.mjs` · L2 `plugin.spec.ts`) |
-| REQ-PLG-038 | WHEN Codex 가 턴을 끝내며 `notify` 프로그램에 알림 JSON 을 마지막 인자로 주면 THE SYSTEM SHALL 템플릿의 `notify` 줄이 설치 캐시(`$CODEX_HOME/plugins/cache/*/nerv/*/bin/`)의 포워더를 찾아 `--event notify <JSON>` 으로 넘기고, 포워더는 그 본문을 `/ingest/hooks/notify` 에 `X-NERV-Agent: codex` 로 보내며 아무것도 출력하지 않는다. WHERE 플러그인이 없으면 THE SYSTEM SHALL 아무것도 하지 않고 성공으로 끝난다. WHEN 포워더가 notify 를 받으면 THE SYSTEM SHALL 그 턴의 작업 디렉터리(알림의 `cwd`, 없으면 프로세스의 디렉터리)가 NERV 를 설정한 저장소이고(`.nerv/env` · 저장소 `.codex/config.toml` 의 `[mcp_servers.nerv]` · `.mcp.json` 의 `nerv` — `nerv-init` 과 같은 판정 `nerv_repo_configured`) 토큰이 있을 때만 보내고 아니면 아무것도 보내지 않고 성공으로 끝난다 — 사용자 설정의 `notify` 는 모든 저장소의 턴에 불린다(2026-10-16 개정). WHILE 템플릿(`codex/config.toml`)을 배포하는 동안 THE SYSTEM SHALL 최상위 키를 표 이름 앞에 두고, Codex 가 저장소 설정에서 무시하는 `notify` · `[otel]` 은 사용자 설정에 옮겨 적을 주석으로만 둔다(2026-10-16 · E20-S02) | L1(`plugin-package.spec.ts`) — 포워더를 실제 실행해 notify 의 경로 · 헤더 · 본문 · 빈 출력 · NERV 설정이 없는 디렉터리 · 다른 MCP 서버만 있는 `config.toml` · 토큰 없음에서는 요청 없음 · 알림의 `cwd` 로 판정하고 그 저장소의 `.nerv/env` 를 읽음 · 템플릿의 키 자리 · 템플릿의 notify 줄을 `sh` 로 실행해 가짜 설치 캐시의 포워더가 받은 인자 · 플러그인 없는 캐시의 침묵. 서버 쪽은 [4.4 API](api.md) REQ-API-325 의 L2, 실측은 §5.4 |
+| REQ-PLG-038 | WHEN Codex 가 턴을 끝내며 `notify` 프로그램에 알림 JSON 을 마지막 인자로 주면 THE SYSTEM SHALL 템플릿의 `notify` 줄이 설치 캐시(`$CODEX_HOME/plugins/cache/*/nerv/*/bin/`)의 포워더를 찾아 `--event notify <JSON>` 으로 넘기고, 포워더는 그 본문을 `/ingest/hooks/notify` 에 `X-NERV-Agent: codex` 로 보내며 아무것도 출력하지 않는다. WHERE 플러그인이 없으면 THE SYSTEM SHALL 아무것도 하지 않고 성공으로 끝난다. WHEN 포워더가 notify 를 받으면 THE SYSTEM SHALL 그 턴의 작업 디렉터리(알림의 `cwd`, 없으면 프로세스의 디렉터리)나 그 git 저장소의 맨 위가 NERV 를 설정한 저장소이거나(`.nerv/env` · 저장소 `.codex/config.toml` 의 `[mcp_servers.nerv]` · `.mcp.json` 의 `nerv` · `.claude/settings.local.json` 의 `NERV_*` — 훅 · `nerv-init` 과 같은 판정 `nerv_config_root`) 관리형 설치이고(`NERV_MANAGED=1` · REQ-PLG-041) 토큰이 있을 때만 보내고 아니면 아무것도 보내지 않고 성공으로 끝난다 — 사용자 설정의 `notify` 는 모든 저장소의 턴에 불린다(2026-10-16 개정 · 같은 날 git 저장소의 맨 위 · `settings.local.json` · 관리형 표시를 더함). WHILE 템플릿(`codex/config.toml`)을 배포하는 동안 THE SYSTEM SHALL 최상위 키를 표 이름 앞에 두고, Codex 가 저장소 설정에서 무시하는 `notify` · `[otel]` 은 사용자 설정에 옮겨 적을 주석으로만 둔다(2026-10-16 · E20-S02) | L1(`plugin-package.spec.ts`) — 포워더를 실제 실행해 notify 의 경로 · 헤더 · 본문 · 빈 출력 · NERV 설정이 없는 디렉터리 · 다른 MCP 서버만 있는 `config.toml` · 토큰 없음에서는 요청 없음 · 알림의 `cwd` 로 판정하고 그 저장소의 `.nerv/env` 를 읽음 · 템플릿의 키 자리 · 템플릿의 notify 줄을 `sh` 로 실행해 가짜 설치 캐시의 포워더가 받은 인자 · 플러그인 없는 캐시의 침묵. 서버 쪽은 [4.4 API](api.md) REQ-API-325 의 L2, 실측은 §5.4 |
 | REQ-PLG-039 | WHEN 사람이 `bin/nerv-init` 을 실행하면 THE SYSTEM SHALL 토큰으로 서버의 EP-PRJ-06 에서 그 프로젝트의 AGENTS.md 본문을 받아, 저장소에 AGENTS.md 가 없으면 그 본문으로 만들고 구역 표시(`<!-- nerv:begin -->` · `<!-- nerv:end -->`)가 한 쌍 있으면 그 구역만 바꾸며 구역 밖은 파일 끝의 줄바꿈까지 그대로 둔다 — 규약 버전이 같으면 쓰지 않는다. IF AGENTS.md 에 구역이 없거나 표시의 짝이 맞지 않으면 THEN THE SYSTEM SHALL 덮지 않고 그 사실과 표시를 넣는 방법을 보고한다. IF 토큰이 없거나 서버가 본문을 주지 않으면 THEN THE SYSTEM SHALL AGENTS.md 를 만들지도 바꾸지도 않고 그 사실을 보고한다. WHILE 세션 시작 훅의 `--check` 인 동안 THE SYSTEM SHALL 구역의 규약 버전을 서버의 것과 2초 안에 견주어 다르면 다시 돌릴 명령을 알리고 아무것도 쓰지 않는다 — 서버에 이어지지 않으면 말하지 않는다. WHILE 템플릿을 배포하는 동안 THE SYSTEM SHALL `@nerv/schema` 의 정본 · `plugin/codex/AGENTS.md` · §5.3 전문을 바이트로 같게 둔다(2026-10-16 · 사람 결정 ① · E20-S03) | L1(`plugin-package.spec.ts`) — `curl` 을 가로채 서버를 흉내 내고 실제로 실행한다: 없으면 만든다(경로 · 토큰) · 구역만 바꾸고 구역 밖과 파일 끝 보존 · 같은 버전이면 쓰지 않는다 · 구역 없는 파일은 덮지 않고 서버도 부르지 않는다 · 짝이 맞지 않는 표시 · 토큰 없음 · 서버의 거절 · `--check` 의 낡음 안내와 쓰지 않음 · 같은 버전 · 서버 오류 · 구역 없는 파일의 침묵. L1(`packages/schema` `agents-md.spec.ts`) — 정본과 초안의 바이트 · 구역 표시 · 렌더(자리표시자 · 목록 · 잘림 · 구역을 깨는 값). 서버 쪽은 [4.4 API](api.md) REQ-API-326 의 L2 |
 | REQ-PLG-040 | WHEN 사람이 작업 저장소에서 `bin/nerv-init --codex` 를 실행하면 THE SYSTEM SHALL `.codex/config.toml`(§5.2 전문에 서버 주소 · 프로젝트를 채운다) · `.nerv/env` 의 `NERV_SERVER` · `NERV_PROJECT` · `.gitignore` 의 `.nerv/` · AGENTS.md(REQ-PLG-039) 가운데 없는 것만 만들고 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다 — `.codex/config.toml` 이 있는데 `[mcp_servers.nerv]` 가 없으면 고치지 않고 더할 표를 보고하고, `.mcp.json` · `.claude/settings.local.json` 은 만들지 않는다. THE SYSTEM SHALL 토큰을 파일에 쓰지 않고 셸 환경에 없으면 둘 자리를 안내한다 — Codex 의 MCP 인증은 프로세스 환경만 읽는다. THE SYSTEM SHALL 사용자 설정(`$CODEX_HOME/config.toml`)에 쓰지 않고 notify 줄이 없으면 넣을 줄을 보고한다. WHEN `--codex --check` 로 실행하거나 Codex 의 세션 시작 훅이 `--check` 를 부르면 THE SYSTEM SHALL 아무것도 쓰지 않고 덜 된 설정(nerv 서버 표 · 프로세스 환경의 토큰 · 프로젝트 · 훅이 읽는 서버 주소 · AGENTS.md)을 보고한다(2026-10-16 · E20-S04 — 별도 명령 대신 `nerv-init` 의 모드) | L1(`plugin-package.spec.ts`) — 임시 저장소에서 실제 실행: 빈 저장소(§5.2 전문과 바이트로 같은 `config.toml` · `.nerv/env` 에 토큰 없음 · Claude Code 의 자리 없음 · 토큰과 notify 안내) · 남의 `config.toml` 과 `.nerv/env`(바이트 보존 · 더할 표 · 빈 칸만) · 다시 실행(쓰는 것 없음) · 사용자 설정의 notify 줄(다시 권하지 않고 쓰지 않음) · `--codex --check`(쓰지 않음 · 덜 된 넷 · 온보딩 명령) · 온보딩을 마친 저장소의 침묵 |
+| REQ-PLG-041 | WHEN 훅 포워더가 훅(Claude Code · Codex)을 보내려 하면 THE SYSTEM SHALL 훅 입력의 `cwd`(없으면 프로세스의 디렉터리)나 그 git 저장소의 맨 위가 NERV 를 설정한 저장소이거나(`.nerv/env` · 저장소 `.codex/config.toml` 의 `[mcp_servers.nerv]` · `.mcp.json` 의 `nerv` · `.claude/settings.local.json` 의 `NERV_*` — notify 와 같은 판정 `nerv_config_root` · Claude Code 의 훅은 세션의 저장소 `CLAUDE_PROJECT_DIR` 도 본다) 관리형 설치이고(관리형 settings 의 `env` 에 `NERV_MANAGED=1` — 환경에서만 읽고 값은 `1` 만 켠다) 토큰이 있을 때만 보내며, 아니면 아무것도 보내지 않고 출력 없이 성공으로 끝낸다(2026-10-16 · 사람 결정). WHILE 오프라인 큐가 그 판정을 통과하지 못한 저장소에서 불리는 동안 THE SYSTEM SHALL `enqueue` 는 큐를 만들지 않고 실패하고(종료 코드 78) `flush` 는 보내지도 지우지도 않고 남은 건수를 한 줄로 보고하며 `kick` 은 아무것도 띄우지 않는다. WHERE http 변형(`hooks/hooks.http.json`)을 쓰면 THE SYSTEM SHALL 포워더를 거치는 SessionStart 에만 이 판정을 적용한다 — http 훅은 서버로 바로 가므로 그 변형은 관리형 settings 로 내리는 기계에만 쓴다(§3.1) | L1(`plugin-package.spec.ts`) — 포워더를 실제 실행: 설정이 없는 디렉터리(두 에이전트 · 다섯 훅 — 요청 없음 · 빈 출력 · `.nerv/` 없음) · 설정 넷 각각(보냄) · 하위 폴더(git 저장소의 맨 위 설정과 그 `.nerv/env`) · 훅 입력의 `cwd` 로 판정 · `CLAUDE_PROJECT_DIR`(Claude Code 만) · 관리형 표시(`1` 만 · 파일의 표시 무시) · 토큰 없음 · http 변형에서 포워더를 거치는 훅은 SessionStart 뿐 · `nerv-init --check` 의 훅 줄. L1(`outbox.spec.ts`) — 설정이 없는 저장소의 `enqueue`(종료 78 · `.nerv/` 없음) · 남은 큐(보내지 않음 · 건수 · 그대로) · 관리형 표시로 큐에 넣고 보냄. L2(`outbox-sync.spec.ts`)의 작업 저장소는 `.mcp.json` 으로 설정한다 |
 
 ## 7. 문체 플러그인 `ko-style` (2026-09-27 신설 — 사람 결정)
 

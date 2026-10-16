@@ -81,8 +81,10 @@ beforeEach(async () => {
 
 // ── 도우미 ──────────────────────────────────────────────────────────────────
 
+/** NERV 를 설정한 작업 저장소(`.mcp.json` 의 `nerv`) — 포워더와 큐는 그런 저장소에서만 보낸다(4.6 REQ-PLG-041) */
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'nerv-outbox-l2-'));
+  writeFileSync(join(dir, '.mcp.json'), '{"mcpServers":{"nerv":{}}}\n');
   mkdirSync(join(dir, '.nerv', 'outbox'), { recursive: true });
   return dir;
 }
