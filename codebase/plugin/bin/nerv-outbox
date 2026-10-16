@@ -11,6 +11,9 @@
 #   ⑤ **서버가 돌아오면 바로 비운다**(2026-10-16 · 사람 결정 · E21-S01) — 데몬을 따로 띄우지 않는다. 훅 포워더가
 #      서버에서 2xx 를 받으면 `kick` 을 부르고, 보낼 것이 있으면 flush 를 분리된 백그라운드로 띄운다. 훅은 짧게
 #      끝나야 하므로 기다리지 않는다. 잠금으로 한 저장소에서 flush 는 하나만 돈다
+#   ⑥ **NERV 를 설정한 저장소에서만 큐를 만들고 보낸다**(2026-10-16 · 사람 결정 · REQ-PLG-041) — 훅 포워더와 같은
+#      판정이다(`nerv_config_root` · `nerv_managed` · nerv-env.sh). 설정이 없으면 enqueue 는 큐에 넣지 않고 실패하고
+#      (부른 쪽이 사람에게 보고한다 — 큐에 넣었다고 믿게 두지 않는다), flush 는 보내지 않고 남은 건수만 말한다
 #
 # 사용:
 #   nerv-outbox enqueue <tool> <idempotency_key> <session_id>   # stdin = 도구 입력 JSON
@@ -37,6 +40,9 @@ REPORT_CHUNK=100
 LOCK_STALE_MINUTES=30
 
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# 이 저장소의 일인가 — 포워더와 같은 판정(규칙 ⑥). 큐는 이 디렉터리의 `.nerv/` 에 있으므로 이 디렉터리로 본다
+repo_allowed() { nerv_config_root "$PWD" >/dev/null || nerv_managed; }
 
 # 보낼 항목 — 파일 이름이 queued_at 으로 시작하므로 사전순이 곧 시간순이다
 pending_files() { ls "$outbox"/*.json 2>/dev/null | sort; }
@@ -192,6 +198,16 @@ report_failures() {
 flush() {
   # 큐를 쓴 적이 없는 저장소에는 아무것도 만들지 않는다 — NERV 를 쓰지 않는 저장소에 `.nerv/` 를 남기지 않는다
   [[ -d "$outbox" ]] || return 0
+  # 설정이 없는 저장소의 큐는 보내지 않는다(규칙 ⑥) — 예전 버전이 쌓았거나 설정을 지운 저장소다. 지우지도 않고, 남은
+  # 것이 있으면 한 줄로 말한다(세션 시작 훅의 출력은 모델이 읽고 사람에게 전한다). 없으면 말하지 않는다
+  if ! repo_allowed; then
+    local waiting
+    waiting="$( { pending_files; unreported_files; } | count_lines)"
+    if [[ "$waiting" != "0" ]]; then
+      echo "flush: 보내지 않았다 — 이 저장소에는 NERV 설정이 없다. 큐에 ${waiting}건이 남아 있다(.nerv/outbox/). 사람에게 그대로 보고한다"
+    fi
+    return 0
+  fi
   mkdir -p "$failed_dir"
   if ! take_lock; then
     echo "flush: 다른 flush 가 돌고 있다 — 그쪽이 비운다"
@@ -263,6 +279,12 @@ cmd="${1:-status}"
 case "$cmd" in
   enqueue)
     tool="${2:?tool}"; key="${3:?idempotency_key}"; session="${4:-}"
+    # **설정이 없는 저장소에는 큐를 만들지 않는다**(규칙 ⑥). 그 저장소의 flush 는 보내지 않으므로 넣으면 쓰기가 갇힌다 —
+    # 여기서 실패해야 부른 쪽(모델)이 그 자리에서 알고 사람에게 보고한다
+    if ! repo_allowed; then
+      echo "이 저장소에는 NERV 설정이 없다 — 큐에 넣지 않았다. 이 쓰기를 사람에게 그대로 보고한다(설정: nerv-init)" >&2
+      exit 78
+    fi
     # **JSON 이 아닌 입력은 받지 않는다.** 예전에는 stdin 을 그대로 적어서, 그 파일은 flush 때마다 읽히지 않는 채
     # 큐의 머리에 남았다. 여기서 거절하면 부른 쪽(모델)이 그 자리에서 안다
     if ! command -v jq >/dev/null 2>&1; then
@@ -289,6 +311,7 @@ case "$cmd" in
   kick)
     # 포워더가 2xx 를 받을 때마다 부른다 — 할 일이 없으면 프로세스 하나 띄우지 않고 끝난다
     [[ -d "$outbox" ]] || exit 0
+    repo_allowed || exit 0
     { compgen -G "$outbox/*.json" >/dev/null 2>&1 || [[ -n "$(unreported_files)" ]]; } || exit 0
     lock_held && exit 0
     # 분리해서 띄운다 — 훅이 끝나도 살아 있고(nohup · 새 세션), 훅의 stdout 을 열어 두지 않는다(열려 있으면 훅이 끝나지 않는다)

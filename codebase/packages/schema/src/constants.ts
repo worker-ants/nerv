@@ -569,6 +569,12 @@ export const MAIL_IMPLICIT_TLS_PORT = 465;
  * 활성화율을 끌어내린다. 30일은 파일럿 한 주기(2주 스프린트 둘)를 덮는다.
  */
 export const PLUGIN_COVERAGE_WINDOW_DAYS = 30;
+/**
+ * 활성화 현황이 세는 에이전트 종류 — NERV 플러그인이 있는 둘이다. 순서가 응답(`by_agent`)과 화면의 순서다.
+ * 2026-10-16 사람 결정(B)으로 Codex 를 더했다 — Codex 도 같은 매니페스트로 플러그인을 설치하고 세션 훅이 버전을 보낸다
+ * (4.6 §5.4). 그 전에는 Claude Code 만 셌다. 정본: docs/04-mvp/api.md §2.5c · REQ-API-168
+ */
+export const PLUGIN_COVERAGE_AGENT_TYPES = ['claude-code', 'codex'] as const;
 
 // ── 게이트 티어의 산출 근거 (2026-09-26 · spec-workflow §2.4 · §6.4 · REQ-API-188) ─────────────
 /**

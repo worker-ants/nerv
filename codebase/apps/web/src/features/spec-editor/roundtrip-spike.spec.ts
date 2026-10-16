@@ -87,9 +87,18 @@ describe('E06-S02 — md 왕복 실측', () => {
   //   · 전수 레인(`NERV_ROUNDTRIP_FULL=1`) — 리포트의 비율을 여기서 잰다(2026-09-22 부터
   //     그 비율은 **판정이 아니라 기록**이다 — 아래 "비율에 상한을 두지 않는다")
   //
-  // 상한도 표본 수에 맞춰 계산한다 — 다음 사람이 문서를 늘려도 상한이 따라 자란다.
+  // 상한도 표본에 맞춰 계산한다 — 다음 사람이 문서를 늘려도 상한이 따라 자란다.
+  //
+  // **문서 수가 아니라 바이트를 따른다**(2026-10-16 — preflight 의 전수 레인이 main 에서도 시한을 넘겼다).
+  // 예전 상한은 "문서 한 편에 4초" 였는데, 늘어난 것은 문서 수(23편 그대로)가 아니라 문서 크기였다(4.6MB).
+  // 이 컨테이너에서 같은 레인이 혼자 돌면 14초, preflight 가 L1 을 함께 돌리는 부하에서는 99~114초였다 —
+  // 문서 수로 정한 97초 상한을 넘었다. 왕복 비용은 바이트에 비례하므로 상한도 바이트로 정하고,
+  // 부하에서 잰 최악값(KB 당 약 24ms)의 두 배를 둔다. 이 상한은 성능 판정이 아니라 멈춘 실행을 끊는 자리다.
   const samples = FULL ? allDocuments() : spread(allDocuments(), 6);
-  const budgetMs = 5_000 + samples.length * 4_000;
+  const sampleKb = Math.ceil(
+    samples.reduce((n, s) => n + new TextEncoder().encode(s.body).length, 0) / 1024,
+  );
+  const budgetMs = 5_000 + sampleKb * 50;
 
   it(
     FULL

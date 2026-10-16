@@ -61,6 +61,8 @@ Agents keep working when the server does not respond. They read specs and tasks 
 
 **Writes the server rejects come to you as a notification.** If the server rejects a write, for example because the task changed in the meantime or the token lacks a scope, the write moves to `.nerv/outbox/failed/` and the person who started the session gets an important **Offline write rejected** notification ([Notifications](/help/inbox#notifications)). If the notification could not be sent, it is sent again the next time the queue is sent, and until then the agent mentions it when a session starts. To see what is still queued or failed, run `nerv-outbox status` in the agent session.
 
+**The offline queue is used only in repositories set up for NERV** (from plugin 0.3.33). In a repository without NERV settings, writes are not queued; the agent tells you about the write instead. A queue that an older version left in such a repository is not sent, and you're told how many writes remain when a session starts (see [Installing the plugin](/help/install#claude-code)).
+
 ## Importing documents {#import}
 
 Use the CLI to import an existing repository's documents as specs and tasks.

@@ -14,6 +14,7 @@ import {
   NERV_ERROR,
   NERV_EVENT,
   newId,
+  PLUGIN_COVERAGE_AGENT_TYPES,
   PLUGIN_COVERAGE_WINDOW_DAYS,
   SESSION_STALE_SECONDS,
   sessionEndReason,
@@ -107,11 +108,13 @@ function assertSessionStates(values: readonly string[]): string[] {
 }
 
 /** S5 카드 한 장 — 신원 3요소 + 클레임 + 리스 잔여 + diff (ui-wireframes §3.3) */
-/** 플러그인 활성화 현황의 한 줄 — 사람 + 기계 (EP-SES-06) */
+/** 플러그인 활성화 현황의 한 줄 — 사람 + 기계 + 에이전트 종류 (EP-SES-06) */
 export interface PluginHost extends Record<string, unknown> {
   user_id: string;
   user_name: string;
   hostname: string;
+  /** `PLUGIN_COVERAGE_AGENT_TYPES` 가운데 하나 — 한 기계에서 두 에이전트를 쓰면 줄이 둘이다(2026-10-16) */
+  agent_type: (typeof PLUGIN_COVERAGE_AGENT_TYPES)[number];
   /** 그 기계의 가장 최근 세션이 마지막으로 살아 있던 시각 */
   last_seen_at: string;
   /** 가장 최근 세션이 실어 온 플러그인 버전 — NULL 이면 꺼져 있다 */
@@ -119,11 +122,20 @@ export interface PluginHost extends Record<string, unknown> {
   active: boolean;
 }
 
+/** 에이전트 종류별 수 — `PLUGIN_COVERAGE_AGENT_TYPES` 순서로, 0 인 종류도 담는다 */
+export interface PluginAgentCoverage {
+  agent_type: (typeof PLUGIN_COVERAGE_AGENT_TYPES)[number];
+  total: number;
+  active: number;
+}
+
 export interface PluginCoverage {
   /** 이 일수 안에 세션을 연 호스트만 센다(`PLUGIN_COVERAGE_WINDOW_DAYS`) */
   window_days: number;
+  /** 줄(사람 + 기계 + 에이전트 종류)의 수 — 아래 `by_agent` 의 합이다 */
   total: number;
   active: number;
+  by_agent: PluginAgentCoverage[];
   hosts: PluginHost[];
 }
 
@@ -941,38 +953,55 @@ export class SessionService {
    * 실어 왔는가로 세지 않는 이유: 켰다가 끈(또는 관리형 settings 에서 빠진) 호스트가 영원히
    * "켜짐" 으로 남는다 — 지금의 사실을 묻는 질문에 과거의 사실로 답하게 된다.
    *
-   * **Claude Code 세션만 센다.** 이 현황은 관리형 settings 로 플러그인을 내린 Claude Code 기계가 켜졌는지 묻는다
-   * (E12-S03). 2026-10-16 부터 Codex 에도 플러그인을 설치하면 훅이 돌고 `plugin_version` 이 남지만(E20-S01), Codex 는
-   * 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다 — 세면 그 기계들이 「꺼짐」으로 분모를 부풀린다.
+   * **Claude Code 와 Codex 세션을 함께 센다**(2026-10-16 · 사람 결정 B · REQ-API-168 개정). 예전에는 Claude Code 만
+   * 셌다 — Codex 는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로라 세면 「꺼짐」이 분모를 부풀린다는 이유였다.
+   * E20-S01 부터 Codex 도 같은 매니페스트로 플러그인을 설치하고 세션 훅이 버전을 보내며, 훅 세션과 MCP 세션이 하나로
+   * 이어진다(REQ-API-324). 그래서 셀 수 있다. 두 종류는 **따로** 센다 — 꺼짐의 까닭이 다르다(Codex 는 플러그인을
+   * 설치하고도 `/hooks` 에서 신뢰 처리하지 않으면 훅이 돌지 않는다). 종류별 수를 `by_agent` 로 함께 준다.
    *
-   * 호스트의 열쇠는 **사람 + hostname** 이다. 기본 hostname 은 겹친다(`MacBook-Pro` 가 둘인 팀).
+   * 줄의 열쇠는 **사람 + hostname + 에이전트 종류** 다. 기본 hostname 은 겹친다(`MacBook-Pro` 가 둘인 팀). 한 기계에서 두
+   * 에이전트를 쓰면 줄이 둘이다 — 하나로 묶으면 가장 최근 세션의 종류가 그 기계의 켜짐 · 꺼짐을 번갈아 정한다.
    */
   async pluginCoverage(projectId: string): Promise<PluginCoverage> {
     const { rows } = await this.db.execute<PluginHost>(sql`
-      SELECT DISTINCT ON (s.user_id, s.hostname)
+      SELECT DISTINCT ON (s.user_id, s.hostname, s.agent_type)
              s.user_id, u.display_name AS user_name, s.hostname,
+             s.agent_type::text AS agent_type,
              coalesce(s.last_heartbeat_at, s.started_at)::text AS last_seen_at,
              s.plugin_version,
              (s.plugin_version IS NOT NULL) AS active
         FROM agent_session s
         JOIN "user" u ON u.id = s.user_id
        WHERE s.project_id = ${projectId}
-         AND s.agent_type = 'claude-code'
+         AND s.agent_type::text = ANY(${sqlArray(PLUGIN_COVERAGE_AGENT_TYPES, 'text')})
          AND coalesce(s.last_heartbeat_at, s.started_at)
              > now() - make_interval(days => ${PLUGIN_COVERAGE_WINDOW_DAYS})
-       ORDER BY s.user_id, s.hostname, coalesce(s.last_heartbeat_at, s.started_at) DESC, s.id DESC
+       ORDER BY s.user_id, s.hostname, s.agent_type,
+                coalesce(s.last_heartbeat_at, s.started_at) DESC, s.id DESC
     `);
-    // 꺼진 호스트가 먼저다 — 이 목록을 여는 사람이 찾는 것은 켜야 할 기계다
+    const order = (agent: string): number =>
+      (PLUGIN_COVERAGE_AGENT_TYPES as readonly string[]).indexOf(agent);
+    // 꺼진 줄이 먼저다 — 이 목록을 여는 사람이 찾는 것은 켜야 할 기계다
     const hosts = [...rows].sort(
       (a, b) =>
         Number(a.active) - Number(b.active) ||
         a.user_name.localeCompare(b.user_name) ||
-        a.hostname.localeCompare(b.hostname),
+        a.hostname.localeCompare(b.hostname) ||
+        order(a.agent_type) - order(b.agent_type),
     );
     return {
       window_days: PLUGIN_COVERAGE_WINDOW_DAYS,
       total: hosts.length,
       active: hosts.filter((h) => h.active).length,
+      // 0 인 종류도 담는다 — 없는 것과 0 인 것은 다르다(요약 스트립과 같은 규칙)
+      by_agent: PLUGIN_COVERAGE_AGENT_TYPES.map((agentType) => {
+        const mine = hosts.filter((h) => h.agent_type === agentType);
+        return {
+          agent_type: agentType,
+          total: mine.length,
+          active: mine.filter((h) => h.active).length,
+        };
+      }),
       hosts,
     };
   }

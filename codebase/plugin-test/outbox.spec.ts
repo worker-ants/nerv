@@ -112,9 +112,14 @@ beforeEach(() => {
 
 // ── 도우미 ──────────────────────────────────────────────────────────────────
 
-/** 작업 저장소 하나 — 큐 폴더만 있다 */
-function repo({ outbox = true } = {}): string {
+/**
+ * 작업 저장소 하나 — NERV 를 설정한 저장소(`.mcp.json` 의 `nerv`)이고 큐 폴더가 있다. 설정이 없는 저장소에서는 큐를 만들지도
+ * 보내지도 않는다(REQ-PLG-041) — 그 경우는 `configured: false` 로 만든다. 설정을 `.nerv/env` 로 두지 않는 이유: 큐를 쓴 적이
+ * 없는 저장소에 `.nerv/` 가 생기지 않는가를 보는 시험이 있다.
+ */
+function repo({ outbox = true, configured = true } = {}): string {
   const dir = mkdtempSync(join(tmpdir(), 'nerv-outbox-'));
+  if (configured) writeFileSync(join(dir, '.mcp.json'), '{"mcpServers":{"nerv":{}}}\n');
   if (outbox) mkdirSync(join(dir, '.nerv', 'outbox'), { recursive: true });
   return dir;
 }
@@ -171,7 +176,7 @@ const reports = (): Record<string, unknown>[][] =>
 function run(
   bin: string,
   args: string[],
-  { cwd, input = '' }: { cwd: string; input?: string },
+  { cwd, input = '', env = {} }: { cwd: string; input?: string; env?: Record<string, string> },
 ): Promise<{ code: number; stdout: string; stderr: string; ms: number }> {
   return new Promise((resolve, reject) => {
     const started = Date.now();
@@ -184,6 +189,7 @@ function run(
         NERV_TOKEN: 'nerv_pat_test',
         NERV_PROJECT: 'clemvion',
         NERV_HOSTNAME: 'mac-07',
+        ...env,
       },
     });
     let stdout = '';
@@ -436,5 +442,52 @@ describe('REQ-PLG-033 — 서버가 거절한 쓰기는 failed/ 로 가고 사�
       idempotency_key: 'k"2',
       session_id: 'S-1',
     });
+  });
+});
+
+// ── REQ-PLG-041 ─────────────────────────────────────────────────────────────
+
+describe('REQ-PLG-041 — 설정이 없는 저장소에서는 큐를 만들지도 보내지도 않는다', () => {
+  it('enqueue 는 큐에 넣지 않고 실패한다 — 부른 쪽이 그 자리에서 알고 사람에게 보고한다', async () => {
+    const dir = repo({ outbox: false, configured: false });
+    const res = await run(OUTBOX, ['enqueue', 'nerv_task_update', 'k1', 'S-1'], {
+      cwd: dir,
+      input: '{"task_id":"CLV-T-AAAAAA"}',
+    });
+    expect(res.code).toBe(78);
+    expect(res.stderr).toContain('NERV 설정이 없다');
+    expect(existsSync(join(dir, '.nerv'))).toBe(false);
+  });
+
+  it('예전에 쌓인 큐는 보내지 않고 남은 건수만 말한다 — 지우지도 않는다', async () => {
+    const dir = repo({ configured: false });
+    item(dir, 'k1');
+    const res = await run(OUTBOX, ['flush'], { cwd: dir });
+    expect(sentKeys()).toEqual([]);
+    expect(res.stdout).toContain('보내지 않았다');
+    expect(res.stdout).toContain('1건');
+    expect(pending(dir)).toHaveLength(1);
+
+    // 포워더도 보내지 않으므로 kick 할 일이 없고, kick 을 직접 불러도 띄우지 않는다
+    await run(FORWARD, ['tool'], { cwd: dir, input: HOOK });
+    await run(OUTBOX, ['kick'], { cwd: dir });
+    await sleep(800);
+    expect(calls).toEqual([]);
+    expect(pending(dir)).toHaveLength(1);
+  });
+
+  it('관리형 표시(NERV_MANAGED=1)가 있으면 설정 파일이 없어도 큐에 넣고 보낸다', async () => {
+    const dir = repo({ outbox: false, configured: false });
+    const env = { NERV_MANAGED: '1' };
+    const queued = await run(OUTBOX, ['enqueue', 'nerv_task_update', 'k1', 'S-1'], {
+      cwd: dir,
+      input: '{"task_id":"CLV-T-AAAAAA"}',
+      env,
+    });
+    expect(queued.code).toBe(0);
+    const hook = await run(FORWARD, ['tool'], { cwd: dir, input: HOOK, env });
+    expect(hook.stdout).toBe('{"ok":true}');
+    await until(() => pending(dir).length === 0);
+    expect(sentKeys()).toEqual(['k1']);
   });
 });
