@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v5.74 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v5.75 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v5.75 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째, **사람 결정**(2026-10-16 — D5 = B)): **REQ-API-341 ~ 344 · REQ-WEB-328 · 329 · REQ-DB-051 신설 · 마이그레이션 0056 · 플러그인 0.3.34 그대로.** 워치와 핀을 서버의 표 둘(`watch` · `pin`)로 둡니다. 스펙 · 작업 화면의 [워치](영역 문서면 [영역 워치])로 걸고, 알림 카탈로그가 「워처」에게 보내는 승인 · 거절 · 코멘트 · 준비된 작업 알림이 관여 라우팅과 같은 자리에서 그 사람에게 갑니다. 영역 워치는 그 아래 문서와 작업까지 포함하고, 겹치면 한 번이며 행위자와 지금 멤버가 아닌 사람은 받지 않습니다. 자동 등록은 하지 않습니다. 내 계정의 알림 탭에서 모든 워치를 보고 해제합니다. 퀵 스위처의 핀은 서버에 남아 다른 기기에서도 같고(50개까지), 브라우저에 있던 핀은 처음 한 번 옮긴 뒤 지웁니다. 고친 문서는 [4.4 API](04-mvp/api.md) · [4.5 화면 명세](04-mvp/screens.md) · [4.3 데이터베이스 스키마](04-mvp/database.md) · [3.3 데이터 모델](03-proposal/data-model.md) · [3.5 스펙 워크플로우](03-proposal/spec-workflow.md) · [4.1 범위](04-mvp/scope.md) · [4.2 코드베이스](04-mvp/codebase.md) · [4.8 백로그](04-mvp/backlog.md) · [용어 사전](glossary.md)입니다.
 >
 > v5.74 변경(2026-10-16 — 리뷰가 없는 브랜치의 면제, Phase 2 묶음 3의 셋째, **사람 결정**(2026-10-16 — D4)): **REQ-API-338 ~ 340 · REQ-WEB-327 · REQ-DB-050 신설 · 마이그레이션 0055 · 플러그인 0.3.34 그대로.** 문서만 바꾼 브랜치처럼 리뷰를 받지 않을 브랜치에도 게이트 면제를 낼 수 있습니다. 결재에 브랜치(`approval.branch`)와 선택 커밋(`head_sha` — 40자)을 적고, 브랜치 면제의 `subject_id`는 프로젝트 id입니다(다형 참조의 예외 하나). 게이트 판정(EP-REV-08)은 리뷰가 없는 (브랜치 · 종류)에 유효한 면제가 있으면 `waived`(통과)와 그 면제의 사유 · 면제한 사람 · 시각 · 범위를 줍니다. 리뷰가 있는 종류는 그 라운드의 판정을 따릅니다. 커밋을 적지 않은 면제는 그 브랜치의 모든 커밋에 유효합니다. 게이트 현황은 면제만 있는 브랜치도 「리뷰 없음」 줄로 보이고, 면제는 작업 상세의 리뷰 카드에서 냅니다. 고친 문서는 [4.4 API](04-mvp/api.md) · [4.5 화면 명세](04-mvp/screens.md) · [4.3 데이터베이스 스키마](04-mvp/database.md) · [3.3 데이터 모델](03-proposal/data-model.md) · [4.8 백로그](04-mvp/backlog.md) · [용어 사전](glossary.md)입니다.
 >
@@ -925,7 +927,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
-| [용어 사전](glossary.md) | `v0.35` | 표제어 57개의 한국어·영어 채택어·코드 식별자·한 줄 뜻, 채택으로 **치환되는 옛 표현**과 파급, 그리고 화면·에이전트·생성 문서의 **말투 규칙**과 **쓰지 않는 표현**. 상태값의 *목록*과 결정·요구사항 번호는 [1.2](01-problem/pain-points.md)가 정본이고 이 문서는 그것을 **무엇이라 부를지**만 정한다 |
+| [용어 사전](glossary.md) | `v0.36` | 표제어 58개의 한국어·영어 채택어·코드 식별자·한 줄 뜻, 채택으로 **치환되는 옛 표현**과 파급, 그리고 화면·에이전트·생성 문서의 **말투 규칙**과 **쓰지 않는 표현**. 상태값의 *목록*과 결정·요구사항 번호는 [1.2](01-problem/pain-points.md)가 정본이고 이 문서는 그것을 **무엇이라 부를지**만 정한다 |
 
 ### 1부 · 현행 분석 (왜 필요한가)
 
@@ -949,9 +951,9 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | --- | --- | --- |
 | [3.1 비전과 핵심 시나리오](03-proposal/vision.md) | `v0.6` | 한 줄 정의·3대 가치·포지셔닝("SDD 도구들의 Linear"), 직군별 페르소나 4종의 하루, 핵심 여정 3개, **Build vs Buy 비교**, 성공 지표 |
 | [3.2 시스템 아키텍처](03-proposal/architecture.md) | `v0.11` | 컴포넌트 구성(웹·API·MCP 게이트웨이·훅 수집기·DB·워커), **저장 전략(DB 단일 진실 + md 미러 + git export)**, 데이터 흐름 시퀀스 4종, 기술 스택 선정·대안 비교, 보안·확장 |
-| [3.3 데이터 모델](03-proposal/data-model.md) | `v0.31` | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
+| [3.3 데이터 모델](03-proposal/data-model.md) | `v0.32` | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
 | [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.61` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
-| [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.50` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
+| [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.51` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
 | [3.6 화면 설계](03-proposal/ui-wireframes.md) | `v0.16` | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 파생본은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | `v0.14` | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
 
@@ -959,14 +961,14 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
-| [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.47` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 24종 · 카탈로그 27종)·스킬(7종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v2.25` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
-| [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.81` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
-| [4.4 API 명세](04-mvp/api.md) | `v2.59` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
-| [4.5 화면 명세](04-mvp/screens.md) | `v2.47` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
+| [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.48` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 24종 · 카탈로그 27종)·스킬(7종) 범위와 non-goals |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v2.26` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.82` | 테이블 43개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
+| [4.4 API 명세](04-mvp/api.md) | `v2.60` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
+| [4.5 화면 명세](04-mvp/screens.md) | `v2.48` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
 | [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.20` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.27` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v3.10` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v3.11` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

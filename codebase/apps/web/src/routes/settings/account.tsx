@@ -22,6 +22,7 @@ import { useApiError } from '../../lib/api-errors.js';
 import { useMe, useNotificationScopes } from '../../lib/queries.js';
 import { EmailDigestSection } from '../../features/inbox/email-digest.js';
 import { levelOf, NotificationLevelControl } from '../../features/inbox/notification-level.js';
+import { WatchList } from '../../features/inbox/watch.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import {
@@ -88,6 +89,7 @@ function AccountTab(): React.JSX.Element {
         <>
           <EmailDigestSection />
           <NotificationLevelsSection />
+          <WatchesSection />
         </>
       )}
       {active === 'password' && <PasswordSection />}
@@ -307,6 +309,23 @@ function NotificationLevelsSection(): React.JSX.Element | null {
             </div>
           );
         })}
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * **내 워치**(2026-10-16 · 사람 결정 D5 · REQ-WEB-328). 모든 프로젝트의 워치를 한 목록으로 보이고 줄마다 해제한다 — 거는 자리는
+ * 스펙 · 작업 화면의 [워치]다. 받는 양은 위의 프로젝트별 알림 수준을 따른다.
+ */
+function WatchesSection(): React.JSX.Element {
+  const t = useT();
+  return (
+    <div data-testid="account-watches">
+      <SectionTitle>{t('watch.list_title')}</SectionTitle>
+      <p className="mb-2 text-xs text-text-mute">{t('watch.list_hint')}</p>
+      <Card className="p-0">
+        <WatchList />
       </Card>
     </div>
   );

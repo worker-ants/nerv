@@ -125,6 +125,13 @@ export const en = {
   // Direct approval (2026-10-11 · REQ-API-287)
   'error.approval.direct_role': 'Only admins and planners can approve a draft directly.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
+  'error.watch.target_not_found': 'Could not find {target} in this project to watch.',
+  'error.watch.not_area':
+    'An area watch works only on an area document, and {target} is not an area. To watch a single document, send the type spec.',
+  'error.watch.not_found': 'No such watch. It was already removed or belongs to someone else.',
+  'error.pin.target_not_found': 'Could not find {target} in this project to pin.',
+  'error.pin.not_found': 'No such pin. It was already removed or belongs to someone else.',
+  'error.pin.limit': 'You can pin up to {max} items. Unpin ones you no longer use first.',
   'error.approval.bypass_kind_forbidden':
     'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
   'error.approval.bypass_unscoped_forbidden':
@@ -2400,6 +2407,26 @@ export const en = {
   'account.digest_saved': 'Email digest saved. It is sent daily at {hour} ({timezone}).',
   'account.digest_off_toast': 'Email digest turned off.',
   'account.notifications': 'Notifications by project',
+  'watch.off': 'Watch',
+  'watch.on': 'Watching',
+  'watch.off_area': 'Watch area',
+  'watch.on_area': 'Watching area',
+  'watch.hint':
+    'Get notified of approvals, rejections and comments (for a task, when it becomes ready). Press again to stop watching.',
+  'watch.hint_area':
+    'Get notified of approvals, rejections and comments in this area and the documents and tasks under it, and of tasks becoming ready. Press again to stop watching.',
+  'watch.added': 'Now watching {target}',
+  'watch.added_area': 'Now watching area {target}, including the documents and tasks under it',
+  'watch.removed': 'Stopped watching {target}',
+  'watch.list_title': 'Watching',
+  'watch.list_hint':
+    'You are notified of approvals, rejections and comments on the documents, tasks and areas you watch, and of tasks becoming ready. How much you get follows the per-project notification level above.',
+  'watch.list_empty':
+    'You are not watching anything. Press [Watch] at the top of a spec or task page and it appears here.',
+  'watch.remove': 'Stop',
+  'watch.type.spec': 'Doc',
+  'watch.type.task': 'Task',
+  'watch.type.area': 'Area',
   'account.notifications_hint':
     'Choose how many notifications to get from each project. Notifications you already have stay as they are. The inbox is not affected.',
   'account.tabs_label': 'Account sections',

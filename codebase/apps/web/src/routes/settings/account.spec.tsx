@@ -36,6 +36,8 @@ let emailChange: {
   pending: { new_email: string; stage: string; expires_at: string } | null;
 };
 let emailReply: { status: number; json: unknown };
+/** 내 워치 — 서버가 돌려줄 목록(EP-NTF-10 · 2026-10-16 · REQ-WEB-328) */
+let watchRows: Record<string, unknown>[] = [];
 /** 로그인된 기기 — 서버가 돌려줄 세션 목록 */
 let sessions: {
   id: string;
@@ -56,6 +58,7 @@ beforeEach(() => {
     memberships: [{ org_slug: 'nerv', org_name: 'NERV', project_slug: null, roles: ['developer'] }],
   };
   passwordReply = { status: 200, json: { token: 't', user: {} } };
+  watchRows = [];
   emailChange = { mail_enabled: true, pending: null };
   emailReply = { status: 200, json: { status: true } };
   const now = new Date().toISOString();
@@ -107,6 +110,14 @@ beforeEach(() => {
           status: emailReply.status,
           json: async () => emailReply.json,
         };
+      }
+      if (u.includes('/me/watches')) {
+        if (method === 'DELETE') {
+          const id = decodeURIComponent(u.split('/').pop() ?? '');
+          watchRows = watchRows.filter((w) => w['id'] !== id);
+          return { ok: true, status: 200, json: async () => ({ ok: true }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ items: watchRows }) };
       }
       if (u.endsWith('/me/email-change'))
         return { ok: true, status: 200, json: async () => emailChange };
@@ -419,5 +430,48 @@ describe('로그인된 기기 (REQ-WEB-284)', () => {
     );
     await waitFor(() => expect(screen.getAllByTestId('account-device')).toHaveLength(1));
     expect(await screen.findByText('다른 기기의 로그인 2개를 끊었습니다.')).toBeDefined();
+  });
+});
+
+/**
+ * 내 워치(2026-10-16 · 사람 결정 D5 · REQ-WEB-328). 알림 카탈로그의 「워처」에게 가는 알림을 받으려면 거는 자리와 푸는 자리가
+ * 있어야 한다 — 거는 자리는 스펙 · 작업 화면이고, 모든 프로젝트의 워치를 보고 푸는 자리는 내 계정의 알림 탭이다.
+ */
+describe('내 워치 (REQ-WEB-328)', () => {
+  it('워치가 없으면 거는 곳을 알려 준다', async () => {
+    mount('/settings/account?tab=notifications');
+    expect((await screen.findByTestId('watch-list-empty')).textContent).toContain('[워치]');
+  });
+
+  it('모든 프로젝트의 워치가 한 목록이고 줄마다 해제한다', async () => {
+    watchRows = [
+      {
+        id: 'w-area',
+        target_type: 'area',
+        key: 'SPC-AREA',
+        title: '웹챗 영역',
+        project_slug: 'clemvion',
+        project_name: 'Clemvion',
+      },
+      {
+        id: 'w-task',
+        target_type: 'task',
+        key: 'SUD-T-AAAAAA',
+        title: '퍼즐 생성기',
+        project_slug: 'sudoku',
+        project_name: 'Sudoku',
+      },
+    ];
+    mount('/settings/account?tab=notifications');
+    const list = await screen.findByTestId('watch-list');
+    const rowsShown = within(list).getAllByTestId('watch-row');
+    expect(rowsShown.map((r) => r.textContent)).toEqual([
+      expect.stringContaining('영역SPC-AREA웹챗 영역Clemvion'),
+      expect.stringContaining('작업SUD-T-AAAAAA퍼즐 생성기Sudoku'),
+    ]);
+    fireEvent.click(within(rowsShown[0]!).getByTestId('watch-row-remove'));
+    await waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ method: 'DELETE' })));
+    expect(sent.find((x) => x.method === 'DELETE')?.url).toContain('/me/watches/w-area');
+    await waitFor(() => expect(within(list).getAllByTestId('watch-row')).toHaveLength(1));
   });
 });

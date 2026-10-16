@@ -121,6 +121,18 @@ const INVOLVED_EVENTS: ReadonlySet<string> = new Set([
   NERV_EVENT_PHASE2.FINDING_RESOLVED,
 ]);
 
+/**
+ * **워처에게도 가는 이벤트**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-342) — 카탈로그가 수신자로 「워처」를 적은
+ * 줄 가운데 알림을 만드는 등급이다. `session.started` · `session.complete` · `task.claimed` · `task.done` 도 워처를 적지만 low 라
+ * 알림을 만들지 않는다(§6.2 — 이벤트 피드에서 본다). 다른 수신자(역할 큐 · 관여자)는 그대로 받고 워처를 더한다 — 겹치면 한 번이다.
+ */
+const WATCHER_EVENTS: ReadonlySet<string> = new Set([
+  NERV_EVENT.SPEC_APPROVED,
+  NERV_EVENT.SPEC_REJECTED,
+  NERV_EVENT.SPEC_COMMENT_ADDED,
+  NERV_EVENT.TASK_READY,
+]);
+
 /** 관여자에게만 가는 이벤트 — 카탈로그 수신자에 역할이 없다 */
 const FINDING_EVENTS: ReadonlySet<string> = new Set([
   NERV_EVENT_PHASE2.FINDING_OPENED,
@@ -451,8 +463,8 @@ export class NotificationService {
    * 알림 자체를 못 믿게 만들고, 그러면 받은 요청이 파괴된다(§6.6 원칙 3).
    *
    * 나머지 이벤트는 역할 큐다. **③관여는 2026-10-15 에 들어왔다**(E17-S01 · REQ-API-316) — 카탈로그가 작성자 ·
-   * 담당자 · 스레드 참여자 · 리뷰 요청자로 적은 이벤트는 역할 큐에 그 사람들을 더한다(`involvedTargets`). ②워치는
-   * 아직이다(워치 테이블이 없다 — E17-S02 · screens.md §2.4 말미).
+   * 담당자 · 스레드 참여자 · 리뷰 요청자로 적은 이벤트는 역할 큐에 그 사람들을 더한다(`involvedTargets`). **②워치는
+   * 2026-10-16 에 들어왔다**(E17-S02 · REQ-API-342) — 카탈로그가 「워처」를 적은 이벤트는 워처를 더한다(`watcherTargets`).
    */
   private async recipientsFor(event: {
     project_id: string;
@@ -521,13 +533,17 @@ export class NotificationService {
       const owners = await this.specOwnerTargets(event);
       if (owners !== null) return owners;
     }
+    // **워처**(2026-10-16 · E17-S02 · REQ-API-342) — 관여자와 같은 자리에서 더한다. 겹치면 한 번이다
+    const watchers = WATCHER_EVENTS.has(event.type) ? await this.watcherTargets(event) : [];
     if (INVOLVED_EVENTS.has(event.type)) {
       const involved = await this.involvedTargets(event);
       // 발견 이벤트는 카탈로그 수신자가 관여자뿐이다 — 역할 큐로 흩뿌리면 열린 critical 마다 admin · planner 전원이 받는다
       const queue = FINDING_EVENTS.has(event.type) ? [] : await this.roleQueue(event);
       // 겹치면 한 번이다 — 같은 이벤트 · 같은 사람은 한 줄(유일 인덱스가 겹친 파생도 막는다)
-      return [...new Set([...queue, ...involved])];
+      return [...new Set([...queue, ...involved, ...watchers])];
     }
+    // `task.ready` 는 역할 큐가 그대로 받고 워처를 더한다(관여 라우팅이 역할 큐를 남긴 것과 같은 규칙)
+    if (watchers.length > 0) return [...new Set([...(await this.roleQueue(event)), ...watchers])];
     return this.roleQueue(event);
   }
 
@@ -579,7 +595,7 @@ export class NotificationService {
   /**
    * **관여자**(§6.1 ③ — 내가 작성 · 클레임 · 코멘트한 대상의 후속 이벤트 · 2026-10-15 · E17-S01 · REQ-API-316).
    *
-   * 카탈로그(§6.3)가 수신자로 적은 사람을 표 없이 쓸 수 있는 열에서 찾는다. 워치(②)는 테이블이 없어 아직이다(E17-S02).
+   * 카탈로그(§6.3)가 수신자로 적은 사람을 표 없이 쓸 수 있는 열에서 찾는다. 워치(②)는 `watcherTargets` 가 맡는다(E17-S02).
    *
    * | 이벤트 | 관여자 |
    * | --- | --- |
@@ -610,6 +626,58 @@ export class NotificationService {
          ${event.actor_user_id === null ? sql`` : sql`AND x.user_id <> ${event.actor_user_id}`}
          AND EXISTS (SELECT 1 FROM membership m
                       WHERE m.user_id = x.user_id AND m.org_id = p.org_id
+                        AND (m.project_id = p.id OR m.project_id IS NULL))
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
+  /**
+   * **워처**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-342) — 그 대상을 워치한 사람.
+   *
+   * | 이벤트 | 워처 |
+   * | --- | --- |
+   * | `spec.approved` · `spec.rejected` · `spec.comment_added` | 그 문서를 워치한 사람 + 그 문서이거나 그 조상인 영역을 워치한 사람 |
+   * | `task.ready` | 그 작업을 워치한 사람 + 그 작업의 기준 문서(`source_spec_version_id`)이거나 그 조상인 영역을 워치한 사람 |
+   *
+   * **영역 워치는 그 아래 문서와 작업까지 포함한다** — 문서 트리(`spec.parent_id`)를 위로 올라가며 영역을 찾는다. 작업 표에는 영역
+   * 열이 없어 영역은 기준 문서에서 따라온다. 카탈로그는 `task.ready` 의 수신자를 「영역 워처」로 적는다 — 그 작업 하나를 워치한
+   * 사람도 받는다(작업을 워치하는 까닭이 그 작업이 준비되는 때를 아는 것이다). 거름은 관여자와 같다 — 행위자는 빼고 지금 그
+   * 프로젝트의 멤버만 받는다(워치 행은 남아 있어도).
+   */
+  private async watcherTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+    type: string;
+    subject_type?: string;
+    subject_id: string;
+  }): Promise<string[]> {
+    const subject = event.subject_id;
+    const isTask = event.type === NERV_EVENT.TASK_READY;
+    // 이벤트의 문서 — 스펙 이벤트는 대상이 버전이거나(승인 · 거절 · 리뷰 결정 코멘트) 문서다(본문 코멘트)
+    const specOf: SQL = isTask
+      ? sql`(SELECT sv.spec_id FROM task t JOIN spec_version sv ON sv.id = t.source_spec_version_id
+              WHERE t.id = ${subject})`
+      : event.subject_type === 'spec'
+        ? sql`(SELECT ${subject}::uuid)`
+        : sql`(SELECT spec_id FROM spec_version WHERE id = ${subject})`;
+    const direct: SQL = isTask
+      ? sql`(w.target_type = 'task' AND w.target_id = ${subject})`
+      : sql`(w.target_type = 'spec' AND w.target_id = (SELECT spec_id FROM base))`;
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      WITH RECURSIVE base AS (SELECT ${specOf} AS spec_id),
+      up AS (
+        SELECT s.id, s.parent_id FROM spec s WHERE s.id = (SELECT spec_id FROM base)
+        UNION
+        SELECT p.id, p.parent_id FROM spec p JOIN up ON p.id = up.parent_id
+      )
+      SELECT DISTINCT w.user_id
+        FROM watch w
+        JOIN project p ON p.id = w.project_id
+       WHERE w.project_id = ${event.project_id}
+         AND (${direct} OR (w.target_type = 'area' AND w.target_id IN (SELECT id FROM up)))
+         ${event.actor_user_id === null ? sql`` : sql`AND w.user_id <> ${event.actor_user_id}`}
+         AND EXISTS (SELECT 1 FROM membership m
+                      WHERE m.user_id = w.user_id AND m.org_id = p.org_id
                         AND (m.project_id = p.id OR m.project_id IS NULL))
     `);
     return rows.map((r) => r.user_id);

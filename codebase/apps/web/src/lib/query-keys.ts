@@ -41,6 +41,10 @@ export const queryKeys = {
   mySessions: () => ['me', 'sessions'] as const,
   /** 이메일 바꾸기의 진행 상태(EP-AUTH-06 · REQ-WEB-229) */
   myEmailChange: () => ['me', 'email-change'] as const,
+  /** 내 워치(EP-NTF-10 · 2026-10-16 · REQ-WEB-328) — 프로젝트로 좁힌 목록도 이 키 아래다 */
+  myWatches: () => ['me', 'watches'] as const,
+  /** 내 핀(EP-NTF-13 · 2026-10-16 · REQ-WEB-329) — 프로젝트를 넘는 한 목록 */
+  myPins: () => ['me', 'pins'] as const,
   inbox: () => ['inbox'] as const,
 
   /**

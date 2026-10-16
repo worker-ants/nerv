@@ -91,6 +91,7 @@ import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import { useScrollTopOn } from '../../lib/scroll-top.js';
 import { BodyChangeLine, parseBodyChange } from '../../components/body-change.js';
+import { WatchButton } from '../../features/inbox/watch.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({
   /**
@@ -911,6 +912,14 @@ function SpecDetail(): React.JSX.Element {
             </span>
           )}
           <span className="ml-auto flex items-center gap-1">
+            {/* **워치**(2026-10-16 · 사람 결정 D5 · REQ-WEB-328) — 영역 문서면 그 아래 문서와 작업까지 받는 영역 워치다 */}
+            {detail.data !== undefined && (
+              <WatchButton
+                proj={proj}
+                targetType={detail.data['type'] === 'area' ? 'area' : 'spec'}
+                target={spec}
+              />
+            )}
             {/* 목차 — 긴 문서의 절 사이를 오간다(SPEC-05 · REQ-WEB-215) */}
             <SpecToc headings={headings} onPick={goAnchor} />
             <Button

@@ -76,6 +76,7 @@ import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
+import { WatchButton } from '../../features/inbox/watch.js';
 
 export const Route = createFileRoute('/p/$proj/tasks/$task')({ component: TaskDetail });
 
@@ -447,6 +448,8 @@ function TaskDetail(): React.JSX.Element {
                   {t('task.meta.runner', { host: String(runner['hostname'] ?? '') })}
                 </EntityLink>
               )}
+              {/* **워치**(2026-10-16 · 사람 결정 D5 · REQ-WEB-328) — 이 작업이 준비되면 알림을 받는다. 끝난 작업에도 남는다 */}
+              <WatchButton proj={proj} targetType="task" target={task} />
             </>
           }
           actions={

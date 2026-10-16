@@ -672,6 +672,27 @@ describe('브랜치 면제 (REQ-WEB-327)', () => {
   });
 });
 
+/**
+ * 워치 단추 (2026-10-16 · 사람 결정 D5 · REQ-WEB-328). 카탈로그는 준비된 작업을 「워처」에게 알린다고 적었는데 워치할 자리가
+ * 없었다. 단추는 지금 상태를 보이고 누르면 걸고 · 다시 누르면 푼다. 끝난 작업에도 남는다.
+ */
+describe('워치 단추 (REQ-WEB-328)', () => {
+  it('워치하지 않은 작업에서 누르면 그 작업에 워치를 건다', async () => {
+    detail = task({ status: 'done' });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    const button = await screen.findByTestId('watch-toggle');
+    await waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('false'));
+    expect(button.textContent).toContain(ko['watch.off']);
+    fireEvent.click(button);
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({
+      method: 'PUT',
+      body: { project: 'clemvion', target_type: 'task', target: 'CLV-T-AAAAAA' },
+    });
+    expect(posted[0]?.url).toContain('/me/watches');
+  });
+});
+
 describe('작업 보관 (REQ-WEB-301 · 302)', () => {
   it('보관한 작업은 다음 행동 없이 사유 · 대신할 작업 · [복원]을 보인다', async () => {
     detail = task({

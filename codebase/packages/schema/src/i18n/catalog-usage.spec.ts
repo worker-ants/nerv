@@ -81,6 +81,11 @@ const DYNAMIC: readonly { prefix: string; values?: readonly string[]; where: str
   { prefix: 'specs.type.', where: 'spec-graph — 문서 종류' },
   { prefix: 'status.', where: 'domain.ts statusLabelKey' },
   { prefix: 'theme.', where: 'web app-shell — 테마 메뉴' },
+  {
+    prefix: 'watch.type.',
+    values: ['spec', 'task', 'area'],
+    where: 'web features/inbox/watch — 워치 목록의 대상 종류 WATCH_TARGETS (2026-10-16)',
+  },
 ];
 
 /**

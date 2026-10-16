@@ -445,6 +445,25 @@ export const notificationState = pgEnum('notification_state', ['unread', 'read',
 export const NOTIFICATION_LEVELS = ['all', 'important', 'none'] as const;
 export type NotificationLevel = (typeof NOTIFICATION_LEVELS)[number];
 export const notificationLevel = pgEnum('notification_level', NOTIFICATION_LEVELS);
+/**
+ * **워치의 대상**(2026-10-16 · 사람 결정 D5 · REQ-DB-051 · spec-workflow §6.1 ②). 알림 카탈로그(§6.3)의 「워처」 수신자는 이
+ * 표에서 나온다.
+ *
+ * - `spec` — 그 문서 하나
+ * - `task` — 그 작업 하나
+ * - `area` — 영역 문서(`spec.type = area`)와 **그 아래 문서와 작업 전부**. 작업은 기준 문서(`source_spec_version_id`)의 조상으로
+ *   영역을 찾는다 — 작업 표에는 영역 열이 없다
+ */
+export const WATCH_TARGETS = ['spec', 'task', 'area'] as const;
+export type WatchTarget = (typeof WATCH_TARGETS)[number];
+export const watchTarget = pgEnum('watch_target', WATCH_TARGETS);
+/**
+ * **핀의 대상**(2026-10-16 · 사람 결정 D5 · REQ-DB-051) — 퀵 스위처(⌘K)가 여는 것과 같다. 요구사항 · 헤딩으로 찾은 줄을 고정하면
+ * 그 문서가 고정된다(같은 문서를 두 번 고정하지 않는다).
+ */
+export const PIN_TARGETS = ['spec', 'task', 'change_request'] as const;
+export type PinTarget = (typeof PIN_TARGETS)[number];
+export const pinTarget = pgEnum('pin_target', PIN_TARGETS);
 
 // ── 메일 (2026-09-22 · 사람 결정) ──────────────────────────────────────────
 /**

@@ -341,6 +341,29 @@ export interface NotificationScopeRow {
  * **범위별 안 읽은 수**(2026-09-27 · REQ-API-215 · REQ-WEB-253). 불러온 쪽만 세면 "더 보기" 뒤의
  * 알림이 빠진다 — 서버가 센다. 알림이 없는 프로젝트도 0 으로 온다.
  */
+/**
+ * **내 워치**(EP-NTF-10 · 2026-10-16 · 사람 결정 D5 · REQ-WEB-328). 프로젝트를 주면 그 프로젝트의 것만 — 워치 단추가 그 목록에서
+ * 자기 대상을 찾는다(대상마다 따로 묻지 않는다). 주지 않으면 모든 프로젝트다(내 계정의 워치 목록).
+ */
+export function useMyWatches(project?: string | null): UseQueryResult<{ items: Row[] }> {
+  return useQuery({
+    queryKey: [...queryKeys.myWatches(), project ?? '*'],
+    queryFn: () =>
+      apiFetch<{ items: Row[] }>(
+        project == null ? '/me/watches' : `/me/watches?project=${encodeURIComponent(project)}`,
+      ),
+  });
+}
+
+/** **내 핀**(EP-NTF-13 · REQ-WEB-329) — 퀵 스위처가 열릴 때만 부른다 */
+export function useMyPins(enabled: boolean): UseQueryResult<{ items: Row[] }> {
+  return useQuery({
+    queryKey: queryKeys.myPins(),
+    queryFn: () => apiFetch<{ items: Row[] }>('/me/pins'),
+    enabled,
+  });
+}
+
 export function useNotificationScopes(): UseQueryResult<{
   items: NotificationScopeRow[];
   total: { unread: number; immediate: number };

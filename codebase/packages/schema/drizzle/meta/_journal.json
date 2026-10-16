@@ -393,6 +393,13 @@
       "when": 1792152413100,
       "tag": "0055_branch_waiver",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792154488706,
+      "tag": "0056_watch_pin",
+      "breakpoints": true
     }
   ]
 }

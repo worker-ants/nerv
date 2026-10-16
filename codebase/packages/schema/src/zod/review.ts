@@ -4,6 +4,7 @@
 // 도메인이 본다(REQ-API-112 · `resolutionOf` · `ESCALATE_REASONS`).
 
 import { z } from 'zod';
+import { PIN_LIMIT } from '../constants.js';
 import { COMMIT_SHA_PATTERN, FULL_COMMIT_SHA_PATTERN } from '../evidence-locator.js';
 
 /** 리뷰어 한 명의 자기 보고 — 위험도는 세션 위험도의 재료다 */
@@ -310,6 +311,31 @@ export const NotificationLevelInput = z
   })
   .strict();
 export type NotificationLevelInput = z.infer<typeof NotificationLevelInput>;
+
+/**
+ * **워치 · 핀의 대상**(2026-10-16 · 사람 결정 D5 · REQ-API-341 · 343). 프로젝트는 내가 속한 것 하나로 푼다(REQ-API-213 과 같은
+ * 규칙). 대상은 키 또는 UUID 이고 종류의 어휘(`WATCH_TARGETS` · `PIN_TARGETS`)는 서버가 본다 — 모르는 값은 400 이다.
+ */
+export const WatchTargetInput = z
+  .object({
+    project: z.string().min(1),
+    org: z.string().min(1).nullish(),
+    target_type: z.string().min(1),
+    target: z.string().trim().min(1).max(200),
+  })
+  .strict();
+export type WatchTargetInput = z.infer<typeof WatchTargetInput>;
+
+/**
+ * **브라우저의 핀을 서버로 옮긴다**(2026-10-16 · REQ-API-344). 퀵 스위처가 localStorage 에 두던 핀을 처음 한 번 보낸다 — 앞의
+ * 것이 위다. 이미 고정한 것 · 찾지 못한 것 · 상한을 넘은 것은 건너뛰고 그 사실을 돌려준다
+ */
+export const PinImportInput = z
+  .object({
+    items: z.array(WatchTargetInput).max(PIN_LIMIT),
+  })
+  .strict();
+export type PinImportInput = z.infer<typeof PinImportInput>;
 
 /**
  * EP-NTF-08 — 알림 메일 요약을 켜고 끈다(2026-09-28 · 사람 결정 EM1~EM9 · REQ-API-232). 켤 때 시간대와

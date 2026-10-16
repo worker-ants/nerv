@@ -132,6 +132,14 @@ export const ko = {
   // 바로 승인(2026-10-11 · REQ-API-287)
   'error.approval.direct_role': '바로 승인은 admin과 planner만 할 수 있습니다.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
+  // 워치 · 핀(2026-10-16 · 사람 결정 D5 · REQ-API-341 ~ 344)
+  'error.watch.target_not_found': '워치할 대상({target})을 이 프로젝트에서 찾지 못했습니다.',
+  'error.watch.not_area':
+    '영역 워치는 영역 문서에만 걸 수 있습니다. 이 문서({target})는 영역이 아닙니다. 문서 하나를 워치하려면 종류를 spec으로 보내세요.',
+  'error.watch.not_found': '찾을 수 없는 워치입니다. 이미 해제했거나 다른 사람의 워치입니다.',
+  'error.pin.target_not_found': '고정할 대상({target})을 이 프로젝트에서 찾지 못했습니다.',
+  'error.pin.not_found': '찾을 수 없는 핀입니다. 이미 풀었거나 다른 사람의 핀입니다.',
+  'error.pin.limit': '핀은 {max}개까지 고정할 수 있습니다. 쓰지 않는 핀을 먼저 푸세요.',
   // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
   'error.approval.bypass_kind_forbidden':
     '이 역할로는 {kinds} 리뷰를 면제할 수 없습니다. 코드 계열(code · merge)은 developer · admin이, 스펙 계열(consistency · spec_coverage)은 planner · admin이 면제합니다.',
@@ -2361,6 +2369,27 @@ export const ko = {
   'account.digest_saved': '메일 요약을 저장했습니다. 매일 {hour}({timezone})에 보냅니다.',
   'account.digest_off_toast': '메일 요약을 껐습니다.',
   'account.notifications': '프로젝트별 알림',
+  // 워치(2026-10-16 · 사람 결정 D5 · REQ-WEB-328)
+  'watch.off': '워치',
+  'watch.on': '워치 중',
+  'watch.off_area': '영역 워치',
+  'watch.on_area': '영역 워치 중',
+  'watch.hint':
+    '승인 · 거절 · 코멘트(작업이면 준비됨)를 알림으로 받습니다. 다시 누르면 해제합니다.',
+  'watch.hint_area':
+    '이 영역과 그 아래 문서 · 작업의 승인 · 거절 · 코멘트와 준비된 작업을 알림으로 받습니다. 다시 누르면 해제합니다.',
+  'watch.added': '{target} 워치를 시작했습니다',
+  'watch.added_area': '영역 {target} 워치를 시작했습니다. 그 아래 문서와 작업의 알림도 받습니다',
+  'watch.removed': '{target} 워치를 해제했습니다',
+  'watch.list_title': '워치',
+  'watch.list_hint':
+    '워치한 문서 · 작업 · 영역의 승인 · 거절 · 코멘트와 준비된 작업을 알림으로 받습니다. 받는 양은 위의 프로젝트별 알림 수준을 따릅니다.',
+  'watch.list_empty':
+    '워치한 것이 없습니다. 스펙이나 작업 화면 위쪽의 [워치]를 누르면 여기에 나타납니다.',
+  'watch.remove': '해제',
+  'watch.type.spec': '문서',
+  'watch.type.task': '작업',
+  'watch.type.area': '영역',
   'account.notifications_hint':
     '프로젝트마다 알림을 얼마나 받을지 고릅니다. 이미 받은 알림은 그대로입니다. 받은 요청에는 영향이 없습니다.',
   'account.tabs_label': '내 계정 항목',

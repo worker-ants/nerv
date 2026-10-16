@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.25 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.26 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.26 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](backlog.md) E17-S02): **§2.2 트리 두 줄 · §3.2 상수 전표 한 줄.** `event/watch.service.ts`(워치 · 핀 — EP-NTF-10 ~ 16)와 `tables/event.ts` 의 `watch` · `pin`. 상수 `PIN_LIMIT`(50 — 한 사람이 고정할 수 있는 핀의 수)([4.4 API](api.md) REQ-API-341 ~ 344).
 >
 > v2.25 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **§2.2 트리 두 줄.** `review/escalation.ts` — 발견을 변경 요청에 묶고 CR의 결말(승인 · 거절 · 철회)로 그 발견을 닫으며, 에스컬레이션 카드를 만들고 닫는 자리다. 처분 · 카드의 결정 · CR의 결말 세 경로가 같은 함수를 지난다(D-05). `approval/session-wake.ts` — 기다리던 세션을 깨우는 규칙을 결재 결정 · 만료 · 에스컬레이션 카드가 함께 쓴다(기다리지 않는 카드는 세션을 붙잡지 않는다 · [4.4 API](api.md) REQ-API-334).
 >
@@ -584,6 +586,7 @@ apps/api/src/
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
+      watch.service.ts             # 워치 · 핀 — 본인의 것만 · 내가 속한 프로젝트의 대상만 (REQ-API-341 ~ 344). 워처 산출은 notification.service.ts
       ws.gateway.ts                # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
       ws-log.ts                    # 연결·거절·해제 한 줄 — 업그레이드는 접근 로그에 닿지 않는다 (§5.5 · REQ-CB-054)
     import/
@@ -739,7 +742,7 @@ packages/schema/
       session.ts                 #   agent_session · activity
       review.ts                  #   review_session · reviewer_report · finding · finding_occurrence · resolution
       approval.ts                #   approval · question
-      event.ts                   #   event · notification · notification_batch_event · notification_preference
+      event.ts                   #   event · notification · notification_batch_event · notification_preference · notification_digest_setting · watch · pin
     zod/                         # 요청·응답·도구 입력 zod 스키마 — REST(4.4)와 MCP가 같은 것을 쓴다
     constants.ts                 # §3.2 상수 전표
     events.ts                    # 이벤트 이름 리터럴 유니온 — `<리소스>.<동사>` (정본: 3.5 §6)
@@ -798,6 +801,7 @@ packages/schema/
 | `MIRROR_GIT_DEFAULT_AUTHOR` | `'NERV <nerv@localhost>'` | git 미러 커밋의 작성자 — `NERV_MIRROR_GIT_AUTHOR` 를 비우면 이 값이다. 사람이 손으로 커밋하지 않는 저장소다([3.2](../03-proposal/architecture.md) §2.4 (b)) |
 | `DIGEST_MAX_LINES` | `20` | 메일 요약 한 통에 적는 알림 줄 수 — 넘치면 수로 줄인다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5 · [4.4 API 명세](api.md) REQ-API-233) |
 | `DIGEST_DEFAULT_HOUR` | `9` | 메일 요약을 받는 현지 시의 기본값 — 켤 때 시를 고르지 않으면 이 값이다([4.4 API 명세](api.md) REQ-API-232) |
+| `PIN_LIMIT` | `50` | 한 사람이 고정할 수 있는 핀의 수 — 퀵 스위처는 빈 입력에서 고정을 모두 보이므로 그보다 많으면 고정이 아니라 또 하나의 목록이다. 브라우저에서 옮겨 오는 핀도 이 수까지다(2026-10-16 · 이번에 정한 시작값 · [4.4 API 명세](api.md) REQ-API-343) |
 | `PAGE_LIMIT_DEFAULT` · `PAGE_LIMIT_MAX` | `30` · `100` | 페이지 상한 전역 규칙 — [4.4 API 명세](api.md) §1.6 |
 | `FINDING_PAGE_LIMIT_DEFAULT` · `_MAX` | `50` · `200` | 발견 큐의 **예외**(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05) |
 | `GATE_BRANCH_LIMIT_DEFAULT` · `_MAX` | `20` · `200` | 게이트 표의 브랜치 — 같은 예외(실측 441개) |

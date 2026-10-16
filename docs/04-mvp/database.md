@@ -18,9 +18,11 @@ referenced_by:
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 43개**다 — 도메인 37 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.81 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.82 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.82 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](backlog.md) E17-S02): **REQ-DB-051 신설 · §2.1 enum 둘(45 → 47종) · §2.10 테이블 둘 · §2.12 인덱스 넷 · 요약의 계수 · 마이그레이션 `0056`.** `watch`(사람 × 스펙 · 작업 · 영역 — 알림 카탈로그의 「워처」)와 `pin`(사람마다 프로젝트를 넘는 핀 목록 · 순서)을 따로 둔다. 둘 다 그 사람의 설정이라 사람 · 프로젝트가 지워지면 함께 지운다(`notification_preference` 와 같다). 대상은 다형 참조다. `CREATE TABLE` 은 43개(도메인 37 + 부속 6)다([4.4 API](api.md) REQ-API-341 ~ 344).
 >
 > v0.81 변경(2026-10-16 — 리뷰가 없는 브랜치의 면제, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D4) · [4.8 백로그](backlog.md) E16-S04): **REQ-DB-050 신설 · §2.8 `approval` 두 열과 CHECK 둘 · 다형 참조의 예외와 결정 기록 · §2.12 인덱스 하나 · 마이그레이션 `0055`.** 게이트 면제가 브랜치를 대상으로 삼게 `approval.branch` 와 선택 `head_sha`(40자 소문자 커밋 SHA)를 더한다. 브랜치는 문자열이라 `subject_id`(uuid)가 가리킬 수 없어 브랜치 면제의 `subject_id` 는 프로젝트 id 다 — 다형 참조 규칙의 예외 하나다. 있던 행은 둘 다 NULL 이라 뜻이 바뀌지 않는다([4.4 API](api.md) REQ-API-338 ~ 340).
 >
@@ -203,7 +205,7 @@ referenced_by:
 
 서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **33개**(도메인 32 + 부속 `idempotency_key` 1 — §2.3a·§2.3b 포함) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
-### 2.1 확장과 enum 45종
+### 2.1 확장과 enum 47종
 
 ```sql
 -- 0000_init.sql · §1 — 확장
@@ -279,6 +281,8 @@ CREATE TYPE notification_importance AS ENUM ('immediate', 'digest');
 CREATE TYPE notification_channel    AS ENUM ('inapp', 'slack', 'email');
 CREATE TYPE notification_state      AS ENUM ('unread', 'read', 'archived');
 CREATE TYPE notification_level      AS ENUM ('all', 'important', 'none'); -- 프로젝트별 받는 수준(2026-09-27 · 0035)
+CREATE TYPE watch_target            AS ENUM ('spec', 'task', 'area'); -- 워치의 대상(2026-10-16 · 0056 · REQ-DB-051)
+CREATE TYPE pin_target              AS ENUM ('spec', 'task', 'change_request'); -- 핀의 대상(0056 · REQ-DB-051)
 ```
 
 `event.type`은 enum이 아니라 `text`다 — 이벤트 어휘(`<리소스>.<동사>`)는 열려 있고 정본은 spec-workflow §6이다. `escalate_reason`의 하이픈 값(`user-decision` · `e2e-fail-3x` · `sensitive-fix`)은 clemvion에서 5개월 검증된 ESCALATE 어휘 그대로다(data-model §2.6).
@@ -1000,6 +1004,29 @@ CREATE TABLE notification_digest_setting (
   CONSTRAINT notification_digest_hour_ck CHECK (hour BETWEEN 0 AND 23),
   CONSTRAINT notification_digest_locale_ck CHECK (locale IN ('ko', 'en'))
 );
+
+-- 워치(2026-10-16 · 사람 결정 D5 = B · 0056 · REQ-DB-051). 사람이 누를 때만 생긴다 — 자동 등록은 없다.
+-- 알림 카탈로그의 「워처」가 여기서 나온다. area 는 그 영역 문서 아래의 문서와 작업까지다.
+CREATE TABLE watch (
+  id          uuid PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  project_id  uuid NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  target_type watch_target NOT NULL,
+  target_id   uuid NOT NULL,                       -- 다형 참조 — spec.id(spec · area) · task.id
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- 핀(2026-10-16 · 0056 · REQ-DB-051). 퀵 스위처의 고정 — 사람마다 프로젝트를 넘는 한 목록.
+-- 순서는 position 오름차순(새 핀이 맨 위). 알림을 만들지 않는다.
+CREATE TABLE pin (
+  id          uuid PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  project_id  uuid NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  target_type pin_target NOT NULL,
+  target_id   uuid NOT NULL,                       -- 다형 참조 — spec.id · task.id · change_request.id
+  position    integer NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
 ```
 
 ### 2.11 순환 참조 FK
@@ -1116,6 +1143,10 @@ CREATE INDEX notification_inbox ON notification (user_id, state, last_at DESC); 
 CREATE INDEX notification_scope ON notification (user_id, project_id, state);  -- 보조: 조직 · 프로젝트 칸의 수와 범위 안 모두 읽음(REQ-DB-027)
 CREATE UNIQUE INDEX notification_event_user ON notification (event_id, user_id); -- 파생 멱등: 한 이벤트 · 한 사람 · 한 행(REQ-DB-029)
 CREATE UNIQUE INDEX notification_open_batch ON notification (user_id, batch_key) WHERE batch_open; -- 열린 묶음은 키마다 하나(REQ-DB-030)
+CREATE UNIQUE INDEX watch_user_target_uq ON watch (user_id, target_type, target_id); -- 같은 대상을 두 번 워치하지 않는다(0056 · REQ-DB-051)
+CREATE INDEX watch_target ON watch (project_id, target_type, target_id); -- 알림 라우팅이 이벤트의 대상(과 조상 영역)으로 워처를 찾는다
+CREATE UNIQUE INDEX pin_user_target_uq ON pin (user_id, target_type, target_id); -- 같은 대상을 두 번 고정하지 않는다
+CREATE INDEX pin_user_order ON pin (user_id, position); -- 내 핀 목록의 순서
 CREATE UNIQUE INDEX notification_batch_event_user ON notification_batch_event (event_id, user_id); -- 한 이벤트는 한 사람에게 한 묶음(REQ-DB-030)
 CREATE INDEX question_open ON question (project_id, status);                       -- 보조: 열린 질문 수
 CREATE INDEX evidence_requirement ON evidence (requirement_id) WHERE NOT stale;    -- 보조: 커버리지(§4.1)
@@ -1419,6 +1450,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-048 | WHEN 승인본이 있는 문서에 새 초안이 생겨 변경 요청(CR)을 만들면 THE SYSTEM SHALL 그 행의 `change_request.key` 에 표시 키 `<PRJ>-C-XXXXXX`(씨앗은 그 행의 UUID)를 넣고 `change_request_key_uq`(`project_id, key`)로 프로젝트 안의 유일함을 지키며, `change_request_proposed_uq`(`proposed_version_id`)로 초안마다 CR 하나를, `change_request_spec_open_uq`(`spec_id` · `WHERE status IN ('open', 'in_review')`)로 문서마다 열린 CR 하나를 지킨다. WHEN CR을 거절하거나 철회하면 THE SYSTEM SHALL 그 초안의 `spec_version.status` 를 `discarded` 로 바꾸고 행을 지우지 않는다. 승인하며 함께 할 일은 `planned_actions`(jsonb · NOT NULL · 기본 `{}`)에 남긴다. 마이그레이션 `0053` 은 있던 CR 행의 키를 같은 식으로 채운다(2026-10-16 · 사람 결정 D1 · D2) |
 | REQ-DB-049 | WHEN 발견을 사람에게 넘기면(`escalated`) THE SYSTEM SHALL 넘긴 세션이 결정을 기다리는지를 `resolution.blocking`(boolean · NOT NULL · 기본 false)에 남기고 그 처분을 대상으로 하는 결재 행(`approval.subject_type = escalation` · `subject_id` = 그 `resolution.id`)을 만든다. WHEN 변경 요청이 승인 · 거절 · 철회되면 THE SYSTEM SHALL `resolution_change_request`(`change_request_id` · `WHERE change_request_id IS NOT NULL`)로 그 CR에 묶인 발견을 찾는다. 마이그레이션 `0054` 는 `approval_subject_type` 에 값을 더하기만 하고 그 안에서 쓰지 않는다(2026-10-16 · 사람 결정 D3) |
 | REQ-DB-050 | WHEN 사람이 브랜치에 게이트 면제를 내면 THE SYSTEM SHALL 그 결재 행의 `approval.branch`(text)에 브랜치를, 커밋 하나로 좁혔으면 `approval.head_sha`(text · 40자 소문자 16진수)에 그 커밋을 남기고 `subject_id` 에는 프로젝트 id 를 둔다(다형 참조의 예외 — §2.8). CHECK `approval_branch_ck`(게이트 면제에만 · 빈 문자열 아님) · `approval_head_sha_ck`(브랜치 면제에만 · 40자 소문자 16진수)가 지키고, 게이트 판정 · 게이트 현황은 `approval_bypass_branch (project_id, branch) WHERE branch IS NOT NULL` 로 찾는다. 마이그레이션 `0055` 전의 행은 둘 다 NULL 이다(2026-10-16 · 사람 결정 D4 · [4.4 API](api.md) REQ-API-338) |
+| REQ-DB-051 | WHEN 사람이 워치를 걸면 THE SYSTEM SHALL `watch`(사람 · 프로젝트 · `watch_target`(`spec` · `task` · `area`) · 대상 id)에 한 행을 두고 `watch_user_target_uq (user_id, target_type, target_id)` 로 같은 대상을 한 번만 남기며, 알림 라우팅은 `watch_target (project_id, target_type, target_id)` 로 워처를 찾는다. WHEN 사람이 핀을 고정하면 THE SYSTEM SHALL `pin`(사람 · 프로젝트 · `pin_target`(`spec` · `task` · `change_request`) · 대상 id · `position`)에 한 행을 두고 `pin_user_target_uq` 로 같은 대상을 한 번만, `pin_user_order (user_id, position)` 로 목록의 순서를 읽는다. 둘 다 사람이나 프로젝트가 지워지면 함께 지운다(ON DELETE CASCADE — `notification_preference` 와 같은 그 사람의 설정). 대상은 다형 참조라 물리 FK 가 없다(마이그레이션 `0056` · 2026-10-16 · 사람 결정 D5 = B · [4.4 API](api.md) REQ-API-341 ~ 344) |
 
 ---
 

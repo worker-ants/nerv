@@ -1,5 +1,5 @@
 // 이벤트·알림 — event · notification · notification_batch_event · notification_preference ·
-// notification_digest_setting
+// notification_digest_setting · watch · pin
 // DDL 정본: docs/04-mvp/database.md §2.10 · 필드 의미: data-model §2.9
 //
 // event 는 append-only(D-10) 이고 월 파티션이라 PK 가 (id, occurred_at) 복합이다.
@@ -25,6 +25,8 @@ import {
   notificationImportance,
   notificationLevel,
   notificationState,
+  pinTarget,
+  watchTarget,
 } from '../enums.js';
 import { DIGEST_DEFAULT_HOUR } from '../constants.js';
 import { createdAt, idPk, ts } from './_columns.js';
@@ -194,5 +196,65 @@ export const notificationDigestSetting = pgTable(
   (t) => [
     check('notification_digest_hour_ck', sql`${t.hour} BETWEEN 0 AND 23`),
     check('notification_digest_locale_ck', sql`${t.locale} IN ('ko', 'en')`),
+  ],
+);
+
+/**
+ * **워치**(2026-10-16 · 사람 결정 D5 = B · REQ-DB-051 · spec-workflow §6.1 ② · data-model §2.9).
+ *
+ * 사람이 스펙 · 작업 · 영역을 명시적으로 구독한 것이다 — 알림 카탈로그(§6.3)의 「워처」 수신자가 여기서 나온다. **자동 등록은
+ * 하지 않는다**(spec-workflow §2.2 결정 기록) — 행은 사람이 누를 때만 생긴다. 대상은 다형 참조(`target_type` · `target_id` —
+ * 물리 FK 없음)이고, 같은 사람이 같은 대상을 두 번 워치하지 않는다. 프로젝트 · 사람이 지워지면 함께 지운다
+ * (`notification_preference` 와 같은 규칙 — 그 사람의 설정이다). 지금 그 프로젝트의 멤버가 아니면 행이 남아도 받지 않는다.
+ */
+export const watch = pgTable(
+  'watch',
+  {
+    id: idPk(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    targetType: watchTarget('target_type').notNull(),
+    /** 다형 참조 — `spec.id`(spec · area) 또는 `task.id` */
+    targetId: uuid('target_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('watch_user_target_uq').on(t.userId, t.targetType, t.targetId),
+    // 알림 라우팅 — 이벤트의 대상(과 그 조상 영역)으로 워처를 찾는다
+    index('watch_target').on(t.projectId, t.targetType, t.targetId),
+  ],
+);
+
+/**
+ * **핀**(2026-10-16 · 사람 결정 D5 = B · REQ-DB-051 · screens.md §1.3a).
+ *
+ * 퀵 스위처(⌘K)에서 고정한 문서 · 작업 · 변경 요청. 예전에는 브라우저(localStorage)에만 있어 기기를 바꾸면 사라졌다. 워치와 표를
+ * 나눈 까닭은 뜻이 달라서다 — 핀은 이동 수단이고 알림을 만들지 않는다. **사람마다 하나의 목록이고 프로젝트를 넘는다** —
+ * `project_id` 는 그 대상이 속한 프로젝트이고 목록은 지금 멤버인 프로젝트의 것만 보인다. 순서는 `position` 오름차순이다
+ * (새 핀이 맨 위 — 가장 작은 값).
+ */
+export const pin = pgTable(
+  'pin',
+  {
+    id: idPk(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    targetType: pinTarget('target_type').notNull(),
+    /** 다형 참조 — `spec.id` · `task.id` · `change_request.id` */
+    targetId: uuid('target_id').notNull(),
+    position: integer('position').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('pin_user_target_uq').on(t.userId, t.targetType, t.targetId),
+    index('pin_user_order').on(t.userId, t.position),
   ],
 );

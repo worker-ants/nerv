@@ -1,7 +1,25 @@
 // REST — 이벤트 피드 · 알림 (docs/04-mvp/api.md §2.7)
-import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { intParam } from '../../common/query-vocab.js';
-import { msg, NERV_ERROR, NotificationLevelInput, NotificationReadAllInput } from '@nerv/schema';
+import {
+  msg,
+  NERV_ERROR,
+  NotificationLevelInput,
+  NotificationReadAllInput,
+  PinImportInput,
+  WatchTargetInput,
+} from '@nerv/schema';
 import { parseBody } from '../../common/parse-body.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
@@ -9,12 +27,14 @@ import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { EventService } from './event.service.js';
 import { NotificationService } from './notification.service.js';
+import { WatchService } from './watch.service.js';
 
 @Controller('api/v1')
 export class EventController {
   constructor(
     private readonly events: EventService,
     private readonly notifications: NotificationService,
+    private readonly watches: WatchService,
   ) {}
 
   /** EP-EVT-01 */
@@ -124,6 +144,73 @@ export class EventController {
       importance: input.importance ?? null,
       until: input.until ?? null,
     });
+  }
+
+  /**
+   * EP-NTF-10 — 내 워치(2026-10-16 · 사람 결정 D5 · REQ-API-341). 본인의 것만이다 — 범위를 주면 그 프로젝트의 것만
+   */
+  @Get('me/watches')
+  myWatches(
+    @Req() req: ProjectRequest,
+    @Query('project') project?: string,
+    @Query('org') org?: string,
+  ): Promise<unknown> {
+    return this.watches.listWatches({
+      userId: userOf(req),
+      project: project ?? null,
+      org: org ?? null,
+    });
+  }
+
+  /** EP-NTF-11 — 워치를 건다(멱등). 대상은 내가 속한 프로젝트의 스펙 · 작업 · 영역이다 */
+  @Put('me/watches')
+  watch(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
+    const input = parseBody(WatchTargetInput, body);
+    return this.watches.watch({
+      userId: userOf(req),
+      project: input.project,
+      org: input.org ?? null,
+      targetType: input.target_type,
+      target: input.target,
+    });
+  }
+
+  /** EP-NTF-12 — 워치를 푼다. 본인의 것만이다 */
+  @Delete('me/watches/:id')
+  unwatch(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    return this.watches.unwatch({ userId: userOf(req), watchId: id });
+  }
+
+  /** EP-NTF-13 — 내 핀(REQ-API-343). 프로젝트를 넘는 한 목록이다 */
+  @Get('me/pins')
+  myPins(@Req() req: ProjectRequest): Promise<unknown> {
+    return this.watches.listPins({ userId: userOf(req) });
+  }
+
+  /** EP-NTF-14 — 핀을 고정한다(멱등 · 새 핀이 맨 위) */
+  @Put('me/pins')
+  pin(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
+    const input = parseBody(WatchTargetInput, body);
+    return this.watches.pin({
+      userId: userOf(req),
+      project: input.project,
+      org: input.org ?? null,
+      targetType: input.target_type,
+      target: input.target,
+    });
+  }
+
+  /** EP-NTF-15 — 핀을 푼다. 본인의 것만이다 */
+  @Delete('me/pins/:id')
+  unpin(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
+    return this.watches.unpin({ userId: userOf(req), pinId: id });
+  }
+
+  /** EP-NTF-16 — 브라우저(localStorage)의 핀을 처음 한 번 옮긴다(REQ-API-344) */
+  @Post('me/pins/import')
+  importPins(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
+    const input = parseBody(PinImportInput, body);
+    return this.watches.importPins({ userId: userOf(req), items: input.items });
   }
 }
 
