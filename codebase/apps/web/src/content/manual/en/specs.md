@@ -280,9 +280,9 @@ Agents get the number from the server, so nobody numbers requirements by hand. T
 
 **No evidence** means "you said it was done, but there is nothing to show". **No task** means "you wrote it down, but nobody took it on". Reduce the first by attaching evidence, and the second by creating a task and linking it to the requirement (see [Tasks](/help/tasks)). **Needs re-verification** is explained below.
 
-**You can also see it by area.** If the spec tree has `area` documents, **By area** below the numbers shows one row per area. It gathers the requirements of the specs under that area document (at any depth) into one bar with implemented and verified counts, and lists No evidence, No task and Needs re-verification only when they are not zero. Click an area name to open its document. Specs that belong to no area are gathered into the last row, **Specs outside any area**. Areas with no requirements are not shown.
+**You can also see it by area.** If the spec tree has `area` documents, **By area** below the numbers shows one row per area. It gathers the requirements of the specs under that area document (at any depth) into one bar with implemented and verified counts, and lists No evidence, No task and Needs re-verification only when they are not zero. Click an area name to see its requirements in [Implementation status in detail](#coverage). Specs that belong to no area are gathered into the last row, **Specs outside any area**. Areas with no requirements are not shown.
 
-**To find out which requirements they are, look at the document.** The project screen shows only counts. The **Requirements** tab on the right of a spec lists that document's requirements, one per row, with derived-task and evidence counts on each. A row where both are zero is shown in **red**. Below it, **Derived tasks** lists the tasks from this document that are `ready`, `in_progress` or `blocked`. [See all on the board] opens the task board with the same filter.
+**To find out which requirements they are, use the implementation status screen or the document.** The project screen shows only counts. Click a number to open [Implementation status in detail](#coverage) filtered by it. The **Requirements** tab on the right of a spec lists that document's requirements, one per row, with derived-task and evidence counts on each. A row where both are zero is shown in **red**. Below it, **Derived tasks** lists the tasks from this document that are `ready`, `in_progress` or `blocked`. [See all on the board] opens the task board with the same filter.
 
 Requirement rows are created from the body **when a version is approved**. Writing EARS sentences in a draft does not create them, because a draft is not yet a commitment. When a sentence is removed in a later version, the row is not deleted. Instead, **the version that removed it** is recorded.
 
@@ -290,12 +290,12 @@ The default priority is `must`, because an EARS line in the body does not includ
 
 **People don't set implementation status by hand.** The server derives it from the tasks created from that requirement.
 
-| Status          | When                                                                                     |
-| --------------- | ---------------------------------------------------------------------------------------- |
-| `unimplemented` | Nothing started and nothing done (every derived task is `backlog`, `ready` or `blocked`) |
-| `in_progress`   | At least one is **claimed** or in progress, or some are done but not all                 |
-| `implemented`   | All are `done` **and** there is at least one piece of evidence                           |
-| `verified`      | `implemented`, with a test record signed by QA or an admin, and no open `critical`       |
+| Status          | When                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `unimplemented` | Nothing started and nothing done (every derived task is `backlog`, `ready` or `blocked`)                              |
+| `in_progress`   | At least one is **claimed** or in progress, or some are done but not all                                              |
+| `implemented`   | All are `done` **and** there is at least one piece of evidence                                                        |
+| `verified`      | `implemented`, with a test record signed by QA or an admin, and no open `critical` in the review of the latest commit |
 
 ```mermaid
 stateDiagram-v2
@@ -314,9 +314,9 @@ stateDiagram-v2
     verified --> implemented: The statement changes
 ```
 
-**If all tasks are done but there is no evidence, the status stays `in_progress`.** To call it finished, attach something to show. **Verification comes from a test record left by QA or an admin.** Nobody raises the status by hand. When that signature exists, the server marks the requirement `verified`. Open `critical` findings are checked only when the requirement is about to become `verified`. Once verified, it does not drop when a finding opens later. A test record attached by an agent does not count as a signature.
+**If all tasks are done but there is no evidence, the status stays `in_progress`.** To call it finished, attach something to show. **Verification comes from a test record left by QA or an admin.** Nobody raises the status by hand. When that signature exists, the server marks the requirement `verified`. Open `critical` findings are checked only when the requirement is about to become `verified`. They are counted in the reviews of each task's latest commit. If a new commit came after a review, that commit must be reviewed before the requirement is verified, and findings left from earlier reviews do not block it once the new commit's review is clean. If a task has no commit evidence or was never reviewed, the server looks for open `critical` findings on the requirement itself. Once verified, it does not drop when a finding opens later. A test record attached by an agent does not count as a signature.
 
-**Status can also go back.** If a claim is released and no task is in progress any more, it returns to `unimplemented`. If a new task starts on an implemented requirement, it returns to `in_progress`. Both reflect where the work currently stands. Evidence whose target no longer exists does not count. Status values that came in through the importer stay as they are until a task is linked to that requirement.
+**Status can also go back.** If a claim is released and no task is in progress any more, it returns to `unimplemented`. If a new task starts on an implemented requirement, it returns to `in_progress`. Both reflect where the work currently stands. Evidence whose target no longer exists does not count. Status values that came in through the importer stay as they are until a task is linked to that requirement. Such a value is marked **Source: import**. It means no task is linked, so the server has not derived it, and the import read it from the document.
 
 **When the statement changes, the verification is cleared.** A verification signature applies only to the statement as it was when signed. When a new version changes a requirement's statement, the earlier signature does not cover the new one. So `verified` goes back to `implemented`, and the Requirements tab shows **Needs re-verification**. Changes to whitespace or formatting alone (such as bold) do not count.
 
@@ -383,3 +383,21 @@ To **see archived documents again**, turn on **Show archived** at the top of the
 **You restore a document from its own page.** When you open an archived spec, a banner appears at the top, and planners and admins also see a **Restore** button. **Child documents archived together with it are restored too**; children you archived separately before stay archived. If its parent is archived, the restore is refused, and the screen shows the key of the document to restore first. When several levels above are archived, that's the topmost one.
 
 You **cannot create a document under an archived one**, and you cannot move an existing document under it either. Otherwise that document would appear in no list at all, and even the person who created it could not find it again.
+
+## Implementation status in detail {#coverage}
+
+Click **[Details]**, a number or an area name on the **Implementation status** card of the project screen to open the implementation status screen (`/p/<project>/coverage`). There you drill down from **area to document to requirement** to see which requirements are still open.
+
+- **Areas**: one row per `area` document, with the same bar and counts as By area on the project screen. Only warnings that are not zero are listed. Click the name to go down to the area's documents, or **[Open document]** to open the area document. Specs that belong to no area are gathered into one row, **Specs outside any area**.
+- **Documents**: only the documents under that area that have requirements. Click a name to go down to its requirements.
+- **Requirements**: each row shows the fixed ID, the implementation status, markers (No evidence, No task, Needs re-verification, Source: import), the statement, and the counts of derived tasks and evidence.
+
+Click **No evidence**, **No task**, **Needs re-verification** or **Source: import** in the top row to keep only the requirements that match. Click it again to clear it. A condition with no matches can't be turned on. At the area and document levels, rows with a zero count for that condition are hidden too. All numbers and markers come from the server, and the screen does not count them on its own.
+
+**Click a requirement to expand it.** It shows the tasks created from it, its evidence, the findings that point at it (open and resolved) and the five most recent reviews. Each row links to the task, the repository or the review center. Resolved findings open in the review center with the filter that shows every status.
+
+**If there is no verification evidence, create a verification task right there.** When no test record signed by QA or an admin covers the current statement, **[Create verification task]** appears. It opens the new task form on the task board with the document's latest approved version and this requirement filled in as the source. It is the same form as **[Create a task from this requirement]** in the Requirements tab of a spec. If the document has no approved version, or your role can't create tasks, the button is locked and shows why.
+
+**Source: import** marks an implementation status the server has not derived because no task is linked. Overwriting the values the import read from the documents with `unimplemented` would drop a migrated team's progress to zero overnight. So the value stays as it is, and the screen shows where it came from. Below the top row you see **the share of requirements derived from links** together with **the number of requirements still holding an imported value**. The marker disappears once a task is linked and the server sets the status again.
+
+The level you are on, the condition you turned on and the requirement you expanded are all part of the address. Share the link and the other person sees the same place. Every project member can open this screen, viewers included.

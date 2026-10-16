@@ -38,6 +38,8 @@ import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 import { DigestJob } from '../../src/worker/jobs/digest.job.js';
 import { ApprovalReminderJob } from '../../src/worker/jobs/approval-reminder.job.js';
+import { FailopenJob } from '../../src/worker/jobs/failopen.job.js';
+import { FailopenService } from '../../src/modules/task/failopen.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { DigestService } from '../../src/modules/digest/digest.service.js';
 
@@ -105,6 +107,8 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
         drizzleDb,
       ),
     ),
+    // fail-open 격상도 이벤트와 DB 만 쓴다(REQ-API-319)
+    new FailopenJob(new FailopenService(new EventService(drizzleDb, silent), drizzleDb)),
   );
   return { runner, lock };
 }
@@ -138,19 +142,20 @@ describe('알림 라우팅은 창에 막히지 않는다 (REQ-API-064 계열)', 
       );
     }
 
-    // ① 알림을 만들지 않는 이벤트로 창(200)을 넘긴다 — 카탈로그 밖 타입이다
+    // ① 알림을 만들지 않는 이벤트로 창(200)을 넘긴다 — 카탈로그 밖 타입이다. 시각은 넣는 순간이다: 새 워커는 최근
+    // 한 시간의 이벤트만 다시 본다(REQ-API-317) — 그 안에 205건이 다 있어야 창을 채운다
     for (let i = 0; i < 205; i += 1) {
       await poolA.query(
         `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
-         VALUES ($1,$2,'spec.draft_updated','spec_version',$3,$4, now() - interval '1 hour' + ($5 || ' seconds')::interval)`,
-        [newId(), projectId, newId(), actor, i],
+         VALUES ($1,$2,'spec.draft_updated','spec_version',$3,$4, clock_timestamp())`,
+        [newId(), projectId, newId(), actor],
       );
     }
     // ② 그 뒤에 사람을 불러야 하는 이벤트 하나
     const importantId = newId();
     await poolA.query(
       `INSERT INTO event (id, project_id, type, subject_type, subject_id, actor_user_id, occurred_at)
-       VALUES ($1,$2,'approval.requested','approval',$3,$4, now())`,
+       VALUES ($1,$2,'approval.requested','approval',$3,$4, clock_timestamp())`,
       [importantId, projectId, newId(), actor],
     );
 

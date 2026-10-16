@@ -3,7 +3,7 @@
 // 진입 시 `project:{id}` 룸에 join 한다(§1.4 룸 2종). join 하지 않으면 이 화면은 조용히
 // 낡은 데이터를 보여준다 — 폴백 폴링이 있지만 그건 끊겼을 때의 안전망이지 기본 경로가 아니다.
 
-import { ACTIVE_SESSION_STATES } from '@nerv/schema';
+import { ACTIVE_SESSION_STATES, NERV_EVENT, NERV_EVENT_PHASE2 } from '@nerv/schema';
 import { useT } from '../../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { SessionCard } from '../../features/session-monitor/session-card.js';
@@ -31,12 +31,29 @@ import {
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import type { SessionCard as SessionCardData } from '../../features/session-monitor/types.js';
 import { asProjectId } from '../../lib/query-keys.js';
+import { NO_AREA } from '../../features/coverage-drilldown/coverage-search.js';
+import type { CoverageFilter } from '../../features/coverage-drilldown/coverage-search.js';
 
-export const Route = createFileRoute('/p/$proj/')({ component: ProjectOverview });
+/**
+ * **fail-open 기록으로 거른 활동**(2026-10-15 · 사람 결정 · REQ-WEB-319). S5 · S6 의 격상 배너가 [기록 보기]로 여기를 연다 —
+ * 판정하지 못하고 통과시킨 일과 격상 · 풀림만 보인다. 주소에 남아 링크로 건넬 수 있다.
+ */
+const FAILOPEN_EVENTS: readonly string[] = [
+  NERV_EVENT.GATE_FAILOPEN,
+  NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED,
+  NERV_EVENT_PHASE2.GATE_FAILOPEN_CLEARED,
+];
+
+export const Route = createFileRoute('/p/$proj/')({
+  validateSearch: (search: Record<string, unknown>): { events?: 'failopen' } =>
+    search['events'] === 'failopen' ? { events: 'failopen' } : {},
+  component: ProjectOverview,
+});
 
 function ProjectOverview(): React.JSX.Element {
   const t = useT();
   const { proj } = Route.useParams();
+  const { events: eventFilter } = Route.useSearch();
   const project = useProject(proj);
   const projectId = asProjectId(project.data?.['id']);
   const coverage = useCoverage(proj, projectId);
@@ -82,6 +99,9 @@ function ProjectOverview(): React.JSX.Element {
   const missing = Number(totals['evidence_missing'] ?? 0);
   const empty = Number(totals['empty_promises'] ?? 0);
   const reverify = Number(totals['reverify_required'] ?? 0);
+  // **임포트 값으로 남은 요구사항**(2026-10-15 · 사람 결정 · REQ-WEB-317 · 서버 REQ-API-312) — 성공 기준 2-8 의 두 수
+  const imported = Number(totals['imported_values'] ?? 0);
+  const derivedRatio = typeof totals['derived_ratio'] === 'number' ? totals['derived_ratio'] : null;
   /**
    * **영역별 분해**(2026-10-11 · REQ-WEB-309 · 서버 REQ-API-297). 프로젝트 전체의 여섯 칸만으로는 "어느 영역이 비었나"
    * 에 답하지 못했다 — 스펙 트리의 `area` 문서마다 같은 지표를 묶는다. 영역에 들지 않은 스펙은 마지막 한 줄이다
@@ -126,7 +146,22 @@ function ProjectOverview(): React.JSX.Element {
 
       <section className="mb-8 grid gap-4 lg:grid-cols-3">
         <Card className="self-start lg:col-span-1">
-          <SectionTitle>{t('project.coverage')}</SectionTitle>
+          {/* **수를 누르면 그 줄들로 내려간다**(2026-10-15 · REQ-WEB-315 · FR-13 양방향 드릴다운) — 카드는 건수만
+              보여 주고, 어느 요구사항인지는 드릴다운에서 확인한다 */}
+          <SectionTitle
+            action={
+              <Link
+                to="/p/$proj/coverage"
+                params={{ proj }}
+                data-testid="coverage-drilldown"
+                className="text-xs text-link hover:underline"
+              >
+                {t('project.coverage.drilldown')} ▸
+              </Link>
+            }
+          >
+            {t('project.coverage')}
+          </SectionTitle>
           {/* 받지 못했으면 수 대신 이유와 [다시 시도] — 골격을 남겨 두면 끝나지 않는 "불러오는 중" 이다(REQ-WEB-198) */}
           {failedWithoutData(coverage) ? (
             <ErrorState error={coverage.error} onRetry={() => void coverage.refetch()} />
@@ -150,34 +185,63 @@ function ProjectOverview(): React.JSX.Element {
                 />
               </div>
               <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
-                <Metric label={t('project.metric.total')} value={covered ? total : null} />
                 <Metric
+                  proj={proj}
+                  label={t('project.metric.total')}
+                  value={covered ? total : null}
+                />
+                <Metric
+                  proj={proj}
                   label={t('project.metric.implemented')}
                   value={covered ? implemented : null}
                 />
                 <Metric
+                  proj={proj}
                   label={t('project.metric.verified')}
                   value={covered ? verified : null}
                   tone={verified > 0 ? 'ok' : undefined}
                 />
                 {/* 두 숫자가 이 카드의 존재 이유다 — 관계 그래프가 아니면 셀 수 없다(§5.5) */}
                 <Metric
+                  proj={proj}
+                  filter="evidence_missing"
                   label={t('project.metric.evidence_missing')}
                   value={covered ? missing : null}
                   tone={missing > 0 ? 'waiting' : undefined}
                 />
                 <Metric
+                  proj={proj}
+                  filter="empty_promises"
                   label={t('project.metric.empty_promises')}
                   value={covered ? empty : null}
                   tone={empty > 0 ? 'danger' : undefined}
                 />
                 {/* 문장이 바뀌어 검증이 풀린 것 — 검증률에서 빠진 까닭을 여기서 말한다(REQ-WEB-241) */}
                 <Metric
+                  proj={proj}
+                  filter="reverify"
                   label={t('project.metric.reverify_required')}
                   value={covered ? reverify : null}
                   tone={reverify > 0 ? 'waiting' : undefined}
                 />
               </dl>
+              {/* **임포트 값은 따로 센다**(2026-10-15 · 사람 결정 · REQ-WEB-317) — 작업이 없어 파생하지 않은 값이다. 숫자를
+                  그대로 보이되 파생한 값과 섞여 읽히지 않게 한 줄로 보여 주고, 누르면 그 요구사항들로 간다 */}
+              {imported > 0 && derivedRatio !== null && (
+                <Link
+                  to="/p/$proj/coverage"
+                  params={{ proj }}
+                  search={{ filter: 'import' }}
+                  data-testid="coverage-imported"
+                  className="mt-2 block text-xs text-link hover:underline"
+                >
+                  {t('coverage.derived_line', {
+                    percent: Math.round(derivedRatio * 100),
+                    count: imported,
+                  })}
+                  <span aria-hidden="true"> ▸</span>
+                </Link>
+              )}
               {areas.length > 0 && <AreaBreakdown proj={proj} areas={areas} />}
             </>
           )}
@@ -248,13 +312,28 @@ function ProjectOverview(): React.JSX.Element {
 
       {/* 트리는 **셸 사이드바가 소유한다**(§1.3) — 와이어프레임 §2.2 의 좌측 열이 그것이다.
           여기서 또 그리면 같은 트리가 나란히 두 개 뜬다(문서 대조에서 발견). */}
-      <section className="max-w-content">
-        <SectionTitle>{t('project.recent_events')}</SectionTitle>
+      <section className="max-w-content" data-testid="project-events">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <SectionTitle>
+            {eventFilter === 'failopen' ? t('project.events_failopen') : t('project.recent_events')}
+          </SectionTitle>
+          {eventFilter === 'failopen' && (
+            <Link
+              to="/p/$proj"
+              params={{ proj }}
+              data-testid="project-events-all"
+              className="text-xs text-link hover:underline"
+            >
+              {t('project.events_all')}
+            </Link>
+          )}
+        </div>
         {/* 홈과 **같은 피드**다(REQ-WEB-210) — 이름도 모양도 달랐고, 30줄에서 끝났다 */}
         <EventFeed
           projectSlug={proj}
           projectId={asProjectId(project.data?.['id'])}
           emptyText={t('project.no_events')}
+          {...(eventFilter === 'failopen' ? { types: FAILOPEN_EVENTS } : {})}
         />
       </section>
     </PageBody>
@@ -418,6 +497,9 @@ interface AreaCoverage {
 /**
  * 영역마다 막대 하나와 수 — 전체 카드와 **같은 지표**를 같은 색으로 쓴다(REQ-WEB-309). 경고 셋은 0 이면 적지 않는다:
  * 영역이 열이면 0 이 서른 번 서고, 그러면 0 이 아닌 하나가 묻힌다.
+ *
+ * **영역 이름은 그 영역의 드릴다운으로 간다**(2026-10-15 · REQ-WEB-315). 예전에는 영역 문서를 열었다 — 숫자를 보고 누른
+ * 사람이 찾는 것은 그 영역의 어느 요구사항이 비었는지다. 영역 문서는 드릴다운의 줄에서 연다.
  */
 function AreaBreakdown({
   proj,
@@ -440,17 +522,19 @@ function AreaBreakdown({
           return (
             <li key={area.area_key ?? ''} data-testid="coverage-area" className="text-xs">
               <div className="flex items-baseline justify-between gap-2">
-                {area.area_key === null ? (
-                  <span className="truncate text-text-mute">{t('project.coverage.no_area')}</span>
-                ) : (
-                  <Link
-                    to="/p/$proj/specs/$spec"
-                    params={{ proj, spec: area.area_key }}
-                    className="truncate text-text hover:underline"
-                  >
-                    {area.area_title ?? area.area_key}
-                  </Link>
-                )}
+                <Link
+                  to="/p/$proj/coverage"
+                  params={{ proj }}
+                  search={{ area: area.area_key ?? NO_AREA }}
+                  className={cn(
+                    'truncate hover:underline',
+                    area.area_key === null ? 'text-text-mute' : 'text-text',
+                  )}
+                >
+                  {area.area_key === null
+                    ? t('project.coverage.no_area')
+                    : (area.area_title ?? area.area_key)}
+                </Link>
                 <span className="shrink-0 text-text-mute tabular-nums">
                   {t('project.coverage.area_counts', {
                     implemented: area.implemented,
@@ -499,12 +583,21 @@ function pct(part: number, whole: number): number {
   return whole <= 0 ? 0 : Math.round((part / whole) * 100);
 }
 
-/** 숫자 하나 — 0 은 흐리게 둔다. 0 이 눈에 띄면 매번 "뭐가 문제지"를 확인하게 된다 */
+/**
+ * 숫자 하나 — 0 은 흐리게 둔다. 0 이 눈에 띄면 매번 "뭐가 문제지"를 확인하게 된다.
+ *
+ * **숫자는 그 줄들로 가는 링크다**(2026-10-15 · REQ-WEB-315). 경고 셋은 그 거르기를 켠 드릴다운으로, 나머지는 드릴다운의
+ * 처음으로 간다. 받기 전(`null`)에는 링크가 아니다 — 모르는 수를 누르게 하지 않는다.
+ */
 function Metric({
+  proj,
+  filter,
   label,
   value,
   tone,
 }: {
+  proj: string;
+  filter?: CoverageFilter;
   label: string;
   /** `null` 은 아직 받지 않았다 — 0 이 아니다(REQ-WEB-294) */
   value: number | null;
@@ -522,7 +615,26 @@ function Metric({
           tone === 'danger' ? 'text-status-danger' : undefined,
         )}
       >
-        {value === null ? <SkeletonText /> : value}
+        {value === null ? (
+          <SkeletonText />
+        ) : (
+          <Link
+            to="/p/$proj/coverage"
+            params={{ proj }}
+            {...(filter === undefined || value === 0 ? {} : { search: { filter } })}
+            data-testid="coverage-metric-link"
+            className="group hover:underline"
+          >
+            {value}
+            {/* 갈 데가 있다는 표지 — 숫자만으로는 표시와 링크를 구별할 수 없다(REQ-WEB-274) */}
+            <span
+              aria-hidden="true"
+              className="ml-0.5 text-2xs text-text-faint group-hover:text-link"
+            >
+              ▸
+            </span>
+          </Link>
+        )}
       </dd>
     </div>
   );

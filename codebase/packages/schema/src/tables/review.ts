@@ -48,9 +48,9 @@ export const reviewSession = pgTable(
     agentSessionId: uuid('agent_session_id').references(() => agentSession.id),
     taskId: uuid('task_id').references(() => task.id),
     branch: text('branch').notNull(),
-    /** 검토한 커밋 */
+    /** 검토한 커밋 — 커밋 SHA 만 받는다(2026-10-15 · api.md REQ-API-321 · 그 전의 행에는 `HEAD` 같은 값이 있을 수 있다) */
     headSha: text('head_sha').notNull(),
-    /** diff 기준 커밋 */
+    /** diff 기준 커밋 — 커밋 SHA 만 받는다(REQ-API-321) */
     baseSha: text('base_sha').notNull(),
     /** 라운드 동일성 판정 */
     changesetHash: bytea('changeset_hash').notNull(),
@@ -71,7 +71,7 @@ export const reviewSession = pgTable(
     block: boolean('block').notNull().default(false),
     /** 재생성 가능한 입력 → 오브젝트 스토리지 */
     promptBlobUri: text('prompt_blob_uri'),
-    /** TTL 30일(data-model §5.4) */
+    /** 받을 때 그 프로젝트의 보존 정책(`prompt_blob_ttl_days`)으로 정한 만료(2026-10-15 · codebase.md REQ-CB-032) */
     promptExpiresAt: ts('prompt_expires_at'),
     startedAt: ts('started_at')
       .notNull()

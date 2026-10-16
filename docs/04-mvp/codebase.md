@@ -19,7 +19,17 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.11 · 2026-10-15 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.16 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.16 변경(2026-10-16 — 보존 기간을 저장하면 남아 있는 원문의 만료도 다시 적는다, **사람 결정**): **REQ-CB-032 개정.** v2.15는 원문의 만료를 받을 때의 정책으로 적어서 정책을 줄이면 이미 받은 원문에도 적용되지만 늘리면 그 뒤에 받은 원문부터만 적용됐다. 정책을 늘리는 사람은 지금 남아 있는 원문도 더 오래 남기를 기대한다. 그래서 EP-PRJ-04 가 `retention` 을 저장할 때 원문이 남아 있는 리뷰의 `prompt_expires_at` 을 받은 시각 + 새 기간으로 다시 적는다. 이미 지운 원문은 되살릴 수 없어 건드리지 않는다.
+
+> v2.15 변경(2026-10-15 — 리뷰 프롬프트 원문의 만료가 보존 정책을 따른다, **사람 결정**): **REQ-CB-032 개정.** 리뷰를 받을 때 `prompt_expires_at` 에 상수 30일을 적고 보존 잡이 정책과 그 값 가운데 먼저 오는 쪽으로 지워서, 프로젝트 정책 `prompt_blob_ttl_days` 를 30일보다 늘려도 효과가 없었다(줄이는 것만 효과가 있었다). 이제 받을 때 그 프로젝트의 유효 정책으로 적는다. 보존 잡이 그 열을 읽게 한 2026-09-07 의 이유(행에 적힌 만료가 흔적이 아니라 지켜지는 값이어야 한다)를 지키려고 보존 잡이 지금 정책만 보게 하는 쪽(정책을 바꾸면 기존 행에도 적용)은 고르지 않았다 — 그러면 그 열이 다시 아무도 읽지 않는 값이 된다. 그래서 늘린 정책은 그 뒤에 받은 원문부터 적용된다. 줄인 정책은 받은 시각으로 다시 보므로 이미 받은 원문에도 적용된다 — 게이트 정책 탭이 줄이는 저장만 한 번 더 묻는 것과 맞는다. 기본값 30 은 상수 `REVIEW_PROMPT_BLOB_TTL_DAYS` 한 곳에 두고 `RetentionSchema` 의 기본값이 그것을 쓴다.
+>
+> v2.14 변경(2026-10-15 — fail-open 정책 편집과 격상, Phase 2 묶음 1의 셋째 · **사람 결정**): **새 요구사항 없음 · §2.2 트리 세 줄.** `modules/task/`에 `failopen.ts`(격상 상태 판정)와 `failopen.service.ts`(격상 · 해제 이벤트), 열두 번째 잡 `failopen.job.ts`(하트비트 간격 — 창이 지나면 풀고 기준을 넘으면 올린다)를 더했다([4.4 API 명세](api.md) REQ-API-319).
+>
+> v2.13 변경(2026-10-15 — 커밋 범위를 한 곳에서, Phase 2 묶음 1의 둘째 · **사람 결정**): **§2.2 트리 한 줄.** `modules/review/`에 `commit-scope.ts`(작업의 최신 커밋 · 같은 커밋 판정 — done 게이트의 커밋 신선도와 구현 축 `verified` 가 함께 쓴다 · [4.4 API](api.md) REQ-API-314 · 315)가 들어왔다.
+>
+> v2.12 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **REQ-CB-029 개정.** [4.8 백로그](backlog.md)가 Phase 2 스토리를 받으면서(같은 날 사람 결정) §1.4 에픽 표에 착수 전 스토리를 세는 `backlog` 열이 생겼다. 백로그 현황 정합 게이트가 에픽별 `done + 부분 + backlog`를 스토리 수와 대조하고, html 파생본은 합계 행의 세 칸을 순서대로 본다(`scripts/check-backlog-status.mjs`). 그전에는 착수 전 스토리를 셀 칸이 없어 Phase 2 에픽을 더하는 순간 게이트가 막았다.
 >
 > v2.11 변경(2026-10-15 — 실제 클러스터에서 `nerv-migrate` 파드가 돌았다, **사람 실측**): **§6.3b 한 단락 · ② 표 한 칸.** 사람이 실제 클러스터에 배포하며 남긴 Job 로그(`[Migrate] 마이그레이션 적용 완료 — 이력 51건`)로 E06-S03 의 남은 것을 채웠다. 51건은 그때의 마이그레이션 수(`0000`~`0050`)와 같다. 한 번에 성공해 재시도(`backoffLimit: 2`)와 `ttlSecondsAfterFinished` 는 보지 못했다.
 
@@ -559,6 +569,7 @@ apps/api/src/
       plugin.paths.ts       # 아카이브 위치 — NERV_PLUGIN_DIST
       plugin.service.ts     # 마켓플레이스 JSON 조립
     review/
+      commit-scope.ts       # 커밋 범위 — 작업의 최신 커밋과 라운드의 커밋을 맞춘다 · done 게이트와 verified 가 함께 쓴다 (REQ-API-314 · 315)
       review-gate.ts        # 게이트 판정 — 라운드(브랜치 · 종류 · 커밋)가 통과했는가 (REQ-API-247)
       review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts
@@ -599,6 +610,8 @@ apps/api/src/
     task/
       claim.module.ts
       claim.service.ts       # 원자적 클레임 · scope 겹침 검사 · 리스 연장 (D-04)
+      failopen.service.ts    # fail-open 격상 · 해제 이벤트 — 직후 확인과 잡이 부른다 · 프로젝트마다 advisory lock (REQ-API-319)
+      failopen.ts            # 격상 상태 판정 — 창 안의 수 · 가장 나중 격상/해제 이벤트 (REQ-API-319 · 320)
       task.controller.ts
       task.module.ts
       task.service.ts        # 상태 전이 · 위임 명세 · 증적(evidence)
@@ -622,6 +635,7 @@ apps/api/src/
       digest.job.ts         # 메일 요약 — 켠 사람의 현지 시각에 하루 한 번 (4.4 REQ-API-233, 2026-09-28)
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
       export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
+      failopen.job.ts       # fail-open 격상 상태 맞추기 — 창이 지나면 풀고 기준을 넘으면 올린다 (4.4 REQ-API-319, 2026-10-15)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
       mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정·메일 요약 (4.3 §2.17, 2026-09-22)
       notification.job.ts   # event → notification 라우팅 (인앱 — 메일은 digest.job 이 모아 보낸다, Slack 은 P2)
@@ -1338,14 +1352,14 @@ NERV 코드는 임베딩 제공자를 모른다 — **OpenAI 호환 `POST {NERV_
 | **REQ-CB-025** | WHEN 임베딩 잡이 한 문서의 청크를 색인하면, THE SYSTEM SHALL 요청 문자 예산 단위로 나눠 보내고 **각 요청의 결과를 받는 즉시 적재**하여, 한 요청이 실패해도 앞선 진행이 남게 한다. |
 | **REQ-CB-026** | WHILE 임베딩 한 판이 시간 상한을 넘기면, THE SYSTEM SHALL 그 판을 멈추고 진행 상황을 보고하며 다음 틱에서 남은 문서부터 이어간다 — 다른 잡의 주기를 굶기지 않는다. |
 | **REQ-CB-028** | WHEN PR 의 check 잡이 돌면 THE SYSTEM SHALL `pnpm format:check` 를 실행하고, 서식이 어긋난 파일이 하나라도 있으면 **실패한다** — 돌지 않는 검사는 없는 검사다: 이 스크립트는 처음부터 있었는데 CI 가 부르지 않아 7개 파일이 이틀간(2026-09-02 → 09-04) 실패한 채로 그 사이 커밋들을 받았다 | 서식이 어긋난 파일 1개를 넣은 PR 이 check 에서 실패 |
-| **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본이 같은 수를 말하는가. 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
+| **REQ-CB-029** | WHEN check 잡이 돌면 THE SYSTEM SHALL [4.8 백로그](backlog.md) §1.4 의 현황 표가 **실제 스토리와 맞는지** 검사하고 어긋나면 실패한다 — 에픽별 `done + 부분 + backlog` 이 그 에픽의 스토리 수와 같은가, 합계가 에픽별 합과 같은가, **부분으로 센 수만큼 "남은 것" 이 적혀 있는가**, 그리고 html 파생본의 합계 행이 같은 세 수를 적는가(2026-10-15 개정 — Phase 2 스토리를 백로그에 두기로 한 사람 결정에 따라 착수 전 `backlog` 칸을 센다). 백로그는 첫 임포트 대상이라 거기 적힌 상태가 그대로 Task 의 초기 상태가 된다 — "모든 스토리는 현재 `backlog`다" 가 74개 중 73개에 대해 거짓인 채로 2주를 보냈다(2026-08-22 → 09-06) | 합계를 한 칸 틀리게 바꾼 PR 이 check 에서 실패 |
 | **REQ-CB-051** | WHEN check 잡이 돌면 THE SYSTEM SHALL md 와 html 의 표에서 **첫 칸이 고정 ID 인 행**을 번호로 짝지어 나머지 칸의 문장을 견주고, 닮은 정도가 **0.7 미만**이면 실패한다 — 파생본은 근거를 담은 괄호를 줄여 실을 수 있지만 **같은 번호가 다른 것을 약속해서는 안 된다**. 규약 1 의 검사는 그때까지 번호가 **있는지**만 셌고, 그 눈먼 자리에서 `REQ-CB-015` 는 파생본에서 배포 산출물을 아직 `codebase/` 에 두라 말했고(2026-08-22 개정 전 문장 — 같은 파일 §1.1 트리는 `deploy/` 라 적어 **문서가 자기와 모순했다**) `REQ-CB-021` 은 "(2026-09-22 개정)" 이라 써 놓고 개정 전 규칙을 실었다(2026-09-24 전수 대조). **게이트 수는 그대로다** — 규약 1 의 검사가 세는 것이 넷에서 다섯으로 는다 | 두 요구의 파생본 문장을 개정 전으로 되돌린 트리에서 `check-md-html.mjs` 가 0.52·0.58 로 실패한다 · 근거 괄호를 줄여 실은 행들(실측 최저 0.75)은 통과한다 |
 | **REQ-CB-030** | WHEN check 잡이 돌면 THE SYSTEM SHALL 문서 세트(`docs/**/*.md` 와 `docs/html/*.html`)의 상호 참조를 검사하고 — 죽은 링크(md 링크 · html href·앵커), frontmatter `referenced_by` 와 링크에서 계산한 역참조의 불일치, 파생본 머리의 "참조하는 문서" 줄의 불일치, 링크 없는 문서 인용, 링크 뒤 `§N.N` 절의 부재 — 하나라도 있으면 **실패한다**. 인라인 링크·역참조 규칙의 정본은 [docs/README](../README.md) 관리 규약이고, `scripts/check-doc-links.mjs --fix` 가 역참조와 파생본 머리를 다시 쓴다 |
 | **REQ-CB-058** | WHEN check 잡이 돌면 THE SYSTEM SHALL base 와 견주어 **새로 쓴 줄**을 문체 플러그인 `ko-style` 의 검사기(`codebase/ko-style/skills/ko-style/scripts/ko-lint.mjs`)로 검사하고, 차단 규칙이나 규범 · 팀 어휘 층의 경고에 걸린 줄이 하나라도 있으면 **실패한다**(`scripts/check-ko-style.mjs`). 규칙은 저장소 루트 `.ko-style.json`([용어 사전](../glossary.md) §3.4 표의 사본)과 플러그인의 공통 규칙 표다. AI 말투 층은 알리기만 하고, 줄 끝에 `ko-style-ignore: <이유>` 가 있으면 그 줄은 보지 않는다(이유가 없으면 듣지 않는다). base 가 없으면 판정하지 않는다 |
 | **REQ-CB-059** | WHEN 백업이 첨부 버킷을 미러하면, THE SYSTEM SHALL DB 의 **확정된 첨부 `storage_key` 하나하나**가 미러에 있는지 확인하고, 없는 것이 있으면 덤프와 미러는 남긴 채 그 키를 적고 **종료 코드 3** 으로 끝난다 — 파일 수는 증거가 아니다(버킷에는 리뷰 프롬프트 blob 도 있다). 빠진 파일은 백업이 아니라 버킷에서 이미 잃은 것이다(2026-09-28) | 빠진 키가 있으면 exit 3 과 그 키 · 덤프는 남는다 · L2 `restore-roundtrip.spec.ts` 첨부 왕복 |
 | **REQ-CB-060** | WHEN 복원이 끝나면, THE SYSTEM SHALL 확정된 첨부의 `storage_key` 를 **키마다** 버킷에서 찾고, 빠진 것이 있으면 그 키를 적고 비영 종료한다 — 예전에는 오브젝트 **수**가 행 수 이상이면 통과였다. WHERE 확인할 수단(`NERV_S3_ENDPOINT` · `mc`)이 없으면, THE SYSTEM SHALL "손실 0" 을 말하지 않고 **종료 코드 2** 로 멈춘다 — `NERV_RESTORE_SKIP_BLOBS=1` 만이 명시적 우회다. WHEN `NERV_RESTORE_BLOBS_DIR` 를 주면, THE SYSTEM SHALL 그 디렉터리를 버킷으로 되돌린 뒤(§6.5 ③ · `--remove` 없이) 검증한다. CI 는 오브젝트 스토리지와 `mc` 를 띄우고 `NERV_REQUIRE_BLOB_TOOLS=1` 로 건너뛰기를 실패로 만든다(2026-09-28) | 파일 없는 복원은 exit 1 · 수단이 없으면 exit 2 · 되돌린 복원은 바이트까지 같다 · L2 `restore-roundtrip.spec.ts` |
 | **REQ-CB-031** | WHILE `NERV_S3_ENDPOINT` 가 설정된 배치에서 백업이 돌면, THE SYSTEM SHALL 첨부 버킷을 함께 미러하고, 미러할 수단(`mc`)이 없으면 **종료 코드 2 로 실패한다** — 첨부는 재생성되지 않으므로 첨부 없는 백업은 백업이 아니다. `NERV_BACKUP_SKIP_BLOBS=1` 만이 명시적 우회다 | 엔드포인트가 있고 `mc` 가 없으면 exit 2 · 엔드포인트가 없으면 경고 후 계속 · 스크립트 사본 둘이 바이트 동일(CI 게이트) |
-| **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다 | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL |
+| **REQ-CB-032** | WHEN 보존 잡이 Activity 를 접으면 THE SYSTEM SHALL 기존 요약에 도구별 횟수를 **키별로 더하고**(덮어쓰지 않는다) 접기와 삭제를 한 트랜잭션에서 수행한다. WHEN 리뷰 프롬프트 blob 의 만료를 판정하면 THE SYSTEM SHALL 프로젝트 정책과 행의 `prompt_expires_at` 중 **먼저 오는 쪽**을 만료로 본다. WHEN 리뷰를 받으면서 프롬프트 원문 위치(`payload_ref`)를 받으면 THE SYSTEM SHALL `prompt_expires_at` 을 받은 시각에 그 프로젝트의 유효 정책 `prompt_blob_ttl_days`(깨졌으면 기본값 — 보존 잡과 같은 `effectiveRetention`)를 더한 값으로 정한다(2026-10-15 개정 · **사람 결정** — 예전에는 받을 때 상수 30일을 적어서 정책을 30일보다 늘려도 효과가 없었다). WHEN admin 이 EP-PRJ-04 로 `retention` 을 저장하면 THE SYSTEM SHALL 원문이 남아 있는 그 프로젝트의 리뷰(`prompt_blob_uri` 가 있는 행)의 `prompt_expires_at` 을 받은 시각에 새 `prompt_blob_ttl_days` 를 더한 값으로 다시 적는다 — 늘린 정책도 줄인 정책도 이미 받은 원문에 적용되며 이미 지운 원문은 되살리지 않는다(2026-10-16 개정 · **사람 결정**) | 두 판에 걸쳐 접은 세션의 합이 5(옛 `||` 는 3) · 정책이 남았어도 `prompt_expires_at` 이 지난 행의 `prompt_blob_uri` 가 NULL · L2 `review.spec.ts` — 정책 60일이면 만료가 받은 시각 + 60일이고 31일 지난 원문은 남고 61일이면 지운다 · 정책 7일이면 8일에 지운다 · 받은 뒤에 줄이면 이미 받은 원문도 지운다 · 늘려 저장하면 이미 받은 원문도 새 기간까지 남는다 · 줄여 저장하면 남은 원문의 만료가 앞당겨지고 지운 원문의 행은 그대로다 |
 | **REQ-CB-033** | WHEN 임베딩 요청을 만들면 THE SYSTEM SHALL `dimensions` 를 실을지를 **`NERV_EMBED_SEND_DIMENSIONS` 에서만** 읽고 제공자 주소로 추정하지 않는다 — 게이트웨이 뒤의 같은 모델은 주소가 다르고, 절단이 빠지면 오류 없이 다른 차원이 돌아와 **검색이 조용히 렉시컬로 degrade** 한다. WHILE 차원을 검사하는 동안 THE SYSTEM SHALL 그 값을 `@nerv/schema` 의 `EMBEDDING_DIMENSIONS`(DDL 이 쓰는 그 상수)에서 읽고 재선언하지 않는다(REQ-CB-006) |
 | **REQ-CB-034** | WHILE `NERV_S3_PUBLIC_ENDPOINT` 가 설정된 동안 THE SYSTEM SHALL 그 주소에 경로가 있으면 기동 로그로 경고한다 — presigned 서명은 경로를 포함하므로 접두 프록시(`https://…/s3`) 뒤의 S3 는 `SignatureDoesNotMatch` 로 끝나고, 배포 산출물은 그 자리에 **별도 호스트**를 적는다. WHERE 앞문(nginx·Ingress)에 S3 경로를 여는 것은 금지다 — 기술적으로 막힌 길이라 다음 사람이 그것을 고치는 길로 믿지 않게 주석으로 남긴다 |
 | **REQ-CB-035** | WHILE SSE 스트림이 열려 있는 동안 THE SYSTEM SHALL keep-alive 를 **`event: ping` · `data: {}` 메시지**로 보내고(코멘트 라인 `: ping` 이 아니다 — rxjs 로 흘리므로 Nest 가 메시지로 낸다), 그 주기를 `NERV_SSE_KEEPALIVE_MS` 로 바꿀 수 있게 한다 — 앞문의 유휴 타임아웃이 더 짧은 배치에서 고칠 수단이 재배포뿐이면 손잡이가 없는 것과 같다 |

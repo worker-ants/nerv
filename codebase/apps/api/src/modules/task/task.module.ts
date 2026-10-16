@@ -6,6 +6,7 @@ import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 import { EventModule } from '../event/event.module.js';
 import { SessionModule } from '../session/session.module.js';
 import { ClaimModule } from './claim.module.js';
+import { FailopenService } from './failopen.service.js';
 import { TaskController } from './task.controller.js';
 import { WebhookController } from './webhook.controller.js';
 import { WebhookService } from './webhook.service.js';
@@ -15,8 +16,9 @@ import { TaskTools } from './task.tools.js';
 @Module({
   imports: [EventModule, ApprovalModule, AuthModule, SessionModule, ClaimModule],
   controllers: [TaskController, WebhookController],
-  providers: [TaskService, TaskTools, WebhookService, ProjectAccessGuard],
-  // ClaimService 는 ClaimModule 이 소유한다 — 모듈을 재수출해 쓰는 쪽이 그대로 받는다
-  exports: [TaskService, ClaimModule],
+  providers: [TaskService, TaskTools, WebhookService, ProjectAccessGuard, FailopenService],
+  // ClaimService 는 ClaimModule 이 소유한다 — 모듈을 재수출해 쓰는 쪽이 그대로 받는다.
+  // FailopenService 는 워커의 격상 잡이 쓴다(REQ-API-319)
+  exports: [TaskService, ClaimModule, FailopenService],
 })
 export class TaskModule {}

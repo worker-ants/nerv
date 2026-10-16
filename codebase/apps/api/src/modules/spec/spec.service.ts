@@ -37,7 +37,13 @@ import type { GateEvidence, SpecReadAs } from '@nerv/schema';
 import { policyFingerprint } from '@nerv/schema/keys';
 import { createHash } from 'node:crypto';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
-import { evidenceExistsSql, normalizedStatementSql, reverifyRequiredSql } from './impl-status.js';
+import {
+  emptyPromiseSql,
+  evidenceMissingSql,
+  normalizedStatementSql,
+  reverifyRequiredSql,
+  verifiedEvidenceSql,
+} from './impl-status.js';
 import { isWrappedBody } from '../../mcp/untrusted.js';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -834,9 +840,10 @@ export class SpecService {
     spec: Record<string, unknown>,
     body: string,
   ): Promise<{ requirements: Record<string, unknown>[]; source: 'current_rows' | 'version_body' }> {
+    // 구현 상태의 출처를 함께 준다(2026-10-15 · REQ-API-312) — `import` 면 작업이 없어 파생하지 않은 임포트 값이다
     const { rows: current } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT ref, statement_md, priority::text AS priority, impl_status::text AS impl_status,
-             removed_in_version_id
+             impl_status_source::text AS impl_status_source, removed_in_version_id
         FROM requirement WHERE spec_id = ${spec['spec_id'] as string}
        ORDER BY ref
     `);
@@ -860,6 +867,7 @@ export class SpecService {
           statement_md: statement,
           priority: row?.['priority'] ?? null,
           impl_status: row?.['impl_status'] ?? null,
+          impl_status_source: row?.['impl_status_source'] ?? null,
           // 지금 살아 있는 요구사항인가 — 기준선에만 있던 것 · 초안에서 새로 적은 것은 거짓이다
           in_current: row !== undefined && row['removed_in_version_id'] == null,
         };
@@ -2656,17 +2664,15 @@ export class SpecService {
              -- **파생과 같은 술어로 센다**(2026-09-07 · REQ-API-141). 여기만 요구사항에 직접
              -- 붙은 증적을 봐서, 정상 경로(증적은 Task 에 붙는다)로 끝낸 요구사항을
              -- 대시보드가 "증적 결손" 으로 찍었다 — 파생은 implemented 라고 말하는 동안.
-             count(*) FILTER (
-               WHERE r.impl_status = 'implemented' AND NOT ${evidenceExistsSql()}
-             )::int AS evidence_missing,
-             count(*) FILTER (
-               WHERE r.impl_status = 'unimplemented'
-                 -- 보관한 작업만 남은 요구사항도 빈 약속이다(REQ-API-286)
-                 AND NOT EXISTS (SELECT 1 FROM task t
-                                  WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL)
-             )::int AS empty_promises,
+             -- 요구사항 행의 표시(EP-REQ-01)도 같은 술어다(2026-10-15 · REQ-API-313)
+             count(*) FILTER (WHERE ${evidenceMissingSql()})::int AS evidence_missing,
+             -- 보관한 작업만 남은 요구사항도 빈 약속이다(REQ-API-286)
+             count(*) FILTER (WHERE ${emptyPromiseSql()})::int AS empty_promises,
              -- **다시 검증 필요**(2026-09-26 · REQ-API-190) — 서명은 있는데 모두 지금 문장보다 앞선다
-             count(*) FILTER (WHERE ${reverifyRequiredSql()})::int AS reverify_required
+             count(*) FILTER (WHERE ${reverifyRequiredSql()})::int AS reverify_required,
+             -- **임포트 값으로 남은 요구사항**(2026-10-15 · 사람 결정 · REQ-API-312 · 성공 기준 2-8) — 작업이 없어 파생하지
+             -- 않은 값이다. 판정은 값을 쓴 쪽이 이미 했다(impl_status_source) — 여기서는 셀 뿐이다
+             count(*) FILTER (WHERE r.impl_status_source = 'import')::int AS imported_values
         FROM spec s
    LEFT JOIN area_of ON area_of.spec_id = s.id
    LEFT JOIN spec area ON area.id = area_of.area_id
@@ -2676,35 +2682,25 @@ export class SpecService {
        ORDER BY s.key
     `);
 
-    interface CoverageTotals {
-      total: number;
-      implemented: number;
-      verified: number;
-      in_progress: number;
-      evidence_missing: number;
-      empty_promises: number;
-      reverify_required: number;
-    }
-    const totals = rows.reduce<CoverageTotals>(
-      (acc, row) => ({
-        total: acc.total + Number(row['total'] ?? 0),
-        implemented: acc.implemented + Number(row['implemented'] ?? 0),
-        verified: acc.verified + Number(row['verified'] ?? 0),
-        in_progress: acc.in_progress + Number(row['in_progress'] ?? 0),
-        evidence_missing: acc.evidence_missing + Number(row['evidence_missing'] ?? 0),
-        empty_promises: acc.empty_promises + Number(row['empty_promises'] ?? 0),
-        reverify_required: acc.reverify_required + Number(row['reverify_required'] ?? 0),
-      }),
-      {
-        total: 0,
-        implemented: 0,
-        verified: 0,
-        in_progress: 0,
-        evidence_missing: 0,
-        empty_promises: 0,
-        reverify_required: 0,
-      },
-    );
+    // 스펙 행 · 영역 · 전체가 **같은 지표**를 든다 — 이름 목록이 하나라야 셋이 갈라지지 않는다
+    const METRICS = [
+      'total',
+      'implemented',
+      'verified',
+      'in_progress',
+      'evidence_missing',
+      'empty_promises',
+      'reverify_required',
+      'imported_values',
+    ] as const;
+    type CoverageTotals = Record<(typeof METRICS)[number], number>;
+    const zero = (): CoverageTotals =>
+      Object.fromEntries(METRICS.map((m) => [m, 0])) as CoverageTotals;
+    const add = (acc: CoverageTotals, row: Record<string, unknown>): CoverageTotals => {
+      for (const m of METRICS) acc[m] += Number(row[m] ?? 0);
+      return acc;
+    };
+    const totals = rows.reduce<CoverageTotals>(add, zero());
 
     // **영역별 분해**(2026-10-11 · REQ-API-297) — 같은 여섯 지표를 영역마다 더한다. 요구사항이 없는 영역은 빼고(빈
     // 줄은 읽을 것이 없다), 영역에 들지 않은 스펙은 `area_key: null` 한 줄로 모아 맨 뒤에 둔다
@@ -2718,21 +2714,9 @@ export class SpecService {
       const acc = byArea.get(id) ?? {
         area_key: key,
         area_title: typeof row['area_title'] === 'string' ? row['area_title'] : null,
-        total: 0,
-        implemented: 0,
-        verified: 0,
-        in_progress: 0,
-        evidence_missing: 0,
-        empty_promises: 0,
-        reverify_required: 0,
+        ...zero(),
       };
-      acc.total += Number(row['total'] ?? 0);
-      acc.implemented += Number(row['implemented'] ?? 0);
-      acc.verified += Number(row['verified'] ?? 0);
-      acc.in_progress += Number(row['in_progress'] ?? 0);
-      acc.evidence_missing += Number(row['evidence_missing'] ?? 0);
-      acc.empty_promises += Number(row['empty_promises'] ?? 0);
-      acc.reverify_required += Number(row['reverify_required'] ?? 0);
+      add(acc, row);
       byArea.set(id, acc);
     }
     const areas = [...byArea.values()]
@@ -2747,6 +2731,10 @@ export class SpecService {
         unimplemented: totals.total - totals.implemented - totals.in_progress,
         impl_ratio: totals.total === 0 ? null : totals.implemented / totals.total,
         verified_ratio: totals.total === 0 ? null : totals.verified / totals.total,
+        // **성공 기준 2-8 은 두 수다**(2026-10-15 · 사람 결정 · REQ-API-312) — 관계에서 파생한 요구사항의 비율과 임포트 값으로
+        // 남은 요구사항의 수(`imported_values`). 둘을 함께 줘야 비율만 보고 "100% 가 아니다" 를 결함으로 읽지 않는다
+        derived_ratio:
+          totals.total === 0 ? null : (totals.total - totals.imported_values) / totals.total,
       },
       areas,
       specs: rows,
@@ -2821,6 +2809,13 @@ export class SpecService {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT r.id, r.ref, r.statement_md, r.priority::text AS priority,
              r.impl_status::text AS impl_status, r.verified_at, r.statement_changed_at,
+             -- **그 값을 누가 정했나**(2026-10-15 · 사람 결정 · REQ-API-312) — import 면 작업이 없어 파생하지 않은 임포트 값이다
+             r.impl_status_source::text AS impl_status_source,
+             -- **커버리지가 센 것과 같은 술어**(2026-10-15 · REQ-API-313) — 드릴다운이 수를 눌러 연 목록을 화면이 다시 판정하지
+             -- 않게 행마다 준다. 검증 증적은 지금 문장에 서명된 test 증적이 있는가다(verified 의 첫째 조건)
+             ${evidenceMissingSql()} AS evidence_missing,
+             ${emptyPromiseSql()} AS empty_promise,
+             ${verifiedEvidenceSql()} AS verification_evidence,
              s.key AS spec_key, s.title AS spec_title,
              -- **다시 검증 필요**(2026-09-26 · REQ-API-190) — 상태가 아니라 표시다. 앞선 서명의
              -- locator 를 함께 실어, qa·admin 이 "영향 없음 확인" 으로 같은 테스트에 다시 서명한다
@@ -2849,12 +2844,28 @@ export class SpecService {
     return rows;
   }
 
-  /** EP-REQ-02 — 버전 이력 + 파생 Task + Evidence */
+  /**
+   * EP-REQ-02 — 버전 이력 + 파생 Task + Evidence + 발견 + 최근 리뷰 라운드.
+   *
+   * **드릴다운의 끝이다**(2026-10-15 · REQ-API-313 · FR-13). 커버리지 화면이 요구사항을 펼치면 그 약속을 지키는 일(작업) ·
+   * 보일 것(증적) · 그것을 본 눈(발견 · 리뷰)을 한 번에 보여야 한다. 발견은 `finding.requirement_id` 로 그 요구사항을
+   * 가리키는 것 전부(열린 것과 처분된 것)이고, 리뷰는 그 요구사항의 작업이 받은 라운드와 그 발견이 나온 라운드 가운데 최근
+   * 다섯이다. 검증 작업을 만들 기준(문서의 최신 승인본)도 함께 준다 — 승인되지 않은 버전에서는 일을 파생하지 않는다(D-02).
+   */
   async requirement(input: { projectId: string; ref: string }): Promise<Record<string, unknown>> {
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT r.id, r.ref, r.statement_md, r.acceptance_md, r.priority::text AS priority,
              r.impl_status::text AS impl_status, r.verified_at, r.statement_changed_at,
-             ${reverifyRequiredSql()} AS reverify_required, s.key AS spec_key
+             r.impl_status_source::text AS impl_status_source,
+             ${reverifyRequiredSql()} AS reverify_required,
+             ${evidenceMissingSql()} AS evidence_missing,
+             ${emptyPromiseSql()} AS empty_promise,
+             ${verifiedEvidenceSql()} AS verification_evidence,
+             s.key AS spec_key, s.title AS spec_title,
+             (SELECT json_build_object('id', a.id, 'version_no', a.version_no)
+                FROM spec_version a
+               WHERE a.spec_id = s.id AND a.status = 'approved'
+               ORDER BY a.version_no DESC LIMIT 1) AS approved_version
         FROM requirement r JOIN spec s ON s.id = r.spec_id
        WHERE r.project_id = ${input.projectId} AND r.ref = ${input.ref}
          AND r.removed_in_version_id IS NULL
@@ -2881,7 +2892,9 @@ export class SpecService {
     // 상세만 앞의 것을 봐서, 목록이 "증적 3" 이라 말한 요구사항을 열면 1건이 보였다
     const { rows: evidence } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT e.id, e.kind::text AS kind, e.locator, e.note, e.source::text AS source, e.created_at,
-             e.task_id, (e.verified_by IS NOT NULL) AS signed, e.stale
+             e.task_id, (e.verified_by IS NOT NULL) AS signed, e.stale,
+             -- 다른 저장소에 선 증적의 링크는 이 값으로 만든다(REQ-API-157) — 작업 상세와 같은 칸이다
+             e.repo
         FROM evidence e
        WHERE e.requirement_id = ${id}
           -- 목록의 증적 수와 같은 범위다 — 보관한 작업의 증적은 빠진다(REQ-API-286)
@@ -2889,7 +2902,39 @@ export class SpecService {
                             WHERE t.source_requirement_id = ${id} AND t.archived_at IS NULL)
        ORDER BY e.created_at
     `);
-    return { ...requirement, history, tasks, evidence };
+    // **그 요구사항을 가리키는 발견**(2026-10-15 · REQ-API-313) — 열린 것이 먼저고, 무거운 것이 먼저다. 처분된 것도 준다:
+    // "이 약속을 누가 봤고 무엇을 지적했나" 는 처분된 뒤에도 근거다
+    const { rows: findings } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT f.id, f.title, f.severity::text AS severity, f.status::text AS status,
+             f.category, f.area::text AS area, f.file_path, f.line_start,
+             f.occurrence_count, f.created_at, f.last_session_id
+        FROM finding f
+       WHERE f.project_id = ${input.projectId} AND f.requirement_id = ${id}
+       ORDER BY (f.status = 'open') DESC,
+                CASE f.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
+                f.created_at DESC
+    `);
+    // **최근 리뷰 라운드**(2026-10-15 · REQ-API-313) — 그 요구사항의 작업(보관하지 않은 것)이 받은 라운드와 그 요구사항의 발견이
+    // 나온 라운드. 라운드마다 발견 수와 열린 critical 수(그 라운드에 나온 발견 가운데 지금 열린 것)를 함께 준다
+    const { rows: reviews } = await this.db.execute<Record<string, unknown>>(sql`
+      SELECT rs.id, rs.branch, rs.head_sha, rs.round_no, rs.kind::text AS kind,
+             rs.state::text AS state, rs.risk::text AS risk, rs.started_at, rs.completed_at,
+             (SELECT count(*) FROM finding_occurrence o WHERE o.review_session_id = rs.id)::int
+               AS finding_count,
+             (SELECT count(*) FROM finding_occurrence o JOIN finding f2 ON f2.id = o.finding_id
+               WHERE o.review_session_id = rs.id AND f2.status = 'open'
+                 AND f2.severity = 'critical')::int AS open_critical
+        FROM review_session rs
+       WHERE rs.project_id = ${input.projectId}
+         AND (rs.task_id IN (SELECT t.id FROM task t
+                              WHERE t.source_requirement_id = ${id} AND t.archived_at IS NULL)
+              OR rs.id IN (SELECT o.review_session_id FROM finding_occurrence o
+                             JOIN finding f ON f.id = o.finding_id
+                            WHERE f.requirement_id = ${id}))
+       ORDER BY rs.started_at DESC
+       LIMIT 5
+    `);
+    return { ...requirement, history, tasks, evidence, findings, reviews };
   }
 
   /**

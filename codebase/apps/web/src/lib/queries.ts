@@ -666,6 +666,24 @@ export function useRequirements(slug: string, specKey: string): UseQueryResult<R
 }
 
 /**
+ * EP-REQ-02 — 요구사항 하나의 상세: 파생 작업 · 증적 · 발견 · 최근 리뷰 라운드(2026-10-15 · REQ-WEB-316 · 서버 REQ-API-313).
+ * 키는 그 문서의 요구사항 목록 **아래**다 — 목록을 무효화하는 자리(증적 서명 · 이벤트)가 펼친 상세도 함께 되읽는다.
+ */
+export function useRequirementDetail(
+  slug: string,
+  specKey: string,
+  ref: string,
+): UseQueryResult<Row> {
+  const refetchInterval = useLivePolling();
+  return useQuery({
+    queryKey: [...queryKeys.spec(specKey), 'requirements', ref],
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/requirements/${encodeURIComponent(ref)}`),
+    enabled: ref !== '',
+    refetchInterval,
+  });
+}
+
+/**
  * EP-REQ-04 — 그 접두의 다음 요구사항 번호(2026-10-15 · 사람 결정 · REQ-WEB-313). **제안이고 예약하지 않는다** —
  * 서버가 승인된 행과 열린 초안의 줄을 함께 세서 준다(REQ-API-145). 접두가 어휘 밖이면 묻지 않는다(400 을 받을 일이다).
  */
@@ -874,12 +892,20 @@ export function useCoverage(slug: string, projectId?: ProjectId): UseQueryResult
 export function useEventFeed(
   slug: string,
   projectId?: ProjectId,
+  /**
+   * 이 종류만(EP-EVT-01 `type`) — 배너의 [기록 보기]가 fail-open 기록으로 거른다(2026-10-15 · REQ-WEB-319). 키는 피드
+   * 키 아래에 둔다 — 피드를 무효화하는 이벤트가 거른 피드도 함께 다시 읽게 한다
+   */
+  types?: readonly string[],
 ): UseInfiniteQueryResult<InfiniteData<{ items: Row[]; next_cursor: string | null }>> {
   const refetchInterval = useLivePolling();
+  const filter = types === undefined || types.length === 0 ? null : types.join(',');
+  const feedKey = queryKeys.projectEvents(projectId ?? PENDING_PROJECT);
   return useInfiniteQuery({
-    queryKey: queryKeys.projectEvents(projectId ?? PENDING_PROJECT),
+    queryKey: filter === null ? feedKey : [...feedKey, filter],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '30' });
+      if (filter !== null) params.set('type', filter);
       if (pageParam !== null) params.set('before', String(pageParam));
       return apiFetch<{ items: Row[]; next_cursor: string | null }>(
         `/projects/${slug}/events?${params.toString()}`,

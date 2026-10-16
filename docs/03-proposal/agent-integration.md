@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.56 · 2026-10-15 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.57 · 2026-10-15 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.57 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **§1.3 한 문장 · §5.6 격상 한 줄 · §2.5 인증 표 두 칸.** ① fail-open 격상은 시간 창 안의 횟수로 판정한다 — 정책 `failopen.window_hours` 안에 `escalate_count` 회 이상이면 격상하고 그 창 동안 새 fail-open 이 없으면 풀린다(결정 기록은 [3.5 스펙 워크플로우](spec-workflow.md) §4.6). ② §2.5 가 OAuth 2.1 을 "Phase 1 이후 기본값" 으로 적고 있었다 — 2026-08-20 인증 확정으로 리소스 서버는 Phase 2 로 옮겼고 MVP 의 기본은 PAT 다([4.1 범위](../04-mvp/scope.md) §2.1 · OAuth 2.1 은 충족 수단의 고도화이지 수용 기준이 아니다).
 >
 > v0.56 변경(2026-10-15 — 리뷰 서브에이전트 둘, **사람 결정**): **§3.1 트리 주석 두 줄과 결정 기록 · §3.2 `/nerv:review` 행.** 서브에이전트 `nerv-code-reviewer` · `nerv-consistency-checker`를 플러그인에 넣고 각자 자기 리뷰 종류(`code` · `consistency`)로 직접 제출하게 한다(권장안 A). 처분은 메인 세션의 `/nerv:review`만 한다. 서버는 바꾸지 않았고, 서버가 서브에이전트의 제출을 메인 세션의 제출과 구별하지 못한다는 한계를 적었다([4.6 플러그인](../04-mvp/plugin.md) REQ-PLG-031).
 >
@@ -174,7 +176,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 ### 1.3 세 평면의 실패 모드 (D-14)
 
-에이전트 연동은 항상 부분적으로 깨진 상태로 운영된다고 전제한다. clemvion이 5개월간 검증한 **fail-open + 연속 카운터 + 격상** 패턴을 그대로 이식한다(`clemvion:.claude/hooks/_lib/failopen_state.py`, `ESCALATE_AT = 3`).
+에이전트 연동은 항상 부분적으로 깨진 상태로 운영된다고 전제한다. clemvion이 5개월간 검증한 **fail-open + 연속 카운터 + 격상** 패턴을 그대로 이식한다(`clemvion:.claude/hooks/_lib/failopen_state.py`, `ESCALATE_AT = 3`). 격상은 시간 창 안의 횟수로 판정한다 — 정책 `failopen.window_hours`(기본 24시간) 안에 fail-open 이 `failopen.escalate_count`(기본 3)회 이상이면 격상하고, 그 창 동안 새 fail-open 이 없으면 풀린다(2026-10-15 사람 결정 · [3.5 스펙 워크플로우](spec-workflow.md) §4.6).
 
 | 실패 | 즉시 동작 | 기록 | 격상 |
 | --- | --- | --- | --- |
@@ -287,8 +289,8 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 | 경로 | 구성 | Claude Code | Codex | 언제 |
 | --- | --- | --- | --- | --- |
-| **정식 — OAuth 2.1** | NERV가 리소스 서버로 RFC 9728 PRM 필수 구현 + AS는 RFC 8414/OIDC Discovery, CIMD 권장(DCR은 deprecated), PKCE, RFC 8707 resource 바인딩 | `/mcp` 또는 `claude mcp login nerv`로 브라우저 로그인, 자동 발견 | `codex mcp login`, 콜백 포트는 `mcp_oauth_callback_port` | Phase 1 이후 기본값 |
-| **대안 — PAT** | 사용자별 발급, (사용자·프로젝트·역할·권한) 튜플에 바인딩 | `headers` 정적 Bearer 또는 `headersHelper`(연결마다 셸로 동적 헤더, 401/403 시 자동 재실행) | `bearer_token_env_var` / `http_headers` | Phase 0 PoC, 비대화형 실행 |
+| **정식 — OAuth 2.1** | NERV가 리소스 서버로 RFC 9728 PRM 필수 구현 + AS는 RFC 8414/OIDC Discovery, CIMD 권장(DCR은 deprecated), PKCE, RFC 8707 resource 바인딩 | `/mcp` 또는 `claude mcp login nerv`로 브라우저 로그인, 자동 발견 | `codex mcp login`, 콜백 포트는 `mcp_oauth_callback_port` | Phase 2 — 리소스 서버(2026-08-20 인증 확정으로 옮겼다 · [4.1 범위](../04-mvp/scope.md) §2.1 · [4.8 백로그](../04-mvp/backlog.md) E22). MVP 의 기본은 PAT 다 |
+| **대안 — PAT** | 사용자별 발급, (사용자·프로젝트·역할·권한) 튜플에 바인딩 | `headers` 정적 Bearer 또는 `headersHelper`(연결마다 셸로 동적 헤더, 401/403 시 자동 재실행) | `bearer_token_env_var` / `http_headers` | MVP 기본(Phase 0~1) · 비대화형 실행 |
 
 비대화형(`claude -p`, `codex exec`) 모드에서는 OAuth 플로우를 띄울 수 없어 사전 로그인 또는 PAT가 필요하다. CI 러너는 PAT를 단일 호출 권한으로 주입한다.
 
@@ -782,7 +784,7 @@ Claude Code on the web과 Codex cloud는 관리 VM에서 실행되므로 로컬 
 
 1. **감지** — 클레임 없는 커밋, 리뷰 없는 `done` 시도, 리스 만료 후 쓰기, BYPASS 사용은 전부 Event로 남는다(FR-16).
 2. **차단** — 게이트가 걸리는 지점은 `done` 전이와 PR 상태 체크 두 곳뿐이다. 그 외에는 막지 않는다(마찰 최소화).
-3. **격상** — fail-open이 연속 3회를 넘으면 "게이트가 사실상 꺼져 있음"으로 격상해 팀에 알린다. clemvion에서는 이 카운터를 본인만 볼 수 있었다(`clemvion:.claude/state/push_guard_failopen.json`).
+3. **격상** — fail-open이 정책의 시간 창(기본 24시간) 안에 3회 이상이면 "게이트가 사실상 꺼져 있음"으로 격상해 팀에 알린다(2026-10-15 사람 결정 · [3.5 스펙 워크플로우](spec-workflow.md) §4.6). clemvion에서는 이 카운터를 본인만 볼 수 있었다(`clemvion:.claude/state/push_guard_failopen.json`).
 
 ---
 

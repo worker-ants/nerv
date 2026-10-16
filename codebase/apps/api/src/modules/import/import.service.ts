@@ -464,14 +464,17 @@ export class ImportService {
     const restated: string[] = [];
     for (const requirement of item.requirements) {
       const reqId = newId();
+      // **새 요구사항의 구현 상태는 임포트 값이다**(2026-10-15 · 사람 결정 · REQ-API-312) — 문서가 적은 값을 그대로 두고 출처를
+      // `import` 로 남긴다. 작업이 생겨 파생이 값을 다시 쓰면 `derived` 가 된다(`impl-status.ts`). 이미 있는 행은 갱신 쪽이 구현
+      // 상태도 출처도 건드리지 않는다 — 다시 임포트한다고 파생한 값이 임포트 값으로 돌아가지 않는다
       const { rows } = await tx.execute<{ id: string; restated: boolean }>(sql`
         INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, acceptance_md,
-                                 priority, impl_status,
+                                 priority, impl_status, impl_status_source,
                                  introduced_in_version_id, current_version_id)
         VALUES (${reqId}, ${actor.projectId}, ${specId}, ${requirement.ref}, ${requirement.text},
                 ${requirement.acceptance_md},
                 ${requirement.priority}::requirement_priority, ${requirement.impl_status}::impl_status,
-                ${versionId}, ${versionId})
+                'import', ${versionId}, ${versionId})
         ON CONFLICT (project_id, ref) DO UPDATE
           SET ${ownershipColumns(specId, versionId)},
               -- 옮겨 온 번호는 이 문서의 문장이다. 같은 문서의 문장은 예전처럼 건드리지 않는다

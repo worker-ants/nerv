@@ -143,9 +143,10 @@ export const CONVENTIONS_LIMIT = 50;
 export const PARTITION_MONTHS_AHEAD = 3;
 
 /**
- * 리뷰 프롬프트 blob 보존 — 30일.
- * MVP 범위가 아니다(Phase 2 리뷰 수집 FR-09 부터 적용) — 참고용 상수.
- * 정본: docs/03-proposal/architecture.md §2.5
+ * 리뷰 프롬프트 원문(blob) 보존의 **기본값** — 30일. 프로젝트 정책 `retention.prompt_blob_ttl_days` 를 비워 두면 이 값이다
+ * (`RetentionSchema` 의 기본값 · 같은 30 을 두 곳에 쓰지 않는다). 리뷰를 받을 때 그 프로젝트의 유효 정책으로 만료
+ * (`prompt_expires_at`)를 정한다(2026-10-15 · 사람 결정 · codebase.md REQ-CB-032 — 예전에는 받을 때 이 상수가 박혀 정책을
+ * 늘려도 효과가 없었다). 정본: docs/03-proposal/architecture.md §2.5
  */
 export const REVIEW_PROMPT_BLOB_TTL_DAYS = 30;
 
@@ -638,6 +639,32 @@ export interface DoneGateCheck {
   result: DoneGateResult;
   kind?: string;
 }
+/**
+ * **판정하지 못하고 통과시킨 게이트** — `gate.failopen` 의 `gate`(D-14). 플랜 승인 게이트는 판정 질의가 실패했을 때,
+ * done 게이트는 커밋 신선도를 판정할 재료가 없을 때 남긴다(2026-10-15 · api.md REQ-API-314).
+ */
+export const FAILOPEN_GATE = { PLAN_APPROVAL: 'plan_approval', DONE_GATE: 'done_gate' } as const;
+export type FailopenGate = (typeof FAILOPEN_GATE)[keyof typeof FAILOPEN_GATE];
+/**
+ * done 게이트가 **커밋 신선도를 판정하지 못한 까닭** — `gate.failopen` 의 `error`. `commit_unknown` 은 작업에 `commit` 증적이
+ * 없어 최신 커밋을 모른다는 뜻이다 — 환경의 빈칸이라 신선도 조건만 넘기고 나머지(리뷰가 있는가 · 열린 발견)는 그대로 본다.
+ *
+ * `review_commit_unknown`(라운드가 본 것이 커밋 SHA 모양이 아니다)은 2026-10-15 에 뺐다(사람 결정 · api.md REQ-API-314 ·
+ * 321). 제출하는 쪽이 고칠 수 있는 입력이라 이제 제출에서 거절하고, 그 전에 들어온 라운드는 다시 리뷰가 필요한 것으로 막는다
+ * (`STALE_REVIEW_REASON.NOT_A_COMMIT`). 배포된 적이 없는 값이다.
+ */
+export const DONE_GATE_FAILOPEN_REASONS = ['commit_unknown'] as const;
+export type DoneGateFailopenReason = (typeof DONE_GATE_FAILOPEN_REASONS)[number];
+/**
+ * done 거부의 `details.stale_reviews[].reason` — **왜 그 리뷰가 작업의 최신 커밋을 본 것이 아닌가**(2026-10-15 · api.md
+ * REQ-API-314). `newer_commit` 은 리뷰가 본 커밋 뒤에 새 커밋이 왔다, `not_a_commit` 은 리뷰가 본 것(`reviewed_sha` — 받은
+ * 값 그대로)이 커밋 SHA 가 아니다(이 규칙 전에 들어온 라운드). 답은 둘 다 최신 커밋의 다시 리뷰다 — 면제 후보가 아니다.
+ */
+export const STALE_REVIEW_REASON = {
+  NEWER_COMMIT: 'newer_commit',
+  NOT_A_COMMIT: 'not_a_commit',
+} as const;
+export type StaleReviewReason = (typeof STALE_REVIEW_REASON)[keyof typeof STALE_REVIEW_REASON];
 
 // ── 본문 축소 (2026-10-08 · api.md REQ-API-270 · 271) ─────────────────────────────────────────
 /**
@@ -666,6 +693,17 @@ export const DIGEST_MAX_LINES = 20;
 
 /** 메일 요약을 켤 때의 기본 시(時) — 와이어프레임의 "다이제스트 09:00"(3.x ui-wireframes) */
 export const DIGEST_DEFAULT_HOUR = 9;
+
+/**
+ * **새로 뜬 알림 워커가 거슬러 보는 상한(초)** — 한 시간(2026-10-15 · api.md REQ-API-317).
+ *
+ * 워커는 어디까지 봤는지를 메모리에 둔다. 재기동하면 그 값이 비어서 예전에는 알림이 없는 이벤트를 처음부터 다시
+ * 훑었다 — 카탈로그나 수신자 규칙이 넓어진 배포(2026-10-15 의 `finding.opened` · `finding.resolved`) 뒤 첫 실행에서
+ * 지난 이벤트 전부가 알림이 됐다. 이제 새 워커는 이 창 안의 이벤트만 다시 본다. 한 시간인 이유: 배포 · 재기동의 공백은 분 단위다(옛 워커가 락을 놓으면 새 워커가 다음
+ * 틱 — 1분 — 에 잡는다). 그보다 오래 멈춘 워커의 밀린 알림은 잃는다 — 결정을 기다리는 일(결재 · 질문)은 받은 요청이
+ * 알림이 아니라 그 표에서 읽으므로 사라지지 않는다.
+ */
+export const NOTIFICATION_RESUME_WINDOW_SECONDS = 60 * 60;
 
 /**
  * 검색이 질의 하나를 임베딩할 때 기다리는 **상한(ms)**(2026-10-12 · 사람 결정 — api.md §2.2b). 색인은

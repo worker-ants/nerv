@@ -15,6 +15,7 @@ import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { EventService } from '../event/event.service.js';
+import { recomputeImplStatus } from '../spec/impl-status.js';
 
 // Task 키를 찾는 규칙은 `@nerv/schema` 의 `findTaskKey` 다 — 여기서 다시 적지 않는다.
 // 예전에는 이 파일이 `TSK-…` 라는 옛 형식을 들고 있었고, 2026-08-23 에 키가
@@ -127,8 +128,9 @@ export class WebhookService {
       id: string;
       archived_at: unknown;
       superseded_by: string | null;
+      source_requirement_id: string | null;
     }>(sql`
-      SELECT t.id, t.archived_at, sup.key AS superseded_by
+      SELECT t.id, t.archived_at, sup.key AS superseded_by, t.source_requirement_id
         FROM task t LEFT JOIN task sup ON sup.id = t.superseded_by_task_id
        WHERE t.project_id = ${input.projectId} AND t.key = ${taskKey}
     `);
@@ -203,6 +205,10 @@ export class WebhookService {
         isAgent: false,
         payload: { kind, locator, repo, via: 'github_webhook' },
       });
+      // **증적이 등록되면 다시 파생한다**(REQ-API-141). 이 경로만 빠져 있었다 — 새 커밋은 작업의 최신 커밋을 바꾸므로
+      // `verified` 의 커밋 범위(2026-10-15 · REQ-API-315)도 여기서 다시 본다
+      const requirementId = rows[0]?.source_requirement_id ?? null;
+      if (requirementId !== null) await recomputeImplStatus(tx, requirementId);
 
       this.logger.log(`증적 수집 — ${taskKey} ← ${kind} ${locator}`);
       return {

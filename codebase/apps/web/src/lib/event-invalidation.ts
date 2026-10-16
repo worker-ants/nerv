@@ -192,6 +192,9 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
 
   [E.GATE_BYPASSED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [E.GATE_FAILOPEN]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // fail-open 격상 · 풀림(2026-10-15 · REQ-WEB-319) — 배너는 프로젝트 조회(머리)가 다시 읽는다(아래 `HEAD_EVENTS`)
+  [P2.GATE_FAILOPEN_ESCALATED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  [P2.GATE_FAILOPEN_CLEARED]: (e) => [queryKeys.projectEvents(e.project_id)],
 
   [E.IMPORT_APPLIED]: (e) => [
     queryKeys.projectSpecTree(e.project_id),
@@ -249,6 +252,10 @@ const HEAD_EVENTS: ReadonlySet<NervEventName> = new Set<NervEventName>([
   P2.REVIEW_SUBMITTED as unknown as NervEventName,
   P2.FINDING_OPENED as unknown as NervEventName,
   P2.FINDING_RESOLVED as unknown as NervEventName,
+  // 배너의 격상 상태와 창 안의 수(`failopen_status` · 2026-10-15 · REQ-WEB-319) — fail-open 이 쌓이거나 격상 · 풀리면 바뀐다
+  E.GATE_FAILOPEN,
+  P2.GATE_FAILOPEN_ESCALATED as unknown as NervEventName,
+  P2.GATE_FAILOPEN_CLEARED as unknown as NervEventName,
 ]);
 
 /** 쿼리 하나 — 판정에 쓰는 것은 키와 받아 둔 값뿐이다 */

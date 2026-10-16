@@ -373,6 +373,10 @@ export const en = {
     'Comma list. A finding matches if it has any of the tags (spec_drift and so on)',
   'mcp.arg.finding_branch_filter': 'Only findings last observed in a review of this branch',
   'mcp.arg.finding_cursor': 'The next_cursor of the previous response',
+  'mcp.arg.review_head_sha':
+    'SHA of the reviewed commit (the value of git rev-parse HEAD, 7 to 40 hex characters); HEAD or a branch name is rejected',
+  'mcp.arg.review_base_sha':
+    'SHA of the diff base commit (7 to 40 hex characters); a branch name is rejected',
   'mcp.arg.commit_sha': 'commit that fixed the code (evidence); required for fixed',
   'error.review.empty_comment': 'Comments cannot be empty.',
   'error.spec.base_hash_required':
@@ -811,6 +815,14 @@ export const en = {
     'the {kind} review waiver applies only without code evidence, and this task has code evidence',
   'task.missing.review_kind_unfinished': 'the {kind} review of this task has not finished',
   'task.missing.review_kind_roles': 'the {kind} review of this task has no report from {roles}',
+  'task.missing.review_kind_stale':
+    'the {kind} review of this task saw commit {reviewed}, and a newer commit {head} came after it — have the new commit reviewed',
+  'task.missing.review_stale':
+    'the review of this task saw commit {reviewed}, and a newer commit {head} came after it — have the new commit reviewed',
+  'task.missing.review_kind_not_commit':
+    'the {kind} review of this task saw {reviewed}, which is not a commit SHA, so it cannot be matched to the latest commit {head} — have the latest commit reviewed',
+  'task.missing.review_not_commit':
+    'the review of this task saw {reviewed}, which is not a commit SHA, so it cannot be matched to the latest commit {head} — have the latest commit reviewed',
   'task.missing.review_kind_open':
     'the {kind} review of this task still has open findings ({critical} critical · {warning} warning)',
   'task.missing.evidence': 'evidence (at least one implementation record)',
@@ -918,6 +930,10 @@ export const en = {
   'error.review.rationale_required': 'A resolution needs a rationale.',
   'error.review.role_required': 'A reviewer role is required.',
   'error.review.head_required': 'A review must name the commit it examined (head_sha).',
+  'error.review.head_not_commit':
+    'head_sha must be a commit SHA (7 to 40 hex characters). Pass the value from git rev-parse, not HEAD or a branch name.',
+  'error.review.base_not_commit':
+    'base_sha must be a commit SHA (7 to 40 hex characters). Pass the value from git rev-parse, not a branch name.',
   'error.spec.meta_change_not_allowed':
     "A spec's title, parent, and type can't be changed here. A person changes the document structure on the web. Resend only the body.",
   'error.spec.key_taken':
@@ -1056,6 +1072,8 @@ export const en = {
   'event.finding.resolved': 'Review finding resolved',
   'event.gate.bypassed': 'Gate passed automatically',
   'event.gate.failopen': 'Gate check failed (recorded and proceeded)',
+  'event.gate.failopen_escalated': 'Gate escalated (undecided passes over the limit)',
+  'event.gate.failopen_cleared': 'Gate escalation cleared',
   'event.import.applied': 'Import applied',
   'event.notification.created': 'Notification created',
   'event.question.answered': 'Question answered',
@@ -1618,9 +1636,44 @@ export const en = {
   'inbox.locked_hint':
     'You requested, wrote or already approved these, so someone else approves them. To withdraw a request, reject it here.',
   'home.others_waiting': '{count} waiting on someone else ▸',
+  // ── 구현 현황 드릴다운 (screens.md §2.3a · 2026-10-15 · REQ-WEB-315~317) ──────────────
+  'coverage.title': 'Implementation status',
+  'coverage.description':
+    'Drill down from area to document to requirement to see which promises are still open. The server counts these numbers from tasks, evidence and findings.',
+  'coverage.filter.label': 'Filter requirements',
+  'coverage.derived_line': '{percent}% derived from links · {count} imported values',
+  'coverage.crumb.root': 'All areas',
+  'coverage.areas': 'Areas',
+  'coverage.specs': 'Documents',
+  'coverage.requirements': 'Requirements',
+  'coverage.open_doc': 'Open document',
+  'coverage.empty': 'No requirements yet.',
+  'coverage.empty_hint':
+    'Requirements are created from the requirement lines of a document when it is approved.',
+  'coverage.empty_action': 'Go to specs',
+  'coverage.empty_filtered': 'No requirements match this filter.',
+  'coverage.clear_filter': 'Clear filter',
+  'coverage.spec_missing':
+    'This document is not in the implementation status. It is archived or has no requirements.',
+  'coverage.source_import': 'Source: import',
+  'coverage.source_import_hint':
+    'No task is linked, so the server has not derived this value. The import read it from the document.',
+  'coverage.req.tasks': 'Derived tasks',
+  'coverage.req.evidence': 'Evidence',
+  'coverage.req.findings': 'Findings',
+  'coverage.req.reviews': 'Recent reviews',
+  'coverage.req.none': 'None',
+  'coverage.req.signed': 'Signed',
+  'coverage.req.archived': 'Archived',
+  'coverage.req.no_verification': 'No verification evidence.',
+  'coverage.req.make_verification': 'Create verification task',
+  'coverage.req.no_approved': 'There is no approved version to create a task from.',
+  'coverage.req.review_line': '{branch} · round {round} · {findings} findings',
+  'coverage.req.open_critical': '{count} open critical',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '{count} active sessions',
   'project.coverage': 'Implementation status',
+  'project.coverage.drilldown': 'Details',
   'project.coverage.areas': 'By area',
   'project.coverage.area_counts': '{implemented} implemented · {verified} verified / {total}',
   'project.coverage.no_area': 'Specs outside any area',
@@ -1633,6 +1686,12 @@ export const en = {
   'project.metric.total': 'Requirements',
   'project.metric.verified': 'Verified',
   'project.no_events': 'No activity recorded yet.',
+  'project.events_failopen': 'Cases the gate let through undecided',
+  'project.events_all': 'Show all activity',
+  'failopen.banner.title': 'The gate is effectively off',
+  'failopen.banner.body':
+    'In the last {hours} hours the gate could not decide and let things through {count} times (the limit is {threshold}). This clears when no new case comes in for that long.',
+  'failopen.banner.events': 'See the records',
   'project.no_sessions': 'No sessions are running.',
   'home.project.sessions': 'Active sessions',
   'home.project.approvals': 'Open approvals',
@@ -2008,11 +2067,26 @@ export const en = {
   'settings.gates.dynamic': 'Dynamic escalation',
   'settings.gates.dynamic_hint':
     "Raises the tier by one for a document's first approved version, when an agent reports the same failure three times, or when the body shrank sharply against the previous version. Only one step even if several apply. A sharply shrunk body is raised to at least T2 so a person sees it once",
-  'settings.gates.failopen': 'When it cannot decide (read-only)',
+  'settings.gates.failopen': 'When it cannot decide',
   'settings.gates.failopen_body':
-    'When it cannot decide, it does not block. It proceeds and logs the case. If this happens {count} times within {hours} hours, the tier goes up.',
+    'When it cannot decide, it does not block. It proceeds and logs the case. If this happens {count} or more times within {hours} hours, the gate is escalated: admins get an important notification and a banner appears on the session monitor and the review center. It clears when no new case comes in for that long.',
+  'settings.gates.failopen_count': 'Escalate after (times)',
+  'settings.gates.failopen_hours': 'Time window (hours)',
+  'settings.gates.failopen_invalid': 'Times and hours must be whole numbers of 1 or more.',
+  'settings.gates.failopen_value': '{count} times in {hours} hours',
+  'settings.gates.change_failopen': 'Escalation {from} → {to}',
+  'settings.gates.retention': 'Retention',
+  'settings.gates.retention_activity': 'Raw activity (days)',
+  'settings.gates.retention_blob': 'Review prompt text (days)',
+  'settings.gates.retention_hint':
+    'After its period, raw session activity is deleted and only per-tool counts stay on the session. Review prompt text follows this period too. Saving applies the new period to text already stored: a longer period keeps it longer, and a shorter one deletes older text at the next retention run. Text that was already deleted does not come back. Conclusions (summaries · findings · resolutions) are never deleted.',
+  'settings.gates.retention_invalid': 'Retention periods must be whole numbers of days, 1 or more.',
+  'settings.gates.change_retention_activity': 'Raw activity retention {from} → {to} days',
+  'settings.gates.change_retention_blob': 'Review prompt text retention {from} → {to} days',
+  'settings.gates.retention_shrink_confirm':
+    'This shortens retention. At the next retention run, older raw text is deleted and cannot be restored.',
   'settings.gates.lead':
-    'You can edit tier boundaries, dynamic escalation and task completion criteria here. The "When it cannot decide" values below are read-only.',
+    'You can edit tier boundaries, dynamic escalation, task completion criteria, the escalation threshold for undecided checks, and retention here.',
   'settings.gates.done_gate': 'Task completion criteria',
   'settings.gates.done_gate_hint':
     'Checked before a task moves to done. A task that does not meet them stays open, and you are told what is missing.',

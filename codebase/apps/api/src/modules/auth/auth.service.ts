@@ -51,6 +51,7 @@ import { MailOutbox } from '../mail/mail.outbox.js';
 import type { NervAuth } from './better-auth.js';
 import type { NervDb } from '../../common/database.module.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
+import { failopenStatus } from '../task/failopen.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
@@ -695,7 +696,10 @@ export class AuthService {
         kind: 'not_found',
       });
     }
-    return project;
+    // **fail-open 격상 상태**(2026-10-15 · 사람 결정 · REQ-API-320) — S5 · S6 배너와 사이드바가 같은 조회를 읽는다. 판정은
+    // `task/failopen.ts` 한 곳이고, 정책이 스키마에 맞지 않으면 기본 정책으로 센다(REQ-API-240)
+    const failopen = effectiveGatePolicy(project['gate_policy']).policy.failopen;
+    return { ...project, failopen_status: await failopenStatus(this.db, projectId, failopen) };
   }
 
   /**
@@ -769,6 +773,18 @@ export class AuthService {
              retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
        WHERE id = ${input.projectId}
     `);
+    // **보존 기간을 저장하면 남아 있는 원문의 만료도 다시 적는다**(2026-10-16 · 사람 결정 · REQ-CB-032). 원문의 만료는
+    // 리뷰를 받을 때 그때의 정책으로 적으므로(review.service), 그대로 두면 늘린 정책이 이미 받은 원문에는 적용되지 않았다 —
+    // 정책을 늘리는 사람은 지금 남아 있는 원문도 더 오래 남기를 기대한다. 이미 지운 원문(`prompt_blob_uri` 가 NULL)은
+    // 되살릴 수 없으니 건드리지 않는다
+    if (retention != null) {
+      await this.db.execute(sql`
+        UPDATE review_session
+           SET prompt_expires_at = created_at + make_interval(days => ${retention.prompt_blob_ttl_days})
+         WHERE project_id = ${input.projectId}
+           AND prompt_blob_uri IS NOT NULL
+      `);
+    }
     // **무엇이 바뀌었는지 남긴다.** 게이트 정책을 고쳤으면 **바뀐 뒤의 유효 정책 본문과 지문**도 남긴다(2026-10-15 ·
     // 사람 결정 · REQ-API-303) — 판정 이벤트는 지문만 남기므로, 지난 판정을 다시 계산하려면 그 지문의 본문이 어딘가에
     // 있어야 한다. 프로젝트 행은 지금 값만 가지고 있다. 예전에는 바뀐 필드 이름만 남겼다
@@ -804,6 +820,9 @@ export class AuthService {
                   effectiveGatePolicy(policyBefore).policy,
                 ),
               }),
+          // **보존 기간도 바뀐 뒤의 값을 남긴다**(2026-10-15 · REQ-API-318). 화면에서 고칠 수 있게 되자 줄인 기간이 다음
+          // 보존 잡에서 활동 원문을 지운다 — 누가 언제 몇 일로 줄였는지가 감사에 있어야 한다
+          ...(retention == null ? {} : { retention }),
         },
       });
     }

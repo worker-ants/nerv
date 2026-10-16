@@ -176,6 +176,14 @@ export const NERV_EVENT_PHASE2 = {
   FINDING_COMMENTED: 'finding.commented',
   FINDING_RESOLVED: 'finding.resolved',
   CR_OPENED: 'cr.opened',
+  /**
+   * ★ **fail-open 격상**(2026-10-15 · 사람 결정 · api.md REQ-API-319 · spec-workflow §4.6). 정책의 시간 창
+   * (`failopen.window_hours`) 안에 `gate.failopen` 이 `failopen.escalate_count` 회 이상 쌓여 게이트가 사실상 꺼졌다고
+   * 올렸다. 대상은 프로젝트이고 행위자는 없다. 그 프로젝트의 admin 에게 중요 알림이 간다. 이미 격상이면 다시 내지 않는다
+   */
+  GATE_FAILOPEN_ESCALATED: 'gate.failopen_escalated',
+  /** ★ 격상이 풀렸다 — 그 창 동안 새 fail-open 이 없었다(같은 결정 · REQ-API-319). 기록만 하고 알림은 만들지 않는다 */
+  GATE_FAILOPEN_CLEARED: 'gate.failopen_cleared',
 } as const;
 
 /**

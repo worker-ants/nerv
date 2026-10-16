@@ -40,6 +40,14 @@ export const implStatus = pgEnum('impl_status', [
   'implemented',
   'verified',
 ]);
+/**
+ * **구현 상태가 어디서 왔는가**(2026-10-15 · 사람 결정 · REQ-DB-044 · spec-workflow §1.3).
+ *
+ * `derived` 는 서버의 값이다 — 관계(작업 · 증적 · 발견)에서 파생했거나, NERV 에서 생긴 요구사항이 작업 없이 처음 값
+ * (`unimplemented`)에 있다. `import` 는 임포트가 문서에서 읽어 넣었고 그 뒤로 파생하지 않은 값이다. 작업이 없는 요구사항은
+ * 파생할 재료가 없어 임포트 값을 덮지 않는다 — 대신 이 값으로 「출처: 임포트」를 표시한다.
+ */
+export const implStatusSource = pgEnum('impl_status_source', ['derived', 'import']);
 export const changeKind = pgEnum('change_kind', ['added', 'modified', 'removed', 'unchanged']);
 export const specRelationKind = pgEnum('spec_relation_kind', [
   'references',

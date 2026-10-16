@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.26 · 2026-10-15 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.27 · 2026-10-15 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.27 변경(2026-10-15 — 구현 상태의 출처, **사람 결정 ④**): **§2.2 `requirement` 한 행.** `impl_status_source`(`derived` · `import`)를 더한다. 작업이 없는 요구사항은 파생하지 않아 임포트가 넣은 값이 남는데, 그 값을 덮지 않는 대신 어디서 왔는지 남긴다([3.5 스펙 워크플로우](spec-workflow.md) §1.3 · [4.3 데이터베이스](../04-mvp/database.md) REQ-DB-044).
 >
 > v0.26 변경(2026-10-15 — 과거 버전을 되살리기, **사람 결정**): **§2.2 `spec_version` 한 행 · 무결성 규칙 문장 하나.** 과거 버전을 되살리는 기능의 이름을 「되돌리기」로 정하고(「복원」은 보관한 것을 되살리는 말이다) 그 일이 무엇인지 적는다 — 서버가 옛 버전의 본문을 그대로 복사해 새 초안을 만들고 그 초안은 보통 게이트를 지난다. 새 버전은 되살린 옛 버전의 번호(`reverted_to_version_no`)를 남긴다([4.4 API](../04-mvp/api.md) REQ-API-308).
 >
@@ -334,6 +336,7 @@ stateDiagram-v2
 | `acceptance_md` | text | 수용 기준 |
 | `priority` | enum **NULL 허용** | `must / should / could`(clemvion의 필수/권장 매핑). **NULL 은 `must` 의 축약이 아니라 "원본에 표기가 없었다" 는 사실**이다(`0020` · 2026-09-06). 그전에는 NOT NULL 이라 임포터가 전건 `must` 를 넣었고, 뒤에 오는 사람은 그것을 원본의 선언으로 읽었다 |
 | `impl_status` | enum | `unimplemented / in_progress / implemented / verified` |
+| `impl_status_source` | enum | `derived / import` — 그 값을 누가 정했나. 임포터가 새 요구사항을 만들면 `import`, 파생이 값을 다시 쓰면 `derived` 다. 작업이 없어 파생하지 않은 임포트 값을 화면 · API 가 「출처: 임포트」로 표시한다([3.5](spec-workflow.md) §1.3 · `0051` · 2026-10-15) |
 | `introduced_in_version_id` | uuid FK | 이 요구사항이 처음 등장한 SpecVersion |
 | `current_version_id` | uuid FK | 최신 본문을 담은 SpecVersion |
 | `removed_in_version_id` | uuid FK NULL | 제거된 요구사항의 묘비(이력은 지우지 않는다) |

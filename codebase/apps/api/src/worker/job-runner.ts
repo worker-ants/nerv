@@ -1,4 +1,4 @@
-// 잡 루프 — advisory lock 보유 시에만 열 종을 각자의 주기로 돌린다 (E04-S04)
+// 잡 루프 — advisory lock 보유 시에만 열두 종을 각자의 주기로 돌린다 (E04-S04)
 // 정본: codebase.md §2.2(잡 목록) · REQ-CB-011(단일 실행)
 //
 // **주기는 새 결정이 아니라 기존 상수에서 유도한다.** 리스 회수·stale 판정은 하트비트
@@ -17,6 +17,7 @@ import { ApprovalReminderJob } from './jobs/approval-reminder.job.js';
 import { DigestJob } from './jobs/digest.job.js';
 import { EmbeddingJob } from './jobs/embedding.job.js';
 import { ExportJob } from './jobs/export.job.js';
+import { FailopenJob } from './jobs/failopen.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
 import { MailJob } from './jobs/mail.job.js';
 import { RetentionJob } from './jobs/retention.job.js';
@@ -55,6 +56,7 @@ export class JobRunner {
     digest: DigestJob,
     requirementBackfill: RequirementBackfillJob,
     approvalReminder: ApprovalReminderJob,
+    failopen: FailopenJob,
   ) {
     const heartbeat = HEARTBEAT_INTERVAL_SECONDS * 1000;
     this.schedule = [
@@ -75,6 +77,9 @@ export class JobRunner {
         run: () => approvalReminder.run(),
         lastRunAt: null,
       },
+      // fail-open 격상도 하트비트 간격이다(2026-10-15 · REQ-API-319). 풀림은 시간이 지나서 생기는 일이라 이벤트가 없다 —
+      // 창이 끝난 뒤 늦어도 1분 안에 풀린다. 격상은 fail-open 을 남긴 직후에도 보므로 이 잡은 놓친 것을 맞춘다
+      { name: failopen.name, everyMs: heartbeat, run: () => failopen.run(), lastRunAt: null },
       {
         name: sessionStale.name,
         everyMs: heartbeat,

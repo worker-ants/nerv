@@ -374,6 +374,9 @@ export const ko = {
   'mcp.arg.finding_tag_filter': '쉼표 목록 — 태그 하나라도 맞으면 나온다(spec_drift 등)',
   'mcp.arg.finding_branch_filter': '그 브랜치의 리뷰에서 마지막으로 관찰된 발견만',
   'mcp.arg.finding_cursor': '앞 응답의 next_cursor',
+  'mcp.arg.review_head_sha':
+    '검토한 커밋의 SHA(git rev-parse HEAD의 값 · 16진수 7~40자). HEAD나 브랜치 이름은 거절한다',
+  'mcp.arg.review_base_sha': 'diff 기준 커밋의 SHA(16진수 7~40자). 브랜치 이름은 거절한다',
   'mcp.arg.commit_sha': '코드를 고쳐 해결했을 때의 근거 커밋. fixed이면 필수다',
   'error.review.empty_comment': '빈 코멘트는 남길 수 없습니다.',
   'error.spec.base_hash_required':
@@ -807,6 +810,14 @@ export const ko = {
     '{kind} 리뷰 면제는 코드 증적이 없을 때만 적용됩니다. 이 작업에는 코드 증적이 있습니다',
   'task.missing.review_kind_unfinished': '이 작업의 {kind} 리뷰가 아직 끝나지 않았습니다',
   'task.missing.review_kind_roles': '이 작업의 {kind} 리뷰에 {roles} 역할의 보고가 없습니다',
+  'task.missing.review_kind_stale':
+    '이 작업의 {kind} 리뷰가 본 커밋({reviewed}) 뒤에 새 커밋({head})이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
+  'task.missing.review_stale':
+    '이 작업의 리뷰가 본 커밋({reviewed}) 뒤에 새 커밋({head})이 있습니다. 새 커밋을 다시 리뷰받아야 합니다',
+  'task.missing.review_kind_not_commit':
+    '이 작업의 {kind} 리뷰가 본 것({reviewed})이 커밋 SHA가 아니라서 마지막 커밋({head})을 봤는지 알 수 없습니다. 마지막 커밋을 다시 리뷰받아야 합니다',
+  'task.missing.review_not_commit':
+    '이 작업의 리뷰가 본 것({reviewed})이 커밋 SHA가 아니라서 마지막 커밋({head})을 봤는지 알 수 없습니다. 마지막 커밋을 다시 리뷰받아야 합니다',
   'task.missing.review_kind_open':
     '이 작업의 {kind} 리뷰에 열린 발견이 남아 있습니다(critical {critical}건 · warning {warning}건)',
   'task.missing.evidence': '증적(evidence): 구현 증적 1건 이상',
@@ -906,6 +917,10 @@ export const ko = {
   'error.review.rationale_required': '처분 근거를 적어야 합니다.',
   'error.review.role_required': '리뷰어 역할이 필요합니다.',
   'error.review.head_required': '리뷰에는 검토한 커밋(head_sha)이 필요합니다.',
+  'error.review.head_not_commit':
+    'head_sha는 커밋 SHA(16진수 7~40자)여야 합니다. HEAD나 브랜치 이름 대신 git rev-parse로 얻은 값을 넣으세요.',
+  'error.review.base_not_commit':
+    'base_sha는 커밋 SHA(16진수 7~40자)여야 합니다. 브랜치 이름 대신 git rev-parse로 얻은 값을 넣으세요.',
   'error.spec.meta_change_not_allowed':
     '스펙의 제목·상위 문서·종류는 여기서 바꿀 수 없습니다. 문서 구조는 사람이 웹에서 바꿉니다. 본문만 다시 보내세요.',
   'error.spec.key_taken':
@@ -1041,6 +1056,8 @@ export const ko = {
   'event.finding.resolved': '리뷰 발견 처분됨',
   'event.gate.bypassed': '게이트 자동 통과',
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
+  'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
+  'event.gate.failopen_cleared': '게이트 격상 풀림',
   'event.import.applied': '임포트 적재',
   'event.notification.created': '알림 생성',
   'event.question.answered': '질문에 답변함',
@@ -1598,9 +1615,42 @@ export const ko = {
   'inbox.locked_hint':
     '내가 요청했거나 작성한 항목, 이미 승인한 항목입니다. 승인은 다른 사람이 합니다. 요청을 취소하려면 여기서 거절하세요.',
   'home.others_waiting': '다른 사람의 결정을 기다리는 것 {count}건 ▸',
+  // ── 구현 현황 드릴다운 (screens.md §2.3a · 2026-10-15 · REQ-WEB-315~317) ──────────────
+  'coverage.title': '구현 현황',
+  'coverage.description':
+    '영역에서 문서, 요구사항 순으로 내려가며 어느 약속이 비었는지 확인합니다. 숫자는 서버가 작업 · 증적 · 발견을 보고 셉니다.',
+  'coverage.filter.label': '요구사항 거르기',
+  'coverage.derived_line': '관계에서 파생 {percent}% · 임포트 값 {count}건',
+  'coverage.crumb.root': '모든 영역',
+  'coverage.areas': '영역',
+  'coverage.specs': '문서',
+  'coverage.requirements': '요구사항',
+  'coverage.open_doc': '문서 열기',
+  'coverage.empty': '요구사항이 아직 없습니다.',
+  'coverage.empty_hint': '요구사항은 문서가 승인될 때 본문의 요구사항 줄에서 만들어집니다.',
+  'coverage.empty_action': '스펙 목록으로',
+  'coverage.empty_filtered': '이 조건에 맞는 요구사항이 없습니다.',
+  'coverage.clear_filter': '거르기 풀기',
+  'coverage.spec_missing': '이 문서는 구현 현황에 없습니다. 보관했거나 요구사항이 없는 문서입니다.',
+  'coverage.source_import': '출처: 임포트',
+  'coverage.source_import_hint':
+    '작업이 없어 서버가 파생하지 않은 값입니다. 임포트가 문서에서 읽어 넣었습니다.',
+  'coverage.req.tasks': '파생 작업',
+  'coverage.req.evidence': '증적',
+  'coverage.req.findings': '발견',
+  'coverage.req.reviews': '최근 리뷰',
+  'coverage.req.none': '없음',
+  'coverage.req.signed': '서명됨',
+  'coverage.req.archived': '보관됨',
+  'coverage.req.no_verification': '검증 증적이 없습니다.',
+  'coverage.req.make_verification': '검증 작업 만들기',
+  'coverage.req.no_approved': '승인본이 없어 작업을 만들 수 없습니다.',
+  'coverage.req.review_line': '{branch} · {round}회차 · 발견 {findings}건',
+  'coverage.req.open_critical': '열린 critical {count}건',
   // ── S2 프로젝트 개요 (screens.md §2.3) ────────────────────────────────────────
   'project.active_sessions': '활성 세션 {count}개',
   'project.coverage': '구현 현황',
+  'project.coverage.drilldown': '자세히 보기',
   'project.coverage.areas': '영역별',
   'project.coverage.area_counts': '구현 {implemented} · 검증 {verified} / {total}',
   'project.coverage.no_area': '영역에 들지 않은 스펙',
@@ -1612,6 +1662,12 @@ export const ko = {
   'project.metric.total': '요구사항',
   'project.metric.verified': '검증',
   'project.no_events': '아직 기록된 활동이 없습니다.',
+  'project.events_failopen': '판정하지 못하고 통과시킨 기록',
+  'project.events_all': '모든 활동 보기',
+  'failopen.banner.title': '게이트가 사실상 꺼져 있습니다',
+  'failopen.banner.body':
+    '최근 {hours}시간 동안 게이트가 판정하지 못하고 통과시킨 일이 {count}번입니다(격상 기준 {threshold}번). 그 시간 동안 새로 생기지 않으면 풀립니다.',
+  'failopen.banner.events': '기록 보기',
   'project.no_sessions': '지금 실행 중인 세션이 없습니다.',
   'home.project.sessions': '활성 세션',
   'home.project.approvals': '미결 결재',
@@ -1985,11 +2041,26 @@ export const ko = {
   'settings.gates.dynamic': '동적 강화',
   'settings.gates.dynamic_hint':
     '문서의 첫 승인 버전, 에이전트의 같은 실패 3회 신고, 직전 버전보다 크게 줄어든 본문 가운데 하나라도 있으면 티어를 한 단계 올립니다. 여럿이 해당해도 한 단계만 올립니다. 본문이 크게 줄었으면 최소 T2로 올려 사람이 한 번 봅니다',
-  'settings.gates.failopen': '판정할 수 없을 때 (보기 전용)',
+  'settings.gates.failopen': '판정할 수 없을 때',
   'settings.gates.failopen_body':
-    '판정할 수 없으면 막지 않고 진행한 뒤 기록합니다. {hours}시간 안에 {count}번 반복되면 티어를 올립니다.',
+    '판정할 수 없으면 막지 않고 진행한 뒤 기록합니다. {hours}시간 안에 {count}번 이상 쌓이면 격상합니다. 격상하면 admin에게 중요 알림을 보내고 세션 모니터와 리뷰 센터에 배너를 표시합니다. 그 시간 동안 새로 쌓이지 않으면 풀립니다.',
+  'settings.gates.failopen_count': '격상하는 횟수',
+  'settings.gates.failopen_hours': '시간 창(시간)',
+  'settings.gates.failopen_invalid': '횟수와 시간은 1 이상의 정수로 적으세요.',
+  'settings.gates.failopen_value': '{hours}시간 안에 {count}번',
+  'settings.gates.change_failopen': '격상 기준 {from} → {to}',
+  'settings.gates.retention': '보존 기간',
+  'settings.gates.retention_activity': '활동 원문(일)',
+  'settings.gates.retention_blob': '리뷰 프롬프트 원문(일)',
+  'settings.gates.retention_hint':
+    '기간이 지난 세션 활동 원문은 도구별 횟수만 세션에 남기고 지웁니다. 리뷰 프롬프트 원문의 만료도 이 기간을 따릅니다. 저장하면 이미 들어온 원문에도 새 기간이 적용되어, 늘리면 더 오래 남고 줄이면 다음 보존 작업에서 기간이 지난 원문이 바로 지워집니다. 이미 지운 원문은 되살아나지 않습니다. 결론(요약 · 발견 · 처분)은 지우지 않습니다.',
+  'settings.gates.retention_invalid': '보존 기간은 1 이상의 정수(일)로 적으세요.',
+  'settings.gates.change_retention_activity': '활동 원문 보존 {from}일 → {to}일',
+  'settings.gates.change_retention_blob': '리뷰 프롬프트 원문 보존 {from}일 → {to}일',
+  'settings.gates.retention_shrink_confirm':
+    '보존 기간이 줄어듭니다. 다음 보존 작업에서 기간이 지난 원문이 지워지고 되돌릴 수 없습니다.',
   'settings.gates.lead':
-    '여기서는 티어 경계와 동적 강화, 작업 완료 조건을 바꿀 수 있습니다. 아래 "판정할 수 없을 때" 값은 볼 수만 있습니다.',
+    '여기서는 티어 경계와 동적 강화, 작업 완료 조건, 판정할 수 없을 때의 격상 기준, 보존 기간을 바꿀 수 있습니다.',
   'settings.gates.done_gate': '작업 완료 조건',
   'settings.gates.done_gate_hint':
     '작업을 완료로 옮기기 전에 확인하는 조건입니다. 채우지 못한 작업은 완료되지 않고 무엇이 빠졌는지 알려 줍니다.',

@@ -90,9 +90,10 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
   // 42번째는 `notification_level` 이다(2026-09-27 · 0035 — all · important · none)
   // 43번째는 `claim_awaiting_kind` 다(2026-10-09 · 0046 — background · user · approval)
   // 44번째는 `task_archive_reason` 이다(2026-10-10 · 0047 — duplicate · superseded · obsolete · wont_do)
-  it('enum 44종이 생성된다 (§2.1)', async () => {
+  // 45번째는 `impl_status_source` 다(2026-10-15 · 0051 — derived · import)
+  it('enum 45종이 생성된다 (§2.1)', async () => {
     const count = await scalar(`SELECT count(*)::int FROM pg_type WHERE typtype = 'e'`);
-    expect(count).toBe(44);
+    expect(count).toBe(45);
   });
 });
 
@@ -604,6 +605,104 @@ describe('0038 — 쌓여 있는 안 읽은 보통 알림을 묶음으로 접는
         approved: 'unread',
         c: ['archived', 'archived'],
         openC: 'unread ×3 open',
+      });
+    } finally {
+      await fresh.drop();
+    }
+  });
+});
+
+/**
+ * **0051 의 있던 행 채우기**(2026-10-15 · 사람 결정 · REQ-DB-044). 임포터가 만들었고 살아 있는 작업이 없는 요구사항만
+ * `import` 다 — 살아 있는 작업이 있으면 파생이 이미 값을 썼다고 보고, NERV 에서 생긴 요구사항은 처음 값이라 `derived` 다.
+ * 보관한 작업만 남은 요구사항은 작업이 없는 요구사항과 같다(REQ-API-286).
+ */
+describe('0051 — 임포트 값의 출처를 채운다', () => {
+  it('임포터가 만들었고 살아 있는 작업이 없는 행만 import 다 — 두 번 돌려도 같다', async () => {
+    const fresh = await createScratchDb('nerv_impl_source');
+    try {
+      await runMigrations(fresh.url);
+      const sources = await withClient(fresh.url, async (client) => {
+        const { userId, projectId } = await seedTenancy(client);
+        const specId = randomUUID();
+        const versionId = randomUUID();
+        await client.query(
+          `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','SPC-S','S')`,
+          [specId, projectId],
+        );
+        await client.query(
+          `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+           VALUES ($1,$2,1,'approved','본문',decode(md5('s'),'hex'),$3)`,
+          [versionId, specId, userId],
+        );
+        /** 요구사항 하나 — `imported` 면 임포터처럼 들어온 버전에 `added` 줄을 남긴다 */
+        const requirement = async (ref: string, imported: boolean): Promise<string> => {
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, impl_status,
+                                      introduced_in_version_id, current_version_id)
+             VALUES ($1,$2,$3,$4,'문장','implemented',$5,$5)`,
+            [id, projectId, specId, ref, versionId],
+          );
+          if (imported) {
+            await client.query(
+              `INSERT INTO requirement_version (requirement_id, spec_version_id, change_kind, statement_md, ordinal)
+               VALUES ($1,$2,'added','문장',1)`,
+              [id, versionId],
+            );
+          }
+          return id;
+        };
+        const task = async (requirementId: string, archived: boolean): Promise<void> => {
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO task (id, project_id, key, title, status, source_requirement_id)
+             VALUES ($1,$2,$3,'작업','backlog',$4)`,
+            [id, projectId, `S-T-${id.slice(0, 6)}`, requirementId],
+          );
+          if (archived) {
+            await client.query(
+              `UPDATE task SET archived_at = now(), archive_reason = 'obsolete', archived_by_user_id = $2
+                WHERE id = $1`,
+              [id, userId],
+            );
+          }
+        };
+        const ids = {
+          bare: await requirement('REQ-S-001', true),
+          withTask: await requirement('REQ-S-002', true),
+          archivedOnly: await requirement('REQ-S-003', true),
+          authored: await requirement('REQ-S-004', false),
+        };
+        await task(ids.withTask, false);
+        await task(ids.archivedOnly, true);
+
+        // 마이그레이션은 이미 적용됐다 — 채우는 문장(마지막 조각)만 손으로 다시 돌리고 멱등을 함께 본다
+        const statements = readFileSync(
+          join(migrationsFolder(), '0051_impl_status_source.sql'),
+          'utf8',
+        ).split('--> statement-breakpoint');
+        const backfill = statements[statements.length - 1] ?? '';
+        await client.query(backfill);
+        await client.query(backfill);
+
+        const { rows } = await client.query<{ id: string; source: string }>(
+          `SELECT id, impl_status_source::text AS source FROM requirement WHERE project_id = $1`,
+          [projectId],
+        );
+        const of = (id: string): string => rows.find((r) => r.id === id)?.source ?? '';
+        return {
+          bare: of(ids.bare),
+          withTask: of(ids.withTask),
+          archivedOnly: of(ids.archivedOnly),
+          authored: of(ids.authored),
+        };
+      });
+      expect(sources).toEqual({
+        bare: 'import',
+        withTask: 'derived',
+        archivedOnly: 'import',
+        authored: 'derived',
       });
     } finally {
       await fresh.drop();

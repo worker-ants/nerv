@@ -12,6 +12,7 @@ type ScreenKey =
   | 'shell.nav.tasks'
   | 'shell.nav.sessions'
   | 'shell.nav.review'
+  | 'coverage.title'
   | 'shell.home'
   | 'inbox.title'
   | 'notif.title'
@@ -34,6 +35,9 @@ export function screenKeyFor(pathname: string): ScreenKey | null {
         return 'shell.nav.sessions';
       case 'reviews':
         return 'shell.nav.review';
+      // 구현 현황 드릴다운(2026-10-15 · REQ-WEB-315) — 사이드바에 칸은 없고 개요의 카드에서 들어온다
+      case 'coverage':
+        return 'coverage.title';
       default:
         return null;
     }

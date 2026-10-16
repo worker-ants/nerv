@@ -136,6 +136,13 @@ allowed-tools:
   code 리뷰를 제출하지 말고 `nerv_question_create`로 사람에게 그 종류의 **리뷰 면제**를 부탁한다 — 작업 화면의
   완료 조건 → [리뷰 면제]에서 사유와 함께 기록한다(코드 리뷰는 developer · admin, 스펙 리뷰는 planner · admin).
   커밋 · PR · 코드 경로 증적이 붙은 작업의 코드 리뷰는 면제되지 않는다. 면제가 기록되면 같은 인자로 done을 다시 부른다.
+- **리뷰는 작업의 마지막 커밋을 본 것만 센다.** 정책이 리뷰를 요구하면 done 게이트는 작업의 최신 커밋(가장 나중에 붙은
+  `commit` 증적 — done 에 함께 붙인 커밋도 여기 든다)을 `head_sha` 로 본 라운드만 센다. 짧은 SHA 도 같은 커밋으로 본다.
+  거부에 `details.stale_reviews`(`[{kind, head_sha, reviewed_sha, reason}]`)가 있으면 그 종류에 최신 커밋을 본 리뷰가
+  없는 것이다 — `reason` 이 `newer_commit` 이면 리뷰를 받은 뒤에 새 커밋이 생겼고, `not_a_commit` 이면 예전 리뷰가 커밋
+  SHA 가 아닌 값(`reviewed_sha` — `HEAD` 같은 것)을 봤다. 어느 쪽이든 면제를 부탁하지 않는다 — `/nerv:review` 로 그
+  `head_sha` 를 같은 `task_id` 로 다시 리뷰받고 같은 인자로 done 을 다시 부른다. 그래서 리뷰를 받은 뒤에는 새로
+  커밋하지 않고 done 으로 간다. 고쳐야 하면 고친 커밋을 다시 리뷰받는다.
 - **작업 본문을 고쳐야 하면** `nerv_task_update`(`task_id`, `body_md`, `base_hash`)를 부른다. `base_hash` 는
   `nerv_task_get` 이 준 `body_hash` 그대로다. `status` 없이 본문만 고칠 수 있다. 409 `stale_body` 면 그 사이
   사람이 고친 것이다. 다시 읽고 그 위에 고친다(덮지 않는다). **위임 명세 네 칸**(`goal_md`·`output_format_md`·
@@ -174,7 +181,7 @@ allowed-tools:
 | --- | --- |
 | NERV_PRECONDITION `session_required` | 30분 쉬어 세션이 만료됐다. 가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id(없으면 앞서 받은 bootstrap 응답의 `session_id`)를 `resume_session_id`로 넘겨 `nerv_bootstrap`을 다시 부른다(`resume_not_found`면 그 인자 없이). 회수된 클레임은 돌아오지 않는다 — /nerv:next 절차로 같은 작업을 다시 클레임한다(살아 있는 클레임이 없는 `claimed`·`in_progress`·`in_review` 작업은 상태 그대로 되찾는다) |
 | NERV_LEASE_EXPIRED | 리스 만료 후 쓰기 시도 — 재클레임을 1회 시도하고, 실패하면 산출물(커밋·노트)만 제출하고 종료한다 |
-| NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지. `details.uncovered_kinds`의 리뷰를 이 작업이 받을 수 없으면(코드를 내지 않았다) 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁한다 |
+| NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지. `details.uncovered_kinds`의 리뷰를 이 작업이 받을 수 없으면(코드를 내지 않았다) 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁한다. `details.stale_reviews`가 있으면 면제 대상이 아니다 — 그 `head_sha`를 /nerv:review 로 다시 리뷰받고 done 을 다시 부른다 |
 | NERV_APPROVAL_REQUIRED | 재시도하지 않는다. `approval_id` 와 함께 사람에게 보고하고 멈춘다 — 결정은 하트비트 `pending` 의 `approval_decided` 로 온다(승인을 읽는 도구는 없다). 그동안 새 작업을 클레임하지 않는다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 `.nerv/cache/context-pack.json`(마지막 bootstrap)과 `.nerv/cache/specs/` 의 기준 버전 스냅샷을 Read 한다. 쓰기는 .nerv/outbox/ 멱등 큐잉. 신규 클레임 발급 금지 |

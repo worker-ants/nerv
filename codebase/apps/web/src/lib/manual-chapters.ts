@@ -71,6 +71,8 @@ export const MANUAL_SECTION_IDS = {
     'requirements',
     'relations',
     'archive',
+    // 구현 현황 드릴다운(2026-10-15 · REQ-WEB-315) — 새 절은 끝에 둔다(REQ-WEB-268)
+    'coverage',
   ],
   tasks: [
     'board',

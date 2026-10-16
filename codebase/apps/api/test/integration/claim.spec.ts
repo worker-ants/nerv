@@ -19,6 +19,7 @@ import { QuestionService } from '../../src/modules/approval/question.service.js'
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
+import { FailopenService } from '../../src/modules/task/failopen.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { IMPORTED_DELEGATION } from '../../src/modules/import/import.service.js';
 import { recomputeImplStatus } from '../../src/modules/spec/impl-status.js';
@@ -72,7 +73,16 @@ beforeAll(async () => {
   // 플랜 승인 게이트가 카드를 만드는 자리 — 이 스위트는 그 게이트에 닿지 않지만
   // 서비스는 들고 있어야 한다(SpecService·AuthService 는 이 경로에서 쓰이지 않는다)
   const approvals = new ApprovalService(events, null as never, null as never, drizzleDb);
-  tasks = new TaskService(claims, events, questions, sessions, approvals, drizzleDb);
+  // fail-open 격상 확인(REQ-API-319) — 이 스위트의 경로는 fail-open 을 내지 않지만 서비스는 들고 있어야 한다
+  tasks = new TaskService(
+    claims,
+    events,
+    questions,
+    sessions,
+    approvals,
+    drizzleDb,
+    new FailopenService(events, drizzleDb),
+  );
 
   await seed();
 });

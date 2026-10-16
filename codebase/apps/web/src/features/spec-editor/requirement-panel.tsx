@@ -32,6 +32,7 @@ import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { cn } from '../../lib/utils.js';
 import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { StatusBadge } from '../../components/status-badge.js';
+import { ImportSourceBadge } from '../../components/import-source-badge.js';
 import { REQUIREMENT_TOKEN } from '../../components/status-token.js';
 import {
   EVIDENCE_SIGNER_ROLES,
@@ -155,6 +156,9 @@ export function RequirementPanel({
                   }
                   label={t(statusLabelKey('requirement', String(r['impl_status'])))}
                 />
+                {/* **작업이 없어 파생하지 않은 값이면 그렇다고 적는다**(2026-10-15 · 사람 결정 · REQ-WEB-317) — 임포트 값을
+                  지우지 않는 대신 파생한 값과 섞여 읽히지 않게 한다. 판정은 서버의 출처다(REQ-API-312) */}
+                <ImportSourceBadge source={r['impl_status_source']} />
                 {/* **우선순위가 없으면 없다고 적는다** — `must` 로 채워 보이면 원본이
                   그렇게 선언한 것처럼 읽힌다(4.7 §2.5 규칙 4) */}
                 <span className="text-2xs text-text-faint">

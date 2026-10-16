@@ -16,6 +16,7 @@ import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { sqlArray } from '../../common/sql-array.js';
 import type { NervDb } from '../../common/database.module.js';
+import { sameCommitSql } from './commit-scope.js';
 
 export type GateState = 'uncovered' | 'pending' | 'passed';
 export type GateReason = 'running' | 'failed' | 'open_critical' | 'open_warning' | 'missing_roles';
@@ -62,6 +63,12 @@ export async function roundVerdicts(
     projectId: string;
     kinds: readonly string[] | null;
     headSha: string | null;
+    /**
+     * `headSha` 를 어떻게 맞추나(2026-10-15 · REQ-API-314). `exact`(기본 — EP-REV-08 · 제출 응답)는 문자열이 같은 세션만,
+     * `commit` 은 같은 커밋으로 읽히는 세션 전부다(대소문자 무시 · 짧은 SHA — `commit-scope.ts`). done 게이트가 작업의
+     * 최신 커밋을 증적에서 읽어 `commit` 으로 부른다 — 증적은 짧은 SHA, 리뷰는 40자일 수 있다.
+     */
+    headMatch?: 'exact' | 'commit';
     /** 종류마다 반드시 보고해야 하는 역할(`gate_policy.review_roles`) — 주지 않으면 역할을 보지 않는다 */
     requiredRoles?: Readonly<Partial<Record<string, readonly string[]>>>;
   } & ({ branch: string; taskId?: undefined } | { taskId: string; branch?: undefined }),
@@ -72,7 +79,15 @@ export async function roundVerdicts(
       : sql`rs.branch = ${input.branch}`;
   const kindFilter: SQL =
     input.kinds === null ? sql`` : sql` AND rs.kind::text = ANY(${sqlArray(input.kinds, 'text')})`;
-  const headFilter: SQL = input.headSha === null ? sql`` : sql` AND rs.head_sha = ${input.headSha}`;
+  const commitMode = input.headMatch === 'commit' && input.headSha !== null;
+  const headFilter: SQL =
+    input.headSha === null
+      ? sql``
+      : commitMode
+        ? sql` AND ${sameCommitSql(sql`rs.head_sha`, sql`${input.headSha}`)}`
+        : sql` AND rs.head_sha = ${input.headSha}`;
+  // 같은 커밋으로 읽히는 세션은 문자열이 달라도(짧은 SHA · 대소문자) 한 라운드다 — 그때는 종류만으로 묶는다
+  const roundJoin: SQL = commitMode ? sql`` : sql` AND l.head_sha = s.head_sha`;
   const { rows: rounds } = await db.execute<{
     kind: string;
     head_sha: string;
@@ -99,7 +114,7 @@ export async function roundVerdicts(
            bool_or(s.state = 'failed') AS failed,
            CASE WHEN bool_or(s.state = 'running') THEN NULL ELSE max(s.completed_at) END AS completed_at,
            array_agg(s.id::text) AS session_ids
-      FROM scoped s JOIN latest l ON l.kind = s.kind AND l.head_sha = s.head_sha
+      FROM scoped s JOIN latest l ON l.kind = s.kind${roundJoin}
      GROUP BY s.kind, l.head_sha
      ORDER BY s.kind
   `);

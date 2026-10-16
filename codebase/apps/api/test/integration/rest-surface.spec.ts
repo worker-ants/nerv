@@ -773,8 +773,8 @@ describe('리뷰 제출 REST — 지적 본문이 저장까지 간다 (EP-REV-01
       token: reviewToken,
       payload: {
         branch: 'feat/rest-review',
-        base_sha: 'base-rest',
-        head_sha: 'head-rest',
+        base_sha: 'ba5e0de',
+        head_sha: 'c0de0de',
         reviewer: { role: 'qa', risk: 'low' },
         findings: [
           {

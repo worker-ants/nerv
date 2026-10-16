@@ -25,8 +25,9 @@ export class ReviewTools implements NervToolProvider {
         type: 'object',
         properties: {
           branch: { type: 'string' },
-          base_sha: { type: 'string' },
-          head_sha: { type: 'string' },
+          // 둘 다 커밋 SHA 다 — `HEAD` · 브랜치 이름은 서비스가 400 으로 거절한다(2026-10-15 · REQ-API-321)
+          base_sha: { type: 'string', description: 'mcp.arg.review_base_sha' },
+          head_sha: { type: 'string', description: 'mcp.arg.review_head_sha' },
           changeset: { type: 'array', items: { type: 'string' } },
           kind: { type: 'string', enum: ['code', 'consistency', 'spec_coverage', 'merge'] },
           task_id: { type: 'string' },

@@ -637,8 +637,9 @@ describe('EP-IMP-06 reviews — 리뷰를 파일에서 레코드로 (FR-09)', ()
     source_path: 'review/code/2026/06/21/21_26_26',
     kind: 'code',
     branch: 'feat/memory',
-    base_sha: 'aaa111',
-    head_sha: 'bbb222',
+    // 둘 다 커밋 SHA 다 — 아니면 그 항목이 실패한다(REQ-API-321). 예전 픽스처는 6자였다
+    base_sha: 'aaa1111',
+    head_sha: 'bbb2222',
     changeset: ['src/a.ts', 'src/b.ts'],
     reviewed_at: '2026-06-21T21:26:26.000Z',
     block: false,
@@ -721,13 +722,44 @@ describe('EP-IMP-06 reviews — 리뷰를 파일에서 레코드로 (FR-09)', ()
     const res = await post('reviews', {
       profile: 'clemvion',
       items: [
-        session({ source_path: 'review/ok', head_sha: 'ccc333' }),
+        session({ source_path: 'review/ok', head_sha: 'ccc3333' }),
         session({ source_path: 'review/bad', head_sha: '  ', base_sha: '  ' }),
       ],
     });
     expect(res.json).toMatchObject({ applied: 1, errors: 1 });
     const items = res.json['items'] as { source_path: string; status: string }[];
     expect(items.find((i) => i.source_path === 'review/bad')?.status).toBe('error');
+  });
+
+  /**
+   * **커밋 SHA 가 아니면 그 항목만 실패한다**(2026-10-15 · 사람 결정 · REQ-API-321). 제출과 같은 스키마다 — 임포터는 git 에서
+   * 커밋을 되찾으므로 정상 실행에서는 걸리지 않는다. 배치 전체의 400 이 아니라 항목의 실패인 것은 REQ-API-018 이다
+   */
+  it('head_sha · base_sha 가 커밋 SHA 가 아니면 그 항목만 실패하고 라운드가 남지 않는다', async () => {
+    const res = await post('reviews', {
+      profile: 'clemvion',
+      items: [
+        session({ source_path: 'review/ok', head_sha: 'CCC3333' }),
+        session({ source_path: 'review/head', head_sha: 'HEAD' }),
+        session({ source_path: 'review/base', base_sha: 'main' }),
+      ],
+    });
+    expect(res.json).toMatchObject({ applied: 1, errors: 2 });
+    const items = res.json['items'] as { source_path: string; status: string; detail?: string }[];
+    expect(items.find((i) => i.source_path === 'review/head')).toMatchObject({
+      status: 'error',
+      detail: expect.stringContaining('head_sha는 커밋 SHA') as unknown,
+    });
+    expect(items.find((i) => i.source_path === 'review/base')).toMatchObject({
+      status: 'error',
+      detail: expect.stringContaining('base_sha는 커밋 SHA') as unknown,
+    });
+    // 이 파일은 케이스마다 지우지 않는다 — 이 케이스가 넣은 값으로만 센다
+    const { rows } = await pool.query<{ head_sha: string; base_sha: string }>(
+      `SELECT head_sha, base_sha FROM review_session
+        WHERE head_sha IN ('CCC3333', 'HEAD') OR base_sha = 'main'`,
+    );
+    expect(rows).toEqual([{ head_sha: 'CCC3333', base_sha: 'aaa1111' }]);
   });
 
   it('임포트는 이벤트를 내지 않는다 — 과거 리뷰 3만 건이 알림이 되면 알림을 끈다', async () => {

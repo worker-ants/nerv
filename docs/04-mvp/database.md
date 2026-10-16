@@ -20,7 +20,15 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.73 · 2026-10-15 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.77 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.77 변경(2026-10-16 — 보존 기간을 저장하면 남아 있는 원문의 만료도 다시 적는다, **사람 결정**): **§2.7 `review_session` 한 줄 · §2.14 보존 단락 한 구절.** `prompt_expires_at` 은 받을 때 정책으로 정하고, EP-PRJ-04 가 `retention` 을 저장하면 원문이 남아 있는 행의 값을 새 기간으로 다시 적는다([4.2 코드베이스](codebase.md) REQ-CB-032). 열과 마이그레이션은 그대로다.
+
+> v0.76 변경(2026-10-15 — 리뷰 프롬프트 원문의 만료가 보존 정책을 따른다, **사람 결정**): **§2.7 `review_session` 한 줄 · §2.14 보존 단락 한 문장.** `prompt_expires_at` 은 리뷰를 받을 때 그 프로젝트의 정책 `prompt_blob_ttl_days` 로 정한 만료다 — 예전 주석은 "TTL 30일" 이었고 실제로도 상수 30일이 박혀 정책을 늘려도 효과가 없었다([4.2 코드베이스](codebase.md) REQ-CB-032). 열과 마이그레이션은 그대로다.
+>
+> v0.75 변경(2026-10-15 — 작업의 증적 인덱스 · 재기동한 알림 워커, Phase 2 묶음 1의 셋째 · **사람 지시**): **REQ-DB-045 신설 · §2.12 인덱스 한 줄 · §3.3 `nerv-worker` 행 · 마이그레이션 `0052`.** ① done 게이트의 커밋 범위([4.4 API 명세](api.md) REQ-API-314 · 315)가 작업의 최신 `commit` 증적을 찾는데 `evidence.task_id` 에 인덱스가 없어 표 전체를 훑었다. `evidence_task (task_id, created_at, id) WHERE task_id IS NOT NULL` 을 둔다 — 최신 커밋 · 증적 목록 · 수 · 웹훅 dedup 이 그 작업의 행만 읽는다. ② §3.3 의 `nerv-worker` 행은 워커가 채널을 구독해 알림을 파생한다고 적었는데 실물은 하트비트 간격의 폴링 하나다. 실물대로 고치고 재기동 뒤의 규칙(최근 한 시간만 다시 본다 — [4.4 API 명세](api.md) REQ-API-317)을 더했다.
+>
+> v0.74 변경(2026-10-15 — 구현 상태의 출처, **사람 결정 ④** · [4.8 백로그](backlog.md) E15-S02): **REQ-DB-044 신설 · §2.1 enum 44 → 45종(`impl_status_source`) · §2.3 `requirement` 열 하나 · 마이그레이션 `0051`.** 작업이 하나도 없는 요구사항은 파생하지 않아 임포트가 넣은 값이 남는다. 그 값을 덮지 않고 어디서 왔는지 남긴다 — 임포터가 새 요구사항을 만들 때 `import`, 파생이 값을 다시 쓸 때 `derived` 다. 있던 행은 임포터가 만들었고(들어온 버전에 `requirement_version` 의 `added` 줄이 있다) 살아 있는 작업이 없는 것만 `import` 로 채운다([4.4 API](api.md) REQ-API-312).
 >
 > v0.73 변경(2026-10-15 — 이메일 바꾸기, **사람 결정**): **REQ-DB-043 신설 · §2.16 주석 한 줄 · §2.17 `email_kind` 세 값 · 마이그레이션 `0050`.** `email_kind` 에 이메일 바꾸기의 메일 셋(`change_email_approve` · `change_email_confirm` · `email_changed`)을 더한다. 대기 중인 요청과 사람마다 세는 시도는 새 표 없이 `auth_verification` 에 이름표 둘로 둔다([4.4 API](api.md) REQ-API-310).
 >
@@ -187,7 +195,7 @@ referenced_by:
 
 서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **33개**(도메인 32 + 부속 `idempotency_key` 1 — §2.3a·§2.3b 포함) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
-### 2.1 확장과 enum 44종
+### 2.1 확장과 enum 45종
 
 ```sql
 -- 0000_init.sql · §1 — 확장
@@ -203,6 +211,7 @@ CREATE TYPE spec_type               AS ENUM ('vision', 'area', 'feature', 'desig
 CREATE TYPE spec_version_status     AS ENUM ('draft', 'in_review', 'approved', 'superseded', 'deprecated');
 CREATE TYPE requirement_priority    AS ENUM ('must', 'should', 'could');
 CREATE TYPE impl_status             AS ENUM ('unimplemented', 'in_progress', 'implemented', 'verified');
+CREATE TYPE impl_status_source      AS ENUM ('derived', 'import');  -- 0051 · 그 값을 누가 정했나(REQ-DB-044)
 CREATE TYPE change_kind             AS ENUM ('added', 'modified', 'removed', 'unchanged');
 CREATE TYPE spec_relation_kind      AS ENUM ('references', 'refines', 'depends_on', 'duplicates', 'supersedes');
 CREATE TYPE comment_status          AS ENUM ('open', 'resolved');
@@ -421,6 +430,7 @@ CREATE TABLE requirement (                   -- 구현 추적의 단위(D-03)
   acceptance_md            text,
   priority                 requirement_priority,  -- NULL = 표기가 없었다(추정 금지 — [4.7 임포터](importer.md) §2.5 규칙 4)
   impl_status              impl_status NOT NULL DEFAULT 'unimplemented',
+  impl_status_source       impl_status_source NOT NULL DEFAULT 'derived',  -- 임포터가 만들면 import · 파생이 쓰면 derived(0051)
   introduced_in_version_id uuid NOT NULL REFERENCES spec_version(id),
   current_version_id       uuid NOT NULL REFERENCES spec_version(id),
   removed_in_version_id    uuid REFERENCES spec_version(id),  -- 묘비. 이력은 지우지 않는다
@@ -730,7 +740,7 @@ CREATE TABLE review_session (
   risk                review_risk,               -- 완료 시 산출, running 동안 NULL
   block               boolean NOT NULL DEFAULT false, -- consistency의 BLOCK: YES/NO 계승
   prompt_blob_uri     text,                      -- 재생성 가능 입력 → 오브젝트 스토리지
-  prompt_expires_at   timestamptz,               -- TTL 30일(data-model §5.4)
+  prompt_expires_at   timestamptz,               -- 받을 때 정책 prompt_blob_ttl_days 로 정한 만료 · 정책을 저장하면 다시 적는다(4.2 REQ-CB-032)
   started_at          timestamptz NOT NULL DEFAULT now(),
   completed_at        timestamptz,
   created_at          timestamptz NOT NULL DEFAULT now()
@@ -1085,6 +1095,7 @@ CREATE UNIQUE INDEX notification_open_batch ON notification (user_id, batch_key)
 CREATE UNIQUE INDEX notification_batch_event_user ON notification_batch_event (event_id, user_id); -- 한 이벤트는 한 사람에게 한 묶음(REQ-DB-030)
 CREATE INDEX question_open ON question (project_id, status);                       -- 보조: 열린 질문 수
 CREATE INDEX evidence_requirement ON evidence (requirement_id) WHERE NOT stale;    -- 보조: 커버리지(§4.1)
+CREATE INDEX evidence_task ON evidence (task_id, created_at, id) WHERE task_id IS NOT NULL; -- 보조: 작업의 최신 커밋 · 증적 목록(0052 · REQ-DB-045)
 ```
 
 ### 2.13 함수·트리거
@@ -1202,7 +1213,7 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);
 
 **아직 없는 것**: 12개월 지난 `event` 파티션의 `DETACH`, 보존 기간을 넘긴 `activity` 파티션의 드랍. 아래 문단이 워커 잡으로 약속하지만 구현은 없다 — 파티션은 계속 쌓인다. 지금 규모에서 급하지 않아 남겨 두되, **문서가 있다고 말하지 않게** 여기에 적는다.
 
-**보존 정책도 절반만 집행된다**(2026-09-07 확인 — 실측). [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 의 표는 아홉 줄인데 `retention` 잡이 집행하는 것은 **둘**이다 — `activity` 원문(`activity_days`, 기본 90일 · 지우기 전에 `agent_session.activity_summary` 로 접는다)과 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 **먼저 오는 쪽**). 프로젝트 정책 스키마(`RetentionSchema`)의 키도 그 **둘뿐**이라, 나머지는 정책으로 적을 자리조차 없다.
+**보존 정책도 절반만 집행된다**(2026-09-07 확인 — 실측). [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 의 표는 아홉 줄인데 `retention` 잡이 집행하는 것은 **둘**이다 — `activity` 원문(`activity_days`, 기본 90일 · 지우기 전에 `agent_session.activity_summary` 로 접는다)과 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 **먼저 오는 쪽** — 행의 만료는 리뷰를 받을 때 그 프로젝트의 정책으로 적고 정책을 저장하면 남은 원문의 만료를 다시 적는다, 2026-10-15 · 10-16 · [4.2 코드베이스](codebase.md) REQ-CB-032). 프로젝트 정책 스키마(`RetentionSchema`)의 키도 그 **둘뿐**이라, 나머지는 정책으로 적을 자리조차 없다.
 
 | §5.4 가 약속한 것 | 상태 | 그래서 지금 |
 | --- | --- | --- |
@@ -1372,6 +1383,8 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-041 | WHEN `spec_version.body_md` 가 쓰이면 THE SYSTEM SHALL 같은 행의 `body_tsv`(생성 열 · `to_tsvector('simple', coalesce(body_md, ''))`)를 같은 쓰기에서 다시 만들고, 검색의 FTS 는 그 열과 GIN 인덱스(`spec_version_body_tsv`)를 쓴다(2026-10-12 · 사람 결정 · 0048 — 질의마다 본문 전체를 다시 분석하던 동안 이 저장소의 문서 세트에서 렉시컬 p95 가 0.8초였다 · [4.4 API](api.md) §2.2c · REQ-API-301). 검증은 L2 `spec-domain.spec.ts` 다 — 본문 뒤쪽의 낱말이 `body_tsv @@` 로 잡힌다 |
 | REQ-DB-042 | WHEN 되돌리기가 옛 버전의 본문으로 새 초안을 만들면 THE SYSTEM SHALL 그 옛 버전의 번호를 새 버전의 `spec_version.reverted_to_version_no`(int · NULL 허용)에 남기고, CHECK(`spec_version_reverted_to_ck`)로 1 이상 · 그 버전의 번호보다 작게 둔다. 초안을 이어 고쳐도 지우지 않는다 — 출발점의 기록이다. 이 열이 생기기 전의 버전은 NULL 이다(마이그레이션 `0049` · [4.4 API 명세](api.md) REQ-API-308 · 2026-10-15 사람 결정) |
 | REQ-DB-043 | WHEN 사람이 이메일 바꾸기를 요청하면 THE SYSTEM SHALL `email_kind` 의 세 값(`change_email_approve` 옛 주소의 승인 · `change_email_confirm` 새 주소의 확인 · `email_changed` 바뀐 뒤 옛 주소로 가는 알림)으로 메일을 줄 세우고, 대기 중인 요청을 `auth_verification` 의 `change-email:<사용자 id>` 한 줄(값은 JSON — 새 주소 · 단계 · 지금 살아 있는 링크 토큰의 SHA-256, 만료는 링크와 같다)로, 사람마다 세는 시도를 `change-email-attempt:<사용자 id>` 줄(시도마다 하나 · 1분 뒤 만료)로 둔다. 새 요청은 그 사람의 대기 줄을 갈아 끼우고, 끝난 요청의 줄은 지운다. 새 표는 없다(마이그레이션 `0050` · [4.4 API 명세](api.md) REQ-API-310 · 2026-10-15 사람 결정) |
+| REQ-DB-044 | WHEN 임포터가 새 요구사항을 만들면 THE SYSTEM SHALL `requirement.impl_status_source`(`impl_status_source` — `derived`·`import` · NOT NULL · 기본 `derived`)에 `import` 를 남기고, WHEN 파생이 구현 상태를 다시 쓰면 THE SYSTEM SHALL 같은 쓰기에서 `derived` 로 바꾼다. 다른 쓰기(승인의 요구사항 동기화 · 다시 임포트 · 빠진 행 채우기)는 이 열을 건드리지 않는다. 이 열이 생기기 전의 행은 임포터가 만들었고(들어온 버전에 `requirement_version` 의 `added` 줄이 있다) 보관하지 않은 작업이 없는 것만 `import` 이고 나머지는 `derived` 다(마이그레이션 `0051` · [4.4 API 명세](api.md) REQ-API-312 · 2026-10-15 사람 결정 ④). 검증은 L2 `migrate.spec.ts`(있던 행 채우기 · 멱등)와 `coverage-drilldown.spec.ts` 다 |
+| REQ-DB-045 | WHEN 작업의 증적을 찾으면(done 게이트 · 구현 축의 작업 최신 `commit` 증적 — [4.4 API 명세](api.md) REQ-API-314 · 315, 작업의 증적 목록 · 수 · 웹훅 dedup) THE SYSTEM SHALL `evidence_task`(`task_id, created_at, id` · `WHERE task_id IS NOT NULL`)로 그 작업의 행만 읽고 표 전체를 훑지 않는다. 오름차순으로 두어 최신 커밋의 `ORDER BY created_at DESC, id DESC` 는 거꾸로 읽을 수 있다(마이그레이션 `0052` · 2026-10-15). 검증은 L2 `commit-scope.spec.ts`(인덱스 정의 · 순차 스캔을 끈 계획이 이 인덱스를 쓴다)다 |
 
 ---
 
@@ -1422,7 +1435,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | 수신자 | 동작 |
 | --- | --- |
 | `nerv-api` 각 파드 | 기동 시 `SUBSCRIBE nerv_events` → 페이로드의 `project_id`로 자기 파드에 붙은 `project:{id}` 룸·`/sse/projects/{p}` 스트림을 찾아 emit. 이벤트 이름·본문 계약은 [4.4 API 명세](api.md) §3 |
-| `nerv-worker` | 같은 채널 `SUBSCRIBE` → 알림 파생(notification INSERT)·다이제스트 배칭 트리거. 유실 대비 폴백은 `event_project_time` 인덱스 폴링(마지막 처리 `occurred_at` 이후) |
+| `nerv-worker` | 알림 파생(notification INSERT)은 하트비트 간격(1분)의 `event` 폴링이다 — 지난 실행이 처리한 마지막 `occurred_at` 뒤부터 읽고, 재기동해 그 값이 없으면 최근 한 시간만 다시 본다([4.4 API 명세](api.md) REQ-API-317 · 2026-10-15 정정 — 이 칸은 워커가 채널을 구독해 알림을 파생한다고 적었다). 다이제스트도 워커 잡이다 |
 | 재연결 클라이언트 | 방송은 유실 허용이다(D-14 — 진실은 DB). 끊겼던 클라이언트는 화면 데이터를 재조회하고(WS·SSE 공통, replay 없음), 워커는 폴링 폴백으로 따라잡는다 |
 
 ---

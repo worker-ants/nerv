@@ -9,8 +9,10 @@
 // **동시성·제약은 mock 으로 보지 않는다**(AGENTS.md 테스트 규약) — 실제 Postgres 다.
 // dedup 이 진짜인지는 UNIQUE 제약과 SQL 이 함께 있어야만 답할 수 있다.
 
+import { createHash } from 'node:crypto';
 import { NERV_ERROR, NERV_EVENT_PHASE2, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -22,6 +24,7 @@ import type { ToolContext } from '../../src/mcp/tool-context.js';
 import { QuestionService } from '../../src/modules/approval/question.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
+import { RetentionJob } from '../../src/worker/jobs/retention.job.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
 
@@ -137,6 +140,105 @@ describe('FR-09 제출 — 세 층이 한 트랜잭션으로 들어온다', () =
     const { rows } = await pool.query(`SELECT has_report FROM reviewer_report`);
     expect(rows).toHaveLength(1);
     expect(rows[0].has_report).toBe(true);
+  });
+});
+
+/**
+ * **입력 스냅샷은 커밋 SHA 다** (2026-10-15 · 사람 결정 · REQ-API-321). 예전에는 빈 값만 막아서 `HEAD` · 브랜치 이름이
+ * 들어왔고, done 게이트는 그 라운드를 작업의 커밋과 견주지 못해 fail-open 으로 넘겼다 — `head_sha: "HEAD"` 로 내면 커밋
+ * 신선도를 넘었다. 서비스 · REST · MCP 가 같은 스키마(`ReviewSnapshotInput`)로 400 을 내고 라운드는 남지 않는다.
+ */
+describe('입력 스냅샷은 커밋 SHA 다 (REQ-API-321)', () => {
+  const rounds = async (): Promise<number> =>
+    (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM review_session`)).rows[0]!.n;
+  const ctx = (): ToolContext =>
+    ({
+      projectId,
+      sessionId: agentSessionId,
+      principal: { userId, isAgent: true },
+    }) as unknown as ToolContext;
+  const restToken = async (): Promise<string> =>
+    (
+      await app.get(AuthService).issueToken({
+        projectId,
+        userId,
+        name: `sha-${newId().slice(-6)}`,
+        scopes: ['review:submit'],
+      })
+    ).token;
+
+  it.each([
+    ['HEAD', 'aaaa111', 'error.review.head_not_commit'],
+    ['feat/widget', 'aaaa111', 'error.review.head_not_commit'],
+    // 짧은 SHA 는 7자부터다
+    ['bbbb22', 'aaaa111', 'error.review.head_not_commit'],
+    // 기준도 diff 의 커밋이다 — 움직이는 브랜치 이름은 나중에 무엇과 견줬는지 답하지 못한다
+    ['bbbb222', 'main', 'error.review.base_not_commit'],
+    ['bbbb222', 'origin/main', 'error.review.base_not_commit'],
+  ])(
+    '서비스 — head_sha %s · base_sha %s 는 400 이고 라운드가 남지 않는다',
+    async (headSha, baseSha, key) => {
+      const error = await reviews
+        .submit(submitInput({ headSha, baseSha }))
+        .catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: NERV_ERROR.PRECONDITION, descriptor: { key } });
+      // REST 본문 검사와 같은 모양이다 — `issues` 가 있으면 400 이다
+      expect((error as { details: Record<string, unknown> }).details).toHaveProperty('issues');
+      expect(await rounds()).toBe(0);
+    },
+  );
+
+  it('REST — HEAD 로 내면 400 이고 무엇을 넣어야 하는지 말한다', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects/clemvion/reviews',
+      headers: {
+        authorization: `Bearer ${await restToken()}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        branch: 'feat/rest-sha',
+        base_sha: 'aaaa111',
+        head_sha: 'HEAD',
+        reviewer: { role: 'security', risk: 'low' },
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body) as { code: string; message: string };
+    expect(body.code).toBe(NERV_ERROR.PRECONDITION);
+    expect(body.message).toContain('git rev-parse');
+    expect(await rounds()).toBe(0);
+  });
+
+  it('MCP — 도구로 내도 같은 스키마가 거절한다', async () => {
+    const tool = app.get(ReviewTools).tools.find((t) => t.name === 'nerv_review_submit')!;
+    await expect(
+      tool.handler(
+        {
+          branch: 'feat/mcp-sha',
+          base_sha: 'main',
+          head_sha: 'bbbb222',
+          reviewer: { role: 'security' },
+        },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      descriptor: { key: 'error.review.base_not_commit' },
+    });
+    expect(await rounds()).toBe(0);
+  });
+
+  it('짧은 SHA · 대문자 · 앞뒤 공백은 받는다 — 공백은 정리해서 남긴다', async () => {
+    await reviews.submit(
+      submitInput({ headSha: '  BBBB222\n', baseSha: 'AAAA1111aaaa1111aaaa1111aaaa1111aaaa1111' }),
+    );
+    const { rows } = await pool.query<{ head_sha: string; base_sha: string }>(
+      `SELECT head_sha, base_sha FROM review_session`,
+    );
+    expect(rows).toEqual([
+      { head_sha: 'BBBB222', base_sha: 'AAAA1111aaaa1111aaaa1111aaaa1111aaaa1111' },
+    ]);
   });
 });
 
@@ -1074,8 +1176,8 @@ describe('리뷰가 Task 에 이어진다 (REQ-API-148)', () => {
       sessionId: agentSessionId,
       kind: 'code',
       branch: 'feat/link',
-      headSha: 'aaa111',
-      baseSha: 'bbb222',
+      headSha: 'aaa1111',
+      baseSha: 'bbb2222',
       reviewer: { role: 'code', risk: 'low' },
       findings: [],
     });
@@ -1116,8 +1218,8 @@ describe('리뷰가 Task 에 이어진다 (REQ-API-148)', () => {
       taskId: other,
       kind: 'code',
       branch: 'feat/explicit',
-      headSha: 'ccc333',
-      baseSha: 'ddd444',
+      headSha: 'ccc3333',
+      baseSha: 'ddd4444',
       reviewer: { role: 'code', risk: 'low' },
       findings: [],
     });
@@ -1194,7 +1296,7 @@ describe('제출의 세션 · Task (REQ-API-238)', () => {
     );
     const foreign = await taskRow('TSK-FOREIGN', otherProject);
     await expect(
-      reviews.submit(submitInput({ sessionId: null, headSha: 'f0reign', taskId: foreign })),
+      reviews.submit(submitInput({ sessionId: null, headSha: 'f0e1a90', taskId: foreign })),
     ).rejects.toMatchObject({ code: NERV_ERROR.PRECONDITION, details: { kind: 'not_found' } });
   });
 
@@ -1230,8 +1332,8 @@ describe('제출의 세션 · Task (REQ-API-238)', () => {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       payload: {
         branch: 'feat/rest',
-        base_sha: 'aaa999',
-        head_sha: 'bbb999',
+        base_sha: 'aaa9999',
+        head_sha: 'bbb9999',
         reviewer: { role: 'security', risk: 'low' },
         session_id: agentSessionId,
       },
@@ -1290,7 +1392,7 @@ describe('이월 발견은 수만 준다 (REQ-API-278)', () => {
       {
         branch: 'feat/other',
         base_sha: 'aaaa111',
-        head_sha: 'oth0001',
+        head_sha: 'beef001',
         reviewer: { role: 'security' },
         findings: [{ severity: 'critical', title: '다른 브랜치의 critical', file: 'src/o.ts' }],
       },
@@ -1303,7 +1405,7 @@ describe('이월 발견은 수만 준다 (REQ-API-278)', () => {
       {
         branch: 'feat/clean',
         base_sha: 'aaaa111',
-        head_sha: 'cln0001',
+        head_sha: 'c1ea001',
         reviewer: { role: 'security' },
         findings: [],
       },
@@ -1366,7 +1468,7 @@ describe('발견의 태그 (REQ-API-253)', () => {
       {
         branch: 'feat/tags',
         base_sha: 'aaaa111',
-        head_sha: 'tag0001',
+        head_sha: 'da90001',
         reviewer: { role: 'security' },
         findings: [
           {
@@ -1398,7 +1500,7 @@ describe('발견의 태그 (REQ-API-253)', () => {
         payload: {
           branch: 'feat/tags',
           base_sha: 'aaaa111',
-          head_sha: 'tag0002',
+          head_sha: 'da90002',
           reviewer: { role: 'security' },
           findings,
         },
@@ -1489,7 +1591,8 @@ describe('발견의 requirement_id 는 고정 ID 도 받는다 — 서버가 프
       payload: {
         branch,
         base_sha: 'aaaa111',
-        head_sha: `${branch.replace(/\W/g, '')}01`,
+        // 브랜치마다 다른 커밋 SHA 다(REQ-API-321 — 예전 픽스처는 브랜치 이름을 그대로 썼다)
+        head_sha: createHash('sha1').update(branch).digest('hex'),
         kind: 'consistency',
         reviewer: { role: 'nerv-consistency-checker' },
         findings,
@@ -1536,7 +1639,7 @@ describe('발견의 requirement_id 는 고정 ID 도 받는다 — 서버가 프
       {
         branch: 'feat/req-uuid',
         base_sha: 'aaaa111',
-        head_sha: 'requuid01',
+        head_sha: 'feed0001',
         kind: 'consistency',
         reviewer: { role: 'nerv-consistency-checker' },
         findings: [
@@ -1694,8 +1797,8 @@ describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
       taskId,
       kind: 'code',
       branch: 'feat/from-task',
-      headSha: 'eee555',
-      baseSha: 'fff666',
+      headSha: 'eee5555',
+      baseSha: 'fff6666',
       reviewer: { role: 'code', risk: 'low' },
       findings: [{ severity: 'warning', title: '작업에서 나온 지적', file: 'src/a.ts', line: 1 }],
     });
@@ -1715,8 +1818,8 @@ describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
         sessionId: agentSessionId,
         kind: 'code',
         branch,
-        headSha: `${branch}-sha`,
-        baseSha: 'base',
+        headSha: createHash('sha1').update(branch).digest('hex'),
+        baseSha: 'ba5e000',
         reviewer: { role: 'code', risk: 'low' },
         findings: [{ severity: 'info', title, file: 'src/b.ts', line: 2 }],
       });
@@ -1724,5 +1827,141 @@ describe('발견이 작업을 가리킨다 (REQ-API-180)', () => {
     const narrowed = await reviews.findings({ projectId, status: ['open'], branch: 'feat/only-a' });
     expect(narrowed.items.map((i) => i['title'])).toEqual(['가 브랜치의 지적']);
     expect(narrowed.facets.severity).toEqual({ info: 1 });
+  });
+});
+
+/**
+ * **리뷰 프롬프트 원문의 만료가 보존 정책을 따른다** (2026-10-15 · 사람 결정 · codebase.md REQ-CB-032). 예전에는 받을 때
+ * 상수 30일을 `prompt_expires_at` 에 적고 보존 잡이 정책과 그 값 가운데 먼저 오는 쪽으로 지워서, 정책을 30일보다 늘려도
+ * 30일에 지워졌다. 이제 받을 때 그 프로젝트의 정책으로 적는다. 시각은 행을 직접 당겨 흉내 낸다.
+ */
+describe('리뷰 프롬프트 원문의 만료는 보존 정책을 따른다 (REQ-CB-032)', () => {
+  const retain = async (days: number | null): Promise<void> => {
+    await pool.query(`UPDATE project SET retention = $1::jsonb WHERE id = $2`, [
+      JSON.stringify(days === null ? {} : { prompt_blob_ttl_days: days }),
+      projectId,
+    ]);
+  };
+  const submitWithPrompt = async (headSha: string): Promise<string> =>
+    (
+      await reviews.submit(
+        submitInput({ headSha, payloadRef: `s3://nerv-blobs/prompts/${headSha}.json` }),
+      )
+    ).review_session_id;
+  /** 그 라운드를 `days` 일 전에 받은 것으로 당긴다 — 받은 시각과 행의 만료를 함께 */
+  const age = async (id: string, days: number): Promise<void> => {
+    await pool.query(
+      `UPDATE review_session
+          SET created_at = created_at - make_interval(days => $2),
+              started_at = started_at - make_interval(days => $2),
+              prompt_expires_at = prompt_expires_at - make_interval(days => $2)
+        WHERE id = $1`,
+      [id, days],
+    );
+  };
+  const blobOf = async (id: string): Promise<string | null> =>
+    (
+      await pool.query<{ uri: string | null }>(
+        `SELECT prompt_blob_uri AS uri FROM review_session WHERE id = $1`,
+        [id],
+      )
+    ).rows[0]!.uri;
+  const sweep = (): Promise<unknown> => new RetentionJob(drizzle(pool)).run();
+
+  afterAll(async () => {
+    await retain(null);
+  });
+
+  it('정책 60일 — 받을 때 60일 뒤로 만료를 적고, 30일이 지나도 남으며 60일이 지나면 지운다', async () => {
+    await retain(60);
+    const id = await submitWithPrompt('ac60001');
+    const { rows } = await pool.query<{ days: number }>(
+      `SELECT round(extract(epoch FROM prompt_expires_at - created_at) / 86400)::int AS days
+         FROM review_session WHERE id = $1`,
+      [id],
+    );
+    expect(rows[0]!.days).toBe(60);
+
+    await age(id, 31);
+    await sweep();
+    expect(await blobOf(id)).toBe('s3://nerv-blobs/prompts/ac60001.json');
+
+    await age(id, 30);
+    await sweep();
+    expect(await blobOf(id)).toBeNull();
+  });
+
+  it('정책 7일 — 6일에는 남고 8일에는 지운다', async () => {
+    await retain(7);
+    const id = await submitWithPrompt('ac70001');
+    await age(id, 6);
+    await sweep();
+    expect(await blobOf(id)).not.toBeNull();
+    await age(id, 2);
+    await sweep();
+    expect(await blobOf(id)).toBeNull();
+  });
+
+  it('정책을 줄이면 이미 받은 원문에도 적용된다 — 게이트 정책 탭이 한 번 더 묻는 까닭이다', async () => {
+    await retain(60);
+    const id = await submitWithPrompt('ac60002');
+    await retain(7);
+    await age(id, 8);
+    await sweep();
+    expect(await blobOf(id)).toBeNull();
+  });
+
+  // 정책은 서비스(EP-PRJ-04)로 저장해야 남아 있는 원문의 만료를 다시 적는다 — 위의 `retain` 은 표만 고친다
+  const saveRetention = (ttl: number): Promise<unknown> =>
+    app.get(AuthService).updateProject({
+      projectId,
+      roles: ['admin'],
+      actor: { userId, isAgent: false },
+      retention: { prompt_blob_ttl_days: ttl },
+    });
+
+  it('정책을 늘려 저장하면 이미 받은 원문도 새 기간까지 남는다 — 남아 있는 원문의 만료를 다시 적는다', async () => {
+    await retain(null);
+    const before = await submitWithPrompt('ac30001');
+    await saveRetention(60);
+    const after = await submitWithPrompt('ac60003');
+    await age(before, 31);
+    await age(after, 31);
+    await sweep();
+    expect(await blobOf(before)).not.toBeNull();
+    expect(await blobOf(after)).not.toBeNull();
+    await age(before, 30);
+    await sweep();
+    expect(await blobOf(before)).toBeNull();
+  });
+
+  it('정책을 줄여 저장하면 남아 있는 원문의 만료도 앞당기고, 이미 지운 원문은 되살리지 않는다', async () => {
+    await retain(null);
+    const gone = await submitWithPrompt('ac30002');
+    await age(gone, 31);
+    await sweep();
+    expect(await blobOf(gone)).toBeNull();
+    const kept = await submitWithPrompt('ac30003');
+    await saveRetention(7);
+    const { rows } = await pool.query<{ id: string; days: number | null }>(
+      `SELECT id, round(extract(epoch FROM prompt_expires_at - created_at) / 86400)::int AS days
+         FROM review_session WHERE id = ANY($1::uuid[])`,
+      [[gone, kept]],
+    );
+    expect(rows.find((r) => r.id === kept)?.days).toBe(7);
+    // 지운 원문의 행은 만료도 그대로다 — 다시 적을 원문이 없다
+    expect(rows.find((r) => r.id === gone)?.days).toBe(30);
+    await saveRetention(60);
+    expect(await blobOf(gone)).toBeNull();
+  });
+
+  it('원문 위치가 없으면 만료도 적지 않는다', async () => {
+    await retain(60);
+    const { review_session_id: id } = await reviews.submit(submitInput({ headSha: 'ac00001' }));
+    const { rows } = await pool.query<{ expires: Date | null }>(
+      `SELECT prompt_expires_at AS expires FROM review_session WHERE id = $1`,
+      [id],
+    );
+    expect(rows[0]!.expires).toBeNull();
   });
 });

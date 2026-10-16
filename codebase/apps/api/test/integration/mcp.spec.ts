@@ -1754,8 +1754,8 @@ describe('P2 리뷰 도구 2종 — 카탈로그에 들어온 표면 (FR-09, 202
       'nerv_review_submit',
       {
         branch: 'feat/mcp-review',
-        base_sha: 'base111',
-        head_sha: 'head222',
+        base_sha: 'ba5e111',
+        head_sha: 'c0ffee2',
         changeset: ['src/gateway.ts'],
         kind: 'code',
         reviewer: { role: 'security', risk: 'high' },
@@ -1779,8 +1779,8 @@ describe('P2 리뷰 도구 2종 — 카탈로그에 들어온 표면 (FR-09, 202
       'nerv_review_submit',
       {
         branch: 'feat/mcp-review',
-        base_sha: 'base111',
-        head_sha: 'head333',
+        base_sha: 'ba5e111',
+        head_sha: 'c0ffee3',
         changeset: ['src/gateway.ts'],
         reviewer: { role: 'security' },
         findings: [{ severity: 'critical', title: '리스 만료 검사가 없다', file: 'src/lease.ts' }],

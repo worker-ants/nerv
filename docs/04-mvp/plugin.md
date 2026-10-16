@@ -21,7 +21,11 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.08 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.10 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.10 변경(2026-10-15 — 커밋 SHA 가 아닌 `head_sha` 는 받지 않는다, **사람 결정**): **§2.3 `impl` 스킬 한 항목 · §2.6 `review` 스킬 세 문장과 에러 표 한 칸 · 패키지 0.3.31 그대로.** 서버가 리뷰 제출의 `head_sha` · `base_sha` 를 커밋 SHA 로만 받고(`HEAD` · 브랜치 이름은 400), done 거부의 `stale_reviews` 항목에 까닭 `reason`(`newer_commit` · `not_a_commit`)을 더했다([4.4 API](api.md) REQ-API-314 · 321). `review` 스킬의 "커밋 SHA 가 아닌 값은 게이트가 판정 불가로 기록한다" 를 "서버가 거절한다 — `git rev-parse` 로 얻은 SHA 로 다시 낸다" 로 바꾸고 `base_sha` 도 같다고 적었다. `impl` 스킬은 `not_a_commit` 도 최신 커밋의 다시 리뷰로 다룬다(면제 대상이 아니다). 서브에이전트 둘은 받는 SHA 가 커밋 SHA 여야 한다는 것과 그 거절을 읽는 법을 적었다. 패키지 버전은 같은 PR 이 0.3.30 → 0.3.31 로 올렸고 아직 배달 전이라 그대로 둔다. 도구 · 인자 · `allowed-tools` 는 그대로다.
+>
+> v1.09 변경(2026-10-15 — done 게이트가 리뷰 뒤의 새 커밋을 본다, Phase 2 묶음 1의 둘째 · **사람 결정**): **§2.3 `impl` 스킬 한 항목과 에러 표 한 칸 · §2.6 `review` 스킬 두 문장 · 패키지 0.3.30 → 0.3.31.** done 게이트의 리뷰 조건이 작업의 최신 커밋을 본 라운드만 세고, 리뷰 뒤에 새 커밋이 왔으면 거부의 `details.stale_reviews`(`kind` · `head_sha` · `reviewed_sha`)로 알린다([4.4 API](api.md) REQ-API-314). `impl` 스킬이 그 거부를 면제 부탁이 아니라 새 커밋의 다시 리뷰로 다루게 했고(리뷰를 받은 뒤에는 새로 커밋하지 않고 done 으로 간다), `review` 스킬은 `head_sha` 가 실제 커밋 SHA 여야 하는 까닭을 적는다. 도구 · 인자 · `allowed-tools` 는 그대로다.
 >
 > v1.08 변경(2026-10-15 — 리뷰 발견이 요구사항 고정 ID 를 받는다, **사람 결정**): **§2.6 `review` 스킬 한 줄 · REQ-PLG-031 검증 칸 · 패키지 0.3.29 → 0.3.30.** 서버가 발견의 `requirement_id` 로 고정 ID(`REQ-…`)도 받아 그 프로젝트 안에서 UUID 로 풀게 됐다([4.4 API](api.md) REQ-API-311). `review` 스킬과 정합 리뷰 서브에이전트 `nerv-consistency-checker` 가 "`requirement_id` 는 UUID 다 · 고정 ID 는 `body` 에 적는다" 고 말하던 것을 "고정 ID 를 넣는다(`nerv_spec_get` 의 `requirements[].ref` · `nerv_task_get` 의 `source_requirement_ref`)" 로 바꾸고 못 푼 요구사항의 거절(409 `not_found` · `details.field`)을 읽는 법을 적었다. 코드 리뷰 서브에이전트는 요구사항을 다루지 않아 그대로다.
 >
@@ -202,7 +206,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.30
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.31
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -229,7 +233,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.30",
+  "version": "0.3.31",
   "license": "Apache-2.0"
 }
 ```
@@ -840,6 +844,13 @@ allowed-tools:
   code 리뷰를 제출하지 말고 `nerv_question_create`로 사람에게 그 종류의 **리뷰 면제**를 부탁한다 — 작업 화면의
   완료 조건 → [리뷰 면제]에서 사유와 함께 기록한다(코드 리뷰는 developer · admin, 스펙 리뷰는 planner · admin).
   커밋 · PR · 코드 경로 증적이 붙은 작업의 코드 리뷰는 면제되지 않는다. 면제가 기록되면 같은 인자로 done을 다시 부른다.
+- **리뷰는 작업의 마지막 커밋을 본 것만 센다.** 정책이 리뷰를 요구하면 done 게이트는 작업의 최신 커밋(가장 나중에 붙은
+  `commit` 증적 — done 에 함께 붙인 커밋도 여기 든다)을 `head_sha` 로 본 라운드만 센다. 짧은 SHA 도 같은 커밋으로 본다.
+  거부에 `details.stale_reviews`(`[{kind, head_sha, reviewed_sha, reason}]`)가 있으면 그 종류에 최신 커밋을 본 리뷰가
+  없는 것이다 — `reason` 이 `newer_commit` 이면 리뷰를 받은 뒤에 새 커밋이 생겼고, `not_a_commit` 이면 예전 리뷰가 커밋
+  SHA 가 아닌 값(`reviewed_sha` — `HEAD` 같은 것)을 봤다. 어느 쪽이든 면제를 부탁하지 않는다 — `/nerv:review` 로 그
+  `head_sha` 를 같은 `task_id` 로 다시 리뷰받고 같은 인자로 done 을 다시 부른다. 그래서 리뷰를 받은 뒤에는 새로
+  커밋하지 않고 done 으로 간다. 고쳐야 하면 고친 커밋을 다시 리뷰받는다.
 - **작업 본문을 고쳐야 하면** `nerv_task_update`(`task_id`, `body_md`, `base_hash`)를 부른다. `base_hash` 는
   `nerv_task_get` 이 준 `body_hash` 그대로다. `status` 없이 본문만 고칠 수 있다. 409 `stale_body` 면 그 사이
   사람이 고친 것이다. 다시 읽고 그 위에 고친다(덮지 않는다). **위임 명세 네 칸**(`goal_md`·`output_format_md`·
@@ -878,7 +889,7 @@ allowed-tools:
 | --- | --- |
 | NERV_PRECONDITION `session_required` | 30분 쉬어 세션이 만료됐다. 가장 최근의 세션 시작 안내가 알려 준 NERV 세션 id(없으면 앞서 받은 bootstrap 응답의 `session_id`)를 `resume_session_id`로 넘겨 `nerv_bootstrap`을 다시 부른다(`resume_not_found`면 그 인자 없이). 회수된 클레임은 돌아오지 않는다 — /nerv:next 절차로 같은 작업을 다시 클레임한다(살아 있는 클레임이 없는 `claimed`·`in_progress`·`in_review` 작업은 상태 그대로 되찾는다) |
 | NERV_LEASE_EXPIRED | 리스 만료 후 쓰기 시도 — 재클레임을 1회 시도하고, 실패하면 산출물(커밋·노트)만 제출하고 종료한다 |
-| NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지. `details.uncovered_kinds`의 리뷰를 이 작업이 받을 수 없으면(코드를 내지 않았다) 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁한다 |
+| NERV_PRECONDITION | 게이트 미충족 — 사유를 사람에게 보고. 우회 시도 금지. `details.uncovered_kinds`의 리뷰를 이 작업이 받을 수 없으면(코드를 내지 않았다) 리뷰를 꾸며 내지 말고 사람에게 그 종류의 리뷰 면제를 부탁한다. `details.stale_reviews`가 있으면 면제 대상이 아니다 — 그 `head_sha`를 /nerv:review 로 다시 리뷰받고 done 을 다시 부른다 |
 | NERV_APPROVAL_REQUIRED | 재시도하지 않는다. `approval_id` 와 함께 사람에게 보고하고 멈춘다 — 결정은 하트비트 `pending` 의 `approval_decided` 로 온다(승인을 읽는 도구는 없다). 그동안 새 작업을 클레임하지 않는다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |
 | NERV_UNAVAILABLE | 읽기는 `.nerv/cache/context-pack.json`(마지막 bootstrap)과 `.nerv/cache/specs/` 의 기준 버전 스냅샷을 Read 한다. 쓰기는 .nerv/outbox/ 멱등 큐잉. 신규 클레임 발급 금지 |
@@ -1050,7 +1061,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 | `nerv-consistency-checker` | `consistency` | 작업의 스펙 · 요구사항이 구현에 반영됐는가. 문서끼리의 정합은 서버의 `nerv_spec_check` 가 본다 |
 
 1. **범위를 확정하고 diff 를 파일로 쓴다** — `mkdir -p .nerv/review && git diff <base_sha>..<head_sha> > .nerv/review/<head_sha>.diff`. 둘에게는 Bash 가 없어 git 을 부르지 못한다. `.nerv/` 는 커밋되지 않는다.
-2. **맡긴다.** 프롬프트에 `branch` · `base_sha` · `head_sha` · `changeset` · diff 경로를 넣는다. 어느 작업의 리뷰인지 알면 `task_id` 도 넣는다. 정합 리뷰는 작업이나 기준 스펙 키가 있을 때만 맡긴다 — 기준 없이 낸 "문제 없음" 은 게이트에서 통과로 읽힌다. 둘은 종류가 달라 서로 다른 라운드이므로 함께 맡겨도 된다.
+2. **맡긴다.** 프롬프트에 `branch` · `base_sha` · `head_sha`(둘 다 `git rev-parse` 로 얻은 커밋 SHA) · `changeset` · diff 경로를 넣는다. 어느 작업의 리뷰인지 알면 `task_id` 도 넣는다. 정합 리뷰는 작업이나 기준 스펙 키가 있을 때만 맡긴다 — 기준 없이 낸 "문제 없음" 은 게이트에서 통과로 읽힌다. 둘은 종류가 달라 서로 다른 라운드이므로 함께 맡겨도 된다.
 3. **필수 역할이 있으면 역할마다 맡긴다.** `nerv_bootstrap` 응답의 `gate_policy.review_roles` 가 그 종류에 역할을 정해 두었으면 역할 하나에 서브에이전트 호출 하나로, `reviewer.role` 을 그 이름으로 넘긴다. 정해 두지 않았으면 넘기지 않는다 — 서브에이전트는 자기 이름(`nerv-code-reviewer` · `nerv-consistency-checker`)으로 낸다.
 4. **같은 종류를 이 세션이 다시 제출하지 않는다.** 서브에이전트가 돌려준 결과(`findings_new` · `findings_merged` · `round_block` · `blocking_findings`)를 읽고 아래 처분 절차로 간다. 발견을 고쳐 쓰거나 대신 다시 내면 같은 지적이 두 이름표로 남는다.
 5. **서버가 내려가 있었으면** 서브에이전트가 돌려준 인자 그대로 `nerv-outbox` 로 큐잉한다.
@@ -1064,6 +1075,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 이 세션이 직접 낼 때의 절차다. 서브에이전트도 같은 규칙으로 낸다.
 
 1. **범위 확정** — `base_sha`·`head_sha`·`branch`·검토한 파일 목록(`changeset`). 넷 다 필수 입력이다. `changeset`이 같고 커밋이 같으면 서버는 **같은 라운드**로 합친다(재제출이 라운드를 늘리지 않는다).
+   **`head_sha` 와 `base_sha` 는 실제 커밋 SHA 다**(`git rev-parse HEAD` · `git rev-parse <기준 브랜치>`). 작업의 done 게이트는 그 작업의 최신 커밋을 본 라운드만 센다 — 리뷰한 뒤에 커밋하면 그 커밋을 다시 리뷰받아야 작업이 닫힌다(거부의 `details.stale_reviews`). 커밋 SHA 가 아닌 값(`HEAD` · 브랜치 이름 · `origin/main`)은 서버가 400 으로 거절하고 라운드가 남지 않는다 — `git rev-parse` 로 얻은 SHA 로 바꿔 다시 낸다.
 2. **읽고 판단** — 스펙과 대조한다. 근거 없는 지적은 올리지 않는다.
    **어느 작업의 리뷰인지 알면 그 작업의 기준으로 대조한다** — `nerv_task_get`(`task_id`)으로
    출처 문서(`spec_key`)를 확인하고 `nerv_spec_get`(`spec_id`, `task`)으로 읽는다. 최신 승인본으로
@@ -1090,7 +1102,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 
 ## 처분 절차
 
-**처분은 이 세션만 한다.** 서브에이전트가 낸 발견도 여기서 처분한다 — 자기 발견을 스스로 닫는 리뷰어는 게이트를 형식으로 만든다. 고친 뒤에는 새 `head_sha` 로 다시 리뷰한다(새 라운드다).
+**처분은 이 세션만 한다.** 서브에이전트가 낸 발견도 여기서 처분한다 — 자기 발견을 스스로 닫는 리뷰어는 게이트를 형식으로 만든다. 고친 뒤에는 새 `head_sha` 로 다시 리뷰한다(새 라운드다). 작업의 done 게이트와 요구사항의 검증은 그 새 커밋의 라운드를 본다.
 
 - **코드를 고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
 - **스펙을 고쳐 해결했으면** `resolution=spec_change` + `spec_version_id`(그 저장의 버전 id) + `rationale`. 구현이 맞고 스펙이 틀렸던 경우가 이쪽이다 — `spec_drift` 지적의 절반은 여기로 간다. **커밋이 없다고 `dismissed`나 `wont_fix`로 닫지 않는다**: 오탐도 아니었고 미룬 것도 아니라, 둘 다 거짓이 되고 나중에 "이 발견들은 어떻게 해결됐나"의 답이 뭉개진다.
@@ -1111,7 +1123,7 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 
 | 코드 | 대응 |
 | --- | --- |
-| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`에 빠진 항목이 적혀 있다. 채워서 재호출 |
+| NERV_PRECONDITION | `head_sha`/`base_sha`/`rationale`/`commit_sha` 누락 — `details.kind`에 빠진 항목이 적혀 있다. 채워서 재호출. 400 이고 `details.issues` 가 `head_sha`·`base_sha` 를 가리키면 커밋 SHA 가 아닌 값이다 — `git rev-parse` 로 얻은 SHA 로 바꿔 재호출 |
 | NERV_APPROVAL_REQUIRED | critical 하향 — 재시도하지 않는다. `approval_id`와 함께 사람에게 보고하고 멈춘다 |
 | NERV_FORBIDDEN | `review:resolve` 미보유 — 처분은 이 역할의 일이 아니다. 제출까지만 하고 보고한다 |
 | NERV_RATE_LIMIT | retry_after_s 준수 |

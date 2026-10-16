@@ -34,6 +34,7 @@ import {
   SummaryStrip,
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
+import { FailOpenBanner } from '../../components/failopen-banner.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import { useScrollTopOn } from '../../lib/scroll-top.js';
 
@@ -287,6 +288,8 @@ function ReviewCenter(): React.JSX.Element {
     // 안쪽 스크롤은 바깥 스크롤에 가려 있다는 것 자체가 보이지 않는다.
     <PageBody wide className="lg:flex lg:h-below-header lg:flex-col lg:overflow-hidden">
       <PageHeader title={t('reviews.title')} />
+      {/* fail-open 격상(REQ-WEB-319) — 머리와 함께 스크롤에서 빠진다 */}
+      <FailOpenBanner projectSlug={proj} className="lg:shrink-0" />
       <SummaryStrip className="mb-5 lg:shrink-0" metrics={summary} />
 
       {/* 필터 | 큐 — **가로로 나란히**다(2026-08-23 사람 판단, §2.5 와 같은 규칙).

@@ -16,10 +16,12 @@ import {
   NERV_EVENT_PHASE2,
   newId,
   NOTIFICATION_LEVELS,
+  NOTIFICATION_RESUME_WINDOW_SECONDS,
   notificationState,
 } from '@nerv/schema';
 import type { NervEventName } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { notificationImportance } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
@@ -55,13 +57,22 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.TASK_BLOCKED]: 'high',
   [NERV_EVENT.TASK_REBRIEF_REQUIRED]: 'high',
   [NERV_EVENT.GATE_BYPASSED]: 'high',
+  // **fail-open 격상**(2026-10-15 · 사람 결정 · REQ-API-319) — 게이트가 사실상 꺼졌다. admin 에게 중요 알림이다. 누군가의
+  // 세션이 그 결정을 기다리며 멈춰 있지는 않아 critical 이 아니라 high 다(면제 `gate.bypassed` 와 같은 무게 · 같은 사람).
+  // 풀림(`gate.failopen_cleared`)은 카탈로그에 없다 — 기록과 배너가 사라지는 것으로 충분하다
+  [NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED]: 'high',
   // **지연 결재**(2026-10-15 · 사람 결정 · REQ-API-305) — 결정할 수 있는데 요청 알림을 받지 못한 사람(직군 자리 결재의
   // admin)에게 가는 첫 알림이다. 그 사람에게는 오늘 볼 일이라 중요다. 기본 큐 결재는 받는 사람이 없다(아래 라우팅)
   [NERV_EVENT.APPROVAL_OVERDUE]: 'high',
+  // **critical 발견이 열리면 관여자에게 중요 알림**(2026-10-15 · E17-S01 · REQ-API-316) — 카탈로그는 `finding.opened`
+  // (critical severity)만 적는다. 다른 심각도는 알림을 만들지 않는다(`tierFor` 가 거른다). 받는 사람은 관여자뿐이다
+  [NERV_EVENT_PHASE2.FINDING_OPENED]: 'critical',
   // 발견 코멘트는 스펙 코멘트와 같은 무게다 — 사람이 남긴 말이고, 답을 기다린다
   [NERV_EVENT_PHASE2.FINDING_COMMENTED]: 'standard',
   [NERV_EVENT.SPEC_COMMENT_ADDED]: 'standard',
   [NERV_EVENT.SPEC_RECHECK_REQUESTED]: 'standard',
+  // 발견 처분(2026-10-15 · REQ-API-316) — 이미 일어난 일이라 보통이다. 같은 라운드의 처분은 한 줄로 묶는다
+  [NERV_EVENT_PHASE2.FINDING_RESOLVED]: 'standard',
   [NERV_EVENT.TASK_READY]: 'standard',
   // 결재 리마인더(2026-10-11 · REQ-API-296) — 결재 요청 자체가 이미 중요 알림이다. 리마인더까지 중요로 세면 같은 결재가
   // 배지를 두 번 올린다. 같은 결재의 리마인더는 한 줄로 묶는다(spec-workflow §2.6 "같은 승인 건은 1건으로")
@@ -82,6 +93,26 @@ export function tierOf(type: string): ImportanceTier | null {
 }
 
 /**
+ * **관여자에게도 가는 이벤트**(§6.1 ③ · 2026-10-15 · E17-S01 · REQ-API-316) — 카탈로그가 수신자를 작성자 · 담당자 ·
+ * 스레드 참여자 · 리뷰 요청자로 적은 것이다. 역할 큐로 가던 것은 그대로 가고 관여자를 더한다.
+ */
+const INVOLVED_EVENTS: ReadonlySet<string> = new Set([
+  NERV_EVENT.SPEC_APPROVED,
+  NERV_EVENT.SPEC_REJECTED,
+  NERV_EVENT.SPEC_COMMENT_ADDED,
+  NERV_EVENT.TASK_BLOCKED,
+  NERV_EVENT.TASK_REBRIEF_REQUIRED,
+  NERV_EVENT_PHASE2.FINDING_OPENED,
+  NERV_EVENT_PHASE2.FINDING_RESOLVED,
+]);
+
+/** 관여자에게만 가는 이벤트 — 카탈로그 수신자에 역할이 없다 */
+const FINDING_EVENTS: ReadonlySet<string> = new Set([
+  NERV_EVENT_PHASE2.FINDING_OPENED,
+  NERV_EVENT_PHASE2.FINDING_RESOLVED,
+]);
+
+/**
  * **배치 키**(spec-workflow §6.3 · 2026-09-27 사람 결정 G2 · G3 · REQ-API-223).
  *
  * 보통 등급만 묶는다 — 중요 알림(승인 요청 · 스펙 승인 · 세션 무응답 …)은 헤더 배지가 세는 것이라,
@@ -92,9 +123,15 @@ export function batchKeyOf(event: {
   type: string;
   project_id: string;
   subject_id: string;
+  payload?: Record<string, unknown> | null;
 }): string | null {
   if (tierOf(event.type) !== 'standard') return null;
   switch (event.type) {
+    case NERV_EVENT_PHASE2.FINDING_RESOLVED: {
+      // 같은 라운드의 처분은 한 줄이다(§6.3 `review:{id}:resolutions`). 라운드를 모르는 옛 이벤트는 한 건이 한 줄이다
+      const round = event.payload?.['review_session_id'];
+      return typeof round === 'string' ? `review:${round}:resolutions` : null;
+    }
     case NERV_EVENT.SPEC_RECHECK_REQUESTED:
       return `spec:${event.subject_id}:recheck`;
     case NERV_EVENT.SPEC_COMMENT_ADDED:
@@ -121,6 +158,18 @@ function mailsNow(event: { type: string; payload?: Record<string, unknown> | nul
   return Number(event.payload?.['level'] ?? 0) >= 2;
 }
 
+/** 파생할 이벤트 한 줄 — `route` 가 읽는 열 */
+type RoutableEvent = {
+  id: string;
+  project_id: string;
+  type: string;
+  actor_user_id: string | null;
+  subject_type: string;
+  subject_id: string;
+  payload: Record<string, unknown> | null;
+  occurred_at: string;
+};
+
 /** 한 실행이 넘기는 페이지 상한 — 밀린 이력이 길어도 한 틱이 무한히 돌지 않게 한다 */
 const MAX_PAGES = 20;
 
@@ -128,7 +177,7 @@ const MAX_PAGES = 20;
 export class NotificationService {
   /**
    * 지난 실행이 어디까지 봤는가(메모리). 워커는 advisory lock 을 쥔 한 프로세스라
-   * 이 값이 곧 그 워커의 물마루다 — 재기동하면 비고, 그때는 밀린 것부터 다시 훑는다.
+   * 이 값이 곧 그 워커의 물마루다 — 재기동하면 비고, 그때는 최근 한 시간에서 시작한다(`resumePoint`).
    */
   private cursor: string | null = null;
 
@@ -152,8 +201,9 @@ export class NotificationService {
    */
   async route(input: { since?: Date | null; limit?: number } = {}): Promise<number> {
     const limit = input.limit ?? 200;
-    // 명시 `since` 는 호출자의 것이고, 없으면 지난 실행이 남긴 물마루에서 잇는다
-    let cursor: string | null = input.since?.toISOString() ?? this.cursor;
+    // 명시 `since` 는 호출자의 것이고, 없으면 지난 실행이 남긴 물마루에서 잇는다. 새로 뜬 워커는 물마루가 없다 —
+    // 그때는 최근 한 시간만 다시 본다(REQ-API-317). 처음부터 훑으면 넓어진 규칙이 지난 이벤트에 소급된다
+    let cursor: string = input.since?.toISOString() ?? this.cursor ?? (await this.resumePoint());
     let created = 0;
 
     // **창이 막히지 않게 앞으로 민다.** 예전에는 "알림 행이 없는 이벤트" 를 시각순 200건만
@@ -164,39 +214,33 @@ export class NotificationService {
     //
     // 그래서 페이지를 넘긴다: 처리한 마지막 시각을 커서로 삼아 건너뛴 것들을 지나간다.
     // 두 조건을 함께 쓰는 것이 요점이다 — 시각 커서는 **전진**을, `NOT EXISTS` 는
-    // **중복 방지**를 맡는다(재기동하면 커서가 비고, 그때는 밀린 것부터 다시 훑는다).
+    // **중복 방지**를 맡는다(재기동하면 최근 한 시간에서 다시 시작한다 — `resumePoint`).
     for (let page = 0; page < MAX_PAGES; page += 1) {
-      const at: string | null = cursor;
-      const { rows: events } = await this.db.execute<{
-        id: string;
-        project_id: string;
-        type: string;
-        actor_user_id: string | null;
-        subject_id: string;
-        payload: Record<string, unknown> | null;
-        occurred_at: string;
-      }>(sql`
-        SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_id, e.payload,
+      const at: string = cursor;
+      const { rows: events }: { rows: RoutableEvent[] } = await this.db.execute<RoutableEvent>(sql`
+        SELECT e.id, e.project_id, e.type, e.actor_user_id, e.subject_type, e.subject_id, e.payload,
                e.occurred_at::text AS occurred_at
           FROM event e
          WHERE NOT EXISTS (SELECT 1 FROM notification n WHERE n.event_id = e.id)
            -- 묶음에 더해진 이벤트는 그 줄의 event_id 가 아니다(줄은 마지막 이벤트를 가리킨다) — 여기서 본다
            AND NOT EXISTS (SELECT 1 FROM notification_batch_event b WHERE b.event_id = e.id)
-           ${at == null ? sql`` : sql`AND e.occurred_at > ${at}`}
+           AND e.occurred_at > ${at}
          ORDER BY e.occurred_at
          LIMIT ${limit}
       `);
       if (events.length === 0) break;
 
       for (const event of events) {
-        const tier = tierOf(event.type);
+        const tier = await this.tierFor(event);
         // 카탈로그 밖 · 배경 활동은 알림이 아니다 — 건너뛰되 **커서는 지나간다**
         if (tier !== null && tier !== 'low') {
           const recipients = await this.recipientsFor(event);
           // **이미 닫힌 요청의 알림은 읽은 채로 만든다**(REQ-API-176). 파생은 워커가 나중에 하므로
           // 그 사이 결정·답변이 먼저 나면, 닫는 쪽이 읽음으로 바꿀 행이 아직 없었다 — 그러면 처리된
           // 요청의 안 읽은 알림이 뒤늦게 생겨 배지를 올린다. 기록은 남기고 수에는 넣지 않는다
-          const closed = await requestAlreadyClosed(this.db, event);
+          // 이미 처분된 발견의 「열림」 알림도 같다 — 파생보다 처분이 먼저면 배지를 올릴 일이 끝났다(REQ-API-316)
+          const closed =
+            (await requestAlreadyClosed(this.db, event)) || (await this.findingClosed(event));
           const importance = tier === 'critical' || tier === 'high' ? 'immediate' : 'digest';
           // **사람이 고른 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-219). 고른 수준 밖의 알림은
           // 버리지 않고 읽음으로 넣는다 — 닫힌 요청과 같은 방식이다. 받은 요청에는 닿지 않는다
@@ -234,6 +278,33 @@ export class NotificationService {
     if (input.since == null) this.cursor = cursor;
     if (created > 0) this.logger.log(`알림 ${created}건 파생`);
     return created;
+  }
+
+  /**
+   * **새로 뜬 워커가 어디서 잇는가**(2026-10-15 · REQ-API-317).
+   *
+   * 예전에는 커서가 비면 알림이 없는 이벤트를 **처음부터** 다시 훑었다. 대부분의 이벤트는 알림을 만들지 않으니(카탈로그 밖 ·
+   * low · 수신자 0명) 그것은 이벤트 표 전체였고, 규칙이 넓어진 배포 뒤에는 지난 이벤트가 새 규칙으로 알림이 됐다 —
+   * 2026-10-15 에 `finding.opened` · `finding.resolved` 가 카탈로그에 든 뒤 첫 실행이면 지난 리뷰의 발견 전부(clemvion
+   * 리뷰 임포트처럼 수천 건)가 그랬다. 밀린 이력이 길면 그동안 새 결재 요청의 알림도 그 뒤에서 기다렸다.
+   *
+   * 이제 최근 `NOTIFICATION_RESUME_WINDOW_SECONDS`(한 시간)의 이벤트만 다시 본다. 재기동 직전 몇 분의 놓친 이벤트는
+   * 여전히 파생되고(이미 만든 알림은 `NOT EXISTS` 와 유일 인덱스가 거른다), 창보다 오래된 이벤트는 규칙이 바뀌어도 알림이
+   * 되지 않는다. 시각은 DB 의 것이다 — `occurred_at` 과 같은 시계로 잰다.
+   *
+   * 「알림을 만든 가장 나중 이벤트」를 물마루로 되살리는 안은 택하지 않았다. 조용한 프로젝트에서는 그 이벤트가 몇 시간 ·
+   * 며칠 전일 수 있어 결국 창이 함께 필요하고, 창 안에서 더 좁히는 이득(한 시간 안의 새 규칙 이벤트 — 어차피 막 생긴 일이다)
+   * 보다 대가가 크다: 이벤트 파티션을 읽어야 하고, 시각이 앞선 이벤트 하나가 시작점을 밀어 그 앞의 놓친 이벤트를 가린다.
+   */
+  private async resumePoint(): Promise<string> {
+    const { rows } = await this.db.execute<{ at: string }>(sql`
+      SELECT (now() - make_interval(secs => ${NOTIFICATION_RESUME_WINDOW_SECONDS}))::text AS at
+    `);
+    // 행은 언제나 하나다 — 없으면 앱의 시계로 같은 창을 잰다
+    const at =
+      rows[0]?.at ?? new Date(Date.now() - NOTIFICATION_RESUME_WINDOW_SECONDS * 1000).toISOString();
+    this.logger.log(`알림 파생을 ${at} 뒤의 이벤트부터 잇는다`);
+    return at;
   }
 
   /**
@@ -364,17 +435,22 @@ export class NotificationService {
    * 전원은 자기가 결정할 수 없는 카드의 알림을 받았다. 결정할 수 없는 카드의 알림은
    * 알림 자체를 못 믿게 만들고, 그러면 받은 요청이 파괴된다(§6.6 원칙 3).
    *
-   * 나머지 이벤트는 역할 큐다. ②워치·④지정 확장은 Phase 2 다(워치 테이블이 없다 —
-   * screens.md §2.4 말미).
+   * 나머지 이벤트는 역할 큐다. **③관여는 2026-10-15 에 들어왔다**(E17-S01 · REQ-API-316) — 카탈로그가 작성자 ·
+   * 담당자 · 스레드 참여자 · 리뷰 요청자로 적은 이벤트는 역할 큐에 그 사람들을 더한다(`involvedTargets`). ②워치는
+   * 아직이다(워치 테이블이 없다 — E17-S02 · screens.md §2.4 말미).
    */
   private async recipientsFor(event: {
     project_id: string;
     actor_user_id: string | null;
     type: string;
+    subject_type?: string;
     subject_id: string;
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
     if (event.type === NERV_EVENT.APPROVAL_OVERDUE) return this.escalationTargets(event);
+    // **격상은 admin 에게만**(2026-10-15 · REQ-API-319) — 정책을 고칠 수 있는 사람이다. 역할 큐(admin · planner)로 보내면
+    // 고칠 수 없는 사람의 배지가 오른다
+    if (event.type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED) return this.adminTargets(event);
     if (event.type === NERV_EVENT.APPROVAL_EXPIRED) {
       // **요청자에게 알린다**(2026-10-15 · REQ-API-304) — 다시 낼지 정할 사람이다. 행위자(없다)가 아니라 payload 가 든다
       const requester = event.payload?.['requested_by_user_id'];
@@ -410,7 +486,132 @@ export class NotificationService {
       const owners = await this.specOwnerTargets(event);
       if (owners !== null) return owners;
     }
+    if (INVOLVED_EVENTS.has(event.type)) {
+      const involved = await this.involvedTargets(event);
+      // 발견 이벤트는 카탈로그 수신자가 관여자뿐이다 — 역할 큐로 흩뿌리면 열린 critical 마다 admin · planner 전원이 받는다
+      const queue = FINDING_EVENTS.has(event.type) ? [] : await this.roleQueue(event);
+      // 겹치면 한 번이다 — 같은 이벤트 · 같은 사람은 한 줄(유일 인덱스가 겹친 파생도 막는다)
+      return [...new Set([...queue, ...involved])];
+    }
     return this.roleQueue(event);
+  }
+
+  /**
+   * 이 이벤트가 알림을 만드는 등급 — 카탈로그(`tierOf`)를 따르되 **열린 발견은 critical 만**이다(§6.3 `finding.opened`
+   * (critical severity) · REQ-API-316). 심각도는 이벤트가 아니라 발견 행에서 읽는다 — 그 값이 진실이고, 옛 이벤트에도 맞다.
+   */
+  private async tierFor(event: {
+    type: string;
+    subject_id: string;
+  }): Promise<ImportanceTier | null> {
+    const tier = tierOf(event.type);
+    if (tier === null || event.type !== NERV_EVENT_PHASE2.FINDING_OPENED) return tier;
+    const { rows } = await this.db.execute<{ severity: string }>(
+      sql`SELECT severity::text AS severity FROM finding WHERE id = ${event.subject_id}`,
+    );
+    return rows[0]?.severity === 'critical' ? tier : null;
+  }
+
+  /** 열림 알림의 발견이 이미 처분됐는가 — 그 밖의 이벤트면 거짓이다 */
+  private async findingClosed(event: { type: string; subject_id: string }): Promise<boolean> {
+    if (event.type !== NERV_EVENT_PHASE2.FINDING_OPENED) return false;
+    const { rows } = await this.db.execute<{ closed: boolean }>(
+      sql`SELECT (status <> 'open') AS closed FROM finding WHERE id = ${event.subject_id}`,
+    );
+    return rows[0]?.closed === true;
+  }
+
+  /**
+   * **관여자**(§6.1 ③ — 내가 작성 · 클레임 · 코멘트한 대상의 후속 이벤트 · 2026-10-15 · E17-S01 · REQ-API-316).
+   *
+   * 카탈로그(§6.3)가 수신자로 적은 사람을 표 없이 쓸 수 있는 열에서 찾는다. 워치(②)는 테이블이 없어 아직이다(E17-S02).
+   *
+   * | 이벤트 | 관여자 |
+   * | --- | --- |
+   * | `spec.approved` · `spec.rejected` | 그 스펙 버전의 작성자 |
+   * | `spec.comment_added` | 본문 코멘트면 같은 문서 · 같은 앵커의 열린 코멘트를 쓴 사람(스레드), 리뷰 결정 「코멘트」면 그 버전의 작성자 |
+   * | `task.blocked` | 작업 담당자 |
+   * | `task.rebrief_required` | 작업 담당자 + 활성 클레임을 가진 사람(세션 소유자) |
+   * | `finding.opened` · `finding.resolved` | 그 발견을 관찰한 라운드의 작업(과 발견에서 만든 작업)의 담당자 · 그 라운드를 제출한 세션의 사람(리뷰 요청자) · 발견이 가리키는 스펙 버전의 작성자 |
+   *
+   * **행위자 자신은 뺀다** — 자기가 한 일의 알림은 소음이다. **지금 그 프로젝트의 멤버만** 받는다 — 문서를 쓴 뒤 프로젝트를
+   * 떠난 사람에게 알림을 남기면 볼 수 없는 프로젝트의 키 · 제목이 그 사람에게 간다(조직 경계는 REQ-API-125 와 같다).
+   */
+  private async involvedTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+    type: string;
+    subject_type?: string;
+    subject_id: string;
+    payload?: Record<string, unknown> | null;
+  }): Promise<string[]> {
+    const candidates = this.involvedSql(event);
+    if (candidates === null) return [];
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT x.user_id
+        FROM (${candidates}) x
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE x.user_id IS NOT NULL
+         ${event.actor_user_id === null ? sql`` : sql`AND x.user_id <> ${event.actor_user_id}`}
+         AND EXISTS (SELECT 1 FROM membership m
+                      WHERE m.user_id = x.user_id AND m.org_id = p.org_id
+                        AND (m.project_id = p.id OR m.project_id IS NULL))
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
+  /** 이벤트마다 관여자를 고르는 질의(`user_id` 한 열) — 관여자가 없는 이벤트면 `null` */
+  private involvedSql(event: {
+    type: string;
+    subject_type?: string;
+    subject_id: string;
+    payload?: Record<string, unknown> | null;
+  }): SQL | null {
+    const subject = event.subject_id;
+    const versionAuthor = sql`SELECT author_user_id AS user_id FROM spec_version WHERE id = ${subject}`;
+    switch (event.type) {
+      case NERV_EVENT.SPEC_APPROVED:
+      case NERV_EVENT.SPEC_REJECTED:
+        return versionAuthor;
+      case NERV_EVENT.SPEC_COMMENT_ADDED: {
+        // 리뷰 결정 「코멘트」는 대상이 스펙 버전이다 — 검토를 낸 문서가 초안으로 돌아왔으니 그 작성자가 관여자다
+        if (event.subject_type === 'spec_version') return versionAuthor;
+        const comment = event.payload?.['comment_id'];
+        if (typeof comment !== 'string') return null;
+        // 스레드 = 같은 문서 · 같은 앵커의 열린 코멘트. 처분된 코멘트는 끝난 대화다
+        return sql`
+          SELECT c.author_user_id AS user_id
+            FROM spec_comment c JOIN spec_comment me ON me.id = ${comment}
+           WHERE c.spec_id = me.spec_id AND c.anchor = me.anchor AND c.status = 'open'`;
+      }
+      case NERV_EVENT.TASK_BLOCKED:
+        return sql`SELECT assignee_user_id AS user_id FROM task WHERE id = ${subject}`;
+      case NERV_EVENT.TASK_REBRIEF_REQUIRED:
+        return sql`
+          SELECT assignee_user_id AS user_id FROM task WHERE id = ${subject}
+          UNION
+          SELECT user_id FROM claim WHERE task_id = ${subject} AND status = 'active'`;
+      case NERV_EVENT_PHASE2.FINDING_OPENED:
+      case NERV_EVENT_PHASE2.FINDING_RESOLVED:
+        return sql`
+          WITH f AS (SELECT * FROM finding WHERE id = ${subject}),
+               rounds AS (
+                 SELECT rs.task_id, rs.agent_session_id FROM review_session rs
+                  WHERE rs.id IN (SELECT o.review_session_id FROM finding_occurrence o
+                                   WHERE o.finding_id = ${subject})
+                     OR rs.id = (SELECT last_session_id FROM f))
+          SELECT t.assignee_user_id AS user_id FROM task t
+           WHERE t.id IN (SELECT task_id FROM rounds) OR t.id = (SELECT promoted_task_id FROM f)
+          UNION
+          SELECT s.user_id FROM agent_session s WHERE s.id IN (SELECT agent_session_id FROM rounds)
+          UNION
+          SELECT sv.author_user_id AS user_id FROM spec_version sv
+           WHERE sv.id = coalesce((SELECT spec_version_id FROM f),
+                                  (SELECT r.current_version_id FROM requirement r
+                                    WHERE r.id = (SELECT requirement_id FROM f)))`;
+      default:
+        return null;
+    }
   }
 
   /**
@@ -565,6 +766,22 @@ export class NotificationService {
    * 조직 단위 멤버십(`project_id IS NULL`)은 조직을 함께 봐야 한다 — 보지 않으면 A 조직의
    * planner 가 B 조직 프로젝트의 알림을 받는다(FR-14 의 경계가 여기서 샜다).
    */
+  /** 그 프로젝트의 admin(조직 단위 admin 포함) — 행위자는 뺀다. 조직 경계는 역할 큐와 같다(REQ-API-125) */
+  private async adminTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+  }): Promise<string[]> {
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT m.user_id FROM membership m
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE m.org_id = p.org_id
+         AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.role = 'admin'
+         ${event.actor_user_id === null ? sql`` : sql`AND m.user_id <> ${event.actor_user_id}`}
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
   private async roleQueue(event: {
     project_id: string;
     actor_user_id: string | null;
