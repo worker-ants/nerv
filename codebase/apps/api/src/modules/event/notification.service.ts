@@ -25,6 +25,7 @@ import type { SQL } from 'drizzle-orm';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { notificationImportance } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
+import { sqlArray } from '../../common/sql-array.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -50,6 +51,13 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.APPROVAL_REQUESTED]: 'critical',
   [NERV_EVENT.QUESTION_CREATED]: 'critical',
   [NERV_EVENT.CLAIM_CONFLICT_BLOCKED]: 'critical',
+  // **변경 요청이 진행 중인 클레임에 닿는다**(2026-10-16 · 사람 결정 D1 · spec-workflow §3.3 · §6.3) — 열릴 때(`cr.opened`)와
+  // 승인될 때(`cr.approved`) 그 문서의 바뀌거나 빠진 요구사항의 작업을 쥔 세션의 사람에게 간다. 그 세션은 옛 문장으로 일하는
+  // 중이라 지금 알아야 한다. 받는 사람은 이벤트가 든 목록(`claim_user_ids`)이고, 없으면 아무에게도 가지 않는다
+  [NERV_EVENT_PHASE2.CR_OPENED]: 'critical',
+  [NERV_EVENT_PHASE2.CR_APPROVED]: 'critical',
+  // 변경 요청 거절 — 초안이 버려졌다. 작성자에게는 `spec.rejected` 와 같은 무게다(누군가의 세션이 멈추지는 않는다)
+  [NERV_EVENT_PHASE2.CR_REJECTED]: 'high',
   [NERV_EVENT.SPEC_REJECTED]: 'high',
   [NERV_EVENT.SPEC_APPROVED]: 'high',
   [NERV_EVENT.CLAIM_CONFLICT_WARN]: 'high',
@@ -455,6 +463,19 @@ export class NotificationService {
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
     if (event.type === NERV_EVENT.APPROVAL_OVERDUE) return this.escalationTargets(event);
+    // **변경 요청은 이벤트가 받는 사람을 든다**(2026-10-16 · REQ-API-330) — 열림 · 승인은 바뀌거나 빠진 요구사항의 작업을 쥔
+    // 세션의 사람, 거절은 CR 을 연 사람과 초안의 작성자다. 역할 큐로 흩뿌리지 않는다 — 결재는 결재 요청이 이미 알렸다
+    if (
+      event.type === NERV_EVENT_PHASE2.CR_OPENED ||
+      event.type === NERV_EVENT_PHASE2.CR_APPROVED ||
+      event.type === NERV_EVENT_PHASE2.CR_REJECTED
+    ) {
+      const listed =
+        event.payload?.[
+          event.type === NERV_EVENT_PHASE2.CR_REJECTED ? 'notify_user_ids' : 'claim_user_ids'
+        ];
+      return this.memberTargets(event, Array.isArray(listed) ? listed : []);
+    }
     // **격상은 admin 에게만**(2026-10-15 · REQ-API-319) — 정책을 고칠 수 있는 사람이다. 역할 큐(admin · planner)로 보내면
     // 고칠 수 없는 사람의 배지가 오른다
     if (event.type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED) return this.adminTargets(event);
@@ -533,6 +554,26 @@ export class NotificationService {
       sql`SELECT (status <> 'open') AS closed FROM finding WHERE id = ${event.subject_id}`,
     );
     return rows[0]?.closed === true;
+  }
+
+  /**
+   * 이벤트가 든 사람 목록 가운데 **행위자가 아니고 지금 그 프로젝트의 멤버인 사람** — 관여자와 같은 거름이다(REQ-API-316).
+   */
+  private async memberTargets(
+    event: { project_id: string; actor_user_id: string | null },
+    listed: readonly unknown[],
+  ): Promise<string[]> {
+    const ids = [...new Set(listed.filter((id): id is string => typeof id === 'string'))].filter(
+      (id) => id !== event.actor_user_id,
+    );
+    if (ids.length === 0) return [];
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT m.user_id FROM membership m
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE m.org_id = p.org_id AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.user_id = ANY(${sqlArray(ids, 'uuid')})
+    `);
+    return rows.map((r) => r.user_id).sort();
   }
 
   /**

@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.28 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.29 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.29 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](../04-mvp/backlog.md) E19-S01): **§1.4 상태도 · §2.2 `spec_version` 두 행 · §2.3 두 행 신설과 수명 · 결정 기록 · §2.7 `subject_type` · §4.7 한 단락 · §5.1 타입 문자.** CR이 승인본 위의 초안을 감싸고 결재는 그 스펙 버전이 받는다(D1) — 그래서 결재 대상 `change_request` 는 쓰지 않는다. CR의 표시 키는 `<PRJ>-C-XXXXXX` 이고(D2) `change_request.key` 에 남는다. 승인하며 함께 할 일은 `planned_actions` 에 남는다. CR 거절 · 철회가 버린 초안은 `discarded` 다.
 >
 > v0.28 변경(2026-10-16 — 보존 워커 완성의 범위 A, **사람 결정 ②**): **§5.4 「집행되는 것」 문단과 표.** `notification` 180일이 집행된다 — 보존 잡이 마지막으로 더해진 시각이 180일 지난 줄을 지운다([4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-046). `activity` 는 행을 지운 뒤 빈 월 파티션도 드랍한다(REQ-DB-047). 남은 셋(리뷰 본문 요약 압축 · draft 압축 · `event` 의 `DETACH`)은 재검토 트리거를 기다린다. 보존 표 자체는 그대로다.
 >
@@ -204,13 +206,14 @@ stateDiagram-v2
     [*] --> draft
     draft --> in_review: 검토 제출
     in_review --> draft: 거절 · 수정 요청
+    draft --> discarded: CR 거절 · 철회
     in_review --> approved: Approval approve
     approved --> superseded: 후속 버전 승인
     approved --> deprecated: 폐기 결정
   }
 ```
 
-**구현 축(`requirement.impl_status`)의 상태도와 파생 규칙은 [3.5](spec-workflow.md) §1.3 한 곳에 둔다**(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 [3.5](spec-workflow.md) §1.3 이 정한다(FR-04 의 영향 분석은 CR 과 함께 Phase 2).
+**구현 축(`requirement.impl_status`)의 상태도와 파생 규칙은 [3.5](spec-workflow.md) §1.3 한 곳에 둔다**(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 [3.5](spec-workflow.md) §1.3 이 정한다(FR-04 의 영향 분석은 2026-10-16 에 CR 과 함께 들어왔다 — [3.5](spec-workflow.md) §3.3).
 
 ---
 
@@ -309,13 +312,13 @@ stateDiagram-v2
 | `id` | uuid PK | |
 | `spec_id` | uuid FK | |
 | `version_no` | int | 스펙 내 1부터 증가. `UNIQUE (spec_id, version_no)` |
-| `status` | enum | `draft / in_review / approved / superseded / deprecated` |
+| `status` | enum | `draft / in_review / approved / superseded / deprecated / discarded` — `discarded` 는 버린 초안이다(2026-10-16 — 변경 요청의 거절 · 철회가 만든다. 다시 열지 않고 최신 버전을 셀 때 빠진다 · [3.5](spec-workflow.md) §1.2) |
 | `body_md` | text | 본문(markdown 우선, D-09) |
 | `content_hash` | bytea | `sha256(body_md)`. 무변경 저장 차단·중복 감지 |
 | `base_version_id` | uuid FK NULL | **파생 계보다 — 어느 버전에서 갈라져 나왔는가.** 서버가 직전 `version_no` 로 채우고 부른 쪽은 주지 않는다(2026-08-30 사람 결정). 2026-09-07 정정: 이 열을 "낙관적 동시성의 전제조건, 불일치 시 409" 라 적어 왔는데 **그 축은 `base_hash` 다** — 부른 쪽은 "무엇을 보고 썼는가" 를 `content_hash` 의 지문으로 말하고, 서버가 그것을 현재 값과 비교-교환한다. 둘을 같은 칸으로 읽으면 "계보를 보내지 않으면 동시성 검사가 안 된다" 는 반대 결론이 나온다 |
 | `change_summary_md` | text | 이 버전이 무엇을 바꿨는가(사람이 읽는 요약) |
 | `author_user_id` · `author_session_id` | uuid FK | 사람과 에이전트를 함께 기록 |
-| `change_request_id` | uuid FK NULL | CR에서 파생된 버전이면 그 CR |
+| `change_request_id` | uuid FK NULL | 이 버전을 감싼 CR — 승인본이 있는 문서의 초안이면 서버가 연 CR이다(2026-10-16). 첫 초안은 NULL |
 | `submitted_at` · `approved_at` | timestamptz | |
 | `approved_by_user_id` | uuid FK NULL | 결재자. `approval`에도 남지만 조회 편의로 비정규화 |
 | `superseded_by_version_id` | uuid FK NULL | 후속 버전 |
@@ -411,16 +414,27 @@ stateDiagram-v2
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `project_id` · `spec_id` | uuid FK | |
+| `key` | text | 표시 키 `<PRJ>-C-XXXXXX`(2026-10-16 · 사람 결정 D2 · §5.1). 씨앗은 이 행의 UUID 다. `UNIQUE (project_id, key)` |
 | `base_version_id` | uuid FK | 어느 approved 버전에 대한 변경인가 |
 | `proposed_version_id` | uuid FK | 제안 내용을 담은 draft SpecVersion |
 | `title` · `rationale_md` | text | 무엇을 왜 바꾸는가 |
-| `status` | enum | `open / in_review / approved / rejected / withdrawn` |
-| `risk` | enum | `low / normal / high` — 저위험은 자동 통과 경로(D-06) |
-| `origin` | enum | `human / agent / spec_drift` — 구현 중 발견된 스펙 개선의 역류 경로 |
+| `status` | enum | `open / in_review / approved / rejected / withdrawn` — 수명은 아래 단락. 문서마다 `open` · `in_review` 인 행은 하나이고 초안마다 행은 하나다 |
+| `risk` | enum | `low / normal / high` — 저위험은 자동 통과 경로(D-06). 따로 입력받지 않고 검토 요청 때 정해진 게이트 티어에서 채운다 — T0 · T1 `low` · T2 `normal` · T3 `high`(2026-10-16) |
+| `origin` | enum | `human / agent / spec_drift` — 구현 중 발견된 스펙 개선의 역류 경로. 초안을 사람이 만들었으면 `human`, 에이전트 세션이면 `agent` 다 |
+| `planned_actions` | jsonb | 승인하며 함께 할 일(2026-10-16) — 영향 미리보기의 제안 가운데 사람이 고른 것 `{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}`. 승인되는 순간 서버가 그때의 델타와 다시 견줘 맞는 것만 한다. 빈 객체가 "고른 것 없음"이다 |
 | `created_by_user_id` · `created_by_session_id` | uuid FK | |
 | `decided_at` | timestamptz | |
 
 `origin = 'spec_drift'`는 clemvion에서 5개월 검증된 경로의 이식이다. 리뷰가 `[SPEC-DRIFT]` 태그를 달면 resolution-applier가 코드를 되돌리지 않고 `plan/in-progress/spec-update-<area>.md` 초안을 만들어 `ESCALATE=spec`으로 넘겼다. NERV에서는 그 초안이 CR 레코드가 되고, 태그 보존 의무("절대 일반 WARNING으로 뭉개지 말 것")는 `finding.tags`와 `change_request.origin`의 FK 관계로 대체된다.
+
+**수명**(2026-10-16 · 사람 결정 D1). 승인본이 있는 문서에 새 초안이 생기면(초안 저장 · 되돌리기) 서버가 `open` 으로 연다 — 승인본이 없는 첫 초안은 CR이 아니다. 그 뒤는 **버전을 따라간다**: 검토 요청 → `in_review`, 승인 → `approved`, 결재가 거절 · 코멘트 · 만료로 초안을 돌려보내면 → `open`. CR 자기 결재는 없다 — 결재는 그 스펙 버전이 받는다([3.5](spec-workflow.md) §3.5). CR만의 행위는 둘이다.
+
+- **거절**(`rejected`) — planner · admin이 사람으로만 하고 사유가 필수다. 이 제안을 하지 않기로 하는 것이라 초안을 버린다(`spec_version.status = discarded`). 결재의 거절과 다르다 — 결재의 거절은 고쳐서 다시 내라는 뜻이라 CR이 열린 채 남는다.
+- **철회**(`withdrawn`) — CR을 연 사람이나 초안의 작성자가 초안을 스스로 버린다.
+
+둘 다 `open` 인 CR에만 한다(검토 중이면 결재를 먼저 끝낸다). 버린 초안은 지우지 않는다 — 이 행이 무엇을 제안했는지 남아야 한다.
+
+**결정 기록**(2026-10-16 · 사람 결정). **D1 — CR이 버전을 감싸고 결재는 지금처럼 스펙 버전이 받는다**(권장안 A). 티어 · 정족수 · 만료 · 바로 승인 · 일괄 승인을 두 벌로 만들지 않는다. 결재 대상 값 `change_request`(§2.7)는 쓰지 않는 값으로 남는다. **D2 — CR 표시 키는 `<PRJ>-C-XXXXXX`**(권장안 A · §5.1) — 작업 키와 같은 규칙이라 검색 · ⌘K가 같은 방법으로 찾는다.
 
 ### 2.4 작업 — task · task_dependency · claim
 
@@ -650,7 +664,7 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `project_id` | uuid FK | |
-| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass / **finding**` — 여섯이다. `finding` 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정) |
+| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass / **finding**` — 여섯이다. `finding` 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정). **`change_request` 는 쓰지 않는다**(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 `spec_version` 이 받는다 |
 | `subject_id` | uuid | 대상 엔티티 ID(다형 참조) |
 | `requested_by_user_id` · `requested_by_session_id` | uuid FK | 지시자 |
 | `assignee_user_id` | uuid FK NULL | 지정 승인자 |
@@ -971,6 +985,8 @@ ORDER BY (a.subject_type = 'question') DESC, a.requested_at;
 
 S1 홈의 숫자 배지와 S7 받은 요청이 이 질의다. `question`을 맨 위로 올리는 이유는 그 세션이 `awaiting_input`으로 **멈춰 서 있기** 때문이다.
 
+**CR 카드**(2026-10-16). CR의 결재는 그 초안의 `spec_version` 이 받으므로 위 `change_request` 조인은 비어 있다. 받은 요청은 스펙 버전 결재마다 `change_request.proposed_version_id = sv.id` 로 그 버전을 감싼 CR을 찾아, 있으면 같은 카드를 CR 카드로 보인다 — 같은 결재를 두 카드로 보이지 않는다([4.5 화면 명세](../04-mvp/screens.md) REQ-WEB-321).
+
 ### 4.8 "이 스펙에 무슨 일이 있었나" — 감사 타임라인 (P3 · FR-16)
 
 ```sql
@@ -1001,6 +1017,8 @@ clemvion에서 특정 시점의 스펙 상태를 재구성하려면 git 고고�
 | 내부 키 | `uuid` (UUIDv7) | 모든 FK·API 파라미터 | 시간 정렬이라 B-tree 삽입 지역성이 좋다. 클라이언트 발급 금지 |
 | 표시 키 | `<project.key>-<타입>-<base32 6자>` (예: `CLV-T-7QF3K2`) | 사람·커밋 메시지·대화 | UUID 앞부분의 해시를 base32(혼동 문자 제외)로 인코딩. 프로젝트 내 유일 |
 | 요구사항 ref | `REQ-<영역>-<번호>` 또는 임포트 원본(`NAV-WF-01`) | 스펙 본문·리뷰·커밋 | `UNIQUE (project_id, ref)`. clemvion 어휘를 그대로 계승 |
+
+**타입 문자는 셋이다**(2026-10-16 · 사람 결정 D2) — `T` 작업 · `S` 스펙 · `C` 변경 요청(CR). 씨앗은 그 행의 UUID 다(임포트는 원본 경로 — 재실행이 같은 키를 내야 한다). 본문 · 커밋 메시지에서 키를 찾는 규칙 `DISPLAY_KEY_PATTERN` 이 셋을 모두 받는다. CR 키는 `change_request.key` 에 `UNIQUE (project_id, key)` 로 남는다([4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-048).
 
 **ID는 서버가 발급한다**(D-04). 파일 기반 순번은 두 세션이 동시에 같은 번호를 잡는 순간 충돌하고, 이는 파일 기반 SDD 도구들이 멀티유저 요구를 "not planned"로 닫으며 남긴 미해결 문제이기도 하다. 해시 기반 발급에는 중앙 카운터도 락도 필요 없다.
 

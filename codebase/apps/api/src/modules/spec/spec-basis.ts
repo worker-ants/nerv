@@ -133,9 +133,13 @@ export async function baselineIdOf(db: NervDb, projectId: string, name: string):
   return id;
 }
 
-/** 문서 `s` 의 가장 새 버전(번호가 가장 큰 것) — `(spec_id, version_no)` 유일 색인을 탄다 */
+/**
+ * 문서 `s` 의 가장 새 버전(번호가 가장 큰 것) — `(spec_id, version_no)` 유일 색인을 탄다. **버린 초안은 건너뛴다**(2026-10-16 ·
+ * 변경 요청 거절 · 철회) — 버린 제안이 "최신" 으로 읽히면 안 된다. 번호로 찾으면(`?v=`) 그대로 읽힌다
+ */
 export const LATEST_VERSION_ID = sql`(SELECT l.id FROM spec_version l
-                                       WHERE l.spec_id = s.id ORDER BY l.version_no DESC LIMIT 1)`;
+                                       WHERE l.spec_id = s.id AND l.status <> 'discarded'
+                                       ORDER BY l.version_no DESC LIMIT 1)`;
 
 /**
  * 문서 `s` 가 이 기준으로 읽는 버전의 id(SQL 식)와, 그 기준에 드는 문서만 남기는 조건.
@@ -170,8 +174,8 @@ export function versionOfSpec(
  */
 export const VERSION_SUMMARY_COLUMNS = sql`
   (SELECT l.version_no FROM spec_version l
-    WHERE l.spec_id = s.id ORDER BY l.version_no DESC LIMIT 1) AS latest_version_no,
+    WHERE l.spec_id = s.id AND l.status <> 'discarded' ORDER BY l.version_no DESC LIMIT 1) AS latest_version_no,
   (SELECT l.status::text FROM spec_version l
-    WHERE l.spec_id = s.id ORDER BY l.version_no DESC LIMIT 1) AS latest_status,
+    WHERE l.spec_id = s.id AND l.status <> 'discarded' ORDER BY l.version_no DESC LIMIT 1) AS latest_status,
   (SELECT max(a.version_no) FROM spec_version a
     WHERE a.spec_id = s.id AND a.status = 'approved')::int AS approved_version_no`;

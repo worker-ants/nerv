@@ -43,7 +43,7 @@ export interface SwitcherHit {
   type: string;
   doc_status: string | null;
   anchor: string | null;
-  /** 무엇에 맞았나 — 서버가 준다(`spec`·`requirement`·`task`). 없으면 스펙으로 본다 */
+  /** 무엇에 맞았나 — 서버가 준다(`spec`·`requirement`·`task`·`change_request`). 없으면 스펙으로 본다 */
   kind?: string;
   /** 보관된 문서면 그 시각 — 번호로 찾으면 보관된 문서도 나온다(REQ-API-258) */
   archived_at?: string | null;
@@ -129,6 +129,8 @@ function hrefOfHit(hit: SwitcherHit): string {
   const slug = encodeURIComponent(hit.project_slug ?? '');
   const key = encodeURIComponent(hit.key);
   if (hit.kind === 'task') return `/p/${slug}/tasks/${key}`;
+  // 변경 요청 키(`<PRJ>-C-…`)는 그 CR 로 간다(2026-10-16 · REQ-WEB-323)
+  if (hit.kind === 'change_request') return `/p/${slug}/crs/${key}`;
   if (hit.kind === 'requirement') return `/p/${slug}/specs/${key}?rail=requirements`;
   const anchor =
     hit.anchor === null || hit.anchor === '' ? '' : `#${encodeURIComponent(hit.anchor)}`;

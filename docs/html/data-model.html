@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.28 (2026-10-16)</span>
+      <span>버전 v0.29 (2026-10-16)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -324,7 +324,7 @@
   <h3>1.4 두 축의 상태 머신</h3>
 
   <div class="diagram">
-    <svg viewBox="0 0 740 140" role="img" aria-label="문서 축의 상태 머신">
+    <svg viewBox="0 0 740 186" role="img" aria-label="문서 축의 상태 머신">
       <defs>
         <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
@@ -364,11 +364,15 @@
         <text x="177" y="114">거절 · 수정 요청</text>
         <text x="630" y="128">후속 버전 승인 / 폐기 결정</text>
       </g>
+      <path d="M50,82 V140" fill="none" stroke="var(--border-strong)" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+      <rect x="30" y="144" width="110" height="34" rx="10" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="85" y="166" fill="var(--text-mute)" font-family="var(--font)" font-size="12.5" text-anchor="middle">discarded</text>
+      <text x="152" y="165" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">CR 거절 · 철회 — 초안을 버린다(2026-10-16)</text>
     </svg>
     <div class="cap">그림 2. 문서 축. 구현 축의 상태도는 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 있다(2026-09-26).</div>
   </div>
 
-  <p><b>구현 축(<code>requirement.impl_status</code>)의 상태도와 파생 규칙은 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 둔다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 <a href="spec-workflow.html">3.5</a> §1.3 이 정한다(FR-04 의 영향 분석은 CR 과 함께 Phase 2).</p>
+  <p><b>구현 축(<code>requirement.impl_status</code>)의 상태도와 파생 규칙은 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 둔다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 <a href="spec-workflow.html">3.5</a> §1.3 이 정한다(FR-04 의 영향 분석은 2026-10-16 에 CR 과 함께 들어왔다 — <a href="spec-workflow.html">3.5</a> §3.3).</p>
 
   <h2 id="sec-2">2. 엔티티 상세</h2>
 
@@ -476,13 +480,13 @@
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
       <tr><td><code>spec_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>version_no</code></td><td>int</td><td>스펙 내 1부터 증가. <code>UNIQUE (spec_id, version_no)</code></td></tr>
-      <tr><td><code>status</code></td><td>enum</td><td><code>draft / in_review / approved / superseded / deprecated</code></td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>draft / in_review / approved / superseded / deprecated / discarded</code> — <code>discarded</code> 는 버린 초안이다(2026-10-16 — 변경 요청의 거절 · 철회가 만든다. 다시 열지 않고 최신 버전을 셀 때 빠진다 · <a href="spec-workflow.html">3.5</a> §1.2)</td></tr>
       <tr><td><code>body_md</code></td><td>text</td><td>본문(markdown 우선, D-09)</td></tr>
       <tr><td><code>content_hash</code></td><td>bytea</td><td><code>sha256(body_md)</code>. 무변경 저장 차단·중복 감지</td></tr>
       <tr><td><code>base_version_id</code></td><td>uuid FK NULL</td><td><b>파생 계보다 — 어느 버전에서 갈라져 나왔는가.</b> 서버가 직전 <code>version_no</code> 로 채우고 부른 쪽은 주지 않는다(2026-08-30 사람 결정). 2026-09-07 정정: 이 열을 "낙관적 동시성의 전제조건, 불일치 시 409" 라 적어 왔는데 <b>그 축은 <code>base_hash</code> 다</b> — 부른 쪽은 "무엇을 보고 썼는가" 를 <code>content_hash</code> 의 지문으로 말하고, 서버가 그것을 현재 값과 비교-교환한다. 둘을 같은 칸으로 읽으면 "계보를 보내지 않으면 동시성 검사가 안 된다" 는 반대 결론이 나온다</td></tr>
       <tr><td><code>change_summary_md</code></td><td>text</td><td>이 버전이 무엇을 바꿨는가(사람이 읽는 요약)</td></tr>
       <tr><td><code>author_user_id</code> · <code>author_session_id</code></td><td>uuid FK</td><td>사람과 에이전트를 함께 기록</td></tr>
-      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td>CR에서 파생된 버전이면 그 CR</td></tr>
+      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td>이 버전을 감싼 CR — 승인본이 있는 문서의 초안이면 서버가 연 CR이다(2026-10-16). 첫 초안은 NULL</td></tr>
       <tr><td><code>submitted_at</code> · <code>approved_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>approved_by_user_id</code></td><td>uuid FK NULL</td><td>결재자. <code>approval</code>에도 남지만 조회 편의로 비정규화</td></tr>
       <tr><td><code>superseded_by_version_id</code></td><td>uuid FK NULL</td><td>후속 버전</td></tr>
@@ -592,17 +596,26 @@
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
       <tr><td><code>project_id</code> · <code>spec_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>key</code></td><td>text</td><td>표시 키 <code>&lt;PRJ&gt;-C-XXXXXX</code>(2026-10-16 · 사람 결정 D2 · §5.1). 씨앗은 이 행의 UUID 다. <code>UNIQUE (project_id, key)</code></td></tr>
       <tr><td><code>base_version_id</code></td><td>uuid FK</td><td>어느 approved 버전에 대한 변경인가</td></tr>
       <tr><td><code>proposed_version_id</code></td><td>uuid FK</td><td>제안 내용을 담은 draft SpecVersion</td></tr>
       <tr><td><code>title</code> · <code>rationale_md</code></td><td>text</td><td>무엇을 왜 바꾸는가</td></tr>
-      <tr><td><code>status</code></td><td>enum</td><td><code>open / in_review / approved / rejected / withdrawn</code></td></tr>
-      <tr><td><code>risk</code></td><td>enum</td><td><code>low / normal / high</code> — 저위험은 자동 통과 경로(D-06)</td></tr>
-      <tr><td><code>origin</code></td><td>enum</td><td><code>human / agent / spec_drift</code> — 구현 중 발견된 스펙 개선의 역류 경로</td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>open / in_review / approved / rejected / withdrawn</code> — 수명은 아래 단락. 문서마다 <code>open</code> · <code>in_review</code> 인 행은 하나이고 초안마다 행은 하나다</td></tr>
+      <tr><td><code>risk</code></td><td>enum</td><td><code>low / normal / high</code> — 저위험은 자동 통과 경로(D-06). 따로 입력받지 않고 검토 요청 때 정해진 게이트 티어에서 채운다 — T0 · T1 <code>low</code> · T2 <code>normal</code> · T3 <code>high</code>(2026-10-16)</td></tr>
+      <tr><td><code>origin</code></td><td>enum</td><td><code>human / agent / spec_drift</code> — 구현 중 발견된 스펙 개선의 역류 경로. 초안을 사람이 만들었으면 <code>human</code>, 에이전트 세션이면 <code>agent</code> 다</td></tr>
+      <tr><td><code>planned_actions</code></td><td>jsonb</td><td>승인하며 함께 할 일(2026-10-16) — 영향 미리보기의 제안 가운데 사람이 고른 것 <code>{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}</code>. 승인되는 순간 서버가 그때의 델타와 다시 견줘 맞는 것만 한다. 빈 객체가 "고른 것 없음"이다</td></tr>
       <tr><td><code>created_by_user_id</code> · <code>created_by_session_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>decided_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
   <p><code>origin = 'spec_drift'</code>는 clemvion에서 5개월 검증된 경로의 이식이다. 리뷰가 <code>[SPEC-DRIFT]</code> 태그를 달면 resolution-applier가 코드를 되돌리지 않고 <code>plan/in-progress/spec-update-&lt;area&gt;.md</code> 초안을 만들어 <code>ESCALATE=spec</code>으로 넘겼다. NERV에서는 그 초안이 CR 레코드가 되고, 태그 보존 의무("절대 일반 WARNING으로 뭉개지 말 것")는 <code>finding.tags</code>와 <code>change_request.origin</code>의 FK 관계로 대체된다.</p>
+  <p><b>수명</b>(2026-10-16 · 사람 결정 D1). 승인본이 있는 문서에 새 초안이 생기면(초안 저장 · 되돌리기) 서버가 <code>open</code> 으로 연다 — 승인본이 없는 첫 초안은 CR이 아니다. 그 뒤는 <b>버전을 따라간다</b>: 검토 요청 → <code>in_review</code>, 승인 → <code>approved</code>, 결재가 거절 · 코멘트 · 만료로 초안을 돌려보내면 → <code>open</code>. CR 자기 결재는 없다 — 결재는 그 스펙 버전이 받는다(<a href="spec-workflow.html">3.5</a> §3.5). CR만의 행위는 둘이다.</p>
+  <ul>
+    <li><b>거절</b>(<code>rejected</code>) — planner · admin이 사람으로만 하고 사유가 필수다. 이 제안을 하지 않기로 하는 것이라 초안을 버린다(<code>spec_version.status = discarded</code>). 결재의 거절과 다르다 — 결재의 거절은 고쳐서 다시 내라는 뜻이라 CR이 열린 채 남는다.</li>
+    <li><b>철회</b>(<code>withdrawn</code>) — CR을 연 사람이나 초안의 작성자가 초안을 스스로 버린다.</li>
+  </ul>
+  <p>둘 다 <code>open</code> 인 CR에만 한다(검토 중이면 결재를 먼저 끝낸다). 버린 초안은 지우지 않는다 — 이 행이 무엇을 제안했는지 남아야 한다.</p>
+  <p><b>결정 기록</b>(2026-10-16 · 사람 결정). <b>D1 — CR이 버전을 감싸고 결재는 지금처럼 스펙 버전이 받는다</b>(권장안 A). 티어 · 정족수 · 만료 · 바로 승인 · 일괄 승인을 두 벌로 만들지 않는다. 결재 대상 값 <code>change_request</code>(§2.7)는 쓰지 않는 값으로 남는다. <b>D2 — CR 표시 키는 <code>&lt;PRJ&gt;-C-XXXXXX</code></b>(권장안 A · §5.1) — 작업 키와 같은 규칙이라 검색 · ⌘K가 같은 방법으로 찾는다.</p>
 
   <h3>2.4 작업 — task · task_dependency · claim</h3>
 
@@ -864,7 +877,7 @@
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
       <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
-      <tr><td><code>subject_type</code></td><td>enum</td><td><code>spec_version / change_request / plan / question / gate_bypass / <b>finding</b></code> — 여섯이다. <code>finding</code> 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정)</td></tr>
+      <tr><td><code>subject_type</code></td><td>enum</td><td><code>spec_version / change_request / plan / question / gate_bypass / <b>finding</b></code> — 여섯이다. <code>finding</code> 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정). <b><code>change_request</code> 는 쓰지 않는다</b>(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 <code>spec_version</code> 이 받는다</td></tr>
       <tr><td><code>subject_id</code></td><td>uuid</td><td>대상 엔티티 ID(다형 참조)</td></tr>
       <tr><td><code>requested_by_user_id</code> · <code>requested_by_session_id</code></td><td>uuid FK</td><td>지시자</td></tr>
       <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td>지정 승인자</td></tr>
@@ -1173,6 +1186,7 @@ WHERE a.project_id = ANY($1)
   AND a.requested_by_user_id &lt;&gt; $2          -- 지시자 ≠ 승인자
 ORDER BY (a.subject_type = 'question') DESC, a.requested_at;</code></pre>
   <p>S1 홈의 숫자 배지와 S7 받은 요청이 이 질의다. <code>question</code>을 맨 위로 올리는 이유는 그 세션이 <code>awaiting_input</code>으로 <b>멈춰 서 있기</b> 때문이다.</p>
+  <p><b>CR 카드</b>(2026-10-16). CR의 결재는 그 초안의 <code>spec_version</code> 이 받으므로 위 <code>change_request</code> 조인은 비어 있다. 받은 요청은 스펙 버전 결재마다 <code>change_request.proposed_version_id = sv.id</code> 로 그 버전을 감싼 CR을 찾아, 있으면 같은 카드를 CR 카드로 보인다 — 같은 결재를 두 카드로 보이지 않는다(<a href="screens.html">4.5 화면 명세</a> REQ-WEB-321).</p>
 
   <h3>4.8 "이 스펙에 무슨 일이 있었나" — 감사 타임라인 <span class="badge impl">P3 · FR-16</span></h3>
 <pre><code>SELECT e.occurred_at, e.type, e.from_state, e.to_state,
@@ -1200,6 +1214,7 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td>요구사항 ref</td><td><code>REQ-&lt;영역&gt;-&lt;번호&gt;</code> 또는 임포트 원본(<code>NAV-WF-01</code>)</td><td>스펙 본문·리뷰·커밋</td><td><code>UNIQUE (project_id, ref)</code>. clemvion 어휘를 그대로 계승</td></tr>
     </tbody>
   </table></div>
+  <p><b>타입 문자는 셋이다</b>(2026-10-16 · 사람 결정 D2) — <code>T</code> 작업 · <code>S</code> 스펙 · <code>C</code> 변경 요청(CR). 씨앗은 그 행의 UUID 다(임포트는 원본 경로 — 재실행이 같은 키를 내야 한다). 본문 · 커밋 메시지에서 키를 찾는 규칙 <code>DISPLAY_KEY_PATTERN</code> 이 셋을 모두 받는다. CR 키는 <code>change_request.key</code> 에 <code>UNIQUE (project_id, key)</code> 로 남는다(<a href="database.html">4.3 데이터베이스 스키마</a> REQ-DB-048).</p>
   <p><b>ID는 서버가 발급한다</b>(D-04). 파일 기반 순번은 두 세션이 동시에 같은 번호를 잡는 순간 충돌하고, 이는 파일 기반 SDD 도구들이 멀티유저 요구를 "not planned"로 닫으며 남긴 미해결 문제이기도 하다. 해시 기반 발급에는 중앙 카운터도 락도 필요 없다.</p>
 
   <h3>5.2 fingerprint 설계 — 라운드를 넘는 동일성</h3>

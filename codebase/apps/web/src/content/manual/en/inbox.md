@@ -2,11 +2,12 @@ The inbox collects **only what is waiting on your decision**. If it also counted
 
 ## Kinds of card {#cards}
 
-| Card              | What you decide                                                |
-| ----------------- | -------------------------------------------------------------- |
-| **Spec approval** | Whether this version can become the reference version          |
-| **Plan approval** | Whether this large piece of work can start now                 |
-| **Question**      | Something an agent cannot decide on its own. Please answer it. |
+| Card               | What you decide                                                |
+| ------------------ | -------------------------------------------------------------- |
+| **Spec approval**  | Whether this version can become the reference version          |
+| **Change request** | Whether the approved version may change this way               |
+| **Plan approval**  | Whether this large piece of work can start now                 |
+| **Question**       | Something an agent cannot decide on its own. Please answer it. |
 
 **Plan approval** is required only for large work. Work counts as large when **four or more** tasks come from the same spec version, or when that version's risk tier is **T3**. Claiming such a task is blocked immediately, and this card is created. Once you approve it, the next claim goes through. The point is to review the design once before any code is written, so the gate sits right before work starts.
 
@@ -20,6 +21,15 @@ An approval card shows two more lines below its header.
 
 - **Request line** — shows who made the request. If an agent session raised it, the machine and agent kind appear too. If that session is **stopped until you decide**, the line shows **"A session is waiting on this"**.
 - **Target line** — shows what you are deciding. For a spec, it shows **which version** it is, the risk tier (T0–T3) and the author's **change summary**. Click **[View changes ▸]** to open the difference from the previous version. A first version has no earlier version to compare against, so it has no such link. Click **[Show content]** to expand that version's content inside the card, rendered as on the spec screen (headings, lists, tables and diagrams). For a plan approval, the line shows **which task** the plan is for; for a `critical` downgrade, **which finding** is being downgraded. In both cases, the key in the header links to that task or finding.
+
+**A change request card** is how a spec approval card looks when the draft is a change request. A new draft on top of an approved version becomes a change request ([Change requests in Specs](/help/specs#change-requests)), and the approval card of that draft is the change request card. The same approval never shows as two cards. Its type label is **Change request**, and below the header it shows:
+
+- the change request key (opens the change request screen), the versions such as `v3 → v4`, and the number of added, changed and removed requirements
+- the first five changed requirements (number and statement)
+- the impact: how many derived tasks, active claims and referencing documents
+- the follow-up on approval: "On approval: create N tasks and archive M" if something is checked, otherwise "Choose N suggestions on the change request page", with **[View the full delta]**
+
+**[Approve]** on the card does only what was already checked. To create derived or re-verification tasks, check them on the change request screen and approve there.
 
 ### Which organization and project it belongs to {#card-scope}
 

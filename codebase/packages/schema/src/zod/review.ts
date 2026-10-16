@@ -114,6 +114,26 @@ export const GateBypassInput = z
   })
   .strict();
 
+/** 한 칸에 담을 수 있는 수 — 한 문서의 요구사항 · 작업이 이보다 많은 일은 없다(임포트 실측의 가장 큰 문서가 140줄) */
+export const CR_ACTION_LIMIT = 200;
+
+/**
+ * **변경 요청 승인과 함께 할 일**(2026-10-16 · spec-workflow §3.3 · REQ-API-330) — 영향 미리보기(EP-SPEC-31)의 제안 가운데
+ * 사람이 고른 것이다. 셋 다 선택이고 빈 배열은 "하지 않는다" 다.
+ *
+ * - `derive` — 더해진(ADDED) 요구사항 번호. 그 요구사항의 파생 작업을 `backlog` 로 만든다(목표 칸에 문장을 담은 위임 명세 초안)
+ * - `reverify` — 바뀐(MODIFIED) 요구사항 번호. 완료한 작업이 있으면 재검증 작업을 하나 만든다
+ * - `cancel` — 빠진(REMOVED) 요구사항의 미착수 작업 키. 그 작업을 보관한다(사유 `obsolete`)
+ */
+export const CrActionsInput = z
+  .object({
+    derive: z.array(z.string().min(1).max(200)).max(CR_ACTION_LIMIT).optional(),
+    reverify: z.array(z.string().min(1).max(200)).max(CR_ACTION_LIMIT).optional(),
+    cancel: z.array(z.string().min(1).max(200)).max(CR_ACTION_LIMIT).optional(),
+  })
+  .strict();
+export type CrActions = z.infer<typeof CrActionsInput>;
+
 /**
  * EP-APR-03 — 결정.
  *
@@ -125,6 +145,28 @@ export const ApprovalDecisionInput = z
     decision: z.string().default('comment'),
     comment: z.string().nullish(),
     seen_content_hash: z.string().nullish(),
+    /**
+     * **변경 요청을 승인하며 함께 할 일**(2026-10-16 · REQ-API-330) — 영향 미리보기에서 고른 제안. 승인 결정에서만 읽고,
+     * 그 버전을 감싼 변경 요청에 남긴 뒤 버전이 승인되는 순간(정족수가 차는 순간) 서버가 한다. 변경 요청이 없는 결재면 400 이다
+     */
+    cr_actions: CrActionsInput.nullish(),
+  })
+  .strict();
+
+/**
+ * EP-CR-03 — **변경 요청 거절**(2026-10-16 · 사람 결정 D1 · REQ-API-328). 결재의 거절(초안으로 돌아가 고쳐 다시 낸다)과 다르다
+ * — 이 제안을 하지 않기로 하고 초안을 버린다. 사유는 필수다(작성자에게 가는 알림과 감사가 그 문장을 남긴다).
+ */
+export const CrRejectInput = z
+  .object({
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+
+/** EP-CR-04 — **철회**(REQ-API-328). 작성자가 초안을 스스로 버린다 — 한 줄 사유는 선택이다 */
+export const CrWithdrawInput = z
+  .object({
+    reason: z.string().trim().max(2000).nullish(),
   })
   .strict();
 

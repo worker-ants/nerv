@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.78 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.79 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.79 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **REQ-DB-048 신설 · §2.1 enum 값 하나와 주석 · §2.4 `change_request` 두 열 · §2.12 인덱스 셋 · 마이그레이션 `0053`.** `change_request.key`(표시 키 `<PRJ>-C-XXXXXX` · `UNIQUE (project_id, key)`)와 `planned_actions`(승인하며 함께 할 일)를 더하고, 문서마다 열린 CR 하나 · 초안마다 CR 하나를 인덱스로 지킨다. `spec_version_status` 에 `discarded`(버린 초안 — CR 거절 · 철회가 만든다)를 더한다. 결재 대상 `change_request` 는 쓰지 않는 값으로 남긴다 — CR의 결재는 그 스펙 버전이 받고([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.5), enum 값을 지우는 마이그레이션은 위험만 있고 얻는 것이 없다. 있던 CR 행은 마이그레이션이 키를 채운다(백필 — `@nerv/schema` 의 `displayKey` 와 같은 식).
 >
 > v0.78 변경(2026-10-16 — 보존 워커 완성의 범위 A, **사람 결정 ②**): **REQ-DB-046 · 047 신설 · §2.14 보존 표 한 줄 · 결정 기록 · 두 문단.** 보존 잡이 `notification` 가운데 마지막으로 더해진 시각이 180일 지난 줄을 지우고(읽음 · 안 읽음을 가리지 않는다 · 묶음에 든 이벤트도 함께), 행을 지운 뒤 보존 기간을 넘긴 빈 `activity` 월 파티션을 드랍한다. 리뷰 본문 요약 압축 · draft 압축 · `event` 의 `DETACH` 는 2026-09-02 재검토 트리거를 그대로 기다린다. 마이그레이션은 없다.
 >
@@ -210,7 +212,7 @@ CREATE EXTENSION IF NOT EXISTS vector;    -- pgvector — 임베딩 HNSW (§2.15
 CREATE TYPE user_state              AS ENUM ('invited', 'active', 'disabled');
 CREATE TYPE member_role             AS ENUM ('admin', 'planner', 'designer', 'developer', 'qa', 'viewer');
 CREATE TYPE spec_type               AS ENUM ('vision', 'area', 'feature', 'design', 'convention', 'adr');
-CREATE TYPE spec_version_status     AS ENUM ('draft', 'in_review', 'approved', 'superseded', 'deprecated');
+CREATE TYPE spec_version_status     AS ENUM ('draft', 'in_review', 'approved', 'superseded', 'deprecated', 'discarded'); -- 'discarded' 0053 · 버린 초안(REQ-DB-048)
 CREATE TYPE requirement_priority    AS ENUM ('must', 'should', 'could');
 CREATE TYPE impl_status             AS ENUM ('unimplemented', 'in_progress', 'implemented', 'verified');
 CREATE TYPE impl_status_source      AS ENUM ('derived', 'import');  -- 0051 · 그 값을 누가 정했나(REQ-DB-044)
@@ -260,6 +262,8 @@ CREATE TYPE escalate_reason         AS ENUM ('no', 'spec', 'user-decision', 'inf
 CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass', 'finding');
 -- 'finding' 추가 2026-08-23(마이그레이션 0004) — `nerv_finding_resolve(critical → dismissed/wont_fix)`는
 -- A3라 사람의 받은 요청을 거치는데(agent-integration §2.3), 그 카드가 붙을 자리가 열거에 없었다.
+-- 'change_request' 는 쓰지 않는다(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 'spec_version' 이 받는다.
+-- 값은 지우지 않는다: enum 값을 지우는 마이그레이션은 타입을 다시 만들어야 해 위험만 있고 얻는 것이 없다.
 -- 리뷰 표면이 Phase 2라 빠져 있던 것이고, FR-09 착수(scope.md §5)로 필요해졌다.
 CREATE TYPE approval_decision       AS ENUM ('approve', 'reject', 'comment');
 CREATE TYPE question_urgency        AS ENUM ('blocking', 'normal');
@@ -556,6 +560,7 @@ CREATE TABLE change_request (
   id                    uuid PRIMARY KEY,
   project_id            uuid NOT NULL REFERENCES project(id),
   spec_id               uuid NOT NULL REFERENCES spec(id),
+  key                   text NOT NULL,                              -- 표시 키 <PRJ>-C-XXXXXX(0053 · REQ-DB-048)
   base_version_id       uuid NOT NULL REFERENCES spec_version(id), -- 어느 approved에 대한 변경인가
   proposed_version_id   uuid NOT NULL REFERENCES spec_version(id), -- 제안을 담은 draft
   title                 text NOT NULL,
@@ -563,6 +568,7 @@ CREATE TABLE change_request (
   status                change_request_status NOT NULL DEFAULT 'open',
   risk                  change_risk NOT NULL DEFAULT 'normal',      -- 저위험 자동 통과(D-06)
   origin                change_origin NOT NULL DEFAULT 'human',     -- spec_drift = 역류 경로
+  planned_actions       jsonb NOT NULL DEFAULT '{}',                -- 승인하며 함께 할 일(0053 · 사람이 고른 제안)
   created_by_user_id    uuid NOT NULL REFERENCES "user"(id),
   created_by_session_id uuid REFERENCES agent_session(id),
   decided_at            timestamptz,
@@ -1055,6 +1061,10 @@ CREATE INDEX spec_tree ON spec (project_id, parent_id, sort_key);               
 CREATE INDEX spec_version_spec_status ON spec_version (spec_id, status);           -- 최신 approved 조회
 CREATE INDEX requirement_spec_impl ON requirement (spec_id, impl_status);          -- 커버리지 집계(§4.1)
 CREATE INDEX spec_comment_open ON spec_comment (spec_id, status);                  -- 보조: open 코멘트 수
+CREATE UNIQUE INDEX change_request_key_uq ON change_request (project_id, key);     -- CR 표시 키(0053 · REQ-DB-048)
+CREATE UNIQUE INDEX change_request_proposed_uq ON change_request (proposed_version_id); -- 초안마다 CR 하나
+CREATE UNIQUE INDEX change_request_spec_open_uq ON change_request (spec_id)
+  WHERE status IN ('open', 'in_review');                                          -- 문서마다 열린 CR 하나
 
 -- 검색 — data-model §5.3(하이브리드)의 렉시컬 축. 파이프라인 정본은 4.4 §2.2b.
 -- ① FTS: 영문·고정 ID 토큰. title은 spec에 있으므로 두 인덱스로 나눈다(본문은 버전, 제목은 노드).
@@ -1393,6 +1403,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-043 | WHEN 사람이 이메일 바꾸기를 요청하면 THE SYSTEM SHALL `email_kind` 의 세 값(`change_email_approve` 옛 주소의 승인 · `change_email_confirm` 새 주소의 확인 · `email_changed` 바뀐 뒤 옛 주소로 가는 알림)으로 메일을 줄 세우고, 대기 중인 요청을 `auth_verification` 의 `change-email:<사용자 id>` 한 줄(값은 JSON — 새 주소 · 단계 · 지금 살아 있는 링크 토큰의 SHA-256, 만료는 링크와 같다)로, 사람마다 세는 시도를 `change-email-attempt:<사용자 id>` 줄(시도마다 하나 · 1분 뒤 만료)로 둔다. 새 요청은 그 사람의 대기 줄을 갈아 끼우고, 끝난 요청의 줄은 지운다. 새 표는 없다(마이그레이션 `0050` · [4.4 API 명세](api.md) REQ-API-310 · 2026-10-15 사람 결정) |
 | REQ-DB-044 | WHEN 임포터가 새 요구사항을 만들면 THE SYSTEM SHALL `requirement.impl_status_source`(`impl_status_source` — `derived`·`import` · NOT NULL · 기본 `derived`)에 `import` 를 남기고, WHEN 파생이 구현 상태를 다시 쓰면 THE SYSTEM SHALL 같은 쓰기에서 `derived` 로 바꾼다. 다른 쓰기(승인의 요구사항 동기화 · 다시 임포트 · 빠진 행 채우기)는 이 열을 건드리지 않는다. 이 열이 생기기 전의 행은 임포터가 만들었고(들어온 버전에 `requirement_version` 의 `added` 줄이 있다) 보관하지 않은 작업이 없는 것만 `import` 이고 나머지는 `derived` 다(마이그레이션 `0051` · [4.4 API 명세](api.md) REQ-API-312 · 2026-10-15 사람 결정 ④). 검증은 L2 `migrate.spec.ts`(있던 행 채우기 · 멱등)와 `coverage-drilldown.spec.ts` 다 |
 | REQ-DB-045 | WHEN 작업의 증적을 찾으면(done 게이트 · 구현 축의 작업 최신 `commit` 증적 — [4.4 API 명세](api.md) REQ-API-314 · 315, 작업의 증적 목록 · 수 · 웹훅 dedup) THE SYSTEM SHALL `evidence_task`(`task_id, created_at, id` · `WHERE task_id IS NOT NULL`)로 그 작업의 행만 읽고 표 전체를 훑지 않는다. 오름차순으로 두어 최신 커밋의 `ORDER BY created_at DESC, id DESC` 는 거꾸로 읽을 수 있다(마이그레이션 `0052` · 2026-10-15). 검증은 L2 `commit-scope.spec.ts`(인덱스 정의 · 순차 스캔을 끈 계획이 이 인덱스를 쓴다)다 |
+| REQ-DB-048 | WHEN 승인본이 있는 문서에 새 초안이 생겨 변경 요청(CR)을 만들면 THE SYSTEM SHALL 그 행의 `change_request.key` 에 표시 키 `<PRJ>-C-XXXXXX`(씨앗은 그 행의 UUID)를 넣고 `change_request_key_uq`(`project_id, key`)로 프로젝트 안의 유일함을 지키며, `change_request_proposed_uq`(`proposed_version_id`)로 초안마다 CR 하나를, `change_request_spec_open_uq`(`spec_id` · `WHERE status IN ('open', 'in_review')`)로 문서마다 열린 CR 하나를 지킨다. WHEN CR을 거절하거나 철회하면 THE SYSTEM SHALL 그 초안의 `spec_version.status` 를 `discarded` 로 바꾸고 행을 지우지 않는다. 승인하며 함께 할 일은 `planned_actions`(jsonb · NOT NULL · 기본 `{}`)에 남긴다. 마이그레이션 `0053` 은 있던 CR 행의 키를 같은 식으로 채운다(2026-10-16 · 사람 결정 D1 · D2) |
 
 ---
 

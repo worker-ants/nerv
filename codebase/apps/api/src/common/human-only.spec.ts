@@ -19,6 +19,7 @@ const ACTIONS: HumanOnlyAction[] = [
   'steer',
   'baseline',
   'token_issue',
+  'cr_reject',
 ];
 
 describe('assertHuman — 가르는 축은 isAgent 하나다', () => {

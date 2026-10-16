@@ -35,7 +35,7 @@ import {
   SELF_APPROVAL_ROLES,
   waivableReviewKinds,
 } from '@nerv/schema';
-import type { ApprovalInboxState, Message, NervErrorCode } from '@nerv/schema';
+import type { ApprovalInboxState, CrActions, Message, NervErrorCode } from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -71,6 +71,7 @@ import type { Actor } from '../../common/human-only.js';
 import { EventService } from '../event/event.service.js';
 import { closeRequestNotifications } from '../event/request-notifications.js';
 import { SpecService } from '../spec/spec.service.js';
+import { changeRequestImpact, planChangeRequestInTx } from '../spec/change-request.service.js';
 import { AuthService } from '../auth/auth.service.js';
 
 export type ApprovalDecision = 'approve' | 'reject' | 'comment';
@@ -123,6 +124,9 @@ export interface DecideResult {
  * 여기도 함께 늘어야 하고, 손으로 적은 목록은 그때 조용히 옛 어휘로 남는다.
  */
 const BULK_DECISIONS = approvalDecision.enumValues.filter((d) => d !== 'comment');
+
+/** CR 카드가 그리는 델타 줄 수 — 나머지는 CR 상세에서 본다(ui-wireframes §2.7 ⑥) */
+const CR_CARD_DELTA_LINES = 5;
 
 /**
  * 대기의 첫째 키 — **누를 수 있는 것이 먼저**다(2026-09-25 · REQ-API-184 · 사람 결정 D2).
@@ -813,9 +817,15 @@ export class ApprovalService {
              gate.payload->'gate_evidence' AS gate_evidence,
              -- 직전 버전과 견준 크기 · 제목 · 요구사항(2026-10-08 · REQ-API-271) — 이 칸이 생기기 전의 요청은 NULL
              gate.payload->'body_change' AS body_change,
+             -- **이 버전을 감싼 변경 요청**(2026-10-16 · 사람 결정 D1 · REQ-API-331) — 있으면 카드가 CR 카드가 된다. 결재는
+             -- 그대로 이 한 장이다(같은 결재를 두 카드로 보이지 않는다)
+             cr.id AS cr_id, cr.key AS cr_key, cr.status::text AS cr_status,
+             crb.version_no AS cr_base_version_no, cr.planned_actions AS cr_planned_actions,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
         ${approvalFrom}
         JOIN "user" u ON u.id = a.requested_by_user_id
+   LEFT JOIN change_request cr ON a.subject_type = 'spec_version' AND cr.proposed_version_id = a.subject_id
+   LEFT JOIN spec_version crb ON crb.id = cr.base_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN agent_session rs ON rs.id = a.requested_by_session_id
    LEFT JOIN task pt ON pt.id = a.subject_id AND a.subject_type = 'plan'
@@ -830,6 +840,10 @@ export class ApprovalService {
        ORDER BY ${orderBy}
        LIMIT ${limit + 1}
     `);
+
+    // **CR 카드의 델타와 영향**(REQ-API-331 · spec-workflow §6.4 — 승인 카드에 반드시 보이는 것). 대기 카드만 센다 — 끝난
+    // 카드에는 키만 있으면 된다(무엇을 결정했는지는 CR 상세가 그때의 기록으로 보인다)
+    if (!decided && !expired) await this.withChangeRequestSummary(approvals);
 
     if (decided || expired) {
       const { rows: counted } = await this.db.execute<{ total: number }>(sql`
@@ -928,6 +942,61 @@ export class ApprovalService {
         : null;
     for (const row of items) delete row['cursor_at'];
     return { items, next_cursor: next, total };
+  }
+
+  /**
+   * **CR 카드의 요약**(2026-10-16 · REQ-API-331) — 델타의 수와 앞의 몇 줄 · 영향의 수 · 고른 제안의 수. 판정은 CR 서비스의
+   * 영향 함수 한 곳이다(CR 상세 · EP-SPEC-31 과 같은 값). 한 쪽(쪽 상한)만큼만 센다.
+   */
+  private async withChangeRequestSummary(cards: Record<string, unknown>[]): Promise<void> {
+    for (const card of cards) {
+      if (typeof card['cr_id'] !== 'string') continue;
+      const { rows } = await this.db.execute<{ base_version_id: string; spec_id: string }>(sql`
+        SELECT base_version_id, spec_id FROM change_request WHERE id = ${card['cr_id']}
+      `);
+      const cr = rows[0];
+      if (cr === undefined) continue;
+      const impact = await changeRequestImpact(this.db, {
+        projectId: String(card['project_id']),
+        specId: cr.spec_id,
+        baseVersionId: cr.base_version_id,
+        proposedVersionId: String(card['subject_id']),
+      });
+      const items = [
+        ...impact.delta.added.map((d) => ({ kind: 'added', ref: d.ref, statement: d.statement })),
+        ...impact.delta.modified.map((d) => ({ kind: 'modified', ref: d.ref, statement: d.after })),
+        ...impact.delta.removed.map((d) => ({
+          kind: 'removed',
+          ref: d.ref,
+          statement: d.statement,
+        })),
+      ];
+      const planned = (card['cr_planned_actions'] ?? {}) as Record<string, unknown>;
+      const count = (v: unknown): number => (Array.isArray(v) ? v.length : 0);
+      card['cr_delta'] = {
+        added: impact.counts.added,
+        modified: impact.counts.modified,
+        removed: impact.counts.removed,
+        // 카드는 앞의 다섯 줄만 그린다 — 나머지는 CR 상세의 델타다
+        items: items.slice(0, CR_CARD_DELTA_LINES),
+      };
+      card['cr_impact'] = {
+        tasks: impact.counts.tasks,
+        claims: impact.counts.claims,
+        affected_claims: impact.counts.affected_claims,
+        referencing: impact.counts.referencing,
+        suggestions:
+          impact.suggestions.derive.length +
+          impact.suggestions.reverify.length +
+          impact.suggestions.cancel.length,
+      };
+      card['cr_planned'] = {
+        derive: count(planned['derive']),
+        reverify: count(planned['reverify']),
+        cancel: count(planned['cancel']),
+      };
+      delete card['cr_planned_actions'];
+    }
   }
 
   /** EP-APR-02 — 카드 하나의 전량(대상 원문 포함). 결정 화면이 이걸로 렌더한다. */
@@ -1049,6 +1118,8 @@ export class ApprovalService {
      * 반사적 승인(OWASP ASI09 가 지목한 consent fatigue)은 감사에서 단건과 구별되지 않는다.
      */
     batchId?: string;
+    /** 변경 요청 승인과 함께 할 일(2026-10-16 · REQ-API-330) — 승인 결정에서만 받는다 */
+    crActions?: CrActions | null;
   }): Promise<DecideResult> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     const decision = assertVocab([input.decision], approvalDecision.enumValues, 'decision')[0];
@@ -1080,9 +1151,19 @@ export class ApprovalService {
       direct?: boolean;
       /** 에이전트 세션에서 사람이 대답으로 승인했으면 그 세션(REQ-API-291) */
       viaSessionId?: string | null;
+      /** 변경 요청 승인과 함께 할 일(REQ-API-330) */
+      crActions?: CrActions | null;
     },
   ): Promise<DecideResult> {
     const decision = input.decision;
+    // **고른 제안은 승인에만 붙는다** — 거절 · 코멘트에 실려 오면 조용히 버리지 않고 거절한다(§1.4e)
+    if (input.crActions != null && decision !== 'approve') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.cr.actions_without_cr'), {
+        kind: 'invalid_input',
+        field: 'cr_actions',
+        reason: 'not_approve',
+      });
+    }
     const { rows } = await tx.execute<{
       id: string;
       subject_type: string;
@@ -1222,6 +1303,18 @@ export class ApprovalService {
     //
     // **같은 트랜잭션이다.** 웹이 두 번 부르게 하면 그 사이의 실패가 정확히 이 상태를
     // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
+    // **고른 제안을 CR 에 남긴다**(2026-10-16 · REQ-API-330) — 정족수가 차기 전의 승인이 고른 것도 남아 마지막 승인이 그것을
+    // 한다. 문서를 옮기기(아래) 전에 남겨야 이 승인이 정족수를 채울 때 바로 쓰인다
+    if (input.crActions != null) {
+      if (approval.subject_type !== 'spec_version') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.cr.actions_without_cr'), {
+          kind: 'invalid_input',
+          field: 'cr_actions',
+          reason: 'no_change_request',
+        });
+      }
+      await planChangeRequestInTx(tx, approval.subject_id, input.crActions);
+    }
     const quorum = await this.applyToSubject(tx, emit, input, approval);
 
     // **결정을 요청한 세션에게 돌려준다**(2026-09-07 · REQ-API-133 · FR-11).
@@ -1451,6 +1544,8 @@ export class ApprovalService {
     sessionId?: string | null;
     /** 일괄의 한 건인가(EP-SPEC-28) */
     batchId?: string;
+    /** 초안이 변경 요청이면 승인과 함께 할 일(2026-10-16 · REQ-API-330) */
+    crActions?: CrActions | null;
   }): Promise<DirectApproveResult> {
     const viaSessionId = input.surface === 'mcp' ? (input.sessionId ?? null) : null;
     // 도구로 온 승인은 **세션을 거쳤다는 사실**이 남아야 한다 — 없으면 감사가 사람이 화면에서 누른 것으로 읽는다
@@ -1521,6 +1616,10 @@ export class ApprovalService {
         });
       }
 
+      // 고른 제안을 먼저 남긴다 — 자동 통과(T0 · T1)면 아래 제출이 곧 승인이라 그 자리에서 쓰인다(REQ-API-330)
+      if (input.crActions != null) {
+        await planChangeRequestInTx(tx, input.specVersionId, input.crActions);
+      }
       if (version.status === 'draft') {
         const submitted = await this.specs.submitInTx(tx, emit, {
           projectId: input.projectId,
@@ -2174,7 +2273,9 @@ export class ApprovalService {
       const { rows: counted } = await tx.execute<{ required: number; given: number }>(
         quorumSql(specVersionId, doc.submitted_at),
       );
-      if (!(await this.specs.expireInTxForApproval(tx, { projectId, specVersionId }))) return false;
+      if (!(await this.specs.expireInTxForApproval(tx, emit, { projectId, specVersionId }))) {
+        return false;
+      }
       const ids = slots.map((slot) => slot.id);
       // 끝난 요청의 그림자 알림(요청 · 리마인더 · 지연)을 함께 닫는다 — 결정과 같은 규율이다(REQ-API-176)
       for (const id of ids) await closeRequestNotifications(tx, 'approval', id);

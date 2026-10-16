@@ -479,6 +479,33 @@ export function useSpecDiff(
   });
 }
 
+/**
+ * EP-CR-02 — 변경 요청 한 건과 영향 미리보기(2026-10-16 · 사람 결정 D1 · REQ-WEB-320). 키든 UUID 든 받는다 — 화면의 주소는
+ * 표시 키다.
+ */
+export function useChangeRequest(slug: string, crKey: string): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: queryKeys.changeRequest(crKey),
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/crs/${encodeURIComponent(crKey)}`),
+    enabled: slug !== '' && crKey !== '',
+  });
+}
+
+/**
+ * EP-SPEC-31 — 초안 · 검토 중인 버전의 영향 미리보기(REQ-API-329). 스펙 화면의 검토 요청 · 바로 승인 창이 연 동안만 읽는다
+ */
+export function useSpecImpact(
+  slug: string,
+  versionId: string | null,
+  enabled: boolean,
+): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: ['spec-version', versionId, 'impact'],
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/spec-versions/${versionId ?? ''}/impact`),
+    enabled: enabled && versionId !== null && versionId !== '',
+  });
+}
+
 /** 스펙 첨부 — 디자인 시안 등(REQ-WEB-125) */
 export function useSpecAttachments(slug: string, specKey: string): UseQueryResult<Row[]> {
   return useQuery({

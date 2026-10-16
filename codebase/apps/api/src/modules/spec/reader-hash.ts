@@ -52,13 +52,13 @@ export async function readerVersion(db: Tx | NervDb, specId: string): Promise<Ve
 }
 
 /**
- * 번호가 가장 큰 버전 — 최신 기준으로 읽은 사람이 받은 버전이다(REQ-API-193).
+ * 번호가 가장 큰 버전 — 최신 기준으로 읽은 사람이 받은 버전이다(REQ-API-193). 버린 초안은 건너뛴다(2026-10-16).
  * 관계 선언은 이 지문도 받는다(2026-09-27 사람 결정 M13 · REQ-API-205).
  */
 export async function latestVersion(db: Tx | NervDb, specId: string): Promise<VersionRef | null> {
   const { rows } = await db.execute<VersionRef>(sql`
     SELECT id, version_no, status::text AS status, encode(content_hash, 'hex') AS content_hash
-      FROM spec_version WHERE spec_id = ${specId}
+      FROM spec_version WHERE spec_id = ${specId} AND status <> 'discarded'
      ORDER BY version_no DESC LIMIT 1
   `);
   return rows[0] ?? null;

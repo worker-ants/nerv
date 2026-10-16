@@ -151,8 +151,12 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
   });
 
   it('화면 없는 이벤트는 빈 배열을 준다 — 모르는 이벤트로 화면을 흔들지 않는다', () => {
-    const p2 = NERV_EVENT_PHASE2.CR_OPENED as unknown as NervEventName;
-    expect(invalidationKeysFor(envelope(p2))).toEqual([]);
+    // 마지막으로 남았던 `cr.opened` 가 2026-10-16 CR 상세와 함께 매핑을 얻었다 — 모르는 이름으로 본다
+    const unknown = 'nothing.happened' as unknown as NervEventName;
+    expect(invalidationKeysFor(envelope(unknown))).toEqual([]);
+    expect(invalidationKeysFor(envelope(NERV_EVENT_PHASE2.CR_OPENED))).toContainEqual(
+      queryKeys.changeRequest('sub-1'),
+    );
     // 예외는 **의도한 공백**이다: 매핑을 가진 채로 목록에 있으면 둘 중 하나가 낡은 것이다
     const mapped = new Set(mappedEventNames());
     for (const name of NO_SCREEN_YET) expect(mapped.has(name)).toBe(false);
@@ -195,8 +199,8 @@ describe('공통 규칙 — 피드 · 커버리지 · 머리 (REQ-WEB-219)', () 
       expect(sharedKeysFor(envelope(name)), name).toContainEqual(queryKeys.projectEvents(PRJ));
     }
     // 화면 없는 이벤트로는 흔들지 않는다
-    const p2 = NERV_EVENT_PHASE2.CR_OPENED as unknown as NervEventName;
-    expect(sharedKeysFor(envelope(p2))).toEqual([]);
+    const unknown = 'nothing.happened' as unknown as NervEventName;
+    expect(sharedKeysFor(envelope(unknown))).toEqual([]);
   });
 
   it('스펙 승인·작업 완료는 커버리지도 되읽는다 — 증적에만 걸려 있었다', () => {

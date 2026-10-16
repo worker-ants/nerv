@@ -410,11 +410,23 @@ export const ROLE_QUEUE_REVIEW_THRESHOLD = 0.3;
  * 알파벳은 Crockford base32(`I`·`L`·`O`·`U` 제외)다 — `keys.ts` 의 BASE32 와 같은 집합이고,
  * `display-key.spec.ts` 가 둘이 어긋나지 않는지 본다.
  */
-export const DISPLAY_KEY_PATTERN = '\\b[A-Z][A-Z0-9]{1,9}-[TS]-[0-9A-HJKMNP-TV-Z]{6}\\b';
+export const DISPLAY_KEY_PATTERN = '\\b[A-Z][A-Z0-9]{1,9}-[TSC]-[0-9A-HJKMNP-TV-Z]{6}\\b';
+
+/**
+ * 표시 키의 **타입 문자 자리**(`[TSC]`) — 한 종류만 찾을 때 이 자리를 그 글자로 바꾼다. 타입 문자가 늘 때
+ * (2026-10-16 — `C` 변경 요청) 찾는 쪽이 옛 자리(`[TS]`)를 바꾸려다 아무것도 바꾸지 못하고 모든 종류를 찾는 일이 없게
+ * 자리를 한 곳에 둔다.
+ */
+const DISPLAY_KEY_TYPE_SLOT = '[TSC]';
+
+/** 한 종류의 표시 키를 찾는 정규식 원문 — `C` 면 변경 요청 키만 */
+export function displayKeyPatternOf(type: 'T' | 'S' | 'C'): string {
+  return DISPLAY_KEY_PATTERN.replace(DISPLAY_KEY_TYPE_SLOT, type);
+}
 
 /** 텍스트에서 Task 표시 키 하나를 찾는다(대문자만 — 사람이 소문자로 적으면 못 찾는다). */
 export function findTaskKey(text: string): string | null {
-  const re = new RegExp(DISPLAY_KEY_PATTERN.replace('[TS]', 'T'));
+  const re = new RegExp(displayKeyPatternOf('T'));
   return re.exec(text)?.[0] ?? null;
 }
 

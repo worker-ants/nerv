@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.18 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.19 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.19 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **`spec` 스킬 한 항목 · `impl` 스킬 한 단락 · 패키지 0.3.33 → 0.3.34.** 승인본이 있는 문서의 초안은 서버가 변경 요청(CR)으로 연다 — `spec` 스킬이 저장 응답의 `change_request`(키 · 상태 · 웹 주소)를 사람에게 함께 보고하고, 승인하며 함께 할 일은 사람이 그 화면에서 고른다고 말한다. `impl` 스킬은 하트비트의 `basis_superseded` 줄에 붙는 `requirement_removed: true`(그 작업의 요구사항이 새 승인본에서 빠졌다)를 중단 확인 요청으로 읽는다 — 이어 구현하지 않고 `blocked(spec_conflict)`로 멈춘 뒤 사람에게 묻는다([4.4 API](api.md) REQ-API-330).
 >
 > v1.18 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **§3.3 한 항목 · 패키지 0.3.33 그대로.** `X-NERV-Plugin`의 Codex 항목이 "활성화 현황은 여전히 Claude Code 세션만 센다"고 적었다 — 이제 두 종류를 따로 센다([4.4 API](api.md) REQ-API-168).
 >
@@ -223,7 +225,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.33
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.34
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -250,7 +252,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.33",
+  "version": "0.3.34",
   "license": "Apache-2.0"
 }
 ```
@@ -510,6 +512,10 @@ allowed-tools:
   남으므로 새 저장이 옛 요약을 달고 있게 된다.
 - 응답의 `delta` 는 요구사항(added·modified·removed)과 줄 수다. **사람에게 그대로 보고한다** —
   에이전트가 무엇을 고쳤다고 말하는 것과 서버가 실제로 받은 것이 다르면 그 자리에서 드러난다.
+- **승인본이 있는 문서의 초안은 변경 요청(CR)이다.** 서버가 저장할 때 연다 — 응답의 `change_request`
+  (`key`·`status`·`web_url`)를 사람에게 함께 보고한다. 승인하며 무엇을 함께 할지(파생 · 재검증 작업 ·
+  미착수 작업 보관)는 사람이 그 `web_url` 에서 고른다. 거절되거나 철회된 초안은 버려지고(`discarded`)
+  다음 저장이 새 초안 · 새 CR 이 된다 — 버린 초안을 다시 살리려 하지 않는다.
 
 정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
 
@@ -800,6 +806,9 @@ allowed-tools:
     달리 기준 드리프트는 사람이 재브리핑할 때까지 남는 **상태**라 매 하트비트에 다시 온다.
     기준선으로 개발하는 작업에는 이 항목이 오지 않는다 — 세트가 약속이고, 옮기는 것은 사람이
     기준선째 옮긴다. 구현 중에 스펙을 더 읽을 때도 /nerv:next 6단계처럼 `task` 를 넘긴다.
+    **`requirement_removed: true` 면 중단 확인 요청이다** — 이 작업의 요구사항(`requirement_ref`)이 새
+    승인본에서 빠졌다. 이어 구현하지 않는다. 지금까지를 안전 지점까지 정리하고 `nerv_task_update`(`status=blocked`,
+    `blocked_reason=spec_conflict`)로 멈춘 뒤 사람에게 그 요구사항이 빠졌다고 보고하고 계속할지 묻는다.
 - statusline 이 읽을 요약을 `.nerv/cache/claim.json` 에 **응답의 키 이름 그대로** 기록한다.
   값의 출처가 응답마다 다르다: `task_id`·`claim_id` 는 **클레임 응답**에서, `status` 는 마지막
   `nerv_task_update` 응답에서, `lease_expires_at`·`scope_overlaps` 는 **하트비트 응답**에서 —

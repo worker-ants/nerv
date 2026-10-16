@@ -66,6 +66,20 @@ const sessionAxis: KeyBuilder = (e) => [
   queryKeys.session(e.subject_id),
 ];
 const inboxAxis: KeyBuilder = () => [queryKeys.inbox()];
+/**
+ * **변경 요청 축**(2026-10-16 · REQ-WEB-320). 봉투의 `subject_key` 는 CR 키라 그 CR 화면을 다시 읽는다. 봉투에 스펙 키는
+ * 없으므로(D-14 — 본문 없음) 스펙 화면은 접두 `['spec']` 로 함께 낡힌다 — 거절 · 철회는 초안을 버리고, 승인은 문서를
+ * 옮긴다. CR 이벤트는 드물어 넓게 무효화해도 비용이 작다. 받은 요청의 CR 카드도 다시 읽는다.
+ */
+const crAxis: KeyBuilder = (e) => [
+  queryKeys.changeRequest(e.subject_key ?? e.subject_id),
+  ['spec'],
+  queryKeys.projectSpecTree(e.project_id),
+  queryKeys.projectSpecGraph(e.project_id),
+  queryKeys.projectApprovableDrafts(e.project_id),
+  queryKeys.inbox(),
+  queryKeys.projectEvents(e.project_id),
+];
 
 const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.SPEC_DRAFT_CREATED]: specAxis,
@@ -222,16 +236,25 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
     queryKeys.projectFindings(e.project_id),
     queryKeys.projectGateCoverage(e.project_id),
   ],
+
+  // 변경 요청(2026-10-16 · REQ-WEB-320) — 화면은 CR 상세 · 받은 요청의 CR 카드 · 스펙 화면이다. 승인에 딸린 작업 생성 · 보관은
+  // 그 작업의 이벤트가 따로 무효화한다
+  [P2.CR_OPENED]: crAxis,
+  [P2.CR_SUBMITTED]: crAxis,
+  [P2.CR_REOPENED]: crAxis,
+  [P2.CR_APPROVED]: crAxis,
+  [P2.CR_REJECTED]: crAxis,
+  [P2.CR_WITHDRAWN]: crAxis,
 };
 
 /**
  * **아직 화면이 없는 이벤트.** 매핑이 빠진 것과 구분하려고 이름을 적어 둔다.
  *
  * 목록으로 두는 이유는 하나다: **잊어서 빈 것과 알고 비운 것은 다르다.**
- * `finding.*` 는 2026-08-23 S6 리뷰 센터가 생기면서 여기서 빠지고 `MAP` 으로 옮겨갔다 —
- * 남은 것은 `cr.opened` 뿐이고, CR 델타 화면(FR-04)은 Phase 2 의 다른 조각이다.
+ * `finding.*` 는 2026-08-23 S6 리뷰 센터가 생기면서 여기서 빠지고 `MAP` 으로 옮겨갔다. 마지막으로 남았던 `cr.opened` 도
+ * 2026-10-16 CR 상세(`/p/:proj/crs/:cr`)가 생기면서 옮겨 갔다 — 지금은 비어 있다.
  */
-export const NO_SCREEN_YET: readonly NervEventName[] = [P2.CR_OPENED];
+export const NO_SCREEN_YET: readonly NervEventName[] = [];
 
 /**
  * **프로젝트의 머리가 세는 수를 바꾸는 이벤트**(2026-09-25 — UI/UX 검토 HUB-X2 · REQ-WEB-219).

@@ -30,6 +30,8 @@ interface RawReply {
 import {
   BaselineCreateInput,
   CommentCreateInput,
+  CrRejectInput,
+  CrWithdrawInput,
   CommentResolveInput,
   CommentUpdateInput,
   EvidenceCreateInput,
@@ -59,6 +61,7 @@ import { StorageService } from '../../common/storage.service.js';
 import { finiteList } from '../../common/cursor.js';
 import { SpecService } from './spec.service.js';
 import type { SpecGraphEdge, SpecTreeNode } from './spec.service.js';
+import { ChangeRequestService } from './change-request.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
@@ -72,7 +75,77 @@ export class SpecController {
     // 이름 끝의 `_` 는 위의 `attachments()` 메서드와 부딪히지 않게 하려는 것이다
     private readonly attachments_: AttachmentService,
     private readonly storage: StorageService,
+    private readonly changeRequests: ChangeRequestService,
   ) {}
+
+  // ── 변경 요청(CR) — api.md §2.2d · 2026-10-16 사람 결정 D1 · D2 ───────────────────────────
+
+  /** EP-CR-01 — 프로젝트의 변경 요청. `status`(쉼표 목록) · `spec`(키 또는 UUID)으로 좁힌다 */
+  @RequireScope('spec:read')
+  @Get('crs')
+  listChangeRequests(
+    @Req() req: ProjectRequest,
+    @Query('status') status?: string,
+    @Query('spec') spec?: string,
+  ): Promise<unknown> {
+    return this.changeRequests.list({
+      projectId: projectOf(req),
+      status: status ?? null,
+      spec: spec ?? null,
+    });
+  }
+
+  /** EP-CR-02 — 단건(키 또는 UUID) · 영향 미리보기를 함께 준다 */
+  @RequireScope('spec:read')
+  @Get('crs/:cr')
+  getChangeRequest(@Req() req: ProjectRequest, @Param('cr') cr: string): Promise<unknown> {
+    return this.changeRequests.get({ projectId: projectOf(req), ref: cr });
+  }
+
+  /** EP-CR-03 — 거절. planner · admin · 사람 전용 — 판정은 서비스가 한다(D-05) */
+  @RequireScope('spec:draft')
+  @Post('crs/:cr/reject')
+  rejectChangeRequest(
+    @Req() req: ProjectRequest,
+    @Param('cr') cr: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const input = parseBody(CrRejectInput, body ?? {});
+    return this.changeRequests.reject({
+      projectId: projectOf(req),
+      ref: cr,
+      actor: actorOf(req),
+      roles: principalOf(req).roles,
+      reason: input.reason,
+    });
+  }
+
+  /** EP-CR-04 — 철회. 그 CR 을 연 사람이나 초안의 작성자 */
+  @RequireScope('spec:draft')
+  @Post('crs/:cr/withdraw')
+  withdrawChangeRequest(
+    @Req() req: ProjectRequest,
+    @Param('cr') cr: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const input = parseBody(CrWithdrawInput, body ?? {});
+    const principal = actorOf(req);
+    return this.changeRequests.withdraw({
+      projectId: projectOf(req),
+      ref: cr,
+      userId: principal.userId,
+      sessionId: null,
+      isAgent: principal.isAgent,
+      reason: input.reason ?? null,
+    });
+  }
+
+  /** EP-SPEC-31 — 영향 미리보기. 초안 · 검토 중인 버전이 승인되면 세 축이 어떻게 움직이나(REQ-API-329) */
+  @RequireScope('spec:read')
+  @Get('spec-versions/:ver/impact')
+  impact(@Req() req: ProjectRequest, @Param('ver') ver: string): Promise<unknown> {
+    return this.changeRequests.impactOfVersion({ projectId: projectOf(req), specVersionId: ver });
+  }
 
   /**
    * EP-SPEC-01 — `SpecTreeQuery(root, depth, status, type, include_archived)`.

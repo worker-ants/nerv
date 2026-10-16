@@ -40,7 +40,9 @@ export type HumanOnlyAction =
   | 'bypass'
   | 'steer'
   | 'baseline'
-  | 'token_issue';
+  | 'token_issue'
+  /** 변경 요청 거절 — 제안을 하지 않기로 하고 초안을 버린다(2026-10-16 · REQ-API-328) */
+  | 'cr_reject';
 
 const MESSAGE = {
   project_admin: 'error.human_only.project_admin',
@@ -52,6 +54,7 @@ const MESSAGE = {
   steer: 'error.human_only.steer',
   baseline: 'error.human_only.baseline',
   token_issue: 'error.human_only.token_issue',
+  cr_reject: 'error.human_only.cr_reject',
 } as const;
 
 /**

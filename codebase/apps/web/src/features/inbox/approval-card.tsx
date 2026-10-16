@@ -634,7 +634,15 @@ export function ApprovalCard({
         )}
         <StatusBadge
           token={isQuestion ? 'waiting' : 'action'}
-          label={isQuestion ? t('inbox.card.question') : t('inbox.key.approve')}
+          label={
+            isQuestion
+              ? t('inbox.card.question')
+              : // **CR 카드**(2026-10-16 · 사람 결정 D1 · REQ-WEB-321) — 같은 결재를 두 카드로 보이지 않는다. 버전이 변경
+                // 요청이면 그 결재 카드가 곧 CR 카드다
+                typeof card['cr_key'] === 'string'
+                ? t('inbox.subject.change_request')
+                : t('inbox.key.approve')
+          }
         />
         {/* **키는 손잡이가 아니라 문이다**(2026-08-31 — 사람 요청). 예전에는 글자였을 뿐이라
             그 문서를 보려면 스펙 목록에서 손으로 찾아야 했다 */}
@@ -768,6 +776,7 @@ export function ApprovalCard({
             )}
           </p>
           <TargetLine card={card} currentOrg={currentOrg} />
+          {typeof card['cr_key'] === 'string' && <CrSummary card={card} currentOrg={currentOrg} />}
         </div>
       )}
 
@@ -1307,6 +1316,110 @@ function GateEvidenceLink({
     <CardLink orgSlug={card['org_slug']} currentOrg={currentOrg} testId="gate-evidence" {...target}>
       {label}
     </CardLink>
+  );
+}
+
+/**
+ * **CR 카드의 요약**(2026-10-16 · 사람 결정 D1 · REQ-WEB-321 · spec-workflow §6.4 — 승인 카드에 반드시 보이는 것). 요구사항 단위
+ * 델타의 수와 앞의 몇 줄(원문) · 영향(파생 작업 · 진행 중 클레임 · 참조 문서) · 승인하면 함께 할 일을 보인다. 수는 서버가 센
+ * 값이다(`cr_delta` · `cr_impact` · `cr_planned`). 고르는 것은 CR 화면에서 한다 — 카드는 그리로 가는 길이다.
+ */
+function CrSummary({
+  card,
+  currentOrg,
+}: {
+  card: Record<string, unknown>;
+  currentOrg: string | null;
+}): React.JSX.Element {
+  const t = useT();
+  const proj = String(card['project_slug'] ?? '');
+  const crKey = String(card['cr_key']);
+  const delta = (card['cr_delta'] ?? null) as Record<string, unknown> | null;
+  const impact = (card['cr_impact'] ?? null) as Record<string, number> | null;
+  const planned = (card['cr_planned'] ?? null) as Record<string, number> | null;
+  const items = Array.isArray(delta?.['items'])
+    ? (delta['items'] as Record<string, unknown>[])
+    : [];
+  const create = Number(planned?.['derive'] ?? 0) + Number(planned?.['reverify'] ?? 0);
+  const cancel = Number(planned?.['cancel'] ?? 0);
+  const suggestions = Number(impact?.['suggestions'] ?? 0);
+  return (
+    <div data-testid="cr-summary" className="flex flex-col gap-0.5">
+      <p className="flex flex-wrap items-center gap-x-2">
+        <CardLink
+          orgSlug={card['org_slug']}
+          currentOrg={currentOrg}
+          path={`/p/${proj}/crs/${crKey}`}
+          to="/p/$proj/crs/$cr"
+          params={{ proj, cr: crKey }}
+          testId="cr-link"
+        >
+          <Mono className="text-link">{crKey}</Mono>
+        </CardLink>
+        {typeof card['cr_base_version_no'] === 'number' && (
+          <span className="font-mono text-text-faint">
+            v{String(card['cr_base_version_no'])} → v{String(card['version_no'] ?? '')}
+          </span>
+        )}
+        {delta !== null && (
+          <span data-testid="cr-delta-counts">
+            {t('spec.diff.added')} {Number(delta['added'] ?? 0)} · {t('spec.diff.modified')}{' '}
+            {Number(delta['modified'] ?? 0)} · {t('spec.diff.removed')}{' '}
+            {Number(delta['removed'] ?? 0)}
+          </span>
+        )}
+      </p>
+      {items.length > 0 && (
+        <ul data-testid="cr-delta-items" className="flex flex-col gap-0.5">
+          {items.map((item) => (
+            <li key={`${String(item['kind'])}-${String(item['ref'])}`} className="flex gap-2">
+              <span
+                className={cn(
+                  'w-14 shrink-0 font-mono text-2xs',
+                  item['kind'] === 'added' && 'text-status-ok',
+                  item['kind'] === 'removed' && 'text-status-danger',
+                  item['kind'] === 'modified' && 'text-status-waiting',
+                )}
+              >
+                {t(`spec.diff.${String(item['kind'])}` as 'spec.diff.added')}
+              </span>
+              <span className="shrink-0 font-mono text-2xs text-text-faint">
+                {String(item['ref'])}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{String(item['statement'] ?? '')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {impact !== null && (
+        <p data-testid="cr-impact-line">
+          {t('inbox.card.cr_impact', {
+            tasks: Number(impact['tasks'] ?? 0),
+            claims: Number(impact['claims'] ?? 0),
+            referencing: Number(impact['referencing'] ?? 0),
+          })}
+        </p>
+      )}
+      {planned !== null && (
+        <p data-testid="cr-planned-line" className="text-text-faint">
+          {create + cancel > 0
+            ? t('inbox.card.cr_planned', { create, cancel })
+            : suggestions > 0
+              ? t('inbox.card.cr_unplanned', { n: suggestions })
+              : t('inbox.card.cr_no_suggestions')}{' '}
+          <CardLink
+            orgSlug={card['org_slug']}
+            currentOrg={currentOrg}
+            path={`/p/${proj}/crs/${crKey}`}
+            to="/p/$proj/crs/$cr"
+            params={{ proj, cr: crKey }}
+            testId="cr-open"
+          >
+            {t('inbox.card.cr_open')}
+          </CardLink>
+        </p>
+      )}
+    </div>
   );
 }
 

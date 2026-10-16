@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  CR_TOKEN,
   REQUIREMENT_TOKEN,
   SESSION_TOKEN,
   SEVERITY_TOKEN,
@@ -18,6 +19,17 @@ describe('상태 → 토큰 매핑 (screens.md §4.2)', () => {
       approved: 'ok',
       superseded: 'idle',
       deprecated: 'danger',
+      discarded: 'idle',
+    });
+  });
+
+  it('변경 요청 — 거절만 위험 색이고 열림 · 철회는 쉰 색이다', () => {
+    expect(CR_TOKEN).toEqual({
+      open: 'idle',
+      in_review: 'waiting',
+      approved: 'ok',
+      rejected: 'danger',
+      withdrawn: 'idle',
     });
   });
 

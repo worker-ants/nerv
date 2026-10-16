@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.48 · 2026-10-16 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.49 · 2026-10-16 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.49 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](../04-mvp/backlog.md) E19-S01): **§1.2 상태도와 전이 표의 `discarded` · §3.2 예시의 키 · §3.3 구현 단락 · §3.5 결정 기록 · §6.3 카탈로그 `cr.*` · §6.4 그림의 키.** 승인본이 있는 문서에 새 초안이 생기면 서버가 CR을 연다. 결재는 지금처럼 그 스펙 버전이 받고 CR 상태는 버전을 따라간다. CR 거절(planner · admin · 사유 필수)과 작성자의 철회는 그 초안을 버린다 — 새 상태 `discarded`(버린 초안)다. 승인 화면에서 영향 미리보기의 제안(파생 작업 · 재검증 작업 · 미착수 작업 보관)을 고르면 승인과 함께 서버가 한다.
 >
 > v0.48 변경(2026-10-16 — 복구 뒤 자동 동기화의 실패 보고, Phase 2 묶음 2의 둘째 · [4.8 백로그](../04-mvp/backlog.md) E21-S01): **§6.3 카탈로그 한 줄.** `session.outbox_failed`(high · 보고한 사람) — 오프라인 큐의 재전송을 서버가 거절했다([4.4 API](../04-mvp/api.md) REQ-API-322). 그 쓰기를 한 세션의 사람에게 간다 — 행위자 제외의 예외다.
 >
@@ -140,11 +142,13 @@ stateDiagram-v2
     draft --> draft: 초안 편집 · 본문 가변
     draft --> in_review: 제출 · 사전 검토 통과 · 본문 동결
     in_review --> draft: reject · 수정 요청
+    draft --> discarded: CR 거절 · 철회 — 초안을 버린다
     in_review --> approved: approve · 필수 리뷰어 충족
     approved --> superseded: 후속 버전 approved
     approved --> deprecated: 폐기 CR 승인
     superseded --> [*]
     deprecated --> [*]
+    discarded --> [*]
 ```
 
 SpecVersion은 **불변 스냅샷**이다. 가변인 구간은 `draft` 하나뿐이며, `in_review` 진입 시점에 본문이 동결되고 content hash가 확정된다. 승인된 버전을 고치는 유일한 경로는 변경 요청(CR)으로 새 draft 버전을 만드는 것이다(§3). 이것이 clemvion의 "latest-only 본문 + 이력은 git" 사상을 계승하면서, 사라졌던 승인 축을 되살리는 방법이다.
@@ -153,12 +157,15 @@ SpecVersion은 **불변 스냅샷**이다. 가변인 구간은 `draft` 하나뿐
 
 **옛 버전은 새 초안으로 되살린다**(2026-10-15 사람 결정 · 「되돌리기」). 승인본에서 뒤로 가는 전이는 위 상태도에 없다 — 대신 서버가 옛 버전(승인됨 · 대체됨 · 폐기됨)의 본문을 바이트 그대로 복사해 `→ draft` 를 만들고 그 초안은 다른 초안처럼 제출 → 판정 → 결재를 지난다. 열린 초안이 있으면 그 초안을 덮지 않고 거절한다. 규칙과 그 까닭은 §2.4 결정 기록이다([4.4](../04-mvp/api.md) REQ-API-308).
 
+**버린 초안**(2026-10-16 사람 결정 D1). 승인본이 있는 문서의 초안은 변경 요청(CR)이 감싼다(§3.5). 그 CR을 거절하거나(planner · admin · 사유 필수) CR을 연 사람이나 초안의 작성자가 철회하면 초안은 지우지 않고 `discarded` 가 된다. 문서는 승인본 상태로 돌아가고 다음 저장은 새 번호의 초안과 새 CR이다. 버린 초안은 다시 열지 않는다 — 최신 버전 · 기본 보기 · 비교의 기본 양 끝을 고를 때 세지 않고 번호는 다시 쓰지 않는다. 본문이 다시 필요하면 되돌리기로 새 초안을 만든다. 지우지 않는 까닭은 CR이 무엇을 제안했는지가 기록으로 남아야 해서다([4.4](../04-mvp/api.md) REQ-API-328).
+
 | 전이 | 트리거 | 서버 가드(전이 조건) | 실행 권한 | 발생 이벤트 |
 | --- | --- | --- | --- | --- |
-| `→ draft` | 스펙 생성, `nerv_spec_draft_upsert`, 되돌리기(2026-10-15) | 상위 스펙 노드 존재, 타입(vision/area/feature/design/convention/adr) 유효, 기존 문서의 새 버전이면 그 문서에 `in_review` 버전이 없을 것(2026-09-27), 되돌리기면 열린 초안도 없을 것(2026-10-15) | planner · designer · developer · admin · agent(위임) | `spec.draft_created` |
+| `→ draft` | 스펙 생성, `nerv_spec_draft_upsert`, 되돌리기(2026-10-15) | 상위 스펙 노드 존재, 타입(vision/area/feature/design/convention/adr) 유효, 기존 문서의 새 버전이면 그 문서에 `in_review` 버전이 없을 것(2026-09-27), 되돌리기면 열린 초안도 없을 것(2026-10-15) | planner · designer · developer · admin · agent(위임) | `spec.draft_created` — 승인본이 있는 문서의 새 초안이면 `cr.opened` 도(2026-10-16 · §3.5) |
 | `draft → in_review` | 제출, `nerv_spec_submit_review` | 사전 검토 BLOCK 없음(§2.1), 요구사항 블록 파싱 성공, 필수 리뷰어 산출 가능 | 작성자 본인 또는 planner | `spec.submitted` |
 | `in_review → draft` | reject / 수정 요청 | 리뷰어 1인 이상의 `reject` 결정 | 지정 리뷰어 | `spec.rejected` |
 | `in_review → draft` | 만료(T+7d · 2026-10-15) | 결정되지 않은 결재가 요청 뒤 7일 — 결재 행에는 결정을 쓰지 않는다(§2.6) | 서버 자동 | ★`approval.expired` |
+| `draft → discarded` | CR 거절 · 철회(2026-10-16) | 그 초안을 감싼 CR이 열림(`open`)일 것 — 검토 중이면 결재를 먼저 끝낸다(§3.5) | 거절: planner · admin(사람 전용 · 사유 필수) · 철회: CR을 연 사람 또는 초안 작성자 | `cr.rejected` · ★`cr.withdrawn` |
 | `in_review → approved` | approve | 필수 리뷰어 **전원** 승인, 지시자≠승인자(§2.3), 게이트 티어 충족(§2.4) | 지정 승인자(항상 사람) | `spec.approved` |
 | `approved → superseded` | 후속 버전 승인 | 같은 Spec 노드의 다른 버전이 approved로 전이 | 서버 자동 | `spec.superseded` |
 | `approved → deprecated` | 폐기 CR 승인 | 참조 중인 미완료 Task 0건 또는 이관 계획 첨부 | planner · admin | `spec.deprecated` |
@@ -445,7 +452,7 @@ Approval의 결정 값은 `approve · reject · comment` 세 가지다. HITL 프
 CR은 새 draft 버전 + 요구사항 단위 델타를 함께 제시한다. 리뷰어는 1,750줄 본문 전체가 아니라 델타만 본다.
 
 ```
-CR-142 · 웹챗 위젯 임베드 (spec: 7-channel-web-chat/2-embed, v3 → v4)
+CLV-C-4K9Q2M · 웹챗 위젯 임베드 (spec: 7-channel-web-chat/2-embed, v3 → v4)
 ────────────────────────────────────────────────────────────
 [ADDED]    REQ-CCH-SE-07  위젯은 세션 재개 시 마지막 30건을 복원한다
 [MODIFIED] REQ-CCH-SE-02  update dedup: "권장" → "필수", 윈도우 5s → 3s
@@ -456,6 +463,8 @@ CR-142 · 웹챗 위젯 임베드 (spec: 7-channel-web-chat/2-embed, v3 → v4)
 ```
 
 이 델타 어휘(ADDED/MODIFIED/REMOVED)는 파일 기반 SDD 도구들이 델타 스펙으로 검증한 형태이고, NERV에서는 파일 diff가 아니라 **요구사항 ID 단위**로 계산된다는 점이 다르다.
+
+CR의 표시 키는 작업과 같은 형식의 `<PRJ>-C-XXXXXX` 다(2026-10-16 사람 결정 D2 · [3.3 데이터 모델](data-model.md) §5.1). 화면은 `/p/:proj/crs/:cr` 이고 델타는 CR이 감싼 두 버전(승인본과 그 초안) 사이만 보여 준다 — 버전을 고르는 비교 화면과 같은 diff를 쓰되 양 끝이 고정이다([4.5 화면 명세](../04-mvp/screens.md) §2.4f).
 
 ### 3.3 승인 시 영향 분석과 파생 Task 재계산
 
@@ -474,6 +483,8 @@ CR 승인은 세 축을 동시에 움직인다. 서버가 아래 규칙으로 �
 **기준선으로 개발하는 작업은 재브리핑하지 않는다**(2026-09-27 사람 결정 · [4.4](../04-mvp/api.md) REQ-API-210). 작업에 기준선이 있으면 "그 세트로 개발한다" 가 약속이라, 기준 버전만 최신 approved 로 옮기면 대상 문서는 지금 것이고 주변 문서는 옛 세트가 된다. 그래서 승인이 그런 작업에 재브리핑 플래그를 남기지 않고, 재브리핑 요청은 거절된다. 세트를 옮기려면 사람이 작업의 기준선을 새 기준선으로 바꾼다 — 기준 버전도 그 세트의 핀으로 함께 간다(§3.6).
 
 **참조 문서 전파(문서 간 영향).** 위 표는 같은 문서 안의 Requirement·Task까지만 움직인다. 문서 A의 새 버전이 승인되면 서버는 `spec_relation`의 **역방향** — A를 `references`/`depends_on`/`duplicates`로 참조하는 문서들 — 을 재검토 후보로 산출해 문서마다 `spec.recheck_requested` 이벤트를 한 번 만들고(§6.3, 대상 문서 `owner_role`에게 standard 알림 · 관계 종류가 여럿이어도 한 번이고, 행위자는 승인한 사람이라 그 사람은 받지 않는다 · 2026-09-27), 그 문서의 S3 상태 패널에 "참조 스펙에 앞선 버전 존재" 배지를 표시한다. clemvion의 "네 문서가 각자 필드를 열거"·"모방한 쪽이 맞고 원본이 틀렸다" 사고의 재발 방지 장치다. 승인 트리거로 cross-spec 검사기(§2.1)를 그 문서들에 비동기 실행하는 것은 Phase 2다 — MVP는 배지 + 알림까지.
+
+**구현**(2026-10-16 · 사람 결정 D1 · [4.8 백로그](../04-mvp/backlog.md) E19-S01). 위 표의 칸이 실제로 일어나는 자리다. **미리보기**는 영향 미리보기 API(`GET …/spec-versions/{ver}/impact` · [4.4](../04-mvp/api.md) REQ-API-329)이고 CR 상세와 검토 요청 · 바로 승인 창이 같은 결과를 쓴다 — 델타와 함께 작업마다 이 승인이 하는 일(재브리핑 · 재검증 · 취소 · 중단 확인), 진행 중 클레임(세션 · 호스트), 이 문서를 참조하는 문서를 돌려준다. **제안은 사람이 고른다.** ADDED의 파생 작업, MODIFIED의 완료 작업 재검증 작업, REMOVED의 미착수 작업 취소는 미리보기에 제안으로 나오고 승인하는 사람이 체크한 것만 **승인과 같은 트랜잭션에서** 서버가 한다(파생 · 재검증 작업은 새 승인본을 기준으로 `backlog` 에 만들고, 취소는 보관 사유 `obsolete` 로 보관한다 · REQ-API-330). 기본 체크는 파생과 재검증이고 취소는 사람이 직접 고른다 — 만드는 것은 나중에 보관하면 되지만 보관은 누군가의 계획을 지운다. 고르지 않으면 아무것도 만들지 않는다. **중단 확인**은 그 세션의 다음 하트비트가 전한다 — `basis_superseded` 의 그 작업 줄에 `requirement_removed: true` 가 붙고 세션은 그 작업을 계속할지 사람에게 묻는다. **클레임 보유 세션의 critical 알림**은 `cr.approved` 가 바뀌거나 빠진 요구사항의 작업을 클레임한 사람에게 보낸다(§6.3). 표의 나머지 알림 칸은 이미 있는 이벤트가 맡는다 — 문서 승인(`spec.approved`)과 재브리핑(`task.rebrief_required`).
 
 ### 3.4 SPEC-DRIFT 역류 경로
 
@@ -494,6 +505,13 @@ Finding(tag=spec_drift, severity=warning)
 ### 3.5 CR과 문서 축의 관계
 
 CR은 자체 수명 상태(`open / in_review / approved / rejected / withdrawn`)를 갖되, **승인 판정의 진실은 대상 SpecVersion의 문서 축 상태**다. CR 상태는 제안 자체의 진행(철회·거절 포함)을 표현하고, 무엇이 승인된 기준인지는 언제나 SpecVersion이 답한다. 두 값 중 어느 쪽이 진실인지 미리 못 박아 두지 않으면, 값이 갈라지는 순간 판단이 불가능해지기 때문이다 — clemvion에서 plan frontmatter `status`와 디렉토리 위치(`in-progress/` vs `complete/`)가 두 번이나 어긋난 실패(#1108·#1117)가 그 사례다.
+
+**결정 기록 — CR은 버전을 감싸고 결재는 버전이 받는다**(2026-10-16 · 사람 결정 D1 · 권장안 A). 결재(티어 · 정족수 · 만료 · 바로 승인 · 일괄 승인)는 지금처럼 `spec_version` 이 받는다. CR 자기 결재는 만들지 않는다 — 게이트 로직을 두 벌로 만들지 않는다. 그래서 결재 대상 값 `change_request` 는 쓰지 않는 값으로 남는다([4.3 데이터베이스 스키마](../04-mvp/database.md) §2.1 — enum 값을 지우는 마이그레이션은 위험만 있고 얻는 것이 없다).
+
+- **생성.** 승인본(approved 버전)이 있는 문서에 새 초안이 생기면(초안 저장 · 되돌리기) 서버가 CR을 `open` 으로 연다. 승인본이 없는 첫 초안은 CR이 아니다 — 고칠 약속이 아직 없다. 문서마다 열린(열림 · 검토 중) CR은 하나이고 초안마다 CR은 하나다(§1.2 "가변 구간은 문서마다 하나"의 거울). 제목은 문서 제목, 이유는 초안의 변경 요약이고, 출처는 사람이면 `human` · 에이전트 세션이면 `agent` 다. 임포트는 CR을 열지 않는다([4.4](../04-mvp/api.md) REQ-API-327).
+- **상태는 버전을 따라간다.** 검토 요청 → `in_review`(위험도를 그 판정의 게이트 티어에서 채운다 — T0 · T1 `low` · T2 `normal` · T3 `high`) · 승인 → `approved` · 결재가 거절 · 코멘트 · 만료로 초안을 돌려보내면 → `open`(CR을 닫지 않는다 — 결재의 거절은 "고쳐서 다시 내라"다).
+- **CR 거절은 따로 하는 행위다.** planner · admin이 사람으로만 하고 사유가 필수다. 이 제안을 하지 않기로 하는 것이라 초안을 버린다(`discarded` — §1.2). 초안을 남기면 다음 편집이 같은 제안을 다시 열기 때문이다. 작성자(CR을 연 사람 또는 초안 작성자)가 스스로 버리면 `withdrawn` 이다. 둘 다 열린 CR에만 한다 — 검토 중이면 받은 요청의 카드에 대상이 사라진 결재가 남으므로 결재를 먼저 끝낸다([4.4](../04-mvp/api.md) REQ-API-328).
+- **진실이 어긋나면 버전을 따른다.** 문서 축의 전이를 거치지 않은 길(임포트 · 손으로 고친 데이터)로 초안이 이미 승인 · 대체됐으면 다음 CR을 열 때 그 CR을 버전에 맞춰 닫는다.
 
 ### 3.6 기준선 — 프로젝트 단위 승인 스냅샷 (FR-02 확장, 2026-08-21 MVP 포함 확정)
 
@@ -827,7 +845,9 @@ Event (append-only, D-10)
 | `question.created` | critical | 대상 역할 또는 지정자 | 없음 |
 | `claim.conflict_blocked` | critical | 양쪽 세션 소유자 | 없음 |
 | `finding.opened`(critical severity) | critical | Task 담당자 + 리뷰 요청자 | 없음 |
-| `cr.opened`(진행 중 클레임 영향) | critical | 클레임 보유 세션 소유자 | 없음 |
+| `cr.opened`(진행 중 클레임 영향) | critical | 초안이 바꾸거나 뺀 요구사항의 작업을 클레임한 세션의 사람(2026-10-16 — 없으면 아무에게도 가지 않는다) | 없음 |
+| `cr.approved`(진행 중 클레임 영향 — §3.3) | critical | 승인된 델타가 바꾸거나 뺀 요구사항의 작업을 클레임한 세션의 사람(2026-10-16) | 없음 |
+| `cr.rejected`(변경 요청 거절 — 초안을 버렸다 · §3.5) | high | CR을 연 사람 · 초안 작성자(2026-10-16) | 없음 |
 | `spec.rejected` / `spec.approved` | high | 작성자 · 워처 | `spec:{id}:decisions` |
 | `claim.conflict_warn` | high | 양쪽 세션 소유자 | `task:{id}:conflicts` |
 | `session.stale`(내 세션) | high | 세션 소유자 | `user:{id}:sessions` |
@@ -863,7 +883,7 @@ Event (append-only, D-10)
 
 ```text
 ┌─ 받은 요청 (대기 3 · 결정함 · 만료) ────────────────────────────────────────┐
-│ ✅ 스펙 변경 요청 · CR-142            [In Review]        [T3 강화 게이트] │
+│ ✅ 스펙 변경 요청 · CLV-C-4K9Q2M      [In Review]        [T3 강화 게이트] │
 │    7-channel-web-chat / 2-embed · v3 → v4      요청 김기획 · 12분 전      │
 │    [ADDED]    REQ-CCH-SE-07  세션 재개 시 마지막 30건 복원                │
 │    [MODIFIED] REQ-CCH-SE-02  update dedup "권장"→"필수", 5s→3s            │

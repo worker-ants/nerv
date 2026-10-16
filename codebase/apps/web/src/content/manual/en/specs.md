@@ -59,13 +59,14 @@ Both selectors appear **only on the tree tab**, in the tree's control row next t
 
 ## Versions and statuses {#versions}
 
-Specs are **never overwritten. Each change adds a new version.** Each version has one of five statuses.
+Specs are **never overwritten. Each change adds a new version.** Each version has one of six statuses.
 
 - `draft` — not yet the reference for anyone.
 - `in_review` — submitted and waiting for a person's decision.
 - `approved` — **agents read only versions in this status.**
 - `superseded` — a newer version has been approved. This version remains, but it is no longer the reference.
 - `deprecated` — no longer in use.
+- `discarded` — a draft that is no longer used because its change request was rejected or withdrawn. It stays on record but is never reopened (see "Change requests" below).
 
 ```mermaid
 stateDiagram-v2
@@ -76,9 +77,11 @@ stateDiagram-v2
     state "Approved (approved)" as approved
     state "Superseded (superseded)" as superseded
     state "Deprecated (deprecated)" as deprecated
+    state "Discarded (discarded)" as discarded
     [*] --> draft: Create the document
     draft --> in_review: Request review
     in_review --> draft: Reject · comment
+    draft --> discarded: Change request rejected · withdrawn
     draft --> approved: Passes the gate (T0·T1)
     in_review --> approved: Approved (T2·T3)
     approved --> superseded: A newer version is approved
@@ -239,7 +242,7 @@ If there is even one **Blocking** finding, [Request review] is disabled. The ser
 
 **The author, a planner or an admin can request review.** If someone else submits it, that person becomes the requester. On a role slot, the author still cannot approve it: the server checks all three, the requester, the author, and the owner of the session that wrote it.
 
-Agents also start the next version of an approved document. Running `/nerv:spec edit <key>` opens a new draft on top of the approved version. If a draft already exists, it continues that draft.
+Agents also start the next version of an approved document. Running `/nerv:spec edit <key>` opens a new draft on top of the approved version. If a draft already exists, it continues that draft. A new draft on top of an approved version becomes a **change request** (see "Change requests" below).
 
 **While a version is in review, no new draft can be started.** Once the review ends, work continues from the approved version, or from the same version if it was rejected and returned to draft. This keeps a document from having two drafts. In that case the agent does not edit and points you to the approval card instead.
 
@@ -401,3 +404,32 @@ Click **No evidence**, **No task**, **Needs re-verification** or **Source: impor
 **Source: import** marks an implementation status the server has not derived because no task is linked. Overwriting the values the import read from the documents with `unimplemented` would drop a migrated team's progress to zero overnight. So the value stays as it is, and the screen shows where it came from. Below the top row you see **the share of requirements derived from links** together with **the number of requirements still holding an imported value**. The marker disappears once a task is linked and the server sets the status again.
 
 The level you are on, the condition you turned on and the requirement you expanded are all part of the address. Share the link and the other person sees the same place. Every project member can open this screen, viewers included.
+
+## Change requests {#change-requests}
+
+**When you create a new draft for a document that already has an approved version, that draft becomes a change request (CR).** You don't create one separately. The server opens it the moment the draft is saved or an old version is restored. The first draft of a document that has never been approved is not a change request. A change request gets a key like a task (`CLV-C-4K9Q2M`), and a document has at most one open change request.
+
+**The draft version is what gets approved.** A change request has no approval of its own. Its status follows the version.
+
+| Status    | When                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------ |
+| Open      | The draft is being written. It is also open again when an approval is rejected or expires and the draft comes back |
+| In review | Review was requested for the draft. The risk comes from that version's tier (T0·T1 low · T2 normal · T3 high)      |
+| Approved  | The version was approved                                                                                           |
+| Rejected  | A planner or admin decided not to make this change. A reason is required                                           |
+| Withdrawn | The person who opened the change request or wrote the draft withdrew it                                            |
+
+**Rejecting or withdrawing discards the draft.** A discarded draft is kept so you can see what the change request proposed, but it is never reopened. The document goes back to its approved version, and the next save starts a new draft with a new number and a new change request. If you need the discarded text again, restore that version to start a new draft.
+
+**This is not the same as rejecting an approval.** Rejecting an approval means "fix it and submit again", so the draft and the change request stay open. A change request in review can't be rejected; finish the approval first.
+
+**The change request screen** (`/p/<project>/crs/<key>`) shows one proposal from top to bottom.
+
+1. **Changed requirements**: only the difference between the approved version and the draft. You don't pick versions to compare.
+2. **What moves on approval**: what the approval does to each task created from this document (rebrief · suggest re-verification · suggest archiving · confirm stop · nothing), active claims (person · machine) and the documents that reference this one.
+3. **Follow-up on approval**: a checklist. **Create derived tasks** for added requirements, **create re-verification tasks** that re-check done tasks of reworded requirements, and **archive** tasks not yet started for removed requirements. Derive and re-verify are checked in advance; you pick archiving yourself. The server does only what you checked, together with the approval, and new tasks go to `backlog`.
+4. **Decision**: an open change request shows **[Approve now]** (admins and planners), **[Reject change request]** and **[Withdraw]** (the person who opened it or the author). In review, it shows **[Approve]** and **[Reject approval]** for that version's approval.
+
+If a session holds a claim on a task whose requirement changed or was removed, the person behind that session gets an **important notification** when the change request opens and when it is approved. A session whose task lost its requirement gets a stop-confirmation request on its next heartbeat. The agent stops instead of continuing and asks the person.
+
+You can open a change request from the **change request chip** under the document title, the key on each row of the **Versions** tab in the rail, the **change request card** in the Inbox, and search or ⌘K (type the key). The [Request review] and [Approve now] panels also show the number of active claims and a link to the change request. Approving from that panel does only what was already checked on the change request screen.

@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.23 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.24 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.24 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **§2.2 트리 한 줄과 한 줄 개정.** `spec/change-request.service.ts` — CR의 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 생성. 결재는 스펙 버전이 받고 CR은 그 버전을 감싼다([3.5 스펙 워크플로](../03-proposal/spec-workflow.md) §3.5). `spec.controller.ts` 의 REST 에 CR 목록 · 단건 · 기각 · 철회와 영향 미리보기를 더했다([4.4 API](api.md) §2.2d).
 >
 > v2.23 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **§3.2 상수 한 줄.** `PLUGIN_COVERAGE_AGENT_TYPES` = `claude-code` · `codex` — 활성화 현황(EP-SES-06)이 세는 에이전트 종류와 그 순서다([4.4 API](api.md) §2.5c · REQ-API-168).
 >
@@ -612,6 +614,7 @@ apps/api/src/
     spec/
       attachment.service.ts     # 스펙 첨부 — 2단계 업로드 (api.md §1.4k)
       baseline.service.ts       # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
+      change-request.service.ts # CR — 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 (REQ-API-327~331)
       embedding.client.ts       # OpenAI 호환 /v1/embeddings 단일 계약 (REQ-CB-020·033)
       embedding.service.ts      # 청크 · 재임베딩 잡
       gate-tier.ts              # 게이트 티어 판정 — 네 축 + 동적 강화 (spec-workflow §2.4)
@@ -629,7 +632,7 @@ apps/api/src/
       spec-export.service.ts    # 프로젝트 스펙 전체 zip — EP-MIR-03 (REQ-API-251)
       spec-relation.service.ts  # 관계·역참조 — 상한 없는 유한 목록 (REQ-API-155)
       spec-tree.ts              # 트리 조립 — 기준선 세트 반영
-      spec.controller.ts        # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest
+      spec.controller.ts        # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest · CR · 영향 미리보기
       spec.module.ts
       spec.service.ts           # 초안 upsert · base_hash 비교-교환 · 편집 리스 · 전이 · 사전 검토
       spec.tools.ts             # MCP — nerv_spec_* 7종 (§2.3 표)

@@ -32,6 +32,13 @@ export const specVersionStatus = pgEnum('spec_version_status', [
   'approved',
   'superseded',
   'deprecated',
+  /**
+   * **버린 초안**(2026-10-16 · 사람 결정 D1 의 세부 · spec-workflow §1.2 · §3.5). 승인본 위의 초안을 감싼 변경 요청을
+   * 거절하거나 작성자가 철회하면 그 초안이 이 상태가 된다 — 지우지 않는다(변경 요청이 무엇을 제안했는지가 남아야 한다).
+   * 끝난 상태라 본문은 동결이고, 번호는 다시 쓰지 않으며, "가장 새 버전" 을 묻는 자리(최신 기준 · 다음 초안의 계보)는
+   * 이 버전을 건너뛴다
+   */
+  'discarded',
 ]);
 export const requirementPriority = pgEnum('requirement_priority', ['must', 'should', 'could']);
 export const implStatus = pgEnum('impl_status', [

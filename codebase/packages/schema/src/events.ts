@@ -175,7 +175,27 @@ export const NERV_EVENT_PHASE2 = {
   // 사람이 발견에 말을 남겼다 — 지적한 세션이 하트비트로 듣는다(2026-08-30 · REQ-API-058)
   FINDING_COMMENTED: 'finding.commented',
   FINDING_RESOLVED: 'finding.resolved',
+  // ── 변경 요청(CR) — 승인본 위의 초안을 감싼 제안의 전이(2026-10-16 · 사람 결정 D1 · spec-workflow §3.5 · §6.3) ──
+  // 대상은 `change_request` 이고 `subject_key` 는 CR 의 표시 키(`<PRJ>-C-…`)다. 결재는 스펙 버전이 받으므로 결재 이벤트
+  // (`approval.*` · `spec.*`)와 겹치는 알림은 만들지 않는다 — CR 이벤트가 알림을 만드는 것은 카탈로그의 셋뿐이다.
+  /**
+   * 열렸다 — 승인본이 있는 문서에 새 초안이 생겼다(저장 · 되돌리기). 그 문서의 작업 가운데 초안이 바꾸거나 뺀 요구사항의
+   * 작업을 쥔 세션이 있으면 그 사람에게 critical 알림이 간다(payload `claim_user_ids`)
+   */
   CR_OPENED: 'cr.opened',
+  /** ★ 검토 요청됐다 — 그 초안이 `in_review` 가 됐다. 결재 요청 알림이 따로 가므로 기록만 한다 */
+  CR_SUBMITTED: 'cr.submitted',
+  /** ★ 결재가 거절 · 코멘트 · 만료로 초안을 돌려보냈다 — CR 은 닫히지 않고 다시 열림이다. 기록만 한다 */
+  CR_REOPENED: 'cr.reopened',
+  /**
+   * 승인됐다 — 그 버전이 승인본이 됐다. payload 가 고른 제안의 결과(만든 작업 · 보관한 작업)와 델타의 수를 든다. 바뀌거나
+   * 빠진 요구사항의 작업을 쥔 세션의 사람에게 critical 알림이 간다(spec-workflow §3.3 · payload `claim_user_ids`)
+   */
+  CR_APPROVED: 'cr.approved',
+  /** 거절됐다 — planner · admin 이 이 제안을 하지 않기로 했고 초안을 버렸다. 작성자에게 high 알림이 간다 */
+  CR_REJECTED: 'cr.rejected',
+  /** ★ 철회됐다 — 작성자가 초안을 스스로 버렸다. 기록만 한다 */
+  CR_WITHDRAWN: 'cr.withdrawn',
   /**
    * ★ **fail-open 격상**(2026-10-15 · 사람 결정 · api.md REQ-API-319 · spec-workflow §4.6). 정책의 시간 창
    * (`failopen.window_hours`) 안에 `gate.failopen` 이 `failopen.escalate_count` 회 이상 쌓여 게이트가 사실상 꺼졌다고

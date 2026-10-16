@@ -15,6 +15,7 @@ import {
   implStatus,
   sessionState,
   specVersionStatus,
+  changeRequestStatus,
   taskStatus,
 } from '../enums.js';
 import { eventLabelKey, statusLabelKey } from './domain.js';
@@ -122,6 +123,7 @@ describe('도메인 값 전수 커버', () => {
     ['task', taskStatus.enumValues],
     ['session', sessionState.enumValues],
     ['finding', findingStatus.enumValues],
+    ['cr', changeRequestStatus.enumValues],
   ] as const)('%s 상태값 전부에 라벨이 있다', (entity, values) => {
     const missing = values.filter(
       (value) => ko[statusLabelKey(entity, value) as keyof typeof ko] === undefined,

@@ -143,8 +143,11 @@ function layoutNumber(value: unknown): number | undefined {
 
 type SpecView = 'tree' | 'table' | 'graph';
 
-/** 어휘의 정본은 `@nerv/schema` 의 enum 이다 — 목록을 화면이 새로 만들지 않는다 */
-const SPEC_STATUSES = specVersionStatus.enumValues;
+/**
+ * 어휘의 정본은 `@nerv/schema` 의 enum 이다 — 목록을 화면이 새로 만들지 않는다. **버린 초안은 뺀다**(2026-10-16) — 목록이 읽는
+ * 버전(승인본 · 최신)은 버린 초안을 건너뛰므로 그 칸은 늘 비고, 고를 수 있으면 "없는 상태" 를 찾게 된다
+ */
+const SPEC_STATUSES = specVersionStatus.enumValues.filter((value) => value !== 'discarded');
 const SPEC_TYPES = specType.enumValues;
 
 interface SearchResult {
@@ -946,6 +949,16 @@ function SpecListScreen(): React.JSX.Element {
                       <Link
                         to="/p/$proj/tasks/$task"
                         params={{ proj, task: key }}
+                        className="block"
+                        data-testid="search-hit"
+                      >
+                        {card}
+                      </Link>
+                    ) : hit['kind'] === 'change_request' ? (
+                      // 변경 요청 키는 그 CR 로 간다(2026-10-16 · REQ-WEB-323) — ⌘K 와 같은 규칙이다
+                      <Link
+                        to="/p/$proj/crs/$cr"
+                        params={{ proj, cr: key }}
                         className="block"
                         data-testid="search-hit"
                       >

@@ -145,6 +145,7 @@ export class ApprovalController {
       specVersionId: ver,
       userId,
       seenContentHash: input.seen_content_hash,
+      ...(input.cr_actions == null ? {} : { crActions: input.cr_actions }),
     });
   }
 
@@ -385,6 +386,7 @@ export class ApprovalInboxController {
       decision: input.decision as ApprovalDecision,
       ...(input.comment == null ? {} : { comment: input.comment }),
       ...(input.seen_content_hash == null ? {} : { seenContentHash: input.seen_content_hash }),
+      ...(input.cr_actions == null ? {} : { crActions: input.cr_actions }),
     });
   }
 }

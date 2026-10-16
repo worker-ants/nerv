@@ -141,7 +141,7 @@ describe('enum 선언 (database.md §2.1)', () => {
     ]);
   });
 
-  it('Task 축 상태 7종 · 문서 축 상태 5종 (spec-workflow §1.2·§1.4)', () => {
+  it('Task 축 상태 7종 · 문서 축 상태 6종 (spec-workflow §1.2·§1.4)', () => {
     expect(enums.taskStatus.enumValues).toEqual([
       'backlog',
       'ready',
@@ -157,6 +157,8 @@ describe('enum 선언 (database.md §2.1)', () => {
       'approved',
       'superseded',
       'deprecated',
+      // 버린 초안 — 변경 요청을 거절 · 철회하면 그 초안이 된다(2026-10-16 · 사람 결정 D1 의 세부)
+      'discarded',
     ]);
   });
 

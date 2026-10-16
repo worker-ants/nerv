@@ -73,6 +73,8 @@ export const MANUAL_SECTION_IDS = {
     'archive',
     // 구현 현황 드릴다운(2026-10-15 · REQ-WEB-315) — 새 절은 끝에 둔다(REQ-WEB-268)
     'coverage',
+    // 변경 요청(2026-10-16 · 사람 결정 D1 · REQ-WEB-320) — CR 상세의 도움말이 여기로 온다
+    'change-requests',
   ],
   tasks: [
     'board',

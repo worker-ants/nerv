@@ -236,6 +236,7 @@ describe('화면 → 장', () => {
     ['/settings/org', 'settings', 'org'],
     ['/notifications', 'inbox', 'notifications'],
     ['/p/clemvion', 'specs', 'requirements'],
+    ['/p/clemvion/crs/CLV-C-4K9Q2M', 'specs', 'change-requests'],
   ])('%s → %s#%s', (path, chapter, section) => {
     const target = helpForRoute(path);
     expect(target).toEqual({ chapter, section });

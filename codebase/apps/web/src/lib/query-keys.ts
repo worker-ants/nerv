@@ -68,6 +68,8 @@ export const queryKeys = {
   projectFindings: (projId: ProjectId) => ['project', projId, 'findings'] as const,
   projectGateCoverage: (projId: ProjectId) => ['project', projId, 'gateCoverage'] as const,
 
+  /** 변경 요청 한 건(EP-CR-02) — 축은 표시 키(`<PRJ>-C-…`)다. 이벤트 봉투의 `subject_key` 가 그 키다 */
+  changeRequest: (crKey: string) => ['cr', crKey] as const,
   spec: (specId: string) => ['spec', specId] as const,
   specVersions: (specId: string) => ['spec', specId, 'versions'] as const,
   specComments: (specId: string) => ['spec', specId, 'comments'] as const,

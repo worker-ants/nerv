@@ -12,6 +12,7 @@
 //   question_title                     — 질문 · 결재(질문)
 //   review_branch                      — 리뷰 세션
 //   session_hostname · session_agent_type — 에이전트 세션(시스템이 낸 `session.stale` 은 행위자가 없다)
+//   cr_key                             — 변경 요청(그 초안의 스펙 · 버전도 함께 · 2026-10-16)
 //
 // 두 목록이 이 조각 하나를 쓴다 — 자리마다 조인을 다시 적으면 한쪽만 자라고, 같은 이벤트가 피드와
 // 알림에서 다른 대상을 말하게 된다. 별칭은 `sj_` 로 시작한다: 부르는 쪽의 조인과 겹치지 않게.
@@ -25,7 +26,8 @@ export const EVENT_SUBJECT_COLUMNS = sql`
        sj_f.id AS finding_id, sj_f.title AS finding_title,
        sj_q.title AS question_title,
        sj_rs.branch AS review_branch,
-       sj_as.hostname AS session_hostname, sj_as.agent_type::text AS session_agent_type`;
+       sj_as.hostname AS session_hostname, sj_as.agent_type::text AS session_agent_type,
+       sj_cr.key AS cr_key`;
 
 /** FROM 뒤에 붙이는 조인 — 이벤트의 별칭이 `e` 여야 한다 */
 export const EVENT_SUBJECT_JOINS = sql`
@@ -35,8 +37,10 @@ export const EVENT_SUBJECT_JOINS = sql`
    LEFT JOIN claim sj_cl ON sj_cl.id = e.subject_id AND e.subject_type = 'claim'
    LEFT JOIN review_session sj_rs ON sj_rs.id = e.subject_id AND e.subject_type = 'review_session'
    LEFT JOIN agent_session sj_as ON sj_as.id = e.subject_id AND e.subject_type = 'agent_session'
+   LEFT JOIN change_request sj_cr ON sj_cr.id = e.subject_id AND e.subject_type = 'change_request'
    LEFT JOIN spec_version sj_sv ON sj_sv.id = CASE WHEN e.subject_type = 'spec_version' THEN e.subject_id
-                                                    WHEN sj_ap.subject_type = 'spec_version' THEN sj_ap.subject_id END
+                                                    WHEN sj_ap.subject_type = 'spec_version' THEN sj_ap.subject_id
+                                                    WHEN e.subject_type = 'change_request' THEN sj_cr.proposed_version_id END
    LEFT JOIN spec sj_s ON sj_s.id = coalesce(sj_sv.spec_id,
                                              CASE WHEN e.subject_type = 'spec' THEN e.subject_id END,
                                              sj_q.spec_id)

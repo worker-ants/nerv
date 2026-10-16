@@ -5,6 +5,7 @@
 // 2026-08-23). 형식은 눈에 보이지만 폭은 안 보인다 — 그래서 여기서 지킨다.
 
 import { describe, expect, it } from 'vitest';
+import { DISPLAY_KEY_PATTERN, displayKeyPatternOf, findTaskKey } from './constants.js';
 import { changesetHash, displayKey, displayKeySuffix, findingFingerprint } from './keys.js';
 
 describe('displayKey — §5.1 형식', () => {
@@ -41,6 +42,29 @@ describe('displayKey — §5.1 형식', () => {
     expect(displayKeySuffix('plan/complete/swagger-double-wrap-fix.md')).not.toBe(
       displayKeySuffix('plan/in-progress/spec-draft-eia-notification-payload-contract.md'),
     );
+  });
+});
+
+describe('타입 문자 C — 변경 요청 (2026-10-16 · 사람 결정 D2)', () => {
+  it('변경 요청 키는 같은 형식이고 씨앗은 그 CR 의 UUID 다', () => {
+    const id = '01990a66-0000-7000-8000-000000000042';
+    const key = displayKey('CLV', 'C', id);
+    expect(key).toMatch(/^CLV-C-[0-9A-HJKMNP-TV-Z]{6}$/);
+    expect(key).toBe(displayKey('CLV', 'C', id));
+    // 같은 씨앗이어도 타입 문자가 다르면 다른 키다 — 끝자리만 견주는 임포터 CLI 는 종류마다 따로 본다
+    expect(key.slice(-6)).toBe(displayKey('CLV', 'T', id).slice(-6));
+    expect(key).not.toBe(displayKey('CLV', 'T', id));
+  });
+
+  it('텍스트에서 찾는 규칙이 C 를 안다 — 작업 키를 찾는 자리는 C 를 집지 않는다', () => {
+    const text = '변경 요청 CLV-C-7QF3K2 에서 CLV-T-ZWHNB0 를 만들었다';
+    expect(text.match(new RegExp(DISPLAY_KEY_PATTERN, 'g'))).toEqual([
+      'CLV-C-7QF3K2',
+      'CLV-T-ZWHNB0',
+    ]);
+    expect(findTaskKey(text)).toBe('CLV-T-ZWHNB0');
+    expect(new RegExp(displayKeyPatternOf('C')).exec(text)?.[0]).toBe('CLV-C-7QF3K2');
+    expect(new RegExp(displayKeyPatternOf('S')).exec(text)).toBeNull();
   });
 });
 

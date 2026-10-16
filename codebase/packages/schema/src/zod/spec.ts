@@ -10,7 +10,7 @@
 
 import { z } from 'zod';
 import { EVIDENCE_NOTE_MAX } from '../constants.js';
-import { BULK_DECISION_LIMIT } from './review.js';
+import { BULK_DECISION_LIMIT, CrActionsInput } from './review.js';
 
 /**
  * 선언 관계 한 줄 — `refines`·`depends_on`·`duplicates`·`supersedes`.
@@ -114,6 +114,8 @@ export const SpecArrangeInput = z
 export const SpecDirectApproveInput = z
   .object({
     seen_content_hash: z.string().min(1),
+    /** 초안이 변경 요청이면 승인과 함께 할 일(2026-10-16 · REQ-API-330) — 결재 카드의 결정과 같은 칸이다 */
+    cr_actions: CrActionsInput.nullish(),
   })
   .strict();
 

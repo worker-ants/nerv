@@ -246,6 +246,13 @@ export const SPEC_APPROVER_ROLES: Readonly<Record<string, string>> = {
 export const SPEC_SUBMIT_ROLES = ['admin', 'planner'] as const;
 
 /**
+ * **변경 요청을 거절할 수 있는 역할**(2026-10-16 · 사람 결정 D1 · spec-workflow §3.5 · api.md EP-CR-03). 결재의 거절(초안으로
+ * 돌아가 고쳐 다시 낸다)과 다르다 — 이 제안 자체를 하지 않기로 하고 초안을 버린다. 그래서 문서를 고칠 방향을 정하는
+ * planner · admin 의 일이고 사람 전용이다. 작성자가 스스로 거두는 것은 철회다(역할을 보지 않는다).
+ */
+export const CR_REJECT_ROLES = ['admin', 'planner'] as const;
+
+/**
  * **자기 결재를 승인할 수 있는 역할**(2026-10-11 사람 결정 · api.md REQ-API-288).
  *
  * 지시자≠승인자(spec-workflow §2.3)는 요청자 · 작성자 · 작성 세션의 소유자가 그 결재를 승인하지

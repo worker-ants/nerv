@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 1인용 Claude Code 하네스 `clemvion`을 여러 세션·여러 사람으로 확장할 때 반복해서 무너지는 지점 여덟 가지(P1~P8)를 **증상 → 실측/사례 근거 → 근본 원인** 3단으로 정리한다. 근거는 추정이 아니라 실측이다: 리뷰 산출물 markdown 13,777개(131MB)가 git packed blob 바이트의 60%를 차지하고, 산문으로만 강제되던 리뷰 의무는 575개 세션 중 160건(28%)에서 이미 무너져 있었으며, 스펙 동시수정 자동 검출은 "다른 머신·세션이면 로컬에 보이지 않는다"는 이유로 저장소 스스로 제거했다. 여덟 문제는 증상이 다르지만 원인은 하나로 수렴한다 — **파일과 git을 협업 데이터베이스로 쓴 대가**이며, 7,600줄에 이르는 하네스 훅 코드가 그 청구서다. 문서 후반은 이 문제들을 해소하기 위한 기능 요구사항 FR-01~FR-17과 비기능 요구사항 NFR-01~NFR-05를 각각 한 줄 수용 기준과 함께 정의한다.
 >
-> 문서 버전 v0.7 · 2026-09-07 · HTML 파생본: [pain-points.html](../html/pain-points.html)
+> 문서 버전 v0.8 · 2026-10-16 · HTML 파생본: [pain-points.html](../html/pain-points.html)
+>
+> v0.8 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](../04-mvp/backlog.md) E19-S01): **D-02 보완 · §4.1 상태 어휘 표의 SpecVersion 줄 · ChangeRequest 줄 신설 · Approval 대상 줄.** 변경 요청(CR)을 거절하거나 작성자가 철회하면 그 초안은 지우지 않고 `discarded`(버린 초안)가 된다 — 문서 축의 여섯째 값이다. 사람 결정 D1이 "초안을 버려 스펙이 승인본 상태로 돌아간다"를 정했고, 이미 있는 "초안 버리기" 동작이 없어 상태 값 하나로 남긴다. CR 상태 다섯 값은 표에 없던 것을 실물대로 더한다. 결재는 스펙 버전이 받아 Approval 대상 `change_request` 는 쓰지 않는 값으로 남는다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.5).
 >
 > v0.7 변경(2026-09-07 — 어휘 정본이 실물보다 좁았다, 개선 계획 첫 스프린트): **새 요구사항 없음 — §4.1 상태 어휘 표의 두 줄을 실물에 맞춘다.** ① **Claim 회수 사유가 여섯이 아니라 여덟**이다 — 마이그레이션 `0021` 이 더한 `session_end`·`stopped` 가 빠져 있었고, 그 둘이 들어오며 `manual` 의 생산자는 사라졌다(옛 행이 들고 있어 값은 남긴다). `conflict` 도 생산자가 없다 — 겹침은 회수가 아니라 거절이라서다. 이 표가 상태값 목록의 **단일 기준**이라 여기 없는 값은 어느 문서도 대조할 수 없다(v0.6 이 `question_status` 에서 같은 일을 겪었다). ② **Finding 처분에 `wont_fix` 라는 값은 없다** — 저장 어휘 `resolution_kind` 는 `deferred` 를 갖는다. 표면이 받는 `resolution` 이 그것을 `wont_fix` 라 부르고 서버가 `kind='deferred'` + `status='wont_fix'` 로 가르는 것이라, **두 축을 한 낱말로 읽으면 "유예" 를 세는 질의가 없는 값을 찾는다.** 두 축을 갈라 적었다.
 >
@@ -121,7 +123,7 @@ NERV(가칭)의 출발점은 `/Volumes/project/private/clemvion`이다. 1인 개
 
 **근본 원인.** "승인"은 파일 내용이 아니라 **결정 레코드**다. 누가, 언제, 어떤 스냅샷을 대상으로, 어떤 사유로 승인했는가 — 이 다섯 필드를 담을 자리가 파일시스템에 없으니 커밋 메시지와 PR 대화로 흩어진다. 여기에 상태 축이 하나(구현)뿐이라 "문서가 합의됐는가"와 "코드가 따라왔는가"가 한 값에 뭉개진다.
 
-> **D-02 — 스펙 상태는 2축으로 분리한다.** ① 문서 리뷰 축: SpecVersion `draft → in_review → approved → superseded / deprecated` ② 구현 축: Requirement 단위 `unimplemented → in_progress → implemented → verified`. clemvion은 구현 축(문서 단위)만 있어 승인 이력이 git PR에 묻혔고, 1,750줄 문서에 상태 값 하나라 요구사항 누락(CCH-SE-02)을 놓쳤다.
+> **D-02 — 스펙 상태는 2축으로 분리한다.** ① 문서 리뷰 축: SpecVersion `draft → in_review → approved → superseded / deprecated` (+ 버린 초안 `discarded` — 2026-10-16 보완 · 변경 요청의 거절 · 철회가 만든다) ② 구현 축: Requirement 단위 `unimplemented → in_progress → implemented → verified`. clemvion은 구현 축(문서 단위)만 있어 승인 이력이 git PR에 묻혔고, 1,750줄 문서에 상태 값 하나라 요구사항 누락(CCH-SE-02)을 놓쳤다.
 
 ### 2.4 P4 — 구현 상태·다음 할 일 추적 곤란
 
@@ -308,7 +310,7 @@ flowchart LR
 
 | 대상 | 상태 값 |
 | --- | --- |
-| SpecVersion (문서 축) | `draft → in_review → approved → superseded / deprecated` |
+| SpecVersion (문서 축) | `draft → in_review → approved → superseded / deprecated` (+`discarded` — 2026-10-16 · 변경 요청 거절 · 철회가 초안을 버린다. 다시 열지 않는다) |
 | Requirement (구현 축) | `unimplemented → in_progress → implemented → verified` |
 | Task | `backlog → ready → claimed → in_progress → in_review → done` (+`blocked`) |
 | AgentSession | `pending → active ↔ awaiting_input → complete / error / stale` |
@@ -316,7 +318,8 @@ flowchart LR
 | Question | `open → answered / cancelled / expired` (2026-09-06 보완 — 이 행이 없던 동안 스킬이 오지 않을 값 `pending` 을 기다렸다) |
 | Claim 회수 사유 | **여덟이다**(2026-09-07 정정 — 실물 `claim_release_reason`). 부른 쪽이 고르는 셋 `done / handoff / abandon` · 서버가 판정하는 셋 `expired`(리스 만료) `session_end`(세션 종료로 회수) `stopped`(사람이 중단해 회수) · **생산자가 없는 둘** `manual`(마이그레이션 `0021` 이전의 잔재 — 그때 뒤의 둘이 이 값으로 뭉쳐 있었고, 옛 행이 들고 있어 걷지 않는다) `conflict`(겹침은 회수가 아니라 **거절**이라 만드는 코드가 없다) |
 | Finding 처분 | 저장 어휘(`resolution.kind`)는 `fixed / spec_change / dismissed / deferred / escalated` 다 — **`wont_fix` 라는 처분은 없다**(2026-09-07 정정). 표면(API·도구)이 받는 `resolution` 값은 다섯이고 그중 **`wont_fix` 가 `kind='deferred'` + 위 Finding 행의 `status='wont_fix'`** 로 갈라져 저장된다(`escalated` 는 `status` 를 `open` 으로 남긴다 — 넘긴 것은 해결한 것이 아니다). 두 축을 한 낱말로 읽으면 "유예" 를 세는 질의가 없는 값을 찾는다 · 대상 축 `area`: `codebase / spec / task / process` |
-| Approval 대상 | `spec_version / change_request / plan / question / finding / gate_bypass` |
+| ChangeRequest | `open ⇄ in_review → approved / rejected / withdrawn` (2026-10-16 보완 — 승인본 위의 초안을 감싼다. `in_review → open` 은 결재가 초안을 돌려보낼 때이고 승인 판정은 SpecVersion 이 한다) |
+| Approval 대상 | `spec_version / change_request / plan / question / finding / gate_bypass` — `change_request` 는 쓰지 않는다(2026-10-16 · CR의 결재는 그 스펙 버전이 받는다) |
 
 ### 4.2 기능 요구사항 (FR-01 ~ FR-17)
 
