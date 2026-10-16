@@ -2,9 +2,19 @@
 //
 // codebase.md REQ-CB-062 · 063. 원격은 일회용 bare 저장소다. 미러 쪽 편집(원격에 NERV 가 만들지 않은 커밋)은 덮어쓰지 않고
 // push 를 멈춘 채 `mirror.diverged` 로 경고한다 — roadmap §7.4 규칙 1 의 실물이다.
+//
+// 프로젝트 폴더는 `<조직>/<프로젝트>` 다(2026-10-16). 시드에 **조직이 다른 같은 slug**(`nerv/clemvion` · `acme/clemvion`)를
+// 늘 둔다 — 프로젝트 slug 는 조직 안에서만 유일해서, slug 만 폴더로 쓰면 둘이 한 폴더에 써서 서로 덮었다.
 
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NERV_EVENT_PHASE2, newId } from '@nerv/schema';
@@ -34,6 +44,8 @@ let exporter: ExportJob;
 let orgId: string;
 let projectId: string;
 let otherProjectId: string;
+/** 다른 조직(`acme`)의 같은 slug(`clemvion`) 프로젝트 */
+let twinProjectId: string;
 let adminId: string;
 
 /** 이 스위트가 만지는 env — 끝나면 지운다 */
@@ -96,27 +108,34 @@ afterEach(() => {
 
 async function seed(): Promise<void> {
   orgId = newId();
+  const twinOrgId = newId();
   projectId = newId();
   otherProjectId = newId();
+  twinProjectId = newId();
   adminId = newId();
   await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'nerv','NERV')`, [orgId]);
+  await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'acme','ACME')`, [
+    twinOrgId,
+  ]);
   await pool.query(
     `INSERT INTO "user" (id, email, display_name, state) VALUES ($1,'admin@example.com','관리자','active')`,
     [adminId],
   );
-  for (const [id, slug, key] of [
-    [projectId, 'clemvion', 'CLV'],
-    [otherProjectId, 'other', 'OTH'],
+  for (const [id, org, slug, key, name] of [
+    [projectId, orgId, 'clemvion', 'CLV', 'clemvion'],
+    [otherProjectId, orgId, 'other', 'OTH', 'other'],
+    [twinProjectId, twinOrgId, 'clemvion', 'CLV', 'ACME clemvion'],
   ] as const) {
-    await pool.query(`INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,$3)`, [
+    await pool.query(`INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,$3,$4,$5)`, [
       id,
-      orgId,
+      org,
       slug,
       key,
+      name,
     ]);
     await pool.query(
       `INSERT INTO membership (id, org_id, project_id, user_id, role) VALUES ($1,$2,$3,$4,'admin')`,
-      [newId(), orgId, id, adminId],
+      [newId(), org, id, adminId],
     );
   }
 }
@@ -145,10 +164,10 @@ const localHead = (dir = root): string => git(dir, ['rev-parse', 'HEAD']);
 const localSubjects = (dir = root): string[] => git(dir, ['log', '--format=%s']).split('\n');
 
 /** 승인된 버전 하나 — 승인자는 admin(이름 「관리자」) */
-async function approvedSpec(key: string, body: string): Promise<string> {
+async function approvedSpec(key: string, body: string, project = projectId): Promise<string> {
   const result = await specs.draftUpsert({
     roles: ['planner'],
-    projectId,
+    projectId: project,
     key,
     title: key,
     type: 'feature',
@@ -187,25 +206,30 @@ describe('미러 폴더는 git 저장소다 (REQ-CB-062)', () => {
     expect(git(root, ['log', '-1', '--format=%an <%ae>'])).toBe('NERV <nerv@localhost>');
     expect(git(root, ['ls-files']).split('\n')).toEqual(
       expect.arrayContaining([
-        'clemvion/llms.txt',
-        'clemvion/manifest.json',
-        'clemvion/requirements.tsv',
-        'clemvion/specs/SPC-A.md',
-        'other/llms.txt',
-        'other/manifest.json',
-        'other/requirements.tsv',
+        'nerv/clemvion/llms.txt',
+        'nerv/clemvion/manifest.json',
+        'nerv/clemvion/requirements.tsv',
+        'nerv/clemvion/specs/SPC-A.md',
+        'nerv/other/llms.txt',
+        'nerv/other/manifest.json',
+        'nerv/other/requirements.tsv',
+        'acme/clemvion/llms.txt',
+        'acme/clemvion/manifest.json',
+        'acme/clemvion/requirements.tsv',
       ]),
     );
 
     // manifest.json 은 EP-SPEC-14 와 같은 함수 · 같은 내용이다
-    const manifest = JSON.parse(readFileSync(join(root, 'clemvion/manifest.json'), 'utf8')) as {
+    const manifest = JSON.parse(
+      readFileSync(join(root, 'nerv/clemvion/manifest.json'), 'utf8'),
+    ) as {
       specs: Record<string, { version_no: number }>;
     };
     const api = await baselines.manifest({ projectId });
     expect(Object.keys(manifest.specs)).toEqual(Object.keys(api['specs'] as object));
     expect(manifest.specs['SPC-A']?.version_no).toBe(1);
     // requirements.tsv — 고정 ID · 스펙 · 구현 상태 · 증적 수
-    const tsv = readFileSync(join(root, 'clemvion/requirements.tsv'), 'utf8').split('\n');
+    const tsv = readFileSync(join(root, 'nerv/clemvion/requirements.tsv'), 'utf8').split('\n');
     expect(tsv[0]).toBe('ref\tspec\timpl_status\tevidence_count');
 
     const again = await exporter.run();
@@ -223,8 +247,8 @@ describe('미러 폴더는 git 저장소다 (REQ-CB-062)', () => {
 
     expect(report.committed).toBe(true);
     expect(localSubjects()[0]).toBe('export(spec): refresh');
-    expect(existsSync(join(root, 'clemvion/specs/SPC-A.md'))).toBe(false);
-    expect(git(root, ['ls-files'])).not.toContain('clemvion/specs/SPC-A.md');
+    expect(existsSync(join(root, 'nerv/clemvion/specs/SPC-A.md'))).toBe(false);
+    expect(git(root, ['ls-files'])).not.toContain('nerv/clemvion/specs/SPC-A.md');
     expect(existsSync(join(root, 'NOTES.txt'))).toBe(true);
     expect(git(root, ['ls-files'])).not.toContain('NOTES.txt');
   });
@@ -262,6 +286,61 @@ describe('미러 폴더는 git 저장소다 (REQ-CB-062)', () => {
   });
 });
 
+describe('프로젝트 폴더는 <조직>/<프로젝트> 다 — 조직이 다른 같은 slug 가 겹치지 않는다 (REQ-CB-062)', () => {
+  it('두 조직의 같은 slug 프로젝트는 서로 다른 폴더에 쓰고 서로 덮지 않는다', async () => {
+    await approvedSpec('SPC-A', '# NERV 의 문서 A');
+    await approvedSpec('SPC-A', '# ACME 의 문서 A', twinProjectId);
+
+    expect(await exporter.run()).toMatchObject({ projects: 3, committed: true });
+
+    const ours = readFileSync(join(root, 'nerv/clemvion/specs/SPC-A.md'), 'utf8');
+    const theirs = readFileSync(join(root, 'acme/clemvion/specs/SPC-A.md'), 'utf8');
+    expect(ours).toContain('NERV 의 문서 A');
+    expect(ours).not.toContain('ACME');
+    expect(theirs).toContain('ACME 의 문서 A');
+    // 색인도 각자의 것이다
+    expect(readFileSync(join(root, 'nerv/clemvion/llms.txt'), 'utf8')).toMatch(/^# clemvion\n/);
+    expect(readFileSync(join(root, 'acme/clemvion/llms.txt'), 'utf8')).toMatch(
+      /^# ACME clemvion\n/,
+    );
+    // 맨 위에는 조직 폴더만 생긴다 — 프로젝트 slug 만의 폴더는 없다
+    expect(existsSync(join(root, 'clemvion'))).toBe(false);
+    // 한 커밋에 두 승인이 모두 남는다
+    expect(localSubjects()).toEqual(['export(spec): SPC-A@v1 approved by 관리자 (+1)']);
+
+    // 한쪽 문서를 보관해도 다른 조직의 같은 경로는 그대로다
+    await pool.query(`UPDATE spec SET archived_at = now() WHERE project_id = $1`, [twinProjectId]);
+    expect(await exporter.run()).toMatchObject({ committed: true });
+    expect(existsSync(join(root, 'acme/clemvion/specs/SPC-A.md'))).toBe(false);
+    expect(readFileSync(join(root, 'nerv/clemvion/specs/SPC-A.md'), 'utf8')).toBe(ours);
+    const tracked = git(root, ['ls-files']).split('\n');
+    expect(tracked).toContain('nerv/clemvion/specs/SPC-A.md');
+    expect(tracked).not.toContain('acme/clemvion/specs/SPC-A.md');
+  });
+
+  it('예전 경로(프로젝트 slug 만의 폴더)에 커밋된 파일은 다음 판이 지운다 — 추적하지 않는 파일은 남긴다', async () => {
+    await approvedSpec('SPC-A', '# 문서 A');
+    await exporter.run();
+    // 조직 칸이 없던 판의 커밋을 흉내 낸다
+    mkdirSync(join(root, 'clemvion/specs'), { recursive: true });
+    writeFileSync(join(root, 'clemvion/llms.txt'), '# clemvion\n');
+    writeFileSync(join(root, 'clemvion/specs/SPC-A.md'), '# 문서 A\n');
+    git(root, ['add', 'clemvion']);
+    git(root, ['commit', '--quiet', '-m', 'old layout']);
+    writeFileSync(join(root, 'clemvion/NOTES.txt'), '운영자가 둔 메모');
+
+    const report = await exporter.run();
+
+    expect(report.committed).toBe(true);
+    expect(localSubjects()[0]).toBe('export(spec): refresh');
+    const tracked = git(root, ['ls-files']).split('\n');
+    expect(tracked.filter((path) => path.startsWith('clemvion/'))).toEqual([]);
+    expect(tracked).toContain('nerv/clemvion/specs/SPC-A.md');
+    expect(existsSync(join(root, 'clemvion/specs/SPC-A.md'))).toBe(false);
+    expect(existsSync(join(root, 'clemvion/NOTES.txt'))).toBe(true);
+  });
+});
+
 describe('원격이 있으면 push 한다 · 미러 쪽 편집은 받아들이지 않고 경고한다 (REQ-CB-063)', () => {
   it('승인하면 커밋하고 push 한다 — 바뀐 것이 없으면 push 도 없다', async () => {
     process.env['NERV_MIRROR_GIT_REMOTE'] = remote;
@@ -291,7 +370,7 @@ describe('원격이 있으면 push 한다 · 미러 쪽 편집은 받아들이�
     // 누군가 미러를 직접 고쳐 push 했다
     const human = mkdtempSync(join(tmpdir(), 'nerv-mirror-human-'));
     git(null, ['clone', '--quiet', '--branch', 'main', remote, human]);
-    appendFileSync(join(human, 'clemvion/specs/SPC-A.md'), '\n미러에서 직접 고친 줄\n');
+    appendFileSync(join(human, 'nerv/clemvion/specs/SPC-A.md'), '\n미러에서 직접 고친 줄\n');
     git(human, ['commit', '--quiet', '-am', 'edit mirror by hand']);
     git(human, ['push', '--quiet', 'origin', 'HEAD:main']);
     const foreign = remoteHead();
@@ -308,7 +387,7 @@ describe('원격이 있으면 push 한다 · 미러 쪽 편집은 받아들이�
     // 덮어쓰지 않았다 — 원격은 사람의 커밋 그대로다
     expect(remoteHead()).toBe(foreign);
     // 받아들이지도 않았다 — 미러의 파일은 NERV 의 승인본이다
-    expect(readFileSync(join(root, 'clemvion/specs/SPC-A.md'), 'utf8')).not.toContain(
+    expect(readFileSync(join(root, 'nerv/clemvion/specs/SPC-A.md'), 'utf8')).not.toContain(
       '미러에서 직접 고친 줄',
     );
 
@@ -323,8 +402,9 @@ describe('원격이 있으면 push 한다 · 미러 쪽 편집은 받아들이�
     });
     // 원격 주소는 넣지 않는다(자격증명이 들어 있을 수 있다)
     expect(JSON.stringify(event)).not.toContain(remote);
-    // 고친 폴더가 아닌 프로젝트에는 경고하지 않는다
+    // 고친 폴더가 아닌 프로젝트에는 경고하지 않는다 — 다른 조직의 같은 slug 프로젝트에도
     expect(await divergedEvents(otherProjectId)).toEqual([]);
+    expect(await divergedEvents(twinProjectId)).toEqual([]);
 
     // admin 에게 중요 알림이 간다
     const notifications = new NotificationService(drizzle(pool));
@@ -346,6 +426,28 @@ describe('원격이 있으면 push 한다 · 미러 쪽 편집은 받아들이�
     expect(remoteHead()).toBe(localHead());
   });
 
+  it('조직이 다른 같은 slug 의 폴더를 고치면 그 조직의 프로젝트에만 경고한다', async () => {
+    process.env['NERV_MIRROR_GIT_REMOTE'] = remote;
+    await approvedSpec('SPC-A', '# NERV 문서 A');
+    await approvedSpec('SPC-A', '# ACME 문서 A', twinProjectId);
+    await exporter.run();
+
+    const human = mkdtempSync(join(tmpdir(), 'nerv-mirror-human-'));
+    git(null, ['clone', '--quiet', '--branch', 'main', remote, human]);
+    appendFileSync(join(human, 'acme/clemvion/specs/SPC-A.md'), '\nACME 미러에서 고친 줄\n');
+    git(human, ['commit', '--quiet', '-am', 'edit acme mirror by hand']);
+    git(human, ['push', '--quiet', 'origin', 'HEAD:main']);
+
+    await approvedSpec('SPC-B', '# 문서 B');
+    expect(await exporter.run()).toMatchObject({ diverged: true, divergence_warnings: 1 });
+
+    const [event] = await divergedEvents(twinProjectId);
+    expect(event).toMatchObject({ foreign_commits: 1, changed_files: 1 });
+    // 폴더의 둘째 칸(slug)만 같은 프로젝트는 대상이 아니다
+    expect(await divergedEvents(projectId)).toEqual([]);
+    expect(await divergedEvents(otherProjectId)).toEqual([]);
+  });
+
   it('어느 프로젝트의 폴더도 아닌 편집이면 내보낸 프로젝트 전부에 경고한다', async () => {
     process.env['NERV_MIRROR_GIT_REMOTE'] = remote;
     await exporter.run();
@@ -353,16 +455,19 @@ describe('원격이 있으면 push 한다 · 미러 쪽 편집은 받아들이�
     const human = mkdtempSync(join(tmpdir(), 'nerv-mirror-human-'));
     git(null, ['clone', '--quiet', '--branch', 'main', remote, human]);
     writeFileSync(join(human, 'README.md'), '# 미러\n');
-    git(human, ['add', 'README.md']);
+    // 조직 폴더 바로 아래의 파일도 어느 프로젝트의 것도 아니다
+    writeFileSync(join(human, 'nerv/NOTES.md'), '# 메모\n');
+    git(human, ['add', 'README.md', 'nerv/NOTES.md']);
     git(human, ['commit', '--quiet', '-m', 'add readme']);
     git(human, ['push', '--quiet', 'origin', 'HEAD:main']);
 
     await approvedSpec('SPC-A', '# 문서 A');
     const report = await exporter.run();
 
-    expect(report).toMatchObject({ diverged: true, divergence_warnings: 2 });
+    expect(report).toMatchObject({ diverged: true, divergence_warnings: 3 });
     expect(await divergedEvents(projectId)).toHaveLength(1);
     expect(await divergedEvents(otherProjectId)).toHaveLength(1);
+    expect(await divergedEvents(twinProjectId)).toHaveLength(1);
   });
 
   it('새 볼륨은 원격의 이력을 이어받는다 — 갈라지지 않고 이어서 push 한다', async () => {

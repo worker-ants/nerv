@@ -231,9 +231,10 @@ describe('md 미러 파일 생성 (export.job)', () => {
       const report = await exporter.run();
       expect(report.files).toBeGreaterThanOrEqual(2); // llms.txt + 승인 스펙
 
-      expect(existsSync(join(dir, 'clemvion/specs/SPC-PUB.md'))).toBe(true);
-      expect(existsSync(join(dir, 'clemvion/specs/SPC-DRAFT.md'))).toBe(false);
-      expect(readFileSync(join(dir, 'clemvion/llms.txt'), 'utf8')).toContain('SPC-PUB');
+      // 프로젝트 폴더는 `<조직>/<프로젝트>` 다(REQ-CB-062)
+      expect(existsSync(join(dir, 'nerv/clemvion/specs/SPC-PUB.md'))).toBe(true);
+      expect(existsSync(join(dir, 'nerv/clemvion/specs/SPC-DRAFT.md'))).toBe(false);
+      expect(readFileSync(join(dir, 'nerv/clemvion/llms.txt'), 'utf8')).toContain('SPC-PUB');
     } finally {
       delete process.env['NERV_EXPORT_DIR'];
     }
@@ -249,19 +250,26 @@ describe('md 미러 파일 생성 (export.job)', () => {
     try {
       await exporter.run();
       // 예전에는 dir/clemvion/specs/../../escaped.md = dir/escaped.md 에 썼다(키가 두 칸 올라간다)
-      expect(existsSync(join(dir, 'escaped.md'))).toBe(false);
-      expect(existsSync(join(dir, 'clemvion/specs/..%2F..%2Fescaped.md'))).toBe(true);
+      expect(existsSync(join(dir, 'nerv/escaped.md'))).toBe(false);
+      expect(existsSync(join(dir, 'nerv/clemvion/specs/..%2F..%2Fescaped.md'))).toBe(true);
       // llms.txt 의 링크도 같은 이름이다 — HTTP 로 따라가면 원래 키로 풀린다
-      expect(readFileSync(join(dir, 'clemvion/llms.txt'), 'utf8')).toContain(
+      expect(readFileSync(join(dir, 'nerv/clemvion/llms.txt'), 'utf8')).toContain(
         '(./specs/..%2F..%2Fescaped.md)',
       );
 
-      await pool.query(`UPDATE project SET slug = '../outside' WHERE id = $1`, [projectId]);
+      await pool.query(`UPDATE project SET slug = '../../outside' WHERE id = $1`, [projectId]);
       await exporter.run();
       expect(existsSync(join(parent, 'outside'))).toBe(false);
-      expect(existsSync(join(dir, '..%2Foutside/llms.txt'))).toBe(true);
+      expect(existsSync(join(dir, 'nerv/..%2F..%2Foutside/llms.txt'))).toBe(true);
+
+      // 조직 slug 도 같다 — 폴더의 첫 칸이다
+      await pool.query(`UPDATE organization SET slug = '../org-outside' WHERE slug = 'nerv'`);
+      await exporter.run();
+      expect(existsSync(join(parent, 'org-outside'))).toBe(false);
+      expect(existsSync(join(dir, '..%2Forg-outside/..%2F..%2Foutside/llms.txt'))).toBe(true);
     } finally {
       await pool.query(`UPDATE project SET slug = 'clemvion' WHERE id = $1`, [projectId]);
+      await pool.query(`UPDATE organization SET slug = 'nerv' WHERE slug = '../org-outside'`);
       delete process.env['NERV_EXPORT_DIR'];
     }
   });
