@@ -23,6 +23,7 @@ import { ApprovalController } from '../modules/approval/approval.controller.js';
 import { EventController } from '../modules/event/event.controller.js';
 import { ImportController } from '../modules/import/import.controller.js';
 import { ReviewController } from '../modules/review/review.controller.js';
+import { AgentsMdController } from '../modules/session/agents-md.controller.js';
 import { SessionController } from '../modules/session/session.controller.js';
 import { MirrorController } from '../modules/spec/mirror.controller.js';
 import { SpecController } from '../modules/spec/spec.controller.js';
@@ -30,6 +31,7 @@ import { TaskController } from '../modules/task/task.controller.js';
 
 /** ProjectAccessGuard 를 쓰는 컨트롤러 전부 — 새 컨트롤러가 생기면 여기에 더한다 */
 const CONTROLLERS = [
+  AgentsMdController,
   ApprovalController,
   EventController,
   ImportController,

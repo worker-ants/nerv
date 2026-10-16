@@ -1,4 +1,4 @@
-// 보존 정책 집행 — Activity 원문 TTL · 리뷰 프롬프트 blob TTL (spec-workflow §5.6)
+// 보존 정책 집행 — Activity 원문 TTL · 리뷰 프롬프트 blob TTL (spec-workflow §5.6) · 알림 180일 · 빈 activity 파티션 드랍
 //
 // **결론은 영구, 재생성 가능한 입력은 TTL.** clemvion 이 이미 검증한 절충이다 —
 // `_prompts/`(리뷰 전체의 약 70%)를 "커밋 해시 + 스킬로 항상 재생성 가능"을 근거로
@@ -7,7 +7,12 @@
 // 프로젝트별 `retention` jsonb 가 기본값을 덮는다(api.md §2.1a) — 프로젝트마다 규제 요건이
 // 다르기 때문이다. 상수는 최후의 기본값이고 정책이 있으면 정책이 이긴다.
 import { Injectable, Logger } from '@nestjs/common';
-import { effectiveRetention, IDEMPOTENCY_TTL_HOURS, SENT_MAIL_RETENTION_DAYS } from '@nerv/schema';
+import {
+  effectiveRetention,
+  IDEMPOTENCY_TTL_HOURS,
+  NOTIFICATION_RETENTION_DAYS,
+  SENT_MAIL_RETENTION_DAYS,
+} from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -20,7 +25,14 @@ export interface RetentionReport {
   idempotency_keys_deleted: number;
   /** 치운 보낸 메일 행 수(database.md §2.17 — `SENT_MAIL_RETENTION_DAYS`) */
   sent_mail_deleted: number;
+  /** 지운 알림 줄 수(database.md REQ-DB-046 — `NOTIFICATION_RETENTION_DAYS`) */
+  notifications_deleted: number;
+  /** 드랍한 빈 `activity` 월 파티션 수(database.md REQ-DB-047) */
+  activity_partitions_dropped: number;
 }
+
+/** 월 파티션 이름 — `nerv_ensure_month_partitions` 의 `'"y"YYYY"m"MM'` 과 같은 규칙이다(database.md §2.14) */
+const ACTIVITY_PARTITION_NAME = /^activity_y[0-9]{4}m[0-9]{2}$/;
 
 @Injectable()
 export class RetentionJob {
@@ -36,6 +48,8 @@ export class RetentionJob {
       projects_scanned: 0,
       idempotency_keys_deleted: 0,
       sent_mail_deleted: 0,
+      notifications_deleted: 0,
+      activity_partitions_dropped: 0,
     };
 
     // 멱등 키는 **24시간**이다(api.md §1.5). 프로젝트 정책이 아니라 계약이 정한 값이라
@@ -62,6 +76,21 @@ export class RetentionJob {
       RETURNING id
     `);
     report.sent_mail_deleted = sentMail.length;
+
+    // **알림은 180일이다**(2026-10-16 · 사람 결정 ② · REQ-DB-046). 데이터 모델의 보존 표가 처음부터 정한 값인데 집행이 없어
+    // 영구히 쌓였다. 알림은 이벤트에서 다시 만들 수 있는 파생 데이터라 지워도 잃는 것이 없다 — 원천(`event`)은 영구다.
+    // 프로젝트 정책이 아니라 상수라 멱등 키처럼 프로젝트 순회 밖에서 한 번에 지운다(보관한 프로젝트의 알림도 같다).
+    //
+    // 기준은 `last_at` 이다 — 묶음은 처음 이벤트가 오래됐어도 어제 더해졌으면 어제의 알림이고, 목록도 그 순서로 줄을 세운다.
+    // 읽음 · 안 읽음은 가리지 않는다(보존 표가 상태를 나누지 않는다). 묶음에 든 이벤트(`notification_batch_event`)는
+    // FK 의 `ON DELETE CASCADE` 로 함께 지워진다. 지운 알림의 이벤트는 다시 알림이 되지 않는다: 도는 워커의 커서는 앞으로만
+    // 가고, 새로 뜬 워커도 최근 한 시간만 다시 본다(REQ-API-317) — 180일 전의 이벤트는 어느 창에도 들지 않는다
+    const { rows: staleNotifications } = await this.db.execute<{ id: string }>(sql`
+      DELETE FROM notification
+       WHERE last_at < now() - make_interval(days => ${NOTIFICATION_RETENTION_DAYS})
+      RETURNING id
+    `);
+    report.notifications_deleted = staleNotifications.length;
 
     const { rows: projects } = await this.db.execute<{ id: string; retention: unknown }>(
       sql`SELECT id, retention FROM project WHERE archived_at IS NULL`,
@@ -160,18 +189,104 @@ export class RetentionJob {
       report.blobs_expired += expired.length;
     }
 
+    // 행을 지운 **뒤에** 빈 파티션을 본다 — 같은 판에서 마지막 행이 지워진 달도 곧바로 드랍된다
+    report.activity_partitions_dropped = await this.dropEmptyActivityPartitions();
+
     if (
       report.activities_deleted > 0 ||
       report.blobs_expired > 0 ||
       report.idempotency_keys_deleted > 0 ||
-      report.sent_mail_deleted > 0
+      report.sent_mail_deleted > 0 ||
+      report.notifications_deleted > 0 ||
+      report.activity_partitions_dropped > 0
     ) {
       this.logger.log(
         `보존 정책 집행 — Activity ${report.activities_deleted}건 삭제 · blob ${report.blobs_expired}건 만료` +
           ` · 멱등 키 ${report.idempotency_keys_deleted}건 만료` +
-          ` · 보낸 메일 ${report.sent_mail_deleted}건 정리`,
+          ` · 보낸 메일 ${report.sent_mail_deleted}건 정리` +
+          ` · 알림 ${report.notifications_deleted}건 삭제` +
+          ` · 빈 activity 파티션 ${report.activity_partitions_dropped}개 드랍`,
       );
     }
     return report;
+  }
+
+  /**
+   * **보존 기간을 넘긴 빈 `activity` 월 파티션을 드랍한다**(2026-10-16 · 사람 결정 ② · REQ-DB-047).
+   *
+   * 행은 위의 프로젝트 순회가 지운다. 그 뒤에 남는 것은 빈 테이블이고, 파티션은 달마다 하나씩 늘기만 했다(§2.14 의 재검토
+   * 트리거가 세는 수다). 드랍하는 파티션은 셋을 모두 만족한다:
+   *
+   * 1. 이름이 마이그레이션의 함수(`nerv_ensure_month_partitions`)가 만드는 모양이고 `activity` 에 붙어 있다
+   * 2. 그 달의 끝이 **모든 프로젝트의 `activity_days` 가운데 가장 긴 값**보다 오래됐다 — 어느 프로젝트에게도 아직 보존 기간
+   *    안인 달은 남긴다. 보관한 프로젝트(보존 잡이 행을 지우지 않는다)의 정책도 센다. 현재 · 미래 달은 끝이 오지 않아 늘 남는다
+   * 3. 행이 0 이다 — 남은 행이 있으면 드랍하지 않는다. 행을 지우는 것은 보존 잡의 접기 · 삭제이고(세션 요약에 남긴다),
+   *    드랍은 그 뒤의 빈 껍데기만 치운다. 보관한 프로젝트의 행이 남은 달은 그래서 남는다
+   *
+   * **잠금은 기다리지 않는다**(`NOWAIT`). 파티션 드랍은 부모(`activity`)의 ACCESS EXCLUSIVE 잠금을 잡는데, 그것을 기다리는
+   * 동안 뒤에 온 활동 쓰기(훅 수집)가 모두 그 뒤에 줄을 선다 — 백업(`pg_dump`)이 도는 몇 분이면 수집이 그만큼 멈춘다. 그래서
+   * 곧바로 잡지 못하면 이번 판은 건너뛰고 다음 판(1시간 뒤)에 다시 본다. 빈 테이블이 한 시간 더 남는 것이 대가다.
+   * 트랜잭션 advisory lock 은 드랍하는 쪽이 둘 이상이어도(잡 루프 밖에서 부른 호출) 같은 파티션을 한 번만 보게 한다.
+   */
+  private async dropEmptyActivityPartitions(): Promise<number> {
+    const { rows: projects } = await this.db.execute<{ retention: unknown }>(
+      sql`SELECT retention FROM project`,
+    );
+    // 프로젝트가 없으면 기본값이다 — 정책이 깨진 프로젝트도 보존 잡처럼 기본값으로 센다
+    const keepDays = Math.max(
+      effectiveRetention({}).retention.activity_days,
+      ...projects.map((p) => effectiveRetention(p.retention).retention.activity_days),
+    );
+
+    const { rows: candidates } = await this.db.execute<{ name: string }>(sql`
+      SELECT c.relname AS name
+        FROM pg_inherits i
+        JOIN pg_class c ON c.oid = i.inhrelid
+       WHERE i.inhparent = 'activity'::regclass
+         AND c.relname ~ '^activity_y[0-9]{4}m[0-9]{2}$'
+         AND to_date(c.relname, '"activity_y"YYYY"m"MM') + interval '1 month'
+               <= now() - make_interval(days => ${keepDays})
+       ORDER BY c.relname
+    `);
+
+    let dropped = 0;
+    for (const { name } of candidates) {
+      // 이름은 카탈로그에서 왔지만 식별자로 넣기 전에 모양을 한 번 더 본다
+      if (!ACTIVITY_PARTITION_NAME.test(name)) continue;
+      const partition = sql.identifier(name);
+      try {
+        const done = await this.db.transaction(async (tx) => {
+          await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(hashtextextended(${'retention:activity-partitions'}, 0))`,
+          );
+          // 앞선 호출이 이미 드랍했으면 카탈로그에 없다
+          const { rows: still } = await tx.execute<{ attached: boolean }>(sql`
+            SELECT EXISTS (
+              SELECT 1 FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+               WHERE i.inhparent = 'activity'::regclass AND c.relname = ${name}
+            ) AS attached
+          `);
+          if (still[0]?.attached !== true) return false;
+          await tx.execute(sql`LOCK TABLE ONLY activity IN ACCESS EXCLUSIVE MODE NOWAIT`);
+          await tx.execute(sql`LOCK TABLE ${partition} IN ACCESS EXCLUSIVE MODE NOWAIT`);
+          const { rows: sample } = await tx.execute<{ has_rows: boolean }>(
+            sql`SELECT EXISTS (SELECT 1 FROM ${partition}) AS has_rows`,
+          );
+          if (sample[0]?.has_rows !== false) return false;
+          await tx.execute(sql`DROP TABLE ${partition}`);
+          return true;
+        });
+        if (done) dropped += 1;
+      } catch (error) {
+        // 잠금을 곧바로 얻지 못했다(55P03) — 다음 판에 다시 본다. 그 밖의 실패도 보존 잡 전체를 멈추지 않는다.
+        // drizzle 은 원래 오류를 `cause` 에 둔다 — 문장보다 SQLSTATE 가 원인을 바로 말한다
+        const cause = (error as { cause?: { code?: unknown } }).cause;
+        const code = typeof cause?.code === 'string' ? cause.code : 'unknown';
+        this.logger.warn(
+          `activity 파티션 ${name}을 드랍하지 못했습니다(SQLSTATE ${code}) — 다음 판에 다시 봅니다`,
+        );
+      }
+    }
+    return dropped;
   }
 }

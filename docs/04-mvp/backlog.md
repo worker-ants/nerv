@@ -3,6 +3,7 @@ id: SPC-MVP-BACKLOG
 status: approved
 updated: 2026-09-24
 referenced_by:
+  - 03-proposal/architecture.md
   - 03-proposal/agent-integration.md
   - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
@@ -23,7 +24,21 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.97 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v3.04 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v3.04 변경(2026-10-16 — Codex 온보딩, Phase 2 묶음 2의 넷째): **E20-S04 `done` · §1.4 E20 행과 합계 · §1.1 · §6.7 첫 단락.** 별도 명령 대신 `nerv-init --codex`다 — `.codex/config.toml` · `.nerv/env` · `.gitignore` · AGENTS.md 가운데 없는 것만 만들고 이미 있는 값은 덮지 않는다. `--check`는 쓰지 않고 덜 된 설정을 보고한다([4.6 플러그인](plugin.md) REQ-PLG-040 · §3.7). E20은 네 스토리가 모두 `done`이다. 합계는 `done` 87 · 부분 3 · `backlog` 11 이다.
+>
+> v3.03 변경(2026-10-16 — 프로젝트의 AGENTS.md를 서버가 만들고 `nerv-init`이 구역만 바꾼다, Phase 2 묶음 2의 넷째 · **사람 결정 ①**(2026-10-16 — A)): **E20-S03 `done` · 결정 대기 문구를 결정으로 · §1.4 E20 행과 합계 · §1.1 · §6.7 첫 단락.** 서버가 템플릿에 그 프로젝트의 서버 주소 · 키 · 규약 스펙 목록을 채운 본문을 주고([4.4 API](api.md) EP-PRJ-06 · REQ-API-326), `nerv-init`이 AGENTS.md가 없으면 만들고 있으면 표시한 구역만 바꾼다([4.6 플러그인](plugin.md) REQ-PLG-039 · §5.3). 규약 스펙의 새 버전이 승인되면 규약 버전이 바뀌고 세션 시작 훅이 낡은 구역을 알린다. 같은 묶음에서 Codex의 `notify`가 NERV를 설정한 저장소의 턴만 보내게 고쳤다(REQ-PLG-038 개정). 합계는 `done` 86 · 부분 3 · `backlog` 12 다.
+>
+> v3.02 변경(2026-10-16 — Codex notify와 2-9 완주, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15)): **E20-S02 `done` · §1.4 E20 행과 합계 · §1.1 · §6.7 첫 단락.** 서버가 Codex의 턴 완료 알림을 받아 그 세션의 답변 활동으로 남긴다([4.4 API](api.md) REQ-API-325). 템플릿의 `notify` 줄은 사용자 설정에 두고 설치 캐시의 포워더를 부른다([4.6 플러그인](plugin.md) REQ-PLG-038 — 저장소 설정의 `notify`는 Codex가 무시한다). Codex 0.162.1 세션 하나가 bootstrap → next → claim → 하트비트 → 질문(폴링 폴백) → 구현 → 리뷰 제출 → done을 완주했다(2-9 · [4.6 플러그인](plugin.md) §5.4). 합계는 `done` 85 · 부분 3 · `backlog` 13 이다.
+>
+> v3.01 변경(2026-10-16 — Codex에서 NERV 훅 여섯이 돈다, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다)): **E20-S01 `done` · §1.4 E20 행과 합계 · §1.1 · §6.7 첫 단락.** [4.6 플러그인](plugin.md) §5.4 표의 고칠 자리를 모두 고치고 Codex 0.162.1로 다시 쟀다 — 훅 여섯이 경고 없이 돈다. 세션은 `codex`로 남고 훅이 만든 세션과 `nerv_bootstrap` 세션이 하나로 이어진다. 세션 안내와 Stop의 차단 이유도 모델에게 전달됐다([4.6 플러그인](plugin.md) REQ-PLG-034~037 · [4.4 API](api.md) REQ-API-323 · 324). 합계는 `done` 84 · 부분 3 · `backlog` 14 다.
+>
+> v3.00 변경(2026-10-16 — 복구 뒤 자동 동기화, Phase 2 묶음 2의 둘째 · **사람 결정**): **E21-S01 `done` · §1.4 E21 행과 합계 · §1.1 · §6.8 첫 단락.** 데몬을 따로 띄우지 않는다. 훅 포워더가 서버에서 2xx 를 받으면 오프라인 큐를 분리된 백그라운드 flush 로 비우고(잠금으로 하나만), 서버가 거절한 쓰기는 `outbox/failed/` 로 옮겨 서버에 알린다 — 그 사람에게 중요 알림이 간다([4.6 플러그인](plugin.md) REQ-PLG-032 · 033 · [4.4 API](api.md) REQ-API-322). §6.8 의 "스킬 턴의 flush" 는 그렇게 시키는 스킬이 없어 실제로 없었다 — 정정했다. 합계는 `done` 83 · 부분 3 · `backlog` 15 다.
+>
+> v2.99 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째): **E21-S02 부분 · §1.4 E21 행과 합계 · 부분 구현 표 한 줄 · 셋째 표의 미러 줄 · §1.1 · §6.8 첫 단락.** 미러 폴더가 git 저장소가 되어 export 잡이 바뀐 파일을 커밋하고 원격이 있으면 fast-forward 로만 push 한다. 원격에 NERV 가 만들지 않은 커밋이 있으면 멈추고 `mirror.diverged` 로 admin 에게 알린다([4.2 코드베이스](codebase.md) REQ-CB-062 · 063). 남은 것은 설계 트리의 `tasks/` · `reviews/` 와 승인 직후 push 다. 합계는 `done` 82 · 부분 3 · `backlog` 16 이다.
+>
+> v2.98 변경(2026-10-16 — 보존 워커 완성의 범위 A, Phase 2 묶음 2의 첫째 · **사람 결정 ②**): **E18-S03 부분 · §1.4 E18 행과 합계 · 부분 구현 표 한 줄 · §1.1 · §6.5 첫 단락.** 보존 잡이 180일 지난 알림을 지우고 행이 모두 지워진 `activity` 월 파티션을 드랍한다([4.3 데이터베이스 스키마](database.md) REQ-DB-046 · 047). 남은 셋(리뷰 본문 요약 압축 · draft 압축 · `event` 의 `DETACH`)은 재검토 트리거를 기다린다. 합계는 `done` 82 · 부분 2 · `backlog` 17 이다.
 >
 > v2.97 변경(2026-10-16 — 보존 기간을 저장하면 남아 있는 원문의 만료도 다시 적는다, **사람 결정**): §1.4 셋째 표의 보존 집행 줄 한 구절. 스토리 없는 구현이다 — 스토리 수 · `done` 수는 그대로다.
 
@@ -614,7 +629,7 @@ referenced_by:
 ### 1.1 ID·상태·표기 규약
 
 - **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-15 현재 `done` 82 · 부분 1 · `backlog` 18(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-16 현재 `done` 87 · 부분 3 · `backlog` 11(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -654,12 +669,12 @@ referenced_by:
 | E15 커버리지 · 구현 축 | 3 | — | — | `routes/p.$proj/coverage.tsx` · `features/coverage-drilldown/`(E15-S01 드릴다운) · `spec/impl-status.ts`(출처를 쓴다 · `commitScopeClearSql` — E15-S03 커밋 범위) · `import.service.ts` · `drizzle/0051`(E15-S02 출처) · `spec.service.ts`(`coverage` · `requirement`) · `review/commit-scope.ts` · `test/integration/coverage-drilldown.spec.ts` · `commit-scope.spec.ts` |
 | E16 게이트 판정 완성 | 1 | — | 3 | `task.service.ts`(done 게이트 — `judgeReviewKinds` · `judgeAnyReview`가 작업의 최신 커밋을 본 라운드만 센다 · `stale_reviews` — 커밋 SHA가 아닌 라운드도 `not_a_commit`으로 막는다 · `gate.failopen`은 커밋을 모를 때만) · `review/review.service.ts`(`head_sha` · `base_sha`는 커밋 SHA만 받는다 — REQ-API-321) · `review/commit-scope.ts`(최신 커밋 · 같은 커밋 판정) · `review/review-gate.ts`(`headMatch: 'commit'`) · `test/integration/commit-scope.spec.ts`(E16-S01) · `drizzle/0052`(작업의 증적 인덱스 `evidence_task` — 최신 커밋을 표 전체에서 찾지 않는다) — 남은 S02~S04 는 착수 전 |
 | E17 알림 확장 | 1 | — | 2 | `event/notification.service.ts`(`involvedTargets` — 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자 · E17-S01) · `review.service.ts`(`finding.resolved` 의 `review_session_id`) · `resumePoint`(새로 뜬 워커는 최근 한 시간만 다시 본다 — 넓어진 규칙을 지난 이벤트에 소급하지 않는다 · [4.4 API](api.md) REQ-API-317) · `test/integration/notification-involved.spec.ts` — 남은 S02(워치) · S03(Slack)은 착수 전 |
-| E18 fail-open · 보존 | 2 | — | 1 | `routes/settings/gates.tsx`(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · `task/failopen.ts` · `task/failopen.service.ts`(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · `worker/jobs/failopen.job.ts` · `components/failopen-banner.tsx`(S5 · S6 배너) · `test/integration/failopen-escalation.spec.ts` — 남은 S03(보존 워커 완성)은 착수 전 |
+| E18 fail-open · 보존 | 2 | 1 | — | `routes/settings/gates.tsx`(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · `task/failopen.ts` · `task/failopen.service.ts`(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · `worker/jobs/failopen.job.ts` · `components/failopen-banner.tsx`(S5 · S6 배너) · `test/integration/failopen-escalation.spec.ts` · `worker/jobs/retention.job.ts`(E18-S03 부분 — 알림 180일 · 빈 `activity` 월 파티션 드랍 · `test/integration/retention-cleanup.spec.ts`) — S03 의 남은 셋은 아래 부분 구현 표 |
 | E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
-| E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |
-| E21 이관 · 운영 | — | — | 4 | 착수 전 — `plugin/bin/nerv-outbox` · `worker/jobs/export.job.ts` |
+| E20 Codex 완전 지원 | 4 | — | — | `plugin/hooks/hooks.json` · `plugin/bin/nerv-hook-forward`(E20-S01 — Codex 를 `PLUGIN_ROOT` 로 알아본다 · 모든 훅에 `X-NERV-Agent` · 세션 종료 2초) · `session/ingest.controller.ts`(Codex 에는 판정 필드만) · `mcp/harness-session.ts`(Codex 가 넣어 준 세션 id 로 세션 잇기) · `plugin/bin/nerv-init`(Codex 의 `config.toml` 점검) · `plugin-test/`(플러그인 폴더에는 배달되는 파일만) · [4.6 플러그인](plugin.md) §5.4 다시 잰 열 · `session/ingest.controller.ts` 의 `notify`(E20-S02 — 턴 완료 알림을 답변 활동으로) · `plugin/codex/config.toml`(사용자 설정의 `notify` 줄) · `plugin/bin/nerv-env.sh` 의 `nerv_repo_configured`(notify 는 NERV 를 설정한 저장소의 턴만 — REQ-PLG-038 개정) · `session/agents-md.service.ts` · `session/conventions.ts`(E20-S03 — EP-PRJ-06 · bootstrap 과 같은 규약 질의 · 규약 버전 지문) · `@nerv/schema` `agents-md.ts`(템플릿 정본) · `plugin/bin/nerv-init`(AGENTS.md 의 구역만 바꾼다 · `--check` 가 낡은 구역을 알린다) · `test/integration/agents-md.spec.ts` · `plugin/bin/nerv-init --codex`(E20-S04 — Codex 온보딩: `.codex/config.toml` · `.nerv/env` · AGENTS.md 를 없을 때만 만들고 `--check` 가 검증한다) |
+| E21 이관 · 운영 | 1 | 1 | 2 | `plugin/bin/nerv-outbox` · `plugin/bin/nerv-hook-forward`(E21-S01 — 포워더가 서버에서 2xx 를 받으면 큐를 백그라운드 flush 로 비운다 · 잠금 · 거절된 쓰기를 `outbox-failed` 로 알린다) · `session/outbox-report.service.ts`(`session.outbox_failed` · 그 사람에게 중요 알림) · `plugin-test/outbox.spec.ts` · `test/integration/outbox-sync.spec.ts` · `worker/jobs/export.job.ts` · `worker/mirror-git.ts`(E21-S02 부분 — 미러 폴더를 git 저장소로 두고 커밋 · fast-forward push · 미러 쪽 편집 경고 `mirror.diverged`) · `test/integration/mirror-git.spec.ts` — S02 의 남은 것은 아래 부분 구현 표, S03 · S04 는 착수 전 |
 | E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **82** | **1** | **18** | `backlog` 18은 모두 Phase 2 스토리다(§6) |
+| **합계** | **87** | **3** | **11** | `backlog` 11은 모두 Phase 2 스토리다(§6) |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -672,6 +687,8 @@ referenced_by:
 | ID | 들어온 것 | **남은 것** |
 | --- | --- | --- |
 | E06-S06 | degrade 경로·1024차원 검증 · **렉시컬 절반의 실측**([4.4 API](api.md) §2.2c — 이 저장소의 문서 세트로 한국어 질의 15개) · 실측이 남긴 결정 셋(2026-10-12 · 사람 결정 — 질의 임베딩 2초 · 1분 쉬기 REQ-API-300, FTS 저장 열과 순위 합치기 REQ-API-301 · REQ-DB-041 — 검색 p95 829 → 62ms) | **임베딩 3프로필의 지연 · 하이브리드 품질 · go/no-go 판정** — 이 작업 환경에서는 모델을 받을 길이 없었다. 같은 질의 15개로 다시 잰다 |
+| E18-S03 | `notification` 180일 삭제(마지막으로 더해진 시각 기준 · 읽음 · 안 읽음 가리지 않음)와 보존 기간을 넘긴 빈 `activity` 월 파티션 드랍(2026-10-16 · 사람 결정 ② — [4.3 데이터베이스 스키마](database.md) REQ-DB-046 · 047) | **재검토 트리거를 기다리는 셋** — `reviewer_report.body_md` 365일 뒤 요약 압축(방법이 정해져 있지 않다) · draft `spec_version` 90일 뒤 압축 · `event` 12개월 뒤 `DETACH`(감사 로그를 건드린다). 트리거는 [4.3 데이터베이스 스키마](database.md) §2.14 — 파티션 24개 또는 `event` 1천만 행 |
+| E21-S02 | 미러 폴더(`NERV_EXPORT_DIR`)가 git 저장소다 — export 잡이 승인본 md · `llms.txt` · `manifest.json`(EP-SPEC-14 와 같은 함수) · `requirements.tsv` 를 쓰고 바뀌면 커밋한다. 원격(`NERV_MIRROR_GIT_REMOTE`)이 있으면 fast-forward 로만 push 하고 원격에 NERV 가 만들지 않은 커밋이 있으면 멈춘 채 `mirror.diverged` 로 admin 에게 알린다. 새 볼륨은 원격의 이력을 이어받는다. 워커 이미지에 git([4.2 코드베이스](codebase.md) §6.2a · REQ-CB-062 · 063 · 2026-10-16) | **설계 트리의 `tasks/open.md` · `reviews/findings-open.md`**([3.2 시스템 아키텍처](../03-proposal/architecture.md) §2.4 (b)) — 담을 칸과 모양이 정해져 있지 않고 작업 스냅샷은 시간마다 바뀌어 커밋이 그만큼 잦아진다. 담는다면 무엇을(누가 · 어느 호스트 — 사람 이름과 호스트 이름이 미러에 남는다) 정해야 한다 · **승인 직후 push** — 지금은 1시간 주기의 다음 판이라 승인에서 push 까지 최대 1시간이다(M2 롤백이 미러를 승격하면 그 사이의 승인을 잃는다) · 실제 원격(GitHub 등)과 k8s 볼륨에서의 실측 — L2 는 일회용 bare 저장소로 봤다 |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
 
@@ -683,7 +700,7 @@ referenced_by:
 | 스펙 첨부 | `attachment` 테이블 · `nerv_spec_attach` · `nerv_spec_attachment_read` | 2026-09-01·09-04 도입 |
 | 조직 초대 | `modules/auth/invitation.controller.ts` · `routes/invite.$token.tsx` · `0006_invitation` | |
 | 제품 매뉴얼 `/help` | `apps/web/src/content/manual/{ko,en}/` 10장 × 2 · `routes/help/` | [AGENTS.md](../../AGENTS.md) 구현 규약 5 가 요구하는 산출물이다 |
-| md 미러 export 잡 | `worker/jobs/export.job.ts` | 코드가 스스로 "P1 후반"이라 적는다 |
+| md 미러 export 잡 | `worker/jobs/export.job.ts` | 코드가 스스로 "P1 후반"이라 적는다. git 커밋과 push 는 2026-10-16 에 E21-S02 로 들어왔다(위 부분 구현 표) |
 | `nerv_question_cancel` | `modules/approval/question.tools.ts` | 2026-09-05 신설 |
 | `pnpm preflight` · `hooks:install` | `codebase/scripts/preflight.mjs` · `install-hooks.mjs` | 규약 7 이 커밋 전 필수로 지정한 도구 |
 | 에러 코드 → UI 매핑 한 곳 | `apps/web/src/lib/api-errors.ts`(`describeApiError` · `useApiError`) | [4.5](screens.md) §1.5 표가 "모든 화면의 기본값" 으로 선언된 계약인데 코드를 보는 자리가 셋뿐이었다(2026-09-06) |
@@ -715,7 +732,7 @@ referenced_by:
 | done 게이트 정책 · 리뷰 링크 | `zod/policy.ts`(`done_gate`) · `task.service.ts`(`assertDoneGate`) · `evidence-locator.ts`(신설) · `review.service.ts`(활성 클레임에서 task_id) | 게이트가 자기 신고 문자열 1건으로 열렸고 리뷰 1,992건 중 Task 링크가 2건이었다(2026-09-07 · [4.4](api.md) REQ-API-146~148) |
 | 알림 등급·수신자 | `notification.service.ts`(등급 필터·둘로 세기·owner_role 수신자) · `event.controller.ts` · `app-shell.tsx`·`routes/notifications.tsx` | 배지가 배경 활동까지 세어 결정 99건이 767건에 묻혔다(2026-09-07 · [4.4](api.md) REQ-API-149·150) |
 | 권한·토큰의 감사 | `event/event-core.module.ts`(신설) · `auth.service.ts`·`invitation.service.ts`·`attachment.service.ts` · `events.ts` | FR-16 이 요구하는 축이 멤버십·토큰·프로젝트 변경에서 비어 있었다(2026-09-07 · [4.4](api.md) REQ-API-151) |
-| 도구 카탈로그·README 대조 게이트 | `apps/api/test/integration/mcp.spec.ts` · `plugin/plugin-package.spec.ts` | [3.4](../03-proposal/agent-integration.md) §2.3 카탈로그가 네 자리에서 실물과 달랐고(문서에만 있는 인자는 `ignored_args` 로 버려진다), 플러그인 README 가 배달 파일 다섯을 적지 않았다 |
+| 도구 카탈로그·README 대조 게이트 | `apps/api/test/integration/mcp.spec.ts` · `plugin-test/plugin-package.spec.ts` | [3.4](../03-proposal/agent-integration.md) §2.3 카탈로그가 네 자리에서 실물과 달랐고(문서에만 있는 인자는 `ignored_args` 로 버려진다), 플러그인 README 가 배달 파일 다섯을 적지 않았다 |
 | 탭 줄의 가로 축 — 줄과 내용이 각자 민다 | `routes/p.$proj/specs.$spec.tsx` · `routes/settings/route.tsx` · `spec-rail.spec.tsx` · `settings/workspace.spec.tsx` · `apps/web/test/e2e/spec-navigation.spec.ts` | 세로만 열려던 `overflow-y-auto` 가 가로도 열어 **레일이 통째로** 옆으로 밀렸다 — 설정 탭 줄도 같은 모양이었다([4.5](screens.md) REQ-WEB-151) |
 | S3 폭 상한 둘 · 겹친 랜드마크 | `routes/p.$proj/specs.$spec.tsx` · `spec-rail.spec.tsx` · `apps/web/test/e2e/spec-navigation.spec.ts` | 컨테이너 80rem + 본문 44rem 이라 **1512px 위로는 여백만 늘었다** — 레일이 오른쪽 끝에 붙지 않았다. 셸 밖에 `<main>` 이 하나 더 있던 것도 함께([4.5](screens.md) REQ-WEB-152) |
 | 레일 머리 고정 — 탭 줄과 방향 하위 탭 | `routes/p.$proj/specs.$spec.tsx` · `spec-rail.spec.tsx` · `apps/web/test/e2e/spec-navigation.spec.ts` | 관계 93건 문서에서 목록을 내리면 탭이 **함께** 사라져 되감아야 돌아왔다 — 하위 탭은 본문 칸이 스크롤 상자라 옮겨야 했다([4.5](screens.md) REQ-WEB-153) |
@@ -917,7 +934,7 @@ referenced_by:
 | 받기 전에 빈 항목이 보이던 결함 — 남은 자리 | 같은 규칙(REQ-WEB-293 · 294 · 296)을 남은 자리에: `features/task-board/delegation-form.tsx`(고칠 작업을 받기 전에는 폼 대신 골격 · 출처 선택지의 "불러오는 중…") · 작업 보드 필터 선택지 · 스펙 목록 상태 칩 줄의 자리 · 리뷰 발견의 코멘트 · 프로젝트 이름(개요 제목 · 헤더 · 왼쪽 열 — slug 를 먼저 보이지 않는다) · 홈 인사말(내 정보가 오기 전) · 계정 기기의 [다른 기기 모두 끊기] 사유 · 글자만 있던 로딩 셋(버전 비교 · 결재 카드 본문 · 받은 요청의 짚은 항목) · L1 `routes/pending-states.spec.tsx` 5건(main 코드에서 5건 모두 실패) |
 | 새 작업 폼의 헛 조회 | `apps/web/src/lib/queries.ts`(`useTask` — 키가 빈 문자열이면 부르지 않는다. 새 작업 폼은 수정 폼과 한 부품이라 빈 키로 `/projects/<slug>/tasks/` 를 불렀고 그 응답은 아무도 쓰지 않았다) · L1 `routes/task-derive.spec.tsx` 1건(고치기 전에는 그 요청이 나갔다) |
 | 기준선으로 미러 받기 | `modules/spec/spec-export.service.ts`(`baseline=<이름>` — 그 세트의 문서만 고정한 버전으로, 나중에 보관한 문서도 · 목록의 `baseline` · 파일 이름 — REQ-API-268) · `mirror.controller.ts`(`export.zip` · `.md`의 `?baseline=` — `.md`는 예전에 이 값을 오류 없이 버렸다 · REQ-API-269) · `spec.service.ts`(`mirrorDocument`의 `baseline` · `llmsTxt`의 `nodes` — 색인을 zip이 담은 문서로) · L2 `test/integration/mirror-http.spec.ts` 4건(기준선 내보내기 · 승인본과의 차이 · `.md` · 400 셋) |
-| 스펙 미러 스킬(`/nerv:mirror`) | 플러그인 `skills/mirror/SKILL.md`(신설 — 경로 · 기준을 정하고 스크립트를 한 번 실행한다) · `skills/mirror/scripts/nerv-mirror.mjs`(신설 — 의존성 없는 node 스크립트: `baselines` · `pull` · `status`, 미러가 쓴 파일만 고치고 지운다, zip 안의 경로 · CRC 검사, 다시 받을 때 지난번 기준) · `bin/nerv-mirror`(sh 래퍼) · 패키지 0.3.15 → 0.3.16 · L1 `plugin/mirror.spec.ts` 13건(가짜 서버) · L2 `mirror-http.spec.ts` 1건(실제 서버에 스크립트를 붙인다) · `plugin.spec.ts`(아카이브에 두 파일 · 실행 비트) — REQ-PLG-028 |
+| 스펙 미러 스킬(`/nerv:mirror`) | 플러그인 `skills/mirror/SKILL.md`(신설 — 경로 · 기준을 정하고 스크립트를 한 번 실행한다) · `skills/mirror/scripts/nerv-mirror.mjs`(신설 — 의존성 없는 node 스크립트: `baselines` · `pull` · `status`, 미러가 쓴 파일만 고치고 지운다, zip 안의 경로 · CRC 검사, 다시 받을 때 지난번 기준) · `bin/nerv-mirror`(sh 래퍼) · 패키지 0.3.15 → 0.3.16 · L1 `plugin-test/mirror.spec.ts` 13건(가짜 서버) · L2 `mirror-http.spec.ts` 1건(실제 서버에 스크립트를 붙인다) · `plugin.spec.ts`(아카이브에 두 파일 · 실행 비트) — REQ-PLG-028 |
 | 본문 축소 방지 | `packages/schema/src/body-shrink.ts`(신설 — `bodyChange`: 크기 · 제목 수 · 남은 요구사항 가운데 하나가 절반 아래면 축소, 덮어쓸 본문이 2,000바이트 미만이면 보지 않는다) · `modules/spec/spec.service.ts`(`draftUpsert` — 덮어쓸 본문과 견줘 `allow_shrink` 없는 축소를 409 `body_shrunk`로 거절, 확인 기록 · 응답의 `body_change` — REQ-API-270) · `spec-check.service.ts`(여섯째 검사기 `base-continuity` · 결과의 `body_change` — REQ-API-271) · 결재 요청 이벤트의 `body_change` · `gate-tier.ts`(게이트 신호 `body_shrunk` — 최소 T2 · 2026-10-09 사람 결정 · REQ-API-273) · `0044_spec_version_shrink_ack`(REQ-DB-037) · `apps/web/src/components/body-change.tsx`(검토 요청 창 · 승인 카드 — REQ-WEB-297 · 298) · `features/inbox/bulk-decision.tsx`(일괄 결정 확인 목록의 "본문이 크게 줄었음" — 받은 요청과 스펙 결재 대기(EP-SPEC-26)가 함께 쓴다) · 플러그인 `skills/spec` · `agents/nerv-spec-writer`(0.3.17) · L1 `body-shrink.spec.ts` · L2 `spec-shrink.spec.ts` · `rest-surface.spec.ts` | clemvion 보고(2026-10-08) — 용어 사전 v4가 34.7KB에서 484바이트 조각으로, 계정 · 워크스페이스 v4 초안이 86KB에서 앞 40줄로 덮였다. 앞의 것은 승인까지 갔다 |
 | 버전 인자의 두 이름 | `common/query-vocab.ts`(`aliasedParam` 신설 — 둘이 다른 값이면 400 `alias_conflict`) · `spec.controller.ts`(문서 조회가 `version`도 받는다) · `mirror.controller.ts`(md 미러가 `v`도 받는다) — REQ-API-272 · 도구 설명 `mcp.arg.version` · L2 `mirror-http.spec.ts` | clemvion 실측 — 미러의 `?v=3` · `?v=99`가 둘 다 승인본(v4)을 200으로 돌려줬다 |
 | 범위를 고른 리뷰 면제 | `approval.service.ts`(`bypass` — `kinds`: 작업으로 해소 · 역할 범위 `REVIEW_WAIVER_ROLES` · 코드 증적이 있으면 코드 계열 거절) · `task.service.ts`(done 게이트가 면제한 종류를 빼고 판정 · 면제 뒤 코드 증적이면 세지 않음 · 거부의 `uncovered_kinds` · 상세의 `review_waivers`) · `0045_approval_bypass_kinds`(REQ-DB-038) · `apps/web/src/features/task-board/review-waiver.tsx`(완료 조건 카드의 [리뷰 면제] · 리뷰 목록 아래 기록) · 플러그인 `skills/impl`(0.3.18) · L2 `review-gate.spec.ts` · L1 `task-next-door.spec.tsx` — REQ-API-274 · REQ-WEB-299 | clemvion 보고(2026-10-09) — 코드를 내지 않은 작업 CLE-T-2NVZA4 · CLE-T-SJAYNM이 `code` 리뷰가 없어 done에서 막혔다 |
@@ -1336,7 +1353,7 @@ FR-12 ◐ → ●. 성공 기준 2-10의 대상이다. **이미 있는 것**: �
 
 ### 6.5 E18 — fail-open · 보존 (D-14 · NFR-01)
 
-**이미 있는 것**: fail-open 기록(`gate.failopen` — 플랜 승인 게이트 · done 게이트) · 정책 키 `failopen.escalate_count` · `failopen.window_hours`(기본 3회 · 24시간) · `retention` 키 둘의 집행. 2026-10-15 에 S01 · S02 가 들어왔다 — 두 값은 S8 게이트 정책 탭에서 admin 이 고치고, 창 안의 횟수로 격상 · 해제하며, S5 · S6 에 배너가 표시된다([4.4 API](api.md) REQ-API-318 ~ 320 · [4.5 화면 명세](screens.md) REQ-WEB-318 · 319). 설정 화면 문구와 매뉴얼의 「티어를 올립니다」도 함께 고쳤다. 남은 것은 S03(보존 워커 완성)이다.
+**이미 있는 것**: fail-open 기록(`gate.failopen` — 플랜 승인 게이트 · done 게이트) · 정책 키 `failopen.escalate_count` · `failopen.window_hours`(기본 3회 · 24시간) · `retention` 키 둘의 집행. 2026-10-15 에 S01 · S02 가 들어왔다 — 두 값은 S8 게이트 정책 탭에서 admin 이 고치고, 창 안의 횟수로 격상 · 해제하며, S5 · S6 에 배너가 표시된다([4.4 API](api.md) REQ-API-318 ~ 320 · [4.5 화면 명세](screens.md) REQ-WEB-318 · 319). 설정 화면 문구와 매뉴얼의 「티어를 올립니다」도 함께 고쳤다. 2026-10-16 에 S03 의 첫 조각이 들어왔다(사람 결정 ② — 범위 A): 알림 180일 삭제와 빈 `activity` 월 파티션 드랍([4.3 데이터베이스 스키마](database.md) REQ-DB-046 · 047). 리뷰 본문 요약 압축 · draft 압축 · `event` 의 `DETACH` 는 [4.3 데이터베이스 스키마](database.md) §2.14 의 재검토 트리거를 기다린다.
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
@@ -1356,18 +1373,18 @@ FR-04 ○ → ●, FR-11 ◐ → ●(받은 요청 다섯 유형). **이미 있�
 
 ### 6.7 E20 — Codex 완전 지원 (FR-15)
 
-FR-15 ◐ → ●. 성공 기준 2-9의 대상이다. [4.6 플러그인](plugin.md) §5.4가 2026-10-15 Codex 0.162.1 실측으로 고칠 자리를 표로 남겼고 사람 결정으로 **한 묶음으로 고친다**(그 전에는 훅을 지금처럼 둔다). MCP 도구만으로 완주하는 약속은 이미 시나리오 F가 매 PR에서 확인한다(§5.6).
+FR-15 ◐ → ●. 성공 기준 2-9의 대상이다. [4.6 플러그인](plugin.md) §5.4가 2026-10-15 Codex 0.162.1 실측으로 고칠 자리를 표로 남겼고 사람 결정으로 **한 묶음으로 고친다**(그 전에는 훅을 지금처럼 둔다). MCP 도구만으로 완주하는 약속은 이미 시나리오 F가 매 PR에서 확인한다(§5.6). 2026-10-16 에 S01 이 들어왔다 — 고칠 자리를 모두 고치고 다시 쟀다([4.6 플러그인](plugin.md) §5.4 넷째 열 · REQ-PLG-034~037 · [4.4 API](api.md) REQ-API-323 · 324). 같은 날 S02 도 들어왔다 — notify 를 받고 Codex 세션 하나가 2-9 흐름을 완주했다([4.6 플러그인](plugin.md) REQ-PLG-038 · [4.4 API](api.md) REQ-API-325). 같은 날 S03 도 들어왔다 — 서버가 프로젝트의 AGENTS.md 본문을 만들고 `nerv-init` 이 표시한 구역만 바꾼다(사람 결정 ① · [4.6 플러그인](plugin.md) REQ-PLG-039 · §5.3 · [4.4 API](api.md) REQ-API-326). S04 도 들어왔다 — 별도 명령 대신 `nerv-init --codex` 가 `.codex/config.toml` · `.nerv/env` · AGENTS.md 를 없을 때만 만들고 `--check` 가 검증한다([4.6 플러그인](plugin.md) REQ-PLG-040 · §3.7). E20 의 네 스토리가 모두 `done` 이다.
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
 | E20-S01 | **묶음 2** · Codex 훅 묶음 — [4.6 플러그인](plugin.md) §5.4 표의 고칠 자리 전부: `hooks.json`의 `$comment` · 에이전트 표시 · 훅 응답 형식 · SessionEnd 시한 · 세션 짝 · `nerv-init --check`의 Codex 설정 점검 · 패키지에 배포 파일만 · `nerv:approve` 설명의 Codex 제한 | [4.6 플러그인](plugin.md) §5.4(결정 — Phase 2에서 한 묶음으로) · §5.1 · FR-15 | WHEN Codex에 NERV 플러그인을 설치한 세션이 돌면, THE SYSTEM SHALL 훅 여섯을 경고 없이 실행하고 그 세션을 `codex`로 기록하며, 훅이 만든 세션과 `nerv_bootstrap` 세션을 한 세션으로 잇는다<br>WHEN SessionStart 훅이 서버의 세션 안내를 받으면, THE SYSTEM SHALL Codex가 받는 형식으로 돌려 모델에게 전달한다 | E12-S02 |
 | E20-S02 | **묶음 2** · notify 매핑 — Codex `notify`를 훅 수집기로 받고 질문 폴링 폴백까지 2-9 흐름을 완주한다 | [3.7 로드맵](../03-proposal/roadmap.md) §4.2(Codex 지원) · §4.4(2-9) · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.2 · §4.4 · [4.6 플러그인](plugin.md) §5.1(훅 텔레메트리 행) | WHEN Codex 세션이 `notify`를 내면, THE SYSTEM SHALL 그 세션의 활동으로 적재한다<br>WHEN Codex 세션이 질문을 만들면, THE SYSTEM SHALL 사람의 답을 `nerv_question_create` 재호출(폴링)과 하트비트 `pending`으로 전하고 그 세션이 bootstrap → claim → 구현 → 리뷰 제출 → done을 완주하게 한다(2-9) | E20-S01 |
-| E20-S03 | **묶음 2** · AGENTS.md 생성 · 갱신 — 초안을 손으로 커밋하던 것을 서버가 만든다 | [4.6 플러그인](plugin.md) §5.1(규약 전달 행) · §5.3 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.3 · [3.7 로드맵](../03-proposal/roadmap.md) §4.3(산출물 4) · FR-15 | **결정 대기** — 생성의 입력(어느 스펙 · 템플릿에서 만드는가)과 갱신 경로(저장소에 커밋 · 내려받기). 정해지면: WHEN 사람이 프로젝트의 AGENTS.md를 만들면, THE SYSTEM SHALL 그 프로젝트의 서버 주소 · 프로젝트 키와 지금 규약으로 만든 본문을 주고 다시 만들면 바뀐 규약을 반영한다 | E20-S01 |
-| E20-S04 | **묶음 2** · Codex 온보딩 스크립트 — `.codex/config.toml` · AGENTS.md를 만들고 검증한다 | [4.6 플러그인](plugin.md) §5.1(온보딩 행) · [4.6 플러그인](plugin.md) REQ-PLG-018 · FR-15 | WHEN 사람이 작업 저장소에서 Codex 온보딩을 실행하면, THE SYSTEM SHALL `.codex/config.toml` · AGENTS.md 가운데 없는 것만 만들고 이미 있는 값은 덮지 않는다(`bin/nerv-init`과 같은 규칙)<br>WHEN `--check`로 실행하면, THE SYSTEM SHALL 아무것도 쓰지 않고 덜 된 설정을 보고한다 | E20-S03 |
+| E20-S03 | **묶음 2** · AGENTS.md 생성 · 갱신 — 서버가 본문을 만들고 `nerv-init` 이 표시한 구역만 바꾼다(2026-10-16 · 사람 결정 ① A) | [4.6 플러그인](plugin.md) §5.1(규약 전달 행) · §5.3 · [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.3 · [3.7 로드맵](../03-proposal/roadmap.md) §4.3(산출물 4) · FR-15 | WHEN 사람이 작업 저장소에서 `nerv-init` 을 실행하면, THE SYSTEM SHALL 서버가 만든 그 프로젝트의 AGENTS.md 본문(서버 주소 · 프로젝트 키 · 규약 스펙 목록 · 규약 버전 — [4.4 API](api.md) EP-PRJ-06)으로 파일이 없으면 만들고 표시한 구역이 있으면 그 구역만 바꾼다. 구역이 없는 파일은 덮지 않는다<br>WHEN 규약 스펙의 새 버전이 승인되면, THE SYSTEM SHALL 규약 버전을 바꾸고 세션 시작 훅이 낡은 AGENTS.md 를 한 줄로 알린다(쓰지 않는다) | E20-S01 |
+| E20-S04 | **묶음 2** · Codex 온보딩 스크립트 — `.codex/config.toml` · AGENTS.md를 만들고 검증한다. 별도 명령 대신 `nerv-init --codex`(2026-10-16 — 같은 덮지 않는 규칙 · 같은 `--check`) | [4.6 플러그인](plugin.md) §5.1(온보딩 행) · §3.7 · [4.6 플러그인](plugin.md) REQ-PLG-018 · REQ-PLG-040 · FR-15 | WHEN 사람이 작업 저장소에서 Codex 온보딩(`nerv-init --codex`)을 실행하면, THE SYSTEM SHALL `.codex/config.toml` · `.nerv/env` · AGENTS.md 가운데 없는 것만 만들고 이미 있는 값은 덮지 않는다(`bin/nerv-init`과 같은 규칙 · 토큰은 파일에 쓰지 않는다)<br>WHEN `--check`로 실행하면, THE SYSTEM SHALL 아무것도 쓰지 않고 덜 된 설정을 보고한다 | E20-S03 |
 
 ### 6.8 E21 — 이관 · 운영 (FR-17 · NFR-04 · NFR-05)
 
-clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 폴백. 성공 기준 2-1 · 2-5 · 2-7의 대상이다. **이미 있는 것**: 오프라인 outbox와 세션 시작 · 스킬 턴의 flush(E12-S06) · md 미러 잡(`worker/jobs/export.job.ts` — 파일만 쓰고 커밋하지 않는다) · review 임포터.
+clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 폴백. 성공 기준 2-1 · 2-5 · 2-7의 대상이다. **이미 있는 것**: 오프라인 outbox와 세션 시작의 flush(E12-S06 — 예전 이 자리는 「스킬 턴의 flush」도 적었는데 그렇게 시키는 스킬이 없었다 · 2026-10-16 정정) · md 미러 잡(`worker/jobs/export.job.ts`) · review 임포터. 2026-10-16 에 S01 이 들어왔다 — 훅 포워더가 서버에서 2xx 를 받으면 큐를 백그라운드로 비우고, 서버가 거절한 쓰기는 그 사람에게 중요 알림으로 간다([4.6 플러그인](plugin.md) §3.4 · REQ-PLG-032 · 033 · [4.4 API](api.md) REQ-API-322). 2026-10-16 에 S02 의 첫 조각이 들어왔다 — 미러 폴더가 git 저장소가 되어 바뀌면 커밋하고 원격이 있으면 fast-forward 로만 push 하며, 미러 쪽 편집은 받아들이지 않고 admin 에게 경고한다([4.2 코드베이스](codebase.md) §6.2a · REQ-CB-062 · 063).
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |

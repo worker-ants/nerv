@@ -13,6 +13,7 @@ referenced_by:
   - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
   - 04-mvp/scope.md
+  - 04-mvp/codebase.md
   - 04-mvp/api.md
   - 04-mvp/screens.md
   - 04-mvp/plugin.md

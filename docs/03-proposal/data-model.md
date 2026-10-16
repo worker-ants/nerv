@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.27 · 2026-10-15 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.28 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.28 변경(2026-10-16 — 보존 워커 완성의 범위 A, **사람 결정 ②**): **§5.4 「집행되는 것」 문단과 표.** `notification` 180일이 집행된다 — 보존 잡이 마지막으로 더해진 시각이 180일 지난 줄을 지운다([4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-046). `activity` 는 행을 지운 뒤 빈 월 파티션도 드랍한다(REQ-DB-047). 남은 셋(리뷰 본문 요약 압축 · draft 압축 · `event` 의 `DETACH`)은 재검토 트리거를 기다린다. 보존 표 자체는 그대로다.
 >
 > v0.27 변경(2026-10-15 — 구현 상태의 출처, **사람 결정 ④**): **§2.2 `requirement` 한 행.** `impl_status_source`(`derived` · `import`)를 더한다. 작업이 없는 요구사항은 파생하지 않아 임포트가 넣은 값이 남는데, 그 값을 덮지 않는 대신 어디서 왔는지 남긴다([3.5 스펙 워크플로우](spec-workflow.md) §1.3 · [4.3 데이터베이스](../04-mvp/database.md) REQ-DB-044).
 >
@@ -1055,16 +1057,16 @@ fingerprint = sha256(
 | `event` | 영구(월 파티션, 12개월 후 콜드) | FR-16 감사 |
 | `notification` | 180일 | 파생 데이터. 원천은 `event` |
 
-**집행되는 것은 둘뿐이다**(2026-09-07 실측 — 표는 약속이고 이 문단이 현재다). 보존 잡(`retention`)이 실제로 도는 줄은 `activity`(프로젝트 정책 `activity_days`, 기본 90일 — 지우기 전에 `agent_session.activity_summary` 로 접는다)와 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 먼저 오는 쪽)다. 프로젝트 정책 스키마(`RetentionSchema`)의 키도 그 둘뿐이라 나머지는 정책으로 적을 자리조차 없다.
+**집행되는 것은 셋이다**(2026-09-07 실측 · 2026-10-16 갱신 — 표는 약속이고 이 문단이 현재다). 보존 잡(`retention`)이 실제로 도는 줄은 `notification`(상수 180일 — 마지막으로 더해진 시각 `last_at` 기준 · 읽음 · 안 읽음을 가리지 않는다 · [4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-046), `activity`(프로젝트 정책 `activity_days`, 기본 90일 — 지우기 전에 `agent_session.activity_summary` 로 접고, 행이 모두 지워진 월 파티션은 드랍한다 · REQ-DB-047)와 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 먼저 오는 쪽)다. 프로젝트 정책 스키마(`RetentionSchema`)의 키는 뒤의 둘뿐이라 나머지는 정책으로 적을 자리조차 없다.
 
 | 약속한 줄 | 상태 |
 | --- | --- |
-| `notification` 180일 | **집행 없음** — 파생 데이터인데 영구히 쌓인다 |
+| `notification` 180일 | **집행**(2026-10-16 · 사람 결정 ②) — 파생 데이터라 지워도 원천(`event`)에서 다시 만들 수 있다 |
 | `reviewer_report.body_md` 365일 후 압축 | **집행 없음** — 이 표에서 가장 큰 축이었다(세션당 66KB × 월 ~434 세션) |
 | `spec_version`(draft 중간 저장) 90일 후 압축 | **집행 없음** — approved 는 영구·불변이 맞고 이 줄은 draft 만의 이야기다 |
 | `event` 12개월 후 콜드(`DETACH`) | **집행 없음** — 파티션 분리 잡이 없다([4.3 데이터베이스 스키마](../04-mvp/database.md) §2.14) |
 
-넷 다 **이월**이며 그 사실을 여기 적는 이유는, 있다고 적힌 보존 정책이 감사·용량 계획의 입력이 되기 때문이다 — 거짓이면 두 계산이 함께 틀린다.
+남은 셋은 **이월**이다 — 2026-10-16 사람 결정 ② 가 [4.3 데이터베이스 스키마](../04-mvp/database.md) §2.14 의 재검토 트리거에 맡겼다(리뷰 본문의 「요약 압축」은 방법이 정해져 있지 않고 `event` 의 `DETACH` 는 감사 로그를 건드린다). 그 사실을 여기 적는 이유는, 있다고 적힌 보존 정책이 감사·용량 계획의 입력이 되기 때문이다 — 거짓이면 두 계산이 함께 틀린다.
 
 개인정보는 `event.payload`에 직접 넣지 않고 사용자 ID 참조만 둔다 — 이벤트 로그와 삭제권의 충돌은 이벤트 소싱 패턴이 공식적으로 경고하는 지점이다.
 

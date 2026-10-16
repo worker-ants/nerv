@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
-# nerv-outbox — 오프라인 쓰기 큐 (plugin.md §3.4 · REQ-PLG-011~013)
+# nerv-outbox — 오프라인 쓰기 큐 (plugin.md §3.4 · REQ-PLG-011~013 · 016 · 032 · 033)
 #
-# 규칙 다섯 중 이 스크립트가 집행하는 것:
+# 규칙 중 이 스크립트가 집행하는 것:
 #   ① 큐잉 조건은 NERV_UNAVAILABLE 뿐이다 — 4xx 는 큐잉하지 않는다(재전송해도 같은 실패이고,
 #      충돌 계열은 시간이 지나면 의미가 달라진다)
 #   ② flush 는 oldest-first, **원래 멱등 키 그대로** — 그래서 중복 실행이 없다
-#   ③ flush 중 4xx 는 그 항목만 outbox/failed/ 로 옮기고 계속한다(보고 대상이지 재시도 대상이 아니다)
+#   ③ 서버가 그 쓰기를 거절하면(4xx · 구조화 에러) 그 항목만 outbox/failed/ 로 옮기고 계속한다.
+#      옮긴 항목은 서버에 알린다(/ingest/hooks/outbox-failed) — 서버가 그 사람에게 중요 알림을 만든다
 #   ④ 잔량 보고 — 조용히 사라지는 쓰기가 0이어야 한다
+#   ⑤ **서버가 돌아오면 바로 비운다**(2026-10-16 · 사람 결정 · E21-S01) — 데몬을 따로 띄우지 않는다. 훅 포워더가
+#      서버에서 2xx 를 받으면 `kick` 을 부르고, 보낼 것이 있으면 flush 를 분리된 백그라운드로 띄운다. 훅은 짧게
+#      끝나야 하므로 기다리지 않는다. 잠금으로 한 저장소에서 flush 는 하나만 돈다
 #
 # 사용:
 #   nerv-outbox enqueue <tool> <idempotency_key> <session_id>   # stdin = 도구 입력 JSON
-#   nerv-outbox flush                                            # 서버 복구 후 재전송
-#   nerv-outbox status                                           # 잔량 보고(SessionEnd)
+#   nerv-outbox flush                                            # 재전송(세션 시작 훅 · kick 이 띄운 백그라운드)
+#   nerv-outbox kick                                             # 보낼 것이 있으면 flush 를 백그라운드로 띄운다
+#   nerv-outbox status                                           # 잔량 · 실패 보고
 set -uo pipefail
 
 # 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
@@ -20,69 +25,299 @@ set -uo pipefail
 dir="${NERV_CACHE_DIR:-.nerv}"
 outbox="${dir%/cache}/outbox"
 outbox="${outbox/#.nerv\/outbox/.nerv/outbox}"
-mkdir -p "$outbox"
+failed_dir="$outbox/failed"
+lock="$outbox/.flush.lock"
+self="${BASH_SOURCE[0]}"
+base="${NERV_SERVER:-https://api.nerv.example.com}"
+
+# 보고 한 번에 담는 항목 수 — 서버의 목록 상한(`PAGE_LIMIT_MAX` · api.md §1.6)과 같다. 넘으면 서버가 400 이다
+REPORT_CHUNK=100
+# 진척이 없는 잠금을 버리는 분 — 리스 TTL(`LEASE_TTL_SECONDS` · 30분)과 같은 값이다. flush 는 항목마다 잠금을
+# 갱신하므로(한 항목은 길어야 curl 시한 15초) 이만큼 멈춘 잠금은 주인이 죽었거나 pid 가 재사용된 것이다
+LOCK_STALE_MINUTES=30
+
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# 보낼 항목 — 파일 이름이 queued_at 으로 시작하므로 사전순이 곧 시간순이다
+pending_files() { ls "$outbox"/*.json 2>/dev/null | sort; }
+
+# 실패했는데 서버에 아직 알리지 못한 항목 — 알린 항목은 `reported_at` 을 갖는다
+unreported_files() { grep -L '"reported_at"' "$failed_dir"/*.json 2>/dev/null | sort; }
+
+count_lines() { grep -c . 2>/dev/null || true; }
+
+# ── 잠금 ────────────────────────────────────────────────────────────────────
+# 심볼릭 링크 하나를 만드는 것은 원자적이고, 링크가 가리키는 값으로 주인 pid 를 함께 남긴다(flock 은 macOS 에 없다).
+
+lock_stale() {
+  local holder
+  holder="$(readlink "$lock" 2>/dev/null)" || return 0
+  # 주인이 없다
+  kill -0 "$holder" 2>/dev/null || return 0
+  # 주인은 있는데 진척이 없다 — pid 가 다른 프로세스에 재사용됐을 수 있다
+  [[ -n "$(find "$lock" -mmin +"$LOCK_STALE_MINUTES" 2>/dev/null)" ]] && return 0
+  return 1
+}
+
+take_lock() {
+  ln -s "$$" "$lock" 2>/dev/null && return 0
+  lock_stale || return 1
+  rm -f "$lock"
+  ln -s "$$" "$lock" 2>/dev/null
+}
+
+drop_lock() {
+  [[ "$(readlink "$lock" 2>/dev/null)" == "$$" ]] && rm -f "$lock"
+  return 0
+}
+
+lock_held() { [[ -L "$lock" ]] && ! lock_stale; }
+
+# ── 재전송 ──────────────────────────────────────────────────────────────────
+
+# 서버의 답을 셋으로 나눈다: sent(받았다) · failed(그 쓰기를 거절했다) · hold:<까닭>(그 쓰기에 대한 판정이 아니다).
+#
+# **상태 코드만으로는 성공을 알 수 없다.** MCP 는 도구 실패를 2xx 본문의 `isError: true` 로 돌려준다(§2.7 구조화
+# 에러) — 코드만 보고 지우면 질문 · 상태 보고가 흔적 없이 사라지고 사람은 "성공" 만 본다(NFR-05 위반).
+#
+# **그 쓰기의 판정이 아닌 답은 남기고 멈춘다**(2026-10-16). 인증 실패(401)는 토큰의 문제이고, 쿼터(429)는
+# 잠시 뒤의 문제이고, 같은 키가 아직 도는 중(`idempotency_in_flight`)은 1초 뒤의 문제이고, `NERV_UNAVAILABLE` ·
+# 5xx · 연결 실패는 서버가 아직 없다는 뜻이다(규칙 ① 의 큐잉 조건 그대로다). 2xx 인데 JSON-RPC 가 아니면 프록시의
+# 페이지다 — 지우면 쓰기가 사라진다. 멈추는 이유는 순서다: 뒤의 항목이 앞의 항목을 앞지르면 안 된다.
+classify() {
+  local code="$1" payload="$2"
+  case "$code" in
+    2??)
+      printf '%s' "$payload" | jq -r '
+        def env: (.result.structuredContent // (.result.content[0].text? // "" | fromjson?) // {});
+        if (.result | type) == "object" and .result.isError != true and .error == null then "sent"
+        elif .result.isError == true then
+          (env) as $e
+          | if $e.code == "NERV_UNAVAILABLE" and ($e.details.kind // "") != "storage_unconfigured" then "hold:unavailable"
+            elif $e.code == "NERV_RATE_LIMIT" then "hold:rate_limited"
+            elif $e.code == "NERV_UNAUTHENTICATED" then "hold:unauthenticated"
+            elif ($e.details.kind // "") == "idempotency_in_flight" then "hold:in_flight"
+            else "failed" end
+        elif .error != null then "failed"
+        else "hold:not_json-rpc" end' 2>/dev/null || echo "hold:not_json-rpc"
+      ;;
+    401) echo "hold:unauthenticated" ;;
+    429) echo "hold:rate_limited" ;;
+    4??)
+      if printf '%s' "$payload" | jq -e '.details.kind == "idempotency_in_flight"' >/dev/null 2>&1; then
+        echo "hold:in_flight"
+      else
+        echo "failed"
+      fi
+      ;;
+    *) echo "hold:unavailable" ;;
+  esac
+}
+
+# 실패 사유 — 서버가 준 에러 봉투(MCP 구조화 에러 · JSON-RPC 에러 · REST 봉투)에서 읽는다
+failure_of() {
+  local code="$1" payload="$2" status
+  status=$((10#$code))
+  printf '%s' "$payload" | jq -c --argjson status "$status" '
+    (if (.result | type) == "object" then (.result.structuredContent // (.result.content[0].text? // "" | fromjson?) // {})
+     elif .error != null then {code: .error.code, message: .error.message}
+     else . end) as $e
+    | {status: $status,
+       code: ($e.code // null | if . == null then null else tostring end),
+       kind: ($e.details.kind? // null),
+       message: ($e.message // null)}' 2>/dev/null \
+    || printf '{"status":%s,"code":null,"kind":null,"message":null}' "$status"
+}
+
+# 큐 파일을 읽을 수 없으면(옛 enqueue 가 JSON 이 아닌 입력을 그대로 적었다) 실패 항목으로 다시 적는다 — 머리에 둔 채로
+# 두면 뒤의 항목이 영원히 막히고, 지우면 쓰기가 흔적 없이 사라진다
+broken_record() {
+  local file="$1" name qa key
+  name="$(basename "$file" .json)"
+  qa="${name:0:20}"
+  key="${name:21}"
+  if [[ "$qa" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z$ ]]; then
+    qa="${qa:0:13}:${qa:14:2}:${qa:17:3}"
+  else
+    qa=""; key="$name"
+  fi
+  [[ -n "$key" ]] || key="$name"
+  jq -cn --arg key "$key" --arg qa "$qa" --arg raw "$(head -c 4096 "$file")" --arg at "$(now)" '
+    {tool: null, input: null, idempotency_key: $key, session_id: null,
+     queued_at: (if $qa == "" then null else $qa end), attempts: 1, raw: $raw,
+     failed_at: $at, failure: {status: 0, code: null, kind: "unreadable", message: null}}'
+}
+
+move_to_failed() {
+  local file="$1" failure="$2" name tmp
+  name="$(basename "$file")"
+  tmp="$failed_dir/$name.tmp"
+  if jq -e . "$file" >/dev/null 2>&1; then
+    jq --argjson failure "$failure" --arg at "$(now)" '. + {failed_at: $at, failure: $failure}' "$file" >"$tmp" || return 1
+  else
+    broken_record "$file" >"$tmp" || return 1
+  fi
+  mv "$tmp" "$failed_dir/$name" && rm -f "$file"
+}
+
+# 실패를 서버에 알린다 — 메시지 원문은 보내지 않는다(서버가 그때 만든 문장이고 이 기계의 파일에 남아 있다).
+# 알린 항목에는 `reported_at` 을 적는다. 서버에 닿지 못하면 1 을 돌려주고, 그 항목은 다음 flush 가 다시 알린다.
+report_failures() {
+  local files=() f i chunk items code at
+  while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done < <(unreported_files)
+  [[ ${#files[@]} -eq 0 ]] && return 0
+  for ((i = 0; i < ${#files[@]}; i += REPORT_CHUNK)); do
+    chunk=("${files[@]:i:REPORT_CHUNK}")
+    items="$(jq -cs '[.[] | {tool: (.tool // null), idempotency_key: (.idempotency_key // null),
+        session_id: (.session_id // null), queued_at: (.queued_at // null), failed_at: (.failed_at // null),
+        status: (.failure.status // null), code: (.failure.code // null), kind: (.failure.kind // null)}]' \
+      "${chunk[@]}" 2>/dev/null)" || return 1
+    code="$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' \
+      --request POST "${base}/ingest/hooks/outbox-failed" \
+      --header "content-type: application/json" \
+      --header "Authorization: Bearer ${NERV_TOKEN:-}" \
+      --header "X-NERV-Project: ${NERV_PROJECT:-}" \
+      --header "X-NERV-Host: ${NERV_HOSTNAME:-$(hostname -s 2>/dev/null || echo unknown)}" \
+      --header "X-NERV-Agent: ${NERV_AGENT_TYPE:-claude-code}" \
+      --data "{\"items\":${items}}" 2>/dev/null || echo 000)"
+    [[ "$code" =~ ^2 ]] || return 1
+    at="$(now)"
+    for f in "${chunk[@]}"; do
+      jq --arg at "$at" '. + {reported_at: $at}' "$f" >"$f.tmp" && mv "$f.tmp" "$f"
+    done
+  done
+  return 0
+}
+
+flush() {
+  # 큐를 쓴 적이 없는 저장소에는 아무것도 만들지 않는다 — NERV 를 쓰지 않는 저장소에 `.nerv/` 를 남기지 않는다
+  [[ -d "$outbox" ]] || return 0
+  mkdir -p "$failed_dir"
+  if ! take_lock; then
+    echo "flush: 다른 flush 가 돌고 있다 — 그쪽이 비운다"
+    return 0
+  fi
+  trap drop_lock EXIT
+
+  local had_work=0 sent=0 failed=0 held="" file body resp code payload verdict
+  { [[ -n "$(pending_files)" ]] || [[ -n "$(unreported_files)" ]]; } && had_work=1
+
+  while IFS= read -r file; do
+    [[ -f "$file" ]] || continue
+    # 살아 있다는 표시 — 진척이 없는 잠금만 남이 지운다
+    touch -h "$lock" 2>/dev/null || true
+    # 큐 파일의 session_id 도 인자로 넣는다 — 세션을 요구하는 도구는 이것이 없으면 `session_required` 로 실패한다
+    body="$(jq -c '{jsonrpc:"2.0",id:1,method:"tools/call",params:{name:.tool,arguments:(.input + {idempotency_key:.idempotency_key} + (if (.session_id // "") != "" then {session_id:.session_id} else {} end))}}' "$file" 2>/dev/null)"
+    if [[ -z "$body" ]]; then
+      move_to_failed "$file" '{"status":0,"code":null,"kind":"unreadable","message":null}' && failed=$((failed + 1))
+      continue
+    fi
+    resp="$(curl --silent --show-error --max-time 15 --write-out '\n%{http_code}' \
+      --request POST "${base}/mcp" \
+      --header "content-type: application/json" \
+      --header "Authorization: Bearer ${NERV_TOKEN:-}" \
+      --header "mcp-protocol-version: 2026-07-28" \
+      --data "$body" 2>/dev/null || printf '\n000')"
+    code="${resp##*$'\n'}"
+    payload="${resp%$'\n'*}"
+    verdict="$(classify "$code" "$payload")"
+    case "$verdict" in
+      sent)
+        rm -f "$file"; sent=$((sent + 1)) ;;
+      failed)
+        move_to_failed "$file" "$(failure_of "$code" "$payload")" && failed=$((failed + 1)) ;;
+      *)
+        held="${verdict#hold:}"; break ;;
+    esac
+  done < <(pending_files)
+
+  # 서버가 아직 없거나 토큰이 틀렸으면 알리는 요청도 같은 답이다 — 다음 flush 가 알린다
+  local reported=0
+  case "$held" in
+    unavailable | unauthenticated) ;;
+    *) report_failures && reported=1 ;;
+  esac
+
+  # 할 일이 없었으면 말하지 않는다 — 세션 시작 훅의 출력은 모델의 컨텍스트에 들어간다
+  [[ $had_work -eq 0 ]] && return 0
+
+  local left unreported
+  left="$(pending_files | count_lines)"
+  echo "flush: 성공 ${sent} · 실패 ${failed}(failed/ 로 옮김) · 잔량 ${left}${held:+ · 멈춤(${held})}"
+  unreported="$(unreported_files)"
+  if [[ -n "$unreported" ]]; then
+    echo "서버에 알리지 못한 실패 $(printf '%s\n' "$unreported" | count_lines)건 — 사람에게 그대로 보고한다(.nerv/outbox/failed/):"
+    printf '%s\n' "$unreported" | head -n 10 | while IFS= read -r file; do
+      jq -r '"  - \(.tool // "알 수 없는 도구") · 큐 \(.queued_at // "?") · \(.failure.code // "?")\(if .failure.kind then " (" + .failure.kind + ")" else "" end)"' "$file" 2>/dev/null
+    done
+  elif [[ $reported -eq 1 && $failed -gt 0 ]]; then
+    echo "실패는 서버에 알렸다 — 사람의 알림 센터에 중요 알림으로 간다"
+  fi
+  return 0
+}
+
+# ── 진입점 ──────────────────────────────────────────────────────────────────
 
 cmd="${1:-status}"
 
 case "$cmd" in
   enqueue)
     tool="${2:?tool}"; key="${3:?idempotency_key}"; session="${4:-}"
-    queued_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf '{"tool":%s,"input":%s,"idempotency_key":%s,"session_id":%s,"queued_at":%s,"attempts":1}\n' \
-      "\"$tool\"" "$(cat)" "\"$key\"" "\"$session\"" "\"$queued_at\"" \
-      > "$outbox/${queued_at//:/-}-${key}.json"
+    # **JSON 이 아닌 입력은 받지 않는다.** 예전에는 stdin 을 그대로 적어서, 그 파일은 flush 때마다 읽히지 않는 채
+    # 큐의 머리에 남았다. 여기서 거절하면 부른 쪽(모델)이 그 자리에서 안다
+    if ! command -v jq >/dev/null 2>&1; then
+      echo "jq 가 없다 — 큐에 넣지 못했다. 이 쓰기를 사람에게 그대로 보고한다" >&2
+      exit 69
+    fi
+    input="$(cat)"
+    if ! printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1; then
+      echo "도구 입력이 JSON 객체가 아니다 — 큐에 넣지 않았다" >&2
+      exit 65
+    fi
+    mkdir -p "$outbox"
+    queued_at="$(now)"
+    printf '%s' "$input" | jq -c --arg tool "$tool" --arg key "$key" --arg session "$session" --arg at "$queued_at" \
+      '{tool: $tool, input: ., idempotency_key: $key, session_id: $session, queued_at: $at, attempts: 1}' \
+      >"$outbox/${queued_at//:/-}-${key}.json"
     echo "queued: $tool ($key)"
     ;;
 
   flush)
-    base="${NERV_SERVER:-https://api.nerv.example.com}"
-    mkdir -p "$outbox/failed"
-    sent=0; failed=0
-    # oldest-first — 파일명이 queued_at 으로 시작하므로 사전순이 곧 시간순이다
-    for file in $(ls "$outbox"/*.json 2>/dev/null | sort); do
-      # 큐 파일의 session_id 도 인자로 싣는다 — 세션을 요구하는 도구는 이것이 없으면
-      # `session_required` 로 실패하고, 그 실패는 아래 isError 판정에 걸린다.
-      body="$(jq -c '{jsonrpc:"2.0",id:1,method:"tools/call",params:{name:.tool,arguments:(.input + {idempotency_key:.idempotency_key} + (if .session_id then {session_id:.session_id} else {} end))}}' "$file")"
-      resp="$(curl --silent --show-error --max-time 15 --write-out '\n%{http_code}' \
-        --request POST "${base}/mcp" \
-        --header "content-type: application/json" \
-        --header "Authorization: Bearer ${NERV_TOKEN:-}" \
-        --header "mcp-protocol-version: 2026-07-28" \
-        --data "$body" 2>/dev/null || printf '\n000')"
-      code="${resp##*$'\n'}"
-      payload="${resp%$'\n'*}"
+    flush
+    ;;
 
-      # **상태 코드만으로는 성공을 알 수 없다.** MCP 는 도구 실패를 2xx 본문의
-      # `isError: true` 로 돌려준다(§2.7 구조화 에러) — 코드만 보고 지우면 질문·상태 보고가
-      # 흔적 없이 사라지고 사람은 "성공" 만 본다(NFR-05 위반).
-      if [[ "$code" =~ ^2 ]]; then
-        if printf '%s' "$payload" | jq -e '.result.isError == true or .error != null' >/dev/null 2>&1; then
-          mv "$file" "$outbox/failed/"; failed=$((failed + 1))
-        else
-          rm -f "$file"; sent=$((sent + 1))
-        fi
-      elif [[ "$code" =~ ^4 ]]; then
-        mv "$file" "$outbox/failed/"; failed=$((failed + 1))
-      else
-        # 여전히 서버가 없다 — 남겨두고 멈춘다. 순서를 지키기 위해서다.
-        break
-      fi
-    done
-    echo "flush: 성공 ${sent} · 실패 ${failed}(failed/ 로 옮김) · 잔량 $(ls "$outbox"/*.json 2>/dev/null | wc -l | tr -d ' ')"
+  kick)
+    # 포워더가 2xx 를 받을 때마다 부른다 — 할 일이 없으면 프로세스 하나 띄우지 않고 끝난다
+    [[ -d "$outbox" ]] || exit 0
+    { compgen -G "$outbox/*.json" >/dev/null 2>&1 || [[ -n "$(unreported_files)" ]]; } || exit 0
+    lock_held && exit 0
+    # 분리해서 띄운다 — 훅이 끝나도 살아 있고(nohup · 새 세션), 훅의 stdout 을 열어 두지 않는다(열려 있으면 훅이 끝나지 않는다)
+    if command -v setsid >/dev/null 2>&1; then
+      setsid nohup "$self" flush </dev/null >/dev/null 2>&1 &
+    else
+      nohup "$self" flush </dev/null >/dev/null 2>&1 &
+    fi
+    exit 0
     ;;
 
   status)
-    count="$(ls "$outbox"/*.json 2>/dev/null | wc -l | tr -d ' ')"
+    count="$(pending_files | count_lines)"
     if [[ "$count" == "0" ]]; then
       echo "outbox 비어 있음"
     else
-      oldest="$(ls "$outbox"/*.json 2>/dev/null | sort | head -1)"
+      oldest="$(pending_files | head -1)"
       echo "outbox 잔량 ${count}건 · 최고령 $(basename "$oldest")"
     fi
+    failed_count="$(ls "$failed_dir"/*.json 2>/dev/null | count_lines)"
+    if [[ "$failed_count" != "0" ]]; then
+      unreported_count="$(unreported_files | count_lines)"
+      echo "실패 ${failed_count}건(outbox/failed/) · 서버에 알리지 못한 것 ${unreported_count}건"
+    fi
+    lock_held && echo "flush 가 돌고 있다(pid $(readlink "$lock" 2>/dev/null))"
     ;;
 
   *)
-    echo "사용법: nerv-outbox <enqueue|flush|status>" >&2
+    echo "사용법: nerv-outbox <enqueue|flush|kick|status>" >&2
     exit 64
     ;;
 esac

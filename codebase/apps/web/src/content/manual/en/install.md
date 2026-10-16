@@ -52,7 +52,7 @@ Go to **Settings → Agent tokens → Issue a new token.** Give the token a name
 
 This file is **git-ignored by default**, so the token is not committed. Each repository can have its own values, and you don't have to touch your shell profile.
 
-### `.nerv/env` — for Codex (not needed yet) {#env-nerv-env}
+### `.nerv/env` — for Codex {#env-nerv-env}
 
 **If you only use Claude Code, the file above is all you need.** Don't keep the values in two places. If the two copies differ, which value applies depends on the situation.
 
@@ -66,7 +66,7 @@ NERV_TOKEN=<the token from step 1>
 
 **Values that are already set are never overwritten.** Settings on a company-managed machine and values already in your shell always take precedence. Only variables whose names start with `NERV_` are read.
 
-> **Codex does not use this file yet.** Codex's MCP authentication accepts only the _name_ of an environment variable, so the values in this file don't apply to it. Sending Codex notifications to NERV is also turned off for now, because the server has nowhere to receive them yet. Codex support is still in progress.
+> **In Codex, only the hooks read this file.** If you install the NERV plugin in Codex, its hooks use the server address and project from this file (see 3-B). The values in this file don't apply to MCP authentication, because Codex's MCP authentication accepts only the _name_ of an environment variable. So keep the token in a shell environment variable. Codex's turn-complete notifications (notify) are sent by the same forwarder, which also reads this file (see 3-B).
 
 ### If you use only one project on this machine {#env-single-project}
 
@@ -85,7 +85,7 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 The value is **for display only**. The sender can put anything in a header, so it is never used for permission checks.
 
-**Do not commit the token.** Also add `.nerv/` to your working repository's `.gitignore`. The environment file, the plugin's cache, and the offline queue are all stored there.
+**Do not commit the token.** Also add `.nerv/` to your working repository's `.gitignore`. The environment file, the plugin's cache, and the offline queue are all stored there. The offline queue is sent automatically when the server is back ([When the server is unreachable](/help/agents#offline)).
 
 ## 3-A. Install the plugin in Claude Code {#claude-code}
 
@@ -121,7 +121,7 @@ Four things are installed.
 
 **The `nerv_*` tools are not among these four.** To use them, your repository needs a `.mcp.json`. The server address and token differ per project, so the plugin does not include this file.
 
-**Instead, the plugin includes a command that creates it.** Run it once in your working repository to set up three things at once: `.mcp.json`, the environment variables in `.claude/settings.local.json`, and `.nerv/` in `.gitignore`. **The address and project are already filled in with this server's values**, so the token is the only thing left to enter. Your input is hidden when you type it.
+**Instead, the plugin includes a command that creates it.** Run it once in your working repository to set up four things at once: `.mcp.json`, the environment variables in `.claude/settings.local.json`, `.nerv/` in `.gitignore`, and the NERV section of `AGENTS.md`. **The address and project are already filled in with this server's values**, so the token is the only thing left to enter. Your input is hidden when you type it.
 
 ```bash
 cd <your repository>
@@ -130,6 +130,8 @@ cd <your repository>
 ```
 
 **It never overwrites a value that is already set.** If a token is already in the file, the command keeps it and tells you so. To change it, edit that file yourself. If `.mcp.json` exists but has no `nerv` entry, the command leaves the file untouched and **prints the entry to add.**
+
+**This server writes `AGENTS.md`.** The command downloads a body from the server with this project's server address and its list of convention specs (specs of the convention and vision types). If the file doesn't exist, it creates it from that body. If it does, it replaces only what lies between `<!-- nerv:begin -->` and `<!-- nerv:end -->` and leaves everything else as it is. If an `AGENTS.md` you wrote yourself has neither line, the command leaves the file alone and prints the two lines. Put them where the NERV section should go and run the command again. Without a token, or if the server can't be reached, no `AGENTS.md` is written. When a new version of a convention spec is approved, you're told at session start that `AGENTS.md` is out of date. Running the command again replaces only that section.
 
 In a repository where setup is incomplete, you see what is missing when a session starts. **This is only a notice; no files are created.** Starting the setup is up to you. In a repository with no sign of NERV, nothing is shown.
 
@@ -190,31 +192,40 @@ Codex runs only the hooks a person has reviewed. After installing, open `/hooks`
 
 ## 3-B. Connect Codex {#codex}
 
-The NERV plugin is not adapted for Codex yet. If you install it in Codex, the skills work but the hooks do not run. To connect, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.
+You connect with **a single onboarding command.** Run it in your working repository and it sets up everything Codex reads at once: `.codex/config.toml` (the MCP connection), `.nerv/env` (the server address and project), `.nerv/` in `.gitignore`, and the NERV section of `AGENTS.md`. The command ships with the NERV plugin, so install the plugin in Codex first (plugin 0.3.32 or later). With the plugin installed, its hooks also send the session's activity to NERV, just as in Claude Code.
 
 ```bash
-mkdir -p <your repo>/.codex
-cp <plugin>/codex/config.toml <your repo>/.codex/config.toml
-cp <plugin>/codex/AGENTS.md   <your repo>/AGENTS.md
+codex plugin marketplace add worker-ants/nerv
+codex plugin add nerv@nerv
 ```
 
-If you already have an `AGENTS.md`, don't overwrite it. Copy **only the "single source of truth" and "at the start of every session" sections** into it.
+Then run the command below in your working repository. **The address and project are already filled in with this server's values.** The token is used only to download `AGENTS.md` from the server and is never written to a file.
 
-In the copied `.codex/config.toml`, replace three values with your own: `url`, `X-NERV-Project`, and `[otel] environment` (if you use it).
+```bash
+cd <your repository>
+"$(ls -d "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)" \
+  --codex --server {{server}} --project {{project}}
+```
+
+**It never overwrites a value that is already set.** If `.codex/config.toml` exists but has no `nerv` server, the command leaves the file untouched and **prints the table to add.** `.nerv/env` only gets its empty fields filled in. `AGENTS.md` follows the same rule as in 3-A: only its NERV section is replaced. Run it with `--codex --check` and it writes nothing and only reports what's missing.
+
+**Keep the token in the `NERV_TOKEN` shell environment variable.** Codex's MCP connection reads the token only from the environment variable named in `bearer_token_env_var`. A token written in `config.toml`, `.claude/settings.local.json`, or `.nerv/env` isn't used for MCP authentication (see step 2). If your shell has no token, the command tells you.
+
+After running the command, restart Codex in this repository. The repository's `.codex/config.toml` is read **only in trusted projects**, so approve it once the first time you open it. Codex runs only the hooks a person has confirmed. Open `/hooks` in Codex and mark the eight NERV hooks as trusted.
+
+To create the file yourself, put the following in `.codex/config.toml`. The plugin package's `codex/config.toml` is a template with the same content. Keep the approval settings above `[mcp_servers.nerv]`. Placed below it, they belong to that table and Codex ignores them.
 
 ```toml
+# The human approval lane — A3 tools never run unapproved
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
 [mcp_servers.nerv]
 url = "{{server}}/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "{{project}}" }
 startup_timeout_sec = 20
-
-# The human approval lane — A3 tools never run unapproved
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
 ```
-
-**Do not put the token in `config.toml`.** As `bearer_token_env_var` indicates, the token is read from the `NERV_TOKEN` environment variable. Codex does not read `.claude/settings.local.json`, and values in `.nerv/env` are not used for MCP authentication (see step 2). So for Codex, set `NERV_TOKEN` as a shell environment variable.
 
 Claude Code does not read `AGENTS.md` automatically yet. If you use both agents in the same repository, add this line to `CLAUDE.md`.
 
@@ -226,8 +237,19 @@ Claude Code does not read `AGENTS.md` automatically yet. If you use both agents 
 
 - **All the tools work.** A Codex session can run `bootstrap → next → claim → heartbeat → release` from start to finish using tools alone, because every core capability is available as a tool.
 - Skill files (`SKILL.md`) are reused as is. The format is open, so Codex uses the very same files.
-- **There is no hook telemetry.** As a result, Codex sessions show less detail on the sessions screen. You see the milestones the agent posts itself, not every action.
+- **Hook telemetry needs the plugin.** Without the plugin, Codex sessions show less detail on the sessions screen. You see the milestones the agent posts itself, not every action.
 - A repository's `.codex/config.toml` is read only in **trusted projects**. You approve it once, the first time you open the project.
+- `/nerv:approve` is not used in Codex, because Codex cannot guarantee a prompt on every tool call. Approve on the web instead.
+
+**Once the plugin is installed and its hooks are trusted,** session start, tool use, the end of each turn, and session end are recorded in NERV. The session card appears before `nerv_bootstrap` is called, and it is labeled `codex`. Tool calls join the same session. If the agent tries to end a turn while still holding a claim, it is told to record the status and release the claim first. The hooks read the server address and project from `.nerv/env`. Keep the token in a shell environment variable. In a repository where the MCP connection is not set up yet, the session start tells you what is missing and which onboarding command to run.
+
+**Turn-complete notifications (notify).** If you installed the plugin, add the line below at the top of your user config (`~/.codex/config.toml`), before any table name (`[…]`). Each time the agent finishes a turn, its last reply is recorded on the sessions screen. A Codex session connected without the plugin can be recorded the same way, but then you need to keep the plugin's `bin/` somewhere and point the line at it. If you put this line in the repository's `.codex/config.toml`, Codex ignores it. When your user config doesn't have this line, the onboarding command prints it. It doesn't write the line itself, since the user config lives outside the repository.
+
+```toml
+notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
+```
+
+**Only turns in repositories set up for NERV are sent.** Because the line lives in your user config, Codex runs it in every repository. The forwarder sends to the server only when the turn's working folder has NERV settings: a `.nerv/env` file, or a `nerv` server in the repository's `.codex/config.toml` or `.mcp.json`. Nothing is sent without a token either. So replies from repositories that don't use NERV never reach the server.
 
 ## 4. Check the connection {#verify}
 
@@ -244,7 +266,7 @@ In Claude Code, the session card appears **before** `nerv_bootstrap` is called, 
 /nerv:next
 ```
 
-The skill calls `nerv_bootstrap` first, recommends the next task, and walks you through claiming it. In Codex, you call the same tools in the same order yourself. That order is described in the `AGENTS.md` you copied.
+The skill calls `nerv_bootstrap` first, recommends the next task, and walks you through claiming it. In Codex, you call the same tools in the same order yourself. That order is described in the NERV section of `AGENTS.md`.
 
 ## When it does not work {#troubleshooting}
 

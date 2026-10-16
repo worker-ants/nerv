@@ -53,6 +53,14 @@ Every tool has a risk tier.
 - **A2** — writes. Only reversible changes belong in this tier.
 - **A3** — **requires human approval.** Requesting review (`nerv_spec_submit_review`), approving in a session (`nerv_spec_approve`), and an agent closing a `critical` finding as dismissed or won't fix are in this tier. No skill lists the review request tool or the approval tool among the tools it may call without approval. When an agent tries to close a `critical` finding that way, the server creates an approval card and the session waits for a person's decision. **The decision is delivered to the requesting session on its next heartbeat.** This applies to approvals, rejections, and comments alike, so the session knows what to do next.
 
+## When the server is unreachable {#offline}
+
+Agents keep working when the server does not respond. They read specs and tasks from the last cache they saved (`.nerv/cache/`), and they keep writes such as status reports, questions, and evidence in the **offline queue** (`.nerv/outbox/`). They do not claim new tasks or move tasks to ready while offline. Those decisions are shared with other people, so making them without the server could cause overlaps.
+
+**The queue is sent as soon as the server is back.** When a hook gets a response from the server, the plugin sends the queued writes in the background. It does not wait for you to restart the session or run a skill again. Writes are sent in the order they were queued, with the same idempotency key as the first attempt, so no write goes in twice. The queue is also sent first when a session starts. Organizations that use the http hook variant through managed settings send it only when a session starts.
+
+**Writes the server rejects come to you as a notification.** If the server rejects a write, for example because the task changed in the meantime or the token lacks a scope, the write moves to `.nerv/outbox/failed/` and the person who started the session gets an important **Offline write rejected** notification ([Notifications](/help/inbox#notifications)). If the notification could not be sent, it is sent again the next time the queue is sent, and until then the agent mentions it when a session starts. To see what is still queued or failed, run `nerv-outbox status` in the agent session.
+
 ## Importing documents {#import}
 
 Use the CLI to import an existing repository's documents as specs and tasks.

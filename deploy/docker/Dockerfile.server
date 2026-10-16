@@ -43,4 +43,12 @@ CMD ["node", "dist/main.js"]
 
 # → nerv-worker
 FROM runtime AS worker
+# git 미러(E21-S02 · §6.2a) — export 잡이 미러 폴더에 커밋하고 원격이 있으면 push 한다.
+# ca-certificates 는 HTTPS 원격, openssh-client 는 SSH 원격(배포 키를 Secret 으로 마운트)용이다.
+# api 이미지는 git 을 부르지 않으므로 넣지 않는다.
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates openssh-client \
+ && rm -rf /var/lib/apt/lists/*
+USER node
 CMD ["node", "dist/worker.js"]

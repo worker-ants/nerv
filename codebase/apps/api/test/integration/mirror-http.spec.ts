@@ -694,7 +694,7 @@ describe('기준선 미러 (REQ-API-268 · 269)', () => {
   /**
    * **스크립트와 서버의 계약**(REQ-PLG-028). 플러그인의 `nerv-mirror` 를 이 서버에 그대로 붙여 본다 — 경로 ·
    * 인증 · 기준선 목록의 모양 · zip 이 한쪽에서만 바뀌면 여기서 드러난다. 스크립트 자체의 규칙은 L1
-   * (`plugin/mirror.spec.ts`)이 가짜 서버로 본다.
+   * (`plugin-test/mirror.spec.ts`)이 가짜 서버로 본다.
    */
   it('플러그인의 nerv-mirror 가 이 서버에서 기준선 목록을 읽고 그 기준선으로 받는다', async () => {
     await app.listen(0, '127.0.0.1');

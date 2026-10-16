@@ -93,7 +93,7 @@ async function hook(
 }
 
 describe('인증 — 토큰 없는 이벤트는 버린다 (§6.5)', () => {
-  it.each(['session', 'tool', 'subagent', 'stop', 'session-end'])(
+  it.each(['session', 'tool', 'subagent', 'stop', 'session-end', 'notify'])(
     '%s 훅은 401 이다',
     async (path) => {
       const res = await hook(path, { session_id: EXTERNAL_SESSION }, { token: null });
@@ -1000,5 +1000,197 @@ describe('만료 뒤에도 같은 세션이다 (REQ-API-079 · 279)', () => {
       hookSession,
     ]);
     expect(again).toHaveLength(1);
+  });
+});
+
+/**
+ * **Codex 는 판정 JSON 의 모르는 필드를 실패로 본다**(2026-10-15 실측 · E20-S01 · REQ-API-323). `ok` · `session_id` 때문에
+ * SessionStart 와 Stop 이 "Failed" 로 끝났고 세션 안내가 모델에게 가지 않았다. 포워더가 `X-NERV-Agent: codex` 를 실으면
+ * 서버는 판정 필드만 돌려준다 — Claude Code 의 응답은 그대로다(우리 쪽 도구가 `ok` · `session_id` 를 읽는다).
+ */
+describe('E20-S01 — 호스트가 받는 모양으로 답한다 (REQ-API-323)', () => {
+  /** Codex 가 받는 판정 필드 — 훅 출력의 공통 필드와 SessionStart 의 래퍼 */
+  const CODEX_FIELDS = ['decision', 'reason', 'hookSpecificOutput', 'continue', 'systemMessage'];
+
+  async function sessionIdOf(external: string): Promise<string> {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM agent_session WHERE external_session_id = $1`,
+      [external],
+    );
+    return rows[0]!.id;
+  }
+
+  it('Codex 의 SessionStart 는 래퍼 하나다 — 세션은 codex 로 남고 안내에 세션 id 가 든다', async () => {
+    const res = await hook(
+      'session',
+      { session_id: 'S-codex', cwd: '/work/clemvion', source: 'startup', model: 'gpt-5.5' },
+      { host: 'linux-07', agent: 'codex' },
+    );
+    expect(res.status).toBe(202);
+    expect(Object.keys(res.body)).toEqual(['hookSpecificOutput']);
+    const sessionId = await sessionIdOf('S-codex');
+    expect(injected(res.body)).toContain(`resume_session_id=${sessionId}`);
+    const { rows } = await pool.query<{ agent_type: string }>(
+      `SELECT agent_type::text AS agent_type FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.agent_type).toBe('codex');
+  });
+
+  it('Codex 의 관찰 훅은 빈 판정이다 — 적재는 그대로 한다', async () => {
+    await hook('session', { session_id: 'S-codex-obs' }, { host: 'linux-07', agent: 'codex' });
+    const codex = { agent: 'codex' };
+    const tool = await hook(
+      'tool',
+      { session_id: 'S-codex-obs', tool_name: 'apply_patch', turn_id: 't-1' },
+      codex,
+    );
+    const sub = await hook('subagent', { session_id: 'S-codex-obs', agent_id: 'a-1' }, codex);
+    const missing = await hook('tool', { session_id: 'S-codex-none', tool_name: 'Bash' }, codex);
+    for (const res of [tool, sub, missing]) {
+      expect(res.status).toBe(202);
+      expect(res.body).toEqual({});
+    }
+    const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM activity`);
+    expect(rows[0]?.n).toBe(2);
+
+    const end = await hook('session-end', { session_id: 'S-codex-obs', reason: 'other' }, codex);
+    expect(end.body).toEqual({});
+    const { rows: state } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE external_session_id = 'S-codex-obs'`,
+    );
+    expect(state[0]?.state).toBe('complete');
+  });
+
+  it('Codex 의 Stop 은 막을 때 decision · reason 만 · 막지 않을 때 빈 판정이다', async () => {
+    await hook('session', { session_id: 'S-codex-stop' }, { host: 'linux-07', agent: 'codex' });
+    const sessionId = await sessionIdOf('S-codex-stop');
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status, lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+      [newId(), projectId, taskId, sessionId, userId],
+    );
+    await pool.query(`UPDATE task SET status = 'in_progress' WHERE id = $1`, [taskId]);
+
+    const blocked = await hook('stop', { session_id: 'S-codex-stop' }, { agent: 'codex' });
+    expect(blocked.body['decision']).toBe('block');
+    expect(Object.keys(blocked.body).sort()).toEqual(['decision', 'reason']);
+    for (const key of Object.keys(blocked.body)) expect(CODEX_FIELDS).toContain(key);
+
+    const again = await hook(
+      'stop',
+      { session_id: 'S-codex-stop', stop_hook_active: true },
+      { agent: 'codex' },
+    );
+    expect(again.body).toEqual({});
+  });
+
+  it('Claude Code 의 응답은 그대로다 — ok · session_id 가 남는다', async () => {
+    const claude = { agent: 'claude-code' };
+    const start = await hook('session', { session_id: 'S-claude' }, { host: 'mac-07', ...claude });
+    expect(Object.keys(start.body).sort()).toEqual(['hookSpecificOutput', 'ok', 'session_id']);
+    expect(start.body['session_id']).toBe(await sessionIdOf('S-claude'));
+    expect(
+      (await hook('tool', { session_id: 'S-claude', tool_name: 'Bash' }, claude)).body,
+    ).toEqual({ ok: true });
+    expect((await hook('stop', { session_id: 'S-claude' }, claude)).body).toEqual({ ok: true });
+    // 헤더가 없어도 그대로다 — http 변형(Claude Code 전용)은 헤더를 싣지 않는다
+    expect((await hook('session-end', { session_id: 'S-claude' })).body).toEqual({ ok: true });
+  });
+});
+
+/**
+ * **Codex 의 notify 를 받는다**(2026-10-16 · E20-S02 · REQ-API-325). Codex 는 턴을 끝낼 때마다 설정의 `notify` 프로그램에
+ * JSON 하나를 준다 — 키가 하이픈으로 이어진다(`thread-id` · `last-assistant-message`). 플러그인 없이 MCP 설정만으로 붙은
+ * Codex 에서는 이것이 유일한 텔레메트리다.
+ */
+describe('E20-S02 — Codex notify (REQ-API-325)', () => {
+  function turn(threadId: string, message: string, extra: Record<string, unknown> = {}) {
+    return {
+      type: 'agent-turn-complete',
+      'thread-id': threadId,
+      'turn-id': 't-42',
+      cwd: '/work/clemvion',
+      client: 'codex_exec',
+      'input-messages': ['사람이 쓴 프롬프트 — 남기지 않는다'],
+      'last-assistant-message': message,
+      ...extra,
+    };
+  }
+
+  async function activities(): Promise<
+    { type: string; title: string | null; payload: Record<string, unknown> }[]
+  > {
+    const { rows } = await pool.query<{
+      type: string;
+      title: string | null;
+      payload: Record<string, unknown>;
+    }>(`SELECT type::text AS type, title, payload FROM activity ORDER BY seq`);
+    return rows;
+  }
+
+  it('턴이 끝났다는 것을 그 세션의 답변 활동으로 남긴다 — 프롬프트는 담지 않는다', async () => {
+    await hook('session', { session_id: 'S-notify' }, { host: 'linux-07', agent: 'codex' });
+    const res = await hook('notify', turn('S-notify', '\n작업을 마쳤다.\n테스트도 돌렸다.'), {
+      agent: 'codex',
+    });
+    expect(res.status).toBe(202);
+    expect(res.body).toEqual({});
+
+    const [row] = await activities();
+    expect(row).toMatchObject({ type: 'response', title: '작업을 마쳤다.' });
+    expect(row?.payload).toEqual({
+      turn_id: 't-42',
+      client: 'codex_exec',
+      last_assistant_message: '\n작업을 마쳤다.\n테스트도 돌렸다.',
+    });
+    expect(JSON.stringify(row)).not.toContain('프롬프트');
+  });
+
+  it('훅 없이 MCP 로만 붙은 Codex 세션도 찾는다 — bootstrap 이 하네스 id 를 external id 로 남긴다', async () => {
+    await app.get(SessionService).bootstrap({
+      projectId,
+      userId,
+      agentType: 'codex',
+      hostname: 'linux-07',
+      externalSessionId: 'S-mcp-only',
+    });
+    await hook('notify', turn('S-mcp-only', '답했다'), { agent: 'codex' });
+    expect((await activities()).map((a) => a.title)).toEqual(['답했다']);
+  });
+
+  it('비밀은 남기기 전에 가린다 — 제목도 가린 값에서 만든다', async () => {
+    await hook('session', { session_id: 'S-notify-secret' }, { agent: 'codex' });
+    const secret = 'ghp_' + 'a'.repeat(36);
+    await hook('notify', turn('S-notify-secret', `토큰은 ${secret} 이다`), { agent: 'codex' });
+    const [row] = await activities();
+    expect(JSON.stringify(row)).not.toContain(secret);
+  });
+
+  it('모르는 세션 · 모르는 종류 · 빈 답변', async () => {
+    const unknown = await hook('notify', turn('S-nobody', '누구의 턴인가'), { agent: 'codex' });
+    expect(unknown.status).toBe(202);
+    expect(unknown.body).toEqual({});
+    await hook('session', { session_id: 'S-notify-kinds' }, { agent: 'codex' });
+    await hook('notify', turn('S-notify-kinds', '승인 요청', { type: 'approval-requested' }), {
+      agent: 'codex',
+    });
+    expect(await activities()).toEqual([]);
+    // 답변이 비어도 턴은 끝났다 — 제목을 지어내지 않는다
+    await hook('notify', turn('S-notify-kinds', ''), { agent: 'codex' });
+    expect((await activities()).map((a) => a.title)).toEqual([null]);
+  });
+
+  it('쉬던 세션을 되살린다 — 턴이 끝났다는 것은 하네스가 살아 있다는 뜻이다', async () => {
+    await hook('session', { session_id: 'S-notify-stale' }, { agent: 'codex' });
+    await pool.query(
+      `UPDATE agent_session SET state = 'stale', last_heartbeat_at = now() - interval '40 minutes'
+        WHERE external_session_id = 'S-notify-stale'`,
+    );
+    await hook('notify', turn('S-notify-stale', '돌아왔다'), { agent: 'codex' });
+    const { rows } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE external_session_id = 'S-notify-stale'`,
+    );
+    expect(rows[0]?.state).toBe('active');
   });
 });

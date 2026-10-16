@@ -1,6 +1,6 @@
 ---
 name: approve
-description: 사람(admin · planner)이 이 세션에서 초안을 승인한다고 답했을 때 그 승인을 NERV에 전한다. 초안을 보여 주고 사람의 분명한 대답을 받은 뒤에만 승인 도구를 부른다. 사용법 - /nerv:approve [SPC-…]
+description: 사람(admin · planner)이 이 세션에서 초안을 승인한다고 답했을 때 그 승인을 NERV에 전한다. 초안을 보여 주고 사람의 분명한 대답을 받은 뒤에만 승인 도구를 부른다. Claude Code 에서만 쓴다 — Codex 에서는 쓰지 않고 웹에서 승인하라고 안내한다. 사용법 - /nerv:approve [SPC-…]
 allowed-tools:
   - mcp__nerv__nerv_spec_get
   - mcp__plugin_nerv_nerv__nerv_spec_get

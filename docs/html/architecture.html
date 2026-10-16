@@ -53,7 +53,7 @@
     <h1>시스템 아키텍처</h1>
     <p class="lead">웹앱 · API/MCP 게이트웨이 · 훅 수집기 · Postgres · Valkey(실시간 방송 MQ) · 이벤트 워커의 여섯 덩어리로 구성된 NERV의 시스템 구조와, 가장 중요한 결정인 저장 전략(D-01) — <b>DB 단일 진실 + markdown 미러 + read-only git export</b> — 그리고 핵심 데이터 흐름 4종, 기술 스택 대안 비교, 보안·성능·운영 설계.</p>
     <div class="meta-line">
-      <span>버전 v0.9 (2026-10-10)</span>
+      <span>버전 v0.10 (2026-10-16)</span>
       <span>원본: <code>docs/03-proposal/architecture.md</code></span>
       <span>주로 다루는 결정: D-01 · D-10 · D-11 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a></span>
@@ -353,13 +353,13 @@
     <li><code>GET /api/projects/{p}/specs/{id}.md?version=approved</code> — 기본은 최신 <span class="badge approved">Approved</span> SpecVersion, <code>?version=42</code>로 특정 스냅샷. 작업의 기준 버전(<code>?task=</code>)과 가장 새 버전(<code>?basis=latest</code>)으로도 읽는다(2026-09-28 · 인자의 정본은 <a href="api.html">4.4 API 명세</a> EP-MIR-01).</li>
     <li>응답 frontmatter에 고정 ID·버전·문서 상태·요구사항 ID 목록과 트리의 자리(부모·조상·영역)·본문 지문을 넣어 에이전트가 인용할 수 있게 한다. 승인자는 넣지 않는다(2026-09-07 정정) — 키 목록의 정본은 <a href="api.html">4.4 API 명세</a> EP-MIR-01 이다. 경로·앵커가 아니라 <b>고정 ID로 상호참조</b>한다(D-09).</li>
     <li><code>GET /api/projects/{p}/llms.txt</code> — 스펙 트리 인덱스(제목 + <code>.md</code> 링크 + 한 줄 설명)</li>
-    <li><code>GET /api/projects/{p}/export.zip</code> — 프로젝트 스펙 전체를 zip 하나로(2026-09-28 · 인자와 담는 것의 정본은 <a href="api.html">4.4 API 명세</a> EP-MIR-03). (b) 의 git export 가 없는 동안 전체 미러와 백업을 이것이 맡는다.</li>
+    <li><code>GET /api/projects/{p}/export.zip</code> — 프로젝트 스펙 전체를 zip 하나로(2026-09-28 · 인자와 담는 것의 정본은 <a href="api.html">4.4 API 명세</a> EP-MIR-03). (b) 의 git export 는 원격을 설정한 배치에서만 밖으로 나가므로(2026-10-16) 그 밖의 배치에서는 이것이 전체 미러와 백업을 맡는다.</li>
   </ul>
   <p class="src"><a href="https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look">Notion's hosted MCP server: an inside look — Notion</a> (2025-07-15): 에이전트용 포맷을 블록 JSON에서 markdown으로 전환한 이유.</p>
   <p class="src"><a href="https://llmstxt.org/">The /llms.txt file, v2 — llmstxt.org</a> (v2 개정 2026-08-10): URL + <code>.md</code> 미러와 루트 인덱스 표준.</p>
 
   <h4>(b) read-only git export — 감사 · 백업 · 오프라인</h4>
-  <p>워커가 SpecVersion 승인 · CR 병합 · 야간 배치 시점에 미러 저장소로 강제 push한다. 사람이 손으로 커밋하지 않으며, 미러 브랜치는 보호 설정으로 직접 쓰기를 막는다.</p>
+  <p>워커가 SpecVersion 승인·CR 병합·야간 배치 시점에 미러 저장소로 push한다. 사람이 손으로 커밋하지 않으며, 미러 브랜치는 보호 설정으로 직접 쓰기를 막는다. <b>강제 push 는 하지 않는다</b>(2026-10-16 정정 — <a href="roadmap.html">3.7 로드맵</a> §7.4 규칙 1): 원격에 NERV 가 만들지 않은 커밋이 있으면 덮어쓰지 않고 push 를 멈춘 채 admin 에게 경고한다. 그 커밋은 받아들이지 않는다. 실물은 <a href="codebase.html">4.2 코드베이스</a> §6.2a 다 — 워커의 <code>export</code> 잡이 1시간마다 미러 폴더에 커밋하고 원격이 설정돼 있으면 push 한다(승인 직후가 아니라 다음 판이다). 저장소는 배치마다 하나이고 프로젝트는 그 안의 폴더다(원격은 배치마다 하나인 설정이라서). 아래 트리의 <code>tasks/</code> · <code>reviews/</code> 는 아직 없다.</p>
 <pre><code>nerv-export/                      # read-only · 플랫폼만 push
   llms.txt                        # 스펙 트리 인덱스 (llms.txt v2 형식)
   manifest.json                   # {spec_id: {version, status, approved_at, sha}} 전량

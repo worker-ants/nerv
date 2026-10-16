@@ -10,7 +10,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   activityType,
   agentType,
-  CONVENTIONS_LIMIT,
   msg,
   NERV_ERROR,
   NERV_EVENT,
@@ -39,6 +38,8 @@ import type { Actor } from '../../common/human-only.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 import { ClaimService } from '../task/claim.service.js';
+import { foldedConventions } from './conventions.js';
+import type { ConventionSummary } from './conventions.js';
 
 export type AgentKind = 'claude-code' | 'codex' | 'web' | 'other';
 
@@ -176,14 +177,7 @@ export interface SessionCard extends Record<string, unknown> {
   awaiting_until: string | null;
 }
 
-/** bootstrap 규약 목록의 한 줄 — 본문은 담지 않는다. 읽을 때는 `nerv_spec_get`(`spec_id`=키) */
-export interface ConventionSummary extends Record<string, unknown> {
-  key: string;
-  title: string;
-  type: string;
-  /** 이 규약 밑에 접힌 하위 규약 수 — 규약에서 규약으로 이어지는 하위 전부다. 비전은 접지 않으므로 0 이다 */
-  descendants: number;
-}
+export type { ConventionSummary } from './conventions.js';
 
 export interface BootstrapResult {
   session_id: string;
@@ -947,8 +941,9 @@ export class SessionService {
    * 실어 왔는가로 세지 않는 이유: 켰다가 끈(또는 관리형 settings 에서 빠진) 호스트가 영원히
    * "켜짐" 으로 남는다 — 지금의 사실을 묻는 질문에 과거의 사실로 답하게 된다.
    *
-   * **Claude Code 세션만 센다.** 플러그인은 Claude Code 의 것이다 — Codex 세션은 플러그인이
-   * 없어도 정상이고, 세면 분모만 부풀어 활성화율이 거짓으로 낮아진다.
+   * **Claude Code 세션만 센다.** 이 현황은 관리형 settings 로 플러그인을 내린 Claude Code 기계가 켜졌는지 묻는다
+   * (E12-S03). 2026-10-16 부터 Codex 에도 플러그인을 설치하면 훅이 돌고 `plugin_version` 이 남지만(E20-S01), Codex 는
+   * 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다 — 세면 그 기계들이 「꺼짐」으로 분모를 부풀린다.
    *
    * 호스트의 열쇠는 **사람 + hostname** 이다. 기본 hostname 은 겹친다(`MacBook-Pro` 가 둘인 팀).
    */
@@ -1167,42 +1162,13 @@ export class SessionService {
       });
     }
 
-    // 규약 스펙 — convention·vision 타입만. 세션이 규약을 모른 채 시작하지 않게 한다.
-    //
-    // **접어서 준다**(2026-10-10 · clemvion 보고 · 사람 결정 C1 · REQ-API-277). 전부 담았더니 clemvion 은 API
-    // 카탈로그 사본 272편(`CLE-C24-*` · `CLE-MKS-*`)이 `convention` 이라 응답이 약 45KB 였고, 세션이 만료될 때마다
-    // 다시 부르며 그만큼 컨텍스트가 늘었다. 카탈로그는 하위 트리라서 꼭대기 한 줄로 접으면 일반 규약은 그대로
-    // 보인다. 하위 트리가 아니어도 크기는 상한이 막는다. 비전은 접지 않는다 — 모든 영역이 그 밑에 있다.
-    // 전체 수도 **같은 문장에서** 센다 — 두 문장으로 나누면 그 사이의 쓰기가 잘림을 꾸미거나 감춘다.
-    const { rows: conventionRows } = await this.db.execute<
-      ConventionSummary & { total: number }
-    >(sql`
-      WITH RECURSIVE conv AS (
-        SELECT id, parent_id, key, title, type::text AS type, sort_key FROM spec
-         WHERE project_id = ${projectId} AND archived_at IS NULL
-           AND type IN ('convention', 'vision')
-      ),
-      top AS (
-        SELECT c.* FROM conv c
-         WHERE c.type = 'vision'
-            OR NOT EXISTS (SELECT 1 FROM conv p WHERE p.id = c.parent_id AND p.type = 'convention')
-      ),
-      folded AS (
-        SELECT t.id AS top_id, c.id FROM top t
-          JOIN conv c ON c.parent_id = t.id AND c.type = 'convention'
-         WHERE t.type = 'convention'
-        UNION ALL
-        SELECT f.top_id, c.id FROM folded f
-          JOIN conv c ON c.parent_id = f.id AND c.type = 'convention'
-      )
-      SELECT t.key, t.title, t.type,
-             (SELECT count(*)::int FROM folded f WHERE f.top_id = t.id) AS descendants,
-             (SELECT count(*)::int FROM conv) AS total
-        FROM top t
-       ORDER BY (t.type = 'vision') DESC, t.sort_key, t.key
-       LIMIT ${CONVENTIONS_LIMIT}
-    `);
-    const conventions: ConventionSummary[] = conventionRows.map(({ total: _total, ...row }) => row);
+    // 규약 스펙 — convention·vision 타입만. 세션이 규약을 모른 채 시작하지 않게 한다. **접어서 준다**(2026-10-10 ·
+    // REQ-API-277 — 까닭은 `conventions.ts`). AGENTS.md(EP-PRJ-06)가 같은 질의를 쓴다 — 어디서 읽어도 같은 규약을 안다.
+    // 승인 버전 번호는 AGENTS.md 의 칸이라 여기서는 뺀다(응답의 키는 그대로 넷이다).
+    const folded = await foldedConventions(this.db, projectId);
+    const conventions: ConventionSummary[] = folded.items.map(
+      ({ approved_version_no: _approved, ...row }) => row,
+    );
 
     // 내 활성 클레임 — 기준 버전·기준선을 함께 싣는다(agent-integration §2.4)
     const { rows: claims } = await this.db.execute<ActiveClaimSummary>(sql`
@@ -1223,8 +1189,7 @@ export class SessionService {
       resumed,
       project: { id: project.id, key: project.key, slug: project.slug },
       conventions,
-      // 꼭대기가 없으면 규약도 없다 — 비전은 언제나 꼭대기이고, 규약은 꼭대기 아니면 꼭대기의 하위다
-      conventions_total: conventionRows[0]?.total ?? 0,
+      conventions_total: folded.total,
       active_claims: claims,
       gate_policy: project.gate_policy ?? {},
       constants: {

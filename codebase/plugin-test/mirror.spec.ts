@@ -21,9 +21,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateRawSync } from 'node:zlib';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { parseArgs, safeEntryPath, unzip } from './skills/mirror/scripts/nerv-mirror.mjs';
+import { parseArgs, safeEntryPath, unzip } from '../plugin/skills/mirror/scripts/nerv-mirror.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
+// 플러그인 폴더는 배달되는 파일만 둔다 — 테스트는 옆 폴더에서 그 스크립트를 실행한다(REQ-PLG-037)
+const here = join(dirname(fileURLToPath(import.meta.url)), '../plugin');
 const BIN = join(here, 'bin', 'nerv-mirror');
 const TOKEN = 'nerv_pat_test_secret_value';
 

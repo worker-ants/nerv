@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.77 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.78 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.78 변경(2026-10-16 — 보존 워커 완성의 범위 A, **사람 결정 ②**): **REQ-DB-046 · 047 신설 · §2.14 보존 표 한 줄 · 결정 기록 · 두 문단.** 보존 잡이 `notification` 가운데 마지막으로 더해진 시각이 180일 지난 줄을 지우고(읽음 · 안 읽음을 가리지 않는다 · 묶음에 든 이벤트도 함께), 행을 지운 뒤 보존 기간을 넘긴 빈 `activity` 월 파티션을 드랍한다. 리뷰 본문 요약 압축 · draft 압축 · `event` 의 `DETACH` 는 2026-09-02 재검토 트리거를 그대로 기다린다. 마이그레이션은 없다.
 >
 > v0.77 변경(2026-10-16 — 보존 기간을 저장하면 남아 있는 원문의 만료도 다시 적는다, **사람 결정**): **§2.7 `review_session` 한 줄 · §2.14 보존 단락 한 구절.** `prompt_expires_at` 은 받을 때 정책으로 정하고, EP-PRJ-04 가 `retention` 을 저장하면 원문이 남아 있는 행의 값을 새 기간으로 다시 적는다([4.2 코드베이스](codebase.md) REQ-CB-032). 열과 마이그레이션은 그대로다.
 
@@ -1211,26 +1213,32 @@ SELECT nerv_ensure_month_partitions((current_date + interval '1 month')::date);
 
 두 자리에서 채운다. **워커**가 하루 한 번 오늘부터 `PARTITION_MONTHS_AHEAD`(3)개월 뒤까지 보장하고(`partition` 잡, advisory lock 하), **마이그레이터**도 같은 함수를 한 번 돌린다 — 워커가 뜨기 전에도 서버는 이벤트를 쓰기 때문이다. 함수 전체가 `IF NOT EXISTS` 라 몇 번을 돌아도 결과가 같다(REQ-DB-001 의 왕복 멱등을 깨지 않는다).
 
-**아직 없는 것**: 12개월 지난 `event` 파티션의 `DETACH`, 보존 기간을 넘긴 `activity` 파티션의 드랍. 아래 문단이 워커 잡으로 약속하지만 구현은 없다 — 파티션은 계속 쌓인다. 지금 규모에서 급하지 않아 남겨 두되, **문서가 있다고 말하지 않게** 여기에 적는다.
+**아직 없는 것**: 12개월 지난 `event` 파티션의 `DETACH`. 아래 문단이 워커 잡으로 약속하지만 구현은 없다 — `event` 파티션은 계속 쌓인다. 지금 규모에서 급하지 않아 남겨 두되, **문서가 있다고 말하지 않게** 여기에 적는다. 보존 기간을 넘긴 `activity` 파티션의 드랍은 2026-10-16 에 들어왔다(아래 결정 기록 · REQ-DB-047).
 
-**보존 정책도 절반만 집행된다**(2026-09-07 확인 — 실측). [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 의 표는 아홉 줄인데 `retention` 잡이 집행하는 것은 **둘**이다 — `activity` 원문(`activity_days`, 기본 90일 · 지우기 전에 `agent_session.activity_summary` 로 접는다)과 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 **먼저 오는 쪽** — 행의 만료는 리뷰를 받을 때 그 프로젝트의 정책으로 적고 정책을 저장하면 남은 원문의 만료를 다시 적는다, 2026-10-15 · 10-16 · [4.2 코드베이스](codebase.md) REQ-CB-032). 프로젝트 정책 스키마(`RetentionSchema`)의 키도 그 **둘뿐**이라, 나머지는 정책으로 적을 자리조차 없다.
+**보존 정책은 아직 다 집행되지 않는다**(2026-09-07 확인 — 실측 · 2026-10-16 갱신). [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 의 표는 아홉 줄인데 `retention` 잡이 집행하는 것은 **셋**이다 — `notification`(180일 · 2026-10-16 · REQ-DB-046), `activity` 원문(`activity_days`, 기본 90일 · 지우기 전에 `agent_session.activity_summary` 로 접는다)과 `review_session.prompt_blob_uri`(`prompt_blob_ttl_days`, 기본 30일 · 행의 `prompt_expires_at` 과 **먼저 오는 쪽** — 행의 만료는 리뷰를 받을 때 그 프로젝트의 정책으로 적고 정책을 저장하면 남은 원문의 만료를 다시 적는다, 2026-10-15 · 10-16 · [4.2 코드베이스](codebase.md) REQ-CB-032). 프로젝트 정책 스키마(`RetentionSchema`)의 키는 뒤의 **둘뿐**이다 — 알림의 기간은 상수(`NOTIFICATION_RETENTION_DAYS`)이고 나머지는 정책으로 적을 자리조차 없다.
 
 | §5.4 가 약속한 것 | 상태 | 그래서 지금 |
 | --- | --- | --- |
-| `notification` 180일 | **집행 없음** | 파생 데이터인데 영구히 쌓인다. 원천(`event`)이 영구라 재생성 가능하다는 것이 원래 근거였다 |
+| `notification` 180일 | **집행**(2026-10-16) | 마지막으로 더해진 시각(`last_at`)이 180일 지난 줄을 읽음 · 안 읽음을 가리지 않고 지운다(REQ-DB-046). 원천(`event`)이 영구라 다시 만들 수 있다는 것이 근거다 |
 | `reviewer_report.body_md` 365일 후 요약 압축 | **집행 없음** | clemvion 실측 세션당 66KB × 월 ~434 세션 — 압축이 이 표에서 가장 큰 축이었다 |
 | `spec_version`(draft 중간 저장) 90일 후 압축 | **집행 없음** | approved 는 영구·불변이 맞고, 이 줄은 **draft 만**의 이야기다 |
 | `event` 12개월 후 콜드(`DETACH`) | **집행 없음** | 위 문단과 같은 자리다 |
 
 셋 다 **이월**이다. 여기에 적는 이유는 §2.14 가 이미 세운 규율과 같다 — 있다고 적힌 보존 정책은 감사·용량 계획의 입력이 되고, 그것이 거짓이면 두 계산이 함께 틀린다.
 
-**재검토 트리거**(2026-09-02 · 사람 확정): `event`·`activity` 의 파티션 수가 **24개**를 넘거나 `event` 행이 **1천만**을 넘으면 착수한다. "급하지 않다"는 판단은 있었는데 **언제 다시 볼지가 없었다** — 트리거 없는 유예는 유예가 아니라 망각이다. 두 값 모두 `SELECT count(*) FROM pg_class WHERE relkind='r' AND relname LIKE 'event_y%'` 와 행 수로 확인한다.
+**결정 기록**(2026-10-16 · **사람 결정 ②** — 보존 워커 완성의 범위 A · [4.8 백로그](backlog.md) E18-S03). **지금 하는 것**: `notification` 180일 삭제와 보존 기간을 넘긴(행이 모두 지워진) `activity` 월 파티션의 드랍. 알림은 이벤트에서 다시 만들 수 있는 파생 데이터이고 빈 파티션 드랍은 잃는 것이 없다. **기다리는 것**: `reviewer_report.body_md` 365일 뒤 요약 압축 · draft `spec_version` 90일 뒤 압축 · `event` 12개월 뒤 `DETACH` — 아래 재검토 트리거(2026-09-02)를 그대로 둔다. 리뷰 본문의 「요약 압축」은 방법이 정해져 있지 않고 `event` 의 `DETACH` 는 감사 로그(FR-16 · append-only — REQ-DB-023)를 건드린다.
+
+집행의 세부(같은 날 정함). 알림은 상수 `NOTIFICATION_RETENTION_DAYS` 로 프로젝트 순회 밖에서 한 번에 지운다 — 보관한 프로젝트의 알림도 같다. 기준을 `last_at` 으로 둔 까닭은 묶음(REQ-DB-030)이다: 처음 이벤트가 오래됐어도 어제 더해진 묶음은 어제의 알림이고 목록도 그 시각으로 줄을 세운다. 지운 알림의 이벤트는 다시 파생되지 않는다 — 파생 커서는 앞으로만 가고 새로 뜬 워커도 최근 한 시간만 본다([4.4 API 명세](api.md) REQ-API-317). 파티션은 행을 지운 **뒤에** 보고, 그 달의 끝이 모든 프로젝트(보관한 것 포함)의 `activity_days` 가운데 가장 긴 값보다 오래됐고 행이 0 일 때만 드랍한다. 드랍은 부모 `activity` 의 ACCESS EXCLUSIVE 잠금을 잡는다. 그 잠금을 기다리는 동안 뒤에 온 활동 쓰기(훅 수집)가 모두 줄을 선다 — 그래서 잠금을 곧바로 얻지 못하면(`NOWAIT`) 기다리지 않고 다음 판(1시간 뒤)으로 미룬다.
+
+**재검토 트리거**(2026-09-02 · 사람 확정 · 2026-10-16 사람 결정 ② 가 남은 셋을 이 트리거에 맡겼다): `event`·`activity` 의 파티션 수가 **24개**를 넘거나 `event` 행이 **1천만**을 넘으면 착수한다. "급하지 않다"는 판단은 있었는데 **언제 다시 볼지가 없었다** — 트리거 없는 유예는 유예가 아니라 망각이다. 두 값 모두 `SELECT count(*) FROM pg_class WHERE relkind='r' AND relname LIKE 'event_y%'` 와 행 수로 확인한다.
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-DB-021 | WHILE 서버가 도는 동안 THE SYSTEM SHALL 오늘부터 `PARTITION_MONTHS_AHEAD` 개월 뒤까지의 `event`·`activity` 월 파티션을 워커 잡이 매일 보장하고, 마이그레이션 직후에도 같은 창을 채운다. WHEN 그 창 안의 시각으로 이벤트가 적재되면 THE SYSTEM SHALL 파티션 부재로 실패하지 않는다 |
+| REQ-DB-046 | WHEN 보존 잡이 돌면 THE SYSTEM SHALL `notification` 에서 마지막으로 더해진 시각(`last_at`)이 `NOTIFICATION_RETENTION_DAYS`(180일 — [3.3 데이터 모델](../03-proposal/data-model.md) §5.4)보다 오래된 줄을 읽음 · 안 읽음을 가리지 않고 지우며 그 줄의 묶음에 든 이벤트(`notification_batch_event`)를 함께 지운다(FK `ON DELETE CASCADE`). THE SYSTEM SHALL 지운 알림의 이벤트를 다시 알림으로 파생하지 않는다 — 파생 커서는 앞으로만 가고 새로 뜬 워커는 최근 한 시간만 다시 본다([4.4 API 명세](api.md) REQ-API-317)(2026-10-16 · 사람 결정 ②) |
+| REQ-DB-047 | WHEN 보존 잡이 프로젝트마다 Activity 를 지운 뒤 THE SYSTEM SHALL `activity` 에 붙은 월 파티션 가운데 이름이 `nerv_ensure_month_partitions` 의 규칙(`activity_yYYYYmMM`)이고 그 달의 끝이 모든 프로젝트(보관한 것 포함)의 `activity_days` 가운데 가장 긴 값보다 오래됐으며 행이 0 인 것을 드랍한다. WHERE 행이 남아 있으면 THE SYSTEM SHALL 드랍하지 않는다. WHEN 부모(`activity`)나 그 파티션의 잠금을 곧바로 얻지 못하면 THE SYSTEM SHALL 기다리지 않고(`NOWAIT`) 다음 판으로 미룬다 — 기다리는 동안 뒤에 온 활동 쓰기가 줄을 선다(2026-10-16 · 사람 결정 ②) |
 
-보존 정책(data-model §5.4)과의 연결: `event`는 영구 보존하되 12개월 지난 파티션을 `DETACH PARTITION` 후 콜드 스토리지로 내리고, `activity`는 프로젝트 설정(기본 90일)에 따라 워커가 세션 요약으로 압축한 뒤 파티션을 드랍한다. 두 동작 모두 워커 잡이며 이 문서의 범위는 "파티션이 존재하고 분리 가능하다"까지다.
+보존 정책(data-model §5.4)과의 연결: `event`는 영구 보존하되 12개월 지난 파티션을 `DETACH PARTITION` 후 콜드 스토리지로 내리고(재검토 트리거를 기다린다), `activity`는 프로젝트 설정(기본 90일)에 따라 워커가 세션 요약으로 접고 행을 지운 뒤 빈 파티션을 드랍한다(2026-10-16 · REQ-DB-047). 두 동작 모두 워커 잡(`retention`)이며 이 문서의 범위는 "파티션이 존재하고 분리 가능하다"까지다.
 
 ---
 

@@ -23,6 +23,12 @@ export interface ToolContext {
    * 여기서 던지지 않고 `requireSession` 이 필요할 때 던진다.
    */
   sessionCandidates?: readonly SessionCandidate[];
+  /**
+   * 하네스가 요청에 실어 준 **자기** 세션 id — Codex 는 MCP 요청마다 `_meta.x-codex-turn-metadata.session_id` 를
+   * 싣고, 그 값은 훅 입력의 `session_id` 와 같다(2026-10-15 실측 · api.md §1.4c · REQ-API-324). 없으면 null 이다.
+   * `nerv_bootstrap` 이 이 값을 external id 로 써서 훅이 만든 세션과 한 세션이 된다.
+   */
+  harnessSessionId?: string | null;
   /** A2 이상 도구의 공통 입력(agent-integration §2.1 원칙 4) */
   idempotencyKey?: string | undefined;
 }

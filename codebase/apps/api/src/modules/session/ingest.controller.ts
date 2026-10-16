@@ -1,5 +1,9 @@
-// 훅 수집기 — POST /ingest/hooks/{session,tool,subagent,stop,session-end}
+// 훅 수집기 — POST /ingest/hooks/{session,tool,subagent,stop,session-end} + Codex notify + 오프라인 큐 실패 보고 outbox-failed
 // 정본: agent-integration.md §3.3 · api.md §2.9
+//
+// **같은 훅을 두 호스트가 보낸다**(2026-10-16 · E20-S01 · api.md §2.9 · REQ-API-323). Claude Code 는 판정 JSON 의 모르는
+// 필드를 무시하지만 Codex 는 그 훅을 실패로 끝내고 세션 안내도 버린다(2026-10-15 실측). 그래서 `X-NERV-Agent: codex`
+// 에는 판정 필드만 돌려주고, 나머지에는 지금 응답을 그대로 준다 — 응답의 모양을 고르는 것은 번역이라 표면의 일이다.
 //
 // **훅은 텔레메트리 평면이다.** 끊겨도 세션은 진행되고 게이트는 서버가 유지한다 — 그래서
 // 여기서 하는 일은 "받은 사실을 적재"까지이고, 실패해도 에이전트를 멈추지 않는다.
@@ -10,10 +14,19 @@
 // 훅 하나로 남의 세션을 조작할 수 있다.
 
 import { Body, Controller, Headers, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
-import { msg, NERV_ERROR, prepareHookPayload, redact, text } from '@nerv/schema';
-import { outcomeOf, summarize } from './hook-summary.js';
+import {
+  msg,
+  NERV_ERROR,
+  prepareHookPayload,
+  redact,
+  redactText,
+  text,
+  truncate,
+} from '@nerv/schema';
+import { outcomeOf, summarize, turnTitle } from './hook-summary.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
+import { OutboxReportService } from './outbox-report.service.js';
 import { SessionService } from './session.service.js';
 import type { Principal } from '../auth/auth.service.js';
 
@@ -43,6 +56,7 @@ export class IngestController {
   constructor(
     private readonly sessions: SessionService,
     private readonly auth: AuthService,
+    private readonly outbox: OutboxReportService,
   ) {}
 
   /**
@@ -54,8 +68,9 @@ export class IngestController {
    * **래퍼가 계약이다**(2026-09-03). 예전에는 `additionalContext` 를 최상위 키로 돌려줬다 —
    * Claude Code 훅 문서는 그 자리를 **조용히 무시한다**(silently ignores)고 못 박고, 값은
    * `hookSpecificOutput` 아래여야 한다. 그래서 이 주입은 세션 37개 내내 한 번도 모델에
-   * 도달하지 못했다(실측 2026-09-03). 알려지지 않은 최상위 키는 무시되므로 `ok`·
-   * `session_id` 는 우리 쪽 도구(포워더·L2)를 위해 남긴다.
+   * 도달하지 못했다(실측 2026-09-03). Claude Code 는 알려지지 않은 최상위 키를 무시하므로 `ok`·
+   * `session_id` 는 우리 쪽 도구(포워더·L2)를 위해 남긴다. **Codex 에는 빼고 준다** — 그 둘 때문에 이 훅이
+   * "Failed" 로 끝나고 안내가 모델에게 가지 않았다(2026-10-15 실측 · REQ-API-323).
    */
   @Post('session')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -68,8 +83,8 @@ export class IngestController {
     @Headers('x-nerv-plugin') plugin: string | undefined,
     @Body() body: HookPayload,
   ): Promise<{
-    ok: true;
-    session_id: string;
+    ok?: true;
+    session_id?: string;
     hookSpecificOutput: { hookEventName: 'SessionStart'; additionalContext: string };
   }> {
     const principal = requireAgent(req);
@@ -103,8 +118,7 @@ export class IngestController {
             claims: claims.map((c) => `${c.task_key}(${c.status})`).join(', '),
           })} ${text('agent.resume_claim')}`;
     return {
-      ok: true,
-      session_id: result.session_id,
+      ...(strictHost(agent) ? {} : { ok: true as const, session_id: result.session_id }),
       hookSpecificOutput: {
         hookEventName: 'SessionStart',
         // **세션 id 를 모델에게 알려 준다**(2026-10-10 · 사람 결정 · REQ-API-280). Claude Code 는 모델에게 자기
@@ -121,13 +135,14 @@ export class IngestController {
   @HttpCode(HttpStatus.ACCEPTED)
   async tool(
     @Req() req: HookRequest,
+    @Headers('x-nerv-agent') agent: string | undefined,
     @Headers('x-nerv-branch') branch: string | undefined,
     @Headers('x-nerv-worktree') worktree: string | undefined,
     @Body() body: HookPayload,
-  ): Promise<{ ok: boolean }> {
+  ): Promise<HookAck> {
     const principal = requireAgent(req);
     const sessionId = await this.resolveLiveSession(principal, body);
-    if (sessionId === null) return { ok: false };
+    if (sessionId === null) return ack(agent, false);
 
     const toolName = body.tool_name ?? 'tool';
     // **제목도 가린 값에서 만든다.** 원문에서 만들면 `--token abc` 가 목록에 그대로 뜬다 —
@@ -161,16 +176,20 @@ export class IngestController {
         ...(outcome === null ? {} : { ok: outcome.ok, outcome: outcome.detail }),
       },
     });
-    return { ok: true };
+    return ack(agent, true);
   }
 
   /** SubagentStart/Stop — 어느 역할 에이전트가 무엇을 했는지. 관찰 전용. */
   @Post('subagent')
   @HttpCode(HttpStatus.ACCEPTED)
-  async subagent(@Req() req: HookRequest, @Body() body: HookPayload): Promise<{ ok: boolean }> {
+  async subagent(
+    @Req() req: HookRequest,
+    @Headers('x-nerv-agent') agent: string | undefined,
+    @Body() body: HookPayload,
+  ): Promise<HookAck> {
     const principal = requireAgent(req);
     const sessionId = await this.resolveLiveSession(principal, body);
-    if (sessionId === null) return { ok: false };
+    if (sessionId === null) return ack(agent, false);
 
     await this.sessions.appendHookActivity({
       sessionId,
@@ -180,7 +199,7 @@ export class IngestController {
       toolName: null,
       payload: { agent_id: body.agent_id ?? null },
     });
-    return { ok: true };
+    return ack(agent, true);
   }
 
   /**
@@ -206,23 +225,24 @@ export class IngestController {
   @Post('stop')
   async stop(
     @Req() req: HookRequest,
+    @Headers('x-nerv-agent') agent: string | undefined,
     @Body() body: HookPayload,
-  ): Promise<{ decision?: 'block'; reason?: string; ok: true }> {
+  ): Promise<{ decision?: 'block'; reason?: string } & HookAck> {
     const principal = requireAgent(req);
     // 두 번째 판정은 하지 않는다 — 첫 block 이 이미 말했고, 그것으로 안 풀렸다면
     // 다시 막는 것은 안내가 아니라 덫이다.
-    if (body.stop_hook_active === true) return { ok: true };
+    if (body.stop_hook_active === true) return ack(agent, true);
     const sessionId = await this.resolveLiveSession(principal, body);
-    if (sessionId === null) return { ok: true };
+    if (sessionId === null) return ack(agent, true);
 
     const claims = await this.sessions.activeClaimSummary(sessionId);
     const unfinished = claims.filter(
       (c) => (c.status === 'claimed' || c.status === 'in_progress') && !c.awaiting,
     );
-    if (unfinished.length === 0) return { ok: true };
+    if (unfinished.length === 0) return ack(agent, true);
 
     return {
-      ok: true,
+      ...ack(agent, true),
       decision: 'block',
       reason: [
         text('agent.unfinished_claims', { keys: unfinished.map((c) => c.task_key).join(', ') }),
@@ -235,10 +255,14 @@ export class IngestController {
   /** SessionEnd — complete/error 전이 + 미해제 클레임 회수. 정리만 하고 응답은 없다. */
   @Post('session-end')
   @HttpCode(HttpStatus.ACCEPTED)
-  async sessionEnd(@Req() req: HookRequest, @Body() body: HookPayload): Promise<{ ok: boolean }> {
+  async sessionEnd(
+    @Req() req: HookRequest,
+    @Headers('x-nerv-agent') agent: string | undefined,
+    @Body() body: HookPayload,
+  ): Promise<HookAck> {
     const principal = requireAgent(req);
     const sessionId = await this.resolveSession(principal, body);
-    if (sessionId === null) return { ok: false };
+    if (sessionId === null) return ack(agent, false);
 
     await this.sessions.finish({
       sessionId,
@@ -246,7 +270,68 @@ export class IngestController {
       reason: body.reason === 'error' ? 'error' : 'complete',
       userId: principal.userId,
     });
-    return { ok: true };
+    return ack(agent, true);
+  }
+
+  /**
+   * **Codex 의 `notify` — 턴이 끝났다**(2026-10-16 · E20-S02 · api.md §2.9 · REQ-API-325). Codex 는 턴을 끝낼 때마다 설정의
+   * `notify` 프로그램을 부르고 JSON 하나를 마지막 인자로 준다 — 포워더가 그것을 그대로 이 경로로 보낸다. 플러그인이 없는
+   * Codex(MCP 설정만)에서는 이것이 유일한 텔레메트리라, 세션 화면이 그 세션의 턴을 보이게 한다.
+   *
+   * 세션은 `thread-id` 로 찾는다 — 훅의 `session_id` · MCP 요청의 하네스 세션 id 와 같은 값이다(2026-10-16 실측). 그
+   * 세션이 없으면(bootstrap 전 · 다른 사람) 버린다. 턴이 끝났다는 것은 하네스가 살아 있다는 뜻이라 stale 세션을 되살린다.
+   * **사용자 프롬프트(`input-messages`)는 담지 않는다** — 훅도 프롬프트를 받지 않는다. 남기는 것은 마지막 답변(가린 값)이다.
+   */
+  @Post('notify')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async notify(
+    @Req() req: HookRequest,
+    @Headers('x-nerv-agent') agent: string | undefined,
+    @Body() body: NotifyPayload,
+  ): Promise<HookAck> {
+    const principal = requireAgent(req);
+    // 지금 받는 알림은 턴 완료 하나다 — 모르는 종류는 받기만 하고 남기지 않는다(지어내지 않는다)
+    if (body.type !== 'agent-turn-complete') return ack(agent, false);
+    const threadId = typeof body['thread-id'] === 'string' ? body['thread-id'] : '';
+    const sessionId = await this.resolveLiveSession(principal, { session_id: threadId });
+    if (sessionId === null) return ack(agent, false);
+
+    const message =
+      typeof body['last-assistant-message'] === 'string' ? body['last-assistant-message'] : '';
+    // 제목도 가린 값에서 만든다 — 원문에서 만들면 목록에 비밀이 그대로 뜬다(도구 훅과 같다)
+    const safeMessage = redactText(message);
+    await this.sessions.appendHookActivity({
+      sessionId,
+      projectId: principal.projectId ?? '',
+      type: 'response',
+      title: turnTitle(safeMessage),
+      toolName: null,
+      payload: {
+        turn_id: typeof body['turn-id'] === 'string' ? body['turn-id'] : null,
+        client: typeof body.client === 'string' ? body.client : null,
+        last_assistant_message: truncate(safeMessage),
+      },
+    });
+    return ack(agent, true);
+  }
+
+  /**
+   * **오프라인 큐의 재전송이 거절됐다**(2026-10-16 · E21-S01 · NFR-05 · api.md REQ-API-322). 훅이 아니라 플러그인의
+   * `nerv-outbox flush` 가 `outbox/failed/` 로 옮긴 항목을 알린다. 그 사람에게 중요 알림이 가야 해서 202 로 받고
+   * 이벤트를 남긴다 — 세션을 대상으로 고르는 규칙과 중복 제거는 `OutboxReportService` 한 곳이다(D-05).
+   */
+  @Post('outbox-failed')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async outboxFailed(
+    @Req() req: HookRequest,
+    @Body() body: unknown,
+  ): Promise<{ ok: true; recorded: number; duplicates: number }> {
+    const principal = requireAgent(req);
+    return this.outbox.report({
+      projectId: principal.projectId,
+      userId: principal.userId,
+      body,
+    });
   }
 
   /**
@@ -286,6 +371,28 @@ function requireAgent(req: HookRequest): Principal {
     });
   }
   return principal;
+}
+
+/** Codex `notify` 의 본문 — 키가 하이픈으로 이어진다(2026-10-16 실측 · Codex 0.162.1) */
+interface NotifyPayload extends Record<string, unknown> {
+  type?: string;
+  client?: string;
+}
+
+/** 관찰 훅의 응답 — Claude Code 에는 `ok` 를, Codex 에는 빈 판정을 준다(REQ-API-323) */
+type HookAck = { ok?: boolean };
+
+/**
+ * **판정 JSON 에 모르는 필드를 두면 안 되는 호스트인가.** Codex 0.162.1 은 훅 출력의 모르는 필드를 실패로 보고
+ * (2026-10-15 실측 — `ok` · `session_id` 때문에 SessionStart · Stop 이 "Failed"), Claude Code 는 무시한다. 헤더가
+ * 없으면 지금처럼 답한다 — http 변형(Claude Code 전용)은 헤더를 싣지 않는다.
+ */
+function strictHost(agent: string | undefined): boolean {
+  return normalizeAgentType(agent) === 'codex';
+}
+
+function ack(agent: string | undefined, ok: boolean): HookAck {
+  return strictHost(agent) ? {} : { ok };
 }
 
 /** 알 수 없는 에이전트 종류는 'other' 다 — enum 밖의 값으로 적재를 실패시키지 않는다. */

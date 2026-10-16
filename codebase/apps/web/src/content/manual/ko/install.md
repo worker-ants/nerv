@@ -52,7 +52,7 @@ Claude Code나 Codex를 NERV에 연결하는 절차입니다. 연결을 마치�
 
 이 파일은 **기본으로 git 추적에서 제외되므로** 토큰이 커밋되지 않습니다. 저장소마다 다른 값을 쓸 수 있고 셸 프로필을 고칠 필요도 없습니다.
 
-### `.nerv/env` — Codex를 위한 파일 (지금은 만들지 않아도 됩니다) {#env-nerv-env}
+### `.nerv/env` — Codex를 위한 파일 {#env-nerv-env}
 
 **Claude Code만 쓴다면 위 파일 하나로 충분합니다.** 값을 두 곳에 두지 마세요. 두 곳의 값이 서로 다르면 어느 쪽 값이 적용될지가 상황마다 달라집니다.
 
@@ -66,7 +66,7 @@ NERV_TOKEN=<1단계에서 받은 토큰>
 
 **이미 설정된 값은 덮어쓰지 않습니다.** 회사에서 관리하는 기기의 설정이나 셸에 있는 값이 항상 우선합니다. 그리고 이 파일에서는 `NERV_`로 시작하는 변수만 읽습니다.
 
-> **Codex에서는 아직 이 파일이 쓰이지 않습니다.** Codex의 MCP 인증 설정에는 환경변수 이름만 적을 수 있어서 이 파일의 값이 적용되지 않습니다. Codex 알림을 NERV로 보내는 설정도 아직 꺼져 있습니다. 서버에 받는 곳이 아직 없기 때문입니다. Codex 지원은 아직 준비 중입니다.
+> **Codex에서는 훅만 이 파일을 읽습니다.** Codex에 NERV 플러그인을 설치하면 훅이 이 파일의 서버 주소와 프로젝트를 씁니다(3-B 참고). MCP 인증에는 이 파일의 값이 적용되지 않습니다. Codex의 MCP 인증 설정에는 환경변수 이름만 적을 수 있기 때문입니다. 그래서 토큰은 셸 환경변수로 둡니다. Codex의 턴 완료 알림(notify)도 같은 포워더가 보내고 이 파일을 읽습니다(3-B 참고).
 
 ### 그 머신에서 한 프로젝트만 쓴다면 {#env-single-project}
 
@@ -85,7 +85,7 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 이 값은 **표시용**입니다. 헤더 값은 보내는 쪽에서 얼마든지 바꿀 수 있으므로 권한 판정에는 쓰지 않습니다.
 
-**토큰을 저장소에 커밋하지 마세요.** 작업 저장소의 `.gitignore`에 `.nerv/`도 추가합니다. 이 폴더에는 환경 파일과 플러그인의 캐시, 오프라인 큐가 저장됩니다.
+**토큰을 저장소에 커밋하지 마세요.** 작업 저장소의 `.gitignore`에 `.nerv/`도 추가합니다. 이 폴더에는 환경 파일과 플러그인의 캐시, 오프라인 큐가 저장됩니다. 오프라인 큐는 서버가 돌아오면 저절로 비워집니다([서버에 연결할 수 없을 때](/help/agents#offline)).
 
 ## 3-A. Claude Code에 플러그인 설치 {#claude-code}
 
@@ -121,7 +121,7 @@ Claude Code 안에서 아래 두 줄을 실행합니다. **이 서버가 배포�
 
 **`nerv_*` 도구는 이 네 가지에 들어 있지 않습니다.** 저장소에 `.mcp.json`이 있어야 쓸 수 있습니다. 서버 주소와 토큰이 프로젝트마다 다르기 때문에 플러그인에 이 파일을 넣지 않았습니다.
 
-**대신 이 파일을 만들어 주는 명령이 들어 있습니다.** 작업 저장소에서 한 번 실행하면 `.mcp.json`, `.claude/settings.local.json`의 환경변수, `.gitignore`의 `.nerv/` 항목이 한꺼번에 준비됩니다. **주소와 프로젝트는 이 서버의 값으로 채워 두었으니** 입력할 것은 토큰뿐입니다. 토큰은 화면에 보이지 않게 입력받습니다.
+**대신 이 파일을 만들어 주는 명령이 들어 있습니다.** 작업 저장소에서 한 번 실행하면 `.mcp.json`, `.claude/settings.local.json`의 환경변수, `.gitignore`의 `.nerv/` 항목, `AGENTS.md`의 NERV 구역이 한꺼번에 준비됩니다. **주소와 프로젝트는 이 서버의 값으로 채워 두었으니** 입력할 것은 토큰뿐입니다. 토큰은 화면에 보이지 않게 입력받습니다.
 
 ```bash
 cd <작업 저장소>
@@ -130,6 +130,8 @@ cd <작업 저장소>
 ```
 
 **이미 있는 값은 덮어쓰지 않습니다.** 토큰이 이미 적혀 있으면 그대로 두고 그 사실을 알려 줍니다. 토큰을 바꾸려면 그 파일을 직접 고치세요. `.mcp.json`이 이미 있고 `nerv` 항목만 없으면 파일은 고치지 않고 **추가할 항목을 출력해 줍니다.**
+
+**`AGENTS.md`는 이 서버가 만듭니다.** 명령이 이 프로젝트의 서버 주소와 규약 스펙 목록(종류가 규약 · 비전인 스펙)을 담은 본문을 서버에서 받습니다. 파일이 없으면 그 본문으로 만들고, 있으면 `<!-- nerv:begin -->`과 `<!-- nerv:end -->` 사이만 바꿉니다. 그 밖의 내용은 그대로 둡니다. 직접 쓴 `AGENTS.md`에 이 두 줄이 없으면 파일을 고치지 않고 두 줄을 출력해 줍니다. NERV 구역을 둘 자리에 두 줄을 넣고 명령을 다시 실행하세요. 토큰이 없거나 서버에 연결하지 못하면 `AGENTS.md`는 만들지 않습니다. 규약 스펙의 새 버전이 승인되면 세션을 시작할 때 `AGENTS.md`를 새로 받으라고 알려 줍니다. 명령을 다시 실행하면 구역만 바뀝니다.
 
 설정이 덜 된 저장소에서는 세션을 시작할 때 무엇이 빠졌는지 알려 줍니다. **알려 주기만 하고 파일을 만들지는 않습니다.** 설정 명령은 사람이 직접 실행해야 합니다. NERV를 쓰는 흔적이 없는 저장소에서는 아무것도 표시하지 않습니다.
 
@@ -190,31 +192,40 @@ Codex는 사람이 확인한 훅만 실행합니다. 설치한 뒤 Codex에서 `
 
 ## 3-B. Codex에 연결 {#codex}
 
-NERV 플러그인은 아직 Codex용으로 맞추지 않았습니다. Codex에 설치하면 스킬은 쓸 수 있지만 훅은 동작하지 않습니다. 연결은 Codex를 쓰는 저장소에 **파일 두 개를 두어** 합니다. 두 파일의 초안은 플러그인 패키지의 `codex/`에 담겨 함께 배포됩니다.
+연결은 **온보딩 명령 한 줄**로 합니다. 작업 저장소에서 실행하면 Codex가 읽는 `.codex/config.toml`(MCP 연결), `.nerv/env`(서버 주소와 프로젝트), `.gitignore`의 `.nerv/` 항목, `AGENTS.md`의 NERV 구역이 한꺼번에 준비됩니다. 명령은 NERV 플러그인에 들어 있으므로 먼저 Codex에 플러그인을 설치합니다(플러그인 0.3.32부터). 플러그인을 설치하면 Claude Code처럼 훅이 세션의 활동을 NERV에 보냅니다.
 
 ```bash
-mkdir -p <내 저장소>/.codex
-cp <플러그인>/codex/config.toml <내 저장소>/.codex/config.toml
-cp <플러그인>/codex/AGENTS.md   <내 저장소>/AGENTS.md
+codex plugin marketplace add worker-ants/nerv
+codex plugin add nerv@nerv
 ```
 
-`AGENTS.md`가 이미 있으면 덮어쓰지 말고 **"단일 진실"과 "세션 시작 시 반드시" 두 절만** 복사해 넣습니다.
+그다음 작업 저장소에서 아래 명령을 실행합니다. **주소와 프로젝트는 이 서버의 값으로 채워 두었습니다.** 토큰은 `AGENTS.md`를 서버에서 받는 데만 쓰고 파일에는 적지 않습니다.
 
-복사한 `.codex/config.toml`에서 `url`과 `X-NERV-Project`, 그리고 쓰는 경우 `[otel] environment`까지 세 곳을 내 값으로 바꿉니다.
+```bash
+cd <작업 저장소>
+"$(ls -d "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)" \
+  --codex --server {{server}} --project {{project}}
+```
+
+**이미 있는 값은 덮어쓰지 않습니다.** `.codex/config.toml`이 이미 있는데 `nerv` 서버만 없으면 파일은 고치지 않고 **추가할 표를 출력해 줍니다.** `.nerv/env`는 빈 칸만 채웁니다. `AGENTS.md`는 3-A와 같은 규칙으로 NERV 구역만 바꿉니다. `--codex --check`로 실행하면 아무것도 쓰지 않고 빠진 설정만 알려 줍니다.
+
+**토큰은 셸 환경변수 `NERV_TOKEN`으로 둡니다.** Codex의 MCP 연결은 `bearer_token_env_var`에 적힌 환경변수에서만 토큰을 읽습니다. `config.toml`, `.claude/settings.local.json`, `.nerv/env`에 적은 토큰은 MCP 인증에 쓰이지 않습니다(2단계 참고). 셸에 토큰이 없으면 명령이 그렇다고 알려 줍니다.
+
+명령을 실행한 뒤 이 저장소에서 Codex를 다시 시작합니다. 저장소의 `.codex/config.toml`은 **신뢰한 프로젝트에서만** 읽히므로 처음 열 때 한 번 승인합니다. Codex는 사람이 확인한 훅만 실행합니다. Codex에서 `/hooks`를 열고 NERV 훅 여덟을 신뢰 처리합니다.
+
+직접 만들려면 `.codex/config.toml`에 아래 내용을 넣습니다. 플러그인 패키지의 `codex/config.toml`이 같은 내용의 템플릿입니다. 승인 설정은 `[mcp_servers.nerv]`보다 앞에 둡니다. 뒤에 두면 그 표의 설정이 되어 Codex가 무시합니다.
 
 ```toml
+# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않습니다
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
 [mcp_servers.nerv]
 url = "{{server}}/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "{{project}}" }
 startup_timeout_sec = 20
-
-# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않습니다
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
 ```
-
-**`config.toml`에는 토큰을 적지 않습니다.** `bearer_token_env_var`에 적힌 대로 `NERV_TOKEN` 환경변수에서 토큰을 읽습니다. Codex는 `.claude/settings.local.json`을 읽지 않습니다. `.nerv/env`의 값도 MCP 인증에는 쓰이지 않습니다(2단계 참고). 그래서 Codex를 쓴다면 `NERV_TOKEN`을 셸 환경변수로 설정합니다.
 
 Claude Code는 아직 `AGENTS.md`를 자동으로 읽지 않습니다. 같은 저장소에서 두 에이전트를 모두 쓴다면 `CLAUDE.md`에 아래 한 줄을 넣습니다.
 
@@ -226,8 +237,19 @@ Claude Code는 아직 `AGENTS.md`를 자동으로 읽지 않습니다. 같은 �
 
 - 도구는 **모두 쓸 수 있습니다.** `bootstrap → next → claim → heartbeat → release`를 도구만으로 끝까지 진행할 수 있습니다. 핵심 기능은 모두 도구로 제공되기 때문입니다.
 - 스킬 파일(`SKILL.md`)은 그대로 재사용합니다. 개방형 형식이라 Codex에서도 같은 파일을 씁니다.
-- **훅 텔레메트리는 없습니다.** 그래서 세션 화면에서 Codex 세션은 덜 자세하게 보입니다. 모든 행동이 표시되지는 않고 에이전트가 직접 보고하는 마일스톤만 표시됩니다.
+- **훅 텔레메트리는 플러그인을 설치했을 때만 있습니다.** 플러그인 없이 연결하면 세션 화면에서 Codex 세션은 덜 자세하게 보입니다. 모든 행동이 표시되지는 않고 에이전트가 직접 보고하는 마일스톤만 표시됩니다.
 - 저장소의 `.codex/config.toml`은 **신뢰한 프로젝트에서만** 읽힙니다. 처음 열 때 한 번 승인해야 합니다.
+- `/nerv:approve`는 Codex에서 쓰지 않습니다. Codex는 도구를 부를 때마다 묻는 창을 보장하지 않습니다. 승인은 웹에서 합니다.
+
+**플러그인을 설치하고 훅을 신뢰 처리하면** 세션 시작, 도구 사용, 턴 종료, 세션 종료가 NERV에 기록됩니다. 세션 카드는 `nerv_bootstrap`을 호출하기 전에 나타나고 `codex`로 표시됩니다. 도구 호출도 같은 세션에 이어집니다. 클레임을 잡은 채 턴을 끝내려 하면 상태를 남기고 클레임을 정리하라는 안내가 에이전트에게 갑니다. 훅은 `.nerv/env`의 서버 주소와 프로젝트를 읽습니다. 토큰은 셸 환경변수로 둡니다. MCP 연결이 덜 된 저장소에서는 세션을 시작할 때 무엇이 빠졌는지와 실행할 온보딩 명령을 알려 줍니다.
+
+**턴 완료 알림(notify).** 플러그인을 설치했다면 사용자 설정(`~/.codex/config.toml`)의 맨 위, 표 이름(`[…]`)보다 앞에 아래 한 줄을 넣습니다. 에이전트가 턴을 끝낼 때마다 마지막 답변이 세션 화면에 기록됩니다. 플러그인 없이 연결한 Codex 세션에도 같은 방법으로 기록됩니다. 다만 그때는 플러그인의 `bin/`을 따로 두고 그 경로를 적어야 합니다. 저장소의 `.codex/config.toml`에 넣으면 Codex가 이 줄을 무시합니다. 온보딩 명령은 사용자 설정에 이 줄이 없으면 출력해 줍니다. 사용자 설정은 저장소 밖이라 직접 쓰지는 않습니다.
+
+```toml
+notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
+```
+
+**NERV를 설정한 저장소의 턴만 보냅니다.** 사용자 설정에 둔 줄이라 Codex는 어느 저장소에서든 이 줄을 실행합니다. 포워더는 그 턴의 작업 폴더에 NERV 설정이 있을 때만 서버로 보냅니다. `.nerv/env`가 있거나, 저장소의 `.codex/config.toml`이나 `.mcp.json`에 `nerv` 서버가 있는 경우입니다. 토큰이 없어도 보내지 않습니다. 그래서 NERV를 쓰지 않는 저장소의 답변은 서버로 가지 않습니다.
 
 ## 4. 연결 확인 {#verify}
 
@@ -244,7 +266,7 @@ Claude Code라면 세션 카드는 `nerv_bootstrap`을 호출하기 **전에** �
 /nerv:next
 ```
 
-스킬이 `nerv_bootstrap`부터 호출하고 다음 작업을 추천한 뒤 클레임까지 진행합니다. Codex라면 같은 순서대로 도구를 직접 호출합니다. 그 순서는 복사해 둔 `AGENTS.md`에 적혀 있습니다.
+스킬이 `nerv_bootstrap`부터 호출하고 다음 작업을 추천한 뒤 클레임까지 진행합니다. Codex라면 같은 순서대로 도구를 직접 호출합니다. 그 순서는 `AGENTS.md`의 NERV 구역에 적혀 있습니다.
 
 ## 잘 안 될 때 {#troubleshooting}
 

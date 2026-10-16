@@ -195,6 +195,10 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   // fail-open 격상 · 풀림(2026-10-15 · REQ-WEB-319) — 배너는 프로젝트 조회(머리)가 다시 읽는다(아래 `HEAD_EVENTS`)
   [P2.GATE_FAILOPEN_ESCALATED]: (e) => [queryKeys.projectEvents(e.project_id)],
   [P2.GATE_FAILOPEN_CLEARED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // 미러 push 멈춤(2026-10-16 · E21-S02) — 화면은 활동 피드뿐이다. admin 의 종은 개인 룸의 `notification.created` 가 되읽는다
+  [P2.MIRROR_DIVERGED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // 오프라인 큐 재전송 거절(2026-10-16 · E21-S01) — 화면은 활동 피드뿐이다. 보고한 사람의 종은 개인 룸의 `notification.created` 가 되읽는다
+  [P2.SESSION_OUTBOX_FAILED]: (e) => [queryKeys.projectEvents(e.project_id)],
 
   [E.IMPORT_APPLIED]: (e) => [
     queryKeys.projectSpecTree(e.project_id),

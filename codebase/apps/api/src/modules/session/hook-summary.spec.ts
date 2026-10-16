@@ -4,7 +4,7 @@
 // 다르다는 것이 이 표의 요지다.
 
 import { describe, expect, it } from 'vitest';
-import { outcomeOf, shortPath, summarize } from './hook-summary.js';
+import { outcomeOf, shortPath, summarize, turnTitle } from './hook-summary.js';
 
 describe('한 줄 요약 — 도구마다 정보의 자리가 다르다', () => {
   it.each([
@@ -60,5 +60,20 @@ describe('성패 — 모르면 모른다고 한다', () => {
 
   it('실패는 이유를 적는다 — 목록에서 그것만 보고도 짚을 수 있게', () => {
     expect(outcomeOf({ exit_code: 2 })?.detail).toBe('exit 2');
+  });
+});
+
+describe('turnTitle — 턴을 끝낸 답변의 한 줄 (Codex notify · REQ-API-325)', () => {
+  it('비어 있지 않은 첫 줄이다', () => {
+    expect(turnTitle('\n\n  작업을 마쳤다.\n세부는 아래.')).toBe('작업을 마쳤다.');
+  });
+
+  it('길면 줄인다', () => {
+    expect(turnTitle('가'.repeat(200))?.length).toBe(80);
+  });
+
+  it('답변이 없으면 지어내지 않는다', () => {
+    expect(turnTitle('')).toBeNull();
+    expect(turnTitle(' \n\t\n')).toBeNull();
   });
 });

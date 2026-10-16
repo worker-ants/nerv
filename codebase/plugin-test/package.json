@@ -1,0 +1,15 @@
+{
+  "name": "@nerv/plugin-test",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "NERV 플러그인(../plugin)의 테스트 — 문서 전문 대조 · 훅 포워더 · 오프라인 큐 · 미러. 플러그인 폴더에는 배달되는 파일만 둔다(docs/04-mvp/plugin.md §5.4 · REQ-PLG-037)",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.3"
+  }
+}
