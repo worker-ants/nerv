@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.28 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.29 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.29 변경(2026-10-16 — 되살아난 세션의 무응답 알림을 닫는다, **사람 결정**): **§2.2 트리 한 줄.** `modules/event/session-notifications.ts` — 세션이 되살아나면 그 세션의 무응답 알림을 읽음으로 바꾸고, 파생할 때 이미 되살아났으면 읽은 채로 만든다([4.4 API](api.md) REQ-API-352).
 >
 > v2.28 변경(2026-10-16 — PR #240 검토의 사람 확인, **사람 결정**): **§3.2 상수 전표 두 줄.** 묶음 3이 「이번에 정한 시작값」으로 적은 `PIN_LIMIT`(50)과 컷오버 최근 불일치 20건(`CUTOVER_RECENT_MISMATCHES`)을 사람이 2026-10-16에 확인했다 — 그 사실을 적는다. 값은 그대로다.
 >
@@ -587,6 +589,7 @@ apps/api/src/
       fanout.service.ts            # 룸 계산 + 구독자 팬아웃 (WS·SSE 공용)
       notification.service.ts
       request-notifications.ts     # 요청(결재·질문)이 닫히면 그 알림도 닫는다 — 결정·답변·취소와 파생이 함께 쓴다 (REQ-API-176)
+      session-notifications.ts     # 세션이 되살아나면 그 무응답 알림도 닫는다 — 되살림과 파생이 함께 쓴다 (REQ-API-352)
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리

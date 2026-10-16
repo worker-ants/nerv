@@ -38,6 +38,7 @@ import { assertHuman } from '../../common/human-only.js';
 import type { Actor } from '../../common/human-only.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
+import { closeStaleSessionNotifications } from '../event/session-notifications.js';
 import { ClaimService } from '../task/claim.service.js';
 import { foldedConventions } from './conventions.js';
 import type { ConventionSummary } from './conventions.js';
@@ -372,6 +373,9 @@ export class SessionService {
    *
    * **살아 있지 않던 세션을 되살렸으면 `session.started` 를 낸다**(`resumed: true` · 2026-10-10 · REQ-API-279). 세션
    * 보드는 세션 이벤트가 와야 다시 읽으므로, 내지 않으면 되살아난 세션이 새로 고칠 때까지 「무응답」으로 남는다.
+   *
+   * 그때 **그 세션의 무응답 알림을 읽음으로 바꾼다**(2026-10-16 · REQ-API-352). 세션이 다시 움직이면 "내 세션이 멈췄다" 는
+   * 알릴 일이 끝났다 — 남겨 두면 노트북을 다시 연 사람의 배지가 이미 지난 일로 올라 있다.
    */
   private async revive(sessionId: string, onlyFrom: readonly string[] | null): Promise<boolean> {
     return this.events.transact(async (tx, emit) => {
@@ -400,6 +404,7 @@ export class SessionService {
           toState: 'active',
           payload: { resumed: true },
         });
+        await closeStaleSessionNotifications(tx, sessionId);
       }
       return true;
     });
