@@ -43,6 +43,8 @@ codex plugin add nerv@nerv     # 그다음 Codex 의 /hooks 에서 NERV 훅 여�
 - `hooks/hooks.json` 의 최상위에는 `description` · `hooks` 만 둔다. `$comment` 하나로 Codex 는 훅 여섯을 모두 버렸다(REQ-PLG-035).
 - 턴 완료 알림(notify)은 사용자 설정(`~/.codex/config.toml`)에 한 줄을 둔다 — `codex/config.toml` 의 주석에 있다.
   저장소 설정의 `notify` 는 Codex 가 무시한다. 그 줄이 설치 캐시의 포워더를 찾아 `--event notify` 로 보낸다(REQ-PLG-038).
+  사용자 설정이라 모든 저장소의 턴에 불리지만 포워더는 NERV 를 설정한 저장소의 턴만 보낸다 — 판정은 `bin/nerv-env.sh` 의
+  `nerv_repo_configured` 이고 `nerv-init --check` 도 같은 함수를 쓴다.
 - `/nerv:approve` 는 Codex 에서 쓰지 않는다. 서브에이전트는 Codex 목록에 없다.
 
 ## 설계에서 물러서지 않는 두 가지

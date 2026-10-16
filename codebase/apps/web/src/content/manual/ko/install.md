@@ -245,6 +245,8 @@ Codex는 사람이 확인한 훅만 실행합니다. 설치한 뒤 Codex에서 `
 notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
 ```
 
+**NERV를 설정한 저장소의 턴만 보냅니다.** 사용자 설정에 둔 줄이라 Codex는 어느 저장소에서든 이 줄을 실행합니다. 포워더는 그 턴의 작업 폴더에 NERV 설정이 있을 때만 서버로 보냅니다. `.nerv/env`가 있거나, 저장소의 `.codex/config.toml`이나 `.mcp.json`에 `nerv` 서버가 있는 경우입니다. 토큰이 없어도 보내지 않습니다. 그래서 NERV를 쓰지 않는 저장소의 답변은 서버로 가지 않습니다.
+
 ## 4. 연결 확인 {#verify}
 
 - **Claude Code**: 프로젝트 저장소에서 Claude Code를 실행한 뒤 `/mcp`를 입력합니다. `nerv` 서버가 connected이고 `nerv_*` 도구 목록이 보이면 됩니다.

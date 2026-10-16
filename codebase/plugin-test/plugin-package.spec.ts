@@ -919,33 +919,114 @@ describe('REQ-PLG-038 — Codex notify 를 포워더로 보낸다', () => {
   const forward = join(here, 'bin/nerv-hook-forward');
   const toml = () => file('codex/config.toml');
 
-  it('포워더는 notify 를 인자로 받아 codex 로 보내고 아무것도 출력하지 않는다', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'nerv-notify-'));
-    const log = join(dir, 'args.txt');
+  /** NERV 를 설정한 저장소 — `.nerv/env` 하나로 충분하다(`nerv_repo_configured`) */
+  function configuredRepo(env = 'NERV_PROJECT=clemvion\n'): string {
+    const dir = mkdtempSync(join(tmpdir(), 'nerv-notify-repo-'));
+    mkdirSync(join(dir, '.nerv'));
+    writeFileSync(join(dir, '.nerv/env'), env);
+    return dir;
+  }
+
+  /**
+   * 포워더를 notify 로 부른다. curl 을 가로채 인자를 적는다 — 보내지 않았으면 기록 파일이 없다. 러너의 환경이 새어
+   * 들어오지 않게 판정에 쓰는 값을 비우고 시작한다.
+   */
+  function notify(
+    cwd: string,
+    payload: string,
+    env: Record<string, string> = {},
+  ): { sent: string[] | null; stdout: string } {
+    const bin = mkdtempSync(join(tmpdir(), 'nerv-notify-bin-'));
+    const log = join(bin, 'args.txt');
     writeFileSync(
-      join(dir, 'curl'),
+      join(bin, 'curl'),
       `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${log}"\nprintf '{"ok":true}\\n202'\n`,
       { mode: 0o755 },
     );
-    const payload = '{"type":"agent-turn-complete","thread-id":"T-1"}';
     const stdout = execFileSync(forward, ['--event', 'notify', payload], {
-      cwd: dir,
+      cwd,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
         NERV_SERVER: 'http://x',
+        NERV_TOKEN: 'sk-test',
+        NERV_PROJECT: '',
         NERV_AGENT_TYPE: '',
+        NERV_ENV_FILE: '',
         PLUGIN_ROOT: '',
+        ...env,
       },
     });
-    const sent = readFileSync(log, 'utf8').split('\n');
+    return { sent: existsSync(log) ? readFileSync(log, 'utf8').split('\n') : null, stdout };
+  }
+
+  it('포워더는 notify 를 인자로 받아 codex 로 보내고 아무것도 출력하지 않는다', () => {
+    const payload = '{"type":"agent-turn-complete","thread-id":"T-1"}';
+    const { sent, stdout } = notify(configuredRepo(), payload);
+    expect(sent).not.toBeNull();
     expect(sent).toContain('http://x/ingest/hooks/notify');
     expect(sent).toContain('X-NERV-Agent: codex');
-    expect(sent[sent.indexOf('--data') + 1]).toBe(payload);
+    expect(sent![sent!.indexOf('--data') + 1]).toBe(payload);
     // Codex 는 notify 의 출력을 읽지 않는다 — 판정 JSON 을 흘리지 않는다
     expect(stdout).toBe('');
+  });
+
+  /**
+   * **사용자 설정의 notify 는 모든 저장소의 턴에 불린다**(2026-10-16 · 묶음 11c 가 남긴 결함). 예전에는 셸에 토큰이 있으면
+   * NERV 를 쓰지 않는 저장소의 답변까지 서버로 나갔다 — 서버가 세션을 못 찾아 버려도 전송은 됐다.
+   */
+  it('NERV 설정이 없는 디렉터리의 턴은 보내지 않는다 — 셸에 토큰이 있어도', () => {
+    const plain = mkdtempSync(join(tmpdir(), 'plain-repo-'));
+    writeFileSync(join(plain, 'AGENTS.md'), '# 다른 저장소\n');
+    const { sent, stdout } = notify(plain, '{"type":"agent-turn-complete","thread-id":"T-2"}');
+    expect(sent).toBeNull();
+    expect(stdout).toBe('');
+  });
+
+  it('저장소의 config.toml 이나 .mcp.json 에 nerv 서버가 있으면 NERV 를 설정한 저장소다', () => {
+    const codex = mkdtempSync(join(tmpdir(), 'codex-repo-'));
+    mkdirSync(join(codex, '.codex'));
+    writeFileSync(
+      join(codex, '.codex/config.toml'),
+      '[mcp_servers.nerv]\nurl = "https://api.test/mcp"\n',
+    );
+    expect(notify(codex, '{"type":"agent-turn-complete"}').sent).not.toBeNull();
+
+    const claude = mkdtempSync(join(tmpdir(), 'claude-repo-'));
+    writeFileSync(join(claude, '.mcp.json'), '{ "mcpServers": { "nerv": {} } }\n');
+    expect(notify(claude, '{"type":"agent-turn-complete"}').sent).not.toBeNull();
+
+    // 다른 MCP 서버만 있는 config.toml 은 아니다
+    const other = mkdtempSync(join(tmpdir(), 'other-repo-'));
+    mkdirSync(join(other, '.codex'));
+    writeFileSync(
+      join(other, '.codex/config.toml'),
+      '[mcp_servers.github]\nurl = "https://x/mcp"\n',
+    );
+    expect(notify(other, '{"type":"agent-turn-complete"}').sent).toBeNull();
+  });
+
+  it('토큰이 없으면 보내지 않는다', () => {
+    expect(
+      notify(configuredRepo(), '{"type":"agent-turn-complete"}', { NERV_TOKEN: '' }).sent,
+    ).toBeNull();
+  });
+
+  /** 판정 자리는 그 턴의 작업 디렉터리다 — Codex 가 알림에 `cwd` 를 넣어 준다. 그 저장소의 `.nerv/env` 를 읽는다 */
+  it('알림의 cwd 로 판정하고 그 저장소의 .nerv/env 를 읽는다', () => {
+    const repo = configuredRepo('NERV_SERVER=http://from-env\nNERV_PROJECT=clemvion\n');
+    const elsewhere = mkdtempSync(join(tmpdir(), 'codex-cwd-'));
+    const payload = `{"type":"agent-turn-complete","thread-id":"T-3","cwd":"${repo}"}`;
+    const { sent } = notify(elsewhere, payload, { NERV_SERVER: '' });
+    expect(sent).toContain('http://from-env/ingest/hooks/notify');
+    expect(sent).toContain('X-NERV-Project: clemvion');
+
+    // 거꾸로 — 프로세스가 NERV 저장소에서 돌아도 그 턴이 다른 저장소의 것이면 보내지 않는다
+    const plain = mkdtempSync(join(tmpdir(), 'plain-cwd-'));
+    const away = `{"type":"agent-turn-complete","thread-id":"T-4","cwd":"${plain}"}`;
+    expect(notify(repo, away).sent).toBeNull();
   });
 
   it('템플릿의 최상위 키는 표 이름 앞에 있다 — 뒤에 두면 그 표의 키가 되어 Codex 가 무시한다', () => {

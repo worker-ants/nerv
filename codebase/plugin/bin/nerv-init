@@ -138,9 +138,13 @@ codex_has_nerv() {
 #
 # **쓰려는 흔적이 없으면 조용히 지나간다.** 플러그인은 기계에 하나라 NERV 와 무관한
 # 저장소에서도 세션마다 돈다 — 거기서 설정을 재촉하면 그 줄은 곧 아무도 읽지 않는 줄이 된다.
+#
+# 저장소 안의 흔적은 포워더의 notify 와 같은 판정이다(`nerv_repo_configured` · nerv-env.sh · REQ-PLG-038). 여기서는 그 위에
+# 기계 전체의 흔적(셸 환경 · 사용자 설정)과 `.nerv/` 폴더도 본다 — 안내는 말을 하는 쪽이라 넓게 보고, notify 는 내용을
+# 내보내는 쪽이라 저장소의 설정만 본다.
 if [ "$mode" = "check" ]; then
   trace="no"
-  mcp_has_nerv && trace="yes"
+  nerv_repo_configured "$root" && trace="yes"
   [ "$agent" = "codex" ] && codex_has_nerv && trace="yes"
   [ -d "$root/.nerv" ] && trace="yes"
   [ -n "$settings_server$settings_project$settings_token" ] && trace="yes"

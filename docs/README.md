@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v5.65 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v5.66 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v5.66 변경(2026-10-16 — Codex의 턴 완료 알림은 NERV를 설정한 저장소의 것만 보냅니다, 묶음 11c가 남긴 결함): **REQ-PLG-038 개정 · 플러그인 0.3.32 그대로.** Codex는 `notify`를 사용자 설정에서만 읽어 기계 전체에 적용됩니다. 그래서 NERV를 쓰지 않는 저장소의 턴에도 포워더가 불렸고, 셸에 토큰이 있으면 그 답변이 서버로 나갔습니다. 이제 포워더는 그 턴의 작업 디렉터리(알림의 `cwd`)에 NERV 설정(`.nerv/env` · 저장소 `.codex/config.toml`의 `[mcp_servers.nerv]` · `.mcp.json`의 `nerv`)이 있고 토큰이 있을 때만 보냅니다. 판정은 `nerv-env.sh`의 `nerv_repo_configured` 하나이고 `nerv-init --check`도 같은 함수를 씁니다([4.6 플러그인](04-mvp/plugin.md) §5.2 · 매뉴얼 설치 장 ko · en).
 >
 > v5.65 변경(2026-10-16 — Codex의 턴 완료 알림을 받고 2-9 흐름을 Codex로 완주했습니다, **사람 결정**(2026-10-15)): **REQ-PLG-038 · REQ-API-325 신설 · 플러그인 0.3.32 그대로.** Phase 2 묶음 2의 셋째의 둘째 스토리입니다(E20-S02). ① 서버가 `/ingest/hooks/notify`로 Codex의 턴 완료 알림을 받아 그 세션의 답변 활동으로 남깁니다. 사용자 프롬프트는 남기지 않습니다. ② 템플릿의 `notify` 줄은 사용자 설정에 둡니다. Codex는 저장소 설정의 `notify` · `[otel]`을 무시합니다. 템플릿이 최상위 키를 `[mcp_servers.nerv]` 뒤에 두어 Codex가 승인 설정까지 무시하던 것도 고쳤습니다. ③ Codex 세션 하나가 bootstrap → next → claim → 하트비트 → 질문(폴링 폴백) → 구현 → 리뷰 제출 → done을 완주했습니다. [3.4](03-proposal/agent-integration.md) v0.59 · [4.4](04-mvp/api.md) v2.54 · [4.6](04-mvp/plugin.md) v1.13 · [4.8](04-mvp/backlog.md) v3.02.
 >
@@ -946,7 +948,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.78` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v2.54` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v2.43` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.13` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.14` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.27` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
 | [4.8 백로그](04-mvp/backlog.md) | `v3.02` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 

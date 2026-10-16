@@ -12,6 +12,8 @@
 #   ③ 없으면 조용히 지나간다 — 셸 프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다.
 #
 # 사용: 스크립트 머리에서 `. "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"`
+#
+# 이 파일은 판정도 하나 둔다 — `nerv_repo_configured <디렉터리>`: 그 저장소에 NERV 설정이 있는가.
 
 nerv_load_env() {
   local file="${NERV_ENV_FILE:-.nerv/env}" line key value
@@ -28,6 +30,23 @@ nerv_load_env() {
     value="${value#\'}"
     [ -n "${!key:-}" ] || export "$key=$value"
   done <"$file"
+}
+
+# **이 저장소가 NERV 를 쓰는가** — 저장소 안의 설정만 본다(2026-10-16 · REQ-PLG-038).
+#
+# 셸 환경의 토큰 · 사용자 설정(`~/.codex/config.toml`)은 기계 전체의 값이라 NERV 와 무관한 저장소에서도 있다.
+# Codex 의 notify 는 사용자 설정에만 둘 수 있어 모든 저장소의 턴에 불린다 — 그 값으로 판정하면 다른 저장소의 답변이
+# 서버로 나간다. 포워더(notify)와 `nerv-init`(온보딩 · `--check`)이 이 함수 하나로 판정한다.
+#   ① `.nerv/env` — 훅 · Codex 가 읽는 저장소의 값
+#   ② `.codex/config.toml` 의 `[mcp_servers.nerv]` — Codex 의 MCP 연결
+#   ③ `.mcp.json` 의 `nerv` — Claude Code 의 MCP 연결
+nerv_repo_configured() {
+  local dir="${1:-.}"
+  [ -f "$dir/.nerv/env" ] && return 0
+  [ -f "$dir/.codex/config.toml" ] &&
+    grep -qE '^[[:space:]]*\[mcp_servers\.("nerv"|nerv)\][[:space:]]*(#.*)?$' "$dir/.codex/config.toml" && return 0
+  [ -f "$dir/.mcp.json" ] && grep -q '"nerv"' "$dir/.mcp.json" && return 0
+  return 1
 }
 
 nerv_load_env

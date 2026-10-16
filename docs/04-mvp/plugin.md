@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.13 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.14 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.14 변경(2026-10-16 — notify는 NERV를 설정한 저장소의 턴만 보낸다, Phase 2 묶음 2의 넷째 · 묶음 11c가 남긴 결함): **REQ-PLG-038 개정 · §5.2 한 단락 · §3.3 한 문장과 nerv-env.sh 전문의 판정 함수 · 패키지 0.3.32 그대로.** Codex는 `notify`를 사용자 설정에서만 읽어 기계 전체에 적용된다 — NERV를 쓰지 않는 저장소의 턴에도 포워더가 불렸고 셸에 토큰이 있으면 그 답변이 서버로 나갔다. 이제 포워더는 그 턴의 작업 디렉터리(알림의 `cwd`)가 NERV를 설정한 저장소일 때만, 토큰이 있을 때만 보낸다. 판정은 `nerv-env.sh`의 `nerv_repo_configured` 하나이고 `nerv-init --check`도 같은 함수를 쓴다.
 >
 > v1.13 변경(2026-10-16 — Codex notify를 받고 2-9 흐름을 Codex로 완주했다, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15) · [4.8 백로그](backlog.md) E20-S02): **REQ-PLG-038 신설 · §5.2 초안 둘과 두 단락 · §5.4 표 두 행과 한 단락 · §5.1 훅 텔레메트리 행 · §3.3 한 단락 · 패키지 0.3.32 그대로.** 서버가 `/ingest/hooks/notify`로 Codex의 턴 완료 알림을 받는다([4.4 API](api.md) REQ-API-325). 템플릿의 `notify` 줄은 설치 캐시의 포워더를 셸로 찾아 부른다. 실측이 두 가지를 더 정했다. ① 템플릿은 `approval_policy` · `sandbox_mode` · `notify`를 `[mcp_servers.nerv]` 뒤에 두어 그 표의 키가 됐고 Codex 0.162.1은 셋을 무시한다고 경고했다 — 최상위 키를 표 이름 앞으로 옮겼다. ② Codex는 저장소 설정의 `notify` · `[otel]`을 무시한다 — 템플릿은 그 둘을 사용자 설정에 옮겨 적을 주석으로 담는다. Codex 세션이 bootstrap → next → claim → 하트비트 → 질문(폴링 폴백) → 구현 → 리뷰 제출 → done을 완주했다(2-9).
 >
@@ -1697,7 +1699,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 
 마지막 줄이 중요하다. **같은 `${VAR}` 문법인데 플러그인이 제공한 것만 프로젝트 환경을 못 본다.** 그래서 서버 주소·토큰처럼 **프로젝트마다 다른 값을 쓰는 MCP 설정은 프로젝트가 갖는다** — 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이다.
 
-**`.nerv/env`는 Codex의 MCP 인증에 쓰이지 않는다**(2026-09-04 확인 · 2026-09-27 정정 · 2026-10-16 정정 — 훅 포워더는 읽는다). 처음 설계는 Codex의 notify가 우리 포워더를 부르고, 포워더가 이 파일을 직접 읽는 것이었다. 2026-10-16부터는 Codex에 NERV 플러그인을 설치하면 훅이 돌고(§5.4) 그 포워더가 이 파일을 읽는다. notify도 같은 날부터 서버가 받는다 — 사용자 설정의 `notify` 줄이 같은 포워더를 부르고 포워더는 그 세션 저장소의 이 파일을 읽는다(§5.2). **MCP 인증도 이 파일로 채워지지 않는다.** `bearer_token_env_var`·`env_http_headers`는 환경변수의 이름만 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env`를 읽는 프로그램이 없다. 그래서 Codex에서는 `NERV_TOKEN`을 셸 환경에 둔다(`plugin/codex/README.md`).
+**`.nerv/env`는 Codex의 MCP 인증에 쓰이지 않는다**(2026-09-04 확인 · 2026-09-27 정정 · 2026-10-16 정정 — 훅 포워더는 읽는다). 처음 설계는 Codex의 notify가 우리 포워더를 부르고, 포워더가 이 파일을 직접 읽는 것이었다. 2026-10-16부터는 Codex에 NERV 플러그인을 설치하면 훅이 돌고(§5.4) 그 포워더가 이 파일을 읽는다. notify도 같은 날부터 서버가 받는다 — 사용자 설정의 `notify` 줄이 같은 포워더를 부르고 포워더는 그 세션 저장소의 이 파일을 읽는다(§5.2). NERV를 설정한 저장소의 턴만 보낸다 — 판정은 아래 전문의 `nerv_repo_configured`다(2026-10-16 · REQ-PLG-038 개정). **MCP 인증도 이 파일로 채워지지 않는다.** `bearer_token_env_var`·`env_http_headers`는 환경변수의 이름만 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env`를 읽는 프로그램이 없다. 그래서 Codex에서는 `NERV_TOKEN`을 셸 환경에 둔다(`plugin/codex/README.md`).
 
 **다만 길이 하나 있을 수 있다**: Codex 원격 MCP 설정에 **`http_headers_helper`** 키가 있다([2.4 연동 기술](../02-research/integration-tech.md) §3.1). 이름대로 명령이 헤더를 만들어 주는 자리라면 그 명령이 `.nerv/env` 를 읽어 토큰을 실을 수 있다 — Claude Code 의 `headersHelper` 와 같은 모양이다. **의미론을 실측하지 않았으므로 된다고 적지 않는다**(Phase 2 실측 항목).
 
@@ -1726,6 +1728,8 @@ Codex 쪽 대응물도 정확히 맞지는 않는다: `[shell_environment_policy
 #   ③ 없으면 조용히 지나간다 — 셸 프로필로 쓰는 사람과 관리 기기가 그대로 동작해야 한다.
 #
 # 사용: 스크립트 머리에서 `. "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"`
+#
+# 이 파일은 판정도 하나 둔다 — `nerv_repo_configured <디렉터리>`: 그 저장소에 NERV 설정이 있는가.
 
 nerv_load_env() {
   local file="${NERV_ENV_FILE:-.nerv/env}" line key value
@@ -1742,6 +1746,23 @@ nerv_load_env() {
     value="${value#\'}"
     [ -n "${!key:-}" ] || export "$key=$value"
   done <"$file"
+}
+
+# **이 저장소가 NERV 를 쓰는가** — 저장소 안의 설정만 본다(2026-10-16 · REQ-PLG-038).
+#
+# 셸 환경의 토큰 · 사용자 설정(`~/.codex/config.toml`)은 기계 전체의 값이라 NERV 와 무관한 저장소에서도 있다.
+# Codex 의 notify 는 사용자 설정에만 둘 수 있어 모든 저장소의 턴에 불린다 — 그 값으로 판정하면 다른 저장소의 답변이
+# 서버로 나간다. 포워더(notify)와 `nerv-init`(온보딩 · `--check`)이 이 함수 하나로 판정한다.
+#   ① `.nerv/env` — 훅 · Codex 가 읽는 저장소의 값
+#   ② `.codex/config.toml` 의 `[mcp_servers.nerv]` — Codex 의 MCP 연결
+#   ③ `.mcp.json` 의 `nerv` — Claude Code 의 MCP 연결
+nerv_repo_configured() {
+  local dir="${1:-.}"
+  [ -f "$dir/.nerv/env" ] && return 0
+  [ -f "$dir/.codex/config.toml" ] &&
+    grep -qE '^[[:space:]]*\[mcp_servers\.("nerv"|nerv)\][[:space:]]*(#.*)?$' "$dir/.codex/config.toml" && return 0
+  [ -f "$dir/.mcp.json" ] && grep -q '"nerv"' "$dir/.mcp.json" && return 0
+  return 1
 }
 
 nerv_load_env
@@ -2086,7 +2107,9 @@ log_user_prompt = false
 
 **notify는 2026-10-16부터 받는다**(E20-S02 · [4.4 API](api.md) REQ-API-325 · REQ-PLG-038). 예전에는 수신 엔드포인트가 없어 템플릿의 `notify` 줄을 주석으로 막아 두었다(2026-09-07). Codex는 턴을 끝낼 때마다 `notify` 프로그램에 알림 JSON 하나를 마지막 인자로 준다. 위 줄은 그 JSON을 설치 캐시의 `nerv-hook-forward --event notify`로 넘기고, 포워더는 `X-NERV-Agent: codex`로 보낸다. 플러그인 없이 MCP 설정만으로 붙은 Codex에는 포워더가 없어 이 줄이 아무것도 하지 않는다 — 그 설치는 `bin/`을 따로 두고 그 경로를 적는다. `[otel]`은 MVP에서 동작하지 않아도 무방하다. MCP 블록만으로 완주가 성립하는 것은 그대로다. 저장소의 `.codex/config.toml`은 신뢰된 프로젝트에서만 읽히므로 최초 1회 신뢰 승인이 필요하다.
 
-**실측이 정한 두 가지**(2026-10-16 · §5.4). ① 예전 초안은 `approval_policy` · `sandbox_mode` · `notify`를 `[mcp_servers.nerv]` 뒤에 두어 TOML에서 그 표의 키가 됐다. Codex 0.162.1은 "`mcp_servers.nerv.approval_policy` is ignored"처럼 셋을 무시한다고 경고했다 — 사람 승인 레인도 적용되지 않던 셈이다. 최상위 키를 표 이름 앞으로 옮겼다. ② 저장소 설정의 `notify` · `[otel]`은 "unsupported project-local config keys"로 무시된다. 그래서 그 둘은 사용자 설정에 둔다. notify는 기계에 하나라 NERV를 쓰지 않는 저장소의 턴에도 포워더가 돈다 — 포워더는 그 저장소의 `.nerv/env`를 읽고, 설정이 없으면 서버에 이어지지 않아도 조용히 끝난다(훅과 같다).
+**실측이 정한 두 가지**(2026-10-16 · §5.4). ① 예전 초안은 `approval_policy` · `sandbox_mode` · `notify`를 `[mcp_servers.nerv]` 뒤에 두어 TOML에서 그 표의 키가 됐다. Codex 0.162.1은 "`mcp_servers.nerv.approval_policy` is ignored"처럼 셋을 무시한다고 경고했다 — 사람 승인 레인도 적용되지 않던 셈이다. 최상위 키를 표 이름 앞으로 옮겼다. ② 저장소 설정의 `notify` · `[otel]`은 "unsupported project-local config keys"로 무시된다. 그래서 그 둘은 사용자 설정에 둔다.
+
+**notify는 NERV를 설정한 저장소의 턴만 보낸다**(2026-10-16 개정 · REQ-PLG-038). 사용자 설정은 기계에 하나라 NERV를 쓰지 않는 저장소의 턴에도 포워더가 불린다. 예전 포워더는 그 저장소의 `.nerv/env`를 읽고 셸에 토큰이 있으면 그대로 보냈다 — 서버가 세션을 찾지 못해 버리더라도 다른 저장소의 답변이 서버로 나갔다. 이제 포워더는 그 턴의 작업 디렉터리(알림의 `cwd`, 없으면 프로세스의 디렉터리)로 옮겨 판정한다. 그 저장소에 NERV 설정(`.nerv/env` · 저장소 `.codex/config.toml`의 `[mcp_servers.nerv]` · `.mcp.json`의 `nerv`)이 있고 토큰이 있을 때만 보낸다. 아니면 아무것도 보내지 않고 끝낸다. 셸 환경과 사용자 설정은 보지 않는다 — 둘 다 기계 전체의 값이다. 판정은 `bin/nerv-env.sh`의 `nerv_repo_configured` 하나이고 `nerv-init --check`도 같은 함수를 쓴다(§3.3 전문). 훅은 그대로다 — 훅 포워더는 호스트가 프로젝트 디렉터리에서 부른다. 관리형 설정만으로 붙인 설치는 저장소에 파일이 없다(§3.3).
 
 **템플릿을 어디에 두는가(2026-08-23 정정).** 두 파일이 있어야 할 곳은 NERV 저장소가 아니라 **쓰는 쪽 저장소**다. NERV 저장소 루트에 `.codex/config.toml` 을 두면 이 저장소에서 도는 Codex 세션이 예시 URL(`api.nerv.example.com`)로 접속하려 든다. 그래서 플러그인 패키지가 `plugin/codex/{config.toml, AGENTS.md, README.md}` 로 **템플릿을 배포하고 사람이 복사한다** — 그것이 §5.1 이 말한 "수동 경로"의 실물이다. 이 절과 §5.2 의 전문이 그 템플릿의 정본이며, 플러그인 패키지 테스트가 둘의 정합을 지킨다.
 
@@ -2206,7 +2229,7 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-035 | WHILE `hooks/hooks.json` 을 배포하는 동안 THE SYSTEM SHALL 최상위에 `description` · `hooks` 만, 훅 묶음에 `matcher` · `hooks` 만, 훅 항목에 `type` · `command` · `timeout` · `async` 만 두고 SessionEnd 시한을 3초 이하로 둔다 — Codex 는 모르는 키가 하나라도 있으면 훅 전체를 버리고 3초보다 긴 SessionEnd 시한은 줄인다(2026-10-16 · E20-S01 · `ko-style` 의 REQ-PLG-026 과 같은 규칙) | L1(`plugin-package.spec.ts`) — 키 목록 · `$comment` 없음 · SessionEnd 시한. 문서 §3.1 전문과의 바이트 대조는 REQ-PLG-001 |
 | REQ-PLG-036 | WHEN Codex 의 세션 시작 훅이 `nerv-init --check` 를 부르면(포워더와 같은 판정 — REQ-PLG-034) THE SYSTEM SHALL `.mcp.json` 대신 저장소의 `.codex/config.toml` 과 사용자 설정(`$CODEX_HOME/config.toml`)에서 `[mcp_servers.nerv]` 를 찾고, 토큰은 `.nerv/env` 를 읽기 전의 프로세스 환경에서 본다. WHEN 덜 됐으면 THE SYSTEM SHALL `bin/nerv-init` 이 아니라 플러그인의 `codex/config.toml` 템플릿과 셸 환경의 `NERV_TOKEN` 을 안내하고 아무것도 쓰지 않는다(2026-10-16 · E20-S01) | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 저장소 설정 · 사용자 설정이면 침묵 · 없으면 `config.toml` 안내(`.mcp.json` · `nerv-init` 을 말하지 않는다) · 토큰이 `.nerv/env` 에만 있다 |
 | REQ-PLG-037 | WHILE 플러그인 폴더(`codebase/plugin/`)를 저장소에 두는 동안 THE SYSTEM SHALL 배달되는 파일만 둔다 — 테스트(`*.spec.ts`)와 워크스페이스 표기(`package.json`)는 `codebase/plugin-test/` 에 둔다. Codex 는 카탈로그가 가리키는 폴더를 통째로 설치 캐시에 복사한다(2026-10-15 실측 · 2026-10-16 · E20-S01) | L1(`plugin-package.spec.ts`) — `git ls-files codebase/plugin` 에 `*.spec.ts` · `package.json` · `node_modules/` 가 없다. 서버가 내려 주는 아카이브는 따로 걸러 낸다(`scripts/pack-plugin.mjs` · L2 `plugin.spec.ts`) |
-| REQ-PLG-038 | WHEN Codex 가 턴을 끝내며 `notify` 프로그램에 알림 JSON 을 마지막 인자로 주면 THE SYSTEM SHALL 템플릿의 `notify` 줄이 설치 캐시(`$CODEX_HOME/plugins/cache/*/nerv/*/bin/`)의 포워더를 찾아 `--event notify <JSON>` 으로 넘기고, 포워더는 그 본문을 `/ingest/hooks/notify` 에 `X-NERV-Agent: codex` 로 보내며 아무것도 출력하지 않는다. WHERE 플러그인이 없으면 THE SYSTEM SHALL 아무것도 하지 않고 성공으로 끝난다. WHILE 템플릿(`codex/config.toml`)을 배포하는 동안 THE SYSTEM SHALL 최상위 키를 표 이름 앞에 두고, Codex 가 저장소 설정에서 무시하는 `notify` · `[otel]` 은 사용자 설정에 옮겨 적을 주석으로만 둔다(2026-10-16 · E20-S02) | L1(`plugin-package.spec.ts`) — 포워더를 실제 실행해 notify 의 경로 · 헤더 · 본문 · 빈 출력 · 템플릿의 키 자리 · 템플릿의 notify 줄을 `sh` 로 실행해 가짜 설치 캐시의 포워더가 받은 인자 · 플러그인 없는 캐시의 침묵. 서버 쪽은 [4.4 API](api.md) REQ-API-325 의 L2, 실측은 §5.4 |
+| REQ-PLG-038 | WHEN Codex 가 턴을 끝내며 `notify` 프로그램에 알림 JSON 을 마지막 인자로 주면 THE SYSTEM SHALL 템플릿의 `notify` 줄이 설치 캐시(`$CODEX_HOME/plugins/cache/*/nerv/*/bin/`)의 포워더를 찾아 `--event notify <JSON>` 으로 넘기고, 포워더는 그 본문을 `/ingest/hooks/notify` 에 `X-NERV-Agent: codex` 로 보내며 아무것도 출력하지 않는다. WHERE 플러그인이 없으면 THE SYSTEM SHALL 아무것도 하지 않고 성공으로 끝난다. WHEN 포워더가 notify 를 받으면 THE SYSTEM SHALL 그 턴의 작업 디렉터리(알림의 `cwd`, 없으면 프로세스의 디렉터리)가 NERV 를 설정한 저장소이고(`.nerv/env` · 저장소 `.codex/config.toml` 의 `[mcp_servers.nerv]` · `.mcp.json` 의 `nerv` — `nerv-init` 과 같은 판정 `nerv_repo_configured`) 토큰이 있을 때만 보내고 아니면 아무것도 보내지 않고 성공으로 끝난다 — 사용자 설정의 `notify` 는 모든 저장소의 턴에 불린다(2026-10-16 개정). WHILE 템플릿(`codex/config.toml`)을 배포하는 동안 THE SYSTEM SHALL 최상위 키를 표 이름 앞에 두고, Codex 가 저장소 설정에서 무시하는 `notify` · `[otel]` 은 사용자 설정에 옮겨 적을 주석으로만 둔다(2026-10-16 · E20-S02) | L1(`plugin-package.spec.ts`) — 포워더를 실제 실행해 notify 의 경로 · 헤더 · 본문 · 빈 출력 · NERV 설정이 없는 디렉터리 · 다른 MCP 서버만 있는 `config.toml` · 토큰 없음에서는 요청 없음 · 알림의 `cwd` 로 판정하고 그 저장소의 `.nerv/env` 를 읽음 · 템플릿의 키 자리 · 템플릿의 notify 줄을 `sh` 로 실행해 가짜 설치 캐시의 포워더가 받은 인자 · 플러그인 없는 캐시의 침묵. 서버 쪽은 [4.4 API](api.md) REQ-API-325 의 L2, 실측은 §5.4 |
 
 ## 7. 문체 플러그인 `ko-style` (2026-09-27 신설 — 사람 결정)
 

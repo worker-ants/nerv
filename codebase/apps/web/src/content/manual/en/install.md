@@ -245,6 +245,8 @@ Codex runs only the hooks a person has reviewed. After installing, open `/hooks`
 notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
 ```
 
+**Only turns in repositories set up for NERV are sent.** Because the line lives in your user config, Codex runs it in every repository. The forwarder sends to the server only when the turn's working folder has NERV settings: a `.nerv/env` file, or a `nerv` server in the repository's `.codex/config.toml` or `.mcp.json`. Nothing is sent without a token either. So replies from repositories that don't use NERV never reach the server.
+
 ## 4. Check the connection {#verify}
 
 - **Claude Code**: Start Claude Code in the project repository and type `/mcp`. The `nerv` server should be connected, with the `nerv_*` tools listed.
