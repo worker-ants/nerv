@@ -8,6 +8,10 @@
 // 운영의 선택으로 남겼다. 이제 내보낸 파일이 바뀌면 커밋하고(바뀐 것이 없으면 커밋하지 않는다), `NERV_MIRROR_GIT_REMOTE` 가
 // 있으면 fast-forward 로만 push 한다. M2 롤백은 이 미러를 SoT 로 승격하므로(roadmap §7.6) 미러는 컷오버 전부터 늘 최신
 // 승인본을 담아야 한다. 원격에 NERV 가 만들지 않은 커밋이 있으면 push 를 멈추고 경고한다(REQ-CB-063 · roadmap §7.4 규칙 1).
+//
+// **프로젝트 폴더는 `<조직 slug>/<프로젝트 slug>/` 다**(2026-10-16 · REQ-CB-062). 프로젝트 slug 는 조직 안에서만 유일하다
+// (`project_org_slug_uq`). 예전처럼 프로젝트 slug 만 폴더로 쓰면 두 조직의 `web` 이 같은 폴더에 써서 한쪽이 다른 쪽을 덮었고,
+// 그 덮어쓰기가 원격 이력에 남았으며 갈라짐 경고도 엉뚱한 프로젝트에 갔다. 조직 slug 는 전역에서 유일하고 바뀌지 않는다.
 import { Injectable, Logger } from '@nestjs/common';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { HEARTBEAT_INTERVAL_SECONDS, NERV_EVENT_PHASE2 } from '@nerv/schema';
@@ -39,7 +43,7 @@ export interface ExportReport {
 /** 프로젝트 하나가 내보낸 것 — 커밋 메시지와 갈라짐 경고가 쓴다 */
 interface ExportedProject {
   id: string;
-  /** 미러 안의 폴더 이름(`safePathSegment(slug)`) */
+  /** 미러 안의 폴더 — `<조직>/<프로젝트>`(`mirrorFolder`) */
   folder: string;
   approvals: { key: string; version: number; by: string | null }[];
 }
@@ -91,9 +95,18 @@ export class ExportJob {
     const git = new MirrorGit(root, config, HEARTBEAT_INTERVAL_SECONDS * 1000);
     await git.ensureRepo();
 
-    const { rows: projects } = await this.db.execute<{ id: string; slug: string; name: string }>(
-      sql`SELECT id, slug, name FROM project WHERE archived_at IS NULL ORDER BY slug, id`,
-    );
+    const { rows: projects } = await this.db.execute<{
+      id: string;
+      slug: string;
+      name: string;
+      org_slug: string;
+    }>(sql`
+      SELECT p.id, p.slug, p.name, o.slug AS org_slug
+        FROM project p
+        JOIN organization o ON o.id = p.org_id
+       WHERE p.archived_at IS NULL
+       ORDER BY o.slug, p.slug, p.id
+    `);
 
     const produced = new Set<string>();
     const exported: ExportedProject[] = [];
@@ -105,19 +118,20 @@ export class ExportJob {
     for (const project of projects) {
       // **slug 와 키는 경로의 한 칸으로만 쓴다**(2026-09-28 · REQ-API-235). 둘 다 형식 검사가 없어서
       // `../` 가 든 값이 그대로 들어가면 이 폴더 밖에 파일이 써졌다
-      const folder = safePathSegment(project.slug);
-      // git 의 저장소 폴더와 같은 이름이면 쓰지 않는다 — 거기 쓰면 미러가 아니라 저장소를 고친다
-      if (folder.toLowerCase() === '.git') {
+      const segments = mirrorSegments(project.org_slug, project.slug);
+      // git 의 저장소 폴더와 같은 이름이면 쓰지 않는다 — 맨 위에 쓰면 미러가 아니라 저장소를 고치고, 안쪽이면 git 이
+      // 그 경로를 받지 않아 커밋 전체가 실패한다
+      if (segments.some((segment) => segment.toLowerCase() === '.git')) {
         this.logger.warn(
-          `프로젝트 ${project.id} 의 slug 가 git 저장소 폴더와 같아 미러에서 뺍니다`,
+          `프로젝트 ${project.id} 의 조직 · 프로젝트 slug 가 git 저장소 폴더와 같아 미러에서 뺍니다`,
         );
         continue;
       }
-      const dir = resolveInside(root, folder);
-      await mkdir(resolveInside(dir, 'specs'), { recursive: true });
+      const folder = segments.join('/');
+      await mkdir(resolveInside(root, ...segments, 'specs'), { recursive: true });
 
       await write(
-        [folder, 'llms.txt'],
+        [...segments, 'llms.txt'],
         await this.specs.llmsTxt({ projectId: project.id, projectName: project.name }),
       );
 
@@ -126,10 +140,10 @@ export class ExportJob {
       const manifest = await this.baselines.manifest({ projectId: project.id });
       const before = parseManifest(await git.showHead(`${folder}/manifest.json`));
       await write(
-        [folder, 'manifest.json'],
+        [...segments, 'manifest.json'],
         `${JSON.stringify(sortedManifest(manifest), null, 2)}\n`,
       );
-      await write([folder, 'requirements.tsv'], await this.requirementsTsv(project.id));
+      await write([...segments, 'requirements.tsv'], await this.requirementsTsv(project.id));
 
       // 승인된 것만 내보낸다 — draft 를 파일로 떨어뜨리면 "승인 전 문서가 승인된 것처럼"
       // 읽히는 경로가 생긴다(문서 축 상태가 파일에서는 보이지 않기 때문이다).
@@ -140,7 +154,7 @@ export class ExportJob {
           projectId: project.id,
           specKey: node.key,
         });
-        await write([folder, 'specs', `${safePathSegment(node.key)}.md`], markdown);
+        await write([...segments, 'specs', `${safePathSegment(node.key)}.md`], markdown);
       }
 
       exported.push({
@@ -230,8 +244,9 @@ export class ExportJob {
 
   /**
    * **미러 쪽 편집을 경고한다**(REQ-CB-063 · roadmap §7.4 규칙 1). 그 커밋이 바꾼 폴더의 프로젝트마다 `mirror.diverged` 를
-   * 남기고, 카탈로그가 그 프로젝트의 admin 에게 중요 알림을 보낸다. 어느 프로젝트의 폴더도 아니면(저장소 맨 위의 파일 ·
-   * 공통 조상이 없는 이력) 내보낸 프로젝트 전부다 — push 가 멈추면 모두의 미러가 낡는다.
+   * 남기고, 카탈로그가 그 프로젝트의 admin 에게 중요 알림을 보낸다. 폴더는 경로의 앞 두 칸(`<조직>/<프로젝트>`)이다 — 앞 한
+   * 칸만 보면 조직이 다른 같은 slug 를 가리지 못한다. 어느 프로젝트의 폴더도 아니면(저장소 맨 위나 조직 폴더 바로 아래의
+   * 파일 · 공통 조상이 없는 이력) 내보낸 프로젝트 전부다 — push 가 멈추면 모두의 미러가 낡는다.
    *
    * **같은 갈라짐은 한 번만 알린다** — 그 프로젝트의 가장 나중 경고가 같은 원격 커밋을 가리키면 내지 않는다. 잡은 1시간마다
    * 돌고, 사람이 원격을 고치기 전까지 갈라짐은 그대로다. 원격 주소는 넣지 않는다(자격증명이 들어 있을 수 있다).
@@ -241,7 +256,7 @@ export class ExportJob {
     exported: ExportedProject[],
     branch: string,
   ): Promise<number> {
-    const touched = new Set((outcome.foreign_paths ?? []).map((path) => path.split('/')[0] ?? ''));
+    const touched = new Set((outcome.foreign_paths ?? []).map(projectFolderOf));
     const targets = exported.filter((p) => touched.has(p.folder));
     let warned = 0;
     for (const project of targets.length > 0 ? targets : exported) {
@@ -284,6 +299,25 @@ export class ExportJob {
     }
     return warned;
   }
+}
+
+/**
+ * 프로젝트 폴더의 두 칸 — `<조직 slug>/<프로젝트 slug>`. 프로젝트 slug 는 조직 안에서만 유일해서 조직 칸이 없으면 두 조직의
+ * 같은 slug 가 한 폴더에 쓴다(REQ-CB-062). 두 칸 모두 `safePathSegment` 를 거친다. 그 인코딩은 서로 다른 이름을 서로 다른
+ * 칸으로 바꾸고(`%` 도 `%25` 로 적는다) 조직 slug 는 전역에서 유일하므로, 서로 다른 프로젝트가 같은 폴더를 받지 않는다.
+ */
+export function mirrorSegments(orgSlug: string, projectSlug: string): [string, string] {
+  return [safePathSegment(orgSlug), safePathSegment(projectSlug)];
+}
+
+/**
+ * 미러 안의 파일 경로 → 그 파일이 든 프로젝트 폴더(`<조직>/<프로젝트>`). 프로젝트 폴더 **안**의 파일만 셈한다 — 저장소 맨 위나
+ * 조직 폴더 바로 아래의 파일은 어느 프로젝트의 것도 아니라 null 이다.
+ */
+export function projectFolderOf(path: string): string | null {
+  const [org, project, ...rest] = path.split('/');
+  if (org === undefined || project === undefined || rest.length === 0) return null;
+  return `${org}/${project}`;
 }
 
 function parseManifest(text: string | null): Manifest {
