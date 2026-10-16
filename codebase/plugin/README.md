@@ -24,6 +24,25 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | `codex/AGENTS.md`                                                 | Codex 세션이 읽는 규약 — 스킬과 같은 절차를 문장으로                                                                    | §5.3           |
 | `managed-settings.example.json`                                   | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                                                                           | §3.5           |
 
+**테스트는 이 폴더에 두지 않는다**(2026-10-16 · REQ-PLG-037). 설치하면 이 폴더가 통째로 설치 캐시에 복사된다 —
+Codex 0.162.1 은 `.gitignore` 도 보지 않았다. 문서 대조 · 포워더 · 오프라인 큐 · 미러 테스트는 `../plugin-test/` 에 있다.
+
+## Codex 에서 (2026-10-16 · 4.6 §5.4)
+
+Codex 0.162.1 도 같은 매니페스트 · 같은 `hooks/hooks.json` 으로 이 플러그인을 설치한다.
+
+```bash
+codex plugin marketplace add worker-ants/nerv
+codex plugin add nerv@nerv     # 그다음 Codex 의 /hooks 에서 NERV 훅 여덟을 신뢰 처리한다
+```
+
+- **MCP 는 플러그인이 아니라 저장소의 `.codex/config.toml` 이 붙인다** — `codex/config.toml` 템플릿을 복사한다. 토큰은
+  셸 환경변수 `NERV_TOKEN` 에 둔다. `.nerv/env` 는 훅만 읽는다(4.6 §3.3).
+- 포워더는 Codex 를 `PLUGIN_ROOT` 로 알아보고 `X-NERV-Agent: codex` 를 보낸다. 서버는 그 호스트가 받는 판정 필드만
+  돌려준다 — Codex 는 모르는 필드가 있으면 훅을 실패로 끝낸다(REQ-PLG-034 · REQ-API-323).
+- `hooks/hooks.json` 의 최상위에는 `description` · `hooks` 만 둔다. `$comment` 하나로 Codex 는 훅 여섯을 모두 버렸다(REQ-PLG-035).
+- `/nerv:approve` 는 Codex 에서 쓰지 않는다. 서브에이전트는 Codex 목록에 없다.
+
 ## 설계에서 물러서지 않는 두 가지
 
 1. **A3 도구는 어느 스킬의 `allowed-tools` 에도 없다.** `nerv_spec_submit_review` 와 `nerv_spec_approve` 가

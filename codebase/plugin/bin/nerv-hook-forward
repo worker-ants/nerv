@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# nerv-hook-forward — 훅 이벤트 포워더 (plugin.md §3.1 주의 · Codex 공용)
+# nerv-hook-forward — 훅 이벤트 포워더 (plugin.md §3.1 주의 · Codex 공용 — §5.4)
 #
 # 존재 이유는 하나다: 훅 `headers` 에서 `${NERV_TOKEN}` 확장이 되지 않는 호스트가 있을 때
 # `type:"http"` 를 `type:"command"` 로 바꿔 **같은 요청을 같은 엔드포인트에** 보내기 위해서다.
@@ -11,7 +11,7 @@
 #
 # 사용: hooks.json 에서
 #   { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward session" }
-# stdin 으로 들어온 훅 페이로드를 그대로 전달한다.
+# stdin 으로 들어온 훅 페이로드를 그대로 전달한다. Claude Code 와 Codex 가 같은 hooks.json 으로 이 스크립트를 부른다.
 set -uo pipefail
 
 # 프로젝트별 환경(.nerv/env) — 같은 기계에서 저장소마다 다른 값을 쓴다(plugin.md §3.3)
@@ -25,7 +25,7 @@ if [[ "${1:-}" == "--event" ]]; then
   payload="${3:-}"
 else
   endpoint="${1:?사용법: nerv-hook-forward <session|tool|subagent|stop|session-end>}"
-  # Claude 경로는 stdin 으로 온다
+  # 훅은 stdin 으로 온다(Claude Code · Codex 같다)
   payload="$(cat)"
 fi
 base="${NERV_SERVER:-https://api.nerv.example.com}"
@@ -61,8 +61,9 @@ esac
 # 세션은 두 길로 들어온다 — 이 훅(플러그인)과 MCP `nerv_bootstrap`(플러그인 없이도 된다).
 # 서버는 둘을 가를 칸이 없어서, 관리형 settings 로 배포한 뒤 "어느 기계에서 켜졌는가" 를
 # 답하지 못했다. 세션을 만드는 훅에서만 자기 버전을 싣는다 — 다른 훅은 같은 세션이다.
-# 버전은 이 스크립트 옆의 `plugin.json` 이 정본이다(REQ-PLG-017). Codex 는 이 파일이 없어
-# 헤더가 빠진다: 플러그인은 Claude Code 의 것이고, 없는 것을 있다고 말하지 않는다.
+# 버전은 이 스크립트 옆의 `plugin.json` 이 정본이다(REQ-PLG-017). Codex 도 플러그인으로 설치하면
+# 같은 매니페스트로 설치하므로 이 파일이 옆에 있다(2026-10-15 실측 · plugin.md §5.4) — 두 호스트 모두 싣는다.
+# 파일이 없으면(스크립트만 따로 복사해 notify 로 부르는 설치) 헤더를 빼고, 없는 것을 있다고 말하지 않는다.
 if [[ "${endpoint}" == "session" ]]; then
   manifest="$(dirname "${BASH_SOURCE[0]}")/../.claude-plugin/plugin.json"
   if [[ -r "${manifest}" ]]; then
@@ -71,15 +72,37 @@ if [[ "${endpoint}" == "session" ]]; then
   fi
 fi
 
+# **누가 부르는지는 호스트가 준 환경으로 안다**(2026-10-16 · E20-S01 · plugin.md §5.4 · REQ-PLG-034).
+#
+# 훅 입력에는 에이전트 필드가 없다 — 두 호스트 모두 세션 id · cwd · 이벤트 이름만 준다. 예전에는 기본값이
+# `claude-code` 라 Codex 세션이 Claude Code 세션으로 기록됐다(2026-10-15 실측). 2026-10-16 실측에서 Codex 0.162.1 은
+# 플러그인 훅에 `PLUGIN_ROOT` · `PLUGIN_DATA` 를 주고 Claude Code 2.1.301 은 주지 않는다(`CLAUDE_PLUGIN_ROOT` 는 둘 다 준다). 그래서
+# 순서는 ① 사람이 정한 `NERV_AGENT_TYPE` ② `notify`(Codex 에만 있다) ③ `PLUGIN_ROOT` 가 있으면 Codex ④ 그 밖은
+# Claude Code 다. `CLAUDECODE` 로 보지 않는다 — Claude Code 의 셸에서 Codex 를 띄우면 그 값이 Codex 훅까지 이어진다.
+agent="${NERV_AGENT_TYPE:-}"
+if [[ -z "${agent}" ]]; then
+  if [[ "${endpoint}" == "notify" || -n "${PLUGIN_ROOT:-}" ]]; then
+    agent="codex"
+  else
+    agent="claude-code"
+  fi
+fi
+
+# **SessionEnd 는 짧게 끝낸다.** Codex 는 SessionEnd 훅의 시한을 3초로 줄여 실행한다(2026-10-15 실측 — 경고가
+# 남는다). hooks.json 의 시한(3초)보다 먼저 끝나야 응답을 기다리다 잘리지 않는다.
+max_time="${NERV_HOOK_TIMEOUT:-5}"
+[[ "${endpoint}" == "session-end" ]] && max_time="2"
+
 # 실패해도 0 으로 끝낸다 — 훅의 실패가 세션을 멈추면 텔레메트리가 조정 경로가 되어버린다.
 # 상태 코드도 받는다 — 2xx 는 "서버가 돌아왔다" 는 신호다(아래 outbox).
-response="$(curl --silent --show-error --max-time "${NERV_HOOK_TIMEOUT:-5}" --write-out '\n%{http_code}' \
+# `X-NERV-Agent` 는 모든 훅에 싣는다 — 서버가 세션의 종류를 정하고(세션 훅) 그 호스트가 받는 모양으로 답한다(모든 훅).
+response="$(curl --silent --show-error --max-time "${max_time}" --write-out '\n%{http_code}' \
   --request POST "${base}/ingest/hooks/${endpoint}" \
   --header "content-type: application/json" \
   --header "Authorization: Bearer ${NERV_TOKEN:-}" \
   --header "X-NERV-Project: ${NERV_PROJECT:-}" \
   --header "X-NERV-Host: ${NERV_HOSTNAME:-$(hostname -s 2>/dev/null || echo unknown)}" \
-  --header "X-NERV-Agent: ${NERV_AGENT_TYPE:-claude-code}" \
+  --header "X-NERV-Agent: ${agent}" \
   ${extra[@]+"${extra[@]}"} \
   --data "${payload}" 2>/dev/null || printf '\n000')"
 status="${response##*$'\n'}"
@@ -89,9 +112,10 @@ response="${response%$'\n'*}"
 # 쓰는 설치에서는 SessionStart 의 컨텍스트 주입도, Stop 의 `{"decision":"block"}` 도 모델에
 # 도달하지 못했다. command 훅의 stdout 은 **JSON 이면 판정으로 읽힌다**(http 훅의 응답 본문과
 # 같은 자리다). JSON 이 아닌 것은 내보내지 않는다: 프록시의 HTML 오류 페이지가 전사에 섞이면
-# 사람이 그것을 훅의 말로 읽는다.
+# 사람이 그것을 훅의 말로 읽는다. Codex 는 판정 JSON 에 모르는 필드가 있으면 훅을 실패로 끝낸다 — 서버가
+# `X-NERV-Agent: codex` 에는 그 호스트가 받는 필드만 돌려준다(api.md §2.9 · REQ-API-323). notify 의 출력은 Codex 가 읽지 않는다.
 case "${response}" in
-  '{'*) printf '%s' "${response}" ;;
+  '{'*) [[ "${endpoint}" == "notify" ]] || printf '%s' "${response}" ;;
 esac
 
 # **서버가 돌아왔으면 오프라인 큐를 바로 비운다**(2026-10-16 · 사람 결정 · E21-S01 · REQ-PLG-032 · plugin.md §3.4).

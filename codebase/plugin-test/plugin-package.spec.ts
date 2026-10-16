@@ -13,7 +13,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const here = dirname(fileURLToPath(import.meta.url));
+// 테스트는 플러그인 폴더 밖에 둔다 — 그 폴더는 설치하면 그대로 복사된다(2026-10-16 · 4.6 §5.4 · REQ-PLG-037)
+const here = join(dirname(fileURLToPath(import.meta.url)), '../plugin');
 const repoRoot = join(here, '../..');
 const doc = readFileSync(join(repoRoot, 'docs/04-mvp/plugin.md'), 'utf8');
 const lines = doc.split('\n');
@@ -719,6 +720,196 @@ describe('REQ-PLG-019 — 세션 훅이 플러그인 버전을 싣는다', () =>
   it('다른 훅은 싣지 않는다 — 같은 세션이라 읽는 곳이 없다', () => {
     for (const endpoint of ['tool', 'stop', 'session-end']) {
       expect(sentHeaders(endpoint).some((h) => h.startsWith('X-NERV-Plugin'))).toBe(false);
+    }
+  });
+});
+
+// ── E20-S01 — Codex 에서도 NERV 훅이 돈다 (2026-10-16 · 4.6 §5.4) ─────────────────────────────
+//
+// Codex 0.162.1 은 같은 매니페스트 · 같은 hooks.json 으로 플러그인을 설치한다. 2026-10-15 실측에서 훅은 하나도 돌지
+// 않았고(`$comment`), 살려 보니 Codex 세션이 Claude Code 세션으로 기록됐다. 아래는 그 자리를 실제로 실행해 본다.
+describe('REQ-PLG-035 — Codex 도 같은 hooks.json 을 읽는다', () => {
+  const parsed = JSON.parse(file('hooks/hooks.json')) as Record<string, unknown> & {
+    hooks: Record<string, Record<string, unknown>[]>;
+  };
+
+  it('최상위에는 description · hooks 만 둔다 — Codex 는 모르는 키가 있으면 훅 전체를 버린다', () => {
+    expect(Object.keys(parsed).sort()).toEqual(['description', 'hooks']);
+    expect(file('hooks/hooks.json')).not.toContain('$comment');
+  });
+
+  it('훅 항목에도 실행에 쓰는 키만 둔다', () => {
+    for (const [event, groups] of Object.entries(parsed.hooks)) {
+      for (const group of groups) {
+        for (const key of Object.keys(group)) expect(['matcher', 'hooks'], event).toContain(key);
+        for (const hook of group['hooks'] as Record<string, unknown>[]) {
+          for (const key of Object.keys(hook)) {
+            expect(['type', 'command', 'timeout', 'async'], `${event}.${key}`).toContain(key);
+          }
+        }
+      }
+    }
+  });
+
+  it('SessionEnd 시한은 3초 이하다 — Codex 가 그보다 길면 줄이고 경고를 남긴다', () => {
+    for (const group of parsed.hooks['SessionEnd'] ?? []) {
+      for (const hook of group['hooks'] as { timeout: number }[]) {
+        expect(hook.timeout).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+});
+
+describe('REQ-PLG-034 — 포워더가 누가 부르는지 싣는다', () => {
+  const script = join(here, 'bin/nerv-hook-forward');
+
+  /**
+   * curl 을 가로채 인자를 적고 서버 응답 하나를 흉내 낸다. 러너의 환경(Claude Code 안에서 돌면 `CLAUDECODE` 가
+   * 있다)이 판정에 새어 들어오지 않게 판정에 쓰는 두 변수를 비우고 시작한다.
+   */
+  function send(
+    args: string[],
+    env: Record<string, string> = {},
+    input = '{"session_id":"S-1"}',
+  ): { headers: string[]; args: string[]; stdout: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'nerv-agent-'));
+    const log = join(dir, 'args.txt');
+    writeFileSync(
+      join(dir, 'curl'),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${log}"\nprintf '{"ok":true}\\n200'\n`,
+      { mode: 0o755 },
+    );
+    const stdout = execFileSync(script, args, {
+      cwd: dir,
+      input,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+        NERV_SERVER: 'http://x',
+        NERV_AGENT_TYPE: '',
+        PLUGIN_ROOT: '',
+        ...env,
+      },
+    });
+    const sent = readFileSync(log, 'utf8').split('\n');
+    return { headers: sent.filter((_, i) => sent[i - 1] === '--header'), args: sent, stdout };
+  }
+
+  it('Claude Code 가 부르면 claude-code 다 — 모든 훅에 싣는다', () => {
+    for (const endpoint of ['session', 'tool', 'subagent', 'stop', 'session-end']) {
+      expect(send([endpoint]).headers, endpoint).toContain('X-NERV-Agent: claude-code');
+    }
+  });
+
+  it('Codex 가 부르면(PLUGIN_ROOT) codex 다 — Claude Code 의 셸에서 띄웠어도', () => {
+    const codex = { PLUGIN_ROOT: '/home/u/.codex/plugins/cache/nerv/nerv/0.3.32', CLAUDECODE: '1' };
+    for (const endpoint of ['session', 'tool', 'stop', 'session-end']) {
+      expect(send([endpoint], codex).headers, endpoint).toContain('X-NERV-Agent: codex');
+    }
+  });
+
+  it('사람이 정한 NERV_AGENT_TYPE 이 이긴다', () => {
+    const pinned = { PLUGIN_ROOT: '/p', NERV_AGENT_TYPE: 'claude-code' };
+    expect(send(['session'], pinned).headers).toContain('X-NERV-Agent: claude-code');
+  });
+
+  it('SessionEnd 는 2초 안에 끝낸다 — Codex 의 시한(3초) 안에 든다', () => {
+    const end = send(['session-end']).args;
+    expect(end[end.indexOf('--max-time') + 1]).toBe('2');
+    const tool = send(['tool']).args;
+    expect(tool[tool.indexOf('--max-time') + 1]).toBe('5');
+  });
+
+  it('응답 JSON 을 판정으로 흘린다 — 훅 출력 자리다', () => {
+    expect(send(['stop']).stdout).toBe('{"ok":true}');
+  });
+});
+
+describe('REQ-PLG-036 — Codex 가 부른 --check 는 config.toml 을 본다', () => {
+  const script = join(here, 'bin/nerv-init');
+
+  function check(dir: string, env: Record<string, string>): string {
+    return execFileSync(script, ['--dir', dir, '--check'], {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        NERV_SERVER: '',
+        NERV_PROJECT: '',
+        NERV_TOKEN: '',
+        NERV_AGENT_TYPE: '',
+        PLUGIN_ROOT: '/home/u/.codex/plugins/cache/nerv/nerv/0.3.32',
+        // 사람의 실제 설정을 읽지 않게 빈 자리를 가리킨다
+        CODEX_HOME: mkdtempSync(join(tmpdir(), 'codex-home-')),
+        ...env,
+      },
+    });
+  }
+
+  function codexRepo(config: boolean): string {
+    const dir = mkdtempSync(join(tmpdir(), 'nerv-codex-'));
+    mkdirSync(join(dir, '.nerv'));
+    if (config) {
+      mkdirSync(join(dir, '.codex'));
+      writeFileSync(
+        join(dir, '.codex/config.toml'),
+        '[mcp_servers.nerv]\nurl = "https://api.test/mcp"\nbearer_token_env_var = "NERV_TOKEN"\n',
+      );
+    }
+    return dir;
+  }
+
+  it('MCP 가 config.toml 로 붙은 Codex 세션에 .mcp.json 을 재촉하지 않는다 — 2026-10-15 실측의 잘못된 안내', () => {
+    expect(check(codexRepo(true), { NERV_TOKEN: 'sk', NERV_PROJECT: 'clemvion' })).toBe('');
+  });
+
+  it('사용자 설정의 nerv 서버도 붙은 것으로 본다', () => {
+    const home = mkdtempSync(join(tmpdir(), 'codex-home-'));
+    writeFileSync(join(home, 'config.toml'), '[mcp_servers.nerv]\nurl = "https://api.test/mcp"\n');
+    const out = check(codexRepo(false), {
+      CODEX_HOME: home,
+      NERV_TOKEN: 'sk',
+      NERV_PROJECT: 'clemvion',
+    });
+    expect(out).toBe('');
+  });
+
+  it('없으면 config.toml 을 말하고 템플릿을 가리킨다 — nerv-init(Claude Code 의 세 자리)을 권하지 않는다', () => {
+    const out = check(codexRepo(false), { NERV_TOKEN: 'sk', NERV_PROJECT: 'clemvion' });
+    expect(out).toContain('[mcp_servers.nerv] 가 없다');
+    expect(out).toContain('codex/config.toml');
+    expect(out).not.toContain('.mcp.json');
+    expect(out).not.toContain('bin/nerv-init');
+  });
+
+  it('토큰이 .nerv/env 에만 있으면 그렇다고 말한다 — Codex 의 MCP 인증은 그 파일을 읽지 않는다', () => {
+    const dir = codexRepo(true);
+    writeFileSync(join(dir, '.nerv/env'), 'NERV_TOKEN=sk-file\nNERV_PROJECT=clemvion\n');
+    expect(check(dir, {})).toContain('NERV_TOKEN 이 Codex 의 환경에 없다');
+  });
+});
+
+/**
+ * **설치하면 플러그인 폴더가 그대로 복사된다**(2026-10-15 실측 · 4.6 §5.4). Codex 는 로컬 경로든 Git 이든 카탈로그가
+ * 가리키는 폴더를 통째로 캐시에 옮겼다 — 테스트 파일과 워크스페이스 표기, 로컬 경로면 `node_modules` 까지. 그래서
+ * 테스트와 `package.json` 은 이 폴더(plugin-test)에 두고 플러그인 폴더에는 배달되는 파일만 둔다.
+ */
+describe('REQ-PLG-037 — 플러그인 폴더에는 배달되는 파일만 둔다', () => {
+  it('git 이 추적하는 플러그인 파일에 테스트 · 워크스페이스 표기가 없다', () => {
+    const tracked = execFileSync('git', ['ls-files', '--', 'codebase/plugin'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((f) => f !== '');
+    expect(tracked.length).toBeGreaterThan(0);
+    for (const path of tracked) {
+      expect(path, `${path} 는 배달되지 않는 파일이다`).not.toMatch(
+        /\.spec\.ts$|\/package\.json$|\/node_modules\//,
+      );
     }
   });
 });

@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **27종**(2026-10-11 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.52 · 2026-10-16 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.53 · 2026-10-16 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.53 변경(2026-10-16 — Codex에서 NERV 훅이 돈다, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다) · [4.8 백로그](backlog.md) E20-S01): **REQ-API-323 · 324 신설 · §1.4c 순서 표와 한 단락 · §2.5a · §2.5c 한 항목 · §2.9 한 단락.** 훅 수집기가 `X-NERV-Agent: codex` 에는 판정 필드만 돌려준다 — Codex 0.162.1 은 판정 JSON 의 모르는 필드(`ok` · `session_id`)를 실패로 보고 세션 안내를 버렸다([4.6 플러그인](plugin.md) §5.4). Claude Code 의 응답은 그대로다. MCP 요청이 하네스의 자기 세션 id(Codex `_meta.x-codex-turn-metadata.session_id`)를 담아 보내면 `nerv_bootstrap` 은 그 값을 external id 로 써서 훅이 만든 세션을 이어받는다. 다른 도구는 그 세션을 먼저 고른다 — Codex 실행 하나에 세션이 둘 생기던 것이 하나가 됐다. 플러그인 활성화 현황이 Claude Code 세션만 세는 전제는 다시 보고 그대로 뒀다.
 >
 > v2.52 변경(2026-10-16 — 복구 뒤 자동 동기화의 실패 보고, Phase 2 묶음 2의 둘째 · **사람 결정** · [4.8 백로그](backlog.md) E21-S01): **REQ-API-322 신설 · §2.9 한 단락 · §3.3 이벤트 표 한 줄.** 플러그인이 서버가 돌아오면 오프라인 큐를 바로 비운다([4.6 플러그인](plugin.md) §3.4 · REQ-PLG-032). 그때 서버가 거절한 쓰기는 `POST /ingest/hooks/outbox-failed` 로 알려 온다. 서버는 그 사람의 세션(자기 세션이 아니면 프로젝트)에 ★`session.outbox_failed` 를 남기고 그 사람에게 중요 알림을 만든다 — 행위자 제외 규칙의 예외다. 같은 멱등 키는 다시 남기지 않고 메시지 원문은 받지 않는다.
 >
@@ -711,15 +713,16 @@ HTTP 상태 매핑:
 
 **L2 가 이것을 못 잡은 이유**는 테스트가 모든 호출에 `session_id` 를 실어 보냈기 때문이다 — 계약에 없는 인자를 테스트만 알고 있었다.
 
-해소 순서는 셋이다.
+해소 순서는 넷이다(②는 2026-10-16에 더했다).
 
 | 순서 | 규칙 |
 | --- | --- |
 | ① 명시 | `session_id` 인자가 있으면 그것. **자기 세션만** 받는다 — 존재만 확인하면 같은 프로젝트의 남의 세션에 질문·클레임을 붙일 수 있고, 그러면 감사(FR-16)가 "누가 했나"에 답하지 못한다 |
-| ② 추정 | 이 토큰 주체의 **살아 있는 세션이 하나**면 그것(`state ∈ pending·active·awaiting_input` + 무활동 30분 이내 — `markStale` 과 같은 기준) |
-| ③ 모호 | 둘 이상이면 **고르지 않는다.** `session_ambiguous` 로 후보(세션 id·hostname·종류·마지막 활동)를 돌려주고 `session_id` 를 요구한다 |
+| ② 하네스 | 요청이 하네스의 자기 세션 id 를 담아 보내면(Codex 의 `_meta.x-codex-turn-metadata.session_id`) 그 값을 external id 로 가진 이 주체의 **살아 있는** 세션(REQ-API-324) |
+| ③ 추정 | 이 토큰 주체의 **살아 있는 세션이 하나**면 그것(`state ∈ pending·active·awaiting_input` + 무활동 30분 이내 — `markStale` 과 같은 기준) |
+| ④ 모호 | 둘 이상이면 **고르지 않는다.** `session_ambiguous` 로 후보(세션 id·hostname·종류·마지막 활동)를 돌려주고 `session_id` 를 요구한다 |
 
-③에서 아무거나 고르지 않는 이유: 클레임은 **세션 단위로 겹침을 판정**하므로, 조용한 오귀속은 곧 잘못된 충돌 판정이 된다. 그리고 이 경우의 `next_actions` 는 **비어 있다** — bootstrap 을 권하면 세션이 하나 더 생겨 모호함이 깊어진다.
+④에서 아무거나 고르지 않는 이유: 클레임은 **세션 단위로 겹침을 판정**하므로 조용한 오귀속은 곧 잘못된 충돌 판정이 된다. 그리고 이 경우의 `next_actions` 는 **비어 있다** — bootstrap 을 권하면 세션이 하나 더 생겨 모호함이 깊어진다.
 
 두 실패는 다른 실패다: 없어서 못 고른 것(`session_required` → bootstrap)과 여럿이라 안 고른 것(`session_ambiguous` → 인자 지정). 한 코드로 뭉치면 에이전트는 이미 만든 세션을 두고 bootstrap 을 다시 부르며 제자리를 돈다.
 
@@ -736,6 +739,8 @@ HTTP 상태 매핑:
 그래서 `nerv_bootstrap` 이 `external_session_id`·`resume_session_id` **둘 다 없이** 오면 서버가 훅 세션을 채택한다. 대조 조건은 서버가 양쪽에서 받을 수 있는 것들이다 — 같은 사용자(D-08)·같은 프로젝트·같은 `hostname`, 그리고 호출이 `cwd` 를 말했으면 같은 `cwd`, `external_session_id` 가 있는(= 훅이 만든) 살아 있는 세션. 반대편은 막혀 있다: Claude Code 는 모델에게 자기 `session_id` 를 주지 않으므로 스킬이 그것을 실을 수 없다.
 
 **stale 이 된 훅 세션도 채택한다**(2026-10-10 · 사람 결정 · L2 재현). 살아 있는 훅 세션이 없으면 stale 이 된 지 24시간(`STALE_SESSION_ADOPT_SECONDS`) 안의 훅 세션을 되살린다. 그러지 않으면 30분 쉬고 돌아온 에이전트가 다시 부른 bootstrap 이 세션을 하나 더 만들고, 훅(Stop · SessionEnd)은 external id 로 옛 세션을 계속 봐서 두 평면이 다시 갈라진다 — 재현에서는 Stop 게이트가 새 세션의 클레임을 몰랐다. compact 뒤에는 두 세션이 모두 살아나 도구가 `session_ambiguous` 로 막혔다. 세션 종료 뒤에도 새 세션의 클레임이 남았다. 세션 종료 훅으로 끝난 세션(`complete` · `error`)은 고르지 않는다. 같은 까닭으로 도구 · 서브에이전트 · Stop 훅이 stale 세션에 오면 그 세션을 되살린다(REQ-API-279) — 같은 external id 로 훅이 왔다는 것은 그 하네스 세션이 살아 있다는 뜻이다. 회수된 클레임은 어느 쪽으로도 돌아오지 않는다. 하네스가 그 세션을 다시 여는 재개(`SessionStart` 의 resume · `resume_session_id`)는 지금처럼 어느 상태든 되살린다(REQ-API-041). 살아 있지 않던 세션을 되살리면 `session.started`(`resumed: true`)를 낸다 — 내지 않으면 세션 보드가 새로 고칠 때까지 「무응답」을 보여 준다.
+
+**하네스가 자기 세션 id 를 담아 보내면 어림하지 않는다**(2026-10-16 · 사람 결정 — 한 묶음으로 고친다 · E20-S01 · REQ-API-324). Codex 0.162.1은 MCP 요청마다 `_meta.x-codex-turn-metadata.session_id` 를 넣는다. 그 값은 훅 입력의 `session_id`(훅 세션의 external id) · notify 의 `thread-id` 와 같다([4.6 플러그인](plugin.md) §5.4 실측). 그래서 `nerv_bootstrap` 은 `external_session_id` 인자가 없으면 이 값을 external id 로 쓴다 — 훅이 만든 세션이 있으면 그 세션을 이어받는다. 없으면 그 id 로 새 세션을 만든다. 모델이 넘긴 hostname · cwd 를 견주지 않으므로 채택보다 앞선다. 다른 도구는 명시 인자가 없을 때 이 id 의 살아 있는 자기 세션을 먼저 고른다(위 표 ②) — 같은 사람이 Codex 창을 둘 열어도 모호하지 않다. 값은 클라이언트가 채우므로 세션 id 로 믿지 않는다. external id 로 **사람과 함께** 찾아서 남의 세션은 고르지 않는다. 남의 external id 면 bootstrap 은 지금처럼 거절한다(REQ-API-281). 2026-10-15 실측에서는 이 값을 읽지 않아 Codex 실행 하나에 세션이 둘 생겼다 — 모델이 넘긴 hostname 이 훅의 것과 달라 채택으로도 이어지지 않았다.
 
 **재개는 어림하지 않는다 — 세션 id 를 알려 준다**(2026-10-10 · 사람 결정). 채택은 사람 · 호스트 · cwd 로 어림하는 것이라, 같은 자리에 세션 종료 훅 없이 죽은 하네스 세션이 있으면 그 세션을 고를 수 있다. 그래서 세션 시작 훅의 `additionalContext` 가 NERV 세션 id 와 재개 방법을 알려 주고(REQ-API-280), 스킬은 bootstrap 에 그 id 를 `resume_session_id` 로 넘긴다. 채택은 id 를 넘기지 않은 호출의 길로 남는다. 지목한 세션은 **자기 세션**이어야 한다(REQ-API-281). 두 갈래(`resume_session_id` · `external_session_id`) 모두 프로젝트만 보고 사람은 보지 않아서, 같은 프로젝트의 다른 멤버가 세션 id(세션 보드에 보인다)나 external id 하나로 남의 세션을 이어받을 수 있었다.
 
@@ -1432,6 +1437,8 @@ API 를 거친 지연(EP-SPEC-02 · 75번)은 p50 596ms · p95 829ms 이고 응�
 
 본문 자리를 없애지 않는 이유는 **MCP 경로**다. `nerv_bootstrap` 은 도구 인자로 종류를 받으므로 그쪽은 본문이 정본이고, 두 경로가 같은 정규화(`claude-code`·`codex`·`web`·`other`)를 지난다.
 
+**포워더가 Codex 를 알아보고 모든 훅에 담아 보낸다**(2026-10-16 · E20-S01 · [4.6 플러그인](plugin.md) §3.3 · REQ-PLG-034). 2026-10-15까지는 포워더의 기본값이 `claude-code` 라 Codex 의 훅이 만든 세션이 Claude Code 세션으로 기록됐다. 세션 훅에서는 지금처럼 종류를 정한다. 모든 훅에서는 응답의 모양을 고르는 데 쓴다(§2.9 · REQ-API-323).
+
 | ID | 수용 기준(EARS) |
 | --- | --- |
 | REQ-API-037 | WHEN 훅이 세션을 등록하면 THE SYSTEM SHALL `X-NERV-Agent` 헤더를 우선해 에이전트 종류를 정하고, 헤더가 없으면 본문 `agent_type`, 그것도 없으면 `other` 로 기록한다 |
@@ -1463,7 +1470,7 @@ API 를 거친 지연(EP-SPEC-02 · 75번)은 p50 596ms · p95 829ms 이고 응�
 - **모양이 맞을 때만 받는다**(`0.3.2` · `1.0.0-rc.1`). 헤더는 누구나 실을 수 있는 값이라, 틀린 값을 "켜짐" 으로 세는 것보다 "알 수 없음" 으로 두는 편이 활성화율을 덜 속인다.
 - **새 값이 이긴다.** 같은 세션이 다시 시작하면(resume·compact) 그 사이에 플러그인을 올렸을 수 있다. 새 값이 없으면(스킬의 `nerv_bootstrap` 이 훅 세션을 채택한 경우) 훅이 남긴 값을 지킨다.
 - **현황은 기계마다 가장 최근 세션으로 판정한다**(EP-SES-06). 한 번이라도 실어 왔는가로 세면 켰다가 끈 기계가 영원히 "켜짐" 으로 남는다. 기계의 열쇠는 **사람 + hostname** 이다 — 기본 hostname 은 팀 안에서 겹친다.
-- **Claude Code 세션만 센다.** 플러그인은 Claude Code 의 것이라 Codex 세션은 플러그인이 없어도 정상이고, 세면 분모만 부푼다.
+- **Claude Code 세션만 센다.** 관리형 settings 로 플러그인을 내린 Claude Code 기계가 켜졌는지 묻는 현황이다. 2026-10-16 부터 Codex 에도 플러그인을 설치하면 훅이 돌고 `plugin_version` 이 남지만(E20-S01), Codex 는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다 — 세면 그 기계들이 「꺼짐」으로 분모를 부풀린다(2026-10-16 · 전제를 다시 보고 그대로 뒀다).
 - **창은 `PLUGIN_COVERAGE_WINDOW_DAYS`(30일)다**([4.2](codebase.md) §3.2). 호스트는 등록되지 않으므로 창이 없으면 한 번 쓰고 떠난 노트북이 분모를 영원히 끈다.
 
 EP-SES-01 의 카드도 `plugin_version` 을 싣는다 — 그 세션을 연 플러그인이 무엇인가는 카드의 성질이다.
@@ -1569,6 +1576,8 @@ task: null
 ### 2.9 훅 ingest (참조)
 
 훅 수집 엔드포인트 5종(`POST /ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)의 경로·헤더(`Authorization` Bearer, `X-NERV-Project`, `X-NERV-Host`, `X-NERV-Agent` — 아래 §2.5a)·응답 의미론(`hookSpecificOutput.additionalContext` 주입, `{"decision":"block"}` 종료 차단, `stop_hook_active` 면 즉시 허용 — 2026-09-03 정정)은 [에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3이 정본이고, 훅 페이로드 실물은 [4.6 플러그인과 온보딩](plugin.md)이 다룬다. 이 문서에서는 두 가지만 못 박는다: ① ingest는 **인증 필수**다 — 토큰 없는 이벤트는 버린다(같은 문서 §6.5). ② ingest 컨트롤러는 REST·MCP와 같은 `SessionService`를 주입받아 세션 전이·Activity 적재를 수행한다(§4 표).
+
+**응답은 그 호스트가 받는 모양이다**(2026-10-16 · 사람 결정 — 한 묶음으로 고친다 · E20-S01 · REQ-API-323). Claude Code 와 Codex 가 같은 포워더(`nerv-hook-forward`)로 같은 엔드포인트에 온다. Claude Code 는 판정 JSON 의 모르는 필드를 무시하지만 Codex 0.162.1 은 그 훅을 실패로 끝내고 세션 안내도 버린다 — `ok` · `session_id` 때문에 SessionStart 와 Stop 이 "Failed" 였다([4.6 플러그인](plugin.md) §5.4). 그래서 `X-NERV-Agent: codex` 면 판정 필드만 돌려준다: SessionStart 는 `hookSpecificOutput` 하나, Stop 은 막을 때 `decision` · `reason`, 나머지는 빈 객체다. 그 밖(헤더가 없는 http 변형 포함)은 지금 응답을 그대로 주고 상태 코드도 같다. **포워더가 아니라 서버에서 고른다** — 포워더는 `curl` 말고 의존성이 없어 셸에서 JSON 필드를 거르면 깨지기 쉽다. 그리고 `ok` · `session_id` 는 Claude Code 쪽 도구(L2 · 오프라인 큐 시험)가 읽는다. 서버가 고르면 Claude Code 의 응답은 한 바이트도 바뀌지 않는다.
 
 **여섯째 경로는 훅이 아니다 — 오프라인 큐의 실패 보고**(2026-10-16 · 사람 결정 · [4.8 백로그](backlog.md) E21-S01 · REQ-API-322). `POST /ingest/hooks/outbox-failed` 는 플러그인의 `nerv-outbox flush` 가 서버의 거절(4xx · 구조화 에러)로 `outbox/failed/` 에 옮긴 항목을 알리는 자리다([4.6 플러그인](plugin.md) §3.4). 계약의 정본은 이 절이다. 훅과 같은 PAT · 같은 헤더로 오고 202 `{ok, recorded, duplicates}` 로 답한다. 본문은 `{items[]}` 이고 항목은 `idempotency_key`(필수) · `tool` · `session_id` · `queued_at` · `failed_at` · `status` · `code` · `kind` 다. 한 번에 100건(`PAGE_LIMIT_MAX`)까지이고 모양이 틀리면 400 이다. 서버는 그 사람의 세션을 대상으로 ★`session.outbox_failed` 를 남긴다 — 큐의 `session_id`(NERV 세션 id 또는 하네스의 세션 id)가 이 프로젝트의 **그 사람의** 세션이 아니면 프로젝트가 대상이다. 같은 사람 · 같은 대상에 이미 남긴 멱등 키는 다시 남기지 않는다. 메시지 원문은 받지 않는다(이벤트는 감사 로그다 · [3.3 데이터 모델](../03-proposal/data-model.md) §5.4). MCP 도구 대신 ingest 에 둔 이유는 둘이다 — 모델이 부를 도구가 아니라 플러그인이 하는 일이고, `nerv_session_event` 는 세션 타임라인(activity)에 적는 길이라 이벤트도 알림도 만들지 않으며 에이전트가 매기는 `event_seq` 를 요구한다.
 
@@ -2036,6 +2045,8 @@ Archive URLs must use https:// and must not point at a loopback, link-local, or 
 | REQ-API-320 | WHEN 프로젝트를 조회하면(EP-PRJ-03 — 고치기 · 보관 · 복원의 응답도 같다) THE SYSTEM SHALL `failopen_status`(`escalated` · 창 안의 fail-open 수 `count` · `escalate_count` · `window_hours` · 격상이면 그 시각 `escalated_at` · 창 안의 가장 나중 fail-open `last_at`)를 준다. 판정은 격상 · 해제와 같은 함수다(2026-10-15 · [4.5 화면 명세](screens.md) REQ-WEB-319) | L2 `failopen-escalation.spec.ts`(격상 전 · 뒤 · 해제 뒤의 값 · 정책 저장 응답) |
 | REQ-API-321 | WHEN 리뷰를 제출하면(EP-REV-01 · `nerv_review_submit`) 또는 리뷰를 임포트하면(EP-IMP-06) THE SYSTEM SHALL `head_sha` 와 `base_sha` 가 커밋 SHA(16진수 7~40자 · 대소문자 무시 · 앞뒤 공백은 정리 — 증적 형식 검사와 같은 `COMMIT_SHA_PATTERN`)인지 `@nerv/schema` 의 한 스키마(`ReviewSnapshotInput`)로 본다. IF 아니면(`HEAD` · 브랜치 이름 · `origin/main` · 6자 이하) THEN THE SYSTEM SHALL 400 `NERV_PRECONDITION`(본문 검사와 같은 `details.issues` · 문구는 어느 칸인지와 `git rev-parse` 를 말한다)으로 거절하고 세션 · 리포트 · 발견을 남기지 않는다. 임포트는 그 항목만 `error` 로 남기고 배치는 계속한다(REQ-API-018). 빈 값은 예전처럼 `missing_head_sha` 다(2026-10-15 · **사람 결정** — 예전에는 빈 값만 막아서 움직이는 이름이 들어왔고, done 게이트가 그 라운드를 작업의 커밋과 견주지 못해 fail-open 으로 넘겼다. 기준(`base_sha`)도 diff 의 기준 커밋이라([3.3 데이터 모델](../03-proposal/data-model.md) §2.6) 같은 규칙이다) | L2 `review.spec.ts`(서비스로 낸 `HEAD` · 브랜치 이름 · 6자 · 기준 `main` · `origin/main` 이 400 이고 라운드 0 · REST 400 과 문구 · MCP 도 같은 거절 · 짧은 SHA · 대문자 · 공백 정리) · `import.spec.ts`(그 항목만 실패하고 나머지는 적재) · `commit-scope.spec.ts` |
 | REQ-API-322 | WHEN `POST /ingest/hooks/outbox-failed` 가 오프라인 큐의 실패 보고를 받으면 THE SYSTEM SHALL 본문의 모양(항목 1~100건 · `idempotency_key` 필수 · 도구 이름 · 시각 · 상태 코드 · 에러 코드 · `kind` 의 모양)을 검사해 틀리면 400 으로 거절하고 아무것도 남기지 않는다. WHEN 모양이 맞으면 THE SYSTEM SHALL 큐의 `session_id` 가 이 프로젝트의 그 토큰 주인의 세션일 때만 그 세션을, 아니면 프로젝트를 대상으로 ★`session.outbox_failed` 를 남기고(메시지 원문 없이) 그 사람에게 중요(high) 알림을 만든다 — 행위자 제외 규칙의 예외다. WHEN 같은 사람 · 같은 대상에 이미 남긴 멱등 키가 다시 오면 THE SYSTEM SHALL 그 항목을 남기지 않고 `duplicates` 로 센다(2026-10-16 · 사람 결정 · E21-S01) | L2(`outbox-sync.spec.ts`) — 플러그인의 `nerv-outbox` 를 이 서버에 붙여 실행한다: 도구 훅 하나로 큐가 `queued_at` 순서대로 비워진다 · 같은 항목을 두 번 보내도 레코드가 하나 · 거절된 항목이 그 사람의 세션 이벤트와 그 사람의 중요 알림이 된다(메시지 없음) · 같은 실패를 다시 알려도 이벤트는 하나 · 남의 세션은 프로젝트로 떨어지고 알림은 보고한 사람에게만 · 하네스 세션 id · 토큰 없음 401 · 모양 열 가지 400 |
+| REQ-API-323 | WHEN 훅 수집 엔드포인트(`/ingest/hooks/session` · `/tool` · `/subagent` · `/stop` · `/session-end`)가 `X-NERV-Agent: codex` 로 온 요청에 답하면 THE SYSTEM SHALL 응답 본문에 그 호스트의 판정 필드만 담는다 — SessionStart 는 `hookSpecificOutput`(`hookEventName` · `additionalContext`) 하나, Stop 은 막을 때 `decision` · `reason` 만, 그 밖은 빈 객체다. WHERE 헤더가 다른 값이거나 없으면 THE SYSTEM SHALL 지금 응답(`ok` · `session_id` 포함)을 그대로 준다. 상태 코드와 적재 · 판정은 두 경우가 같다(2026-10-16 · 사람 결정 — 한 묶음으로 고친다 · E20-S01 — Codex 0.162.1 은 판정 JSON 의 모르는 필드를 실패로 보고 세션 안내를 버렸다) | L2(`ingest.spec.ts`) — Codex 의 SessionStart 키 목록과 세션 종류 · 관찰 훅(도구 · 서브에이전트 · 세션 없는 도구 · 세션 종료)의 빈 판정 · Stop 의 막음과 통과 · Claude Code 와 헤더 없는 응답은 그대로. 실측은 [4.6 플러그인](plugin.md) §5.4 |
+| REQ-API-324 | WHEN MCP 요청의 `_meta.x-codex-turn-metadata.session_id` 가 세션 id 모양(영숫자 · `.` · `_` · `:` · `-` 1~128자)이면 THE SYSTEM SHALL 그 값을 하네스의 세션 id 로 읽는다. WHEN `nerv_bootstrap` 에 `external_session_id` 인자가 없으면 THE SYSTEM SHALL 그 값을 external id 로 써서 같은 external id 의 자기 세션을 이어받고(hostname · cwd 를 견주지 않는다), 없으면 그 id 로 새 세션을 만든다 — 인자가 이긴다. WHEN 다른 도구에 `session_id` 인자가 없으면 THE SYSTEM SHALL 그 external id 를 가진 이 주체의 살아 있는 세션을 어림보다 먼저 고른다. THE SYSTEM SHALL 그 값으로 남의 세션을 고르지 않는다(2026-10-16 · 사람 결정 — 한 묶음으로 고친다 · E20-S01 — 그 값을 읽지 않던 동안 Codex 실행 하나에 세션이 둘 생겼다) | L1(`harness-session.spec.ts` — 실측 모양 · 없는 것으로 보는 여섯) · L2(`mcp.spec.ts`) — 훅 세션을 이어받아 세션 하나 · 훅 없는 세션의 external id · 인자가 이긴다 · 세션이 둘이어도 고른다(대조군은 `session_ambiguous`) · 남의 세션은 고르지 않고 bootstrap 은 거절 |
 | REQ-API-132 | WHEN `claimed` 를 목표로 전이가 오거나 활성 클레임이 걸린 Task 를 `ready`·`backlog` 로 옮기려 하면 THE SYSTEM SHALL 409 `NERV_PRECONDITION`(`transition_not_allowed` / `release_required`)로 거부한다 | `claimed` 거부와 `next_actions` · 클레임 보유 중 `ready`·`backlog` 거부와 `claim_id` |
 | REQ-API-133 | WHEN 세션이 올린 결재가 결정되면 THE SYSTEM SHALL 그 사실을 하트비트 `pending` 에 `approval_decided` 로 싣는다(1시간 창 · 상한 10 · 전달로 소멸하지 않는다 · `decided_by` 는 결정한 사람이다 — 지정자가 아니다). WHERE 여러 종류가 함께 있으면 THE SYSTEM SHALL `steer|stop` → `basis_superseded` → `approval_decided` → `question_answered` 순서로 싣는다 | 결정 뒤 하트비트에 `approval_decided` · 두 번째 하트비트에도 남아 있다 · 지시는 한 번뿐이다 |
 | REQ-API-134 | WHEN 세션이 T2·T3 스펙 제출 · critical 하향 · 플랜 승인으로 사람의 결재를 기다리게 되면 THE SYSTEM SHALL 그 세션을 `awaiting_input` 으로 세우고, WHEN 그 결재가 결정되면 THE SYSTEM SHALL 다른 대기 사유(열린 blocking 질문 · 결정되지 않은 다른 결재 — 검토 중이 아닌 문서에 결정 없이 남은 슬롯은 빼고)가 없을 때만 `active` 로 되돌린다 | 세션 제출은 `awaiting_input` · 자동 통과와 사람 제출은 그대로 · 결정 뒤 `active` · 열린 질문이 남으면 유지 |

@@ -23,7 +23,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-const here = dirname(fileURLToPath(import.meta.url));
+// 플러그인 폴더는 배달되는 파일만 둔다 — 테스트는 옆 폴더에서 그 스크립트를 실행한다(REQ-PLG-037)
+const here = join(dirname(fileURLToPath(import.meta.url)), '../plugin');
 const OUTBOX = join(here, 'bin', 'nerv-outbox');
 const FORWARD = join(here, 'bin', 'nerv-hook-forward');
 

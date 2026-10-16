@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.57 · 2026-10-15 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.58 · 2026-10-16 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.58 변경(2026-10-16 — Codex 훅 매핑을 실측으로 확정, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다) · [4.8 백로그](../04-mvp/backlog.md) E20-S01): **§4.2 한 단락 · §3.3 테스트 경로 한 곳.** §4.2 의 예시는 제안이었고 실물은 다르다 — Codex 0.162.1 은 NERV 플러그인의 `hooks/hooks.json`(Claude Code 와 같은 파일)을 그대로 읽는다. 에이전트 판정 · 응답 모양 · 세션 잇기는 [4.6 플러그인](../04-mvp/plugin.md) §5.4 와 [4.4 API](../04-mvp/api.md) REQ-API-323 · 324 가 정본이다.
 >
 > v0.57 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **§1.3 한 문장 · §5.6 격상 한 줄 · §2.5 인증 표 두 칸.** ① fail-open 격상은 시간 창 안의 횟수로 판정한다 — 정책 `failopen.window_hours` 안에 `escalate_count` 회 이상이면 격상하고 그 창 동안 새 fail-open 이 없으면 풀린다(결정 기록은 [3.5 스펙 워크플로우](spec-workflow.md) §4.6). ② §2.5 가 OAuth 2.1 을 "Phase 1 이후 기본값" 으로 적고 있었다 — 2026-08-20 인증 확정으로 리소스 서버는 Phase 2 로 옮겼고 MVP 의 기본은 PAT 다([4.1 범위](../04-mvp/scope.md) §2.1 · OAuth 2.1 은 충족 수단의 고도화이지 수용 기준이 아니다).
 >
@@ -443,7 +445,7 @@ nerv-plugin/
 
 ### 3.3 훅 설정 (`hooks/hooks.json`)
 
-**전문의 정본은 [4.6 플러그인과 온보딩](../04-mvp/plugin.md) §3.1 이다** — 그 절만 패키지 파일과 바이트 대조된다(`plugin/plugin-package.spec.ts`). 여기서는 계약의 모양만 인용한다. 예전에는 이 절이 전문을 한 벌 더 싣고 있었고, **기본 변형이 `command` 로 바뀐 뒤에도 `type:"http"` 판을 계속 보여 주었다**(2026-09-03 결정 · 2026-09-06 정정) — 훅 계약의 정본으로 인용되는 자리가 배포되지 않는 변형을 싣고 있었다는 뜻이다.
+**전문의 정본은 [4.6 플러그인과 온보딩](../04-mvp/plugin.md) §3.1 이다** — 그 절만 패키지 파일과 바이트 대조된다(`plugin-test/plugin-package.spec.ts`). 여기서는 계약의 모양만 인용한다. 예전에는 이 절이 전문을 한 벌 더 담고 있었다. 그리고 **기본 변형이 `command` 로 바뀐 뒤에도 `type:"http"` 판을 계속 보여 주었다**(2026-09-03 결정 · 2026-09-06 정정) — 훅 계약의 정본으로 인용되는 자리가 배포되지 않는 변형을 담고 있었다는 뜻이다.
 
 **기본 변형은 `command` 다.** 포워더(`bin/nerv-hook-forward`)가 훅 본문을 받아 서버로 보낸다.
 
@@ -638,6 +640,8 @@ Codex 훅은 11종이고 핸들러가 command 중심이므로, NERV는 **포워�
 | — | `notify`(agent-turn-complete) | 턴 완료 웹훅 | Claude에 없는 Codex 고유 채널 |
 
 `.codex/hooks.json`의 정확한 필드 스키마는 1차 문서에서 이벤트·페이로드·차단 규약까지만 확인됐다. 위 예시는 Claude 규약에 맞춘 제안이며 Phase 0에서 실측 확정한다.
+
+**실측으로 확정했다**(2026-10-15 · 2026-10-16 · Codex 0.162.1 · [4.6 플러그인](../04-mvp/plugin.md) §5.4). 위 예시와 달리 Codex 는 NERV 플러그인을 Claude 매니페스트로 설치하고 플러그인의 `hooks/hooks.json` — Claude Code 와 **같은 파일** — 을 읽는다. 별도의 `.codex/hooks.json` 은 없다. 포워더 호출도 `--event` 가 아니라 Claude Code 와 같은 위치 인자다(`nerv-hook-forward session`). 실측이 정한 것은 넷이다. ① 최상위에는 `description` · `hooks` 만 둔다 — 모르는 키가 있으면 훅 전체를 버린다. ② 훅 입력에는 에이전트 필드가 없고 Codex 는 플러그인 훅에 `PLUGIN_ROOT` 를 준다 — 포워더가 그것으로 `codex` 를 보낸다. ③ 판정 JSON 의 모르는 필드는 실패다 — 서버가 `codex` 에는 판정 필드만 돌려준다([4.4 API](../04-mvp/api.md) REQ-API-323). Stop 의 `{"decision":"block"}` 은 이유가 모델에게 사용자 메시지로 들어가 턴이 이어진다. ④ PostToolUse 의 조인 키는 위 표대로 `session_id` + `turn_id` 이고, MCP 요청의 `_meta.x-codex-turn-metadata.session_id` 가 같은 `session_id` 다 — 서버가 훅의 세션과 MCP 세션을 한 세션으로 잇는다(REQ-API-324). SubagentStart · SubagentStop 은 아직 재지 못했다.
 
 - [Codex hooks — learn.chatgpt.com](https://learn.chatgpt.com/docs/hooks) (2026-08-13 확인): 11종 lifecycle hooks, 공통 페이로드(`session_id`·`hook_event_name`·`transcript_path`·`cwd`·`model`, 턴 권한은 `turn_id`·`permission_mode`), 설정 위치와 `/hooks` 승인.
 

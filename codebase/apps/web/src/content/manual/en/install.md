@@ -52,7 +52,7 @@ Go to **Settings → Agent tokens → Issue a new token.** Give the token a name
 
 This file is **git-ignored by default**, so the token is not committed. Each repository can have its own values, and you don't have to touch your shell profile.
 
-### `.nerv/env` — for Codex (not needed yet) {#env-nerv-env}
+### `.nerv/env` — for Codex {#env-nerv-env}
 
 **If you only use Claude Code, the file above is all you need.** Don't keep the values in two places. If the two copies differ, which value applies depends on the situation.
 
@@ -66,7 +66,7 @@ NERV_TOKEN=<the token from step 1>
 
 **Values that are already set are never overwritten.** Settings on a company-managed machine and values already in your shell always take precedence. Only variables whose names start with `NERV_` are read.
 
-> **Codex does not use this file yet.** Codex's MCP authentication accepts only the _name_ of an environment variable, so the values in this file don't apply to it. Sending Codex notifications to NERV is also turned off for now, because the server has nowhere to receive them yet. Codex support is still in progress.
+> **In Codex, only the hooks read this file.** If you install the NERV plugin in Codex, its hooks use the server address and project from this file (see 3-B). The values in this file don't apply to MCP authentication, because Codex's MCP authentication accepts only the _name_ of an environment variable. So keep the token in a shell environment variable. Sending Codex notifications to NERV is still turned off, because the server has nowhere to receive them yet.
 
 ### If you use only one project on this machine {#env-single-project}
 
@@ -190,7 +190,7 @@ Codex runs only the hooks a person has reviewed. After installing, open `/hooks`
 
 ## 3-B. Connect Codex {#codex}
 
-The NERV plugin is not adapted for Codex yet. If you install it in Codex, the skills work but the hooks do not run. To connect, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`.
+To connect, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`. You can connect without installing the plugin. If you install it, its hooks send the session's activity to NERV, just as in Claude Code (see the end of this section).
 
 ```bash
 mkdir -p <your repo>/.codex
@@ -226,8 +226,18 @@ Claude Code does not read `AGENTS.md` automatically yet. If you use both agents 
 
 - **All the tools work.** A Codex session can run `bootstrap → next → claim → heartbeat → release` from start to finish using tools alone, because every core capability is available as a tool.
 - Skill files (`SKILL.md`) are reused as is. The format is open, so Codex uses the very same files.
-- **There is no hook telemetry.** As a result, Codex sessions show less detail on the sessions screen. You see the milestones the agent posts itself, not every action.
+- **Hook telemetry needs the plugin.** Without the plugin, Codex sessions show less detail on the sessions screen. You see the milestones the agent posts itself, not every action.
 - A repository's `.codex/config.toml` is read only in **trusted projects**. You approve it once, the first time you open the project.
+- `/nerv:approve` is not used in Codex, because Codex cannot guarantee a prompt on every tool call. Approve on the web instead.
+
+**Installing the NERV plugin in Codex** (from plugin 0.3.32). Add the marketplace from GitHub and install the plugin.
+
+```bash
+codex plugin marketplace add worker-ants/nerv
+codex plugin add nerv@nerv
+```
+
+Codex runs only the hooks a person has reviewed. After installing, open `/hooks` in Codex and trust the eight NERV hooks. From then on, session start, tool use, the end of each turn, and session end are recorded in NERV. The session card appears before `nerv_bootstrap` is called, and it is labeled `codex`. Tool calls join the same session. If the agent tries to end a turn while still holding a claim, it is told to record the status and release the claim first. The hooks read the server address and project from `.nerv/env`. Keep the token in a shell environment variable. In a repository where the MCP connection is not set up yet, the session start tells you what is missing.
 
 ## 4. Check the connection {#verify}
 

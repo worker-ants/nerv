@@ -51,7 +51,10 @@ export class SessionTools implements NervToolProvider {
           branch: str(input['branch']),
           worktreePath: str(input['worktree_path']),
           model: str(input['model']),
-          externalSessionId: str(input['external_session_id']),
+          // **하네스가 실어 준 자기 세션 id 가 external id 다**(2026-10-16 · E20-S01 · REQ-API-324). Codex 는 모델에게
+          // 자기 세션 id 를 주지 않지만 MCP 요청마다 그 값을 싣는다 — 그 값으로 훅이 만든 세션을 이어받는다. 그러지 않던
+          // 동안 Codex 실행 하나에 세션이 둘 생겼다(훅의 세션 · 이 도구의 세션 · 2026-10-15 실측). 인자가 이긴다.
+          externalSessionId: str(input['external_session_id']) ?? ctx.harnessSessionId ?? null,
           resumeSessionId: str(input['resume_session_id']),
         }),
     },

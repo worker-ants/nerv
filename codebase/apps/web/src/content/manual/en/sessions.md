@@ -24,7 +24,7 @@ The list does not load all at once. If there are more sessions, **[Load more]** 
 
 - **Each machine's state comes from its most recent session.** A machine where the plugin was turned on and then off shows as off.
 - **A machine that is off connected over MCP only, without the plugin.** It can still claim tasks, but without hooks, its sessions leave no activity or branch on this screen. If a session looks unusually empty, check here first. To turn the plugin on, see [Installing the plugin](/help/install).
-- **Codex is not counted.** The plugin is for Claude Code, so it is normal for Codex to run without it.
+- **Codex is not counted.** Codex can connect through its MCP settings alone, without the plugin, so a Codex machine without the plugin is not counted as off.
 - This check works **from plugin 0.3.2** on. Older versions do not report their version, so they show as off. Update with `/plugin marketplace update`, and the machine shows as on from its next session.
 
 ## Statuses {#statuses}

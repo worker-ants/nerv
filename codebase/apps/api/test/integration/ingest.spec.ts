@@ -1002,3 +1002,99 @@ describe('만료 뒤에도 같은 세션이다 (REQ-API-079 · 279)', () => {
     expect(again).toHaveLength(1);
   });
 });
+
+/**
+ * **Codex 는 판정 JSON 의 모르는 필드를 실패로 본다**(2026-10-15 실측 · E20-S01 · REQ-API-323). `ok` · `session_id` 때문에
+ * SessionStart 와 Stop 이 "Failed" 로 끝났고 세션 안내가 모델에게 가지 않았다. 포워더가 `X-NERV-Agent: codex` 를 실으면
+ * 서버는 판정 필드만 돌려준다 — Claude Code 의 응답은 그대로다(우리 쪽 도구가 `ok` · `session_id` 를 읽는다).
+ */
+describe('E20-S01 — 호스트가 받는 모양으로 답한다 (REQ-API-323)', () => {
+  /** Codex 가 받는 판정 필드 — 훅 출력의 공통 필드와 SessionStart 의 래퍼 */
+  const CODEX_FIELDS = ['decision', 'reason', 'hookSpecificOutput', 'continue', 'systemMessage'];
+
+  async function sessionIdOf(external: string): Promise<string> {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM agent_session WHERE external_session_id = $1`,
+      [external],
+    );
+    return rows[0]!.id;
+  }
+
+  it('Codex 의 SessionStart 는 래퍼 하나다 — 세션은 codex 로 남고 안내에 세션 id 가 든다', async () => {
+    const res = await hook(
+      'session',
+      { session_id: 'S-codex', cwd: '/work/clemvion', source: 'startup', model: 'gpt-5.5' },
+      { host: 'linux-07', agent: 'codex' },
+    );
+    expect(res.status).toBe(202);
+    expect(Object.keys(res.body)).toEqual(['hookSpecificOutput']);
+    const sessionId = await sessionIdOf('S-codex');
+    expect(injected(res.body)).toContain(`resume_session_id=${sessionId}`);
+    const { rows } = await pool.query<{ agent_type: string }>(
+      `SELECT agent_type::text AS agent_type FROM agent_session WHERE id = $1`,
+      [sessionId],
+    );
+    expect(rows[0]?.agent_type).toBe('codex');
+  });
+
+  it('Codex 의 관찰 훅은 빈 판정이다 — 적재는 그대로 한다', async () => {
+    await hook('session', { session_id: 'S-codex-obs' }, { host: 'linux-07', agent: 'codex' });
+    const codex = { agent: 'codex' };
+    const tool = await hook(
+      'tool',
+      { session_id: 'S-codex-obs', tool_name: 'apply_patch', turn_id: 't-1' },
+      codex,
+    );
+    const sub = await hook('subagent', { session_id: 'S-codex-obs', agent_id: 'a-1' }, codex);
+    const missing = await hook('tool', { session_id: 'S-codex-none', tool_name: 'Bash' }, codex);
+    for (const res of [tool, sub, missing]) {
+      expect(res.status).toBe(202);
+      expect(res.body).toEqual({});
+    }
+    const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM activity`);
+    expect(rows[0]?.n).toBe(2);
+
+    const end = await hook('session-end', { session_id: 'S-codex-obs', reason: 'other' }, codex);
+    expect(end.body).toEqual({});
+    const { rows: state } = await pool.query<{ state: string }>(
+      `SELECT state::text AS state FROM agent_session WHERE external_session_id = 'S-codex-obs'`,
+    );
+    expect(state[0]?.state).toBe('complete');
+  });
+
+  it('Codex 의 Stop 은 막을 때 decision · reason 만 · 막지 않을 때 빈 판정이다', async () => {
+    await hook('session', { session_id: 'S-codex-stop' }, { host: 'linux-07', agent: 'codex' });
+    const sessionId = await sessionIdOf('S-codex-stop');
+    await pool.query(
+      `INSERT INTO claim (id, project_id, task_id, agent_session_id, user_id, status, lease_expires_at)
+       VALUES ($1,$2,$3,$4,$5,'active', now() + interval '30 minutes')`,
+      [newId(), projectId, taskId, sessionId, userId],
+    );
+    await pool.query(`UPDATE task SET status = 'in_progress' WHERE id = $1`, [taskId]);
+
+    const blocked = await hook('stop', { session_id: 'S-codex-stop' }, { agent: 'codex' });
+    expect(blocked.body['decision']).toBe('block');
+    expect(Object.keys(blocked.body).sort()).toEqual(['decision', 'reason']);
+    for (const key of Object.keys(blocked.body)) expect(CODEX_FIELDS).toContain(key);
+
+    const again = await hook(
+      'stop',
+      { session_id: 'S-codex-stop', stop_hook_active: true },
+      { agent: 'codex' },
+    );
+    expect(again.body).toEqual({});
+  });
+
+  it('Claude Code 의 응답은 그대로다 — ok · session_id 가 남는다', async () => {
+    const claude = { agent: 'claude-code' };
+    const start = await hook('session', { session_id: 'S-claude' }, { host: 'mac-07', ...claude });
+    expect(Object.keys(start.body).sort()).toEqual(['hookSpecificOutput', 'ok', 'session_id']);
+    expect(start.body['session_id']).toBe(await sessionIdOf('S-claude'));
+    expect(
+      (await hook('tool', { session_id: 'S-claude', tool_name: 'Bash' }, claude)).body,
+    ).toEqual({ ok: true });
+    expect((await hook('stop', { session_id: 'S-claude' }, claude)).body).toEqual({ ok: true });
+    // 헤더가 없어도 그대로다 — http 변형(Claude Code 전용)은 헤더를 싣지 않는다
+    expect((await hook('session-end', { session_id: 'S-claude' })).body).toEqual({ ok: true });
+  });
+});

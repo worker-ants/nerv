@@ -37,6 +37,7 @@ import { ToolRegistry } from './tool-registry.js';
 import type { NervToolDefinition } from './tool-registry.js';
 import type { ToolContext } from './tool-context.js';
 import { toolCallLevel, toolCallMessage, toolCallOutcome } from './tool-call-log.js';
+import { harnessSessionOf } from './harness-session.js';
 import type { ToolCallNote } from './tool-call-log.js';
 
 /** 지원 리비전 — 첫 값이 서버 선호다. */
@@ -350,6 +351,7 @@ export class McpController {
   ): Promise<unknown> {
     const name = String(params['name'] ?? '');
     const args = (params['arguments'] ?? {}) as Record<string, unknown>;
+    const harnessSessionId = harnessSessionOf(params['_meta']);
 
     const tool = this.registry.get(name);
     if (tool === undefined) {
@@ -380,7 +382,7 @@ export class McpController {
     // 뭉개고, 모델은 자기가 무엇을 잘못 넘겼는지 모른 채 같은 호출을 반복한다.
     let session: { id: string | null; candidates: readonly SessionCandidate[] };
     try {
-      session = await this.resolveSession(args, principal);
+      session = await this.resolveSession(args, principal, harnessSessionId);
     } catch (error) {
       return this.toStructuredError(error, t, locale);
     }
@@ -391,6 +393,7 @@ export class McpController {
       projectId: principal.projectId ?? '',
       sessionId: session.id,
       sessionCandidates: session.candidates,
+      harnessSessionId,
       idempotencyKey:
         typeof args['idempotency_key'] === 'string'
           ? args['idempotency_key']
@@ -454,7 +457,7 @@ export class McpController {
   }
 
   /**
-   * 도구 실행 세션 — **명시 인자 > 살아 있는 세션 추정**(api.md §1.4c).
+   * 도구 실행 세션 — **명시 인자 > 하네스가 실어 준 자기 세션 > 살아 있는 세션 추정**(api.md §1.4c).
    *
    * 추정이 오랫동안 비어 있었다: 이 함수는 `session_id` 를 준 호출만 세션을 얻었는데,
    * 카탈로그(3.4 §2.3)는 `nerv_bootstrap` 외의 도구에 그 인자를 적지 않는다. 그래서
@@ -467,10 +470,15 @@ export class McpController {
    * 그때부터 자기 도구를 못 쓴다.
    *
    * nerv_bootstrap 은 세션을 만드는 도구라 여기서 비어 있어도 정상이다.
+   *
+   * **하네스가 자기 세션 id 를 실어 주면 어림하지 않는다**(2026-10-16 · E20-S01 · REQ-API-324). Codex 는 MCP 요청마다
+   * 그 값을 싣고 그것이 훅 입력의 `session_id` 다 — 훅이 만든 세션을 external id 로 찾으면 같은 사람이 세션을 둘 열어
+   * 둬도 이 호출이 어느 세션의 일인지 안다. 찾지 못하면(아직 bootstrap 전 · 훅 없는 설치) 지금처럼 어림한다.
    */
   private async resolveSession(
     args: Record<string, unknown>,
     principal: Principal,
+    harnessSessionId: string | null,
   ): Promise<{ id: string | null; candidates: readonly SessionCandidate[] }> {
     const projectId = principal.projectId ?? '';
     const explicit = args['session_id'];
@@ -481,6 +489,19 @@ export class McpController {
       return { id: explicit, candidates: [] };
     }
     const candidates = await this.sessions.liveSessions(projectId, principal.userId);
+    if (harnessSessionId !== null) {
+      // 자기 세션만 찾는다 — external id 는 비밀이 아니다(findByExternalId 가 사람을 함께 본다). 살아 있는 세션일
+      // 때만 고른다: 끝났거나 쓸려 간 세션에 일을 붙이지 않고, 그때는 아래 어림이 bootstrap 을 권한다
+      const own = await this.sessions.findByExternalId(
+        projectId,
+        harnessSessionId,
+        principal.userId,
+      );
+      if (own !== null && candidates.some((c) => c.session_id === own)) {
+        await this.sessions.touch(own);
+        return { id: own, candidates: [] };
+      }
+    }
     if (candidates.length === 1) {
       const only = candidates[0] as SessionCandidate;
       await this.sessions.touch(only.session_id);

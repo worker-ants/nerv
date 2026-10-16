@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.19 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.20 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.20 변경(2026-10-16 — 플러그인 폴더에는 배달되는 파일만 둔다, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다) · [4.8 백로그](backlog.md) E20-S01): **§1 트리와 워크스페이스 표 한 행 · §1.2 `pnpm-workspace.yaml` 전문 · §2.2 트리 한 줄.** 플러그인의 테스트 셋과 `package.json` 을 `plugin/` 에서 새 워크스페이스 `plugin-test/`(`@nerv/plugin-test`)로 옮겼다. Codex 는 카탈로그가 가리키는 폴더를 통째로 설치 캐시에 복사해 테스트 파일까지 배달됐다([4.6 플러그인](plugin.md) §5.4 · REQ-PLG-037). `plugin/` 은 이제 워크스페이스가 아니다. `mcp/harness-session.ts` 는 Codex 가 MCP 요청에 넣어 준 세션 id 를 읽는다([4.4 API](api.md) REQ-API-324).
 >
 > v2.19 변경(2026-10-16 — 복구 뒤 자동 동기화의 실패 보고, Phase 2 묶음 2의 둘째 · [4.8 백로그](backlog.md) E21-S01): **§2.2 트리 두 줄.** `session/outbox-report.service.ts` — 오프라인 큐의 실패 보고(`POST /ingest/hooks/outbox-failed`)를 받아 `session.outbox_failed` 를 남긴다([4.4 API](api.md) REQ-API-322).
 >
@@ -288,7 +290,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
   docs/                         # 이 제안서 원문 — NERV 가동 후 첫 임포트 대상 (4.7 스펙 임포터 §5)
   codebase/                     # ★ 구현 코드 전체 = 모노레포 루트 (REQ-CB-015)
     package.json                # 워크스페이스 스크립트 허브 (§5.1 명령 표)
-    pnpm-workspace.yaml         # packages: ["plugin", "ko-style", "apps/*", "packages/*"]
+    pnpm-workspace.yaml         # packages: ["plugin-test", "ko-style", "apps/*", "packages/*"]
     pnpm-lock.yaml
     .nvmrc                      # Node LTS 핀 — 로컬·CI·이미지가 같은 값을 쓴다 (REQ-CB-002)
     tsconfig.base.json          # strict 공통 옵션 (§4.1)
@@ -303,7 +305,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
       check-md-html.mjs         #   md 원본과 html 파생본이 같은 말을 하는가 (관리 규약 1 · REQ-CB-051)
                                 #   — **코드 블록 안쪽은 보지 않는다**: 문서가 실은 파일 사본은
                                 #     L1 이 바이트로 댄다(`packages/schema/src/seed.spec.ts` ·
-                                #     `plugin/plugin-package.spec.ts` · REQ-CB-048)
+                                #     `plugin-test/plugin-package.spec.ts` · REQ-CB-048)
       check-env-table.mjs       #   §5.2 전표와 코드가 읽는 변수가 맞는가
       check-doc-links.mjs       #   문서 간 링크·역참조·맨 참조·절 실재 (REQ-CB-030) — `--fix` 가 역참조를 다시 쓴다
       check-ko-style.mjs        #   새로 쓴 한국어 문장이 문장 규약을 지키는가 — ko-style 검사기를 부른다 (REQ-CB-058)
@@ -332,14 +334,18 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
     packages/
       schema/                   # @nerv/schema — drizzle 테이블 · zod · 상수 · 이벤트 이름 · 에러 코드 (§3)
                                 #   임포트 배치 · 프로파일 zod 스키마도 여기가 정본 (apps/api ↔ apps/cli 공유 계약)
-    plugin/                     # @nerv/plugin — Claude Code 플러그인 패키지 (4.6 §1.1 전문의 실물)
+    plugin/                     # NERV 플러그인 패키지 — Claude Code · Codex (4.6 §1.1 전문의 실물 · 배달되는 파일만 · REQ-PLG-037)
       .claude-plugin/           #   plugin.json · marketplace.json
       hooks/                    #   hooks.json(기본 · command) · hooks.http.json (4.6 §3.1)
       skills/                   #   next · spec · impl · question · review · mirror · approve (4.6 §2)
       agents/                   #   nerv-spec-writer · nerv-code-reviewer · nerv-consistency-checker — 코드 쓰기 도구 미보유
       bin/                      #   nerv-hook-forward(토큰 주입 폴백) · nerv-outbox(오프라인 큐)
       statusline/               #   nerv-statusline.sh — 네트워크 왕복 없음 (4.6 §3.2)
-      plugin-package.spec.ts    #   문서 전문 대조 테스트 (REQ-PLG-001·003·006·008)
+      codex/                    #   Codex 템플릿 — config.toml · AGENTS.md (4.6 §5.2 · §5.3)
+    plugin-test/                # @nerv/plugin-test — 위 플러그인의 테스트 (2026-10-16 · 4.6 §5.4)
+      plugin-package.spec.ts    #   문서 전문 대조 · 포워더 · nerv-init 실행 테스트 (REQ-PLG-001·003·006·008 · 034~037)
+      outbox.spec.ts            #   오프라인 큐 (REQ-PLG-032 · 033)
+      mirror.spec.ts            #   스펙 미러 (REQ-PLG-028)
     ko-style/                   # @nerv/ko-style — 한국어 문체 플러그인 (4.6 §7 · 2026-09-27)
       .claude-plugin/           #   plugin.json — 버전은 nerv 와 따로 오른다
       hooks/                    #   hooks.json · run.sh(진입점) · digest.json(node 없을 때의 요약 · 생성물)
@@ -374,7 +380,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
 | `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), **표면이 공유하는 순수 판정**(§3.1), 마이그레이션 파일 | 런타임 로직(위 넷 + 마이그레이터만 — §3.4가 근거). 판정은 **던지지 않고 문구를 모른다** — 에러로 옮기는 것도 화면 문구로 옮기는 것도 표면의 일이다 |
-| `plugin` | `@nerv/plugin` | 에이전트 호스트에 **배포되는 파일 묶음** — 스킬 7종·훅·MCP 설정·statusline·서브에이전트([4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물) | 빌드 산출물·런타임 코드(JS 번들 없음). 워크스페이스인 이유는 문서 대조 테스트를 `pnpm test`에 태우기 위해서다 |
+| `plugin-test` | `@nerv/plugin-test` | `plugin/`(에이전트 호스트에 **배포되는 파일 묶음** — 스킬 7종·훅·statusline·서브에이전트 · [4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물)의 테스트 — 문서 대조 · 스크립트 실행. 워크스페이스인 이유는 그 테스트를 `pnpm test`에 태우기 위해서다 | `plugin/` 안에 파일 두기 — 그 폴더는 설치하면 통째로 복사된다(2026-10-16 · REQ-PLG-037). 빌드 산출물·런타임 코드(JS 번들 없음) |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
 의존 방향은 한쪽뿐이다: `apps/* → packages/schema`. `apps/web ↔ apps/api ↔ apps/cli` 간 직접 import는 금지하며 공유 계약(zod 스키마·타입·상수)은 전부 `@nerv/schema`를 거친다. `apps/cli`가 `apps/api`의 서비스를 import하지 않는다는 것이 REQ-CB-001의 적용례다 — CLI는 API의 클라이언트일 뿐 같은 프로세스가 아니다.
@@ -391,8 +397,9 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 packages:
   # 플러그인은 빌드 산출물이 아니라 배포되는 파일 묶음이다 — 워크스페이스로 두는 이유는
   # 문서 대조 테스트(REQ-PLG-001)와 문체 플러그인의 예문 · 훅 테스트(REQ-PLG-021~026)를
-  # `pnpm test` 한 줄에 태우기 위해서다.
-  - plugin
+  # `pnpm test` 한 줄에 태우기 위해서다. NERV 플러그인의 테스트는 옆 폴더(plugin-test)에 둔다 —
+  # 플러그인 폴더는 설치하면 그대로 복사되므로 배달되는 파일만 둔다(2026-10-16 · REQ-PLG-037).
+  - plugin-test
   - ko-style
   - 'apps/*'
   - 'packages/*'
@@ -526,6 +533,7 @@ apps/api/src/
   mcp/
     mcp.controller.ts  # POST /mcp — Streamable HTTP, 신·구 리비전 병행 협상
     tool-context.ts    # 도구 호출의 주체·세션·멱등 키
+    harness-session.ts # 하네스가 _meta 에 넣어 준 자기 세션 id — Codex 세션 잇기 (REQ-API-324)
     tool-input.ts      # 도구 입력 검증 — 모르는 인자는 ignored_args 로 되돌린다
     tool-registry.ts   # modules/**/*.tools.ts 수집 · zod 입력 검증 · idempotency_key 공통 처리
     tool-call-log.ts   # tools/call 마다 한 줄 — 접근 로그로는 전부 POST /mcp 200 이다 (§5.5 · REQ-CB-054)

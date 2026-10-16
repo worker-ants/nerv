@@ -14,4 +14,11 @@ cp AGENTS.md <repo>/AGENTS.md      # 이미 있으면 §단일 진실·§세션 
 NERV 저장소 루트에 `.codex/config.toml` 을 두면 이 저장소에서 도는 Codex 세션이
 `api.nerv.example.com` 에 접속하려 든다 — 템플릿으로 배포하고 사람이 복사하는 편이 맞다.
 
+**토큰은 셸 환경변수로 둔다.** Codex 는 `bearer_token_env_var` 의 값을 자기 프로세스 환경에서만 읽는다 —
+`.nerv/env` 의 토큰은 MCP 인증에 쓰이지 않는다(4.6 §3.3).
+
+**플러그인도 설치하면 훅이 돈다**(2026-10-16 · 4.6 §5.4). `codex plugin marketplace add worker-ants/nerv` ·
+`codex plugin add nerv@nerv` 로 설치하고 Codex 의 `/hooks` 에서 NERV 훅 여덟을 신뢰 처리한다. 세션이 `codex` 로 기록되고
+`nerv_bootstrap` 세션과 한 세션으로 이어진다. 훅은 `.nerv/env` 의 `NERV_SERVER` · `NERV_PROJECT` 를 읽는다.
+
 자동 생성·검증 스크립트는 Phase 2 다([4.6 플러그인과 온보딩](../../docs/04-mvp/plugin.md) §5.1).

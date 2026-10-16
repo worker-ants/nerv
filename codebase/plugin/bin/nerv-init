@@ -21,6 +21,8 @@
 #   nerv-init [--dir <경로>] [--server <URL>] [--project <슬러그>] [--token <PAT>]
 #   nerv-init --check    # 아무것도 쓰지 않고 상태만 말한다 (SessionStart 훅이 부른다)
 #
+# 쓰는 세 자리는 Claude Code 의 것이다. Codex 의 훅이 부른 `--check` 는 `.codex/config.toml` 을 본다(4.6 §5.4).
+#
 # 토큰은 인자로 주지 않으면 **가려서 묻는다**(TTY 일 때) — 셸 히스토리에 남기지 않으려고.
 # 비대화형에서 값이 없으면 그 칸은 적지 않는다: 자리표시자를 적으면 "설정됐다" 고 보인다.
 set -uo pipefail
@@ -50,11 +52,22 @@ mcp="$root/.mcp.json"
 settings="$root/.claude/settings.local.json"
 ignore="$root/.gitignore"
 
+# Codex 의 MCP 인증은 Codex 프로세스의 환경에서만 토큰을 읽는다(`bearer_token_env_var` · §3.3) — `.nerv/env` 를
+# 읽기 **전의** 값을 따로 둔다. 그 파일의 토큰은 훅 포워더만 쓴다.
+process_token="${NERV_TOKEN:-}"
+
 # 프로젝트별 환경(.nerv/env) — Codex 폴백이지만 읽는 값은 같다(§3.3).
 # **대상 저장소의 것을 읽는다** — 로더의 기본 경로는 cwd 상대라 `--dir` 로 남의 저장소를
 # 가리켰을 때 엉뚱한 파일을 읽는다. 사람이 이미 정했으면 그것을 이긴다고 보지 않는다.
 export NERV_ENV_FILE="${NERV_ENV_FILE:-$root/.nerv/env}"
 . "$(dirname "${BASH_SOURCE[0]}")/nerv-env.sh"
+
+# **누가 부르는가** — 포워더와 같은 판정이다(REQ-PLG-034): 사람이 정한 `NERV_AGENT_TYPE`, 아니면 Codex 가 플러그인
+# 훅에만 주는 `PLUGIN_ROOT`(2026-10-16 실측). Codex 면 MCP 설정은 `.mcp.json` 이 아니라 `config.toml` 에 있다.
+agent="${NERV_AGENT_TYPE:-}"
+if [ -z "$agent" ]; then
+  if [ -n "${PLUGIN_ROOT:-}" ]; then agent="codex"; else agent="claude-code"; fi
+fi
 
 # -- settings.local.json 의 env 읽기 -----------------------------------------
 # JSON 은 셸로 읽지 않는다. node 도 python3 도 없으면 **읽지 못했다고 말하고** 환경변수만
@@ -111,6 +124,16 @@ token="$(pick "$token" "${NERV_TOKEN:-}" "$settings_token")"
 
 mcp_has_nerv() { [ -f "$mcp" ] && grep -q '"nerv"' "$mcp"; }
 
+# Codex 의 MCP 서버 표 — 저장소의 `.codex/config.toml`(신뢰한 프로젝트에서만 읽힌다)이나 사용자 설정에 둔다.
+# TOML 은 셸로 읽지 않고 표 머리 한 줄만 찾는다: `[mcp_servers.nerv]` 가 있으면 붙어 있다고 본다.
+codex_user_config="${CODEX_HOME:-${HOME:-}/.codex}/config.toml"
+codex_has_nerv() {
+  for f in "$root/.codex/config.toml" "$codex_user_config"; do
+    [ -f "$f" ] && grep -qE '^[[:space:]]*\[mcp_servers\.("nerv"|nerv)\][[:space:]]*(#.*)?$' "$f" && return 0
+  done
+  return 1
+}
+
 # -- --check : 아무것도 쓰지 않는다 -------------------------------------------
 #
 # **쓰려는 흔적이 없으면 조용히 지나간다.** 플러그인은 기계에 하나라 NERV 와 무관한
@@ -118,21 +141,35 @@ mcp_has_nerv() { [ -f "$mcp" ] && grep -q '"nerv"' "$mcp"; }
 if [ "$mode" = "check" ]; then
   trace="no"
   mcp_has_nerv && trace="yes"
+  [ "$agent" = "codex" ] && codex_has_nerv && trace="yes"
   [ -d "$root/.nerv" ] && trace="yes"
   [ -n "$settings_server$settings_project$settings_token" ] && trace="yes"
   [ -n "${NERV_TOKEN:-}${NERV_PROJECT:-}" ] && trace="yes"
   [ "$trace" = "no" ] && exit 0
 
   missing=()
-  mcp_has_nerv || missing+=(".mcp.json 에 nerv 서버가 없다 — NERV 도구가 이 세션에 붙지 않는다")
-  [ -n "$token" ] || missing+=("NERV_TOKEN 이 비어 있다 — 붙어도 401 로 끝난다")
+  if [ "$agent" = "codex" ]; then
+    # **Codex 는 `.mcp.json` 을 읽지 않는다**(2026-10-15 실측 — 이 점검이 MCP 가 붙은 Codex 세션에 ".mcp.json 에 nerv 서버가
+    # 없다" 고 알렸다). 토큰도 Codex 의 환경에서만 읽는다 — `.nerv/env` 에만 있으면 훅은 붙고 도구는 401 이다.
+    codex_has_nerv || missing+=(".codex/config.toml(또는 ${codex_user_config})에 [mcp_servers.nerv] 가 없다 — NERV 도구가 이 세션에 붙지 않는다")
+    [ -n "$process_token" ] || missing+=("NERV_TOKEN 이 Codex 의 환경에 없다 — 도구가 401 로 끝난다(.nerv/env 의 값은 MCP 인증에 쓰이지 않는다)")
+  else
+    mcp_has_nerv || missing+=(".mcp.json 에 nerv 서버가 없다 — NERV 도구가 이 세션에 붙지 않는다")
+    [ -n "$token" ] || missing+=("NERV_TOKEN 이 비어 있다 — 붙어도 401 로 끝난다")
+  fi
   [ -n "$project" ] || missing+=("NERV_PROJECT 가 비어 있다")
   [ ${#missing[@]} -eq 0 ] && exit 0
 
   echo "NERV 설정이 덜 됐다:"
   for line in "${missing[@]}"; do echo "  - $line"; done
-  echo "사람에게 이 명령을 안내한다(에이전트가 대신 실행하지 않는다 — 토큰을 묻는다):"
-  echo "  \"${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}/bin/nerv-init\""
+  if [ "$agent" = "codex" ]; then
+    echo "사람에게 이것을 안내한다(에이전트가 대신 하지 않는다 — 토큰이 든다):"
+    echo "  \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}}/codex/config.toml\" 을 저장소의 .codex/config.toml 로 복사해 url · X-NERV-Project 를 고치고,"
+    echo "  NERV_TOKEN 을 셸 환경변수로 둔 뒤 Codex 를 다시 띄운다(codex/README.md)."
+  else
+    echo "사람에게 이 명령을 안내한다(에이전트가 대신 실행하지 않는다 — 토큰을 묻는다):"
+    echo "  \"${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}/bin/nerv-init\""
+  fi
   echo "설정이 설 때까지 nerv_* 도구를 부르지 않는다 — 없는 도구를 부르면 승인 프롬프트만 쌓인다."
   exit 0
 fi

@@ -340,6 +340,10 @@ export class MirrorGit {
         }
         resolvePromise(result);
       });
+      // **stdin 을 읽지 않고 끝나는 git 이 있다**(2026-10-16 · 전체 L2 에서 두 번 재현). 빈 입력을 닫기 전에 프로세스가
+      // 끝나면 쓰기가 EPIPE 로 실패하고, 듣는 쪽이 없는 그 오류가 워커를 통째로 죽인다. 결과는 위의 종료 코드가
+      // 판정하므로 여기서는 받아 두기만 한다.
+      child.stdin.on('error', () => undefined);
       child.stdin.end(options.input ?? '');
     });
   }

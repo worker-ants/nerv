@@ -1,5 +1,5 @@
 {
-  "$comment": "기본 변형 — 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다. http 변형은 hooks/hooks.http.json 이고, 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
+  "description": "기본 변형 — 훅을 bin/nerv-hook-forward 로 서버에 보낸다. 세션 시작의 nerv-init --check 는 설정이 덜 된 저장소에만 말하고 쓰지 않는다(4.6 §3.7). Claude Code 와 Codex 가 같은 파일을 읽는다 — 최상위에는 description · hooks 만 두고 훅 항목에는 설명 키를 두지 않는다(Codex 는 모르는 키가 있으면 훅 전체를 버린다 · 4.6 §5.4). http 변형은 hooks/hooks.http.json 이고, 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
   "hooks": {
     "SessionStart": [
       {
@@ -16,7 +16,6 @@
             "timeout": 20
           },
           {
-            "$comment": "설정이 덜 된 저장소에만 말한다 — 쓰지는 않는다(4.6 §3.7).",
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init\" --check",
             "timeout": 5
@@ -78,7 +77,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session-end",
-            "timeout": 5
+            "timeout": 3
           }
         ]
       }

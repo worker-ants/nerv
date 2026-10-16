@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.11 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.12 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.12 변경(2026-10-16 — Codex에서 NERV 훅 여섯이 돈다, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다) · [4.8 백로그](backlog.md) E20-S01): **REQ-PLG-034 · 035 · 036 · 037 신설 · §5.4 다시 잰 열 · §3.1 전문과 한 단락 · §3.3 표 두 칸과 세 단락 · §3.7 한 항목 · §5.1 훅 텔레메트리 행 · §2.8 설명 한 문장 · REQ-PLG-028 · 032 · 033 검증 경로 · 패키지 0.3.32 그대로.** §5.4 표의 고칠 자리를 모두 고치고 Codex 0.162.1로 다시 쟀다. `hooks.json`의 `$comment`를 `description`으로 바꾸고 훅 항목의 설명 키를 뺐다. SessionEnd 시한은 3초다. 포워더는 Codex를 `PLUGIN_ROOT`로 알아보고 `X-NERV-Agent`를 모든 훅에 담아 보낸다. 서버는 `codex`에는 판정 필드만 돌려준다([4.4 API](api.md) REQ-API-323). `nerv_bootstrap`은 Codex가 MCP 요청에 넣는 세션 id로 훅이 만든 세션을 이어받는다(REQ-API-324). `nerv-init --check`는 Codex에서 `config.toml`을 본다. 테스트와 `package.json`은 `codebase/plugin-test/`로 옮겨 플러그인 폴더에는 배달되는 파일만 둔다. `nerv:approve` 설명에 Codex에서는 쓰지 않는다는 말을 더했다. 다시 잰 결과 실행 하나에 세션 하나가 `codex`로 남고, 세션 안내와 Stop의 차단 이유가 모델에게 전달됐다.
 >
 > v1.11 변경(2026-10-16 — 서버가 돌아오면 outbox 를 바로 비우고 거절된 쓰기는 사람에게 알린다, Phase 2 묶음 2의 둘째 · **사람 결정** · [4.8 백로그](backlog.md) E21-S01): **REQ-PLG-032 · 033 신설 · §3.4 규칙 2 · 3 정정과 세 단락 · 패키지 0.3.31 → 0.3.32.** 데몬을 따로 띄우지 않는다. 훅 포워더가 서버에서 2xx 를 받으면 `nerv-outbox kick` 이 큐를 분리된 백그라운드 flush 로 비우고 훅은 기다리지 않는다. 잠금(`.nerv/outbox/.flush.lock`)으로 하나만 돈다. 서버가 거절한 항목은 `outbox/failed/` 로 옮기고 `/ingest/hooks/outbox-failed` 로 알려 그 사람에게 중요 알림이 간다([4.4 API](api.md) REQ-API-322). 401 · 429 · `idempotency_in_flight` · `NERV_UNAVAILABLE` · JSON-RPC 가 아닌 2xx 는 그 쓰기의 판정이 아니라서 남기고 멈춘다. 규칙 2가 적은 "다음 스킬 턴의 flush" 는 그렇게 시키는 스킬이 없어 실제로 없었다 — 정정했다. 스킬은 flush 를 말하지 않아 그대로다. http 변형은 세션 시작에만 비운다.
 >
@@ -1247,7 +1249,7 @@ Codex에는 이 스킬을 권하지 않는다. 호출마다 사람에게 묻는 
 ````markdown
 ---
 name: approve
-description: 사람(admin · planner)이 이 세션에서 초안을 승인한다고 답했을 때 그 승인을 NERV에 전한다. 초안을 보여 주고 사람의 분명한 대답을 받은 뒤에만 승인 도구를 부른다. 사용법 - /nerv:approve [SPC-…]
+description: 사람(admin · planner)이 이 세션에서 초안을 승인한다고 답했을 때 그 승인을 NERV에 전한다. 초안을 보여 주고 사람의 분명한 대답을 받은 뒤에만 승인 도구를 부른다. Claude Code 에서만 쓴다 — Codex 에서는 쓰지 않고 웹에서 승인하라고 안내한다. 사용법 - /nerv:approve [SPC-…]
 allowed-tools:
   - mcp__nerv__nerv_spec_get
   - mcp__plugin_nerv_nerv__nerv_spec_get
@@ -1348,7 +1350,7 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 
 ```json
 {
-  "$comment": "기본 변형 — 다섯 엔드포인트를 bin/nerv-hook-forward 로 보낸다. http 변형은 hooks/hooks.http.json 이고, 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
+  "description": "기본 변형 — 훅을 bin/nerv-hook-forward 로 서버에 보낸다. 세션 시작의 nerv-init --check 는 설정이 덜 된 저장소에만 말하고 쓰지 않는다(4.6 §3.7). Claude Code 와 Codex 가 같은 파일을 읽는다 — 최상위에는 description · hooks 만 두고 훅 항목에는 설명 키를 두지 않는다(Codex 는 모르는 키가 있으면 훅 전체를 버린다 · 4.6 §5.4). http 변형은 hooks/hooks.http.json 이고, 고르는 기준과 대가는 4.6 §3.1 이 정본이다.",
   "hooks": {
     "SessionStart": [
       {
@@ -1365,7 +1367,6 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
             "timeout": 20
           },
           {
-            "$comment": "설정이 덜 된 저장소에만 말한다 — 쓰지는 않는다(4.6 §3.7).",
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-init\" --check",
             "timeout": 5
@@ -1427,7 +1428,7 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nerv-hook-forward\" session-end",
-            "timeout": 5
+            "timeout": 3
           }
         ]
       }
@@ -1437,6 +1438,8 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
 ```
 
 각 훅의 용도(등록·Activity 적재·게이트 조회·정리)와 응답 의미론은 정본 표([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §3.3)를 따른다. ingest 엔드포인트의 요청/응답 계약은 [4.4 API 명세](api.md)가 정의한다.
+
+**Codex도 이 파일을 읽는다**(2026-10-16 · §5.4 · REQ-PLG-035). 최상위 키는 `description` · `hooks` 둘이고 훅 항목에는 실행에 쓰는 키(`type` · `command` · `timeout` · `async`)만 둔다. Codex 0.162.1은 모르는 키가 하나라도 있으면 훅 전체를 버린다 — 설명은 `description`이 맡는다. SessionEnd 시한은 3초다. Codex는 그보다 긴 시한을 3초로 줄이고 경고를 남긴다. http 변형은 Claude Code 전용이라 그대로 둔다.
 
 > **실측 기록 — 훅 헤더의 `${NERV_TOKEN}` 확장.** 2026-09-28 · E06-S07 · Claude Code 2.1.283. 로컬 에코 서버가 받은 헤더를 그대로 적었다. ① `headers` 의 `${VAR}` 와 `$VAR` 는 **확장된다** — 그 이름이 `allowedEnvVars` 에 있을 때만이다. 목록에 없으면 빈 문자열이 되어 `Bearer` 만 간다. ② 값은 셸 환경에서도, settings 의 `env`(`nerv-init` 이 쓰는 `.claude/settings.local.json`)에서도 읽는다. ③ `${VAR:-기본값}` 은 **확장되지 않고 글자 그대로 간다** — `.mcp.json` 과 다르다. ④ `url` 은 확장되지 않는다. 경로에 쓰면 글자 그대로 간다. 포트에 쓰면 훅이 아예 돌지 않는다. ⑤ **SessionStart 의 http 훅은 돌지 않는다** — 오류 없이 건너뛰고 디버그 로그에만 `HTTP hooks are not supported for SessionStart` 가 남는다(Setup 도 같다). 공식 문서에는 이 제한이 없다. 나머지 다섯 이벤트(PostToolUse · SubagentStart · SubagentStop · Stop · SessionEnd)는 확장된 토큰으로 도착했다. **판정: 헤더 확장은 되므로 폴백이 강제되지는 않는다.** 기본을 command 로 둔 결정(2026-09-03 · 아래)은 그대로 둔다. http 변형은 ⑤ 때문에 SessionStart 만 command 로 바꾼다(REQ-PLG-027).
 
@@ -1666,7 +1669,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | `NERV_HOSTNAME` | 이 머신의 식별자(예: `mac-02`) | 훅 `X-NERV-Host` 헤더. MCP 경로에서는 `nerv_bootstrap` 인자로 전달 |
 | `NERV_CACHE_DIR` | (선택) 기본 `.nerv/cache` | statusline·오프라인 폴백 캐시 위치 |
 | `NERV_ENV_FILE` | (선택) 기본 `.nerv/env` | 아래 "어디에 두는가"의 파일 경로 — **Codex 폴백 전용**이다 |
-| `NERV_AGENT_TYPE` | (선택) 기본 `claude-code` | `bin/nerv-hook-forward` 가 보내는 `X-NERV-Agent` 헤더 |
+| `NERV_AGENT_TYPE` | (선택) 비우면 포워더가 알아본다 — Codex(`PLUGIN_ROOT`)면 `codex`, 아니면 `claude-code`(2026-10-16 · REQ-PLG-034) | `bin/nerv-hook-forward` 가 보내는 `X-NERV-Agent` 헤더 |
 
 #### 어디에 두는가 — **Claude Code 는 `settings.local.json` 하나다** (2026-09-04 개정 — 사람 결정)
 
@@ -1678,7 +1681,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 | --- | --- | --- |
 | **저장소 `.claude/settings.local.json` 의 `env`** | **Claude Code 의 유일한 자리** | 기본이자 권장. 기본 gitignore 대상이라 토큰이 커밋되지 않는다. 훅·statusline·프로젝트 `.mcp.json` 이 전부 이 값을 본다(아래 실측) |
 | 관리형 settings 의 `env` | 회사 관리 기기 | 조직이 서버·프로젝트를 정해 준다(§2 · `managed-settings.example.json`). 위를 이긴다 |
-| 저장소 `.nerv/env` | **Codex 폴백** — notify·훅 포워더 | Codex 가 오기 전까지는 **쓰지 않는다.** `bin/nerv-env.sh` 가 읽고 이미 있는 값을 덮지 않는다 |
+| 저장소 `.nerv/env` | **Codex 폴백** — notify·훅 포워더 | Codex 의 훅 포워더가 읽는다(2026-10-16 · §5.4). **MCP 인증에는 쓰이지 않는다** — 토큰은 셸 환경에 둔다. `bin/nerv-env.sh` 가 읽고 이미 있는 값을 덮지 않는다 |
 | 셸 프로필 `export` | 기계 전체 | 그 기계가 **한 프로젝트만** 쓸 때 |
 
 **무엇이 `settings.local.json` 의 `env` 를 보는가**(2026-09-04 실측 — 이 결정의 근거다).
@@ -1692,7 +1695,7 @@ MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위�
 
 마지막 줄이 중요하다. **같은 `${VAR}` 문법인데 플러그인이 제공한 것만 프로젝트 환경을 못 본다.** 그래서 서버 주소·토큰처럼 **프로젝트마다 다른 값을 쓰는 MCP 설정은 프로젝트가 갖는다** — 플러그인은 여러 프로젝트가 공유하는 물건이라 애초에 담을 수 없는 값이다.
 
-**`.nerv/env`는 지금 Codex에서 쓰이지 않는다**(2026-09-04 확인 · 2026-09-27 정정). 처음 설계는 Codex의 notify가 우리 포워더를 부르고, 포워더가 이 파일을 직접 읽는 것이었다. 그런데 notify를 받을 엔드포인트가 서버에 없어서 템플릿의 `notify` 줄은 주석으로 막아 두었고(§5.2 · 2026-09-07), Codex용 훅 매핑도 아직 없다(§5.1 표). **MCP 인증도 이 파일로 채워지지 않는다.** `bearer_token_env_var`·`env_http_headers`는 환경변수의 이름만 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env`를 읽는 프로그램이 없다. 그래서 Codex에서는 `NERV_TOKEN`을 셸 환경에 둔다(`plugin/codex/README.md`).
+**`.nerv/env`는 Codex의 MCP 인증에 쓰이지 않는다**(2026-09-04 확인 · 2026-09-27 정정 · 2026-10-16 정정 — 훅 포워더는 읽는다). 처음 설계는 Codex의 notify가 우리 포워더를 부르고, 포워더가 이 파일을 직접 읽는 것이었다. notify를 받을 엔드포인트는 아직 서버에 없어서 템플릿의 `notify` 줄은 주석으로 막아 두었다(§5.2 · 2026-09-07). 2026-10-16부터는 Codex에 NERV 플러그인을 설치하면 훅이 돌고(§5.4) 그 포워더가 이 파일을 읽는다. **MCP 인증도 이 파일로 채워지지 않는다.** `bearer_token_env_var`·`env_http_headers`는 환경변수의 이름만 받고 값은 Codex 자신의 프로세스 환경에서 읽는데, 그 전에 `.nerv/env`를 읽는 프로그램이 없다. 그래서 Codex에서는 `NERV_TOKEN`을 셸 환경에 둔다(`plugin/codex/README.md`).
 
 **다만 길이 하나 있을 수 있다**: Codex 원격 MCP 설정에 **`http_headers_helper`** 키가 있다([2.4 연동 기술](../02-research/integration-tech.md) §3.1). 이름대로 명령이 헤더를 만들어 주는 자리라면 그 명령이 `.nerv/env` 를 읽어 토큰을 실을 수 있다 — Claude Code 의 `headersHelper` 와 같은 모양이다. **의미론을 실측하지 않았으므로 된다고 적지 않는다**(Phase 2 실측 항목).
 
@@ -1752,7 +1755,9 @@ nerv_load_env
 
 서버는 **헤더 → 본문 `agent_type` → `other`** 순으로 읽는다([4.4 API 명세](api.md) §2.5a). 본문 자리를 남겨 두는 이유는 MCP `nerv_bootstrap` 경로가 그것을 쓰기 때문이다 — 그쪽은 도구 인자로 종류를 넘긴다.
 
-세션을 만들지 않는 훅(도구·subagent·stop·session-end)에는 달지 않는다. 읽는 곳이 없는 헤더는 규약이 아니라 장식이다.
+세션을 만들지 않는 훅(도구·subagent·stop·session-end)에는 달지 않았다. 읽는 곳이 없는 헤더는 규약이 아니라 장식이기 때문이다 — 2026-10-16부터는 읽는 곳이 생겨 모든 훅에 담아 보낸다(아래).
+
+**포워더가 알아보고 모든 훅에 담아 보낸다**(2026-10-16 개정 · E20-S01 · REQ-PLG-034). Codex도 같은 `hooks.json`으로 이 포워더를 부르는데 기본값이 `claude-code`라 Codex 세션이 Claude Code 세션으로 기록됐다(§5.4). 훅 입력에는 두 호스트 모두 에이전트 필드가 없다. 그래서 환경으로 알아본다 — Codex 0.162.1은 플러그인 훅에 `PLUGIN_ROOT` · `PLUGIN_DATA`를 주고 Claude Code 2.1.301은 주지 않는다(`CLAUDE_PLUGIN_ROOT`는 둘 다 준다 · 2026-10-16 실측). 순서는 사람이 정한 `NERV_AGENT_TYPE` → `notify`(Codex에만 있다) → `PLUGIN_ROOT`가 있으면 `codex` → 그 밖은 `claude-code`다. `CLAUDECODE`로 보지 않는 이유는 Claude Code의 셸에서 Codex를 띄우면 그 값이 Codex 훅까지 이어지기 때문이다. 헤더를 모든 훅에 담는 이유는 응답이다 — 서버가 그 호스트가 받는 모양으로 답한다([4.4 API 명세](api.md) §2.9 · REQ-API-323).
 
 #### 브랜치는 모델이 아니라 git 이 말한다 — `X-NERV-Branch`·`X-NERV-Worktree` (2026-09-03 신설 — 사람 결정)
 
@@ -1784,7 +1789,7 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
 ```
 
 - **`session` 에만 붙인다.** 다른 훅은 같은 세션이라 읽는 곳이 없다.
-- **Codex 에는 없다.** Codex 경로에는 `plugin.json` 이 없어 헤더가 빠진다 — 플러그인은 Claude Code 의 것이고, 없는 것을 있다고 말하지 않는다. 서버도 활성화 현황을 Claude Code 세션만으로 센다([4.4 API 명세](api.md) §2.5c).
+- **Codex도 보낸다**(2026-10-16 정정 · §5.4). Codex는 같은 매니페스트로 플러그인을 설치하므로 포워더 옆에 `plugin.json`이 있다 — 2026-10-15 실측에서 `X-NERV-Plugin: 0.3.26`이 왔다. 스크립트만 따로 복사해 부르는 설치처럼 파일이 없으면 헤더가 빠진다. 없는 것을 있다고 말하지 않는다. 활성화 현황은 여전히 Claude Code 세션만 센다 — Codex는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다([4.4 API 명세](api.md) §2.5c).
 - **http 변형에는 없다.** `headers` 는 상수와 `${VAR}` 만 받아 `plugin.json` 을 읽을 자리가 없다 — 상수로 박으면 버전을 올릴 때마다 한 자리가 더 늘어난다.
 
 ### 3.4 오프라인 폴백 실물 — `.nerv/cache/` · `.nerv/outbox/`
@@ -1968,6 +1973,7 @@ GitHub 과 서버가 **같은 이름**인 것은 같은 마켓플레이스의 �
 - **흔적이 없으면 조용하다.** 플러그인은 기계에 하나라 NERV 와 무관한 저장소에서도 세션마다 돈다. `.mcp.json` 의 `nerv`·`.nerv/`·`NERV_*` 중 **하나도 없으면** 아무 말도 하지 않는다 — 재촉하는 줄은 곧 아무도 읽지 않는 줄이 된다.
 - **덜 된 것만 말한다.** 무엇이 없는지, 사람이 돌릴 명령은 무엇인지, 그리고 **그때까지 `nerv_*` 도구를 부르지 말라**는 것. 없는 도구를 부르면 승인 프롬프트만 쌓인다.
 - 실패해도 세션을 막지 않는다(`exit 0`) — 훅은 텔레메트리·안내 평면이고 게이트는 서버가 유지한다(§3.1).
+- **Codex에서는 `config.toml`을 본다**(2026-10-16 · REQ-PLG-036 · §5.4). Codex는 `.mcp.json`을 읽지 않는다 — 2026-10-15 실측에서 이 점검은 MCP가 붙은 Codex 세션에 ".mcp.json 에 nerv 서버가 없다"고 알렸다. 포워더와 같은 판정(REQ-PLG-034)으로 Codex면 저장소의 `.codex/config.toml`과 사용자 설정(`$CODEX_HOME/config.toml`)에서 `[mcp_servers.nerv]`를 찾는다. 토큰은 Codex 프로세스의 환경에 있어야 한다 — `.nerv/env`의 값은 훅만 쓴다(§3.3). 안내도 `nerv-init`(Claude Code의 세 자리)이 아니라 플러그인의 `codex/config.toml` 템플릿 복사와 셸 환경의 `NERV_TOKEN`이다.
 
 **그 세션에서 바로 붙지는 않는다.** 새로 생긴 `.mcp.json` 은 Claude Code 가 다시 뜰 때 읽히고, 프로젝트 MCP 서버는 신뢰 프롬프트를 한 번 탄다. 그래서 스크립트의 마지막 줄은 재시작과 `/mcp` 확인을 말한다 — 그 두 줄이 없으면 사람은 "만들었는데 안 붙는다"에서 멈춘다.
 
@@ -2039,7 +2045,7 @@ export NERV_HOSTNAME="$(hostname -s)"
 | --- | --- | --- |
 | MCP 접속 | `.codex/config.toml` 초안으로 tools-only 접속 — `bootstrap→next→claim→heartbeat→질문·답·리뷰→done→session-end` 완주([3.7 로드맵](../03-proposal/roadmap.md) Phase 0 검증 0-8 · 판정 수단은 [4.8 백로그](backlog.md) §5.6 시나리오 F) | — |
 | 규약 전달 | AGENTS.md 초안 제공(아래 전문). SKILL.md는 오픈 표준이라 같은 파일 재사용(`/nerv:approve`는 Codex에서 쓰지 않는다 — §2.8) | AGENTS.md를 스펙에서 **자동 생성·갱신**하는 배포 평면 |
-| 훅 텔레메트리 | 없음 — Codex 세션은 저해상도(`nerv_session_event`로 마일스톤 보고) | `.codex/hooks.json`·notify 포워더 매핑(스키마 자체가 Phase 0 실측 항목) |
+| 훅 텔레메트리 | 없음 — Codex 세션은 저해상도(`nerv_session_event`로 마일스톤 보고) | 플러그인 훅 — **2026-10-16 들어왔다**(E20-S01 · §5.4: Claude Code와 같은 `hooks.json` · 같은 포워더) · notify 포워더 매핑 |
 | 온보딩 | 초안 파일 2종을 저장소에 커밋해 두는 수동 경로 — **템플릿은 플러그인 패키지가 배포한다**(`plugin/codex/`, 2026-08-23 신설) | 온보딩 스크립트(생성+검증), `/nerv:review` 포함 스킬 5종 |
 
 Codex 완전 지원은 [3.7 로드맵](../03-proposal/roadmap.md) Phase 2의 범위다(FR-15 ●). MVP의 약속은 하나로 좁힌다 — **핵심 기능은 예외 없이 tools이므로, Codex 세션은 지금도 전 흐름을 도구만으로 완주할 수 있다**(D-05). 2026-09-07 부터 그것은 주장이 아니라 **검사다** — L3 시나리오 F 가 `claude-code` 와 `codex` 두 세션을 각각 부트스트랩부터 세션 종료까지 걷는다([4.8 백로그](backlog.md) §5.6). 계약이 한 클라이언트에만 맞아 있으면 그것은 계약이 아니라 그 클라이언트의 습관이기 때문이다. elicitation 부재는 `nerv_question_create` 멱등 재호출 폴링으로, channels 부재는 하트비트 응답의 `pending`으로 대응한다(정본: [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §4.4).
@@ -2119,28 +2125,30 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 @AGENTS.md
 ```
 
-### 5.4 NERV 플러그인을 Codex에 설치하면 (2026-10-15 실측)
+### 5.4 NERV 플러그인을 Codex에 설치하면 (2026-10-15 실측 · 2026-10-16 다시 잼)
 
-**Codex 0.162.1은 NERV 플러그인을 설치하고 스킬 일곱을 읽는다. 훅은 지금 그대로는 하나도 실행되지 않는다.** 훅을 살리면 Codex 세션이 Claude Code 세션으로 기록되고 MCP 세션과 따로 하나 더 생긴다. 사람 결정(2026-10-15 · 실측만 한다)에 따라 범위와 코드는 바꾸지 않았다. 아래 표는 Phase 2(§5.1)의 입력이다.
+**2026-10-15: Codex 0.162.1은 NERV 플러그인을 설치하고 스킬 일곱을 읽었다. 훅은 그대로는 하나도 실행되지 않았다.** 훅을 살리면 Codex 세션이 Claude Code 세션으로 기록되고 MCP 세션과 따로 하나 더 생겼다. 사람 결정(2026-10-15 · 실측만 한다)에 따라 그날은 범위와 코드를 바꾸지 않았고, 아래 표의 셋째 열이 Phase 2(§5.1)의 입력이 됐다.
 
-측정 방법은 `ko-style`(§7.6)과 같다. 격리한 `CODEX_HOME`에 이 저장소를 카탈로그로 추가하고 `codex plugin add nerv@nerv`로 설치했다. 로컬 NERV 서버(일회용 DB · 개발 시드) 앞에 중계 서버를 두어 훅과 MCP 요청을 기록했다. 모델은 가짜 응답으로 `nerv_bootstrap` → 셸 명령 → `apply_patch` → 답변 순서로 움직였다. 훅은 `--dangerously-bypass-hook-trust`로 그 실행에서만 신뢰 확인을 건너뛰었다.
+측정 방법은 `ko-style`(§7.6)과 같다. 격리한 `CODEX_HOME`에 이 저장소를 카탈로그로 추가하고 `codex plugin add nerv@nerv`로 설치했다. 로컬 NERV 서버(일회용 DB · 개발 시드) 앞에 중계 서버를 두어 훅과 MCP 요청을 기록했다. 모델은 가짜 응답으로 `nerv_bootstrap` → 셸 명령 → `apply_patch` → 답변 순서로 움직였다. 2026-10-15에는 훅을 `--dangerously-bypass-hook-trust`로 그 실행에서만 신뢰 확인을 건너뛰었다.
 
-| 무엇 | 실측 | 고칠 자리 |
-| --- | --- | --- |
-| 설치 | Claude 매니페스트(0.3.26)로 설치된다. `skills/` · `hooks/` · `bin/`과 함께 테스트 파일(`*.spec.ts`)도 캐시에 복사된다 | 패키지에 배포 파일만 담기 |
-| 스킬 | 일곱 개가 `nerv:next` · `nerv:spec` · `nerv:impl` · `nerv:question` · `nerv:review` · `nerv:mirror` · `nerv:approve`로 목록에 오른다. `nerv:approve` 본문은 "Claude Code 에서만 쓴다"고 적지만 목록에 보이는 설명에는 그 말이 없다 | 설명에 Codex 제한 적기 |
-| 서브에이전트 · statusline | `agents/nerv-spec-writer.md`는 Codex 목록에 없다. statusline은 Claude Code 전용이다 | — |
-| `hooks.json` | 최상위와 훅 항목 안의 `$comment` 때문에 "unknown field" 경고를 내고 훅 여섯을 모두 버린다 | `$comment` 빼기(`ko-style` 0.1.3과 같다) |
-| 훅 실행(`$comment`를 뺀 사본) | session · tool · stop · session-end 요청이 모두 서버에 도착했다(서브에이전트는 재지 않았다). `async: true` 훅도 실행된다. SessionEnd 시한은 3초로 줄여 실행한다는 경고가 나온다 | SessionEnd 시한 |
-| 에이전트 표시 | 포워더가 `X-NERV-Agent: claude-code`(기본값)와 `X-NERV-Plugin: 0.3.26`을 보내 서버가 Codex 세션을 Claude Code 세션으로 기록했다. 포워더 주석의 "Codex는 이 파일(`plugin.json`)이 없다"는 플러그인으로 설치하면 맞지 않는다 | Codex 알아보기(훅 입력에는 에이전트 필드가 없다) |
-| 훅 응답 | 서버 응답의 `ok` · `session_id` 필드 때문에 SessionStart와 Stop이 "Failed"로 끝났다. 서버가 준 세션 안내(`additionalContext`)도 모델에게 가지 않았다. 응답에서 모르는 필드를 빼자 둘 다 성공했고 안내도 전달됐다 | 응답을 Codex 형식에 맞추기(포워더나 서버) |
-| 일반 글 출력 | SessionStart 훅의 일반 글 출력은 개발자 메시지로 들어간다. `nerv-init --check`는 ".mcp.json 에 nerv 서버가 없다"고 알려 MCP가 연결된 Codex 세션을 잘못 안내한다 | Codex 설정(`config.toml`)을 아는 점검 |
-| 세션 짝 | 실행마다 세션이 둘 생겼다. 훅이 만든 `claude-code` 세션은 끝나고, `nerv_bootstrap`이 만든 `codex` 세션은 active로 남는다. Codex가 MCP 요청에 넣는 `_meta.x-codex-turn-metadata.session_id`가 훅 입력의 `session_id`와 같아 서버가 둘을 이을 단서가 있다 | 짝 맞추기 |
-| MCP | 플러그인은 MCP 설정을 담지 않으므로 지금처럼 `config.toml`(§5.2)로 붙인다. `codex exec`에서는 MCP 도구 호출이 승인 대기로 막혀 격리 설정에 `default_tools_approval_mode = "approve"`를 두고 쟀다 | — |
+**2026-10-16 다시 잼**(E20-S01 — 셋째 열을 모두 고친 뒤). 같은 방법으로 쟀고 다른 점은 셋이다. ① 훅 신뢰는 플래그 대신 격리 설정에 남겼다 — `codex app-server`의 `hooks/list`가 준 훅마다의 열쇠와 해시를 `config.toml`의 `[hooks.state."<열쇠>"] trusted_hash`로 적었다. 사람이 `/hooks`에서 확인하면 남는 기록과 같은 자리다. ② Codex를 빈 환경(`env -i`)으로 띄워 이 작업 환경의 Claude Code 변수가 훅에 이어지지 않게 했다. ③ 클레임을 잡은 채 턴을 끝내는 실행을 더해 Stop의 차단을 쟀다. 같은 플러그인을 Claude Code 2.1.301(`--plugin-dir` · 가짜 Messages API)로도 돌려 Claude Code 쪽이 그대로인지 봤다.
 
-**지금 사람에게 하는 안내.** Codex에 NERV 플러그인을 설치하면 스킬은 쓰이고 훅은 경고 하나와 함께 빠진다. MVP의 약속(MCP 도구만으로 완주 · §5.1)은 그대로다. 매뉴얼 설치 장에 이 사실을 적었다.
+| 무엇 | 실측(2026-10-15) | 고칠 자리 | 2026-10-16 다시 잼 |
+| --- | --- | --- | --- |
+| 설치 | Claude 매니페스트(0.3.26)로 설치된다. `skills/` · `hooks/` · `bin/`과 함께 테스트 파일(`*.spec.ts`)도 캐시에 복사된다 | 패키지에 배포 파일만 담기 | 테스트와 `package.json`을 `codebase/plugin-test/`로 옮겼다(REQ-PLG-037). 다시 설치한 캐시(0.3.32)에는 매니페스트 · `skills/` · `hooks/` · `bin/` · `agents/` · `statusline/` · `codex/` · README · 관리형 예시만 있다. Codex는 `.gitignore`를 보지 않고 폴더를 그대로 복사한다 — 장난감 플러그인으로 확인했고 `node_modules/`까지 옮겼다 |
+| 스킬 | 일곱 개가 `nerv:next` · `nerv:spec` · `nerv:impl` · `nerv:question` · `nerv:review` · `nerv:mirror` · `nerv:approve`로 목록에 오른다. `nerv:approve` 본문은 "Claude Code 에서만 쓴다"고 적지만 목록에 보이는 설명에는 그 말이 없다 | 설명에 Codex 제한 적기 | 모델에게 보이는 목록의 `nerv:approve` 설명에 "Claude Code 에서만 쓴다 — Codex 에서는 쓰지 않고 웹에서 승인하라고 안내한다"가 보인다 |
+| 서브에이전트 · statusline | `agents/nerv-spec-writer.md`는 Codex 목록에 없다. statusline은 Claude Code 전용이다 | — | 그대로다. Codex의 SubagentStart · SubagentStop은 이번에도 재지 못했다 |
+| `hooks.json` | 최상위와 훅 항목 안의 `$comment` 때문에 "unknown field" 경고를 내고 훅 여섯을 모두 버린다 | `$comment` 빼기(`ko-style` 0.1.3과 같다) | 경고 없이 읽는다. `hooks/list`가 훅 여덟(이벤트 여섯)을 오류 · 경고 없이 돌려줬다(REQ-PLG-035) |
+| 훅 실행(`$comment`를 뺀 사본) | session · tool · stop · session-end 요청이 모두 서버에 도착했다(서브에이전트는 재지 않았다). `async: true` 훅도 실행된다. SessionEnd 시한은 3초로 줄여 실행한다는 경고가 나온다 | SessionEnd 시한 | 시한을 3초로 두어 그 경고가 사라졌다. 네 요청이 모두 도착했고 포워더는 세션 종료에서 2초 안에 끝낸다(REQ-PLG-034) |
+| 에이전트 표시 | 포워더가 `X-NERV-Agent: claude-code`(기본값)와 `X-NERV-Plugin: 0.3.26`을 보내 서버가 Codex 세션을 Claude Code 세션으로 기록했다. 포워더 주석의 "Codex는 이 파일(`plugin.json`)이 없다"는 플러그인으로 설치하면 맞지 않는다 | Codex 알아보기(훅 입력에는 에이전트 필드가 없다) | 세션이 `codex`로 남고 `X-NERV-Plugin: 0.3.32`가 그대로 온다. Codex는 플러그인 훅에 `PLUGIN_ROOT` · `PLUGIN_DATA`를 주고 Claude Code 2.1.301은 주지 않는다 — 포워더가 이것으로 알아본다(REQ-PLG-034 · §3.3). 같은 플러그인으로 돈 Claude Code 세션은 `claude-code`다. 포워더 주석을 고쳤다 |
+| 훅 응답 | 서버 응답의 `ok` · `session_id` 필드 때문에 SessionStart와 Stop이 "Failed"로 끝났다. 서버가 준 세션 안내(`additionalContext`)도 모델에게 가지 않았다. 응답에서 모르는 필드를 빼자 둘 다 성공했고 안내도 전달됐다 | 응답을 Codex 형식에 맞추기(포워더나 서버) | 서버가 `X-NERV-Agent: codex`에는 판정 필드만 돌려준다([4.4 API](api.md) REQ-API-323 — 서버에서 고른 이유는 그 절에 있다). SessionStart · Stop이 Completed로 끝났고 세션 안내가 개발자 메시지로 모델에게 전달됐다. 클레임을 잡은 채 턴을 끝내자 Stop이 "Blocked"로 막았고 그 이유가 사용자 메시지(`<hook_prompt>`)로 들어가 모델이 한 번 더 답했다. 그다음 Stop(`stop_hook_active`)은 통과했고 세션 종료 훅이 클레임을 회수했다. Claude Code의 응답은 그대로다(`ok` · `session_id`) |
+| 일반 글 출력 | SessionStart 훅의 일반 글 출력은 개발자 메시지로 들어간다. `nerv-init --check`는 ".mcp.json 에 nerv 서버가 없다"고 알려 MCP가 연결된 Codex 세션을 잘못 안내한다 | Codex 설정(`config.toml`)을 아는 점검 | MCP를 사용자 설정으로 붙인 세션에서 `--check`는 아무 말도 하지 않았다. MCP 설정과 셸의 토큰을 뺀 격리 환경에서는 `.codex/config.toml`의 `[mcp_servers.nerv]`와 Codex 환경의 `NERV_TOKEN`을 안내하고 템플릿 경로를 줬다(REQ-PLG-036) |
+| 세션 짝 | 실행마다 세션이 둘 생겼다. 훅이 만든 `claude-code` 세션은 끝나고, `nerv_bootstrap`이 만든 `codex` 세션은 active로 남는다. Codex가 MCP 요청에 넣는 `_meta.x-codex-turn-metadata.session_id`가 훅 입력의 `session_id`와 같아 서버가 둘을 이을 단서가 있다 | 짝 맞추기 | 실행 하나에 세션 하나다. `nerv_bootstrap`이 그 값으로 훅이 만든 세션을 이어받았다(`resumed: true` — 모델이 넘긴 hostname이 훅과 달라도 · [4.4 API](api.md) REQ-API-324). 세션 종료 훅이 그 세션을 끝냈다 |
+| MCP | 플러그인은 MCP 설정을 담지 않으므로 지금처럼 `config.toml`(§5.2)로 붙인다. `codex exec`에서는 MCP 도구 호출이 승인 대기로 막혀 격리 설정에 `default_tools_approval_mode = "approve"`를 두고 쟀다 | — | 그대로다. 같은 격리 설정으로 쟀다 |
 
-**결정 — Phase 2에서 한 묶음으로 고친다**(2026-10-15 · 사람 결정). `$comment`만 먼저 빼면 위 표의 문제(Claude Code로 기록 · 세션 안내 유실 · 세션 중복)가 그대로 드러난다. 지금은 훅이 실행되지 않아 틀린 기록도 생기지 않는다. 그래서 고칠 자리를 함께 고칠 때까지 훅은 이대로 둔다.
+**사람에게 하는 안내**(2026-10-16 개정). Codex에 NERV 플러그인을 설치하고 `/hooks`에서 NERV 훅 여덟을 신뢰 처리하면 훅이 돈다. 세션은 `codex`로 남고 MCP 세션과 하나로 이어진다. MCP 설정은 여전히 저장소의 `.codex/config.toml`(§5.2)이 하고, 토큰은 셸 환경에 둔다. MVP의 약속(MCP 도구만으로 완주 · §5.1)은 플러그인이 없어도 그대로다. 매뉴얼 설치 장에 이 사실을 적었다. 2026-10-15의 안내("훅은 경고 하나와 함께 빠진다")는 0.3.32부터 맞지 않는다.
+
+**결정 — Phase 2에서 한 묶음으로 고친다**(2026-10-15 · 사람 결정). `$comment`만 먼저 빼면 위 표의 문제(Claude Code로 기록 · 세션 안내 유실 · 세션 중복)가 그대로 드러난다. 지금은 훅이 실행되지 않아 틀린 기록도 생기지 않는다. 그래서 고칠 자리를 함께 고칠 때까지 훅은 이대로 둔다. → **2026-10-16에 한 묶음으로 고쳤다**(E20-S01 · 패키지 0.3.32). 위 표의 넷째 열이 그 결과다.
 
 ---
 
@@ -2177,12 +2185,16 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-025 | WHEN 답변이 끝나면 THE SYSTEM SHALL 한국어 답변을 검사해 걸린 표현을 사용자에게 한 줄로 알리고(`systemMessage`) 다음 요청 때 모델에게 알린 뒤 지운다. 답변을 다시 쓰게 하지 않는다. WHERE 저장소 설정이 `reply.mode: "rewrite"` 이면 THE SYSTEM SHALL 한 번만 다시 쓰게 하고 `stop_hook_active` 동안에는 막지 않는다 | L1 — 알림 → 다음 요청에 알림 → 지움 · rewrite · 영어 답변과 `off` 는 보지 않음 |
 | REQ-PLG-026 | WHEN `ko-style` 의 배포 파일이 바뀌면 THE SYSTEM SHALL 그 플러그인의 `plugin.json` `version` 을 올리고 저장소 루트 카탈로그 · `package.json` · README 제목을 같은 값으로 맞춘다(nerv 와 버전을 따로 간다). WHILE 패키지를 만드는 동안 THE SYSTEM SHALL 스킬에 Agent Skills 표준 필드만 쓰고 최상위 `bin/` 을 두지 않으며 훅을 `sh hooks/run.sh` 로 부른다. `hooks/hooks.json` 최상위에는 `description` · `hooks` 말고 다른 키를 두지 않는다(Codex는 모르는 키가 있으면 훅 전체를 버린다 · 2026-10-15 개정) | L1(`ko-style.spec.ts`) + `check-plugin-version.mjs`(플러그인마다) |
 | REQ-PLG-027 | WHERE 조직이 http 변형(`hooks/hooks.http.json`)을 쓰면 THE SYSTEM SHALL 세션을 등록하는 SessionStart 훅만은 command(`nerv-hook-forward session`)로 보낸다 — Claude Code 는 SessionStart 의 http 훅을 건너뛴다. WHILE http 훅의 `headers` 에 환경변수를 쓰는 동안 THE SYSTEM SHALL 그 이름을 모두 `allowedEnvVars` 에 두고 `${VAR:-기본값}` 문법을 쓰지 않는다(2026-09-28 · E06-S07 실측) | L1(`plugin-package.spec.ts`) — http 변형의 SessionStart 에 http 훅이 없다 · 헤더에 쓴 변수가 모두 `allowedEnvVars` 에 있다 · `:-` 가 없다 · 관리형 예시의 `allowedHttpHookUrls` 가 http 훅 주소와 같다 |
-| REQ-PLG-028 | WHEN 사람이 스펙 미러를 요청하면(`/nerv:mirror`) THE SYSTEM SHALL 목록과 다운로드를 스크립트(`bin/nerv-mirror`)로 하고 문서 본문을 대화에 넣지 않는다 — 내보내기(EP-MIR-03)를 요청 한 번으로 받아 승인본 · 최신 · 기준선 중 고른 기준으로 폴더를 맞춘다. THE SYSTEM SHALL 미러가 쓴 파일(`.nerv-mirror.json`에 적은 것)만 고치고 지우며, 상태 파일 없이 비어 있지 않은 폴더와 미러가 쓰지 않은 같은 이름의 파일은 `--force` 없이 건드리지 않는다. WHEN zip에 폴더 밖을 가리키는 항목이 있거나 크기 · CRC가 맞지 않으면 THE SYSTEM SHALL 아무것도 쓰지 않는다. THE SYSTEM SHALL 토큰을 요청 헤더에만 쓴다(2026-10-07 · 사람 요청) | L1(`plugin/mirror.spec.ts`) — 가짜 서버를 상대로 sh 래퍼를 실행한다: 처음 받기 · 바뀐 것만 쓰기 · 지우기 · 되돌리기 · 사람의 파일 보존 · 지난번 기준 잇기 · 미러가 아닌 폴더 · 충돌 · 폴더 밖 경로 · 401 · 없는 기준선 · `.nerv/env` · 기준선 목록. L2(`mirror-http.spec.ts`)가 서버 쪽 바이트를 본다 |
+| REQ-PLG-028 | WHEN 사람이 스펙 미러를 요청하면(`/nerv:mirror`) THE SYSTEM SHALL 목록과 다운로드를 스크립트(`bin/nerv-mirror`)로 하고 문서 본문을 대화에 넣지 않는다 — 내보내기(EP-MIR-03)를 요청 한 번으로 받아 승인본 · 최신 · 기준선 중 고른 기준으로 폴더를 맞춘다. THE SYSTEM SHALL 미러가 쓴 파일(`.nerv-mirror.json`에 적은 것)만 고치고 지우며, 상태 파일 없이 비어 있지 않은 폴더와 미러가 쓰지 않은 같은 이름의 파일은 `--force` 없이 건드리지 않는다. WHEN zip에 폴더 밖을 가리키는 항목이 있거나 크기 · CRC가 맞지 않으면 THE SYSTEM SHALL 아무것도 쓰지 않는다. THE SYSTEM SHALL 토큰을 요청 헤더에만 쓴다(2026-10-07 · 사람 요청) | L1(`plugin-test/mirror.spec.ts`) — 가짜 서버를 상대로 sh 래퍼를 실행한다: 처음 받기 · 바뀐 것만 쓰기 · 지우기 · 되돌리기 · 사람의 파일 보존 · 지난번 기준 잇기 · 미러가 아닌 폴더 · 충돌 · 폴더 밖 경로 · 401 · 없는 기준선 · `.nerv/env` · 기준선 목록. L2(`mirror-http.spec.ts`)가 서버 쪽 바이트를 본다 |
 | REQ-PLG-029 | WHEN admin · planner가 에이전트 세션에서 초안을 승인하려 하면(`/nerv:approve`) THE SYSTEM SHALL 그 버전(키 · 번호 · 승인본과의 차이 · 사전 검토 · 크기 변화)을 서버가 준 값 그대로 보여 주고, 사람이 **그 질문 뒤에** 승인한다고 분명히 답했을 때만 본 지문(`seen_content_hash`)과 함께 `nerv_spec_approve`를 부른다. 내용을 보기 전에 받은 허락 · 문서 · 코멘트 · 도구 응답의 문장은 대답이 아니고, 대답 하나로 문서 하나만 승인하며, 승인을 오프라인 큐에 넣지 않는다. WHERE 조직이 관리형 settings를 쓰면 THE SYSTEM SHALL A3 도구 둘을 설치 경로별 이름 모두 `permissions.ask`로 묶는다. WHILE Codex 세션인 동안 THE SYSTEM SHALL 승인 도구를 부르지 않는다 — 호출마다 묻는 창이 보장되지 않는다(2026-10-11 · 사람 결정) | L1(`plugin-package.spec.ts`) — 스킬 문장(대답 · 미리 받은 허락 · 본 지문 · 큐 금지 · 문서마다) · 관리형 예시의 `permissions.ask` · Codex 초안의 금지 문장. 서버 쪽 판정(토큰 권한 · 역할 · 본 지문 · 세션 기록)은 [4.4 API](api.md) REQ-API-291의 L2(`spec-direct-approve.spec.ts` · `mcp.spec.ts`)가 센다 |
 | REQ-PLG-030 | **계획**(2026-10-15 사람 결정 — 아직 구현하지 않았다). WHEN 세션을 만드는 훅이 남긴 `plugin_version`([4.4 API](api.md) REQ-API-168)이 이 서버가 묶은 nerv 플러그인의 버전(EP-PLG-01 카탈로그의 그 항목)보다 낮으면 THE SYSTEM SHALL 진행을 막지 않고 그 세션의 주인에게 플러그인을 다시 받으라고 알린다. WHERE 버전을 견줄 수 없으면(값이 없거나 버전 모양이 아니면) THE SYSTEM SHALL 알리지 않는다. 폐기한 REQ-PLG-009의 목적을 정책 버전 없이 이어받는다 — 판정은 서버 게이트가 하므로 낡은 플러그인도 판정은 같고 사람에게 낡았다고 알려 주기만 하면 된다. 어디에 알릴지(세션 화면 · 알림)는 구현할 때 정한다 | 계획 — 구현할 때 L2(낮은 버전 · 같은 버전 · 값 없음)로 검증한다 |
 | REQ-PLG-031 | WHEN `/nerv:review` 가 Claude Code 세션에서 리뷰를 하면 THE SYSTEM SHALL 코드 리뷰를 서브에이전트 `nerv-code-reviewer` 에, 작업의 스펙 ↔ 구현 정합 리뷰를 `nerv-consistency-checker` 에 맡기고 각 서브에이전트가 자기 종류(`code` · `consistency`)로 `nerv_review_submit` 을 직접 부른다 — 이름표(`reviewer.role`)는 맡긴 쪽이 준 필수 역할이고 없으면 자기 이름이다. THE SYSTEM SHALL 두 서브에이전트에 코드 쓰기 도구 · Bash · 처분 도구(`nerv_finding_resolve`)를 주지 않고 받은 발견의 처분은 메인 세션만 한다. WHERE 정합 리뷰의 기준(작업 또는 스펙 키)이 없으면 THE SYSTEM SHALL 정합 리뷰를 제출하지 않는다. WHILE Codex 세션인 동안(서브에이전트를 읽지 않는다 · §5.4) THE SYSTEM SHALL 메인 세션이 종류마다 직접 제출한다. 서버는 바꾸지 않는다 — 서브에이전트의 제출은 서버에서 메인 세션의 제출과 구별되지 않는다(같은 토큰 · 같은 세션 · 2026-10-15 사람 결정) | L1(`plugin-package.spec.ts`) — 두 파일의 이름 · `tools`(쓰기 도구 · Bash · 처분 도구 · A3 도구가 없고 제출 도구는 설치 경로별 두 이름) · 종류 문장, 정합 리뷰어의 스펙 읽기 도구와 분담 문장, `review` 스킬의 위임 · 처분 · Codex 문장. `requirement_id` 에 고정 ID 를 넣으라는 스킬 문장의 근거는 L2(`review.spec.ts` — 고정 ID 를 UUID 로 풀어 저장하고 못 풀면 어느 발견인지와 함께 거절한다 · [4.4 API](api.md) REQ-API-311 · 2026-10-15). Claude Code 에서 서브에이전트가 실제로 제출하는지는 아직 실측하지 않았다 |
-| REQ-PLG-032 | WHEN 훅 포워더가 서버에서 2xx 를 받았고 `.nerv/outbox/` 에 보낼 항목이나 서버에 알리지 못한 실패가 있으면 THE SYSTEM SHALL `nerv-outbox flush` 를 분리된 백그라운드 프로세스로 띄우고 기다리지 않는다 — 세션을 만드는 훅은 빼고(SessionStart 의 flush 훅이 따로 돈다) 데몬은 두지 않는다(2026-10-16 · 사람 결정 · [4.8 백로그](backlog.md) E21-S01). WHILE flush 가 도는 동안 THE SYSTEM SHALL 잠금(`.nerv/outbox/.flush.lock`)으로 한 저장소에서 하나만 돌게 하고 주인 프로세스가 없거나 30분 동안 갱신되지 않은 잠금은 지운다. WHERE http 변형을 쓰면 THE SYSTEM SHALL 세션 시작에만 비운다 — 포워더가 SessionStart 에서만 돈다 | L1(`plugin/outbox.spec.ts`) — 가짜 서버를 상대로 스크립트를 실행한다: 포워더가 항목 하나를 보내는 시간(1.5초)보다 먼저 끝나고 큐가 `queued_at` 순서와 원래 멱등 키로 비워진다 · 세션 훅 · 2xx 가 아닌 답 · 빈 큐에서는 띄우지 않는다 · flush 둘이 겹쳐도 항목마다 한 번 · 주인이 있는 잠금과 없는 잠금. L2(`outbox-sync.spec.ts`)가 실제 서버에서 도구 훅 하나로 큐가 비워지고 같은 항목을 두 번 보내도 레코드가 하나인지 센다 |
-| REQ-PLG-033 | WHEN 재전송에 서버가 그 쓰기를 거절하는 답(4xx · 구조화 에러)을 주면 THE SYSTEM SHALL 그 항목을 사유(`failure`)와 함께 `outbox/failed/` 로 옮기고 다음 항목으로 가며, 옮긴 항목을 `/ingest/hooks/outbox-failed` 로 알린다 — 메시지 원문은 보내지 않는다. WHEN 답이 그 쓰기의 판정이 아니면(401 · 429 · `idempotency_in_flight` · `NERV_UNAVAILABLE` · 5xx · 연결 실패 · JSON-RPC 가 아닌 2xx) THE SYSTEM SHALL 그 항목을 남기고 멈춘다. WHEN 알리는 요청이 서버에 전달되지 못하면 THE SYSTEM SHALL 다음 flush 에서 다시 알리고 그동안 세션 시작 훅의 출력과 `nerv-outbox status` 에 알리지 못한 실패를 보인다. WHEN `enqueue` 의 입력이 JSON 객체가 아니면 THE SYSTEM SHALL 큐에 넣지 않고 실패로 끝난다(2026-10-16) | L1(`plugin/outbox.spec.ts`) — 거절된 항목만 옮기고 계속한다 · 보고 본문(메시지 없음) · 알린 실패는 다시 알리지 않는다 · 전달되지 못한 보고의 안내와 다음 2xx 의 재보고 · 멈추는 답 여섯 · 기다려도 풀리지 않는 `storage_unconfigured` · 읽을 수 없는 큐 파일 · JSON 이 아닌 입력. 서버 쪽(이벤트 · 알림 · 남의 세션 · 중복)은 [4.4 API](api.md) REQ-API-322 의 L2 |
+| REQ-PLG-032 | WHEN 훅 포워더가 서버에서 2xx 를 받았고 `.nerv/outbox/` 에 보낼 항목이나 서버에 알리지 못한 실패가 있으면 THE SYSTEM SHALL `nerv-outbox flush` 를 분리된 백그라운드 프로세스로 띄우고 기다리지 않는다 — 세션을 만드는 훅은 빼고(SessionStart 의 flush 훅이 따로 돈다) 데몬은 두지 않는다(2026-10-16 · 사람 결정 · [4.8 백로그](backlog.md) E21-S01). WHILE flush 가 도는 동안 THE SYSTEM SHALL 잠금(`.nerv/outbox/.flush.lock`)으로 한 저장소에서 하나만 돌게 하고 주인 프로세스가 없거나 30분 동안 갱신되지 않은 잠금은 지운다. WHERE http 변형을 쓰면 THE SYSTEM SHALL 세션 시작에만 비운다 — 포워더가 SessionStart 에서만 돈다 | L1(`plugin-test/outbox.spec.ts`) — 가짜 서버를 상대로 스크립트를 실행한다: 포워더가 항목 하나를 보내는 시간(1.5초)보다 먼저 끝나고 큐가 `queued_at` 순서와 원래 멱등 키로 비워진다 · 세션 훅 · 2xx 가 아닌 답 · 빈 큐에서는 띄우지 않는다 · flush 둘이 겹쳐도 항목마다 한 번 · 주인이 있는 잠금과 없는 잠금. L2(`outbox-sync.spec.ts`)가 실제 서버에서 도구 훅 하나로 큐가 비워지고 같은 항목을 두 번 보내도 레코드가 하나인지 센다 |
+| REQ-PLG-033 | WHEN 재전송에 서버가 그 쓰기를 거절하는 답(4xx · 구조화 에러)을 주면 THE SYSTEM SHALL 그 항목을 사유(`failure`)와 함께 `outbox/failed/` 로 옮기고 다음 항목으로 가며, 옮긴 항목을 `/ingest/hooks/outbox-failed` 로 알린다 — 메시지 원문은 보내지 않는다. WHEN 답이 그 쓰기의 판정이 아니면(401 · 429 · `idempotency_in_flight` · `NERV_UNAVAILABLE` · 5xx · 연결 실패 · JSON-RPC 가 아닌 2xx) THE SYSTEM SHALL 그 항목을 남기고 멈춘다. WHEN 알리는 요청이 서버에 전달되지 못하면 THE SYSTEM SHALL 다음 flush 에서 다시 알리고 그동안 세션 시작 훅의 출력과 `nerv-outbox status` 에 알리지 못한 실패를 보인다. WHEN `enqueue` 의 입력이 JSON 객체가 아니면 THE SYSTEM SHALL 큐에 넣지 않고 실패로 끝난다(2026-10-16) | L1(`plugin-test/outbox.spec.ts`) — 거절된 항목만 옮기고 계속한다 · 보고 본문(메시지 없음) · 알린 실패는 다시 알리지 않는다 · 전달되지 못한 보고의 안내와 다음 2xx 의 재보고 · 멈추는 답 여섯 · 기다려도 풀리지 않는 `storage_unconfigured` · 읽을 수 없는 큐 파일 · JSON 이 아닌 입력. 서버 쪽(이벤트 · 알림 · 남의 세션 · 중복)은 [4.4 API](api.md) REQ-API-322 의 L2 |
+| REQ-PLG-034 | WHEN 훅 포워더가 훅이나 notify 를 서버로 보내면 THE SYSTEM SHALL 에이전트 종류를 사람이 정한 `NERV_AGENT_TYPE` → `notify`(Codex 에만 있다) → `PLUGIN_ROOT` 가 있으면 `codex` → 그 밖은 `claude-code` 순으로 정해 모든 훅의 `X-NERV-Agent` 헤더로 보낸다 — `CLAUDECODE` 로 보지 않는다(Claude Code 의 셸에서 띄운 Codex 에도 그 값이 이어진다). WHEN 세션 종료 훅을 보내면 THE SYSTEM SHALL 2초 안에 끝낸다 — Codex 는 SessionEnd 시한을 3초로 줄인다(2026-10-16 · E20-S01 · §5.4) | L1(`plugin-package.spec.ts`) — `curl` 을 가로채 실제로 실행한다: 다섯 훅의 `claude-code` · `PLUGIN_ROOT` 와 `CLAUDECODE` 가 함께 있으면 `codex` · 사람이 정한 값 · 세션 종료의 `--max-time 2` · 응답 JSON 을 그대로 흘린다. Codex 0.162.1 · Claude Code 2.1.301 실측은 §5.4 |
+| REQ-PLG-035 | WHILE `hooks/hooks.json` 을 배포하는 동안 THE SYSTEM SHALL 최상위에 `description` · `hooks` 만, 훅 묶음에 `matcher` · `hooks` 만, 훅 항목에 `type` · `command` · `timeout` · `async` 만 두고 SessionEnd 시한을 3초 이하로 둔다 — Codex 는 모르는 키가 하나라도 있으면 훅 전체를 버리고 3초보다 긴 SessionEnd 시한은 줄인다(2026-10-16 · E20-S01 · `ko-style` 의 REQ-PLG-026 과 같은 규칙) | L1(`plugin-package.spec.ts`) — 키 목록 · `$comment` 없음 · SessionEnd 시한. 문서 §3.1 전문과의 바이트 대조는 REQ-PLG-001 |
+| REQ-PLG-036 | WHEN Codex 의 세션 시작 훅이 `nerv-init --check` 를 부르면(포워더와 같은 판정 — REQ-PLG-034) THE SYSTEM SHALL `.mcp.json` 대신 저장소의 `.codex/config.toml` 과 사용자 설정(`$CODEX_HOME/config.toml`)에서 `[mcp_servers.nerv]` 를 찾고, 토큰은 `.nerv/env` 를 읽기 전의 프로세스 환경에서 본다. WHEN 덜 됐으면 THE SYSTEM SHALL `bin/nerv-init` 이 아니라 플러그인의 `codex/config.toml` 템플릿과 셸 환경의 `NERV_TOKEN` 을 안내하고 아무것도 쓰지 않는다(2026-10-16 · E20-S01) | L1(`plugin-package.spec.ts`) — 임시 저장소 넷에서 실제 실행: 저장소 설정 · 사용자 설정이면 침묵 · 없으면 `config.toml` 안내(`.mcp.json` · `nerv-init` 을 말하지 않는다) · 토큰이 `.nerv/env` 에만 있다 |
+| REQ-PLG-037 | WHILE 플러그인 폴더(`codebase/plugin/`)를 저장소에 두는 동안 THE SYSTEM SHALL 배달되는 파일만 둔다 — 테스트(`*.spec.ts`)와 워크스페이스 표기(`package.json`)는 `codebase/plugin-test/` 에 둔다. Codex 는 카탈로그가 가리키는 폴더를 통째로 설치 캐시에 복사한다(2026-10-15 실측 · 2026-10-16 · E20-S01) | L1(`plugin-package.spec.ts`) — `git ls-files codebase/plugin` 에 `*.spec.ts` · `package.json` · `node_modules/` 가 없다. 서버가 내려 주는 아카이브는 따로 걸러 낸다(`scripts/pack-plugin.mjs` · L2 `plugin.spec.ts`) |
 
 ## 7. 문체 플러그인 `ko-style` (2026-09-27 신설 — 사람 결정)
 

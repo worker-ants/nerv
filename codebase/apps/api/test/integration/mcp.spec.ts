@@ -1748,6 +1748,143 @@ describe('E03-S03 훅 세션 채택 — 두 평면이 한 세션을 쓴다', () 
   });
 });
 
+/**
+ * **Codex 는 MCP 요청마다 자기 세션 id 를 싣는다**(2026-10-15 실측 · E20-S01 · REQ-API-324). `_meta.x-codex-turn-metadata
+ * .session_id` 가 훅 입력의 `session_id` 와 같다. 그 값을 쓰지 않던 동안 Codex 실행 하나에 세션이 둘 생겼다 — 훅의 세션과
+ * `nerv_bootstrap` 의 세션. 모델은 자기 세션 id 를 모르므로 이 값을 인자로 넘길 수 없다.
+ */
+describe('E20-S01 Codex 세션 잇기 — 하네스가 실어 준 세션 id (REQ-API-324)', () => {
+  async function clearSessions(): Promise<void> {
+    await pool.query(`UPDATE agent_session SET state = 'stale' WHERE project_id = $1`, [projectId]);
+  }
+
+  async function codexCall(
+    harness: string,
+    name: string,
+    args: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>> {
+    const meta = { 'x-codex-turn-metadata': { session_id: harness, turn_id: 't-1' } };
+    const { body } = await rpc('tools/call', { name, arguments: args, _meta: meta });
+    return (body['result'] as { structuredContent: Record<string, unknown> }).structuredContent;
+  }
+
+  async function codexHook(external: string): Promise<string> {
+    await app.inject({
+      method: 'POST',
+      url: '/ingest/hooks/session',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+        'x-nerv-host': 'linux-codex',
+        'x-nerv-agent': 'codex',
+      },
+      payload: { session_id: external, cwd: '/work/clemvion', source: 'startup' },
+    });
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM agent_session WHERE external_session_id = $1`,
+      [external],
+    );
+    return rows[0]!.id;
+  }
+
+  async function liveCount(): Promise<number> {
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM agent_session
+        WHERE project_id = $1 AND state IN ('pending','active','awaiting_input')`,
+      [projectId],
+    );
+    return rows[0]?.n ?? 0;
+  }
+
+  it('훅이 만든 세션을 bootstrap 이 이어받는다 — 호스트 이름이 달라도 세션은 하나다', async () => {
+    await clearSessions();
+    const hookSession = await codexHook('cx-join');
+    // 모델이 넘긴 hostname 은 훅의 것과 다르다(2026-10-15 실측의 조건) — 어림(채택)으로는 이어지지 않는다
+    const boot = await codexCall('cx-join', 'nerv_bootstrap', {
+      agent_type: 'codex',
+      hostname: 'model-said-host',
+    });
+    expect(boot['session_id']).toBe(hookSession);
+    expect(boot['resumed']).toBe(true);
+    expect(await liveCount()).toBe(1);
+  });
+
+  it('훅이 없으면 그 id 를 external id 로 남긴다 — 뒤에 오는 notify 가 이 세션을 찾는다', async () => {
+    await clearSessions();
+    const boot = await codexCall('cx-alone', 'nerv_bootstrap', {
+      agent_type: 'codex',
+      hostname: 'linux-codex',
+    });
+    expect(boot['resumed']).toBe(false);
+    const { rows } = await pool.query<{ external_session_id: string; agent_type: string }>(
+      `SELECT external_session_id, agent_type::text AS agent_type FROM agent_session WHERE id = $1`,
+      [boot['session_id']],
+    );
+    expect(rows[0]).toEqual({ external_session_id: 'cx-alone', agent_type: 'codex' });
+  });
+
+  it('인자로 준 external id 가 이긴다', async () => {
+    await clearSessions();
+    const boot = await codexCall('cx-meta', 'nerv_bootstrap', {
+      agent_type: 'codex',
+      hostname: 'linux-codex',
+      external_session_id: 'cx-arg',
+    });
+    const { rows } = await pool.query<{ external_session_id: string }>(
+      `SELECT external_session_id FROM agent_session WHERE id = $1`,
+      [boot['session_id']],
+    );
+    expect(rows[0]?.external_session_id).toBe('cx-arg');
+  });
+
+  it('세션이 둘이어도 어느 세션의 일인지 안다 — 어림하지 않는다', async () => {
+    await clearSessions();
+    const first = await codexHook('cx-one');
+    const second = await codexHook('cx-two');
+
+    // 하네스 id 가 없으면 고르지 않는다 — 그 대조군이다
+    const guessed = await callTool('nerv_question_create', {
+      question: '어느 세션인가',
+      urgency: 'normal',
+    });
+    expect(guessed['details']).toMatchObject({ kind: 'session_ambiguous' });
+
+    const asked = await codexCall('cx-two', 'nerv_question_create', {
+      question: '둘째 세션의 질문',
+      urgency: 'normal',
+    });
+    expect(asked['ok']).toBe(true);
+    const { rows } = await pool.query<{ agent_session_id: string }>(
+      `SELECT agent_session_id FROM question WHERE id = $1`,
+      [asked['question_id']],
+    );
+    expect(rows[0]?.agent_session_id).toBe(second);
+    expect(rows[0]?.agent_session_id).not.toBe(first);
+  });
+
+  it('남의 세션 id 를 실어도 그 세션을 고르지 않는다 — 사람과 함께 찾는다', async () => {
+    await clearSessions();
+    const theirs = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, external_session_id,
+                                  state, last_heartbeat_at)
+       VALUES ($1,$2,$3,'codex','their-host','cx-theirs','active', now())`,
+      [theirs, projectId, qaUserId],
+    );
+    const result = await codexCall('cx-theirs', 'nerv_question_create', {
+      question: '남의 세션에 붙이려는 질문',
+      urgency: 'normal',
+    });
+    expect(result['details']).toMatchObject({ kind: 'session_required' });
+    // bootstrap 도 남의 external id 를 이어받지 않는다(REQ-API-281)
+    const boot = await codexCall('cx-theirs', 'nerv_bootstrap', {
+      agent_type: 'codex',
+      hostname: 'linux-codex',
+    });
+    expect(boot['ok']).toBe(false);
+  });
+});
+
 describe('P2 리뷰 도구 2종 — 카탈로그에 들어온 표면 (FR-09, 2026-08-23)', () => {
   it('리뷰를 제출하면 세션·발견이 레코드로 남는다 — 파일 커밋 대신', async () => {
     const result = await callTool(

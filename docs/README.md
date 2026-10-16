@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v5.63 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v5.64 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v5.64 변경(2026-10-16 — Codex에서 NERV 훅 여섯이 돕니다, **사람 결정**(2026-10-15 — 한 묶음으로 고친다)): **REQ-PLG-034 · 035 · 036 · 037 · REQ-API-323 · 324 신설 · 플러그인 0.3.32 그대로.** Phase 2 묶음 2의 셋째입니다(E20-S01 · FR-15). [4.6 플러그인](04-mvp/plugin.md) §5.4 표의 고칠 자리를 모두 고치고 Codex 0.162.1로 다시 쟀습니다. ① `hooks.json`의 `$comment`를 `description`으로 바꿔 Codex가 훅을 버리지 않습니다. SessionEnd 시한은 3초입니다. ② 포워더가 Codex를 `PLUGIN_ROOT`로 알아보고 `X-NERV-Agent`를 모든 훅에 담아 보냅니다. 서버는 `codex`에는 판정 필드만 돌려줍니다. Claude Code의 응답은 그대로입니다. ③ `nerv_bootstrap`이 Codex가 MCP 요청에 넣는 세션 id로 훅이 만든 세션을 이어받습니다. 실행 하나에 세션 하나입니다. ④ `nerv-init --check`가 Codex에서 `config.toml`을 봅니다. ⑤ 플러그인 테스트를 `codebase/plugin-test/`로 옮겨 플러그인 폴더에는 배달되는 파일만 둡니다. 매뉴얼 설치 장에 Codex 플러그인 설치를 적었습니다. [3.4](03-proposal/agent-integration.md) v0.58 · [4.2](04-mvp/codebase.md) v2.20 · [4.4](04-mvp/api.md) v2.53 · [4.6](04-mvp/plugin.md) v1.12 · [4.8](04-mvp/backlog.md) v3.01.
 >
 > v5.63 변경(2026-10-16 — 서버가 돌아오면 오프라인 큐를 바로 비우고 거절된 쓰기는 사람에게 알립니다, **사람 결정**): **REQ-PLG-032 · 033 · REQ-API-322 신설 · 플러그인 0.3.32.** Phase 2 묶음 2의 둘째입니다(NFR-05). 데몬을 따로 띄우지 않습니다. ① 훅 포워더가 서버에서 2xx 를 받으면 오프라인 큐(`.nerv/outbox/`)를 분리된 백그라운드 flush 로 비웁니다 — 훅은 기다리지 않고, 잠금으로 한 저장소에서 하나만 돕니다. 세션 시작이나 다음 스킬 턴을 기다리지 않습니다. ② 서버가 거절한 쓰기는 `outbox/failed/` 로 옮기고 `POST /ingest/hooks/outbox-failed` 로 알립니다. 서버는 그 사람의 세션에 `session.outbox_failed` 를 남기고 그 사람에게 중요 알림을 만듭니다(행위자 제외의 예외). ③ 401 · 429 · `NERV_UNAVAILABLE` 처럼 그 쓰기의 판정이 아닌 답은 항목을 남기고 멈춥니다. ④ 「다음 스킬 턴의 flush」는 그렇게 시키는 스킬이 없어 실제로 없었습니다 — [4.6 플러그인과 온보딩](04-mvp/plugin.md) §3.4와 [4.8 백로그](04-mvp/backlog.md) §6.8을 고쳤습니다. http 훅 변형은 세션 시작에만 비웁니다.
 >
@@ -928,7 +930,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [3.1 비전과 핵심 시나리오](03-proposal/vision.md) | `v0.6` | 한 줄 정의·3대 가치·포지셔닝("SDD 도구들의 Linear"), 직군별 페르소나 4종의 하루, 핵심 여정 3개, **Build vs Buy 비교**, 성공 지표 |
 | [3.2 시스템 아키텍처](03-proposal/architecture.md) | `v0.10` | 컴포넌트 구성(웹·API·MCP 게이트웨이·훅 수집기·DB·워커), **저장 전략(DB 단일 진실 + md 미러 + git export)**, 데이터 흐름 시퀀스 4종, 기술 스택 선정·대안 비교, 보안·확장 |
 | [3.3 데이터 모델](03-proposal/data-model.md) | `v0.28` | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
-| [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.57` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
+| [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.58` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
 | [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.48` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
 | [3.6 화면 설계](03-proposal/ui-wireframes.md) | `v0.15` | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 파생본은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | `v0.14` | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
@@ -938,13 +940,13 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | 문서 | 버전 | 내용 |
 | --- | --- | --- |
 | [4.1 MVP 범위와 스택 확정](04-mvp/scope.md) | `v0.46` | MVP 가치 가설과 "구현 착수 가능" 정의, 확정 스택 전문(결정일·재검토 트리거), FR-01~17 포함/부분/제외 표, 화면·도구(MVP 24종 · 카탈로그 27종)·스킬(7종) 범위와 non-goals |
-| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v2.19` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
+| [4.2 코드베이스와 배포](04-mvp/codebase.md) | `v2.20` | 저장소 구역(`docs/`·`codebase/`·`deploy/`)과 모노레포 트리 전문(`codebase/` 하위 — `apps/web`·`apps/api`·`apps/cli`·`packages/schema`), NestJS 모듈 맵(D-05 실물), 개발 환경 부트스트랩·docker-compose 전문, k8s(kustomize) 운영 배포 |
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.78` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
-| [4.4 API 명세](04-mvp/api.md) | `v2.52` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
+| [4.4 API 명세](04-mvp/api.md) | `v2.53` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v2.43` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.11` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.12` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.27` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v3.00` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v3.01` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

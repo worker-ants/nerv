@@ -947,8 +947,9 @@ export class SessionService {
    * 실어 왔는가로 세지 않는 이유: 켰다가 끈(또는 관리형 settings 에서 빠진) 호스트가 영원히
    * "켜짐" 으로 남는다 — 지금의 사실을 묻는 질문에 과거의 사실로 답하게 된다.
    *
-   * **Claude Code 세션만 센다.** 플러그인은 Claude Code 의 것이다 — Codex 세션은 플러그인이
-   * 없어도 정상이고, 세면 분모만 부풀어 활성화율이 거짓으로 낮아진다.
+   * **Claude Code 세션만 센다.** 이 현황은 관리형 settings 로 플러그인을 내린 Claude Code 기계가 켜졌는지 묻는다
+   * (E12-S03). 2026-10-16 부터 Codex 에도 플러그인을 설치하면 훅이 돌고 `plugin_version` 이 남지만(E20-S01), Codex 는
+   * 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다 — 세면 그 기계들이 「꺼짐」으로 분모를 부풀린다.
    *
    * 호스트의 열쇠는 **사람 + hostname** 이다. 기본 hostname 은 겹친다(`MacBook-Pro` 가 둘인 팀).
    */
