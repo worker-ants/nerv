@@ -19,7 +19,7 @@ export * from './spec.js'; // spec · spec_version · requirement · requirement
 //                            · spec_baseline_item · change_request
 export * from './task.js'; // task · task_dependency · claim · evidence
 export * from './review.js'; // review_session · reviewer_report · finding
-//                              · finding_occurrence · resolution
+//                              · finding_occurrence · resolution · gate_verdict_comparison
 export * from './approval.js'; // approval · question
 export * from './event.js'; // event · notification · notification_batch_event · notification_preference · notification_digest_setting · watch · pin
 export * from './idempotency.js'; // idempotency_key (표면 공용 멱등 저장소 — api.md §1.5)

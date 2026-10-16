@@ -6,16 +6,24 @@
 //
 // 이 화면이 대체하는 것은 clemvion 의 `review/**` md 13,777개(131MB)다.
 
-import { canSendFindingToCr, scopesForRoles } from '@nerv/schema';
+import { canReadCutoverReport, canSendFindingToCr, scopesForRoles } from '@nerv/schema';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { useEffect, useRef, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
 import { FindingRail } from '../../features/review-center/finding-rail.js';
+import { CutoverPanel } from '../../features/review-center/cutover-panel.js';
 import { GateCoverage } from '../../features/review-center/gate-coverage.js';
 import type { ResolveAction } from '../../features/review-center/resolve-dialog.js';
 import { useT } from '../../lib/i18n.js';
-import { rows, useFindings, useGateCoverage, useMe, useProject } from '../../lib/queries.js';
+import {
+  rows,
+  useCutoverReport,
+  useFindings,
+  useGateCoverage,
+  useMe,
+  useProject,
+} from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
@@ -160,6 +168,10 @@ function ReviewCenter(): React.JSX.Element {
   const canComment = scopesForRoles(roles).has('review:submit');
   // **변경 요청으로 보내기**는 planner · admin 이다(2026-10-16 · REQ-WEB-324) — 서버와 같은 식을 본다
   const canSendToCr = canSendFindingToCr(roles);
+  // **컷오버 관측**은 admin · planner 에게, 컷오버 전(`git`)이 아닌 프로젝트에서만 그린다(2026-10-16 · 사람 결정 D6 · REQ-WEB-330)
+  const sot = project.data?.['review_sot'];
+  const showCutover = canReadCutoverReport(roles) && (sot === 'dual' || sot === 'nerv');
+  const cutover = useCutoverReport(proj, id, showCutover);
   // **레일은 넓은 화면의 향상이지 유일한 경로가 아니다**(2026-09-10 — 사람 보고 · REQ-WEB-161).
   // 곁레일은 `xl`(1280px) 부터만 서는데, 그 아래에서는 발견을 눌러도 **카드 배경만** 옅게
   // 바뀌고 레일이 펴는 것(갈래·심볼·전체 경로·코멘트·Task 승격)에 닿을 길이 아예 없었다 —
@@ -487,6 +499,17 @@ function ReviewCenter(): React.JSX.Element {
               label={t('reviews.queue.more')}
               pendingLabel={t('common.loading')}
             />
+          )}
+
+          {showCutover && (
+            <div className="mt-6">
+              <CutoverPanel
+                report={cutover.data}
+                {...(failedWithoutData(cutover)
+                  ? { failed: { error: cutover.error, retry: () => void cutover.refetch() } }
+                  : {})}
+              />
+            </div>
           )}
 
           <div className="mt-6">

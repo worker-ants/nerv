@@ -18,9 +18,11 @@ referenced_by:
 ---
 # 데이터베이스 스키마
 
-> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 43개**다 — 도메인 37 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
+> **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 44개**다 — 도메인 38 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.82 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.83 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.83 변경(2026-10-16 — SoT 컷오버 M1, Phase 2 묶음 3의 넷째 · **사람 결정**(2026-10-16 — D6) · [4.8 백로그](backlog.md) E21-S03): **REQ-DB-052 신설 · §2.1 enum 하나(47 → 48종) · §2.2 `project` 두 열 · §2.7 테이블 하나 · §2.12 인덱스 둘 · 요약의 계수 · 마이그레이션 `0057`.** 프로젝트에 리뷰 컷오버 단계(`review_sot` — `git` · `dual` · `nerv`, 기본 `git`)와 바꾼 시각(`review_sot_since`)을 둔다. `gate_verdict_comparison` 은 로컬 훅이 게이트 판정에 함께 보낸 판정과 서버 판정을 견준 결과의 한 줄이다 — 같은 (프로젝트 · 브랜치 · 종류 · 커밋 · 로컬 판정)은 유일 인덱스로 한 줄이고 재호출은 `repeat_count` 만 올린다. 2주 창 질의는 `(project_id, created_at)` 인덱스로 읽는다([4.4 API](api.md) REQ-API-345 ~ 348).
 >
 > v0.82 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](backlog.md) E17-S02): **REQ-DB-051 신설 · §2.1 enum 둘(45 → 47종) · §2.10 테이블 둘 · §2.12 인덱스 넷 · 요약의 계수 · 마이그레이션 `0056`.** `watch`(사람 × 스펙 · 작업 · 영역 — 알림 카탈로그의 「워처」)와 `pin`(사람마다 프로젝트를 넘는 핀 목록 · 순서)을 따로 둔다. 둘 다 그 사람의 설정이라 사람 · 프로젝트가 지워지면 함께 지운다(`notification_preference` 와 같다). 대상은 다형 참조다. `CREATE TABLE` 은 43개(도메인 37 + 부속 6)다([4.4 API](api.md) REQ-API-341 ~ 344).
 >
@@ -205,7 +207,7 @@ referenced_by:
 
 서술 순서는 data-model §2의 그룹 순서를 따른다: §2.1 확장·enum → §2.2~§2.10 테이블 **33개**(도메인 32 + 부속 `idempotency_key` 1 — §2.3a·§2.3b 포함) → §2.11 순환 FK → §2.12 인덱스 → §2.13 함수·트리거 → §2.14 파티션(이벤트 방송 규약은 §3). 실행 순서도 이와 같되 한 가지 예외가 있다 — `agent_session`(§2.6)은 `spec_version`·`task`·`claim`·`change_request`가 FK로 참조하므로 0001에서는 테넌시(§2.2) 직후로 전진 배치한다. 순서만 다르고 내용은 동일하다.
 
-### 2.1 확장과 enum 47종
+### 2.1 확장과 enum 48종
 
 ```sql
 -- 0000_init.sql · §1 — 확장
@@ -283,6 +285,7 @@ CREATE TYPE notification_state      AS ENUM ('unread', 'read', 'archived');
 CREATE TYPE notification_level      AS ENUM ('all', 'important', 'none'); -- 프로젝트별 받는 수준(2026-09-27 · 0035)
 CREATE TYPE watch_target            AS ENUM ('spec', 'task', 'area'); -- 워치의 대상(2026-10-16 · 0056 · REQ-DB-051)
 CREATE TYPE pin_target              AS ENUM ('spec', 'task', 'change_request'); -- 핀의 대상(0056 · REQ-DB-051)
+CREATE TYPE review_sot              AS ENUM ('git', 'dual', 'nerv'); -- 리뷰 컷오버 단계(2026-10-16 · 0057 · REQ-DB-052)
 ```
 
 `event.type`은 enum이 아니라 `text`다 — 이벤트 어휘(`<리소스>.<동사>`)는 열려 있고 정본은 spec-workflow §6이다. `escalate_reason`의 하이픈 값(`user-decision` · `e2e-fail-3x` · `sensitive-fix`)은 clemvion에서 5개월 검증된 ESCALATE 어휘 그대로다(data-model §2.6).
@@ -321,6 +324,8 @@ CREATE TABLE project (
   repo_host      repo_host NOT NULL DEFAULT 'github',  -- 주소의 **모양**만 정한다(접속 아님) — 0026 · api.md REQ-API-158
   gate_policy    jsonb NOT NULL DEFAULT '{}', -- 위험도별 게이트 임계(D-06), fail-open 격상 임계(D-14)
   retention      jsonb NOT NULL DEFAULT '{}', -- Activity·프롬프트 보존 기간(data-model §5.4)
+  review_sot     review_sot NOT NULL DEFAULT 'git', -- 리뷰 컷오버 단계(0057 · REQ-DB-052 · roadmap §7.4 표의 줄)
+  review_sot_since timestamptz,               -- 그 단계로 바꾼 시각 — 2주 관측 창의 시작(바꾼 적이 없으면 NULL)
   archived_at    timestamptz,
   created_at     timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT project_org_key_uq UNIQUE (org_id, key),
@@ -730,7 +735,7 @@ CREATE TABLE activity (                       -- 타입드 불변 로그. 편집
 
 `UNIQUE (session_id, seq)`(data-model §2.5)는 파티션 테이블의 전역 unique로 선언할 수 없다(파티션 키가 포함돼야 하므로). 의미(세션 내 seq 유일)는 두 겹으로 지킨다 — ① 파티션마다 `(session_id, seq)` unique 인덱스를 생성하고(§2.14의 파티션 생성 함수가 자동으로 만든다), ② 월 경계를 넘는 재전송은 ingest 경로의 멱등 키(`nerv_session_event`의 `(session_id, event_seq)` — agent-integration §2)가 막는다.
 
-### 2.7 리뷰 — review_session · reviewer_report · finding · finding_comment · finding_occurrence · resolution
+### 2.7 리뷰 — review_session · reviewer_report · finding · finding_comment · finding_occurrence · resolution · gate_verdict_comparison
 
 근거: data-model §2.6. `head_sha`·`base_sha`·`branch`의 NOT NULL이 이 스키마에서 가장 값싼 개선이다 — clemvion `meta.json`에는 이 필드 자체가 없어 표본 SUMMARY 200개 중 47개만 산문에 해시를 남겼다(data-model §3.3).
 
@@ -843,6 +848,26 @@ CREATE TABLE resolution (
   CONSTRAINT resolution_spec_change_cr_ck  CHECK (kind <> 'spec_change'
                                                  OR change_request_id IS NOT NULL
                                                  OR spec_version_id IS NOT NULL)
+);
+
+-- 게이트 판정 비교(2026-10-16 · 사람 결정 D6 · 0057 · REQ-DB-052). 로컬 훅이 EP-REV-08b 로 보낸 판정과 서버 판정을 견준 한 줄.
+-- 부른 수가 불일치율의 분모라 같은 (프로젝트 · 브랜치 · 종류 · 커밋 · 로컬 판정)은 한 줄이다 — 재호출은 횟수만 올린다.
+CREATE TABLE gate_verdict_comparison (
+  id            uuid PRIMARY KEY,
+  project_id    uuid NOT NULL REFERENCES project(id),
+  branch        text NOT NULL,
+  kinds         text NOT NULL,                 -- 물은 종류의 정렬 목록(쉼표) — 묻지 않았으면 ''
+  head_sha      text NOT NULL,                 -- 40자 커밋 SHA(소문자)
+  local_pass    boolean NOT NULL,              -- 로컬 훅의 판정
+  local_hook    text,                          -- 판정을 낸 훅의 이름(128자)
+  local_reason  text,                          -- 훅이 적은 이유(500자) — 이벤트에는 넣지 않는다
+  server_pass   boolean NOT NULL,              -- 물은 종류가 모두 passed · waived 면 참
+  server_states jsonb NOT NULL DEFAULT '[]',   -- 그때의 종류마다 상태 [{kind, state}]
+  review_sot    review_sot NOT NULL,           -- 그때의 컷오버 단계
+  actor_user_id uuid NOT NULL REFERENCES "user"(id),
+  repeat_count  int NOT NULL DEFAULT 1,        -- 같은 비교를 받은 횟수
+  last_seen_at  timestamptz NOT NULL DEFAULT now(),
+  created_at    timestamptz NOT NULL DEFAULT now()
 );
 ```
 
@@ -1147,6 +1172,8 @@ CREATE UNIQUE INDEX watch_user_target_uq ON watch (user_id, target_type, target_
 CREATE INDEX watch_target ON watch (project_id, target_type, target_id); -- 알림 라우팅이 이벤트의 대상(과 조상 영역)으로 워처를 찾는다
 CREATE UNIQUE INDEX pin_user_target_uq ON pin (user_id, target_type, target_id); -- 같은 대상을 두 번 고정하지 않는다
 CREATE INDEX pin_user_order ON pin (user_id, position); -- 내 핀 목록의 순서
+CREATE UNIQUE INDEX gate_verdict_comparison_uq ON gate_verdict_comparison (project_id, branch, kinds, head_sha, local_pass); -- 같은 비교는 한 줄(0057 · REQ-DB-052)
+CREATE INDEX gate_verdict_comparison_time ON gate_verdict_comparison (project_id, created_at); -- 컷오버 지표의 2주 창
 CREATE UNIQUE INDEX notification_batch_event_user ON notification_batch_event (event_id, user_id); -- 한 이벤트는 한 사람에게 한 묶음(REQ-DB-030)
 CREATE INDEX question_open ON question (project_id, status);                       -- 보조: 열린 질문 수
 CREATE INDEX evidence_requirement ON evidence (requirement_id) WHERE NOT stale;    -- 보조: 커버리지(§4.1)
@@ -1451,6 +1478,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-049 | WHEN 발견을 사람에게 넘기면(`escalated`) THE SYSTEM SHALL 넘긴 세션이 결정을 기다리는지를 `resolution.blocking`(boolean · NOT NULL · 기본 false)에 남기고 그 처분을 대상으로 하는 결재 행(`approval.subject_type = escalation` · `subject_id` = 그 `resolution.id`)을 만든다. WHEN 변경 요청이 승인 · 거절 · 철회되면 THE SYSTEM SHALL `resolution_change_request`(`change_request_id` · `WHERE change_request_id IS NOT NULL`)로 그 CR에 묶인 발견을 찾는다. 마이그레이션 `0054` 는 `approval_subject_type` 에 값을 더하기만 하고 그 안에서 쓰지 않는다(2026-10-16 · 사람 결정 D3) |
 | REQ-DB-050 | WHEN 사람이 브랜치에 게이트 면제를 내면 THE SYSTEM SHALL 그 결재 행의 `approval.branch`(text)에 브랜치를, 커밋 하나로 좁혔으면 `approval.head_sha`(text · 40자 소문자 16진수)에 그 커밋을 남기고 `subject_id` 에는 프로젝트 id 를 둔다(다형 참조의 예외 — §2.8). CHECK `approval_branch_ck`(게이트 면제에만 · 빈 문자열 아님) · `approval_head_sha_ck`(브랜치 면제에만 · 40자 소문자 16진수)가 지키고, 게이트 판정 · 게이트 현황은 `approval_bypass_branch (project_id, branch) WHERE branch IS NOT NULL` 로 찾는다. 마이그레이션 `0055` 전의 행은 둘 다 NULL 이다(2026-10-16 · 사람 결정 D4 · [4.4 API](api.md) REQ-API-338) |
 | REQ-DB-051 | WHEN 사람이 워치를 걸면 THE SYSTEM SHALL `watch`(사람 · 프로젝트 · `watch_target`(`spec` · `task` · `area`) · 대상 id)에 한 행을 두고 `watch_user_target_uq (user_id, target_type, target_id)` 로 같은 대상을 한 번만 남기며, 알림 라우팅은 `watch_target (project_id, target_type, target_id)` 로 워처를 찾는다. WHEN 사람이 핀을 고정하면 THE SYSTEM SHALL `pin`(사람 · 프로젝트 · `pin_target`(`spec` · `task` · `change_request`) · 대상 id · `position`)에 한 행을 두고 `pin_user_target_uq` 로 같은 대상을 한 번만, `pin_user_order (user_id, position)` 로 목록의 순서를 읽는다. 둘 다 사람이나 프로젝트가 지워지면 함께 지운다(ON DELETE CASCADE — `notification_preference` 와 같은 그 사람의 설정). 대상은 다형 참조라 물리 FK 가 없다(마이그레이션 `0056` · 2026-10-16 · 사람 결정 D5 = B · [4.4 API](api.md) REQ-API-341 ~ 344) |
+| REQ-DB-052 | WHEN 로컬 훅이 게이트 판정에 자기 판정을 함께 보내면 THE SYSTEM SHALL `gate_verdict_comparison` 에 두 판정(`local_pass` · `server_pass`)과 그때의 종류마다 상태 · 컷오버 단계 · 부른 사람을 한 행으로 남기고, `gate_verdict_comparison_uq (project_id, branch, kinds, head_sha, local_pass)` 로 같은 비교를 한 번만 둔다 — 다시 오면 `repeat_count` · `last_seen_at` 만 바꾼다. 컷오버 지표는 `gate_verdict_comparison_time (project_id, created_at)` 으로 창 안의 행을 센다. THE SYSTEM SHALL 프로젝트의 컷오버 단계를 `project.review_sot`(enum `review_sot` — `git` · `dual` · `nerv`, 기본 `git`)와 `review_sot_since` 에 둔다 — 기본값이 `git` 이라 기존 프로젝트의 동작은 그대로다(마이그레이션 `0057` · 2026-10-16 · 사람 결정 D6 · [4.4 API](api.md) REQ-API-345 ~ 348) |
 
 ---
 

@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.51 · 2026-10-16 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.52 · 2026-10-16 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.52 변경(2026-10-16 — SoT 컷오버 M1, Phase 2 묶음 3의 넷째 · **사람 결정**(2026-10-16 — D6) · [4.8 백로그](../04-mvp/backlog.md) E21-S03): **§6.3 카탈로그 한 줄 — `gate.verdict_mismatch`.** M1 이중화 기간에 로컬 훅과 서버의 게이트 판정이 다르면 그 프로젝트의 admin 에게 보통 알림이 간다. 불일치율이 롤백 기준(5%)에 가까우면 push 마다 하나씩 생기므로 같은 프로젝트의 불일치는 읽을 때까지 한 줄로 묶는다(§6.6 피로 방지). 누군가의 결정을 기다리며 멈춘 세션은 없어 중요 등급이 아니다([3.7 로드맵](roadmap.md) §7.4 규칙 3 · [4.4 API](../04-mvp/api.md) REQ-API-346).
 >
 > v0.51 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](../04-mvp/backlog.md) E17-S02): **§6.3 구현 범위 한 단락과 한 항목 · 카탈로그 `task.ready` 행의 수신자.** 구독 규칙 ②워치를 구현했다. 사람이 스펙 · 작업 · 영역을 워치하고(자동 등록은 없다 — §2.2 결정 기록), 카탈로그가 「워처」를 적은 이벤트 가운데 알림을 만드는 넷(`spec.approved` · `spec.rejected` · `spec.comment_added` · `task.ready`)이 관여 라우팅과 같은 자리에서 워처에게 간다. 영역 워치는 그 아래 문서와 작업까지 포함한다. `task.ready` 는 그 작업 하나를 워치한 사람도 받는다([4.4 API](../04-mvp/api.md) REQ-API-342).
 >
@@ -878,6 +880,7 @@ Event (append-only, D-10)
 | `task.ready`(내 영역) | standard | 영역 워처 · 그 작업의 워처(2026-10-16) | `project:{id}:ready` |
 | `invitation.declined`(프로젝트 초대) | standard | 부른 사람 | `invitation:{id}` |
 | `finding.resolved` | standard | 리뷰 요청자 | `review:{id}:resolutions` |
+| `gate.verdict_mismatch`(M1 이중화 기간에 로컬 훅과 서버의 게이트 판정이 다름 — [3.7 로드맵](roadmap.md) §7.4 규칙 3) | standard | 그 프로젝트의 admin(2026-10-16) | `project:{id}:verdict_mismatch` |
 | `session.started` / `session.complete` | low | 워처 | `session:{id}:lifecycle` |
 | `task.claimed` / `task.done` | low | 워처 | `project:{id}:progress` |
 

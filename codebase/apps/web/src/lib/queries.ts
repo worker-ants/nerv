@@ -1094,6 +1094,44 @@ export function useGateCoverage(
   });
 }
 
+/**
+ * 컷오버 지표(EP-REV-10 · 2026-10-16 · 사람 결정 D6 · REQ-WEB-330) — 창은 서버의 기본(컷오버 단계를 바꾼 시각 ~ 지금)이다.
+ * admin · planner 만 읽는다 — 다른 역할에는 부르지 않는다(`enabled`)
+ */
+export interface CutoverReport {
+  review_sot: 'git' | 'dual' | 'nerv';
+  review_sot_since: string | null;
+  window: {
+    since: string;
+    until: string;
+    days: number;
+    observation_days: number;
+    complete: boolean;
+  };
+  comparisons: { total: number; mismatches: number; rate: number | null };
+  submissions: { accepted: number; failed: number; total: number; rate: number | null };
+  status: 'no_data' | 'stable' | 'watch' | 'rollback';
+  reasons: ('mismatch_rate' | 'submit_failure_rate')[];
+  thresholds: {
+    stable_below_pct: number;
+    rollback_mismatch_pct: number;
+    rollback_submit_failure_pct: number;
+  };
+  recent_mismatches: Row[];
+}
+
+export function useCutoverReport(
+  slug: string,
+  projectId: ProjectId | undefined,
+  enabled: boolean,
+): UseQueryResult<CutoverReport> {
+  return useQuery({
+    queryKey: queryKeys.projectCutover(projectId ?? PENDING_PROJECT),
+    queryFn: () => apiFetch<CutoverReport>(`/projects/${slug}/gates/reviews/cutover`),
+    enabled: enabled && projectId !== undefined,
+  });
+}
+
 export function useMembers(orgSlug: string | null): UseQueryResult<Row[]> {
   return useQuery({
     queryKey: ['org', orgSlug, 'members'],

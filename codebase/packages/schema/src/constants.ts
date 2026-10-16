@@ -750,6 +750,39 @@ export const NOTIFICATION_RESUME_WINDOW_SECONDS = 60 * 60;
  */
 export const PIN_LIMIT = 50;
 
+// ── SoT 컷오버 M1 (2026-10-16 · 사람 결정 D6 · E21-S03 · roadmap §7.5 · §7.6) ─────────────────────
+//
+// 세 기준은 **로드맵의 값을 인용한다** — 새로 정한 수가 아니다. 비율은 정수 백분율로 두고 비교도 정수로 한다(불일치 × 100 < 비교 수 ×
+// 1) — 0.01 같은 소수를 곱하고 나누면 경계(정확히 1% · 5% · 2%)가 부동소수 오차로 흔들린다.
+
+/** 판정 불일치율이 이 백분율 **미만**이면 안정 조건이다(roadmap §7.5 「서버 ↔ 로컬 판정 불일치율 < 1%」) */
+export const CUTOVER_MISMATCH_STABLE_BELOW_PCT = 1;
+/** 판정 불일치율이 이 백분율 **이상**이면 M1 롤백 트리거다(roadmap §7.6 「판정 불일치율 ≥ 5%」) */
+export const CUTOVER_MISMATCH_ROLLBACK_PCT = 5;
+/** 리뷰 제출 실패율이 이 백분율 **이상**이면 M1 롤백 트리거다(roadmap §7.6 「리뷰 제출 실패율 ≥ 2%」) */
+export const CUTOVER_SUBMIT_FAILURE_ROLLBACK_PCT = 2;
+/** 컷오버 뒤 관측하는 날 수(roadmap §7.5 「컷오버 후 2주 관측」) */
+export const CUTOVER_OBSERVATION_DAYS = 14;
+/**
+ * 지표 응답이 함께 주는 최근 불일치의 수 — 20건(2026-10-16 · 이번에 정한 시작값). §7.5 는 「불일치 전건 원인 규명」을 요구한다 — 화면과
+ * 보고에서 바로 열어 볼 수 있을 만큼이고, 더 많으면 불일치율이 이미 롤백 기준을 넘은 것이다(그때는 사람이 비교 표 전체를 본다)
+ */
+export const CUTOVER_RECENT_MISMATCHES = 20;
+/** 로컬 훅 이름(`local_state.hook`)의 최대 길이 */
+export const GATE_LOCAL_HOOK_MAX = 128;
+/** 로컬 훅이 적은 이유(`local_state.reason`)의 최대 길이 */
+export const GATE_LOCAL_REASON_MAX = 500;
+/**
+ * 컷오버 지표의 상태(EP-REV-10 · roadmap §7.5 · §7.6) — 판정 순서는 롤백이 먼저다.
+ *
+ * - `rollback` — 불일치율 ≥ 5% 이거나 리뷰 제출 실패율 ≥ 2%(롤백 트리거)
+ * - `no_data` — 창 안에 비교가 하나도 없다
+ * - `stable` — 불일치율 < 1%(안정 조건 — 신규 커밋 0 · 세션 실패율 · 리드타임은 이 지표 밖이다)
+ * - `watch` — 그 사이(안정도 롤백도 아니다)
+ */
+export const CUTOVER_STATUSES = ['no_data', 'stable', 'watch', 'rollback'] as const;
+export type CutoverStatus = (typeof CUTOVER_STATUSES)[number];
+
 /**
  * 검색이 질의 하나를 임베딩할 때 기다리는 **상한(ms)**(2026-10-12 · 사람 결정 — api.md §2.2b). 색인은
  * `NERV_EMBED_TIMEOUT_MS`(기본 30초)를 그대로 쓴다. 같은 값을 쓰던 동안 멈춘 제공자 앞에서 검색 한 번이

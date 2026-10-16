@@ -97,6 +97,11 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.APPROVAL_EXPIRED]: 'standard',
   // 부른 사람만 받는다 — 결정을 기다리는 일은 아니라 배지를 올리지 않는다(REQ-API-178)
   [NERV_EVENT.INVITATION_DECLINED]: 'standard',
+  // **게이트 판정 불일치**(2026-10-16 · 사람 결정 D6 · REQ-API-346 · roadmap §7.4 「불일치는 알림」) — M1 이중화 기간에 로컬 훅과
+  // 서버가 다르게 판정했고 서버 판정이 적용됐다. admin 이 원인을 찾아야 하지만(§7.5 「전건 원인 규명」) 누군가의 결정을 기다리며
+  // 멈춘 세션은 없고, 불일치율이 롤백 기준(5%)에 가까우면 push 마다 하나씩 생긴다 — 보통 등급으로 두고 같은 프로젝트의 불일치는
+  // 읽을 때까지 한 줄로 묶는다(§6.6 피로 방지). 하나하나는 리뷰 센터의 컷오버 관측과 지표(EP-REV-10)가 보인다
+  [NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH]: 'standard',
   [NERV_EVENT.SESSION_STARTED]: 'low',
   [NERV_EVENT.SESSION_COMPLETE]: 'low',
   [NERV_EVENT.TASK_CLAIMED]: 'low',
@@ -171,6 +176,8 @@ export function batchKeyOf(event: {
       return `approval:${event.subject_id}:reminder`;
     case NERV_EVENT.INVITATION_DECLINED:
       return `invitation:${event.subject_id}`;
+    case NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH:
+      return `project:${event.project_id}:verdict_mismatch`;
     default:
       return null;
   }
@@ -493,6 +500,8 @@ export class NotificationService {
     if (event.type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED) return this.adminTargets(event);
     // 미러 원격을 고칠 사람도 admin 이다(REQ-CB-063)
     if (event.type === NERV_EVENT_PHASE2.MIRROR_DIVERGED) return this.adminTargets(event);
+    // 판정 불일치는 컷오버 단계를 바꾸고 롤백을 정하는 admin 에게 간다(REQ-API-346)
+    if (event.type === NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH) return this.adminTargets(event);
     // **오프라인 큐의 실패는 보고한 사람에게 간다**(2026-10-16 · REQ-API-322). 행위자 제외 규칙의 예외다 — 행위자는 그 사람의
     // 플러그인이고, 알릴 사람은 그 쓰기가 들어가지 않은 줄 모르는 그 사람이다. 지금 멤버가 아니면 목록이 거른다(REQ-API-211)
     if (event.type === NERV_EVENT_PHASE2.SESSION_OUTBOX_FAILED) {

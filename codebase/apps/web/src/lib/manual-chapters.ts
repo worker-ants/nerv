@@ -100,6 +100,8 @@ export const MANUAL_SECTION_IDS = {
     'badge',
     // 변경 요청으로 보내기(2026-10-16 · 사람 결정 · REQ-WEB-324) — 새 절은 끝에 둔다
     'to-change-request',
+    // 컷오버 관측(2026-10-16 · 사람 결정 D6 · REQ-WEB-330)
+    'cutover',
   ],
   inbox: [
     'cards',
@@ -118,7 +120,8 @@ export const MANUAL_SECTION_IDS = {
     'drift-change-requests',
     'kinds',
   ],
-  agents: ['components', 'tokens', 'skills', 'tool-tiers', 'offline', 'import'],
+  // 컷오버 보고(2026-10-16 · 사람 결정 D6 · CLI `nerv cutover report`) — 새 절은 끝에 둔다
+  agents: ['components', 'tokens', 'skills', 'tool-tiers', 'offline', 'import', 'cutover-report'],
   install: [
     'before',
     'token',

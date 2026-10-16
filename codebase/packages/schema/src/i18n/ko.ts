@@ -155,6 +155,11 @@ export const ko = {
     'head_sha는 브랜치 면제에만 줍니다. 그 브랜치의 커밋 하나로 면제를 좁힐 때 씁니다.',
   'error.approval.bypass_head_not_full_sha':
     'head_sha는 40자 커밋 SHA여야 합니다. 짧은 SHA는 나중에 다른 커밋과 겹칠 수 있습니다(git rev-parse로 얻습니다).',
+  // SoT 컷오버 M1(2026-10-16 · 사람 결정 D6 · REQ-API-345 · 348)
+  'error.gate.head_not_full_sha':
+    'head_sha는 40자 커밋 SHA여야 합니다. 한 커밋의 두 판정을 견주므로 커밋이 하나로 정해져야 합니다(git rev-parse로 얻습니다).',
+  'error.cutover.role_required': '컷오버 지표는 admin과 planner만 볼 수 있습니다.',
+  'error.cutover.bad_window': '관측 창의 시작(since)은 끝(until)보다 앞이어야 합니다.',
   'error.auth.admin_only': 'admin만 할 수 있습니다.',
   'error.auth.org_admin_only':
     '조직 전체 범위는 조직 admin만 관리할 수 있습니다. 프로젝트 admin은 자기 프로젝트만 관리할 수 있습니다.',
@@ -621,6 +626,27 @@ export const ko = {
   'reviews.gate.shown': '브랜치 {total}개 중 최근 {shown}개',
   'reviews.gate.title': '게이트 현황',
   'reviews.gate.verdict': '판정',
+  // 컷오버 관측(2026-10-16 · 사람 결정 D6 · REQ-WEB-330) — admin · planner
+  'reviews.cutover.title': '컷오버 관측',
+  'reviews.cutover.stage': '{stage} · {since}부터',
+  'reviews.cutover.window': '관측 {days}일 / {total}일',
+  'reviews.cutover.mismatch': '판정 불일치 {mismatches} / {total}건',
+  'reviews.cutover.submit_failure': '리뷰 제출 실패 {failed} / {total}건',
+  'reviews.cutover.status.no_data':
+    '아직 비교가 없습니다. 로컬 훅이 게이트 판정에 자기 판정을 함께 보내면 여기에서 셉니다.',
+  'reviews.cutover.status.stable': '안정: 불일치율 {pct}% 미만',
+  'reviews.cutover.status.watch': '관찰 중: 불일치율이 아직 {pct}% 미만이 아닙니다',
+  'reviews.cutover.status.rollback': '롤백 기준 도달',
+  'reviews.cutover.reason.mismatch_rate': '불일치율 {pct}% 이상',
+  'reviews.cutover.reason.submit_failure_rate': '리뷰 제출 실패율 {pct}% 이상',
+  'reviews.cutover.recent': '최근 불일치',
+  'reviews.cutover.recent_row': '로컬 {local} · 서버 {server}',
+  'reviews.cutover.cli': '저장소에 새로 커밋된 리뷰 파일은 CLI로 셉니다: nerv cutover report',
+  'review.sot.git': '컷오버 전(git)',
+  'review.sot.dual': 'M1 이중화',
+  'review.sot.nerv': 'M2 이후(NERV)',
+  'gate.verdict.pass': '통과',
+  'gate.verdict.block': '막음',
   'reviews.no_permission': '처분에는 review:resolve 권한이 필요합니다.',
   'reviews.comment_no_permission':
     '코멘트에는 review:submit 권한이 필요합니다. viewer는 읽기만 합니다.',
@@ -1191,6 +1217,8 @@ export const ko = {
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
   'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
   'event.gate.failopen_cleared': '게이트 격상 풀림',
+  // 판정 불일치(2026-10-16 · 사람 결정 D6 · REQ-API-346) — M1 이중화 기간에 로컬 훅과 서버가 다르게 판정했다
+  'event.gate.verdict_mismatch': '게이트 판정 불일치(로컬 훅과 서버의 판정이 다름)',
   'event.mirror.diverged': '미러 push 멈춤(미러 저장소에 NERV가 만들지 않은 커밋)',
   'event.import.applied': '임포트 적재',
   'event.notification.created': '알림 생성',
@@ -2277,6 +2305,19 @@ export const ko = {
   'settings.gates.failopen_invalid': '횟수와 시간은 1 이상의 정수로 적으세요.',
   'settings.gates.failopen_value': '{hours}시간 안에 {count}번',
   'settings.gates.change_failopen': '격상 기준 {from} → {to}',
+  // 리뷰 컷오버 단계(2026-10-16 · 사람 결정 D6 · REQ-WEB-331)
+  'settings.gates.sot': '리뷰 컷오버',
+  'settings.gates.sot_body':
+    '리뷰 산출물과 게이트 판정의 기준을 어디에 둘지 정합니다. M1 이중화에서는 로컬 훅이 보낸 판정과 서버 판정이 다르면 서버 판정을 적용하고 admin에게 알립니다.',
+  'settings.gates.sot_hint_git': '로컬 훅이 판정하고 NERV는 비교만 기록합니다.',
+  'settings.gates.sot_hint_dual':
+    '서버 판정을 적용합니다. 로컬 훅과 판정이 다르면 그 프로젝트의 admin에게 알립니다.',
+  'settings.gates.sot_hint_nerv':
+    'NERV가 판정하고 로컬 훅은 서버에 연결할 수 없을 때만 보조로 판정합니다.',
+  'settings.gates.sot_since': '{at}에 바꿨습니다. 2주 관측은 이 시각부터 셉니다.',
+  'settings.gates.sot_never': '아직 바꾼 적이 없습니다.',
+  'settings.gates.sot_reset': '단계를 바꾸면 관측 창이 저장한 시각부터 다시 시작합니다.',
+  'settings.gates.change_sot': '리뷰 컷오버 {from} → {to}',
   'settings.gates.retention': '보존 기간',
   'settings.gates.retention_activity': '활동 원문(일)',
   'settings.gates.retention_blob': '리뷰 프롬프트 원문(일)',
@@ -2746,6 +2787,37 @@ export const ko = {
   'specs.type.feature': '기능',
   'specs.type.vision': '비전',
   // ── CLI — nerv import 출력 (importer.md §3) ───────────────────────────────
+  // ── CLI — nerv cutover report 출력 (importer.md §3.7 · 2026-10-16 · 사람 결정 D6) ──────────────
+  'cli.cutover.usage':
+    '사용법: nerv cutover report --project <slug> --server <URL> --token <PAT> [--root <체크아웃>] [--path review/] [--since <ISO 시각>] [--until <ISO 시각>] [--json]',
+  'cli.cutover.err.needs_server':
+    '보고는 서버의 지표를 읽는다. --server와 --token(또는 env NERV_SERVER/NERV_TOKEN)이 필요하다.',
+  'cli.cutover.err.bad_time': '{flag}는 ISO 8601 시각이어야 한다: {value}',
+  'cli.cutover.err.server': '서버 지표를 읽지 못했다: {message}',
+  'cli.cutover.title': '# SoT 컷오버 M1 보고 ({project})',
+  'cli.cutover.stage': '- 컷오버 단계: {stage} · 전환 {since}',
+  'cli.cutover.never': '바꾼 적 없음',
+  'cli.cutover.window': '- 관측 창: {since} ~ {until} ({days}일 · 기준 {total}일)',
+  'cli.cutover.window_incomplete': '- 관측이 아직 {total}일을 채우지 않았다.',
+  'cli.cutover.mismatch':
+    '- 판정 불일치: {mismatches} / {total} ({rate}) · 안정 < {stable}% · 롤백 ≥ {rollback}%',
+  'cli.cutover.submit': '- 리뷰 제출 실패: {failed} / {total} ({rate}) · 롤백 ≥ {rollback}%',
+  'cli.cutover.commits':
+    '- `{path}` 신규 커밋: {commits}개 · 파일 {files}개 · {bytes}바이트 (목표 0)',
+  'cli.cutover.commits_unknown': '- `{path}` 신규 커밋: 세지 못했다({reason})',
+  'cli.cutover.input_ratio':
+    '- 리뷰 입력 가운데 이전 리뷰 산출물 비율(2-5): 재지 않는다. 서버는 리뷰가 본 파일 목록을 남기지 않는다(changeset 해시뿐)',
+  'cli.cutover.status': '- 서버 지표 판정: {status}',
+  'cli.cutover.status.no_data': '비교 없음',
+  'cli.cutover.status.stable': '안정',
+  'cli.cutover.status.watch': '관찰 중',
+  'cli.cutover.status.rollback': '롤백 기준 도달',
+  'cli.cutover.recent': '## 최근 불일치',
+  'cli.cutover.recent_row': '- {at} · {branch} · {sha} · 로컬 {local}{hook} · 서버 {server}',
+  'cli.cutover.overall.ok':
+    '결론: 2주 관측의 불일치율 · 제출 실패율 · 신규 커밋 조건을 채웠다. 세션 실패율과 리드타임은 따로 확인한다.',
+  'cli.cutover.overall.rollback': '결론: 롤백 기준에 이르렀다. 로드맵 §7.6 절차를 따른다.',
+  'cli.cutover.overall.check': '결론: 아직 안정 조건이 아니다. 위 줄을 확인한다.',
   'cli.done': '{mode} 완료 — 스캔 {scanned} · 변환 {converted} ({rate}%) · 리포트 {dir}',
   'cli.err.apply_needs_server':
     '--apply에는 --server와 --token(또는 env NERV_SERVER/NERV_TOKEN)이 필요하다.',

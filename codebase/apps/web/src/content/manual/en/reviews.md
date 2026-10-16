@@ -86,3 +86,16 @@ In the left sidebar, the number next to **Review** under the expanded project is
 Agents use the same path: when an agent saves a draft and points to the finding, it is linked to the same change request.
 
 **Findings an agent escalated** show "Escalated · reason" in the rail, along with whether the session is waiting. The decision is made on the escalation card in the inbox ([Escalation cards](/help/inbox#escalations)).
+
+## Cutover watch {#cutover}
+
+**Two rates for the M1 dual run.** When the project's review cutover stage is M1 dual run or After M2, admins and planners see **Cutover watch** above the gate coverage table ([Gate policy](/help/settings#gates)). During the dual run, the repository's local hook and NERV each judge the same push. The local hook sends its own verdict when it asks for the gate check, and NERV applies its own verdict and records how the two compare. When the same local verdict comes again for the same branch · commit · kinds, it counts once.
+
+- **Verdict mismatches**: how many comparisons had different verdicts from the local hook and NERV, and the rate. Admins are notified for each mismatch. Mismatch notifications for one project are grouped into one line until read.
+- **Failed review submissions**: how many review submissions were queued offline and rejected by the server when resent, and the rate. A submission rejected right away is not counted, because the agent gets that answer directly.
+
+The status at the top follows the roadmap thresholds. A mismatch rate under 1% is **Stable**. A mismatch rate of 5% or more, or a submission failure rate of 2% or more, is **Rollback trigger reached**, shown with the reason. In between is **Watching**. With no comparisons yet, it says what it is waiting for. The watch counts from when the cutover stage was changed, and shows how many days have passed (the target is 14).
+
+**Recent mismatches** show the branch · commit · both verdicts · the local hook's name and the reason it gave. Every mismatch needs its cause found before the cutover can be declared stable.
+
+**Review files newly committed to the repository do not appear here.** NERV does not access the repository, so count them with the CLI in a checkout ([Cutover report](/help/agents#cutover-report)).

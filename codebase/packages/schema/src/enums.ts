@@ -346,6 +346,26 @@ export type EscalateReason = (typeof ESCALATE_REASONS)[number];
 export const ESCALATION_RESOLUTIONS = ['fix', 'wont_fix', 'dismissed'] as const;
 export type EscalationResolution = (typeof ESCALATION_RESOLUTIONS)[number];
 
+/**
+ * **리뷰 컷오버 단계**(2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-DB-052 · roadmap §7.4). 프로젝트의 `review/` 산출물과 게이트 판정의
+ * 진실이 어디에 있는가 — 병행 운영 표의 세 줄이다.
+ *
+ * - `git` — 컷오버 전. 게이트 판정의 진실은 로컬 훅이고 NERV 는 관측만 한다(기본값)
+ * - `dual` — M1 이중화 기간. 리뷰는 NERV 에 남고 판정은 로컬 훅과 NERV 가 함께 낸다 — 다르면 서버 판정이 이기고 불일치를 남긴다
+ * - `nerv` — M2 이후. 판정의 진실은 NERV 이고 로컬 훅은 fail-open 보조다
+ *
+ * 바꾼 시각이 `project.review_sot_since` 다 — 2주 관측 창(§7.5)이 그 시각에서 시작한다.
+ */
+export const REVIEW_SOTS = ['git', 'dual', 'nerv'] as const;
+export type ReviewSot = (typeof REVIEW_SOTS)[number];
+export const reviewSot = pgEnum('review_sot', REVIEW_SOTS);
+/**
+ * **게이트 판정의 두 값**(2026-10-16 · D6) — 로컬 훅이 알리는 판정(`local_state.verdict`)과 서버 판정을 같은 말로 견준다. 서버 판정은
+ * 물은 종류가 모두 `passed` · `waived` 면 `pass`, 하나라도 아니면 `block` 이다. 저장은 불리언(`local_pass` · `server_pass`)이다.
+ */
+export const GATE_VERDICTS = ['pass', 'block'] as const;
+export type GateVerdict = (typeof GATE_VERDICTS)[number];
+
 // ── 사람 개입 ─────────────────────────────────────────────────────────────
 export const approvalSubjectType = pgEnum('approval_subject_type', [
   'spec_version',

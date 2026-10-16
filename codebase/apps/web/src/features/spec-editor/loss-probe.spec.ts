@@ -22,21 +22,32 @@ function roundTrip(markdown: string): { once: string; twice: string; stable: boo
   return { once, twice, stable: normalize(once) === normalize(twice) };
 }
 
+/**
+ * **이 검사의 비용은 문서와 함께 자란다**(2026-10-16). 실제 문서 둘을 에디터로 두 번 왕복하므로 걸리는 시간이 그 문서의 크기를 따른다 —
+ * 4.7 임포터 문서가 §3.7 로 4.5KB 늘자 혼자서는 3.4초인데 L1 전체를 함께 돌리는 부하에서 기본 상한(5초)을 넘었다. 비용이 자라는 검사에
+ * 기본 상한을 그대로 두지 않는다(AGENTS.md 구현 규약 7) — 문서가 몇 배로 늘어도 넉넉한 값을 준다
+ */
+const REAL_DOCS_TIMEOUT_MS = 60_000;
+
 describe('손실 유형 특정', () => {
-  it('실제 불안정 문서의 최소 재현 — 어떤 구문이 범인인지 출력한다', () => {
-    for (const file of ['02-research/integration-tech.md', '04-mvp/importer.md']) {
-      const body = readFileSync(`${process.cwd()}/../../../docs/${file}`, 'utf8');
-      const result = roundTrip(body);
-      if (!result.stable) {
-        const a = normalize(result.once).split('\n');
-        const b = normalize(result.twice).split('\n');
-        const i = a.findIndex((line, index) => line !== b[index]);
-        // 스파이크의 산출물은 "실패했다"가 아니라 **무엇이 실패했나**다
-        console.info(`[손실] ${file} 줄 ${i + 1}\n  1회차: ${a[i]}\n  2회차: ${b[i]}`);
+  it(
+    '실제 불안정 문서의 최소 재현 — 어떤 구문이 범인인지 출력한다',
+    { timeout: REAL_DOCS_TIMEOUT_MS },
+    () => {
+      for (const file of ['02-research/integration-tech.md', '04-mvp/importer.md']) {
+        const body = readFileSync(`${process.cwd()}/../../../docs/${file}`, 'utf8');
+        const result = roundTrip(body);
+        if (!result.stable) {
+          const a = normalize(result.once).split('\n');
+          const b = normalize(result.twice).split('\n');
+          const i = a.findIndex((line, index) => line !== b[index]);
+          // 스파이크의 산출물은 "실패했다"가 아니라 **무엇이 실패했나**다
+          console.info(`[손실] ${file} 줄 ${i + 1}\n  1회차: ${a[i]}\n  2회차: ${b[i]}`);
+        }
       }
-    }
-    expect(true).toBe(true);
-  });
+      expect(true).toBe(true);
+    },
+  );
 
   it('표 밖의 인라인 코드 파이프는 안전하다', () => {
     expect(roundTrip('본문 `startup|resume|clear` 끝').stable).toBe(true);

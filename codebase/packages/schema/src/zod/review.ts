@@ -4,7 +4,8 @@
 // 도메인이 본다(REQ-API-112 · `resolutionOf` · `ESCALATE_REASONS`).
 
 import { z } from 'zod';
-import { PIN_LIMIT } from '../constants.js';
+import { GATE_LOCAL_HOOK_MAX, GATE_LOCAL_REASON_MAX, PIN_LIMIT } from '../constants.js';
+import { GATE_VERDICTS } from '../enums.js';
 import { COMMIT_SHA_PATTERN, FULL_COMMIT_SHA_PATTERN } from '../evidence-locator.js';
 
 /** 리뷰어 한 명의 자기 보고 — 위험도는 세션 위험도의 재료다 */
@@ -118,6 +119,37 @@ export const FindingCommentInput = z.object({ body_md: z.string().min(1) }).stri
 
 /** 브랜치 이름의 상한 — git 은 길이를 정하지 않지만 결재 기록에 남길 값이라 묶는다(리뷰 제출의 브랜치와 같은 모양) */
 export const GATE_BYPASS_BRANCH_MAX = 255;
+
+/**
+ * **EP-REV-08b — 게이트 판정에 로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · api.md REQ-API-345).
+ *
+ * 판정 인자는 EP-REV-08(GET)과 같은 이름 · 같은 모양이다 — `kind` 도 쉼표 목록 문자열이라, 훅이 GET 의 질의를 그대로 본문으로 옮기면
+ * 된다. 다른 둘: **`head_sha` 는 필수이고 40자다**(같은 커밋의 두 판정을 견주는 일이라 커밋이 하나로 정해져야 한다 — 짧은 SHA 는
+ * 같은 커밋이 두 줄로 세질 수 있다). 소문자로 남긴다. 그리고 **`local_state`** — 로컬 훅이 이미 낸 판정이다.
+ */
+export const GateCheckReportInput = z
+  .object({
+    branch: z.string().trim().min(1).max(GATE_BYPASS_BRANCH_MAX),
+    /** 쉼표 목록(`code,consistency`) — 생략하면 GET 과 같다(라운드가 있는 종류 + 정책이 요구하는 종류) */
+    kind: z.string().trim().nullish(),
+    head_sha: z
+      .string()
+      .trim()
+      .regex(new RegExp(FULL_COMMIT_SHA_PATTERN, 'i'), 'error.gate.head_not_full_sha')
+      .transform((sha) => sha.toLowerCase()),
+    local_state: z
+      .object({
+        /** 로컬 훅의 판정 — `pass`(통과) · `block`(막음) */
+        verdict: z.enum(GATE_VERDICTS),
+        /** 판정을 낸 훅의 이름(예: `pre-push`) */
+        hook: z.string().trim().min(1).max(GATE_LOCAL_HOOK_MAX).nullish(),
+        /** 막은 · 통과시킨 이유 한 줄 — 불일치의 원인을 찾을 때 사람이 읽는다 */
+        reason: z.string().trim().min(1).max(GATE_LOCAL_REASON_MAX).nullish(),
+      })
+      .strict(),
+  })
+  .strict();
+export type GateCheckReportInput = z.infer<typeof GateCheckReportInput>;
 
 /** EP-APR-04 — 게이트 면제. **면제도 결재 레코드다**(FR-10) */
 export const GateBypassInput = z

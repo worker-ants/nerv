@@ -96,6 +96,8 @@ export function eventTarget(n: EventRow, requests: 'inbox' | 'subject' = 'inbox'
   ) {
     return { to: `/p/${project}`, search: { events: 'failopen' } };
   }
+  // 판정 불일치는 리뷰 센터의 컷오버 관측이 보인다(2026-10-16 · 사람 결정 D6 · REQ-WEB-330) — 최근 불일치가 거기 있다
+  if (type === NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH) return { to: `/p/${project}/reviews` };
   return { to: `/p/${project}` };
 }
 

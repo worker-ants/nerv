@@ -184,9 +184,11 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   // 멤버십은 설정의 명부, 토큰은 토큰 표, 프로젝트는 그 프로젝트의 머리, 첨부는 스펙 상세다.
   // 피드는 넷 다 다시 읽는다(감사 축이 곧 피드다).
   [E.PROJECT_CREATED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // 컷오버 단계를 바꾸면 관측 창이 다시 시작한다(2026-10-16 · REQ-WEB-330) — 리뷰 센터의 컷오버 관측도 다시 읽는다
   [E.PROJECT_UPDATED]: (e) => [
     queryKeys.project(e.project_id),
     queryKeys.projectEvents(e.project_id),
+    queryKeys.projectCutover(e.project_id),
   ],
   [E.PROJECT_ARCHIVED]: (e) => [queryKeys.project(e.project_id)],
   [E.PROJECT_RESTORED]: (e) => [queryKeys.project(e.project_id)],
@@ -217,6 +219,11 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [P2.MIRROR_DIVERGED]: (e) => [queryKeys.projectEvents(e.project_id)],
   // 오프라인 큐 재전송 거절(2026-10-16 · E21-S01) — 화면은 활동 피드뿐이다. 보고한 사람의 종은 개인 룸의 `notification.created` 가 되읽는다
   [P2.SESSION_OUTBOX_FAILED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // 게이트 판정 불일치(2026-10-16 · 사람 결정 D6 · REQ-WEB-330) — 리뷰 센터의 컷오버 관측이 수와 최근 불일치를 다시 읽는다
+  [P2.GATE_VERDICT_MISMATCH]: (e) => [
+    queryKeys.projectEvents(e.project_id),
+    queryKeys.projectCutover(e.project_id),
+  ],
 
   [E.IMPORT_APPLIED]: (e) => [
     queryKeys.projectSpecTree(e.project_id),

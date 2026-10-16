@@ -26,9 +26,11 @@ referenced_by:
 ---
 # 데이터 모델
 
-> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 43개**(도메인 엔티티 37 + 부속 6 — 2026-10-16 정정. 처음 29개로 적었고 그 뒤 늘었다 — §1.3 표가 계수의 정본이다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
+> **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 44개**(도메인 엔티티 38 + 부속 6 — 2026-10-16 정정. 처음 29개로 적었고 그 뒤 늘었다 — §1.3 표가 계수의 정본이다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.32 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.33 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.33 변경(2026-10-16 — SoT 컷오버 M1, Phase 2 묶음 3의 넷째 · **사람 결정**(2026-10-16 — D6) · [4.8 백로그](../04-mvp/backlog.md) E21-S03): **§1.3 엔티티 하나 · §2.1 `project` 두 필드 · §2.6 표 하나 · 요약과 §1.3 의 계수(43 → 44).** 프로젝트가 리뷰 컷오버 단계(`review_sot` — `git` · `dual` · `nerv`)와 바꾼 시각을 갖는다. `gate_verdict_comparison` 은 로컬 훅이 게이트 판정에 함께 보낸 판정과 서버 판정을 견준 한 줄이다 — M1 이중화 기간의 불일치율이 여기서 나온다([3.7 로드맵](roadmap.md) §7.4 · §7.5 · [4.4 API](../04-mvp/api.md) REQ-API-345).
 >
 > v0.32 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](../04-mvp/backlog.md) E17-S02): **§1.3 엔티티 둘 · §2.9 표 둘과 결정 기록 · 요약의 계수.** `watch`(사람이 스펙 · 작업 · 영역을 구독한 것 — 알림 카탈로그의 「워처」)와 `pin`(퀵 스위처의 고정 — 사람마다 프로젝트를 넘는 한 목록)을 따로 둔다. 도메인 엔티티 37 + 부속 6 = 테이블 43개다. 요약이 오래 「37개(32 + 5)」로 멈춰 있어 함께 고쳤다([4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-051).
 >
@@ -196,8 +198,9 @@ erDiagram
 | 35 | 메일 요약 설정 | `notification_digest_setting` | 알림 메일 요약을 켠 사람의 받는 시각 · 시간대 · 언어(2026-09-28 · `0041_notification_digest`) | FR-12 |
 | 36 | 워치 | `watch` | 사람이 스펙 · 작업 · 영역을 구독한 것 — 알림 카탈로그의 「워처」(2026-10-16 · `0056_watch_pin`) | FR-12 |
 | 37 | 핀 | `pin` | 퀵 스위처에서 고정한 문서 · 작업 · 변경 요청 — 사람마다 프로젝트를 넘는 한 목록(2026-10-16 · `0056_watch_pin`) | FR-12 |
+| 38 | 게이트 판정 비교 | `gate_verdict_comparison` | 로컬 훅이 게이트 판정에 함께 보낸 판정과 서버 판정을 견준 한 줄 — M1 이중화 기간의 불일치율(2026-10-16 · `0057_review_cutover`) | FR-17 |
 
-위 **37종이 도메인 엔티티**이고, 여기에 **부속 6종**이 더해져 테이블은 **43개**다 — [4.3 데이터베이스 스키마](../04-mvp/database.md)의 `CREATE TABLE` 개수와 같다. 부속은 better-auth 가 소유하는 셋(`auth_session`·`auth_account`·`auth_verification`) · 재생성 가능한 검색 인덱스(`spec_chunk_embedding` — §5.3) · 요청 배관(`idempotency_key` — 주체가 프로젝트가 아니라 자격증명이라 `project_id` 조차 없다) · 발송 큐(`email_outbox` — 2026-09-22)이다.
+위 **38종이 도메인 엔티티**이고 여기에 **부속 6종**이 더해져 테이블은 **44개**다 — [4.3 데이터베이스 스키마](../04-mvp/database.md)의 `CREATE TABLE` 개수와 같다. 부속은 better-auth 가 소유하는 셋(`auth_session`·`auth_account`·`auth_verification`) · 재생성 가능한 검색 인덱스(`spec_chunk_embedding` — §5.3) · 요청 배관(`idempotency_key` — 주체가 프로젝트가 아니라 자격증명이라 `project_id` 조차 없다) · 발송 큐(`email_outbox` — 2026-09-22)이다.
 
 > **33 → 32**(2026-09-07 정정). 이 표는 33행이었고 그 33번째가 `activity_summary` 였는데, 그것은 **테이블이 아니라 `agent_session` 의 jsonb 열**이다(`0012` — 보존 잡이 Activity 원문을 지우기 전에 도구별 횟수를 접어 두는 자리이고, 의미는 §2.5 의 필드표에 있다). 열을 엔티티로 세면 두 가지가 함께 틀린다 — 엔티티 수와, 그 수에서 빼기로 계산하던 부속 수다. 4.3 은 반대 방향으로 틀려 있었다(`idempotency_key` 를 도메인으로 세고 `spec_chunk_embedding` 을 인프라로 셌다): **32 + 5 = 37** 로 두 문서를 맞췄다.
 >
@@ -264,6 +267,8 @@ stateDiagram-v2
 | `repo_url` · `default_branch` | text | git forge 연동 대상 |
 | `gate_policy` | jsonb | 위험도별 게이트 임계(D-06), fail-open 격상 임계(D-14) |
 | `retention` | jsonb | Activity·프롬프트 페이로드 보존 기간(§5.4) |
+| `review_sot` | enum | **리뷰 컷오버 단계**(2026-10-16 · 사람 결정 D6 · `0057`) — `git`(컷오버 전 · 기본) · `dual`(M1 이중화) · `nerv`(M2 이후). [3.7 로드맵](roadmap.md) §7.4 병행 운영 표의 줄이다. 게이트 판정 비교가 어느 판정을 적용하는지와 불일치를 알릴지를 이 값으로 정한다 |
+| `review_sot_since` | timestamptz NULL | 그 단계로 바꾼 시각 — 2주 관측 창(§7.5)의 시작 |
 | `archived_at` | timestamptz | |
 
 **`membership`** — `project_id`가 NULL이면 조직 전체 역할이다.
@@ -664,6 +669,22 @@ Activity는 **불변**이다. 편집 가능한 코멘트와 분리하라는 것�
 | `created_at` | timestamptz | |
 
 **표면의 `resolution` 어휘와 저장의 두 축은 이름이 다르다**(2026-09-07 명시). `EP-REV-02`·`nerv_finding_resolve` 가 받는 값은 다섯(`fixed`·`spec_change`·`dismissed`·`wont_fix`·`escalated`)이고, 서버는 그것을 **`resolution.kind`(무엇으로 해결했나)** 와 **`finding.status`(그래서 발견은 어떻게 됐나)** 두 축으로 번역한다. 엇갈리는 자리가 둘이다 — 표면의 **`wont_fix` 는 `kind='deferred'` + `status='wont_fix'`** 이고(`resolution_kind` 에 `wont_fix` 라는 값은 없다), **`escalated` 는 `status` 를 `open` 으로 남긴다**(넘긴 것은 해결한 것이 아니다). 번역표는 도메인 한 곳이다 — 표면마다 사본을 두면 한쪽만 낡는다.
+
+**`gate_verdict_comparison`**(2026-10-16 · 사람 결정 D6 · `0057`) — M1 이중화 기간에 로컬 훅과 NERV 가 같은 push 를 각자 판정한 결과를 견준 한 줄이다([3.7 로드맵](roadmap.md) §7.4 규칙 3).
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | uuid PK | |
+| `project_id` | uuid FK | |
+| `branch` · `kinds` · `head_sha` | text | 판정 인자 — 종류는 정렬한 쉼표 목록(묻지 않았으면 빈 문자열), 커밋은 40자 소문자 |
+| `local_pass` · `local_hook` · `local_reason` | bool · text NULL · text NULL | 로컬 훅의 판정과 그 훅의 이름 · 적은 이유 |
+| `server_pass` · `server_states` | bool · jsonb | 서버 판정(물은 종류가 모두 `passed` · `waived` 면 참)과 종류마다의 상태 |
+| `review_sot` | enum | 그때의 컷오버 단계 |
+| `actor_user_id` | uuid FK | 훅을 부른 토큰의 사람 |
+| `repeat_count` · `last_seen_at` | int · timestamptz | 같은 비교를 받은 횟수와 마지막 시각 — `(project_id, branch, kinds, head_sha, local_pass)` 유일 |
+| `created_at` | timestamptz | 지표의 창은 이 시각으로 센다 |
+
+같은 비교를 한 줄로 두는 이유: 호출 수가 불일치율의 분모라 재시도가 분모를 부풀리면 안 된다. 판정은 처음 것이 남는다 — 그 커밋에서 두 판정이 처음 만난 때가 그 비교다. 이벤트 표에 두지 않은 이유: 비교는 push 마다 생겨 활동 피드와 알림 워커가 훑는 양을 늘리고 멱등 키를 걸 자리도 없다. 불일치는 따로 `gate.verdict_mismatch` 이벤트가 된다(이중화 기간만).
 
 ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 이식한다. `rationale_md`가 중요한 이유도 실측이다 — `SNAPSHOT_CACHE_MAX_ENTRIES` 유예 건이 `14_01_46`/`17_15_21`/`18_19_33` 세 세션에서 반복 재확인되며 매번 새 표 행으로 재서술됐다. "새 근거 없이 재상정하지 않음" 규칙이 산문 인용으로만 유지되던 것을, finding 1건 + resolution 여러 건의 관계로 바꾼다.
 

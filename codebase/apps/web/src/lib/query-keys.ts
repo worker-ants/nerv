@@ -71,6 +71,8 @@ export const queryKeys = {
   /** S6 리뷰 센터 — 큐와 게이트 현황이 같은 축(발견의 변화)으로 갱신된다 */
   projectFindings: (projId: ProjectId) => ['project', projId, 'findings'] as const,
   projectGateCoverage: (projId: ProjectId) => ['project', projId, 'gateCoverage'] as const,
+  /** 컷오버 관측(EP-REV-10 · 2026-10-16 · REQ-WEB-330) — 불일치가 생기면 다시 읽는다 */
+  projectCutover: (projId: ProjectId) => ['project', projId, 'cutover'] as const,
 
   /** 변경 요청 한 건(EP-CR-02) — 축은 표시 키(`<PRJ>-C-…`)다. 이벤트 봉투의 `subject_key` 가 그 키다 */
   changeRequest: (crKey: string) => ['cr', crKey] as const,

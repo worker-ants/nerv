@@ -53,10 +53,10 @@
     <h1>로드맵</h1>
     <p class="lead">NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 <b>조정 → 가시성 → 거버넌스 → 고도화</b>로 고정하고, 각 Phase에 기간·범위(FR 번호)·산출물과 함께 <b>수치로 된 종료 조건</b>을 붙인다. 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.14 (2026-10-15)</span>
+      <span>버전 v0.15 (2026-10-16)</span>
       <span>원본: <code>docs/03-proposal/roadmap.md</code></span>
       <span>주로 다루는 결정: D-12 · D-06 · D-14</span>
-      <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
+      <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
     </div>
   </header>
 
@@ -704,6 +704,14 @@
     <li><b>판정이 갈리면 서버가 이긴다, 단 조용히 지지 않는다.</b> 이중화 기간에 로컬 훅과 서버 판정이 다르면 서버 판정을 적용하고 불일치를 이벤트로 남긴다. 불일치율은 컷오버 안정화 지표(§7.5)다.</li>
   </ol>
 
+  <p><b>판정 비교의 실물</b>(2026-10-16 · <b>사람 결정 D6</b> · <a href="api.html">4.4 API</a> EP-REV-08b · REQ-API-345 ~ 349 · <a href="backlog.html">4.8 백로그</a> E21-S03). 규칙 3 을 이렇게 집행한다.</p>
+
+  <ul>
+    <li><b>두 판정은 한 호출에 온다</b>(D6 = A). 로컬 훅이 게이트 판정(EP-REV-08)을 물을 때 POST 로 자기 판정(<code>local_state</code> — 통과 · 막음 · 훅 이름 · 이유)을 함께 보낸다. 같은 커밋의 두 판정이 한 자리에 있고 호출 수가 곧 분모다. 같은 (브랜치 · 종류 · 커밋 · 로컬 판정)을 다시 부르면 한 번으로 센다. 택하지 않은 안: 불일치만 보고하기(B — 분모를 모른다) · 사후 대조(C — 그 push 에 서버 판정을 적용할 수 없다).</li>
+    <li><b>어느 판정이 적용되는가는 프로젝트의 컷오버 단계가 정한다</b> — 위 표의 줄이 그대로 값이다. <code>git</code>(Phase 1 줄 — 로컬 훅이 진실이고 NERV 는 비교만 남긴다) · <code>dual</code>(M1 이후 줄 — 서버 판정을 적용하고 불일치는 <code>gate.verdict_mismatch</code> 이벤트와 admin 알림) · <code>nerv</code>(M2 이후 줄). admin 이 프로젝트 설정에서 바꾸고 감사가 전후를 남긴다. 바꾼 시각이 2주 관측 창(§7.5)의 시작이다.</li>
+    <li><b>컷오버 실행 시점은 clemvion 팀과 정한다.</b> NERV 쪽 표면은 날짜와 상관없이 먼저 두었다. 컷오버 전에 훅을 붙이면 <code>git</code> 단계의 비교가 리허설(§7.5 사전 조건)이 된다. 로컬 훅은 이 저장소 밖(clemvion)에 있어 훅이 부르는 모양은 <a href="api.html">4.4 API</a> §2.6a 「판정 비교」에 예시로 두었다.</li>
+  </ul>
+
   <h3>7.5 컷오버 체크리스트</h3>
   <p>M1·M2 각각에 대해 아래를 순서대로 통과해야 컷오버를 선언한다.</p>
 
@@ -737,6 +745,21 @@
     </ul>
     <p><b>안정화 선언</b>: 위 4항목이 2주 연속 충족되면 컷오버를 확정하고 해당 대상의 로컬 게이트 코드를 제거 대상 목록에 올린다.</p>
   </div></div>
+
+  <p><b>M1 에서 무엇으로 재는가</b>(2026-10-16 · <b>사람 결정 D6</b> · <a href="backlog.html">4.8 백로그</a> E21-S03). 창은 컷오버 단계를 <code>dual</code> 로 바꾼 시각부터 지금까지가 기본이다. 성공 기준 2-1 의 4주 창은 같은 명령을 4주 뒤에 돌리거나 <code>--since</code> · <code>--until</code> 로 정한다.</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>항목</th><th>재는 곳</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>대상 경로의 신규 git 커밋 0(성공 기준 2-1)</td><td>CLI <code>nerv cutover report --path review/</code>(<a href="importer.html">4.7 스펙 임포터</a> §3.7) — 체크아웃의 모든 로컬 · 원격 추적 브랜치에서 창 안의 커밋 · 파일 · 바이트를 센다</td><td>서버는 대상 저장소에 접근하지 않고 GitHub 웹훅은 커밋의 파일 목록을 읽지 않는다</td></tr>
+      <tr><td>서버 ↔ 로컬 판정 불일치율 &lt; 1% · 불일치 전건 원인 규명</td><td>지표 <a href="api.html">4.4 API</a> EP-REV-10 · S6 리뷰 센터의 「컷오버 관측」(admin · planner) — 최근 불일치 20건에 브랜치 · 커밋 · 훅 이름 · 훅이 적은 이유</td><td>분모는 판정 비교의 수다. 같은 비교의 재호출은 세지 않는다</td></tr>
+      <tr><td>에이전트 세션 실패율 · 사람 작업의 리드타임</td><td>이번에 만들지 않았다 — 사람이 세션 모니터와 받은 요청에서 본다</td><td>실행 전에 기준선을 적어 둔다</td></tr>
+      <tr><td>(§7.6 M1 롤백 트리거) 판정 불일치율 ≥ 5% · 리뷰 제출 실패율 ≥ 2%</td><td>같은 지표의 상태(<code>rollback</code> 과 그 까닭) · CLI 보고의 결론</td><td>리뷰 제출 실패는 오프라인 큐의 재전송이 거절된 리뷰 제출(<code>session.outbox_failed</code> 가운데 <code>nerv_review_submit</code>)이고, 분모는 그 수와 받은 제출(<code>review.submitted</code>)의 합이다. 바로 거절돼 부른 쪽이 받은 4xx 는 서버가 기록하지 않아 세지 않는다</td></tr>
+      <tr><td>성공 기준 2-5(리뷰 입력 가운데 이전 리뷰 산출물 비율)</td><td>재지 않는다</td><td>서버는 리뷰가 본 파일 목록을 남기지 않는다(<code>changeset_hash</code> 뿐). 2-1 의 신규 커밋 0 이 그 입력이 새로 생기지 않는다는 간접 근거다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>CLI 는 두 출처를 한 보고로 낸다. 종료 코드는 <code>0</code> 안정(불일치율 &lt; 1% · 제출 실패율 &lt; 2% · 신규 커밋 0 · 2주 관측 완료) · <code>1</code> 사람이 볼 것 · <code>2</code> 중단(서버를 읽지 못했다)이다. 세션 실패율과 리드타임은 이 결론에 들지 않는다.</p>
 
   <h3>7.6 롤백</h3>
 

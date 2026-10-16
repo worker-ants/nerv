@@ -253,6 +253,18 @@ export const SPEC_SUBMIT_ROLES = ['admin', 'planner'] as const;
 export const CR_REJECT_ROLES = ['admin', 'planner'] as const;
 
 /**
+ * **컷오버 지표를 읽는 역할**(2026-10-16 · 사람 결정 D6 · E21-S03 · api.md EP-REV-10). 불일치 · 제출 실패를 보고 롤백을 판단하는
+ * 사람이다 — 컷오버 단계를 바꾸는 admin 과 이관 계획을 맡는 planner. 비교 기록에는 로컬 훅이 적은 이유와 브랜치가 들어 있어
+ * 모든 역할에 열지 않는다. 서버와 화면이 같은 목록을 본다.
+ */
+export const CUTOVER_REPORT_ROLES = ['admin', 'planner'] as const;
+
+/** 그 역할들로 컷오버 지표를 읽을 수 있는가 */
+export function canReadCutoverReport(roles: readonly string[]): boolean {
+  return roles.some((role) => (CUTOVER_REPORT_ROLES as readonly string[]).includes(role));
+}
+
+/**
  * **발견을 변경 요청으로 보낼 수 있는 역할**(2026-10-16 · 사람 결정 · spec-workflow §3.4 · api.md EP-REV-09). 보내면 승인본에서 초안을
  * 열고 그 CR 의 주인이 된다 — 그래서 CR 을 거절할 수 있는 역할과 같다. 처분(`review:resolve`)이 있는 qa 는 이 길로 스펙을 열지
  * 않는다: 스펙을 고칠 방향을 정하는 일은 planner · admin 의 것이다. 서버와 화면이 같은 목록을 본다.

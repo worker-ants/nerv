@@ -144,6 +144,10 @@ export const en = {
     'head_sha is only for a branch waiver. Use it to narrow the waiver to one commit of that branch.',
   'error.approval.bypass_head_not_full_sha':
     'head_sha must be a full 40-character commit SHA. A short SHA could later match another commit (get it with git rev-parse).',
+  'error.gate.head_not_full_sha':
+    'head_sha must be a full 40-character commit SHA. The two verdicts are compared for one commit, so the commit must be exact (get it with git rev-parse).',
+  'error.cutover.role_required': 'Only admins and planners can read the cutover report.',
+  'error.cutover.bad_window': 'The window start (since) must be before its end (until).',
   'error.auth.admin_only': 'Only admins can do this.',
   'error.auth.org_admin_only':
     'Only organization admins can manage organization-wide access. Project admins can manage only their own project.',
@@ -614,6 +618,27 @@ export const en = {
   'reviews.gate.shown': 'Latest {shown} of {total} branches',
   'reviews.gate.title': 'Gate status',
   'reviews.gate.verdict': 'Verdict',
+  'reviews.cutover.title': 'Cutover watch',
+  'reviews.cutover.stage': '{stage} · since {since}',
+  'reviews.cutover.window': 'Watched {days} of {total} days',
+  'reviews.cutover.mismatch': 'Verdict mismatches {mismatches} / {total}',
+  'reviews.cutover.submit_failure': 'Failed review submissions {failed} / {total}',
+  'reviews.cutover.status.no_data':
+    'No comparisons yet. They are counted here once a local hook sends its own verdict with the gate check.',
+  'reviews.cutover.status.stable': 'Stable: mismatch rate under {pct}%',
+  'reviews.cutover.status.watch': 'Watching: the mismatch rate is not under {pct}% yet',
+  'reviews.cutover.status.rollback': 'Rollback trigger reached',
+  'reviews.cutover.reason.mismatch_rate': 'mismatch rate {pct}% or more',
+  'reviews.cutover.reason.submit_failure_rate': 'review submission failure rate {pct}% or more',
+  'reviews.cutover.recent': 'Recent mismatches',
+  'reviews.cutover.recent_row': 'local {local} · server {server}',
+  'reviews.cutover.cli':
+    'Count review files newly committed to the repository with the CLI: nerv cutover report',
+  'review.sot.git': 'Before cutover (git)',
+  'review.sot.dual': 'M1 dual run',
+  'review.sot.nerv': 'After M2 (NERV)',
+  'gate.verdict.pass': 'pass',
+  'gate.verdict.block': 'block',
   'reviews.no_permission': 'Resolving requires the review:resolve scope.',
   'reviews.comment_no_permission':
     'Commenting requires the review:submit scope. Viewers can only read.',
@@ -1210,6 +1235,7 @@ export const en = {
   'event.gate.failopen': 'Gate check failed (recorded and proceeded)',
   'event.gate.failopen_escalated': 'Gate escalated (undecided passes over the limit)',
   'event.gate.failopen_cleared': 'Gate escalation cleared',
+  'event.gate.verdict_mismatch': 'Gate verdict mismatch (the local hook and the server disagreed)',
   'event.mirror.diverged':
     'Mirror push stopped (the mirror repository has commits NERV did not make)',
   'event.import.applied': 'Import applied',
@@ -2312,6 +2338,19 @@ export const en = {
   'settings.gates.failopen_invalid': 'Times and hours must be whole numbers of 1 or more.',
   'settings.gates.failopen_value': '{count} times in {hours} hours',
   'settings.gates.change_failopen': 'Escalation {from} → {to}',
+  'settings.gates.sot': 'Review cutover',
+  'settings.gates.sot_body':
+    'Choose where review output and gate verdicts live. During the M1 dual run, when the verdict a local hook sends differs from the server verdict, the server verdict applies and admins are notified.',
+  'settings.gates.sot_hint_git': 'The local hook decides. NERV only records comparisons.',
+  'settings.gates.sot_hint_dual':
+    'The server verdict applies. When it differs from the local hook, the project admins are notified.',
+  'settings.gates.sot_hint_nerv':
+    'NERV decides. The local hook only decides as a fallback when the server cannot be reached.',
+  'settings.gates.sot_since': 'Changed at {at}. The two-week watch counts from then.',
+  'settings.gates.sot_never': 'Never changed yet.',
+  'settings.gates.sot_reset':
+    'Changing the stage restarts the watch window from the moment you save.',
+  'settings.gates.change_sot': 'Review cutover {from} → {to}',
   'settings.gates.retention': 'Retention',
   'settings.gates.retention_activity': 'Raw activity (days)',
   'settings.gates.retention_blob': 'Review prompt text (days)',
@@ -2781,6 +2820,38 @@ export const en = {
   'specs.type.feature': 'Feature',
   'specs.type.vision': 'Vision',
   // ── CLI — nerv import 출력 (importer.md §3) ───────────────────────────────
+  'cli.cutover.usage':
+    'Usage: nerv cutover report --project <slug> --server <URL> --token <PAT> [--root <checkout>] [--path review/] [--since <ISO time>] [--until <ISO time>] [--json]',
+  'cli.cutover.err.needs_server':
+    'The report reads the server metrics. It needs --server and --token (or env NERV_SERVER/NERV_TOKEN).',
+  'cli.cutover.err.bad_time': '{flag} must be an ISO 8601 time: {value}',
+  'cli.cutover.err.server': 'Could not read the server metrics: {message}',
+  'cli.cutover.title': '# SoT cutover M1 report ({project})',
+  'cli.cutover.stage': '- Cutover stage: {stage} · switched {since}',
+  'cli.cutover.never': 'never',
+  'cli.cutover.window': '- Window: {since} to {until} ({days} days · target {total} days)',
+  'cli.cutover.window_incomplete': '- The watch has not covered {total} days yet.',
+  'cli.cutover.mismatch':
+    '- Verdict mismatches: {mismatches} / {total} ({rate}) · stable < {stable}% · rollback ≥ {rollback}%',
+  'cli.cutover.submit':
+    '- Failed review submissions: {failed} / {total} ({rate}) · rollback ≥ {rollback}%',
+  'cli.cutover.commits':
+    '- New commits under `{path}`: {commits} · {files} files · {bytes} bytes (target 0)',
+  'cli.cutover.commits_unknown': '- New commits under `{path}`: could not count ({reason})',
+  'cli.cutover.input_ratio':
+    '- Share of earlier review output among review inputs (2-5): not measured. The server does not keep the files a review read (only the changeset hash)',
+  'cli.cutover.status': '- Server metric verdict: {status}',
+  'cli.cutover.status.no_data': 'no comparisons',
+  'cli.cutover.status.stable': 'stable',
+  'cli.cutover.status.watch': 'watching',
+  'cli.cutover.status.rollback': 'rollback trigger reached',
+  'cli.cutover.recent': '## Recent mismatches',
+  'cli.cutover.recent_row': '- {at} · {branch} · {sha} · local {local}{hook} · server {server}',
+  'cli.cutover.overall.ok':
+    'Result: the two-week mismatch, submission failure and new-commit conditions are met. Check the session failure rate and lead times separately.',
+  'cli.cutover.overall.rollback':
+    'Result: a rollback trigger was reached. Follow the roadmap §7.6 procedure.',
+  'cli.cutover.overall.check': 'Result: not stable yet. Check the lines above.',
   'cli.done': '{mode} done: scanned {scanned}, converted {converted} ({rate}%) · report: {dir}',
   'cli.err.apply_needs_server':
     '--apply requires --server and --token (or NERV_SERVER/NERV_TOKEN).',

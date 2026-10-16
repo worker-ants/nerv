@@ -55,6 +55,11 @@ export const ProjectUpdateInput = z
     /** 키 스키마는 `policy.ts` 가 정본이다 — 여기서는 객체라는 것만 본다 */
     gate_policy: z.record(z.string(), z.unknown()).nullish(),
     retention: z.record(z.string(), z.unknown()).nullish(),
+    /**
+     * 리뷰 컷오버 단계(2026-10-16 · 사람 결정 D6 · REQ-API-347) — `git` · `dual` · `nerv`. 어휘 판정은 도메인이 한다(`REVIEW_SOTS`).
+     * 바꾸면 서버가 그 시각을 `review_sot_since` 로 남긴다 — 같은 값을 다시 보내면 아무것도 바뀌지 않는다
+     */
+    review_sot: z.string().nullish(),
   })
   .strict();
 

@@ -2,7 +2,8 @@
 //
 // 여기서 고치는 것은 `spec_gate.*` 두 키(`tier_boundaries` · `dynamic_escalation`)와 `done_gate.*` 두 키(`evidence_source` ·
 // `review_coverage` — 2026-09-28 · REQ-WEB-285) · `review_roles`, 그리고 `failopen` 두 키(`escalate_count` · `window_hours`)와
-// `retention` 두 키(`activity_days` · `prompt_blob_ttl_days`)다(2026-10-15 · 사람 결정 · REQ-WEB-318). 예전 이 주석은
+// `retention` 두 키(`activity_days` · `prompt_blob_ttl_days`)다(2026-10-15 · 사람 결정 · REQ-WEB-318). 그리고 정책이 아닌 프로젝트의 칸
+// 하나 — 리뷰 컷오버 단계(`review_sot` · 2026-10-16 · 사람 결정 D6 · REQ-WEB-331)도 여기서 고친다. 예전 이 주석은
 // `failopen` · `retention` 을 "표시만 한다" 고 적었는데 화면은 `failopen` 문장 하나만 보였고 `retention` 은 어디에도 없었다.
 // **admin 아닌 역할에는 API 와 UI 양쪽이 거부한다**: 여기서는 비활성 + 사유, 서버에서는 403.
 // 둘 중 하나만 있으면 게이트가 우회 가능해지거나 사용자가 이유 없이 막힌다.
@@ -18,8 +19,8 @@ import { useApiError } from '../../lib/api-errors.js';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { GatePolicySchema, RetentionSchema, reviewKind } from '@nerv/schema';
-import type { GatePolicy } from '@nerv/schema';
+import { GatePolicySchema, RetentionSchema, REVIEW_SOTS, reviewKind } from '@nerv/schema';
+import type { GatePolicy, ReviewSot } from '@nerv/schema';
 import { apiFetch } from '../../lib/api.js';
 import { rows, useMe, useMembers, useProject } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
@@ -39,6 +40,7 @@ import {
 import { ConfirmAction, ConfirmBar } from '../../components/ui/confirm-action.js';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { ReadOnlyNotice, scopeAdmins } from '../../components/read-only-notice.js';
+import { relativeTime, SOT_LABEL } from '../../lib/format.js';
 import type { Translator } from '@nerv/schema';
 
 export const Route = createFileRoute('/settings/gates')({
@@ -54,6 +56,16 @@ export const Route = createFileRoute('/settings/gates')({
 });
 
 const TIERS = ['T1', 'T2', 'T3'] as const;
+
+/** 단계마다 무엇이 적용되는지 한 줄(REQ-WEB-331) */
+const SOT_HINT = {
+  git: 'settings.gates.sot_hint_git',
+  dual: 'settings.gates.sot_hint_dual',
+  nerv: 'settings.gates.sot_hint_nerv',
+} as const;
+
+const isReviewSot = (value: unknown): value is ReviewSot =>
+  typeof value === 'string' && (REVIEW_SOTS as readonly string[]).includes(value);
 
 type Coverage = GatePolicy['done_gate']['review_coverage'];
 type CoverageMode = 'off' | 'any' | 'kinds';
@@ -212,6 +224,8 @@ function GatesTab(): React.JSX.Element {
   const [retentionDraft, setRetentionDraft] = useState<{ activity: string; blob: string } | null>(
     null,
   );
+  /** 리뷰 컷오버 단계 — 손대지 않았으면 `null` 이다(REQ-WEB-331) */
+  const [sotDraft, setSotDraft] = useState<ReviewSot | null>(null);
   /** 고친 채 다른 프로젝트를 고르면 — 버릴지 묻는 동안 여기 둔다 */
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
 
@@ -300,7 +314,19 @@ function GatesTab(): React.JSX.Element {
     retentionChanged &&
     (nextRetention.activity_days < retention.activity_days ||
       nextRetention.prompt_blob_ttl_days < retention.prompt_blob_ttl_days);
+  // **리뷰 컷오버 단계**(2026-10-16 · 사람 결정 D6 · REQ-WEB-331) — 정책이 아니라 프로젝트의 칸이다. 바꾸면 서버가 그 시각부터 2주 관측을
+  // 다시 센다. 같은 값을 다시 고르면 바뀐 것이 아니다
+  const storedSot: ReviewSot = isReviewSot(project.data?.['review_sot'])
+    ? project.data['review_sot']
+    : 'git';
+  const sot = sotDraft ?? storedSot;
+  const sotChanged = sot !== storedSot;
+  const sotSince =
+    typeof project.data?.['review_sot_since'] === 'string'
+      ? project.data['review_sot_since']
+      : null;
   const dirty =
+    sotDraft !== null ||
     draft !== null ||
     dynamicEscalation !== null ||
     evidenceDraft !== null ||
@@ -316,7 +342,7 @@ function GatesTab(): React.JSX.Element {
     coverageChanged ||
     rolesChanged ||
     failopenChanged;
-  const changed = policyChanged || retentionChanged;
+  const changed = policyChanged || retentionChanged || sotChanged;
   // **자동 통과가 넓어지는 방향** — 경계 하나라도 올리거나 동적 강화를 끄면 사람을 덜 거친다
   const specLoosens =
     (boundariesChanged && next.some((n, i) => n > (current[i] ?? 0))) ||
@@ -336,6 +362,7 @@ function GatesTab(): React.JSX.Element {
     setRolesDraft(null);
     setFailopenDraft(null);
     setRetentionDraft(null);
+    setSotDraft(null);
     setPendingSwitch(null);
   };
 
@@ -357,6 +384,7 @@ function GatesTab(): React.JSX.Element {
               }
             : {}),
           ...(retentionChanged ? { retention: nextRetention } : {}),
+          ...(sotChanged ? { review_sot: sot } : {}),
         },
       }),
     onSuccess: () => {
@@ -367,6 +395,7 @@ function GatesTab(): React.JSX.Element {
       setRolesDraft(null);
       setFailopenDraft(null);
       setRetentionDraft(null);
+      setSotDraft(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectBySlug(slug) });
       pushToast({ tone: 'ok', message: t('settings.gates.saved') });
     },
@@ -428,6 +457,8 @@ function GatesTab(): React.JSX.Element {
         from: retention.prompt_blob_ttl_days,
         to: nextRetention.prompt_blob_ttl_days,
       }),
+    sotChanged &&
+      t('settings.gates.change_sot', { from: t(SOT_LABEL[storedSot]), to: t(SOT_LABEL[sot]) }),
   ].filter((line): line is string => typeof line === 'string');
 
   const saveBlocked =
@@ -771,6 +802,39 @@ function GatesTab(): React.JSX.Element {
                 {t('settings.gates.retention_invalid')}
               </p>
             )}
+          </fieldset>
+          {/* 리뷰 컷오버 단계(REQ-WEB-331) — 병행 운영 표(roadmap §7.4)의 어느 줄에 있는지. 컷오버 관측(S6)이 이 값을 본다 */}
+          <fieldset
+            data-testid="gates-sot"
+            className="flex flex-col gap-2 border-t border-border pt-4"
+          >
+            <legend className="sr-only">{t('settings.gates.sot')}</legend>
+            <SectionTitle>{t('settings.gates.sot')}</SectionTitle>
+            <p className="text-2xs text-text-faint">{t('settings.gates.sot_body')}</p>
+            <Select
+              data-testid="gates-sot-select"
+              aria-label={t('settings.gates.sot')}
+              value={sot}
+              onChange={(e) =>
+                setSotDraft(isReviewSot(e.target.value) ? e.target.value : storedSot)
+              }
+              disabled={!isAdmin}
+              className="max-w-xs"
+            >
+              {REVIEW_SOTS.map((value) => (
+                <option key={value} value={value}>
+                  {t(SOT_LABEL[value])}
+                </option>
+              ))}
+            </Select>
+            <p data-testid="gates-sot-hint" className="text-2xs text-text-faint">
+              {t(SOT_HINT[sot])}{' '}
+              {sotChanged
+                ? t('settings.gates.sot_reset')
+                : sotSince === null
+                  ? t('settings.gates.sot_never')
+                  : t('settings.gates.sot_since', { at: relativeTime(t, sotSince) })}
+            </p>
           </fieldset>
           {changes.length > 0 && (
             <div data-testid="gates-unsaved" className="text-xs">

@@ -52,7 +52,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     expect(after).toEqual(before);
   });
 
-  it('도메인 테이블 38종 + 인프라 5종이 존재한다', async () => {
+  it('도메인 테이블 39종 + 인프라 5종이 존재한다', async () => {
     const names = await withClient(db.url, async (c) => {
       const { rows } = await c.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables
@@ -74,7 +74,9 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     // 35번째는 `notification_batch_event` 다(2026-09-27 · 사람 결정 G2 — 앱 안 묶음에 든 이벤트 · 0037)
     // 36번째는 `notification_digest_setting` 이다(2026-09-28 · 사람 결정 EM1~EM9 — 알림 메일 요약 · 0041)
     // 37 · 38번째는 `watch` · `pin` 이다(2026-10-16 · 사람 결정 D5 — 워치와 핀 · 0056)
-    expect(names).toHaveLength(43);
+    // 39번째는 `gate_verdict_comparison` 이다(2026-10-16 · 사람 결정 D6 — 게이트 판정 비교 · 0057)
+    expect(names).toHaveLength(44);
+    expect(names).toContain('gate_verdict_comparison');
     expect(names).toContain('watch');
     expect(names).toContain('pin');
     expect(names).toContain('idempotency_key');
@@ -95,9 +97,10 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
   // 44번째는 `task_archive_reason` 이다(2026-10-10 · 0047 — duplicate · superseded · obsolete · wont_do)
   // 45번째는 `impl_status_source` 다(2026-10-15 · 0051 — derived · import)
   // 46 · 47번째는 `watch_target` · `pin_target` 이다(2026-10-16 · 0056 — 워치와 핀의 대상)
-  it('enum 47종이 생성된다 (§2.1)', async () => {
+  // 48번째는 `review_sot` 다(2026-10-16 · 0057 — 리뷰 컷오버 단계 git · dual · nerv)
+  it('enum 48종이 생성된다 (§2.1)', async () => {
     const count = await scalar(`SELECT count(*)::int FROM pg_type WHERE typtype = 'e'`);
-    expect(count).toBe(47);
+    expect(count).toBe(48);
   });
 });
 

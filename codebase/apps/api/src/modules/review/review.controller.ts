@@ -4,13 +4,25 @@
 // 이 구조의 전부다 — 웹에서 처분한 발견과 도구로 처분한 발견이 다른 규칙을 타면
 // 게이트는 어느 쪽을 믿어야 하는지 답할 수 없다.
 
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { intParam } from '../../common/query-vocab.js';
 import { parseBody } from '../../common/parse-body.js';
 import {
   FindingCommentInput,
   FindingResolveInput,
   FindingToChangeRequestInput,
+  GateCheckReportInput,
   msg,
   NERV_ERROR,
   ReviewSubmitInput,
@@ -22,6 +34,7 @@ import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ReviewService, resolutionOf, toSubmitFindings } from './review.service.js';
 import { ChangeRequestService } from '../spec/change-request.service.js';
+import { CutoverService } from './cutover.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
@@ -29,6 +42,7 @@ export class ReviewController {
   constructor(
     private readonly reviews: ReviewService,
     private readonly changeRequests: ChangeRequestService,
+    private readonly cutover: CutoverService,
   ) {}
 
   /** EP-REV-01 — 리뷰 제출. 도구 `nerv_review_submit` 과 같은 입구다 */
@@ -135,6 +149,56 @@ export class ReviewController {
       branch,
       kinds: csv(kind) ?? null,
       headSha: headSha === undefined || headSha.trim() === '' ? null : headSha.trim(),
+    });
+  }
+
+  /**
+   * EP-REV-08b — 게이트 판정에 **로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-API-345 · roadmap §7.4 규칙 3).
+   * 판정은 GET 과 같고, 서버가 두 판정을 견주어 남긴다. 비교를 남기는 쓰기라 권한은 `review:submit` 이다 — 로컬 판정을 가진 쪽은
+   * 개발자 기계의 훅이고 그 훅은 그 사람의 에이전트 토큰(권장 묶음에 `review:submit` 이 있다)을 쓴다. 읽기 권한뿐인 CI 토큰은 로컬
+   * 판정이 없으니 GET 을 그대로 쓴다. viewer 는 비교를 남길 수 없다 — 롤백 지표를 움직이는 기록이다.
+   */
+  @RequireScope('review:submit')
+  @Post('gates/reviews/check')
+  // 판정을 묻는 호출이라 GET 과 같은 200 이다 — 비교 기록은 부수 효과이고 새로 만든 자원을 돌려주지 않는다
+  @HttpCode(HttpStatus.OK)
+  gateCheckWithLocal(
+    @Req() req: ProjectRequest,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = principalOf(req);
+    const input = parseBody(GateCheckReportInput, body ?? {});
+    return this.cutover.checkWithLocal({
+      projectId: req.nervProjectId!,
+      userId: principal.userId,
+      isAgent: principal.isAgent,
+      branch: input.branch,
+      kind: input.kind ?? null,
+      headSha: input.head_sha,
+      local: {
+        verdict: input.local_state.verdict,
+        hook: input.local_state.hook ?? null,
+        reason: input.local_state.reason ?? null,
+      },
+    });
+  }
+
+  /**
+   * EP-REV-10 — 컷오버 지표(2026-10-16 · 사람 결정 D6 · REQ-API-348). 이중화 기간의 불일치율 · 리뷰 제출 실패율과 로드맵 기준(§7.5 ·
+   * §7.6)에 견준 상태다. 역할(admin · planner)은 서비스가 본다 — CLI(`nerv cutover report`)가 그 사람의 토큰으로 부른다.
+   */
+  @RequireScope('spec:read')
+  @Get('gates/reviews/cutover')
+  cutoverReport(
+    @Req() req: ProjectRequest,
+    @Query('since') since?: string,
+    @Query('until') until?: string,
+  ): Promise<unknown> {
+    return this.cutover.report({
+      projectId: req.nervProjectId!,
+      roles: req.nervRoles ?? [],
+      since: since ?? null,
+      until: until ?? null,
     });
   }
 

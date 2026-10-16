@@ -29,8 +29,9 @@ import {
   newId,
   REPO_HOSTS,
   RetentionSchema,
+  REVIEW_SOTS,
 } from '@nerv/schema';
-import type { AgentScope } from '@nerv/schema';
+import type { AgentScope, ReviewSot } from '@nerv/schema';
 import { scopesForRoles } from '@nerv/schema';
 import type { RoleScope } from '@nerv/schema';
 import { sqlArray } from '../../common/sql-array.js';
@@ -673,6 +674,8 @@ export class AuthService {
       SELECT p.id, p.slug, p.key, p.name, p.description, p.repo_url, p.default_branch,
              p.repo_host::text AS repo_host,
              p.gate_policy, p.retention, p.archived_at, o.slug AS org_slug, o.name AS org_name,
+             -- 리뷰 컷오버 단계와 바꾼 시각(2026-10-16 · 사람 결정 D6 · REQ-API-347) — 설정 탭과 리뷰 센터의 컷오버 관측이 읽는다
+             p.review_sot::text AS review_sot, p.review_sot_since,
              (SELECT count(*) FROM agent_session se
                WHERE se.project_id = p.id AND se.state = ANY(${sqlArray(ACTIVE_SESSION_STATES, 'session_state')}))::int AS active_sessions,
              (SELECT count(*) FROM approval a
@@ -719,9 +722,14 @@ export class AuthService {
     repoHost?: string | null;
     gatePolicy?: Record<string, unknown> | null;
     retention?: Record<string, unknown> | null;
+    /** 리뷰 컷오버 단계(2026-10-16 · 사람 결정 D6 · REQ-API-347) — `REVIEW_SOTS` */
+    reviewSot?: string | null;
   }): Promise<Record<string, unknown>> {
     assertHuman(input.actor, 'project_admin', '/settings');
-    if ((input.gatePolicy != null || input.retention != null) && !input.roles.includes('admin')) {
+    if (
+      (input.gatePolicy != null || input.retention != null || input.reviewSot != null) &&
+      !input.roles.includes('admin')
+    ) {
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.auth.admin_only_policy'), {
         kind: 'role_required',
         required: ['admin'],
@@ -750,6 +758,22 @@ export class AuthService {
       input.repoHost == null
         ? null
         : (assertVocab([input.repoHost], REPO_HOSTS, 'repo_host')[0] ?? null);
+    const reviewSot =
+      input.reviewSot == null
+        ? null
+        : ((assertVocab([input.reviewSot], REVIEW_SOTS, 'review_sot')[0] ??
+            null) as ReviewSot | null);
+    // **컷오버 단계는 바뀔 때만 시각을 새로 적는다**(REQ-API-347) — 같은 값을 다시 저장해 2주 관측 창이 처음으로 돌아가면 안 된다
+    const sotBefore =
+      reviewSot == null
+        ? null
+        : ((
+            await this.db.execute<{ review_sot: ReviewSot; review_sot_since: string | null }>(
+              sql`SELECT review_sot::text AS review_sot, review_sot_since::text AS review_sot_since
+                    FROM project WHERE id = ${input.projectId}`,
+            )
+          ).rows[0] ?? null);
+    const sotChanged = reviewSot != null && sotBefore != null && sotBefore.review_sot !== reviewSot;
     // 바꾸기 전 정책의 지문 — 감사가 "어느 정책에서 어느 정책으로" 를 말하게 한다(2026-10-15 · REQ-API-303)
     const policyBefore =
       gatePolicy == null
@@ -770,7 +794,9 @@ export class AuthService {
              -- **호스트는 비울 수 없다**(NOT NULL) — 안 보내면 그대로, 보내면 어휘 안의 값이다
              repo_host = coalesce(${repoHost}::repo_host, repo_host),
              gate_policy = coalesce(${gatePolicy == null ? null : JSON.stringify(gatePolicy)}::jsonb, gate_policy),
-             retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention)
+             retention = coalesce(${retention == null ? null : JSON.stringify(retention)}::jsonb, retention),
+             review_sot = CASE WHEN ${sotChanged} THEN ${reviewSot}::review_sot ELSE review_sot END,
+             review_sot_since = CASE WHEN ${sotChanged} THEN now() ELSE review_sot_since END
        WHERE id = ${input.projectId}
     `);
     // **보존 기간을 저장하면 남아 있는 원문의 만료도 다시 적는다**(2026-10-16 · 사람 결정 · REQ-CB-032). 원문의 만료는
@@ -797,6 +823,8 @@ export class AuthService {
         ['repo_host', input.repoHost],
         ['gate_policy', input.gatePolicy],
         ['retention', input.retention],
+        // 같은 단계를 다시 보낸 것은 바꾼 것이 아니다 — 감사에 "컷오버 단계를 바꿨다" 가 남지 않게 한다
+        ['review_sot', sotChanged ? reviewSot : null],
       ] as const
     )
       .filter(([, value]) => value != null)
@@ -823,6 +851,11 @@ export class AuthService {
           // **보존 기간도 바뀐 뒤의 값을 남긴다**(2026-10-15 · REQ-API-318). 화면에서 고칠 수 있게 되자 줄인 기간이 다음
           // 보존 잡에서 활동 원문을 지운다 — 누가 언제 몇 일로 줄였는지가 감사에 있어야 한다
           ...(retention == null ? {} : { retention }),
+          // **컷오버 단계의 전후**(2026-10-16 · 사람 결정 D6 · REQ-API-347) — 언제 누가 이중화를 켜고 껐는지가 2주 관측과 롤백의
+          // 근거다. 바꾼 시각은 이 이벤트의 시각과 같다(같은 요청의 now())
+          ...(sotChanged && sotBefore != null
+            ? { review_sot: { from: sotBefore.review_sot, to: reviewSot } }
+            : {}),
         },
       });
     }
