@@ -444,6 +444,14 @@ export const INVITATION_TTL_DAYS = 7;
 export const SENT_MAIL_RETENTION_DAYS = INVITATION_TTL_DAYS;
 
 /**
+ * 알림을 남겨 두는 날 수 — 180일(2026-10-16 · 사람 결정 ② · database.md REQ-DB-046). 새 수치가 아니라 데이터 모델의 보존 표
+ * (data-model.md §5.4 `notification` 180일)다. 알림은 이벤트에서 다시 만들 수 있는 파생 데이터라 지워도 원천(`event` · 영구)은
+ * 남는다. 읽음 · 안 읽음을 가리지 않고 마지막으로 더해진 시각(`last_at`)이 이보다 오래된 줄을 지운다 — 보존 표가 상태를 나누지 않는다.
+ * 지운 알림의 이벤트는 다시 파생되지 않는다: 새로 뜬 알림 워커가 거슬러 보는 창(`NOTIFICATION_RESUME_WINDOW_SECONDS`)이 한 시간이다
+ */
+export const NOTIFICATION_RETENTION_DAYS = 180;
+
+/**
  * **`nerv_task_update`·EP-TASK-09 가 받는 목표 상태 여섯**(2026-09-07 · REQ-API-129~132).
  *
  * `claimed` 가 빠져 있다. 그 상태로 가는 길은 원자적 클레임 하나뿐이고(`nerv_task_claim` —

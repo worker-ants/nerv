@@ -173,6 +173,8 @@ When there are unread notifications, a **[Mark all read]** button appears next t
 
 The list does not load all at once. Use **[Load more]** at the bottom to continue.
 
+**Notifications are kept for 180 days.** A row whose latest notification arrived more than 180 days ago is deleted, whether you read it or not. A grouped row counts from the last time something was added to it. The records of what happened are not deleted.
+
 ## Overdue and expired approvals {#sla}
 
 **After 2 days, a card is marked Overdue.** A card that nobody has decided 2 days after the request gets an **Overdue** mark on its title line. The **Waiting** line on the project overview shows **N overdue approvals** for that project, and clicking it opens the inbox narrowed to that project. This count covers the whole project, not only your decisions.

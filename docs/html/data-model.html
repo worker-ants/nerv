@@ -53,7 +53,7 @@
     <h1>데이터 모델</h1>
     <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.27 (2026-10-15)</span>
+      <span>버전 v0.28 (2026-10-16)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1259,17 +1259,17 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td><code>notification</code></td><td>180일</td><td>파생 데이터. 원천은 <code>event</code></td></tr>
     </tbody>
   </table></div>
-  <p><b>집행되는 것은 둘뿐이다</b>(2026-09-07 실측 — 표는 약속이고 이 문단이 현재다). 보존 잡(<code>retention</code>)이 실제로 도는 줄은 <code>activity</code>(프로젝트 정책 <code>activity_days</code>, 기본 90일 — 지우기 전에 <code>agent_session.activity_summary</code> 로 접는다)와 <code>review_session.prompt_blob_uri</code>(<code>prompt_blob_ttl_days</code>, 기본 30일 · 행의 <code>prompt_expires_at</code> 과 먼저 오는 쪽)다. 프로젝트 정책 스키마(<code>RetentionSchema</code>)의 키도 그 둘뿐이라 나머지는 정책으로 적을 자리조차 없다.</p>
+  <p><b>집행되는 것은 셋이다</b>(2026-09-07 실측 · 2026-10-16 갱신 — 표는 약속이고 이 문단이 현재다). 보존 잡(<code>retention</code>)이 실제로 도는 줄은 <code>notification</code>(상수 180일 — 마지막으로 더해진 시각 <code>last_at</code> 기준 · 읽음 · 안 읽음을 가리지 않는다 · <a href="database.html">4.3 데이터베이스 스키마</a> REQ-DB-046), <code>activity</code>(프로젝트 정책 <code>activity_days</code>, 기본 90일 — 지우기 전에 <code>agent_session.activity_summary</code> 로 접고, 행이 모두 지워진 월 파티션은 드랍한다 · REQ-DB-047)와 <code>review_session.prompt_blob_uri</code>(<code>prompt_blob_ttl_days</code>, 기본 30일 · 행의 <code>prompt_expires_at</code> 과 먼저 오는 쪽)다. 프로젝트 정책 스키마(<code>RetentionSchema</code>)의 키는 뒤의 둘뿐이라 나머지는 정책으로 적을 자리조차 없다.</p>
 
   <div class="table-wrap"><table>
     <tr><th>약속한 줄</th><th>상태</th></tr>
-    <tr><td><code>notification</code> 180일</td><td><b>집행 없음</b> — 파생 데이터인데 영구히 쌓인다</td></tr>
+    <tr><td><code>notification</code> 180일</td><td><b>집행</b>(2026-10-16 · 사람 결정 ②) — 파생 데이터라 지워도 원천(<code>event</code>)에서 다시 만들 수 있다</td></tr>
     <tr><td><code>reviewer_report.body_md</code> 365일 후 압축</td><td><b>집행 없음</b> — 이 표에서 가장 큰 축이었다(세션당 66KB × 월 ~434 세션)</td></tr>
     <tr><td><code>spec_version</code>(draft 중간 저장) 90일 후 압축</td><td><b>집행 없음</b> — approved 는 영구·불변이 맞고 이 줄은 draft 만의 이야기다</td></tr>
     <tr><td><code>event</code> 12개월 후 콜드(<code>DETACH</code>)</td><td><b>집행 없음</b> — 파티션 분리 잡이 없다(<a href="database.html">4.3 데이터베이스 스키마</a> §2.14)</td></tr>
   </table></div>
 
-  <p>넷 다 <b>이월</b>이며 그 사실을 여기 적는 이유는, 있다고 적힌 보존 정책이 감사·용량 계획의 입력이 되기 때문이다 — 거짓이면 두 계산이 함께 틀린다.</p>
+  <p>남은 셋은 <b>이월</b>이다 — 2026-10-16 사람 결정 ② 가 <a href="database.html">4.3 데이터베이스 스키마</a> §2.14 의 재검토 트리거에 맡겼다(리뷰 본문의 「요약 압축」은 방법이 정해져 있지 않고 <code>event</code> 의 <code>DETACH</code> 는 감사 로그를 건드린다). 그 사실을 여기 적는 이유는, 있다고 적힌 보존 정책이 감사·용량 계획의 입력이 되기 때문이다 — 거짓이면 두 계산이 함께 틀린다.</p>
 
   <p>개인정보는 <code>event.payload</code>에 직접 넣지 않고 사용자 ID 참조만 둔다 — 이벤트 로그와 삭제권의 충돌은 이벤트 소싱 패턴이 공식적으로 경고하는 지점이다.</p>
 

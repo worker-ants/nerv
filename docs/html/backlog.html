@@ -53,7 +53,7 @@
     <h1>백로그</h1>
     <p class="lead">MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. <a href="roadmap.html">3.7 로드맵</a>의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 <code>${NERV_TOKEN}</code> 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.</p>
     <div class="meta-line">
-      <span>버전 v2.97 (2026-10-16)</span>
+      <span>버전 v2.98 (2026-10-16)</span>
       <span>원본: <code>docs/04-mvp/backlog.md</code></span>
       <span>에픽 22 · 스토리 101 · E2E 시나리오 6</span>
       <span class="refs">참조하는 문서: <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -78,7 +78,7 @@
   <h3>1.1 ID·상태·표기 규약</h3>
   <ul>
     <li><b>에픽/스토리 ID</b> — <code>E01-S01</code> 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.</li>
-    <li><b>상태 어휘</b> — 스토리는 Task 축 상태 머신(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.4)의 어휘를 그대로 쓴다: <code>backlog → ready → claimed → in_progress → in_review → done</code>, 예외 상태 <code>blocked</code>(사유 코드 필수). <b>스토리별 현재 상태는 §1.4 가 정본이다</b> — 2026-10-15 현재 <code>done</code> 82 · 부분 1 · <code>backlog</code> 18(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 <code>backlog</code>다" 를 그대로 두어 <b>74개 중 73개에 대해 거짓인 문장</b>이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)</li>
+    <li><b>상태 어휘</b> — 스토리는 Task 축 상태 머신(<a href="spec-workflow.html">3.5 스펙 워크플로우와 거버넌스</a> §1.4)의 어휘를 그대로 쓴다: <code>backlog → ready → claimed → in_progress → in_review → done</code>, 예외 상태 <code>blocked</code>(사유 코드 필수). <b>스토리별 현재 상태는 §1.4 가 정본이다</b> — 2026-10-16 현재 <code>done</code> 82 · 부분 2 · <code>backlog</code> 17(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 <code>backlog</code>다" 를 그대로 두어 <b>74개 중 73개에 대해 거짓인 문장</b>이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)</li>
     <li><b>근거</b> — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호(<a href="pain-points.html">1.2 문제 정의와 요구사항</a> §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.</li>
     <li><b>EARS 수용 기준</b> — 행동 요구는 <code>WHEN … THE SYSTEM SHALL …</code> 형식으로 쓴다. 스토리당 1~3개.</li>
     <li><b>의존</b> — 의존 스토리 ID를 표기한다. 의존이 <code>done</code>이 아니면 해당 스토리는 <code>ready</code>로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).</li>
@@ -114,12 +114,12 @@
       <tr><td>E15 커버리지 · 구현 축</td><td>3</td><td>—</td><td>—</td><td><code>routes/p.$proj/coverage.tsx</code> · <code>features/coverage-drilldown/</code>(E15-S01 드릴다운) · <code>spec/impl-status.ts</code>(출처를 쓴다 · <code>commitScopeClearSql</code> — E15-S03 커밋 범위) · <code>import.service.ts</code> · <code>drizzle/0051</code>(E15-S02 출처) · <code>spec.service.ts</code>(<code>coverage</code> · <code>requirement</code>) · <code>review/commit-scope.ts</code> · <code>test/integration/coverage-drilldown.spec.ts</code> · <code>commit-scope.spec.ts</code></td></tr>
       <tr><td>E16 게이트 판정 완성</td><td>1</td><td>—</td><td>3</td><td><code>task.service.ts</code>(done 게이트 — <code>judgeReviewKinds</code> · <code>judgeAnyReview</code>가 작업의 최신 커밋을 본 라운드만 센다 · <code>stale_reviews</code> — 커밋 SHA가 아닌 라운드도 <code>not_a_commit</code>으로 막는다 · <code>gate.failopen</code>은 커밋을 모를 때만) · <code>review/review.service.ts</code>(<code>head_sha</code> · <code>base_sha</code>는 커밋 SHA만 받는다 — REQ-API-321) · <code>review/commit-scope.ts</code>(최신 커밋 · 같은 커밋 판정) · <code>review/review-gate.ts</code>(<code>headMatch: 'commit'</code>) · <code>test/integration/commit-scope.spec.ts</code>(E16-S01) · <code>drizzle/0052</code>(작업의 증적 인덱스 <code>evidence_task</code> — 최신 커밋을 표 전체에서 찾지 않는다) — 남은 S02~S04 는 착수 전</td></tr>
       <tr><td>E17 알림 확장</td><td>1</td><td>—</td><td>2</td><td><code>event/notification.service.ts</code>(<code>involvedTargets</code> — 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자 · E17-S01) · <code>review.service.ts</code>(<code>finding.resolved</code> 의 <code>review_session_id</code>) · <code>resumePoint</code>(새로 뜬 워커는 최근 한 시간만 다시 본다 — 넓어진 규칙을 지난 이벤트에 소급하지 않는다 · <a href="api.html">4.4 API</a> REQ-API-317) · <code>test/integration/notification-involved.spec.ts</code> — 남은 S02(워치) · S03(Slack)은 착수 전</td></tr>
-      <tr><td>E18 fail-open · 보존</td><td>2</td><td>—</td><td>1</td><td><code>routes/settings/gates.tsx</code>(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · <code>task/failopen.ts</code> · <code>task/failopen.service.ts</code>(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · <code>worker/jobs/failopen.job.ts</code> · <code>components/failopen-banner.tsx</code>(S5 · S6 배너) · <code>test/integration/failopen-escalation.spec.ts</code> — 남은 S03(보존 워커 완성)은 착수 전</td></tr>
+      <tr><td>E18 fail-open · 보존</td><td>2</td><td>1</td><td>—</td><td><code>routes/settings/gates.tsx</code>(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · <code>task/failopen.ts</code> · <code>task/failopen.service.ts</code>(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · <code>worker/jobs/failopen.job.ts</code> · <code>components/failopen-banner.tsx</code>(S5 · S6 배너) · <code>test/integration/failopen-escalation.spec.ts</code> · <code>worker/jobs/retention.job.ts</code>(E18-S03 부분 — 알림 180일 · 빈 <code>activity</code> 월 파티션 드랍 · <code>test/integration/retention-cleanup.spec.ts</code>) — S03 의 남은 셋은 아래 부분 구현 표</td></tr>
       <tr><td>E19 CR · 델타 리뷰</td><td>—</td><td>—</td><td>3</td><td>착수 전 — <code>change_request</code> 테이블 · <code>NERV_EVENT_PHASE2.CR_OPENED</code>(상수만)</td></tr>
       <tr><td>E20 Codex 완전 지원</td><td>—</td><td>—</td><td>4</td><td>착수 전 — <a href="plugin.html">4.6 플러그인</a> §5.4 실측 표 · <code>plugin/codex/</code></td></tr>
       <tr><td>E21 이관 · 운영</td><td>—</td><td>—</td><td>4</td><td>착수 전 — <code>plugin/bin/nerv-outbox</code> · <code>worker/jobs/export.job.ts</code></td></tr>
       <tr><td>E22 OAuth 2.1 리소스 서버</td><td>—</td><td>—</td><td>1</td><td>착수 전</td></tr>
-      <tr><td><b>합계</b></td><td><b>82</b></td><td><b>1</b></td><td><b>18</b></td><td><code>backlog</code> 18은 모두 Phase 2 스토리다(§6)</td></tr>
+      <tr><td><b>합계</b></td><td><b>82</b></td><td><b>2</b></td><td><b>17</b></td><td><code>backlog</code> 17은 모두 Phase 2 스토리다(§6)</td></tr>
     </tbody>
   </table>
   <p><b><code>backlog</code> 열은 착수 전 스토리다</b>(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 <code>done</code>으로 옮기고, 부분이면 <i>남은 것</i>을 둘째 표에 적는다.</p>
@@ -131,6 +131,7 @@
     <thead><tr><th>ID</th><th>들어온 것</th><th><b>남은 것</b></th></tr></thead>
     <tbody>
       <tr><td>E06-S06</td><td>degrade 경로·1024차원 검증 · <b>렉시컬 절반의 실측</b>(<a href="api.html">4.4 API</a> §2.2c — 이 저장소의 문서 세트로 한국어 질의 15개) · 실측이 남긴 결정 셋(2026-10-12 · 사람 결정 — 질의 임베딩 2초 · 1분 쉬기 REQ-API-300, FTS 저장 열과 순위 합치기 REQ-API-301 · REQ-DB-041 — 검색 p95 829 → 62ms)</td><td><b>임베딩 3프로필의 지연 · 하이브리드 품질 · go/no-go 판정</b> — 이 작업 환경에서는 모델을 받을 길이 없었다. 같은 질의 15개로 다시 잰다</td></tr>
+      <tr><td>E18-S03</td><td><code>notification</code> 180일 삭제(마지막으로 더해진 시각 기준 · 읽음 · 안 읽음 가리지 않음)와 보존 기간을 넘긴 빈 <code>activity</code> 월 파티션 드랍(2026-10-16 · 사람 결정 ② — <a href="database.html">4.3 데이터베이스 스키마</a> REQ-DB-046 · 047)</td><td><b>재검토 트리거를 기다리는 셋</b> — <code>reviewer_report.body_md</code> 365일 뒤 요약 압축(방법이 정해져 있지 않다) · draft <code>spec_version</code> 90일 뒤 압축 · <code>event</code> 12개월 뒤 <code>DETACH</code>(감사 로그를 건드린다). 트리거는 <a href="database.html">4.3 데이터베이스 스키마</a> §2.14 — 파티션 24개 또는 <code>event</code> 1천만 행</td></tr>
     </tbody>
   </table>
 
@@ -917,7 +918,7 @@
 
   <h3>6.5 E18 — fail-open · 보존 (D-14 · NFR-01)</h3>
 
-  <p><b>이미 있는 것</b>: fail-open 기록(<code>gate.failopen</code> — 플랜 승인 게이트 · done 게이트) · 정책 키 <code>failopen.escalate_count</code> · <code>failopen.window_hours</code>(기본 3회 · 24시간) · <code>retention</code> 키 둘의 집행. 2026-10-15 에 S01 · S02 가 들어왔다 — 두 값은 S8 게이트 정책 탭에서 admin 이 고치고, 창 안의 횟수로 격상 · 해제하며, S5 · S6 에 배너가 표시된다(<a href="api.html">4.4 API</a> REQ-API-318 ~ 320 · <a href="screens.html">4.5 화면 명세</a> REQ-WEB-318 · 319). 설정 화면 문구와 매뉴얼의 「티어를 올립니다」도 함께 고쳤다. 남은 것은 S03(보존 워커 완성)이다.</p>
+  <p><b>이미 있는 것</b>: fail-open 기록(<code>gate.failopen</code> — 플랜 승인 게이트 · done 게이트) · 정책 키 <code>failopen.escalate_count</code> · <code>failopen.window_hours</code>(기본 3회 · 24시간) · <code>retention</code> 키 둘의 집행. 2026-10-15 에 S01 · S02 가 들어왔다 — 두 값은 S8 게이트 정책 탭에서 admin 이 고치고, 창 안의 횟수로 격상 · 해제하며, S5 · S6 에 배너가 표시된다(<a href="api.html">4.4 API</a> REQ-API-318 ~ 320 · <a href="screens.html">4.5 화면 명세</a> REQ-WEB-318 · 319). 설정 화면 문구와 매뉴얼의 「티어를 올립니다」도 함께 고쳤다. 2026-10-16 에 S03 의 첫 조각이 들어왔다(사람 결정 ② — 범위 A): 알림 180일 삭제와 빈 <code>activity</code> 월 파티션 드랍(<a href="database.html">4.3 데이터베이스 스키마</a> REQ-DB-046 · 047). 리뷰 본문 요약 압축 · draft 압축 · <code>event</code> 의 <code>DETACH</code> 는 <a href="database.html">4.3 데이터베이스 스키마</a> §2.14 의 재검토 트리거를 기다린다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>ID</th><th>스토리</th><th>근거</th><th>EARS 수용 기준</th><th>의존</th></tr></thead>
