@@ -2035,14 +2035,20 @@ export const en = {
   'sessions.show_all': 'Show all',
   'sessions.more': 'Load more',
   'sessions.none_running': 'No sessions are running.',
-  'sessions.plugin.empty': 'No machine has opened a Claude Code session in the last {days} days.',
+  'sessions.plugin.agent_claude_code': 'Claude Code',
+  'sessions.plugin.agent_codex': 'Codex',
+  'sessions.plugin.empty':
+    'No machine has opened a Claude Code or Codex session in the last {days} days.',
+  'sessions.plugin.group': '{agent} · on: {active} / {total} machines',
   'sessions.plugin.off': 'Off',
   'sessions.plugin.off_hint':
-    'Machines marked Off connected over MCP only, without the plugin. Without hooks, their activity and branch are not recorded on the session screen.',
+    'Machines marked Off connected over MCP only, without the plugin, or opened the session in a repository without NERV settings, so the hooks sent nothing. Without hooks, their activity and branch are not recorded on the session screen.',
+  'sessions.plugin.off_hint_codex':
+    'Codex machines marked Off connected through their MCP settings only, without the plugin, or never trusted the plugin hooks in /hooks. Without hooks, their activity and branch are not recorded on the session screen.',
   'sessions.plugin.on': 'On · v{version}',
   'sessions.plugin.summary': 'Plugin on: {active} / {total} machines',
   'sessions.plugin.window':
-    "Counts machines that opened a Claude Code session in the last {days} days, based on each machine's latest session.",
+    'Counts machines that opened a Claude Code or Codex session in the last {days} days, based on the latest session for each machine and agent. A machine that runs both agents is counted once for each.',
   'sessions.title': 'Session monitor',
   'steer.confirm_body':
     'The active claim is reclaimed immediately and the task returns to ready. Your reason is kept on the session timeline, so it is clear why the session stopped.',

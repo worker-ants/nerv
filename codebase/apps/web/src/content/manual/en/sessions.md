@@ -20,11 +20,11 @@ The list does not load all at once. If there are more sessions, **[Load more]** 
 
 ### Machines with the plugin on {#plugin-machines}
 
-**`Plugin on: N / M machines`** above the list counts how many machines have the NERV plugin on, out of the machines that opened a Claude Code session in the last 30 days. Click it to expand a list of those machines. Each row shows **On** with the plugin version, or **Off**, along with whose machine it is and when it was last seen. **Machines that are off are listed first.**
+**`Plugin on: N / M machines`** above the list counts how many machines have the NERV plugin on, out of the machines that opened a Claude Code or Codex session in the last 30 days. Click it to expand the machines, grouped by agent (Claude Code, Codex). Each group starts with how many are on out of the total, and each row shows **On** with the plugin version, or **Off**, along with whose machine it is and when it was last seen. **Machines that are off are listed first.** An agent with no sessions has no group.
 
-- **Each machine's state comes from its most recent session.** A machine where the plugin was turned on and then off shows as off.
-- **A machine that is off connected over MCP only, without the plugin.** It can still claim tasks, but without hooks, its sessions leave no activity or branch on this screen. If a session looks unusually empty, check here first. To turn the plugin on, see [Installing the plugin](/help/install).
-- **Codex is not counted.** Codex can connect through its MCP settings alone, without the plugin, so a Codex machine without the plugin is not counted as off.
+- **Each machine's state comes from its most recent session with that agent.** A machine where the plugin was turned on and then off shows as off. A machine that runs both Claude Code and Codex appears in both groups and is counted once for each.
+- **A machine that is off had no hooks sending for that session.** It connected over MCP only, without the plugin, or the session was opened in a repository without NERV settings. It can still claim tasks, but without hooks, its sessions leave no activity or branch on this screen. If a session looks unusually empty, check here first. To turn the plugin on, see [Installing the plugin](/help/install).
+- **Codex is counted too** (this changed together with plugin 0.3.33). If a Codex machine is off, the plugin's hooks may also not be trusted yet in Codex's `/hooks`. Codex can connect through its MCP settings alone, without the plugin, but such a machine is still counted as off, because without hooks the sessions screen records much less (see [Installing the plugin](/help/install#codex)).
 - This check works **from plugin 0.3.2** on. Older versions do not report their version, so they show as off. Update with `/plugin marketplace update`, and the machine shows as on from its next session.
 
 ## Statuses {#statuses}

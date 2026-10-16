@@ -6,7 +6,8 @@
 // 훅 포워더가 `X-NERV-Plugin` 으로 버전을 싣고, 서버가 그 값으로 가른다. 여기서 보는 것:
 //   ① 훅이 실은 버전이 세션에 남고, 모양이 틀린 값은 없는 것으로 본다
 //   ② 스킬의 `nerv_bootstrap` 이 훅 세션을 채택해도 버전을 지우지 않는다(채택은 cwd 대조)
-//   ③ 현황은 **기계마다 가장 최근 세션**으로 판정하고, Claude Code 만 세고, 창 밖은 뺀다
+//   ③ 현황은 **기계 · 에이전트마다 가장 최근 세션**으로 판정하고, Claude Code 와 Codex 를 따로 세고(2026-10-16 ·
+//     사람 결정 B), 창 밖은 뺀다
 
 import { newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
@@ -106,7 +107,8 @@ async function coverage(): Promise<{
   window_days: number;
   total: number;
   active: number;
-  hosts: { hostname: string; active: boolean; plugin_version: string | null }[];
+  by_agent: { agent_type: string; total: number; active: number }[];
+  hosts: { hostname: string; agent_type: string; active: boolean; plugin_version: string | null }[];
 }> {
   const res = await app.inject({
     method: 'GET',
@@ -175,12 +177,48 @@ describe('활성화 현황 (EP-SES-06)', () => {
     expect(c.hosts[1]?.plugin_version).toBe('0.3.2');
   });
 
-  it('Claude Code 세션만 센다 — Codex 는 플러그인이 없어도 정상이다', async () => {
+  /**
+   * **Codex 세션도 센다**(2026-10-16 · 사람 결정 B). 예전에는 Claude Code 만 셌다. Codex 도 같은 매니페스트로 플러그인을
+   * 설치하고 세션 훅이 버전을 보낸다(E20-S01). 꺼짐의 까닭이 달라(Codex 는 `/hooks` 신뢰가 있어야 훅이 돈다) 종류별로 센다.
+   */
+  it('Codex 세션도 센다 — 종류마다 따로 센다', async () => {
     await sessionHook('S-cc', { host: 'mac-01', plugin: '0.3.2' });
-    await sessionHook('S-codex', { host: 'linux-01', agent: 'codex' });
+    await sessionHook('S-codex-on', { host: 'linux-01', agent: 'codex', plugin: '0.3.33' });
+    await sessionHook('S-codex-off', { host: 'linux-02', agent: 'codex' });
+    const c = await coverage();
+    expect(c.total).toBe(3);
+    expect(c.active).toBe(2);
+    expect(c.by_agent).toEqual([
+      { agent_type: 'claude-code', total: 1, active: 1 },
+      { agent_type: 'codex', total: 2, active: 1 },
+    ]);
+    expect(c.hosts.map((h) => [h.hostname, h.agent_type, h.active])).toEqual([
+      ['linux-02', 'codex', false],
+      ['linux-01', 'codex', true],
+      ['mac-01', 'claude-code', true],
+    ]);
+  });
+
+  /** 한 줄로 묶으면 가장 최근 세션의 종류가 그 기계의 켜짐 · 꺼짐을 번갈아 정한다 */
+  it('한 기계에서 두 에이전트를 쓰면 줄이 둘이다 — 각자 가장 최근 세션으로 판정한다', async () => {
+    await sessionHook('S-cc', { host: 'mac-01', plugin: '0.3.33' });
+    await sessionHook('S-codex', { host: 'mac-01', agent: 'codex' });
+    const c = await coverage();
+    expect(c.hosts.map((h) => [h.hostname, h.agent_type, h.active])).toEqual([
+      ['mac-01', 'codex', false],
+      ['mac-01', 'claude-code', true],
+    ]);
+  });
+
+  it('플러그인이 없는 종류(web · other)는 세지 않고, 0 인 종류도 by_agent 에 담는다', async () => {
+    await sessionHook('S-other', { host: 'ci-01', agent: 'other' });
+    await sessionHook('S-cc', { host: 'mac-01', plugin: '0.3.33' });
     const c = await coverage();
     expect(c.total).toBe(1);
-    expect(c.active).toBe(1);
+    expect(c.by_agent).toEqual([
+      { agent_type: 'claude-code', total: 1, active: 1 },
+      { agent_type: 'codex', total: 0, active: 0 },
+    ]);
   });
 
   it('창 밖의 기계는 세지 않는다 — 한 번 쓰고 떠난 노트북이 분모를 영원히 끌지 않게', async () => {

@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP의 대외 계약 정본이다. REST(`/api/v1`)·MCP(`/mcp`)·WebSocket(`/ws`)·SSE(`/sse`) 네 표면이 **같은 도메인 서비스를 DI로 공유**한다는 구조 결정(D-05)을 엔드포인트 전표와 대응 표로 실물화한다. 공통 규약(인증 2경로·`NERV_*` 에러 코드 재사용·커서 페이지네이션·`Idempotency-Key`), 리소스별 REST 엔드포인트 전표(각 행: 메서드·경로·권한·요청/응답 zod 스키마·발생 이벤트), 실시간 채널 계약 — **WebSocket + SSE 다중 채널**(룸·이벤트 이름은 [스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §6 정본 인용, 팬아웃 MQ는 Valkey pub/sub), MCP 도구 **27종**(2026-10-11 — 카탈로그 정본은 [3.4](../03-proposal/agent-integration.md) §2.3) ↔ 내부 서비스 ↔ REST 대응 표, 그리고 EARS 수용 기준(REQ-API-*)으로 구성된다. 임포트 표면(§2.10 EP-IMP-01~06)은 원본 파일을 읽지 못하는 서버가 **이미 파싱된 결과만 받는** 경로다 — 임포터 CLI가 유일한 정상 호출자이며 규칙 정본은 [4.7 스펙 임포터](importer.md)다. 도구 26종의 입출력·티어·멱등성 정의는 [에이전트 연동 설계](../03-proposal/agent-integration.md) §2가, 필드 의미는 [데이터 모델](../03-proposal/data-model.md)이 정본이며 이 문서는 재정의하지 않는다.
 >
-> 문서 버전 v2.55 · 2026-10-16 · HTML 파생본: [api.html](../html/api.html)
+> 문서 버전 v2.56 · 2026-10-16 · HTML 파생본: [api.html](../html/api.html)
+>
+> v2.56 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **REQ-API-168 개정 · EP-SES-06 응답 두 칸 · §2.5c 두 항목.** 현황은 Claude Code 세션만 셌다 — Codex는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로라 세면 「꺼짐」이 분모를 부풀린다는 이유였다. Codex도 같은 매니페스트로 플러그인을 설치하고 세션 훅이 버전을 보내며 훅 세션과 MCP 세션이 하나로 이어지므로(REQ-API-324) 이제 함께 센다. 줄의 열쇠에 에이전트 종류를 더했고(한 기계에서 두 에이전트를 쓰면 줄이 둘이다) 종류별 수 `by_agent`를 준다. 세는 종류는 `@nerv/schema`의 `PLUGIN_COVERAGE_AGENT_TYPES`다([4.2 코드베이스](codebase.md) §3.2).
 >
 > v2.55 변경(2026-10-16 — 프로젝트의 AGENTS.md를 서버가 만든다, Phase 2 묶음 2의 넷째 · **사람 결정 ①**(2026-10-16 — A) · [4.8 백로그](backlog.md) E20-S03): **EP-PRJ-06 · REQ-API-326 신설.** `GET /api/v1/projects/{proj}/agents-md`가 `@nerv/schema`의 템플릿에 그 프로젝트의 서버 주소(`NERV_API_URL`) · 키 · 규약 스펙 목록(`nerv_bootstrap`의 `conventions`와 같은 접은 목록 · 줄마다 승인 버전)을 채운 `text/markdown`을 준다. 규약 버전은 본문을 만드는 입력의 지문이라 규약 스펙의 새 버전이 승인되면 바뀐다. 서버는 저장소에 쓰지 않는다 — 받아서 구역만 바꾸는 것은 `nerv-init`이다([4.6 플러그인](plugin.md) §5.3). MCP 도구는 더하지 않았다.
 >
@@ -1430,7 +1432,7 @@ API 를 거친 지연(EP-SPEC-02 · 75번)은 p50 596ms · p95 829ms 이고 응�
 | EP-SES-03 | `GET /api/v1/projects/{proj}/sessions/{sid}/activities` | 전 역할 | `ActivityListQuery`(**`cursor`·`limit`**(2026-09-07 정정 — 상한 30/100 의 봉투를 준다. `type[]` 은 여전히 읽지 않는다)) | `Page<ActivityResult>`(seq 순 타임라인, `thought/action/elicitation/response/error`) | — |
 | EP-SES-04 | `POST /api/v1/projects/{proj}/sessions/{sid}/steer` | 세션 소유자·admin | `SessionSteerInput`(kind: steer/stop, message) | `{ok:true}` — steer: 지시는 다음 하트비트 응답의 `pending`으로 전달([에이전트 연동 설계](../03-proposal/agent-integration.md) §2.4 역채널). stop: 지시 전달과 별개로 서버가 **즉시** 활성 클레임을 회수하고 Task를 `claimed/in_progress → ready`로 되돌린다([화면 설계](../03-proposal/ui-wireframes.md) §4.2) | ★`session.steered` · stop 시 ★`claim.released` + `task.ready` |
 | EP-SES-05 | `GET /api/v1/projects/{proj}/sessions/{sid}/trajectory` | 전 역할 | `SessionTrajectoryQuery`(**`limit`**) | 세션의 도구 호출 궤적(REQ-API-068 이 요구하는 것) — 새 저장 없이 `event` 를 세션 축으로 읽는다 | — |
-| EP-SES-06 | `GET /api/v1/projects/{proj}/sessions/plugin-coverage` | 전 역할 | — | `PluginCoverage`(`window_days` · `total` · `active` · `hosts[]`(`user_id`·`user_name`·`hostname`·`last_seen_at`·`plugin_version`·`active`) — **꺼진 기계가 먼저**) · 2026-09-24 신설 — §2.5c | — |
+| EP-SES-06 | `GET /api/v1/projects/{proj}/sessions/plugin-coverage` | 전 역할 | — | `PluginCoverage`(`window_days` · `total` · `active` · `by_agent[]`(`agent_type`·`total`·`active` — `PLUGIN_COVERAGE_AGENT_TYPES` 순서 · 0 인 종류도) · `hosts[]`(`user_id`·`user_name`·`hostname`·`agent_type`·`last_seen_at`·`plugin_version`·`active`) — **꺼진 기계가 먼저**) · 2026-09-24 신설 — §2.5c · 2026-10-16 Codex 도 센다(`by_agent` · `agent_type`) | — |
 
 세션의 생성·상태 전이는 REST가 아니라 훅 ingest(§2.9)와 MCP `nerv_bootstrap`이 만든다. REST 표면은 조회와 steer만 갖는다 — 세션은 에이전트의 실행 사실이지 웹에서 만드는 리소스가 아니기 때문이다.
 
@@ -1474,15 +1476,15 @@ API 를 거친 지연(EP-SPEC-02 · 75번)은 p50 596ms · p95 829ms 이고 응�
 
 - **모양이 맞을 때만 받는다**(`0.3.2` · `1.0.0-rc.1`). 헤더는 누구나 실을 수 있는 값이라, 틀린 값을 "켜짐" 으로 세는 것보다 "알 수 없음" 으로 두는 편이 활성화율을 덜 속인다.
 - **새 값이 이긴다.** 같은 세션이 다시 시작하면(resume·compact) 그 사이에 플러그인을 올렸을 수 있다. 새 값이 없으면(스킬의 `nerv_bootstrap` 이 훅 세션을 채택한 경우) 훅이 남긴 값을 지킨다.
-- **현황은 기계마다 가장 최근 세션으로 판정한다**(EP-SES-06). 한 번이라도 실어 왔는가로 세면 켰다가 끈 기계가 영원히 "켜짐" 으로 남는다. 기계의 열쇠는 **사람 + hostname** 이다 — 기본 hostname 은 팀 안에서 겹친다.
-- **Claude Code 세션만 센다.** 관리형 settings 로 플러그인을 내린 Claude Code 기계가 켜졌는지 묻는 현황이다. 2026-10-16 부터 Codex 에도 플러그인을 설치하면 훅이 돌고 `plugin_version` 이 남지만(E20-S01), Codex 는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다 — 세면 그 기계들이 「꺼짐」으로 분모를 부풀린다(2026-10-16 · 전제를 다시 보고 그대로 뒀다).
+- **현황은 기계마다 가장 최근 세션으로 판정한다**(EP-SES-06). 한 번이라도 보내 왔는가로 세면 켰다가 끈 기계가 영원히 "켜짐" 으로 남는다. 줄의 열쇠는 **사람 + hostname + 에이전트 종류** 다 — 기본 hostname 은 팀 안에서 겹친다. 에이전트 종류는 2026-10-16 에 더했다: 한 기계에서 두 에이전트를 쓰면 줄이 둘이다. 하나로 묶으면 가장 최근 세션의 종류가 그 기계의 켜짐 · 꺼짐을 번갈아 정한다.
+- **Claude Code 와 Codex 세션을 함께 센다**(2026-10-16 · **사람 결정** — B). 예전에는 Claude Code 만 셌다 — Codex 는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로라 세면 그 기계들이 「꺼짐」으로 분모를 부풀린다는 이유였다. E20-S01 부터 Codex 도 같은 매니페스트로 플러그인을 설치하고 세션 훅이 버전을 보내며, 훅 세션과 MCP 세션이 하나로 이어진다(REQ-API-324). 두 종류는 **따로** 센다 — 꺼짐의 까닭이 다르다(Codex 는 플러그인을 설치하고도 `/hooks` 에서 신뢰 처리하지 않으면 훅이 돌지 않는다). 그래서 종류별 수 `by_agent` 를 `PLUGIN_COVERAGE_AGENT_TYPES` 순서로 0 인 종류까지 함께 준다(없는 것과 0 인 것은 다르다). `web` · `other` 세션은 세지 않는다 — 플러그인이 없는 종류다.
 - **창은 `PLUGIN_COVERAGE_WINDOW_DAYS`(30일)다**([4.2](codebase.md) §3.2). 호스트는 등록되지 않으므로 창이 없으면 한 번 쓰고 떠난 노트북이 분모를 영원히 끈다.
 
 EP-SES-01 의 카드도 `plugin_version` 을 싣는다 — 그 세션을 연 플러그인이 무엇인가는 카드의 성질이다.
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
-| REQ-API-168 | WHEN 세션을 만드는 훅이 `X-NERV-Plugin` 헤더를 실으면 THE SYSTEM SHALL 그 값이 버전 모양일 때만 세션의 `plugin_version` 으로 남기고(같은 세션이 다시 시작하면 새 값이 이긴다), 헤더가 없거나 모양이 틀리면 **없는 것으로** 둔다. WHEN MCP `nerv_bootstrap` 이 훅 세션을 채택하면 THE SYSTEM SHALL 그 값을 지우지 않는다. WHEN EP-SES-06 을 조회하면 THE SYSTEM SHALL 최근 `PLUGIN_COVERAGE_WINDOW_DAYS` 일 안에 Claude Code 세션을 연 기계(사람 + hostname)마다 **가장 최근 세션**의 `plugin_version` 으로 켜짐·꺼짐을 판정해 꺼진 기계부터 돌려준다 |
+| REQ-API-168 | WHEN 세션을 만드는 훅이 `X-NERV-Plugin` 헤더를 실으면 THE SYSTEM SHALL 그 값이 버전 모양일 때만 세션의 `plugin_version` 으로 남기고(같은 세션이 다시 시작하면 새 값이 이긴다), 헤더가 없거나 모양이 틀리면 **없는 것으로** 둔다. WHEN MCP `nerv_bootstrap` 이 훅 세션을 채택하면 THE SYSTEM SHALL 그 값을 지우지 않는다. WHEN EP-SES-06 을 조회하면 THE SYSTEM SHALL 최근 `PLUGIN_COVERAGE_WINDOW_DAYS` 일 안에 `PLUGIN_COVERAGE_AGENT_TYPES`(Claude Code · Codex) 세션을 연 기계와 에이전트(사람 + hostname + 에이전트 종류)마다 **가장 최근 세션**의 `plugin_version` 으로 켜짐·꺼짐을 판정해 꺼진 줄부터 돌려주고, 종류별 수(`by_agent`)를 그 순서로 0 인 종류까지 함께 준다(2026-10-16 개정 · 사람 결정 — 예전에는 Claude Code 세션만 셌다) |
 
 ### 2.6 받은 요청·질문 (S7)
 

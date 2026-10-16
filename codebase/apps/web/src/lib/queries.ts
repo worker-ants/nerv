@@ -10,7 +10,7 @@ import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
 import { PENDING_PROJECT, queryKeys } from './query-keys.js';
 import type { ProjectId } from './query-keys.js';
 import { REQUIREMENT_PREFIX } from '@nerv/schema';
-import type { ApprovalInboxState } from '@nerv/schema';
+import type { ApprovalInboxState, PLUGIN_COVERAGE_AGENT_TYPES } from '@nerv/schema';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
 import type { Me } from './session.js';
@@ -738,19 +738,31 @@ export interface SessionBoardResponse {
  * 모양이다). 알림·발견 큐가 이미 같은 자리를 [더 보기]로 닫아 두었다.
  */
 /** 플러그인 활성화 현황의 한 줄 — 사람 + 기계 (EP-SES-06) */
+/** 활성화 현황이 세는 에이전트 종류(`PLUGIN_COVERAGE_AGENT_TYPES` · 2026-10-16 — Codex 를 더했다) */
+export type PluginAgentType = (typeof PLUGIN_COVERAGE_AGENT_TYPES)[number];
+
 export interface PluginHost {
   user_id: string;
   user_name: string;
   hostname: string;
+  agent_type: PluginAgentType;
   last_seen_at: string;
   plugin_version: string | null;
   active: boolean;
+}
+
+export interface PluginAgentCoverage {
+  agent_type: PluginAgentType;
+  total: number;
+  active: number;
 }
 
 export interface PluginCoverage {
   window_days: number;
   total: number;
   active: number;
+  /** 종류별 수 — 서버가 `PLUGIN_COVERAGE_AGENT_TYPES` 순서로 0 인 종류까지 준다 */
+  by_agent: PluginAgentCoverage[];
   hosts: PluginHost[];
 }
 

@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.43 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.44 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.44 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **REQ-WEB-189 개정 · §2.6 데이터 소스 한 줄.** 현황이 Claude Code와 Codex를 함께 센다([4.4 API](api.md) REQ-API-168). 요약 한 줄은 그대로이고, 펼치면 에이전트 종류마다 수 · 기계 · 그 종류의 꺼짐 까닭을 묶어 보인다 — Codex는 플러그인을 설치하고도 `/hooks`에서 훅을 신뢰 처리하지 않으면 꺼짐이다. 줄이 없는 종류는 그리지 않는다.
 >
 > v2.43 변경(2026-10-16 — 복구 뒤 자동 동기화의 실패 보고, Phase 2 묶음 2의 둘째 · [4.8 백로그](backlog.md) E21-S01): **§1.4 표 한 줄.** ★`session.outbox_failed` 는 프로젝트 활동 피드만 되읽는다. 보고한 사람의 종은 개인 룸의 `notification.created` 가 되읽는다([4.4 API](api.md) REQ-API-322).
 >
@@ -1906,7 +1908,7 @@ export const TaskCreateInput = z
 | 세션 상세 | EP-SES-02 `GET /api/v1/projects/{proj}/sessions/{sid}` | `agent_session` 필드(data-model §2.5): hostname·agent_type·branch·diff_added/removed·current_task_id |
 | Activity 타임라인 | EP-SES-03 `GET /api/v1/projects/{proj}/sessions/{sid}/activities` (커서) | `thought / action / elicitation / response / error` 5종 — 불변 레코드(D-10) |
 | 작업 궤적 | EP-SES-05 `GET /api/v1/projects/{proj}/sessions/{sid}/trajectory` | "무엇을 했나"(REQ-API-068). **활동 위**에 선다 — 레일에도 상세에도(REQ-WEB-124·142) |
-| 플러그인 활성화 | EP-SES-06 `GET /api/v1/projects/{proj}/sessions/plugin-coverage` | 머리 아래 한 줄 요약 `플러그인 켜짐 N / M 호스트` — 펼치면 **꺼진 기계가 위**다(REQ-WEB-189) |
+| 플러그인 활성화 | EP-SES-06 `GET /api/v1/projects/{proj}/sessions/plugin-coverage` | 머리 아래 한 줄 요약 `플러그인 켜짐 N / M대` — 펼치면 에이전트 종류(`by_agent` — Claude Code · Codex)마다 묶고 **꺼진 기계가 위**다(REQ-WEB-189 · 2026-10-16 Codex 를 더함) |
 | steer / stop | EP-SES-04 `POST /api/v1/projects/{proj}/sessions/{sid}/steer` (`kind`: steer/stop) — **권한은 세션 소유자·admin 이다.** 화면도 그렇게 그린다(2026-09-06 배선): 소유자·admin 이 아니면 입력칸과 두 버튼이 잠기고 **왜 잠겼는지**를 말한다(§1.8·REQ-WEB-003). 끝난 세션과 남의 세션은 **다른 문구**다 — 기다리면 되는 일과 아닌 일은 다르다. 소유 판정의 축은 목록·상세가 함께 싣는 `user_id` 다 | 지시는 다음 `nerv_task_heartbeat` 응답의 `pending`에 실린다(agent-integration §2.4 역채널) — UI는 "다음 하트비트에 전달" 안내 |
 
 - **실시간**: `project:{id}` 룸 — `session.started` `session.stale` `session.complete` `session.steered` → 보드, Activity 스트림·하트비트/diff 갱신도 같은 룸으로 흐른다(알림 아님 — spec-workflow §6.3). 하트비트 표기는 상대 시각만(ui-wireframes §3.3).
@@ -1932,7 +1934,7 @@ export const TaskCreateInput = z
 | REQ-WEB-116 | WHEN 세션 요약 스트립의 상태를 고르면 THE SYSTEM SHALL 그 상태의 세션만 목록에 담고(서버 질의), 다시 누르면 푼다. WHILE 필터가 켜져 있으면 THE SYSTEM SHALL 요약 숫자는 프로젝트 전체를 유지하고, 결과가 없을 때 "세션 없음"이 아니라 **그 상태가 없다**고 적는다 |
 | REQ-WEB-140 | WHILE 스펙 목록의 세 탭(트리·표·관계 그래프) 사이를 오가는 동안 THE SYSTEM SHALL 화면 머리의 동작 줄을 **같은 구성으로** 유지하고, 그 탭에만 듣는 조작(상태·종류 필터)은 **그 탭 자신의 조작 줄**에 둔다 — 한 탭에서만 칸이 늘면 줄이 넘쳐 그 탭만 배치가 달라지고, 사람은 탭을 옮길 때마다 눈으로 자리를 다시 찾는다 |
 | REQ-WEB-139 | WHEN 세션 요약 스트립을 렌더링하면 THE SYSTEM SHALL `session_state` 여섯을 **어휘 순서 그대로** 표시하고, 그 프로젝트에 하나도 없는 상태도 `0` 으로 자리를 지키게 하되 물러서 보이고 **눌리지 않게** 한다 — 있는 것만 그리면 "오류 0건" 과 "오류라는 상태가 없음" 을 구별할 수 없고, 칸이 프로젝트마다·시각마다 자리를 바꿔 앉는다. WHILE 세션이 하나도 없는 동안 THE SYSTEM SHALL 0 여섯 대신 문장(빈 상태)을 보인다 |
-| REQ-WEB-189 | WHEN 세션 모니터를 렌더링하면 THE SYSTEM SHALL 머리 아래에 최근 창 안의 Claude Code 기계 중 플러그인이 켜진 수와 전체 수를 한 줄로 표시하고, 펼치면 기계마다 켜짐(버전)·꺼짐·사람·마지막 시각을 **꺼진 기계부터** 보이며, 하나라도 꺼져 있으면 꺼진 기계에서 무엇이 빠지는가(훅이 없어 활동·브랜치가 남지 않는다)를 함께 적는다. WHILE 현황을 불러오는 동안 THE SYSTEM SHALL 수를 먼저 그리지 않는다 |
+| REQ-WEB-189 | WHEN 세션 모니터를 렌더링하면 THE SYSTEM SHALL 머리 아래에 최근 창 안의 Claude Code · Codex 기계(에이전트 종류마다 한 줄 — [4.4 API](api.md) REQ-API-168) 중 플러그인이 켜진 수와 전체 수를 한 줄로 표시하고, 펼치면 에이전트 종류마다 켜진 수 · 전체 수와 기계마다 켜짐(버전)·꺼짐·사람·마지막 시각을 **꺼진 기계부터** 묶어 보이며, 그 종류에 하나라도 꺼져 있으면 그 종류의 꺼짐 까닭과 무엇이 빠지는가(훅이 없어 활동·브랜치가 남지 않는다)를 함께 적는다 — Codex 는 `/hooks` 에서 훅을 신뢰 처리하지 않은 경우를 더 적는다. 줄이 없는 종류는 그리지 않는다(2026-10-16 개정 · 사람 결정 — 예전에는 Claude Code 기계만 셌다). WHILE 현황을 불러오는 동안 THE SYSTEM SHALL 수를 먼저 그리지 않는다 |
 | REQ-WEB-021 | WHEN 사용자가 stop을 실행하면 THE SYSTEM SHALL 확인 다이얼로그에서 사유를 필수로 받고, 처리 후 해당 Task가 `ready`로 회수된 것을 보드에 반영한다 |
 | REQ-WEB-319 | WHEN 프로젝트 조회의 `failopen_status.escalated` 가 참이면 THE SYSTEM SHALL S5 세션 모니터와 S6 리뷰 센터의 머리 아래에 격상 배너(`FailOpenBanner`)를 표시하고 「게이트가 사실상 꺼져 있습니다」와 최근 창(시간) 안의 fail-open 수 · 격상 기준 · [기록 보기]를 보인다. WHEN [기록 보기]를 누르면 THE SYSTEM SHALL 프로젝트 개요(`/p/:proj?events=failopen`)를 열어 최근 활동을 `gate.failopen` · `gate.failopen_escalated` · `gate.failopen_cleared` 로 거르고 [모든 활동 보기]로 되돌아갈 길을 둔다. 격상 · 풀림 알림도 그 주소로 간다. WHEN fail-open · 격상 · 풀림 이벤트가 오면 THE SYSTEM SHALL 프로젝트 조회를 다시 읽어 배너를 고친다. 격상이 아니면 배너를 그리지 않는다(2026-10-15 · [4.4 API 명세](api.md) REQ-API-319 · 320 · [4.8 백로그](backlog.md) E18-S02) |
 

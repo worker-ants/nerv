@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>6종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code> <code>/nerv:mirror</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v1.17 (2026-10-16)</span>
+      <span>버전 v1.18 (2026-10-16)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1701,7 +1701,7 @@ top="$(git rev-parse --show-toplevel 2&gt;/dev/null || true)"      # → X-NERV-
 version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${manifest}" | head -n 1)"   # → X-NERV-Plugin</code></pre>
   <ul>
     <li><b><code>session</code> 에만 붙인다.</b> 다른 훅은 같은 세션이라 읽는 곳이 없다.</li>
-    <li><b>Codex도 보낸다</b>(2026-10-16 정정 · §5.4). Codex는 같은 매니페스트로 플러그인을 설치하므로 포워더 옆에 <code>plugin.json</code>이 있다 — 2026-10-15 실측에서 <code>X-NERV-Plugin: 0.3.26</code>이 왔다. 스크립트만 따로 복사해 부르는 설치처럼 파일이 없으면 헤더가 빠진다. 없는 것을 있다고 말하지 않는다. 활성화 현황은 여전히 Claude Code 세션만 센다 — Codex는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다(<a href="api.html">4.4 API 명세</a> §2.5c).</li>
+    <li><b>Codex도 보낸다</b>(2026-10-16 정정 · §5.4). Codex는 같은 매니페스트로 플러그인을 설치하므로 포워더 옆에 <code>plugin.json</code>이 있다 — 2026-10-15 실측에서 <code>X-NERV-Plugin: 0.3.26</code>이 왔다. 스크립트만 따로 복사해 부르는 설치처럼 파일이 없으면 헤더가 빠진다. 없는 것을 있다고 말하지 않는다. 활성화 현황은 2026-10-16부터 Codex 세션도 센다 — 에이전트 종류마다 따로 센다(사람 결정 · <a href="api.html">4.4 API 명세</a> §2.5c). 예전에는 Codex가 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로라 세지 않았다.</li>
     <li><b>http 변형에는 없다.</b> <code>headers</code> 는 상수와 <code>${VAR}</code> 만 받아 <code>plugin.json</code> 을 읽을 자리가 없다 — 상수로 박으면 버전을 올릴 때마다 한 자리가 더 늘어난다.</li>
   </ul>
 

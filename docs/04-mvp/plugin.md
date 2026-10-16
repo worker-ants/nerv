@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.17 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.18 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.18 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **§3.3 한 항목 · 패키지 0.3.33 그대로.** `X-NERV-Plugin`의 Codex 항목이 "활성화 현황은 여전히 Claude Code 세션만 센다"고 적었다 — 이제 두 종류를 따로 센다([4.4 API](api.md) REQ-API-168).
 >
 > v1.17 변경(2026-10-16 — 훅도 NERV를 설정한 저장소에서만 보낸다, **사람 결정**(2026-10-16 — B)): **REQ-PLG-041 신설 · REQ-PLG-038 · 018 개정 · §3.1 절 하나와 http 변형 한 단락 · §3.3 표 한 행과 두 칸 · 규칙 하나 · nerv-env.sh 전문 · §3.4 한 단락 · §3.7 한 항목 · §4 두 단락 · §5.2 한 단락 · 패키지 0.3.32 → 0.3.33.** 셸에 토큰이 있으면 NERV를 쓰지 않는 저장소에서도 훅(도구 훅의 명령 · 파일 경로, 세션 시작 · 끝)이 서버로 나갔다 — 앞서 막은 것은 Codex notify뿐이었다. 이제 포워더는 notify와 같은 판정으로 그 일의 디렉터리(훅 입력의 `cwd`)나 그 git 저장소의 맨 위에 NERV 설정이 있을 때, 또는 관리형 settings의 `env`에 `NERV_MANAGED=1`이 있을 때만 보낸다. 아니면 출력 없이 성공으로 끝난다. 판정에 `.claude/settings.local.json`의 `NERV_*`와 git 저장소의 맨 위를 더했고 Claude Code의 훅은 세션의 저장소(`CLAUDE_PROJECT_DIR`)도 본다. 오프라인 큐도 같은 판정이라 설정이 없는 저장소에서는 큐를 만들지 않는다. http 변형의 http 훅은 포워더를 거치지 않아 이 판정이 적용되지 않는다 — 그 변형은 관리형 settings로 내리는 기기에만 쓴다. 셸에만 토큰을 두고 저장소를 `nerv-init`하지 않은 사람의 훅은 이제 멈추고, 세션 시작의 `--check`가 그 사실을 알린다.
 >
@@ -1871,7 +1873,7 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
 ```
 
 - **`session` 에만 붙인다.** 다른 훅은 같은 세션이라 읽는 곳이 없다.
-- **Codex도 보낸다**(2026-10-16 정정 · §5.4). Codex는 같은 매니페스트로 플러그인을 설치하므로 포워더 옆에 `plugin.json`이 있다 — 2026-10-15 실측에서 `X-NERV-Plugin: 0.3.26`이 왔다. 스크립트만 따로 복사해 부르는 설치처럼 파일이 없으면 헤더가 빠진다. 없는 것을 있다고 말하지 않는다. 활성화 현황은 여전히 Claude Code 세션만 센다 — Codex는 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로다([4.4 API 명세](api.md) §2.5c).
+- **Codex도 보낸다**(2026-10-16 정정 · §5.4). Codex는 같은 매니페스트로 플러그인을 설치하므로 포워더 옆에 `plugin.json`이 있다 — 2026-10-15 실측에서 `X-NERV-Plugin: 0.3.26`이 왔다. 스크립트만 따로 복사해 부르는 설치처럼 파일이 없으면 헤더가 빠진다. 없는 것을 있다고 말하지 않는다. 활성화 현황은 2026-10-16부터 Codex 세션도 센다 — 에이전트 종류마다 따로 센다(사람 결정 · [4.4 API 명세](api.md) §2.5c). 예전에는 Codex가 플러그인 없이 MCP 설정만으로 붙는 것도 지원 경로라 세지 않았다.
 - **http 변형에는 없다.** `headers` 는 상수와 `${VAR}` 만 받아 `plugin.json` 을 읽을 자리가 없다 — 상수로 박으면 버전을 올릴 때마다 한 자리가 더 늘어난다.
 
 ### 3.4 오프라인 폴백 실물 — `.nerv/cache/` · `.nerv/outbox/`

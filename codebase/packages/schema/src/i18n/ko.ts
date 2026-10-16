@@ -2008,14 +2008,19 @@ export const ko = {
   'sessions.show_all': '모두 보기',
   'sessions.more': '더 보기',
   'sessions.none_running': '실행 중인 세션이 없습니다.',
-  'sessions.plugin.empty': '최근 {days}일 동안 Claude Code 세션을 연 머신이 없습니다.',
+  'sessions.plugin.agent_claude_code': 'Claude Code',
+  'sessions.plugin.agent_codex': 'Codex',
+  'sessions.plugin.empty': '최근 {days}일 동안 Claude Code나 Codex 세션을 연 머신이 없습니다.',
+  'sessions.plugin.group': '{agent} · 켜짐 {active} / {total}대',
   'sessions.plugin.off': '꺼짐',
   'sessions.plugin.off_hint':
-    '꺼짐으로 표시된 머신은 플러그인 없이 MCP 로만 연결했습니다. 훅이 없어서 활동과 브랜치가 세션 화면에 남지 않습니다.',
+    '꺼짐으로 표시된 머신은 플러그인 없이 MCP로만 연결했거나 NERV 설정이 없는 저장소에서 세션을 열어 훅이 보내지 않았습니다. 훅이 없어서 활동과 브랜치가 세션 화면에 남지 않습니다.',
+  'sessions.plugin.off_hint_codex':
+    '꺼짐으로 표시된 Codex 머신은 플러그인 없이 MCP 설정만으로 연결했거나 플러그인의 훅을 /hooks에서 신뢰 처리하지 않았습니다. 훅이 없어서 활동과 브랜치가 세션 화면에 남지 않습니다.',
   'sessions.plugin.on': '켜짐 · v{version}',
   'sessions.plugin.summary': '플러그인 켜짐 {active} / {total}대',
   'sessions.plugin.window':
-    '최근 {days}일 동안 Claude Code 세션을 연 머신을 셉니다. 머신마다 가장 최근 세션을 기준으로 판단합니다.',
+    '최근 {days}일 동안 Claude Code나 Codex 세션을 연 머신을 셉니다. 머신과 에이전트마다 가장 최근 세션을 기준으로 판단합니다. 한 머신에서 두 에이전트를 쓰면 따로 셉니다.',
   'sessions.title': '세션 모니터',
   'steer.confirm_body':
     '활성 클레임이 바로 회수되고 작업은 준비됨으로 돌아갑니다. 사유는 세션 타임라인에 남아서 중단된 이유를 알 수 있습니다.',

@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.22 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.23 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.23 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **§3.2 상수 한 줄.** `PLUGIN_COVERAGE_AGENT_TYPES` = `claude-code` · `codex` — 활성화 현황(EP-SES-06)이 세는 에이전트 종류와 그 순서다([4.4 API](api.md) §2.5c · REQ-API-168).
 >
 > v2.22 변경(2026-10-16 — 미러의 프로젝트 폴더에 조직을 넣는다 · [4.8 백로그](backlog.md) E21-S02): **REQ-CB-062 · 063 개정 · §6.2a 첫 단락과 경고 항목.** 프로젝트 폴더가 `<조직 slug>/<프로젝트 slug>/` 다. 프로젝트 slug 는 조직 안에서만 유일해서(`project_org_slug_uq`) 두 조직이 같은 slug 의 프로젝트를 가지면 한 폴더에 써서 서로 덮었다. 그 덮어쓰기는 원격 이력에 그대로 남고, `mirror.diverged` 는 폴더 하나에 프로젝트가 하나라고 보고 경고할 프로젝트를 골랐다. 이제 경로의 앞 두 칸으로 프로젝트를 찾는다. 예전 경로의 파일은 git 이 추적하던 것만 다음 판에 지운다. 조직마다 미러를 따로 두는 안과 겹칠 때만 접미사를 붙이는 안은 고르지 않았다 — 앞의 것은 원격이 배치마다 하나인 설정을 바꿔야 하고, 뒤의 것은 다른 조직에 같은 slug 가 생기는 순간 폴더 이름이 달라진다.
 >
@@ -765,6 +767,7 @@ packages/schema/
 | `HEARTBEAT_INTERVAL_SECONDS` | `60` | [3.4](../03-proposal/agent-integration.md) §2.3 `nerv_task_heartbeat` |
 | `SESSION_STALE_SECONDS` | `1800` (30분) | 리스 TTL과 같은 값으로 묶는 이유는 [3.4](../03-proposal/agent-integration.md) §5.2 |
 | `PLUGIN_COVERAGE_WINDOW_DAYS` | `30` | 플러그인 활성화 현황이 보는 세션의 창(2026-09-24 · E12-S03). 호스트는 등록되지 않으므로 창이 없으면 떠난 기계가 분모를 영원히 끈다 — 30일은 파일럿 한 주기(2주 스프린트 둘)다([4.4](api.md) §2.5c) |
+| `PLUGIN_COVERAGE_AGENT_TYPES` | `['claude-code', 'codex']` | 플러그인 활성화 현황이 세는 에이전트 종류 — NERV 플러그인이 있는 둘이고 순서가 응답(`by_agent`)과 화면의 순서다(2026-10-16 · 사람 결정 — Codex 를 더했다 · [4.4](api.md) §2.5c) |
 | `REVIEW_PROMPT_BLOB_TTL_DAYS` | `30` | [3.2](../03-proposal/architecture.md) §2.5 |
 | `EVENTS_CHANNEL` | `'nerv_events'` | Valkey pub/sub 방송 채널 — [4.3 데이터베이스 스키마](database.md) §3 |
 | `WORKER_ADVISORY_LOCK_KEY` | 프로젝트 전역 단일 키(bigint 리터럴 1개) | §6.3 — 워커 단일 실행 |
