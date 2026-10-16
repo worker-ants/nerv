@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.80 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.81 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.81 변경(2026-10-16 — 리뷰가 없는 브랜치의 면제, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D4) · [4.8 백로그](backlog.md) E16-S04): **REQ-DB-050 신설 · §2.8 `approval` 두 열과 CHECK 둘 · 다형 참조의 예외와 결정 기록 · §2.12 인덱스 하나 · 마이그레이션 `0055`.** 게이트 면제가 브랜치를 대상으로 삼게 `approval.branch` 와 선택 `head_sha`(40자 소문자 커밋 SHA)를 더한다. 브랜치는 문자열이라 `subject_id`(uuid)가 가리킬 수 없어 브랜치 면제의 `subject_id` 는 프로젝트 id 다 — 다형 참조 규칙의 예외 하나다. 있던 행은 둘 다 NULL 이라 뜻이 바뀌지 않는다([4.4 API](api.md) REQ-API-338 ~ 340).
 >
 > v0.80 변경(2026-10-16 — 에스컬레이션 카드 · 변경 요청에 묶인 발견, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **REQ-DB-049 신설 · §2.1 enum 값 하나 · §2.7 `resolution` 한 열 · §2.12 인덱스 하나 · 마이그레이션 `0054`.** 결재 대상에 `escalation`(발견을 사람에게 넘긴 처분 한 건)을 더하고, 넘긴 세션이 결정을 기다리는지를 `resolution.blocking` 에 남긴다. 변경 요청이 승인 · 거절될 때 그 CR로 보낸 발견을 찾는 인덱스(`resolution_change_request`)를 둔다. enum 값은 더하기만 하고 이 마이그레이션 안에서 쓰지 않는다(0050 · 0053 과 같다).
 >
@@ -849,7 +851,7 @@ CREATE TABLE approval (
   id                      uuid PRIMARY KEY,
   project_id              uuid NOT NULL REFERENCES project(id),
   subject_type            approval_subject_type NOT NULL,
-  subject_id              uuid NOT NULL,       -- 다형 참조 — 물리 FK 없음(앱 검증)
+  subject_id              uuid NOT NULL,       -- 다형 참조 — 물리 FK 없음(앱 검증). 예외: 브랜치 면제는 프로젝트 id(아래 branch · REQ-DB-050)
   requested_by_user_id    uuid NOT NULL REFERENCES "user"(id),
   requested_by_session_id uuid REFERENCES agent_session(id),
   assignee_user_id        uuid REFERENCES "user"(id),
@@ -863,9 +865,13 @@ CREATE TABLE approval (
   is_bypass               boolean NOT NULL DEFAULT false, -- 게이트 면제도 결재 레코드(FR-10)
   bypass_reason           text,
   bypass_kinds            review_kind[],                  -- 면제의 범위 — 면제한 리뷰 종류. NULL은 전부(2026-10-09 · 0045 · REQ-DB-038)
+  branch                  text,                           -- 브랜치 면제의 브랜치 — 리뷰가 없는 브랜치에도(2026-10-16 · 0055 · REQ-DB-050)
+  head_sha                text,                           -- 브랜치 면제를 커밋 하나로 좁힌다(40자 소문자). NULL은 그 브랜치의 모든 커밋
   created_at              timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT approval_bypass_reason_ck CHECK (NOT is_bypass OR bypass_reason IS NOT NULL),
   CONSTRAINT approval_bypass_kinds_ck CHECK (bypass_kinds IS NULL OR (is_bypass AND cardinality(bypass_kinds) > 0)),
+  CONSTRAINT approval_branch_ck CHECK (branch IS NULL OR (is_bypass AND subject_type = 'gate_bypass' AND branch <> '')),
+  CONSTRAINT approval_head_sha_ck CHECK (head_sha IS NULL OR (branch IS NOT NULL AND head_sha ~ '^[0-9a-f]{40}$')),
   -- 결정된 행에는 결정자가 있다 — 없으면 그 행은 처리됨 탭에서 사라지고, 사라진 것은 아무도 못 본다
   CONSTRAINT approval_decided_by_ck CHECK (decision IS NULL OR decided_by_user_id IS NOT NULL)
 );
@@ -891,6 +897,8 @@ CREATE TABLE question (                        -- 세션은 awaiting_input으로
   created_at          timestamptz NOT NULL DEFAULT now()
 );
 ```
+
+**다형 참조의 예외 하나 — 브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-DB-050). `subject_id` 는 `subject_type` 이 가리키는 개체의 id 다. 예외는 브랜치 면제 하나다 — 리뷰가 한 번도 없는 브랜치를 면제하려면 대상이 브랜치여야 하는데 브랜치는 문자열이고 `subject_id` 는 uuid 다. 그 행은 `subject_type = gate_bypass` · `subject_id` = 그 프로젝트의 id 이고 대상은 `branch`(와 선택 `head_sha`)가 맡는다. **결정 기록**(2026-10-16 · 사람 결정 D4 = A): 결재에 브랜치 열을 더하고 `subject_id` 는 프로젝트로 둔다. `head_sha` 는 선택이다 — 있으면 그 커밋에만, 없으면 그 브랜치의 모든 커밋에 유효하다(면제는 유효 시간이 없고 되돌리는 것은 새 결정이다 — [4.4 API](api.md) EP-APR-04). 작업 면제를 찾는 done 게이트는 `subject_id = 작업 id` 로 찾으므로 브랜치 면제와 섞이지 않는다. 게이트 판정이 이 면제를 어떻게 읽는지는 [4.4 API](api.md) REQ-API-339 가 정한다.
 
 ### 2.9 증적 — evidence
 
@@ -1101,6 +1109,7 @@ CREATE INDEX finding_queue ON finding (project_id, status, severity);           
 -- 승인·이벤트·알림
 CREATE INDEX approval_inbox ON approval (project_id, assignee_user_id) WHERE decision IS NULL; -- 받은 요청(§4.7)
 CREATE INDEX approval_decided ON approval (project_id, decided_by_user_id) WHERE decision IS NOT NULL; -- 처리됨(§4.7)
+CREATE INDEX approval_bypass_branch ON approval (project_id, branch) WHERE branch IS NOT NULL; -- 브랜치 면제 — 게이트 판정 · 게이트 현황(0055 · REQ-DB-050)
 CREATE INDEX event_project_time ON event (project_id, occurred_at DESC);           -- 피드
 CREATE INDEX event_subject      ON event (subject_type, subject_id, occurred_at);  -- 감사(§4.8)
 CREATE INDEX notification_inbox ON notification (user_id, state, last_at DESC);    -- 보조: 수신함(2026-09-27 — 마지막 시각 순 · REQ-DB-030)
@@ -1409,6 +1418,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-045 | WHEN 작업의 증적을 찾으면(done 게이트 · 구현 축의 작업 최신 `commit` 증적 — [4.4 API 명세](api.md) REQ-API-314 · 315, 작업의 증적 목록 · 수 · 웹훅 dedup) THE SYSTEM SHALL `evidence_task`(`task_id, created_at, id` · `WHERE task_id IS NOT NULL`)로 그 작업의 행만 읽고 표 전체를 훑지 않는다. 오름차순으로 두어 최신 커밋의 `ORDER BY created_at DESC, id DESC` 는 거꾸로 읽을 수 있다(마이그레이션 `0052` · 2026-10-15). 검증은 L2 `commit-scope.spec.ts`(인덱스 정의 · 순차 스캔을 끈 계획이 이 인덱스를 쓴다)다 |
 | REQ-DB-048 | WHEN 승인본이 있는 문서에 새 초안이 생겨 변경 요청(CR)을 만들면 THE SYSTEM SHALL 그 행의 `change_request.key` 에 표시 키 `<PRJ>-C-XXXXXX`(씨앗은 그 행의 UUID)를 넣고 `change_request_key_uq`(`project_id, key`)로 프로젝트 안의 유일함을 지키며, `change_request_proposed_uq`(`proposed_version_id`)로 초안마다 CR 하나를, `change_request_spec_open_uq`(`spec_id` · `WHERE status IN ('open', 'in_review')`)로 문서마다 열린 CR 하나를 지킨다. WHEN CR을 거절하거나 철회하면 THE SYSTEM SHALL 그 초안의 `spec_version.status` 를 `discarded` 로 바꾸고 행을 지우지 않는다. 승인하며 함께 할 일은 `planned_actions`(jsonb · NOT NULL · 기본 `{}`)에 남긴다. 마이그레이션 `0053` 은 있던 CR 행의 키를 같은 식으로 채운다(2026-10-16 · 사람 결정 D1 · D2) |
 | REQ-DB-049 | WHEN 발견을 사람에게 넘기면(`escalated`) THE SYSTEM SHALL 넘긴 세션이 결정을 기다리는지를 `resolution.blocking`(boolean · NOT NULL · 기본 false)에 남기고 그 처분을 대상으로 하는 결재 행(`approval.subject_type = escalation` · `subject_id` = 그 `resolution.id`)을 만든다. WHEN 변경 요청이 승인 · 거절 · 철회되면 THE SYSTEM SHALL `resolution_change_request`(`change_request_id` · `WHERE change_request_id IS NOT NULL`)로 그 CR에 묶인 발견을 찾는다. 마이그레이션 `0054` 는 `approval_subject_type` 에 값을 더하기만 하고 그 안에서 쓰지 않는다(2026-10-16 · 사람 결정 D3) |
+| REQ-DB-050 | WHEN 사람이 브랜치에 게이트 면제를 내면 THE SYSTEM SHALL 그 결재 행의 `approval.branch`(text)에 브랜치를, 커밋 하나로 좁혔으면 `approval.head_sha`(text · 40자 소문자 16진수)에 그 커밋을 남기고 `subject_id` 에는 프로젝트 id 를 둔다(다형 참조의 예외 — §2.8). CHECK `approval_branch_ck`(게이트 면제에만 · 빈 문자열 아님) · `approval_head_sha_ck`(브랜치 면제에만 · 40자 소문자 16진수)가 지키고, 게이트 판정 · 게이트 현황은 `approval_bypass_branch (project_id, branch) WHERE branch IS NOT NULL` 로 찾는다. 마이그레이션 `0055` 전의 행은 둘 다 NULL 이다(2026-10-16 · 사람 결정 D4 · [4.4 API](api.md) REQ-API-338) |
 
 ---
 

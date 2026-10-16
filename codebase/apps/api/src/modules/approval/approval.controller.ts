@@ -186,12 +186,15 @@ export class ApprovalController {
     return this.approvals.bypass({
       projectId,
       subjectType: 'gate_bypass',
-      subjectId: bypass.subject_id,
+      // 브랜치 면제면 대상 칸은 서비스가 프로젝트로 채운다(REQ-API-338) — 스키마가 둘 중 하나만 받는다
+      subjectId: bypass.subject_id ?? projectId,
       userId,
       reason: bypass.reason,
       actor,
       // 범위를 고른 면제(REQ-API-274) — 종류마다 면제할 수 있는 역할은 서비스가 판정한다(D-05)
       ...(bypass.kinds === undefined ? {} : { kinds: bypass.kinds }),
+      ...(bypass.branch === undefined ? {} : { branch: bypass.branch }),
+      ...(bypass.head_sha === undefined ? {} : { headSha: bypass.head_sha }),
       roles: req.nervRoles ?? [],
     });
   }

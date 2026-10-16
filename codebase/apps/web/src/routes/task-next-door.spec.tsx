@@ -584,6 +584,94 @@ describe('리뷰 면제 (REQ-WEB-299)', () => {
   });
 });
 
+/**
+ * 리뷰가 없는 브랜치의 면제 (2026-10-16 · 사람 결정 D4 · REQ-WEB-327). 문서만 바꾼 브랜치처럼 리뷰를 받지 않을 브랜치는
+ * 게이트 판정이 「리뷰 없음」으로 막았고, 면제는 작업이나 리뷰 세션에만 붙어 그 브랜치를 넘길 길이 없었다.
+ */
+describe('브랜치 면제 (REQ-WEB-327)', () => {
+  const SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+
+  it('작업의 브랜치를 눌러 고르고, 역할이 면제할 수 있는 종류와 사유로 그 브랜치에 기록한다', async () => {
+    detail = task({
+      status: 'done',
+      reviews: [
+        { id: 'r1', kind: 'consistency', branch: 'spec/update', round_no: 1, state: 'complete' },
+      ],
+      claims: [{ id: 'c1', status: 'released', branch: 'docs/readme', agent_session_id: 's1' }],
+    });
+    reply = { approval_id: 'a1', branch: 'docs/readme', head_sha: null, kinds: ['code'] };
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    // 작업이 끝난 뒤에도 리뷰 카드에 있다 — 병합 때 CI 가 묻는다
+    fireEvent.click(await screen.findByTestId('branch-waiver-open'));
+    const known = screen.getAllByTestId('branch-waiver-known').map((b) => b.textContent);
+    expect(known).toEqual(['spec/update', 'docs/readme']);
+    // developer 는 코드 계열만
+    expect(screen.getByTestId('branch-waiver-kind-code')).toBeTruthy();
+    expect(screen.getByTestId('branch-waiver-kind-merge')).toBeTruthy();
+    expect(screen.queryByTestId('branch-waiver-kind-consistency')).toBeNull();
+    expect(isLocked(screen.getByTestId('branch-waiver-submit'))).toBe(true);
+
+    fireEvent.click(screen.getAllByTestId('branch-waiver-known')[1]!);
+    expect((screen.getByTestId('branch-waiver-branch') as HTMLInputElement).value).toBe(
+      'docs/readme',
+    );
+    fireEvent.click(screen.getByTestId('branch-waiver-kind-code'));
+    fireEvent.change(screen.getByTestId('branch-waiver-reason'), {
+      target: { value: 'README 만 고친 브랜치' },
+    });
+    fireEvent.click(screen.getByTestId('branch-waiver-submit'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({
+      method: 'POST',
+      body: { branch: 'docs/readme', kinds: ['code'], reason: 'README 만 고친 브랜치' },
+    });
+    expect(posted[0]?.body).not.toHaveProperty('subject_id');
+    expect(posted[0]?.body).not.toHaveProperty('head_sha');
+    expect(posted[0]?.url).toContain('/projects/clemvion/gates/bypass');
+  });
+
+  it('브랜치를 직접 넣고 커밋 하나로 좁힐 수 있다 — 40자 SHA 가 아니면 보내지 않는다', async () => {
+    roles = ['planner'];
+    detail = task({ status: 'in_progress' });
+    reply = { approval_id: 'a2', branch: 'docs/guide', head_sha: SHA, kinds: ['consistency'] };
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    fireEvent.click(await screen.findByTestId('branch-waiver-open'));
+    expect(screen.queryByTestId('branch-waiver-known')).toBeNull();
+    expect(screen.queryByTestId('branch-waiver-kind-code')).toBeNull();
+    fireEvent.change(screen.getByTestId('branch-waiver-branch'), {
+      target: { value: 'docs/guide' },
+    });
+    fireEvent.click(screen.getByTestId('branch-waiver-kind-consistency'));
+    fireEvent.change(screen.getByTestId('branch-waiver-reason'), {
+      target: { value: '스펙 없음' },
+    });
+    fireEvent.change(screen.getByTestId('branch-waiver-head'), { target: { value: 'a1b2c3d' } });
+    expect(screen.getByTestId('branch-waiver-head-invalid').textContent).toBe(
+      ko['task.branch_waiver.head_invalid'],
+    );
+    expect(isLocked(screen.getByTestId('branch-waiver-submit'))).toBe(true);
+    fireEvent.change(screen.getByTestId('branch-waiver-head'), {
+      target: { value: SHA.toUpperCase() },
+    });
+    expect(screen.queryByTestId('branch-waiver-head-invalid')).toBeNull();
+    fireEvent.click(screen.getByTestId('branch-waiver-submit'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]?.body).toMatchObject({
+      branch: 'docs/guide',
+      head_sha: SHA,
+      kinds: ['consistency'],
+    });
+  });
+
+  it('면제할 수 있는 종류가 없는 역할에게는 단추가 없다', async () => {
+    roles = ['qa'];
+    detail = task({ status: 'in_progress' });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    await screen.findByTestId('done-gate');
+    expect(screen.queryByTestId('branch-waiver-form')).toBeNull();
+  });
+});
+
 describe('작업 보관 (REQ-WEB-301 · 302)', () => {
   it('보관한 작업은 다음 행동 없이 사유 · 대신할 작업 · [복원]을 보인다', async () => {
     detail = task({

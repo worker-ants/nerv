@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.30 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.31 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.31 변경(2026-10-16 — 리뷰가 없는 브랜치의 면제, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D4) · [4.8 백로그](../04-mvp/backlog.md) E16-S04): **§2.7 `approval` 한 행 신설 · `subject_id` 한 칸.** 게이트 면제가 브랜치를 대상으로 삼는다 — `branch` 와 선택 `head_sha`. 브랜치는 문자열이라 `subject_id` 가 가리킬 수 없어 브랜치 면제의 `subject_id` 는 프로젝트 id 다(다형 참조의 예외 하나 · [4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-050).
 >
 > v0.30 변경(2026-10-16 — `spec_drift` 발견을 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](../04-mvp/backlog.md) E19-S02 · S03): **§2.3 한 단락 · §2.6 `resolution` 한 행 · §2.7 `subject_type` 한 칸.** `spec_drift` 발견을 변경 요청으로 보내면 처분 `escalated`(사유 `spec`)가 그 CR을 `change_request_id` 로 가리키고, CR이 승인되면 발견은 `spec_change` 로, 거절되면 `dismissed` 로 닫힌다. 발견을 사람에게 넘긴 처분은 이제 받은 요청의 카드다 — 결재 대상 `escalation`(넘긴 처분 한 건)이 생겼고, 넘긴 세션이 기다리는지는 `resolution.blocking` 이 든다.
 >
@@ -670,7 +672,7 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | `id` | uuid PK | |
 | `project_id` | uuid FK | |
 | `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass / **finding** / **escalation**` — 일곱이다. `finding` 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정). **`change_request` 는 쓰지 않는다**(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 `spec_version` 이 받는다. **`escalation` 이 일곱째다**(2026-10-16 · 사람 결정 D3) — 발견을 사람에게 넘긴 처분 한 건(`resolution`)이 받은 요청의 카드가 된다. `finding` 과 나눈 까닭은 그 값의 승인이 critical 하향을 연다는 데 있다 — 같은 대상에 뜻이 다른 결재가 붙으면 에스컬레이션의 결정이 하향 승인으로 읽힌다 |
-| `subject_id` | uuid | 대상 엔티티 ID(다형 참조) |
+| `subject_id` | uuid | 대상 엔티티 ID(다형 참조). 예외는 브랜치 면제 하나다 — 그 행은 프로젝트 id 이고 대상은 `branch` 가 맡는다(2026-10-16) |
 | `requested_by_user_id` · `requested_by_session_id` | uuid FK | 지시자 |
 | `assignee_user_id` | uuid FK NULL | 지정 승인자 |
 | `assignee_role` | enum NULL | 역할 큐로 열어두는 경우 |
@@ -678,6 +680,7 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | `comment_md` | text | |
 | `requested_at` · `due_at` · `decided_at` | timestamptz | SLA·리마인더 |
 | `is_bypass` · `bypass_reason` | bool · text | 게이트 면제도 결재 레코드로 남긴다(FR-10) |
+| `branch` · `head_sha` | text NULL | **브랜치 면제**의 대상(2026-10-16 · 사람 결정 D4). 리뷰가 한 번도 없는 브랜치도 면제할 수 있다 — 게이트 판정이 그 (브랜치 · 종류)를 면제로 통과시킨다. `head_sha` 는 그 브랜치의 커밋 하나로 좁히고(40자) 없으면 그 브랜치의 모든 커밋이다 |
 
 규칙: **지시자 ≠ 승인자**(D-06). `assignee_user_id = requested_by_user_id`인 결재는 거부한다 — GitHub이 Copilot PR에 대해 "작업을 지시한 사람의 승인은 필수 승인 수에 포함되지 않는다"로 규격화한 것과 같다. clemvion에는 이 축이 없었다: merge confirm 2회·e2e 면제·BLOCK 해소·stale grooming의 종착지가 전부 한 사람이었다.
 

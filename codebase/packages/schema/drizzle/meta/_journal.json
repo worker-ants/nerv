@@ -386,6 +386,13 @@
       "when": 1792147695902,
       "tag": "0054_escalation_card",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1792152413100,
+      "tag": "0055_branch_waiver",
+      "breakpoints": true
     }
   ]
 }

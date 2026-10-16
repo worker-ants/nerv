@@ -131,6 +131,12 @@ export const en = {
     'Only admins can record a waiver without choosing review kinds. Choose the review kinds to waive.',
   'error.approval.bypass_has_code':
     'A task with code evidence (commit · PR · code path) cannot have its {kinds} review waived. A task that produced code gets a code review.',
+  'error.approval.bypass_target_required':
+    'Give exactly one target to waive: subject_id for a task or review session, or branch for a branch.',
+  'error.approval.bypass_head_needs_branch':
+    'head_sha is only for a branch waiver. Use it to narrow the waiver to one commit of that branch.',
+  'error.approval.bypass_head_not_full_sha':
+    'head_sha must be a full 40-character commit SHA. A short SHA could later match another commit (get it with git rev-parse).',
   'error.auth.admin_only': 'Only admins can do this.',
   'error.auth.org_admin_only':
     'Only organization admins can manage organization-wide access. Project admins can manage only their own project.',
@@ -592,6 +598,8 @@ export const en = {
   'reviews.filter.status': 'Status',
   'reviews.filter.tag': 'Tags',
   'reviews.gate.branch': 'Branch',
+  'reviews.gate.bypass_count': '{count} waived',
+  'reviews.gate.bypass_commit': 'commit {sha} only',
   'reviews.gate.empty': 'No branch has a review yet.',
   'reviews.gate.note': 'Shows the verdict only. It does not block merges yet.',
   'reviews.gate.resolved': 'Resolved',
@@ -2132,6 +2140,23 @@ export const en = {
   'task.waiver.code_evidence': 'A task with code evidence cannot have its code review waived',
   'task.waiver.no_role':
     'You cannot waive any of these reviews. Code reviews are waived by a developer or an admin, spec reviews by a planner or an admin',
+  'task.branch_waiver.open': 'Waive a branch',
+  'task.branch_waiver.title': 'Waiver for a branch without reviews',
+  'task.branch_waiver.hint':
+    'The gate verdict blocks a branch that will not be reviewed (such as a docs-only branch) as "No review". Pick the branch and kinds and waive them with a reason, and those kinds pass as waived. Kinds that have a review follow that review\'s verdict.',
+  'task.branch_waiver.branch': 'Branch',
+  'task.branch_waiver.branch_placeholder': 'Branch name, for example docs/readme',
+  'task.branch_waiver.known': 'Branches of this task',
+  'task.branch_waiver.head': 'Commit (optional)',
+  'task.branch_waiver.head_placeholder':
+    'Only this commit: a 40-character SHA. Leave empty for every commit of the branch',
+  'task.branch_waiver.head_invalid':
+    'Enter a 40-character commit SHA (get it with git rev-parse HEAD).',
+  'task.branch_waiver.reason_placeholder':
+    'Reason (required), for example: a branch that only edits the README',
+  'task.branch_waiver.confirm':
+    'This records a waiver of {kinds} reviews for {branch}. The record cannot be deleted.',
+  'task.branch_waiver.done': 'Waived {kinds} reviews for {branch}',
   'task.reviews': 'Reviews',
   'task.reviews.none': 'No reviews have checked this task.',
   'task.reviews.open_critical': '{n} open critical',

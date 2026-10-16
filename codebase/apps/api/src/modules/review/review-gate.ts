@@ -18,7 +18,26 @@ import { sqlArray } from '../../common/sql-array.js';
 import type { NervDb } from '../../common/database.module.js';
 import { sameCommitSql } from './commit-scope.js';
 
-export type GateState = 'uncovered' | 'pending' | 'passed';
+/**
+ * 라운드 판정은 셋이다(`uncovered` · `pending` · `passed`). 넷째 `waived` 는 **게이트 판정 조회(EP-REV-08)만** 만든다 — 리뷰가 없는
+ * (브랜치 · 종류)에 유효한 브랜치 면제가 있으면 통과로 준다(2026-10-16 · 사람 결정 D4 · api.md REQ-API-339). 이 파일의 함수는
+ * 면제를 보지 않는다 — done 게이트는 작업 면제를 따로 센다(REQ-API-274).
+ */
+export type GateState = 'uncovered' | 'pending' | 'passed' | 'waived';
+
+/** `waived` 행이 함께 주는 면제 — 사유 · 면제한 사람 · 시각 · 범위(종류 · 커밋) */
+export interface GateWaiver {
+  approval_id: string;
+  reason: string;
+  /** 면제한 사람의 표시 이름 */
+  by: string | null;
+  by_user_id: string;
+  at: string;
+  /** 면제한 종류 — `null` 은 범위 없는 면제(리뷰 커버리지 전부 · admin) */
+  kinds: string[] | null;
+  /** 커밋 하나로 좁힌 면제면 그 커밋 — `null` 은 그 브랜치의 모든 커밋 */
+  head_sha: string | null;
+}
 export type GateReason = 'running' | 'failed' | 'open_critical' | 'open_warning' | 'missing_roles';
 
 export interface RoundFinding {
@@ -46,6 +65,8 @@ export interface RoundVerdict {
   roles: { required: string[]; reported: string[]; missing: string[] };
   findings: RoundFinding[];
   findings_total: number;
+  /** `state` 가 `waived` 일 때만 — 그 판정을 만든 브랜치 면제(EP-REV-08 · REQ-API-339) */
+  waiver?: GateWaiver;
 }
 
 type Executor = Pick<NervDb, 'execute'>;
@@ -209,6 +230,55 @@ export async function roundVerdicts(
     }
   }
   return [...verdicts.values()].sort((a, b) => a.kind.localeCompare(b.kind));
+}
+
+/**
+ * **이 브랜치 · 이 커밋에 유효한 브랜치 면제**(2026-10-16 · 사람 결정 D4 · api.md REQ-API-339) — 가장 최근 것부터.
+ *
+ * 커밋으로 좁힌 면제는 **그 커밋을 물었을 때만** 유효하다 — `headSha` 를 주지 않은 조회는 어느 커밋인지 모르므로 그런 면제를
+ * 세지 않는다(넘겨도 될지 모를 때는 막는 쪽이다). 같은 커밋인가는 done 게이트와 같은 규칙이다(`sameCommitSql` — 대소문자 무시 ·
+ * 짧은 SHA 가 앞부분). 커밋을 적지 않은 면제는 그 브랜치의 모든 커밋에 유효하다.
+ */
+export async function branchWaivers(
+  db: Executor,
+  input: { projectId: string; branch: string; headSha: string | null },
+): Promise<GateWaiver[]> {
+  const commitFilter: SQL =
+    input.headSha === null
+      ? sql`a.head_sha IS NULL`
+      : sql`(a.head_sha IS NULL OR ${sameCommitSql(sql`a.head_sha`, sql`${input.headSha}`)})`;
+  const { rows } = await db.execute<{
+    approval_id: string;
+    reason: string;
+    by: string | null;
+    by_user_id: string;
+    at: unknown;
+    kinds: string[] | null;
+    head_sha: string | null;
+  }>(sql`
+    SELECT a.id AS approval_id, a.bypass_reason AS reason, u.display_name AS by,
+           a.decided_by_user_id AS by_user_id, a.decided_at AS at,
+           a.bypass_kinds::text[] AS kinds, a.head_sha
+      FROM approval a
+ LEFT JOIN "user" u ON u.id = a.decided_by_user_id
+     WHERE a.project_id = ${input.projectId} AND a.is_bypass AND a.branch = ${input.branch}
+       AND ${commitFilter}
+     ORDER BY a.decided_at DESC, a.id DESC
+  `);
+  return rows.map((r) => ({
+    approval_id: r.approval_id,
+    reason: r.reason,
+    by: r.by,
+    by_user_id: r.by_user_id,
+    at: isoOrNull(r.at) ?? '',
+    kinds: r.kinds,
+    head_sha: r.head_sha,
+  }));
+}
+
+/** 이 종류를 덮는 면제 — 범위 없는 면제(`kinds: null`)는 모든 종류를 덮는다. 목록은 최근 것부터다 */
+export function waiverFor(waivers: readonly GateWaiver[], kind: string): GateWaiver | undefined {
+  return waivers.find((w) => w.kinds === null || w.kinds.includes(kind));
 }
 
 /** 요구한 역할 · 보고한 역할 · 빠진 역할 — 순서는 글자 순서다 */

@@ -102,6 +102,14 @@ The buttons to the right of the task title **move the task from its current stat
 - A waiver is a permanent record. Who waived which kinds, when and why always shows below the review list.
 - Agents cannot waive. When an agent asks for a waiver through a question, a person records it on this screen.
 
+**A branch that will not be reviewed is waived as a whole branch.** A branch that will not get a review, such as one that only changes docs, is blocked as "No review" by the gate verdict that push hooks and CI ask for. Open **[Waive a branch]** in the review card of the task's detail and choose the branch. You can click a branch that this task's reviews or sessions worked on, or type a name. Pick the kinds to waive, write a reason and press **[Record waiver]**, and those kinds pass the gate verdict for that branch as `waived`. The card stays after the task is done, so you can use it when you merge.
+
+- The commit field is optional. Enter a 40-character commit SHA (`git rev-parse HEAD`) to apply the waiver to that commit only. Leave it empty to apply it to every commit of the branch, including new ones.
+- The kinds and roles that can waive are the same as for a task waiver. A branch has no task, so code evidence is not checked.
+- Kinds that have a review on that branch follow that review's verdict regardless of the waiver. A waiver only passes kinds without a review.
+- A branch waiver does not apply to the task's done criteria. Waive reviews for the done criteria with [Waive a review] above.
+- A recorded waiver shows on that branch's row in the review center's gate coverage ([Gate coverage](/help/reviews#gate-coverage)).
+
 **A new commit after a review needs a new review.** When the done criteria require review, only reviews of the task's latest commit count. If you commit after a review, the done form shows the commit the review saw and the new commit, and asks you to have the new commit reviewed. This is not something to waive; once the new commit is reviewed, the task can be finished. A commit attached as evidence when you finish becomes the latest commit.
 
 ## The four parts of a brief {#brief}

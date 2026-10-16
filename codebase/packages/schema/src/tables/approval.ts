@@ -70,6 +70,17 @@ export const approval = pgTable(
      * 요구에서 뺀다 — 코드 산출물이 없는 작업의 `code` 리뷰처럼, 하지 않은 리뷰를 꾸며 내지 않고 닫게 한다.
      */
     bypassKinds: reviewKind('bypass_kinds').array(),
+    /**
+     * **브랜치 면제의 브랜치**(2026-10-16 · 사람 결정 D4 · REQ-DB-050 · api.md REQ-API-338). 브랜치는 개체가 아니라 문자열이라
+     * `subject_id` 가 가리킬 수 없다 — 이 열이 있는 면제는 `subject_id` 에 **프로젝트 id** 를 두고 대상은 이 브랜치다(다형 참조
+     * 규칙의 예외 하나 · database.md §2.8). 리뷰가 한 번도 없는 브랜치에도 낸다 — 게이트 판정이 그 (브랜치 · 종류)를 `waived` 로 준다
+     */
+    branch: text('branch'),
+    /**
+     * 브랜치 면제를 **커밋 하나로** 좁힌다(40자 · 소문자). NULL 이면 그 브랜치의 모든 커밋에 유효하다 — 새 커밋이 와도 남는다.
+     * 면제는 만료가 아니라 새 결정으로 되돌린다(유효 시간을 받지 않는 까닭과 같다)
+     */
+    headSha: text('head_sha'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -79,6 +90,20 @@ export const approval = pgTable(
       'approval_bypass_kinds_ck',
       sql`${t.bypassKinds} IS NULL OR (${t.isBypass} AND cardinality(${t.bypassKinds}) > 0)`,
     ),
+    // 브랜치는 게이트 면제에만 있고 비어 있지 않다(REQ-DB-050)
+    check(
+      'approval_branch_ck',
+      sql`${t.branch} IS NULL OR (${t.isBypass} AND ${t.subjectType} = 'gate_bypass' AND ${t.branch} <> '')`,
+    ),
+    // 커밋은 브랜치 면제에만 있고 40자 소문자 16진수다 — 짧은 SHA 는 나중에 다른 커밋과 겹칠 수 있다
+    check(
+      'approval_head_sha_ck',
+      sql`${t.headSha} IS NULL OR (${t.branch} IS NOT NULL AND ${t.headSha} ~ '^[0-9a-f]{40}$')`,
+    ),
+    // 게이트 판정 · 게이트 현황이 (프로젝트 · 브랜치)로 면제를 찾는다
+    index('approval_bypass_branch')
+      .on(t.projectId, t.branch)
+      .where(sql`${t.branch} IS NOT NULL`),
     // **결정된 행에는 결정자가 있다.** 없으면 그 행은 처리됨 탭에서 사라지는데, 사라진
     // 것은 아무도 못 본다 — 코드 규약으로 두지 않고 DB 가 붙잡는다.
     check('approval_decided_by_ck', sql`${t.decision} IS NULL OR ${t.decidedByUserId} IS NOT NULL`),

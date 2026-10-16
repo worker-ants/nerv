@@ -77,6 +77,26 @@ const GATE_ROWS = [
       },
     ],
   },
+  // 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327) — 커버 리뷰가 없는 줄이다
+  {
+    branch: 'docs/readme',
+    kind: null,
+    head_sha: null,
+    round_no: null,
+    resolved: 0,
+    total: 0,
+    verdict: 'uncovered',
+    bypasses: [
+      {
+        id: 'w-branch',
+        display_name: '도현',
+        decided_at: new Date(Date.now() - 7_200_000).toISOString(),
+        bypass_reason: 'README 만 고친 브랜치',
+        kinds: ['code'],
+        head_sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+      },
+    ],
+  },
 ];
 // 응답은 **잘린 사실을 함께 준다** — total 이 없으면 화면이 "이게 전부"라고 거짓말한다
 const GATE = { items: GATE_ROWS, total: 441 };
@@ -317,10 +337,21 @@ describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (RE
 
   it('면제한 사람·시각·사유가 같은 줄에 펼쳐진다', async () => {
     await renderCenter();
-    const bypass = screen.getByTestId('gate-bypass').textContent ?? '';
+    const bypass = screen.getAllByTestId('gate-bypass')[0]!.textContent ?? '';
     expect(bypass).toContain('하나');
     expect(bypass).toContain('핫픽스 배포, 사후 리뷰 예약');
     expect(bypass).toContain('1시간 전');
+  });
+
+  it('리뷰가 없는 브랜치의 면제는 그 브랜치 줄이 되고 범위(종류 · 커밋)를 함께 적는다 (REQ-WEB-327)', async () => {
+    await renderCenter();
+    const row = within(screen.getByText('docs/readme').closest('tr') as HTMLElement);
+    // 커버 리뷰 · 해소가 없다 — "null" 을 그리지 않는다
+    expect(row.getAllByText('—')).toHaveLength(2);
+    expect(row.getByText('리뷰 없음')).toBeDefined();
+    expect(row.getByTestId('gate-bypass-count').textContent).toBe('면제 1건');
+    expect(row.getByTestId('gate-bypass-scope').textContent).toBe('코드 · 커밋 a1b2c3d만');
+    expect(row.getByTestId('gate-bypass').textContent).toContain('README 만 고친 브랜치');
   });
 
   it('막지는 않는다고 화면이 말한다 — 표시와 집행을 섞지 않는다', async () => {

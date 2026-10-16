@@ -71,7 +71,9 @@ Gate coverage shows, for each branch, whether it has been reviewed and whether i
 
 **The table shows the verdict, but it doesn't block merges yet.** A **Pending** verdict doesn't stop anything today. This is also noted above the table.
 
-For a waived branch (a gate bypass), **who waived it, when and why** appears under its row. Making sure a bypass never goes unnoticed is part of this table's job too.
+For a waived branch (a gate bypass), **who waived it, when and why** appears under its row, with the scope (the review kinds waived and, if it was narrowed to one commit, that commit), and the number of waivers appears under the verdict. Making sure a bypass never goes unnoticed is part of this table's job too.
+
+**A branch without reviews gets a row when it has a waiver.** Normally the table lists only branches that have received a review. When a branch is waived, it gets a row even without any review: the review and resolved cells show `—` and the verdict is **No review**. Branch waivers are recorded from the review card of a task's detail ([Branch waivers](/help/tasks#next-step)).
 
 ## The sidebar badge {#badge}
 

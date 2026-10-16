@@ -10,6 +10,7 @@ import { StatusBadge } from '../../components/status-badge.js';
 import { useT } from '../../lib/i18n.js';
 import type { Row } from '../../lib/queries.js';
 import { relativeTime } from '../session-monitor/format.js';
+import { reviewKindText } from '../../lib/format.js';
 import {
   EmptyState,
   SectionTitle,
@@ -112,29 +113,56 @@ export function GateCoverage({
                 </EntityLink>
                 {/* **면제는 같은 줄에 펼친다.** 목록 어딘가가 아니라 그 브랜치 옆에
                     있어야 한다 — 면제가 조용히 일어나지 않는 것 자체가 기능이다 */}
-                {bypasses.map((b, i) => (
-                  <span
-                    key={i}
-                    data-testid="gate-bypass"
-                    className="mt-1 block font-sans text-2xs text-status-danger"
-                  >
-                    ↳ {t('reviews.bypass')}: {String(b['display_name'])} ·{' '}
-                    {relativeTime(t, b['decided_at'] == null ? null : String(b['decided_at']))} ·{' '}
-                    {String(b['bypass_reason'])}
-                  </span>
-                ))}
+                {bypasses.map((b, i) => {
+                  // 범위를 함께 적는다(2026-10-16 · 사람 결정 D4 · REQ-WEB-327) — 어느 종류를 · 어느 커밋까지 넘겼는지
+                  // 빠지면 "면제됨" 한 줄이 브랜치 전체를 넘긴 것처럼 읽힌다
+                  const kinds = Array.isArray(b['kinds']) ? (b['kinds'] as string[]) : null;
+                  const head = typeof b['head_sha'] === 'string' ? b['head_sha'] : null;
+                  return (
+                    <span
+                      key={String(b['id'] ?? i)}
+                      data-testid="gate-bypass"
+                      className="mt-1 block font-sans text-2xs text-status-danger"
+                    >
+                      ↳ {t('reviews.bypass')}: {String(b['display_name'])} ·{' '}
+                      {relativeTime(t, b['decided_at'] == null ? null : String(b['decided_at']))} ·{' '}
+                      <span data-testid="gate-bypass-scope">
+                        {kinds === null
+                          ? t('task.waiver.all')
+                          : kinds.map((k) => reviewKindText(t, k)).join(' · ')}
+                        {head !== null &&
+                          ` · ${t('reviews.gate.bypass_commit', { sha: head.slice(0, 7) })}`}
+                      </span>{' '}
+                      · {String(b['bypass_reason'])}
+                    </span>
+                  );
+                })}
               </Td>
               <Td className="font-mono text-2xs text-text-mute">
-                {String(row['head_sha']).slice(0, 7)} · {String(row['round_no'])}R
+                {/* 리뷰가 없는 브랜치(면제만 있는 줄)는 커버 리뷰가 없다 — "null" 을 그리지 않는다 */}
+                {row['head_sha'] == null
+                  ? '—'
+                  : `${String(row['head_sha']).slice(0, 7)} · ${String(row['round_no'])}R`}
               </Td>
               <Td className="text-2xs text-text-mute">
-                {String(row['resolved'])}/{String(row['total'])}
+                {row['head_sha'] == null
+                  ? '—'
+                  : `${String(row['resolved'])}/${String(row['total'])}`}
               </Td>
               <Td>
                 <StatusBadge
                   token={VERDICT_TOKEN[verdict] ?? 'idle'}
                   label={t(`reviews.verdict.${verdict}` as 'reviews.verdict.passed')}
                 />
+                {/* 와이어프레임 ⑧의 「미커버 + BYPASS 1」 — 판정 옆에 면제 수를 적는다 */}
+                {bypasses.length > 0 && (
+                  <span
+                    data-testid="gate-bypass-count"
+                    className="mt-1 block text-2xs text-status-danger"
+                  >
+                    {t('reviews.gate.bypass_count', { count: bypasses.length })}
+                  </span>
+                )}
               </Td>
             </Tr>
           );

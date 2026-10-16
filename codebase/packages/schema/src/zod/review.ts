@@ -4,7 +4,7 @@
 // 도메인이 본다(REQ-API-112 · `resolutionOf` · `ESCALATE_REASONS`).
 
 import { z } from 'zod';
-import { COMMIT_SHA_PATTERN } from '../evidence-locator.js';
+import { COMMIT_SHA_PATTERN, FULL_COMMIT_SHA_PATTERN } from '../evidence-locator.js';
 
 /** 리뷰어 한 명의 자기 보고 — 위험도는 세션 위험도의 재료다 */
 export const ReviewerReportInput = z
@@ -115,10 +115,14 @@ export const FindingToChangeRequestInput = z
 /** EP-REV-05 — 발견 코멘트. 사람이 지적에 답하는 자리다 */
 export const FindingCommentInput = z.object({ body_md: z.string().min(1) }).strict();
 
+/** 브랜치 이름의 상한 — git 은 길이를 정하지 않지만 결재 기록에 남길 값이라 묶는다(리뷰 제출의 브랜치와 같은 모양) */
+export const GATE_BYPASS_BRANCH_MAX = 255;
+
 /** EP-APR-04 — 게이트 면제. **면제도 결재 레코드다**(FR-10) */
 export const GateBypassInput = z
   .object({
-    subject_id: z.string().min(1),
+    /** 면제의 대상 — 작업(키 또는 UUID) 또는 리뷰 세션. `branch` 를 주면 받지 않는다(그때 대상은 브랜치다) */
+    subject_id: z.string().min(1).optional(),
     reason: z.string().min(1),
     /**
      * **면제할 리뷰 종류**(2026-10-09 · REQ-API-274). 주면 `subject_id` 는 이 프로젝트의 작업(키 또는 UUID)이고, done
@@ -126,8 +130,47 @@ export const GateBypassInput = z
      * developer는 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다(2026-10-11 · REQ-API-293)
      */
     kinds: z.array(z.string().min(1)).min(1).optional(),
+    /**
+     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-338). 리뷰가 한 번도 없는 브랜치에도 낸다 — 게이트 판정(EP-REV-08)이
+     * 그 (브랜치 · 종류)를 `waived` 로 통과시키고 게이트 현황의 그 브랜치 줄에 보인다. 종류 · 역할 규칙은 작업 면제와 같다
+     */
+    branch: z.string().trim().min(1).max(GATE_BYPASS_BRANCH_MAX).optional(),
+    /**
+     * 브랜치 면제를 **커밋 하나로** 좁힌다 — 40자 커밋 SHA 만 받는다(`FULL_COMMIT_SHA_PATTERN`). 주지 않으면 그 브랜치의 모든
+     * 커밋에 유효하다(새 커밋이 와도 남는다)
+     */
+    head_sha: z
+      .string()
+      .trim()
+      .regex(new RegExp(FULL_COMMIT_SHA_PATTERN, 'i'), 'error.approval.bypass_head_not_full_sha')
+      .transform((sha) => sha.toLowerCase())
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, ctx) => {
+    // 대상은 하나다 — 작업 · 리뷰 세션이든 브랜치든. 둘 다 주면 어느 게이트를 넘기려는지 서버가 짐작하게 된다
+    if (input.branch === undefined && input.subject_id === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subject_id'],
+        message: 'error.approval.bypass_target_required',
+      });
+    }
+    if (input.branch !== undefined && input.subject_id !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['branch'],
+        message: 'error.approval.bypass_target_required',
+      });
+    }
+    if (input.head_sha !== undefined && input.branch === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['head_sha'],
+        message: 'error.approval.bypass_head_needs_branch',
+      });
+    }
+  });
 
 /** 한 칸에 담을 수 있는 수 — 한 문서의 요구사항 · 작업이 이보다 많은 일은 없다(임포트 실측의 가장 큰 문서가 140줄) */
 export const CR_ACTION_LIMIT = 200;

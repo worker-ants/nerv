@@ -24,6 +24,7 @@ import {
   CODE_EVIDENCE_KINDS,
   CODE_REVIEW_KINDS,
   ESCALATION_RESOLUTIONS,
+  FULL_COMMIT_SHA_PATTERN,
   INBOX_KINDS,
   msg,
   NERV_ERROR,
@@ -2229,7 +2230,21 @@ export class ApprovalService {
     kinds?: readonly string[] | undefined;
     /** 면제한 사람의 이 프로젝트 역할 — 종류마다 면제할 수 있는 역할이 다르다(spec-workflow §1.6) */
     roles?: readonly string[] | undefined;
-  }): Promise<{ approval_id: string; task_key?: string; kinds?: string[]; expanded?: true }> {
+    /**
+     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-338). 주면 대상은 작업이 아니라 이 브랜치다 — `subjectId` 는 보지 않고
+     * 결재 행의 `subject_id` 에 프로젝트 id 를 둔다. 리뷰가 없는 브랜치에도 낸다. 종류 · 역할 규칙(REQ-API-274 · 293)은 같다
+     */
+    branch?: string | undefined;
+    /** 브랜치 면제를 커밋 하나로 좁힌다(40자 · 소문자 — 표면이 맞춰 온다). 없으면 그 브랜치의 모든 커밋이다 */
+    headSha?: string | undefined;
+  }): Promise<{
+    approval_id: string;
+    task_key?: string;
+    kinds?: string[];
+    expanded?: true;
+    branch?: string;
+    head_sha?: string | null;
+  }> {
     assertHuman(input.actor, 'bypass');
     if (input.reason.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
@@ -2255,6 +2270,8 @@ export class ApprovalService {
         roles,
       });
     }
+    if (input.branch !== undefined)
+      return this.bypassBranch({ ...input, branch: input.branch }, kinds, expanded);
     return this.events.transact(async (tx, emit) => {
       let subjectId = input.subjectId;
       let taskKey: string | null = null;
@@ -2350,6 +2367,101 @@ export class ApprovalService {
             kinds,
             ...(expanded ? { expanded: true as const } : {}),
           };
+    });
+  }
+
+  /**
+   * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-338). 작업 면제와 같은 결재 레코드이고 종류 · 역할 규칙도 같다 — 범위를
+   * 고르지 않은 admin 은 리뷰 커버리지 전부, planner · developer 는 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다(앞에서
+   * `kinds` · `expanded` 로 정해 온다). 다른 점은 둘이다.
+   *
+   * - **대상이 브랜치 문자열이다.** `subject_id` 는 uuid 라 브랜치를 가리킬 수 없어 프로젝트 id 를 두고 `branch` 열이 대상을
+   *   든다(다형 참조 규칙의 예외 — database.md §2.8). 그래서 작업 면제의 done 게이트 조회(`subject_id = 작업 id`)에 걸리지 않는다.
+   * - **코드 증적 검사가 없다.** 그 검사의 전제는 "그 작업이 코드를 내지 않았다" 인데 브랜치에는 작업이 없다. 브랜치 면제가
+   *   넘기는 것은 게이트 판정(EP-REV-08)의 `uncovered` 하나뿐이다 — 리뷰가 있는 종류의 판정은 그대로다(REQ-API-339).
+   *
+   * 리뷰가 있는지 없는지는 보지 않는다 — 면제를 낸 뒤에 리뷰가 들어오면 그 라운드의 판정이 이긴다.
+   */
+  private async bypassBranch(
+    input: {
+      projectId: string;
+      userId: string;
+      reason: string;
+      actor: Actor;
+      roles?: readonly string[] | undefined;
+      branch: string;
+      headSha?: string | undefined;
+    },
+    kinds: string[] | null,
+    expanded: boolean,
+  ): Promise<{
+    approval_id: string;
+    branch: string;
+    head_sha: string | null;
+    kinds?: string[];
+    expanded?: true;
+  }> {
+    const branch = input.branch.trim();
+    const headSha = input.headSha === undefined ? null : input.headSha.trim().toLowerCase();
+    if (branch === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.bypass_target_required'), {
+        kind: 'invalid_input',
+        field: 'branch',
+      });
+    }
+    if (headSha !== null && !new RegExp(FULL_COMMIT_SHA_PATTERN).test(headSha)) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.bypass_head_not_full_sha'), {
+        kind: 'invalid_input',
+        field: 'head_sha',
+      });
+    }
+    // 역할마다 면제할 수 있는 종류가 다르다 — 작업 면제와 같은 판정이다. 하나라도 못 하면 아무것도 기록하지 않는다
+    const roles = input.roles ?? [];
+    if (kinds !== null) {
+      const forbidden = kinds.filter((kind) => !canWaiveReviewKind(roles, kind));
+      if (forbidden.length > 0) {
+        throw new NervError(
+          NERV_ERROR.FORBIDDEN,
+          msg('error.approval.bypass_kind_forbidden', { kinds: forbidden.join(' · ') }),
+          { kind: 'bypass_kind_forbidden', kinds: forbidden, roles },
+        );
+      }
+    }
+    return this.events.transact(async (tx, emit) => {
+      const approvalId = newId();
+      await tx.execute(sql`
+        INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                              decision, decided_at, decided_by_user_id, is_bypass, bypass_reason,
+                              bypass_kinds, branch, head_sha)
+        VALUES (${approvalId}, ${input.projectId}, 'gate_bypass'::approval_subject_type,
+                -- 브랜치는 개체가 아니다 — 대상 칸에는 프로젝트를 두고 브랜치는 제 열에 둔다(REQ-DB-050)
+                ${input.projectId}, ${input.userId}, 'approve', now(), ${input.userId},
+                true, ${input.reason},
+                ${kinds === null ? null : sqlArray(kinds, 'review_kind')},
+                ${branch}, ${headSha})
+      `);
+      await emit({
+        type: NERV_EVENT.GATE_BYPASSED,
+        projectId: input.projectId,
+        subjectType: 'approval',
+        subjectId: approvalId,
+        actorUserId: input.userId,
+        isAgent: input.actor.isAgent,
+        payload: {
+          reason: input.reason,
+          branch,
+          head_sha: headSha,
+          ...(kinds === null ? {} : { kinds }),
+          ...(expanded ? { expanded: true } : {}),
+        },
+      });
+      return {
+        approval_id: approvalId,
+        branch,
+        head_sha: headSha,
+        ...(kinds === null ? {} : { kinds }),
+        ...(expanded ? { expanded: true as const } : {}),
+      };
     });
   }
 

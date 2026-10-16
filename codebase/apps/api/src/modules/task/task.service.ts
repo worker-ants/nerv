@@ -546,6 +546,8 @@ export class TaskService {
     const { rows: claims } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT c.id, c.agent_session_id, c.status::text AS status, c.lease_expires_at, c.acquired_at,
              se.external_session_id, se.hostname, se.agent_type::text AS agent_type, c.user_id,
+             -- 세션이 일한 브랜치 — 리뷰가 없는 브랜치의 면제를 고를 때 후보가 된다(2026-10-16 · REQ-WEB-327)
+             se.branch,
              -- 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다(SCR-07)
              c.scope_spec_ids, c.scope_file_globs
         FROM claim c LEFT JOIN agent_session se ON se.id = c.agent_session_id

@@ -23,7 +23,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.46 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.47 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.47 변경(2026-10-16 — 리뷰가 없는 브랜치의 면제, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D4) · [4.8 백로그](backlog.md) E16-S04): **REQ-WEB-327 신설 · §2.6a 와이어프레임과 다른 둘째 곳 · 게이트 현황 행 · §2.5 done 전이 항목 한 문장 · §1.4 `gate.bypassed` 행.** 작업 상세의 리뷰 카드에 [브랜치 면제]를 둔다 — 그 작업의 리뷰 · 클레임 세션의 브랜치를 눌러 고르거나 이름을 넣은 뒤 선택 커밋(40자)과 역할이 면제할 수 있는 종류 · 사유로 기록한다. 게이트 현황은 면제만 있는 브랜치를 「리뷰 없음」 줄로 보이고 면제의 범위(종류 · 커밋)와 수를 함께 적는다([4.4 API](api.md) REQ-API-338 ~ 340).
 >
 > v2.46 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **REQ-WEB-324 ~ 326 신설 · §2.6a "와이어프레임과 다른 세 곳" 셋째 항목 · §2.7 첫 단락 · 데이터 소스 표 다섯 줄(§2.6a 하나 · §2.7 넷) · 컴포넌트 한 항목.** 리뷰 센터의 `spec_drift` 발견 레일에 [CR로 보내기]가 생겼다(planner · admin) — 그전에는 보낼 곳이 없어 버튼을 두지 않았다. 받은 요청의 카드는 일곱 유형이고 목록 위의 유형 칸으로 거른다(수는 서버가 센다). 에스컬레이션 카드는 넘긴 발견의 원문 · 사유 · 기다리는 세션을 보이고, 고칠 것 · 유예 · 기각 가운데 하나를 근거와 함께 고른다 — 사유가 `spec` 이면 [CR로 보내기]도 있다. 변경 요청으로 보낸 발견은 그 CR의 planner 카드 하나로 모인다("구현이 스펙을 바꿨습니다. 스펙 갱신을 승인하시겠습니까?").
 >
@@ -683,7 +685,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`approval.expired` | 스펙 축(키 · 트리 · 초안 승인 목록) + `['inbox']` + 알림 + 스펙 목록의 결재 대기 + 세션 — 문서가 초안으로 돌아가고 카드는 만료 탭으로 가며 그림자 알림이 닫히고 기다리던 세션이 깨어난다(2026-10-15 · [4.4 API 명세](api.md) REQ-API-304) | `project:{id}` |
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
-| `gate.bypassed` · `gate.failopen` · ★`gate.failopen_escalated` · ★`gate.failopen_cleared` | `['project', projId, 'events']` + 프로젝트 조회(머리 — S5 · S6 의 격상 배너 · 2026-10-15 · REQ-WEB-319). `gate.bypassed` 는 머리를 다시 읽지 않는다 | `project:{id}`(bypassed는 admin `user:{id}`에도 · 격상은 admin 에게 `notification.created`) |
+| `gate.bypassed` · `gate.failopen` · ★`gate.failopen_escalated` · ★`gate.failopen_cleared` | `['project', projId, 'events']` + 프로젝트 조회(머리 — S5 · S6 의 격상 배너 · 2026-10-15 · REQ-WEB-319). `gate.bypassed` 는 머리를 다시 읽지 않고 게이트 현황(`['project', projId, 'gateCoverage']`)을 다시 읽는다 — 리뷰가 없는 브랜치의 면제면 줄이 새로 생긴다(2026-10-16 · REQ-WEB-327) | `project:{id}`(bypassed는 admin `user:{id}`에도 · 격상은 admin 에게 `notification.created`) |
 | ★`session.outbox_failed` | `['project', projId, 'events']` — 화면은 활동 피드뿐이다. 보고한 사람의 종은 개인 룸의 `notification.created` 가 되읽는다(2026-10-16 · [4.4 API](api.md) REQ-API-322) | `project:{id}` + 보고한 사람 `user:{id}` |
 | ★`mirror.diverged` | `['project', projId, 'events']` — 화면은 활동 피드뿐이다. 받는 admin 의 종은 개인 룸의 `notification.created` 가 되읽는다(2026-10-16 · [4.2 코드베이스](codebase.md) REQ-CB-063) | `project:{id}` + admin `user:{id}` |
 | ★`spec.meta_updated` ★`spec.archived` ★`spec.restored` | 스펙 축과 같다 — `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']` | `project:{id}` |
@@ -1880,7 +1882,7 @@ export const TaskCreateInput = z
   .strict();   // 모르는 키는 400 — 조용히 버리지 않는다
 ```
 
-- **done 전이**: MVP의 서버 게이트는 `spec_impact` 선언 + Evidence 연결이다. 스펙 영향은 **고르지 않음에서 시작한다**(2026-09-24 · REQ-WEB-202) — "없음"을 미리 체크해 두던 동안 건드리지 않고 완료를 눌러도 선언한 것이 됐다. "있음"이면 메모가 있어야 하고, 붙은 증적이 없으면 누르기 전에 그렇다고 적는다. 증적 종류는 라벨로 고른다. 리뷰 커버리지는 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 done 게이트가 본다(2026-09-28 · [4.4 API](api.md) REQ-API-250) — 보드 카드의 "리뷰 n/n" 표시는 아직 없다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다. **리뷰 면제**(2026-10-09 · REQ-WEB-299): 완료 조건이 리뷰 종류 목록이면 완료 조건 카드에 [리뷰 면제]를 접어 둔다. 펼치면 내 역할로 면제할 수 있는 종류(코드 계열은 developer · admin, 스펙 계열은 planner · admin)만 고를 수 있고, 사유가 있어야 기록한다. 코드 증적이 붙은 작업은 코드 계열을 고르지 못하고 그 까닭을 적는다. 면제 기록(누가 · 언제 · 왜 · 어느 종류)은 리뷰 목록 카드 아래에 늘 보인다.
+- **done 전이**: MVP의 서버 게이트는 `spec_impact` 선언 + Evidence 연결이다. 스펙 영향은 **고르지 않음에서 시작한다**(2026-09-24 · REQ-WEB-202) — "없음"을 미리 체크해 두던 동안 건드리지 않고 완료를 눌러도 선언한 것이 됐다. "있음"이면 메모가 있어야 하고, 붙은 증적이 없으면 누르기 전에 그렇다고 적는다. 증적 종류는 라벨로 고른다. 리뷰 커버리지는 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 done 게이트가 본다(2026-09-28 · [4.4 API](api.md) REQ-API-250) — 보드 카드의 "리뷰 n/n" 표시는 아직 없다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다. **리뷰 면제**(2026-10-09 · REQ-WEB-299): 완료 조건이 리뷰 종류 목록이면 완료 조건 카드에 [리뷰 면제]를 접어 둔다. 펼치면 내 역할로 면제할 수 있는 종류(코드 계열은 developer · admin, 스펙 계열은 planner · admin)만 고를 수 있고, 사유가 있어야 기록한다. 코드 증적이 붙은 작업은 코드 계열을 고르지 못하고 그 까닭을 적는다. 면제 기록(누가 · 언제 · 왜 · 어느 종류)은 리뷰 목록 카드 아래에 늘 보인다. **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-WEB-327)는 완료 조건 카드 대신 리뷰 카드에 있다 — 게이트 판정(push 훅 · CI)을 넘기는 일이라 작업이 끝난 뒤에도 쓴다.
 - **빈 상태**: ready 0건 — "ready인 Task가 없습니다 — blocked N건의 의존성 보기 ▸"(ui-wireframes §3.4). 구현(2026-09-25 · REQ-WEB-221): "준비된 작업이 없습니다" 아래 **막힘 N건 보기**(막힘 레인으로) · **백로그 N건 채우기**(백로그 레인으로 — 꺼져 있으면 켠다), 수가 0 인 것은 세우지 않는다.
 
 | ID | 수용 기준(EARS) |
@@ -1977,7 +1979,7 @@ export const TaskCreateInput = z
 | provenance 3종 | 같은 응답 — 코드 위치(`file_path:line_start`) · 검토 커밋(`head_sha`·`branch`·`round_no`) · 유래 스펙/Requirement | 셋이 다 있어야 P5(리뷰 출처 추적 곤란)가 닫힌다 |
 | 해소 액션 | EP-REV-02 `POST …/findings/{id}/resolve` | `fixed`는 커밋 SHA 필수. **에이전트가 아니라 사람이 부르는 경로**라 critical 하향에 A3 게이트가 걸리지 않는다([4.4](api.md) §2.6a) |
 | CR로 보내기 | EP-REV-09 `POST …/findings/{id}/change-request` | `spec_drift` 발견만 · planner · admin — 유래 스펙의 열린 CR에 잇거나 승인본에서 초안과 CR을 연다. 발견은 열린 채로 그 CR의 결말을 기다린다(2026-10-16 · REQ-WEB-324 · [4.4](api.md) REQ-API-332 · 337) |
-| 게이트 현황 | EP-REV-04 `GET /api/v1/projects/{proj}/gates/reviews` | 브랜치별 커버 리뷰·해소 비율·판정·면제. **이 표는 판정을 표시한다.** Task `done` 은 정책으로 켜면 done 게이트가 막고(2026-09-28 · REQ-API-250), 병합은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다 |
+| 게이트 현황 | EP-REV-04 `GET /api/v1/projects/{proj}/gates/reviews` | 브랜치별 커버 리뷰·해소 비율·판정·면제. 리뷰가 없어도 면제가 있는 브랜치는 줄이 된다(판정 「리뷰 없음」 · 2026-10-16 · REQ-WEB-327). **이 표는 판정을 표시한다.** Task `done` 은 정책으로 켜면 done 게이트가 막고(2026-09-28 · REQ-API-250), 병합은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다 |
 
 - **실시간**: `project:{id}` 룸 — `finding.opened` · `finding.resolved` → 큐와 facet 재조회. 두 이름은 MVP 무효화 표(§1.4)에 없던 것이라 구현의 `NO_SCREEN_YET` 예외 목록에서 빠지고 매핑을 갖는다 — 화면이 생겼으니 더는 "의도한 공백"이 아니다.
 - **컴포넌트**: `FindingQueue` · `FindingCard`(severity 룰 + provenance 3줄 + 액션 · 제목이 고르는 단추) · `FindingFilters`(facet 건수) · `ResolveDialog`(사유 필수 · `fixed`는 커밋 SHA · **레일 안에 열린다** — 2026-09-25 · REQ-WEB-222) · `GateCoverageTable` · `FailOpenBanner`(S5 와 같은 격상 배너 — 머리 아래 · 2026-10-15 · REQ-WEB-319).
@@ -2002,7 +2004,7 @@ export const TaskCreateInput = z
 **와이어프레임과 다른 세 곳**, 그리고 그 이유.
 
 1. **finding·리뷰 세션에 표시 키를 만들지 않는다.** 와이어프레임의 `FND-4a19`·`RVS-5e72`는 예시 표기이고, 표시 키 정본([data-model](../03-proposal/data-model.md) §5.1)의 타입 문자는 `T`(Task)·`S`(Spec) 둘뿐이며 `finding`·`review_session` 테이블에는 `key` 열 자체가 없다([4.3](database.md) §2.7). 타입 문자를 늘리는 것은 새 결정이라 사람 확인 없이 하지 않는다 — 화면은 **UUID 뒤 8자를 "짧은 id"로 명시해** 보여주고, 사람이 옮겨 적는 식별자는 `file:line`과 severity다. **뒤쪽인 이유**: UUIDv7 의 앞 48비트는 생성 시각이라 같은 리뷰에서 나온 발견들이 앞자리를 통째로 공유한다(실측 2026-08-23 — 시드 화면에서 세 발견이 전부 `01990a66`이었다). 구별되는 것은 난수 쪽뿐이다.
-2. **리뷰가 없는 브랜치의 면제는 이 표에 뜨지 않는다.** 면제(`approval.is_bypass`)는 리뷰 세션을 주체로 붙는데 `approval.subject_id`는 uuid 이고 브랜치는 문자열이라([4.3](database.md) §2.8), 세션이 없으면 면제를 그 줄에 실을 길이 없다 — 와이어프레임 §2.6 ⑧의 `미커버 + BYPASS 1` 줄이 여기 해당한다. 담으려면 **결재에 브랜치를 적을 자리**가 필요한데 그것은 스키마 결정이라 사람 확인 전까지 하지 않는다. 지금은 리뷰가 있는 브랜치의 면제만 정확히 보인다.
+2. **리뷰가 없는 브랜치의 면제도 이 표에 보인다 — 다른 것은 면제를 내는 자리다**(2026-10-16 · 사람 결정 D4 · REQ-WEB-327). 와이어프레임 §2.6 ⑧의 `미커버 + BYPASS 1` 줄이 이것이다. 면제(`approval.is_bypass`)는 리뷰 세션이나 작업을 주체로 붙었고 `approval.subject_id` 는 uuid 라 브랜치를 가리킬 수 없었다 — 그래서 리뷰가 있는 브랜치의 면제만 그 줄에 보였다. 결재에 브랜치를 적는 자리(`approval.branch` — [4.3](database.md) REQ-DB-050)가 생겨 면제만 있는 브랜치도 줄이 된다. 커버 리뷰 · 해소는 `—`, 판정은 「리뷰 없음」이고 그 아래 면제가 범위(종류 · 커밋)와 함께 펼쳐진다. 판정 칸에는 면제 수(「면제 1건」)를 함께 적는다. 면제는 작업 상세의 리뷰 카드에서 낸다 — 브랜치 후보를 그 작업이 알고, 리뷰가 없는 브랜치는 면제하기 전에는 이 표에 줄이 없다.
 3. **spec_drift의 CR 라우팅은 [CR로 보내기]다.**(2026-10-16 · 사람 결정 · REQ-WEB-324) 와이어프레임 ⑤의 [CR 제안으로 라우팅 ▸]이 이것이고 두 가지가 다르다 — 이름에 하는 일을 그대로 적었고(제안이 아니라 변경 요청이 바로 열린다 · 초안은 승인본의 본문으로 시작한다), 큐의 카드가 아니라 발견 레일에 둔다(처분과 같은 자리). planner · admin에게만 켜지고, 이미 CR로 보낸 발견에는 그 CR로 가는 링크를 둔다. 그전에는 CR 생성(FR-04)이 없어 보낼 곳이 없었고, 그래서 버튼 없이 `spec_drift` 태그와 **유래 스펙 링크**만 줬다 — 눌러서 아무 일도 안 일어나는 버튼보다 나았다.
 
 | ID | 수용 기준(EARS) |
@@ -2012,6 +2014,7 @@ export const TaskCreateInput = z
 | REQ-WEB-063 | WHEN 같은 지적이 여러 라운드에서 관측되면 THE SYSTEM SHALL 카드 하나로 합치고 관측 횟수와 최신 라운드를 표기한다(fingerprint dedup — FR-09) |
 | REQ-WEB-064 | WHEN 사용자가 발견을 처분하면 THE SYSTEM SHALL 근거를 필수로 받고, `fixed` 처분에는 커밋 SHA 를 함께 요구한다 |
 | REQ-WEB-065 | WHEN 게이트 현황을 표시하면 THE SYSTEM SHALL 브랜치마다 커버 리뷰·해소 비율·판정을 적고, 면제가 있으면 **면제한 사람·시각·사유**를 같은 줄에 펼친다(FR-10 · FR-16 — 면제가 조용히 일어나지 않는 것 자체가 기능이다) |
+| REQ-WEB-327 | WHEN 작업 상세의 리뷰 카드를 그리고 내 역할로 면제할 수 있는 리뷰 종류가 하나라도 있으면(`REVIEW_WAIVER_ROLES`) THE SYSTEM SHALL [브랜치 면제]를 접어 둔다. WHEN 그것을 펼치면 THE SYSTEM SHALL 브랜치 이름 칸 · 그 작업에서 아는 브랜치(리뷰 · 클레임 세션의 브랜치 — 누르면 칸을 채운다) · 선택 커밋 칸 · 내 역할의 종류 · 사유를 보이며 브랜치 · 종류 · 사유가 있어야 EP-APR-04(`branch` · `head_sha` · `kinds`)로 기록한다. WHEN 커밋 칸이 40자 커밋 SHA 가 아니면 THE SYSTEM SHALL 그 까닭을 적고 보내지 않는다. WHEN 게이트 현황을 그리면 THE SYSTEM SHALL 면제만 있는 브랜치를 줄로 그리고(커버 리뷰 · 해소 `—` · 판정 「리뷰 없음」), 면제마다 범위(종류 · 「커밋 abc1234만」)를 함께 적고 판정 아래에 면제 수를 적는다. WHEN `gate.bypassed` 가 오면 THE SYSTEM SHALL 게이트 현황을 다시 읽는다(2026-10-16 · 사람 결정 D4 · [4.4 API](api.md) REQ-API-338 ~ 340) |
 | REQ-WEB-066 | WHILE 리뷰 센터가 열려 있으면 THE SYSTEM SHALL `finding.opened`·`finding.resolved` 를 받아 큐와 facet 을 다시 읽는다 |
 | REQ-WEB-161 | WHERE 곁레일이 서지 않는 폭이면 THE SYSTEM SHALL 고른 발견의 상세를 **그 카드 아래에서** 같은 컴포넌트로 펴고, 레일과 **동시에 그리지 않는다**(두 벌이면 내부 상태가 갈린다). WHEN `user_guide` 증적을 그리면 THE SYSTEM SHALL 그 값이 실재하는 매뉴얼 장일 때만 `/help/<장>` 으로 잇고, 아니면 글자로 둔다. WHEN 그 값이 절까지 적혀 있고(`tasks#evidence`) 그 장에 그 절이 있으면 THE SYSTEM SHALL `/help/<장>#<절>` 로 잇고 없는 절이면 장으로 잇는다(2026-09-28 개정 · REQ-WEB-268) |
 | REQ-WEB-222 | WHEN 고른 발견을 레일(또는 좁은 폭의 펼친 자리)에 그리면 THE SYSTEM SHALL 열린 발견에 처분 넷을 두고 누르면 처분 폼을 그 레일 안에 열어 근거 칸으로 커서를 옮기며, WHEN 큐 카드의 처분 단추를 누르면 THE SYSTEM SHALL 그 발견을 고르고 같은 폼을 레일에 연다. WHEN 처분 단추를 그리면 THE SYSTEM SHALL 권한과 무관하게 그 처분이 무엇을 요구하는지(커밋 SHA · 고친 스펙 · 근거 · 유예와 Task 승격의 차이) 말한다. WHEN 발견 카드나 세션 줄을 고를 수 있으면 THE SYSTEM SHALL 제목(세션은 이름)을 키보드로 닿는 단추로 두고, WHILE 리뷰 센터에서 입력 칸 밖에 있는 동안 THE SYSTEM SHALL `j`·`k` 로 고른 발견을 옮긴다 |

@@ -52,6 +52,7 @@ import { describeApiError, useApiError } from '../../lib/api-errors.js';
 import { usePressKey } from '../../lib/press-key.js';
 import {
   requiredReviewKinds,
+  BranchWaiverForm,
   ReviewWaiverForm,
   ReviewWaiverList,
 } from '../../features/task-board/review-waiver.js';
@@ -1169,6 +1170,9 @@ function TaskDetail(): React.JSX.Element {
             </ul>
             {/* 면제도 리뷰 기록의 일부다 — 누가 · 언제 · 왜 · 어느 종류를(REQ-WEB-299) */}
             <ReviewWaiverList waivers={rows(data['review_waivers'])} />
+            {/* 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327) — 게이트 판정(push 훅 · CI)을 넘기는 일이라
+                완료 조건이 아니라 리뷰 카드에 둔다. 작업이 끝난 뒤에도 병합 때 쓴다 */}
+            <BranchWaiverForm proj={proj} task={data} roles={roles} />
           </Card>
         </div>
       </PageBody>

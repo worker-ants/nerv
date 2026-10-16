@@ -204,7 +204,11 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
   [E.SPEC_ATTACHMENT_ADDED]: specListAxis,
   [E.SPEC_ATTACHMENT_REMOVED]: specListAxis,
 
-  [E.GATE_BYPASSED]: (e) => [queryKeys.projectEvents(e.project_id)],
+  // 면제는 게이트 현황의 그 브랜치 줄에 펼쳐진다 — 리뷰가 없는 브랜치의 면제면 줄 자체가 새로 생긴다(2026-10-16 · REQ-WEB-327)
+  [E.GATE_BYPASSED]: (e) => [
+    queryKeys.projectEvents(e.project_id),
+    queryKeys.projectGateCoverage(e.project_id),
+  ],
   [E.GATE_FAILOPEN]: (e) => [queryKeys.projectEvents(e.project_id)],
   // fail-open 격상 · 풀림(2026-10-15 · REQ-WEB-319) — 배너는 프로젝트 조회(머리)가 다시 읽는다(아래 `HEAD_EVENTS`)
   [P2.GATE_FAILOPEN_ESCALATED]: (e) => [queryKeys.projectEvents(e.project_id)],

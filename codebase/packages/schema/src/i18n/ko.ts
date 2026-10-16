@@ -140,6 +140,13 @@ export const ko = {
     '종류를 고르지 않은 면제는 admin만 낼 수 있습니다. 면제할 리뷰 종류를 고르세요.',
   'error.approval.bypass_has_code':
     '코드 증적(커밋 · PR · 코드 경로)이 붙은 작업은 {kinds} 리뷰를 면제할 수 없습니다. 코드를 낸 작업은 코드 리뷰를 받습니다.',
+  // 브랜치 면제(2026-10-16 · 사람 결정 D4 · REQ-API-338)
+  'error.approval.bypass_target_required':
+    '면제할 대상을 하나만 주세요. 작업이나 리뷰 세션이면 subject_id를, 브랜치면 branch를 줍니다.',
+  'error.approval.bypass_head_needs_branch':
+    'head_sha는 브랜치 면제에만 줍니다. 그 브랜치의 커밋 하나로 면제를 좁힐 때 씁니다.',
+  'error.approval.bypass_head_not_full_sha':
+    'head_sha는 40자 커밋 SHA여야 합니다. 짧은 SHA는 나중에 다른 커밋과 겹칠 수 있습니다(git rev-parse로 얻습니다).',
   'error.auth.admin_only': 'admin만 할 수 있습니다.',
   'error.auth.org_admin_only':
     '조직 전체 범위는 조직 admin만 관리할 수 있습니다. 프로젝트 admin은 자기 프로젝트만 관리할 수 있습니다.',
@@ -597,6 +604,8 @@ export const ko = {
   'reviews.filter.status': '상태',
   'reviews.filter.tag': '태그',
   'reviews.gate.branch': '브랜치',
+  'reviews.gate.bypass_count': '면제 {count}건',
+  'reviews.gate.bypass_commit': '커밋 {sha}만',
   'reviews.gate.empty': '리뷰가 들어온 브랜치가 없습니다.',
   'reviews.gate.note': '판정을 표시만 하고, 아직 병합을 막지는 않습니다.',
   'reviews.gate.resolved': '해소',
@@ -2098,6 +2107,21 @@ export const ko = {
   'task.waiver.code_evidence': '코드 증적이 붙은 작업은 코드 리뷰를 면제할 수 없습니다',
   'task.waiver.no_role':
     '면제할 수 있는 리뷰가 없습니다. 코드 리뷰는 developer · admin이, 스펙 리뷰는 planner · admin이 면제합니다',
+  // 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327)
+  'task.branch_waiver.open': '브랜치 면제',
+  'task.branch_waiver.title': '리뷰가 없는 브랜치의 면제',
+  'task.branch_waiver.hint':
+    '리뷰를 받지 않을 브랜치(문서만 바꾼 브랜치처럼)는 게이트 판정이 「리뷰 없음」으로 막습니다. 브랜치와 종류를 골라 사유와 함께 면제하면 그 종류는 면제로 통과합니다. 리뷰가 들어온 종류는 그 리뷰의 판정을 따릅니다.',
+  'task.branch_waiver.branch': '브랜치',
+  'task.branch_waiver.branch_placeholder': '브랜치 이름(예: docs/readme)',
+  'task.branch_waiver.known': '이 작업의 브랜치',
+  'task.branch_waiver.head': '커밋(선택)',
+  'task.branch_waiver.head_placeholder': '이 커밋에만 적용(40자 SHA). 비우면 이 브랜치의 모든 커밋',
+  'task.branch_waiver.head_invalid': '40자 커밋 SHA를 넣으세요(git rev-parse HEAD로 얻습니다).',
+  'task.branch_waiver.reason_placeholder': '면제 사유(필수). 예: README만 고친 브랜치',
+  'task.branch_waiver.confirm':
+    '{branch}의 {kinds} 리뷰 면제를 기록합니다. 기록은 지울 수 없습니다.',
+  'task.branch_waiver.done': '{branch}의 {kinds} 리뷰를 면제했습니다',
   'task.reviews': '리뷰',
   'task.reviews.none': '이 작업을 검토한 리뷰가 없습니다.',
   'task.reviews.open_critical': '열린 critical {n}건',

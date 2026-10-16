@@ -41,7 +41,7 @@ import { sqlArray } from '../../common/sql-array.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
 import { assertVocab } from '../../common/query-vocab.js';
-import { roundVerdicts, uncoveredVerdict } from './review-gate.js';
+import { branchWaivers, roundVerdicts, uncoveredVerdict, waiverFor } from './review-gate.js';
 import {
   openEscalationInTx,
   pendingEscalationsOf,
@@ -1586,6 +1586,22 @@ export class ReviewService {
       }
       items.sort((a, b) => a.kind.localeCompare(b.kind));
     }
+    // **리뷰가 없는 (브랜치 · 종류)는 브랜치 면제가 넘긴다**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 라운드가 있는 종류는
+    // 그 판정이 그대로다 — 면제의 전제는 "리뷰가 필요 없다" 이고, 리뷰가 들어와 발견을 냈으면 그 발견이 이긴다
+    if (items.some((i) => i.state === 'uncovered')) {
+      const waivers = await branchWaivers(this.db, {
+        projectId: input.projectId,
+        branch: input.branch,
+        headSha: input.headSha,
+      });
+      for (const item of items) {
+        if (item.state !== 'uncovered') continue;
+        const waiver = waiverFor(waivers, item.kind);
+        if (waiver === undefined) continue;
+        item.state = 'waived';
+        item.waiver = waiver;
+      }
+    }
     return { branch: input.branch, head_sha: input.headSha, items };
   }
 
@@ -1629,36 +1645,63 @@ export class ReviewService {
           JOIN finding f ON f.last_session_id = rs.id
          WHERE rs.project_id = ${projectId}
          GROUP BY rs.branch
+      ),
+      -- **리뷰가 없는 브랜치도 면제가 있으면 줄이 된다**(2026-10-16 · 사람 결정 D4 · REQ-API-340) — 와이어프레임 §2.6 ⑧의
+      -- 「미커버 + BYPASS 1」 줄이다. 판정은 uncovered 이고 면제가 같은 줄에 펼쳐진다. 순서는 가장 최근 면제의 시각이다
+      waived AS (
+        SELECT branch, max(decided_at) AS waived_at
+          FROM approval
+         WHERE project_id = ${projectId} AND is_bypass AND branch IS NOT NULL
+         GROUP BY branch
+      ),
+      board AS (
+        SELECT l.branch, l.kind, l.head_sha, l.round_no, l.completed_at,
+               coalesce(c.total, 0) AS total, coalesce(c.resolved, 0) AS resolved,
+               CASE WHEN coalesce(c.total, 0) = coalesce(c.resolved, 0) THEN 'passed'
+                    ELSE 'pending' END AS verdict,
+               l.completed_at AS sort_at
+          FROM latest l LEFT JOIN counts c ON c.branch = l.branch
+        UNION ALL
+        SELECT w.branch, NULL::text, NULL::text, NULL::int, NULL::timestamptz, 0, 0, 'uncovered', w.waived_at
+          FROM waived w
+         WHERE NOT EXISTS (SELECT 1 FROM latest l WHERE l.branch = w.branch)
       )
-      SELECT l.branch, l.kind, l.head_sha, l.round_no, l.completed_at,
-             coalesce(c.total, 0) AS total, coalesce(c.resolved, 0) AS resolved,
-             CASE WHEN coalesce(c.total, 0) = coalesce(c.resolved, 0) THEN 'passed'
-                  ELSE 'pending' END AS verdict
-        FROM latest l LEFT JOIN counts c ON c.branch = l.branch
-       ORDER BY l.completed_at DESC NULLS LAST
+      SELECT branch, kind, head_sha, round_no, completed_at, total, resolved, verdict
+        FROM board
+       ORDER BY sort_at DESC NULLS LAST, branch
        LIMIT ${Math.min(limit, GATE_BRANCH_LIMIT_MAX)}
     `);
 
     // **전체 수를 함께 준다.** clemvion 실측 441 브랜치 — 잘라 놓고 잘랐다고 말하지
-    // 않으면 화면은 "브랜치가 20개뿐"이라고 거짓말한다(REQ-WEB-067).
+    // 않으면 화면은 "브랜치가 20개뿐"이라고 거짓말한다(REQ-WEB-067). 면제만 있는 브랜치도 센다
     const { rows: totals } = await this.db.execute<{ n: number }>(sql`
-      SELECT count(DISTINCT branch)::int AS n FROM review_session WHERE project_id = ${projectId}
+      SELECT count(*)::int AS n FROM (
+        SELECT branch FROM review_session WHERE project_id = ${projectId}
+        UNION
+        SELECT branch FROM approval
+         WHERE project_id = ${projectId} AND is_bypass AND branch IS NOT NULL
+      ) b
     `);
 
-    // 면제는 **결재 레코드**다(FR-10) — `approval.is_bypass` 가 정본이고 여기서 붙인다.
+    // 면제는 **결재 레코드**다(FR-10) — `approval.is_bypass` 가 정본이고 여기서 붙인다. 길은 둘이다.
     //
-    // **리뷰 세션을 통해서만 붙는다.** `approval.subject_id` 는 uuid 이고 브랜치는 문자열이라
-    // 면제가 브랜치를 직접 가리킬 길이 없다(database.md §2.8). 그래서 리뷰 세션을 면제한
-    // 결재만 그 세션의 브랜치 줄에 실린다 — **리뷰가 아예 없는 브랜치의 면제는 여기 뜨지
-    // 않는다**(와이어프레임 §2.6 ⑧의 `미커버 + BYPASS 1` 줄). 그 경우를 담으려면 결재에
-    // 브랜치를 적을 자리가 필요한데, 그것은 스키마 결정이라 사람 확인 없이 하지 않는다.
+    // - **리뷰 세션을 면제한 결재**는 그 세션의 브랜치 줄에 붙는다(예전부터의 길).
+    // - **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-340)는 `approval.branch` 로 그 줄에 붙는다 — 리뷰가 없는 브랜치에도
+    //   낼 수 있고, 그때는 위에서 그 브랜치의 줄을 만들었다. 범위(종류 · 커밋)를 함께 준다.
     const { rows: bypasses } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT rs.branch, a.bypass_reason, a.decided_at, u.display_name
+      SELECT rs.branch, a.id, a.bypass_reason, a.decided_at, u.display_name,
+             a.bypass_kinds::text[] AS kinds, NULL::text AS head_sha
         FROM approval a
         JOIN review_session rs ON rs.id = a.subject_id
         JOIN "user" u ON u.id = a.requested_by_user_id
-       WHERE a.project_id = ${projectId} AND a.is_bypass
-       ORDER BY a.decided_at DESC
+       WHERE a.project_id = ${projectId} AND a.is_bypass AND a.branch IS NULL
+      UNION ALL
+      SELECT a.branch, a.id, a.bypass_reason, a.decided_at, u.display_name,
+             a.bypass_kinds::text[] AS kinds, a.head_sha
+        FROM approval a
+        JOIN "user" u ON u.id = a.requested_by_user_id
+       WHERE a.project_id = ${projectId} AND a.is_bypass AND a.branch IS NOT NULL
+       ORDER BY decided_at DESC
     `);
     const byBranch = new Map<string, Record<string, unknown>[]>();
     for (const b of bypasses) {

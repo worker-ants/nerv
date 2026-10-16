@@ -20,6 +20,13 @@ import { EVIDENCE_NOTE_MAX } from './constants.js';
 export const COMMIT_SHA_PATTERN = '^[0-9a-f]{7,40}$';
 const COMMIT = new RegExp(COMMIT_SHA_PATTERN, 'i');
 
+/**
+ * **전체 커밋 SHA**(40자 16진수)만 — 브랜치 면제를 커밋 하나로 좁히는 `head_sha` 가 쓴다(2026-10-16 · 사람 결정 D4 · api.md
+ * REQ-API-338). 면제는 지워지지 않는 기록이라 짧은 SHA 처럼 나중에 다른 커밋과 겹칠 수 있는 값을 남기지 않는다. 대소문자는
+ * 받는 쪽이 소문자로 맞춘다 — DB 의 CHECK 도 같은 모양을 본다(`approval_head_sha_ck`).
+ */
+export const FULL_COMMIT_SHA_PATTERN = '^[0-9a-f]{40}$';
+
 export interface LocatorVerdict {
   ok: boolean;
   /** 무엇이 틀렸는가 — 메시지 키의 보간값으로 쓴다 */
