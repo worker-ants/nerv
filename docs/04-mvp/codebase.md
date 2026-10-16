@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.20 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.21 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.21 변경(2026-10-16 — 프로젝트의 AGENTS.md, Phase 2 묶음 2의 넷째 · **사람 결정 ①** · [4.8 백로그](backlog.md) E20-S03): **§1.2 `packages/schema` 행 · §3.1 트리 한 줄 · §2.2 트리 세 줄.** `packages/schema/src/agents-md.ts` — AGENTS.md 템플릿의 정본과 렌더. 서버 이미지에는 플러그인 폴더가 없어 서버가 렌더할 템플릿을 이 패키지에 둔다([4.6 플러그인](plugin.md) §5.3). `session/agents-md.{controller,service}.ts` · `session/conventions.ts` — EP-PRJ-06 과 bootstrap 이 같은 규약 질의를 쓴다([4.4 API](api.md) REQ-API-326).
 >
 > v2.20 변경(2026-10-16 — 플러그인 폴더에는 배달되는 파일만 둔다, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다) · [4.8 백로그](backlog.md) E20-S01): **§1 트리와 워크스페이스 표 한 행 · §1.2 `pnpm-workspace.yaml` 전문 · §2.2 트리 한 줄.** 플러그인의 테스트 셋과 `package.json` 을 `plugin/` 에서 새 워크스페이스 `plugin-test/`(`@nerv/plugin-test`)로 옮겼다. Codex 는 카탈로그가 가리키는 폴더를 통째로 설치 캐시에 복사해 테스트 파일까지 배달됐다([4.6 플러그인](plugin.md) §5.4 · REQ-PLG-037). `plugin/` 은 이제 워크스페이스가 아니다. `mcp/harness-session.ts` 는 Codex 가 MCP 요청에 넣어 준 세션 id 를 읽는다([4.4 API](api.md) REQ-API-324).
 >
@@ -379,7 +381,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | `apps/web` | `@nerv/web` | S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화 | 비즈니스 규칙 판정(전부 API에 위임 — [3.2](../03-proposal/architecture.md) §1.3) |
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
 | `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
-| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), **표면이 공유하는 순수 판정**(§3.1), 마이그레이션 파일 | 런타임 로직(위 넷 + 마이그레이터만 — §3.4가 근거). 판정은 **던지지 않고 문구를 모른다** — 에러로 옮기는 것도 화면 문구로 옮기는 것도 표면의 일이다 |
+| `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), **표면이 공유하는 순수 판정**(§3.1), **AGENTS.md 템플릿과 렌더**(2026-10-16 — 서버가 렌더하는데 서버 이미지에는 플러그인 폴더가 없다 · [4.6 플러그인](plugin.md) §5.3), 마이그레이션 파일 | 런타임 로직(위 다섯 + 마이그레이터만 — §3.4가 근거). 판정은 **던지지 않고 문구를 모른다** — 에러로 옮기는 것도 화면 문구로 옮기는 것도 표면의 일이다 |
 | `plugin-test` | `@nerv/plugin-test` | `plugin/`(에이전트 호스트에 **배포되는 파일 묶음** — 스킬 7종·훅·statusline·서브에이전트 · [4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물)의 테스트 — 문서 대조 · 스크립트 실행. 워크스페이스인 이유는 그 테스트를 `pnpm test`에 태우기 위해서다 | `plugin/` 안에 파일 두기 — 그 폴더는 설치하면 통째로 복사된다(2026-10-16 · REQ-PLG-037). 빌드 산출물·런타임 코드(JS 번들 없음) |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
 
@@ -593,6 +595,9 @@ apps/api/src/
       review.tools.ts       # MCP nerv_review_* 2종 (P2)
     session/
       activity.service.ts    # Activity 적재
+      agents-md.controller.ts # GET /api/v1/projects/{proj}/agents-md — 프로젝트의 AGENTS.md (EP-PRJ-06)
+      agents-md.service.ts   # AGENTS.md 렌더 · 규약 버전 지문 (REQ-API-326)
+      conventions.ts         # 규약 스펙의 접은 목록 — bootstrap 과 AGENTS.md 가 같은 질의를 본다 (REQ-API-277)
       hook-summary.ts        # 훅 페이로드 → 한 줄 요약 (REQ-API-065)
       ingest.controller.ts   # POST /ingest/hooks/{session,tool,subagent,stop,session-end} + outbox-failed
       outbox-report.service.ts # 오프라인 큐 실패 보고 → session.outbox_failed (REQ-API-322)
@@ -734,6 +739,7 @@ packages/schema/
     evidence-locator.ts          # 증적 locator 형식 판정 — REST·MCP 가 같은 것을 본다 (정본: 4.4 §2.4)
     plugin-install.ts            # 설치 가능한 아카이브 주소인가 — API 로그와 설치 장 카드가
                                  #   같은 것을 본다 (정본: 4.6 §3.5 · 4.5 REQ-WEB-165)
+    agents-md.ts                 # AGENTS.md 템플릿 정본과 렌더 — 서버가 프로젝트마다 채운다 (4.6 §5.3 · 4.4 REQ-API-326)
     i18n/                        # §3.4 문구 카탈로그 — 웹·API·CLI 공용
       ko.ts                      #   원본(키 집합의 정본) · en.ts 는 같은 키를 타입으로 강제받는다
       translator.ts              #   자리표시자 치환 + 타입 (순수 함수)

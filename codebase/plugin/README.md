@@ -5,24 +5,24 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 
 ## 무엇이 들어 있나
 
-| 경로                                                              | 역할                                                                                                                    | 정본           |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `.claude-plugin/plugin.json`                                      | 매니페스트                                                                                                              | §1.1           |
-| `.claude-plugin/marketplace.json`                                 | 사내 마켓플레이스 등록                                                                                                  | §1.2 배포 경로 |
-| `hooks/hooks.json`                                                | 훅 이벤트 6종(**기본은 `type:"command"`**) — 세션 시작은 둘                                                             | §3.1           |
-| `skills/{next,spec,impl,question,review,mirror,approve}/SKILL.md` | 스킬 7종(`review`는 P2 배포분 · `mirror`는 2026-10-07 · `approve`는 2026-10-11 · `import`는 2026-09-06 제거 — 4.6 §2.5) | §2.1~§2.8      |
-| `agents/nerv-spec-writer.md`                                      | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음)                                                                        | §1.1           |
-| `agents/nerv-code-reviewer.md`                                    | 코드 리뷰 서브에이전트 — 종류 `code` 로 직접 제출한다(코드 쓰기 · 처분 도구 없음 · 2026-10-15)                          | §1.2           |
-| `agents/nerv-consistency-checker.md`                              | 스펙 ↔ 구현 정합 리뷰 서브에이전트 — 종류 `consistency` 로 직접 제출한다(같은 제한 · 2026-10-15)                        | §1.2           |
-| `statusline/nerv-statusline.sh`                                   | 클레임·리스·겹침 표시                                                                                                   | §3.2           |
-| `bin/nerv-hook-forward`                                           | 기본 변형의 훅 전송기 — http 변형도 SessionStart 는 이것을 쓴다                                                         | §3.1           |
-| `bin/nerv-init`                                                   | 설치 부트스트랩 — 저장소의 설정 세 자리를 만든다(덮지 않는다)                                                           | §3.7           |
-| `bin/nerv-outbox`                                                 | 오프라인 쓰기 큐(enqueue·flush·kick·status) — 서버가 돌아오면 포워더가 백그라운드로 비운다                              | §3.4           |
-| `bin/nerv-mirror`                                                 | 스펙 미러 — 문서 · 첨부를 로컬 폴더에 받는다. 본체는 `skills/mirror/scripts/nerv-mirror.mjs`(의존성 없음)               | §2.7           |
-| `hooks/hooks.http.json`                                           | 훅 URL 을 관리형으로 묶을 때의 변형(`type:"http"` · SessionStart 만 command)                                            | §3.1           |
-| `codex/config.toml`                                               | Codex 용 MCP 접속 템플릿 · 사용자 설정에 옮길 notify 줄(주석) — 자동 생성·갱신은 Phase 2 다                             | §5.2           |
-| `codex/AGENTS.md`                                                 | Codex 세션이 읽는 규약 — 스킬과 같은 절차를 문장으로                                                                    | §5.3           |
-| `managed-settings.example.json`                                   | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                                                                           | §3.5           |
+| 경로                                                              | 역할                                                                                                                     | 정본           |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| `.claude-plugin/plugin.json`                                      | 매니페스트                                                                                                               | §1.1           |
+| `.claude-plugin/marketplace.json`                                 | 사내 마켓플레이스 등록                                                                                                   | §1.2 배포 경로 |
+| `hooks/hooks.json`                                                | 훅 이벤트 6종(**기본은 `type:"command"`**) — 세션 시작은 둘                                                              | §3.1           |
+| `skills/{next,spec,impl,question,review,mirror,approve}/SKILL.md` | 스킬 7종(`review`는 P2 배포분 · `mirror`는 2026-10-07 · `approve`는 2026-10-11 · `import`는 2026-09-06 제거 — 4.6 §2.5)  | §2.1~§2.8      |
+| `agents/nerv-spec-writer.md`                                      | 스펙 초안 전용 서브에이전트(코드 쓰기 도구 없음)                                                                         | §1.1           |
+| `agents/nerv-code-reviewer.md`                                    | 코드 리뷰 서브에이전트 — 종류 `code` 로 직접 제출한다(코드 쓰기 · 처분 도구 없음 · 2026-10-15)                           | §1.2           |
+| `agents/nerv-consistency-checker.md`                              | 스펙 ↔ 구현 정합 리뷰 서브에이전트 — 종류 `consistency` 로 직접 제출한다(같은 제한 · 2026-10-15)                         | §1.2           |
+| `statusline/nerv-statusline.sh`                                   | 클레임·리스·겹침 표시                                                                                                    | §3.2           |
+| `bin/nerv-hook-forward`                                           | 기본 변형의 훅 전송기 — http 변형도 SessionStart 는 이것을 쓴다                                                          | §3.1           |
+| `bin/nerv-init`                                                   | 설치 부트스트랩 — 저장소의 설정 세 자리와 AGENTS.md 의 NERV 구역을 만든다(덮지 않는다 · AGENTS.md 는 구역만 바꾼다)      | §3.7 · §5.3    |
+| `bin/nerv-outbox`                                                 | 오프라인 쓰기 큐(enqueue·flush·kick·status) — 서버가 돌아오면 포워더가 백그라운드로 비운다                               | §3.4           |
+| `bin/nerv-mirror`                                                 | 스펙 미러 — 문서 · 첨부를 로컬 폴더에 받는다. 본체는 `skills/mirror/scripts/nerv-mirror.mjs`(의존성 없음)                | §2.7           |
+| `hooks/hooks.http.json`                                           | 훅 URL 을 관리형으로 묶을 때의 변형(`type:"http"` · SessionStart 만 command)                                             | §3.1           |
+| `codex/config.toml`                                               | Codex 용 MCP 접속 템플릿 · 사용자 설정에 옮길 notify 줄(주석) — 자동 생성·갱신은 Phase 2 다                              | §5.2           |
+| `codex/AGENTS.md`                                                 | AGENTS.md 템플릿의 사본 — 정본은 `@nerv/schema` 의 `agents-md.ts`. 서버가 프로젝트마다 채운 본문을 `nerv-init` 이 받는다 | §5.3           |
+| `managed-settings.example.json`                                   | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                                                                            | §3.5           |
 
 **테스트는 이 폴더에 두지 않는다**(2026-10-16 · REQ-PLG-037). 설치하면 이 폴더가 통째로 설치 캐시에 복사된다 —
 Codex 0.162.1 은 `.gitignore` 도 보지 않았다. 문서 대조 · 포워더 · 오프라인 큐 · 미러 테스트는 `../plugin-test/` 에 있다.
@@ -65,7 +65,7 @@ codex plugin add nerv@nerv     # 그다음 Codex 의 /hooks 에서 NERV 훅 여�
 #    /plugin install nerv@nerv-internal   → 재시작
 #    (GitHub 경로는 /plugin marketplace add worker-ants/nerv → /plugin install nerv@nerv)
 
-# 3) 작업 저장소에서 한 번 — .mcp.json · settings.local.json 의 env · .gitignore 를 만든다.
+# 3) 작업 저장소에서 한 번 — .mcp.json · settings.local.json 의 env · .gitignore · AGENTS.md 의 NERV 구역을 만든다.
 #    셸에서는 ${CLAUDE_PLUGIN_ROOT} 가 풀리지 않으므로 설치 캐시에서 고른다(4.6 §3.7).
 cd <작업 저장소>
 "$(ls -d "$HOME"/.claude/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)"
@@ -77,6 +77,11 @@ cd <작업 저장소>
 `nerv-init` 은 **이미 있는 값을 덮지 않는다** — 인자로 다른 값을 줘도 파일이 이기고, 부딪친
 사실을 말한다. 남의 `settings.local.json` 에는 그 사람의 권한 규칙이 산다. `.gitignore` 의
 `.nerv/` 도 여기서 선다(REQ-PLG-013) — 캐시·큐가 커밋되면 그 자체가 clemvion 식 git 비대화(P6)다.
+
+**AGENTS.md 는 서버가 만든다**(2026-10-16 · 4.6 §5.3 · REQ-PLG-039). `nerv-init` 이 토큰으로 서버의 본문(그 프로젝트의
+서버 주소 · 키 · 규약 스펙 목록)을 받아 파일이 없으면 만들고, 있으면 `<!-- nerv:begin -->` ~ `<!-- nerv:end -->` 구역만
+바꾼다. 구역이 없는 AGENTS.md 는 사람이 쓴 파일이라 덮지 않고 표시 두 줄을 넣으라고 말한다. 세션 시작 훅은 구역의
+규약 버전이 서버와 다르면 한 줄로 알린다.
 
 `.mcp.json` 자체는 **여전히 플러그인이 담지 않는다**(REQ-PLG-001 개정, 2026-09-04): 서버 주소·
 토큰은 저장소마다 다르고, 플러그인이 준 파일은 그 저장소의 `settings.local.json` `env` 를 읽지

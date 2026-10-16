@@ -9,6 +9,7 @@ export * from './requirement-lines.js';
 export * from './body-shrink.js';
 export * from './evidence-locator.js';
 export * from './plugin-install.js';
+export * from './agents-md.js';
 export * from './redact.js';
 export * from './ids.js';
 export * from './scopes.js';

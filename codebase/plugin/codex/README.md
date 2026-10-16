@@ -4,8 +4,11 @@ Codex 세션이 NERV 에 붙는 데 필요한 파일 둘이다. **쓰는 저장�
 
 ```bash
 mkdir -p <repo>/.codex && cp config.toml <repo>/.codex/config.toml
-cp AGENTS.md <repo>/AGENTS.md      # 이미 있으면 §단일 진실·§세션 시작 절만 옮긴다
 ```
+
+**AGENTS.md 는 복사하지 않는다**(2026-10-16 · 4.6 §5.3). `bin/nerv-init` 이 서버에서 이 프로젝트의 본문(서버 주소 · 키 ·
+규약 스펙 목록)을 받아 만들고, 이미 있으면 NERV 구역(`<!-- nerv:begin -->` ~ `<!-- nerv:end -->`)만 바꾼다. 이 폴더의
+`AGENTS.md` 는 템플릿의 사본이다 — 정본은 `@nerv/schema` 의 `agents-md.ts` 이고 테스트가 바이트로 대조한다.
 
 복사한 뒤 `config.toml` 의 `url` 과 `X-NERV-Project` 를 자기 값으로 바꾸고,
 `NERV_TOKEN` 환경변수에 PAT 를 넣는다(발급은 웹 설정 → 토큰).

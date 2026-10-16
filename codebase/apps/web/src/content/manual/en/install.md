@@ -121,7 +121,7 @@ Four things are installed.
 
 **The `nerv_*` tools are not among these four.** To use them, your repository needs a `.mcp.json`. The server address and token differ per project, so the plugin does not include this file.
 
-**Instead, the plugin includes a command that creates it.** Run it once in your working repository to set up three things at once: `.mcp.json`, the environment variables in `.claude/settings.local.json`, and `.nerv/` in `.gitignore`. **The address and project are already filled in with this server's values**, so the token is the only thing left to enter. Your input is hidden when you type it.
+**Instead, the plugin includes a command that creates it.** Run it once in your working repository to set up four things at once: `.mcp.json`, the environment variables in `.claude/settings.local.json`, `.nerv/` in `.gitignore`, and the NERV section of `AGENTS.md`. **The address and project are already filled in with this server's values**, so the token is the only thing left to enter. Your input is hidden when you type it.
 
 ```bash
 cd <your repository>
@@ -130,6 +130,8 @@ cd <your repository>
 ```
 
 **It never overwrites a value that is already set.** If a token is already in the file, the command keeps it and tells you so. To change it, edit that file yourself. If `.mcp.json` exists but has no `nerv` entry, the command leaves the file untouched and **prints the entry to add.**
+
+**This server writes `AGENTS.md`.** The command downloads a body from the server with this project's server address and its list of convention specs (specs of the convention and vision types). If the file doesn't exist, it creates it from that body. If it does, it replaces only what lies between `<!-- nerv:begin -->` and `<!-- nerv:end -->` and leaves everything else as it is. If an `AGENTS.md` you wrote yourself has neither line, the command leaves the file alone and prints the two lines. Put them where the NERV section should go and run the command again. Without a token, or if the server can't be reached, no `AGENTS.md` is written. When a new version of a convention spec is approved, you're told at session start that `AGENTS.md` is out of date. Running the command again replaces only that section.
 
 In a repository where setup is incomplete, you see what is missing when a session starts. **This is only a notice; no files are created.** Starting the setup is up to you. In a repository with no sign of NERV, nothing is shown.
 
@@ -195,10 +197,9 @@ To connect, you **add two files to the repository where you use Codex.** Drafts 
 ```bash
 mkdir -p <your repo>/.codex
 cp <plugin>/codex/config.toml <your repo>/.codex/config.toml
-cp <plugin>/codex/AGENTS.md   <your repo>/AGENTS.md
 ```
 
-If you already have an `AGENTS.md`, don't overwrite it. Copy **only the "single source of truth" and "at the start of every session" sections** into it.
+Don't copy `AGENTS.md`. The `nerv-init` command from 3-A downloads this project's body from this server and creates it. If the file already exists, only its NERV section is replaced. If you installed the plugin in Codex, the command is under `~/.codex/plugins/cache/`.
 
 In the copied `.codex/config.toml`, replace two values with your own: `url` and `X-NERV-Project`. Keep the approval settings above `[mcp_servers.nerv]`. Placed below it, they belong to that table and Codex ignores them.
 
@@ -262,7 +263,7 @@ In Claude Code, the session card appears **before** `nerv_bootstrap` is called, 
 /nerv:next
 ```
 
-The skill calls `nerv_bootstrap` first, recommends the next task, and walks you through claiming it. In Codex, you call the same tools in the same order yourself. That order is described in the `AGENTS.md` you copied.
+The skill calls `nerv_bootstrap` first, recommends the next task, and walks you through claiming it. In Codex, you call the same tools in the same order yourself. That order is described in the NERV section of `AGENTS.md`.
 
 ## When it does not work {#troubleshooting}
 
