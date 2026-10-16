@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.60 · 2026-10-16 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.61 · 2026-10-16 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.61 변경(2026-10-16 — Codex 온보딩, Phase 2 묶음 2의 넷째 · [4.8 백로그](../04-mvp/backlog.md) E20-S04): **§4.4 표 한 칸.** 저장소 온보딩 스크립트는 `nerv-init --codex`다 — `.codex/config.toml` · `.nerv/env` · AGENTS.md를 없을 때만 만들고 `--check`가 검증한다([4.6 플러그인](../04-mvp/plugin.md) §3.7). Codex 0.162.1은 플러그인 마켓플레이스로 NERV 플러그인을 설치한다는 실측도 같은 칸에 적었다.
 >
 > v0.60 변경(2026-10-16 — AGENTS.md를 서버가 만들고 `nerv-init`이 구역만 바꾼다, Phase 2 묶음 2의 넷째 · **사람 결정 ①**(2026-10-16 — A) · [4.8 백로그](../04-mvp/backlog.md) E20-S03): **§4.3 다시 씀.** 생성의 입력(템플릿 · 서버 주소 · 프로젝트 키 · 규약 스펙 목록)과 갱신 경로(서버가 본문을 주고 `nerv-init`이 표시한 구역만 바꾼다 · 서버는 저장소에 쓰지 않는다)를 적었다. 예시도 지금 렌더하는 모양으로 바꿨다. 출처 줄의 `conventions@v<n>`은 본문을 만드는 입력의 지문이다. 템플릿 전문과 갱신 규칙의 정본은 [4.6 플러그인](../04-mvp/plugin.md) §5.3이다.
 >
@@ -701,7 +703,7 @@ Claude Code는 CLAUDE.md를 네이티브로 읽고 AGENTS.md는 아직 자동 �
 | **elicitation 미지원** | 서버가 mid-task 입력을 요청할 수 없음 | `nerv_question_create` → 같은 멱등 키 재호출로 폴링. `wait_seconds`로 long-poll 지원 |
 | channels 미지원 | 서버 push 불가 | 하트비트 응답의 `pending`(최대 60초 지연) |
 | `requiresUserInteraction` 없음 | 클라이언트 승인 강제 불가 | 서버가 `NERV_APPROVAL_REQUIRED`로 실행을 보류 — 강제력은 서버에 있다 |
-| 마켓플레이스 없음 | 일괄 배포 불가 | 저장소 온보딩 스크립트(`.codex/config.toml`·`hooks.json`·AGENTS.md 생성 + 검증), 관리형은 MDM/`requirements.toml` |
+| 마켓플레이스 없음 | 일괄 배포 불가 | 저장소 온보딩 스크립트 — `nerv-init --codex`(2026-10-16 · `.codex/config.toml` · `.nerv/env` · AGENTS.md를 없을 때만 만들고 `--check`가 검증한다 · 훅은 플러그인이 배달한다 · [4.6 플러그인](../04-mvp/plugin.md) §3.7), 관리형은 MDM/`requirements.toml`. Codex 0.162.1은 플러그인 마켓플레이스로 NERV 플러그인을 설치한다(2026-10-15 실측 · [4.6 플러그인](../04-mvp/plugin.md) §5.4) |
 | 훅 이벤트 종류 부족 | 세션 해상도 하락 | `nerv_session_event`로 마일스톤 보충, OTel(`codex.*`)로 정량 보완 |
 | cloud 태스크 생성 API 부재 | NERV가 Codex 클라우드 작업을 띄울 수 없음 | GitHub 이슈/PR `@codex` 멘션이 사실상의 API. 결과는 PR 웹훅으로 회수(§5.5) |
 

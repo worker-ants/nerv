@@ -6,11 +6,15 @@
 # 것과 손으로 만들어야 하는 것은 다르다 — 스크립트는 파일이 아니라 실행이라, 그 저장소
 # 안에서 그 저장소의 값으로 쓴다. 훅이 플러그인에 남을 수 있는 이유와 같다.
 #
-# 네 자리를 만든다:
+# 네 자리를 만든다(Claude Code):
 #   ① <저장소>/.mcp.json                    — MCP 접속 (§3.3 템플릿 그대로)
 #   ② <저장소>/.claude/settings.local.json  — NERV_* 환경변수 (Claude Code 의 유일한 자리)
 #   ③ <저장소>/.gitignore                   — `.nerv/` 무시 (REQ-PLG-013)
 #   ④ <저장소>/AGENTS.md                    — 서버가 만든 본문의 NERV 구역 (§5.3 · REQ-PLG-039 · 2026-10-16)
+#
+# `--codex` 면 Codex 온보딩이다(2026-10-16 · E20-S04 · REQ-PLG-040). ①② 대신 이 둘을 만들고 ③④ 는 같다:
+#   ①' <저장소>/.codex/config.toml          — MCP 접속 (§5.2 전문에 서버 주소 · 프로젝트를 채운다)
+#   ②' <저장소>/.nerv/env                   — NERV_SERVER · NERV_PROJECT (훅 · notify 가 읽는다 · 토큰은 쓰지 않는다)
 #
 # **이미 있는 값은 덮지 않는다.** 빈 칸만 채우고, 값이 있으면 그대로 두고 말한다(JSON 은
 # 다시 찍으므로 들여쓰기는 바뀔 수 있다 — 값과 키는 하나도 잃지 않는다). AGENTS.md 는 표시한 구역
@@ -22,8 +26,9 @@
 # 사용:
 #   nerv-init [--dir <경로>] [--server <URL>] [--project <슬러그>] [--token <PAT>]
 #   nerv-init --check    # 아무것도 쓰지 않고 상태만 말한다 (SessionStart 훅이 부른다 · AGENTS.md 가 낡았으면 한 줄)
+#   nerv-init --codex [--server <URL>] [--project <슬러그>]   # Codex 온보딩 — 같은 규칙, 다른 두 자리
 #
-# 쓰는 세 자리는 Claude Code 의 것이다. Codex 의 훅이 부른 `--check` 는 `.codex/config.toml` 을 본다(4.6 §5.4).
+# Codex 의 훅이 부른 `--check` 는 `--codex` 를 주지 않아도 Codex 의 설정을 본다(포워더와 같은 판정 · 4.6 §5.4).
 #
 # 토큰은 인자로 주지 않으면 **가려서 묻는다**(TTY 일 때) — 셸 히스토리에 남기지 않으려고.
 # 비대화형에서 값이 없으면 그 칸은 적지 않는다: 자리표시자를 적으면 "설정됐다" 고 보인다.
@@ -31,7 +36,7 @@ set -uo pipefail
 
 default_server="https://api.nerv.example.com"
 
-dir=""; server=""; project=""; token=""; mode="write"
+dir=""; server=""; project=""; token=""; mode="write"; codex="no"
 while [ $# -gt 0 ]; do
   case "$1" in
     --dir) dir="${2:?--dir 뒤에 경로}"; shift 2 ;;
@@ -39,7 +44,8 @@ while [ $# -gt 0 ]; do
     --project) project="${2:?--project 뒤에 슬러그}"; shift 2 ;;
     --token) token="${2:?--token 뒤에 PAT}"; shift 2 ;;
     --check) mode="check"; shift ;;
-    -h | --help) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --codex) codex="yes"; shift ;;
+    -h | --help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "nerv-init: 모르는 인자 $1 (--help)" >&2; exit 2 ;;
   esac
 done
@@ -66,10 +72,16 @@ export NERV_ENV_FILE="${NERV_ENV_FILE:-$root/.nerv/env}"
 
 # **누가 부르는가** — 포워더와 같은 판정이다(REQ-PLG-034): 사람이 정한 `NERV_AGENT_TYPE`, 아니면 Codex 가 플러그인
 # 훅에만 주는 `PLUGIN_ROOT`(2026-10-16 실측). Codex 면 MCP 설정은 `.mcp.json` 이 아니라 `config.toml` 에 있다.
+# 사람이 `--codex` 로 부르면 그것이 이긴다 — 셸에서 돌리는 온보딩에는 `PLUGIN_ROOT` 가 없다.
 agent="${NERV_AGENT_TYPE:-}"
 if [ -z "$agent" ]; then
   if [ -n "${PLUGIN_ROOT:-}" ]; then agent="codex"; else agent="claude-code"; fi
 fi
+[ "$codex" = "yes" ] && agent="codex"
+
+# 사람에게 안내할 명령 — 세션 안의 훅이 부르면 그 세션의 플러그인 경로가 풀려 있다(§3.7)
+init_cmd="\"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}}/bin/nerv-init\""
+[ "$agent" = "codex" ] && init_cmd="$init_cmd --codex"
 
 # -- settings.local.json 의 env 읽기 -----------------------------------------
 # JSON 은 셸로 읽지 않는다. node 도 python3 도 없으면 **읽지 못했다고 말하고** 환경변수만
@@ -210,6 +222,10 @@ if [ "$mode" = "check" ]; then
     # 없다" 고 알렸다). 토큰도 Codex 의 환경에서만 읽는다 — `.nerv/env` 에만 있으면 훅은 붙고 도구는 401 이다.
     codex_has_nerv || missing+=(".codex/config.toml(또는 ${codex_user_config})에 [mcp_servers.nerv] 가 없다 — NERV 도구가 이 세션에 붙지 않는다")
     [ -n "$process_token" ] || missing+=("NERV_TOKEN 이 Codex 의 환경에 없다 — 도구가 401 로 끝난다(.nerv/env 의 값은 MCP 인증에 쓰이지 않는다)")
+    # config.toml 의 url 은 MCP 만 쓴다 — 훅과 notify 는 NERV_SERVER 를 읽고, 없으면 기본 주소로 간다(E20-S04)
+    [ -n "$server" ] || missing+=("NERV_SERVER 가 비어 있다 — 훅과 notify 가 기본 주소(${default_server})로 간다(.nerv/env 에 둔다)")
+    # Codex 는 규약을 AGENTS.md 로 읽는다. 사람이 쓴 AGENTS.md(구역 없음)는 사람의 선택이라 재촉하지 않는다
+    [ "$(agents_state)" = "none" ] && missing+=("AGENTS.md 가 없다 — Codex 가 이 프로젝트의 NERV 규약을 모른다")
   else
     mcp_has_nerv || missing+=(".mcp.json 에 nerv 서버가 없다 — NERV 도구가 이 세션에 붙지 않는다")
     [ -n "$token" ] || missing+=("NERV_TOKEN 이 비어 있다 — 붙어도 401 로 끝난다")
@@ -218,20 +234,18 @@ if [ "$mode" = "check" ]; then
   if [ ${#missing[@]} -eq 0 ]; then
     if [ -n "$stale" ]; then
       echo "$stale"
-      echo "  사람에게 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}}/bin/nerv-init\" 을 다시 돌리라고 안내한다(구역만 바꾼다). 그때까지 규약은 nerv_bootstrap 의 conventions 로 읽는다."
+      echo "  사람에게 ${init_cmd} 를 다시 돌리라고 안내한다(구역만 바꾼다). 그때까지 규약은 nerv_bootstrap 의 conventions 로 읽는다."
     fi
     exit 0
   fi
 
   echo "NERV 설정이 덜 됐다:"
   for line in "${missing[@]}"; do echo "  - $line"; done
+  echo "사람에게 이 명령을 안내한다(에이전트가 대신 실행하지 않는다 — 토큰을 묻는다):"
+  echo "  ${init_cmd}"
   if [ "$agent" = "codex" ]; then
-    echo "사람에게 이것을 안내한다(에이전트가 대신 하지 않는다 — 토큰이 든다):"
-    echo "  \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}}/codex/config.toml\" 을 저장소의 .codex/config.toml 로 복사해 url · X-NERV-Project 를 고치고,"
-    echo "  NERV_TOKEN 을 셸 환경변수로 둔 뒤 Codex 를 다시 띄운다(codex/README.md)."
-  else
-    echo "사람에게 이 명령을 안내한다(에이전트가 대신 실행하지 않는다 — 토큰을 묻는다):"
-    echo "  \"${CLAUDE_PLUGIN_ROOT:-<플러그인 경로>}/bin/nerv-init\""
+    # Codex 온보딩은 토큰을 파일에 쓰지 않는다 — MCP 인증이 프로세스 환경만 읽는다
+    echo "  NERV_TOKEN 은 셸 환경변수로 둔 뒤 Codex 를 다시 띄운다(Codex 의 MCP 인증은 그 값만 읽는다)."
   fi
   echo "설정이 설 때까지 nerv_* 도구를 부르지 않는다 — 없는 도구를 부르면 승인 프롬프트만 쌓인다."
   [ -n "$stale" ] && echo "$stale"
@@ -248,7 +262,7 @@ if [ -t 0 ]; then
   fi
 fi
 
-wrote=""; kept=""; show_mcp_entry="no"
+wrote=""; kept=""; show_mcp_entry="no"; show_codex_entry="no"
 # bash 3.2 는 set -u 에서 빈 배열을 펴지 못한다 — 줄을 모아 두고 한 번에 찍는다
 note_wrote() { wrote="${wrote}  썼다   ${1}\n"; }
 note_kept() { kept="${kept}  그대로 ${1}\n"; }
@@ -259,6 +273,78 @@ conflict() { # <이름> <인자값> <파일값>
     note_kept "settings.local.json 의 $1 — 인자와 다른 값이 이미 있다. 바꾸려면 그 파일을 직접 고친다"
   return 0
 }
+
+# -- Codex 온보딩의 두 자리 ①' ②' (2026-10-16 · E20-S04 · REQ-PLG-040) -----------------------------
+#
+# **새 명령이 아니라 같은 스크립트의 모드다.** 덮지 않는 규칙 · 값의 출처 · `--check` 가 같고, `.gitignore` 와 AGENTS.md 는
+# 두 에이전트가 같은 자리를 쓴다. 다른 것은 MCP 설정과 환경의 자리뿐이다(Codex 는 `.mcp.json` · settings 를 읽지 않는다).
+codex_config="$root/.codex/config.toml"
+nerv_env="$root/.nerv/env"
+# `.nerv/env` 에 이미 적힌 값 — 로더가 환경으로 올려 둔 값과 따로 읽어야 "파일이 이긴다" 를 판정한다
+env_value() { [ -f "$nerv_env" ] && sed -n "s/^\(export \)\{0,1\}$1=//p" "$nerv_env" | tail -n 1 | sed "s/^[\"']//; s/[\"']\$//"; }
+
+if [ "$agent" = "codex" ]; then
+  file_server="$(env_value NERV_SERVER)"; file_project="$(env_value NERV_PROJECT)"
+  for pair in "NERV_SERVER|$arg_server|$file_server" "NERV_PROJECT|$arg_project|$file_project"; do
+    IFS='|' read -r key arg_value file_value <<<"$pair"
+    [ -n "$arg_value" ] && [ -n "$file_value" ] && [ "$arg_value" != "$file_value" ] &&
+      note_kept ".nerv/env 의 $key — 인자와 다른 값이 이미 있다. 바꾸려면 그 파일을 직접 고친다"
+  done
+  # 파일이 이긴다 — config.toml 도 같은 값으로 쓴다(두 파일이 다른 서버를 가리키지 않게)
+  server="${file_server:-$server}"; project="${file_project:-$project}"
+
+  # ①' .codex/config.toml — 없을 때만 쓴다(§5.2 전문). 있으면 한 줄도 건드리지 않는다.
+  if [ -f "$codex_config" ]; then
+    if grep -qE '^[[:space:]]*\[mcp_servers\.("nerv"|nerv)\][[:space:]]*(#.*)?$' "$codex_config"; then
+      note_kept ".codex/config.toml — nerv 서버가 이미 있다"
+    else
+      note_kept ".codex/config.toml — 있지만 nerv 서버가 없다. 덮지 않았다 — 아래 표를 손으로 더한다"
+      show_codex_entry="yes"
+    fi
+  elif [ -z "$project" ]; then
+    note_kept ".codex/config.toml — 프로젝트가 없어 쓰지 않았다. --project 를 주고 다시 돌린다"
+  elif printf '%s%s' "$server" "$project" | grep -q '["\\]'; then
+    note_kept ".codex/config.toml — 서버 주소나 프로젝트에 따옴표 · 역슬래시가 있어 쓰지 않았다"
+  else
+    mkdir -p "$root/.codex"
+    cat > "$codex_config" <<TOML
+# <repo>/.codex/config.toml — NERV 온보딩 스크립트가 생성 · 저장소에 커밋
+# 최상위 키는 표 이름([…]) 앞에 둔다 — 뒤에 두면 그 표의 키가 되어 Codex 가 무시한다(2026-10-16 실측)
+
+# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않는다
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[mcp_servers.nerv]
+url = "${server%/}/mcp"
+bearer_token_env_var = "NERV_TOKEN"
+http_headers = { "X-NERV-Project" = "${project}" }
+startup_timeout_sec = 20
+# hostname 은 nerv_bootstrap 인자로 전달한다(헤더 확장에 의존하지 않는다)
+TOML
+    note_wrote ".codex/config.toml"
+  fi
+
+  # ②' .nerv/env — 훅 · notify 가 읽는 서버 주소와 프로젝트. 빈 칸만 채운다. **토큰은 쓰지 않는다** — Codex 의 MCP 인증은
+  # 프로세스 환경만 읽어(§3.3) 파일의 토큰으로는 도구가 붙지 않고, 파일에 둔 토큰은 그 사실을 감춘다.
+  env_added=""
+  for pair in "NERV_SERVER|$server|$file_server" "NERV_PROJECT|$project|$file_project"; do
+    IFS='|' read -r key value file_value <<<"$pair"
+    [ -n "$file_value" ] || [ -z "$value" ] && continue
+    if [ ! -f "$nerv_env" ]; then
+      mkdir -p "$root/.nerv"
+      printf '%s\n' "# NERV — 이 저장소의 서버와 프로젝트(nerv-init --codex · 4.6 §3.3). 토큰은 셸 환경변수 NERV_TOKEN 에 둔다." > "$nerv_env"
+      chmod 600 "$nerv_env" 2>/dev/null
+    fi
+    [ -n "$(tail -c 1 "$nerv_env")" ] && printf '\n' >> "$nerv_env"
+    printf '%s=%s\n' "$key" "$value" >> "$nerv_env"
+    env_added="${env_added:+$env_added }$key"
+  done
+  [ -n "$env_added" ] && note_wrote ".nerv/env: $env_added" || note_kept ".nerv/env — 서버 주소와 프로젝트가 이미 있다"
+fi
+
+# ①② Claude Code 의 두 자리 — Codex 온보딩이면 건너뛴다(위 ①'②'). heredoc 이 있어 몸통을 들여쓰지 않는다.
+if [ "$agent" != "codex" ]; then
 conflict NERV_SERVER "$arg_server" "$settings_server"
 conflict NERV_PROJECT "$arg_project" "$settings_project"
 conflict NERV_TOKEN "$arg_token" "$settings_token"
@@ -358,6 +444,7 @@ print(" ".join(added))
     [ -n "$added" ] && note_wrote "settings.local.json: $added" || note_kept "settings.local.json — 세 값이 이미 있다"
   fi
 fi
+fi # ①② 끝
 
 # ③ .gitignore — `.nerv/` 한 줄 (REQ-PLG-013)
 if [ -f "$ignore" ] && grep -qE '^\.nerv/?$' "$ignore"; then
@@ -437,16 +524,48 @@ if [ "$show_mcp_entry" = "yes" ]; then
     }
 ENTRY
 fi
+if [ "$show_codex_entry" = "yes" ]; then
+  echo
+  echo "$codex_config 에 더할 표(approval_policy · sandbox_mode 가 없으면 표 이름보다 앞에 둔다):"
+  cat <<ENTRY
+[mcp_servers.nerv]
+url = "${server%/}/mcp"
+bearer_token_env_var = "NERV_TOKEN"
+http_headers = { "X-NERV-Project" = "${project:-<프로젝트 슬러그>}" }
+startup_timeout_sec = 20
+ENTRY
+fi
 if [ "$show_agents_markers" = "yes" ]; then
   echo
   echo "$agents 에서 NERV 구역을 둘 자리에 넣을 두 줄(그 사이를 nerv-init 이 채우고 바꾼다):"
   echo "<!-- nerv:begin -->"
   echo "<!-- nerv:end -->"
 fi
-if [ -z "$token" ]; then
+if [ "$agent" = "codex" ]; then
+  if [ -z "$process_token" ]; then
+    echo
+    echo "NERV_TOKEN 이 셸 환경에 없다 — Codex 의 MCP 인증은 셸 환경의 값만 읽는다. 파일에는 쓰지 않았다."
+    echo "셸 프로필이나 시크릿 매니저로 둔다(웹 설정 → 토큰 → 발급 · 값은 그때 한 번만 보인다)."
+  fi
+  # 턴 완료 알림은 사용자 설정에만 둘 수 있다(§5.2) — 이 명령은 저장소 밖에 쓰지 않으므로 넣을 줄만 보여 준다
+  if ! { [ -f "$codex_user_config" ] && grep -q 'nerv-hook-forward' "$codex_user_config"; }; then
+    notify_line="$(sed -n 's/^# \(notify = \[.*\)$/\1/p' "$(dirname "${BASH_SOURCE[0]}")/../codex/config.toml" 2>/dev/null | head -n 1)"
+    if [ -n "$notify_line" ]; then
+      echo
+      echo "선택 — 턴 완료 알림(notify)을 세션 화면에 남기려면 ${codex_user_config} 의 맨 위(표 이름 앞)에 이 줄을 둔다."
+      echo "사용자 설정이라 이 명령은 쓰지 않는다. NERV 를 설정한 저장소의 턴만 보낸다(4.6 §5.2):"
+      echo "$notify_line"
+    fi
+  fi
   echo
-  echo "토큰이 없다 — NERV_TOKEN 을 settings.local.json 의 env 에 넣어야 붙는다."
-  echo "웹 설정 → 토큰 → 발급(값은 그때 한 번만 보인다) 뒤 다시 이 명령을 돌리면 빈 칸만 찬다."
+  echo "다음: 이 저장소에서 Codex 를 다시 띄우고 프로젝트를 신뢰한다(저장소의 .codex/config.toml 은 신뢰한 프로젝트에서만 읽힌다)."
+  echo "플러그인을 설치했다면 /hooks 에서 NERV 훅을 신뢰 처리한다. 그다음 nerv_bootstrap."
+else
+  if [ -z "$token" ]; then
+    echo
+    echo "토큰이 없다 — NERV_TOKEN 을 settings.local.json 의 env 에 넣어야 붙는다."
+    echo "웹 설정 → 토큰 → 발급(값은 그때 한 번만 보인다) 뒤 다시 이 명령을 돌리면 빈 칸만 찬다."
+  fi
+  echo
+  echo "다음: Claude Code 를 다시 띄우고 /mcp 에서 nerv 가 connected 인지 본다. 그다음 /nerv:next."
 fi
-echo
-echo "다음: Claude Code 를 다시 띄우고 /mcp 에서 nerv 가 connected 인지 본다. 그다음 /nerv:next."

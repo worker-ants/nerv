@@ -11,7 +11,9 @@ referenced_by:
 
 > **요약** — NERV는 기획자·디자이너·개발자·QA가 하나의 플랫폼에서 **스펙 문서를 단일 진실**로 관리하고, Claude Code·Codex 같은 AI 에이전트를 **MCP·훅·스킬로 연동**해 스펙 작성→검토→구현→테스트를 수행하며, 사람은 **승인/거절/코멘트 게이트**를 지키고 **누구(hostname)의 어떤 에이전트 세션이 무엇을 하는지** 실시간으로 보는 멀티 프로젝트 × 멀티 유저(n:n) 협업 플랫폼이다. 이 제안서는 기존 1인용 하네스(clemvion)의 실측 분석과 웹 딥리서치(도구 생태계·협업 플랫폼·연동 기술·저장 전략·HITL·실전 사례)를 근거로 문제 정의부터 아키텍처·데이터 모델·연동 설계·화면·로드맵까지를 다룬다.
 >
-> 문서 버전 v5.67 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+> 문서 버전 v5.68 · 2026-10-16 · 사람이 읽기 좋은 HTML 파생본: [html/index.html](html/index.html)
+>
+> v5.68 변경(2026-10-16 — Codex 온보딩은 `nerv-init --codex` 한 줄입니다): **REQ-PLG-040 신설 · REQ-PLG-036 개정 · 플러그인 0.3.32 그대로.** Phase 2 묶음 2의 넷째의 둘째 스토리입니다(E20-S04). 별도 명령을 만들지 않고 `nerv-init`에 Codex 모드를 더했습니다 — 덮지 않는 규칙 · 값의 출처 · `--check`가 같고 `.gitignore` · AGENTS.md는 두 에이전트가 같은 자리를 씁니다. ① `--codex`는 `.codex/config.toml`(MCP 연결)과 `.nerv/env`(훅과 notify가 읽는 서버 주소 · 프로젝트)를 없을 때만 만들고 AGENTS.md는 구역만 바꿉니다. ② 토큰은 파일에 쓰지 않습니다 — Codex의 MCP 인증은 셸 환경만 읽습니다. 사용자 설정(notify 줄)에도 쓰지 않고 넣을 줄만 보여 줍니다. ③ Codex의 `--check`는 서버 주소와 AGENTS.md까지 보고 `nerv-init --codex`를 안내합니다. E20(Codex 완전 지원)의 네 스토리가 모두 `done`입니다([4.6 플러그인](04-mvp/plugin.md) §3.7 · [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) §4.4 · [4.8 백로그](04-mvp/backlog.md) E20-S04 · 매뉴얼 설치 장 ko · en).
 >
 > v5.67 변경(2026-10-16 — 서버가 프로젝트의 AGENTS.md를 만들고 `nerv-init`이 표시한 구역만 바꿉니다, **사람 결정 ①**(2026-10-16 — A)): **EP-PRJ-06 · REQ-API-326 · REQ-PLG-039 신설 · 플러그인 0.3.32 그대로.** Phase 2 묶음 2의 넷째의 첫 스토리입니다(E20-S03). ① `GET /api/v1/projects/{proj}/agents-md`가 템플릿에 그 프로젝트의 서버 주소 · 키 · 규약 스펙 목록(`nerv_bootstrap`의 `conventions`와 같은 접은 목록 · 줄마다 승인 버전)을 채운 본문을 줍니다. 서버는 저장소에 쓰지 않습니다. ② `nerv-init`이 그 본문으로 AGENTS.md가 없으면 만들고, 있으면 `<!-- nerv:begin -->` ~ `<!-- nerv:end -->` 구역만 바꿉니다. 구역이 없는 파일은 사람이 쓴 것이라 덮지 않고 표시 두 줄을 넣으라고 안내합니다. ③ 출처 줄의 규약 버전은 본문을 만드는 입력의 지문이라 규약 스펙의 새 버전이 승인되면 바뀝니다. 세션 시작 훅이 낡은 구역을 한 줄로 알립니다. ④ 템플릿의 정본은 `@nerv/schema`의 `agents-md.ts`이고 [4.6 플러그인](04-mvp/plugin.md) §5.3과 `plugin/codex/AGENTS.md`가 바이트로 같습니다. 승인 도구 문장은 Codex로 한정했습니다([3.4 에이전트 연동 설계](03-proposal/agent-integration.md) §4.3 · [4.4 API](04-mvp/api.md) · [4.2 코드베이스](04-mvp/codebase.md) §3.1 · [4.8 백로그](04-mvp/backlog.md) E20-S03 `done` · 매뉴얼 설치 장 ko · en).
 >
@@ -936,7 +938,7 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [3.1 비전과 핵심 시나리오](03-proposal/vision.md) | `v0.6` | 한 줄 정의·3대 가치·포지셔닝("SDD 도구들의 Linear"), 직군별 페르소나 4종의 하루, 핵심 여정 3개, **Build vs Buy 비교**, 성공 지표 |
 | [3.2 시스템 아키텍처](03-proposal/architecture.md) | `v0.10` | 컴포넌트 구성(웹·API·MCP 게이트웨이·훅 수집기·DB·워커), **저장 전략(DB 단일 진실 + md 미러 + git export)**, 데이터 흐름 시퀀스 4종, 기술 스택 선정·대안 비교, 보안·확장 |
 | [3.3 데이터 모델](03-proposal/data-model.md) | `v0.28` | ERD 전체와 엔티티 상세(Spec/SpecVersion/Requirement, Task/Claim, AgentSession/Activity, ReviewSession/Finding, Approval/Question, Event…), clemvion frontmatter 매핑, 검증 질의 |
-| [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.60` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
+| [3.4 에이전트 연동 설계](03-proposal/agent-integration.md) | `v0.61` | 3층 연동(MCP tools-first / 훅 텔레메트리 / 플러그인·AGENTS.md 배포), `nerv_*` MCP 도구 카탈로그, Claude Code·Codex 설정 예시, 세션 수명주기 규약, 보안 |
 | [3.5 스펙 워크플로우와 거버넌스](03-proposal/spec-workflow.md) | `v0.48` | 스펙 2축 상태(문서 승인 축 × 요구사항 구현 축), 승인·CR 흐름, Task 파생→클레임→게이트, 리뷰 파이프라인(fingerprint dedup·커버리지), 알림 설계 |
 | [3.6 화면 설계](03-proposal/ui-wireframes.md) | `v0.15` | IA와 S1~S8 와이어프레임(대시보드·프로젝트 개요·스펙 상세·작업 보드·세션 모니터·리뷰 센터·받은 요청·설정) — HTML 파생본은 실제 렌더링 목업 |
 | [3.7 로드맵](03-proposal/roadmap.md) | `v0.14` | Phase 0 PoC(조정 검증) → 1 MVP → 2 리뷰·연동 확장 → 3 고도화, 각 단계 성공 기준·리스크·clemvion 마이그레이션 계획 |
@@ -950,9 +952,9 @@ Phase 단위 판정(무엇을 통과해야 다음으로 가는가)은 [3.7 로�
 | [4.3 데이터베이스 스키마](04-mvp/database.md) | `v0.78` | 테이블 41개 전체 DDL(FK·CHECK·인덱스·트리거·파티션), 이벤트 방송 규약(Valkey `nerv_events`), 개발 시드, 마이그레이션 왕복 수용 기준 — [3.3 데이터 모델](03-proposal/data-model.md)의 DDL 정본 |
 | [4.4 API 명세](04-mvp/api.md) | `v2.55` | `/api/v1` 공통 규약(인증 2경로·에러 코드·멱등키·페이지네이션), 리소스별 엔드포인트 전표, 실시간 채널 계약(WebSocket + SSE — 룸·이벤트), 임포트 표면(EP-IMP-01~06), MCP 도구 26종 ↔ REST 대응 표 |
 | [4.5 화면 명세](04-mvp/screens.md) | `v2.43` | 라우팅 맵과 앱 셸, 화면별 데이터 소스·WS 구독·상태 3종·컴포넌트·수용 기준, TipTap 에디터 상세, 디자인 토큰. 와이어프레임 커버리지 표(§1.6) — S1~S8 그림은 [3.6 화면 설계](03-proposal/ui-wireframes.md), 신설 화면·하위 뷰(앱 셸·로그인·온보딩·알림 센터·스펙 목록·작업 상세 패널) 그림은 이 문서가 소유 |
-| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.15` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
+| [4.6 플러그인과 온보딩](04-mvp/plugin.md) | `v1.16` | 스킬 7종 SKILL.md 전문(`/nerv:next`·`/nerv:spec`·`/nerv:impl`·`/nerv:question`·`/nerv:review`·`/nerv:mirror`·`/nerv:approve` — `/nerv:import`는 2026-09-06 걷음), hooks.json·statusline 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다), 사람 온보딩 절차(PAT 발급→설치→`nerv-init`→bootstrap), Codex 경계, 한국어 문체 플러그인 `ko-style`(§7 — 규칙 표 · 검사기 · 훅) |
 | [4.7 스펙 임포터](04-mvp/importer.md) | `v0.27` | 프로파일 기반 범용 임포터 — 내장 프로파일 `clemvion`(spec 136md·plan 485md — 프로파일의 `expect` 가 실측 정본이다)·`nerv-docs`, 파싱 규칙과 Spec/Requirement/Task 매핑, CLI(`nerv import`, dry-run 기본)+임포트 API 실행 모델, 운영자 절차(래퍼 스킬은 2026-09-06 뺌), 실패 리포트 형식과 수용 기준 |
-| [4.8 백로그](04-mvp/backlog.md) | `v3.03` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
+| [4.8 백로그](04-mvp/backlog.md) | `v3.04` | Phase 0·1·2 에픽/스토리 분해(Phase 2 는 2026-10-15 착수 — E15~E22 · 네 묶음 · `E01-S01` 형식, EARS 수용 기준·근거 링크), 의존 그래프와 착수 순서, E2E 수용 시나리오 |
 
 ## 핵심 수치 (전체 문서의 근거 뼈대)
 

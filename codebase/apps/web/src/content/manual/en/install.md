@@ -192,16 +192,28 @@ Codex runs only the hooks a person has reviewed. After installing, open `/hooks`
 
 ## 3-B. Connect Codex {#codex}
 
-To connect, you **add two files to the repository where you use Codex.** Drafts of both files ship with the plugin package, under `codex/`. You can connect without installing the plugin. If you install it, its hooks send the session's activity to NERV, just as in Claude Code (see the end of this section).
+You connect with **a single onboarding command.** Run it in your working repository and it sets up everything Codex reads at once: `.codex/config.toml` (the MCP connection), `.nerv/env` (the server address and project), `.nerv/` in `.gitignore`, and the NERV section of `AGENTS.md`. The command ships with the NERV plugin, so install the plugin in Codex first (plugin 0.3.32 or later). With the plugin installed, its hooks also send the session's activity to NERV, just as in Claude Code.
 
 ```bash
-mkdir -p <your repo>/.codex
-cp <plugin>/codex/config.toml <your repo>/.codex/config.toml
+codex plugin marketplace add worker-ants/nerv
+codex plugin add nerv@nerv
 ```
 
-Don't copy `AGENTS.md`. The `nerv-init` command from 3-A downloads this project's body from this server and creates it. If the file already exists, only its NERV section is replaced. If you installed the plugin in Codex, the command is under `~/.codex/plugins/cache/`.
+Then run the command below in your working repository. **The address and project are already filled in with this server's values.** The token is used only to download `AGENTS.md` from the server and is never written to a file.
 
-In the copied `.codex/config.toml`, replace two values with your own: `url` and `X-NERV-Project`. Keep the approval settings above `[mcp_servers.nerv]`. Placed below it, they belong to that table and Codex ignores them.
+```bash
+cd <your repository>
+"$(ls -d "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-init | sort -V | tail -1)" \
+  --codex --server {{server}} --project {{project}}
+```
+
+**It never overwrites a value that is already set.** If `.codex/config.toml` exists but has no `nerv` server, the command leaves the file untouched and **prints the table to add.** `.nerv/env` only gets its empty fields filled in. `AGENTS.md` follows the same rule as in 3-A: only its NERV section is replaced. Run it with `--codex --check` and it writes nothing and only reports what's missing.
+
+**Keep the token in the `NERV_TOKEN` shell environment variable.** Codex's MCP connection reads the token only from the environment variable named in `bearer_token_env_var`. A token written in `config.toml`, `.claude/settings.local.json`, or `.nerv/env` isn't used for MCP authentication (see step 2). If your shell has no token, the command tells you.
+
+After running the command, restart Codex in this repository. The repository's `.codex/config.toml` is read **only in trusted projects**, so approve it once the first time you open it. Codex runs only the hooks a person has confirmed. Open `/hooks` in Codex and mark the eight NERV hooks as trusted.
+
+To create the file yourself, put the following in `.codex/config.toml`. The plugin package's `codex/config.toml` is a template with the same content. Keep the approval settings above `[mcp_servers.nerv]`. Placed below it, they belong to that table and Codex ignores them.
 
 ```toml
 # The human approval lane — A3 tools never run unapproved
@@ -214,8 +226,6 @@ bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "{{project}}" }
 startup_timeout_sec = 20
 ```
-
-**Do not put the token in `config.toml`.** As `bearer_token_env_var` indicates, the token is read from the `NERV_TOKEN` environment variable. Codex does not read `.claude/settings.local.json`, and values in `.nerv/env` are not used for MCP authentication (see step 2). So for Codex, set `NERV_TOKEN` as a shell environment variable.
 
 Claude Code does not read `AGENTS.md` automatically yet. If you use both agents in the same repository, add this line to `CLAUDE.md`.
 
@@ -231,16 +241,9 @@ Claude Code does not read `AGENTS.md` automatically yet. If you use both agents 
 - A repository's `.codex/config.toml` is read only in **trusted projects**. You approve it once, the first time you open the project.
 - `/nerv:approve` is not used in Codex, because Codex cannot guarantee a prompt on every tool call. Approve on the web instead.
 
-**Installing the NERV plugin in Codex** (from plugin 0.3.32). Add the marketplace from GitHub and install the plugin.
+**Once the plugin is installed and its hooks are trusted,** session start, tool use, the end of each turn, and session end are recorded in NERV. The session card appears before `nerv_bootstrap` is called, and it is labeled `codex`. Tool calls join the same session. If the agent tries to end a turn while still holding a claim, it is told to record the status and release the claim first. The hooks read the server address and project from `.nerv/env`. Keep the token in a shell environment variable. In a repository where the MCP connection is not set up yet, the session start tells you what is missing and which onboarding command to run.
 
-```bash
-codex plugin marketplace add worker-ants/nerv
-codex plugin add nerv@nerv
-```
-
-Codex runs only the hooks a person has reviewed. After installing, open `/hooks` in Codex and trust the eight NERV hooks. From then on, session start, tool use, the end of each turn, and session end are recorded in NERV. The session card appears before `nerv_bootstrap` is called, and it is labeled `codex`. Tool calls join the same session. If the agent tries to end a turn while still holding a claim, it is told to record the status and release the claim first. The hooks read the server address and project from `.nerv/env`. Keep the token in a shell environment variable. In a repository where the MCP connection is not set up yet, the session start tells you what is missing.
-
-**Turn-complete notifications (notify).** If you installed the plugin, add the line below at the top of your user config (`~/.codex/config.toml`), before any table name (`[…]`). Each time the agent finishes a turn, its last reply is recorded on the sessions screen. A Codex session connected without the plugin can be recorded the same way, but then you need to keep the plugin's `bin/` somewhere and point the line at it. If you put this line in the repository's `.codex/config.toml`, Codex ignores it.
+**Turn-complete notifications (notify).** If you installed the plugin, add the line below at the top of your user config (`~/.codex/config.toml`), before any table name (`[…]`). Each time the agent finishes a turn, its last reply is recorded on the sessions screen. A Codex session connected without the plugin can be recorded the same way, but then you need to keep the plugin's `bin/` somewhere and point the line at it. If you put this line in the repository's `.codex/config.toml`, Codex ignores it. When your user config doesn't have this line, the onboarding command prints it. It doesn't write the line itself, since the user config lives outside the repository.
 
 ```toml
 notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
