@@ -465,6 +465,9 @@ export class NotificationService {
     if (event.type === NERV_EVENT_PHASE2.SESSION_OUTBOX_FAILED) {
       return event.actor_user_id === null ? [] : [event.actor_user_id];
     }
+    // **무응답 세션은 그 세션의 주인에게 간다**(2026-10-16 · REQ-API-327). 이것도 행위자 제외 규칙의 예외다 — stale 전이의
+    // 행위자는 그 세션(주인의 이름 · `is_agent`)이라 역할 큐로 보내면 알아야 할 단 한 사람이 빠진다
+    if (event.type === NERV_EVENT.SESSION_STALE) return this.sessionOwnerTargets(event);
     if (event.type === NERV_EVENT.APPROVAL_EXPIRED) {
       // **요청자에게 알린다**(2026-10-15 · REQ-API-304) — 다시 낼지 정할 사람이다. 행위자(없다)가 아니라 payload 가 든다
       const requester = event.payload?.['requested_by_user_id'];
@@ -626,6 +629,35 @@ export class NotificationService {
       default:
         return null;
     }
+  }
+
+  /**
+   * **세션의 주인**(spec-workflow §6.3 `session.stale`(내 세션) — 세션 소유자 · 2026-10-16 · REQ-API-327).
+   *
+   * 예전에는 역할 큐로 갔다. 그런데 `markStale` 이 남기는 이벤트의 행위자는 그 세션이고 행위자 이름은 세션의 주인이라,
+   * 행위자 제외 규칙이 바로 그 사람을 뺐다 — admin · planner 는 남의 세션이 멈춘 알림을 받고, 자기 세션이 멈춘 사람은
+   * 받지 못했다. 이제 그 세션을 연 사람 한 명에게만 간다. 역할 큐는 받지 않는다: 카탈로그의 수신자가 세션 소유자뿐이고,
+   * 세션이 수십 개인 환경(NFR-04)에서 남의 세션마다 중요 알림을 받으면 배지가 무의미해진다 — 다른 사람의 세션은 세션
+   * 보드(S5)와 활동 피드가 보여 준다.
+   *
+   * 주인은 행위자가 아니라 **대상 세션의 행**에서 읽는다 — 그 값이 진실이고, 행위자 없이 남은 이벤트에도 맞다. 지금 그
+   * 프로젝트의 멤버가 아니면 받지 않는다(관여자와 같은 규칙 · REQ-API-316).
+   */
+  private async sessionOwnerTargets(event: {
+    project_id: string;
+    subject_type?: string;
+    subject_id: string;
+  }): Promise<string[]> {
+    if (event.subject_type !== undefined && event.subject_type !== 'agent_session') return [];
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT s.user_id FROM agent_session s
+        JOIN project p ON p.id = s.project_id
+       WHERE s.id = ${event.subject_id} AND s.project_id = ${event.project_id}
+         AND EXISTS (SELECT 1 FROM membership m
+                      WHERE m.user_id = s.user_id AND m.org_id = p.org_id
+                        AND (m.project_id = p.id OR m.project_id IS NULL))
+    `);
+    return rows.map((r) => r.user_id);
   }
 
   /**

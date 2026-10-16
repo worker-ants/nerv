@@ -3,6 +3,8 @@
 // 카탈로그(spec-workflow §6.3)가 수신자로 적은 사람을 산출한다. 역할 큐로 가던 이벤트는 역할 큐가 그대로 받고 관여자를
 // 더한다(겹치면 한 번). 발견 이벤트(`finding.opened` — critical 만 · `finding.resolved`)는 관여자에게만 간다. 행위자와
 // 프로젝트 멤버가 아닌 사람은 받지 않는다.
+//
+// 무응답 세션(`session.stale`)은 그 세션의 주인에게만 간다(2026-10-16 · REQ-API-327) — 행위자 제외 규칙의 예외다.
 
 import { NERV_EVENT, NERV_EVENT_PHASE2, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
@@ -14,6 +16,7 @@ import { createApp } from '../../src/main.js';
 import { NotificationService } from '../../src/modules/event/notification.service.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
 import type { SubmitResult } from '../../src/modules/review/review.service.js';
+import { SessionService } from '../../src/modules/session/session.service.js';
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -22,6 +25,7 @@ let db: ScratchDb;
 let pool: pg.Pool;
 let app: NestFastifyApplication;
 let reviews: ReviewService;
+let sessions: SessionService;
 let notifications: NotificationService;
 let orgId: string;
 let projectId: string;
@@ -57,6 +61,7 @@ beforeAll(async () => {
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
   reviews = app.get(ReviewService);
+  sessions = app.get(SessionService);
   // 방송 없이 파생만 — 알림 행이 진실이다(D-14)
   notifications = new NotificationService(drizzle(pool));
 });
@@ -381,6 +386,94 @@ describe('역할 큐에 관여자를 더한다 (REQ-API-316)', () => {
     expect(sorted(await recipientsOf(NERV_EVENT.SPEC_COMMENT_ADDED))).toEqual(
       sorted([U.admin, U.writer]),
     );
+  });
+});
+
+/**
+ * **무응답 세션은 그 세션의 주인에게 간다**(2026-10-16 · REQ-API-327).
+ *
+ * stale 전이의 행위자는 그 세션이고 행위자 이름은 세션의 주인이다. 역할 큐로 보내던 동안 행위자 제외 규칙이 바로 그
+ * 사람을 뺐다 — admin · planner 는 남의 세션이 멈춘 알림을 받고 주인은 받지 못했다. 그래서 이벤트를 손으로 넣지 않고
+ * 워커가 실제로 하는 전이(`markStale`)로 낸다: 행위자를 어떻게 남기는지가 이 결함의 절반이다.
+ */
+describe('무응답 세션 알림 — 세션 소유자 (REQ-API-327)', () => {
+  /** 30분 넘게 소식이 없는 세션 하나 — 하트비트가 없으면 시작 시각으로 잰다 */
+  async function silentSession(user: string, host: string): Promise<string> {
+    const id = newId();
+    await pool.query(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state, started_at)
+       VALUES ($1,$2,$3,'claude-code',$4,'active', now() - interval '31 minutes')`,
+      [id, projectId, user, host],
+    );
+    return id;
+  }
+
+  /** 이 사람이 받은 무응답 알림 — 어느 세션의 것인지와 등급 · 상태 */
+  async function staleAlertsOf(
+    userId: string,
+  ): Promise<{ session: string; importance: string; state: string }[]> {
+    const { rows } = await pool.query(
+      `SELECT e.subject_id AS session, n.importance::text AS importance, n.state::text AS state
+         FROM notification n JOIN event e ON e.id = n.event_id
+        WHERE n.user_id = $1 AND e.type = $2 ORDER BY e.subject_id`,
+      [userId, NERV_EVENT.SESSION_STALE],
+    );
+    return rows as { session: string; importance: string; state: string }[];
+  }
+
+  it('세션이 무응답이 되면 그 세션의 주인이 중요 알림을 받는다 — 역할 큐는 받지 않는다', async () => {
+    const mine = await silentSession(U.dev, 'mac-02');
+    expect(await sessions.markStale()).toBe(1);
+    // 행위자가 주인이다 — 예외가 없으면 행위자 제외 규칙이 이 사람을 뺀다
+    const { rows } = await pool.query<{ actor_user_id: string }>(
+      `SELECT actor_user_id FROM event WHERE type = $1`,
+      [NERV_EVENT.SESSION_STALE],
+    );
+    expect(rows).toEqual([{ actor_user_id: U.dev }]);
+
+    await notifications.route();
+    expect(await staleAlertsOf(U.dev)).toEqual([
+      { session: mine, importance: 'immediate', state: 'unread' },
+    ]);
+    for (const nobody of [U.admin, U.planner, U.reviewer, U.writer, U.bystander])
+      expect(await staleAlertsOf(nobody)).toEqual([]);
+  });
+
+  it('다른 사람의 세션이 무응답이 되면 받지 않는다 — admin 도 자기 세션의 알림만 받는다', async () => {
+    const ofDev = await silentSession(U.dev, 'mac-02');
+    const ofReviewer = await silentSession(U.reviewer, 'mac-07');
+    const ofAdmin = await silentSession(U.admin, 'mac-01');
+    expect(await sessions.markStale()).toBe(3);
+    await notifications.route();
+
+    const only = (session: string) => [{ session, importance: 'immediate', state: 'unread' }];
+    expect(await staleAlertsOf(U.dev)).toEqual(only(ofDev));
+    expect(await staleAlertsOf(U.reviewer)).toEqual(only(ofReviewer));
+    expect(await staleAlertsOf(U.admin)).toEqual(only(ofAdmin));
+    expect(await staleAlertsOf(U.planner)).toEqual([]);
+  });
+
+  it('주인은 행위자가 아니라 세션에서 읽는다 — 행위자 없이 남은 이벤트도 주인에게 간다', async () => {
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+       VALUES ($1,$2,$3,'codex','mac-02','stale') RETURNING id`,
+      [newId(), projectId, U.dev],
+    );
+    const session = rows[0]!.id;
+    await pool.query(
+      `INSERT INTO event (id, project_id, occurred_at, type, is_agent, subject_type, subject_id)
+       VALUES ($1,$2,now(),$3,false,'agent_session',$4)`,
+      [newId(), projectId, NERV_EVENT.SESSION_STALE, session],
+    );
+    await notifications.route();
+    expect(await recipientsOf(NERV_EVENT.SESSION_STALE)).toEqual([U.dev]);
+  });
+
+  it('프로젝트 멤버가 아닌 사람의 세션은 아무에게도 알리지 않는다', async () => {
+    await silentSession(U.outsider, 'mac-99');
+    expect(await sessions.markStale()).toBe(1);
+    await notifications.route();
+    expect(await recipientsOf(NERV_EVENT.SESSION_STALE)).toEqual([]);
   });
 });
 

@@ -11,7 +11,7 @@
 //   finding_id · finding_title         — 발견 · 결재(critical 하향)
 //   question_title                     — 질문 · 결재(질문)
 //   review_branch                      — 리뷰 세션
-//   session_hostname · session_agent_type — 에이전트 세션(시스템이 낸 `session.stale` 은 행위자가 없다)
+//   session_hostname · session_agent_type — 에이전트 세션(`session.stale` 의 행위자는 그 세션의 주인이라 기계는 대상에서 읽는다)
 //
 // 두 목록이 이 조각 하나를 쓴다 — 자리마다 조인을 다시 적으면 한쪽만 자라고, 같은 이벤트가 피드와
 // 알림에서 다른 대상을 말하게 된다. 별칭은 `sj_` 로 시작한다: 부르는 쪽의 조인과 겹치지 않게.
