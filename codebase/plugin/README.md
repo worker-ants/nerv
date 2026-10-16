@@ -1,4 +1,4 @@
-# nerv-plugin v0.3.31
+# nerv-plugin v0.3.32
 
 NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plugin.md](../../docs/04-mvp/plugin.md)**
 이고, 이 디렉터리는 그 문서 §1~§3 전문의 실물이다 — 두 쪽이 다르면 문서가 옳고 여기가 결함이다.
@@ -17,7 +17,7 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | `statusline/nerv-statusline.sh`                                   | 클레임·리스·겹침 표시                                                                                                   | §3.2           |
 | `bin/nerv-hook-forward`                                           | 기본 변형의 훅 전송기 — http 변형도 SessionStart 는 이것을 쓴다                                                         | §3.1           |
 | `bin/nerv-init`                                                   | 설치 부트스트랩 — 저장소의 설정 세 자리를 만든다(덮지 않는다)                                                           | §3.7           |
-| `bin/nerv-outbox`                                                 | 오프라인 쓰기 큐(enqueue·flush·status)                                                                                  | §3.4           |
+| `bin/nerv-outbox`                                                 | 오프라인 쓰기 큐(enqueue·flush·kick·status) — 서버가 돌아오면 포워더가 백그라운드로 비운다                              | §3.4           |
 | `bin/nerv-mirror`                                                 | 스펙 미러 — 문서 · 첨부를 로컬 폴더에 받는다. 본체는 `skills/mirror/scripts/nerv-mirror.mjs`(의존성 없음)               | §2.7           |
 | `hooks/hooks.http.json`                                           | 훅 URL 을 관리형으로 묶을 때의 변형(`type:"http"` · SessionStart 만 command)                                            | §3.1           |
 | `codex/config.toml`                                               | Codex 용 MCP 접속 템플릿 — 자동 생성·갱신은 Phase 2 다                                                                  | §5.2           |
@@ -129,8 +129,19 @@ for e in h: print(e, n(h,e), n(s,e), 'ok' if n(h,e)==n(s,e) else 'OUT OF SYNC')
 echo '{"task_id":"TSK-a3f8","status":"in_progress"}' \
   | bin/nerv-outbox enqueue nerv_task_update 01991f2a-… S-b7e9
 bin/nerv-outbox flush     # 서버 복구 후 — oldest-first, 원래 멱등 키 그대로
-bin/nerv-outbox status    # SessionEnd 잔량 보고
+bin/nerv-outbox kick      # 보낼 것이 있으면 flush 를 백그라운드로 띄운다(포워더가 부른다)
+bin/nerv-outbox status    # 잔량 · 실패 · 서버에 알리지 못한 실패
 ```
+
+**서버가 돌아오면 바로 비운다**(2026-10-16 · 4.6 §3.4 · REQ-PLG-032). 데몬은 없다. 훅 포워더가 서버에서
+2xx 를 받으면 `kick` 을 부르고 큐에 항목이 있으면 flush 가 분리된 백그라운드 프로세스로 돈다 — 훅은
+기다리지 않는다. 잠금(`.nerv/outbox/.flush.lock`)으로 한 저장소에서 flush 는 하나만 돈다. 세션 시작 훅의
+flush 도 그대로 있다. http 변형(`hooks/hooks.http.json`)은 포워더가 세션 시작에만 돌아서 그때만 비운다.
+
+**서버가 거절한 쓰기는 사람에게 알린다**(REQ-PLG-033). 그 항목은 사유와 함께 `.nerv/outbox/failed/` 로 가고
+flush 가 `/ingest/hooks/outbox-failed` 로 알린다 — 서버가 그 사람에게 중요 알림을 만든다. 401 · 429 ·
+`NERV_UNAVAILABLE` · 같은 키가 아직 도는 중 · 연결 실패는 그 쓰기의 판정이 아니라서 항목을 남기고 멈춘다.
+알리지 못한 실패는 다음 flush 가 다시 알리고 그동안 세션 시작 안내와 `status` 에 나온다.
 
 큐는 위임 판단을 대신하지 않는다: 오프라인 동안 신규 클레임 발급·`ready` 전이는 금지 그대로다.
 큐잉 가능한 것은 이미 쥔 클레임 위의 상태 보고·질문·증적뿐이다.

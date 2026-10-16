@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.47 · 2026-10-16 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.48 · 2026-10-16 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.48 변경(2026-10-16 — 복구 뒤 자동 동기화의 실패 보고, Phase 2 묶음 2의 둘째 · [4.8 백로그](../04-mvp/backlog.md) E21-S01): **§6.3 카탈로그 한 줄.** `session.outbox_failed`(high · 보고한 사람) — 오프라인 큐의 재전송을 서버가 거절했다([4.4 API](../04-mvp/api.md) REQ-API-322). 그 쓰기를 한 세션의 사람에게 간다 — 행위자 제외의 예외다.
 >
 > v0.47 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째 · [4.8 백로그](../04-mvp/backlog.md) E21-S02): **§6.3 카탈로그 한 줄.** `mirror.diverged`(high · admin) — git 미러의 원격에 NERV 가 만들지 않은 커밋이 있어 push 를 멈췄다([4.2 코드베이스](../04-mvp/codebase.md) §6.2a · REQ-CB-063).
 >
@@ -833,6 +835,7 @@ Event (append-only, D-10)
 | `task.rebrief_required` | high | 담당자 + 클레임 보유 세션 소유자 | `task:{id}:state` |
 | `gate.bypassed` | high | admin | `project:{id}:bypass` |
 | `gate.failopen_escalated`(시간 창 안의 fail-open 이 기준 이상 — §4.6) | high | admin | 없음 |
+| `session.outbox_failed`(오프라인 큐의 재전송을 서버가 거절했다 — [4.6 플러그인](../04-mvp/plugin.md) §3.4) | high | 보고한 사람(그 세션의 사람 — 행위자 제외의 예외) | 없음 |
 | `mirror.diverged`(git 미러의 원격에 NERV 가 만들지 않은 커밋 — push 를 멈췄다 · [4.2 코드베이스](../04-mvp/codebase.md) §6.2a) | high | 그 커밋이 바꾼 폴더의 프로젝트 admin | 없음 |
 | `spec.comment_added` | standard | 스레드 참여자 · 워처 | `spec:{id}:comments` |
 | `spec.recheck_requested`(참조 문서 전파 — §3.3) | standard | 대상 문서 `owner_role` | `spec:{id}:recheck` |
@@ -848,7 +851,7 @@ Event (append-only, D-10)
 
 - `approval.requested` 는 **지정을 본다** — `assignee_user_id` 가 있으면 그 사람에게만, `assignee_role` 이 있으면 그 역할의 멤버에게, 둘 다 없으면 역할 큐(admin·planner)로 간다. 같은 날 사람 결정으로 붙였다: 결재 경로(EP-APR)는 처음부터 지정을 보는데 알림만 보지 않아, 지정 승인자가 designer·qa 면 **자기 앞으로 온 카드의 알림을 못 받았고** admin·planner 전원은 결정할 수 없는 카드의 알림을 받았다. 결정할 수 없는 카드의 알림은 §6.6 원칙 3 이 막으려는 바로 그 소음이다.
 - **관여(③)는 2026-10-15 에 들어왔다**([4.8 백로그](../04-mvp/backlog.md) E17-S01 · [4.4 API](../04-mvp/api.md) REQ-API-316). 표가 수신자로 적은 작성자(그 스펙 버전을 쓴 사람) · 담당자(작업 담당자) · 클레임 보유 세션 소유자 · 스레드 참여자(같은 문서 · 같은 앵커에 열린 코멘트를 쓴 사람) · 리뷰 요청자(그 발견을 관찰한 라운드를 제출한 사람)를 산출한다. 리뷰 결정 「코멘트」(`spec.comment_added` 의 대상이 스펙 버전)는 그 버전의 작성자에게 간다. 역할 큐(admin·planner)로 가던 이벤트는 역할 큐가 그대로 받고 관여자를 더한다 — 겹치면 한 번이다. `finding.opened`(critical 만) · `finding.resolved` 는 역할 큐 없이 관여자 — 그 발견을 관찰한 라운드의 작업(과 발견에서 만든 작업)의 담당자 · 리뷰 요청자 · 발견이 가리키는 스펙 버전의 작성자 — 에게만 간다. 지금 그 프로젝트의 멤버가 아닌 사람은 받지 않는다. 그 밖의 이벤트는 역할 큐다. 표의 "워처" 는 **워치 테이블이 없어** 아직이다(E17-S02 · [4.5 화면 명세](../04-mvp/screens.md) §2.4 말미).
-- 어느 경우든 **행위자 자신은 제외한다** — 자기가 한 일의 알림은 소음이다.
+- 어느 경우든 **행위자 자신은 제외한다** — 자기가 한 일의 알림은 소음이다. 예외는 `session.outbox_failed` 하나다(2026-10-16) — 행위자는 그 사람의 플러그인이고, 알릴 사람은 자기 쓰기가 들어가지 않은 줄 모르는 그 사람이다.
 
 수신자에게 실제로 닿는 경로는 `notification.created` 방송이다([4.4 API 명세](../04-mvp/api.md) §3.3 — 개인 룸).
 

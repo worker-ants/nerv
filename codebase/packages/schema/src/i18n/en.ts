@@ -1082,6 +1082,7 @@ export const en = {
   'event.question.cancelled': 'Question cancelled',
   'event.question.created': 'Agent question',
   'event.session.complete': 'Session complete',
+  'event.session.outbox_failed': 'Queued write rejected on resend (it did not reach the server)',
   'event.session.stale': 'Session went stale — claim reclaimed',
   'event.session.started': 'Session started',
   'event.session.steered': 'Instructions sent to session',

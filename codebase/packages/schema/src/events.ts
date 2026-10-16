@@ -191,6 +191,14 @@ export const NERV_EVENT_PHASE2 = {
    * 내지 않는다. 원격 주소는 넣지 않는다(자격증명이 들어 있을 수 있다)
    */
   MIRROR_DIVERGED: 'mirror.diverged',
+  /**
+   * ★ **오프라인 큐의 재전송이 거절됐다**(2026-10-16 · E21-S01 · NFR-05 · api.md REQ-API-322 · plugin.md §3.4). 플러그인의
+   * `nerv-outbox flush` 가 서버의 답(4xx · 구조화 에러)으로 `outbox/failed/` 에 옮긴 항목을 `/ingest/hooks/outbox-failed` 로
+   * 알렸다. 대상은 그 사람의 세션(자기 세션이 아니면 프로젝트)이고 행위자는 토큰의 사람(`is_agent`)이다. payload 의 `items` 는
+   * 도구 · 멱등 키 · 큐에 넣은 시각 · 상태 코드 · 에러 코드 · `kind` 뿐이다 — 메시지 원문은 넣지 않는다. 같은 멱등 키는 다시
+   * 남기지 않는다. 보고한 사람 자신에게 중요 알림이 간다 — 그 사람의 쓰기가 서버에 들어가지 않았다
+   */
+  SESSION_OUTBOX_FAILED: 'session.outbox_failed',
 } as const;
 
 /**

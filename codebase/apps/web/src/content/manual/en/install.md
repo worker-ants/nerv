@@ -85,7 +85,7 @@ export NERV_HOSTNAME="$(hostname -s)"
 
 The value is **for display only**. The sender can put anything in a header, so it is never used for permission checks.
 
-**Do not commit the token.** Also add `.nerv/` to your working repository's `.gitignore`. The environment file, the plugin's cache, and the offline queue are all stored there.
+**Do not commit the token.** Also add `.nerv/` to your working repository's `.gitignore`. The environment file, the plugin's cache, and the offline queue are all stored there. The offline queue is sent automatically when the server is back ([When the server is unreachable](/help/agents#offline)).
 
 ## 3-A. Install the plugin in Claude Code {#claude-code}
 

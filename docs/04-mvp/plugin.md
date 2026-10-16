@@ -5,6 +5,7 @@ updated: 2026-09-06
 referenced_by:
   - 02-research/integration-tech.md
   - 03-proposal/agent-integration.md
+  - 03-proposal/spec-workflow.md
   - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/codebase.md
@@ -21,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.10 · 2026-10-15 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.11 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.11 변경(2026-10-16 — 서버가 돌아오면 outbox 를 바로 비우고 거절된 쓰기는 사람에게 알린다, Phase 2 묶음 2의 둘째 · **사람 결정** · [4.8 백로그](backlog.md) E21-S01): **REQ-PLG-032 · 033 신설 · §3.4 규칙 2 · 3 정정과 세 단락 · 패키지 0.3.31 → 0.3.32.** 데몬을 따로 띄우지 않는다. 훅 포워더가 서버에서 2xx 를 받으면 `nerv-outbox kick` 이 큐를 분리된 백그라운드 flush 로 비우고 훅은 기다리지 않는다. 잠금(`.nerv/outbox/.flush.lock`)으로 하나만 돈다. 서버가 거절한 항목은 `outbox/failed/` 로 옮기고 `/ingest/hooks/outbox-failed` 로 알려 그 사람에게 중요 알림이 간다([4.4 API](api.md) REQ-API-322). 401 · 429 · `idempotency_in_flight` · `NERV_UNAVAILABLE` · JSON-RPC 가 아닌 2xx 는 그 쓰기의 판정이 아니라서 남기고 멈춘다. 규칙 2가 적은 "다음 스킬 턴의 flush" 는 그렇게 시키는 스킬이 없어 실제로 없었다 — 정정했다. 스킬은 flush 를 말하지 않아 그대로다. http 변형은 세션 시작에만 비운다.
 >
 > v1.10 변경(2026-10-15 — 커밋 SHA 가 아닌 `head_sha` 는 받지 않는다, **사람 결정**): **§2.3 `impl` 스킬 한 항목 · §2.6 `review` 스킬 세 문장과 에러 표 한 칸 · 패키지 0.3.31 그대로.** 서버가 리뷰 제출의 `head_sha` · `base_sha` 를 커밋 SHA 로만 받고(`HEAD` · 브랜치 이름은 400), done 거부의 `stale_reviews` 항목에 까닭 `reason`(`newer_commit` · `not_a_commit`)을 더했다([4.4 API](api.md) REQ-API-314 · 321). `review` 스킬의 "커밋 SHA 가 아닌 값은 게이트가 판정 불가로 기록한다" 를 "서버가 거절한다 — `git rev-parse` 로 얻은 SHA 로 다시 낸다" 로 바꾸고 `base_sha` 도 같다고 적었다. `impl` 스킬은 `not_a_commit` 도 최신 커밋의 다시 리뷰로 다룬다(면제 대상이 아니다). 서브에이전트 둘은 받는 SHA 가 커밋 SHA 여야 한다는 것과 그 거절을 읽는 법을 적었다. 패키지 버전은 같은 PR 이 0.3.30 → 0.3.31 로 올렸고 아직 배달 전이라 그대로 둔다. 도구 · 인자 · `allowed-tools` 는 그대로다.
 >
@@ -206,7 +209,7 @@ referenced_by:
 
 ```text
 nerv-plugin/
-  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.31
+  .claude-plugin/plugin.json      # 매니페스트 · 버전 0.3.32
   hooks/hooks.json                # 기본 변형 — command 훅 (§3.1 · http 변형은 hooks.http.json)
   skills/
     next/SKILL.md                 # /nerv:next     — 다음 할 일 받아 클레임 (§2.1)
@@ -233,7 +236,7 @@ nerv-plugin/
 {
   "name": "nerv",
   "description": "NERV 협업 플랫폼 연동 — 에이전트가 작업을 클레임하고 스펙·리뷰를 서버에서 다룬다",
-  "version": "0.3.31",
+  "version": "0.3.32",
   "license": "Apache-2.0"
 }
 ```
@@ -1796,6 +1799,8 @@ version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".
     specs/<SPC-ID>@v<no>.md       # nerv_spec_get 응답 본문 — 버전 명시 스냅샷만 캐시(불변이므로 TTL 불요)
   outbox/                         # 쓰기 큐 — NERV_UNAVAILABLE 시에만 생성
     <queued_at>-<idempotency_key>.json
+    failed/                       # 서버가 거절한 항목 — 사유(failure)와 서버에 알린 시각(reported_at)을 더한다
+    .flush.lock                   # flush 잠금 — 주인 pid 를 가리키는 심볼릭 링크(2026-10-16)
 ```
 
 outbox 항목 형식(1파일 = 1호출):
@@ -1811,17 +1816,32 @@ outbox 항목 형식(1파일 = 1호출):
 }
 ```
 
+`enqueue` 는 **JSON 객체가 아닌 입력을 받지 않는다**(2026-10-16). 예전에는 stdin 을 그대로 적어서 그 파일은 flush 때마다 읽히지 않는 채 큐의 머리에 남았다. 이제 부른 쪽이 그 자리에서 실패(종료 코드 65)를 받는다. jq 가 없으면 큐에 넣지 못했다고 말하고 실패한다 — 큐에 넣었다고 믿게 두지 않는다. 그전에 쌓인 읽을 수 없는 파일은 flush 가 실패 항목(`kind: "unreadable"`)으로 옮긴다.
+
+`outbox/failed/` 의 항목은 큐 파일에 셋을 더한다 — `failed_at`, 서버의 답에서 읽은 `failure`(`status` · `code` · `kind` · `message`), 서버에 알린 시각 `reported_at`.
+
 규칙 다섯:
 
 1. **큐잉 조건은 `NERV_UNAVAILABLE`뿐이다.** 4xx(권한·검증·충돌)는 큐잉하지 않는다 — 재전송해도 같은 실패이고, 충돌 계열은 시간이 지나면 의미가 바뀐다.
-2. **flush는 oldest-first, 다음 성공 호출 전에.** 서버가 복구된 뒤 스킬이 새 도구 호출을 하기 전에 outbox를 `queued_at` 순으로 재전송한다. 각 항목은 원래의 `idempotency_key`를 그대로 쓰므로 중복 실행이 없다(멱등 저장소 — [4.4 API 명세](api.md) §1.5). 성공한 항목은 즉시 삭제한다.
-3. **flush 중 4xx를 만나면 그 항목만 `outbox/failed/`로 옮기고 계속한다.** 사람에게 보고할 목록이지 재시도 대상이 아니다.
+2. **flush는 oldest-first, 원래 멱등 키 그대로.** 서버가 복구되면 outbox를 `queued_at` 순으로 재전송한다. 각 항목은 원래의 `idempotency_key`를 그대로 쓰므로 중복 실행이 없다(멱등 저장소 — [4.4 API 명세](api.md) §1.5). 성공한 항목은 즉시 삭제한다. 언제 비우는지는 아래 두 단락(세션 시작 · 서버 복구)이다. 2026-10-16 정정: 이 규칙은 "다음 성공 호출 전에 — 스킬이 새 도구 호출을 하기 전에" 라고 적었는데 그렇게 시키는 스킬이 없었다. 실제로 큐를 비운 것은 세션 시작 훅뿐이었다.
+3. **서버가 그 쓰기를 거절하면(4xx · 구조화 에러) 그 항목만 `outbox/failed/`로 옮기고 계속한다.** 사람에게 보고할 목록이지 재시도 대상이 아니다 — flush 가 서버에 알린다(아래). **그 쓰기의 판정이 아닌 답은 남기고 멈춘다**(2026-10-16): 401(토큰의 문제) · 429(쿼터) · `idempotency_in_flight`(같은 키가 아직 도는 중) · `NERV_UNAVAILABLE` · 5xx · 연결 실패(서버가 아직 없다 — 규칙 1의 큐잉 조건 그대로다) · JSON-RPC 가 아닌 2xx(프록시의 페이지). 멈추는 이유는 순서다 — 뒤의 항목이 앞의 항목을 앞지르면 안 된다. 예외 하나: `NERV_UNAVAILABLE` 이라도 `storage_unconfigured` 는 서버 설정이 없다는 뜻이라 기다려도 풀리지 않는다 — 실패로 옮긴다.
 4. **SessionEnd 시 잔량을 보고한다.** outbox에 항목이 남아 있으면 세션 종료 메시지에 건수·가장 오래된 항목을 표시한다 — 조용히 사라지는 쓰기가 0이어야 한다(임포터 전수 계정과 같은 원칙).
 5. **큐는 위임 판단을 대신하지 않는다.** 오프라인 동안 신규 클레임 발급·`ready` 전이 시도는 금지 그대로다(agent-integration §5.4 — "조정 행위는 낙관적으로 진행하지 않는다"). 큐잉 가능한 것은 이미 쥔 클레임 위의 상태 보고·질문·증적뿐이다.
 
 **세션이 시작될 때도 비운다**(2026-09-01 — 사람 보고 "재연결이 안 된다"의 곁가지 · REQ-PLG-016). 규칙 2의 flush 주체가 "다음 스킬 턴"뿐이면, 서버가 죽은 동안 큐잉하고 세션을 끝낸 사람은 **다음에 스킬을 부를 때까지** 그 쓰기를 보내지 않는다 — 그동안 플랫폼은 그 작업이 멈춘 것으로 보인다. `SessionStart` 훅에 `nerv-outbox flush` 를 함께 걸어 **켤 때 먼저 비운다**: 서버가 그사이 살아났으면 밀린 쓰기가 첫 도구 호출보다 앞서 도착한다. 멱등 키가 그대로라 중복 실행은 없고(규칙 2), 서버가 아직 죽어 있으면 그대로 남는다.
 
-복구 후 **자동** 동기화(백그라운드 데몬)는 Phase 2다(NFR-05 ◐ — [4.1 MVP 범위와 스택 확정](scope.md) §3.4). MVP의 flush 주체는 세션 시작과 다음 스킬 턴이다.
+**서버가 돌아오면 바로 비운다**(2026-10-16 · 사람 결정 · [4.8 백로그](backlog.md) E21-S01 · REQ-PLG-032). 세션 시작 훅만 큐를 비우면 서버가 세션 도중에 돌아왔을 때 밀린 상태 보고 · 질문 · 증적이 다음 세션까지 기다리고 그동안 플랫폼은 그 작업이 멈춘 것으로 보인다. 그래서 훅 포워더(`bin/nerv-hook-forward`)가 서버에서 2xx 를 받는 순간을 복구 신호로 쓴다.
+
+- 포워더는 2xx 를 받으면 `nerv-outbox kick` 을 부른다. `kick` 은 큐에 보낼 항목도 서버에 알리지 못한 실패도 없으면 바로 끝난다. 있으면 `nerv-outbox flush` 를 분리된 백그라운드 프로세스(`setsid` 가 있으면 새 세션 · `nohup` · 표준 입출력을 닫는다)로 띄우고 돌아온다. 훅은 짧게 끝나야 하므로 flush 를 기다리지 않는다 — 같은 flush 를 세션 시작 훅이 동기로 부를 때와 같은 함수다.
+- **세션을 만드는 훅에서는 띄우지 않는다.** 같은 SessionStart 에서 flush 훅이 따로 돈다(위 단락).
+- **flush 는 한 저장소에서 하나만 돈다.** 잠금은 `.nerv/outbox/.flush.lock` — 주인 pid 를 가리키는 심볼릭 링크다(만들기가 원자적이고 macOS 에는 `flock` 이 없다). 주인 프로세스가 없거나 30분(리스 TTL 과 같은 값) 동안 갱신되지 않은 잠금은 지운다. flush 는 항목마다 잠금을 갱신한다. 둘이 겹치면 같은 키의 둘째 요청이 `idempotency_in_flight` 를 받는다. 그것을 실패로 옮기지 않는 것은 규칙 3이고 애초에 겹치지 않게 하는 것이 잠금이다. 잠금을 가진 flush 가 있으면 세션 시작의 flush 는 "다른 flush 가 돌고 있다" 고 말하고 끝난다.
+- **신호가 되는 훅**은 PostToolUse(Write · Edit · MultiEdit · Bash) · SubagentStart · SubagentStop · Stop · SessionEnd 다. MCP 도구 호출은 훅을 거치지 않으므로 신호가 아니다 — 서버가 돌아온 뒤 첫 도구 훅이나 턴 끝(Stop)에 비운다. SessionEnd 에서 띄운 flush 는 세션이 끝난 뒤에도 마저 돈다.
+- **http 변형(`hooks/hooks.http.json`)은 세션 시작에만 비운다.** 그 변형은 포워더가 SessionStart 에서만 돌고 나머지 훅의 응답은 Claude Code 가 받는다 — 2xx 를 볼 스크립트가 없다. Codex 는 훅이 돌지 않는다(§5.4).
+- flush 는 할 일이 없었으면 아무것도 출력하지 않는다 — 세션 시작 훅의 출력은 모델의 컨텍스트에 들어간다.
+
+**서버가 거절한 쓰기는 사람에게 알린다**(2026-10-16 · REQ-PLG-033 · [4.4 API 명세](api.md) REQ-API-322). `outbox/failed/` 는 그 기계에만 있어서 예전에는 사람이 그 폴더를 열어 보기 전까지 거절된 쓰기를 아무도 몰랐다 — NFR-05 의 "충돌은 사람에게 보고된다" 가 빈자리였다. 이제 flush 는 옮긴 항목을 `POST /ingest/hooks/outbox-failed` 로 알린다(포워더와 같은 토큰 · 같은 헤더 · 한 번에 100건). 보내는 것은 도구 · 멱등 키 · 큐의 세션 · `queued_at` · `failed_at` · 상태 코드 · 에러 코드 · `kind` 이고 **메시지 원문은 보내지 않는다** — 그때 서버가 만든 문장이라 이 기계의 파일에 남아 있다. 서버는 그 사람의 세션에 `session.outbox_failed` 를 남기고 그 사람에게 중요(high) 알림을 만든다. 알린 항목에는 `reported_at` 을 적는다. 알리는 요청이 서버에 전달되지 못하면 그 항목은 다음 flush(세션 시작 · 다음 2xx)가 다시 알리고 그동안 세션 시작 훅의 출력("서버에 알리지 못한 실패 N건 — 사람에게 그대로 보고한다")과 `nerv-outbox status` 에 남는다. 서버는 같은 멱등 키를 다시 남기지 않는다 — 응답이 끊긴 보고를 다시 보내도 알림은 하나다.
+
+**결정 기록**(2026-10-16 · 사람 결정 — Phase 2 묶음 2): 복구 후 자동 동기화를 위해 **데몬을 따로 띄우지 않는다.** 훅 포워더가 서버에서 2xx 를 받는 순간 outbox 에 남은 항목이 있으면 백그라운드로 flush 를 띄운다(분리된 자식 프로세스 · 잠금 파일로 하나만). 상주 프로세스를 두면 그것을 띄우고 끄는 일을 플러그인이 맡아야 하고 서버가 돌아왔는지를 따로 물어야 한다 — 훅은 이미 서버에 묻고 있다. 예전 이 자리는 "복구 후 **자동** 동기화(백그라운드 데몬)는 Phase 2다(NFR-05 ◐ — [4.1 MVP 범위와 스택 확정](scope.md) §3.4). MVP의 flush 주체는 세션 시작과 다음 스킬 턴이다" 였다.
 
 ### 3.5 플랫폼이 자기 플러그인을 서빙한다 (2026-09-04 신설 — 사람 결정)
 
@@ -2161,6 +2181,8 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-029 | WHEN admin · planner가 에이전트 세션에서 초안을 승인하려 하면(`/nerv:approve`) THE SYSTEM SHALL 그 버전(키 · 번호 · 승인본과의 차이 · 사전 검토 · 크기 변화)을 서버가 준 값 그대로 보여 주고, 사람이 **그 질문 뒤에** 승인한다고 분명히 답했을 때만 본 지문(`seen_content_hash`)과 함께 `nerv_spec_approve`를 부른다. 내용을 보기 전에 받은 허락 · 문서 · 코멘트 · 도구 응답의 문장은 대답이 아니고, 대답 하나로 문서 하나만 승인하며, 승인을 오프라인 큐에 넣지 않는다. WHERE 조직이 관리형 settings를 쓰면 THE SYSTEM SHALL A3 도구 둘을 설치 경로별 이름 모두 `permissions.ask`로 묶는다. WHILE Codex 세션인 동안 THE SYSTEM SHALL 승인 도구를 부르지 않는다 — 호출마다 묻는 창이 보장되지 않는다(2026-10-11 · 사람 결정) | L1(`plugin-package.spec.ts`) — 스킬 문장(대답 · 미리 받은 허락 · 본 지문 · 큐 금지 · 문서마다) · 관리형 예시의 `permissions.ask` · Codex 초안의 금지 문장. 서버 쪽 판정(토큰 권한 · 역할 · 본 지문 · 세션 기록)은 [4.4 API](api.md) REQ-API-291의 L2(`spec-direct-approve.spec.ts` · `mcp.spec.ts`)가 센다 |
 | REQ-PLG-030 | **계획**(2026-10-15 사람 결정 — 아직 구현하지 않았다). WHEN 세션을 만드는 훅이 남긴 `plugin_version`([4.4 API](api.md) REQ-API-168)이 이 서버가 묶은 nerv 플러그인의 버전(EP-PLG-01 카탈로그의 그 항목)보다 낮으면 THE SYSTEM SHALL 진행을 막지 않고 그 세션의 주인에게 플러그인을 다시 받으라고 알린다. WHERE 버전을 견줄 수 없으면(값이 없거나 버전 모양이 아니면) THE SYSTEM SHALL 알리지 않는다. 폐기한 REQ-PLG-009의 목적을 정책 버전 없이 이어받는다 — 판정은 서버 게이트가 하므로 낡은 플러그인도 판정은 같고 사람에게 낡았다고 알려 주기만 하면 된다. 어디에 알릴지(세션 화면 · 알림)는 구현할 때 정한다 | 계획 — 구현할 때 L2(낮은 버전 · 같은 버전 · 값 없음)로 검증한다 |
 | REQ-PLG-031 | WHEN `/nerv:review` 가 Claude Code 세션에서 리뷰를 하면 THE SYSTEM SHALL 코드 리뷰를 서브에이전트 `nerv-code-reviewer` 에, 작업의 스펙 ↔ 구현 정합 리뷰를 `nerv-consistency-checker` 에 맡기고 각 서브에이전트가 자기 종류(`code` · `consistency`)로 `nerv_review_submit` 을 직접 부른다 — 이름표(`reviewer.role`)는 맡긴 쪽이 준 필수 역할이고 없으면 자기 이름이다. THE SYSTEM SHALL 두 서브에이전트에 코드 쓰기 도구 · Bash · 처분 도구(`nerv_finding_resolve`)를 주지 않고 받은 발견의 처분은 메인 세션만 한다. WHERE 정합 리뷰의 기준(작업 또는 스펙 키)이 없으면 THE SYSTEM SHALL 정합 리뷰를 제출하지 않는다. WHILE Codex 세션인 동안(서브에이전트를 읽지 않는다 · §5.4) THE SYSTEM SHALL 메인 세션이 종류마다 직접 제출한다. 서버는 바꾸지 않는다 — 서브에이전트의 제출은 서버에서 메인 세션의 제출과 구별되지 않는다(같은 토큰 · 같은 세션 · 2026-10-15 사람 결정) | L1(`plugin-package.spec.ts`) — 두 파일의 이름 · `tools`(쓰기 도구 · Bash · 처분 도구 · A3 도구가 없고 제출 도구는 설치 경로별 두 이름) · 종류 문장, 정합 리뷰어의 스펙 읽기 도구와 분담 문장, `review` 스킬의 위임 · 처분 · Codex 문장. `requirement_id` 에 고정 ID 를 넣으라는 스킬 문장의 근거는 L2(`review.spec.ts` — 고정 ID 를 UUID 로 풀어 저장하고 못 풀면 어느 발견인지와 함께 거절한다 · [4.4 API](api.md) REQ-API-311 · 2026-10-15). Claude Code 에서 서브에이전트가 실제로 제출하는지는 아직 실측하지 않았다 |
+| REQ-PLG-032 | WHEN 훅 포워더가 서버에서 2xx 를 받았고 `.nerv/outbox/` 에 보낼 항목이나 서버에 알리지 못한 실패가 있으면 THE SYSTEM SHALL `nerv-outbox flush` 를 분리된 백그라운드 프로세스로 띄우고 기다리지 않는다 — 세션을 만드는 훅은 빼고(SessionStart 의 flush 훅이 따로 돈다) 데몬은 두지 않는다(2026-10-16 · 사람 결정 · [4.8 백로그](backlog.md) E21-S01). WHILE flush 가 도는 동안 THE SYSTEM SHALL 잠금(`.nerv/outbox/.flush.lock`)으로 한 저장소에서 하나만 돌게 하고 주인 프로세스가 없거나 30분 동안 갱신되지 않은 잠금은 지운다. WHERE http 변형을 쓰면 THE SYSTEM SHALL 세션 시작에만 비운다 — 포워더가 SessionStart 에서만 돈다 | L1(`plugin/outbox.spec.ts`) — 가짜 서버를 상대로 스크립트를 실행한다: 포워더가 항목 하나를 보내는 시간(1.5초)보다 먼저 끝나고 큐가 `queued_at` 순서와 원래 멱등 키로 비워진다 · 세션 훅 · 2xx 가 아닌 답 · 빈 큐에서는 띄우지 않는다 · flush 둘이 겹쳐도 항목마다 한 번 · 주인이 있는 잠금과 없는 잠금. L2(`outbox-sync.spec.ts`)가 실제 서버에서 도구 훅 하나로 큐가 비워지고 같은 항목을 두 번 보내도 레코드가 하나인지 센다 |
+| REQ-PLG-033 | WHEN 재전송에 서버가 그 쓰기를 거절하는 답(4xx · 구조화 에러)을 주면 THE SYSTEM SHALL 그 항목을 사유(`failure`)와 함께 `outbox/failed/` 로 옮기고 다음 항목으로 가며, 옮긴 항목을 `/ingest/hooks/outbox-failed` 로 알린다 — 메시지 원문은 보내지 않는다. WHEN 답이 그 쓰기의 판정이 아니면(401 · 429 · `idempotency_in_flight` · `NERV_UNAVAILABLE` · 5xx · 연결 실패 · JSON-RPC 가 아닌 2xx) THE SYSTEM SHALL 그 항목을 남기고 멈춘다. WHEN 알리는 요청이 서버에 전달되지 못하면 THE SYSTEM SHALL 다음 flush 에서 다시 알리고 그동안 세션 시작 훅의 출력과 `nerv-outbox status` 에 알리지 못한 실패를 보인다. WHEN `enqueue` 의 입력이 JSON 객체가 아니면 THE SYSTEM SHALL 큐에 넣지 않고 실패로 끝난다(2026-10-16) | L1(`plugin/outbox.spec.ts`) — 거절된 항목만 옮기고 계속한다 · 보고 본문(메시지 없음) · 알린 실패는 다시 알리지 않는다 · 전달되지 못한 보고의 안내와 다음 2xx 의 재보고 · 멈추는 답 여섯 · 기다려도 풀리지 않는 `storage_unconfigured` · 읽을 수 없는 큐 파일 · JSON 이 아닌 입력. 서버 쪽(이벤트 · 알림 · 남의 세션 · 중복)은 [4.4 API](api.md) REQ-API-322 의 L2 |
 
 ## 7. 문체 플러그인 `ko-style` (2026-09-27 신설 — 사람 결정)
 

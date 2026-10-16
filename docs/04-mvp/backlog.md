@@ -24,7 +24,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.99 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v3.00 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v3.00 변경(2026-10-16 — 복구 뒤 자동 동기화, Phase 2 묶음 2의 둘째 · **사람 결정**): **E21-S01 `done` · §1.4 E21 행과 합계 · §1.1 · §6.8 첫 단락.** 데몬을 따로 띄우지 않는다. 훅 포워더가 서버에서 2xx 를 받으면 오프라인 큐를 분리된 백그라운드 flush 로 비우고(잠금으로 하나만), 서버가 거절한 쓰기는 `outbox/failed/` 로 옮겨 서버에 알린다 — 그 사람에게 중요 알림이 간다([4.6 플러그인](plugin.md) REQ-PLG-032 · 033 · [4.4 API](api.md) REQ-API-322). §6.8 의 "스킬 턴의 flush" 는 그렇게 시키는 스킬이 없어 실제로 없었다 — 정정했다. 합계는 `done` 83 · 부분 3 · `backlog` 15 다.
 >
 > v2.99 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째): **E21-S02 부분 · §1.4 E21 행과 합계 · 부분 구현 표 한 줄 · 셋째 표의 미러 줄 · §1.1 · §6.8 첫 단락.** 미러 폴더가 git 저장소가 되어 export 잡이 바뀐 파일을 커밋하고 원격이 있으면 fast-forward 로만 push 한다. 원격에 NERV 가 만들지 않은 커밋이 있으면 멈추고 `mirror.diverged` 로 admin 에게 알린다([4.2 코드베이스](codebase.md) REQ-CB-062 · 063). 남은 것은 설계 트리의 `tasks/` · `reviews/` 와 승인 직후 push 다. 합계는 `done` 82 · 부분 3 · `backlog` 16 이다.
 >
@@ -619,7 +621,7 @@ referenced_by:
 ### 1.1 ID·상태·표기 규약
 
 - **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-16 현재 `done` 82 · 부분 3 · `backlog` 16(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-16 현재 `done` 83 · 부분 3 · `backlog` 15(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -662,9 +664,9 @@ referenced_by:
 | E18 fail-open · 보존 | 2 | 1 | — | `routes/settings/gates.tsx`(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · `task/failopen.ts` · `task/failopen.service.ts`(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · `worker/jobs/failopen.job.ts` · `components/failopen-banner.tsx`(S5 · S6 배너) · `test/integration/failopen-escalation.spec.ts` · `worker/jobs/retention.job.ts`(E18-S03 부분 — 알림 180일 · 빈 `activity` 월 파티션 드랍 · `test/integration/retention-cleanup.spec.ts`) — S03 의 남은 셋은 아래 부분 구현 표 |
 | E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
 | E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |
-| E21 이관 · 운영 | — | 1 | 3 | `worker/jobs/export.job.ts` · `worker/mirror-git.ts`(E21-S02 부분 — 미러 폴더를 git 저장소로 두고 커밋 · fast-forward push · 미러 쪽 편집 경고 `mirror.diverged`) · `test/integration/mirror-git.spec.ts` · `plugin/bin/nerv-outbox` — S02 의 남은 것은 아래 부분 구현 표, S01 · S03 · S04 는 착수 전 |
+| E21 이관 · 운영 | 1 | 1 | 2 | `plugin/bin/nerv-outbox` · `plugin/bin/nerv-hook-forward`(E21-S01 — 포워더가 서버에서 2xx 를 받으면 큐를 백그라운드 flush 로 비운다 · 잠금 · 거절된 쓰기를 `outbox-failed` 로 알린다) · `session/outbox-report.service.ts`(`session.outbox_failed` · 그 사람에게 중요 알림) · `plugin/outbox.spec.ts` · `test/integration/outbox-sync.spec.ts` · `worker/jobs/export.job.ts` · `worker/mirror-git.ts`(E21-S02 부분 — 미러 폴더를 git 저장소로 두고 커밋 · fast-forward push · 미러 쪽 편집 경고 `mirror.diverged`) · `test/integration/mirror-git.spec.ts` — S02 의 남은 것은 아래 부분 구현 표, S03 · S04 는 착수 전 |
 | E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **82** | **3** | **16** | `backlog` 16은 모두 Phase 2 스토리다(§6) |
+| **합계** | **83** | **3** | **15** | `backlog` 15는 모두 Phase 2 스토리다(§6) |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -1374,7 +1376,7 @@ FR-15 ◐ → ●. 성공 기준 2-9의 대상이다. [4.6 플러그인](plugin.
 
 ### 6.8 E21 — 이관 · 운영 (FR-17 · NFR-04 · NFR-05)
 
-clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 폴백. 성공 기준 2-1 · 2-5 · 2-7의 대상이다. **이미 있는 것**: 오프라인 outbox와 세션 시작 · 스킬 턴의 flush(E12-S06) · md 미러 잡(`worker/jobs/export.job.ts`) · review 임포터. 2026-10-16 에 S02 의 첫 조각이 들어왔다 — 미러 폴더가 git 저장소가 되어 바뀌면 커밋하고 원격이 있으면 fast-forward 로만 push 하며, 미러 쪽 편집은 받아들이지 않고 admin 에게 경고한다([4.2 코드베이스](codebase.md) §6.2a · REQ-CB-062 · 063).
+clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 폴백. 성공 기준 2-1 · 2-5 · 2-7의 대상이다. **이미 있는 것**: 오프라인 outbox와 세션 시작의 flush(E12-S06 — 예전 이 자리는 「스킬 턴의 flush」도 적었는데 그렇게 시키는 스킬이 없었다 · 2026-10-16 정정) · md 미러 잡(`worker/jobs/export.job.ts`) · review 임포터. 2026-10-16 에 S01 이 들어왔다 — 훅 포워더가 서버에서 2xx 를 받으면 큐를 백그라운드로 비우고, 서버가 거절한 쓰기는 그 사람에게 중요 알림으로 간다([4.6 플러그인](plugin.md) §3.4 · REQ-PLG-032 · 033 · [4.4 API](api.md) REQ-API-322). 2026-10-16 에 S02 의 첫 조각이 들어왔다 — 미러 폴더가 git 저장소가 되어 바뀌면 커밋하고 원격이 있으면 fast-forward 로만 push 하며, 미러 쪽 편집은 받아들이지 않고 admin 에게 경고한다([4.2 코드베이스](codebase.md) §6.2a · REQ-CB-062 · 063).
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |

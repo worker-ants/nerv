@@ -1,4 +1,4 @@
-// 훅 수집기 — POST /ingest/hooks/{session,tool,subagent,stop,session-end}
+// 훅 수집기 — POST /ingest/hooks/{session,tool,subagent,stop,session-end} + 오프라인 큐 실패 보고 outbox-failed
 // 정본: agent-integration.md §3.3 · api.md §2.9
 //
 // **훅은 텔레메트리 평면이다.** 끊겨도 세션은 진행되고 게이트는 서버가 유지한다 — 그래서
@@ -14,6 +14,7 @@ import { msg, NERV_ERROR, prepareHookPayload, redact, text } from '@nerv/schema'
 import { outcomeOf, summarize } from './hook-summary.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
+import { OutboxReportService } from './outbox-report.service.js';
 import { SessionService } from './session.service.js';
 import type { Principal } from '../auth/auth.service.js';
 
@@ -43,6 +44,7 @@ export class IngestController {
   constructor(
     private readonly sessions: SessionService,
     private readonly auth: AuthService,
+    private readonly outbox: OutboxReportService,
   ) {}
 
   /**
@@ -247,6 +249,25 @@ export class IngestController {
       userId: principal.userId,
     });
     return { ok: true };
+  }
+
+  /**
+   * **오프라인 큐의 재전송이 거절됐다**(2026-10-16 · E21-S01 · NFR-05 · api.md REQ-API-322). 훅이 아니라 플러그인의
+   * `nerv-outbox flush` 가 `outbox/failed/` 로 옮긴 항목을 알린다. 그 사람에게 중요 알림이 가야 해서 202 로 받고
+   * 이벤트를 남긴다 — 세션을 대상으로 고르는 규칙과 중복 제거는 `OutboxReportService` 한 곳이다(D-05).
+   */
+  @Post('outbox-failed')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async outboxFailed(
+    @Req() req: HookRequest,
+    @Body() body: unknown,
+  ): Promise<{ ok: true; recorded: number; duplicates: number }> {
+    const principal = requireAgent(req);
+    return this.outbox.report({
+      projectId: principal.projectId,
+      userId: principal.userId,
+      body,
+    });
   }
 
   /**

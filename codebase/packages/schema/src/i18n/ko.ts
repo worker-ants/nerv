@@ -1065,6 +1065,7 @@ export const ko = {
   'event.question.cancelled': '질문 취소됨',
   'event.question.created': '에이전트 질문',
   'event.session.complete': '세션 종료',
+  'event.session.outbox_failed': '오프라인 큐 재전송 거절(서버에 들어가지 않은 쓰기)',
   'event.session.stale': '세션 무응답 — 클레임 회수됨',
   'event.session.started': '세션 시작',
   'event.session.steered': '세션에 지시 전달',

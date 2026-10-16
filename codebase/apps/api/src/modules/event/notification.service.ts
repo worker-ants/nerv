@@ -64,6 +64,10 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   // **미러 push 멈춤**(2026-10-16 · E21-S02 · codebase.md REQ-CB-063) — 미러 원격에 NERV 가 만들지 않은 커밋이 있다. admin 이 원격을
   // 고쳐야 push 가 다시 돈다. 그동안 미러는 낡지만 누군가의 세션이 멈추지는 않아 격상과 같은 high 다
   [NERV_EVENT_PHASE2.MIRROR_DIVERGED]: 'high',
+  // **오프라인 큐 재전송 거절**(2026-10-16 · E21-S01 · NFR-05 · REQ-API-322) — 그 사람의 상태 보고 · 질문 · 증적이 서버에
+  // 들어가지 않았다. 내 작업에 직접 영향이 있고 오늘 봐야 하는 일이라 중요다. 누군가의 결정을 기다리며 멈춘 세션은 없어
+  // critical 은 아니다. 보고는 flush 한 번에 한 이벤트라 묶지 않는다(중요 등급은 묶지 않는다)
+  [NERV_EVENT_PHASE2.SESSION_OUTBOX_FAILED]: 'high',
   // **지연 결재**(2026-10-15 · 사람 결정 · REQ-API-305) — 결정할 수 있는데 요청 알림을 받지 못한 사람(직군 자리 결재의
   // admin)에게 가는 첫 알림이다. 그 사람에게는 오늘 볼 일이라 중요다. 기본 큐 결재는 받는 사람이 없다(아래 라우팅)
   [NERV_EVENT.APPROVAL_OVERDUE]: 'high',
@@ -456,6 +460,11 @@ export class NotificationService {
     if (event.type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED) return this.adminTargets(event);
     // 미러 원격을 고칠 사람도 admin 이다(REQ-CB-063)
     if (event.type === NERV_EVENT_PHASE2.MIRROR_DIVERGED) return this.adminTargets(event);
+    // **오프라인 큐의 실패는 보고한 사람에게 간다**(2026-10-16 · REQ-API-322). 행위자 제외 규칙의 예외다 — 행위자는 그 사람의
+    // 플러그인이고, 알릴 사람은 그 쓰기가 들어가지 않은 줄 모르는 그 사람이다. 지금 멤버가 아니면 목록이 거른다(REQ-API-211)
+    if (event.type === NERV_EVENT_PHASE2.SESSION_OUTBOX_FAILED) {
+      return event.actor_user_id === null ? [] : [event.actor_user_id];
+    }
     if (event.type === NERV_EVENT.APPROVAL_EXPIRED) {
       // **요청자에게 알린다**(2026-10-15 · REQ-API-304) — 다시 낼지 정할 사람이다. 행위자(없다)가 아니라 payload 가 든다
       const requester = event.payload?.['requested_by_user_id'];

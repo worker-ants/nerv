@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.42 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.43 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.43 변경(2026-10-16 — 복구 뒤 자동 동기화의 실패 보고, Phase 2 묶음 2의 둘째 · [4.8 백로그](backlog.md) E21-S01): **§1.4 표 한 줄.** ★`session.outbox_failed` 는 프로젝트 활동 피드만 되읽는다. 보고한 사람의 종은 개인 룸의 `notification.created` 가 되읽는다([4.4 API](api.md) REQ-API-322).
 >
 > v2.42 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째 · [4.8 백로그](backlog.md) E21-S02): **§1.4 표 한 줄.** ★`mirror.diverged` 는 프로젝트 활동 피드만 되읽는다. admin 의 종은 개인 룸의 `notification.created` 가 되읽는다([4.2 코드베이스](codebase.md) REQ-CB-063).
 >
@@ -675,6 +677,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` · ★`gate.failopen_escalated` · ★`gate.failopen_cleared` | `['project', projId, 'events']` + 프로젝트 조회(머리 — S5 · S6 의 격상 배너 · 2026-10-15 · REQ-WEB-319). `gate.bypassed` 는 머리를 다시 읽지 않는다 | `project:{id}`(bypassed는 admin `user:{id}`에도 · 격상은 admin 에게 `notification.created`) |
+| ★`session.outbox_failed` | `['project', projId, 'events']` — 화면은 활동 피드뿐이다. 보고한 사람의 종은 개인 룸의 `notification.created` 가 되읽는다(2026-10-16 · [4.4 API](api.md) REQ-API-322) | `project:{id}` + 보고한 사람 `user:{id}` |
 | ★`mirror.diverged` | `['project', projId, 'events']` — 화면은 활동 피드뿐이다. 받는 admin 의 종은 개인 룸의 `notification.created` 가 되읽는다(2026-10-16 · [4.2 코드베이스](codebase.md) REQ-CB-063) | `project:{id}` + admin `user:{id}` |
 | ★`spec.meta_updated` ★`spec.archived` ★`spec.restored` | 스펙 축과 같다 — `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']` | `project:{id}` |
 | ★`spec.attachment_added` ★`spec.attachment_removed` | `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']`(트리와 표 둘 다 첨부 수를 보인다 — 2026-10-04 · REQ-WEB-289) | `project:{id}` |

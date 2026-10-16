@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.18 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.19 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.19 변경(2026-10-16 — 복구 뒤 자동 동기화의 실패 보고, Phase 2 묶음 2의 둘째 · [4.8 백로그](backlog.md) E21-S01): **§2.2 트리 두 줄.** `session/outbox-report.service.ts` — 오프라인 큐의 실패 보고(`POST /ingest/hooks/outbox-failed`)를 받아 `session.outbox_failed` 를 남긴다([4.4 API](api.md) REQ-API-322).
 >
 > v2.18 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째 · [4.8 백로그](backlog.md) E21-S02): **REQ-CB-062 · 063 신설 · §6.2a 신설 · §5.2 전표 세 줄 · §3.2 상수 둘 · §6.1 워커 이미지에 git · §6.2 Secret 키 여덟 → 아홉 · §6.5 미러 행 · §2.2 트리.** 미러 폴더(`NERV_EXPORT_DIR`)를 git 저장소로 두고 export 잡이 바뀐 파일을 커밋한다. `manifest.json` · `requirements.tsv` 를 더했다. 원격(`NERV_MIRROR_GIT_REMOTE` — 자격증명이 들어갈 수 있어 Secret)이 있으면 fast-forward 로만 push 하고 원격에 NERV 가 만들지 않은 커밋이 있으면 멈춘 채 `mirror.diverged` 로 admin 에게 알린다([3.7 로드맵](../03-proposal/roadmap.md) §7.4 규칙 1의 실물).
 >
@@ -584,7 +586,8 @@ apps/api/src/
     session/
       activity.service.ts    # Activity 적재
       hook-summary.ts        # 훅 페이로드 → 한 줄 요약 (REQ-API-065)
-      ingest.controller.ts   # POST /ingest/hooks/{session,tool,subagent,stop,session-end}
+      ingest.controller.ts   # POST /ingest/hooks/{session,tool,subagent,stop,session-end} + outbox-failed
+      outbox-report.service.ts # 오프라인 큐 실패 보고 → session.outbox_failed (REQ-API-322)
       session.controller.ts  # REST — 보드 · 상세 · activity
       session.module.ts
       session.service.ts     # AgentSession 수명주기 (pending→active→…)
