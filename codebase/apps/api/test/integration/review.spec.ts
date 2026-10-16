@@ -1911,16 +1911,48 @@ describe('리뷰 프롬프트 원문의 만료는 보존 정책을 따른다 (RE
     expect(await blobOf(id)).toBeNull();
   });
 
-  it('정책을 늘리면 그 뒤에 받은 원문부터 길게 남는다 — 이미 받은 원문은 받을 때 정한 만료를 따른다', async () => {
+  // 정책은 서비스(EP-PRJ-04)로 저장해야 남아 있는 원문의 만료를 다시 적는다 — 위의 `retain` 은 표만 고친다
+  const saveRetention = (ttl: number): Promise<unknown> =>
+    app.get(AuthService).updateProject({
+      projectId,
+      roles: ['admin'],
+      actor: { userId, isAgent: false },
+      retention: { prompt_blob_ttl_days: ttl },
+    });
+
+  it('정책을 늘려 저장하면 이미 받은 원문도 새 기간까지 남는다 — 남아 있는 원문의 만료를 다시 적는다', async () => {
     await retain(null);
     const before = await submitWithPrompt('ac30001');
-    await retain(60);
+    await saveRetention(60);
     const after = await submitWithPrompt('ac60003');
     await age(before, 31);
     await age(after, 31);
     await sweep();
-    expect(await blobOf(before)).toBeNull();
+    expect(await blobOf(before)).not.toBeNull();
     expect(await blobOf(after)).not.toBeNull();
+    await age(before, 30);
+    await sweep();
+    expect(await blobOf(before)).toBeNull();
+  });
+
+  it('정책을 줄여 저장하면 남아 있는 원문의 만료도 앞당기고, 이미 지운 원문은 되살리지 않는다', async () => {
+    await retain(null);
+    const gone = await submitWithPrompt('ac30002');
+    await age(gone, 31);
+    await sweep();
+    expect(await blobOf(gone)).toBeNull();
+    const kept = await submitWithPrompt('ac30003');
+    await saveRetention(7);
+    const { rows } = await pool.query<{ id: string; days: number | null }>(
+      `SELECT id, round(extract(epoch FROM prompt_expires_at - created_at) / 86400)::int AS days
+         FROM review_session WHERE id = ANY($1::uuid[])`,
+      [[gone, kept]],
+    );
+    expect(rows.find((r) => r.id === kept)?.days).toBe(7);
+    // 지운 원문의 행은 만료도 그대로다 — 다시 적을 원문이 없다
+    expect(rows.find((r) => r.id === gone)?.days).toBe(30);
+    await saveRetention(60);
+    expect(await blobOf(gone)).toBeNull();
   });
 
   it('원문 위치가 없으면 만료도 적지 않는다', async () => {

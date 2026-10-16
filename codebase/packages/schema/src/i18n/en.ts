@@ -2079,7 +2079,7 @@ export const en = {
   'settings.gates.retention_activity': 'Raw activity (days)',
   'settings.gates.retention_blob': 'Review prompt text (days)',
   'settings.gates.retention_hint':
-    'After its period, raw session activity is deleted and only per-tool counts stay on the session. Review prompt text gets its expiry from this period when the review comes in, so a longer period applies to reviews that come in after you save. A shorter period also applies to text already stored, and older text is deleted at the next retention run. Conclusions (summaries · findings · resolutions) are never deleted.',
+    'After its period, raw session activity is deleted and only per-tool counts stay on the session. Review prompt text follows this period too. Saving applies the new period to text already stored: a longer period keeps it longer, and a shorter one deletes older text at the next retention run. Text that was already deleted does not come back. Conclusions (summaries · findings · resolutions) are never deleted.',
   'settings.gates.retention_invalid': 'Retention periods must be whole numbers of days, 1 or more.',
   'settings.gates.change_retention_activity': 'Raw activity retention {from} → {to} days',
   'settings.gates.change_retention_blob': 'Review prompt text retention {from} → {to} days',

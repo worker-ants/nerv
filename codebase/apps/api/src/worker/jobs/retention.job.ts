@@ -146,8 +146,8 @@ export class RetentionJob {
       //
       // **행의 만료는 받을 때의 정책이다**(2026-10-15 · 사람 결정). 예전에는 리뷰를 받을 때 상수
       // 30일을 적어서, 정책을 30일보다 늘려도 이 줄이 30일에 지웠다 — 늘리는 정책은 효과가 없었다.
-      // 이제 review.service 가 그 프로젝트의 정책으로 적으므로, 늘린 정책은 그 뒤에 받은 원문부터
-      // 길게 남고 줄인 정책은 위의 `created_at` 쪽이 이미 받은 원문에도 적용한다.
+      // 이제 review.service 가 그 프로젝트의 정책으로 적고, 정책을 바꾸면 EP-PRJ-04 가 남아 있는 원문의 만료를 새
+      // 정책으로 다시 적는다(2026-10-16 · 사람 결정) — 늘린 정책도 줄인 정책도 이미 받은 원문에 적용된다.
       const { rows: expired } = await this.db.execute<{ id: string }>(sql`
         UPDATE review_session
            SET prompt_blob_uri = NULL

@@ -23,8 +23,10 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.96 · 2026-10-15 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.97 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
 >
+> v2.97 변경(2026-10-16 — 보존 기간을 저장하면 남아 있는 원문의 만료도 다시 적는다, **사람 결정**): §1.4 셋째 표의 보존 집행 줄 한 구절. 스토리 없는 구현이다 — 스토리 수 · `done` 수는 그대로다.
+
 > v2.96 변경(2026-10-15 — 리뷰 프롬프트 원문의 만료가 보존 정책을 따른다, **사람 결정**): **§1.4 셋째 표 한 줄.** 스토리가 없는 보존 집행 줄에 리뷰 프롬프트 원문의 만료를 더했다 — 받을 때 그 프로젝트의 정책 `prompt_blob_ttl_days` 로 적는다([4.2 코드베이스](codebase.md) REQ-CB-032). E18-S01 이 만든 편집 폼의 보존 기간이 늘리는 쪽으로도 효과를 낸다. 합계는 그대로다.
 >
 > v2.95 변경(2026-10-15 — 커밋 SHA가 아닌 `head_sha`는 받지 않는다, **사람 결정**): **§1.4 E16 행.** E16-S01이 커밋 SHA가 아닌 라운드를 fail-open으로 넘기던 것을 다시 리뷰가 필요한 것으로 막고, 리뷰 제출과 임포트가 `head_sha` · `base_sha`를 커밋 SHA로만 받는다([4.4 API](api.md) REQ-API-314 · 321). E16-S01의 수용 기준(최신 커밋의 라운드가 없으면 막는다 · 커밋을 모르면 fail-open)은 그대로이고 구현이 그 문장에 맞춰졌다. 합계는 그대로다.
@@ -697,7 +699,7 @@ referenced_by:
 | 커서가 정렬 키와 같아진다 | `common/cursor.ts`(`cursorTimestamp`·`cursorId`) · `event.service.ts` · `notification.service.ts` · `session.service.ts` · `test/integration/cursor-seek.spec.ts` | 같은 시각의 행이 쪽 경계에서 사라지고 세션은 겹쳤다 — 웹의 "최근 활동" 회귀도 함께(2026-09-07 · [4.4](api.md) REQ-API-124) |
 | 조직 경계 — 알림 수신자·소규모 완화 count | `notification.service.ts`(`approvalTargets`·`roleQueue`) · `approval.service.ts`(`canApproveSql`·`assertSelfApprovalAllowed`) | `project_id IS NULL` 을 조직 없이 세던 자리 셋 — 다른 조직으로 알림이 샜다(2026-09-07 · [4.4](api.md) REQ-API-125) |
 | 질의 어휘를 접지 않는다 | `common/query-vocab.ts` 를 쓰는 다섯 표면 · `event.service.ts`(`type`) · `enums.ts`(파생 어휘 둘) | `?status=cancelled` 가 열린 목록을 200 으로 돌려주던 자리(2026-09-07 · [4.4](api.md) REQ-API-126) |
-| 첨부 백업·보존 접기·blob 만료 | `deploy/scripts/nerv-backup.sh` · `deploy/k8s/base/backup/cronjob.yaml` · `worker/jobs/retention.job.ts` · `review/review.service.ts`(원문의 만료) | 백업이 첨부를 한 번도 담지 않았고 접기가 같은 키를 덮어썼다(2026-09-07 · [4.2](codebase.md) REQ-CB-031·032). 리뷰 프롬프트 원문의 만료는 받을 때 그 프로젝트의 보존 정책으로 적는다 — 상수 30일이라 정책을 늘려도 효과가 없었다(2026-10-15 · 사람 결정 · REQ-CB-032 개정) |
+| 첨부 백업·보존 접기·blob 만료 | `deploy/scripts/nerv-backup.sh` · `deploy/k8s/base/backup/cronjob.yaml` · `worker/jobs/retention.job.ts` · `review/review.service.ts`(원문의 만료) | 백업이 첨부를 한 번도 담지 않았고 접기가 같은 키를 덮어썼다(2026-09-07 · [4.2](codebase.md) REQ-CB-031·032). 리뷰 프롬프트 원문의 만료는 받을 때 그 프로젝트의 보존 정책으로 적고, 정책을 저장하면 남아 있는 원문의 만료를 다시 적는다 — 상수 30일이라 정책을 늘려도 효과가 없었다(2026-10-15 · 10-16 · 사람 결정 · REQ-CB-032 개정) |
 | 감사 로그 append-only 트리거 | `drizzle/0022_event_append_only.sql` · `test/integration/event-broadcast.spec.ts` | FR-16 의 불변성이 코드 규약뿐이었다(2026-09-07 · [4.3](database.md) REQ-DB-023) |
 | 회수·해제가 남기는 사실 | `claim.service.ts`(`reclaimExpired`·`releaseBySession`·`finalize`) · `session.service.ts` 세 경로 · `drizzle/0023` | 리스 만료 회수가 이벤트 0건이었고 stale 은 클레임을 건드리지 않았다(2026-09-07 · [4.4](api.md) REQ-API-127) |
 | 차단·결재가 남기는 사실 | `task.service.ts`(`claimInTx` 별도 트랜잭션 · `gate.failopen`) · `approval.service.ts` · `spec.service.ts`(`approveInTx` 액터) · `notification.service.ts`(겹침 수신자) | 카탈로그에 critical 로 올라 있는 차단 이벤트를 내는 곳이 0 이었고, 결재 결정이 `question.answered` 로 남았다(2026-09-07 · [4.4](api.md) REQ-API-128) |
