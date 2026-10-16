@@ -58,6 +58,8 @@ export class ApprovalController {
     @Query('state') state?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    // 유형(2026-10-16 · REQ-API-336) — 쉼표 목록이고 어휘 판정은 서비스가 한다
+    @Query('kind') kind?: string,
   ): Promise<unknown> {
     const { projectId, userId, actor } = human(req);
     return this.approvals.inbox({
@@ -67,6 +69,7 @@ export class ApprovalController {
       state: state ?? null,
       cursor: cursor ?? null,
       limit: limit ?? null,
+      kind: kind ?? null,
     });
   }
 
@@ -292,6 +295,8 @@ export class ApprovalInboxController {
     @Query('limit') limit?: string,
     // slug 는 조직 안에서만 유일하다 — 같은 이름이 두 조직에 있으면 이것으로 좁힌다(REQ-API-213)
     @Query('org') org?: string,
+    // 유형(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 쉼표 목록이고 어휘 판정은 서비스가 한다
+    @Query('kind') kind?: string,
   ): Promise<unknown> {
     const actor = globalActor(req);
     const userId = actor.userId;
@@ -304,6 +309,7 @@ export class ApprovalInboxController {
       org: org ?? null,
       cursor: cursor ?? null,
       limit: limit ?? null,
+      kind: kind ?? null,
     });
   }
 
@@ -387,6 +393,7 @@ export class ApprovalInboxController {
       ...(input.comment == null ? {} : { comment: input.comment }),
       ...(input.seen_content_hash == null ? {} : { seenContentHash: input.seen_content_hash }),
       ...(input.cr_actions == null ? {} : { crActions: input.cr_actions }),
+      ...(input.resolution == null ? {} : { resolution: input.resolution }),
     });
   }
 }

@@ -111,6 +111,10 @@ export const en = {
   'error.cr.reject_role': 'Only a planner or admin can reject a change request.',
   'error.cr.withdraw_not_author':
     'Only the person who opened the change request or the draft author can withdraw it.',
+  'error.cr.unchanged':
+    'The draft of {cr} is still the same as the approved version. Edit the spec, then request a review. If there is nothing to change, reject or withdraw the change request.',
+  'error.escalation.decided_by_cr':
+    'This escalation was sent to a change request. It closes when that change request is approved or rejected.',
   'error.approval.content_changed':
     'The content changed after you loaded it. Check the new version and decide again.',
   'error.approval.not_assignee': 'You are not the designated approver.',
@@ -371,10 +375,27 @@ export const en = {
   'error.review.spec_version_required':
     'A spec_change resolution needs the spec_version_id of what you changed.',
   'error.review.spec_version_unknown': 'That spec version does not belong to this project.',
+  'error.review.escalate_with_cr':
+    'A resolution does not carry a change request. To send the finding to a change request, use Send to CR (EP-REV-09).',
+  'error.review.not_spec_drift':
+    'This finding has no spec_drift tag. Only findings that say the spec is wrong go to a change request. Fix the code or choose another resolution.',
+  'error.review.finding_in_other_cr':
+    'This finding is already linked to another change request ({change_request_key}).',
+  'error.review.to_cr_role': 'Only planners and admins can send a finding to a change request.',
+  'error.review.no_origin_spec':
+    'The finding does not say which spec is wrong. It must point to a spec version or a requirement before it can go to a change request.',
+  'error.review.no_approved_version':
+    'This spec has no approved version, so a draft of it is not a change request. Edit the draft, then resolve the finding as spec_change.',
+  'error.review.finding_other_spec':
+    'This finding points to another spec ({spec}). Link it from a draft of that spec.',
   'mcp.arg.resolution_spec_version':
     'evidence when the fix was a spec correction: the spec_version_id saved by that fix',
   'mcp.arg.escalate_reason':
     "Why this goes to a human. Required for an escalated resolution; uses the same values as a question's escalate.",
+  'mcp.arg.escalation_blocking':
+    'For an escalated resolution, whether this session waits for the human decision. Defaults to true. While waiting the session is awaiting_input, and the decision arrives in the heartbeat pending as approval_decided (subject_type: escalation)',
+  'mcp.arg.draft_finding_id':
+    'UUID of the spec_drift finding this save fixes. When the spec has an approved version, the finding is linked to that change request — it closes as fixed when the change request is approved and as dismissed when it is rejected',
   'mcp.arg.finding_status_filter':
     'Comma list (open, fixed, dismissed, wont_fix). Defaults to open',
   'mcp.arg.finding_severity_filter': 'Comma list (critical, warning, info)',
@@ -464,6 +485,14 @@ export const en = {
     'Comment on this finding. The agent that raised it receives it on its next heartbeat',
   'reviews.rail.comment_submit': 'Post',
   'reviews.promote': 'Add as task',
+  'reviews.to_cr': 'Send to CR',
+  'reviews.to_cr_hint':
+    'Opens a draft from the approved version of the source spec and links this finding to the change request. If it is approved the finding closes; if it is rejected the finding is dismissed and tasks to revert the code are created.',
+  'reviews.to_cr_no_permission': 'Only planners and admins can send a finding to a change request.',
+  'reviews.to_cr_done': 'Sent to change request {key}.',
+  'reviews.in_cr': 'Change request {key}',
+  'reviews.escalated': 'Escalated · {reason}',
+  'reviews.escalation_waiting': 'The session is waiting for a decision',
   'reviews.promoted': 'Created {key}. Fill in the delegation brief to move it to Ready.',
   'task.meta.assignee': 'Assignee {name}',
   'task.meta.runner': 'Running on {host} ▸',
@@ -982,6 +1011,20 @@ export const en = {
   'agent.cr.task.reverify_body':
     'The statement of requirement {ref} changed in {cr} — {spec} v{version}',
   'agent.cr.task.cancel_note': 'Requirement removed in {cr} — {ref}',
+  'agent.cr.task.revert_title': 'Revert: {title}',
+  'agent.cr.task.revert_body':
+    '{cr} was rejected — the spec is the source of truth, so revert the implementation to the spec. Finding {finding} ({title}) · location {location} · commit {commit} · from task {task} · reason: {reason}',
+  'agent.cr.task.revert_goal':
+    'Revert the implementation at {location} to the approved spec (commit {commit} drifted from it)',
+  'agent.cr.finding.approved': '{cr} approved — spec v{version} now reflects this finding',
+  'agent.cr.finding.rejected':
+    '{cr} rejected — the spec stays and the implementation is reverted. Reason: {reason}',
+  'agent.cr.finding.withdrawn': '{cr} withdrawn — the finding stays open',
+  'agent.escalation.sent_to_cr':
+    'Sent to change request {cr} — that change request updates the spec',
+  'agent.escalation.drift_rationale':
+    '{title} — the implementation changed the spec. Proposes a spec update',
+  'agent.escalation.drift_summary': 'Spec update from the implementation — {title}',
   'cr.title': 'Change request',
   'cr.opened_by': 'Opened by {name}',
   'cr.origin.human': 'Proposed by a person',
@@ -1648,6 +1691,65 @@ export const en = {
   'inbox.card.cr_unplanned': 'Choose {n} suggestions on the change request page.',
   'inbox.card.cr_no_suggestions': 'No follow-up on approval.',
   'inbox.card.cr_open': 'View the full delta',
+  'inbox.subject.escalation': 'Escalation',
+  'inbox.kind.heading': 'Type',
+  'inbox.kind.all': 'All',
+  'inbox.kind.spec': 'Spec approval',
+  'inbox.kind.cr': 'Change request',
+  'inbox.kind.plan': 'Plan approval',
+  'inbox.kind.question': 'Question',
+  'inbox.kind.escalation': 'Escalation',
+  'inbox.kind.finding': 'Finding downgrade',
+  'inbox.kind.gate_bypass': 'Gate bypass',
+  'inbox.kind.count': '{count} waiting',
+  'inbox.esc.reason': 'Reason: {reason}',
+  'inbox.esc.rationale': 'Why it was escalated',
+  'inbox.esc.commit': 'Commit {sha} · {branch}',
+  'inbox.esc.location': 'Location {location}',
+  'inbox.esc.task': 'Task {key} · assignee {name}',
+  'inbox.esc.task_unassigned': 'Task {key} · no assignee',
+  'inbox.esc.detail': 'Finding',
+  'inbox.esc.waiting': 'The session is waiting for this decision',
+  'inbox.esc.not_waiting': 'The session keeps working without waiting',
+  'inbox.esc.decide.fix': 'Fix it',
+  'inbox.esc.decide.wont_fix': "Won't fix",
+  'inbox.esc.decide.dismissed': 'Dismiss',
+  'inbox.esc.decide.fix_hint':
+    'The finding stays open. The session that escalated it fixes it and closes it with the commit.',
+  'inbox.esc.decide.wont_fix_hint':
+    "Closes the finding as won't fix. Say in the rationale when to look again.",
+  'inbox.esc.decide.dismissed_hint':
+    'Closes the finding as dismissed. Say in the rationale why it is wrong.',
+  'inbox.esc.rationale_placeholder': 'Rationale (required — the session receives this text as is)',
+  'inbox.esc.rationale_required': 'Write a rationale before you decide.',
+  'inbox.esc.to_cr': 'Send to CR',
+  'inbox.esc.to_cr_hint':
+    'Opens a draft from the approved version of the source spec and links this finding to the change request. A waiting session is released right away.',
+  'inbox.esc.to_cr_no_tag': 'Only findings tagged spec_drift go to a change request.',
+  'inbox.esc.to_cr_done': 'Sent to change request {key}.',
+  'inbox.esc.done': '{title}: decided — {resolution}.',
+  'inbox.esc.resolved': '{resolution} · {when}',
+  'inbox.esc.resolution.fix': 'Fix it',
+  'inbox.esc.resolution.wont_fix': "Won't fix",
+  'inbox.esc.resolution.dismissed': 'Dismissed',
+  'inbox.esc.resolution.fixed': 'Fixed',
+  'inbox.esc.resolution.spec_change': 'Spec fix',
+  'inbox.esc.resolution.change_request': 'Sent to a change request',
+  'inbox.esc.resolution.withdrawn': 'Change request withdrawn',
+  'inbox.esc.cr_title': 'The implementation changed the spec — approve the spec update?',
+  'inbox.esc.cr_unchanged':
+    'The draft is still the same as the approved version, so a review cannot be requested yet. Edit the spec, then request a review.',
+  'inbox.esc.cr_changed': 'The draft has been edited. Request a review to start the approval.',
+  'inbox.esc.cr_edit': 'Edit the draft',
+  'inbox.esc.cr_open': 'Open the change request',
+  'inbox.esc.cr_reject': 'Reject change request',
+  'inbox.esc.cr_reject_hint':
+    'Rejecting discards the draft, dismisses the findings sent to this change request, and creates tasks to revert the code.',
+  'inbox.esc.cr_reason_placeholder': 'Reason for rejecting (required)',
+  'inbox.esc.cr_rejected': 'Rejected {key}. Created tasks to revert the code.',
+  'inbox.esc.findings': 'Source findings',
+  'inbox.card.cr_drift':
+    'A change request that came back from the implementation — source findings',
   'inbox.card.role_queue': '{role} approval',
   'inbox.card.role_queue_any': 'another approver',
   'inbox.card.cannot_approve.author': 'You wrote this draft, so someone else must approve it.',

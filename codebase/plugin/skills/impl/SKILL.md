@@ -53,6 +53,9 @@ allowed-tools:
     `finding` 이고 `approve` 면 막혔던 `nerv_finding_resolve` 를 **같은 인자로** 다시 부른다.
     `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다 — 우회하지 않는다.
     `spec_version` 이면 결과를 보고한다(`approve` 는 approved, `reject` 는 draft 로 복귀했다는 뜻).
+    `escalation` 이면 내가 넘긴 발견의 카드다(`finding_id` · `resolution`): `fix` 면 고친 뒤
+    `nerv_finding_resolve`(`fixed` + 커밋)로 닫는다. `wont_fix`·`dismissed` 는 이미 닫혔다.
+    `change_request` 면 그 CR(`change_request_key`)이 스펙을 갱신한다. 어느 쪽이든 `comment_md` 가 사람의 근거다.
     **같은 결재는 1시간 동안 매 하트비트에 다시 온다** — `approval_id` 로 한 번만 처리한다.
   - `approval_expired`(내가 낸 스펙 검토 요청을 7일 동안 아무도 결정하지 않아 만료됐다 — `approval_id`·
     `subject_key`·`version_no`·`expired_at` 이 함께 온다) → 그 버전은 draft 로 돌아갔다. 사람에게 보고하고,

@@ -80,7 +80,19 @@ export function eligibleSql(userId: string): SQL {
     OR a.assignee_user_id = ${userId}
     OR (a.assignee_role IS NOT NULL AND ${hasAssigneeRole(userId)})
     OR (a.assignee_user_id IS NULL AND a.assignee_role IS NULL AND ${hasRole(userId, DECIDER_ROLES)})
+    OR ${escalationQueueSql(userId)}
   )`;
+}
+
+/**
+ * **에스컬레이션 카드의 담당자 칸은 기본 큐에 더하는 사람이다**(2026-10-16 · 사람 결정 D3 · spec-workflow §4.7). 역할 자리가 없는
+ * 사유(`user-decision` · `e2e-fail-3x`)의 카드는 그 작업의 담당자와 기본 큐가 함께 받는다 — 담당자를 `assignee_user_id` 에 두면
+ * 다른 결재에서는 "그 사람만" 이라는 뜻이라, 이 식이 기본 큐를 다시 연다. 알림(`approvalTargets`)과 결정(`assertMayDecide`)이 같은
+ * 규칙을 본다.
+ */
+export function escalationQueueSql(userId: string): SQL {
+  return sql`(a.subject_type = 'escalation' AND a.assignee_role IS NULL
+              AND ${hasRole(userId, DECIDER_ROLES)})`;
 }
 
 /**
@@ -148,7 +160,10 @@ export function canApproveExpr(userId: string): SQL {
     ${eligibleSql(userId)}
     AND ${notAlreadyApprovedSql(userId)}
     AND (
-      ${notSelfSql(userId)}
+      -- **에스컬레이션은 지시자≠승인자를 보지 않는다**(2026-10-16 · 사람 결정 D3). 넘긴 세션의 사람이 그 결정을 내리는 것은 질문에
+      -- 답하는 것과 같다 — 그 사람은 리뷰 센터에서 같은 발견을 직접 처분할 수 있고, 카드가 그 길보다 좁을 까닭이 없다
+      a.subject_type = 'escalation'
+      OR ${notSelfSql(userId)}
       OR ${selfApproverSql(userId)}
       OR ${otherApproverCountSql(userId)} = 0
     )
@@ -169,11 +184,13 @@ export function canApproveReasonExpr(userId: string): SQL {
   return sql`(CASE
     WHEN ${isAdminSql(userId)} AND NOT ${notAlreadyApprovedSql(userId)} THEN 'already_approved'
     WHEN ${isAdminSql(userId)} THEN NULL
+    WHEN ${escalationQueueSql(userId)} THEN NULL
     WHEN a.assignee_user_id IS NOT NULL AND a.assignee_user_id <> ${userId} THEN 'not_assignee'
     WHEN a.assignee_role IS NOT NULL AND NOT ${hasAssigneeRole(userId)} THEN 'not_in_role_queue'
     WHEN a.assignee_user_id IS NULL AND a.assignee_role IS NULL
          AND NOT ${hasRole(userId, DECIDER_ROLES)} THEN 'missing_role'
     WHEN NOT ${notAlreadyApprovedSql(userId)} THEN 'already_approved'
+    WHEN a.subject_type = 'escalation' THEN NULL
     WHEN ${otherApproverCountSql(userId)} = 0 THEN NULL
     WHEN ${selfApproverSql(userId)} THEN NULL
     WHEN a.requested_by_user_id = ${userId} THEN 'self_requested'
@@ -222,6 +239,9 @@ export function approvalsRequiredExpr(): SQL {
 export function canBulkApproveExpr(userId: string): SQL {
   return sql`(
     ${canApproveExpr(userId)}
+    -- **에스컬레이션은 한 건씩이다**(2026-10-16 · 사람 결정 D3) — 결정이 승인 · 거절이 아니라 그 발견의 처분이고 근거가 필수다.
+    -- admin 도 같다: 일괄에는 처분을 고를 칸이 없다
+    AND a.subject_type <> 'escalation'
     AND (
       ${isAdminSql(userId)}
       OR (a.subject_type <> 'gate_bypass' AND ${approvalsRequiredExpr()} <= 1)
@@ -241,6 +261,7 @@ export function canBulkApproveSql(userId: string): SQL {
 export function bulkBlockReasonSql(userId: string): SQL {
   return sql`(CASE
     WHEN NOT ${canApproveExpr(userId)} THEN ${canApproveReasonExpr(userId)}
+    WHEN a.subject_type = 'escalation' THEN 'bulk_escalation'
     WHEN ${isAdminSql(userId)} THEN NULL
     WHEN a.subject_type = 'gate_bypass' THEN 'bulk_gate_bypass'
     WHEN ${approvalsRequiredExpr()} > 1 THEN 'bulk_quorum'

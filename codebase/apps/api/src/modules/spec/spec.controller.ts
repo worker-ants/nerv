@@ -369,6 +369,8 @@ export class SpecController {
       ...(input.takeover === true ? { takeover: true } : {}),
       // 크게 줄이는 저장의 확인 — MCP 와 같은 이름 · 같은 판정이다(REQ-API-270 · D-05)
       ...(input.allow_shrink === true ? { allowShrink: true } : {}),
+      // 이 저장이 고치는 발견 — MCP 와 같은 이름 · 같은 판정이다(2026-10-16 · REQ-API-332)
+      ...(input.finding_id == null ? {} : { findingId: input.finding_id }),
       // **선언 관계도 나른다**(2026-09-05 · REQ-API-043). 전표는 처음부터 이 입력을
       // 적었고 서비스도 받고 있었는데 이 줄이 없어, REST 로 보낸 관계는 오류 없이
       // 버려졌다 — 보낸 쪽은 반영됐다고 믿는다. MCP 는 배선돼 있었으므로 같은 요청에

@@ -91,7 +91,16 @@ export const MANUAL_SECTION_IDS = {
     'archive',
   ],
   sessions: ['monitor', 'plugin-machines', 'statuses', 'activity', 'steer-stop', 'questions'],
-  reviews: ['review-sessions', 'severity', 'targets', 'filters', 'gate-coverage', 'badge'],
+  reviews: [
+    'review-sessions',
+    'severity',
+    'targets',
+    'filters',
+    'gate-coverage',
+    'badge',
+    // 변경 요청으로 보내기(2026-10-16 · 사람 결정 · REQ-WEB-324) — 새 절은 끝에 둔다
+    'to-change-request',
+  ],
   inbox: [
     'cards',
     'card-contents',
@@ -104,6 +113,10 @@ export const MANUAL_SECTION_IDS = {
     'notifications',
     // 지연과 만료(2026-10-15 · REQ-WEB-310) — 새 절은 끝에 둔다
     'sla',
+    // 에스컬레이션 카드 · 구현이 스펙을 바꾼 변경 요청 · 유형 칸(2026-10-16 · 사람 결정 D3 · REQ-WEB-324 ~ 326)
+    'escalations',
+    'drift-change-requests',
+    'kinds',
   ],
   agents: ['components', 'tokens', 'skills', 'tool-tiers', 'offline', 'import'],
   install: [

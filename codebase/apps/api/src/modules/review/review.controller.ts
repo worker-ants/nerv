@@ -10,6 +10,7 @@ import { parseBody } from '../../common/parse-body.js';
 import {
   FindingCommentInput,
   FindingResolveInput,
+  FindingToChangeRequestInput,
   msg,
   NERV_ERROR,
   ReviewSubmitInput,
@@ -20,11 +21,15 @@ import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ReviewService, resolutionOf, toSubmitFindings } from './review.service.js';
+import { ChangeRequestService } from '../spec/change-request.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
 export class ReviewController {
-  constructor(private readonly reviews: ReviewService) {}
+  constructor(
+    private readonly reviews: ReviewService,
+    private readonly changeRequests: ChangeRequestService,
+  ) {}
 
   /** EP-REV-01 — 리뷰 제출. 도구 `nerv_review_submit` 과 같은 입구다 */
   @RequireScope('review:submit')
@@ -166,6 +171,33 @@ export class ReviewController {
       specVersionId: typeof body['spec_version_id'] === 'string' ? body['spec_version_id'] : null,
       // `escalated` 의 필수 짝 — 왜 사람을 부르는가(2026-09-05 · REQ-API-108)
       escalateReason: typeof body['escalate_reason'] === 'string' ? body['escalate_reason'] : null,
+      // 넘긴 쪽이 기다리는가(2026-10-16 · REQ-API-334) — 이 표면에는 세션이 없어 기본은 기다리지 않는다
+      ...(resolve.blocking == null ? {} : { blocking: resolve.blocking }),
+    });
+  }
+
+  /**
+   * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-332 · spec-workflow §3.4). `spec_drift` 발견의 유래
+   * 스펙에 초안 · CR 을 열고(이미 열린 CR 이 있으면 거기에 잇는다) 발견을 그 CR 에 묶는다. 처분 권한(`review:resolve`)이 문턱이고
+   * 역할(planner · admin)은 서비스가 본다(D-05).
+   */
+  @RequireScope('review:resolve')
+  @Post('findings/:id/change-request')
+  toChangeRequest(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = principalOf(req);
+    const input = parseBody(FindingToChangeRequestInput, body ?? {});
+    return this.changeRequests.fromFinding({
+      projectId: req.nervProjectId!,
+      findingId: id,
+      userId: principal.userId,
+      sessionId: null,
+      isAgent: principal.isAgent,
+      roles: req.nervRoles ?? [],
+      ...(input.rationale == null ? {} : { rationale: input.rationale }),
     });
   }
   /**

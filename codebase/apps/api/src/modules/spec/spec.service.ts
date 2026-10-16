@@ -99,6 +99,8 @@ import {
   versionOfSpec,
 } from './spec-basis.js';
 import { SpecRelationService, extractLinkedKeys } from './spec-relation.service.js';
+import { linkFindingToCrInTx, lockDriftFinding } from '../review/escalation.js';
+import type { DriftFinding } from '../review/escalation.js';
 import {
   changeRequestApprovedInTx,
   changeRequestOfVersion,
@@ -215,6 +217,13 @@ export interface DraftUpsertInput {
    * 저장은 버전에 확인 기록을 남기고, 사전 검토는 그 초안의 축소를 block 이 아니라 warning 으로 본다.
    */
   allowShrink?: boolean | undefined;
+  /**
+   * **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-332 · spec-workflow §3.4). `spec_drift` 태그가 붙은 열린 발견을 주면
+   * 이 초안을 감싼 변경 요청에 그 발견을 묶는다 — 처분은 `escalated`(사유 `spec`)이고, CR 이 승인되면 발견은 `fixed`, 거절되면
+   * `dismissed` 와 코드 되돌림 작업이 된다. 이 저장이 CR 을 열면 출처는 `spec_drift` 다. 승인본이 없는 문서 · 새 문서에는 줄 수
+   * 없다(CR 이 아니다) — 판정은 저장보다 먼저라 거절되면 아무것도 남지 않는다
+   */
+  findingId?: string | null;
   userId: string;
   sessionId?: string | null;
 }
@@ -1211,6 +1220,12 @@ export class SpecService {
         await this.assertMetaUnchanged(tx, input.projectId, specId, input);
       }
 
+      // **고치는 발견이 있으면 저장보다 먼저 본다**(2026-10-16 · REQ-API-332) — 거절되면 본문도 남지 않는다. 묶는 것은 저장 뒤다
+      const driftFinding =
+        input.findingId == null || input.findingId === ''
+          ? null
+          : await this.driftFindingFor(tx, input.projectId, specId, created, input.findingId);
+
       const draft = await this.currentDraft(tx, specId);
 
       // 편집 리스 — 같은 **세션**이면 이어쓰기, 남의 리스는 `takeover` 없이는 하드 차단(§1.4h)
@@ -1415,6 +1430,18 @@ export class SpecService {
           toState: 'draft',
         });
 
+        const linkedFinding =
+          driftFinding === null
+            ? null
+            : await this.linkDriftFinding(tx, emit, {
+                projectId: input.projectId,
+                specId,
+                versionId: draft.id,
+                finding: driftFinding,
+                userId: input.userId,
+                sessionId: input.sessionId ?? null,
+                changeSummary: input.changeSummary ?? null,
+              });
         return {
           spec_id: specId,
           spec_version_id: draft.id,
@@ -1428,6 +1455,8 @@ export class SpecService {
           relations: { ...relations, declared },
           // 이 초안을 감싼 변경 요청(REQ-API-331) — 승인본이 없는 문서면 null 이다
           change_request: await changeRequestOfVersion(tx, input.projectId, draft.id),
+          // 묶은 발견(REQ-API-332) — 준 저장에만 온다
+          ...(linkedFinding === null ? {} : { finding: linkedFinding }),
           // 방금 쓴 **그 초안**을 연다 — 승인본 위의 초안이면 기본 주소는 승인본에 선다
           web_url: await this.webUrl(tx, input.projectId, specId, Number(draft.version_no)),
         };
@@ -1492,7 +1521,21 @@ export class SpecService {
             userId: input.userId,
             sessionId: input.sessionId ?? null,
             changeSummary: input.changeSummary ?? null,
+            // 발견을 고치려고 연 CR 은 구현에서 거슬러 온 제안이다(REQ-API-332)
+            ...(driftFinding === null ? {} : { origin: 'spec_drift' as const }),
           });
+      const linkedFinding =
+        driftFinding === null
+          ? null
+          : await this.linkDriftFinding(tx, emit, {
+              projectId: input.projectId,
+              specId,
+              versionId,
+              finding: driftFinding,
+              userId: input.userId,
+              sessionId: input.sessionId ?? null,
+              changeSummary: input.changeSummary ?? null,
+            });
       // 새 버전의 기준은 **직전 버전**이다. 첫 버전이면 기준이 없으니 전부 새로 쓴 것이다.
       return {
         spec_id: specId,
@@ -1507,9 +1550,108 @@ export class SpecService {
           changeRequest === null
             ? null
             : await changeRequestOfVersion(tx, input.projectId, versionId),
+        ...(linkedFinding === null ? {} : { finding: linkedFinding }),
         web_url: await this.webUrl(tx, input.projectId, specId, Number(versionNo)),
       };
     });
+  }
+
+  /**
+   * **저장이 고치려는 발견을 판정한다**(2026-10-16 · REQ-API-332) — 저장보다 먼저. `spec_drift` 태그가 붙은 열린 발견이어야 하고,
+   * 발견이 유래 스펙을 알면 지금 고치는 문서여야 하며, 그 문서에 승인본이 있어야 한다(그래야 이 초안이 CR 이다).
+   */
+  private async driftFindingFor(
+    tx: Tx,
+    projectId: string,
+    specId: string,
+    created: boolean,
+    findingRef: string,
+  ): Promise<DriftFinding> {
+    const ref = entityRef(findingRef);
+    if (ref.id === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.finding_not_found'), {
+        kind: 'not_found',
+        field: 'finding_id',
+        finding_id: findingRef,
+      });
+    }
+    const finding = await lockDriftFinding(tx, projectId, ref.id);
+    if (finding.spec_id !== null && finding.spec_id !== specId) {
+      const other = (await this.keyOfSpec(tx, finding.spec_id)) ?? finding.spec_id;
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.review.finding_other_spec', { spec: other }),
+        { kind: 'finding_other_spec', finding_id: finding.id, spec: other },
+      );
+    }
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM spec_version WHERE spec_id = ${specId} AND status = 'approved' LIMIT 1
+    `);
+    if (created || rows[0] === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_approved_version'), {
+        kind: 'no_approved_version',
+        spec: await this.keyOfSpec(tx, specId),
+      });
+    }
+    return finding;
+  }
+
+  /**
+   * **저장한 초안의 CR 에 발견을 묶는다**(REQ-API-332). 초안에 CR 이 없으면(0053 전에 만든 초안) 여기서 연다 — 출처는 `spec_drift`.
+   * 처분 · 카드는 리뷰 센터의 [CR로 보내기]와 같은 자리(`linkFindingToCrInTx`)를 지난다.
+   */
+  private async linkDriftFinding(
+    tx: Tx,
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: {
+      projectId: string;
+      specId: string;
+      versionId: string;
+      finding: DriftFinding;
+      userId: string;
+      sessionId: string | null;
+      changeSummary: string | null;
+    },
+  ): Promise<Record<string, unknown>> {
+    let cr = (await changeRequestOfVersion(tx, input.projectId, input.versionId)) as {
+      id: string;
+      key: string;
+    } | null;
+    if (cr === null) {
+      cr = await openChangeRequestInTx(tx, emit, {
+        projectId: input.projectId,
+        specId: input.specId,
+        versionId: input.versionId,
+        userId: input.userId,
+        sessionId: input.sessionId,
+        changeSummary: input.changeSummary,
+        origin: 'spec_drift',
+      });
+    }
+    if (cr === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_approved_version'), {
+        kind: 'no_approved_version',
+        spec: await this.keyOfSpec(tx, input.specId),
+      });
+    }
+    const link = await linkFindingToCrInTx(tx, emit, {
+      projectId: input.projectId,
+      finding: input.finding,
+      changeRequest: { id: cr.id, key: cr.key },
+      userId: input.userId,
+      sessionId: input.sessionId,
+      isAgent: input.sessionId !== null,
+      rationale:
+        (input.changeSummary ?? '').trim() === ''
+          ? text('agent.escalation.drift_rationale', { title: input.finding.title })
+          : (input.changeSummary ?? '').trim(),
+    });
+    return {
+      id: input.finding.id,
+      linked: link.linked,
+      change_request_key: cr.key,
+      approval_id: link.approval_id,
+    };
   }
 
   /**
@@ -1527,6 +1669,8 @@ export class SpecService {
     takeover?: boolean | undefined;
     /** 크게 줄이는 저장의 확인(REQ-API-270) — MCP 와 같은 이름 `allow_shrink` 로 온다 */
     allowShrink?: boolean | undefined;
+    /** 이 저장이 고치는 발견(2026-10-16 · REQ-API-332) — MCP 와 같은 이름 `finding_id` 로 온다 */
+    findingId?: string | undefined;
     /**
      * 선언 관계 — **REST 도 이것을 나른다**(2026-09-05 · REQ-API-043).
      *
@@ -1558,6 +1702,7 @@ export class SpecService {
       ...(input.takeover === true ? { takeover: true } : {}),
       ...(input.allowShrink === true ? { allowShrink: true } : {}),
       ...(input.relations === undefined ? {} : { relations: input.relations }),
+      ...(input.findingId === undefined ? {} : { findingId: input.findingId }),
       ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
   }
@@ -1826,6 +1971,27 @@ export class SpecService {
         {
           kind: 'not_draft',
           status: version.status,
+        },
+      );
+    }
+
+    // **바꾼 것이 없는 변경 요청은 결재를 요청하지 않는다**(2026-10-16 · 사람 결정 · REQ-API-332). 발견을 변경 요청으로 보내면 초안이
+    // 승인본의 본문으로 열린다 — 아무도 고치지 않은 채 승인되면 같은 본문의 새 승인본이 생기고, 그 CR 로 보낸 발견은 "스펙을 고쳐
+    // 해결" 로 닫힌다. 고친 것이 없는데 고쳤다고 남는다. 받은 요청의 카드도 같은 사실을 보인다
+    const { rows: unchanged } = await tx.execute<{ key: string }>(sql`
+      SELECT cr.key FROM change_request cr
+        JOIN spec_version b ON b.id = cr.base_version_id
+        JOIN spec_version d ON d.id = cr.proposed_version_id
+       WHERE cr.proposed_version_id = ${version.id} AND d.content_hash = b.content_hash
+    `);
+    if (unchanged[0] !== undefined) {
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.cr.unchanged', { cr: unchanged[0].key }),
+        {
+          kind: 'cr_unchanged',
+          change_request_key: unchanged[0].key,
+          web_url: await this.versionWebUrl(tx, input.projectId, version.id),
         },
       );
     }

@@ -76,3 +76,11 @@ For a waived branch (a gate bypass), **who waived it, when and why** appears und
 ## The sidebar badge {#badge}
 
 In the left sidebar, the number next to **Review** under the expanded project is the count of **open `critical`** findings. If you could see this number only by opening the review center, nobody would know it until they opened it. That's why it's shown in the sidebar.
+
+## Sending to a change request {#to-change-request}
+
+**A finding that says the spec is wrong goes to a change request.** Findings where the implementation is right and the approved spec is wrong carry the `spec_drift` tag. The rail of an open `spec_drift` finding has **Send to CR** (planners and admins). It opens a draft from the approved version of the source spec and links the finding to that change request. If the spec already has an open change request, the finding is linked to it. The finding does not close; it stays escalated (reason: spec), and the rail shows a link to that change request. From there it continues on a card in the inbox ([Change requests from the implementation](/help/inbox#drift-change-requests)). If the change request is approved, the finding closes as a spec fix; if it is rejected, the finding is dismissed and a revert task is created.
+
+Agents use the same path: when an agent saves a draft and points to the finding, it is linked to the same change request.
+
+**Findings an agent escalated** show "Escalated · reason" in the rail, along with whether the session is waiting. The decision is made on the escalation card in the inbox ([Escalation cards](/help/inbox#escalations)).

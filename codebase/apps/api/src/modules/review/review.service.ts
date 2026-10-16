@@ -42,6 +42,12 @@ import { NervError } from '../../common/nerv-exception.filter.js';
 import { parseBody } from '../../common/parse-body.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { roundVerdicts, uncoveredVerdict } from './review-gate.js';
+import {
+  openEscalationInTx,
+  pendingEscalationsOf,
+  settleEscalationsInTx,
+  writeResolutionInTx,
+} from './escalation.js';
 import type { RoundVerdict } from './review-gate.js';
 import { InjectDb } from '../../common/database.module.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -292,6 +298,11 @@ export interface ResolveInput {
    * 열은 처음부터 `resolution` 에 있었는데 **아무도 채우지 않았다.**
    */
   escalateReason?: string | null;
+  /**
+   * **넘긴 세션이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — `escalated` 에만 읽는다. 주지 않으면 세션이 부른
+   * 처분은 기다리고 세션 없는 처분은 기다릴 것이 없다
+   */
+  blocking?: boolean | null;
 }
 
 export interface ResolveResult {
@@ -299,6 +310,16 @@ export interface ResolveResult {
   status: string;
   resolution_id: string;
   open_remaining: number;
+  /**
+   * **넘긴 처분의 카드**(2026-10-16 · 사람 결정 D3 · REQ-API-333) — `escalated` 에만 온다. 받는 역할 자리(없으면 작업 담당자와
+   * 기본 큐) · 기다리는가 · 이미 서 있던 카드인가
+   */
+  escalation?: {
+    approval_id: string;
+    assignee_role: string | null;
+    blocking: boolean;
+    existing: boolean;
+  };
 }
 
 /**
@@ -1020,6 +1041,15 @@ export class ReviewService {
     // 열린 발견 하나를 남기고 아무 정보도 더하지 않는다 — 그건 처분이 아니라 방치다.
     if (input.kind === 'escalated') {
       assertVocab([input.escalateReason ?? ''], ESCALATE_REASONS, 'escalate_reason');
+      // **변경 요청으로 보내는 길은 따로 있다**(2026-10-16 · REQ-API-332) — 처분에 CR id 를 적어 넘기면 초안도 카드도 서지 않는다.
+      // 조용히 버리지 않고 그 길을 알려 준다(§1.4e)
+      if ((input.changeRequestId ?? '').trim() !== '') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.escalate_with_cr'), {
+          kind: 'invalid_input',
+          field: 'change_request_id',
+          reason: 'send_to_change_request',
+        });
+      }
     }
 
     // **게이트는 트랜잭션 밖이다.** 승인 카드를 만들고 같은 트랜잭션에서 막으면 그 카드도
@@ -1033,84 +1063,113 @@ export class ReviewService {
     }
 
     return this.events.transact(async (tx, emit) => {
-      const { rows } = await tx.execute<{
-        severity: string;
-        status: string;
-        last_session_id: string;
-      }>(sql`
-        SELECT severity::text AS severity, status::text AS status, last_session_id FROM finding
-         WHERE id = ${input.findingId} AND project_id = ${input.projectId}
-         FOR UPDATE
-      `);
-      const finding = rows[0]!;
-
-      // **멱등은 같은 처분에만.** 이미 fixed 인 것을 다시 fixed 로 부르면 그대로 통과하고,
-      // 다른 처분으로 부르면 막는다 — 처분을 뒤집는 것은 재호출이 아니라 새 판단이다.
-      if (finding.status !== 'open' && finding.status !== input.status) {
-        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.already_resolved'), {
-          kind: 'already_resolved',
-          status: finding.status,
+      const isAgent = input.isAgent ?? input.sessionId != null;
+      const sessionId = input.sessionId ?? null;
+      if (input.kind === 'escalated') {
+        // **넘긴 것을 다시 넘기지 않는다**(2026-10-16 · REQ-API-333). 서 있는 카드가 있으면 그것을 돌려준다 — 재호출이 카드를
+        // 늘리면 넘겨받는 사람은 같은 일을 여러 번 결정한다. 발견을 먼저 잠근다 — 두 재호출이 함께 "카드 없음" 을 보지 않게
+        await tx.execute(sql`SELECT id FROM finding WHERE id = ${input.findingId} FOR UPDATE`);
+        const standing = (await pendingEscalationsOf(tx, input.findingId, 'all'))[0];
+        if (standing !== undefined) {
+          return {
+            finding_id: input.findingId,
+            status: 'open',
+            resolution_id: standing.resolution_id,
+            open_remaining: await this.openRemaining(tx, input.projectId),
+            escalation: {
+              approval_id: standing.approval_id,
+              assignee_role: standing.assignee_role,
+              blocking: standing.blocking,
+              existing: true,
+            },
+          };
+        }
+        // **기다림의 기본은 세션이 있으면 참이다**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — 질문과 같다: 사람을 부르고도 그냥
+        // 진행하는 것은 에스컬레이션이 아니다. 세션 없는 처분(사람 · 세션 없는 토큰)은 기다릴 세션이 없다
+        const blocking = sessionId !== null && input.blocking !== false;
+        const written = await writeResolutionInTx(tx, emit, {
+          projectId: input.projectId,
+          findingId: input.findingId,
+          userId: input.userId,
+          sessionId,
+          isAgent,
+          kind: 'escalated',
+          status: 'open',
+          rationale: input.rationale,
+          commitSha: input.commitSha ?? null,
+          changeRequestId: input.changeRequestId ?? null,
+          specVersionId: input.specVersionId ?? null,
+          escalateReason: input.escalateReason ?? null,
+          blocking,
         });
+        const card = await openEscalationInTx(tx, emit, {
+          projectId: input.projectId,
+          findingId: input.findingId,
+          resolutionId: written.resolution_id,
+          reason: input.escalateReason ?? 'no',
+          blocking,
+          userId: input.userId,
+          sessionId,
+          isAgent,
+        });
+        return {
+          finding_id: input.findingId,
+          status: 'open',
+          resolution_id: written.resolution_id,
+          open_remaining: await this.openRemaining(tx, input.projectId),
+          escalation: {
+            approval_id: card.approval_id,
+            assignee_role: card.assignee_role,
+            blocking,
+            existing: false,
+          },
+        };
       }
 
-      const resolutionId = newId();
-      await tx.execute(sql`
-        INSERT INTO resolution (id, finding_id, kind, commit_sha, change_request_id,
-                                spec_version_id, escalate_reason, rationale_md,
-                                actor_user_id, actor_session_id)
-        VALUES (${resolutionId}, ${input.findingId}, ${input.kind}::resolution_kind,
-                ${input.commitSha ?? null}, ${input.changeRequestId ?? null},
-                ${input.specVersionId ?? null}, ${input.escalateReason ?? null}::escalate_reason,
-                ${input.rationale}, ${input.userId}, ${input.sessionId ?? null})
-      `);
-      await tx.execute(sql`
-        UPDATE finding SET status = ${input.status}::finding_status WHERE id = ${input.findingId}
-      `);
-
-      await emit({
-        type: NERV_EVENT_PHASE2.FINDING_RESOLVED,
+      const written = await writeResolutionInTx(tx, emit, {
         projectId: input.projectId,
-        actorUserId: input.userId,
-        actorSessionId: input.sessionId ?? null,
-        isAgent: input.isAgent ?? input.sessionId != null,
-        subjectType: 'finding',
-        subjectId: input.findingId,
-        fromState: finding.status,
-        toState: input.status,
-        // 라운드는 알림을 묶는 열쇠다(§6.3 `review:{id}:resolutions` · 2026-10-15 · REQ-API-316) — 발견을 마지막으로 본 라운드
-        payload: {
-          kind: input.kind,
-          severity: finding.severity,
-          downgrade,
-          review_session_id: finding.last_session_id,
-        },
+        findingId: input.findingId,
+        userId: input.userId,
+        sessionId,
+        isAgent,
+        kind: input.kind,
+        status: input.status,
+        rationale: input.rationale,
+        commitSha: input.commitSha ?? null,
+        changeRequestId: input.changeRequestId ?? null,
+        specVersionId: input.specVersionId ?? null,
+        escalateReason: input.escalateReason ?? null,
       });
-
-      // **처분은 검증의 재료다**(2026-10-15 · E15-S03 · REQ-API-315) — 그 발견이 가리키는 요구사항과, 그 발견을 관찰한
-      // 라운드의 작업이 맡은 요구사항을 다시 파생한다. 열린 critical 이 닫힌 순간이 검증이 설 수 있는 순간이다
-      const { rows: affected } = await tx.execute<{ id: string }>(sql`
-        SELECT requirement_id AS id FROM finding
-         WHERE id = ${input.findingId} AND requirement_id IS NOT NULL
-        UNION
-        SELECT t.source_requirement_id AS id
-          FROM finding_occurrence o
-          JOIN review_session rs ON rs.id = o.review_session_id
-          JOIN task t ON t.id = rs.task_id
-         WHERE o.finding_id = ${input.findingId} AND t.source_requirement_id IS NOT NULL
-      `);
-      for (const row of affected) await recomputeImplStatus(tx, row.id);
-
-      const { rows: remaining } = await tx.execute<{ n: number }>(sql`
-        SELECT count(*)::int AS n FROM finding
-         WHERE project_id = ${input.projectId} AND status = 'open'
-      `);
+      // **다른 길로 닫았으면 카드도 닫는다**(2026-10-16 · REQ-API-335). 넘겨받은 사람이 결정하기 전에 발견이 처분됐다 — 남은
+      // 카드는 이미 끝난 일을 결정하라고 한다. 처분한 사람이 그 카드를 닫은 사람이다
+      if (input.status !== 'open') {
+        await settleEscalationsInTx(tx, emit, {
+          projectId: input.projectId,
+          approvals: await pendingEscalationsOf(tx, input.findingId, 'plain'),
+          decision: input.status === 'fixed' ? 'approve' : 'reject',
+          resolution: input.status === 'wont_fix' ? 'wont_fix' : input.kind,
+          comment: input.rationale,
+          userId: input.userId,
+          sessionId,
+          isAgent,
+          findingId: input.findingId,
+        });
+      }
       return {
         finding_id: input.findingId,
         status: input.status,
-        resolution_id: resolutionId,
-        open_remaining: remaining[0]?.n ?? 0,
+        resolution_id: written.resolution_id,
+        open_remaining: await this.openRemaining(tx, input.projectId),
       };
     });
+  }
+
+  /** 프로젝트의 열린 발견 수 — 처분 응답이 준다 */
+  private async openRemaining(tx: Tx, projectId: string): Promise<number> {
+    const { rows } = await tx.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM finding WHERE project_id = ${projectId} AND status = 'open'
+    `);
+    return rows[0]?.n ?? 0;
   }
 
   /** 작업이 맡은 요구사항의 구현 축을 다시 파생한다 — 요구사항이 없는 작업이면 할 일이 없다 */
@@ -1272,7 +1331,17 @@ export class ReviewService {
              ru.display_name AS resolved_by_name,
              -- **어느 작업에서 나왔고, 어느 작업으로 올렸나**(REQ-API-180). 발견 → 작업으로 갈 길이 없었고,
              -- 화면은 promoted_task_key 로 "올림" 을 그리려 했지만 값이 오지 않아 단추가 늘 켜져 있었다
-             rt.key AS task_key, pt.key AS promoted_task_key
+             rt.key AS task_key, pt.key AS promoted_task_key,
+             -- **넘긴 처분의 자리**(2026-10-16 · 사람 결정 D3 · REQ-API-333) — 마지막 처분이 escalated 면 사유 · 기다림 · 그 카드와
+             -- 결정, 변경 요청으로 보냈으면 그 CR 의 키와 상태다. 에이전트는 이것으로 결정을 다시 읽는다(하트비트를 놓쳤을 때)
+             res.escalate_reason::text AS escalate_reason, res.blocking AS escalation_blocking,
+             esc.id AS escalation_approval_id, esc.decision::text AS escalation_decision,
+             esc.comment_md AS escalation_comment, esc.decided_at AS escalation_decided_at,
+             (SELECT e.payload->>'resolution' FROM event e
+               WHERE esc.id IS NOT NULL AND e.type = ${NERV_EVENT.APPROVAL_DECIDED}
+                 AND e.subject_id = esc.id
+               ORDER BY e.occurred_at DESC LIMIT 1) AS escalation_resolution,
+             crr.key AS change_request_key, crr.status::text AS change_request_status
         FROM finding f
         JOIN review_session rs ON rs.id = f.last_session_id
         LEFT JOIN task rt ON rt.id = rs.task_id
@@ -1281,10 +1350,14 @@ export class ReviewService {
         LEFT JOIN spec s ON s.id = sv.spec_id
         LEFT JOIN requirement r ON r.id = f.requirement_id
         LEFT JOIN LATERAL (
-          SELECT kind, rationale_md, commit_sha, spec_version_id, created_at, actor_user_id
+          SELECT id, kind, rationale_md, commit_sha, spec_version_id, created_at, actor_user_id,
+                 escalate_reason, blocking, change_request_id
             FROM resolution WHERE finding_id = f.id ORDER BY created_at DESC LIMIT 1
         ) res ON true
         LEFT JOIN "user" ru ON ru.id = res.actor_user_id
+        LEFT JOIN approval esc ON res.kind = 'escalated' AND esc.subject_type = 'escalation'
+                              AND esc.subject_id = res.id
+        LEFT JOIN change_request crr ON crr.id = res.change_request_id
        WHERE f.project_id = ${input.projectId}
          ${this.filter('f.severity', severity, 'finding_severity')}
          ${this.filter('f.status', status, 'finding_status')}

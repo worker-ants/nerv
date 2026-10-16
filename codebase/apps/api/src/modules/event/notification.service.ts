@@ -739,13 +739,17 @@ export class NotificationService {
       assignee_user_id: string | null;
       assignee_role: string | null;
       requested_by_user_id: string;
+      subject_type: string;
     }>(sql`
-      SELECT assignee_user_id, assignee_role::text AS assignee_role, requested_by_user_id
+      SELECT assignee_user_id, assignee_role::text AS assignee_role, requested_by_user_id,
+             subject_type::text AS subject_type
         FROM approval WHERE id = ${event.subject_id} AND project_id = ${event.project_id}
     `);
     const approval = rows[0];
     if (approval === undefined) return [];
     if (approval.assignee_user_id === null && approval.assignee_role === null) return [];
+    // 역할 자리가 없는 에스컬레이션 카드는 기본 큐(admin 포함)가 이미 요청 알림을 받았다(2026-10-16 · 사람 결정 D3)
+    if (approval.subject_type === 'escalation' && approval.assignee_role === null) return [];
     // 조직 경계는 요청 알림과 같다(REQ-API-125) — 조직 단위 멤버십은 그 조직의 것만 센다
     const { rows: admins } = await this.db.execute<{ user_id: string }>(sql`
       SELECT DISTINCT m.user_id FROM membership m
@@ -783,12 +787,24 @@ export class NotificationService {
     const { rows } = await this.db.execute<{
       assignee_user_id: string | null;
       assignee_role: string | null;
+      subject_type: string;
     }>(sql`
-      SELECT assignee_user_id, assignee_role::text AS assignee_role
+      SELECT assignee_user_id, assignee_role::text AS assignee_role, subject_type::text AS subject_type
         FROM approval WHERE id = ${event.subject_id} AND project_id = ${event.project_id}
     `);
     const approval = rows[0];
     if (approval === undefined) return null;
+
+    // **에스컬레이션 카드의 담당자는 기본 큐에 더하는 사람이다**(2026-10-16 · 사람 결정 D3 · spec-workflow §4.7) — 역할 자리가 없는
+    // 사유의 카드는 그 작업의 담당자와 기본 큐가 함께 받는다(결재 판정 `escalationQueueSql` 과 같은 규칙). 겹치면 한 번이다
+    if (approval.subject_type === 'escalation' && approval.assignee_role === null) {
+      const queue = await this.roleQueue(event);
+      const assignee =
+        approval.assignee_user_id === null || approval.assignee_user_id === event.actor_user_id
+          ? []
+          : [approval.assignee_user_id];
+      return [...new Set([...queue, ...assignee])];
+    }
 
     if (approval.assignee_user_id !== null) {
       return approval.assignee_user_id === event.actor_user_id ? [] : [approval.assignee_user_id];

@@ -508,6 +508,9 @@ export class SpecTools implements NervToolProvider {
             minimum: 1,
             description: 'mcp.arg.revert_to_version',
           },
+          // **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-332) — `spec_drift` 발견을 이 초안의 변경 요청에 묶는다.
+          // 이름은 `nerv_finding_resolve` · 질문의 `context` 와 같은 `finding_id` 다
+          finding_id: { type: 'string', description: 'mcp.arg.draft_finding_id' },
         },
         // `required` 로는 "둘 중 하나"를 적을 수 없다 — 그 판정은 핸들러가 한다
         required: [],
@@ -524,6 +527,7 @@ export class SpecTools implements NervToolProvider {
             'type',
             'parent_id',
             'relations',
+            'finding_id',
           ].filter((name) => input[name] !== undefined && input[name] !== null);
           const specKey = input['spec_id'];
           if (conflicting.length > 0 || typeof specKey !== 'string' || specKey === '') {
@@ -571,6 +575,9 @@ export class SpecTools implements NervToolProvider {
           ...(typeof input['parent_id'] === 'string' ? { parentId: input['parent_id'] } : {}),
           ...(input['takeover'] === true ? { takeover: true } : {}),
           ...(input['allow_shrink'] === true ? { allowShrink: true } : {}),
+          ...(typeof input['finding_id'] === 'string' && input['finding_id'] !== ''
+            ? { findingId: input['finding_id'] }
+            : {}),
           ...(Array.isArray(input['relations'])
             ? {
                 relations: (input['relations'] as Record<string, unknown>[]).map((r) => ({

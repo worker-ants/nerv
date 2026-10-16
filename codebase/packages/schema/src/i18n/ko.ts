@@ -118,6 +118,10 @@ export const ko = {
   'error.cr.reject_role': '변경 요청 거절은 planner · admin만 할 수 있습니다.',
   'error.cr.withdraw_not_author':
     '변경 요청은 그 요청을 연 사람이나 초안의 작성자만 철회할 수 있습니다.',
+  'error.cr.unchanged':
+    '{cr}의 초안이 아직 승인본과 같습니다. 스펙을 고친 뒤 검토를 요청하세요. 고칠 것이 없으면 변경 요청을 거절하거나 철회하세요.',
+  'error.escalation.decided_by_cr':
+    '변경 요청으로 보낸 에스컬레이션입니다. 그 변경 요청을 승인하거나 거절하면 함께 끝납니다.',
   'error.approval.content_changed':
     '불러온 뒤 내용이 바뀌었습니다. 바뀐 내용을 확인하고 다시 결정하세요.',
   'error.approval.not_assignee': '지정된 승인자가 아닙니다.',
@@ -375,9 +379,26 @@ export const ko = {
   'error.review.spec_version_required':
     '스펙 정정 처분에는 고친 스펙 버전(spec_version_id)이 필요합니다.',
   'error.review.spec_version_unknown': '그 스펙 버전을 이 프로젝트에서 찾을 수 없습니다.',
+  'error.review.escalate_with_cr':
+    '처분에 변경 요청을 적어 넘기지 않습니다. 발견을 변경 요청으로 보내려면 [CR로 보내기]를 쓰세요(EP-REV-09).',
+  'error.review.not_spec_drift':
+    'spec_drift 태그가 없는 발견입니다. 스펙이 틀렸다는 지적만 변경 요청으로 보냅니다. 코드를 고치거나 다른 처분을 고르세요.',
+  'error.review.finding_in_other_cr':
+    '이 발견은 이미 다른 변경 요청({change_request_key})에 묶여 있습니다.',
+  'error.review.to_cr_role': '발견을 변경 요청으로 보내는 일은 planner · admin만 할 수 있습니다.',
+  'error.review.no_origin_spec':
+    '어느 스펙이 틀렸는지 모르는 발견입니다. 발견이 스펙 버전이나 요구사항을 가리켜야 변경 요청으로 보낼 수 있습니다.',
+  'error.review.no_approved_version':
+    '승인본이 없는 문서라 변경 요청이 아닙니다. 초안을 고친 뒤 발견을 spec_change로 처분하세요.',
+  'error.review.finding_other_spec':
+    '이 발견은 다른 문서({spec})를 가리킵니다. 그 문서의 초안에서 묶으세요.',
   'mcp.arg.resolution_spec_version': '스펙을 고쳐 해결했을 때의 근거. 고친 저장의 spec_version_id',
   'mcp.arg.escalate_reason':
     '사람에게 넘기는 이유. escalated 처분이면 필수이고, 질문의 escalate와 같은 값을 쓴다.',
+  'mcp.arg.escalation_blocking':
+    'escalated 처분에서 이 세션이 사람의 결정을 기다리는가. 기본은 기다린다(true). 기다리면 세션은 awaiting_input이 되고 결정은 하트비트 pending의 approval_decided(subject_type: escalation)로 온다',
+  'mcp.arg.draft_finding_id':
+    '이 저장이 고치는 spec_drift 발견의 UUID. 승인본이 있는 문서의 초안이면 그 변경 요청에 발견을 묶는다 — 변경 요청이 승인되면 발견이 fixed로, 거절되면 dismissed로 닫힌다',
   'mcp.arg.finding_status_filter': '쉼표 목록(open · fixed · dismissed · wont_fix). 생략하면 open',
   'mcp.arg.finding_severity_filter': '쉼표 목록(critical · warning · info)',
   'mcp.arg.finding_area_filter': '쉼표 목록(codebase · spec · task · process)',
@@ -471,6 +492,14 @@ export const ko = {
     '이 지적에 대한 코멘트입니다. 지적한 에이전트가 다음 하트비트 때 받습니다',
   'reviews.rail.comment_submit': '남기기',
   'reviews.promote': '작업으로 등록',
+  'reviews.to_cr': 'CR로 보내기',
+  'reviews.to_cr_hint':
+    '유래 스펙의 승인본에서 초안을 열고 이 발견을 변경 요청에 묶습니다. 승인되면 발견이 닫히고, 거절되면 기각과 함께 코드 되돌림 작업이 생깁니다.',
+  'reviews.to_cr_no_permission': 'planner · admin만 변경 요청으로 보낼 수 있습니다.',
+  'reviews.to_cr_done': '변경 요청 {key}로 보냈습니다.',
+  'reviews.in_cr': '변경 요청 {key}',
+  'reviews.escalated': '에스컬레이션 · {reason}',
+  'reviews.escalation_waiting': '세션이 결정을 기다립니다',
   'reviews.promoted': '{key}을(를) 만들었습니다. 위임 명세를 채우면 준비됨으로 올릴 수 있습니다.',
   'task.meta.assignee': '담당 {name}',
   'task.meta.runner': '실행 {host} ▸',
@@ -967,6 +996,17 @@ export const ko = {
   'agent.cr.task.reverify_goal': '바뀐 문장대로 다시 확인한다(완료한 작업: {tasks}) — {statement}',
   'agent.cr.task.reverify_body': '{cr}에서 요구사항 {ref}의 문장이 바뀌었다 — {spec} v{version}',
   'agent.cr.task.cancel_note': '{cr}에서 빠진 요구사항 — {ref}',
+  'agent.cr.task.revert_title': '되돌림: {title}',
+  'agent.cr.task.revert_body':
+    '{cr}이 거절됐다. 스펙이 진실이므로 구현을 스펙으로 되돌린다. 발견 {finding}({title}) · 위치 {location} · 커밋 {commit} · 나온 작업 {task} · 거절 사유: {reason}',
+  'agent.cr.task.revert_goal':
+    '{location}의 구현을 승인된 스펙대로 되돌린다(스펙과 어긋난 커밋 {commit})',
+  'agent.cr.finding.approved': '{cr} 승인 — 스펙 v{version}이 이 발견을 반영했다',
+  'agent.cr.finding.rejected': '{cr} 거절 — 스펙은 그대로이고 구현을 되돌린다. 사유: {reason}',
+  'agent.cr.finding.withdrawn': '{cr} 철회 — 발견은 열린 채로 남는다',
+  'agent.escalation.sent_to_cr': '변경 요청 {cr}로 보냈다 — 스펙 갱신은 그 변경 요청이 맡는다',
+  'agent.escalation.drift_rationale': '{title} — 구현이 스펙을 바꿨다. 스펙 갱신을 제안한다',
+  'agent.escalation.drift_summary': '구현에서 거슬러 온 스펙 갱신 — {title}',
   'cr.title': '변경 요청',
   'cr.opened_by': '연 사람 {name}',
   'cr.origin.human': '사람이 연 제안',
@@ -1624,6 +1664,63 @@ export const ko = {
   'inbox.card.cr_unplanned': '제안 {n}건은 변경 요청 화면에서 고릅니다.',
   'inbox.card.cr_no_suggestions': '승인과 함께 할 일은 없습니다.',
   'inbox.card.cr_open': '델타 전체 보기',
+  'inbox.subject.escalation': '에스컬레이션',
+  'inbox.kind.heading': '유형',
+  'inbox.kind.all': '전체',
+  'inbox.kind.spec': '스펙 승인',
+  'inbox.kind.cr': '변경 요청',
+  'inbox.kind.plan': '계획 승인',
+  'inbox.kind.question': '질문',
+  'inbox.kind.escalation': '에스컬레이션',
+  'inbox.kind.finding': '발견 하향',
+  'inbox.kind.gate_bypass': '게이트 우회',
+  'inbox.kind.count': '대기 {count}건',
+  'inbox.esc.reason': '사유: {reason}',
+  'inbox.esc.rationale': '넘긴 이유',
+  'inbox.esc.commit': '커밋 {sha} · {branch}',
+  'inbox.esc.location': '위치 {location}',
+  'inbox.esc.task': '작업 {key} · 담당 {name}',
+  'inbox.esc.task_unassigned': '작업 {key} · 담당 없음',
+  'inbox.esc.detail': '발견 원문',
+  'inbox.esc.waiting': '세션이 이 결정을 기다리는 중',
+  'inbox.esc.not_waiting': '세션은 기다리지 않고 일을 잇습니다',
+  'inbox.esc.decide.fix': '고칠 것',
+  'inbox.esc.decide.wont_fix': '유예',
+  'inbox.esc.decide.dismissed': '기각',
+  'inbox.esc.decide.fix_hint':
+    '발견은 열린 채로 남습니다. 넘긴 세션이 고친 뒤 커밋과 함께 닫습니다.',
+  'inbox.esc.decide.wont_fix_hint': '발견을 유예로 닫습니다. 언제 다시 볼지 근거에 적습니다.',
+  'inbox.esc.decide.dismissed_hint':
+    '발견을 기각으로 닫습니다. 잘못된 지적인 이유를 근거에 적습니다.',
+  'inbox.esc.rationale_placeholder': '결정의 근거 (필수 — 넘긴 세션이 이 글을 그대로 받습니다)',
+  'inbox.esc.rationale_required': '근거를 적어야 결정할 수 있습니다.',
+  'inbox.esc.to_cr': 'CR로 보내기',
+  'inbox.esc.to_cr_hint':
+    '유래 스펙의 승인본에서 초안을 열고 이 발견을 변경 요청에 묶습니다. 기다리던 세션은 바로 풀립니다.',
+  'inbox.esc.to_cr_no_tag': 'spec_drift 태그가 있는 발견만 변경 요청으로 보냅니다.',
+  'inbox.esc.to_cr_done': '변경 요청 {key}로 보냈습니다.',
+  'inbox.esc.done': '{title}: 「{resolution}」 결정을 보냈습니다.',
+  'inbox.esc.resolved': '{resolution} · {when}',
+  'inbox.esc.resolution.fix': '고칠 것',
+  'inbox.esc.resolution.wont_fix': '유예',
+  'inbox.esc.resolution.dismissed': '기각',
+  'inbox.esc.resolution.fixed': '수정됨',
+  'inbox.esc.resolution.spec_change': '스펙 정정',
+  'inbox.esc.resolution.change_request': '변경 요청으로 보냄',
+  'inbox.esc.resolution.withdrawn': '변경 요청 철회',
+  'inbox.esc.cr_title': '구현이 스펙을 바꿨습니다. 스펙 갱신을 승인하시겠습니까?',
+  'inbox.esc.cr_unchanged':
+    '초안이 아직 승인본과 같아 검토를 요청할 수 없습니다. 스펙을 고친 뒤 검토를 요청하세요.',
+  'inbox.esc.cr_changed': '초안이 고쳐졌습니다. 검토를 요청하면 결재가 시작됩니다.',
+  'inbox.esc.cr_edit': '초안 고치기',
+  'inbox.esc.cr_open': '변경 요청 보기',
+  'inbox.esc.cr_reject': '변경 요청 거절',
+  'inbox.esc.cr_reject_hint':
+    '거절하면 초안을 버리고, 이 변경 요청으로 보낸 발견을 기각하며 코드 되돌림 작업을 만듭니다.',
+  'inbox.esc.cr_reason_placeholder': '거절 사유 (필수)',
+  'inbox.esc.cr_rejected': '{key}을(를) 거절했습니다. 코드 되돌림 작업을 만들었습니다.',
+  'inbox.esc.findings': '출처 발견',
+  'inbox.card.cr_drift': '구현에서 거슬러 온 변경 요청입니다 — 출처 발견',
   'inbox.card.role_queue': '{role} 역할 결재',
   'inbox.card.role_queue_any': '다른 승인자',
   'inbox.card.cannot_approve.author': '내가 쓴 초안입니다. 다른 승인자가 처리해야 합니다.',

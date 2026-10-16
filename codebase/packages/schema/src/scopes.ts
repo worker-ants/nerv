@@ -253,6 +253,29 @@ export const SPEC_SUBMIT_ROLES = ['admin', 'planner'] as const;
 export const CR_REJECT_ROLES = ['admin', 'planner'] as const;
 
 /**
+ * **발견을 변경 요청으로 보낼 수 있는 역할**(2026-10-16 · 사람 결정 · spec-workflow §3.4 · api.md EP-REV-09). 보내면 승인본에서 초안을
+ * 열고 그 CR 의 주인이 된다 — 그래서 CR 을 거절할 수 있는 역할과 같다. 처분(`review:resolve`)이 있는 qa 는 이 길로 스펙을 열지
+ * 않는다: 스펙을 고칠 방향을 정하는 일은 planner · admin 의 것이다. 서버와 화면이 같은 목록을 본다.
+ */
+export const FINDING_TO_CR_ROLES: readonly string[] = CR_REJECT_ROLES;
+
+/** 그 역할들로 발견을 변경 요청으로 보낼 수 있는가 — 리뷰 센터의 단추와 서버 판정이 같은 식을 본다 */
+export function canSendFindingToCr(roles: readonly string[]): boolean {
+  return roles.some((role) => FINDING_TO_CR_ROLES.includes(role));
+}
+
+/**
+ * **에스컬레이션 카드를 받는 역할 자리**(2026-10-16 · 사람 결정 D3 · spec-workflow §4.7). `spec` 은 스펙을 고칠 방향을 정하는
+ * planner, `infra` · `sensitive-fix` 는 환경과 보안의 책임자인 admin 이다. 표에 없는 사유(`user-decision` · `e2e-fail-3x` ·
+ * `no`)는 역할 자리가 없다 — 그 발견이 나온 작업의 담당자와 기본 큐(`approval:decide`)가 받는다. 어느 자리든 admin 은 결정한다.
+ */
+export const ESCALATION_ROUTE_ROLES: Readonly<Record<string, 'planner' | 'admin'>> = {
+  spec: 'planner',
+  infra: 'admin',
+  'sensitive-fix': 'admin',
+};
+
+/**
  * **자기 결재를 승인할 수 있는 역할**(2026-10-11 사람 결정 · api.md REQ-API-288).
  *
  * 지시자≠승인자(spec-workflow §2.3)는 요청자 · 작성자 · 작성 세션의 소유자가 그 결재를 승인하지

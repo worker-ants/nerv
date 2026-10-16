@@ -16,7 +16,9 @@
 
 import { Injectable } from '@nestjs/common';
 import {
+  canSendFindingToCr,
   CR_REJECT_ROLES,
+  FINDING_TO_CR_ROLES,
   msg,
   NERV_ERROR,
   NERV_EVENT,
@@ -38,6 +40,11 @@ import { NervError } from '../../common/nerv-exception.filter.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import { EventService } from '../event/event.service.js';
 import type { EventInput } from '../event/event.service.js';
+import {
+  linkFindingToCrInTx,
+  lockDriftFinding,
+  settleDriftFindingsInTx,
+} from '../review/escalation.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
 type Db = Tx | NervDb;
@@ -291,11 +298,217 @@ export class ChangeRequestService {
           notify_user_ids: [...new Set([cr.created_by_user_id, cr.author_user_id])],
         },
       });
+      // **이 CR 로 보낸 발견**(2026-10-16 · spec-workflow §3.4 · REQ-API-337) — 거절이면 발견을 기각하고 코드 되돌림 작업을 만들고,
+      // 철회면 발견을 열린 채로 두고 그 CR 의 planner 카드만 닫는다
+      await settleDriftFindingsInTx(tx, emit, {
+        projectId: input.projectId,
+        changeRequest: { id: cr.id, key: cr.key },
+        outcome: input.to,
+        reason: reason === '' ? null : reason,
+        userId: input.userId,
+        sessionId: input.sessionId,
+        isAgent: input.isAgent,
+      });
       return {
         ...(await this.rowOf(tx, input.projectId, cr.id)),
         discarded_version_no: Number(cr.version_no),
       };
     });
+  }
+
+  // ── 발견에서 — SPEC-DRIFT 역류 경로(spec-workflow §3.4) ────────────────────────────
+
+  /**
+   * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-332). `spec_drift` 태그가 붙은 열린 발견만 받는다.
+   *
+   * 그 발견의 유래 스펙(발견이 가리키는 스펙 버전 · 요구사항의 문서)에 열린 CR 이 있으면 그 CR 에 잇고 — 문서마다 열린 CR 은
+   * 하나다 — 없으면 승인본의 본문으로 새 초안을 열어 CR 을 만든다(출처 `spec_drift`). 초안은 승인본과 같은 본문으로 시작한다:
+   * 스펙을 어떻게 고칠지는 사람(또는 에이전트)이 그 초안에 쓰고, 그동안은 검토를 요청할 수 없다(REQ-API-332 · `cr_unchanged`).
+   * 발견의 처분은 `escalated`(사유 `spec`)로 남고 그 CR 을 가리킨다 — 발견은 열린 채로 CR 의 결말을 기다린다(REQ-API-337).
+   *
+   * 권한은 처분(`review:resolve`)이 라우트에서, 역할(planner · admin — `FINDING_TO_CR_ROLES`)이 여기서 본다. 사람 전용은 아니다 —
+   * 같은 사람의 토큰도 같은 일을 할 수 있다(에이전트의 길은 `nerv_spec_draft_upsert` 의 `finding_id` 다).
+   */
+  async fromFinding(input: {
+    projectId: string;
+    findingId: string;
+    userId: string;
+    sessionId: string | null;
+    isAgent: boolean;
+    roles: readonly string[];
+    rationale?: string | null;
+  }): Promise<Record<string, unknown>> {
+    if (!canSendFindingToCr(input.roles)) {
+      throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.review.to_cr_role'), {
+        kind: 'role_required',
+        allowed_roles: FINDING_TO_CR_ROLES,
+      });
+    }
+    const ref = entityRef(input.findingId);
+    if (ref.id === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.finding_not_found'), {
+        kind: 'not_found',
+        finding_id: input.findingId,
+      });
+    }
+    const findingId = ref.id;
+    return this.events.transact(async (tx, emit) => {
+      const finding = await lockDriftFinding(tx, input.projectId, findingId);
+      if (finding.spec_id === null) {
+        // 어느 스펙이 틀렸는지 모르면 고칠 초안을 열 곳이 없다 — 발견이 스펙 버전이나 요구사항을 가리켜야 한다
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_origin_spec'), {
+          kind: 'no_origin_spec',
+          finding_id: finding.id,
+        });
+      }
+      const cr = await this.driftChangeRequestInTx(tx, emit, {
+        projectId: input.projectId,
+        specId: finding.spec_id,
+        findingTitle: finding.title,
+        userId: input.userId,
+        sessionId: input.sessionId,
+      });
+      const rationale = (input.rationale ?? '').trim();
+      const link = await linkFindingToCrInTx(tx, emit, {
+        projectId: input.projectId,
+        finding,
+        changeRequest: { id: cr.id, key: cr.key },
+        userId: input.userId,
+        sessionId: input.sessionId,
+        isAgent: input.isAgent,
+        rationale:
+          rationale === ''
+            ? text('agent.escalation.drift_rationale', { title: finding.title })
+            : rationale,
+      });
+      return {
+        finding_id: finding.id,
+        linked: link.linked,
+        draft_created: cr.draftCreated,
+        approval_id: link.approval_id,
+        change_request: await this.rowOf(tx, input.projectId, cr.id),
+      };
+    });
+  }
+
+  /**
+   * 그 문서의 **열린 CR** — 있으면 그것, 없으면 승인본에서 초안을 열고 CR 을 만든다(출처 `spec_drift`). 열린 초안이 CR 없이 있으면
+   * (0053 전에 만든 초안) 그 초안을 감싼다. 검토 중인 버전이 CR 없이 있으면 새 초안을 열 수 없다(409 `in_review_pending`).
+   */
+  private async driftChangeRequestInTx(
+    tx: Tx,
+    emit: EmitFn,
+    input: {
+      projectId: string;
+      specId: string;
+      findingTitle: string;
+      userId: string;
+      sessionId: string | null;
+    },
+  ): Promise<{ id: string; key: string; draftCreated: boolean }> {
+    const { rows: specs } = await tx.execute<{ key: string; archived_at: string | null }>(sql`
+      SELECT key, archived_at FROM spec WHERE id = ${input.specId} AND project_id = ${input.projectId}
+         FOR UPDATE
+    `);
+    const spec = specs[0];
+    if (spec === undefined || spec.archived_at !== null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_origin_spec'), {
+        kind: 'no_origin_spec',
+        spec_id: input.specId,
+      });
+    }
+    const { rows: open } = await tx.execute<{ id: string; key: string }>(sql`
+      SELECT cr.id, cr.key FROM change_request cr
+        JOIN spec_version sv ON sv.id = cr.proposed_version_id
+       WHERE cr.spec_id = ${input.specId} AND cr.status IN ('open', 'in_review')
+         AND sv.status IN ('draft', 'in_review')
+       LIMIT 1
+    `);
+    if (open[0] !== undefined) return { ...open[0], draftCreated: false };
+
+    const { rows: approved } = await tx.execute<{
+      id: string;
+      body_md: string;
+      content_hash: string;
+    }>(sql`
+      SELECT id, body_md, encode(content_hash, 'hex') AS content_hash FROM spec_version
+       WHERE spec_id = ${input.specId} AND status = 'approved'
+       ORDER BY version_no DESC LIMIT 1
+    `);
+    const base = approved[0];
+    if (base === undefined) {
+      // 승인본이 없는 문서는 고칠 약속이 아직 없다 — CR 이 아니라 그 초안을 고친 뒤 `spec_change` 로 닫는다
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_approved_version'), {
+        kind: 'no_approved_version',
+        spec: spec.key,
+      });
+    }
+    const { rows: mutable } = await tx.execute<{
+      id: string;
+      status: string;
+      version_no: number;
+    }>(sql`
+      SELECT id, status::text AS status, version_no FROM spec_version
+       WHERE spec_id = ${input.specId} AND status IN ('draft', 'in_review')
+       ORDER BY version_no DESC LIMIT 1
+    `);
+    const summary = text('agent.escalation.drift_summary', { title: input.findingTitle });
+    const existing = mutable[0];
+    if (existing?.status === 'in_review') {
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.spec.in_review_pending', { n: Number(existing.version_no) }),
+        { kind: 'in_review_pending', version_no: Number(existing.version_no) },
+      );
+    }
+    let versionId = existing?.id ?? null;
+    let draftCreated = false;
+    if (versionId === null) {
+      const { rows: last } = await tx.execute<{ max: number | null }>(
+        sql`SELECT max(version_no) AS max FROM spec_version WHERE spec_id = ${input.specId}`,
+      );
+      const versionNo = Number(last[0]?.max ?? 0) + 1;
+      versionId = newId();
+      // **승인본의 본문으로 연다** — 편집 리스는 두지 않는다: 누가 고칠지는 아직 정해지지 않았고, 리스가 있으면 고칠 사람이
+      // 인계(`takeover`)를 먼저 해야 한다
+      await tx.execute(sql`
+        INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash,
+                                  change_summary_md, author_user_id, author_session_id,
+                                  base_version_id)
+        VALUES (${versionId}, ${input.specId}, ${versionNo}, 'draft', ${base.body_md},
+                decode(${base.content_hash}, 'hex'), ${summary}, ${input.userId},
+                ${input.sessionId}, ${base.id})
+      `);
+      await emit({
+        type: NERV_EVENT.SPEC_DRAFT_CREATED,
+        projectId: input.projectId,
+        subjectType: 'spec_version',
+        subjectId: versionId,
+        subjectKey: spec.key,
+        actorUserId: input.userId,
+        actorSessionId: input.sessionId,
+        isAgent: input.sessionId !== null,
+        toState: 'draft',
+        payload: { change_summary: summary, origin: 'spec_drift' },
+      });
+      draftCreated = true;
+    }
+    const cr = await openChangeRequestInTx(tx, emit, {
+      projectId: input.projectId,
+      specId: input.specId,
+      versionId,
+      userId: input.userId,
+      sessionId: input.sessionId,
+      changeSummary: summary,
+      origin: 'spec_drift',
+    });
+    if (cr === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_approved_version'), {
+        kind: 'no_approved_version',
+        spec: spec.key,
+      });
+    }
+    return { id: cr.id, key: cr.key, draftCreated };
   }
 
   // ── 읽기 ──────────────────────────────────────────────────────────────────────
@@ -547,6 +760,11 @@ export async function openChangeRequestInTx(
     userId: string;
     sessionId: string | null;
     changeSummary: string | null;
+    /**
+     * 출처를 정해 연다(2026-10-16 · REQ-API-332) — 발견을 변경 요청으로 보낸 길(리뷰 센터 · `finding_id` 를 준 저장)은
+     * `spec_drift` 다. 주지 않으면 세션이 있으면 `agent`, 없으면 `human` 이다
+     */
+    origin?: 'spec_drift';
   },
 ): Promise<ChangeRequestRow | null> {
   const { rows: bases } = await tx.execute<{ id: string; version_no: number }>(sql`
@@ -590,7 +808,7 @@ export async function openChangeRequestInTx(
                                 title, rationale_md, origin, created_by_user_id, created_by_session_id)
     VALUES (${id}, ${input.projectId}, ${input.specId}, ${key}, ${base.id}, ${input.versionId},
             ${spec.title}, ${summary === '' ? null : summary},
-            ${input.sessionId === null ? 'human' : 'agent'}::change_origin,
+            ${input.origin ?? (input.sessionId === null ? 'human' : 'agent')}::change_origin,
             ${input.userId}, ${input.sessionId})
   `);
   await tx.execute(
@@ -762,9 +980,10 @@ export async function changeRequestApprovedInTx(
     spec_key: string;
     version_no: number;
     base_version_no: number;
+    created_by_user_id: string;
   }>(sql`
     SELECT cr.id, cr.key, cr.base_version_id, cr.planned_actions, s.key AS spec_key,
-           sv.version_no, b.version_no AS base_version_no
+           sv.version_no, b.version_no AS base_version_no, cr.created_by_user_id
       FROM change_request cr
       JOIN spec s ON s.id = cr.spec_id
       JOIN spec_version sv ON sv.id = cr.proposed_version_id
@@ -782,6 +1001,17 @@ export async function changeRequestApprovedInTx(
   });
   // 행위자가 없으면(사람이 승인하지 않은 자동 통과는 제출한 사람이 있다) 만든 작업은 그 사람의 것이다
   const owner = input.approverUserId ?? input.actor.userId;
+  // **이 CR 로 보낸 발견은 스펙을 고쳐 해결됐다**(2026-10-16 · spec-workflow §3.4 · REQ-API-337) — 근거는 승인된 이 버전이다
+  await settleDriftFindingsInTx(tx, emit, {
+    projectId: input.projectId,
+    changeRequest: { id: cr.id, key: cr.key },
+    outcome: 'approved',
+    approvedVersionId: input.versionId,
+    approvedVersionNo: Number(cr.version_no),
+    userId: owner ?? cr.created_by_user_id,
+    sessionId: input.actor.sessionId,
+    isAgent: input.actor.isAgent,
+  });
   const applied =
     owner === null
       ? { created: [], archived: [], skipped: [] }

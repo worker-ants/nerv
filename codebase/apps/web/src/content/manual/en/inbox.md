@@ -8,6 +8,7 @@ The inbox collects **only what is waiting on your decision**. If it also counted
 | **Change request** | Whether the approved version may change this way               |
 | **Plan approval**  | Whether this large piece of work can start now                 |
 | **Question**       | Something an agent cannot decide on its own. Please answer it. |
+| **Escalation**     | How to resolve a review finding an agent escalated to you      |
 
 **Plan approval** is required only for large work. Work counts as large when **four or more** tasks come from the same spec version, or when that version's risk tier is **T3**. Claiming such a task is blocked immediately, and this card is created. Once you approve it, the next claim goes through. The point is to review the design once before any code is written, so the gate sits right before work starts.
 
@@ -202,3 +203,45 @@ The list does not load all at once. Use **[Load more]** at the bottom to continu
 **Plan approvals and critical downgrades do not expire.** There is no draft for them to go back to. After 2 days they are marked Overdue and stay until someone decides.
 
 **You can also see how often approvals take longer than a day.** The **Approval flow** line on the project overview shows, of the approvals in the last 30 days, the share that waited more than a day (reached the second reminder). Approvals go to a role queue, not to a specific person. When this share goes above 30%, it is taken as a sign that people in the same role are leaving approvals to each other, and a note suggests considering assigning approvals to specific people. The threshold (30%) and the period (30 days) are starting values and may change. Approvals less than a day old are not counted.
+
+## Escalation cards {#escalations}
+
+When an agent decides it should not resolve a review finding on its own, it hands the finding to a person (an escalation). The finding stays open and becomes a **card** in the inbox. The **reason** for the escalation decides who receives the card.
+
+| Reason                                                        | Who receives the card                                                                        |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Spec gap (`spec`)                                             | Planners                                                                                     |
+| Infrastructure (`infra`) · Sensitive change (`sensitive-fix`) | Admins                                                                                       |
+| Product decision · E2E failed 3×                              | The assignee of the task the finding came from, plus the default queue (admins and planners) |
+
+Admins can decide any card. The task assignee receives cards from their own task even without an approval role.
+
+The card shows the **original finding** (severity, location, body), the **commit** the finding was seen on, the task it came from and its assignee, and the **reason the agent gave**. If the session that escalated it is waiting for the decision, the card says "The session is waiting for this decision".
+
+**The decision is the finding's resolution.** Write a rationale and press one of three buttons. The session receives your rationale as is.
+
+- **Fix it**: the finding is right and should be fixed. The finding stays open; the session that escalated it fixes it and closes it with the commit.
+- **Won't fix**: closes the finding as won't fix. Say in the rationale when to look again.
+- **Dismiss**: closes the finding as dismissed. Say in the rationale why it is wrong.
+
+As on other cards, the decision is sent 5 seconds after you press it. Press **Undo** or `z` in the meantime and nothing is sent.
+
+Deciding releases a waiting session **right away**, and the session receives the decision with its next heartbeat. If the agent chose not to wait, the session keeps working in the meantime. If someone resolves the finding in the review center before the card is decided, the card closes too. Escalation cards are decided one at a time and are not part of bulk selection.
+
+**When the reason is spec, there is Send to CR.** If the finding says the spec is wrong (it has the `spec_drift` tag), this button opens a draft from the approved version of the source spec and links the finding to that change request. If the spec already has an open change request, the finding is linked to it. A waiting session is released right away.
+
+### Change requests from the implementation {#drift-change-requests}
+
+A finding sent to a change request shows up in planners' inboxes as a **"The implementation changed the spec"** card — one card per change request. The card shows the change request key, the versions (such as `v3 → v4`), and the **source findings** with their commits.
+
+The draft starts with the same body as the approved version; a person or an agent decides how to change the spec. **While the draft is still the same as the approved version, a review cannot be requested.** The card says so first, and **Edit the draft** opens that draft. Once you request a review of the edited draft, this card leaves the waiting list and the same change request appears as the spec approval card (the change request card). That card also shows the source findings.
+
+- When the change request is **approved**, the finding closes as a spec fix (`spec_change`). The evidence is the approved version.
+- **Reject change request** (a reason is required) discards the draft and dismisses the finding. The spec was right, so a **revert task** that undoes the code change is added to the backlog. The task names the finding, the commit, and the change request key, and is assigned to the assignee of the task the finding came from.
+- If the author **withdraws** the change request, the finding stays open. You can send it again from the review center.
+
+## Filtering by type {#kinds}
+
+Use the **Type** row above the list to pick a card type: spec approval, change request, plan approval, question, escalation, finding downgrade, gate bypass. In the waiting tab each type shows how many cards are waiting. These counts use the same conditions regardless of which type you picked.
+
+**Escalation** shows escalation cards together with **questions that carry a reason**. Those questions keep the question card layout and also appear under **Question**. Escalation cards that were sent to a change request appear under **Change request**. The type you pick stays in the address (`?kind=`), and it stays when you switch tabs or the organization and project pane.

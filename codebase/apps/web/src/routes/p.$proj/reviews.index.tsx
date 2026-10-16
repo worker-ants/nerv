@@ -6,7 +6,7 @@
 //
 // 이 화면이 대체하는 것은 clemvion 의 `review/**` md 13,777개(131MB)다.
 
-import { scopesForRoles } from '@nerv/schema';
+import { canSendFindingToCr, scopesForRoles } from '@nerv/schema';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { useEffect, useRef, useState } from 'react';
@@ -158,6 +158,8 @@ function ReviewCenter(): React.JSX.Element {
   // **코멘트는 참여이고 처분은 권한이다**(2026-10-11 · REQ-WEB-307 · 서버 REQ-API-294). 처분과 같은 축으로 잠그면
   // developer · designer 가 자기 코드에 달린 발견에 답하지 못한다 — viewer 만 빼고 남긴다
   const canComment = scopesForRoles(roles).has('review:submit');
+  // **변경 요청으로 보내기**는 planner · admin 이다(2026-10-16 · REQ-WEB-324) — 서버와 같은 식을 본다
+  const canSendToCr = canSendFindingToCr(roles);
   // **레일은 넓은 화면의 향상이지 유일한 경로가 아니다**(2026-09-10 — 사람 보고 · REQ-WEB-161).
   // 곁레일은 `xl`(1280px) 부터만 서는데, 그 아래에서는 발견을 눌러도 **카드 배경만** 옅게
   // 바뀌고 레일이 펴는 것(갈래·심볼·전체 경로·코멘트·Task 승격)에 닿을 길이 아예 없었다 —
@@ -467,6 +469,7 @@ function ReviewCenter(): React.JSX.Element {
                         canResolve={canResolve}
                         canComment={canComment}
                         canPromote={canPromote}
+                        canSendToCr={canSendToCr}
                         {...railResolve(finding)}
                       />
                     </div>
@@ -518,6 +521,7 @@ function ReviewCenter(): React.JSX.Element {
                 canResolve={canResolve}
                 canComment={canComment}
                 canPromote={canPromote}
+                canSendToCr={canSendToCr}
                 {...railResolve(selected)}
               />
             </div>

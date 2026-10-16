@@ -56,6 +56,11 @@ export const SpecDraftUpsertInput = z
     allow_shrink: z.boolean().nullish(),
     /** 주지 않으면 건드리지 않고, 빈 배열은 "전부 지워라" 다 */
     relations: z.array(SpecRelationInput).nullish(),
+    /**
+     * **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-332) — `spec_drift` 태그가 붙은 열린 발견의 UUID. 이 초안을 감싼
+     * 변경 요청에 그 발견을 묶는다. 승인본이 없는 문서에는 줄 수 없다
+     */
+    finding_id: z.string().min(1).nullish(),
   })
   .strict();
 

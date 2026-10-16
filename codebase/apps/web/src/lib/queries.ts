@@ -10,7 +10,7 @@ import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
 import { PENDING_PROJECT, queryKeys } from './query-keys.js';
 import type { ProjectId } from './query-keys.js';
 import { REQUIREMENT_PREFIX } from '@nerv/schema';
-import type { ApprovalInboxState, PLUGIN_COVERAGE_AGENT_TYPES } from '@nerv/schema';
+import type { ApprovalInboxState, InboxKind, PLUGIN_COVERAGE_AGENT_TYPES } from '@nerv/schema';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
 import type { Me } from './session.js';
@@ -85,6 +85,11 @@ export interface InboxPage {
    * 요청했거나 쓴 것처럼 **승인할 수 없는 카드**가 섞여, 할 일을 다 해도 배지가 0 이 되지 않았다.
    */
   actionable_total?: number;
+  /**
+   * **유형마다 대기 수**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 대기 탭에만 온다. 유형 필터와 무관하게 센 수라 칸의 숫자가
+   * 고른 유형에 따라 변하지 않는다(리뷰 센터의 facet 과 같은 뜻)
+   */
+  kind_counts?: Partial<Record<InboxKind, number>>;
 }
 
 /**
@@ -103,6 +108,11 @@ export function useInbox(
    * 그때의 캐시 키는 예전 그대로다(헤더 배지 · 홈이 같은 칸을 본다).
    */
   scope: NotificationScope = {},
+  /**
+   * **유형**(2026-10-16 · 사람 결정 D3 · REQ-WEB-326) — 받은 요청의 유형 칸이 고른 것. 비우면 거르지 않고, 그때의 캐시 키는 예전
+   * 그대로다(헤더 배지 · 홈이 같은 키를 본다)
+   */
+  kind?: InboxKind,
 ): UseInfiniteQueryResult<InfiniteData<InboxPage>> {
   const refetchInterval = useLivePolling();
   const scoped = scope.org !== undefined || scope.project !== undefined;
@@ -110,13 +120,15 @@ export function useInbox(
     queryKey: [
       ...queryKeys.inbox(),
       state,
-      ...(scoped ? [scope.org ?? '', scope.project ?? ''] : []),
+      ...(scoped || kind !== undefined ? [scope.org ?? '', scope.project ?? ''] : []),
+      ...(kind === undefined ? [] : [kind]),
     ],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ state });
       if (pageParam !== null) params.set('cursor', String(pageParam));
       if (scope.org !== undefined) params.set('org', scope.org);
       if (scope.project !== undefined) params.set('project', scope.project);
+      if (kind !== undefined) params.set('kind', kind);
       return apiFetch<InboxPage>(`/approvals?${params.toString()}`);
     },
     initialPageParam: null as string | null,
@@ -133,6 +145,13 @@ export function useInbox(
  */
 export function inboxCards(data: InfiniteData<InboxPage> | undefined): Row[] {
   return (data?.pages ?? []).flatMap((page) => rows(page.items));
+}
+
+/** 유형마다 대기 수 — 첫 쪽이 실어 준다(REQ-WEB-326). 아직 안 왔으면 없다 */
+export function inboxKindCounts(
+  data: InfiniteData<InboxPage> | undefined,
+): Partial<Record<InboxKind, number>> | null {
+  return data?.pages[0]?.kind_counts ?? null;
 }
 
 /** 전체 수 — 첫 쪽이 실어 준다. 아직 안 왔으면 0 이다(숫자를 지어내지 않는다) */

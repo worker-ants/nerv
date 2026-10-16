@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 41개**다 — 도메인 35 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.79 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.80 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.80 변경(2026-10-16 — 에스컬레이션 카드 · 변경 요청에 묶인 발견, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **REQ-DB-049 신설 · §2.1 enum 값 하나 · §2.7 `resolution` 한 열 · §2.12 인덱스 하나 · 마이그레이션 `0054`.** 결재 대상에 `escalation`(발견을 사람에게 넘긴 처분 한 건)을 더하고, 넘긴 세션이 결정을 기다리는지를 `resolution.blocking` 에 남긴다. 변경 요청이 승인 · 거절될 때 그 CR로 보낸 발견을 찾는 인덱스(`resolution_change_request`)를 둔다. enum 값은 더하기만 하고 이 마이그레이션 안에서 쓰지 않는다(0050 · 0053 과 같다).
 >
 > v0.79 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **REQ-DB-048 신설 · §2.1 enum 값 하나와 주석 · §2.4 `change_request` 두 열 · §2.12 인덱스 셋 · 마이그레이션 `0053`.** `change_request.key`(표시 키 `<PRJ>-C-XXXXXX` · `UNIQUE (project_id, key)`)와 `planned_actions`(승인하며 함께 할 일)를 더하고, 문서마다 열린 CR 하나 · 초안마다 CR 하나를 인덱스로 지킨다. `spec_version_status` 에 `discarded`(버린 초안 — CR 거절 · 철회가 만든다)를 더한다. 결재 대상 `change_request` 는 쓰지 않는 값으로 남긴다 — CR의 결재는 그 스펙 버전이 받고([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.5), enum 값을 지우는 마이그레이션은 위험만 있고 얻는 것이 없다. 있던 CR 행은 마이그레이션이 키를 채운다(백필 — `@nerv/schema` 의 `displayKey` 와 같은 식).
 >
@@ -259,7 +261,7 @@ CREATE TYPE finding_area            AS ENUM ('codebase', 'spec', 'task', 'proces
 CREATE TYPE finding_status          AS ENUM ('open', 'fixed', 'dismissed', 'wont_fix');
 CREATE TYPE resolution_kind         AS ENUM ('fixed', 'deferred', 'dismissed', 'escalated', 'spec_change');
 CREATE TYPE escalate_reason         AS ENUM ('no', 'spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix');
-CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass', 'finding');
+CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass', 'finding', 'escalation'); -- 'escalation' 0054 · 에스컬레이션 카드(REQ-DB-049)
 -- 'finding' 추가 2026-08-23(마이그레이션 0004) — `nerv_finding_resolve(critical → dismissed/wont_fix)`는
 -- A3라 사람의 받은 요청을 거치는데(agent-integration §2.3), 그 카드가 붙을 자리가 열거에 없었다.
 -- 'change_request' 는 쓰지 않는다(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 'spec_version' 이 받는다.
@@ -824,6 +826,7 @@ CREATE TABLE resolution (
   change_request_id uuid REFERENCES change_request(id),
   spec_version_id   uuid REFERENCES spec_version(id), -- 스펙을 고쳐 해결한 증거(2026-08-30)
   escalate_reason   escalate_reason,
+  blocking          boolean NOT NULL DEFAULT false, -- 넘긴 세션이 결정을 기다리는가(0054 · REQ-DB-049)
   rationale_md      text NOT NULL,             -- 유예 근거는 1급 데이터
   actor_user_id     uuid NOT NULL REFERENCES "user"(id),
   actor_session_id  uuid REFERENCES agent_session(id),
@@ -1108,6 +1111,7 @@ CREATE UNIQUE INDEX notification_batch_event_user ON notification_batch_event (e
 CREATE INDEX question_open ON question (project_id, status);                       -- 보조: 열린 질문 수
 CREATE INDEX evidence_requirement ON evidence (requirement_id) WHERE NOT stale;    -- 보조: 커버리지(§4.1)
 CREATE INDEX evidence_task ON evidence (task_id, created_at, id) WHERE task_id IS NOT NULL; -- 보조: 작업의 최신 커밋 · 증적 목록(0052 · REQ-DB-045)
+CREATE INDEX resolution_change_request ON resolution (change_request_id) WHERE change_request_id IS NOT NULL; -- 변경 요청에 묶인 발견(0054 · REQ-DB-049)
 ```
 
 ### 2.13 함수·트리거
@@ -1404,6 +1408,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-044 | WHEN 임포터가 새 요구사항을 만들면 THE SYSTEM SHALL `requirement.impl_status_source`(`impl_status_source` — `derived`·`import` · NOT NULL · 기본 `derived`)에 `import` 를 남기고, WHEN 파생이 구현 상태를 다시 쓰면 THE SYSTEM SHALL 같은 쓰기에서 `derived` 로 바꾼다. 다른 쓰기(승인의 요구사항 동기화 · 다시 임포트 · 빠진 행 채우기)는 이 열을 건드리지 않는다. 이 열이 생기기 전의 행은 임포터가 만들었고(들어온 버전에 `requirement_version` 의 `added` 줄이 있다) 보관하지 않은 작업이 없는 것만 `import` 이고 나머지는 `derived` 다(마이그레이션 `0051` · [4.4 API 명세](api.md) REQ-API-312 · 2026-10-15 사람 결정 ④). 검증은 L2 `migrate.spec.ts`(있던 행 채우기 · 멱등)와 `coverage-drilldown.spec.ts` 다 |
 | REQ-DB-045 | WHEN 작업의 증적을 찾으면(done 게이트 · 구현 축의 작업 최신 `commit` 증적 — [4.4 API 명세](api.md) REQ-API-314 · 315, 작업의 증적 목록 · 수 · 웹훅 dedup) THE SYSTEM SHALL `evidence_task`(`task_id, created_at, id` · `WHERE task_id IS NOT NULL`)로 그 작업의 행만 읽고 표 전체를 훑지 않는다. 오름차순으로 두어 최신 커밋의 `ORDER BY created_at DESC, id DESC` 는 거꾸로 읽을 수 있다(마이그레이션 `0052` · 2026-10-15). 검증은 L2 `commit-scope.spec.ts`(인덱스 정의 · 순차 스캔을 끈 계획이 이 인덱스를 쓴다)다 |
 | REQ-DB-048 | WHEN 승인본이 있는 문서에 새 초안이 생겨 변경 요청(CR)을 만들면 THE SYSTEM SHALL 그 행의 `change_request.key` 에 표시 키 `<PRJ>-C-XXXXXX`(씨앗은 그 행의 UUID)를 넣고 `change_request_key_uq`(`project_id, key`)로 프로젝트 안의 유일함을 지키며, `change_request_proposed_uq`(`proposed_version_id`)로 초안마다 CR 하나를, `change_request_spec_open_uq`(`spec_id` · `WHERE status IN ('open', 'in_review')`)로 문서마다 열린 CR 하나를 지킨다. WHEN CR을 거절하거나 철회하면 THE SYSTEM SHALL 그 초안의 `spec_version.status` 를 `discarded` 로 바꾸고 행을 지우지 않는다. 승인하며 함께 할 일은 `planned_actions`(jsonb · NOT NULL · 기본 `{}`)에 남긴다. 마이그레이션 `0053` 은 있던 CR 행의 키를 같은 식으로 채운다(2026-10-16 · 사람 결정 D1 · D2) |
+| REQ-DB-049 | WHEN 발견을 사람에게 넘기면(`escalated`) THE SYSTEM SHALL 넘긴 세션이 결정을 기다리는지를 `resolution.blocking`(boolean · NOT NULL · 기본 false)에 남기고 그 처분을 대상으로 하는 결재 행(`approval.subject_type = escalation` · `subject_id` = 그 `resolution.id`)을 만든다. WHEN 변경 요청이 승인 · 거절 · 철회되면 THE SYSTEM SHALL `resolution_change_request`(`change_request_id` · `WHERE change_request_id IS NOT NULL`)로 그 CR에 묶인 발견을 찾는다. 마이그레이션 `0054` 는 `approval_subject_type` 에 값을 더하기만 하고 그 안에서 쓰지 않는다(2026-10-16 · 사람 결정 D3) |
 
 ---
 

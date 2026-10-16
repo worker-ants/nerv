@@ -63,6 +63,8 @@ const SUBJECT_FALLBACK = {
   question: 'inbox.subject.question',
   gate_bypass: 'inbox.subject.gate_bypass',
   finding: 'inbox.subject.finding',
+  // 에스컬레이션 카드(2026-10-16 · 사람 결정 D3) — 받은 요청은 이 카드를 따로 그린다(`EscalationCard`)
+  escalation: 'inbox.subject.escalation',
 } as const satisfies Record<string, MessageKey>;
 
 export function subjectFallback(t: Translator, subjectType: unknown): string {
@@ -206,7 +208,7 @@ function diffSearchOf(card: Record<string, unknown>): Record<string, string> | u
  * 받은 요청은 모든 조직을 싣는데 조직은 주소가 아니라 기억에 있다. 다른 조직 카드의 문서
  * 링크를 그대로 따라가면 서버는 지금 조직 안에서 프로젝트를 찾고 "없다" 고 답했다.
  */
-function CardLink({
+export function CardLink({
   orgSlug,
   currentOrg,
   path,
@@ -1081,7 +1083,7 @@ export function ApprovalCard({
  * 남은 초를 세지 않는다: 매초 바뀌는 글자는 보조기기가 매초 읽는다. 문장은 한 번, 시간은 막대가 말한다.
  * `label` 이 null 이면 이미 보내는 중이다 — 무를 수 없으니 [취소]도 없다.
  */
-function GraceStrip({
+export function GraceStrip({
   label,
   active,
   cancelRef,
@@ -1343,6 +1345,10 @@ function CrSummary({
   const create = Number(planned?.['derive'] ?? 0) + Number(planned?.['reverify'] ?? 0);
   const cancel = Number(planned?.['cancel'] ?? 0);
   const suggestions = Number(impact?.['suggestions'] ?? 0);
+  // **구현에서 거슬러 온 CR**(2026-10-16 · REQ-WEB-324) — 그 CR 로 보낸 발견의 제목 · 커밋을 함께 보인다(spec-workflow §3.4)
+  const driftFindings = Array.isArray(card['cr_findings'])
+    ? (card['cr_findings'] as Record<string, unknown>[])
+    : [];
   return (
     <div data-testid="cr-summary" className="flex flex-col gap-0.5">
       <p className="flex flex-wrap items-center gap-x-2">
@@ -1400,6 +1406,13 @@ function CrSummary({
           })}
         </p>
       )}
+      <DriftFindings
+        card={card}
+        proj={proj}
+        currentOrg={currentOrg}
+        findings={driftFindings}
+        heading={t('inbox.card.cr_drift')}
+      />
       {planned !== null && (
         <p data-testid="cr-planned-line" className="text-text-faint">
           {create + cancel > 0
@@ -1501,4 +1514,48 @@ function TargetLine({
     );
   }
   return null;
+}
+
+/** 그 CR 로 보낸 발견 — 제목 · 심각도 · 커밋(REQ-WEB-324). 스펙 결재의 CR 카드도 같은 줄을 쓴다 */
+export function DriftFindings({
+  card,
+  proj,
+  currentOrg,
+  findings,
+  heading,
+}: {
+  card: Record<string, unknown>;
+  proj: string;
+  currentOrg: string | null;
+  findings: readonly Record<string, unknown>[];
+  heading?: string;
+}): React.JSX.Element | null {
+  const t = useT();
+  if (findings.length === 0) return null;
+  return (
+    <div data-testid="drift-findings">
+      <span className="block text-2xs text-text-faint">{heading ?? t('inbox.esc.findings')}</span>
+      <ul className="mt-0.5 flex flex-col gap-0.5">
+        {findings.map((f) => (
+          <li key={String(f['id'])} className="flex flex-wrap items-center gap-x-2">
+            <CardLink
+              orgSlug={card['org_slug']}
+              currentOrg={currentOrg}
+              path={`/p/${proj}/reviews?finding=${String(f['id'])}`}
+              to="/p/$proj/reviews"
+              params={{ proj }}
+              search={{ finding: String(f['id']) }}
+            >
+              {String(f['title'] ?? '')}
+            </CardLink>
+            {typeof f['commit_sha'] === 'string' && (
+              <span className="font-mono text-text-faint">
+                {String(f['commit_sha']).slice(0, 12)}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

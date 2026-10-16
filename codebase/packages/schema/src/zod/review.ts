@@ -94,6 +94,21 @@ export const FindingResolveInput = z
     change_request_id: z.string().nullish(),
     spec_version_id: z.string().nullish(),
     escalate_reason: z.string().nullish(),
+    /**
+     * **넘긴 쪽이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-334). `escalated` 에만 읽는다. 주지 않으면 세션이 부른
+     * 처분은 기다리고(질문과 같다 — 사람을 부르고도 그냥 진행하는 것은 에스컬레이션이 아니다) 세션 없는 처분은 기다릴 세션이 없다
+     */
+    blocking: z.boolean().nullish(),
+  })
+  .strict();
+
+/**
+ * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-332). 근거는 선택이다 — 주지 않으면 서버가
+ * "발견 제목 — 구현이 스펙을 바꿨다" 로 적는다. 발견의 본문 · 근거 · 커밋은 서버가 발견에서 옮긴다.
+ */
+export const FindingToChangeRequestInput = z
+  .object({
+    rationale: z.string().trim().max(2000).nullish(),
   })
   .strict();
 
@@ -150,6 +165,11 @@ export const ApprovalDecisionInput = z
      * 그 버전을 감싼 변경 요청에 남긴 뒤 버전이 승인되는 순간(정족수가 차는 순간) 서버가 한다. 변경 요청이 없는 결재면 400 이다
      */
     cr_actions: CrActionsInput.nullish(),
+    /**
+     * **에스컬레이션 카드의 처분**(2026-10-16 · 사람 결정 D3 · REQ-API-335) — `fix`(고칠 것) · `wont_fix`(유예) · `dismissed`(기각).
+     * 에스컬레이션 카드에는 필수이고 다른 결재에 오면 400 이다. 어휘 판정은 도메인이 한다(`ESCALATION_RESOLUTIONS`)
+     */
+    resolution: z.string().nullish(),
   })
   .strict();
 

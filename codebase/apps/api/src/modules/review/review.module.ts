@@ -9,12 +9,14 @@ import { EventModule } from '../event/event.module.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
 // 발견을 Task 로 올린다(REQ-API-059) — 만드는 판정은 TaskService 한 곳이다(D-05)
 import { TaskModule } from '../task/task.module.js';
+// 발견을 변경 요청으로 보낸다(2026-10-16 · REQ-API-332) — CR 을 여는 판정은 ChangeRequestService 한 곳이다(D-05)
+import { SpecModule } from '../spec/spec.module.js';
 import { ReviewController } from './review.controller.js';
 import { ReviewService } from './review.service.js';
 import { ReviewTools } from './review.tools.js';
 
 @Module({
-  imports: [EventModule, AuthModule, TaskModule],
+  imports: [EventModule, AuthModule, TaskModule, SpecModule],
   controllers: [ReviewController],
   providers: [ReviewService, ReviewTools, ProjectAccessGuard],
   exports: [ReviewService],

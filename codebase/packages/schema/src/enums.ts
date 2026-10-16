@@ -228,6 +228,22 @@ export type ClaimReleaseReason = (typeof CLAIM_RELEASE_INPUTS)[number];
 export const APPROVAL_INBOX_STATES = ['pending', 'decided', 'expired'] as const;
 export type ApprovalInboxState = (typeof APPROVAL_INBOX_STATES)[number];
 
+/**
+ * **받은 요청의 유형 필터**(2026-10-16 · 사람 결정 D3 · api.md EP-APR-01 `kind`). 카드의 유형은 결재 대상만으로 정해지지 않는다 —
+ * 스펙 결재는 그 버전을 변경 요청이 감싸면 `cr` 이고, 에스컬레이션 카드는 변경 요청으로 보냈으면 `cr` 이다. 사유(`escalate`)가 있는
+ * 질문은 `question` 이면서 `escalation` 에도 든다(카드 모양은 질문 그대로다). 판정은 서버 한 곳이다.
+ */
+export const INBOX_KINDS = [
+  'spec',
+  'cr',
+  'plan',
+  'question',
+  'escalation',
+  'finding',
+  'gate_bypass',
+] as const;
+export type InboxKind = (typeof INBOX_KINDS)[number];
+
 /** 관계 목록의 방향 — 같은 이유로 여기 둔다(EP-SPEC-18) */
 export const SPEC_RELATION_DIRECTIONS = ['out', 'in', 'both'] as const;
 export type SpecRelationDirection = (typeof SPEC_RELATION_DIRECTIONS)[number];
@@ -317,6 +333,19 @@ export const ESCALATE_REASONS = [
 ] as const;
 export type EscalateReason = (typeof ESCALATE_REASONS)[number];
 
+/**
+ * **에스컬레이션 카드의 결정**(2026-10-16 · 사람 결정 D3 · api.md EP-APR-03 `resolution`). 넘겨받은 사람이 정하는 그 발견의 처분이다.
+ *
+ * - `fix` — 고칠 것. 발견은 열린 채로 남고 넘긴 세션이 고친 뒤 `fixed` + 커밋으로 닫는다(커밋 없는 `fixed` 를 사람이 대신 만들지 않는다)
+ * - `wont_fix` — 유예. 발견을 닫는다(저장은 `deferred`)
+ * - `dismissed` — 기각. 발견을 닫는다
+ *
+ * 사유가 `spec` 인 카드는 넷째 길이 있다 — 변경 요청으로 보내기(EP-REV-09). 그 길은 이 어휘가 아니라 자기 표면을 쓰고, 결정
+ * 이벤트에는 `change_request` 로 남는다.
+ */
+export const ESCALATION_RESOLUTIONS = ['fix', 'wont_fix', 'dismissed'] as const;
+export type EscalationResolution = (typeof ESCALATION_RESOLUTIONS)[number];
+
 // ── 사람 개입 ─────────────────────────────────────────────────────────────
 export const approvalSubjectType = pgEnum('approval_subject_type', [
   'spec_version',
@@ -326,6 +355,12 @@ export const approvalSubjectType = pgEnum('approval_subject_type', [
   'gate_bypass',
   /** 리뷰 발견 — critical 하향(A3)의 승인 카드가 붙는 곳(FR-09, 2026-08-23 추가) */
   'finding',
+  /**
+   * **에스컬레이션 카드**(2026-10-16 · 사람 결정 D3 · spec-workflow §4.7 · 마이그레이션 0054). 대상은 발견을 사람에게 넘긴 처분
+   * 한 건(`resolution` · `kind = escalated`)이다. `finding` 과 나눈 이유: 그 값은 critical 하향을 **허락하는** 카드라 승인이
+   * 하향을 연다 — 같은 대상에 다른 뜻의 결재가 붙으면 에스컬레이션의 결정이 하향 승인으로 읽힌다
+   */
+  'escalation',
 ]);
 export const approvalDecision = pgEnum('approval_decision', ['approve', 'reject', 'comment']);
 export const questionUrgency = pgEnum('question_urgency', ['blocking', 'normal']);

@@ -80,11 +80,13 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 
 - **코드를 고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
 - **스펙을 고쳐 해결했으면** `resolution=spec_change` + `spec_version_id`(그 저장의 버전 id) + `rationale`. 구현이 맞고 스펙이 틀렸던 경우가 이쪽이다 — `spec_drift` 지적의 절반은 여기로 간다. **커밋이 없다고 `dismissed`나 `wont_fix`로 닫지 않는다**: 오탐도 아니었고 미룬 것도 아니라, 둘 다 거짓이 되고 나중에 "이 발견들은 어떻게 해결됐나"의 답이 뭉개진다.
+  **승인본이 있는 문서는 다르다** — 그 초안은 변경 요청(CR)이라 승인되기 전에는 고친 것이 아니다. `/nerv:spec` 으로 초안을 저장할 때 `finding_id` 에 그 `spec_drift` 발견을 넣는다. 서버가 발견을 그 CR 에 묶고(처분 `escalated` · 사유 `spec`), CR 이 승인되면 발견을 `fixed` 로, 거절되면 `dismissed` 와 코드 되돌림 작업으로 닫는다 — 그 발견에 `nerv_finding_resolve` 를 따로 부르지 않는다.
   `critical`이어도 사람 승인을 거치지 않는다 — 스펙을 고쳐 닫는 것은 **지적이 옳았다는 인정**이지 하향이 아니다.
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.
-- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음에는 그 발견을 다시 집지 말고 하트비트로 사람의 답을 기다린다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
+- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. 서버가 사유에 맞는 사람의 받은 요청에 카드를 만든다(`spec` → planner · `infra`·`sensitive-fix` → admin · 그 밖 → 그 작업의 담당자와 결재 큐). 응답의 `escalation.approval_id` 가 그 카드이고, 같은 발견을 다시 넘겨도 카드는 하나다(`existing: true`). `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
+  **기본은 기다리는 것이다**(`blocking: true`) — 이 세션은 `awaiting_input` 이 되고 그 발견을 다시 집지 않는다. 결정은 하트비트 `pending` 의 `approval_decided`(`subject_type: escalation` · `finding_id` · `resolution` · `comment_md`)로 온다. `fix` 면 그 발견을 고쳐 `fixed` + 커밋으로 닫는다. `wont_fix`·`dismissed` 면 서버가 이미 닫았으니 보고만 한다. `change_request` 면 그 CR(`change_request_key`)이 스펙을 갱신한다. 하트비트를 놓쳤으면 `nerv_finding_list` 의 `escalation_decision`·`escalation_resolution` 으로 다시 읽는다. 다른 발견을 계속 처리할 수 있으면 `blocking: false` 로 넘긴다 — 카드는 생기지만 세션은 멈추지 않는다.
 - 근거는 어느 처분에나 필수다. 사유 없이 쌓인 유예 목록은 곧 잊힌 목록이 된다.
 
 ### critical 하향은 사람의 몫이다 (A3)

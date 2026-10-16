@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.19 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.20 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.20 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **`spec` 스킬 한 항목 · `review` 스킬 두 항목 · `impl` 스킬 한 항목 · 패키지 0.3.34 그대로.** `spec` 스킬은 `spec_drift` 발견을 고치는 저장에 `finding_id` 를 넣으라고 말한다 — 서버가 그 발견을 초안의 변경 요청에 묶고, CR의 결말이 발견을 닫는다. `review` 스킬은 승인본이 있는 문서의 `spec_drift` 를 `spec_change` 로 직접 닫지 않고 그 경로로 보내며, `escalated` 처분이 받은 요청에 카드를 만들고 기본으로 세션이 결정을 기다린다(`blocking`)고 말한다. `impl` 스킬은 하트비트의 `approval_decided` 가 `escalation` 이면 처분(`resolution`)대로 움직인다([4.4 API](api.md) REQ-API-332 ~ 335). 패키지 버전은 묶음 3의 첫째가 올린 0.3.34 그대로다 — 둘 다 아직 배달 전이라 같은 배달에 든다.
 >
 > v1.19 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **`spec` 스킬 한 항목 · `impl` 스킬 한 단락 · 패키지 0.3.33 → 0.3.34.** 승인본이 있는 문서의 초안은 서버가 변경 요청(CR)으로 연다 — `spec` 스킬이 저장 응답의 `change_request`(키 · 상태 · 웹 주소)를 사람에게 함께 보고하고, 승인하며 함께 할 일은 사람이 그 화면에서 고른다고 말한다. `impl` 스킬은 하트비트의 `basis_superseded` 줄에 붙는 `requirement_removed: true`(그 작업의 요구사항이 새 승인본에서 빠졌다)를 중단 확인 요청으로 읽는다 — 이어 구현하지 않고 `blocked(spec_conflict)`로 멈춘 뒤 사람에게 묻는다([4.4 API](api.md) REQ-API-330).
 >
@@ -516,6 +518,10 @@ allowed-tools:
   (`key`·`status`·`web_url`)를 사람에게 함께 보고한다. 승인하며 무엇을 함께 할지(파생 · 재검증 작업 ·
   미착수 작업 보관)는 사람이 그 `web_url` 에서 고른다. 거절되거나 철회된 초안은 버려지고(`discarded`)
   다음 저장이 새 초안 · 새 CR 이 된다 — 버린 초안을 다시 살리려 하지 않는다.
+- **스펙이 틀렸다는 리뷰 발견(`spec_drift`)을 고치는 저장이면 `finding_id` 에 그 발견을 넣는다.** 서버가 이 초안의 CR 에
+  그 발견을 묶는다(이 저장이 CR 을 열면 출처가 `spec_drift` 다). CR 이 승인되면 발견이 `fixed`, 거절되면 `dismissed` 와
+  코드 되돌림 작업이 된다. 승인본이 없는 문서에는 줄 수 없다(`no_approved_version`) — 그때는 저장한 뒤 발견을 `spec_change` 로
+  처분한다. 초안이 승인본과 같은 채로는 검토를 요청할 수 없다(`cr_unchanged`) — 고친 본문을 먼저 저장한다.
 
 정제·선행 같은 **판단 관계는 선언해야 남는다** — `refines`(이 문서가 더 자세히 푼다) · `depends_on`(선행한다) · `duplicates` · `supersedes`. 본문을 읽어야 아는 판단이라 문장에 적히지 않으므로 링크로는 잡히지 않는다.
 
@@ -784,6 +790,9 @@ allowed-tools:
     `finding` 이고 `approve` 면 막혔던 `nerv_finding_resolve` 를 **같은 인자로** 다시 부른다.
     `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다 — 우회하지 않는다.
     `spec_version` 이면 결과를 보고한다(`approve` 는 approved, `reject` 는 draft 로 복귀했다는 뜻).
+    `escalation` 이면 내가 넘긴 발견의 카드다(`finding_id` · `resolution`): `fix` 면 고친 뒤
+    `nerv_finding_resolve`(`fixed` + 커밋)로 닫는다. `wont_fix`·`dismissed` 는 이미 닫혔다.
+    `change_request` 면 그 CR(`change_request_key`)이 스펙을 갱신한다. 어느 쪽이든 `comment_md` 가 사람의 근거다.
     **같은 결재는 1시간 동안 매 하트비트에 다시 온다** — `approval_id` 로 한 번만 처리한다.
   - `approval_expired`(내가 낸 스펙 검토 요청을 7일 동안 아무도 결정하지 않아 만료됐다 — `approval_id`·
     `subject_key`·`version_no`·`expired_at` 이 함께 온다) → 그 버전은 draft 로 돌아갔다. 사람에게 보고하고,
@@ -1132,11 +1141,13 @@ Claude Code 에서는 리뷰를 서브에이전트 둘에게 맡긴다. **둘은
 
 - **코드를 고쳤으면** `nerv_finding_resolve`(`finding_id`, `resolution=fixed`, `commit_sha`, `rationale`). **커밋 없는 fixed는 거부된다** — 검증 가능한 사실만 A2로 통과한다.
 - **스펙을 고쳐 해결했으면** `resolution=spec_change` + `spec_version_id`(그 저장의 버전 id) + `rationale`. 구현이 맞고 스펙이 틀렸던 경우가 이쪽이다 — `spec_drift` 지적의 절반은 여기로 간다. **커밋이 없다고 `dismissed`나 `wont_fix`로 닫지 않는다**: 오탐도 아니었고 미룬 것도 아니라, 둘 다 거짓이 되고 나중에 "이 발견들은 어떻게 해결됐나"의 답이 뭉개진다.
+  **승인본이 있는 문서는 다르다** — 그 초안은 변경 요청(CR)이라 승인되기 전에는 고친 것이 아니다. `/nerv:spec` 으로 초안을 저장할 때 `finding_id` 에 그 `spec_drift` 발견을 넣는다. 서버가 발견을 그 CR 에 묶고(처분 `escalated` · 사유 `spec`), CR 이 승인되면 발견을 `fixed` 로, 거절되면 `dismissed` 와 코드 되돌림 작업으로 닫는다 — 그 발견에 `nerv_finding_resolve` 를 따로 부르지 않는다.
   `critical`이어도 사람 승인을 거치지 않는다 — 스펙을 고쳐 닫는 것은 **지적이 옳았다는 인정**이지 하향이 아니다.
 - **사람이 코멘트를 남기면** 하트비트의 `pending`에 `finding_commented`로 온다(`/nerv:impl` 루프
   중이라면). 그 말을 읽고 처분으로 답한다 — 읽고 아무것도 하지 않으면 사람은 계속 기다린다.
 - **오탐이면** `resolution=dismissed` + 근거. **유예면** `resolution=wont_fix` + 근거와 언제 다시 볼 것인지.
-- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. 그다음에는 그 발견을 다시 집지 말고 하트비트로 사람의 답을 기다린다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
+- **판단이 내 몫이 아니면** `resolution=escalated` + `escalate_reason`(`spec`/`user-decision`/`infra`/`e2e-fail-3x`/`sensitive-fix`) + 근거. **발견은 열린 채로 남는다** — 넘긴 것은 해결한 것이 아니므로 큐에서 사라지지 않는다. `dismissed`로 닫아 버리면 아무도 그 판단을 하지 않는다. 서버가 사유에 맞는 사람의 받은 요청에 카드를 만든다(`spec` → planner · `infra`·`sensitive-fix` → admin · 그 밖 → 그 작업의 담당자와 결재 큐). 응답의 `escalation.approval_id` 가 그 카드이고, 같은 발견을 다시 넘겨도 카드는 하나다(`existing: true`). `e2e-fail-3x` 로 넘긴 발견은 그 발견이 가리키는 스펙의 다음 제출을 사람 앞으로 보낸다(티어 한 단계).
+  **기본은 기다리는 것이다**(`blocking: true`) — 이 세션은 `awaiting_input` 이 되고 그 발견을 다시 집지 않는다. 결정은 하트비트 `pending` 의 `approval_decided`(`subject_type: escalation` · `finding_id` · `resolution` · `comment_md`)로 온다. `fix` 면 그 발견을 고쳐 `fixed` + 커밋으로 닫는다. `wont_fix`·`dismissed` 면 서버가 이미 닫았으니 보고만 한다. `change_request` 면 그 CR(`change_request_key`)이 스펙을 갱신한다. 하트비트를 놓쳤으면 `nerv_finding_list` 의 `escalation_decision`·`escalation_resolution` 으로 다시 읽는다. 다른 발견을 계속 처리할 수 있으면 `blocking: false` 로 넘긴다 — 카드는 생기지만 세션은 멈추지 않는다.
 - 근거는 어느 처분에나 필수다. 사유 없이 쌓인 유예 목록은 곧 잊힌 목록이 된다.
 
 ### critical 하향은 사람의 몫이다 (A3)

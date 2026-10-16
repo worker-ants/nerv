@@ -239,6 +239,12 @@ export const resolution = pgTable(
      */
     specVersionId: uuid('spec_version_id').references(() => specVersion.id),
     escalateReason: escalateReason('escalate_reason'),
+    /**
+     * **넘긴 세션이 사람의 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · 마이그레이션 0054). `escalated` 처분에만 뜻이 있다 —
+     * 참이면 그 세션은 `awaiting_input` 이 되고 에스컬레이션 카드의 결정이 바로 푼다. 거짓이면 카드는 서지만 세션은 일을 잇는다.
+     * 다른 결재의 결정이 세션을 깨울 때도 이 값을 본다 — 기다리지 않는 카드가 세션을 붙잡지 않는다.
+     */
+    blocking: boolean('blocking').notNull().default(false),
     /** 유예 근거는 1급 데이터다 */
     rationaleMd: text('rationale_md').notNull(),
     actorUserId: uuid('actor_user_id')
@@ -248,6 +254,10 @@ export const resolution = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    // **변경 요청에 묶인 발견**(2026-10-16 · REQ-DB-049) — CR 이 승인 · 거절될 때 그 CR 로 보낸 발견을 찾는다
+    index('resolution_change_request')
+      .on(t.changeRequestId)
+      .where(sql`${t.changeRequestId} IS NOT NULL`),
     check('resolution_fixed_commit_ck', sql`${t.kind} <> 'fixed' OR ${t.commitSha} IS NOT NULL`),
     // **증거는 둘 중 하나면 된다**(2026-08-30 개정). 예전에는 CR 만 인정했는데 CR 을
     // 만드는 코드가 없어(FR-04 소관) 이 처분 자체가 닿을 수 없는 값이었다.

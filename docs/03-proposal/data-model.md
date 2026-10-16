@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 37개**(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고, 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.29 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.30 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.30 변경(2026-10-16 — `spec_drift` 발견을 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](../04-mvp/backlog.md) E19-S02 · S03): **§2.3 한 단락 · §2.6 `resolution` 한 행 · §2.7 `subject_type` 한 칸.** `spec_drift` 발견을 변경 요청으로 보내면 처분 `escalated`(사유 `spec`)가 그 CR을 `change_request_id` 로 가리키고, CR이 승인되면 발견은 `spec_change` 로, 거절되면 `dismissed` 로 닫힌다. 발견을 사람에게 넘긴 처분은 이제 받은 요청의 카드다 — 결재 대상 `escalation`(넘긴 처분 한 건)이 생겼고, 넘긴 세션이 기다리는지는 `resolution.blocking` 이 든다.
 >
 > v0.29 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](../04-mvp/backlog.md) E19-S01): **§1.4 상태도 · §2.2 `spec_version` 두 행 · §2.3 두 행 신설과 수명 · 결정 기록 · §2.7 `subject_type` · §4.7 한 단락 · §5.1 타입 문자.** CR이 승인본 위의 초안을 감싸고 결재는 그 스펙 버전이 받는다(D1) — 그래서 결재 대상 `change_request` 는 쓰지 않는다. CR의 표시 키는 `<PRJ>-C-XXXXXX` 이고(D2) `change_request.key` 에 남는다. 승인하며 함께 할 일은 `planned_actions` 에 남는다. CR 거절 · 철회가 버린 초안은 `discarded` 다.
 >
@@ -427,6 +429,8 @@ stateDiagram-v2
 
 `origin = 'spec_drift'`는 clemvion에서 5개월 검증된 경로의 이식이다. 리뷰가 `[SPEC-DRIFT]` 태그를 달면 resolution-applier가 코드를 되돌리지 않고 `plan/in-progress/spec-update-<area>.md` 초안을 만들어 `ESCALATE=spec`으로 넘겼다. NERV에서는 그 초안이 CR 레코드가 되고, 태그 보존 의무("절대 일반 WARNING으로 뭉개지 말 것")는 `finding.tags`와 `change_request.origin`의 FK 관계로 대체된다.
 
+**그 경로의 실물**(2026-10-16 · 사람 결정 · [3.5](spec-workflow.md) §3.4). 리뷰 센터 · 에스컬레이션 카드의 [CR로 보내기]나 발견을 가리킨 초안 저장이 그 발견을 CR에 묶는다 — 처분은 `resolution.kind = escalated`(사유 `spec`)이고 `change_request_id` 가 그 CR, `commit_sha` 가 그 발견을 본 커밋이다. 그 저장이 CR을 열면 `origin = spec_drift` 다. CR이 승인되면 발견은 `spec_change`(근거 `spec_version_id` = 승인된 버전)로, 거절되면 `dismissed` 로 닫히고 코드 되돌림 작업이 생긴다. 철회되면 발견은 열린 채로 남는다.
+
 **수명**(2026-10-16 · 사람 결정 D1). 승인본이 있는 문서에 새 초안이 생기면(초안 저장 · 되돌리기) 서버가 `open` 으로 연다 — 승인본이 없는 첫 초안은 CR이 아니다. 그 뒤는 **버전을 따라간다**: 검토 요청 → `in_review`, 승인 → `approved`, 결재가 거절 · 코멘트 · 만료로 초안을 돌려보내면 → `open`. CR 자기 결재는 없다 — 결재는 그 스펙 버전이 받는다([3.5](spec-workflow.md) §3.5). CR만의 행위는 둘이다.
 
 - **거절**(`rejected`) — planner · admin이 사람으로만 하고 사유가 필수다. 이 제안을 하지 않기로 하는 것이라 초안을 버린다(`spec_version.status = discarded`). 결재의 거절과 다르다 — 결재의 거절은 고쳐서 다시 내라는 뜻이라 CR이 열린 채 남는다.
@@ -648,6 +652,7 @@ Activity는 **불변**이다. 편집 가능한 코멘트와 분리하라는 것�
 | `change_request_id` | uuid FK NULL | `spec_change` 의 증거 — 둘 중 하나면 된다 |
 | `spec_version_id` | uuid FK NULL | **스펙을 고쳐 해결한 증거**(`0011` · 2026-08-30). 커밋이 코드 쪽 증거이듯 이것이 문서 쪽 증거다. CHECK 는 `spec_change` 에 `change_request_id` **또는** 이 열을 요구한다 — 그전에는 CR 만 인정했고 CR 을 만드는 코드가 없어 `spec_change` 자체가 **닿을 수 없는 값**이었다 |
 | `escalate_reason` | enum NULL | `no / spec / user-decision / infra / e2e-fail-3x / sensitive-fix` |
+| `blocking` | bool | **넘긴 세션이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · 0054). `escalated` 에만 뜻이 있다 — 참이면 그 세션은 `awaiting_input` 이 되고 에스컬레이션 카드의 결정이 바로 푼다. 세션이 부른 처분은 참이 기본이다 |
 | `rationale_md` | text | **유예 근거는 1급 데이터** |
 | `actor_user_id` · `actor_session_id` | uuid FK | |
 | `created_at` | timestamptz | |
@@ -664,7 +669,7 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `project_id` | uuid FK | |
-| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass / **finding**` — 여섯이다. `finding` 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정). **`change_request` 는 쓰지 않는다**(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 `spec_version` 이 받는다 |
+| `subject_type` | enum | `spec_version / change_request / plan / question / gate_bypass / **finding** / **escalation**` — 일곱이다. `finding` 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정). **`change_request` 는 쓰지 않는다**(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 `spec_version` 이 받는다. **`escalation` 이 일곱째다**(2026-10-16 · 사람 결정 D3) — 발견을 사람에게 넘긴 처분 한 건(`resolution`)이 받은 요청의 카드가 된다. `finding` 과 나눈 까닭은 그 값의 승인이 critical 하향을 연다는 데 있다 — 같은 대상에 뜻이 다른 결재가 붙으면 에스컬레이션의 결정이 하향 승인으로 읽힌다 |
 | `subject_id` | uuid | 대상 엔티티 ID(다형 참조) |
 | `requested_by_user_id` · `requested_by_session_id` | uuid FK | 지시자 |
 | `assignee_user_id` | uuid FK NULL | 지정 승인자 |

@@ -21,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.24 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.25 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.25 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **§2.2 트리 두 줄.** `review/escalation.ts` — 발견을 변경 요청에 묶고 CR의 결말(승인 · 거절 · 철회)로 그 발견을 닫으며, 에스컬레이션 카드를 만들고 닫는 자리다. 처분 · 카드의 결정 · CR의 결말 세 경로가 같은 함수를 지난다(D-05). `approval/session-wake.ts` — 기다리던 세션을 깨우는 규칙을 결재 결정 · 만료 · 에스컬레이션 카드가 함께 쓴다(기다리지 않는 카드는 세션을 붙잡지 않는다 · [4.4 API](api.md) REQ-API-334).
 >
 > v2.24 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **§2.2 트리 한 줄과 한 줄 개정.** `spec/change-request.service.ts` — CR의 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 생성. 결재는 스펙 버전이 받고 CR은 그 버전을 감싼다([3.5 스펙 워크플로](../03-proposal/spec-workflow.md) §3.5). `spec.controller.ts` 의 REST 에 CR 목록 · 단건 · 기각 · 철회와 영향 미리보기를 더했다([4.4 API](api.md) §2.2d).
 >
@@ -555,6 +557,7 @@ apps/api/src/
       approval.tools.ts       # MCP — nerv_spec_approve (A3 · 사람이 세션에서 대답한 승인)
       question.service.ts     # 질문 생성 · 폴링 · awaiting_input 전이
       question.tools.ts       # MCP — nerv_question_create
+      session-wake.ts         # 기다리던 세션을 깨운다 — 결정 · 만료 · 에스컬레이션 카드가 같은 규칙을 쓴다 (REQ-API-134 · 334)
     auth/
       auth.controller.ts        # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
       auth.module.ts
@@ -594,6 +597,7 @@ apps/api/src/
       plugin.service.ts     # 마켓플레이스 JSON 조립
     review/
       commit-scope.ts       # 커밋 범위 — 작업의 최신 커밋과 라운드의 커밋을 맞춘다 · done 게이트와 verified 가 함께 쓴다 (REQ-API-314 · 315)
+      escalation.ts         # 에스컬레이션 카드 · 변경 요청에 묶인 발견 — 처분 · 카드 · CR 의 결말이 같은 자리를 지난다 (REQ-API-332 ~ 337)
       review-gate.ts        # 게이트 판정 — 라운드(브랜치 · 종류 · 커밋)가 통과했는가 (REQ-API-247)
       review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts

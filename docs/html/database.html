@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 41개</b>다 — 도메인 35 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.79 (2026-10-16)</span>
+      <span>버전 v0.80 (2026-10-16)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -180,7 +180,7 @@ CREATE TYPE finding_area            AS ENUM ('codebase', 'spec', 'task', 'proces
 CREATE TYPE finding_status          AS ENUM ('open', 'fixed', 'dismissed', 'wont_fix');
 CREATE TYPE resolution_kind         AS ENUM ('fixed', 'deferred', 'dismissed', 'escalated', 'spec_change');
 CREATE TYPE escalate_reason         AS ENUM ('no', 'spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix');
-CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass', 'finding');
+CREATE TYPE approval_subject_type   AS ENUM ('spec_version', 'change_request', 'plan', 'question', 'gate_bypass', 'finding', 'escalation'); -- 'escalation' 0054 · 에스컬레이션 카드(REQ-DB-049)
 -- 'finding' 추가 2026-08-23(마이그레이션 0004) — `nerv_finding_resolve(critical → dismissed/wont_fix)`는
 -- A3라 사람의 받은 요청을 거치는데(agent-integration §2.3), 그 카드가 붙을 자리가 열거에 없었다.
 -- 'change_request' 는 쓰지 않는다(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 'spec_version' 이 받는다.
@@ -722,6 +722,7 @@ CREATE TABLE resolution (
   change_request_id uuid REFERENCES change_request(id),
   spec_version_id   uuid REFERENCES spec_version(id), -- 스펙을 고쳐 해결한 증거(2026-08-30)
   escalate_reason   escalate_reason,
+  blocking          boolean NOT NULL DEFAULT false, -- 넘긴 세션이 결정을 기다리는가(0054 · REQ-DB-049)
   rationale_md      text NOT NULL,             -- 유예 근거는 1급 데이터
   actor_user_id     uuid NOT NULL REFERENCES "user"(id),
   actor_session_id  uuid REFERENCES agent_session(id),
@@ -996,6 +997,7 @@ CREATE UNIQUE INDEX notification_batch_event_user ON notification_batch_event (e
 CREATE INDEX question_open ON question (project_id, status);                       -- 보조: 열린 질문 수
 CREATE INDEX evidence_requirement ON evidence (requirement_id) WHERE NOT stale;    -- 보조: 커버리지(§4.1)
 CREATE INDEX evidence_task ON evidence (task_id, created_at, id) WHERE task_id IS NOT NULL; -- 보조: 작업의 최신 커밋 · 증적 목록(0052 · REQ-DB-045)</code></pre>
+CREATE INDEX resolution_change_request ON resolution (change_request_id) WHERE change_request_id IS NOT NULL; -- 변경 요청에 묶인 발견(0054 · REQ-DB-049)
 
   <h3>2.13 함수·트리거</h3>
 
@@ -1288,6 +1290,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
       <tr><td><code>REQ-DB-044</code></td><td>WHEN 임포터가 새 요구사항을 만들면 THE SYSTEM SHALL <code>requirement.impl_status_source</code>(<code>impl_status_source</code> — <code>derived</code>·<code>import</code> · NOT NULL · 기본 <code>derived</code>)에 <code>import</code> 를 남기고, WHEN 파생이 구현 상태를 다시 쓰면 THE SYSTEM SHALL 같은 쓰기에서 <code>derived</code> 로 바꾼다. 다른 쓰기(승인의 요구사항 동기화 · 다시 임포트 · 빠진 행 채우기)는 이 열을 건드리지 않는다. 이 열이 생기기 전의 행은 임포터가 만들었고(들어온 버전에 <code>requirement_version</code> 의 <code>added</code> 줄이 있다) 보관하지 않은 작업이 없는 것만 <code>import</code> 이고 나머지는 <code>derived</code> 다(마이그레이션 <code>0051</code> · <a href="api.html">4.4 API 명세</a> REQ-API-312 · 2026-10-15 사람 결정 ④). 검증은 L2 <code>migrate.spec.ts</code>(있던 행 채우기 · 멱등)와 <code>coverage-drilldown.spec.ts</code> 다</td></tr>
       <tr><td><code>REQ-DB-045</code></td><td>WHEN 작업의 증적을 찾으면(done 게이트 · 구현 축의 작업 최신 <code>commit</code> 증적 — <a href="api.html">4.4 API 명세</a> REQ-API-314 · 315, 작업의 증적 목록 · 수 · 웹훅 dedup) THE SYSTEM SHALL <code>evidence_task</code>(<code>task_id, created_at, id</code> · <code>WHERE task_id IS NOT NULL</code>)로 그 작업의 행만 읽고 표 전체를 훑지 않는다. 오름차순으로 두어 최신 커밋의 <code>ORDER BY created_at DESC, id DESC</code> 는 거꾸로 읽을 수 있다(마이그레이션 <code>0052</code> · 2026-10-15). 검증은 L2 <code>commit-scope.spec.ts</code>(인덱스 정의 · 순차 스캔을 끈 계획이 이 인덱스를 쓴다)다</td></tr>
       <tr><td><code>REQ-DB-048</code></td><td>WHEN 승인본이 있는 문서에 새 초안이 생겨 변경 요청(CR)을 만들면 THE SYSTEM SHALL 그 행의 <code>change_request.key</code> 에 표시 키 <code>&lt;PRJ&gt;-C-XXXXXX</code>(씨앗은 그 행의 UUID)를 넣고 <code>change_request_key_uq</code>(<code>project_id, key</code>)로 프로젝트 안의 유일함을 지키며, <code>change_request_proposed_uq</code>(<code>proposed_version_id</code>)로 초안마다 CR 하나를, <code>change_request_spec_open_uq</code>(<code>spec_id</code> · <code>WHERE status IN ('open', 'in_review')</code>)로 문서마다 열린 CR 하나를 지킨다. WHEN CR을 거절하거나 철회하면 THE SYSTEM SHALL 그 초안의 <code>spec_version.status</code> 를 <code>discarded</code> 로 바꾸고 행을 지우지 않는다. 승인하며 함께 할 일은 <code>planned_actions</code>(jsonb · NOT NULL · 기본 <code>{}</code>)에 남긴다. 마이그레이션 <code>0053</code> 은 있던 CR 행의 키를 같은 식으로 채운다(2026-10-16 · 사람 결정 D1 · D2)</td></tr>
+      <tr><td><code>REQ-DB-049</code></td><td>WHEN 발견을 사람에게 넘기면(<code>escalated</code>) THE SYSTEM SHALL 넘긴 세션이 결정을 기다리는지를 <code>resolution.blocking</code>(boolean · NOT NULL · 기본 false)에 남기고 그 처분을 대상으로 하는 결재 행(<code>approval.subject_type = escalation</code> · <code>subject_id</code> = 그 <code>resolution.id</code>)을 만든다. WHEN 변경 요청이 승인 · 거절 · 철회되면 THE SYSTEM SHALL <code>resolution_change_request</code>(<code>change_request_id</code> · <code>WHERE change_request_id IS NOT NULL</code>)로 그 CR에 묶인 발견을 찾는다. 마이그레이션 <code>0054</code> 는 <code>approval_subject_type</code> 에 값을 더하기만 하고 그 안에서 쓰지 않는다(2026-10-16 · 사람 결정 D3)</td></tr>
     </tbody>
   </table></div>
 
