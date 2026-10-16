@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.41 · 2026-10-15 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.42 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.42 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째 · [4.8 백로그](backlog.md) E21-S02): **§1.4 표 한 줄.** ★`mirror.diverged` 는 프로젝트 활동 피드만 되읽는다. admin 의 종은 개인 룸의 `notification.created` 가 되읽는다([4.2 코드베이스](codebase.md) REQ-CB-063).
 >
 > v2.41 변경(2026-10-15 — fail-open 정책 편집과 격상, Phase 2 묶음 1의 셋째 · **사람 결정** · [4.8 백로그](backlog.md) E18-S01 · E18-S02): **REQ-WEB-318 · 319 신설 · §1.2 라우트 한 칸 · §1.4 무효화 한 줄 · §1.9 ④ · §2.6 · §2.6a 컴포넌트 · §2.8 게이트 정책 칸.** ① 게이트 정책 탭이 판정할 수 없을 때의 격상 기준(횟수 · 시간 창)과 보존 기간(활동 원문 · 리뷰 프롬프트 원문)을 고친다. 같은 스키마로 검사해 범위 밖이면 그 자리에 이유를 보이고, 바뀐 것만 보내며, 보존 기간을 줄이면 한 번 더 묻는다. admin 이 아니면 읽기 전용이다(REQ-WEB-318). 문구의 「티어를 올립니다」는 결정과 달랐다 — 격상은 admin 알림과 배너다. ② 격상이면 S5 · S6 머리 아래에 `FailOpenBanner` 가 표시되고 [기록 보기]가 개요의 활동을 fail-open 기록으로 거른다(`/p/:proj?events=failopen` · REQ-WEB-319). §1.9 의 「기능째 없다」는 이제 비었다.
 >
@@ -673,6 +675,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
 | `gate.bypassed` · `gate.failopen` · ★`gate.failopen_escalated` · ★`gate.failopen_cleared` | `['project', projId, 'events']` + 프로젝트 조회(머리 — S5 · S6 의 격상 배너 · 2026-10-15 · REQ-WEB-319). `gate.bypassed` 는 머리를 다시 읽지 않는다 | `project:{id}`(bypassed는 admin `user:{id}`에도 · 격상은 admin 에게 `notification.created`) |
+| ★`mirror.diverged` | `['project', projId, 'events']` — 화면은 활동 피드뿐이다. 받는 admin 의 종은 개인 룸의 `notification.created` 가 되읽는다(2026-10-16 · [4.2 코드베이스](codebase.md) REQ-CB-063) | `project:{id}` + admin `user:{id}` |
 | ★`spec.meta_updated` ★`spec.archived` ★`spec.restored` | 스펙 축과 같다 — `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']` | `project:{id}` |
 | ★`spec.attachment_added` ★`spec.attachment_removed` | `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']`(트리와 표 둘 다 첨부 수를 보인다 — 2026-10-04 · REQ-WEB-289) | `project:{id}` |
 | ★`evidence.added` | `['task', taskKey]` · `['project', projId, 'tasks']` · `['project', projId, 'coverage']` | `project:{id}` |

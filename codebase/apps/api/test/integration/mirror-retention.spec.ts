@@ -18,6 +18,7 @@ import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecRelationService } from '../../src/modules/spec/spec-relation.service.js';
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
+import { BaselineService } from '../../src/modules/spec/baseline.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
@@ -51,7 +52,7 @@ beforeAll(async () => {
     drizzleDb,
   );
   retention = new RetentionJob(drizzleDb);
-  exporter = new ExportJob(specs, drizzleDb);
+  exporter = new ExportJob(specs, new BaselineService(events, drizzleDb), events, drizzleDb);
   await seed();
 });
 

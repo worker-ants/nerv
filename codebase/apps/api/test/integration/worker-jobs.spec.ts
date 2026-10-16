@@ -33,6 +33,7 @@ import { SpecRelationService } from '../../src/modules/spec/spec-relation.servic
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
 import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
 import { SpecService } from '../../src/modules/spec/spec.service.js';
+import { BaselineService } from '../../src/modules/spec/baseline.service.js';
 import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { createScratchDb } from './helpers.js';
 import type { ScratchDb } from './helpers.js';
@@ -89,6 +90,8 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
         new AttachmentService(null as never, drizzleDb),
         drizzleDb,
       ),
+      new BaselineService(new EventService(drizzleDb, silent), drizzleDb),
+      new EventService(drizzleDb, silent),
       drizzleDb,
     ),
     new PartitionJob(drizzleDb),

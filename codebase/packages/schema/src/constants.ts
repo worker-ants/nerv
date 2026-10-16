@@ -451,6 +451,18 @@ export const SENT_MAIL_RETENTION_DAYS = INVITATION_TTL_DAYS;
  */
 export const NOTIFICATION_RETENTION_DAYS = 180;
 
+// ── git 미러 (2026-10-16 · E21-S02 · codebase.md §6.2a) ─────────────────────────────
+/**
+ * 미러 원격의 브랜치 — `NERV_MIRROR_GIT_BRANCH` 를 비우면 이 값이다. git 의 새 저장소 기본 이름과 같다.
+ */
+export const MIRROR_GIT_DEFAULT_BRANCH = 'main';
+/**
+ * 미러 커밋의 작성자 — `NERV_MIRROR_GIT_AUTHOR` 를 비우면 이 값이다(`이름 <메일>` · git 의 `--author` 모양). 사람이 손으로
+ * 커밋하지 않는 저장소라 작성자는 사람이 아니라 NERV 다(architecture.md §2.4(b)). 원격에서 NERV 가 만들지 않은 커밋을
+ * 가려내는 것은 이 이름이 아니라 이력이다(fast-forward 인가 — REQ-CB-063)
+ */
+export const MIRROR_GIT_DEFAULT_AUTHOR = 'NERV <nerv@localhost>';
+
 /**
  * **`nerv_task_update`·EP-TASK-09 가 받는 목표 상태 여섯**(2026-09-07 · REQ-API-129~132).
  *

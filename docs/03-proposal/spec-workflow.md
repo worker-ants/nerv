@@ -27,7 +27,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)의 일은 세 개의 상태 축 위에서 흐른다. 스펙 문서가 초안에서 승인으로 가는 **문서 축**, 요구사항이 미구현에서 검증 완료로 가는 **구현 축**, 그리고 작업이 백로그에서 완료로 가는 **Task 축**이다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점 — 스펙/CR 승인, 플랜 승인, 에이전트 질문, 머지·CI, 그리고 기록되는 게이트 면제 — 을 **위험도 가변 게이트**(D-06)와 **지시자≠승인자** 규칙으로 설계한다. 핵심 메커니즘 세 가지는 원자적 클레임과 scope 겹침 검사 알고리즘(D-04), fingerprint 기반 리뷰 dedup과 게이트 판정(D-07), 그리고 알림을 티어·배칭·받은 요청 승격으로 나누는 알림 설계다. 모든 규칙은 clemvion 하네스가 5개월간 산문 규약으로 시도하다 무너진 지점(강제 리뷰어 미충족 160/575 세션, BLOCK 하향 모순 24/732)을 서버 강제로 옮긴 것이다.
 >
-> 문서 버전 v0.46 · 2026-10-15 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+> 문서 버전 v0.47 · 2026-10-16 · HTML 파생본: [spec-workflow.html](../html/spec-workflow.html)
+>
+> v0.47 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째 · [4.8 백로그](../04-mvp/backlog.md) E21-S02): **§6.3 카탈로그 한 줄.** `mirror.diverged`(high · admin) — git 미러의 원격에 NERV 가 만들지 않은 커밋이 있어 push 를 멈췄다([4.2 코드베이스](../04-mvp/codebase.md) §6.2a · REQ-CB-063).
 >
 > v0.46 변경(2026-10-15 — 커밋 SHA 가 아닌 `head_sha` 는 받지 않는다, **사람 결정**): **§4.6 커밋 범위 단락 한 문장과 결정 기록 한 단락.** 판정하지 못하는 두 경우를 나눈다. 작업의 커밋을 모르는 것은 환경의 빈칸이라 fail-open 으로 넘기고 기록한다. 리뷰가 본 것이 커밋 SHA 가 아닌 것은 제출하는 쪽이 고칠 수 있는 입력이라 제출에서 거절하고, 그 전에 들어온 라운드는 다시 리뷰가 필요한 것으로 막는다(D-07 · [4.4 API](../04-mvp/api.md) REQ-API-314 · 321).
 >
@@ -831,6 +833,7 @@ Event (append-only, D-10)
 | `task.rebrief_required` | high | 담당자 + 클레임 보유 세션 소유자 | `task:{id}:state` |
 | `gate.bypassed` | high | admin | `project:{id}:bypass` |
 | `gate.failopen_escalated`(시간 창 안의 fail-open 이 기준 이상 — §4.6) | high | admin | 없음 |
+| `mirror.diverged`(git 미러의 원격에 NERV 가 만들지 않은 커밋 — push 를 멈췄다 · [4.2 코드베이스](../04-mvp/codebase.md) §6.2a) | high | 그 커밋이 바꾼 폴더의 프로젝트 admin | 없음 |
 | `spec.comment_added` | standard | 스레드 참여자 · 워처 | `spec:{id}:comments` |
 | `spec.recheck_requested`(참조 문서 전파 — §3.3) | standard | 대상 문서 `owner_role` | `spec:{id}:recheck` |
 | `task.ready`(내 영역) | standard | 영역 워처 | `project:{id}:ready` |

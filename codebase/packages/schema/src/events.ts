@@ -184,6 +184,13 @@ export const NERV_EVENT_PHASE2 = {
   GATE_FAILOPEN_ESCALATED: 'gate.failopen_escalated',
   /** ★ 격상이 풀렸다 — 그 창 동안 새 fail-open 이 없었다(같은 결정 · REQ-API-319). 기록만 하고 알림은 만들지 않는다 */
   GATE_FAILOPEN_CLEARED: 'gate.failopen_cleared',
+  /**
+   * ★ **미러 push 를 멈췄다**(2026-10-16 · E21-S02 · codebase.md REQ-CB-063 · roadmap §7.4 규칙 1). git 미러의 원격에 NERV 가
+   * 만들지 않은 커밋이 있어(fast-forward 가 아니다) 덮어쓰지 않고 멈췄다. 대상은 그 커밋이 바꾼 폴더의 프로젝트(어느 프로젝트의
+   * 폴더도 아니면 내보낸 프로젝트 전부)이고 행위자는 없다. 그 프로젝트의 admin 에게 중요 알림이 간다. 같은 원격 커밋에는 다시
+   * 내지 않는다. 원격 주소는 넣지 않는다(자격증명이 들어 있을 수 있다)
+   */
+  MIRROR_DIVERGED: 'mirror.diverged',
 } as const;
 
 /**
@@ -206,7 +213,7 @@ export const NERV_EVENT_NAMES = [
 /**
  * WS·SSE 로 흐르는 최소 봉투 — 정본: docs/04-mvp/api.md §3.3
  *
- * 본문 데이터를 싣지 않는다. 수신자는 이 식별자로 자기 권한으로 재조회한다(D-14).
+ * 본문 데이터를 넣지 않는다. 수신자는 이 식별자로 자기 권한으로 재조회한다(D-14).
  * 서버(apps/api)와 웹(apps/web)이 같은 타입을 봐야 하므로 여기가 그 자리다(REQ-CB-006).
  */
 export interface NervEventEnvelope {

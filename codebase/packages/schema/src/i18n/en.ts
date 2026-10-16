@@ -1074,6 +1074,8 @@ export const en = {
   'event.gate.failopen': 'Gate check failed (recorded and proceeded)',
   'event.gate.failopen_escalated': 'Gate escalated (undecided passes over the limit)',
   'event.gate.failopen_cleared': 'Gate escalation cleared',
+  'event.mirror.diverged':
+    'Mirror push stopped (the mirror repository has commits NERV did not make)',
   'event.import.applied': 'Import applied',
   'event.notification.created': 'Notification created',
   'event.question.answered': 'Question answered',

@@ -3,6 +3,8 @@ id: SPC-MVP-CODEBASE
 status: approved
 updated: 2026-09-24
 referenced_by:
+  - 03-proposal/architecture.md
+  - 03-proposal/spec-workflow.md
   - 04-mvp/scope.md
   - 04-mvp/database.md
   - 04-mvp/api.md
@@ -19,7 +21,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.17 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.18 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.18 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째 · [4.8 백로그](backlog.md) E21-S02): **REQ-CB-062 · 063 신설 · §6.2a 신설 · §5.2 전표 세 줄 · §3.2 상수 둘 · §6.1 워커 이미지에 git · §6.2 Secret 키 여덟 → 아홉 · §6.5 미러 행 · §2.2 트리.** 미러 폴더(`NERV_EXPORT_DIR`)를 git 저장소로 두고 export 잡이 바뀐 파일을 커밋한다. `manifest.json` · `requirements.tsv` 를 더했다. 원격(`NERV_MIRROR_GIT_REMOTE` — 자격증명이 들어갈 수 있어 Secret)이 있으면 fast-forward 로만 push 하고 원격에 NERV 가 만들지 않은 커밋이 있으면 멈춘 채 `mirror.diverged` 로 admin 에게 알린다([3.7 로드맵](../03-proposal/roadmap.md) §7.4 규칙 1의 실물).
 >
 > v2.17 변경(2026-10-16 — 보존 워커 완성의 범위 A, **사람 결정 ②**): **§2.2 트리 한 줄 · §3.2 상수 전표 한 줄.** 보존 잡이 180일 지난 알림을 지우고 행이 모두 지워진 `activity` 월 파티션을 드랍한다([4.3 데이터베이스 스키마](database.md) REQ-DB-046 · 047). 값은 새 상수 `NOTIFICATION_RETENTION_DAYS`(180 — [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 의 값)다.
 >
@@ -631,12 +635,13 @@ apps/api/src/
     advisory-lock.ts  # pg_advisory_lock — 잡 루프 단일 실행 보장 (REQ-CB-011)
     job-runner.ts     # 잡 루프 — advisory lock 아래에서 하나만 돈다
     job-log.ts        # 잡 한 판의 한 줄 — 할 일이 없던 판은 debug (§5.5 · REQ-CB-054)
+    mirror-git.ts     # git 미러 — 저장소 준비 · 커밋 · fast-forward push · 갈라짐 판정 (§6.2a · REQ-CB-062 · 063)
     worker.module.ts
     jobs/
       approval-reminder.job.ts  # 결재 SLA — 만료 7일 · 지연 2일 · 리마인더 4시간 · 1일 (4.4 REQ-API-296 · 304 · 305, 2026-10-15)
       digest.job.ts         # 메일 요약 — 켠 사람의 현지 시각에 하루 한 번 (4.4 REQ-API-233, 2026-09-28)
       embedding.job.ts      # 검색 인덱스 — 헤딩 청크 임베딩 upsert·구판 정리 (4.3 §2.15, REQ-DB-017)
-      export.job.ts         # md 미러 (P1 후반) · read-only git export 는 P2 — M2 컷오버 (scope.md §5)
+      export.job.ts         # 승인본 미러 — md · llms.txt · manifest.json · 요구사항 표를 쓰고 git 에 커밋 · 원격이 있으면 push (§6.2a, 2026-10-16)
       failopen.job.ts       # fail-open 격상 상태 맞추기 — 창이 지나면 풀고 기준을 넘으면 올린다 (4.4 REQ-API-319, 2026-10-15)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
       mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정·메일 요약 (4.3 §2.17, 2026-09-22)
@@ -760,6 +765,8 @@ packages/schema/
 | `INVITATION_TTL_DAYS` | `7` | 조직 초대 링크 수명 — [4.4 API 명세](api.md) §2.1b |
 | `SENT_MAIL_RETENTION_DAYS` | `INVITATION_TTL_DAYS`(7) | 보낸 메일을 발송 큐에 남기는 날 수 — 가장 긴 메일 링크의 수명이라 새 수치가 아니다([4.3 데이터베이스](database.md) REQ-DB-033) |
 | `NOTIFICATION_RETENTION_DAYS` | `180` | 알림을 남겨 두는 날 수 — [3.3 데이터 모델](../03-proposal/data-model.md) §5.4 보존 표의 값이라 새 수치가 아니다. 마지막으로 더해진 시각(`last_at`) 기준이고 읽음 · 안 읽음을 가리지 않는다([4.3 데이터베이스](database.md) REQ-DB-046 · 2026-10-16) |
+| `MIRROR_GIT_DEFAULT_BRANCH` | `'main'` | git 미러 원격의 브랜치 — `NERV_MIRROR_GIT_BRANCH` 를 비우면 이 값이다(§6.2a · 2026-10-16) |
+| `MIRROR_GIT_DEFAULT_AUTHOR` | `'NERV <nerv@localhost>'` | git 미러 커밋의 작성자 — `NERV_MIRROR_GIT_AUTHOR` 를 비우면 이 값이다. 사람이 손으로 커밋하지 않는 저장소다([3.2](../03-proposal/architecture.md) §2.4 (b)) |
 | `DIGEST_MAX_LINES` | `20` | 메일 요약 한 통에 적는 알림 줄 수 — 넘치면 수로 줄인다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5 · [4.4 API 명세](api.md) REQ-API-233) |
 | `DIGEST_DEFAULT_HOUR` | `9` | 메일 요약을 받는 현지 시의 기본값 — 켤 때 시를 고르지 않으면 이 값이다([4.4 API 명세](api.md) REQ-API-232) |
 | `PAGE_LIMIT_DEFAULT` · `PAGE_LIMIT_MAX` | `30` · `100` | 페이지 상한 전역 규칙 — [4.4 API 명세](api.md) §1.6 |
@@ -1218,7 +1225,10 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_PUBLIC_ENDPOINT` | | (없으면 `NERV_S3_ENDPOINT`) | api | 에이전트가 받는 presigned PUT 주소의 호스트. 내부 주소로 서명하면 개발자 장비에서 해소되지 않아 **에이전트 업로드가 모든 배치에서 불통**이었다. **경로 접두는 안 된다**(REQ-CB-034) — presigned 서명이 경로를 포함하므로 `https://…/s3` 는 앞문이 접두를 벗기면 `SignatureDoesNotMatch` 이고 벗기지 않으면 MinIO 가 그 아래에서 S3 API 를 서빙하지 않는다. **별도 호스트**(`https://s3.<도메인>`)를 적는다. 경로가 있으면 기동 로그가 그 사실을 말한다 |
 | `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
-| `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
+| `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. **이 폴더가 git 저장소다** — 바뀌면 커밋한다(2026-10-16 · §6.2a · REQ-CB-062). k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
+| `NERV_MIRROR_GIT_REMOTE` | 미러를 push 할 때 | — | worker | git 미러를 push 할 원격(2026-10-16 · §6.2a). 비면 로컬 커밋까지만 한다. 자격증명을 URL 에 넣을 수 있어 k8s 는 `nerv-secrets` 에 둔다. fast-forward 로만 push 하고 원격에 NERV 가 만들지 않은 커밋이 있으면 멈추고 admin 에게 알린다(REQ-CB-063). `-` 로 시작하거나 빈칸이 든 값이면 export 잡이 아무것도 쓰지 않고 실패한다 |
+| `NERV_MIRROR_GIT_BRANCH` | | `main` | worker | 그 원격의 브랜치. 브랜치 이름이 아니면 export 잡이 실패한다 |
+| `NERV_MIRROR_GIT_AUTHOR` | | `NERV <nerv@localhost>` | worker | 미러 커밋의 작성자 · 커밋한 사람(`이름 <메일>`). 모양이 틀리면 export 잡이 실패한다 |
 | `NERV_MAIL_HOST` | | — | api · worker | **메일 발신의 스위치다**(2026-09-22 결정 · 2026-09-24 이 이름으로). 비면 보내지 않고 **아웃박스에 쌓지도 않는다** — 보낼 수 없는 줄이 조용히 자라면 메일을 켠 날 몇 달 치가 한꺼번에 나간다. **비밀번호 재설정도 함께 꺼진다**(2026-09-25) — 재설정 요청이 400 `RESET_PASSWORD_DISABLED` 로 답하고 화면에 "서버 운영자에게 문의" 가 표시된다([4.4](api.md) REQ-API-187). 그 배치에서 비밀번호를 잊은 사람은 운영자가 재설정 링크 명령으로 돕는다(아래 「운영자 비밀번호 재설정 링크」 · REQ-CB-061 · 2026-10-15). **이메일 바꾸기도 꺼진다**(2026-10-15 — 옛 주소의 승인과 새 주소의 확인이 둘 다 메일이다 · [4.4 API](api.md) REQ-API-310). 호스트를 스위치로 고른 이유는 그것만이 없어서는 안 되는 값이기 때문이다(포트·TLS 는 기본값이 서고, 사용자·비밀번호는 인증 없는 사내 릴레이에서 아예 빈다). compose 기본값은 `mailpit`(개발용 받이 · 받은 편지함 `:8025`) |
 | `NERV_MAIL_PORT` | | `587` | api · worker | submission(STARTTLS) 포트다. 25 를 기본으로 두지 않는 이유는 그것이 **서버 간 릴레이** 포트이고 클라우드 사업자 대부분이 막아 두기 때문이다. **읽을 수 없는 값이면 기동을 거부한다** — 조용히 587 로 떨어지면 운영자는 자기 오타를 영영 모른다 |
 | `NERV_MAIL_SECURE` | | **포트에서 유도** | api · worker | 접속하자마자 TLS 인가(465)와 평문으로 열어 `STARTTLS` 로 올리는가(587·25)의 구분이다. **비우면 포트가 정한다** — 465 면 참, 그 밖은 거짓. 기본값을 두지 않는 이유는 여기가 사람이 가장 자주 틀리는 자리이고, 바꿔 적으면 연결이 걸린 채 타임아웃하거나 핸드셰이크가 깨지는데 **어느 쪽도 원인을 가리키지 않기** 때문이다. 명시하면 그 값이 이긴다(비표준 포트에서 암묵 TLS 를 받는 게이트웨이가 있다) |
@@ -2080,6 +2090,14 @@ CMD ["node", "dist/main.js"]
 
 # → nerv-worker
 FROM runtime AS worker
+# git 미러(E21-S02 · §6.2a) — export 잡이 미러 폴더에 커밋하고 원격이 있으면 push 한다.
+# ca-certificates 는 HTTPS 원격, openssh-client 는 SSH 원격(배포 키를 Secret 으로 마운트)용이다.
+# api 이미지는 git 을 부르지 않으므로 넣지 않는다.
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates openssh-client \
+ && rm -rf /var/lib/apt/lists/*
+USER node
 CMD ["node", "dist/worker.js"]
 ```
 
@@ -2161,7 +2179,7 @@ deploy/k8s/
       configmap-host.yaml        # NERV_WEB_URL · NERV_API_URL 을 자기 Ingress host 로 (아래 ★)
       replicas.yaml              # api·web replicas 1
       configmap.example.yaml     # ☆ 적용 대상 아님 — 환경마다 바꿀 키의 템플릿
-      secret.example.yaml        # ☆ 적용 대상 아님 — nerv-secrets 키 여덟의 템플릿
+      secret.example.yaml        # ☆ 적용 대상 아님 — nerv-secrets 키 아홉의 템플릿
     prod/
       kustomization.yaml         # §6.4 — images: 로 git SHA 고정 · resources 에 ../../base/web
       ingress-api-host.yaml      # JSON6902 — api. 호스트 문자열만
@@ -2182,9 +2200,10 @@ deploy/k8s/
 # NERV 운영 배포 base — 정본: docs/04-mvp/codebase.md §6.2
 #
 # Secret(nerv-secrets: DATABASE_URL · NERV_AUTH_SECRET · NERV_S3_ACCESS_KEY · NERV_S3_SECRET_KEY
-#        · NERV_EMBED_API_KEY · NERV_GITHUB_WEBHOOK_SECRET · NERV_MAIL_USER · NERV_MAIL_PASS)은 base 가 만들지 않는다 —
+#        · NERV_EMBED_API_KEY · NERV_GITHUB_WEBHOOK_SECRET · NERV_MAIL_USER · NERV_MAIL_PASS
+#        · NERV_MIRROR_GIT_REMOTE)은 base 가 만들지 않는다 —
 # 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 이름만 계약한다.
-# 키 여덟의 예시는 overlays/<env>/secret.example.yaml (적용 대상이 아닌 템플릿이다).
+# 키 아홉의 예시는 overlays/<env>/secret.example.yaml (적용 대상이 아닌 템플릿이다).
 #
 # embed/ 는 로컬(자가호스팅) 프로필 전용이라 base resources 에 넣지 않는다 —
 # 자가호스팅 오버레이만 추가하고, 외부 제공자 프로필은 configmap 의 NERV_EMBED_URL 만 바꾼다(§5.2a).
@@ -2226,7 +2245,48 @@ configMapGenerator:
       disableNameSuffixHash: true
 ```
 
-Secret(`nerv-secrets`)은 base가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 **이름과 키 집합만 계약한다**. 키는 여덟이다: `DATABASE_URL` · `NERV_AUTH_SECRET` · `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` · `NERV_EMBED_API_KEY`(외부 제공자 프로필) · `NERV_GITHUB_WEBHOOK_SECRET`(웹훅을 쓸 때 — **비면 EP-WHK-01 이 모든 배송을 401 로 거절한다**) · `NERV_MAIL_USER` · `NERV_MAIL_PASS`(릴레이가 인증을 요구할 때 — 2026-09-24). **메일 여섯 중 여기 오는 것은 인증 두 키뿐이고, 주소 셋과 보내는 사람은 ConfigMap 이 든다** — 그래야 운영자가 이 배치가 **어디로 보내는지** 설정을 읽어서 알 수 있다(전에는 `NERV_SMTP_URL` 한 줄에 전부 섞여 있어 통째로 여기 와야 했고, 그래서 알 수 없었다). **사용자 이름은 비밀이 아닌데도 여기 있다** — 비밀번호와 한 벌이고 코드가 그 한 벌을 원자로 다루기 때문이다(한쪽만 있으면 기동을 거부한다). 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 **한쪽만 채워진 상태가 실제로 생긴다**. `NERV_S3_ACCESS_KEY` 가 같은 이유로 여기 있다: 식별자인데 짝과 함께 간다. 각 변수의 뜻·필수 여부는 §5.2 전표가 정본이고, 채워 넣을 모양은 `overlays/<env>/secret.example.yaml` 이 보여 준다(적용 대상이 아니다).
+Secret(`nerv-secrets`)은 base가 만들지 않는다 — 조직 표준 경로(SOPS·sealed-secrets 등)로 주입하고 **이름과 키 집합만 계약한다**. 키는 아홉이다: `DATABASE_URL` · `NERV_AUTH_SECRET` · `NERV_S3_ACCESS_KEY` · `NERV_S3_SECRET_KEY` · `NERV_EMBED_API_KEY`(외부 제공자 프로필) · `NERV_GITHUB_WEBHOOK_SECRET`(웹훅을 쓸 때 — **비면 EP-WHK-01 이 모든 배송을 401 로 거절한다**) · `NERV_MAIL_USER` · `NERV_MAIL_PASS`(릴레이가 인증을 요구할 때 — 2026-09-24) · `NERV_MIRROR_GIT_REMOTE`(git 미러를 push 할 때 — 자격증명이 URL 에 들어갈 수 있다 · 2026-10-16 · §6.2a). **메일 여섯 중 여기 오는 것은 인증 두 키뿐이고, 주소 셋과 보내는 사람은 ConfigMap 이 든다** — 그래야 운영자가 이 배치가 **어디로 보내는지** 설정을 읽어서 알 수 있다(전에는 `NERV_SMTP_URL` 한 줄에 전부 섞여 있어 통째로 여기 와야 했고, 그래서 알 수 없었다). **사용자 이름은 비밀이 아닌데도 여기 있다** — 비밀번호와 한 벌이고 코드가 그 한 벌을 원자로 다루기 때문이다(한쪽만 있으면 기동을 거부한다). 갈라 두면 ConfigMap 과 Secret 이 서로 다른 배관으로 들어와 **한쪽만 채워진 상태가 실제로 생긴다**. `NERV_S3_ACCESS_KEY` 가 같은 이유로 여기 있다: 식별자인데 짝과 함께 간다. 각 변수의 뜻·필수 여부는 §5.2 전표가 정본이고, 채워 넣을 모양은 `overlays/<env>/secret.example.yaml` 이 보여 준다(적용 대상이 아니다).
+
+### 6.2a git 미러 — 승인본을 커밋하고 push 한다 (2026-10-16 · E21-S02)
+
+`export` 잡(1시간 주기 — §2.2)이 미러 폴더(`NERV_EXPORT_DIR` — k8s 는 `nerv-mirror` PVC 의 `/mirror`)에 프로젝트마다 네 가지를 쓴다: `llms.txt` · `manifest.json`([4.4 API 명세](api.md) EP-SPEC-14 와 같은 함수 · 같은 내용) · `requirements.tsv`(EP-REQ-01 과 같은 목록 — 고정 ID · 스펙 · 구현 상태 · 증적 수) · `specs/<키>.md`(승인본의 md 미러). **그 폴더가 git 저장소다** — 없으면 만들고 파일이 바뀌면 커밋한다. 바뀐 것이 없으면 커밋하지 않는다. 보관한 문서처럼 이번 판이 만들지 않은 파일은 git 이 추적하던 것만 지운다(운영자가 둔 파일은 더하지도 지우지도 않는다). 설계는 [3.2 시스템 아키텍처](../03-proposal/architecture.md) §2.4 (b)이고 그 트리의 `tasks/` · `reviews/` 는 아직 없다([4.8 백로그](backlog.md) E21-S02 의 남은 것).
+
+- **커밋 메시지** — `export(spec): <키>@v<n> approved by <승인자 이름>`. 지난 커밋의 `manifest.json` 과 견줘 새로 승인된 버전을 찾는다. 여럿이면 첫째를 제목에 쓰고 `(+N)` 을 붙이며 본문에 모두 적는다. 승인 없이 바뀐 판(구현 상태 · 보관 · 제목)은 `export(spec): refresh` 다. 작성자와 커밋한 사람은 `NERV_MIRROR_GIT_AUTHOR`(기본 `NERV <nerv@localhost>`)이다.
+- **push 는 원격이 있을 때만 한다** — `NERV_MIRROR_GIT_REMOTE` 가 비면 로컬 커밋까지만 하고 로그 한 줄을 남긴다. 있으면 그 브랜치(`NERV_MIRROR_GIT_BRANCH` — 기본 `main`)를 받아 보고 **fast-forward 일 때만** push 한다. `--force` 는 쓰지 않는다.
+- **미러 쪽 편집은 받아들이지 않고 경고한다**([3.7 로드맵](../03-proposal/roadmap.md) §7.4 규칙 1) — 원격에 이 저장소에 없는 커밋이 있으면 push 를 멈추고 그 커밋이 바꾼 폴더의 프로젝트마다 `mirror.diverged` 를 남긴다(어느 프로젝트의 폴더도 아니면 내보낸 프로젝트 전부). 그 프로젝트의 admin 에게 중요 알림이 가고 같은 원격 커밋에는 다시 알리지 않는다. 그 커밋은 미러로 합쳐지지 않는다. 푸는 법: 원격 브랜치를 이벤트의 `last_pushed`(NERV 가 마지막으로 push 한 커밋)로 되돌리면 다음 판에 이어서 push 한다. 고칠 내용이 있었다면 NERV 에서 스펙을 고친다.
+- **새 볼륨은 원격의 이력을 이어받는다** — 미러 폴더에 아직 커밋이 없고 원격이 있으면 원격의 마지막 커밋 위에서 시작한다. 볼륨을 잃어도 원격과 갈라지지 않는다. 대가: 그 순간 원격에 있던 남의 편집은 경고 없이 다음 커밋에서 덮인다(받아들이지 않는 것은 같다).
+- **git 을 부르는 법** — 인자 배열로만 부르고 셸을 거치지 않는다. 사람이 쓴 것(본문 · 제목 · 이름)은 파일 내용과 커밋 메시지(표준 입력)로만 간다. 경로는 서버가 만든 것(`safePathSegment`)만 표준 입력으로 넘기고 패턴으로 읽지 않는다(`--literal-pathspecs`). 원격 · 브랜치 · 작성자가 옵션처럼 읽히거나 모양이 틀리면 아무것도 쓰기 전에 잡이 실패한다. 저장소는 늘 그 폴더다(`--git-dir` · `--work-tree` · 위치를 정하는 `GIT_*` 환경변수는 지운다) — 미러 폴더를 다른 저장소 안에 두어도 바깥 저장소에 커밋하지 않는다. 원격과의 fetch · push 는 하트비트 한 주기(60초) 안에 끝나지 않으면 끊는다 — 잡은 차례로 돌아서 답하지 않는 원격이 리스 회수를 그만큼 늦춘다.
+- **이미지** — `nerv-worker` 에만 `git` · `ca-certificates` · `openssh-client` 를 넣는다(§6.1). api 는 git 을 부르지 않는다.
+
+**자격증명은 코드가 다루지 않는다** — 원격 URL 이나 git 설정이 든다. HTTPS 면 그 미러 저장소 하나에만 쓰기 권한이 있는 토큰을 URL 에 넣어 `nerv-secrets` 의 `NERV_MIRROR_GIT_REMOTE` 로 준다(`overlays/<env>/secret.example.yaml`). 로그와 이벤트에는 원격 주소를 넣지 않고 git 의 오류 문장에 든 `사용자:토큰@` 은 지워서 남긴다. SSH 면 배포 키를 Secret 으로 마운트하고 `GIT_SSH_COMMAND` 로 가리키며, `NERV_MIRROR_GIT_REMOTE` 는 `git@github.com:<조직>/<미러 저장소>.git` 이다. 아래는 오버레이에 더하는 패치의 **예시**다 — 적용 대상이 아니고 게이트가 렌더하지 않으므로 dev 클러스터에서 확인한 뒤 쓴다. 워커는 `node`(uid 1000)로 돌기 때문에 키를 그룹으로 읽게 둔다.
+
+```yaml
+# overlays/<env>/worker-mirror-ssh.yaml — 전략적 병합 패치(예시 · 적용 대상 아님)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-worker
+spec:
+  template:
+    spec:
+      securityContext: { fsGroup: 1000 }
+      containers:
+        - name: worker
+          env:
+            - name: GIT_SSH_COMMAND
+              value: ssh -i /etc/nerv-mirror/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=/etc/nerv-mirror/known_hosts
+          volumeMounts:
+            - { name: mirror-ssh, mountPath: /etc/nerv-mirror, readOnly: true }
+      volumes:
+        - name: mirror-ssh
+          # 키 둘 — id_ed25519 · known_hosts
+          secret: { secretName: nerv-mirror-ssh, defaultMode: 0440 }
+```
+
+| ID | 요구(EARS) |
+| --- | --- |
+| **REQ-CB-062** | WHEN `export` 잡이 미러 폴더(`NERV_EXPORT_DIR`)에 승인본 md · `llms.txt` · `manifest.json`(EP-SPEC-14 와 같은 함수) · `requirements.tsv`(EP-REQ-01 과 같은 목록)를 쓰면, THE SYSTEM SHALL 그 폴더를 git 저장소로 두고(없으면 만든다) 바뀐 파일과 git 이 추적하던 것 가운데 이번 판이 만들지 않은 파일을 커밋한다 — 바뀐 것이 없으면 커밋하지 않고 추적하지 않는 파일은 건드리지 않는다. 커밋 메시지는 `export(spec): <키>@v<n> approved by <이름>`(새 승인이 없으면 `export(spec): refresh`)이고 작성자는 `NERV_MIRROR_GIT_AUTHOR`(기본 `NERV <nerv@localhost>`)이다. WHILE `NERV_MIRROR_GIT_REMOTE` 가 비어 있는 동안 THE SYSTEM SHALL 로컬 커밋까지만 한다. THE SYSTEM SHALL git 을 인자 배열로만 부르고 사람이 쓴 값을 인자에 넣지 않으며 그 폴더 밖의 저장소에 커밋하지 않는다. WHEN 원격 · 브랜치 · 작성자가 옵션으로 읽히거나 모양이 틀리면 THE SYSTEM SHALL 아무것도 쓰지 않고 잡을 실패시킨다(2026-10-16 · [4.8 백로그](backlog.md) E21-S02) |
+| **REQ-CB-063** | WHEN 원격(`NERV_MIRROR_GIT_REMOTE`)이 설정돼 있으면, THE SYSTEM SHALL push 전에 그 브랜치(`NERV_MIRROR_GIT_BRANCH` · 기본 `main`)를 받아 fast-forward 일 때만 push 하고 강제로 덮어쓰지 않는다. WHEN 원격에 이 저장소에 없는 커밋이 있으면(미러 쪽 편집), THE SYSTEM SHALL push 를 멈추고 그 커밋을 합치지 않으며 그 커밋이 바꾼 폴더의 프로젝트마다(어느 프로젝트의 폴더도 아니면 내보낸 프로젝트 전부) `mirror.diverged`(원격 · 로컬 · 마지막으로 push 한 커밋 · 남의 커밋 수 — 원격 주소는 넣지 않는다)를 남기고 그 프로젝트의 admin 에게 중요 알림을 보낸다. 같은 원격 커밋에는 다시 남기지 않는다. WHEN 미러 폴더에 아직 커밋이 없으면, THE SYSTEM SHALL 원격의 이력을 이어받아 그 위에 커밋한다([3.7 로드맵](../03-proposal/roadmap.md) §7.4 규칙 1 · §7.6 — 2026-10-16) |
 
 ### 6.3 Deployment · Job · Ingress 스켈레톤
 
@@ -2562,7 +2622,7 @@ patches:
 | **Postgres** | `pg_dump -Fc`(custom format) → 오브젝트 스토리지 업로드. cron Job(`nerv-backup`) | 일 1회 · 보존 14일 | 유일한 SoT — 스펙·Task·이벤트 전부. RPO = 24h 시작값(파일럿 규모 NFR-04에서 수용, 실측 후 조정) |
 | **MinIO**(첨부 오브젝트) | 버킷 미러(`mc mirror`) — 같은 CronJob 이 Postgres 덤프 뒤에 이어서 한다 | **일 1회**(Postgres 와 같은 판) | **재생성되지 않는다**(2026-09-07 정정 · REQ-CB-031). 2026-09-01 부터 이 버킷에는 스펙 첨부(디자인 시안·PDF)의 실체가 있고 DB 에는 `storage_key` 만 남는다 — 복원하면 행은 살아나고 파일은 전부 404 인데 검증은 행 수만 세므로 "손실 0" 이라 말한다. 리뷰 프롬프트 blob(TTL 30일)은 그 버킷의 일부일 뿐이다. `NERV_S3_ENDPOINT` 가 설정됐는데 `mc` 가 없으면 백업은 **실패한다** |
 | **Valkey** | 백업하지 않는다 | — | 무영속 방송 버스 — 유실 시 클라이언트 재조회로 복구(D-14, [4.4](api.md) §3.4) |
-| **md 미러**(`nerv-mirror` PVC) | 백업하지 않는다 | — | DB 의 승인 문서에서 다시 만드는 **파생물**이다(export 잡) — 잃으면 다음 판이 채운다. 첨부와 다른 성질이라 볼륨을 따로 둔다 |
+| **md 미러**(`nerv-mirror` PVC) | 백업하지 않는다 | — | DB 의 승인 문서에서 다시 만드는 **파생물**이다(export 잡) — 잃으면 다음 판이 채운다. 첨부와 다른 성질이라 볼륨을 따로 둔다. 2026-10-16 부터 이 볼륨은 git 저장소이고 커밋 이력도 든다 — 원격(`NERV_MIRROR_GIT_REMOTE`)이 있으면 새 볼륨이 원격의 이력을 이어받으므로 원격이 이력의 사본이다. 원격이 없는 배치는 볼륨을 잃으면 이력도 잃는다(§6.2a) |
 | **embed 모델 캐시**(로컬 프로필 시) | 백업하지 않는다 | — | 모델 가중치는 재다운로드, `spec_chunk_embedding`은 재임베딩으로 재생성([4.3](database.md) §2.15). 외부 제공자 프로필은 해당 없음 |
 
 절차의 실물은 `deploy/scripts/nerv-backup.sh`(①)·`deploy/scripts/nerv-restore.sh`(①+⑤ 검증)이고, k8s 에서는 `base/backup/cronjob.yaml`(CronJob `nerv-backup` — 일 1회)이 같은 스크립트를 configMap 으로 마운트해 돈다. **검증이 절차의 일부다**: 복원 스크립트는 복원 후 원본과의 **실제 행 수**를 대조하고(통계 뷰 `n_live_tup` 이 아니다 — 복원 직후에는 통계가 비어 있어 "손실 0"과 "아직 세지 않았다"를 구분할 수 없다), 불일치면 비영 종료한다. 왕복 자체는 L2 테스트(`restore-roundtrip.spec.ts`)가 매 PR 에 재현한다. **첨부도 함께 돈다**(2026-09-28) — CI 가 오브젝트 스토리지와 `mc` 를 띄우고, 백업이 DB 가 가리키는 파일을 키마다 담는지 · 파일 없는 복원이 실패하는지 · 파일을 되돌린 복원이 바이트까지 같은지 본다(REQ-CB-059·060). 복원은 **새 DB 에** 한다 — 이미 복원한 DB 위에서 `--clean` 복원을 다시 돌리면 파티션 제약을 지우지 못해 실패한다.

@@ -32,6 +32,8 @@ describe('이벤트 이름 카탈로그', () => {
       // 테넌시·권한·토큰 — 2026-09-07 에 들어왔다(REQ-API-151). 권한 상승과 토큰 발급이
       // 감사 축 밖에 있던 자리라, 접두 셋이 정당한 확장이다.
       'member',
+      // git 미러 — 2026-10-16 에 들어왔다(E21-S02 · codebase.md REQ-CB-063). 미러 원격에 NERV 가 만들지 않은 커밋이 있다
+      'mirror',
       'notification',
       'project',
       'question',

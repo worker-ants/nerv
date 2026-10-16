@@ -1058,6 +1058,7 @@ export const ko = {
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
   'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
   'event.gate.failopen_cleared': '게이트 격상 풀림',
+  'event.mirror.diverged': '미러 push 멈춤(미러 저장소에 NERV가 만들지 않은 커밋)',
   'event.import.applied': '임포트 적재',
   'event.notification.created': '알림 생성',
   'event.question.answered': '질문에 답변함',

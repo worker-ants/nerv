@@ -3,6 +3,7 @@ id: SPC-MVP-BACKLOG
 status: approved
 updated: 2026-09-24
 referenced_by:
+  - 03-proposal/architecture.md
   - 03-proposal/agent-integration.md
   - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
@@ -23,7 +24,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v2.98 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v2.99 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v2.99 변경(2026-10-16 — git 커밋 미러, Phase 2 묶음 2의 첫째): **E21-S02 부분 · §1.4 E21 행과 합계 · 부분 구현 표 한 줄 · 셋째 표의 미러 줄 · §1.1 · §6.8 첫 단락.** 미러 폴더가 git 저장소가 되어 export 잡이 바뀐 파일을 커밋하고 원격이 있으면 fast-forward 로만 push 한다. 원격에 NERV 가 만들지 않은 커밋이 있으면 멈추고 `mirror.diverged` 로 admin 에게 알린다([4.2 코드베이스](codebase.md) REQ-CB-062 · 063). 남은 것은 설계 트리의 `tasks/` · `reviews/` 와 승인 직후 push 다. 합계는 `done` 82 · 부분 3 · `backlog` 16 이다.
 >
 > v2.98 변경(2026-10-16 — 보존 워커 완성의 범위 A, Phase 2 묶음 2의 첫째 · **사람 결정 ②**): **E18-S03 부분 · §1.4 E18 행과 합계 · 부분 구현 표 한 줄 · §1.1 · §6.5 첫 단락.** 보존 잡이 180일 지난 알림을 지우고 행이 모두 지워진 `activity` 월 파티션을 드랍한다([4.3 데이터베이스 스키마](database.md) REQ-DB-046 · 047). 남은 셋(리뷰 본문 요약 압축 · draft 압축 · `event` 의 `DETACH`)은 재검토 트리거를 기다린다. 합계는 `done` 82 · 부분 2 · `backlog` 17 이다.
 >
@@ -616,7 +619,7 @@ referenced_by:
 ### 1.1 ID·상태·표기 규약
 
 - **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-16 현재 `done` 82 · 부분 2 · `backlog` 17(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-16 현재 `done` 82 · 부분 3 · `backlog` 16(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -659,9 +662,9 @@ referenced_by:
 | E18 fail-open · 보존 | 2 | 1 | — | `routes/settings/gates.tsx`(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · `task/failopen.ts` · `task/failopen.service.ts`(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · `worker/jobs/failopen.job.ts` · `components/failopen-banner.tsx`(S5 · S6 배너) · `test/integration/failopen-escalation.spec.ts` · `worker/jobs/retention.job.ts`(E18-S03 부분 — 알림 180일 · 빈 `activity` 월 파티션 드랍 · `test/integration/retention-cleanup.spec.ts`) — S03 의 남은 셋은 아래 부분 구현 표 |
 | E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
 | E20 Codex 완전 지원 | — | — | 4 | 착수 전 — [4.6 플러그인](plugin.md) §5.4 실측 표 · `plugin/codex/` |
-| E21 이관 · 운영 | — | — | 4 | 착수 전 — `plugin/bin/nerv-outbox` · `worker/jobs/export.job.ts` |
+| E21 이관 · 운영 | — | 1 | 3 | `worker/jobs/export.job.ts` · `worker/mirror-git.ts`(E21-S02 부분 — 미러 폴더를 git 저장소로 두고 커밋 · fast-forward push · 미러 쪽 편집 경고 `mirror.diverged`) · `test/integration/mirror-git.spec.ts` · `plugin/bin/nerv-outbox` — S02 의 남은 것은 아래 부분 구현 표, S01 · S03 · S04 는 착수 전 |
 | E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **82** | **2** | **17** | `backlog` 17은 모두 Phase 2 스토리다(§6) |
+| **합계** | **82** | **3** | **16** | `backlog` 16은 모두 Phase 2 스토리다(§6) |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -675,6 +678,7 @@ referenced_by:
 | --- | --- | --- |
 | E06-S06 | degrade 경로·1024차원 검증 · **렉시컬 절반의 실측**([4.4 API](api.md) §2.2c — 이 저장소의 문서 세트로 한국어 질의 15개) · 실측이 남긴 결정 셋(2026-10-12 · 사람 결정 — 질의 임베딩 2초 · 1분 쉬기 REQ-API-300, FTS 저장 열과 순위 합치기 REQ-API-301 · REQ-DB-041 — 검색 p95 829 → 62ms) | **임베딩 3프로필의 지연 · 하이브리드 품질 · go/no-go 판정** — 이 작업 환경에서는 모델을 받을 길이 없었다. 같은 질의 15개로 다시 잰다 |
 | E18-S03 | `notification` 180일 삭제(마지막으로 더해진 시각 기준 · 읽음 · 안 읽음 가리지 않음)와 보존 기간을 넘긴 빈 `activity` 월 파티션 드랍(2026-10-16 · 사람 결정 ② — [4.3 데이터베이스 스키마](database.md) REQ-DB-046 · 047) | **재검토 트리거를 기다리는 셋** — `reviewer_report.body_md` 365일 뒤 요약 압축(방법이 정해져 있지 않다) · draft `spec_version` 90일 뒤 압축 · `event` 12개월 뒤 `DETACH`(감사 로그를 건드린다). 트리거는 [4.3 데이터베이스 스키마](database.md) §2.14 — 파티션 24개 또는 `event` 1천만 행 |
+| E21-S02 | 미러 폴더(`NERV_EXPORT_DIR`)가 git 저장소다 — export 잡이 승인본 md · `llms.txt` · `manifest.json`(EP-SPEC-14 와 같은 함수) · `requirements.tsv` 를 쓰고 바뀌면 커밋한다. 원격(`NERV_MIRROR_GIT_REMOTE`)이 있으면 fast-forward 로만 push 하고 원격에 NERV 가 만들지 않은 커밋이 있으면 멈춘 채 `mirror.diverged` 로 admin 에게 알린다. 새 볼륨은 원격의 이력을 이어받는다. 워커 이미지에 git([4.2 코드베이스](codebase.md) §6.2a · REQ-CB-062 · 063 · 2026-10-16) | **설계 트리의 `tasks/open.md` · `reviews/findings-open.md`**([3.2 시스템 아키텍처](../03-proposal/architecture.md) §2.4 (b)) — 담을 칸과 모양이 정해져 있지 않고 작업 스냅샷은 시간마다 바뀌어 커밋이 그만큼 잦아진다. 담는다면 무엇을(누가 · 어느 호스트 — 사람 이름과 호스트 이름이 미러에 남는다) 정해야 한다 · **승인 직후 push** — 지금은 1시간 주기의 다음 판이라 승인에서 push 까지 최대 1시간이다(M2 롤백이 미러를 승격하면 그 사이의 승인을 잃는다) · 실제 원격(GitHub 등)과 k8s 볼륨에서의 실측 — L2 는 일회용 bare 저장소로 봤다 |
 
 #### 스토리가 없는 구현 — 백로그가 저장소를 설명하지 못하는 자리
 
@@ -686,7 +690,7 @@ referenced_by:
 | 스펙 첨부 | `attachment` 테이블 · `nerv_spec_attach` · `nerv_spec_attachment_read` | 2026-09-01·09-04 도입 |
 | 조직 초대 | `modules/auth/invitation.controller.ts` · `routes/invite.$token.tsx` · `0006_invitation` | |
 | 제품 매뉴얼 `/help` | `apps/web/src/content/manual/{ko,en}/` 10장 × 2 · `routes/help/` | [AGENTS.md](../../AGENTS.md) 구현 규약 5 가 요구하는 산출물이다 |
-| md 미러 export 잡 | `worker/jobs/export.job.ts` | 코드가 스스로 "P1 후반"이라 적는다 |
+| md 미러 export 잡 | `worker/jobs/export.job.ts` | 코드가 스스로 "P1 후반"이라 적는다. git 커밋과 push 는 2026-10-16 에 E21-S02 로 들어왔다(위 부분 구현 표) |
 | `nerv_question_cancel` | `modules/approval/question.tools.ts` | 2026-09-05 신설 |
 | `pnpm preflight` · `hooks:install` | `codebase/scripts/preflight.mjs` · `install-hooks.mjs` | 규약 7 이 커밋 전 필수로 지정한 도구 |
 | 에러 코드 → UI 매핑 한 곳 | `apps/web/src/lib/api-errors.ts`(`describeApiError` · `useApiError`) | [4.5](screens.md) §1.5 표가 "모든 화면의 기본값" 으로 선언된 계약인데 코드를 보는 자리가 셋뿐이었다(2026-09-06) |
@@ -1370,7 +1374,7 @@ FR-15 ◐ → ●. 성공 기준 2-9의 대상이다. [4.6 플러그인](plugin.
 
 ### 6.8 E21 — 이관 · 운영 (FR-17 · NFR-04 · NFR-05)
 
-clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 폴백. 성공 기준 2-1 · 2-5 · 2-7의 대상이다. **이미 있는 것**: 오프라인 outbox와 세션 시작 · 스킬 턴의 flush(E12-S06) · md 미러 잡(`worker/jobs/export.job.ts` — 파일만 쓰고 커밋하지 않는다) · review 임포터.
+clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 폴백. 성공 기준 2-1 · 2-5 · 2-7의 대상이다. **이미 있는 것**: 오프라인 outbox와 세션 시작 · 스킬 턴의 flush(E12-S06) · md 미러 잡(`worker/jobs/export.job.ts`) · review 임포터. 2026-10-16 에 S02 의 첫 조각이 들어왔다 — 미러 폴더가 git 저장소가 되어 바뀌면 커밋하고 원격이 있으면 fast-forward 로만 push 하며, 미러 쪽 편집은 받아들이지 않고 admin 에게 경고한다([4.2 코드베이스](codebase.md) §6.2a · REQ-CB-062 · 063).
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |

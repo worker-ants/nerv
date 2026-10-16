@@ -84,8 +84,14 @@ data:
   # 잡 루프의 틱 해상도 — 잡이 1초 주기를 원해도 틱이 성기면 그 간격으로 발화한다.
   NERV_WORKER_TICK_MS: '1000'
   # md 미러 산출 위치 — nerv-mirror PVC 의 마운트 경로다(worker/pvc.yaml).
-  # 비우면 미러를 만들지 않는다.
+  # 비우면 미러를 만들지 않는다. 이 폴더가 git 저장소다(2026-10-16 · §6.2a) — 바뀌면 커밋한다.
   NERV_EXPORT_DIR: '/mirror'
+  # git 미러를 push 할 원격 브랜치. 비우면 main 이다. 원격 주소(NERV_MIRROR_GIT_REMOTE)는
+  # 자격증명이 들어갈 수 있어 nerv-secrets 의 몫이고, 그것이 없으면 로컬 커밋까지만 한다.
+  NERV_MIRROR_GIT_BRANCH: ''
+  # 미러 커밋의 작성자 — `이름 <메일>`. 비우면 `NERV <nerv@localhost>` 다. 모양이 틀리면
+  # export 잡이 아무것도 쓰지 않고 실패한다(조용히 기본값으로 가지 않는다).
+  NERV_MIRROR_GIT_AUTHOR: ''
   # ── 메일(2026-09-22 · 접속 정보는 2026-09-24 부터 여섯 키다) ───────────
   # **스위치는 `NERV_MAIL_HOST` 다** — 비면 메일이 꺼지고 아래는 전부 아무 일도 하지 않으며,
   # 가입 이메일 인증 강제도 함께 꺼진다. 비밀인 것은 `NERV_MAIL_PASS` 하나라 그것만
