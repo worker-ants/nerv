@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.58 · 2026-10-16 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.59 · 2026-10-16 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.59 변경(2026-10-16 — `.codex/config.toml` 초안을 실측대로 고침, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15) · [4.8 백로그](../04-mvp/backlog.md) E20-S02): **§4.1 초안 둘과 한 단락.** 초안은 `approval_policy` · `sandbox_mode` · `notify` 를 `[mcp_servers.nerv]` 뒤에 두어 TOML 에서 그 표의 키가 됐다 — Codex 0.162.1 은 셋을 무시한다고 경고했다. 최상위 키를 표 이름 앞으로 옮겼다. Codex 는 저장소 설정의 `notify` · `[otel]` 을 무시하므로 둘은 사용자 설정(`~/.codex/config.toml`)의 초안으로 나눴다. notify 는 서버가 `/ingest/hooks/notify` 로 받는다([4.4 API](../04-mvp/api.md) REQ-API-325).
 >
 > v0.58 변경(2026-10-16 — Codex 훅 매핑을 실측으로 확정, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다) · [4.8 백로그](../04-mvp/backlog.md) E20-S01): **§4.2 한 단락 · §3.3 테스트 경로 한 곳.** §4.2 의 예시는 제안이었고 실물은 다르다 — Codex 0.162.1 은 NERV 플러그인의 `hooks/hooks.json`(Claude Code 와 같은 파일)을 그대로 읽는다. 에이전트 판정 · 응답 모양 · 세션 잇기는 [4.6 플러그인](../04-mvp/plugin.md) §5.4 와 [4.4 API](../04-mvp/api.md) REQ-API-323 · 324 가 정본이다.
 >
@@ -591,19 +593,24 @@ sequenceDiagram
 
 ```toml
 # <repo>/.codex/config.toml — NERV 온보딩 스크립트가 생성 · 저장소에 커밋
+# 최상위 키는 표 이름([…]) 앞에 둔다 — 뒤에 두면 그 표의 키가 되어 Codex 가 무시한다(2026-10-16 실측)
+
+# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않는다
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
 [mcp_servers.nerv]
 url = "https://api.nerv.example.com/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "clemvion" }
 startup_timeout_sec = 20
 # hostname 은 nerv_bootstrap 인자로 전달한다(헤더 확장에 의존하지 않는다)
+```
 
-# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않는다
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
-
-# 턴 완료 알림 → NERV Ingest 로 전달
-notify = ["/usr/local/bin/nerv-hook-forward", "--event", "notify"]
+```toml
+# ~/.codex/config.toml — 사용자 설정. Codex 는 저장소 설정의 notify · [otel] 을 무시한다(2026-10-16 실측)
+# 턴 완료 알림 → NERV Ingest 로 전달 — 설치한 NERV 플러그인의 포워더를 설치 캐시에서 찾는다
+notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
 
 [otel]
 exporter = "otlp-http"
@@ -611,7 +618,7 @@ environment = "prod"
 log_user_prompt = false
 ```
 
-`~/.codex/config.toml`(전역) 대신 **저장소의 `.codex/config.toml`** 을 정본으로 쓴다. 신뢰된 프로젝트에서만 읽히므로 최초 1회 신뢰 승인이 필요하고, 이것이 Codex 쪽 "승인 프롬프트 통과 필요" 등급의 실체다.
+`~/.codex/config.toml`(전역) 대신 **저장소의 `.codex/config.toml`** 을 정본으로 쓴다. 신뢰된 프로젝트에서만 읽히므로 최초 1회 신뢰 승인이 필요하고, 이것이 Codex 쪽 "승인 프롬프트 통과 필요" 등급의 실체다. **예외가 둘이다**(2026-10-16 실측 · [4.6 플러그인](../04-mvp/plugin.md) §5.2) — Codex 0.162.1 은 저장소 설정의 `notify` · `[otel]` 을 "unsupported project-local config keys" 로 무시하므로 그 둘은 사용자 설정에 둔다. 처음 초안은 최상위 키 셋을 `[mcp_servers.nerv]` 뒤에 두어 그 표의 키로 만들었고 Codex 는 그 셋을 무시했다.
 
 - [Codex 고급 설정: notify·OTel — learn.chatgpt.com](https://learn.chatgpt.com/docs/config-file/config-advanced) (2026-08-13 확인): `notify`가 `agent-turn-complete` 등에서 외부 프로그램에 `type`·`thread-id`·`turn-id`·`cwd`·`last-assistant-message` JSON을 전달, `[otel]` 섹션과 `approval_policy`/`sandbox_mode`.
 

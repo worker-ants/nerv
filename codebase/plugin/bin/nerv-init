@@ -125,7 +125,7 @@ token="$(pick "$token" "${NERV_TOKEN:-}" "$settings_token")"
 mcp_has_nerv() { [ -f "$mcp" ] && grep -q '"nerv"' "$mcp"; }
 
 # Codex 의 MCP 서버 표 — 저장소의 `.codex/config.toml`(신뢰한 프로젝트에서만 읽힌다)이나 사용자 설정에 둔다.
-# TOML 은 셸로 읽지 않고 표 머리 한 줄만 찾는다: `[mcp_servers.nerv]` 가 있으면 붙어 있다고 본다.
+# TOML 은 셸로 읽지 않고 표 이름 한 줄만 찾는다: `[mcp_servers.nerv]` 가 있으면 붙어 있다고 본다.
 codex_user_config="${CODEX_HOME:-${HOME:-}/.codex}/config.toml"
 codex_has_nerv() {
   for f in "$root/.codex/config.toml" "$codex_user_config"; do

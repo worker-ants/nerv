@@ -21,4 +21,8 @@ NERV 저장소 루트에 `.codex/config.toml` 을 두면 이 저장소에서 도
 `codex plugin add nerv@nerv` 로 설치하고 Codex 의 `/hooks` 에서 NERV 훅 여덟을 신뢰 처리한다. 세션이 `codex` 로 기록되고
 `nerv_bootstrap` 세션과 한 세션으로 이어진다. 훅은 `.nerv/env` 의 `NERV_SERVER` · `NERV_PROJECT` 를 읽는다.
 
+**턴 완료 알림(notify)은 사용자 설정에 둔다**(2026-10-16 · 4.6 §5.2). Codex 는 저장소 설정의 `notify` · `[otel]` 을
+무시한다. `config.toml` 끝의 주석에 있는 `notify = [...]` 줄을 `~/.codex/config.toml` 의 맨 위(표 이름 앞)에 둔다 —
+설치 캐시의 포워더를 찾아 부르고, 플러그인이 없으면 아무것도 하지 않는다.
+
 자동 생성·검증 스크립트는 Phase 2 다([4.6 플러그인과 온보딩](../../docs/04-mvp/plugin.md) §5.1).

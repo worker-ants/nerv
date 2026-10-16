@@ -66,7 +66,7 @@ NERV_TOKEN=<1단계에서 받은 토큰>
 
 **이미 설정된 값은 덮어쓰지 않습니다.** 회사에서 관리하는 기기의 설정이나 셸에 있는 값이 항상 우선합니다. 그리고 이 파일에서는 `NERV_`로 시작하는 변수만 읽습니다.
 
-> **Codex에서는 훅만 이 파일을 읽습니다.** Codex에 NERV 플러그인을 설치하면 훅이 이 파일의 서버 주소와 프로젝트를 씁니다(3-B 참고). MCP 인증에는 이 파일의 값이 적용되지 않습니다. Codex의 MCP 인증 설정에는 환경변수 이름만 적을 수 있기 때문입니다. 그래서 토큰은 셸 환경변수로 둡니다. Codex 알림을 NERV로 보내는 설정은 아직 꺼져 있습니다. 서버에 받는 곳이 아직 없기 때문입니다.
+> **Codex에서는 훅만 이 파일을 읽습니다.** Codex에 NERV 플러그인을 설치하면 훅이 이 파일의 서버 주소와 프로젝트를 씁니다(3-B 참고). MCP 인증에는 이 파일의 값이 적용되지 않습니다. Codex의 MCP 인증 설정에는 환경변수 이름만 적을 수 있기 때문입니다. 그래서 토큰은 셸 환경변수로 둡니다. Codex의 턴 완료 알림(notify)도 같은 포워더가 보내고 이 파일을 읽습니다(3-B 참고).
 
 ### 그 머신에서 한 프로젝트만 쓴다면 {#env-single-project}
 
@@ -200,18 +200,18 @@ cp <플러그인>/codex/AGENTS.md   <내 저장소>/AGENTS.md
 
 `AGENTS.md`가 이미 있으면 덮어쓰지 말고 **"단일 진실"과 "세션 시작 시 반드시" 두 절만** 복사해 넣습니다.
 
-복사한 `.codex/config.toml`에서 `url`과 `X-NERV-Project`, 그리고 쓰는 경우 `[otel] environment`까지 세 곳을 내 값으로 바꿉니다.
+복사한 `.codex/config.toml`에서 `url`과 `X-NERV-Project` 두 곳을 내 값으로 바꿉니다. 승인 설정은 `[mcp_servers.nerv]`보다 앞에 둡니다. 뒤에 두면 그 표의 설정이 되어 Codex가 무시합니다.
 
 ```toml
+# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않습니다
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
 [mcp_servers.nerv]
 url = "{{server}}/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "{{project}}" }
 startup_timeout_sec = 20
-
-# 사람 승인 레인 — A3 도구는 승인 없이 실행되지 않습니다
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
 ```
 
 **`config.toml`에는 토큰을 적지 않습니다.** `bearer_token_env_var`에 적힌 대로 `NERV_TOKEN` 환경변수에서 토큰을 읽습니다. Codex는 `.claude/settings.local.json`을 읽지 않습니다. `.nerv/env`의 값도 MCP 인증에는 쓰이지 않습니다(2단계 참고). 그래서 Codex를 쓴다면 `NERV_TOKEN`을 셸 환경변수로 설정합니다.
@@ -238,6 +238,12 @@ codex plugin add nerv@nerv
 ```
 
 Codex는 사람이 확인한 훅만 실행합니다. 설치한 뒤 Codex에서 `/hooks`를 열고 NERV 훅 여덟을 신뢰 처리합니다. 그다음부터는 세션 시작, 도구 사용, 턴 종료, 세션 종료가 NERV에 기록됩니다. 세션 카드는 `nerv_bootstrap`을 호출하기 전에 나타나고 `codex`로 표시됩니다. 도구 호출도 같은 세션에 이어집니다. 클레임을 잡은 채 턴을 끝내려 하면 상태를 남기고 클레임을 정리하라는 안내가 에이전트에게 갑니다. 훅은 `.nerv/env`의 서버 주소와 프로젝트를 읽습니다. 토큰은 셸 환경변수로 둡니다. MCP 연결이 덜 된 저장소에서는 세션을 시작할 때 무엇이 빠졌는지 알려 줍니다.
+
+**턴 완료 알림(notify).** 플러그인을 설치했다면 사용자 설정(`~/.codex/config.toml`)의 맨 위, 표 이름(`[…]`)보다 앞에 아래 한 줄을 넣습니다. 에이전트가 턴을 끝낼 때마다 마지막 답변이 세션 화면에 기록됩니다. 플러그인 없이 연결한 Codex 세션에도 같은 방법으로 기록됩니다. 다만 그때는 플러그인의 `bin/`을 따로 두고 그 경로를 적어야 합니다. 저장소의 `.codex/config.toml`에 넣으면 Codex가 이 줄을 무시합니다.
+
+```toml
+notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
+```
 
 ## 4. 연결 확인 {#verify}
 

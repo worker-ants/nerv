@@ -24,7 +24,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v3.01 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v3.02 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v3.02 변경(2026-10-16 — Codex notify와 2-9 완주, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15)): **E20-S02 `done` · §1.4 E20 행과 합계 · §1.1 · §6.7 첫 단락.** 서버가 Codex의 턴 완료 알림을 받아 그 세션의 답변 활동으로 남긴다([4.4 API](api.md) REQ-API-325). 템플릿의 `notify` 줄은 사용자 설정에 두고 설치 캐시의 포워더를 부른다([4.6 플러그인](plugin.md) REQ-PLG-038 — 저장소 설정의 `notify`는 Codex가 무시한다). Codex 0.162.1 세션 하나가 bootstrap → next → claim → 하트비트 → 질문(폴링 폴백) → 구현 → 리뷰 제출 → done을 완주했다(2-9 · [4.6 플러그인](plugin.md) §5.4). 합계는 `done` 85 · 부분 3 · `backlog` 13 이다.
 >
 > v3.01 변경(2026-10-16 — Codex에서 NERV 훅 여섯이 돈다, Phase 2 묶음 2의 셋째 · **사람 결정**(2026-10-15 — 한 묶음으로 고친다)): **E20-S01 `done` · §1.4 E20 행과 합계 · §1.1 · §6.7 첫 단락.** [4.6 플러그인](plugin.md) §5.4 표의 고칠 자리를 모두 고치고 Codex 0.162.1로 다시 쟀다 — 훅 여섯이 경고 없이 돈다. 세션은 `codex`로 남고 훅이 만든 세션과 `nerv_bootstrap` 세션이 하나로 이어진다. 세션 안내와 Stop의 차단 이유도 모델에게 전달됐다([4.6 플러그인](plugin.md) REQ-PLG-034~037 · [4.4 API](api.md) REQ-API-323 · 324). 합계는 `done` 84 · 부분 3 · `backlog` 14 다.
 >
@@ -623,7 +625,7 @@ referenced_by:
 ### 1.1 ID·상태·표기 규약
 
 - **에픽/스토리 ID** — `E01-S01` 형식(에픽 번호-스토리 번호). 에픽은 Phase 0(E01~E07) → Phase 1(E08~E14) → Phase 2(E15~E22 · 2026-10-15) 순으로 번호가 붙고, 스토리 번호는 에픽 안의 권장 착수 순서다.
-- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-16 현재 `done` 84 · 부분 3 · `backlog` 14(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
+- **상태 어휘** — 스토리는 Task 축 상태 머신([3.5 스펙 워크플로우와 거버넌스](../03-proposal/spec-workflow.md) §1.4)의 어휘를 그대로 쓴다: `backlog → ready → claimed → in_progress → in_review → done`, 예외 상태 `blocked`(사유 코드 필수). **스토리별 현재 상태는 §1.4 가 정본이다** — 2026-10-16 현재 `done` 85 · 부분 3 · `backlog` 13(Phase 2 스토리 — §6)이다. (2026-08-22 신설 당시의 "모든 스토리는 현재 `backlog`다" 를 그대로 두어 **74개 중 73개에 대해 거짓인 문장**이 2주간 남아 있었다 — 이 문서는 첫 임포트 대상이라 그 문장이 그대로 Task 74건의 초기 상태가 된다.)
 - **근거** — 모든 스토리는 근거 링크를 갖는다: 기존 13편의 § 참조, FR/NFR 번호([1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4), D-번호 결정, 또는 4부 형제 문서의 REQ-* / § 참조. 근거 없는 스토리는 백로그에 넣지 않는다.
 - **EARS 수용 기준** — 행동 요구는 `WHEN … THE SYSTEM SHALL …` 형식으로 쓴다. 스토리당 1~3개.
 - **의존** — 의존 스토리 ID를 표기한다. 의존이 `done`이 아니면 해당 스토리는 `ready`로 전이하지 않는다(FR-05의 ready 판정을 이 백로그 자신에게 적용).
@@ -665,10 +667,10 @@ referenced_by:
 | E17 알림 확장 | 1 | — | 2 | `event/notification.service.ts`(`involvedTargets` — 작성자 · 담당자 · 스레드 참여자 · 리뷰 요청자 · E17-S01) · `review.service.ts`(`finding.resolved` 의 `review_session_id`) · `resumePoint`(새로 뜬 워커는 최근 한 시간만 다시 본다 — 넓어진 규칙을 지난 이벤트에 소급하지 않는다 · [4.4 API](api.md) REQ-API-317) · `test/integration/notification-involved.spec.ts` — 남은 S02(워치) · S03(Slack)은 착수 전 |
 | E18 fail-open · 보존 | 2 | 1 | — | `routes/settings/gates.tsx`(E18-S01 — 격상 기준 · 보존 기간 편집 · 읽기 전용) · `task/failopen.ts` · `task/failopen.service.ts`(E18-S02 — 창 안의 횟수로 격상 · 해제 · 이벤트에서 파생) · `worker/jobs/failopen.job.ts` · `components/failopen-banner.tsx`(S5 · S6 배너) · `test/integration/failopen-escalation.spec.ts` · `worker/jobs/retention.job.ts`(E18-S03 부분 — 알림 180일 · 빈 `activity` 월 파티션 드랍 · `test/integration/retention-cleanup.spec.ts`) — S03 의 남은 셋은 아래 부분 구현 표 |
 | E19 CR · 델타 리뷰 | — | — | 3 | 착수 전 — `change_request` 테이블 · `NERV_EVENT_PHASE2.CR_OPENED`(상수만) |
-| E20 Codex 완전 지원 | 1 | — | 3 | `plugin/hooks/hooks.json` · `plugin/bin/nerv-hook-forward`(E20-S01 — Codex 를 `PLUGIN_ROOT` 로 알아본다 · 모든 훅에 `X-NERV-Agent` · 세션 종료 2초) · `session/ingest.controller.ts`(Codex 에는 판정 필드만) · `mcp/harness-session.ts`(Codex 가 넣어 준 세션 id 로 세션 잇기) · `plugin/bin/nerv-init`(Codex 의 `config.toml` 점검) · `plugin-test/`(플러그인 폴더에는 배달되는 파일만) · [4.6 플러그인](plugin.md) §5.4 다시 잰 열 — S02~S04 는 착수 전 |
+| E20 Codex 완전 지원 | 2 | — | 2 | `plugin/hooks/hooks.json` · `plugin/bin/nerv-hook-forward`(E20-S01 — Codex 를 `PLUGIN_ROOT` 로 알아본다 · 모든 훅에 `X-NERV-Agent` · 세션 종료 2초) · `session/ingest.controller.ts`(Codex 에는 판정 필드만) · `mcp/harness-session.ts`(Codex 가 넣어 준 세션 id 로 세션 잇기) · `plugin/bin/nerv-init`(Codex 의 `config.toml` 점검) · `plugin-test/`(플러그인 폴더에는 배달되는 파일만) · [4.6 플러그인](plugin.md) §5.4 다시 잰 열 · `session/ingest.controller.ts` 의 `notify`(E20-S02 — 턴 완료 알림을 답변 활동으로) · `plugin/codex/config.toml`(사용자 설정의 `notify` 줄) — S03 · S04 는 착수 전 |
 | E21 이관 · 운영 | 1 | 1 | 2 | `plugin/bin/nerv-outbox` · `plugin/bin/nerv-hook-forward`(E21-S01 — 포워더가 서버에서 2xx 를 받으면 큐를 백그라운드 flush 로 비운다 · 잠금 · 거절된 쓰기를 `outbox-failed` 로 알린다) · `session/outbox-report.service.ts`(`session.outbox_failed` · 그 사람에게 중요 알림) · `plugin-test/outbox.spec.ts` · `test/integration/outbox-sync.spec.ts` · `worker/jobs/export.job.ts` · `worker/mirror-git.ts`(E21-S02 부분 — 미러 폴더를 git 저장소로 두고 커밋 · fast-forward push · 미러 쪽 편집 경고 `mirror.diverged`) · `test/integration/mirror-git.spec.ts` — S02 의 남은 것은 아래 부분 구현 표, S03 · S04 는 착수 전 |
 | E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **84** | **3** | **14** | `backlog` 14는 모두 Phase 2 스토리다(§6) |
+| **합계** | **85** | **3** | **13** | `backlog` 13은 모두 Phase 2 스토리다(§6) |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -1367,7 +1369,7 @@ FR-04 ○ → ●, FR-11 ◐ → ●(받은 요청 다섯 유형). **이미 있�
 
 ### 6.7 E20 — Codex 완전 지원 (FR-15)
 
-FR-15 ◐ → ●. 성공 기준 2-9의 대상이다. [4.6 플러그인](plugin.md) §5.4가 2026-10-15 Codex 0.162.1 실측으로 고칠 자리를 표로 남겼고 사람 결정으로 **한 묶음으로 고친다**(그 전에는 훅을 지금처럼 둔다). MCP 도구만으로 완주하는 약속은 이미 시나리오 F가 매 PR에서 확인한다(§5.6). 2026-10-16 에 S01 이 들어왔다 — 고칠 자리를 모두 고치고 다시 쟀다([4.6 플러그인](plugin.md) §5.4 넷째 열 · REQ-PLG-034~037 · [4.4 API](api.md) REQ-API-323 · 324).
+FR-15 ◐ → ●. 성공 기준 2-9의 대상이다. [4.6 플러그인](plugin.md) §5.4가 2026-10-15 Codex 0.162.1 실측으로 고칠 자리를 표로 남겼고 사람 결정으로 **한 묶음으로 고친다**(그 전에는 훅을 지금처럼 둔다). MCP 도구만으로 완주하는 약속은 이미 시나리오 F가 매 PR에서 확인한다(§5.6). 2026-10-16 에 S01 이 들어왔다 — 고칠 자리를 모두 고치고 다시 쟀다([4.6 플러그인](plugin.md) §5.4 넷째 열 · REQ-PLG-034~037 · [4.4 API](api.md) REQ-API-323 · 324). 같은 날 S02 도 들어왔다 — notify 를 받고 Codex 세션 하나가 2-9 흐름을 완주했다([4.6 플러그인](plugin.md) REQ-PLG-038 · [4.4 API](api.md) REQ-API-325).
 
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |

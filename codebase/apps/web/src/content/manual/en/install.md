@@ -66,7 +66,7 @@ NERV_TOKEN=<the token from step 1>
 
 **Values that are already set are never overwritten.** Settings on a company-managed machine and values already in your shell always take precedence. Only variables whose names start with `NERV_` are read.
 
-> **In Codex, only the hooks read this file.** If you install the NERV plugin in Codex, its hooks use the server address and project from this file (see 3-B). The values in this file don't apply to MCP authentication, because Codex's MCP authentication accepts only the _name_ of an environment variable. So keep the token in a shell environment variable. Sending Codex notifications to NERV is still turned off, because the server has nowhere to receive them yet.
+> **In Codex, only the hooks read this file.** If you install the NERV plugin in Codex, its hooks use the server address and project from this file (see 3-B). The values in this file don't apply to MCP authentication, because Codex's MCP authentication accepts only the _name_ of an environment variable. So keep the token in a shell environment variable. Codex's turn-complete notifications (notify) are sent by the same forwarder, which also reads this file (see 3-B).
 
 ### If you use only one project on this machine {#env-single-project}
 
@@ -200,18 +200,18 @@ cp <plugin>/codex/AGENTS.md   <your repo>/AGENTS.md
 
 If you already have an `AGENTS.md`, don't overwrite it. Copy **only the "single source of truth" and "at the start of every session" sections** into it.
 
-In the copied `.codex/config.toml`, replace three values with your own: `url`, `X-NERV-Project`, and `[otel] environment` (if you use it).
+In the copied `.codex/config.toml`, replace two values with your own: `url` and `X-NERV-Project`. Keep the approval settings above `[mcp_servers.nerv]`. Placed below it, they belong to that table and Codex ignores them.
 
 ```toml
+# The human approval lane — A3 tools never run unapproved
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
 [mcp_servers.nerv]
 url = "{{server}}/mcp"
 bearer_token_env_var = "NERV_TOKEN"
 http_headers = { "X-NERV-Project" = "{{project}}" }
 startup_timeout_sec = 20
-
-# The human approval lane — A3 tools never run unapproved
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
 ```
 
 **Do not put the token in `config.toml`.** As `bearer_token_env_var` indicates, the token is read from the `NERV_TOKEN` environment variable. Codex does not read `.claude/settings.local.json`, and values in `.nerv/env` are not used for MCP authentication (see step 2). So for Codex, set `NERV_TOKEN` as a shell environment variable.
@@ -238,6 +238,12 @@ codex plugin add nerv@nerv
 ```
 
 Codex runs only the hooks a person has reviewed. After installing, open `/hooks` in Codex and trust the eight NERV hooks. From then on, session start, tool use, the end of each turn, and session end are recorded in NERV. The session card appears before `nerv_bootstrap` is called, and it is labeled `codex`. Tool calls join the same session. If the agent tries to end a turn while still holding a claim, it is told to record the status and release the claim first. The hooks read the server address and project from `.nerv/env`. Keep the token in a shell environment variable. In a repository where the MCP connection is not set up yet, the session start tells you what is missing.
+
+**Turn-complete notifications (notify).** If you installed the plugin, add the line below at the top of your user config (`~/.codex/config.toml`), before any table name (`[…]`). Each time the agent finishes a turn, its last reply is recorded on the sessions screen. A Codex session connected without the plugin can be recorded the same way, but then you need to keep the plugin's `bin/` somewhere and point the line at it. If you put this line in the repository's `.codex/config.toml`, Codex ignores it.
+
+```toml
+notify = ["sh", "-c", 'for f in "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/*/nerv/*/bin/nerv-hook-forward; do [ -x "$f" ] && exec "$f" --event notify "$1"; done; exit 0', "nerv-notify"]
+```
 
 ## 4. Check the connection {#verify}
 

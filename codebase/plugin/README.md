@@ -20,7 +20,7 @@ NERV 협업 플랫폼의 Claude Code 플러그인. **정본은 [docs/04-mvp/plug
 | `bin/nerv-outbox`                                                 | 오프라인 쓰기 큐(enqueue·flush·kick·status) — 서버가 돌아오면 포워더가 백그라운드로 비운다                              | §3.4           |
 | `bin/nerv-mirror`                                                 | 스펙 미러 — 문서 · 첨부를 로컬 폴더에 받는다. 본체는 `skills/mirror/scripts/nerv-mirror.mjs`(의존성 없음)               | §2.7           |
 | `hooks/hooks.http.json`                                           | 훅 URL 을 관리형으로 묶을 때의 변형(`type:"http"` · SessionStart 만 command)                                            | §3.1           |
-| `codex/config.toml`                                               | Codex 용 MCP 접속 템플릿 — 자동 생성·갱신은 Phase 2 다                                                                  | §5.2           |
+| `codex/config.toml`                                               | Codex 용 MCP 접속 템플릿 · 사용자 설정에 옮길 notify 줄(주석) — 자동 생성·갱신은 Phase 2 다                             | §5.2           |
 | `codex/AGENTS.md`                                                 | Codex 세션이 읽는 규약 — 스킬과 같은 절차를 문장으로                                                                    | §5.3           |
 | `managed-settings.example.json`                                   | 조직 관리형 설정 예시(마켓플레이스·허용 도구)                                                                           | §3.5           |
 
@@ -41,6 +41,8 @@ codex plugin add nerv@nerv     # 그다음 Codex 의 /hooks 에서 NERV 훅 여�
 - 포워더는 Codex 를 `PLUGIN_ROOT` 로 알아보고 `X-NERV-Agent: codex` 를 보낸다. 서버는 그 호스트가 받는 판정 필드만
   돌려준다 — Codex 는 모르는 필드가 있으면 훅을 실패로 끝낸다(REQ-PLG-034 · REQ-API-323).
 - `hooks/hooks.json` 의 최상위에는 `description` · `hooks` 만 둔다. `$comment` 하나로 Codex 는 훅 여섯을 모두 버렸다(REQ-PLG-035).
+- 턴 완료 알림(notify)은 사용자 설정(`~/.codex/config.toml`)에 한 줄을 둔다 — `codex/config.toml` 의 주석에 있다.
+  저장소 설정의 `notify` 는 Codex 가 무시한다. 그 줄이 설치 캐시의 포워더를 찾아 `--event notify` 로 보낸다(REQ-PLG-038).
 - `/nerv:approve` 는 Codex 에서 쓰지 않는다. 서브에이전트는 Codex 목록에 없다.
 
 ## 설계에서 물러서지 않는 두 가지

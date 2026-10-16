@@ -1,4 +1,4 @@
-// 훅 수집기 — POST /ingest/hooks/{session,tool,subagent,stop,session-end} + 오프라인 큐 실패 보고 outbox-failed
+// 훅 수집기 — POST /ingest/hooks/{session,tool,subagent,stop,session-end} + Codex notify + 오프라인 큐 실패 보고 outbox-failed
 // 정본: agent-integration.md §3.3 · api.md §2.9
 //
 // **같은 훅을 두 호스트가 보낸다**(2026-10-16 · E20-S01 · api.md §2.9 · REQ-API-323). Claude Code 는 판정 JSON 의 모르는
@@ -14,8 +14,16 @@
 // 훅 하나로 남의 세션을 조작할 수 있다.
 
 import { Body, Controller, Headers, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
-import { msg, NERV_ERROR, prepareHookPayload, redact, text } from '@nerv/schema';
-import { outcomeOf, summarize } from './hook-summary.js';
+import {
+  msg,
+  NERV_ERROR,
+  prepareHookPayload,
+  redact,
+  redactText,
+  text,
+  truncate,
+} from '@nerv/schema';
+import { outcomeOf, summarize, turnTitle } from './hook-summary.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { AuthService } from '../auth/auth.service.js';
 import { OutboxReportService } from './outbox-report.service.js';
@@ -266,6 +274,48 @@ export class IngestController {
   }
 
   /**
+   * **Codex 의 `notify` — 턴이 끝났다**(2026-10-16 · E20-S02 · api.md §2.9 · REQ-API-325). Codex 는 턴을 끝낼 때마다 설정의
+   * `notify` 프로그램을 부르고 JSON 하나를 마지막 인자로 준다 — 포워더가 그것을 그대로 이 경로로 보낸다. 플러그인이 없는
+   * Codex(MCP 설정만)에서는 이것이 유일한 텔레메트리라, 세션 화면이 그 세션의 턴을 보이게 한다.
+   *
+   * 세션은 `thread-id` 로 찾는다 — 훅의 `session_id` · MCP 요청의 하네스 세션 id 와 같은 값이다(2026-10-16 실측). 그
+   * 세션이 없으면(bootstrap 전 · 다른 사람) 버린다. 턴이 끝났다는 것은 하네스가 살아 있다는 뜻이라 stale 세션을 되살린다.
+   * **사용자 프롬프트(`input-messages`)는 담지 않는다** — 훅도 프롬프트를 받지 않는다. 남기는 것은 마지막 답변(가린 값)이다.
+   */
+  @Post('notify')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async notify(
+    @Req() req: HookRequest,
+    @Headers('x-nerv-agent') agent: string | undefined,
+    @Body() body: NotifyPayload,
+  ): Promise<HookAck> {
+    const principal = requireAgent(req);
+    // 지금 받는 알림은 턴 완료 하나다 — 모르는 종류는 받기만 하고 남기지 않는다(지어내지 않는다)
+    if (body.type !== 'agent-turn-complete') return ack(agent, false);
+    const threadId = typeof body['thread-id'] === 'string' ? body['thread-id'] : '';
+    const sessionId = await this.resolveLiveSession(principal, { session_id: threadId });
+    if (sessionId === null) return ack(agent, false);
+
+    const message =
+      typeof body['last-assistant-message'] === 'string' ? body['last-assistant-message'] : '';
+    // 제목도 가린 값에서 만든다 — 원문에서 만들면 목록에 비밀이 그대로 뜬다(도구 훅과 같다)
+    const safeMessage = redactText(message);
+    await this.sessions.appendHookActivity({
+      sessionId,
+      projectId: principal.projectId ?? '',
+      type: 'response',
+      title: turnTitle(safeMessage),
+      toolName: null,
+      payload: {
+        turn_id: typeof body['turn-id'] === 'string' ? body['turn-id'] : null,
+        client: typeof body.client === 'string' ? body.client : null,
+        last_assistant_message: truncate(safeMessage),
+      },
+    });
+    return ack(agent, true);
+  }
+
+  /**
    * **오프라인 큐의 재전송이 거절됐다**(2026-10-16 · E21-S01 · NFR-05 · api.md REQ-API-322). 훅이 아니라 플러그인의
    * `nerv-outbox flush` 가 `outbox/failed/` 로 옮긴 항목을 알린다. 그 사람에게 중요 알림이 가야 해서 202 로 받고
    * 이벤트를 남긴다 — 세션을 대상으로 고르는 규칙과 중복 제거는 `OutboxReportService` 한 곳이다(D-05).
@@ -321,6 +371,12 @@ function requireAgent(req: HookRequest): Principal {
     });
   }
   return principal;
+}
+
+/** Codex `notify` 의 본문 — 키가 하이픈으로 이어진다(2026-10-16 실측 · Codex 0.162.1) */
+interface NotifyPayload extends Record<string, unknown> {
+  type?: string;
+  client?: string;
 }
 
 /** 관찰 훅의 응답 — Claude Code 에는 `ok` 를, Codex 에는 빈 판정을 준다(REQ-API-323) */

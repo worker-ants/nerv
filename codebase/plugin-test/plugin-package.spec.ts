@@ -913,3 +913,82 @@ describe('REQ-PLG-037 — 플러그인 폴더에는 배달되는 파일만 둔�
     }
   });
 });
+
+// ── E20-S02 — Codex notify 를 받는다 (2026-10-16 · 4.6 §5.2) ──────────────────────────────────
+describe('REQ-PLG-038 — Codex notify 를 포워더로 보낸다', () => {
+  const forward = join(here, 'bin/nerv-hook-forward');
+  const toml = () => file('codex/config.toml');
+
+  it('포워더는 notify 를 인자로 받아 codex 로 보내고 아무것도 출력하지 않는다', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'nerv-notify-'));
+    const log = join(dir, 'args.txt');
+    writeFileSync(
+      join(dir, 'curl'),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${log}"\nprintf '{"ok":true}\\n202'\n`,
+      { mode: 0o755 },
+    );
+    const payload = '{"type":"agent-turn-complete","thread-id":"T-1"}';
+    const stdout = execFileSync(forward, ['--event', 'notify', payload], {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env['PATH'] ?? ''}`,
+        NERV_SERVER: 'http://x',
+        NERV_AGENT_TYPE: '',
+        PLUGIN_ROOT: '',
+      },
+    });
+    const sent = readFileSync(log, 'utf8').split('\n');
+    expect(sent).toContain('http://x/ingest/hooks/notify');
+    expect(sent).toContain('X-NERV-Agent: codex');
+    expect(sent[sent.indexOf('--data') + 1]).toBe(payload);
+    // Codex 는 notify 의 출력을 읽지 않는다 — 판정 JSON 을 흘리지 않는다
+    expect(stdout).toBe('');
+  });
+
+  it('템플릿의 최상위 키는 표 이름 앞에 있다 — 뒤에 두면 그 표의 키가 되어 Codex 가 무시한다', () => {
+    const lines = toml().split('\n');
+    const firstTable = lines.findIndex((l) => l.startsWith('['));
+    for (const key of ['approval_policy', 'sandbox_mode']) {
+      const at = lines.findIndex((l) => l.startsWith(`${key} =`));
+      expect(at, key).toBeGreaterThan(-1);
+      expect(at, key).toBeLessThan(firstTable);
+    }
+    // 저장소 설정의 notify · [otel] 은 Codex 가 무시한다 — 템플릿에는 주석으로만 둔다
+    expect(lines.some((l) => l.startsWith('notify'))).toBe(false);
+    expect(lines.some((l) => l.startsWith('[otel]'))).toBe(false);
+  });
+
+  /** 템플릿이 사용자 설정에 옮겨 적으라는 notify 줄 — `sh -c '<스크립트>' nerv-notify` */
+  function notifyScript(): string {
+    const m = /^# notify = \["sh", "-c", '(.*)', "nerv-notify"\]$/m.exec(toml());
+    if (m === null) throw new Error('템플릿에 notify 줄이 없다');
+    return m[1]!;
+  }
+
+  it('그 줄이 설치 캐시의 포워더를 찾아 알림 JSON 을 넘긴다', () => {
+    const home = mkdtempSync(join(tmpdir(), 'codex-home-'));
+    const bin = join(home, 'plugins/cache/nerv/nerv/0.3.32/bin');
+    mkdirSync(bin, { recursive: true });
+    const log = join(home, 'forward.txt');
+    writeFileSync(join(bin, 'nerv-hook-forward'), `#!/bin/sh\nprintf '%s\\n' "$@" > "${log}"\n`, {
+      mode: 0o755,
+    });
+    const payload = '{"type":"agent-turn-complete"}';
+    execFileSync('sh', ['-c', notifyScript(), 'nerv-notify', payload], {
+      env: { PATH: process.env['PATH'] ?? '', HOME: '/nonexistent', CODEX_HOME: home },
+    });
+    expect(readFileSync(log, 'utf8').split('\n')).toEqual(['--event', 'notify', payload, '']);
+  });
+
+  it('플러그인이 없으면 아무것도 하지 않고 성공한다', () => {
+    const home = mkdtempSync(join(tmpdir(), 'codex-home-'));
+    const out = execFileSync('sh', ['-c', notifyScript(), 'nerv-notify', '{}'], {
+      encoding: 'utf8',
+      env: { PATH: process.env['PATH'] ?? '', HOME: '/nonexistent', CODEX_HOME: home },
+    });
+    expect(out).toBe('');
+  });
+});

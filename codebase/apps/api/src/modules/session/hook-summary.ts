@@ -30,6 +30,18 @@ function firstLine(text: string): string {
 }
 
 /**
+ * 턴을 끝낸 답변 → 한 줄(2026-10-16 · Codex notify · REQ-API-325). 답변의 **비어 있지 않은 첫 줄**이다 — 답변은 빈 줄이나
+ * 머리글로 시작하기도 한다. 답변이 없으면 `null` 이다: 지어내지 않는다.
+ */
+export function turnTitle(message: string): string | null {
+  const line = message
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l !== '');
+  return line === undefined ? null : firstLine(line);
+}
+
+/**
  * 도구·인자 → 사람이 읽는 한 줄.
  *
  * **도구마다 정보가 있는 자리가 다르다**: Bash 는 명령, 편집기는 경로, nerv 도구는 대상 키.
