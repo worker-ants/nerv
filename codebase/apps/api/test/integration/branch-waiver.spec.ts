@@ -1,5 +1,5 @@
 // 리뷰가 없는 브랜치의 면제 — 결재에 브랜치를 적을 자리
-// (2026-10-16 · 사람 결정 D4 · Phase 2 E16-S04 · api.md REQ-API-338 ~ 340 · database.md REQ-DB-050)
+// (2026-10-16 · 사람 결정 D4 · Phase 2 E16-S04 · api.md REQ-API-339 ~ 341 · database.md REQ-DB-050)
 //
 // 문서만 바꾼 브랜치처럼 리뷰를 받지 않을 브랜치는 게이트 판정(EP-REV-08)이 `uncovered` 로 막았고, 면제는 리뷰 세션이나 작업에만
 // 붙어 그 브랜치를 넘길 길이 없었다. 면제가 브랜치를 받고, 게이트 판정이 리뷰가 없는 (브랜치 · 종류)를 `waived` 로 통과시키며,
@@ -201,7 +201,7 @@ async function submit(over: {
   } as Parameters<ReviewService['submit']>[0]);
 }
 
-describe('EP-REV-08 — 리뷰가 없는 (브랜치 · 종류)는 브랜치 면제로 `waived` (REQ-API-339)', () => {
+describe('EP-REV-08 — 리뷰가 없는 (브랜치 · 종류)는 브랜치 면제로 `waived` (REQ-API-340)', () => {
   it('면제한 종류만 통과하고 사유 · 면제한 사람 · 시각 · 범위를 함께 준다', async () => {
     const res = (await waive({ kinds: ['code'], roles: ['developer'] })) as Record<string, unknown>;
     expect(res).toMatchObject({ branch: BRANCH, head_sha: null, kinds: ['code'] });
@@ -289,7 +289,7 @@ describe('EP-REV-08 — 리뷰가 없는 (브랜치 · 종류)는 브랜치 면�
   });
 });
 
-describe('EP-APR-04 — 브랜치 면제의 역할 · 기록 (REQ-API-338)', () => {
+describe('EP-APR-04 — 브랜치 면제의 역할 · 기록 (REQ-API-339)', () => {
   it('종류 · 역할 규칙은 작업 면제와 같다 — 못 하는 종류가 하나라도 있으면 아무것도 기록하지 않는다', async () => {
     expect(await waive({ kinds: ['code'], roles: ['planner'] })).toMatchObject({
       code: NERV_ERROR.FORBIDDEN,
@@ -440,7 +440,7 @@ describe('EP-APR-04 — 브랜치 면제의 역할 · 기록 (REQ-API-338)', () 
   });
 });
 
-describe('EP-REV-04 게이트 현황 — 면제한 브랜치의 줄 (REQ-API-340)', () => {
+describe('EP-REV-04 게이트 현황 — 면제한 브랜치의 줄 (REQ-API-341)', () => {
   async function coverage(): Promise<{ items: Record<string, unknown>[]; total: number }> {
     const res = await app.inject({
       method: 'GET',

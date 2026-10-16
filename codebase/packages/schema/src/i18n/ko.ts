@@ -132,7 +132,7 @@ export const ko = {
   // 바로 승인(2026-10-11 · REQ-API-287)
   'error.approval.direct_role': '바로 승인은 admin과 planner만 할 수 있습니다.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
-  // 워치 · 핀(2026-10-16 · 사람 결정 D5 · REQ-API-341 ~ 344)
+  // 워치 · 핀(2026-10-16 · 사람 결정 D5 · REQ-API-342 ~ 345)
   'error.watch.target_not_found': '워치할 대상({target})을 이 프로젝트에서 찾지 못했습니다.',
   'error.watch.not_area':
     '영역 워치는 영역 문서에만 걸 수 있습니다. 이 문서({target})는 영역이 아닙니다. 문서 하나를 워치하려면 종류를 spec으로 보내세요.',
@@ -148,14 +148,14 @@ export const ko = {
     '종류를 고르지 않은 면제는 admin만 낼 수 있습니다. 면제할 리뷰 종류를 고르세요.',
   'error.approval.bypass_has_code':
     '코드 증적(커밋 · PR · 코드 경로)이 붙은 작업은 {kinds} 리뷰를 면제할 수 없습니다. 코드를 낸 작업은 코드 리뷰를 받습니다.',
-  // 브랜치 면제(2026-10-16 · 사람 결정 D4 · REQ-API-338)
+  // 브랜치 면제(2026-10-16 · 사람 결정 D4 · REQ-API-339)
   'error.approval.bypass_target_required':
     '면제할 대상을 하나만 주세요. 작업이나 리뷰 세션이면 subject_id를, 브랜치면 branch를 줍니다.',
   'error.approval.bypass_head_needs_branch':
     'head_sha는 브랜치 면제에만 줍니다. 그 브랜치의 커밋 하나로 면제를 좁힐 때 씁니다.',
   'error.approval.bypass_head_not_full_sha':
     'head_sha는 40자 커밋 SHA여야 합니다. 짧은 SHA는 나중에 다른 커밋과 겹칠 수 있습니다(git rev-parse로 얻습니다).',
-  // SoT 컷오버 M1(2026-10-16 · 사람 결정 D6 · REQ-API-345 · 348)
+  // SoT 컷오버 M1(2026-10-16 · 사람 결정 D6 · REQ-API-346 · 349)
   'error.gate.head_not_full_sha':
     'head_sha는 40자 커밋 SHA여야 합니다. 한 커밋의 두 판정을 견주므로 커밋이 하나로 정해져야 합니다(git rev-parse로 얻습니다).',
   'error.cutover.role_required': '컷오버 지표는 admin과 planner만 볼 수 있습니다.',
@@ -1217,7 +1217,7 @@ export const ko = {
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
   'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
   'event.gate.failopen_cleared': '게이트 격상 풀림',
-  // 판정 불일치(2026-10-16 · 사람 결정 D6 · REQ-API-346) — M1 이중화 기간에 로컬 훅과 서버가 다르게 판정했다
+  // 판정 불일치(2026-10-16 · 사람 결정 D6 · REQ-API-347) — M1 이중화 기간에 로컬 훅과 서버가 다르게 판정했다
   'event.gate.verdict_mismatch': '게이트 판정 불일치(로컬 훅과 서버의 판정이 다름)',
   'event.mirror.diverged': '미러 push 멈춤(미러 저장소에 NERV가 만들지 않은 커밋)',
   'event.import.applied': '임포트 적재',

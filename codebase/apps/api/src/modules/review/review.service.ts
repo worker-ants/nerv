@@ -299,7 +299,7 @@ export interface ResolveInput {
    */
   escalateReason?: string | null;
   /**
-   * **넘긴 세션이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — `escalated` 에만 읽는다. 주지 않으면 세션이 부른
+   * **넘긴 세션이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-335) — `escalated` 에만 읽는다. 주지 않으면 세션이 부른
    * 처분은 기다리고 세션 없는 처분은 기다릴 것이 없다
    */
   blocking?: boolean | null;
@@ -311,7 +311,7 @@ export interface ResolveResult {
   resolution_id: string;
   open_remaining: number;
   /**
-   * **넘긴 처분의 카드**(2026-10-16 · 사람 결정 D3 · REQ-API-333) — `escalated` 에만 온다. 받는 역할 자리(없으면 작업 담당자와
+   * **넘긴 처분의 카드**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — `escalated` 에만 온다. 받는 역할 자리(없으면 작업 담당자와
    * 기본 큐) · 기다리는가 · 이미 서 있던 카드인가
    */
   escalation?: {
@@ -1041,7 +1041,7 @@ export class ReviewService {
     // 열린 발견 하나를 남기고 아무 정보도 더하지 않는다 — 그건 처분이 아니라 방치다.
     if (input.kind === 'escalated') {
       assertVocab([input.escalateReason ?? ''], ESCALATE_REASONS, 'escalate_reason');
-      // **변경 요청으로 보내는 길은 따로 있다**(2026-10-16 · REQ-API-332) — 처분에 CR id 를 적어 넘기면 초안도 카드도 서지 않는다.
+      // **변경 요청으로 보내는 길은 따로 있다**(2026-10-16 · REQ-API-333) — 처분에 CR id 를 적어 넘기면 초안도 카드도 서지 않는다.
       // 조용히 버리지 않고 그 길을 알려 준다(§1.4e)
       if ((input.changeRequestId ?? '').trim() !== '') {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.escalate_with_cr'), {
@@ -1066,7 +1066,7 @@ export class ReviewService {
       const isAgent = input.isAgent ?? input.sessionId != null;
       const sessionId = input.sessionId ?? null;
       if (input.kind === 'escalated') {
-        // **넘긴 것을 다시 넘기지 않는다**(2026-10-16 · REQ-API-333). 서 있는 카드가 있으면 그것을 돌려준다 — 재호출이 카드를
+        // **넘긴 것을 다시 넘기지 않는다**(2026-10-16 · REQ-API-334). 서 있는 카드가 있으면 그것을 돌려준다 — 재호출이 카드를
         // 늘리면 넘겨받는 사람은 같은 일을 여러 번 결정한다. 발견을 먼저 잠근다 — 두 재호출이 함께 "카드 없음" 을 보지 않게
         await tx.execute(sql`SELECT id FROM finding WHERE id = ${input.findingId} FOR UPDATE`);
         const standing = (await pendingEscalationsOf(tx, input.findingId, 'all'))[0];
@@ -1084,7 +1084,7 @@ export class ReviewService {
             },
           };
         }
-        // **기다림의 기본은 세션이 있으면 참이다**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — 질문과 같다: 사람을 부르고도 그냥
+        // **기다림의 기본은 세션이 있으면 참이다**(2026-10-16 · 사람 결정 D3 · REQ-API-335) — 질문과 같다: 사람을 부르고도 그냥
         // 진행하는 것은 에스컬레이션이 아니다. 세션 없는 처분(사람 · 세션 없는 토큰)은 기다릴 세션이 없다
         const blocking = sessionId !== null && input.blocking !== false;
         const written = await writeResolutionInTx(tx, emit, {
@@ -1140,7 +1140,7 @@ export class ReviewService {
         specVersionId: input.specVersionId ?? null,
         escalateReason: input.escalateReason ?? null,
       });
-      // **다른 길로 닫았으면 카드도 닫는다**(2026-10-16 · REQ-API-335). 넘겨받은 사람이 결정하기 전에 발견이 처분됐다 — 남은
+      // **다른 길로 닫았으면 카드도 닫는다**(2026-10-16 · REQ-API-336). 넘겨받은 사람이 결정하기 전에 발견이 처분됐다 — 남은
       // 카드는 이미 끝난 일을 결정하라고 한다. 처분한 사람이 그 카드를 닫은 사람이다
       if (input.status !== 'open') {
         await settleEscalationsInTx(tx, emit, {
@@ -1332,7 +1332,7 @@ export class ReviewService {
              -- **어느 작업에서 나왔고, 어느 작업으로 올렸나**(REQ-API-180). 발견 → 작업으로 갈 길이 없었고,
              -- 화면은 promoted_task_key 로 "올림" 을 그리려 했지만 값이 오지 않아 단추가 늘 켜져 있었다
              rt.key AS task_key, pt.key AS promoted_task_key,
-             -- **넘긴 처분의 자리**(2026-10-16 · 사람 결정 D3 · REQ-API-333) — 마지막 처분이 escalated 면 사유 · 기다림 · 그 카드와
+             -- **넘긴 처분의 자리**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — 마지막 처분이 escalated 면 사유 · 기다림 · 그 카드와
              -- 결정, 변경 요청으로 보냈으면 그 CR 의 키와 상태다. 에이전트는 이것으로 결정을 다시 읽는다(하트비트를 놓쳤을 때)
              res.escalate_reason::text AS escalate_reason, res.blocking AS escalation_blocking,
              esc.id AS escalation_approval_id, esc.decision::text AS escalation_decision,
@@ -1586,7 +1586,7 @@ export class ReviewService {
       }
       items.sort((a, b) => a.kind.localeCompare(b.kind));
     }
-    // **리뷰가 없는 (브랜치 · 종류)는 브랜치 면제가 넘긴다**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 라운드가 있는 종류는
+    // **리뷰가 없는 (브랜치 · 종류)는 브랜치 면제가 넘긴다**(2026-10-16 · 사람 결정 D4 · REQ-API-340). 라운드가 있는 종류는
     // 그 판정이 그대로다 — 면제의 전제는 "리뷰가 필요 없다" 이고, 리뷰가 들어와 발견을 냈으면 그 발견이 이긴다
     if (items.some((i) => i.state === 'uncovered')) {
       const waivers = await branchWaivers(this.db, {
@@ -1646,7 +1646,7 @@ export class ReviewService {
          WHERE rs.project_id = ${projectId}
          GROUP BY rs.branch
       ),
-      -- **리뷰가 없는 브랜치도 면제가 있으면 줄이 된다**(2026-10-16 · 사람 결정 D4 · REQ-API-340) — 와이어프레임 §2.6 ⑧의
+      -- **리뷰가 없는 브랜치도 면제가 있으면 줄이 된다**(2026-10-16 · 사람 결정 D4 · REQ-API-341) — 와이어프레임 §2.6 ⑧의
       -- 「미커버 + BYPASS 1」 줄이다. 판정은 uncovered 이고 면제가 같은 줄에 펼쳐진다. 순서는 가장 최근 면제의 시각이다
       waived AS (
         SELECT branch, max(decided_at) AS waived_at
@@ -1686,7 +1686,7 @@ export class ReviewService {
     // 면제는 **결재 레코드**다(FR-10) — `approval.is_bypass` 가 정본이고 여기서 붙인다. 길은 둘이다.
     //
     // - **리뷰 세션을 면제한 결재**는 그 세션의 브랜치 줄에 붙는다(예전부터의 길).
-    // - **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-340)는 `approval.branch` 로 그 줄에 붙는다 — 리뷰가 없는 브랜치에도
+    // - **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-341)는 `approval.branch` 로 그 줄에 붙는다 — 리뷰가 없는 브랜치에도
     //   낼 수 있고, 그때는 위에서 그 브랜치의 줄을 만들었다. 범위(종류 · 커밋)를 함께 준다.
     const { rows: bypasses } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT rs.branch, a.id, a.bypass_reason, a.decided_at, u.display_name,

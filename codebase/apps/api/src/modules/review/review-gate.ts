@@ -20,7 +20,7 @@ import { sameCommitSql } from './commit-scope.js';
 
 /**
  * 라운드 판정은 셋이다(`uncovered` · `pending` · `passed`). 넷째 `waived` 는 **게이트 판정 조회(EP-REV-08)만** 만든다 — 리뷰가 없는
- * (브랜치 · 종류)에 유효한 브랜치 면제가 있으면 통과로 준다(2026-10-16 · 사람 결정 D4 · api.md REQ-API-339). 이 파일의 함수는
+ * (브랜치 · 종류)에 유효한 브랜치 면제가 있으면 통과로 준다(2026-10-16 · 사람 결정 D4 · api.md REQ-API-340). 이 파일의 함수는
  * 면제를 보지 않는다 — done 게이트는 작업 면제를 따로 센다(REQ-API-274).
  */
 export type GateState = 'uncovered' | 'pending' | 'passed' | 'waived';
@@ -65,7 +65,7 @@ export interface RoundVerdict {
   roles: { required: string[]; reported: string[]; missing: string[] };
   findings: RoundFinding[];
   findings_total: number;
-  /** `state` 가 `waived` 일 때만 — 그 판정을 만든 브랜치 면제(EP-REV-08 · REQ-API-339) */
+  /** `state` 가 `waived` 일 때만 — 그 판정을 만든 브랜치 면제(EP-REV-08 · REQ-API-340) */
   waiver?: GateWaiver;
 }
 
@@ -233,7 +233,7 @@ export async function roundVerdicts(
 }
 
 /**
- * **이 브랜치 · 이 커밋에 유효한 브랜치 면제**(2026-10-16 · 사람 결정 D4 · api.md REQ-API-339) — 가장 최근 것부터.
+ * **이 브랜치 · 이 커밋에 유효한 브랜치 면제**(2026-10-16 · 사람 결정 D4 · api.md REQ-API-340) — 가장 최근 것부터.
  *
  * 커밋으로 좁힌 면제는 **그 커밋을 물었을 때만** 유효하다 — `headSha` 를 주지 않은 조회는 어느 커밋인지 모르므로 그런 면제를
  * 세지 않는다(넘겨도 될지 모를 때는 막는 쪽이다). 같은 커밋인가는 done 게이트와 같은 규칙이다(`sameCommitSql` — 대소문자 무시 ·

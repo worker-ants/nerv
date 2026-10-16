@@ -1,5 +1,5 @@
 // 워치와 핀 — 서버에 남기고 워처에게 알림을 보낸다
-// (2026-10-16 · 사람 결정 D5 = B · Phase 2 E17-S02 · api.md REQ-API-341 ~ 344 · database.md REQ-DB-051)
+// (2026-10-16 · 사람 결정 D5 = B · Phase 2 E17-S02 · api.md REQ-API-342 ~ 345 · database.md REQ-DB-051)
 //
 // 워치: 스펙 · 작업 · 영역에 사람이 건다(자동 등록은 없다). 영역 워치는 그 아래 문서와 작업까지 포함한다. 알림 카탈로그(spec-workflow
 // §6.3)의 「워처」 수신자를 관여 라우팅과 같은 자리에서 산출한다 — 겹치면 한 번 · 행위자와 비멤버는 받지 않는다 · low 등급은 알림을
@@ -195,7 +195,7 @@ async function recipientsOf(type: string): Promise<string[]> {
 }
 const sorted = (ids: string[]): string[] => [...ids].sort();
 
-describe('워치 — 걸고 · 풀고 · 본인만 (REQ-API-341)', () => {
+describe('워치 — 걸고 · 풀고 · 본인만 (REQ-API-342)', () => {
   it('스펙 · 작업 · 영역에 걸고 목록에 보인다 — 다시 걸면 새 행이 없고, 풀면 사라진다', async () => {
     const put = await call('writer', 'PUT', '/me/watches', {
       project: 'clemvion',
@@ -282,7 +282,7 @@ describe('워치 — 걸고 · 풀고 · 본인만 (REQ-API-341)', () => {
   });
 });
 
-describe('워처 알림 — 카탈로그의 「워처」 수신자 (REQ-API-342)', () => {
+describe('워처 알림 — 카탈로그의 「워처」 수신자 (REQ-API-343)', () => {
   it('spec.approved — 그 문서와 조상 영역의 워처가 받는다 · 다른 영역의 워처는 받지 않는다', async () => {
     await watchOf('taskWatcher', 'spec', 'SPC-FEAT');
     await watchOf('areaWatcher', 'area', 'SPC-AREA-A');
@@ -365,7 +365,7 @@ describe('워처 알림 — 카탈로그의 「워처」 수신자 (REQ-API-342)
   });
 });
 
-describe('핀 — 서버에 남고 프로젝트를 넘는다 (REQ-API-343 · 344)', () => {
+describe('핀 — 서버에 남고 프로젝트를 넘는다 (REQ-API-344 · 345)', () => {
   const pinOf = (who: keyof typeof U, project: string, targetType: string, target: string) =>
     call(who, 'PUT', '/me/pins', { project, target_type: targetType, target });
 

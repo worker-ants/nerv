@@ -1,4 +1,4 @@
--- SoT 컷오버 M1 — 컷오버 단계와 게이트 판정 비교 (2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-DB-052 · api.md REQ-API-345 ~ 349)
+-- SoT 컷오버 M1 — 컷오버 단계와 게이트 판정 비교 (2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-DB-052 · api.md REQ-API-346 ~ 350)
 --
 -- ① `project.review_sot`(enum `review_sot` — git · dual · nerv)와 `review_sot_since` — 프로젝트가 병행 운영 표(roadmap §7.4)의 어느 줄에
 --    있는지와 그 줄로 바꾼 시각이다. 기본은 `git`(컷오버 전)이라 기존 프로젝트의 동작은 그대로다. 2주 관측 창(§7.5)이 바꾼 시각에서

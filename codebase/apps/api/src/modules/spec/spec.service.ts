@@ -218,7 +218,7 @@ export interface DraftUpsertInput {
    */
   allowShrink?: boolean | undefined;
   /**
-   * **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-332 · spec-workflow §3.4). `spec_drift` 태그가 붙은 열린 발견을 주면
+   * **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-333 · spec-workflow §3.4). `spec_drift` 태그가 붙은 열린 발견을 주면
    * 이 초안을 감싼 변경 요청에 그 발견을 묶는다 — 처분은 `escalated`(사유 `spec`)이고, CR 이 승인되면 발견은 `fixed`, 거절되면
    * `dismissed` 와 코드 되돌림 작업이 된다. 이 저장이 CR 을 열면 출처는 `spec_drift` 다. 승인본이 없는 문서 · 새 문서에는 줄 수
    * 없다(CR 이 아니다) — 판정은 저장보다 먼저라 거절되면 아무것도 남지 않는다
@@ -807,7 +807,7 @@ export class SpecService {
          AND e.occurred_at > ${spec['updated_at'] as string}
     `);
 
-    // **변경 요청**(2026-10-16 · REQ-API-331) — 읽은 버전을 감싼 CR 과, 이 문서에 지금 열린 CR. 승인본을 읽은 사람도 그 위에
+    // **변경 요청**(2026-10-16 · REQ-API-332) — 읽은 버전을 감싼 CR 과, 이 문서에 지금 열린 CR. 승인본을 읽은 사람도 그 위에
     // 제안이 진행 중인지 알고 그 CR 로 간다
     const readCr =
       typeof spec['version_id'] === 'string'
@@ -1220,7 +1220,7 @@ export class SpecService {
         await this.assertMetaUnchanged(tx, input.projectId, specId, input);
       }
 
-      // **고치는 발견이 있으면 저장보다 먼저 본다**(2026-10-16 · REQ-API-332) — 거절되면 본문도 남지 않는다. 묶는 것은 저장 뒤다
+      // **고치는 발견이 있으면 저장보다 먼저 본다**(2026-10-16 · REQ-API-333) — 거절되면 본문도 남지 않는다. 묶는 것은 저장 뒤다
       const driftFinding =
         input.findingId == null || input.findingId === ''
           ? null
@@ -1399,7 +1399,7 @@ export class SpecService {
         const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
         const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
         const delta = specDelta(previousBody, input.bodyMd);
-        // 변경 요약이 바뀌었으면 CR 의 이유도 맞춘다(REQ-API-327)
+        // 변경 요약이 바뀌었으면 CR 의 이유도 맞춘다(REQ-API-328)
         await syncChangeRequestRationale(tx, draft.id, input.changeSummary);
 
         // **같은 draft 를 다시 저장해도 알린다**(2026-08-29 개정 — 사람 보고).
@@ -1453,9 +1453,9 @@ export class SpecService {
           // 덮어쓴 본문과 견준 크기 · 제목 · 요구사항(REQ-API-270) — `shrunk` 가 비어 있지 않으면 확인하고 줄인 것이다
           body_change: change,
           relations: { ...relations, declared },
-          // 이 초안을 감싼 변경 요청(REQ-API-331) — 승인본이 없는 문서면 null 이다
+          // 이 초안을 감싼 변경 요청(REQ-API-332) — 승인본이 없는 문서면 null 이다
           change_request: await changeRequestOfVersion(tx, input.projectId, draft.id),
-          // 묶은 발견(REQ-API-332) — 준 저장에만 온다
+          // 묶은 발견(REQ-API-333) — 준 저장에만 온다
           ...(linkedFinding === null ? {} : { finding: linkedFinding }),
           // 방금 쓴 **그 초안**을 연다 — 승인본 위의 초안이면 기본 주소는 승인본에 선다
           web_url: await this.webUrl(tx, input.projectId, specId, Number(draft.version_no)),
@@ -1511,7 +1511,7 @@ export class SpecService {
 
       const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
       const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
-      // **승인본 위의 새 초안은 변경 요청이다**(2026-10-16 · 사람 결정 D1 · REQ-API-327) — 서버가 연다. 새 문서는 승인본이 없다
+      // **승인본 위의 새 초안은 변경 요청이다**(2026-10-16 · 사람 결정 D1 · REQ-API-328) — 서버가 연다. 새 문서는 승인본이 없다
       const changeRequest = created
         ? null
         : await openChangeRequestInTx(tx, emit, {
@@ -1521,7 +1521,7 @@ export class SpecService {
             userId: input.userId,
             sessionId: input.sessionId ?? null,
             changeSummary: input.changeSummary ?? null,
-            // 발견을 고치려고 연 CR 은 구현에서 거슬러 온 제안이다(REQ-API-332)
+            // 발견을 고치려고 연 CR 은 구현에서 거슬러 온 제안이다(REQ-API-333)
             ...(driftFinding === null ? {} : { origin: 'spec_drift' as const }),
           });
       const linkedFinding =
@@ -1557,7 +1557,7 @@ export class SpecService {
   }
 
   /**
-   * **저장이 고치려는 발견을 판정한다**(2026-10-16 · REQ-API-332) — 저장보다 먼저. `spec_drift` 태그가 붙은 열린 발견이어야 하고,
+   * **저장이 고치려는 발견을 판정한다**(2026-10-16 · REQ-API-333) — 저장보다 먼저. `spec_drift` 태그가 붙은 열린 발견이어야 하고,
    * 발견이 유래 스펙을 알면 지금 고치는 문서여야 하며, 그 문서에 승인본이 있어야 한다(그래야 이 초안이 CR 이다).
    */
   private async driftFindingFor(
@@ -1597,7 +1597,7 @@ export class SpecService {
   }
 
   /**
-   * **저장한 초안의 CR 에 발견을 묶는다**(REQ-API-332). 초안에 CR 이 없으면(0053 전에 만든 초안) 여기서 연다 — 출처는 `spec_drift`.
+   * **저장한 초안의 CR 에 발견을 묶는다**(REQ-API-333). 초안에 CR 이 없으면(0053 전에 만든 초안) 여기서 연다 — 출처는 `spec_drift`.
    * 처분 · 카드는 리뷰 센터의 [CR로 보내기]와 같은 자리(`linkFindingToCrInTx`)를 지난다.
    */
   private async linkDriftFinding(
@@ -1669,7 +1669,7 @@ export class SpecService {
     takeover?: boolean | undefined;
     /** 크게 줄이는 저장의 확인(REQ-API-270) — MCP 와 같은 이름 `allow_shrink` 로 온다 */
     allowShrink?: boolean | undefined;
-    /** 이 저장이 고치는 발견(2026-10-16 · REQ-API-332) — MCP 와 같은 이름 `finding_id` 로 온다 */
+    /** 이 저장이 고치는 발견(2026-10-16 · REQ-API-333) — MCP 와 같은 이름 `finding_id` 로 온다 */
     findingId?: string | undefined;
     /**
      * 선언 관계 — **REST 도 이것을 나른다**(2026-09-05 · REQ-API-043).
@@ -1888,7 +1888,7 @@ export class SpecService {
 
       // 본문의 링크가 관계의 주인이다 — 옛 본문의 링크로 다시 맞춘다. 선언 관계는 건드리지 않는다
       const relations = await this.syncRelations(tx, input.projectId, specId, body);
-      // 되돌리기로 만든 초안도 승인본 위의 새 초안이다 — 변경 요청을 연다(REQ-API-327)
+      // 되돌리기로 만든 초안도 승인본 위의 새 초안이다 — 변경 요청을 연다(REQ-API-328)
       const changeRequest = await openChangeRequestInTx(tx, emit, {
         projectId: input.projectId,
         specId,
@@ -1975,7 +1975,7 @@ export class SpecService {
       );
     }
 
-    // **바꾼 것이 없는 변경 요청은 결재를 요청하지 않는다**(2026-10-16 · 사람 결정 · REQ-API-332). 발견을 변경 요청으로 보내면 초안이
+    // **바꾼 것이 없는 변경 요청은 결재를 요청하지 않는다**(2026-10-16 · 사람 결정 · REQ-API-333). 발견을 변경 요청으로 보내면 초안이
     // 승인본의 본문으로 열린다 — 아무도 고치지 않은 채 승인되면 같은 본문의 새 승인본이 생기고, 그 CR 로 보낸 발견은 "스펙을 고쳐
     // 해결" 로 닫힌다. 고친 것이 없는데 고쳤다고 남는다. 받은 요청의 카드도 같은 사실을 보인다
     const { rows: unchanged } = await tx.execute<{ key: string }>(sql`
@@ -2067,7 +2067,7 @@ export class SpecService {
         ...revertedPayload(version.reverted_to_version_no),
       },
     });
-    // 그 초안을 감싼 변경 요청도 검토 중이 된다 — 위험도는 이 판정의 티어다(2026-10-16 · 사람 결정 D1 · REQ-API-327)
+    // 그 초안을 감싼 변경 요청도 검토 중이 된다 — 위험도는 이 판정의 티어다(2026-10-16 · 사람 결정 D1 · REQ-API-328)
     await changeRequestSubmittedInTx(tx, emit, {
       projectId: input.projectId,
       versionId: input.specVersionId,
@@ -2799,7 +2799,7 @@ export class SpecService {
              sv.created_at,
              -- 되돌리기로 만든 버전이면 되살린 옛 버전(2026-10-15 · REQ-API-308) — 목록이 "v3 되돌림" 을 보인다
              sv.reverted_to_version_no,
-             -- 이 버전을 감싼 변경 요청(2026-10-16 · REQ-API-331) — 버린 초안이 어느 제안이었는지 목록이 보인다
+             -- 이 버전을 감싼 변경 요청(2026-10-16 · REQ-API-332) — 버린 초안이 어느 제안이었는지 목록이 보인다
              cr.key AS change_request_key, cr.status::text AS change_request_status
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN change_request cr ON cr.proposed_version_id = sv.id
@@ -4118,7 +4118,7 @@ export class SpecService {
       },
     });
 
-    // **변경 요청의 세 축**(2026-10-16 · spec-workflow §3.3 · REQ-API-330) — 고른 제안(파생 · 재검증 작업을 만들고 미착수 작업을
+    // **변경 요청의 세 축**(2026-10-16 · spec-workflow §3.3 · REQ-API-331) — 고른 제안(파생 · 재검증 작업을 만들고 미착수 작업을
     // 보관한다)과 바뀌거나 빠진 요구사항의 작업을 쥔 세션의 사람에게 critical 알림. 아래 재브리핑보다 **먼저** 한다 — 보관한
     // 작업은 재브리핑을 받지 않고, 새로 만든 작업은 이 승인본을 기준으로 삼는다
     await changeRequestApprovedInTx(tx, emit, {

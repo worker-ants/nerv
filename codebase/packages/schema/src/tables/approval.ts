@@ -71,7 +71,7 @@ export const approval = pgTable(
      */
     bypassKinds: reviewKind('bypass_kinds').array(),
     /**
-     * **브랜치 면제의 브랜치**(2026-10-16 · 사람 결정 D4 · REQ-DB-050 · api.md REQ-API-338). 브랜치는 개체가 아니라 문자열이라
+     * **브랜치 면제의 브랜치**(2026-10-16 · 사람 결정 D4 · REQ-DB-050 · api.md REQ-API-339). 브랜치는 개체가 아니라 문자열이라
      * `subject_id` 가 가리킬 수 없다 — 이 열이 있는 면제는 `subject_id` 에 **프로젝트 id** 를 두고 대상은 이 브랜치다(다형 참조
      * 규칙의 예외 하나 · database.md §2.8). 리뷰가 한 번도 없는 브랜치에도 낸다 — 게이트 판정이 그 (브랜치 · 종류)를 `waived` 로 준다
      */

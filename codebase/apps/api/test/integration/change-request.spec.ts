@@ -1,4 +1,4 @@
-// 변경 요청(CR) — 승인본 위의 초안을 감싼다 (2026-10-16 · 사람 결정 D1 · D2 · REQ-API-327 ~ 331 · E19-S01)
+// 변경 요청(CR) — 승인본 위의 초안을 감싼다 (2026-10-16 · 사람 결정 D1 · D2 · REQ-API-328 ~ 332 · E19-S01)
 //
 //   WHEN 승인본이 있는 문서에 새 초안이 생기면 THE SYSTEM SHALL 변경 요청을 연다(표시 키 `<PRJ>-C-XXXXXX`)
 //   WHEN 그 초안이 검토 요청 · 승인 · 거절되면 THE SYSTEM SHALL 변경 요청을 같은 트랜잭션에서 옮긴다
@@ -295,7 +295,7 @@ async function notifiedFor(type: string): Promise<{ user_id: string; tier: strin
   return rows;
 }
 
-describe('자동 생성과 표시 키 (REQ-API-327 · 사람 결정 D2)', () => {
+describe('자동 생성과 표시 키 (REQ-API-328 · 사람 결정 D2)', () => {
   it('승인본 위의 새 초안이 CR 을 연다 — 키는 <PRJ>-C-XXXXXX, 초안과 서로를 가리킨다', async () => {
     const { specId, v1 } = await approvedSpec('SPC-CR-OPEN');
     // 승인본이 없던 첫 초안(v1)은 CR 이 아니다 — 고칠 약속이 아직 없었다
@@ -396,7 +396,7 @@ describe('자동 생성과 표시 키 (REQ-API-327 · 사람 결정 D2)', () => 
   });
 });
 
-describe('상태 동기화 — 결재는 버전이 받고 CR 은 그 거울이다 (REQ-API-327 · 사람 결정 D1)', () => {
+describe('상태 동기화 — 결재는 버전이 받고 CR 은 그 거울이다 (REQ-API-328 · 사람 결정 D1)', () => {
   it('검토 요청 → 검토 중(위험도는 티어) · 결재 거절 → 다시 열림 · 다시 내고 승인 → 승인', async () => {
     const { specId } = await approvedSpec('SPC-CR-SYNC');
     const v2 = (await draftOver(specId))['spec_version_id'] as string;
@@ -485,7 +485,7 @@ describe('상태 동기화 — 결재는 버전이 받고 CR 은 그 거울이�
   });
 });
 
-describe('거절 · 철회 — 초안을 버린다 (REQ-API-328 · 사람 결정 D1)', () => {
+describe('거절 · 철회 — 초안을 버린다 (REQ-API-329 · 사람 결정 D1)', () => {
   it('planner 가 사유와 함께 거절하면 초안은 버려지고 다음 저장은 새 버전 · 새 CR 이다', async () => {
     const { specId } = await approvedSpec('SPC-CR-REJECT');
     const v2 = (await draftOver(specId))['spec_version_id'] as string;
@@ -621,7 +621,7 @@ describe('거절 · 철회 — 초안을 버린다 (REQ-API-328 · 사람 결정
   });
 });
 
-describe('영향 미리보기 (REQ-API-329 · spec-workflow §3.3)', () => {
+describe('영향 미리보기 (REQ-API-330 · spec-workflow §3.3)', () => {
   async function scene(): Promise<{
     specId: string;
     v1: string;
@@ -725,7 +725,7 @@ describe('영향 미리보기 (REQ-API-329 · spec-workflow §3.3)', () => {
   });
 });
 
-describe('승인 때 세 축 — 고른 제안과 중단 확인 (REQ-API-330 · spec-workflow §3.3)', () => {
+describe('승인 때 세 축 — 고른 제안과 중단 확인 (REQ-API-331 · spec-workflow §3.3)', () => {
   it('고른 제안을 하고, 쥔 세션의 사람에게 알리고, 빠진 요구사항의 클레임은 하트비트로 중단 확인을 받는다', async () => {
     const { specId, v1 } = await approvedSpec('SPC-CR-APPLY');
     const done1 = await task(v1, 'REQ-CRX-001', 'done', '재개 복원 구현');
@@ -886,7 +886,7 @@ describe('승인 때 세 축 — 고른 제안과 중단 확인 (REQ-API-330 · 
   });
 });
 
-describe('표면 — 받은 요청의 CR 카드 · 검색 · REST (REQ-API-331)', () => {
+describe('표면 — 받은 요청의 CR 카드 · 검색 · REST (REQ-API-332)', () => {
   it('결재 카드가 CR 카드가 된다 — 같은 결재를 두 카드로 보이지 않는다', async () => {
     const { specId } = await approvedSpec('SPC-CR-CARD');
     const v2 = (await draftOver(specId))['spec_version_id'] as string;

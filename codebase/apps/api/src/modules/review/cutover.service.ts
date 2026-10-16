@@ -1,5 +1,5 @@
 // SoT 컷오버 M1 — 게이트 판정에 로컬 판정을 함께 받아 견주고, 2주 관측 지표를 낸다
-// (2026-10-16 · 사람 결정 D6 · Phase 2 E21-S03 · api.md EP-REV-08b · EP-REV-10 · REQ-API-345 ~ 349 · roadmap §7.4 ~ §7.6)
+// (2026-10-16 · 사람 결정 D6 · Phase 2 E21-S03 · api.md EP-REV-08b · EP-REV-10 · REQ-API-346 ~ 350 · roadmap §7.4 ~ §7.6)
 //
 // **판정이 갈리면 서버가 이긴다, 단 조용히 지지 않는다**(roadmap §7.4 규칙 3). 이중화 기간에는 로컬 훅과 NERV 가 같은 push 를 각자
 // 판정한다. 불일치율을 세려면 같은 커밋의 두 판정이 한 자리에 있어야 해서, 로컬 훅이 게이트 판정을 물을 때(EP-REV-08 의 POST
@@ -115,7 +115,7 @@ export class CutoverService {
   ) {}
 
   /**
-   * EP-REV-08b — 게이트 판정을 내고 로컬 판정과 견준다(REQ-API-345 · 346).
+   * EP-REV-08b — 게이트 판정을 내고 로컬 판정과 견준다(REQ-API-346 · 347).
    *
    * **응답의 판정은 GET 과 같다**(`items` — 같은 함수). 그 위에 어느 판정이 적용되는지(`applied`)와 그 판정(`verdict`)을 적는다 — 컷오버
    * 전(`git`)에는 로컬 훅이 진실이고 NERV 는 관측만 하므로 `local`, 이중화 기간(`dual`)과 그 뒤(`nerv`)에는 `server` 다(roadmap §7.4 표).
@@ -179,7 +179,7 @@ export class CutoverService {
           reported: false,
         };
       }
-      // **이중화 기간의 새 불일치만 알린다**(REQ-API-346). 컷오버 전에는 로컬 훅이 진실이라 NERV 의 다른 판정은 관측일 뿐이고,
+      // **이중화 기간의 새 불일치만 알린다**(REQ-API-347). 컷오버 전에는 로컬 훅이 진실이라 NERV 의 다른 판정은 관측일 뿐이고,
       // M2 뒤에는 로컬 훅이 보조라 그 판정이 다른 것은 컷오버의 위험이 아니다 — 둘 다 비교 표에는 남아 지표가 센다
       const reported = !match && sot === 'dual';
       if (reported) {
@@ -224,7 +224,7 @@ export class CutoverService {
   }
 
   /**
-   * EP-REV-10 — 컷오버 지표(REQ-API-348). 창은 `since` ~ `until` 이고 기본은 컷오버 단계를 바꾼 시각 ~ 지금이다(바꾼 적이 없으면
+   * EP-REV-10 — 컷오버 지표(REQ-API-349). 창은 `since` ~ `until` 이고 기본은 컷오버 단계를 바꾼 시각 ~ 지금이다(바꾼 적이 없으면
    * 최근 14일). **불일치율** = 창 안의 비교 가운데 두 판정이 다른 것 / 비교 수(같은 비교의 재호출은 세지 않는다). **리뷰 제출 실패율** =
    * 실패 / (받은 제출 + 실패) — 받은 제출은 `review.submitted`, 실패는 `session.outbox_failed` 의 항목 가운데 `nerv_review_submit` 이다.
    * 바로 거절돼 부른 쪽이 받은 4xx(EP-REV-01 · 도구 오류)는 세지 않는다 — 서버는 그 시도를 기록하지 않는다(로그의 `mcp_tool` 줄뿐).

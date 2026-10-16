@@ -147,7 +147,7 @@ export class EventController {
   }
 
   /**
-   * EP-NTF-10 — 내 워치(2026-10-16 · 사람 결정 D5 · REQ-API-341). 본인의 것만이다 — 범위를 주면 그 프로젝트의 것만
+   * EP-NTF-10 — 내 워치(2026-10-16 · 사람 결정 D5 · REQ-API-342). 본인의 것만이다 — 범위를 주면 그 프로젝트의 것만
    */
   @Get('me/watches')
   myWatches(
@@ -181,7 +181,7 @@ export class EventController {
     return this.watches.unwatch({ userId: userOf(req), watchId: id });
   }
 
-  /** EP-NTF-13 — 내 핀(REQ-API-343). 프로젝트를 넘는 한 목록이다 */
+  /** EP-NTF-13 — 내 핀(REQ-API-344). 프로젝트를 넘는 한 목록이다 */
   @Get('me/pins')
   myPins(@Req() req: ProjectRequest): Promise<unknown> {
     return this.watches.listPins({ userId: userOf(req) });
@@ -206,7 +206,7 @@ export class EventController {
     return this.watches.unpin({ userId: userOf(req), pinId: id });
   }
 
-  /** EP-NTF-16 — 브라우저(localStorage)의 핀을 처음 한 번 옮긴다(REQ-API-344) */
+  /** EP-NTF-16 — 브라우저(localStorage)의 핀을 처음 한 번 옮긴다(REQ-API-345) */
   @Post('me/pins/import')
   importPins(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
     const input = parseBody(PinImportInput, body);

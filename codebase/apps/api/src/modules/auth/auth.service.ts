@@ -674,7 +674,7 @@ export class AuthService {
       SELECT p.id, p.slug, p.key, p.name, p.description, p.repo_url, p.default_branch,
              p.repo_host::text AS repo_host,
              p.gate_policy, p.retention, p.archived_at, o.slug AS org_slug, o.name AS org_name,
-             -- 리뷰 컷오버 단계와 바꾼 시각(2026-10-16 · 사람 결정 D6 · REQ-API-347) — 설정 탭과 리뷰 센터의 컷오버 관측이 읽는다
+             -- 리뷰 컷오버 단계와 바꾼 시각(2026-10-16 · 사람 결정 D6 · REQ-API-348) — 설정 탭과 리뷰 센터의 컷오버 관측이 읽는다
              p.review_sot::text AS review_sot, p.review_sot_since,
              (SELECT count(*) FROM agent_session se
                WHERE se.project_id = p.id AND se.state = ANY(${sqlArray(ACTIVE_SESSION_STATES, 'session_state')}))::int AS active_sessions,
@@ -722,7 +722,7 @@ export class AuthService {
     repoHost?: string | null;
     gatePolicy?: Record<string, unknown> | null;
     retention?: Record<string, unknown> | null;
-    /** 리뷰 컷오버 단계(2026-10-16 · 사람 결정 D6 · REQ-API-347) — `REVIEW_SOTS` */
+    /** 리뷰 컷오버 단계(2026-10-16 · 사람 결정 D6 · REQ-API-348) — `REVIEW_SOTS` */
     reviewSot?: string | null;
   }): Promise<Record<string, unknown>> {
     assertHuman(input.actor, 'project_admin', '/settings');
@@ -763,7 +763,7 @@ export class AuthService {
         ? null
         : ((assertVocab([input.reviewSot], REVIEW_SOTS, 'review_sot')[0] ??
             null) as ReviewSot | null);
-    // **컷오버 단계는 바뀔 때만 시각을 새로 적는다**(REQ-API-347) — 같은 값을 다시 저장해 2주 관측 창이 처음으로 돌아가면 안 된다
+    // **컷오버 단계는 바뀔 때만 시각을 새로 적는다**(REQ-API-348) — 같은 값을 다시 저장해 2주 관측 창이 처음으로 돌아가면 안 된다
     const sotBefore =
       reviewSot == null
         ? null
@@ -851,7 +851,7 @@ export class AuthService {
           // **보존 기간도 바뀐 뒤의 값을 남긴다**(2026-10-15 · REQ-API-318). 화면에서 고칠 수 있게 되자 줄인 기간이 다음
           // 보존 잡에서 활동 원문을 지운다 — 누가 언제 몇 일로 줄였는지가 감사에 있어야 한다
           ...(retention == null ? {} : { retention }),
-          // **컷오버 단계의 전후**(2026-10-16 · 사람 결정 D6 · REQ-API-347) — 언제 누가 이중화를 켜고 껐는지가 2주 관측과 롤백의
+          // **컷오버 단계의 전후**(2026-10-16 · 사람 결정 D6 · REQ-API-348) — 언제 누가 이중화를 켜고 껐는지가 2주 관측과 롤백의
           // 근거다. 바꾼 시각은 이 이벤트의 시각과 같다(같은 요청의 now())
           ...(sotChanged && sotBefore != null
             ? { review_sot: { from: sotBefore.review_sot, to: reviewSot } }

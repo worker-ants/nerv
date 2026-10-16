@@ -25,9 +25,9 @@ referenced_by:
 >
 > v2.27 변경(2026-10-16 — SoT 컷오버 M1, Phase 2 묶음 3의 넷째 · **사람 결정**(2026-10-16 — D6) · [4.8 백로그](backlog.md) E21-S03): **§1.1 트리 두 줄과 `apps/cli` 행 · §2.2 트리 한 줄 · §2.3 `ReviewModule` 행 · §3.2 상수 전표 한 줄 · §5 명령 한 줄.** `review/cutover.service.ts`(게이트 판정에 로컬 판정을 함께 받아 견주고 지표를 낸다 — EP-REV-08b · EP-REV-10)와 `tables/review.ts` 의 `gate_verdict_comparison`, CLI 의 `nerv cutover report`(`apps/cli/src/cutover/` — 서버 지표와 체크아웃의 신규 커밋을 한 보고로). 컷오버 기준값은 로드맵의 인용이고 새로 정한 수는 최근 불일치 20건 하나다. 곁들여 고친 것: §1.1 트리의 `index.ts` 주석이 "실제로 도는 형태는 `nerv spec …`" 이라 적고 있었다 — 2026-09-06 부터 `import` 를 생략할 수 없다([4.7 스펙 임포터](importer.md) §3.1).
 >
-> v2.26 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](backlog.md) E17-S02): **§2.2 트리 두 줄 · §3.2 상수 전표 한 줄.** `event/watch.service.ts`(워치 · 핀 — EP-NTF-10 ~ 16)와 `tables/event.ts` 의 `watch` · `pin`. 상수 `PIN_LIMIT`(50 — 한 사람이 고정할 수 있는 핀의 수)([4.4 API](api.md) REQ-API-341 ~ 344).
+> v2.26 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](backlog.md) E17-S02): **§2.2 트리 두 줄 · §3.2 상수 전표 한 줄.** `event/watch.service.ts`(워치 · 핀 — EP-NTF-10 ~ 16)와 `tables/event.ts` 의 `watch` · `pin`. 상수 `PIN_LIMIT`(50 — 한 사람이 고정할 수 있는 핀의 수)([4.4 API](api.md) REQ-API-342 ~ 345).
 >
-> v2.25 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **§2.2 트리 두 줄.** `review/escalation.ts` — 발견을 변경 요청에 묶고 CR의 결말(승인 · 거절 · 철회)로 그 발견을 닫으며, 에스컬레이션 카드를 만들고 닫는 자리다. 처분 · 카드의 결정 · CR의 결말 세 경로가 같은 함수를 지난다(D-05). `approval/session-wake.ts` — 기다리던 세션을 깨우는 규칙을 결재 결정 · 만료 · 에스컬레이션 카드가 함께 쓴다(기다리지 않는 카드는 세션을 붙잡지 않는다 · [4.4 API](api.md) REQ-API-334).
+> v2.25 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **§2.2 트리 두 줄.** `review/escalation.ts` — 발견을 변경 요청에 묶고 CR의 결말(승인 · 거절 · 철회)로 그 발견을 닫으며, 에스컬레이션 카드를 만들고 닫는 자리다. 처분 · 카드의 결정 · CR의 결말 세 경로가 같은 함수를 지난다(D-05). `approval/session-wake.ts` — 기다리던 세션을 깨우는 규칙을 결재 결정 · 만료 · 에스컬레이션 카드가 함께 쓴다(기다리지 않는 카드는 세션을 붙잡지 않는다 · [4.4 API](api.md) REQ-API-335).
 >
 > v2.24 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **§2.2 트리 한 줄과 한 줄 개정.** `spec/change-request.service.ts` — CR의 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 생성. 결재는 스펙 버전이 받고 CR은 그 버전을 감싼다([3.5 스펙 워크플로](../03-proposal/spec-workflow.md) §3.5). `spec.controller.ts` 의 REST 에 CR 목록 · 단건 · 기각 · 철회와 영향 미리보기를 더했다([4.4 API](api.md) §2.2d).
 >
@@ -561,7 +561,7 @@ apps/api/src/
       approval.tools.ts       # MCP — nerv_spec_approve (A3 · 사람이 세션에서 대답한 승인)
       question.service.ts     # 질문 생성 · 폴링 · awaiting_input 전이
       question.tools.ts       # MCP — nerv_question_create
-      session-wake.ts         # 기다리던 세션을 깨운다 — 결정 · 만료 · 에스컬레이션 카드가 같은 규칙을 쓴다 (REQ-API-134 · 334)
+      session-wake.ts         # 기다리던 세션을 깨운다 — 결정 · 만료 · 에스컬레이션 카드가 같은 규칙을 쓴다 (REQ-API-134 · 335)
     auth/
       auth.controller.ts        # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
       auth.module.ts
@@ -588,7 +588,7 @@ apps/api/src/
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
-      watch.service.ts             # 워치 · 핀 — 본인의 것만 · 내가 속한 프로젝트의 대상만 (REQ-API-341 ~ 344). 워처 산출은 notification.service.ts
+      watch.service.ts             # 워치 · 핀 — 본인의 것만 · 내가 속한 프로젝트의 대상만 (REQ-API-342 ~ 345). 워처 산출은 notification.service.ts
       ws.gateway.ts                # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
       ws-log.ts                    # 연결·거절·해제 한 줄 — 업그레이드는 접근 로그에 닿지 않는다 (§5.5 · REQ-CB-054)
     import/
@@ -602,8 +602,8 @@ apps/api/src/
       plugin.service.ts     # 마켓플레이스 JSON 조립
     review/
       commit-scope.ts       # 커밋 범위 — 작업의 최신 커밋과 라운드의 커밋을 맞춘다 · done 게이트와 verified 가 함께 쓴다 (REQ-API-314 · 315)
-      cutover.service.ts    # SoT 컷오버 M1 — 게이트 판정에 로컬 판정을 함께 받아 견주고(EP-REV-08b) 2주 지표를 낸다(EP-REV-10) (REQ-API-345 ~ 349)
-      escalation.ts         # 에스컬레이션 카드 · 변경 요청에 묶인 발견 — 처분 · 카드 · CR 의 결말이 같은 자리를 지난다 (REQ-API-332 ~ 337)
+      cutover.service.ts    # SoT 컷오버 M1 — 게이트 판정에 로컬 판정을 함께 받아 견주고(EP-REV-08b) 2주 지표를 낸다(EP-REV-10) (REQ-API-346 ~ 350)
+      escalation.ts         # 에스컬레이션 카드 · 변경 요청에 묶인 발견 — 처분 · 카드 · CR 의 결말이 같은 자리를 지난다 (REQ-API-333 ~ 338)
       review-gate.ts        # 게이트 판정 — 라운드(브랜치 · 종류 · 커밋)가 통과했는가 (REQ-API-247)
       review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts
@@ -624,7 +624,7 @@ apps/api/src/
     spec/
       attachment.service.ts     # 스펙 첨부 — 2단계 업로드 (api.md §1.4k)
       baseline.service.ts       # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
-      change-request.service.ts # CR — 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 (REQ-API-327~331)
+      change-request.service.ts # CR — 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 (REQ-API-328~332)
       embedding.client.ts       # OpenAI 호환 /v1/embeddings 단일 계약 (REQ-CB-020·033)
       embedding.service.ts      # 청크 · 재임베딩 잡
       gate-tier.ts              # 게이트 티어 판정 — 네 축 + 동적 강화 (spec-workflow §2.4)
@@ -804,8 +804,8 @@ packages/schema/
 | `MIRROR_GIT_DEFAULT_AUTHOR` | `'NERV <nerv@localhost>'` | git 미러 커밋의 작성자 — `NERV_MIRROR_GIT_AUTHOR` 를 비우면 이 값이다. 사람이 손으로 커밋하지 않는 저장소다([3.2](../03-proposal/architecture.md) §2.4 (b)) |
 | `DIGEST_MAX_LINES` | `20` | 메일 요약 한 통에 적는 알림 줄 수 — 넘치면 수로 줄인다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5 · [4.4 API 명세](api.md) REQ-API-233) |
 | `DIGEST_DEFAULT_HOUR` | `9` | 메일 요약을 받는 현지 시의 기본값 — 켤 때 시를 고르지 않으면 이 값이다([4.4 API 명세](api.md) REQ-API-232) |
-| `PIN_LIMIT` | `50` | 한 사람이 고정할 수 있는 핀의 수 — 퀵 스위처는 빈 입력에서 고정을 모두 보이므로 그보다 많으면 고정이 아니라 또 하나의 목록이다. 브라우저에서 옮겨 오는 핀도 이 수까지다(2026-10-16 · 이번에 정한 시작값 · [4.4 API 명세](api.md) REQ-API-343) |
-| `CUTOVER_MISMATCH_STABLE_BELOW_PCT` · `CUTOVER_MISMATCH_ROLLBACK_PCT` · `CUTOVER_SUBMIT_FAILURE_ROLLBACK_PCT` · `CUTOVER_OBSERVATION_DAYS` · `CUTOVER_RECENT_MISMATCHES` | `1` · `5` · `2` · `14` · `20` | SoT 컷오버 M1 지표(2026-10-16 · 사람 결정 D6 · [4.4 API 명세](api.md) REQ-API-348). 앞의 넷은 [3.7 로드맵](../03-proposal/roadmap.md) §7.5 · §7.6 의 인용이다 — 불일치율 1% 미만이 안정, 5% 이상이거나 리뷰 제출 실패율 2% 이상이 롤백, 2주 관측. 비율은 정수 백분율로 두고 정수로 견준다. 최근 불일치 20건은 이번에 정한 시작값이다(그보다 많으면 불일치율이 이미 롤백 기준을 넘었다) |
+| `PIN_LIMIT` | `50` | 한 사람이 고정할 수 있는 핀의 수 — 퀵 스위처는 빈 입력에서 고정을 모두 보이므로 그보다 많으면 고정이 아니라 또 하나의 목록이다. 브라우저에서 옮겨 오는 핀도 이 수까지다(2026-10-16 · 이번에 정한 시작값 · [4.4 API 명세](api.md) REQ-API-344) |
+| `CUTOVER_MISMATCH_STABLE_BELOW_PCT` · `CUTOVER_MISMATCH_ROLLBACK_PCT` · `CUTOVER_SUBMIT_FAILURE_ROLLBACK_PCT` · `CUTOVER_OBSERVATION_DAYS` · `CUTOVER_RECENT_MISMATCHES` | `1` · `5` · `2` · `14` · `20` | SoT 컷오버 M1 지표(2026-10-16 · 사람 결정 D6 · [4.4 API 명세](api.md) REQ-API-349). 앞의 넷은 [3.7 로드맵](../03-proposal/roadmap.md) §7.5 · §7.6 의 인용이다 — 불일치율 1% 미만이 안정, 5% 이상이거나 리뷰 제출 실패율 2% 이상이 롤백, 2주 관측. 비율은 정수 백분율로 두고 정수로 견준다. 최근 불일치 20건은 이번에 정한 시작값이다(그보다 많으면 불일치율이 이미 롤백 기준을 넘었다) |
 | `PAGE_LIMIT_DEFAULT` · `PAGE_LIMIT_MAX` | `30` · `100` | 페이지 상한 전역 규칙 — [4.4 API 명세](api.md) §1.6 |
 | `FINDING_PAGE_LIMIT_DEFAULT` · `_MAX` | `50` · `200` | 발견 큐의 **예외**(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05) |
 | `GATE_BRANCH_LIMIT_DEFAULT` · `_MAX` | `20` · `200` | 게이트 표의 브랜치 — 같은 예외(실측 441개) |

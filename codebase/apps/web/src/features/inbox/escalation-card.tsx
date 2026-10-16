@@ -273,7 +273,7 @@ export function EscalationCard({
         )}
       </header>
 
-      {/* **누가 · 어느 세션이 기다리나** — 기다리는 처분이면 이 결정이 그 세션을 바로 푼다(REQ-API-334) */}
+      {/* **누가 · 어느 세션이 기다리나** — 기다리는 처분이면 이 결정이 그 세션을 바로 푼다(REQ-API-335) */}
       <p
         data-testid="escalation-request-line"
         className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-xs text-text-mute"

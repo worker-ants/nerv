@@ -1,4 +1,4 @@
--- 에스컬레이션 카드와 기다리는 세션 · 변경 요청에 묶인 발견 (2026-10-16 · 사람 결정 D3 · REQ-DB-049 · api.md REQ-API-332 ~ 337)
+-- 에스컬레이션 카드와 기다리는 세션 · 변경 요청에 묶인 발견 (2026-10-16 · 사람 결정 D3 · REQ-DB-049 · api.md REQ-API-333 ~ 338)
 --
 -- ① 결재 대상에 `escalation` 을 더한다 — 발견을 사람에게 넘긴 처분 한 건(`resolution` · `kind = escalated`)이 받은 요청의 카드가
 --    된다. 사유마다 받는 사람이 다르다(spec → planner · infra · sensitive-fix → admin · 그 밖 → 작업 담당자와 기본 큐). critical

@@ -1,5 +1,5 @@
 // 변경 요청(CR) — 승인본 위의 초안을 감싼 제안 (2026-10-16 · 사람 결정 D1 · D2)
-//   정본: spec-workflow §3.1~3.5 · data-model §2.3 · api.md §2.2d(EP-CR-01~04) · EP-SPEC-31 · REQ-API-327 ~ 331
+//   정본: spec-workflow §3.1~3.5 · data-model §2.3 · api.md §2.2d(EP-CR-01~04) · EP-SPEC-31 · REQ-API-328 ~ 332
 //
 // **결재는 지금처럼 스펙 버전이 받는다.** 승인 판정의 진실은 SpecVersion 이고(§3.5), 게이트 로직(티어 · 정족수 · 만료 ·
 // 바로 승인 · 일괄 승인)을 CR 에 한 벌 더 만들지 않는다. CR 이 드는 것은 그 초안이 **무엇을 바꾸려는 제안인지**와 그 제안의
@@ -156,7 +156,7 @@ export class ChangeRequestService {
   // ── CR 만의 행위 — 거절 · 철회 ────────────────────────────────────────────────────────
 
   /**
-   * EP-CR-03 — **변경 요청 거절**(2026-10-16 · 사람 결정 D1 · REQ-API-328). planner · admin 이 사람으로만 한다. 사유가
+   * EP-CR-03 — **변경 요청 거절**(2026-10-16 · 사람 결정 D1 · REQ-API-329). planner · admin 이 사람으로만 한다. 사유가
    * 필수다. 그 초안을 버린다(`discarded`) — 문서는 승인본 상태로 돌아가고, 다음 저장은 새 초안 · 새 CR 이다.
    *
    * **검토 중인 CR 은 거절하지 않는다** — 그 초안에는 결재가 걸려 있고, 결재를 두고 초안을 버리면 받은 요청에 대상이 사라진
@@ -188,7 +188,7 @@ export class ChangeRequestService {
   }
 
   /**
-   * EP-CR-04 — **철회**(REQ-API-328). 그 CR 을 연 사람이나 초안의 작성자가 초안을 스스로 버린다. 역할을 보지 않는다 — 자기
+   * EP-CR-04 — **철회**(REQ-API-329). 그 CR 을 연 사람이나 초안의 작성자가 초안을 스스로 버린다. 역할을 보지 않는다 — 자기
    * 제안을 거두는 일이다. 에이전트 토큰도 그 사람의 것이면 받는다(초안 저장과 같은 권한 `spec:draft`).
    */
   async withdraw(input: {
@@ -298,7 +298,7 @@ export class ChangeRequestService {
           notify_user_ids: [...new Set([cr.created_by_user_id, cr.author_user_id])],
         },
       });
-      // **이 CR 로 보낸 발견**(2026-10-16 · spec-workflow §3.4 · REQ-API-337) — 거절이면 발견을 기각하고 코드 되돌림 작업을 만들고,
+      // **이 CR 로 보낸 발견**(2026-10-16 · spec-workflow §3.4 · REQ-API-338) — 거절이면 발견을 기각하고 코드 되돌림 작업을 만들고,
       // 철회면 발견을 열린 채로 두고 그 CR 의 planner 카드만 닫는다
       await settleDriftFindingsInTx(tx, emit, {
         projectId: input.projectId,
@@ -319,12 +319,12 @@ export class ChangeRequestService {
   // ── 발견에서 — SPEC-DRIFT 역류 경로(spec-workflow §3.4) ────────────────────────────
 
   /**
-   * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-332). `spec_drift` 태그가 붙은 열린 발견만 받는다.
+   * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-333). `spec_drift` 태그가 붙은 열린 발견만 받는다.
    *
    * 그 발견의 유래 스펙(발견이 가리키는 스펙 버전 · 요구사항의 문서)에 열린 CR 이 있으면 그 CR 에 잇고 — 문서마다 열린 CR 은
    * 하나다 — 없으면 승인본의 본문으로 새 초안을 열어 CR 을 만든다(출처 `spec_drift`). 초안은 승인본과 같은 본문으로 시작한다:
-   * 스펙을 어떻게 고칠지는 사람(또는 에이전트)이 그 초안에 쓰고, 그동안은 검토를 요청할 수 없다(REQ-API-332 · `cr_unchanged`).
-   * 발견의 처분은 `escalated`(사유 `spec`)로 남고 그 CR 을 가리킨다 — 발견은 열린 채로 CR 의 결말을 기다린다(REQ-API-337).
+   * 스펙을 어떻게 고칠지는 사람(또는 에이전트)이 그 초안에 쓰고, 그동안은 검토를 요청할 수 없다(REQ-API-333 · `cr_unchanged`).
+   * 발견의 처분은 `escalated`(사유 `spec`)로 남고 그 CR 을 가리킨다 — 발견은 열린 채로 CR 의 결말을 기다린다(REQ-API-338).
    *
    * 권한은 처분(`review:resolve`)이 라우트에서, 역할(planner · admin — `FINDING_TO_CR_ROLES`)이 여기서 본다. 사람 전용은 아니다 —
    * 같은 사람의 토큰도 같은 일을 할 수 있다(에이전트의 길은 `nerv_spec_draft_upsert` 의 `finding_id` 다).
@@ -589,7 +589,7 @@ export class ChangeRequestService {
   }
 
   /**
-   * EP-SPEC-31 — **영향 미리보기**(REQ-API-329). 초안 · 검토 중인 버전이 승인되면 세 축이 어떻게 움직일지. CR 이 있으면 그
+   * EP-SPEC-31 — **영향 미리보기**(REQ-API-330). 초안 · 검토 중인 버전이 승인되면 세 축이 어떻게 움직일지. CR 이 있으면 그
    * 기준(승인본)과 견주고, 없으면 그 문서의 최신 승인본(없으면 첫 승인 — 전부 더해진 것)과 견준다.
    */
   async impactOfVersion(input: { projectId: string; specVersionId: string }): Promise<SpecImpact> {
@@ -746,7 +746,7 @@ export class ChangeRequestService {
 // (TaskService 의 `recomputeImplStatus` 와 같은 모양이다).
 
 /**
- * **승인본 위에 새 초안이 생겼다 → CR 을 연다**(REQ-API-327). 승인본이 없는 첫 초안은 CR 이 아니다(고칠 약속이 아직 없다).
+ * **승인본 위에 새 초안이 생겼다 → CR 을 연다**(REQ-API-328). 승인본이 없는 첫 초안은 CR 이 아니다(고칠 약속이 아직 없다).
  * 초안 저장(EP-SPEC-08 · `nerv_spec_draft_upsert`)과 되돌리기(EP-SPEC-30)가 새 초안을 만든 뒤 부른다. 임포트는 부르지
  * 않는다 — 원본의 상태를 그대로 옮기는 우회 경로라 제안이 없다(4.7 §3.4).
  */
@@ -761,7 +761,7 @@ export async function openChangeRequestInTx(
     sessionId: string | null;
     changeSummary: string | null;
     /**
-     * 출처를 정해 연다(2026-10-16 · REQ-API-332) — 발견을 변경 요청으로 보낸 길(리뷰 센터 · `finding_id` 를 준 저장)은
+     * 출처를 정해 연다(2026-10-16 · REQ-API-333) — 발견을 변경 요청으로 보낸 길(리뷰 센터 · `finding_id` 를 준 저장)은
      * `spec_drift` 다. 주지 않으면 세션이 있으면 `agent`, 없으면 `human` 이다
      */
     origin?: 'spec_drift';
@@ -858,7 +858,7 @@ export async function syncChangeRequestRationale(
   `);
 }
 
-/** **검토 요청 → CR 검토 중**(REQ-API-327) — 위험도를 그 판정의 티어에서 채운다 */
+/** **검토 요청 → CR 검토 중**(REQ-API-328) — 위험도를 그 판정의 티어에서 채운다 */
 export async function changeRequestSubmittedInTx(
   tx: Tx,
   emit: EmitFn,
@@ -892,7 +892,7 @@ export async function changeRequestSubmittedInTx(
 }
 
 /**
- * **결재가 초안을 돌려보냈다 → CR 은 다시 열림**(REQ-API-327). 거절 · 코멘트 · 만료 모두 그렇다 — 결재의 거절은 "고쳐서
+ * **결재가 초안을 돌려보냈다 → CR 은 다시 열림**(REQ-API-328). 거절 · 코멘트 · 만료 모두 그렇다 — 결재의 거절은 "고쳐서
  * 다시 내라" 이지 "이 제안을 하지 않는다" 가 아니다. 그것은 CR 거절(EP-CR-03)이 따로 한다.
  */
 export async function changeRequestReturnedInTx(
@@ -927,7 +927,7 @@ export async function changeRequestReturnedInTx(
 }
 
 /**
- * **승인 결정이 고른 제안을 CR 에 남긴다**(REQ-API-330). 정족수가 차기 전의 승인(T3 의 첫 자리)이 고른 것도 남아, 둘째
+ * **승인 결정이 고른 제안을 CR 에 남긴다**(REQ-API-331). 정족수가 차기 전의 승인(T3 의 첫 자리)이 고른 것도 남아, 둘째
  * 승인자가 카드에서 그냥 승인하면 그것을 한다. 변경 요청이 없는 결재에 오면 400 이다 — 조용히 버리면 부른 쪽은 작업이
  * 만들어질 줄 안다.
  */
@@ -952,14 +952,14 @@ export async function planChangeRequestInTx(
 }
 
 /**
- * **승인 → 세 축**(spec-workflow §3.3 · REQ-API-330). SpecService 가 버전을 승인본으로 옮기고 요구사항을 맞춘 직후, 이전
+ * **승인 → 세 축**(spec-workflow §3.3 · REQ-API-331). SpecService 가 버전을 승인본으로 옮기고 요구사항을 맞춘 직후, 이전
  * 승인본의 작업에 재브리핑을 걸기 **전에** 부른다 — 보관한 미착수 작업은 재브리핑을 받지 않고, 새로 만든 작업은 새 승인본을
  * 기준으로 삼는다.
  *
  * 이미 도는 것(대체됨 · 요구사항 묘비 · 진행 중 작업의 재브리핑 · 참조 문서 전파)은 SpecService 가 그대로 하고, 여기서
  * 더하는 것은 넷이다: 고른 파생 작업(ADDED) · 고른 재검증 작업(MODIFIED 의 완료 작업) · 고른 미착수 작업 보관(REMOVED) ·
  * 바뀌거나 빠진 요구사항의 작업을 쥔 세션의 사람에게 critical 알림. 진행 중 작업의 중단 확인은 하트비트가 그 요구사항이
- * 빠졌다는 사실(`requirement_removed`)을 그 세션에 전한다(REQ-API-330).
+ * 빠졌다는 사실(`requirement_removed`)을 그 세션에 전한다(REQ-API-331).
  */
 export async function changeRequestApprovedInTx(
   tx: Tx,
@@ -1001,7 +1001,7 @@ export async function changeRequestApprovedInTx(
   });
   // 행위자가 없으면(사람이 승인하지 않은 자동 통과는 제출한 사람이 있다) 만든 작업은 그 사람의 것이다
   const owner = input.approverUserId ?? input.actor.userId;
-  // **이 CR 로 보낸 발견은 스펙을 고쳐 해결됐다**(2026-10-16 · spec-workflow §3.4 · REQ-API-337) — 근거는 승인된 이 버전이다
+  // **이 CR 로 보낸 발견은 스펙을 고쳐 해결됐다**(2026-10-16 · spec-workflow §3.4 · REQ-API-338) — 근거는 승인된 이 버전이다
   await settleDriftFindingsInTx(tx, emit, {
     projectId: input.projectId,
     changeRequest: { id: cr.id, key: cr.key },

@@ -97,7 +97,7 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.APPROVAL_EXPIRED]: 'standard',
   // 부른 사람만 받는다 — 결정을 기다리는 일은 아니라 배지를 올리지 않는다(REQ-API-178)
   [NERV_EVENT.INVITATION_DECLINED]: 'standard',
-  // **게이트 판정 불일치**(2026-10-16 · 사람 결정 D6 · REQ-API-346 · roadmap §7.4 「불일치는 알림」) — M1 이중화 기간에 로컬 훅과
+  // **게이트 판정 불일치**(2026-10-16 · 사람 결정 D6 · REQ-API-347 · roadmap §7.4 「불일치는 알림」) — M1 이중화 기간에 로컬 훅과
   // 서버가 다르게 판정했고 서버 판정이 적용됐다. admin 이 원인을 찾아야 하지만(§7.5 「전건 원인 규명」) 누군가의 결정을 기다리며
   // 멈춘 세션은 없고, 불일치율이 롤백 기준(5%)에 가까우면 push 마다 하나씩 생긴다 — 보통 등급으로 두고 같은 프로젝트의 불일치는
   // 읽을 때까지 한 줄로 묶는다(§6.6 피로 방지). 하나하나는 리뷰 센터의 컷오버 관측과 지표(EP-REV-10)가 보인다
@@ -127,7 +127,7 @@ const INVOLVED_EVENTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * **워처에게도 가는 이벤트**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-342) — 카탈로그가 수신자로 「워처」를 적은
+ * **워처에게도 가는 이벤트**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-343) — 카탈로그가 수신자로 「워처」를 적은
  * 줄 가운데 알림을 만드는 등급이다. `session.started` · `session.complete` · `task.claimed` · `task.done` 도 워처를 적지만 low 라
  * 알림을 만들지 않는다(§6.2 — 이벤트 피드에서 본다). 다른 수신자(역할 큐 · 관여자)는 그대로 받고 워처를 더한다 — 겹치면 한 번이다.
  */
@@ -471,7 +471,7 @@ export class NotificationService {
    *
    * 나머지 이벤트는 역할 큐다. **③관여는 2026-10-15 에 들어왔다**(E17-S01 · REQ-API-316) — 카탈로그가 작성자 ·
    * 담당자 · 스레드 참여자 · 리뷰 요청자로 적은 이벤트는 역할 큐에 그 사람들을 더한다(`involvedTargets`). **②워치는
-   * 2026-10-16 에 들어왔다**(E17-S02 · REQ-API-342) — 카탈로그가 「워처」를 적은 이벤트는 워처를 더한다(`watcherTargets`).
+   * 2026-10-16 에 들어왔다**(E17-S02 · REQ-API-343) — 카탈로그가 「워처」를 적은 이벤트는 워처를 더한다(`watcherTargets`).
    */
   private async recipientsFor(event: {
     project_id: string;
@@ -482,7 +482,7 @@ export class NotificationService {
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
     if (event.type === NERV_EVENT.APPROVAL_OVERDUE) return this.escalationTargets(event);
-    // **변경 요청은 이벤트가 받는 사람을 든다**(2026-10-16 · REQ-API-330) — 열림 · 승인은 바뀌거나 빠진 요구사항의 작업을 쥔
+    // **변경 요청은 이벤트가 받는 사람을 든다**(2026-10-16 · REQ-API-331) — 열림 · 승인은 바뀌거나 빠진 요구사항의 작업을 쥔
     // 세션의 사람, 거절은 CR 을 연 사람과 초안의 작성자다. 역할 큐로 흩뿌리지 않는다 — 결재는 결재 요청이 이미 알렸다
     if (
       event.type === NERV_EVENT_PHASE2.CR_OPENED ||
@@ -500,7 +500,7 @@ export class NotificationService {
     if (event.type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED) return this.adminTargets(event);
     // 미러 원격을 고칠 사람도 admin 이다(REQ-CB-063)
     if (event.type === NERV_EVENT_PHASE2.MIRROR_DIVERGED) return this.adminTargets(event);
-    // 판정 불일치는 컷오버 단계를 바꾸고 롤백을 정하는 admin 에게 간다(REQ-API-346)
+    // 판정 불일치는 컷오버 단계를 바꾸고 롤백을 정하는 admin 에게 간다(REQ-API-347)
     if (event.type === NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH) return this.adminTargets(event);
     // **오프라인 큐의 실패는 보고한 사람에게 간다**(2026-10-16 · REQ-API-322). 행위자 제외 규칙의 예외다 — 행위자는 그 사람의
     // 플러그인이고, 알릴 사람은 그 쓰기가 들어가지 않은 줄 모르는 그 사람이다. 지금 멤버가 아니면 목록이 거른다(REQ-API-211)
@@ -542,7 +542,7 @@ export class NotificationService {
       const owners = await this.specOwnerTargets(event);
       if (owners !== null) return owners;
     }
-    // **워처**(2026-10-16 · E17-S02 · REQ-API-342) — 관여자와 같은 자리에서 더한다. 겹치면 한 번이다
+    // **워처**(2026-10-16 · E17-S02 · REQ-API-343) — 관여자와 같은 자리에서 더한다. 겹치면 한 번이다
     const watchers = WATCHER_EVENTS.has(event.type) ? await this.watcherTargets(event) : [];
     if (INVOLVED_EVENTS.has(event.type)) {
       const involved = await this.involvedTargets(event);
@@ -641,7 +641,7 @@ export class NotificationService {
   }
 
   /**
-   * **워처**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-342) — 그 대상을 워치한 사람.
+   * **워처**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-343) — 그 대상을 워치한 사람.
    *
    * | 이벤트 | 워처 |
    * | --- | --- |

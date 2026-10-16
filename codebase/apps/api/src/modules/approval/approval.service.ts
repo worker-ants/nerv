@@ -123,7 +123,7 @@ export interface DecideResult {
   decision: ApprovalDecision;
   subject_type: string;
   subject_id: string;
-  /** 에스컬레이션 카드의 처분(2026-10-16 · REQ-API-335) — 그 카드에만 온다 */
+  /** 에스컬레이션 카드의 처분(2026-10-16 · REQ-API-336) — 그 카드에만 온다 */
   resolution?: string;
   /** 정족수 — 스펙 승인에만 있다. `satisfied: false` 면 **아직 확정이 아니다** */
   quorum?: { given: number; required: number; satisfied: boolean };
@@ -171,7 +171,7 @@ function compareByCursor(a: Record<string, unknown>, b: Record<string, unknown>)
 }
 
 /**
- * **카드의 유형**(2026-10-16 · 사람 결정 D3 · api.md EP-APR-01 `kind` · REQ-API-336) — `INBOX_KINDS` 의 값. 스펙 결재는 그 버전을
+ * **카드의 유형**(2026-10-16 · 사람 결정 D3 · api.md EP-APR-01 `kind` · REQ-API-337) — `INBOX_KINDS` 의 값. 스펙 결재는 그 버전을
  * 변경 요청이 감싸면 `cr`, 에스컬레이션 카드는 변경 요청으로 보냈으면 `cr` 이다. 받은 요청의 조건(`inboxConditions`)이 잇는
  * `cr` · `er` 를 전제한다. 판정은 여기 한 곳이다 — 화면이 유형을 다시 짐작하면 필터의 수와 카드가 갈라진다.
  */
@@ -278,7 +278,7 @@ export interface InboxPage {
    */
   actionable_total?: number;
   /**
-   * **유형마다 대기 수**(2026-10-16 · REQ-API-336) — 대기 목록에만 온다. 유형 필터를 빼고 같은 조건으로 센다(리뷰 센터의 facet 과
+   * **유형마다 대기 수**(2026-10-16 · REQ-API-337) — 대기 목록에만 온다. 유형 필터를 빼고 같은 조건으로 센다(리뷰 센터의 facet 과
    * 같은 뜻 — 그 유형을 고르면 몇 건이 보이는가)
    */
   kind_counts?: Record<InboxKind, number>;
@@ -350,7 +350,7 @@ export class ApprovalService {
 
   /**
    * **기다리던 세션을 깨운다** — 다른 대기 사유가 없을 때만(2026-09-07 · REQ-API-134). 결정(`decideInTx`)과 만료
-   * (`expireOne` · 2026-10-15 · REQ-API-304)가 같은 규칙을 쓰고, 에스컬레이션 카드가 다른 길로 닫힐 때(2026-10-16 · REQ-API-334)도
+   * (`expireOne` · 2026-10-15 · REQ-API-304)가 같은 규칙을 쓰고, 에스컬레이션 카드가 다른 길로 닫힐 때(2026-10-16 · REQ-API-335)도
    * 같은 함수다 — 규칙은 `session-wake.ts` 한 곳이다.
    */
   private async wakeWaitingSession(
@@ -460,7 +460,7 @@ export class ApprovalService {
     state?: string | null;
     cursor?: string | null;
     limit?: string | number | null;
-    /** 유형(2026-10-16 · REQ-API-336) — EP-APR-01 과 같다 */
+    /** 유형(2026-10-16 · REQ-API-337) — EP-APR-01 과 같다 */
     kind?: string | null;
   }): Promise<InboxPage> {
     return this.inboxGlobal({
@@ -547,7 +547,7 @@ export class ApprovalService {
     userId: string,
     state: ApprovalInboxState,
     projectFilter: SQL,
-    /** 유형 필터(2026-10-16 · REQ-API-336) — 비었으면 거르지 않는다 */
+    /** 유형 필터(2026-10-16 · REQ-API-337) — 비었으면 거르지 않는다 */
     kinds: readonly InboxKind[] = [],
   ): { approvalFrom: SQL; approvalWhere: SQL; questionFrom: SQL; questionWhere: SQL } {
     // **만료는 결정이 아니다**(2026-10-15 · REQ-API-304) — 결재 행에는 결정이 없고, 그 라운드의 만료 이벤트가 사실이다
@@ -583,7 +583,7 @@ export class ApprovalService {
          -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
          -- 사람이 계속 결재하게 된다. 만료로 초안이 된 문서도 같다(2026-10-15).
          AND (sv.id IS NULL OR sv.status = 'in_review')
-         -- **변경 요청이 검토 중이면 그 CR 의 planner 카드는 쉰다**(2026-10-16 · REQ-API-333). 그동안은 스펙 결재 카드가 같은
+         -- **변경 요청이 검토 중이면 그 CR 의 planner 카드는 쉰다**(2026-10-16 · REQ-API-334). 그동안은 스펙 결재 카드가 같은
          -- CR 카드로 보인다 — 같은 일을 두 장으로 보이지 않는다. 결재가 초안을 돌려보내면 다시 보인다
          AND NOT (a.subject_type = 'escalation' AND coalesce(ecr.status::text, '') = 'in_review')`;
     /**
@@ -597,12 +597,12 @@ export class ApprovalService {
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
    LEFT JOIN task plan_task ON plan_task.id = a.subject_id AND a.subject_type = 'plan'
-   -- 카드의 유형을 정하는 둘(2026-10-16 · REQ-API-336) — 스펙 결재를 감싼 변경 요청 · 에스컬레이션 카드가 넘긴 처분과 그 CR
+   -- 카드의 유형을 정하는 둘(2026-10-16 · REQ-API-337) — 스펙 결재를 감싼 변경 요청 · 에스컬레이션 카드가 넘긴 처분과 그 CR
    LEFT JOIN change_request cr ON a.subject_type = 'spec_version' AND cr.proposed_version_id = a.subject_id
    LEFT JOIN resolution er ON er.id = a.subject_id AND a.subject_type = 'escalation'
    LEFT JOIN change_request ecr ON ecr.id = er.change_request_id`;
     const memberOfProject = memberOfProjectSql(userId);
-    // **유형 필터**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 목록 · 총계가 같은 식을 본다. 질문은 `question` 이면 모두,
+    // **유형 필터**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 목록 · 총계가 같은 식을 본다. 질문은 `question` 이면 모두,
     // `escalation` 이면 사유가 있는 것만이다(카드 모양은 질문 그대로다)
     const approvalKindFilter =
       kinds.length === 0 ? sql`` : sql` AND ${approvalKindSql()} = ANY(${sqlArray(kinds, 'text')})`;
@@ -711,7 +711,7 @@ export class ApprovalService {
     cursor?: string | null;
     limit?: string | number | null;
     /**
-     * **유형**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 쉼표 목록 · 어휘는 `INBOX_KINDS`, 밖의 값은 400 이다. 비었으면
+     * **유형**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 쉼표 목록 · 어휘는 `INBOX_KINDS`, 밖의 값은 400 이다. 비었으면
      * 거르지 않는다
      */
     kind?: string | null;
@@ -868,9 +868,9 @@ export class ApprovalService {
              pt.key AS task_key, pt.title AS task_title,
              f.id AS finding_id,
              f.title AS finding_title, f.severity::text AS finding_severity,
-             -- **카드의 유형**(2026-10-16 · REQ-API-336) — 필터와 같은 식이다
+             -- **카드의 유형**(2026-10-16 · REQ-API-337) — 필터와 같은 식이다
              ${approvalKindSql()} AS kind,
-             -- **에스컬레이션 카드**(2026-10-16 · 사람 결정 D3 · REQ-API-333) — 넘긴 처분의 원문(발견의 본문 · 근거 · 커밋)과 사유 ·
+             -- **에스컬레이션 카드**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — 넘긴 처분의 원문(발견의 본문 · 근거 · 커밋)과 사유 ·
              -- 기다림. 사람은 요약이 아니라 원문을 보고 결정한다(spec-workflow §6.4)
              er.escalate_reason::text AS escalate_reason, er.blocking AS escalation_blocking,
              er.rationale_md AS escalation_rationale,
@@ -901,7 +901,7 @@ export class ApprovalService {
              gate.payload->'gate_evidence' AS gate_evidence,
              -- 직전 버전과 견준 크기 · 제목 · 요구사항(2026-10-08 · REQ-API-271) — 이 칸이 생기기 전의 요청은 NULL
              gate.payload->'body_change' AS body_change,
-             -- **이 버전을 감싼 변경 요청**(2026-10-16 · 사람 결정 D1 · REQ-API-331) — 있으면 카드가 CR 카드가 된다. 결재는
+             -- **이 버전을 감싼 변경 요청**(2026-10-16 · 사람 결정 D1 · REQ-API-332) — 있으면 카드가 CR 카드가 된다. 결재는
              -- 그대로 이 한 장이다(같은 결재를 두 카드로 보이지 않는다)
              cr.id AS cr_id, cr.key AS cr_key, cr.status::text AS cr_status,
              crb.version_no AS cr_base_version_no, cr.planned_actions AS cr_planned_actions,
@@ -930,10 +930,10 @@ export class ApprovalService {
        LIMIT ${limit + 1}
     `);
 
-    // **CR 카드의 델타와 영향**(REQ-API-331 · spec-workflow §6.4 — 승인 카드에 반드시 보이는 것). 대기 카드만 센다 — 끝난
+    // **CR 카드의 델타와 영향**(REQ-API-332 · spec-workflow §6.4 — 승인 카드에 반드시 보이는 것). 대기 카드만 센다 — 끝난
     // 카드에는 키만 있으면 된다(무엇을 결정했는지는 CR 상세가 그때의 기록으로 보인다)
     if (!decided && !expired) await this.withChangeRequestSummary(approvals);
-    // **변경 요청으로 보낸 발견**(2026-10-16 · REQ-API-333) — CR 카드와 그 CR 의 planner 카드가 출처 발견 · 커밋을 보인다
+    // **변경 요청으로 보낸 발견**(2026-10-16 · REQ-API-334) — CR 카드와 그 CR 의 planner 카드가 출처 발견 · 커밋을 보인다
     await this.withDriftFindings(approvals);
 
     if (decided || expired) {
@@ -1006,7 +1006,7 @@ export class ApprovalService {
   }
 
   /**
-   * **유형마다 대기 수**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 받은 요청의 유형 칸이 쓰는 수다. 리뷰 센터의 facet 과 같은
+   * **유형마다 대기 수**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 받은 요청의 유형 칸이 쓰는 수다. 리뷰 센터의 facet 과 같은
    * 뜻이다: "이 유형을 고르면 몇 건이 보이는가" 라 유형 필터를 빼고 같은 조건으로 센다. 사유가 있는 질문은 `question` 과
    * `escalation` 양쪽에 든다. 0 인 유형도 준다.
    */
@@ -1035,10 +1035,10 @@ export class ApprovalService {
   }
 
   /**
-   * **변경 요청으로 보낸 발견**(2026-10-16 · 사람 결정 · REQ-API-333) — CR 카드(스펙 결재)와 그 CR 의 planner 카드(에스컬레이션)가
+   * **변경 요청으로 보낸 발견**(2026-10-16 · 사람 결정 · REQ-API-334) — CR 카드(스펙 결재)와 그 CR 의 planner 카드(에스컬레이션)가
    * "구현이 스펙을 바꿨다" 의 출처를 보인다: 그 CR 로 보낸 발견마다 제목 · 심각도 · 커밋. 끝난 카드에도 준다(무엇이 그 CR 을
    * 열었는지는 결정 뒤에도 사실이다). planner 카드에는 초안이 아직 승인본과 같은지(`escalation_cr_unchanged`)도 준다 — 그동안은
-   * 검토를 요청할 수 없다(REQ-API-332).
+   * 검토를 요청할 수 없다(REQ-API-333).
    */
   private async withDriftFindings(cards: Record<string, unknown>[]): Promise<void> {
     for (const card of cards) {
@@ -1126,7 +1126,7 @@ export class ApprovalService {
   }
 
   /**
-   * **CR 카드의 요약**(2026-10-16 · REQ-API-331) — 델타의 수와 앞의 몇 줄 · 영향의 수 · 고른 제안의 수. 판정은 CR 서비스의
+   * **CR 카드의 요약**(2026-10-16 · REQ-API-332) — 델타의 수와 앞의 몇 줄 · 영향의 수 · 고른 제안의 수. 판정은 CR 서비스의
    * 영향 함수 한 곳이다(CR 상세 · EP-SPEC-31 과 같은 값). 한 쪽(쪽 상한)만큼만 센다.
    */
   private async withChangeRequestSummary(cards: Record<string, unknown>[]): Promise<void> {
@@ -1299,9 +1299,9 @@ export class ApprovalService {
      * 반사적 승인(OWASP ASI09 가 지목한 consent fatigue)은 감사에서 단건과 구별되지 않는다.
      */
     batchId?: string;
-    /** 변경 요청 승인과 함께 할 일(2026-10-16 · REQ-API-330) — 승인 결정에서만 받는다 */
+    /** 변경 요청 승인과 함께 할 일(2026-10-16 · REQ-API-331) — 승인 결정에서만 받는다 */
     crActions?: CrActions | null;
-    /** 에스컬레이션 카드의 처분 — `fix` · `wont_fix` · `dismissed`(2026-10-16 · 사람 결정 D3 · REQ-API-335) */
+    /** 에스컬레이션 카드의 처분 — `fix` · `wont_fix` · `dismissed`(2026-10-16 · 사람 결정 D3 · REQ-API-336) */
     resolution?: string | null;
   }): Promise<DecideResult> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
@@ -1334,9 +1334,9 @@ export class ApprovalService {
       direct?: boolean;
       /** 에이전트 세션에서 사람이 대답으로 승인했으면 그 세션(REQ-API-291) */
       viaSessionId?: string | null;
-      /** 변경 요청 승인과 함께 할 일(REQ-API-330) */
+      /** 변경 요청 승인과 함께 할 일(REQ-API-331) */
       crActions?: CrActions | null;
-      /** 에스컬레이션 카드의 처분(2026-10-16 · REQ-API-335) — 그 카드에만 받는다 */
+      /** 에스컬레이션 카드의 처분(2026-10-16 · REQ-API-336) — 그 카드에만 받는다 */
       resolution?: string | null;
     },
   ): Promise<DecideResult> {
@@ -1402,7 +1402,7 @@ export class ApprovalService {
       });
     }
 
-    // **에스컬레이션 카드의 결정은 그 발견의 처분이다**(2026-10-16 · 사람 결정 D3 · REQ-API-335). 승인 · 거절이 아니라 고칠 것 ·
+    // **에스컬레이션 카드의 결정은 그 발견의 처분이다**(2026-10-16 · 사람 결정 D3 · REQ-API-336). 승인 · 거절이 아니라 고칠 것 ·
     // 유예 · 기각 가운데 하나이고 근거가 필수다 — 결재 행의 결정 값은 처분에서 따라온다(고칠 것은 `approve`, 유예 · 기각은 `reject`).
     // 다른 결재에 처분이 실려 오면 조용히 버리지 않고 거절한다(§1.4e)
     if (approval.subject_type !== 'escalation' && input.resolution != null) {
@@ -1523,7 +1523,7 @@ export class ApprovalService {
     //
     // **같은 트랜잭션이다.** 웹이 두 번 부르게 하면 그 사이의 실패가 정확히 이 상태를
     // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
-    // **고른 제안을 CR 에 남긴다**(2026-10-16 · REQ-API-330) — 정족수가 차기 전의 승인이 고른 것도 남아 마지막 승인이 그것을
+    // **고른 제안을 CR 에 남긴다**(2026-10-16 · REQ-API-331) — 정족수가 차기 전의 승인이 고른 것도 남아 마지막 승인이 그것을
     // 한다. 문서를 옮기기(아래) 전에 남겨야 이 승인이 정족수를 채울 때 바로 쓰인다
     if (input.crActions != null) {
       if (approval.subject_type !== 'spec_version') {
@@ -1572,7 +1572,7 @@ export class ApprovalService {
         decision,
         subject_type: approval.subject_type,
         subject_id: approval.subject_id,
-        // 에스컬레이션 카드의 처분 — 넘긴 세션이 하트비트의 `approval_decided` 로 읽는다(2026-10-16 · REQ-API-335)
+        // 에스컬레이션 카드의 처분 — 넘긴 세션이 하트비트의 `approval_decided` 로 읽는다(2026-10-16 · REQ-API-336)
         ...(escalationResolution === null ? {} : { resolution: escalationResolution }),
         ...(selfApprove ? { self_approved: true, self_kind: selfKind } : {}),
         ...(input.batchId === undefined ? {} : { bulk: true, batch_id: input.batchId }),
@@ -1592,7 +1592,7 @@ export class ApprovalService {
   }
 
   /**
-   * **에스컬레이션 카드의 처분을 그 발견에 적용한다**(2026-10-16 · 사람 결정 D3 · REQ-API-335). 유예 · 기각은 그 발견을 닫는
+   * **에스컬레이션 카드의 처분을 그 발견에 적용한다**(2026-10-16 · 사람 결정 D3 · REQ-API-336). 유예 · 기각은 그 발견을 닫는
    * 처분을 남기고(리뷰 센터의 처분과 같은 자리 — `writeResolutionInTx`), 고칠 것은 발견을 열린 채로 둔다 — 넘긴 세션이 고친 뒤
    * 커밋과 함께 `fixed` 로 닫는다. 변경 요청으로 보낸 카드는 여기서 결정하지 않는다 — 그 CR 의 승인 · 거절이 결정이다.
    */
@@ -1826,7 +1826,7 @@ export class ApprovalService {
     sessionId?: string | null;
     /** 일괄의 한 건인가(EP-SPEC-28) */
     batchId?: string;
-    /** 초안이 변경 요청이면 승인과 함께 할 일(2026-10-16 · REQ-API-330) */
+    /** 초안이 변경 요청이면 승인과 함께 할 일(2026-10-16 · REQ-API-331) */
     crActions?: CrActions | null;
   }): Promise<DirectApproveResult> {
     const viaSessionId = input.surface === 'mcp' ? (input.sessionId ?? null) : null;
@@ -1898,7 +1898,7 @@ export class ApprovalService {
         });
       }
 
-      // 고른 제안을 먼저 남긴다 — 자동 통과(T0 · T1)면 아래 제출이 곧 승인이라 그 자리에서 쓰인다(REQ-API-330)
+      // 고른 제안을 먼저 남긴다 — 자동 통과(T0 · T1)면 아래 제출이 곧 승인이라 그 자리에서 쓰인다(REQ-API-331)
       if (input.crActions != null) {
         await planChangeRequestInTx(tx, input.specVersionId, input.crActions);
       }
@@ -2158,7 +2158,7 @@ export class ApprovalService {
              a.decision::text AS decision, a.comment_md,
              a.decided_at::text AS decided_at, u.display_name AS decided_by,
              COALESCE(s.key, t.key, f.title, ef.title) AS subject_key,
-             -- **에스컬레이션 카드의 결정**(2026-10-16 · 사람 결정 D3 · REQ-API-335) — 어느 발견을 무엇으로 정했는가. 결재 행의
+             -- **에스컬레이션 카드의 결정**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 어느 발견을 무엇으로 정했는가. 결재 행의
              -- 결정 값(승인 · 거절)만으로는 고칠 것 · 유예 · 기각 · 변경 요청이 갈리지 않는다 — 결정 이벤트가 그것을 든다
              er.finding_id AS finding_id,
              (SELECT de.payload->>'resolution' FROM event de
@@ -2231,7 +2231,7 @@ export class ApprovalService {
     /** 면제한 사람의 이 프로젝트 역할 — 종류마다 면제할 수 있는 역할이 다르다(spec-workflow §1.6) */
     roles?: readonly string[] | undefined;
     /**
-     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-338). 주면 대상은 작업이 아니라 이 브랜치다 — `subjectId` 는 보지 않고
+     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 주면 대상은 작업이 아니라 이 브랜치다 — `subjectId` 는 보지 않고
      * 결재 행의 `subject_id` 에 프로젝트 id 를 둔다. 리뷰가 없는 브랜치에도 낸다. 종류 · 역할 규칙(REQ-API-274 · 293)은 같다
      */
     branch?: string | undefined;
@@ -2371,14 +2371,14 @@ export class ApprovalService {
   }
 
   /**
-   * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-338). 작업 면제와 같은 결재 레코드이고 종류 · 역할 규칙도 같다 — 범위를
+   * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 작업 면제와 같은 결재 레코드이고 종류 · 역할 규칙도 같다 — 범위를
    * 고르지 않은 admin 은 리뷰 커버리지 전부, planner · developer 는 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다(앞에서
    * `kinds` · `expanded` 로 정해 온다). 다른 점은 둘이다.
    *
    * - **대상이 브랜치 문자열이다.** `subject_id` 는 uuid 라 브랜치를 가리킬 수 없어 프로젝트 id 를 두고 `branch` 열이 대상을
    *   든다(다형 참조 규칙의 예외 — database.md §2.8). 그래서 작업 면제의 done 게이트 조회(`subject_id = 작업 id`)에 걸리지 않는다.
    * - **코드 증적 검사가 없다.** 그 검사의 전제는 "그 작업이 코드를 내지 않았다" 인데 브랜치에는 작업이 없다. 브랜치 면제가
-   *   넘기는 것은 게이트 판정(EP-REV-08)의 `uncovered` 하나뿐이다 — 리뷰가 있는 종류의 판정은 그대로다(REQ-API-339).
+   *   넘기는 것은 게이트 판정(EP-REV-08)의 `uncovered` 하나뿐이다 — 리뷰가 있는 종류의 판정은 그대로다(REQ-API-340).
    *
    * 리뷰가 있는지 없는지는 보지 않는다 — 면제를 낸 뒤에 리뷰가 들어오면 그 라운드의 판정이 이긴다.
    */

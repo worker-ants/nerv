@@ -1,5 +1,5 @@
 // 에스컬레이션 카드 · 변경 요청에 묶인 발견 (2026-10-16 · 사람 결정 D3 · spec-workflow §3.4 · §4.7)
-//   정본: api.md REQ-API-332 ~ 337 · data-model §2.6(`resolution.blocking`) · §2.7(`approval.subject_type = escalation`)
+//   정본: api.md REQ-API-333 ~ 338 · data-model §2.6(`resolution.blocking`) · §2.7(`approval.subject_type = escalation`)
 //
 // **발견을 사람에게 넘기면 받은 요청에 카드가 선다.** `escalated` 처분은 2026-09-05 부터 있었지만 카드가 없어 아무에게도 가지
 // 않았다 — 넘긴 것은 해결한 것이 아니라는 규칙(REQ-API-108)만 있고 넘겨받는 사람이 없었다. 카드는 결재 행이다: 대상은 넘긴 처분
@@ -209,7 +209,7 @@ async function escalationAssignee(
 }
 
 /**
- * **에스컬레이션 카드를 세운다**(REQ-API-333 · 334). 처분(`escalated`)과 같은 트랜잭션이다 — 카드 없이 처분만 남으면 넘긴 것을
+ * **에스컬레이션 카드를 세운다**(REQ-API-334 · 335). 처분(`escalated`)과 같은 트랜잭션이다 — 카드 없이 처분만 남으면 넘긴 것을
  * 아무도 받지 않는다. 기다리는 처분이면 그 세션을 `awaiting_input` 으로 둔다.
  */
 export async function openEscalationInTx(
@@ -272,7 +272,7 @@ export async function openEscalationInTx(
 }
 
 /**
- * **카드를 닫는다** — 카드의 결정이 아닌 길로 그 일이 끝났을 때다(REQ-API-335 · 337). 발견을 다른 길(리뷰 센터 · 도구)로 처분했거나,
+ * **카드를 닫는다** — 카드의 결정이 아닌 길로 그 일이 끝났을 때다(REQ-API-336 · 338). 발견을 다른 길(리뷰 센터 · 도구)로 처분했거나,
  * 변경 요청으로 보냈거나, 그 변경 요청이 승인 · 거절 · 철회됐다. 남은 카드를 대기에 두면 사람은 이미 끝난 일을 다시 결정한다.
  * 결정한 사람은 그 일을 한 사람이고 결정 이벤트의 `resolution` 이 무엇으로 끝났는지를 든다. 기다리던 세션은 다른 대기 사유가 없으면
  * 깨어난다 — 하트비트가 그 결정을 `approval_decided` 로 전한다.
@@ -345,7 +345,7 @@ export interface DriftFinding extends Record<string, unknown> {
   head_sha: string | null;
 }
 
-/** 발견 한 건을 잠그고 읽는다 — 변경 요청으로 보낼 수 있는지 판정한다(REQ-API-332) */
+/** 발견 한 건을 잠그고 읽는다 — 변경 요청으로 보낼 수 있는지 판정한다(REQ-API-333) */
 export async function lockDriftFinding(
   tx: Tx,
   projectId: string,
@@ -385,7 +385,7 @@ export async function lockDriftFinding(
 }
 
 /**
- * **발견을 변경 요청에 묶는다**(REQ-API-332). 처분은 `escalated`(사유 `spec`)이고 `change_request_id` 가 그 CR 이다 — 발견은 열린
+ * **발견을 변경 요청에 묶는다**(REQ-API-333). 처분은 `escalated`(사유 `spec`)이고 `change_request_id` 가 그 CR 이다 — 발견은 열린
  * 채로 남는다(넘긴 것은 해결한 것이 아니다). 근거 칸에 넘긴 이유를, 커밋 칸에 그 발견을 마지막으로 본 라운드의 커밋을 남긴다 —
  * CR 을 보는 사람이 "어느 구현이 스펙을 바꿨나" 를 거기서 읽는다.
  *
@@ -458,7 +458,7 @@ export async function linkFindingToCrInTx(
     changeRequestKey: input.changeRequest.key,
   });
 
-  // **CR 하나에 planner 카드 하나**(REQ-API-333) — 스펙을 고칠 사람에게 "구현이 스펙을 바꿨다" 를 알린다
+  // **CR 하나에 planner 카드 하나**(REQ-API-334) — 스펙을 고칠 사람에게 "구현이 스펙을 바꿨다" 를 알린다
   const { rows: card } = await tx.execute<{ id: string }>(sql`
     SELECT a.id FROM approval a JOIN resolution r ON r.id = a.subject_id
      WHERE a.subject_type = 'escalation' AND a.decision IS NULL
@@ -484,7 +484,7 @@ export async function linkFindingToCrInTx(
 }
 
 /**
- * **변경 요청이 끝났다 → 그 CR 로 보낸 발견**(spec-workflow §3.4 · REQ-API-337).
+ * **변경 요청이 끝났다 → 그 CR 로 보낸 발견**(spec-workflow §3.4 · REQ-API-338).
  *
  * - **승인** — 발견은 `fixed` 로 닫힌다. 처분은 `spec_change`(스펙을 고쳐 해결했다)이고 근거는 승인된 버전이다 — 커밋이 코드 쪽
  *   증거이듯 승인본이 문서 쪽 증거다(2026-08-30 · `resolution_spec_change_cr_ck`).

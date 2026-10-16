@@ -508,7 +508,7 @@ export class SpecTools implements NervToolProvider {
             minimum: 1,
             description: 'mcp.arg.revert_to_version',
           },
-          // **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-332) — `spec_drift` 발견을 이 초안의 변경 요청에 묶는다.
+          // **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-333) — `spec_drift` 발견을 이 초안의 변경 요청에 묶는다.
           // 이름은 `nerv_finding_resolve` · 질문의 `context` 와 같은 `finding_id` 다
           finding_id: { type: 'string', description: 'mcp.arg.draft_finding_id' },
         },

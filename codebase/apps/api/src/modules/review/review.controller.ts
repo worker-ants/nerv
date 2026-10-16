@@ -153,7 +153,7 @@ export class ReviewController {
   }
 
   /**
-   * EP-REV-08b — 게이트 판정에 **로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-API-345 · roadmap §7.4 규칙 3).
+   * EP-REV-08b — 게이트 판정에 **로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-API-346 · roadmap §7.4 규칙 3).
    * 판정은 GET 과 같고, 서버가 두 판정을 견주어 남긴다. 비교를 남기는 쓰기라 권한은 `review:submit` 이다 — 로컬 판정을 가진 쪽은
    * 개발자 기계의 훅이고 그 훅은 그 사람의 에이전트 토큰(권장 묶음에 `review:submit` 이 있다)을 쓴다. 읽기 권한뿐인 CI 토큰은 로컬
    * 판정이 없으니 GET 을 그대로 쓴다. viewer 는 비교를 남길 수 없다 — 롤백 지표를 움직이는 기록이다.
@@ -184,7 +184,7 @@ export class ReviewController {
   }
 
   /**
-   * EP-REV-10 — 컷오버 지표(2026-10-16 · 사람 결정 D6 · REQ-API-348). 이중화 기간의 불일치율 · 리뷰 제출 실패율과 로드맵 기준(§7.5 ·
+   * EP-REV-10 — 컷오버 지표(2026-10-16 · 사람 결정 D6 · REQ-API-349). 이중화 기간의 불일치율 · 리뷰 제출 실패율과 로드맵 기준(§7.5 ·
    * §7.6)에 견준 상태다. 역할(admin · planner)은 서비스가 본다 — CLI(`nerv cutover report`)가 그 사람의 토큰으로 부른다.
    */
   @RequireScope('spec:read')
@@ -235,13 +235,13 @@ export class ReviewController {
       specVersionId: typeof body['spec_version_id'] === 'string' ? body['spec_version_id'] : null,
       // `escalated` 의 필수 짝 — 왜 사람을 부르는가(2026-09-05 · REQ-API-108)
       escalateReason: typeof body['escalate_reason'] === 'string' ? body['escalate_reason'] : null,
-      // 넘긴 쪽이 기다리는가(2026-10-16 · REQ-API-334) — 이 표면에는 세션이 없어 기본은 기다리지 않는다
+      // 넘긴 쪽이 기다리는가(2026-10-16 · REQ-API-335) — 이 표면에는 세션이 없어 기본은 기다리지 않는다
       ...(resolve.blocking == null ? {} : { blocking: resolve.blocking }),
     });
   }
 
   /**
-   * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-332 · spec-workflow §3.4). `spec_drift` 발견의 유래
+   * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-333 · spec-workflow §3.4). `spec_drift` 발견의 유래
    * 스펙에 초안 · CR 을 열고(이미 열린 CR 이 있으면 거기에 잇는다) 발견을 그 CR 에 묶는다. 처분 권한(`review:resolve`)이 문턱이고
    * 역할(planner · admin)은 서비스가 본다(D-05).
    */

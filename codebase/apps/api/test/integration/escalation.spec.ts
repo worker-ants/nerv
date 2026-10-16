@@ -1,4 +1,4 @@
-// SPEC-DRIFT → 변경 요청 · 에스컬레이션 카드 (2026-10-16 · 사람 결정 D3 · REQ-API-332 ~ 337 · E19-S02 · E19-S03)
+// SPEC-DRIFT → 변경 요청 · 에스컬레이션 카드 (2026-10-16 · 사람 결정 D3 · REQ-API-333 ~ 338 · E19-S02 · E19-S03)
 //
 //   WHEN planner · admin 이 spec_drift 발견을 변경 요청으로 보내면 THE SYSTEM SHALL 승인본에서 초안을 열고(열린 CR 이 있으면 거기에)
 //        CR(출처 spec_drift)에 발견을 묶고 그 처분을 escalated(사유 spec)로 남긴다
@@ -288,7 +288,7 @@ async function rejection(fn: () => Promise<unknown>): Promise<Record<string, unk
   throw new Error('거절되지 않았다');
 }
 
-describe('발견을 변경 요청으로 보낸다 (REQ-API-332 · 337 · E19-S02)', () => {
+describe('발견을 변경 요청으로 보낸다 (REQ-API-333 · 338 · E19-S02)', () => {
   it('승인본에서 초안을 열고 CR(출처 spec_drift)에 발견을 묶는다 — 처분은 escalated(spec), 근거와 커밋이 남는다', async () => {
     const { specId, v1 } = await approvedSpec('SPC-ESC-A');
     const f = await finding({
@@ -669,7 +669,7 @@ describe('발견을 변경 요청으로 보낸다 (REQ-API-332 · 337 · E19-S02
   });
 });
 
-describe('에스컬레이션 카드 — 사유별 받는 사람 (REQ-API-333 · E19-S03 · 사람 결정 D3)', () => {
+describe('에스컬레이션 카드 — 사유별 받는 사람 (REQ-API-334 · E19-S03 · 사람 결정 D3)', () => {
   it('spec 은 planner, infra · sensitive-fix 는 admin, 그 밖은 작업 담당자와 기본 큐', async () => {
     const work = await taskFor(otherDev, null);
     const forSpec = await finding({ title: '스펙 공백' });
@@ -743,7 +743,7 @@ describe('에스컬레이션 카드 — 사유별 받는 사람 (REQ-API-333 · 
   });
 });
 
-describe('기다리는 세션 — 결정이 바로 푼다 (REQ-API-334 · 335)', () => {
+describe('기다리는 세션 — 결정이 바로 푼다 (REQ-API-335 · 336)', () => {
   it('세션이 넘긴 처분은 기본으로 기다린다 — 카드의 결정(고칠 것)이 세션을 풀고 하트비트로 전한다', async () => {
     const f = await finding({ title: '기다린다' });
     const made = await escalate(f, 'infra');
@@ -912,7 +912,7 @@ describe('기다리는 세션 — 결정이 바로 푼다 (REQ-API-334 · 335)',
   });
 });
 
-describe('받은 요청의 유형 필터 (REQ-API-336)', () => {
+describe('받은 요청의 유형 필터 (REQ-API-337)', () => {
   it('에스컬레이션은 발견 카드와 사유가 있는 질문을 함께 모은다 — 질문은 질문으로도 남고, 어휘 밖은 400 이다', async () => {
     const f = await finding({ title: '넘긴 발견' });
     await escalate(f, 'user-decision', { blocking: false });

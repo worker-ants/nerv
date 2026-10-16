@@ -86,7 +86,7 @@ export interface InboxPage {
    */
   actionable_total?: number;
   /**
-   * **유형마다 대기 수**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 대기 탭에만 온다. 유형 필터와 무관하게 센 수라 칸의 숫자가
+   * **유형마다 대기 수**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 대기 탭에만 온다. 유형 필터와 무관하게 센 수라 칸의 숫자가
    * 고른 유형에 따라 변하지 않는다(리뷰 센터의 facet 과 같은 뜻)
    */
   kind_counts?: Partial<Record<InboxKind, number>>;
@@ -534,7 +534,7 @@ export function useChangeRequest(slug: string, crKey: string): UseQueryResult<Ro
 }
 
 /**
- * EP-SPEC-31 — 초안 · 검토 중인 버전의 영향 미리보기(REQ-API-329). 스펙 화면의 검토 요청 · 바로 승인 창이 연 동안만 읽는다
+ * EP-SPEC-31 — 초안 · 검토 중인 버전의 영향 미리보기(REQ-API-330). 스펙 화면의 검토 요청 · 바로 승인 창이 연 동안만 읽는다
  */
 export function useSpecImpact(
   slug: string,

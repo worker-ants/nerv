@@ -58,7 +58,7 @@ export class ApprovalController {
     @Query('state') state?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
-    // 유형(2026-10-16 · REQ-API-336) — 쉼표 목록이고 어휘 판정은 서비스가 한다
+    // 유형(2026-10-16 · REQ-API-337) — 쉼표 목록이고 어휘 판정은 서비스가 한다
     @Query('kind') kind?: string,
   ): Promise<unknown> {
     const { projectId, userId, actor } = human(req);
@@ -186,7 +186,7 @@ export class ApprovalController {
     return this.approvals.bypass({
       projectId,
       subjectType: 'gate_bypass',
-      // 브랜치 면제면 대상 칸은 서비스가 프로젝트로 채운다(REQ-API-338) — 스키마가 둘 중 하나만 받는다
+      // 브랜치 면제면 대상 칸은 서비스가 프로젝트로 채운다(REQ-API-339) — 스키마가 둘 중 하나만 받는다
       subjectId: bypass.subject_id ?? projectId,
       userId,
       reason: bypass.reason,
@@ -298,7 +298,7 @@ export class ApprovalInboxController {
     @Query('limit') limit?: string,
     // slug 는 조직 안에서만 유일하다 — 같은 이름이 두 조직에 있으면 이것으로 좁힌다(REQ-API-213)
     @Query('org') org?: string,
-    // 유형(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 쉼표 목록이고 어휘 판정은 서비스가 한다
+    // 유형(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 쉼표 목록이고 어휘 판정은 서비스가 한다
     @Query('kind') kind?: string,
   ): Promise<unknown> {
     const actor = globalActor(req);

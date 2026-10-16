@@ -2145,7 +2145,7 @@ export class TaskService {
              (SELECT max(v.version_no) FROM spec_version v
                WHERE v.spec_id = s.id AND v.status = 'approved') AS latest_version_no,
              t.rebrief_required_at::text AS rebrief_required_at,
-             -- **그 작업의 요구사항이 새 승인본에서 빠졌다**(2026-10-16 · spec-workflow §3.3 REMOVED · REQ-API-330) — 진행 중이면
+             -- **그 작업의 요구사항이 새 승인본에서 빠졌다**(2026-10-16 · spec-workflow §3.3 REMOVED · REQ-API-331) — 진행 중이면
              -- 중단 확인 요청이다. 세션은 이어 가지 않고 멈춰 사람에게 묻는다(skills/impl). 요구사항이 없는 작업은 거짓이다
              r.ref AS requirement_ref,
              (r.removed_in_version_id IS NOT NULL) AS requirement_removed

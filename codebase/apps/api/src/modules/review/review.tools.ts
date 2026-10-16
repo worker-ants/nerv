@@ -142,7 +142,7 @@ export class ReviewTools implements NervToolProvider {
             enum: ['spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix'],
             description: 'mcp.arg.escalate_reason',
           },
-          // **결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — `escalated` 에만 읽는다. 기본은 기다린다(질문의
+          // **결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-335) — `escalated` 에만 읽는다. 기본은 기다린다(질문의
           // `blocking` 과 같다). 기다리면 세션은 `awaiting_input` 이 되고 카드의 결정이 하트비트로 온다
           blocking: { type: 'boolean', description: 'mcp.arg.escalation_blocking' },
           idempotency_key: { type: 'string' },

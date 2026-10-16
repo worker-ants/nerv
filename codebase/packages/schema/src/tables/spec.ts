@@ -437,7 +437,7 @@ export const changeRequest = pgTable(
     /** spec_drift = 역류 경로 */
     origin: changeOrigin('origin').notNull().default('human'),
     /**
-     * **승인하면 함께 할 일**(2026-10-16 · spec-workflow §3.3 · api.md REQ-API-330) — 영향 미리보기의 제안 가운데 사람이 고른
+     * **승인하면 함께 할 일**(2026-10-16 · spec-workflow §3.3 · api.md REQ-API-331) — 영향 미리보기의 제안 가운데 사람이 고른
      * 것. `{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}` 이고, 그 버전이 승인되는 순간 서버가
      * 승인 때의 델타와 다시 견줘 맞는 것만 한다(파생 작업 · 재검증 작업을 만들고 미착수 작업을 보관한다). 고르지 않으면 빈다
      */

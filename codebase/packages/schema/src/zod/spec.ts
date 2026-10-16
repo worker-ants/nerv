@@ -57,7 +57,7 @@ export const SpecDraftUpsertInput = z
     /** 주지 않으면 건드리지 않고, 빈 배열은 "전부 지워라" 다 */
     relations: z.array(SpecRelationInput).nullish(),
     /**
-     * **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-332) — `spec_drift` 태그가 붙은 열린 발견의 UUID. 이 초안을 감싼
+     * **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-333) — `spec_drift` 태그가 붙은 열린 발견의 UUID. 이 초안을 감싼
      * 변경 요청에 그 발견을 묶는다. 승인본이 없는 문서에는 줄 수 없다
      */
     finding_id: z.string().min(1).nullish(),
@@ -119,7 +119,7 @@ export const SpecArrangeInput = z
 export const SpecDirectApproveInput = z
   .object({
     seen_content_hash: z.string().min(1),
-    /** 초안이 변경 요청이면 승인과 함께 할 일(2026-10-16 · REQ-API-330) — 결재 카드의 결정과 같은 칸이다 */
+    /** 초안이 변경 요청이면 승인과 함께 할 일(2026-10-16 · REQ-API-331) — 결재 카드의 결정과 같은 칸이다 */
     cr_actions: CrActionsInput.nullish(),
   })
   .strict();

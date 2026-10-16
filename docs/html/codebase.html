@@ -424,7 +424,7 @@ overrides:
       approval.tools.ts       # MCP — nerv_spec_approve (A3 · 사람이 세션에서 대답한 승인)
       question.service.ts     # 질문 생성 · 폴링 · awaiting_input 전이
       question.tools.ts       # MCP — nerv_question_create
-      session-wake.ts         # 기다리던 세션을 깨운다 — 결정 · 만료 · 에스컬레이션 카드가 같은 규칙을 쓴다 (REQ-API-134 · 334)
+      session-wake.ts         # 기다리던 세션을 깨운다 — 결정 · 만료 · 에스컬레이션 카드가 같은 규칙을 쓴다 (REQ-API-134 · 335)
     auth/
       auth.controller.ts        # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
       auth.module.ts
@@ -451,7 +451,7 @@ overrides:
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
-      watch.service.ts             # 워치 · 핀 — 본인의 것만 · 내가 속한 프로젝트의 대상만 (REQ-API-341 ~ 344). 워처 산출은 notification.service.ts
+      watch.service.ts             # 워치 · 핀 — 본인의 것만 · 내가 속한 프로젝트의 대상만 (REQ-API-342 ~ 345). 워처 산출은 notification.service.ts
       ws.gateway.ts                # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
       ws-log.ts                    # 연결·거절·해제 한 줄 — 업그레이드는 접근 로그에 닿지 않는다 (§5.5 · REQ-CB-054)
     import/
@@ -465,8 +465,8 @@ overrides:
       plugin.service.ts     # 마켓플레이스 JSON 조립
     review/
       commit-scope.ts       # 커밋 범위 — 작업의 최신 커밋과 라운드의 커밋을 맞춘다 · done 게이트와 verified 가 함께 쓴다 (REQ-API-314 · 315)
-      cutover.service.ts    # SoT 컷오버 M1 — 게이트 판정에 로컬 판정을 함께 받아 견주고(EP-REV-08b) 2주 지표를 낸다(EP-REV-10) (REQ-API-345 ~ 349)
-      escalation.ts         # 에스컬레이션 카드 · 변경 요청에 묶인 발견 — 처분 · 카드 · CR 의 결말이 같은 자리를 지난다 (REQ-API-332 ~ 337)
+      cutover.service.ts    # SoT 컷오버 M1 — 게이트 판정에 로컬 판정을 함께 받아 견주고(EP-REV-08b) 2주 지표를 낸다(EP-REV-10) (REQ-API-346 ~ 350)
+      escalation.ts         # 에스컬레이션 카드 · 변경 요청에 묶인 발견 — 처분 · 카드 · CR 의 결말이 같은 자리를 지난다 (REQ-API-333 ~ 338)
       review-gate.ts        # 게이트 판정 — 라운드(브랜치 · 종류 · 커밋)가 통과했는가 (REQ-API-247)
       review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts
@@ -487,7 +487,7 @@ overrides:
     spec/
       attachment.service.ts     # 스펙 첨부 — 2단계 업로드 (api.md §1.4k)
       baseline.service.ts       # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
-      change-request.service.ts # CR — 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 (REQ-API-327~331)
+      change-request.service.ts # CR — 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 (REQ-API-328~332)
       embedding.client.ts       # OpenAI 호환 /v1/embeddings 단일 계약 (REQ-CB-020·033)
       embedding.service.ts      # 청크 · 재임베딩 잡
       gate-tier.ts              # 게이트 티어 판정 — 네 축 + 동적 강화 (spec-workflow §2.4)
@@ -667,8 +667,8 @@ overrides:
       <tr><td><code>MIRROR_GIT_DEFAULT_AUTHOR</code></td><td><code>'NERV &lt;nerv@localhost&gt;'</code></td><td>git 미러 커밋의 작성자 — <code>NERV_MIRROR_GIT_AUTHOR</code> 를 비우면 이 값이다. 사람이 손으로 커밋하지 않는 저장소다(<a href="architecture.html">3.2</a> §2.4 (b))</td></tr>
       <tr><td><code>DIGEST_MAX_LINES</code></td><td><code>20</code></td><td>메일 요약 한 통에 적는 알림 줄 수 — 넘치면 수로 줄인다(<a href="spec-workflow.html">3.5 스펙 워크플로우</a> §6.5 · <a href="api.html">4.4 API 명세</a> REQ-API-233)</td></tr>
       <tr><td><code>DIGEST_DEFAULT_HOUR</code></td><td><code>9</code></td><td>메일 요약을 받는 현지 시의 기본값 — 켤 때 시를 고르지 않으면 이 값이다(<a href="api.html">4.4 API 명세</a> REQ-API-232)</td></tr>
-      <tr><td><code>PIN_LIMIT</code></td><td><code>50</code></td><td>한 사람이 고정할 수 있는 핀의 수 — 퀵 스위처는 빈 입력에서 고정을 모두 보이므로 그보다 많으면 고정이 아니라 또 하나의 목록이다. 브라우저에서 옮겨 오는 핀도 이 수까지다(2026-10-16 · 이번에 정한 시작값 · <a href="api.html">4.4 API 명세</a> REQ-API-343)</td></tr>
-      <tr><td><code>CUTOVER_MISMATCH_STABLE_BELOW_PCT</code> · <code>CUTOVER_MISMATCH_ROLLBACK_PCT</code> · <code>CUTOVER_SUBMIT_FAILURE_ROLLBACK_PCT</code> · <code>CUTOVER_OBSERVATION_DAYS</code> · <code>CUTOVER_RECENT_MISMATCHES</code></td><td><code>1</code> · <code>5</code> · <code>2</code> · <code>14</code> · <code>20</code></td><td>SoT 컷오버 M1 지표(2026-10-16 · 사람 결정 D6 · <a href="api.html">4.4 API 명세</a> REQ-API-348). 앞의 넷은 <a href="roadmap.html">3.7 로드맵</a> §7.5 · §7.6 의 인용이다 — 불일치율 1% 미만이 안정, 5% 이상이거나 리뷰 제출 실패율 2% 이상이 롤백, 2주 관측. 비율은 정수 백분율로 두고 정수로 견준다. 최근 불일치 20건은 이번에 정한 시작값이다(그보다 많으면 불일치율이 이미 롤백 기준을 넘었다)</td></tr>
+      <tr><td><code>PIN_LIMIT</code></td><td><code>50</code></td><td>한 사람이 고정할 수 있는 핀의 수 — 퀵 스위처는 빈 입력에서 고정을 모두 보이므로 그보다 많으면 고정이 아니라 또 하나의 목록이다. 브라우저에서 옮겨 오는 핀도 이 수까지다(2026-10-16 · 이번에 정한 시작값 · <a href="api.html">4.4 API 명세</a> REQ-API-344)</td></tr>
+      <tr><td><code>CUTOVER_MISMATCH_STABLE_BELOW_PCT</code> · <code>CUTOVER_MISMATCH_ROLLBACK_PCT</code> · <code>CUTOVER_SUBMIT_FAILURE_ROLLBACK_PCT</code> · <code>CUTOVER_OBSERVATION_DAYS</code> · <code>CUTOVER_RECENT_MISMATCHES</code></td><td><code>1</code> · <code>5</code> · <code>2</code> · <code>14</code> · <code>20</code></td><td>SoT 컷오버 M1 지표(2026-10-16 · 사람 결정 D6 · <a href="api.html">4.4 API 명세</a> REQ-API-349). 앞의 넷은 <a href="roadmap.html">3.7 로드맵</a> §7.5 · §7.6 의 인용이다 — 불일치율 1% 미만이 안정, 5% 이상이거나 리뷰 제출 실패율 2% 이상이 롤백, 2주 관측. 비율은 정수 백분율로 두고 정수로 견준다. 최근 불일치 20건은 이번에 정한 시작값이다(그보다 많으면 불일치율이 이미 롤백 기준을 넘었다)</td></tr>
       <tr><td><code>PAGE_LIMIT_DEFAULT</code> · <code>PAGE_LIMIT_MAX</code></td><td><code>30</code> · <code>100</code></td><td>페이지 상한 전역 규칙 — <a href="api.html">4.4 API 명세</a> §1.6</td></tr>
       <tr><td><code>FINDING_PAGE_LIMIT_DEFAULT</code> · <code>_MAX</code></td><td><code>50</code> · <code>200</code></td><td>발견 큐의 <b>예외</b>(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05)</td></tr>
       <tr><td><code>GATE_BRANCH_LIMIT_DEFAULT</code> · <code>_MAX</code></td><td><code>20</code> · <code>200</code></td><td>게이트 표의 브랜치 — 같은 예외(실측 441개)</td></tr>

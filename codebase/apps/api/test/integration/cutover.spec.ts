@@ -1,5 +1,5 @@
 // SoT 컷오버 M1 — 게이트 판정이 로컬 판정을 함께 받아 견주고, 2주 관측 지표를 낸다
-// (2026-10-16 · 사람 결정 D6 · Phase 2 E21-S03 · api.md REQ-API-345 ~ 349 · database.md REQ-DB-052 · roadmap §7.4 ~ §7.6)
+// (2026-10-16 · 사람 결정 D6 · Phase 2 E21-S03 · api.md REQ-API-346 ~ 350 · database.md REQ-DB-052 · roadmap §7.4 ~ §7.6)
 //
 // 경계를 실제 Postgres 로 본다 — 서버 판정이 적용된다는 응답 · 일치 / 불일치 · 같은 비교의 재호출(멱등 — 분모가 부풀지 않는다) · 이중화
 // 기간이 아닐 때(기록은 하고 알리지 않는다) · 권한(`review:submit` · viewer · 읽기 토큰) · 지표의 경계(1% · 5% · 2%) · 창 · 컷오버 단계를
@@ -241,7 +241,7 @@ const mismatchEvents = async (): Promise<Record<string, unknown>[]> =>
     )
   ).rows.map((r) => r.payload);
 
-describe('EP-REV-08b — 게이트 판정에 로컬 판정을 함께 보낸다 (REQ-API-345)', () => {
+describe('EP-REV-08b — 게이트 판정에 로컬 판정을 함께 보낸다 (REQ-API-346)', () => {
   it('판정은 GET 과 같고, 이중화 기간에는 서버 판정이 적용된다고 응답이 밝힌다', async () => {
     const get = await app.inject({
       method: 'GET',
@@ -472,7 +472,7 @@ async function metrics(query = ''): Promise<Metrics> {
   return JSON.parse(res.body) as Metrics;
 }
 
-describe('EP-REV-10 — 컷오버 지표 (REQ-API-348)', () => {
+describe('EP-REV-10 — 컷오버 지표 (REQ-API-349)', () => {
   it('비교가 없으면 `no_data` 이고 창은 컷오버 단계를 바꾼 시각부터다', async () => {
     const body = await metrics();
     expect(body['status']).toBe('no_data');
@@ -589,7 +589,7 @@ describe('EP-REV-10 — 컷오버 지표 (REQ-API-348)', () => {
   });
 });
 
-describe('EP-PRJ-04 — 컷오버 단계는 admin 이 바꾸고 감사가 전후를 남긴다 (REQ-API-347)', () => {
+describe('EP-PRJ-04 — 컷오버 단계는 admin 이 바꾸고 감사가 전후를 남긴다 (REQ-API-348)', () => {
   const patch = (
     payload: Record<string, unknown>,
     headers: Record<string, string> = { cookie: adminCookie, origin: DEFAULT_ORIGIN },

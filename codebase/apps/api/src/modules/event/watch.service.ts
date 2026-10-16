@@ -1,5 +1,5 @@
 // 워치와 핀 — 정본: docs/04-mvp/api.md §2.7 (EP-NTF-10 ~ 16) · spec-workflow §6.1 ② · screens.md §1.3a
-// (2026-10-16 · 사람 결정 D5 = B · Phase 2 E17-S02 · REQ-API-341 ~ 344)
+// (2026-10-16 · 사람 결정 D5 = B · Phase 2 E17-S02 · REQ-API-342 ~ 345)
 //
 // **표가 둘이다.** 워치는 알림의 구독이고(카탈로그 §6.3 의 「워처」 수신자), 핀은 퀵 스위처의 이동 수단이다 — 핀은 알림을 만들지
 // 않는다. 둘 다 그 사람의 설정이라 **본인의 것만** 읽고 바꾸며, 대상은 **지금 내가 속한 프로젝트**의 것만 받는다. 워치는 사람이
@@ -54,7 +54,7 @@ export class WatchService {
   constructor(@InjectDb() private readonly db: NervDb) {}
 
   /**
-   * EP-NTF-10 — **내 워치**(REQ-API-341). 지금 멤버이고 보관하지 않은 프로젝트의 것만 — 범위를 주면 그 프로젝트(내가 속한
+   * EP-NTF-10 — **내 워치**(REQ-API-342). 지금 멤버이고 보관하지 않은 프로젝트의 것만 — 범위를 주면 그 프로젝트(내가 속한
    * 것 하나로 푼다)의 것만이다. 새로 건 것이 위다.
    */
   async listWatches(input: {
@@ -82,7 +82,7 @@ export class WatchService {
   }
 
   /**
-   * EP-NTF-11 — **워치를 건다**(REQ-API-341). 같은 대상을 다시 걸면 새 행을 만들지 않고 있던 것을 `created: false` 로 준다(멱등).
+   * EP-NTF-11 — **워치를 건다**(REQ-API-342). 같은 대상을 다시 걸면 새 행을 만들지 않고 있던 것을 `created: false` 로 준다(멱등).
    * `area` 는 영역 문서(`spec.type = area`)에만 걸린다 — 그 아래 문서와 작업까지 포함하는 워치라, 영역이 아닌 문서에 걸면 사람이
    * 기대한 범위와 다르다.
    */
@@ -147,7 +147,7 @@ export class WatchService {
     };
   }
 
-  /** EP-NTF-12 — **워치를 푼다**(REQ-API-341). 본인의 것만 — 남의 워치 · 없는 워치는 같은 답이다(409 `not_found`) */
+  /** EP-NTF-12 — **워치를 푼다**(REQ-API-342). 본인의 것만 — 남의 워치 · 없는 워치는 같은 답이다(409 `not_found`) */
   async unwatch(input: { userId: string; watchId: string }): Promise<{ ok: true }> {
     const { rows } = await this.db.execute<{ id: string }>(sql`
       DELETE FROM watch WHERE id = ${entityRef(input.watchId).id} AND user_id = ${input.userId} RETURNING id
@@ -162,7 +162,7 @@ export class WatchService {
   }
 
   /**
-   * EP-NTF-13 — **내 핀**(REQ-API-343). 프로젝트를 넘는 한 목록이고 순서는 `position` 오름차순이다. 지금 멤버가 아니거나 보관한
+   * EP-NTF-13 — **내 핀**(REQ-API-344). 프로젝트를 넘는 한 목록이고 순서는 `position` 오름차순이다. 지금 멤버가 아니거나 보관한
    * 프로젝트의 핀은 남아도 보이지 않는다 — 다시 멤버가 되면 돌아온다.
    */
   async listPins(input: { userId: string }): Promise<{ items: Record<string, unknown>[] }> {
@@ -182,7 +182,7 @@ export class WatchService {
   }
 
   /**
-   * EP-NTF-14 — **핀을 고정한다**(REQ-API-343). 새 핀이 맨 위다(그 사람의 가장 작은 `position` 보다 하나 작게). 같은 대상을
+   * EP-NTF-14 — **핀을 고정한다**(REQ-API-344). 새 핀이 맨 위다(그 사람의 가장 작은 `position` 보다 하나 작게). 같은 대상을
    * 다시 고정하면 자리를 바꾸지 않고 `created: false` 다. 한 사람에 `PIN_LIMIT` 개까지 — 넘으면 409 `pin_limit`.
    */
   async pin(input: {
@@ -216,7 +216,7 @@ export class WatchService {
     });
   }
 
-  /** EP-NTF-15 — **핀을 푼다**(REQ-API-343). 본인의 것만이다 */
+  /** EP-NTF-15 — **핀을 푼다**(REQ-API-344). 본인의 것만이다 */
   async unpin(input: { userId: string; pinId: string }): Promise<{ ok: true }> {
     const { rows } = await this.db.execute<{ id: string }>(sql`
       DELETE FROM pin WHERE id = ${entityRef(input.pinId).id} AND user_id = ${input.userId} RETURNING id
@@ -231,7 +231,7 @@ export class WatchService {
   }
 
   /**
-   * EP-NTF-16 — **브라우저의 핀을 옮긴다**(REQ-API-344). 웹이 처음 한 번 localStorage 의 핀을 보낸다. 받은 순서대로 **지금 서버의
+   * EP-NTF-16 — **브라우저의 핀을 옮긴다**(REQ-API-345). 웹이 처음 한 번 localStorage 의 핀을 보낸다. 받은 순서대로 **지금 서버의
    * 핀 아래에** 둔다 — 서버에 이미 있는 핀은 다른 기기에서 더 나중에 고른 것이다. 이미 고정한 것 · 찾지 못한 것 · 내가 속하지 않은
    * 프로젝트의 것 · 상한을 넘은 것은 건너뛰고 까닭과 함께 돌려준다 — 한 줄이 틀려도 나머지는 옮긴다(옮긴 뒤 브라우저는 지운다).
    */

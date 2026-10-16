@@ -205,7 +205,7 @@ export const NERV_EVENT_PHASE2 = {
   /** ★ 격상이 풀렸다 — 그 창 동안 새 fail-open 이 없었다(같은 결정 · REQ-API-319). 기록만 하고 알림은 만들지 않는다 */
   GATE_FAILOPEN_CLEARED: 'gate.failopen_cleared',
   /**
-   * ★ **게이트 판정 불일치**(2026-10-16 · 사람 결정 D6 · E21-S03 · api.md REQ-API-346 · roadmap §7.4 규칙 3). M1 이중화 기간(`review_sot =
+   * ★ **게이트 판정 불일치**(2026-10-16 · 사람 결정 D6 · E21-S03 · api.md REQ-API-347 · roadmap §7.4 규칙 3). M1 이중화 기간(`review_sot =
    * dual`)에 로컬 훅이 보낸 판정(EP-REV-08b `local_state`)과 서버 판정이 달랐다 — 서버 판정이 적용됐고 「조용히 지지 않는다」가 이
    * 이벤트다. 대상은 프로젝트이고 행위자는 훅을 부른 토큰의 사람이다. 같은 비교(프로젝트 · 브랜치 · 종류 · 커밋 · 로컬 판정)에는 한 번만
    * 낸다. payload 는 비교 id · 브랜치 · 커밋 · 종류 · 두 판정 · 훅 이름 · 종류마다의 서버 상태다 — 훅이 적은 이유 원문은 넣지 않는다

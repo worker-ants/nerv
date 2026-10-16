@@ -97,7 +97,7 @@ export const FindingResolveInput = z
     spec_version_id: z.string().nullish(),
     escalate_reason: z.string().nullish(),
     /**
-     * **넘긴 쪽이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-334). `escalated` 에만 읽는다. 주지 않으면 세션이 부른
+     * **넘긴 쪽이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-335). `escalated` 에만 읽는다. 주지 않으면 세션이 부른
      * 처분은 기다리고(질문과 같다 — 사람을 부르고도 그냥 진행하는 것은 에스컬레이션이 아니다) 세션 없는 처분은 기다릴 세션이 없다
      */
     blocking: z.boolean().nullish(),
@@ -105,7 +105,7 @@ export const FindingResolveInput = z
   .strict();
 
 /**
- * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-332). 근거는 선택이다 — 주지 않으면 서버가
+ * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-333). 근거는 선택이다 — 주지 않으면 서버가
  * "발견 제목 — 구현이 스펙을 바꿨다" 로 적는다. 발견의 본문 · 근거 · 커밋은 서버가 발견에서 옮긴다.
  */
 export const FindingToChangeRequestInput = z
@@ -121,7 +121,7 @@ export const FindingCommentInput = z.object({ body_md: z.string().min(1) }).stri
 export const GATE_BYPASS_BRANCH_MAX = 255;
 
 /**
- * **EP-REV-08b — 게이트 판정에 로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · api.md REQ-API-345).
+ * **EP-REV-08b — 게이트 판정에 로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · api.md REQ-API-346).
  *
  * 판정 인자는 EP-REV-08(GET)과 같은 이름 · 같은 모양이다 — `kind` 도 쉼표 목록 문자열이라, 훅이 GET 의 질의를 그대로 본문으로 옮기면
  * 된다. 다른 둘: **`head_sha` 는 필수이고 40자다**(같은 커밋의 두 판정을 견주는 일이라 커밋이 하나로 정해져야 한다 — 짧은 SHA 는
@@ -164,7 +164,7 @@ export const GateBypassInput = z
      */
     kinds: z.array(z.string().min(1)).min(1).optional(),
     /**
-     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-338). 리뷰가 한 번도 없는 브랜치에도 낸다 — 게이트 판정(EP-REV-08)이
+     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 리뷰가 한 번도 없는 브랜치에도 낸다 — 게이트 판정(EP-REV-08)이
      * 그 (브랜치 · 종류)를 `waived` 로 통과시키고 게이트 현황의 그 브랜치 줄에 보인다. 종류 · 역할 규칙은 작업 면제와 같다
      */
     branch: z.string().trim().min(1).max(GATE_BYPASS_BRANCH_MAX).optional(),
@@ -209,7 +209,7 @@ export const GateBypassInput = z
 export const CR_ACTION_LIMIT = 200;
 
 /**
- * **변경 요청 승인과 함께 할 일**(2026-10-16 · spec-workflow §3.3 · REQ-API-330) — 영향 미리보기(EP-SPEC-31)의 제안 가운데
+ * **변경 요청 승인과 함께 할 일**(2026-10-16 · spec-workflow §3.3 · REQ-API-331) — 영향 미리보기(EP-SPEC-31)의 제안 가운데
  * 사람이 고른 것이다. 셋 다 선택이고 빈 배열은 "하지 않는다" 다.
  *
  * - `derive` — 더해진(ADDED) 요구사항 번호. 그 요구사항의 파생 작업을 `backlog` 로 만든다(목표 칸에 문장을 담은 위임 명세 초안)
@@ -237,12 +237,12 @@ export const ApprovalDecisionInput = z
     comment: z.string().nullish(),
     seen_content_hash: z.string().nullish(),
     /**
-     * **변경 요청을 승인하며 함께 할 일**(2026-10-16 · REQ-API-330) — 영향 미리보기에서 고른 제안. 승인 결정에서만 읽고,
+     * **변경 요청을 승인하며 함께 할 일**(2026-10-16 · REQ-API-331) — 영향 미리보기에서 고른 제안. 승인 결정에서만 읽고,
      * 그 버전을 감싼 변경 요청에 남긴 뒤 버전이 승인되는 순간(정족수가 차는 순간) 서버가 한다. 변경 요청이 없는 결재면 400 이다
      */
     cr_actions: CrActionsInput.nullish(),
     /**
-     * **에스컬레이션 카드의 처분**(2026-10-16 · 사람 결정 D3 · REQ-API-335) — `fix`(고칠 것) · `wont_fix`(유예) · `dismissed`(기각).
+     * **에스컬레이션 카드의 처분**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — `fix`(고칠 것) · `wont_fix`(유예) · `dismissed`(기각).
      * 에스컬레이션 카드에는 필수이고 다른 결재에 오면 400 이다. 어휘 판정은 도메인이 한다(`ESCALATION_RESOLUTIONS`)
      */
     resolution: z.string().nullish(),
@@ -250,7 +250,7 @@ export const ApprovalDecisionInput = z
   .strict();
 
 /**
- * EP-CR-03 — **변경 요청 거절**(2026-10-16 · 사람 결정 D1 · REQ-API-328). 결재의 거절(초안으로 돌아가 고쳐 다시 낸다)과 다르다
+ * EP-CR-03 — **변경 요청 거절**(2026-10-16 · 사람 결정 D1 · REQ-API-329). 결재의 거절(초안으로 돌아가 고쳐 다시 낸다)과 다르다
  * — 이 제안을 하지 않기로 하고 초안을 버린다. 사유는 필수다(작성자에게 가는 알림과 감사가 그 문장을 남긴다).
  */
 export const CrRejectInput = z
@@ -259,7 +259,7 @@ export const CrRejectInput = z
   })
   .strict();
 
-/** EP-CR-04 — **철회**(REQ-API-328). 작성자가 초안을 스스로 버린다 — 한 줄 사유는 선택이다 */
+/** EP-CR-04 — **철회**(REQ-API-329). 작성자가 초안을 스스로 버린다 — 한 줄 사유는 선택이다 */
 export const CrWithdrawInput = z
   .object({
     reason: z.string().trim().max(2000).nullish(),
@@ -345,7 +345,7 @@ export const NotificationLevelInput = z
 export type NotificationLevelInput = z.infer<typeof NotificationLevelInput>;
 
 /**
- * **워치 · 핀의 대상**(2026-10-16 · 사람 결정 D5 · REQ-API-341 · 343). 프로젝트는 내가 속한 것 하나로 푼다(REQ-API-213 과 같은
+ * **워치 · 핀의 대상**(2026-10-16 · 사람 결정 D5 · REQ-API-342 · 344). 프로젝트는 내가 속한 것 하나로 푼다(REQ-API-213 과 같은
  * 규칙). 대상은 키 또는 UUID 이고 종류의 어휘(`WATCH_TARGETS` · `PIN_TARGETS`)는 서버가 본다 — 모르는 값은 400 이다.
  */
 export const WatchTargetInput = z
@@ -359,7 +359,7 @@ export const WatchTargetInput = z
 export type WatchTargetInput = z.infer<typeof WatchTargetInput>;
 
 /**
- * **브라우저의 핀을 서버로 옮긴다**(2026-10-16 · REQ-API-344). 퀵 스위처가 localStorage 에 두던 핀을 처음 한 번 보낸다 — 앞의
+ * **브라우저의 핀을 서버로 옮긴다**(2026-10-16 · REQ-API-345). 퀵 스위처가 localStorage 에 두던 핀을 처음 한 번 보낸다 — 앞의
  * 것이 위다. 이미 고정한 것 · 찾지 못한 것 · 상한을 넘은 것은 건너뛰고 그 사실을 돌려준다
  */
 export const PinImportInput = z

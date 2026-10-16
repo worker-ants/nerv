@@ -140,7 +140,7 @@ export class SpecController {
     });
   }
 
-  /** EP-SPEC-31 — 영향 미리보기. 초안 · 검토 중인 버전이 승인되면 세 축이 어떻게 움직이나(REQ-API-329) */
+  /** EP-SPEC-31 — 영향 미리보기. 초안 · 검토 중인 버전이 승인되면 세 축이 어떻게 움직이나(REQ-API-330) */
   @RequireScope('spec:read')
   @Get('spec-versions/:ver/impact')
   impact(@Req() req: ProjectRequest, @Param('ver') ver: string): Promise<unknown> {
@@ -369,7 +369,7 @@ export class SpecController {
       ...(input.takeover === true ? { takeover: true } : {}),
       // 크게 줄이는 저장의 확인 — MCP 와 같은 이름 · 같은 판정이다(REQ-API-270 · D-05)
       ...(input.allow_shrink === true ? { allowShrink: true } : {}),
-      // 이 저장이 고치는 발견 — MCP 와 같은 이름 · 같은 판정이다(2026-10-16 · REQ-API-332)
+      // 이 저장이 고치는 발견 — MCP 와 같은 이름 · 같은 판정이다(2026-10-16 · REQ-API-333)
       ...(input.finding_id == null ? {} : { findingId: input.finding_id }),
       // **선언 관계도 나른다**(2026-09-05 · REQ-API-043). 전표는 처음부터 이 입력을
       // 적었고 서비스도 받고 있었는데 이 줄이 없어, REST 로 보낸 관계는 오류 없이
