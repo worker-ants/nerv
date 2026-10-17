@@ -28,6 +28,7 @@ import { Route as PProjRouteRouteImport } from './routes/p.$proj/route'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAccountRouteImport } from './routes/settings/account'
 import { Route as SettingsGatesRouteImport } from './routes/settings/gates'
+import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsMembersRouteImport } from './routes/settings/members'
 import { Route as SettingsOrgRouteImport } from './routes/settings/org'
 import { Route as SettingsOrgTokensRouteImport } from './routes/settings/org-tokens'
@@ -142,6 +143,11 @@ const SettingsGatesRoute = SettingsGatesRouteImport.update({
   path: '/gates',
   getParentRoute: () => SettingsRouteRoute,
 } as any)
+const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => SettingsRouteRoute,
+} as any)
 const SettingsMembersRoute = SettingsMembersRouteImport.update({
   id: '/members',
   path: '/members',
@@ -251,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/o/$org': typeof OOrgRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/org': typeof SettingsOrgRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
@@ -287,6 +294,7 @@ export interface FileRoutesByTo {
   '/o/$org': typeof OOrgRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/org': typeof SettingsOrgRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
@@ -326,6 +334,7 @@ export interface FileRoutesById {
   '/o/$org': typeof OOrgRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/gates': typeof SettingsGatesRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/members': typeof SettingsMembersRoute
   '/settings/org': typeof SettingsOrgRoute
   '/settings/org-tokens': typeof SettingsOrgTokensRoute
@@ -367,6 +376,7 @@ export interface FileRouteTypes {
     | '/o/$org'
     | '/settings/account'
     | '/settings/gates'
+    | '/settings/integrations'
     | '/settings/members'
     | '/settings/org'
     | '/settings/org-tokens'
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/o/$org'
     | '/settings/account'
     | '/settings/gates'
+    | '/settings/integrations'
     | '/settings/members'
     | '/settings/org'
     | '/settings/org-tokens'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/o/$org'
     | '/settings/account'
     | '/settings/gates'
+    | '/settings/integrations'
     | '/settings/members'
     | '/settings/org'
     | '/settings/org-tokens'
@@ -616,6 +628,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsGatesRouteImport
       parentRoute: typeof SettingsRouteRoute
     }
+    '/settings/integrations': {
+      id: '/settings/integrations'
+      path: '/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof SettingsIntegrationsRouteImport
+      parentRoute: typeof SettingsRouteRoute
+    }
     '/settings/members': {
       id: '/settings/members'
       path: '/members'
@@ -762,6 +781,7 @@ const HelpRouteRouteWithChildren = HelpRouteRoute._addFileChildren(
 interface SettingsRouteRouteChildren {
   SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsGatesRoute: typeof SettingsGatesRoute
+  SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SettingsMembersRoute: typeof SettingsMembersRoute
   SettingsOrgRoute: typeof SettingsOrgRoute
   SettingsOrgTokensRoute: typeof SettingsOrgTokensRoute
@@ -774,6 +794,7 @@ interface SettingsRouteRouteChildren {
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAccountRoute: SettingsAccountRoute,
   SettingsGatesRoute: SettingsGatesRoute,
+  SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SettingsMembersRoute: SettingsMembersRoute,
   SettingsOrgRoute: SettingsOrgRoute,
   SettingsOrgTokensRoute: SettingsOrgTokensRoute,

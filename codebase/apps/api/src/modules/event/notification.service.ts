@@ -7,7 +7,7 @@
 // 그리고 **결정이 필요한 것만 받은 요청으로** 간다(§6.6 원칙 3). 나머지는 피드다.
 // 이 파일이 하는 일은 그 선별이다.
 
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   EVENTS_CHANNEL,
   msg,
@@ -36,8 +36,8 @@ import {
 } from '../../common/member-scope.js';
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { isUniqueViolation } from '../../common/db-error.js';
-import { requestAlreadyClosed } from './request-notifications.js';
-import { staleSessionRevived } from './session-notifications.js';
+import { SlackService } from '../slack/slack.service.js';
+import { alreadyHandled } from './handled.js';
 import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
 import { ValkeyService } from './valkey.service.js';
 
@@ -227,6 +227,8 @@ export class NotificationService {
      * 있는 이유이기도 하다.
      */
     @Optional() private readonly valkey: ValkeyService | null = null,
+    /** Slack 발신도 **선택**이다 — 줄을 넣는 일이라 없으면 알림만 만든다(2026-10-17 · REQ-API-354) */
+    @Optional() @Inject(SlackService) private readonly slack: SlackService | null = null,
   ) {}
 
   /**
@@ -276,10 +278,8 @@ export class NotificationService {
           // 요청의 안 읽은 알림이 뒤늦게 생겨 배지를 올린다. 기록은 남기고 수에는 넣지 않는다
           // 이미 처분된 발견의 「열림」 알림도 같다 — 파생보다 처분이 먼저면 배지를 올릴 일이 끝났다(REQ-API-316)
           // 이미 되살아난 세션의 무응답 알림도 같다(REQ-API-352)
-          const closed =
-            (await requestAlreadyClosed(this.db, event)) ||
-            (await this.findingClosed(event)) ||
-            (await staleSessionRevived(this.db, event));
+          // 판정은 Slack 발신과 같은 함수다(handled.ts) — 한쪽에만 새 경우가 더해지지 않게
+          const closed = await alreadyHandled(this.db, event);
           const importance = tier === 'critical' || tier === 'high' ? 'immediate' : 'digest';
           // **사람이 고른 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-219). 고른 수준 밖의 알림은
           // 버리지 않고 읽음으로 넣는다 — 닫힌 요청과 같은 방식이다. 받은 요청에는 닿지 않는다
@@ -307,6 +307,13 @@ export class NotificationService {
           // 룸에도 흘리면 프로젝트 룸에 이미 있는 사람이 같은 봉투를 두 번 받는다.
           // 읽음으로 넣은 사람에게는 흘리지 않는다 — 배지가 오르지 않을 알림으로 화면을 깨우지 않는다
           if (loud.length > 0 && !closed) await this.announce(event, loud);
+          // **critical 은 프로젝트의 Slack 채널에도 한 번**(2026-10-17 · 사람 결정 D1 · REQ-API-354). 이벤트마다 한 줄이고 받는
+          // 사람의 이름을 적는다 — 사람마다 쓰면 같은 채널에 같은 글이 그 수만큼 쌓인다. 줄을 넣지 못해도 알림은 그대로다
+          if (tier === 'critical' && loud.length > 0 && !closed && this.slack !== null) {
+            await this.slack.enqueue(event, loud).catch((error: unknown) => {
+              this.logger.warn(`Slack 줄을 넣지 못했다(${event.type}): ${String(error)}`);
+            });
+          }
         }
         cursor = event.occurred_at;
       }
@@ -578,15 +585,6 @@ export class NotificationService {
       sql`SELECT severity::text AS severity FROM finding WHERE id = ${event.subject_id}`,
     );
     return rows[0]?.severity === 'critical' ? tier : null;
-  }
-
-  /** 열림 알림의 발견이 이미 처분됐는가 — 그 밖의 이벤트면 거짓이다 */
-  private async findingClosed(event: { type: string; subject_id: string }): Promise<boolean> {
-    if (event.type !== NERV_EVENT_PHASE2.FINDING_OPENED) return false;
-    const { rows } = await this.db.execute<{ closed: boolean }>(
-      sql`SELECT (status <> 'open') AS closed FROM finding WHERE id = ${event.subject_id}`,
-    );
-    return rows[0]?.closed === true;
   }
 
   /**

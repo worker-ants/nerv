@@ -153,6 +153,12 @@ export const en = {
     'Only organization admins can manage organization-wide access. Project admins can manage only their own project.',
   'error.auth.admin_only_import': 'Only admins can run imports.',
   'error.auth.admin_only_policy': 'Only admins can change gate policy and retention settings.',
+  'error.slack.disabled':
+    'To connect Slack, the operator must set NERV_ENCRYPTION_KEY on the server.',
+  'error.slack.webhook_prefix': 'The Slack webhook URL must start with {prefix}.',
+  'error.slack.not_connected': 'Slack is not connected to this project.',
+  'error.slack.rejected': 'Slack did not accept the message — {reason}',
+  'error.slack.admin_only': 'Only admins can change the Slack connection.',
   'error.auth.author_only': 'Only the author can edit this.',
   'error.auth.bad_origin':
     'This request came from an origin that is not allowed. Requests that use a sign-in session must come from the NERV app.',
@@ -2571,6 +2577,47 @@ export const en = {
   'settings.group.me': 'You · all organizations',
   'settings.tab.org_tokens': 'Organization tokens',
   'settings.tab.integrations': 'Integrations',
+  'settings.integrations.title_project': 'Integrations — {project}',
+  'settings.integrations.project_hint': 'Each project has its own integrations.',
+  'settings.integrations.admin_only_pre': 'Only',
+  'settings.integrations.admin_only_post': 'can change integrations. This is the current state.',
+  'settings.integrations.slack_title': 'Slack channel',
+  'settings.integrations.slack_lead':
+    'Critical notifications (approval requests, questions, claims blocked by overlap, change requests, critical findings) are posted once each to this project’s Slack channel. A post carries only what happened, who it is for, and a NERV link. Anything already handled in the inbox is not posted.',
+  'settings.integrations.slack_disabled':
+    'This server does not accept Slack connections. The operator must set NERV_ENCRYPTION_KEY on the server.',
+  'settings.integrations.slack_not_connected': 'Not connected.',
+  'settings.integrations.slack_connected': 'Connected — webhook …{hint} · {who} · {when}',
+  'settings.integrations.slack_last_sent': 'Last posted {when}',
+  'settings.integrations.slack_last_skipped':
+    'The last post was not sent ({when}) — it was already handled or Slack was disconnected',
+  'settings.integrations.slack_last_failed': 'Last post failed ({when}) — {error}',
+  'settings.integrations.slack_pending': '{count} waiting to post',
+  'settings.integrations.webhook_label': 'Incoming Webhook URL',
+  'settings.integrations.webhook_hint':
+    'Starts with {prefix}. Create one in your Slack app’s Incoming Webhooks by choosing a channel. Once saved, only the last four characters are shown.',
+  'settings.integrations.webhook_empty': 'Enter a webhook URL first',
+  'settings.integrations.connect': 'Connect',
+  'settings.integrations.replace': 'Replace',
+  'settings.integrations.test': 'Send test post',
+  'settings.integrations.test_ok': 'Test post sent.',
+  'settings.integrations.disconnect': 'Disconnect',
+  'settings.integrations.disconnect_confirm':
+    'After disconnecting, posts that are still waiting will not be sent.',
+  'settings.integrations.connected_toast': 'Slack connected.',
+  'settings.integrations.disconnected_toast': 'Slack disconnected.',
+  'settings.integrations.ci_title': 'CI gate',
+  'settings.integrations.ci_lead':
+    'Make your repository’s required status check ask NERV for the review verdict. If the PR head commit’s verdict is not a pass (passed or waived), the merge is blocked and the reasons are listed.',
+  'settings.integrations.ci_step_file': 'Save the content below as {path} in your repository.',
+  'settings.integrations.ci_step_secret':
+    'Put an agent token from a dedicated account that has only spec:read into the repository secret NERV_TOKEN. A person’s token is revoked when they leave, and the check stops with it.',
+  'settings.integrations.ci_step_required':
+    'Make the status check {check} required in the default branch’s protection rules. If you use a merge queue, require it there too.',
+  'settings.integrations.ci_failopen':
+    'If NERV does not answer, the check passes with a warning (fail-open). To block even then, set NERV_GATE_FAIL_CLOSED in the file to 1.',
+  'settings.integrations.copy': 'Copy',
+  'settings.integrations.copied': 'Copied',
   'settings.org_tokens.title': '{org} — organization tokens',
   'settings.org_tokens.admin_only':
     'Only organization admins can see organization tokens. Your own tokens are under [Agent tokens].',
@@ -2755,6 +2802,9 @@ export const en = {
   'mail.digest.intro':
     'Hi {name}, here are the NERV notifications since your last digest. Open NERV to read the documents themselves.',
   'mail.digest.pending': '{count} requests in your inbox are waiting for your decision.',
+  'slack.message': '*{project}* · {event}\nFor: {names}\n<{link}|Open in NERV>',
+  'slack.test_message':
+    'Critical notifications from the NERV project *{project}* will be posted to this channel. <{link}|View integration settings>',
   'mail.digest.open': 'Notifications for this project: {url}',
   'mail.digest.more': '{count} more: {url}',
   'mail.digest.important': '[Important]',

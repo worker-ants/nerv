@@ -122,6 +122,8 @@ describe('설정의 항목은 범위로 묶인다 (SET-06)', () => {
       // 프로젝트 — 프로젝트 목록이 먼저다(2026-09-26 · REQ-WEB-242)
       '/settings/projects',
       '/settings/gates',
+      // 연동은 2026-10-17 에 열렸다(REQ-WEB-333 — 그전에는 「준비 중」 표시였다)
+      '/settings/integrations',
       // 나 — 내 계정이 먼저다(2026-09-25 · REQ-WEB-229)
       '/settings/account',
       '/settings/tokens',
@@ -131,14 +133,13 @@ describe('설정의 항목은 범위로 묶인다 (SET-06)', () => {
     );
   });
 
-  it('연동은 항목만 비활성으로 보이고 "준비 중"이 붙는다 — 화면에 "Phase 2"를 쓰지 않는다', async () => {
+  it('연동은 링크다 — 「준비 중」도 "Phase 2"도 쓰지 않는다(2026-10-17 · REQ-WEB-333)', async () => {
     mount('/settings/members');
     const nav = await railNav();
-    const integrations = within(nav).getByText('연동').closest('[aria-disabled]');
-    expect(integrations?.getAttribute('aria-disabled')).toBe('true');
-    expect(integrations?.tagName).not.toBe('A');
-    expect(integrations?.textContent).toContain('준비 중');
-    expect(integrations?.textContent).not.toContain('Phase');
+    const integrations = within(nav).getByText('연동').closest('a');
+    expect(integrations?.getAttribute('href')).toBe('/settings/integrations');
+    expect(nav.textContent).not.toContain('준비 중');
+    expect(nav.textContent).not.toContain('Phase');
   });
 
   it('조직 admin 이 아니면 조직 전체 토큰을 그리지 않는다 (REQ-WEB-168)', async () => {

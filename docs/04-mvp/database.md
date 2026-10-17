@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 44개**다 — 도메인 38 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.85 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.86 · 2026-10-17 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.86 변경(2026-10-17 — Slack 채널과 S8 연동 탭, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D1 · D2)): **§2.18 신설 · REQ-DB-054 · 마이그레이션 0060.** `project_slack`(프로젝트의 웹훅 — 암호문과 끝 네 글자)과 `slack_outbox`(메일과 같은 발송 큐 — 이벤트마다 한 줄 · 보내기 직전 dedup · 30일 보존). 테이블 44 → 46.
 >
 > v0.85 변경(2026-10-16 — 착수하지 않은 재검증 작업은 요구사항의 구현 상태를 바꾸지 않는다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A)): **REQ-DB-053 신설 · §2.5 `task` 한 열 · 마이그레이션 `0059`.** `task.reverifies_task_id`(uuid · `task(id)` FK) — CR 승인이 만든 재검증 작업이 다시 보는 완료 작업이다. 착수하지 않은 재검증 작업은 구현 축 파생에서 세지 않는데([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.3 · [4.4 API](api.md) REQ-API-097), `task`에는 그 작업을 알아볼 열이 없었다. 이미 만든 재검증 작업은 그 작업의 `task.created` 이벤트(`kind: reverify`)로 알아보고 마이그레이션이 채운다.
 >
@@ -1485,6 +1487,43 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-051 | WHEN 사람이 워치를 걸면 THE SYSTEM SHALL `watch`(사람 · 프로젝트 · `watch_target`(`spec` · `task` · `area`) · 대상 id)에 한 행을 두고 `watch_user_target_uq (user_id, target_type, target_id)` 로 같은 대상을 한 번만 남기며, 알림 라우팅은 `watch_target (project_id, target_type, target_id)` 로 워처를 찾는다. WHEN 사람이 핀을 고정하면 THE SYSTEM SHALL `pin`(사람 · 프로젝트 · `pin_target`(`spec` · `task` · `change_request`) · 대상 id · `position`)에 한 행을 두고 `pin_user_target_uq` 로 같은 대상을 한 번만, `pin_user_order (user_id, position)` 로 목록의 순서를 읽는다. 둘 다 사람이나 프로젝트가 지워지면 함께 지운다(ON DELETE CASCADE — `notification_preference` 와 같은 그 사람의 설정). 대상은 다형 참조라 물리 FK 가 없다(마이그레이션 `0056` · 2026-10-16 · 사람 결정 D5 = B · [4.4 API](api.md) REQ-API-342 ~ 345) |
 | REQ-DB-052 | WHEN 로컬 훅이 게이트 판정에 자기 판정을 함께 보내면 THE SYSTEM SHALL `gate_verdict_comparison` 에 두 판정(`local_pass` · `server_pass`)과 그때의 종류마다 상태 · 컷오버 단계 · 부른 사람을 한 행으로 남기고, `gate_verdict_comparison_uq (project_id, branch, kinds, head_sha, local_pass)` 로 같은 비교를 한 번만 둔다 — 다시 오면 `repeat_count` · `last_seen_at` 만 바꾼다. 컷오버 지표는 `gate_verdict_comparison_time (project_id, created_at)` 으로 창 안의 행을 센다. THE SYSTEM SHALL 프로젝트의 컷오버 단계를 `project.review_sot`(enum `review_sot` — `git` · `dual` · `nerv`, 기본 `git`)와 `review_sot_since` 에 둔다 — 기본값이 `git` 이라 기존 프로젝트의 동작은 그대로다(마이그레이션 `0057` · 2026-10-16 · 사람 결정 D6 · [4.4 API](api.md) REQ-API-346 ~ 349) |
 | REQ-DB-053 | WHEN CR 승인이 바뀐 요구사항의 완료 작업을 다시 확인하는 재검증 작업을 만들면 THE SYSTEM SHALL 그 작업의 `task.reverifies_task_id`(uuid · `task(id)` FK)에 다시 보는 완료 작업을 넣는다 — 같은 프로젝트 · 같은 요구사항의 완료 작업이고 여럿이면 가장 나중에 끝난 것이다. 다른 작업에서는 NULL이다. WHEN 마이그레이션 `0059`가 돌면 THE SYSTEM SHALL 이미 만든 재검증 작업(그 작업의 `task.created` 이벤트 payload가 `kind: reverify`)마다 같은 요구사항에서 그 작업보다 먼저 끝난 완료 작업 가운데 가장 나중 것을 채우고, 두 번 돌려도 결과가 같다. 구현 상태는 다시 계산하지 않는다 — 다음 재파생이 바로잡는다(2026-10-16 · 사람 결정 · [4.4 API](api.md) REQ-API-097) |
+| REQ-DB-054 | WHEN Slack 웹훅을 저장하면 THE SYSTEM SHALL 원문을 두지 않고 암호문(`project_slack.webhook_cipher` — `v1:` 판 번호 · AES-256-GCM)과 끝 네 글자(`webhook_hint`)만 둔다. THE SYSTEM SHALL 발송 줄을 이벤트마다 하나로 두고(`slack_outbox_event` 유일 인덱스), 보냈거나 건너뛴 줄은 30일(`SLACK_OUTBOX_RETENTION_DAYS`) 뒤 보존 잡에서 지우며 포기한 줄은 남긴다. 프로젝트를 지우면 둘 다 함께 지운다(2026-10-17 · 사람 결정 D2 · 마이그레이션 `0060`) |
+
+### 2.18 Slack 채널 — `project_slack` · `slack_outbox` (2026-10-17 신설 — 사람 결정 D1 · D2)
+
+프로젝트마다 Slack Incoming Webhook 하나를 잇고(D1 = A) critical 알림을 그 채널에 한 번씩 게시한다([4.4 API](api.md) REQ-API-354). **웹훅 주소는 비밀이다** — 주소를 아는 사람은 그 채널에 글을 쓸 수 있다. 그래서 `project_slack` 에는 암호문만 두고(AES-256-GCM · 키는 env `NERV_ENCRYPTION_KEY` — [4.2 코드베이스](codebase.md) §5.2) 화면에는 끝 네 글자만 보인다. 키가 없는 배치는 연결을 받지 않는다 — env 한 줄에 주소를 두는 안은 버렸다: 배포 하나에 값 하나라 프로젝트마다 다른 채널을 둘 수 없다(D2).
+
+`slack_outbox` 는 `email_outbox`(§2.17)와 같은 발송 큐다. 이벤트마다 한 줄이고(받는 사람이 여럿이어도 게시는 하나다) 집는 법도 같다(`FOR UPDATE SKIP LOCKED`). 보내기 직전에 그 일이 받은 요청에서 처리됐는지 다시 보고 처리됐으면 `skipped_at` 을 남긴다. 이벤트는 월 파티션이라 `event_id` 에 FK 를 걸지 않는다(`email_outbox.ref_id` 와 같다).
+
+```sql
+CREATE TABLE project_slack (
+  project_id     uuid PRIMARY KEY REFERENCES project(id) ON DELETE CASCADE,
+  webhook_cipher text NOT NULL,          -- 'v1:<iv>:<tag>:<암호문>'(base64url) — 원문은 저장하지 않는다
+  webhook_hint   text NOT NULL,          -- 원문의 끝 네 글자
+  connected_by   uuid NOT NULL REFERENCES "user"(id),
+  connected_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE slack_outbox (
+  id              uuid PRIMARY KEY,
+  project_id      uuid NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  event_id        uuid NOT NULL,         -- 게시의 원인(FK 없음 — event 는 월 파티션)
+  event_type      text NOT NULL,         -- 보내기 직전의 dedup 이 이 둘로 본다
+  subject_id      uuid NOT NULL,
+  body            text NOT NULL,         -- 딥링크와 받는 사람 이름뿐이다
+  attempts        integer NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT '1970-01-01',
+  sent_at         timestamptz,
+  skipped_at      timestamptz,           -- 처리됐거나(handled) 연결이 끊겼다(disconnected)
+  failed_at       timestamptz,
+  last_error      text,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX slack_outbox_event ON slack_outbox (event_id);
+CREATE INDEX slack_outbox_due ON slack_outbox (next_attempt_at)
+  WHERE sent_at IS NULL AND skipped_at IS NULL AND failed_at IS NULL;
+CREATE INDEX slack_outbox_project ON slack_outbox (project_id, created_at);
+```
 
 ---
 

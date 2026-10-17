@@ -68,6 +68,7 @@ describe('JobRunner — 판마다 한 줄', () => {
       'export',
       'partition',
       'mail',
+      'slack',
       'digest',
       'requirement-backfill',
       'approval-reminder',
@@ -97,8 +98,8 @@ describe('JobRunner — 판마다 한 줄', () => {
     });
 
     const ran = await runner.tick(0);
-    expect(ran).toHaveLength(11); // 실패한 mail 만 빠진다
-    expect(lines).toHaveLength(12);
+    expect(ran).toHaveLength(12); // 실패한 mail 만 빠진다(잡 13 — slack 은 2026-10-17)
+    expect(lines).toHaveLength(13);
     expect(lines.find((line) => line.message.startsWith('잡 lease-reaper'))?.level).toBe('log');
     expect(lines.find((line) => line.message.startsWith('잡 notification'))?.level).toBe('debug');
     expect(lines.find((line) => line.message.startsWith('잡 실패 [mail]'))?.level).toBe('warn');

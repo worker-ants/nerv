@@ -53,7 +53,7 @@
     <h1>데이터베이스 스키마</h1>
     <p class="lead"><a href="data-model.html">3.3 데이터 모델</a>이 정의한 엔티티(<b>도메인 32종</b> — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. <b>이 문서의 <code>CREATE TABLE</code> 은 44개</b>다 — 도메인 38 + <b>부속 6</b>(better-auth 소유 셋 <code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code> §2.16 · 재생성 가능한 검색 인덱스 <code>spec_chunk_embedding</code> §2.15 · 요청 배관 <code>idempotency_key</code> §2.3b · 발송 큐 <code>email_outbox</code> §2.17 — 프로젝트에 매이지 않아 <code>project_id</code> 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 data-model이고, 이 문서는 그 <b>DDL 표현의 정본</b>이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum <b>40종</b> → 32개 <code>CREATE TABLE</code>(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → <code>event</code>·<code>activity</code> 월 파티션 순서의 실행 가능한 DDL, <code>nerv_events</code> 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.</p>
     <div class="meta-line">
-      <span>버전 v0.85 (2026-10-16)</span>
+      <span>버전 v0.86 (2026-10-17)</span>
       <span>원본: <code>docs/04-mvp/database.md</code></span>
       <span>스펙 ID: <code>SPC-MVP-DATABASE</code> · status: approved</span>
       <span>주로 다루는 결정: D-01 · D-02 · D-04 · D-10</span>
@@ -1357,8 +1357,43 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;</code></pre>
       <tr><td><code>REQ-DB-051</code></td><td>WHEN 사람이 워치를 걸면 THE SYSTEM SHALL <code>watch</code>(사람 · 프로젝트 · <code>watch_target</code>(<code>spec</code> · <code>task</code> · <code>area</code>) · 대상 id)에 한 행을 두고 <code>watch_user_target_uq (user_id, target_type, target_id)</code> 로 같은 대상을 한 번만 남기며, 알림 라우팅은 <code>watch_target (project_id, target_type, target_id)</code> 로 워처를 찾는다. WHEN 사람이 핀을 고정하면 THE SYSTEM SHALL <code>pin</code>(사람 · 프로젝트 · <code>pin_target</code>(<code>spec</code> · <code>task</code> · <code>change_request</code>) · 대상 id · <code>position</code>)에 한 행을 두고 <code>pin_user_target_uq</code> 로 같은 대상을 한 번만, <code>pin_user_order (user_id, position)</code> 로 목록의 순서를 읽는다. 둘 다 사람이나 프로젝트가 지워지면 함께 지운다(ON DELETE CASCADE — <code>notification_preference</code> 와 같은 그 사람의 설정). 대상은 다형 참조라 물리 FK 가 없다(마이그레이션 <code>0056</code> · 2026-10-16 · 사람 결정 D5 = B · <a href="api.html">4.4 API</a> REQ-API-342 ~ 345)</td></tr>
       <tr><td><code>REQ-DB-052</code></td><td>WHEN 로컬 훅이 게이트 판정에 자기 판정을 함께 보내면 THE SYSTEM SHALL <code>gate_verdict_comparison</code> 에 두 판정(<code>local_pass</code> · <code>server_pass</code>)과 그때의 종류마다 상태 · 컷오버 단계 · 부른 사람을 한 행으로 남기고, <code>gate_verdict_comparison_uq (project_id, branch, kinds, head_sha, local_pass)</code> 로 같은 비교를 한 번만 둔다 — 다시 오면 <code>repeat_count</code> · <code>last_seen_at</code> 만 바꾼다. 컷오버 지표는 <code>gate_verdict_comparison_time (project_id, created_at)</code> 으로 창 안의 행을 센다. THE SYSTEM SHALL 프로젝트의 컷오버 단계를 <code>project.review_sot</code>(enum <code>review_sot</code> — <code>git</code> · <code>dual</code> · <code>nerv</code>, 기본 <code>git</code>)와 <code>review_sot_since</code> 에 둔다 — 기본값이 <code>git</code> 이라 기존 프로젝트의 동작은 그대로다(마이그레이션 <code>0057</code> · 2026-10-16 · 사람 결정 D6 · <a href="api.html">4.4 API</a> REQ-API-346 ~ 349)</td></tr>
       <tr><td><code>REQ-DB-053</code></td><td>WHEN CR 승인이 바뀐 요구사항의 완료 작업을 다시 확인하는 재검증 작업을 만들면 THE SYSTEM SHALL 그 작업의 <code>task.reverifies_task_id</code>(uuid · <code>task(id)</code> FK)에 다시 보는 완료 작업을 넣는다 — 같은 프로젝트 · 같은 요구사항의 완료 작업이고 여럿이면 가장 나중에 끝난 것이다. 다른 작업에서는 NULL이다. WHEN 마이그레이션 <code>0059</code>가 돌면 THE SYSTEM SHALL 이미 만든 재검증 작업(그 작업의 <code>task.created</code> 이벤트 payload가 <code>kind: reverify</code>)마다 같은 요구사항에서 그 작업보다 먼저 끝난 완료 작업 가운데 가장 나중 것을 채우고, 두 번 돌려도 결과가 같다. 구현 상태는 다시 계산하지 않는다 — 다음 재파생이 바로잡는다(2026-10-16 · 사람 결정 · <a href="api.html">4.4 API</a> REQ-API-097)</td></tr>
+      <tr><td><code>REQ-DB-054</code></td><td>WHEN Slack 웹훅을 저장하면 THE SYSTEM SHALL 원문을 두지 않고 암호문(<code>project_slack.webhook_cipher</code> — <code>v1:</code> 판 번호 · AES-256-GCM)과 끝 네 글자(<code>webhook_hint</code>)만 둔다. THE SYSTEM SHALL 발송 줄을 이벤트마다 하나로 두고(<code>slack_outbox_event</code> 유일 인덱스), 보냈거나 건너뛴 줄은 30일(<code>SLACK_OUTBOX_RETENTION_DAYS</code>) 뒤 보존 잡에서 지우며 포기한 줄은 남긴다. 프로젝트를 지우면 둘 다 함께 지운다(2026-10-17 · 사람 결정 D2 · 마이그레이션 <code>0060</code>)</td></tr>
     </tbody>
   </table></div>
+
+  <h3>2.18 Slack 채널 — <code>project_slack</code> · <code>slack_outbox</code> (2026-10-17 신설 — 사람 결정 D1 · D2)</h3>
+
+  <p>프로젝트마다 Slack Incoming Webhook 하나를 잇고(D1 = A) critical 알림을 그 채널에 한 번씩 게시한다(<a href="api.html">4.4 API</a> REQ-API-354). <b>웹훅 주소는 비밀이다</b> — 주소를 아는 사람은 그 채널에 글을 쓸 수 있다. 그래서 <code>project_slack</code> 에는 암호문만 두고(AES-256-GCM · 키는 env <code>NERV_ENCRYPTION_KEY</code> — <a href="codebase.html">4.2 코드베이스</a> §5.2) 화면에는 끝 네 글자만 보인다. 키가 없는 배치는 연결을 받지 않는다 — env 한 줄에 주소를 두는 안은 버렸다: 배포 하나에 값 하나라 프로젝트마다 다른 채널을 둘 수 없다(D2).</p>
+
+  <p><code>slack_outbox</code> 는 <code>email_outbox</code>(§2.17)와 같은 발송 큐다. 이벤트마다 한 줄이고(받는 사람이 여럿이어도 게시는 하나다) 집는 법도 같다(<code>FOR UPDATE SKIP LOCKED</code>). 보내기 직전에 그 일이 받은 요청에서 처리됐는지 다시 보고 처리됐으면 <code>skipped_at</code> 을 남긴다. 이벤트는 월 파티션이라 <code>event_id</code> 에 FK 를 걸지 않는다(<code>email_outbox.ref_id</code> 와 같다).</p>
+
+  <pre><code>CREATE TABLE project_slack (
+  project_id     uuid PRIMARY KEY REFERENCES project(id) ON DELETE CASCADE,
+  webhook_cipher text NOT NULL,          -- 'v1:&lt;iv&gt;:&lt;tag&gt;:&lt;암호문&gt;'(base64url) — 원문은 저장하지 않는다
+  webhook_hint   text NOT NULL,          -- 원문의 끝 네 글자
+  connected_by   uuid NOT NULL REFERENCES "user"(id),
+  connected_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE slack_outbox (
+  id              uuid PRIMARY KEY,
+  project_id      uuid NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  event_id        uuid NOT NULL,         -- 게시의 원인(FK 없음 — event 는 월 파티션)
+  event_type      text NOT NULL,         -- 보내기 직전의 dedup 이 이 둘로 본다
+  subject_id      uuid NOT NULL,
+  body            text NOT NULL,         -- 딥링크와 받는 사람 이름뿐이다
+  attempts        integer NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT '1970-01-01',
+  sent_at         timestamptz,
+  skipped_at      timestamptz,           -- 처리됐거나(handled) 연결이 끊겼다(disconnected)
+  failed_at       timestamptz,
+  last_error      text,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX slack_outbox_event ON slack_outbox (event_id);
+CREATE INDEX slack_outbox_due ON slack_outbox (next_attempt_at)
+  WHERE sent_at IS NULL AND skipped_at IS NULL AND failed_at IS NULL;
+CREATE INDEX slack_outbox_project ON slack_outbox (project_id, created_at);</code></pre>
 
   <h2 id="sec-3">3. 이벤트 방송 규약 — Valkey nerv_events</h2>
 

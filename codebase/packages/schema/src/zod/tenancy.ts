@@ -82,6 +82,9 @@ export const MemberUpdateInput = z.object({ role: z.string().min(1) }).strict();
  * `scopes` 의 어휘는 도메인이 본다(`isAgentScope` — 사람 전용 권한은 토큰에 담기지
  * 않는다). 여기서 보는 것은 "문자열 배열인가" 뿐이다.
  */
+/** EP-PRJ-08 — Slack Incoming Webhook 연결(2026-10-17 · 사람 결정 D1 · D2). 주소의 모양은 서버가 접두로 본다 */
+export const SlackConnectInput = z.object({ webhook_url: z.string().min(1) }).strict();
+
 export const TokenCreateInput = z
   .object({
     project: z.string().min(1),

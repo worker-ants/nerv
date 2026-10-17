@@ -1,7 +1,7 @@
 **Settings are grouped by what they apply to.**
 
 - **Organization**: General · Members and roles · Organization tokens
-- **Project**: Projects · Gate policy · Integrations (not available yet, marked **Coming soon**)
+- **Project**: Projects · Gate policy · Integrations
 - **You · all organizations**: My account · Agent tokens
 
 On a wide screen, this list appears under **[Settings]** in the left column. On a narrow screen, it runs across the top of the settings screen. The top of the screen shows **which organization's settings** you are viewing. Clicking [Settings] opens the first item, **General**.
@@ -160,3 +160,27 @@ Only `admin` can edit the gate policy. Everyone else still sees the current valu
 **Reviews count only when they saw the task's latest commit.** The two criteria that require review count only reviews of the commit that arrived last among the commit evidence attached to the task. If a new commit arrives after a review, that review no longer counts, and the done form shows which review to get again and for which commit. A commit written as a short SHA counts as the same commit. A review that saw something other than a commit SHA (an older review sent with a value like `HEAD`) does not count as a review of the latest commit, so the latest commit has to be reviewed again. If the task has no commit evidence, its latest commit is unknown, so only this check is skipped and the skip is recorded as an event (`gate.failopen`). A task with no review or with open findings is still blocked.
 
 Saving a change that loosens these criteria (turning review off, removing a chosen kind, switching from per-kind to any kind, accepting evidence from anyone, or removing a required role) asks you once more before it is saved.
+
+## Integrations {#integrations}
+
+**Integrations** in the project group connects the project to two places outside NERV: a Slack channel and your repository's CI. Choose the project at the top.
+
+**Slack channel.** Critical notifications are posted once each to the project's Slack channel: approval requests, agent questions, claims blocked by overlap, change requests, and critical findings. Even with several recipients there is one post, and it names them. A post carries only what happened, who it is for, and a NERV link; it never includes spec content or the text of a question. The link opens that card in the inbox or the review center. Anything already handled in the inbox is not posted. This is checked again right before posting.
+
+- An **admin** connects Slack on this screen. Agent tokens cannot change it. In your Slack app's **Incoming Webhooks**, choose a channel and create a webhook, enter its URL in **Incoming Webhook URL**, and click **[Connect]**. The URL must start with `https://hooks.slack.com/services/`.
+- The saved URL is stored encrypted, and only its last four characters are shown. To change it, enter a new URL and click **[Replace]**.
+- **[Send test post]** posts a test message to the channel right away. If Slack refuses it, the reason is shown.
+- **[Disconnect]** also drops posts that are still waiting.
+- If the last post failed, the reason is shown in red. A deleted webhook (404) or an archived channel (410) is not retried, so connect again with a new webhook. If Slack is briefly unavailable (429 or 5xx), the post is retried a few minutes later.
+- If the server has no encryption key (`NERV_ENCRYPTION_KEY`), you only see a note that Slack cannot be connected. Ask your operator to set the key.
+- For now, posts go to one project channel. Direct messages per person are not available yet.
+
+**CI gate.** To keep pull requests that did not pass review from being merged, make your repository's required status check ask NERV for the verdict. The screen shows a GitHub Actions file filled in with this project's values.
+
+1. Click **[Copy]** and save the content as `.github/workflows/nerv-gate.yml` in your repository.
+2. In the repository's **Settings → Secrets and variables → Actions**, add the secret `NERV_TOKEN`. Its value is an agent token from a dedicated account that has only `spec:read`. A person's token is revoked when they leave, and the check stops with it.
+3. In the default branch's protection rules (or a ruleset), make the status check `nerv-gate` required. If you use a merge queue, require it there too.
+
+The check looks at the review verdict for the PR head commit. It fails, and lists the reasons in the check result, when there is no review, critical or warning findings are still open, or a required role has not reported. A branch with a branch waiver passes. If you push a new commit after a review, that commit needs its own review. The check also fails if a finding was marked `fixed` with a commit that is not in the PR. In a merge queue, the verdict is for the PR's head, not the commit the queue created. The review kinds it asks about are the ones chosen in the gate policy's completion criteria, or `code` if none are chosen.
+
+If NERV does not answer (network or server errors), the check passes with a warning. To block even then, change `NERV_GATE_FAIL_CLOSED` in the file to `'1'`. If NERV refuses the request because the token or URL is wrong, the check always fails.

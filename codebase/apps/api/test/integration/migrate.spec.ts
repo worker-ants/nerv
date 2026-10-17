@@ -52,7 +52,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     expect(after).toEqual(before);
   });
 
-  it('도메인 테이블 39종 + 인프라 5종이 존재한다', async () => {
+  it('도메인 테이블 40종 + 인프라 6종이 존재한다', async () => {
     const names = await withClient(db.url, async (c) => {
       const { rows } = await c.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables
@@ -65,6 +65,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     // 35 도메인 엔티티 + 인프라 5종(엔티티 아님):
     //   spec_chunk_embedding(§2.15) · auth_session·auth_account·auth_verification(§2.16)
     //   · email_outbox(§2.17 — 2026-09-22. 보내고 나면 치우는 발송 큐다)
+    //   · slack_outbox(§2.18 — 2026-10-17. 메일과 같은 발송 큐다)
     // 30번째는 `invitation` 이다(2026-08-27 · 사람 결정 — 조직 초대)
     // 31번째는 `finding_comment` 다(2026-08-30 · 사람 결정 — 리뷰 피드백 흐름)
     // 32번째는 `attachment` 다(2026-09-01 · 사람 결정 — 디자인 시안 첨부)
@@ -75,7 +76,10 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     // 36번째는 `notification_digest_setting` 이다(2026-09-28 · 사람 결정 EM1~EM9 — 알림 메일 요약 · 0041)
     // 37 · 38번째는 `watch` · `pin` 이다(2026-10-16 · 사람 결정 D5 — 워치와 핀 · 0056)
     // 39번째는 `gate_verdict_comparison` 이다(2026-10-16 · 사람 결정 D6 — 게이트 판정 비교 · 0057)
-    expect(names).toHaveLength(44);
+    // 40번째는 `project_slack` 이다(2026-10-17 · 사람 결정 D1 · D2 — 프로젝트의 Slack 웹훅 · 0060)
+    expect(names).toHaveLength(46);
+    expect(names).toContain('project_slack');
+    expect(names).toContain('slack_outbox');
     expect(names).toContain('gate_verdict_comparison');
     expect(names).toContain('watch');
     expect(names).toContain('pin');

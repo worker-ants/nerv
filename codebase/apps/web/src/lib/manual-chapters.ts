@@ -136,7 +136,16 @@ export const MANUAL_SECTION_IDS = {
     'first-task',
     'troubleshooting',
   ],
-  settings: ['org', 'projects', 'members', 'invitations', 'account', 'tokens', 'gates'],
+  settings: [
+    'org',
+    'projects',
+    'members',
+    'invitations',
+    'account',
+    'tokens',
+    'gates',
+    'integrations',
+  ],
   shortcuts: ['quick-switcher', 'keyboard', 'dialogs', 'inbox', 'task-sheet', 'language', 'theme'],
 } as const satisfies Record<ManualChapterId, readonly string[]>;
 
