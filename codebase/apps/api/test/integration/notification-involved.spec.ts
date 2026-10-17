@@ -4,7 +4,8 @@
 // 더한다(겹치면 한 번). 발견 이벤트(`finding.opened` — critical 만 · `finding.resolved`)는 관여자에게만 간다. 행위자와
 // 프로젝트 멤버가 아닌 사람은 받지 않는다.
 //
-// 무응답 세션(`session.stale`)은 그 세션의 주인에게만 간다(2026-10-16 · REQ-API-327) — 행위자 제외 규칙의 예외다.
+// 무응답 세션(`session.stale`)은 그 세션의 주인에게만 간다(2026-10-16 · REQ-API-327) — 행위자 제외 규칙의 예외다. 그 세션이
+// 되살아나면 그 알림은 읽음으로 바뀐다(REQ-API-352).
 
 import { NERV_EVENT, NERV_EVENT_PHASE2, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
@@ -396,7 +397,7 @@ describe('역할 큐에 관여자를 더한다 (REQ-API-316)', () => {
  * 사람을 뺐다 — admin · planner 는 남의 세션이 멈춘 알림을 받고 주인은 받지 못했다. 그래서 이벤트를 손으로 넣지 않고
  * 워커가 실제로 하는 전이(`markStale`)로 낸다: 행위자를 어떻게 남기는지가 이 결함의 절반이다.
  */
-describe('무응답 세션 알림 — 세션 소유자 (REQ-API-327)', () => {
+describe('무응답 세션 알림 — 세션 소유자 · 되살아나면 닫힌다 (REQ-API-327 · 352)', () => {
   /** 30분 넘게 소식이 없는 세션 하나 — 하트비트가 없으면 시작 시각으로 잰다 */
   async function silentSession(user: string, host: string): Promise<string> {
     const id = newId();
@@ -474,6 +475,32 @@ describe('무응답 세션 알림 — 세션 소유자 (REQ-API-327)', () => {
     expect(await sessions.markStale()).toBe(1);
     await notifications.route();
     expect(await recipientsOf(NERV_EVENT.SESSION_STALE)).toEqual([]);
+  });
+
+  it('알림이 온 뒤 세션이 되살아나면 그 세션의 무응답 알림만 읽음으로 바뀐다 — 다른 세션의 알림은 그대로다 (REQ-API-352)', async () => {
+    const back = await silentSession(U.dev, 'mac-02');
+    const still = await silentSession(U.dev, 'mac-03');
+    expect(await sessions.markStale()).toBe(2);
+    await notifications.route();
+    // 노트북을 다시 열었다 — 그 하네스의 훅이 세션을 되살린다(REQ-API-279)
+    await sessions.reviveFromHook(back);
+
+    const expected = [
+      { session: back, importance: 'immediate', state: 'read' },
+      { session: still, importance: 'immediate', state: 'unread' },
+    ].sort((a, b) => a.session.localeCompare(b.session));
+    expect(await staleAlertsOf(U.dev)).toEqual(expected);
+  });
+
+  it('파생보다 되살아남이 먼저면 읽은 채로 만든다 — 기록은 남고 배지에는 들지 않는다 (REQ-API-352)', async () => {
+    const back = await silentSession(U.dev, 'mac-02');
+    expect(await sessions.markStale()).toBe(1);
+    // 워커가 밀렸다 — 알림을 만들기 전에 세션이 돌아왔다
+    await sessions.reviveFromHook(back);
+    await notifications.route();
+    expect(await staleAlertsOf(U.dev)).toEqual([
+      { session: back, importance: 'immediate', state: 'read' },
+    ]);
   });
 });
 

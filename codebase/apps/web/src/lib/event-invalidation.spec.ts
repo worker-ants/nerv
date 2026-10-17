@@ -127,6 +127,22 @@ describe('invalidationKeysFor — screens.md §1.4', () => {
     ]);
   });
 
+  it('세션이 시작되거나 되살아나면 세션 보드와 함께 알림도 되읽는다 — 그 세션의 무응답 알림이 닫힌다 (REQ-API-352)', () => {
+    const session = envelope(NERV_EVENT.SESSION_STARTED, {
+      subject_type: 'agent_session',
+      subject_id: 'ses-1',
+    });
+    expect(invalidationKeysFor(session)).toEqual([
+      queryKeys.projectSessions(PRJ),
+      queryKeys.session('ses-1'),
+      queryKeys.myNotifications(),
+    ]);
+    // 멈춘 것은 알림을 만들 뿐 닫지 않는다 — 종은 개인 룸의 `notification.created` 가 되읽는다
+    expect(
+      invalidationKeysFor(envelope(NERV_EVENT.SESSION_STALE, { subject_id: 'ses-1' })),
+    ).not.toContainEqual(queryKeys.myNotifications());
+  });
+
   it('알림 생성은 종과 받은 요청을 함께 되읽는다 — 개인 룸으로 오는 유일한 방송이다', () => {
     expect(invalidationKeysFor(envelope(NERV_EVENT.NOTIFICATION_CREATED))).toEqual([
       queryKeys.myNotifications(),

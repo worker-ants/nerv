@@ -37,6 +37,7 @@ import {
 import { NervError } from '../../common/nerv-exception.filter.js';
 import { isUniqueViolation } from '../../common/db-error.js';
 import { requestAlreadyClosed } from './request-notifications.js';
+import { staleSessionRevived } from './session-notifications.js';
 import { EVENT_SUBJECT_COLUMNS, EVENT_SUBJECT_JOINS } from './event-subject.js';
 import { ValkeyService } from './valkey.service.js';
 
@@ -274,8 +275,11 @@ export class NotificationService {
           // 그 사이 결정·답변이 먼저 나면, 닫는 쪽이 읽음으로 바꿀 행이 아직 없었다 — 그러면 처리된
           // 요청의 안 읽은 알림이 뒤늦게 생겨 배지를 올린다. 기록은 남기고 수에는 넣지 않는다
           // 이미 처분된 발견의 「열림」 알림도 같다 — 파생보다 처분이 먼저면 배지를 올릴 일이 끝났다(REQ-API-316)
+          // 이미 되살아난 세션의 무응답 알림도 같다(REQ-API-352)
           const closed =
-            (await requestAlreadyClosed(this.db, event)) || (await this.findingClosed(event));
+            (await requestAlreadyClosed(this.db, event)) ||
+            (await this.findingClosed(event)) ||
+            (await staleSessionRevived(this.db, event));
           const importance = tier === 'critical' || tier === 'high' ? 'immediate' : 'digest';
           // **사람이 고른 수준**(2026-09-27 · 사람 결정 N3 · REQ-API-219). 고른 수준 밖의 알림은
           // 버리지 않고 읽음으로 넣는다 — 닫힌 요청과 같은 방식이다. 받은 요청에는 닿지 않는다

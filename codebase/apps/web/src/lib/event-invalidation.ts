@@ -129,7 +129,9 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
     queryKeys.projectSessions(e.project_id),
   ],
 
-  [E.SESSION_STARTED]: sessionAxis,
+  // **되살아난 세션은 자기 무응답 알림을 닫는다**(2026-10-16 · REQ-API-352) — 알림 목록과 배지도 되읽는다. 결재 결정과 같은
+  // 이유다: 빠뜨리면 세션 보드는 「활성」인데 종은 새로고침 전까지 지난 무응답을 센다
+  [E.SESSION_STARTED]: (e) => [...sessionAxis(e), queryKeys.myNotifications()],
   [E.SESSION_STALE]: sessionAxis,
   [E.SESSION_COMPLETE]: sessionAxis,
   [E.SESSION_STEERED]: sessionAxis,

@@ -23,7 +23,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.51 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.52 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.52 변경(2026-10-16 — 되살아난 세션의 무응답 알림을 닫는다, **사람 결정**): **§1.4 세션 이벤트 행.** `session.started` 가 알림 목록(`['me', 'notifications']`)도 되읽는다. 세션이 되살아나면 서버가 그 세션의 무응답 알림을 읽음으로 바꾸므로([4.4 API](api.md) REQ-API-352), 되읽지 않으면 세션 보드는 「활성」인데 종은 새로고침 전까지 지난 무응답을 센다.
 >
 > v2.51 변경(2026-10-16 — 게이트 현황 줄의 판정, PR #240 검토 · **사람 확인**): **§2.6a 와이어프레임과 다른 둘째 곳 한 구절.** 면제만 있는 줄의 판정을 「리뷰 없음」 그대로 두고 면제 수와 범위를 함께 보이는 것을 사람이 확인했다 — 통과 여부는 게이트 판정(EP-REV-08 — 종류마다 `waived`)이 답한다. 화면과 서버는 바뀌지 않는다.
 >
@@ -686,7 +688,7 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`baseline.created` | `['project', projId, 'baselines']` | `project:{id}` |
 | `claim.conflict_warn` `claim.conflict_blocked` | `['project', projId, 'sessions']` + 경고 토스트 | `project:{id}` + 양쪽 세션 소유자 `user:{id}` |
 | ★`claim.released` | `['project', projId, 'tasks']` · `['project', projId, 'sessions']` | `project:{id}` |
-| `session.started` `session.stale` `session.complete` · ★`session.steered` | `['project', projId, 'sessions']` · `['session', sessionId]` | `project:{id}` |
+| `session.started` `session.stale` `session.complete` · ★`session.steered` | `['project', projId, 'sessions']` · `['session', sessionId]` — `session.started` 는 `['me', 'notifications']` 도(되살아난 세션의 무응답 알림이 읽음으로 바뀐다 — 2026-10-16 · [4.4 API](api.md) REQ-API-352) | `project:{id}` |
 | `approval.requested` `question.created` | `['inbox']` + 헤더 배지 · `question.created` 는 `['project', projId, 'sessions']` 도(질문이 세션을 응답 대기로 세운다 — 2026-09-25) | `user:{id}` + `project:{id}` |
 | ★`approval.reminded` | `['project', projId, 'events']` — 받은 요청의 카드는 그대로다. 받는 사람의 종은 개인 룸의 `notification.created`가 되읽는다(2026-10-11 · [4.4 API 명세](api.md) REQ-API-296) | `project:{id}` |
 | ★`approval.overdue` | `['inbox']`(개요의 결재 흐름 `['inbox', 'flow', projId]` 가 그 아래다) — 카드의 "지연"은 서버가 시간으로 판정하므로 이 이벤트로 바뀌지 않는다. 받는 사람의 종은 `notification.created`가 되읽는다(2026-10-15 · [4.4 API 명세](api.md) REQ-API-305) | `project:{id}` |
