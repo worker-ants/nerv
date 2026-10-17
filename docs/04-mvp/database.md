@@ -20,7 +20,10 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 44개**다 — 도메인 38 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.86 · 2026-10-17 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.87 · 2026-10-17 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.87 변경(2026-10-17 — 면제 끝내기, **사람 결정**(2026-10-17 — 권장안 A)): **REQ-DB-055 신설 · §2.8 `approval` 열 셋과 CHECK 하나 · 마이그레이션 `0061`.** 게이트 면제를 끝낸 새 결정을 결재 행에 남긴다 — `revoked_at` · `revoked_by_user_id` · `revoke_reason` 이 함께 채워지고 면제에만 있다(`approval_revoke_ck`). 행은 지우지 않는다. 있던 행은 셋 다 NULL(끝내지 않음)이라 뜻이 바뀌지 않는다([4.4 API](api.md) REQ-API-357).
+
 >
 > v0.86 변경(2026-10-17 — Slack 채널과 S8 연동 탭, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D1 · D2)): **§2.18 신설 · REQ-DB-054 · 마이그레이션 0060.** `project_slack`(프로젝트의 웹훅 — 암호문과 끝 네 글자)과 `slack_outbox`(메일과 같은 발송 큐 — 이벤트마다 한 줄 · 보내기 직전 dedup · 30일 보존). 테이블 44 → 46.
 >
@@ -903,11 +906,17 @@ CREATE TABLE approval (
   bypass_kinds            review_kind[],                  -- 면제의 범위 — 면제한 리뷰 종류. NULL은 전부(2026-10-09 · 0045 · REQ-DB-038)
   branch                  text,                           -- 브랜치 면제의 브랜치 — 리뷰가 없는 브랜치에도(2026-10-16 · 0055 · REQ-DB-050)
   head_sha                text,                           -- 브랜치 면제를 커밋 하나로 좁힌다(40자 소문자). NULL은 그 브랜치의 모든 커밋
+  revoked_at              timestamptz,                    -- 면제를 끝낸 시각 — 끝낸 면제는 그 뒤의 판정이 세지 않는다(2026-10-17 · 0061 · REQ-DB-055)
+  revoked_by_user_id      uuid REFERENCES "user"(id),     -- 끝낸 사람(낸 사람 또는 admin)
+  revoke_reason           text,                           -- 끝낸 사유 — 「왜 다시 막혔나」에 답한다
   created_at              timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT approval_bypass_reason_ck CHECK (NOT is_bypass OR bypass_reason IS NOT NULL),
   CONSTRAINT approval_bypass_kinds_ck CHECK (bypass_kinds IS NULL OR (is_bypass AND cardinality(bypass_kinds) > 0)),
   CONSTRAINT approval_branch_ck CHECK (branch IS NULL OR (is_bypass AND subject_type = 'gate_bypass' AND branch <> '')),
   CONSTRAINT approval_head_sha_ck CHECK (head_sha IS NULL OR (branch IS NOT NULL AND head_sha ~ '^[0-9a-f]{40}$')),
+  -- 끝낸 기록은 면제에만 있고 세 칸이 함께다 — 행은 지우지 않는다(REQ-DB-055)
+  CONSTRAINT approval_revoke_ck CHECK ((revoked_at IS NULL AND revoked_by_user_id IS NULL AND revoke_reason IS NULL)
+    OR (is_bypass AND revoked_at IS NOT NULL AND revoked_by_user_id IS NOT NULL AND revoke_reason <> '')),
   -- 결정된 행에는 결정자가 있다 — 없으면 그 행은 처리됨 탭에서 사라지고, 사라진 것은 아무도 못 본다
   CONSTRAINT approval_decided_by_ck CHECK (decision IS NULL OR decided_by_user_id IS NOT NULL)
 );
@@ -1488,6 +1497,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-052 | WHEN 로컬 훅이 게이트 판정에 자기 판정을 함께 보내면 THE SYSTEM SHALL `gate_verdict_comparison` 에 두 판정(`local_pass` · `server_pass`)과 그때의 종류마다 상태 · 컷오버 단계 · 부른 사람을 한 행으로 남기고, `gate_verdict_comparison_uq (project_id, branch, kinds, head_sha, local_pass)` 로 같은 비교를 한 번만 둔다 — 다시 오면 `repeat_count` · `last_seen_at` 만 바꾼다. 컷오버 지표는 `gate_verdict_comparison_time (project_id, created_at)` 으로 창 안의 행을 센다. THE SYSTEM SHALL 프로젝트의 컷오버 단계를 `project.review_sot`(enum `review_sot` — `git` · `dual` · `nerv`, 기본 `git`)와 `review_sot_since` 에 둔다 — 기본값이 `git` 이라 기존 프로젝트의 동작은 그대로다(마이그레이션 `0057` · 2026-10-16 · 사람 결정 D6 · [4.4 API](api.md) REQ-API-346 ~ 349) |
 | REQ-DB-053 | WHEN CR 승인이 바뀐 요구사항의 완료 작업을 다시 확인하는 재검증 작업을 만들면 THE SYSTEM SHALL 그 작업의 `task.reverifies_task_id`(uuid · `task(id)` FK)에 다시 보는 완료 작업을 넣는다 — 같은 프로젝트 · 같은 요구사항의 완료 작업이고 여럿이면 가장 나중에 끝난 것이다. 다른 작업에서는 NULL이다. WHEN 마이그레이션 `0059`가 돌면 THE SYSTEM SHALL 이미 만든 재검증 작업(그 작업의 `task.created` 이벤트 payload가 `kind: reverify`)마다 같은 요구사항에서 그 작업보다 먼저 끝난 완료 작업 가운데 가장 나중 것을 채우고, 두 번 돌려도 결과가 같다. 구현 상태는 다시 계산하지 않는다 — 다음 재파생이 바로잡는다(2026-10-16 · 사람 결정 · [4.4 API](api.md) REQ-API-097) |
 | REQ-DB-054 | WHEN Slack 웹훅을 저장하면 THE SYSTEM SHALL 원문을 두지 않고 암호문(`project_slack.webhook_cipher` — `v1:` 판 번호 · AES-256-GCM)과 끝 네 글자(`webhook_hint`)만 둔다. THE SYSTEM SHALL 발송 줄을 이벤트마다 하나로 두고(`slack_outbox_event` 유일 인덱스), 보냈거나 건너뛴 줄은 30일(`SLACK_OUTBOX_RETENTION_DAYS`) 뒤 보존 잡에서 지우며 포기한 줄은 남긴다. 프로젝트를 지우면 둘 다 함께 지운다(2026-10-17 · 사람 결정 D2 · 마이그레이션 `0060`) |
+| REQ-DB-055 | WHEN 사람이 게이트 면제를 끝내면 THE SYSTEM SHALL 그 결재 행을 지우지 않고 `approval.revoked_at`(timestamptz) · `revoked_by_user_id`(`user(id)` FK) · `revoke_reason`(text)을 함께 채운다. THE SYSTEM SHALL 세 칸이 모두 비었거나 면제(`is_bypass`) 행에서 모두 찼을 때만 저장한다(`approval_revoke_ck` — 사유는 빈 글자일 수 없다). 있던 행은 셋 다 NULL 이다 — 끝내지 않은 면제다(2026-10-17 · 사람 결정 · 마이그레이션 0061 · [4.4 API](api.md) REQ-API-357) | L2 `branch-waiver.spec.ts`(끝낸 기록 · 행이 남는다) · `migrate.spec.ts`(적용 · 재적용) |
 
 ### 2.18 Slack 채널 — `project_slack` · `slack_outbox` (2026-10-17 신설 — 사람 결정 D1 · D2)
 

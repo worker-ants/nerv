@@ -205,6 +205,17 @@ export const GateBypassInput = z
     }
   });
 
+/**
+ * **면제 끝내기**(2026-10-17 · 사람 결정 · REQ-API-357) — 사유는 필수다. 면제를 낸 사유처럼 「왜 다시 막혔나」에 답하는 기록이다.
+ * 길이 상한은 CR 거절 사유와 같다
+ */
+export const GateBypassRevokeInput = z
+  .object({
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+export type GateBypassRevokeInput = z.infer<typeof GateBypassRevokeInput>;
+
 /** 한 칸에 담을 수 있는 수 — 한 문서의 요구사항 · 작업이 이보다 많은 일은 없다(임포트 실측의 가장 큰 문서가 140줄) */
 export const CR_ACTION_LIMIT = 200;
 

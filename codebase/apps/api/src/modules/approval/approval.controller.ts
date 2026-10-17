@@ -21,6 +21,7 @@ import {
   ApprovalBulkDecisionInput,
   ApprovalDecisionInput,
   GateBypassInput,
+  GateBypassRevokeInput,
   msg,
   negotiateLocale,
   NERV_ERROR,
@@ -195,6 +196,30 @@ export class ApprovalController {
       ...(bypass.kinds === undefined ? {} : { kinds: bypass.kinds }),
       ...(bypass.branch === undefined ? {} : { branch: bypass.branch }),
       ...(bypass.head_sha === undefined ? {} : { headSha: bypass.head_sha }),
+      roles: req.nervRoles ?? [],
+    });
+  }
+
+  /**
+   * EP-APR-09 — 면제 끝내기(2026-10-17 · 사람 결정 · REQ-API-357). 면제를 지우지 않고 새 결정으로 끝낸다 — 그 뒤의 판정이 세지
+   * 않는다. **사람 전용이고 판정은 서비스에 있다** — 낸 사람 또는 admin 인지도 서비스가 본다. 역할 문턱은 면제를 낼 때와 같다
+   */
+  @RequireRole('admin', 'planner', 'developer')
+  @Post('gates/bypass/:id/revoke')
+  @HttpCode(HttpStatus.OK)
+  revokeBypass(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const { projectId, userId, actor } = human(req);
+    const input = parseBody(GateBypassRevokeInput, body);
+    return this.approvals.revokeBypass({
+      projectId,
+      approvalId: id,
+      userId,
+      reason: input.reason,
+      actor,
       roles: req.nervRoles ?? [],
     });
   }

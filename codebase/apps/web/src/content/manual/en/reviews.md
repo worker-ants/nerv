@@ -79,6 +79,8 @@ For a waived branch (a gate bypass), **who waived it, when and why** appears und
 
 A waived row keeps the **No review** verdict. This table judges each branch by its reviews, while a waiver applies per review kind. In the gate verdict that a push hook or CI asks for, the waived kinds pass as `waived`.
 
+**End a waiver from its row.** The person who recorded a waiver, and admins, see **[End waiver]** at the end of its line. Click it, give a reason in place, and from the next check on that waiver no longer counts. Passes that already happened (tasks already done, PRs already merged) stay as they are. An ended waiver stays on the row as a record, struck through, with who ended it, when and why. The waiver count under the verdict counts only waivers that have not been ended. When an admin ends someone else's waiver, the person who recorded it is notified.
+
 ## The sidebar badge {#badge}
 
 In the left sidebar, the number next to **Review** under the expanded project is the count of **open `critical`** findings. If you could see this number only by opening the review center, nobody would know it until they opened it. That's why it's shown in the sidebar.

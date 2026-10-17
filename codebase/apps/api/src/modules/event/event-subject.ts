@@ -7,10 +7,10 @@
 // 스펙·작업·발견까지 따라가 같은 칸으로 싣는다:
 //
 //   spec_key · spec_title · version_no — 스펙 버전 · 스펙 · 결재(스펙 버전) · 질문(스펙)
-//   task_key · task_title              — 작업 · 결재(플랜) · 클레임 · 리뷰 세션 · 질문(작업)
+//   task_key · task_title              — 작업 · 결재(플랜 · 작업 면제) · 클레임 · 리뷰 세션 · 질문(작업)
 //   finding_id · finding_title         — 발견 · 결재(critical 하향)
 //   question_title                     — 질문 · 결재(질문)
-//   review_branch                      — 리뷰 세션
+//   review_branch                      — 리뷰 세션 · 브랜치 면제(2026-10-17)
 //   session_hostname · session_agent_type — 에이전트 세션(`session.stale` 의 행위자는 그 세션의 주인이라 기계는 대상에서 읽는다)
 //   cr_key                             — 변경 요청(그 초안의 스펙 · 버전도 함께 · 2026-10-16)
 //
@@ -25,7 +25,7 @@ export const EVENT_SUBJECT_COLUMNS = sql`
        sj_t.key AS task_key, sj_t.title AS task_title,
        sj_f.id AS finding_id, sj_f.title AS finding_title,
        sj_q.title AS question_title,
-       sj_rs.branch AS review_branch,
+       coalesce(sj_rs.branch, sj_ap.branch) AS review_branch,
        sj_as.hostname AS session_hostname, sj_as.agent_type::text AS session_agent_type,
        sj_cr.key AS cr_key`;
 
@@ -46,6 +46,8 @@ export const EVENT_SUBJECT_JOINS = sql`
                                              sj_q.spec_id)
    LEFT JOIN task sj_t ON sj_t.id = CASE WHEN e.subject_type = 'task' THEN e.subject_id
                                          WHEN sj_ap.subject_type = 'plan' THEN sj_ap.subject_id
+                                         -- 작업 면제는 그 작업을 가리킨다(브랜치 면제의 대상 칸은 프로젝트다 · 2026-10-17)
+                                         WHEN sj_ap.subject_type = 'gate_bypass' AND sj_ap.branch IS NULL THEN sj_ap.subject_id
                                          ELSE coalesce(sj_cl.task_id, sj_rs.task_id, sj_q.task_id) END
    LEFT JOIN finding sj_f ON sj_f.id = CASE WHEN e.subject_type = 'finding' THEN e.subject_id
                                             WHEN sj_ap.subject_type = 'finding' THEN sj_ap.subject_id END`;

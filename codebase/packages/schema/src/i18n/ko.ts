@@ -155,6 +155,11 @@ export const ko = {
     'head_sha는 브랜치 면제에만 줍니다. 그 브랜치의 커밋 하나로 면제를 좁힐 때 씁니다.',
   'error.approval.bypass_head_not_full_sha':
     'head_sha는 40자 커밋 SHA여야 합니다. 짧은 SHA는 나중에 다른 커밋과 겹칠 수 있습니다(git rev-parse로 얻습니다).',
+  // 면제 끝내기(2026-10-17 · 사람 결정 · REQ-API-357)
+  'error.approval.revoke_reason_required': '면제를 끝내려면 사유가 필요합니다.',
+  'error.approval.revoke_forbidden': '이 면제는 낸 사람이나 admin만 끝낼 수 있습니다.',
+  'error.approval.bypass_not_found':
+    '찾을 수 없는 면제입니다. 이 프로젝트의 게이트 면제인지 확인하세요.',
   // SoT 컷오버 M1(2026-10-16 · 사람 결정 D6 · REQ-API-346 · 349)
   'error.gate.head_not_full_sha':
     'head_sha는 40자 커밋 SHA여야 합니다. 한 커밋의 두 판정을 견주므로 커밋이 하나로 정해져야 합니다(git rev-parse로 얻습니다).',
@@ -319,7 +324,9 @@ export const ko = {
   'inbox.card.correct.finding_approved':
     '처분은 바꿀 수 없습니다. 다시 다뤄야 한다면 새 발견으로 등록하세요.',
   'inbox.card.correct.finding_returned': '에이전트가 다시 요청하면 새 카드가 생깁니다.',
-  'inbox.card.correct.bypass': '면제는 기록으로 남습니다. 취소하려면 새로 결정해야 합니다.',
+  // 면제를 끝내는 새 결정이 생겼다(2026-10-17 · REQ-WEB-336) — 그 자리를 알려 준다
+  'inbox.card.correct.bypass':
+    '면제는 기록으로 남습니다. 끝내려면 리뷰 센터의 게이트 현황이나 작업 화면에서 [면제 끝내기]를 누르세요.',
   // 만료 탭의 카드(2026-10-15 · REQ-WEB-310) — 결정 없이 끝났다. 다시 오는 길을 적는다
   'inbox.card.correct.spec_expired':
     '7일 동안 결정되지 않아 문서가 초안으로 돌아갔습니다. 작성자가 다시 검토를 요청하면 새 카드가 생깁니다.',
@@ -1225,7 +1232,10 @@ export const ko = {
   'event.finding.opened': '리뷰 발견 열림',
   'event.finding.commented': '리뷰 발견에 코멘트',
   'event.finding.resolved': '리뷰 발견 처분됨',
-  'event.gate.bypassed': '게이트 자동 통과',
+  // 사람이 사유와 함께 낸 면제다 — 「자동 통과」는 T0 · T1 등급의 통과와 섞였다(2026-10-17 정정)
+  'event.gate.bypassed': '게이트 면제',
+  // 면제 끝내기(2026-10-17 · 사람 결정 · REQ-API-357)
+  'event.gate.bypass_revoked': '게이트 면제 끝남',
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
   'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
   'event.gate.failopen_cleared': '게이트 격상 풀림',
@@ -2158,6 +2168,14 @@ export const ko = {
   'task.waiver.line': '{kinds} 리뷰 면제 · {by} · {at}',
   'task.waiver.all': '리뷰 전부',
   'task.waiver.void': '코드 증적이 있어 적용되지 않습니다',
+  // 면제 끝내기(2026-10-17 · 사람 결정 · REQ-WEB-336)
+  'task.waiver.revoke': '면제 끝내기',
+  'task.waiver.revoke_confirm': '이 면제를 끝냅니다. 다음 판정부터 이 면제를 세지 않습니다.',
+  'task.waiver.revoke_detail':
+    '이미 지나간 통과(이미 완료된 작업 · 이미 머지된 PR)는 그대로입니다. 면제 기록은 지우지 않고 끝낸 사람과 사유를 함께 남깁니다.',
+  'task.waiver.revoke_reason': '끝내는 사유',
+  'task.waiver.revoked': '면제를 끝냈습니다',
+  'task.waiver.revoked_line': '끝남 · {by} · {at}',
   'task.waiver.code_evidence': '코드 증적이 붙은 작업은 코드 리뷰를 면제할 수 없습니다',
   'task.waiver.no_role':
     '면제할 수 있는 리뷰가 없습니다. 코드 리뷰는 developer · admin이, 스펙 리뷰는 planner · admin이 면제합니다',

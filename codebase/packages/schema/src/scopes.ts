@@ -332,6 +332,21 @@ export function canWaiveReviewKind(roles: readonly string[], kind: string): bool
   return roles.some((role) => allowed.includes(role));
 }
 
+/**
+ * **면제를 끝낼 수 있는가**(2026-10-17 · 사람 결정 · api.md REQ-API-357) — 그 면제를 낸 사람이거나 admin 이다. 낸 사람도 지금
+ * 면제를 낼 수 있는 역할(위 표의 어느 칸)이어야 한다 — 역할을 잃은 사람이 옛 면제를 끝내지는 않는다. 남의 면제를 끝내는 것은
+ * 그 사람의 판단을 뒤집는 일이라 admin 의 몫이다. 서버 판정(EP-APR-09)과 화면의 [면제 끝내기]가 같은 함수를 본다
+ */
+export function canRevokeWaiver(input: {
+  roles: readonly string[];
+  userId: string;
+  byUserId: string | null;
+}): boolean {
+  if (input.roles.includes('admin')) return true;
+  const issuers = new Set(Object.values(REVIEW_WAIVER_ROLES).flat());
+  return input.byUserId === input.userId && input.roles.some((role) => issuers.has(role));
+}
+
 /** 그 역할들로 면제할 수 있는 리뷰 종류 전부(표의 순서) — 범위 없는 면제를 풀어 읽을 때 쓴다 */
 export function waivableReviewKinds(roles: readonly string[]): string[] {
   return Object.keys(REVIEW_WAIVER_ROLES).filter((kind) => canWaiveReviewKind(roles, kind));

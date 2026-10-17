@@ -67,6 +67,9 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.TASK_BLOCKED]: 'high',
   [NERV_EVENT.TASK_REBRIEF_REQUIRED]: 'high',
   [NERV_EVENT.GATE_BYPASSED]: 'high',
+  // **면제를 끝냈다**(2026-10-17 · 사람 결정 · REQ-API-357) — 낸 사람이 아닌 사람이 끝냈을 때 낸 사람에게만 간다. 그 사람의 브랜치 ·
+  // 작업이 다시 막힐 수 있어 오늘 볼 일이다. 누군가의 세션이 멈추지는 않아 면제와 같은 high 다
+  [NERV_EVENT_PHASE2.GATE_BYPASS_REVOKED]: 'high',
   // **fail-open 격상**(2026-10-15 · 사람 결정 · REQ-API-319) — 게이트가 사실상 꺼졌다. admin 에게 중요 알림이다. 누군가의
   // 세션이 그 결정을 기다리며 멈춰 있지는 않아 critical 이 아니라 high 다(면제 `gate.bypassed` 와 같은 무게 · 같은 사람).
   // 풀림(`gate.failopen_cleared`)은 카탈로그에 없다 — 기록과 배너가 사라지는 것으로 충분하다
@@ -505,6 +508,11 @@ export class NotificationService {
         event.payload?.[
           event.type === NERV_EVENT_PHASE2.CR_REJECTED ? 'notify_user_ids' : 'claim_user_ids'
         ];
+      return this.memberTargets(event, Array.isArray(listed) ? listed : []);
+    }
+    // **끝낸 면제는 그 면제를 낸 사람에게**(2026-10-17 · REQ-API-357) — 이벤트가 받는 사람을 든다(스스로 끝냈으면 비어 있다)
+    if (event.type === NERV_EVENT_PHASE2.GATE_BYPASS_REVOKED) {
+      const listed = event.payload?.['notify_user_ids'];
       return this.memberTargets(event, Array.isArray(listed) ? listed : []);
     }
     // **격상은 admin 에게만**(2026-10-15 · REQ-API-319) — 정책을 고칠 수 있는 사람이다. 역할 큐(admin · planner)로 보내면

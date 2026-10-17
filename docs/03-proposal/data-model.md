@@ -28,7 +28,10 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 46개**(도메인 엔티티 39 + 부속 7 — 2026-10-17 · Slack 채널. 처음 29개로 적었고 그 뒤 늘었다 — §1.3 표가 계수의 정본이다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.36 · 2026-10-17 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.37 · 2026-10-17 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.37 변경(2026-10-17 — 면제 끝내기, **사람 결정**(2026-10-17 — 권장안 A)): **§2.7 `approval` 한 행 신설.** 게이트 면제를 끝낸 새 결정의 자리 — `revoked_at` · `revoked_by_user_id` · `revoke_reason`. 행은 지우지 않고 그 뒤의 판정이 이 면제를 세지 않는다([4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-055 · [4.4 API](../04-mvp/api.md) REQ-API-357).
+
 >
 > v0.36 변경(2026-10-17 — Slack 채널과 S8 연동 탭, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D1 · D2)): **§1.3 표에 39번 「Slack 연결」(`project_slack`) · 테이블 수 44 → 46(도메인 39 + 부속 7).** 부속에 발송 큐 `slack_outbox` 를 더했다([4.3 데이터베이스 스키마](../04-mvp/database.md) §2.18).
 >
@@ -714,6 +717,7 @@ ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 �
 | `requested_at` · `due_at` · `decided_at` | timestamptz | SLA·리마인더 |
 | `is_bypass` · `bypass_reason` | bool · text | 게이트 면제도 결재 레코드로 남긴다(FR-10) |
 | `branch` · `head_sha` | text NULL | **브랜치 면제**의 대상(2026-10-16 · 사람 결정 D4). 리뷰가 한 번도 없는 브랜치도 면제할 수 있다 — 게이트 판정이 그 (브랜치 · 종류)를 면제로 통과시킨다. `head_sha` 는 그 브랜치의 커밋 하나로 좁히고(40자) 없으면 그 브랜치의 모든 커밋이다 |
+| `revoked_at` · `revoked_by_user_id` · `revoke_reason` | timestamptz · uuid FK · text NULL | **면제 끝내기**(2026-10-17 · 사람 결정). 면제를 낸 사람이나 admin 이 사유와 함께 끝낸 기록이다 — 셋이 함께 채워지고 면제에만 있다. 행은 지우지 않고 그 뒤의 판정(게이트 판정 · done 게이트)이 이 면제를 세지 않는다. 이미 지나간 통과는 그대로다 |
 
 규칙: **지시자 ≠ 승인자**(D-06). `assignee_user_id = requested_by_user_id`인 결재는 거부한다 — GitHub이 Copilot PR에 대해 "작업을 지시한 사람의 승인은 필수 승인 수에 포함되지 않는다"로 규격화한 것과 같다. clemvion에는 이 축이 없었다: merge confirm 2회·e2e 면제·BLOCK 해소·stale grooming의 종착지가 전부 한 사람이었다.
 

@@ -9,6 +9,9 @@
 // **브랜치 면제를 여기서도 낸다**(2026-10-16 사람 결정 · REQ-WEB-332). 작업 상세의 리뷰 카드에서만 내던 동안 작업과 무관한
 // 브랜치는 API 로만 면제할 수 있었다. 줄마다 [면제]가 그 브랜치를 미리 채운 같은 폼(`BranchWaiverForm`)을 열고, 제목 옆의
 // [브랜치 면제]는 아직 줄이 없는 브랜치(리뷰도 면제도 없는 브랜치)의 이름을 직접 넣게 한다.
+//
+// **면제를 그 줄에서 끝낸다**(2026-10-17 사람 결정 · REQ-WEB-336). 낸 사람이나 admin 은 면제 줄 끝의 [면제 끝내기]로 사유와
+// 함께 끝낸다. 끝낸 면제도 줄에 남고(지우지 않는 결재 레코드다) 판정 옆의 면제 수는 끝내지 않은 것만 센다.
 
 import { Fragment, useState } from 'react';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -29,7 +32,13 @@ import {
 import { ErrorState } from '../../components/query-state.js';
 import { EntityLink } from '../../components/entity-link.js';
 import type { StatusToken } from '../../components/status-badge.js';
-import { BranchWaiverForm, canWaiveBranch } from '../task-board/review-waiver.js';
+import {
+  BranchWaiverForm,
+  canWaiveBranch,
+  isRevokedWaiver,
+  WaiverRevoke,
+  WaiverRevokedNote,
+} from '../task-board/review-waiver.js';
 
 const VERDICT_TOKEN: Record<string, StatusToken> = {
   passed: 'ok',
@@ -43,6 +52,8 @@ const VERDICT_TOKEN: Record<string, StatusToken> = {
  */
 export interface GateWaiver {
   roles: readonly string[];
+  /** 보는 사람 — [면제 끝내기]를 그릴지 정한다(낸 사람이나 admin). 받기 전이면 null */
+  userId: string | null;
   /** 기록한 뒤 — 게이트 현황을 다시 읽는다(`gate.bypassed` 실시간 무효화와 같은 일을 그 자리에서) */
   onDone: () => void;
 }
@@ -151,6 +162,8 @@ export function GateCoverage({
         {items.map((row) => {
           const verdict = String(row['verdict']);
           const bypasses = Array.isArray(row['bypasses']) ? (row['bypasses'] as Row[]) : [];
+          // 판정 옆의 수는 끝내지 않은 면제만 센다 — 끝낸 면제는 기록으로 줄에 남을 뿐 게이트를 넘기지 않는다
+          const active = bypasses.filter((b) => !isRevokedWaiver(b)).length;
           const branch = String(row['branch']);
           return (
             <Fragment key={branch}>
@@ -171,11 +184,17 @@ export function GateCoverage({
                     // 빠지면 "면제됨" 한 줄이 브랜치 전체를 넘긴 것처럼 읽힌다
                     const kinds = Array.isArray(b['kinds']) ? (b['kinds'] as string[]) : null;
                     const head = typeof b['head_sha'] === 'string' ? b['head_sha'] : null;
+                    const revoked = isRevokedWaiver(b);
                     return (
                       <span
                         key={String(b['id'] ?? i)}
                         data-testid="gate-bypass"
-                        className="mt-1 block font-sans text-2xs text-status-danger"
+                        data-revoked={revoked ? 'true' : undefined}
+                        className={
+                          revoked
+                            ? 'mt-1 block font-sans text-2xs text-text-faint'
+                            : 'mt-1 block font-sans text-2xs text-status-danger'
+                        }
                       >
                         ↳ {t('reviews.bypass')}: {String(b['display_name'])} ·{' '}
                         {relativeTime(t, b['decided_at'] == null ? null : String(b['decided_at']))}{' '}
@@ -188,6 +207,16 @@ export function GateCoverage({
                             ` · ${t('reviews.gate.bypass_commit', { sha: head.slice(0, 7) })}`}
                         </span>{' '}
                         · {String(b['bypass_reason'])}
+                        <WaiverRevokedNote waiver={b} />
+                        {waiver !== undefined && (
+                          <WaiverRevoke
+                            proj={projectSlug}
+                            waiver={b}
+                            roles={waiver.roles}
+                            userId={waiver.userId}
+                            onDone={waiver.onDone}
+                          />
+                        )}
                       </span>
                     );
                   })}
@@ -209,12 +238,12 @@ export function GateCoverage({
                     label={t(`reviews.verdict.${verdict}` as 'reviews.verdict.passed')}
                   />
                   {/* 와이어프레임 ⑧의 「미커버 + BYPASS 1」 — 판정 옆에 면제 수를 적는다 */}
-                  {bypasses.length > 0 && (
+                  {active > 0 && (
                     <span
                       data-testid="gate-bypass-count"
                       className="mt-1 block text-2xs text-status-danger"
                     >
-                      {t('reviews.gate.bypass_count', { count: bypasses.length })}
+                      {t('reviews.gate.bypass_count', { count: active })}
                     </span>
                   )}
                   {/* **그 줄에서 면제한다**(2026-10-16 사람 결정 · REQ-WEB-332) — 와이어프레임 ⑧이 면제를 그린 자리다. 리뷰가 있는

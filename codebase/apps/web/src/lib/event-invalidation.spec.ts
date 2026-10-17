@@ -33,6 +33,23 @@ function envelope(type: NervEventName, over: Partial<NervEventEnvelope> = {}): N
 }
 
 describe('invalidationKeysFor — screens.md §1.4', () => {
+  it('면제를 끝내면 게이트 현황과 그 작업 상세를 다시 읽는다 — 브랜치 면제면 작업이 없다 (REQ-WEB-336)', () => {
+    const type = NERV_EVENT_PHASE2.GATE_BYPASS_REVOKED as unknown as NervEventName;
+    expect(
+      invalidationKeysFor(
+        envelope(type, { subject_type: 'approval', subject_key: 'CLV-T-RVK001' }),
+      ),
+    ).toEqual([
+      queryKeys.projectEvents(PRJ),
+      queryKeys.projectGateCoverage(PRJ),
+      queryKeys.task('CLV-T-RVK001'),
+    ]);
+    expect(invalidationKeysFor(envelope(type, { subject_type: 'approval' }))).toEqual([
+      queryKeys.projectEvents(PRJ),
+      queryKeys.projectGateCoverage(PRJ),
+    ]);
+  });
+
   // 2026-08-29 실측 — 봉투의 subject_id 는 **버전 UUID** 인데 화면의 쿼리 키는 고정 ID다.
   // 축이 달라서 스펙 상세는 한 번도 다시 읽히지 않았다(새로고침해야 보였다).
   it('스펙 축은 subject_key 로 잡는다 — 화면의 쿼리 키가 고정 ID이기 때문이다', () => {

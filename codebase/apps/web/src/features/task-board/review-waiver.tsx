@@ -7,6 +7,7 @@
 // 서버가 한다 — 화면은 같은 표(`REVIEW_WAIVER_ROLES`)로 미리 잠근다.
 
 import {
+  canRevokeWaiver,
   canWaiveReviewKind,
   CODE_EVIDENCE_KINDS,
   CODE_REVIEW_KINDS,
@@ -25,6 +26,7 @@ import type { Row } from '../../lib/queries.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useRealtime } from '../../lib/realtime.js';
 import { Button, Input, Textarea } from '../../components/ui/primitives.js';
+import { ConfirmAction } from '../../components/ui/confirm-action.js';
 
 const isCodeKind = (kind: string): boolean =>
   (CODE_REVIEW_KINDS as readonly string[]).includes(kind);
@@ -36,8 +38,106 @@ export function requiredReviewKinds(gatePolicy: unknown): string[] {
   return Array.isArray(coverage) ? [...new Set(coverage)] : [];
 }
 
-/** 면제 기록 한 줄씩 — 리뷰 목록 카드 아래에 늘 보인다(작업이 끝난 뒤에도) */
-export function ReviewWaiverList({ waivers }: { waivers: Row[] }): React.JSX.Element | null {
+/** 끝낸 면제인가(2026-10-17 · REQ-API-357) — 결재 레코드는 남고 끝낸 기록이 붙는다. 판정은 세지 않는다 */
+export function isRevokedWaiver(w: Row): boolean {
+  return w['revoked_at'] != null;
+}
+
+/**
+ * **면제 끝내기**(2026-10-17 · 사람 결정 · 권장안 A · REQ-WEB-336 · api.md REQ-API-357). 면제 한 줄 끝의 단추다. 낸 사람이나 admin
+ * 에게만 그린다 — 서버와 같은 판정(`canRevokeWaiver`)이다. 누르면 같은 자리에서 사유를 받고(REQ-WEB-200) 끝낸다. 면제를 지우거나
+ * 되감지 않는다: 그 뒤의 판정이 세지 않을 뿐이고, 이미 지나간 통과(이미 done 이 된 작업)는 그대로라는 것을 확인 문장이 적는다
+ */
+export function WaiverRevoke({
+  proj,
+  waiver,
+  roles,
+  userId,
+  onDone,
+}: {
+  proj: string;
+  /** 면제 한 줄 — `id` 와 낸 사람(`by_user_id`)이 있어야 한다 */
+  waiver: Row;
+  roles: readonly string[];
+  /** 보는 사람 — 모르면(받기 전) 그리지 않는다 */
+  userId: string | null;
+  /** 끝낸 뒤 — 그 화면의 읽기를 다시 한다 */
+  onDone: () => void;
+}): React.JSX.Element | null {
+  const t = useT();
+  const onError = useApiError();
+  const { pushToast } = useRealtime();
+  const press = usePressKey('waiver-revoke');
+  const id = String(waiver['id'] ?? '');
+  const revoke = useMutation({
+    mutationFn: (reason: string) =>
+      apiFetch<Record<string, unknown>>(`/projects/${proj}/gates/bypass/${id}/revoke`, {
+        method: 'POST',
+        body: { reason },
+        idempotencyKey: press.take(),
+      }),
+    onSettled: press.release,
+    onSuccess: () => {
+      pushToast({ tone: 'ok', message: t('task.waiver.revoked') });
+      onDone();
+    },
+    onError,
+  });
+  const byUserId = typeof waiver['by_user_id'] === 'string' ? waiver['by_user_id'] : null;
+  if (
+    id === '' ||
+    userId === null ||
+    isRevokedWaiver(waiver) ||
+    !canRevokeWaiver({ roles, userId, byUserId })
+  ) {
+    return null;
+  }
+  return (
+    <ConfirmAction
+      label={t('task.waiver.revoke')}
+      size="xs"
+      testId="waiver-revoke"
+      message={t('task.waiver.revoke_confirm')}
+      detail={t('task.waiver.revoke_detail')}
+      confirmLabel={t('task.waiver.revoke')}
+      reason={{
+        label: t('task.waiver.revoke_reason'),
+        placeholder: t('task.waiver.revoke_reason'),
+      }}
+      block
+      pending={revoke.isPending}
+      className="mt-1"
+      onConfirm={(reason) => revoke.mutate(reason)}
+    />
+  );
+}
+
+/** 끝낸 기록 한 줄 — 누가 · 언제 · 왜 끝냈나 */
+export function WaiverRevokedNote({ waiver }: { waiver: Row }): React.JSX.Element | null {
+  const t = useT();
+  if (!isRevokedWaiver(waiver)) return null;
+  return (
+    <span data-testid="waiver-revoked" className="ml-1 text-text-faint">
+      (
+      {t('task.waiver.revoked_line', {
+        by: String(waiver['revoked_by_name'] ?? ''),
+        at: relativeTime(t, typeof waiver['revoked_at'] === 'string' ? waiver['revoked_at'] : null),
+      })}
+      {' — '}
+      {String(waiver['revoke_reason'] ?? '')})
+    </span>
+  );
+}
+
+/** 면제 기록 한 줄씩 — 리뷰 목록 카드 아래에 늘 보인다(작업이 끝난 뒤에도). 끝낸 면제도 남는다 */
+export function ReviewWaiverList({
+  waivers,
+  revoke,
+}: {
+  waivers: Row[];
+  /** [면제 끝내기]를 그릴 재료 — 없으면 기록만 보인다 */
+  revoke?: { proj: string; roles: readonly string[]; userId: string | null; onDone: () => void };
+}): React.JSX.Element | null {
   const t = useT();
   if (waivers.length === 0) return null;
   return (
@@ -48,9 +148,15 @@ export function ReviewWaiverList({ waivers }: { waivers: Row[] }): React.JSX.Ele
       {waivers.map((w) => {
         const kinds = Array.isArray(w['kinds']) ? (w['kinds'] as string[]) : null;
         const voidKinds = Array.isArray(w['void_kinds']) ? (w['void_kinds'] as string[]) : [];
+        const revoked = isRevokedWaiver(w);
         return (
-          <li key={String(w['id'])} data-testid="review-waiver" className="text-xs text-text-mute">
-            <span className="text-text">
+          <li
+            key={String(w['id'])}
+            data-testid="review-waiver"
+            data-revoked={revoked ? 'true' : undefined}
+            className="text-xs text-text-mute"
+          >
+            <span className={revoked ? 'text-text-faint line-through' : 'text-text'}>
               {t('task.waiver.line', {
                 kinds:
                   kinds === null
@@ -62,10 +168,20 @@ export function ReviewWaiverList({ waivers }: { waivers: Row[] }): React.JSX.Ele
             </span>
             {' — '}
             {String(w['reason'] ?? '')}
-            {voidKinds.length > 0 && (
+            {!revoked && voidKinds.length > 0 && (
               <span data-testid="review-waiver-void" className="ml-1 text-status-danger">
                 ({voidKinds.map((k) => reviewKindText(t, k)).join(' · ')}: {t('task.waiver.void')})
               </span>
+            )}
+            <WaiverRevokedNote waiver={w} />
+            {revoke !== undefined && (
+              <WaiverRevoke
+                proj={revoke.proj}
+                waiver={w}
+                roles={revoke.roles}
+                userId={revoke.userId}
+                onDone={revoke.onDone}
+              />
             )}
           </li>
         );
@@ -101,7 +217,10 @@ export function ReviewWaiverForm({
   const [chosen, setChosen] = useState<string[]>([]);
   const [reason, setReason] = useState('');
 
-  const waivers = Array.isArray(task['review_waivers']) ? (task['review_waivers'] as Row[]) : [];
+  // 끝낸 면제는 세지 않는다(2026-10-17 · REQ-API-357) — 그 종류를 다시 면제할 수 있다
+  const waivers = (
+    Array.isArray(task['review_waivers']) ? (task['review_waivers'] as Row[]) : []
+  ).filter((w) => !isRevokedWaiver(w));
   // 범위 없는 면제가 이미 있으면 리뷰 커버리지 전부가 면제됐다 — 더 고를 것이 없다
   const waivedAll = waivers.some((w) => !Array.isArray(w['kinds']));
   // 이미 기록된 면제 — 코드 증적 때문에 세지 않는 종류는 다시 고를 수 있게 남긴다(서버가 거절하고 이유를 준다)

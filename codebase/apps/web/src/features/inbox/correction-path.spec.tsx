@@ -130,14 +130,15 @@ describe('처리됨 카드는 바로잡는 길을 싣는다 (REQ-WEB-239)', () =
     );
   });
 
-  it('승인한 하향 — 처분은 바꿀 수 없고 새 발견으로 올린다 · 면제는 거두는 것도 새 결정이다', async () => {
+  it('승인한 하향 — 처분은 바꿀 수 없고 새 발견으로 올린다 · 면제는 [면제 끝내기]라는 새 결정으로 끝낸다', async () => {
     await renderCard(
       decided({ subject_type: 'finding', finding_id: 'f-12345678', decision: 'approve' }),
     );
     expect((await screen.findByTestId('correction-path')).textContent).toContain('새 발견');
     cleanup();
     await renderCard(decided({ subject_type: 'gate_bypass', decision: 'approve' }));
-    expect((await screen.findByTestId('correction-path')).textContent).toContain('새로 결정');
+    // 면제를 끝내는 새 결정이 생겼다(2026-10-17 · REQ-WEB-336) — 그 단추의 자리를 알려 준다
+    expect((await screen.findByTestId('correction-path')).textContent).toContain('[면제 끝내기]');
   });
 
   it('대기 카드에는 서지 않는다 — 결정하기 전에는 바로잡을 것이 없다', async () => {
