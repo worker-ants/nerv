@@ -325,6 +325,8 @@ stateDiagram-v2
 
 A person clears this mark. QA or an admin either signs a new test record or, if the earlier test still holds for the changed statement, clicks **[Confirm no impact]** to sign the same test again. You are asked once to confirm what you are signing, and the signature is recorded. A test attached by an agent is not a signature and cannot clear the mark.
 
+**A re-verification task changes the implementation status only once it is started.** When a change request is approved, a re-verification task is created in `backlog` for each done task of a reworded requirement. The task exists so that a person decides whether to check again. While nobody has started it (it is `backlog`, `ready` or `blocked` and has never been claimed), it is not counted when the implementation status is calculated. So when QA signs again with **[Confirm no impact]**, the requirement returns to `verified` even though the re-verification task is still open. Once the task is claimed, it counts like any other task, even if the claim is released and it goes back to `ready`. If you decide not to check again, archive the task.
+
 The top of the document can also show the badge **A referenced document changed**. It appears when a document this one references has changed since the version you are reading, and it shows **which document** changed. The server determines this; the screen does not guess.
 
 ## Relations and backlinks {#relations}

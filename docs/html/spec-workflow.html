@@ -53,7 +53,7 @@
     <h1>스펙 워크플로우와 거버넌스</h1>
     <p class="lead">NERV의 일은 세 개의 상태 축 — 스펙 문서 축 · 요구사항 구현 축 · Task 실행 축 — 위에서 흐른다(D-02·D-03). 이 문서는 세 축의 상태도와 전이 조건·역할별 권한을 정의하고, 그 위에서 사람이 개입하는 지점을 <b>위험도 가변 게이트</b>(D-06)와 <b>지시자≠승인자</b> 규칙으로 설계한다. 핵심 메커니즘은 scope 겹침 검사(D-04), fingerprint 리뷰 dedup과 게이트 판정(D-07), 그리고 티어·배칭·받은 요청 승격의 알림 설계다.</p>
     <div class="meta-line">
-      <span>버전 v0.54 (2026-10-16)</span>
+      <span>버전 v0.55 (2026-10-16)</span>
       <span>원본: <code>docs/03-proposal/spec-workflow.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-06 · D-07 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a></span>
@@ -269,6 +269,8 @@
   <p>clemvion이 <code>CCH-SE-02</code>를 놓친 사각 — "문서는 implemented인데 그 안의 한 요구사항은 미구현" — 은 상태의 단위를 요구사항으로 내리는 것만으로 사라진다.</p>
 
   <p><b>보관한 작업은 세지 않는다</b>(2026-10-10 — 사람 결정 · <a href="api.html">4.4 API</a> REQ-API-286). 보관은 상태를 그대로 두므로, 세면 보관한 <code>in_review</code> 작업이 요구사항을 <code>in_progress</code>에 붙잡고 보관한 <code>backlog</code> 작업이 <code>implemented</code>를 영영 막는다. 작업이 모두 보관됐으면 작업이 하나도 없는 요구사항처럼 <b>손대지 않는다</b> — 임포트가 정한 값을 중복 하나 보관한 일로 지우지 않는다.</p>
+
+  <p><b>착수하지 않은 재검증 작업은 세지 않는다</b>(2026-10-16 — 사람 결정 · 권장안 A · <a href="api.html">4.4 API</a> REQ-API-097). CR 승인은 바뀐 요구사항의 완료 작업마다 재검증 작업을 <code>backlog</code>로 만든다(§3.3 — 아무도 고르지 않으면 기본값이다). 위 표를 그대로 적용하면 그 작업 때문에 「<code>done</code> 이 있지만 아직 전부가 아니다」가 되어 요구사항이 <code>in_progress</code>로 내려가고 qa가 「영향 없음」으로 다시 서명해도 <code>verified</code>로 돌아오지 못한다. §3.3 표는 「재검증 Task 가 착수되면 <code>in_progress</code>」라고 적어 두 곳이 어긋났고 코드는 이 표를 따랐다 — <b>§3.3의 문장을 정본으로 본다.</b> 재검증 작업은 다시 확인할지를 사람에게 묻는 작업이라서, 아무도 시작하지 않은 동안 요구사항의 구현 상태를 바꾸면 qa의 재서명을 막는다. 그래서 재검증 작업(<code>task.reverifies_task_id</code>로 그 작업이 다시 보는 완료 작업을 가리킨다 · <a href="database.html">4.3</a> REQ-DB-053)이 <code>backlog</code> · <code>ready</code> · <code>blocked</code>이고 클레임된 적이 없으면 위 표의 어느 줄에도 세지 않는다. 착수는 클레임이다 — 클레임된 적이 있으면(풀어서 <code>ready</code>로 돌아왔어도) 다른 작업과 똑같이 세고 그 착수가 그림의 <code>implemented → in_progress</code>다. 보관한 작업을 세지 않는 규칙과 같은 자리에 둔다. 택하지 않은 안은 둘이다 — qa의 재서명이 재검증 작업을 닫는 것은 명세에 없는 동작이고 기본값에서 재검증을 빼는 것은 같은 날 정한 기본값(§3.3)을 뒤집는다.</p>
 
   <p><b>작업이 없는 요구사항은 임포트 값을 그대로 두고 출처를 보인다</b>(2026-10-15 — 사람 결정). 보관하지 않은 작업이 하나도 없는 요구사항은 파생할 재료가 없어 서버가 값을 바꾸지 않는다. 임포트가 문서에서 읽어 넣은 값(clemvion 의 <code>implemented</code> 들)을 <code>unimplemented</code> 로 덮으면 이관한 팀의 현황이 하루아침에 0 이 된다. 대신 그 값이 파생한 값이 아니라는 사실을 화면 · API 에 「출처: 임포트」로 표시한다. D-03(사람이 손으로 찍은 표시를 믿지 않는다)의 뜻은 값을 지워서가 아니라 값이 어디서 왔는지 보여서 지킨다 — 숫자를 그대로 보고하면서도 파생한 값과 구별된다. <a href="roadmap.html">3.7 로드맵</a> §4.4 의 성공 기준 2-8 은 파생한 요구사항의 비율과 임포트 값으로 남은 요구사항의 수를 함께 보고한다. 남은 요구사항마다 검증 작업을 만드는 안은 M2 컷오버 때 clemvion 팀과 정한다. 구현은 <a href="backlog.html">4.8 백로그</a> E15-S02 다.</p>
 
@@ -647,7 +649,7 @@
     <thead><tr><th>델타</th><th>문서 축</th><th>구현 축(Requirement)</th><th>Task 축</th><th>알림 티어</th></tr></thead>
     <tbody>
       <tr><td><b>ADDED</b></td><td>새 버전 approved, 이전 superseded</td><td>새 REQ <code>unimplemented</code></td><td>파생 Task <code>backlog</code> 자동 제안(위임 명세 초안 포함)</td><td>standard</td></tr>
-      <tr><td><b>MODIFIED</b></td><td>동일</td><td>문장이 바뀐다 — 값은 파생 그대로(§1.3 · 재검증 Task 가 착수되면 <code>in_progress</code>)</td><td>완료 Task는 재검증 Task 신설, 진행 중 Task는 <b>재브리핑 필요</b> 플래그(<code>task.rebrief_required_at</code> 세팅 + <code>task.rebrief_required</code> 이벤트 — 실물은 <a href="data-model.html">데이터 모델</a> §2.4)</td><td>high (클레임 보유 세션에는 critical)</td></tr>
+      <tr><td><b>MODIFIED</b></td><td>동일</td><td>문장이 바뀐다 — 값은 파생 그대로(§1.3 · 재검증 Task 가 착수되면 <code>in_progress</code> — 착수하지 않은 동안은 세지 않는다. 2026-10-16 사람 결정으로 §1.3이 이 문장에 맞췄다)</td><td>완료 Task는 재검증 Task 신설, 진행 중 Task는 <b>재브리핑 필요</b> 플래그(<code>task.rebrief_required_at</code> 세팅 + <code>task.rebrief_required</code> 이벤트 — 실물은 <a href="data-model.html">데이터 모델</a> §2.4)</td><td>high (클레임 보유 세션에는 critical)</td></tr>
       <tr><td><b>REMOVED</b></td><td>동일</td><td>REQ 묘비(<code>removed_in_version_id</code>) — 목록·커버리지에서 빠지고 값은 남는다</td><td>미착수 파생 Task는 취소 제안, 진행 중이면 즉시 중단 확인 요청</td><td>critical</td></tr>
     </tbody>
   </table></div>

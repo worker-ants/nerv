@@ -523,10 +523,13 @@ export class TaskService {
              bl.name AS baseline,
              -- **보관**(REQ-API-284) — 대신할 작업은 키로, 보관한 사람은 이름으로 준다. 상태와 따로 읽는다
              t.archive_reason::text AS archive_reason, sup.key AS superseded_by,
-             arc.display_name AS archived_by_name
+             arc.display_name AS archived_by_name,
+             -- **재검증 작업이 다시 보는 완료 작업**(2026-10-16 · 사람 결정 · REQ-DB-053) — 키로 준다. 재검증 작업이 아니면 null
+             rv.key AS reverifies_task_key
         FROM task t
    LEFT JOIN "user" au ON au.id = t.assignee_user_id
    LEFT JOIN task sup ON sup.id = t.superseded_by_task_id
+   LEFT JOIN task rv ON rv.id = t.reverifies_task_id
    LEFT JOIN "user" arc ON arc.id = t.archived_by_user_id
    LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id

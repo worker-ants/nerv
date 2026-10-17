@@ -717,6 +717,128 @@ describe('0051 — 임포트 값의 출처를 채운다', () => {
   });
 });
 
+describe('0059 — 이미 만든 재검증 작업이 다시 보는 완료 작업을 채운다', () => {
+  it('task.created 의 kind 가 reverify 인 작업만 — 그보다 먼저 끝난 완료 작업 가운데 가장 나중 것이고, 두 번 돌려도 같다', async () => {
+    const fresh = await createScratchDb('nerv_reverifies');
+    try {
+      await runMigrations(fresh.url);
+      const filled = await withClient(fresh.url, async (client) => {
+        const { userId, projectId } = await seedTenancy(client);
+        const specId = randomUUID();
+        const versionId = randomUUID();
+        await client.query(
+          `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','SPC-R','R')`,
+          [specId, projectId],
+        );
+        await client.query(
+          `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+           VALUES ($1,$2,1,'approved','본문',decode(md5('r'),'hex'),$3)`,
+          [versionId, specId, userId],
+        );
+        const requirement = async (ref: string): Promise<string> => {
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, introduced_in_version_id,
+                                      current_version_id)
+             VALUES ($1,$2,$3,$4,'문장',$5,$5)`,
+            [id, projectId, specId, ref, versionId],
+          );
+          return id;
+        };
+        /** `doneAgo` 면 그 시간 전에 끝난 완료 작업, `kind` 면 CR 승인이 만든 것처럼 `task.created` 를 남긴다 */
+        const task = async (
+          requirementId: string,
+          opts: { doneAgo?: string; createdAgo?: string; kind?: 'reverify' | 'derive' },
+        ): Promise<string> => {
+          const id = randomUUID();
+          const done = opts.doneAgo !== undefined;
+          await client.query(
+            `INSERT INTO task (id, project_id, key, title, status, source_requirement_id, goal_md, output_format_md,
+                               tools_sources_md, boundaries_md, spec_impact, done_at, created_at)
+             VALUES ($1,$2,$3,'작업',$4::task_status,$5,'g','o','t','b',
+                     CASE WHEN $6 THEN '{"none": true}'::jsonb END,
+                     CASE WHEN $6 THEN now() - $7::interval END,
+                     now() - $8::interval)`,
+            [
+              id,
+              projectId,
+              `R-T-${id.slice(0, 6)}`,
+              done ? 'done' : 'backlog',
+              requirementId,
+              done,
+              opts.doneAgo ?? '0',
+              opts.createdAgo ?? '0',
+            ],
+          );
+          if (opts.kind !== undefined) {
+            await client.query(
+              `INSERT INTO event (id, project_id, type, subject_type, subject_id, payload)
+               VALUES ($1,$2,$3,'task',$4,$5::jsonb)`,
+              [
+                randomUUID(),
+                projectId,
+                NERV_EVENT.TASK_CREATED,
+                id,
+                JSON.stringify({
+                  change_request_key: 'K-C-1',
+                  kind: opts.kind,
+                  requirement_ref: 'REQ-R-001',
+                }),
+              ],
+            );
+          }
+          return id;
+        };
+        const r1 = await requirement('REQ-R-001');
+        const r2 = await requirement('REQ-R-002');
+        await task(r1, { doneAgo: '3 hours' });
+        const latest = await task(r1, { doneAgo: '2 hours' });
+        const reverify = await task(r1, { kind: 'reverify', createdAgo: '1 hour' });
+        // 재검증 작업이 생긴 뒤에 끝난 완료 작업은 그 작업이 다시 보는 것이 아니다
+        await task(r1, { doneAgo: '30 minutes' });
+        const derive = await task(r1, { kind: 'derive' });
+        const plain = await task(r1, {});
+        // 같은 요구사항에 완료 작업이 없으면 채우지 않는다
+        const orphan = await task(r2, { kind: 'reverify' });
+
+        // 마이그레이션은 이미 적용됐다 — 채우는 문장(마지막 조각)만 손으로 다시 돌리고 멱등을 함께 본다
+        await client.query(`UPDATE task SET reverifies_task_id = NULL WHERE project_id = $1`, [
+          projectId,
+        ]);
+        const statements = readFileSync(
+          join(migrationsFolder(), '0059_task_reverifies.sql'),
+          'utf8',
+        ).split('--> statement-breakpoint');
+        const backfill = statements[statements.length - 1] ?? '';
+        await client.query(backfill);
+        await client.query(backfill);
+
+        const { rows } = await client.query<{ id: string; target: string | null }>(
+          `SELECT id, reverifies_task_id AS target FROM task WHERE project_id = $1`,
+          [projectId],
+        );
+        const of = (id: string): string | null => rows.find((r) => r.id === id)?.target ?? null;
+        return {
+          reverify: of(reverify) === latest,
+          derive: of(derive),
+          plain: of(plain),
+          orphan: of(orphan),
+          filled: rows.filter((r) => r.target !== null).length,
+        };
+      });
+      expect(filled).toEqual({
+        reverify: true,
+        derive: null,
+        plain: null,
+        orphan: null,
+        filled: 1,
+      });
+    } finally {
+      await fresh.drop();
+    }
+  });
+});
+
 /**
  * **뒤처진 스키마를 이름으로 말한다**(REQ-CB-056 · 2026-09-24 실측).
  *

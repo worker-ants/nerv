@@ -14,7 +14,7 @@ import { displayKey } from '@nerv/schema/keys';
 import { runMigrations } from '@nerv/schema/migrate';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../src/main.js';
 import { DEFAULT_ORIGIN } from '../../src/common/origins.js';
@@ -27,6 +27,7 @@ import { ValkeyService } from '../../src/modules/event/valkey.service.js';
 import { SessionService } from '../../src/modules/session/session.service.js';
 import { AttachmentService } from '../../src/modules/spec/attachment.service.js';
 import { ChangeRequestService } from '../../src/modules/spec/change-request.service.js';
+import { recomputeImplStatus } from '../../src/modules/spec/impl-status.js';
 import { SearchService } from '../../src/modules/spec/search.service.js';
 import { SpecCheckService } from '../../src/modules/spec/spec-check.service.js';
 import { SpecCommentService } from '../../src/modules/spec/spec-comment.service.js';
@@ -1054,6 +1055,201 @@ describe('고른 적이 없으면 기본값 — 2026-10-16 사람 결정 (REQ-AP
     await decideAs(empty.v2, 'approve', { crActions: {} });
     const kept = await second(empty.v2);
     expect(kept.change_request).toMatchObject({ actions_source: 'chosen', created_tasks: [] });
+  });
+});
+
+describe('착수하지 않은 재검증 작업은 구현 상태를 바꾸지 않는다 — 2026-10-16 사람 결정 (REQ-API-097 개정 · REQ-DB-053)', () => {
+  // 기본값(REQ-API-351)은 바뀐 요구사항의 완료 작업마다 재검증 작업을 `backlog` 로 만든다. §1.3 의 "done 이 있지만 아직 전부가
+  // 아니다" 를 그대로 적용하면 그 작업이 요구사항을 `in_progress` 로 내리고, qa 가 "영향 없음" 으로 다시 서명해도 `verified` 로
+  // 돌아오지 못했다(13e 가 보고했다). 이제 착수하지 않은 재검증 작업(`backlog` · `ready` · `blocked` 이고 클레임된 적 없음)은
+  // 세지 않는다 — 착수는 클레임이고, 클레임된 적이 있으면 다른 작업과 똑같이 센다.
+  afterEach(async () => {
+    // 증적이 작업을 가리킨다 — 공용 beforeEach 가 작업을 지우기 전에 치운다
+    await pool.query('DELETE FROM evidence');
+  });
+
+  const orm = (): ReturnType<typeof drizzle> => drizzle(pool);
+
+  async function reqIdOf(ref: string): Promise<string> {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM requirement WHERE project_id = $1 AND ref = $2`,
+      [projectId, ref],
+    );
+    return rows[0]!.id;
+  }
+
+  async function implOf(ref: string): Promise<string> {
+    const { rows } = await pool.query<{ s: string }>(
+      `SELECT impl_status::text AS s FROM requirement WHERE project_id = $1 AND ref = $2`,
+      [projectId, ref],
+    );
+    return rows[0]!.s;
+  }
+
+  async function rederive(ref: string): Promise<string> {
+    await recomputeImplStatus(orm(), await reqIdOf(ref));
+    return implOf(ref);
+  }
+
+  /** 001 의 완료 작업(커밋 증적) — `signed` 면 qa 가 test 에 서명해 `verified` 에서 시작한다 */
+  async function implementedSpec(
+    key: string,
+    signed = false,
+  ): Promise<{ specId: string; done: { id: string; key: string } }> {
+    const { specId, v1 } = await approvedSpec(key);
+    const done = await task(v1, 'REQ-CRX-001', 'done', '재개 복원 구현');
+    await pool.query(
+      `INSERT INTO evidence (id, project_id, task_id, kind, locator, source)
+       VALUES ($1,$2,$3,'commit','abc1234','agent')`,
+      [newId(), projectId, done.id],
+    );
+    if (signed) {
+      await specs.addEvidence({
+        projectId,
+        ref: 'REQ-CRX-001',
+        kind: 'test',
+        locator: 'e2e/resume.spec.ts',
+        userId: reviewer,
+        roles: ['qa'],
+      });
+      expect(await implOf('REQ-CRX-001')).toBe('verified');
+    } else {
+      expect(await rederive('REQ-CRX-001')).toBe('implemented');
+    }
+    return { specId, done };
+  }
+
+  /** 001 을 고치는 CR 을 고르지 않고 승인한다 — 기본값이 001 의 재검증 작업을 만든다 */
+  async function approvedWithDefault(specId: string): Promise<{ id: string; key: string }> {
+    const v2 = (await draftOver(specId))['spec_version_id'] as string;
+    const direct = await approvals.approveDirect({
+      actor: person(planner),
+      surface: 'rest',
+      projectId,
+      specVersionId: v2,
+      userId: planner,
+      seenContentHash: await hashOf(v2),
+    });
+    const made = direct.change_request?.created_tasks.find((c) => c.kind === 'reverify');
+    expect(made).toMatchObject({ ref: 'REQ-CRX-001' });
+    const { rows } = await pool.query<{ id: string }>(`SELECT id FROM task WHERE key = $1`, [
+      made!.key,
+    ]);
+    return { id: rows[0]!.id, key: made!.key };
+  }
+
+  it('재검증 작업이 시작되지 않은 동안 요구사항은 그대로다 — 그 작업은 다시 보는 완료 작업을 가리킨다', async () => {
+    const { specId, done } = await implementedSpec('SPC-CR-REVERIFY-IDLE');
+    const reverify = await approvedWithDefault(specId);
+
+    // 표시 — 다시 보는 완료 작업은 열에 남고 작업 상세가 키로 준다. 파생 작업에는 없다
+    const { rows } = await pool.query<{ key: string; reverifies: string | null; status: string }>(
+      `SELECT key, reverifies_task_id AS reverifies, status::text AS status FROM task
+        WHERE project_id = $1 AND reverifies_task_id IS NOT NULL OR key = $2`,
+      [projectId, reverify.key],
+    );
+    expect(rows).toEqual([{ key: reverify.key, reverifies: done.id, status: 'backlog' }]);
+    expect(await tasks.get({ projectId, taskKey: reverify.key })).toMatchObject({
+      reverifies_task_id: done.id,
+      reverifies_task_key: done.key,
+    });
+    expect(await tasks.get({ projectId, taskKey: done.key })).toMatchObject({
+      reverifies_task_key: null,
+    });
+
+    // `backlog` · `ready` · `blocked` 어느 것이든 클레임된 적이 없으면 세지 않는다
+    expect(await rederive('REQ-CRX-001')).toBe('implemented');
+    await pool.query(
+      `UPDATE task SET status = 'ready', output_format_md = 'o', tools_sources_md = 't', boundaries_md = 'b'
+        WHERE id = $1`,
+      [reverify.id],
+    );
+    expect(await rederive('REQ-CRX-001')).toBe('implemented');
+    await pool.query(
+      `UPDATE task SET status = 'blocked', blocked_reason = 'external' WHERE id = $1`,
+      [reverify.id],
+    );
+    expect(await rederive('REQ-CRX-001')).toBe('implemented');
+  });
+
+  it('qa 가 "영향 없음" 으로 다시 서명하면 verified 로 돌아온다 — 재검증 작업이 남아 있어도', async () => {
+    const { specId } = await implementedSpec('SPC-CR-REVERIFY-SIGN', true);
+    const reverify = await approvedWithDefault(specId);
+    // 문장이 바뀌어 옛 서명은 지금 문장을 보증하지 않는다(REQ-API-190)
+    expect(await rederive('REQ-CRX-001')).toBe('implemented');
+
+    await specs.addEvidence({
+      projectId,
+      ref: 'REQ-CRX-001',
+      kind: 'test',
+      locator: 'e2e/resume.spec.ts',
+      userId: reviewer,
+      roles: ['qa'],
+    });
+    expect(await implOf('REQ-CRX-001')).toBe('verified');
+    // 재검증 작업은 그대로 남는다 — 다시 확인할지는 사람이 정한다(보관하거나 시작한다)
+    const { rows } = await pool.query<{ status: string; archived: boolean }>(
+      `SELECT status::text AS status, archived_at IS NOT NULL AS archived FROM task WHERE id = $1`,
+      [reverify.id],
+    );
+    expect(rows[0]).toEqual({ status: 'backlog', archived: false });
+  });
+
+  it('재검증 작업을 클레임하면 in_progress — 풀어 ready 로 돌아와도 착수한 작업으로 세고, 보관하면 세지 않는다', async () => {
+    const { specId } = await implementedSpec('SPC-CR-REVERIFY-CLAIM');
+    const reverify = await approvedWithDefault(specId);
+    await pool.query(
+      `UPDATE task SET status = 'ready', output_format_md = 'o', tools_sources_md = 't', boundaries_md = 'b'
+        WHERE id = $1`,
+      [reverify.id],
+    );
+    const claimed = await tasks.claim({
+      projectId,
+      taskId: reverify.id,
+      sessionId: devSession,
+      userId: developer,
+      scope: { specIds: [], fileGlobs: [] },
+    });
+    // 클레임이 다시 파생한다 — 착수한 재검증 작업은 다른 작업과 같다
+    expect(await implOf('REQ-CRX-001')).toBe('in_progress');
+
+    await tasks.release({
+      claimId: claimed.claimId,
+      reason: 'handoff',
+      userId: developer,
+      actor: { projectId, userId: developer, sessionId: devSession, isAdmin: false },
+    });
+    // 끝나지 않은 착수한 작업이다 — done 이 있지만 아직 전부가 아니다
+    expect(await implOf('REQ-CRX-001')).toBe('in_progress');
+
+    // 보관한 작업은 세지 않는다(REQ-API-286) — 두 규칙은 같은 술어다
+    await tasks.archive({
+      projectId,
+      taskKey: reverify.key,
+      actor: { userId: planner, isAgent: false },
+      reason: 'wont_do',
+      note: '바뀐 문장도 지금 구현으로 충분하다',
+    });
+    expect(await implOf('REQ-CRX-001')).toBe('implemented');
+  });
+
+  it('재검증 작업이 아닌 backlog 작업은 지금 규칙 그대로다 — 완료 작업 옆에 있으면 in_progress', async () => {
+    const { specId } = await implementedSpec('SPC-CR-REVERIFY-PLAIN');
+    // 재검증을 고르지 않은 승인 — 재검증 작업이 없다
+    const v2 = (await draftOver(specId))['spec_version_id'] as string;
+    await approvals.approveDirect({
+      actor: person(planner),
+      surface: 'rest',
+      projectId,
+      specVersionId: v2,
+      userId: planner,
+      seenContentHash: await hashOf(v2),
+      crActions: {},
+    });
+    expect(await rederive('REQ-CRX-001')).toBe('implemented');
+    // 사람이 손으로 만든 작업 — 시작하지 않았어도 센다
+    await task(v2, 'REQ-CRX-001', 'backlog', '재개 30건으로 늘리기');
+    expect(await rederive('REQ-CRX-001')).toBe('in_progress');
   });
 });
 

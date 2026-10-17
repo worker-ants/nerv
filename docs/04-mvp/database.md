@@ -20,7 +20,9 @@ referenced_by:
 
 > **요약** — [3.3 데이터 모델](../03-proposal/data-model.md)이 정의한 엔티티(**도메인 32종** — 2026-09-07 실측)를 Postgres DDL 전문으로 옮긴다. **이 문서의 `CREATE TABLE` 은 44개**다 — 도메인 38 + **부속 6**(better-auth 소유 셋 `auth_session`·`auth_account`·`auth_verification` §2.16 · 재생성 가능한 검색 인덱스 `spec_chunk_embedding` §2.15 · 요청 배관 `idempotency_key` §2.3b · 발송 큐 `email_outbox` §2.17 — 프로젝트에 매이지 않아 `project_id` 가 없고 3.3 의 엔티티 지도에도 없다). 의미(필드가 왜 존재하는가)의 정본은 [data-model.md](../03-proposal/data-model.md)이고, 이 문서는 그 **DDL 표현의 정본**이다 — 테이블·컬럼 이름은 1:1이며, 여기서 다르게 쓰인 이름은 결함이다. 본문은 enum **40종** → 33개 `CREATE TABLE`(FK·CHECK·partial unique 포함) + 검색 인덱스 테이블 1(§2.15 — 엔티티 아님) → 인덱스 → 트리거(approved 본문 불변·updated_at) → `event`·`activity` 월 파티션 순서의 실행 가능한 DDL, `nerv_events` 이벤트 방송 규약(Valkey pub/sub), 예시 데이터 한 벌의 개발 시드, 그리고 마이그레이션 왕복·무결성 테스트의 수용 기준(REQ-DB-*)으로 구성된다. 목표는 하나다 — 이 문서의 SQL을 그대로 실행하면 MVP 스키마가 선다.
 >
-> 문서 버전 v0.84 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+> 문서 버전 v0.85 · 2026-10-16 · HTML 파생본: [database.html](../html/database.html)
+>
+> v0.85 변경(2026-10-16 — 착수하지 않은 재검증 작업은 요구사항의 구현 상태를 바꾸지 않는다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A)): **REQ-DB-053 신설 · §2.5 `task` 한 열 · 마이그레이션 `0059`.** `task.reverifies_task_id`(uuid · `task(id)` FK) — CR 승인이 만든 재검증 작업이 다시 보는 완료 작업이다. 착수하지 않은 재검증 작업은 구현 축 파생에서 세지 않는데([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §1.3 · [4.4 API](api.md) REQ-API-097), `task`에는 그 작업을 알아볼 열이 없었다. 이미 만든 재검증 작업은 그 작업의 `task.created` 이벤트(`kind: reverify`)로 알아보고 마이그레이션이 채운다.
 >
 > v0.84 변경(2026-10-16 — 카드에서 승인해도 CR 제안의 기본값을 적용한다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A)): **REQ-DB-048 개정 · §2.4 `change_request` 한 열 · 마이그레이션 `0058`.** `change_request.planned_actions` 의 NOT NULL · 기본값 `{}` 을 없애고 NULL 을 "고른 적 없음"으로 쓴다 — 승인할 때 서버가 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다([4.4 API](api.md) REQ-API-351). 사람이 고른 것은 늘 세 칸 `{derive, reverify, cancel}` 으로 남아 빈 선택(세 칸이 모두 빈 배열)과 섞이지 않는다. 기본값 `{}` 였던 행은 아무도 고르지 않은 행이라 마이그레이션이 NULL 로 옮긴다.
 >
@@ -607,6 +609,7 @@ CREATE TABLE task (
   source_spec_version_id uuid REFERENCES spec_version(id),  -- 기준 버전(agent-integration §2.4). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)의 zod는 필수
   source_requirement_id  uuid REFERENCES requirement(id),
   baseline_id            uuid REFERENCES spec_baseline(id), -- 기준 기준선(§2.3) — 주변 문서를 읽는 세트
+  reverifies_task_id     uuid REFERENCES task(id),          -- 재검증 작업이 다시 보는 완료 작업(0059 · REQ-DB-053). 착수 전이면 구현 축 파생이 세지 않는다
   rebrief_required_at    timestamptz,        -- 기준 버전 superseded 시 서버 세팅, 재브리핑(기준 갱신) 시 해제 — spec-workflow §3.3
   assignee_user_id       uuid REFERENCES "user"(id),        -- 사람 책임자(D-08)
   delegate_session_id    uuid REFERENCES agent_session(id), -- 에이전트 수행 세션
@@ -1481,6 +1484,7 @@ ALTER TABLE invitation ADD COLUMN last_sent_at timestamptz;
 | REQ-DB-050 | WHEN 사람이 브랜치에 게이트 면제를 내면 THE SYSTEM SHALL 그 결재 행의 `approval.branch`(text)에 브랜치를, 커밋 하나로 좁혔으면 `approval.head_sha`(text · 40자 소문자 16진수)에 그 커밋을 남기고 `subject_id` 에는 프로젝트 id 를 둔다(다형 참조의 예외 — §2.8). CHECK `approval_branch_ck`(게이트 면제에만 · 빈 문자열 아님) · `approval_head_sha_ck`(브랜치 면제에만 · 40자 소문자 16진수)가 지키고, 게이트 판정 · 게이트 현황은 `approval_bypass_branch (project_id, branch) WHERE branch IS NOT NULL` 로 찾는다. 마이그레이션 `0055` 전의 행은 둘 다 NULL 이다(2026-10-16 · 사람 결정 D4 · [4.4 API](api.md) REQ-API-339) |
 | REQ-DB-051 | WHEN 사람이 워치를 걸면 THE SYSTEM SHALL `watch`(사람 · 프로젝트 · `watch_target`(`spec` · `task` · `area`) · 대상 id)에 한 행을 두고 `watch_user_target_uq (user_id, target_type, target_id)` 로 같은 대상을 한 번만 남기며, 알림 라우팅은 `watch_target (project_id, target_type, target_id)` 로 워처를 찾는다. WHEN 사람이 핀을 고정하면 THE SYSTEM SHALL `pin`(사람 · 프로젝트 · `pin_target`(`spec` · `task` · `change_request`) · 대상 id · `position`)에 한 행을 두고 `pin_user_target_uq` 로 같은 대상을 한 번만, `pin_user_order (user_id, position)` 로 목록의 순서를 읽는다. 둘 다 사람이나 프로젝트가 지워지면 함께 지운다(ON DELETE CASCADE — `notification_preference` 와 같은 그 사람의 설정). 대상은 다형 참조라 물리 FK 가 없다(마이그레이션 `0056` · 2026-10-16 · 사람 결정 D5 = B · [4.4 API](api.md) REQ-API-342 ~ 345) |
 | REQ-DB-052 | WHEN 로컬 훅이 게이트 판정에 자기 판정을 함께 보내면 THE SYSTEM SHALL `gate_verdict_comparison` 에 두 판정(`local_pass` · `server_pass`)과 그때의 종류마다 상태 · 컷오버 단계 · 부른 사람을 한 행으로 남기고, `gate_verdict_comparison_uq (project_id, branch, kinds, head_sha, local_pass)` 로 같은 비교를 한 번만 둔다 — 다시 오면 `repeat_count` · `last_seen_at` 만 바꾼다. 컷오버 지표는 `gate_verdict_comparison_time (project_id, created_at)` 으로 창 안의 행을 센다. THE SYSTEM SHALL 프로젝트의 컷오버 단계를 `project.review_sot`(enum `review_sot` — `git` · `dual` · `nerv`, 기본 `git`)와 `review_sot_since` 에 둔다 — 기본값이 `git` 이라 기존 프로젝트의 동작은 그대로다(마이그레이션 `0057` · 2026-10-16 · 사람 결정 D6 · [4.4 API](api.md) REQ-API-346 ~ 349) |
+| REQ-DB-053 | WHEN CR 승인이 바뀐 요구사항의 완료 작업을 다시 확인하는 재검증 작업을 만들면 THE SYSTEM SHALL 그 작업의 `task.reverifies_task_id`(uuid · `task(id)` FK)에 다시 보는 완료 작업을 넣는다 — 같은 프로젝트 · 같은 요구사항의 완료 작업이고 여럿이면 가장 나중에 끝난 것이다. 다른 작업에서는 NULL이다. WHEN 마이그레이션 `0059`가 돌면 THE SYSTEM SHALL 이미 만든 재검증 작업(그 작업의 `task.created` 이벤트 payload가 `kind: reverify`)마다 같은 요구사항에서 그 작업보다 먼저 끝난 완료 작업 가운데 가장 나중 것을 채우고, 두 번 돌려도 결과가 같다. 구현 상태는 다시 계산하지 않는다 — 다음 재파생이 바로잡는다(2026-10-16 · 사람 결정 · [4.4 API](api.md) REQ-API-097) |
 
 ---
 

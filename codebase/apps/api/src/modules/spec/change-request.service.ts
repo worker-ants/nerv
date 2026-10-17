@@ -1355,6 +1355,8 @@ async function applyActions(
     title: string;
     goal: string;
     body: string;
+    /** 재검증 작업이 다시 보는 완료 작업(REQ-DB-053) — 파생 작업은 null */
+    reverifiesTaskId?: string | null;
   }): Promise<void> => {
     const { rows: reqs } = await tx.execute<{ id: string }>(sql`
       SELECT id FROM requirement WHERE project_id = ${input.projectId} AND ref = ${task.ref}
@@ -1363,9 +1365,9 @@ async function applyActions(
     const key = displayKey(projectKey, 'T', id);
     await tx.execute(sql`
       INSERT INTO task (id, project_id, key, title, body_md, status, source_spec_version_id,
-                        source_requirement_id, goal_md)
+                        source_requirement_id, goal_md, reverifies_task_id)
       VALUES (${id}, ${input.projectId}, ${key}, ${task.title}, ${task.body}, 'backlog',
-              ${input.versionId}, ${reqs[0]?.id ?? null}, ${task.goal})
+              ${input.versionId}, ${reqs[0]?.id ?? null}, ${task.goal}, ${task.reverifiesTaskId ?? null})
     `);
     await emit({
       type: NERV_EVENT.TASK_CREATED,
@@ -1407,9 +1409,20 @@ async function applyActions(
       out.skipped.push({ kind: 'reverify', value: ref });
       continue;
     }
+    // **다시 보는 완료 작업을 남긴다**(2026-10-16 · 사람 결정 · REQ-DB-053) — 착수하지 않은 재검증 작업은 구현 상태를 바꾸지
+    // 않는데(REQ-API-097), 그 작업을 알아보는 자리가 이 열이다. 완료 작업이 여럿이면 가장 나중에 끝난 것 — 지금의 구현이다.
+    // 목표에는 그때의 완료 작업 키를 모두 적는다
+    const { rows: reverified } = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM task
+       WHERE project_id = ${input.projectId} AND status = 'done'
+         AND key = ANY(${sqlArray(suggestion.done_tasks, 'text')})
+       ORDER BY done_at DESC, key
+       LIMIT 1
+    `);
     await createTask({
       kind: 'reverify',
       ref,
+      reverifiesTaskId: reverified[0]?.id ?? null,
       title: text('agent.cr.task.reverify_title', { ref }),
       goal: text('agent.cr.task.reverify_goal', {
         tasks: suggestion.done_tasks.join(', '),

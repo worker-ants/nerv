@@ -62,6 +62,12 @@ export const task = pgTable(
     sourceRequirementId: uuid('source_requirement_id').references(() => requirement.id),
     /** 기준 기준선 — 주변 문서를 읽는 세트 */
     baselineId: uuid('baseline_id').references(() => specBaseline.id),
+    /**
+     * **재검증 작업이 다시 보는 완료 작업**(2026-10-16 · 사람 결정 · REQ-DB-053) — CR 승인이 바뀐 요구사항의 완료 작업을
+     * 다시 확인하라고 만든 작업에만 있다(같은 프로젝트 · 완료 작업이 여럿이면 가장 나중에 끝난 것). 착수하지 않은 재검증
+     * 작업은 요구사항의 구현 상태를 계산할 때 세지 않는다(spec-workflow §1.3 · REQ-API-097) — 이 열이 그 작업을 알아보는 자리다
+     */
+    reverifiesTaskId: uuid('reverifies_task_id').references((): AnyPgColumn => task.id),
     /** 기준 버전 superseded 시 서버가 세팅, 재브리핑 시 해제(spec-workflow §3.3) */
     rebriefRequiredAt: ts('rebrief_required_at'),
     /** 사람 책임자(D-08) */
