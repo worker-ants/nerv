@@ -25,7 +25,7 @@ import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useSpecVersion } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
-import { crPlanOfCard, crPlanText } from '../../lib/cr-plan.js';
+import { crPlanOfCard, crPlanText, withCrOutcome } from '../../lib/cr-plan.js';
 import { inOrgHref, useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -482,10 +482,15 @@ export function ApprovalCard({
               host: String(card['hostname'] ?? '?'),
               agent: String(card['agent_type'] ?? '?'),
             })
-          : t('inbox.card.decided', {
-              subject: subjectLabel(t, card),
-              decision: decisionLabel(t, decision),
-            }),
+          : // 변경 요청을 확정한 승인이면 그때 만든 작업 수를 함께 적는다(2026-10-17 · REQ-WEB-339)
+            withCrOutcome(
+              t,
+              t('inbox.card.decided', {
+                subject: subjectLabel(t, card),
+                decision: decisionLabel(t, decision),
+              }),
+              [result],
+            ),
         ...(sessionLink !== null
           ? { href: sessionLink, hrefLabel: t('inbox.card.to_session') }
           : subjectLink === null

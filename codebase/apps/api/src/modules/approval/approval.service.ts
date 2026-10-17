@@ -129,6 +129,8 @@ export interface DirectBulkResult {
   code?: NervErrorCode;
   kind?: string | null;
   descriptor?: Message;
+  /** 이 승인이 변경 요청을 확정했으면 그 CR 과 함께 한 일 — 한 건 바로 승인과 같은 모양(2026-10-17 · REQ-API-359) */
+  change_request?: ChangeRequestOutcome;
 }
 
 /** 결정 한 건의 결과(EP-APR-03) */
@@ -253,6 +255,11 @@ export interface BulkDecisionResult {
    */
   descriptor?: Message;
   quorum?: { given: number; required: number; satisfied: boolean };
+  /**
+   * 이 결정이 변경 요청을 확정했으면 그 CR 과 함께 한 일 — 한 건 결정(EP-APR-03)과 같은 모양이다(2026-10-17 사람 결정 · REQ-API-359).
+   * 화면은 이것으로 일괄 토스트에 만든 작업 수를 적는다
+   */
+  change_request?: ChangeRequestOutcome;
 }
 
 export interface InboxCard extends Record<string, unknown> {
@@ -1800,6 +1807,9 @@ export class ApprovalService {
           id: item.id,
           ok: true,
           ...(decided.quorum === undefined ? {} : { quorum: decided.quorum }),
+          ...(decided.change_request === undefined
+            ? {}
+            : { change_request: decided.change_request }),
         });
       } catch (error) {
         if (!(error instanceof NervError)) throw error;
@@ -2078,6 +2088,7 @@ export class ApprovalService {
           status: done.status,
           spec_key: done.spec_key,
           ...(done.quorum === undefined ? {} : { quorum: done.quorum }),
+          ...(done.change_request === undefined ? {} : { change_request: done.change_request }),
         });
       } catch (error) {
         if (!(error instanceof NervError)) throw error;

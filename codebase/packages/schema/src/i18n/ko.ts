@@ -1127,6 +1127,13 @@ export const ko = {
   'cr.toast.approved': '승인했습니다.',
   'cr.toast.rejected': '변경 요청을 거절했습니다. 초안을 버렸습니다.',
   'cr.toast.withdrawn': '변경 요청을 철회했습니다.',
+  // 승인이 한 일(2026-10-17 · 사람 결정 · REQ-WEB-339) — 토스트 끝에 붙는다
+  'cr.result.created': '변경 요청으로 작업 {n}건을 만들었습니다.',
+  'cr.result.archived': '미착수 작업 {n}건을 보관했습니다.',
+  'cr.result.default': '고른 것이 없어 기본값을 적용했습니다.',
+  'cr.result.source_default':
+    '고른 것이 없어 기본값을 적용했습니다. 파생 · 재검증 작업은 만들고 보관은 하지 않습니다.',
+  'cr.result.source_chosen': '승인하며 고른 것만 했습니다.',
   'error.task.rebrief_baseline':
     '기준선으로 개발하는 작업은 기준 버전만 옮길 수 없습니다. 작업의 기준선을 새 기준선으로 바꾸세요.',
   'error.task.baseline_pin_mismatch':

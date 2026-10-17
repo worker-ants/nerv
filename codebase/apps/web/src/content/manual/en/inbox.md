@@ -32,6 +32,8 @@ An approval card shows two more lines below its header.
 
 **[Approve]** on the card does what was chosen. **If nobody has chosen, it applies the defaults**: it creates the derived and re-verification tasks and archives nothing, the same as the default checks on the change request screen. A created task can be archived later, but archiving erases someone's plan. If there are archive suggestions, the card also says "Choose the N archive suggestions on the change request page". To do something else, choose on the change request screen and approve there. If you approve there with nothing checked, that is recorded as choosing to do nothing, and a later approval from the card (such as the second approver of a T3) creates no tasks either.
 
+**After you approve, the notice says what was done.** When the approval finalizes a change request, the decision notice ends with "The change request created N tasks." If tasks were archived it adds that count, and if nothing was chosen it adds that the defaults were applied. A bulk approval adds up the counts of its items. You can see the created tasks on the change request page.
+
 ### Which organization and project it belongs to {#card-scope}
 
 The inbox collects requests from **every organization and project you belong to**, so each card shows the **name of its project** on the right. If you belong to more than one organization, the organization name comes first, as in "organization / project". Items outside the current organization (shown at the top of the left column) appear in an **accent color**, so you do not mistake another organization's approval for one in the current organization. Items with no project are marked **Whole organization**. The **Today** list on Home and notifications are labeled the same way.

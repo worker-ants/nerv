@@ -67,7 +67,7 @@ import {
 import { ancestorsOf } from '../../components/spec-tree.js';
 import type { TreeNode } from '../../components/spec-tree.js';
 import { relativeTime } from '../../lib/format.js';
-import { crPlanOfDetail, crPlanText } from '../../lib/cr-plan.js';
+import { crPlanOfDetail, crPlanText, withCrOutcome } from '../../lib/cr-plan.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRememberVisit } from '../../components/quick-switcher.js';
@@ -620,7 +620,12 @@ function SpecDetail(): React.JSX.Element {
       if (result['status'] === 'approved') {
         pushToast({
           tone: 'ok',
-          message: t('spec.direct_approve_done', { tier: String(result['gate_tier'] ?? '') }),
+          // 변경 요청을 확정했으면 그때 만든 작업 수를 함께 적는다(2026-10-17 · REQ-WEB-339)
+          message: withCrOutcome(
+            t,
+            t('spec.direct_approve_done', { tier: String(result['gate_tier'] ?? '') }),
+            [result],
+          ),
         });
         // 승인됐으면 기본(최신 승인본)이 곧 그 버전이다 — 보던 `?v=` 를 내려놓는다
         void navigate({ to: '.', search: ({ v: _v, diff: _diff, ...rest }) => rest });

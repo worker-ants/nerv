@@ -1136,6 +1136,12 @@ export const en = {
   'cr.toast.returned': 'Approval rejected. Back to draft.',
   'cr.toast.approved': 'Approved.',
   'cr.toast.rejected': 'Change request rejected. The draft was discarded.',
+  'cr.result.created': 'The change request created {n} tasks.',
+  'cr.result.archived': 'Archived {n} tasks that had not started.',
+  'cr.result.default': 'Nothing was chosen, so the defaults were applied.',
+  'cr.result.source_default':
+    'Nothing was chosen, so the defaults were applied: the derived and re-verification tasks are created and nothing is archived.',
+  'cr.result.source_chosen': 'Only what was chosen at approval was done.',
   'cr.toast.withdrawn': 'Change request withdrawn.',
   'error.task.rebrief_baseline':
     "A task developed against a baseline can't move only its basis version. Move the task to a new baseline instead.",

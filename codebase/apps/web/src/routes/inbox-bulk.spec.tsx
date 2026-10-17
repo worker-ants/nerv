@@ -225,6 +225,45 @@ describe('REQ-WEB-182 — 누르기 전에 무엇을 승인하는지 나열한�
     ]);
   });
 
+  it('변경 요청을 확정한 승인이 있으면 토스트가 만든 작업 수를 합쳐 적는다 (2026-10-17 · REQ-WEB-339)', async () => {
+    bulkResponse = {
+      ok: true,
+      decided: 2,
+      failed: 0,
+      results: [
+        {
+          id: 'a1',
+          ok: true,
+          change_request: {
+            key: 'CLV-C-AAAAAA',
+            actions_source: 'default',
+            created_tasks: [{ key: 'CLV-T-N1' }, { key: 'CLV-T-N2' }],
+            archived_tasks: [],
+          },
+        },
+        {
+          id: 'a2',
+          ok: true,
+          change_request: {
+            key: 'CLV-C-BBBBBB',
+            actions_source: 'chosen',
+            created_tasks: [{ key: 'CLV-T-N3' }],
+            archived_tasks: ['CLV-T-OLD1'],
+          },
+        },
+      ],
+    };
+    renderInbox();
+    await selectAll();
+    fireEvent.click(screen.getByTestId('bulk-approve'));
+    fireEvent.click(await screen.findByTestId('bulk-submit'));
+    expect(
+      await screen.findByText(
+        '2건 처리했습니다. 변경 요청으로 작업 3건을 만들었습니다. 미착수 작업 1건을 보관했습니다. 고른 것이 없어 기본값을 적용했습니다.',
+      ),
+    ).toBeTruthy();
+  });
+
   it('거절에는 사유가 필수다 — 사유가 비면 서버를 부르지 않는다(REQ-WEB-022)', async () => {
     renderInbox();
     await selectAll();
