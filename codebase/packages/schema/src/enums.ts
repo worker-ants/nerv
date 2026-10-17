@@ -32,6 +32,13 @@ export const specVersionStatus = pgEnum('spec_version_status', [
   'approved',
   'superseded',
   'deprecated',
+  /**
+   * **버린 초안**(2026-10-16 · 사람 결정 D1 의 세부 · spec-workflow §1.2 · §3.5). 승인본 위의 초안을 감싼 변경 요청을
+   * 거절하거나 작성자가 철회하면 그 초안이 이 상태가 된다 — 지우지 않는다(변경 요청이 무엇을 제안했는지가 남아야 한다).
+   * 끝난 상태라 본문은 동결이고, 번호는 다시 쓰지 않으며, "가장 새 버전" 을 묻는 자리(최신 기준 · 다음 초안의 계보)는
+   * 이 버전을 건너뛴다
+   */
+  'discarded',
 ]);
 export const requirementPriority = pgEnum('requirement_priority', ['must', 'should', 'could']);
 export const implStatus = pgEnum('impl_status', [
@@ -221,6 +228,22 @@ export type ClaimReleaseReason = (typeof CLAIM_RELEASE_INPUTS)[number];
 export const APPROVAL_INBOX_STATES = ['pending', 'decided', 'expired'] as const;
 export type ApprovalInboxState = (typeof APPROVAL_INBOX_STATES)[number];
 
+/**
+ * **받은 요청의 유형 필터**(2026-10-16 · 사람 결정 D3 · api.md EP-APR-01 `kind`). 카드의 유형은 결재 대상만으로 정해지지 않는다 —
+ * 스펙 결재는 그 버전을 변경 요청이 감싸면 `cr` 이고, 에스컬레이션 카드는 변경 요청으로 보냈으면 `cr` 이다. 사유(`escalate`)가 있는
+ * 질문은 `question` 이면서 `escalation` 에도 든다(카드 모양은 질문 그대로다). 판정은 서버 한 곳이다.
+ */
+export const INBOX_KINDS = [
+  'spec',
+  'cr',
+  'plan',
+  'question',
+  'escalation',
+  'finding',
+  'gate_bypass',
+] as const;
+export type InboxKind = (typeof INBOX_KINDS)[number];
+
 /** 관계 목록의 방향 — 같은 이유로 여기 둔다(EP-SPEC-18) */
 export const SPEC_RELATION_DIRECTIONS = ['out', 'in', 'both'] as const;
 export type SpecRelationDirection = (typeof SPEC_RELATION_DIRECTIONS)[number];
@@ -310,6 +333,39 @@ export const ESCALATE_REASONS = [
 ] as const;
 export type EscalateReason = (typeof ESCALATE_REASONS)[number];
 
+/**
+ * **에스컬레이션 카드의 결정**(2026-10-16 · 사람 결정 D3 · api.md EP-APR-03 `resolution`). 넘겨받은 사람이 정하는 그 발견의 처분이다.
+ *
+ * - `fix` — 고칠 것. 발견은 열린 채로 남고 넘긴 세션이 고친 뒤 `fixed` + 커밋으로 닫는다(커밋 없는 `fixed` 를 사람이 대신 만들지 않는다)
+ * - `wont_fix` — 유예. 발견을 닫는다(저장은 `deferred`)
+ * - `dismissed` — 기각. 발견을 닫는다
+ *
+ * 사유가 `spec` 인 카드는 넷째 길이 있다 — 변경 요청으로 보내기(EP-REV-09). 그 길은 이 어휘가 아니라 자기 표면을 쓰고, 결정
+ * 이벤트에는 `change_request` 로 남는다.
+ */
+export const ESCALATION_RESOLUTIONS = ['fix', 'wont_fix', 'dismissed'] as const;
+export type EscalationResolution = (typeof ESCALATION_RESOLUTIONS)[number];
+
+/**
+ * **리뷰 컷오버 단계**(2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-DB-052 · roadmap §7.4). 프로젝트의 `review/` 산출물과 게이트 판정의
+ * 진실이 어디에 있는가 — 병행 운영 표의 세 줄이다.
+ *
+ * - `git` — 컷오버 전. 게이트 판정의 진실은 로컬 훅이고 NERV 는 관측만 한다(기본값)
+ * - `dual` — M1 이중화 기간. 리뷰는 NERV 에 남고 판정은 로컬 훅과 NERV 가 함께 낸다 — 다르면 서버 판정이 이기고 불일치를 남긴다
+ * - `nerv` — M2 이후. 판정의 진실은 NERV 이고 로컬 훅은 fail-open 보조다
+ *
+ * 바꾼 시각이 `project.review_sot_since` 다 — 2주 관측 창(§7.5)이 그 시각에서 시작한다.
+ */
+export const REVIEW_SOTS = ['git', 'dual', 'nerv'] as const;
+export type ReviewSot = (typeof REVIEW_SOTS)[number];
+export const reviewSot = pgEnum('review_sot', REVIEW_SOTS);
+/**
+ * **게이트 판정의 두 값**(2026-10-16 · D6) — 로컬 훅이 알리는 판정(`local_state.verdict`)과 서버 판정을 같은 말로 견준다. 서버 판정은
+ * 물은 종류가 모두 `passed` · `waived` 면 `pass`, 하나라도 아니면 `block` 이다. 저장은 불리언(`local_pass` · `server_pass`)이다.
+ */
+export const GATE_VERDICTS = ['pass', 'block'] as const;
+export type GateVerdict = (typeof GATE_VERDICTS)[number];
+
 // ── 사람 개입 ─────────────────────────────────────────────────────────────
 export const approvalSubjectType = pgEnum('approval_subject_type', [
   'spec_version',
@@ -319,6 +375,12 @@ export const approvalSubjectType = pgEnum('approval_subject_type', [
   'gate_bypass',
   /** 리뷰 발견 — critical 하향(A3)의 승인 카드가 붙는 곳(FR-09, 2026-08-23 추가) */
   'finding',
+  /**
+   * **에스컬레이션 카드**(2026-10-16 · 사람 결정 D3 · spec-workflow §4.7 · 마이그레이션 0054). 대상은 발견을 사람에게 넘긴 처분
+   * 한 건(`resolution` · `kind = escalated`)이다. `finding` 과 나눈 이유: 그 값은 critical 하향을 **허락하는** 카드라 승인이
+   * 하향을 연다 — 같은 대상에 다른 뜻의 결재가 붙으면 에스컬레이션의 결정이 하향 승인으로 읽힌다
+   */
+  'escalation',
 ]);
 export const approvalDecision = pgEnum('approval_decision', ['approve', 'reject', 'comment']);
 export const questionUrgency = pgEnum('question_urgency', ['blocking', 'normal']);
@@ -403,6 +465,25 @@ export const notificationState = pgEnum('notification_state', ['unread', 'read',
 export const NOTIFICATION_LEVELS = ['all', 'important', 'none'] as const;
 export type NotificationLevel = (typeof NOTIFICATION_LEVELS)[number];
 export const notificationLevel = pgEnum('notification_level', NOTIFICATION_LEVELS);
+/**
+ * **워치의 대상**(2026-10-16 · 사람 결정 D5 · REQ-DB-051 · spec-workflow §6.1 ②). 알림 카탈로그(§6.3)의 「워처」 수신자는 이
+ * 표에서 나온다.
+ *
+ * - `spec` — 그 문서 하나
+ * - `task` — 그 작업 하나
+ * - `area` — 영역 문서(`spec.type = area`)와 **그 아래 문서와 작업 전부**. 작업은 기준 문서(`source_spec_version_id`)의 조상으로
+ *   영역을 찾는다 — 작업 표에는 영역 열이 없다
+ */
+export const WATCH_TARGETS = ['spec', 'task', 'area'] as const;
+export type WatchTarget = (typeof WATCH_TARGETS)[number];
+export const watchTarget = pgEnum('watch_target', WATCH_TARGETS);
+/**
+ * **핀의 대상**(2026-10-16 · 사람 결정 D5 · REQ-DB-051) — 퀵 스위처(⌘K)가 여는 것과 같다. 요구사항 · 헤딩으로 찾은 줄을 고정하면
+ * 그 문서가 고정된다(같은 문서를 두 번 고정하지 않는다).
+ */
+export const PIN_TARGETS = ['spec', 'task', 'change_request'] as const;
+export type PinTarget = (typeof PIN_TARGETS)[number];
+export const pinTarget = pgEnum('pin_target', PIN_TARGETS);
 
 // ── 메일 (2026-09-22 · 사람 결정) ──────────────────────────────────────────
 /**

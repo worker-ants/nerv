@@ -53,6 +53,9 @@ allowed-tools:
     `finding` 이고 `approve` 면 막혔던 `nerv_finding_resolve` 를 **같은 인자로** 다시 부른다.
     `reject`·`comment` 면 `comment_md` 를 읽고 사람에게 보고한다 — 우회하지 않는다.
     `spec_version` 이면 결과를 보고한다(`approve` 는 approved, `reject` 는 draft 로 복귀했다는 뜻).
+    `escalation` 이면 내가 넘긴 발견의 카드다(`finding_id` · `resolution`): `fix` 면 고친 뒤
+    `nerv_finding_resolve`(`fixed` + 커밋)로 닫는다. `wont_fix`·`dismissed` 는 이미 닫혔다.
+    `change_request` 면 그 CR(`change_request_key`)이 스펙을 갱신한다. 어느 쪽이든 `comment_md` 가 사람의 근거다.
     **같은 결재는 1시간 동안 매 하트비트에 다시 온다** — `approval_id` 로 한 번만 처리한다.
   - `approval_expired`(내가 낸 스펙 검토 요청을 7일 동안 아무도 결정하지 않아 만료됐다 — `approval_id`·
     `subject_key`·`version_no`·`expired_at` 이 함께 온다) → 그 버전은 draft 로 돌아갔다. 사람에게 보고하고,
@@ -75,6 +78,9 @@ allowed-tools:
     달리 기준 드리프트는 사람이 재브리핑할 때까지 남는 **상태**라 매 하트비트에 다시 온다.
     기준선으로 개발하는 작업에는 이 항목이 오지 않는다 — 세트가 약속이고, 옮기는 것은 사람이
     기준선째 옮긴다. 구현 중에 스펙을 더 읽을 때도 /nerv:next 6단계처럼 `task` 를 넘긴다.
+    **`requirement_removed: true` 면 중단 확인 요청이다** — 이 작업의 요구사항(`requirement_ref`)이 새
+    승인본에서 빠졌다. 이어 구현하지 않는다. 지금까지를 안전 지점까지 정리하고 `nerv_task_update`(`status=blocked`,
+    `blocked_reason=spec_conflict`)로 멈춘 뒤 사람에게 그 요구사항이 빠졌다고 보고하고 계속할지 묻는다.
 - statusline 이 읽을 요약을 `.nerv/cache/claim.json` 에 **응답의 키 이름 그대로** 기록한다.
   값의 출처가 응답마다 다르다: `task_id`·`claim_id` 는 **클레임 응답**에서, `status` 는 마지막
   `nerv_task_update` 응답에서, `lease_expires_at`·`scope_overlaps` 는 **하트비트 응답**에서 —

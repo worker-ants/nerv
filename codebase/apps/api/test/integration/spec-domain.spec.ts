@@ -87,6 +87,9 @@ beforeEach(async () => {
   await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM attachment');
   await pool.query('DELETE FROM spec_chunk_embedding');
+  // 변경 요청이 초안을 감싼다(2026-10-16) — 버전과 서로를 가리키므로 먼저 푼다
+  await pool.query('UPDATE spec_version SET change_request_id = NULL');
+  await pool.query('DELETE FROM change_request');
   await pool.query('DELETE FROM spec_version');
   await pool.query('DELETE FROM spec');
   await pool.query('DELETE FROM notification');

@@ -25,7 +25,11 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 **24종**(P0 8 + P1 16 · 카탈로그 27종 — 리뷰 3종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.46 · 2026-10-15 · HTML 파생본: [scope.html](../html/scope.html)
+> 문서 버전 v0.48 · 2026-10-16 · HTML 파생본: [scope.html](../html/scope.html)
+>
+> v0.48 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B)): **§5 「서버 watch 테이블」 행.** 워치와 핀이 서버 표 둘(`watch` · `pin`)로 들어왔다 — 알림 카탈로그의 「워처」 수신자와 기기를 바꿔도 남는 핀이다([4.8 백로그](backlog.md) E17-S02).
+>
+> v0.47 변경(2026-10-16 — CR · SPEC-DRIFT 역류, Phase 2 묶음 3 · **사람 결정**(2026-10-16 — D1 · D2 · D3)): **새 결정 없음(결정은 [4.8 백로그](backlog.md) E19와 [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.4 · §3.5 · §4.7) · §5 표 두 행 · 착수 기록의 남은 것.** S6 리뷰 센터가 남은 것으로 적어 둔 `spec_drift` → CR 라우팅이 들어왔다([CR로 보내기] · E19-S02). CR 델타 뷰와 영향 미리보기도 같은 날 들어왔다(E19-S01).
 >
 > v0.46 변경(2026-10-15 — Phase 2 착수, **사람 결정**): **§5 착수 기록 하나 · FR-03 · FR-13 행.** Phase 2 를 2026-10-15 에 착수한다. 할 일은 §3.2 · §3.4 의 "MVP에서 안 되는 것" 열과 §5 표의 Phase 2 행이고, 스토리와 현황은 [4.8 백로그](backlog.md) §6(E15~E22)이 맡는다. MVP 범위 표는 바꾸지 않는다. 곁들여 FR-03 · FR-13 행이 이미 들어온 구현 축 자동 파생과 구현 현황 수치를 "Phase 2" 로 적고 있던 것을 실물에 맞췄다 — 남은 것은 `verified` 의 커밋 범위 · 임포트 값의 출처(2026-10-15 사람 결정) · 커버리지 드릴다운이다.
 >
@@ -400,22 +404,22 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 
 | 하지 않는 것 | 언제 하나 | 왜 MVP가 아닌가 |
 | --- | --- | --- |
-| 리뷰 센터 S6 | **Phase 2 · 2026-08-23 구현 완료** | [4.5 화면 명세](screens.md) §2.6a. 남은 것은 spec_drift → CR 라우팅(FR-04 의존)이다. 게이트 현황 화면은 브랜치 판정을 표시하고, `done` 은 정책으로 켜면 done 게이트가 막는다(2026-09-28 · REQ-API-250) |
+| 리뷰 센터 S6 | **Phase 2 · 2026-08-23 구현 완료** | [4.5 화면 명세](screens.md) §2.6a. spec_drift → CR 라우팅([CR로 보내기])은 2026-10-16 에 들어왔다([4.8 백로그](backlog.md) E19-S02). 게이트 현황 화면은 브랜치 판정을 표시하고, `done` 은 정책으로 켜면 done 게이트가 막는다(2026-09-28 · REQ-API-250) |
 | 리뷰 도구 2종 `nerv_review_submit` · `nerv_finding_resolve` | **Phase 2 · 2026-08-23 착수 완료** | 아래 착수 기록. **MVP 약속과 카탈로그는 다른 수다** — 두 수를 섞지 않는다(2026-09-28 현황: 카탈로그 26종) |
 | `/nerv:review` 스킬 | **Phase 2 · 2026-08-23 배포 완료** | [4.6 플러그인](plugin.md) §2.6. MVP 약속 밖이다(§4.3 표의 ○) |
 | 리뷰 서브에이전트 2종 `nerv-code-reviewer` · `nerv-consistency-checker` | **Phase 2 · 2026-10-15 배포**(사람 결정) | [4.6 플러그인](plugin.md) §2.6 · REQ-PLG-031. 각자 자기 종류(`code` · `consistency`)로 직접 제출하고 처분은 메인 세션이 한다. 서버는 바꾸지 않았다. MVP 약속 밖이다 |
 | Codex 완전 지원 | Phase 2 | P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·`AGENTS.md` 배포는 Phase 2. MVP는 `config.toml`·`AGENTS.md` **초안 제공**까지 — 경계는 [4.6 플러그인과 온보딩](plugin.md) §5 |
-| CR 델타 UI 고도화 | Phase 2 | FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지 |
+| CR 델타 UI 고도화 | **Phase 2 · 2026-10-16 구현 완료**(사람 결정 D1 · D2) | FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지였다. CR 상세와 영향 미리보기 · 받은 요청의 CR 카드는 [4.8 백로그](backlog.md) E19-S01 |
 | 실시간 공동 편집(CRDT) | Phase 3+ (착수 조건: 409 재시도 주 20건 이상) | 서버 권위 + `base_hash` 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2) |
 | OAuth 2.1 리소스 서버 | Phase 2 | 2026-08-20 인증 확정(better-auth)으로 이동 — §2.1 콜아웃 참조. MVP 에이전트 인증은 PAT |
 | 임포트 양방향 동기화 · 서버 주도 저장소 clone | Phase 3+ (착수 조건부) | 임포트는 복제이고 SoT는 git이다(§6.1-5). 서버는 대상 저장소에 접근하지 않는다 — 파일을 읽는 쪽이 파일 있는 장비라는 것이 임포터 구조의 전제다([4.7 스펙 임포터](importer.md) §3.2) |
 | 임포트 MCP 도구 | — (계획 없음) | 결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. **에이전트 경로는 없다**(2026-09-06 — 래퍼 스킬을 걷었다 · [4.6](plugin.md) §2.5). 임포트는 원본 체크아웃이 있는 장비에서 **사람이 도는 운영 작업**이다([4.7](importer.md) §3.6) |
 | 외부 검색엔진(Elasticsearch 등) | — (계획 없음, §2.2 트리거로만) | Postgres 하이브리드(FTS+trgm+pgvector)로 목표 규모(NFR-04) 충분. 운영 컴포넌트 +1의 비용이 이득을 넘는다 |
 | OpenAI 호환이 아닌 임베딩 SDK 직결(Voyage 전용 SDK 등) | — (계획 없음) | 제공자는 OpenAI 호환 `/v1/embeddings` 단일 계약만(REQ-CB-020) — 제공자별 분기 코드를 만들지 않는다. ※ 외부 제공자 사용 시 스펙 본문이 그 제공자에 전송된다 — 기밀 등급이 높은 프로젝트는 자가호스팅 프로필을 쓰는 것이 운영 권고다 |
-| 서버 watch 테이블 | Phase 2 | 워치 서버 동기화는 알림 확장과 함께. ※ **전역 관계 그래프 뷰는 이 행에서 빠졌다**(2026-08-23 정정) — 2026-08-23 v1.8 에서 MVP 로 들어왔는데(§2.4a 신설 · REQ-WEB-050·051) 이 행이 낡은 채 남아 있었다 |
+| 서버 watch 테이블 | **Phase 2 · 2026-10-16 구현 완료**(사람 결정 D5 = B) | 워치 서버 동기화는 알림 확장과 함께 — 워치(`watch`)와 핀(`pin`)을 따로 둔 표 둘이 들어왔다. 워처는 알림 라우팅이 관여와 같은 자리에서 산출하고, 퀵 스위처의 핀은 서버에 남는다([4.8 백로그](backlog.md) E17-S02 · [4.4 API](api.md) REQ-API-342 ~ 345). ※ **전역 관계 그래프 뷰는 이 행에서 빠졌다**(2026-08-23 정정) — 2026-08-23 v1.8 에서 MVP 로 들어왔는데(§2.4a 신설 · REQ-WEB-050·051) 이 행이 낡은 채 남아 있었다 |
 | git 미러 export | Phase 2 말(M2 컷오버 시점) | MVP 기간에는 spec/plan의 SoT가 git이라 export할 것이 없다(로드맵 §7.4). **HTTP md 미러(`GET …/specs/{id}.md` · `llms.txt`)는 별개로 MVP 포함** — [4.4 API 명세](api.md) §2 |
 
-> **착수 기록 — FR-09 리뷰 수집(2026-08-23, 사람 지시).** Phase 2 항목 중 **리뷰 수집의 서버·도구**를 앞당겨 구현했다. 들어온 것: `ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution` 적재, MCP 도구 2종(`nerv_review_submit` A2 · `nerv_finding_resolve` A2 / critical→dismissed·wont_fix 는 A3), REST 3종(EP-REV-01~03 — [4.4 API 명세](api.md) §2.6a). 같은 날 이어서 **S6 리뷰 센터 화면**([4.5](screens.md) §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 **`/nerv:review` 스킬**([4.6](plugin.md) §2.6)까지 들어왔다. 남은 것: `spec_drift` → CR 라우팅(FR-04 의존). 리뷰 서브에이전트 2종은 2026-10-15 에 들어왔다(사람 결정 · [4.6 플러그인](plugin.md) REQ-PLG-031). 게이트 둘째 단의 **집행**은 2026-09-28 에 들어왔다 — 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 리뷰 커버리지가 Task `done` 을 막는다([4.4 API](api.md) REQ-API-250). 병합(push · CI)은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다.
+> **착수 기록 — FR-09 리뷰 수집(2026-08-23, 사람 지시).** Phase 2 항목 중 **리뷰 수집의 서버·도구**를 앞당겨 구현했다. 들어온 것: `ReviewSession → ReviewerReport → Finding(fingerprint dedup) → FindingOccurrence → Resolution` 적재, MCP 도구 2종(`nerv_review_submit` A2 · `nerv_finding_resolve` A2 / critical→dismissed·wont_fix 는 A3), REST 3종(EP-REV-01~03 — [4.4 API 명세](api.md) §2.6a). 같은 날 이어서 **S6 리뷰 센터 화면**([4.5](screens.md) §2.6a — 발견 큐·facet 필터·처분·게이트 현황)과 **`/nerv:review` 스킬**([4.6](plugin.md) §2.6)까지 들어왔다. `spec_drift` → CR 라우팅(FR-04 의존)은 2026-10-16 에 들어왔다([4.8 백로그](backlog.md) E19-S02). 리뷰 서브에이전트 2종은 2026-10-15 에 들어왔다(사람 결정 · [4.6 플러그인](plugin.md) REQ-PLG-031). 게이트 둘째 단의 **집행**은 2026-09-28 에 들어왔다 — 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 리뷰 커버리지가 Task `done` 을 막는다([4.4 API](api.md) REQ-API-250). 병합(push · CI)은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다.
 >
 > **MVP 범위 표(§3.2·§4.2)는 바꾸지 않았다.** FR-09 는 여전히 MVP 가 아니고 MVP 약속은 그대로이고 **카탈로그만 자랐다** — 2026-08-23 의 18종에서 2026-10-11 현재 **27종**이다(그 사이 범위 확정 여덟 번으로 MVP 도구도 16 → 24 가 됐다 · §4.2). 두 수를 하나로 합치면 "MVP 에서 무엇을 약속했는가"를 다시 셀 수 없게 된다(도구 정의의 `phase` 필드가 그 구분을 나른다).
 >

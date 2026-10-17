@@ -40,8 +40,10 @@ describe('테이블 선언 (database.md §2)', () => {
   // 2026-09-27 · 33 → 34: `notification_preference` 신설(마이그레이션 0035 · 사람 결정 N3 · REQ-DB-028)
   // 2026-09-27 · 34 → 35: `notification_batch_event` 신설(마이그레이션 0037 · 사람 결정 G2 · REQ-DB-030)
   // 2026-09-28 · 35 → 36: `notification_digest_setting` 신설(마이그레이션 0041 · 사람 결정 EM1~EM9 · REQ-DB-034)
-  it('36종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 5(리뷰) + 5(이벤트) + 1(멱등)', () => {
-    expect(declaredTables).toHaveLength(36);
+  // 2026-10-16 · 36 → 38: `watch` · `pin` 신설(마이그레이션 0056 · 사람 결정 D5 · REQ-DB-051)
+  // 2026-10-16 · 38 → 39: `gate_verdict_comparison` 신설(마이그레이션 0057 · 사람 결정 D6 · REQ-DB-052)
+  it('39종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 6(리뷰) + 7(이벤트) + 1(멱등)', () => {
+    expect(declaredTables).toHaveLength(39);
   });
 
   it('이름이 data-model 의 테이블 표와 1:1 이다', () => {
@@ -58,6 +60,7 @@ describe('테이블 선언 (database.md §2)', () => {
       'finding',
       'finding_comment',
       'finding_occurrence',
+      'gate_verdict_comparison',
       'idempotency_key',
       'invitation',
       'membership',
@@ -66,6 +69,7 @@ describe('테이블 선언 (database.md §2)', () => {
       'notification_digest_setting',
       'notification_preference',
       'organization',
+      'pin',
       'project',
       'question',
       'requirement',
@@ -82,6 +86,7 @@ describe('테이블 선언 (database.md §2)', () => {
       'task',
       'task_dependency',
       'user',
+      'watch',
     ]);
   });
 
@@ -93,8 +98,8 @@ describe('테이블 선언 (database.md §2)', () => {
 
   it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16 · §2.17)', () => {
     const all = allTables.map((t) => getTableName(t));
-    // 36 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
-    expect(all).toHaveLength(41);
+    // 39 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
+    expect(all).toHaveLength(44);
     for (const infra of NON_ENTITY_TABLES) {
       expect(all).toContain(infra);
       expect(tableNames).not.toContain(infra);
@@ -114,8 +119,10 @@ describe('enum 선언 (database.md §2.1)', () => {
   // 2026-10-09 · 42 → 43: `claim_awaiting_kind` 신설(마이그레이션 0046 · REQ-DB-039)
   // 2026-10-10 · 43 → 44: `task_archive_reason` 신설(마이그레이션 0047 · REQ-DB-040)
   // 2026-10-15 · 44 → 45: `impl_status_source` 신설(마이그레이션 0051 · REQ-DB-044)
-  it('45종이다', () => {
-    expect(declaredEnums).toHaveLength(45);
+  // 2026-10-16 · 45 → 47: `watch_target` · `pin_target` 신설(마이그레이션 0056 · REQ-DB-051)
+  // 2026-10-16 · 47 → 48: `review_sot` 신설(마이그레이션 0057 · 사람 결정 D6 · REQ-DB-052)
+  it('48종이다', () => {
+    expect(declaredEnums).toHaveLength(48);
   });
 
   it('하이픈이 든 clemvion 계승 어휘를 그대로 쓴다 (data-model §2.6)', () => {
@@ -141,7 +148,7 @@ describe('enum 선언 (database.md §2.1)', () => {
     ]);
   });
 
-  it('Task 축 상태 7종 · 문서 축 상태 5종 (spec-workflow §1.2·§1.4)', () => {
+  it('Task 축 상태 7종 · 문서 축 상태 6종 (spec-workflow §1.2·§1.4)', () => {
     expect(enums.taskStatus.enumValues).toEqual([
       'backlog',
       'ready',
@@ -157,6 +164,8 @@ describe('enum 선언 (database.md §2.1)', () => {
       'approved',
       'superseded',
       'deprecated',
+      // 버린 초안 — 변경 요청을 거절 · 철회하면 그 초안이 된다(2026-10-16 · 사람 결정 D1 의 세부)
+      'discarded',
     ]);
   });
 

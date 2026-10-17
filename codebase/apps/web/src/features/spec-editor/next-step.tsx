@@ -10,6 +10,9 @@
 //   검토 중  → "결재는 받은 요청의 카드에서" + [받은 요청에서 열기] — 그 카드로 곧장
 //   승인본   → [작업 만들기] — 약속을 작업으로 옮기는 문(SPEC-08). 요구사항이 없는 문서도 된다
 //   거절·대체 → 무엇이 일어났는지와 갈 곳
+//   버린 초안 → 변경 요청이 거절 · 철회됐다는 것과 기본으로 돌아가는 길(2026-10-16)
+//
+// 이 버전이 변경 요청이면(승인본 위의 초안) 그 CR 로 가는 칩이 함께 선다 — 델타 · 영향 · 함께 할 일은 거기서 본다.
 //
 // 곁에는 열린 코멘트 수(2026-09-24 사람 결정 D6 — 레일의 기본 탭은 두고 칩만 둔다)와 요구사항 수가
 // 서고, 누르면 레일의 그 탭이 열린다.
@@ -159,9 +162,25 @@ export function NextStep({
     );
   } else if (status === 'rejected') {
     message = t('spec.next.rejected');
+  } else if (status === 'discarded') {
+    // **버린 초안**(2026-10-16 · REQ-WEB-322) — 그 변경 요청이 거절되거나 철회됐다. 할 일은 기본(승인본)으로 돌아가는 것이다
+    message = t('spec.next.discarded');
   } else {
     message = t('spec.next.superseded');
   }
+
+  /**
+   * **이 버전을 감싼 변경 요청**(2026-10-16 · 사람 결정 D1 · REQ-WEB-322) — 승인본 위의 초안 · 검토 중 · 버린 초안이면 그 CR 로
+   * 가는 칩이다. 승인본을 보는 중에 그 위에 열린 CR 이 있으면 그것을 가리킨다. 결재는 버전이 받으므로 단추가 아니라 길이다
+   */
+  const ownCr = (viewed['change_request'] ?? null) as Record<string, unknown> | null;
+  const openCr = (viewed['open_change_request'] ?? null) as Record<string, unknown> | null;
+  const crChip =
+    ownCr !== null && typeof ownCr['key'] === 'string'
+      ? { key: ownCr['key'], label: t('spec.next.cr', { key: ownCr['key'] }) }
+      : openCr !== null && typeof openCr['key'] === 'string'
+        ? { key: openCr['key'], label: t('spec.next.open_cr', { key: openCr['key'] }) }
+        : null;
 
   return (
     <section
@@ -174,6 +193,16 @@ export function NextStep({
         {message}
       </span>
       {actions}
+      {crChip !== null && (
+        <Link
+          to="/p/$proj/crs/$cr"
+          params={{ proj, cr: crChip.key }}
+          data-testid="spec-next-cr"
+          className="text-sm text-link hover:underline"
+        >
+          {crChip.label} ↗
+        </Link>
+      )}
       {/* 다른 버전을 보고 있으면 **기본으로 돌아가는 길** — 대체된 버전을 연 사람의 다음 걸음이다 */}
       {viewingPast && status !== 'draft' && status !== 'in_review' && (
         <Button

@@ -523,10 +523,13 @@ export class TaskService {
              bl.name AS baseline,
              -- **보관**(REQ-API-284) — 대신할 작업은 키로, 보관한 사람은 이름으로 준다. 상태와 따로 읽는다
              t.archive_reason::text AS archive_reason, sup.key AS superseded_by,
-             arc.display_name AS archived_by_name
+             arc.display_name AS archived_by_name,
+             -- **재검증 작업이 다시 보는 완료 작업**(2026-10-16 · 사람 결정 · REQ-DB-053) — 키로 준다. 재검증 작업이 아니면 null
+             rv.key AS reverifies_task_key
         FROM task t
    LEFT JOIN "user" au ON au.id = t.assignee_user_id
    LEFT JOIN task sup ON sup.id = t.superseded_by_task_id
+   LEFT JOIN task rv ON rv.id = t.reverifies_task_id
    LEFT JOIN "user" arc ON arc.id = t.archived_by_user_id
    LEFT JOIN spec_baseline bl ON bl.id = t.baseline_id
    LEFT JOIN spec_version sv ON sv.id = t.source_spec_version_id
@@ -546,6 +549,8 @@ export class TaskService {
     const { rows: claims } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT c.id, c.agent_session_id, c.status::text AS status, c.lease_expires_at, c.acquired_at,
              se.external_session_id, se.hostname, se.agent_type::text AS agent_type, c.user_id,
+             -- 세션이 일한 브랜치 — 리뷰가 없는 브랜치의 면제를 고를 때 후보가 된다(2026-10-16 · REQ-WEB-327)
+             se.branch,
              -- 선언한 범위 — 겹침 판정이 보는 것이 무엇인지 사람도 봐야 한다(SCR-07)
              c.scope_spec_ids, c.scope_file_globs
         FROM claim c LEFT JOIN agent_session se ON se.id = c.agent_session_id
@@ -2142,11 +2147,16 @@ export class TaskService {
              s.key AS spec_key, sv.version_no AS basis_version_no,
              (SELECT max(v.version_no) FROM spec_version v
                WHERE v.spec_id = s.id AND v.status = 'approved') AS latest_version_no,
-             t.rebrief_required_at::text AS rebrief_required_at
+             t.rebrief_required_at::text AS rebrief_required_at,
+             -- **그 작업의 요구사항이 새 승인본에서 빠졌다**(2026-10-16 · spec-workflow §3.3 REMOVED · REQ-API-331) — 진행 중이면
+             -- 중단 확인 요청이다. 세션은 이어 가지 않고 멈춰 사람에게 묻는다(skills/impl). 요구사항이 없는 작업은 거짓이다
+             r.ref AS requirement_ref,
+             (r.removed_in_version_id IS NOT NULL) AS requirement_removed
         FROM claim c
         JOIN task t ON t.id = c.task_id
         JOIN spec_version sv ON sv.id = t.source_spec_version_id
         JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN requirement r ON r.id = t.source_requirement_id
        WHERE c.id = ${claimId} AND c.status = 'active'
          -- 기준선으로 개발하는 작업은 세트가 약속이라 기준 드리프트가 아니다(M9 · REQ-API-210)
          AND t.baseline_id IS NULL

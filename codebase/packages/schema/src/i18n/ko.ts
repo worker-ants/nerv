@@ -109,6 +109,19 @@ export const ko = {
   'error.approval.already_decided': '이미 결정된 항목입니다.',
   'error.approval.expired':
     '7일 동안 결정되지 않아 만료된 결재입니다. 문서는 초안으로 돌아갔고, 다시 검토를 요청하면 새로 결정할 수 있습니다.',
+  'error.cr.actions_without_cr':
+    '함께 할 일(cr_actions)은 변경 요청을 감싼 버전을 승인할 때만 받습니다.',
+  'error.cr.in_review':
+    '검토 중인 변경 요청입니다. 결재에서 거절하면 초안으로 돌아오고, 그 뒤에 거절하거나 철회할 수 있습니다.',
+  'error.cr.not_found': '변경 요청을 찾지 못했습니다.',
+  'error.cr.not_open': '이미 끝난 변경 요청입니다({status}).',
+  'error.cr.reject_role': '변경 요청 거절은 planner · admin만 할 수 있습니다.',
+  'error.cr.withdraw_not_author':
+    '변경 요청은 그 요청을 연 사람이나 초안의 작성자만 철회할 수 있습니다.',
+  'error.cr.unchanged':
+    '{cr}의 초안이 아직 승인본과 같습니다. 스펙을 고친 뒤 검토를 요청하세요. 고칠 것이 없으면 변경 요청을 거절하거나 철회하세요.',
+  'error.escalation.decided_by_cr':
+    '변경 요청으로 보낸 에스컬레이션입니다. 그 변경 요청을 승인하거나 거절하면 함께 끝납니다.',
   'error.approval.content_changed':
     '불러온 뒤 내용이 바뀌었습니다. 바뀐 내용을 확인하고 다시 결정하세요.',
   'error.approval.not_assignee': '지정된 승인자가 아닙니다.',
@@ -119,6 +132,14 @@ export const ko = {
   // 바로 승인(2026-10-11 · REQ-API-287)
   'error.approval.direct_role': '바로 승인은 admin과 planner만 할 수 있습니다.',
   'error.approval.waiver_reason_required': '면제에는 사유가 필요합니다.',
+  // 워치 · 핀(2026-10-16 · 사람 결정 D5 · REQ-API-342 ~ 345)
+  'error.watch.target_not_found': '워치할 대상({target})을 이 프로젝트에서 찾지 못했습니다.',
+  'error.watch.not_area':
+    '영역 워치는 영역 문서에만 걸 수 있습니다. 이 문서({target})는 영역이 아닙니다. 문서 하나를 워치하려면 종류를 spec으로 보내세요.',
+  'error.watch.not_found': '찾을 수 없는 워치입니다. 이미 해제했거나 다른 사람의 워치입니다.',
+  'error.pin.target_not_found': '고정할 대상({target})을 이 프로젝트에서 찾지 못했습니다.',
+  'error.pin.not_found': '찾을 수 없는 핀입니다. 이미 풀었거나 다른 사람의 핀입니다.',
+  'error.pin.limit': '핀은 {max}개까지 고정할 수 있습니다. 쓰지 않는 핀을 먼저 푸세요.',
   // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
   'error.approval.bypass_kind_forbidden':
     '이 역할로는 {kinds} 리뷰를 면제할 수 없습니다. 코드 계열(code · merge)은 developer · admin이, 스펙 계열(consistency · spec_coverage)은 planner · admin이 면제합니다.',
@@ -127,6 +148,18 @@ export const ko = {
     '종류를 고르지 않은 면제는 admin만 낼 수 있습니다. 면제할 리뷰 종류를 고르세요.',
   'error.approval.bypass_has_code':
     '코드 증적(커밋 · PR · 코드 경로)이 붙은 작업은 {kinds} 리뷰를 면제할 수 없습니다. 코드를 낸 작업은 코드 리뷰를 받습니다.',
+  // 브랜치 면제(2026-10-16 · 사람 결정 D4 · REQ-API-339)
+  'error.approval.bypass_target_required':
+    '면제할 대상을 하나만 주세요. 작업이나 리뷰 세션이면 subject_id를, 브랜치면 branch를 줍니다.',
+  'error.approval.bypass_head_needs_branch':
+    'head_sha는 브랜치 면제에만 줍니다. 그 브랜치의 커밋 하나로 면제를 좁힐 때 씁니다.',
+  'error.approval.bypass_head_not_full_sha':
+    'head_sha는 40자 커밋 SHA여야 합니다. 짧은 SHA는 나중에 다른 커밋과 겹칠 수 있습니다(git rev-parse로 얻습니다).',
+  // SoT 컷오버 M1(2026-10-16 · 사람 결정 D6 · REQ-API-346 · 349)
+  'error.gate.head_not_full_sha':
+    'head_sha는 40자 커밋 SHA여야 합니다. 한 커밋의 두 판정을 견주므로 커밋이 하나로 정해져야 합니다(git rev-parse로 얻습니다).',
+  'error.cutover.role_required': '컷오버 지표는 admin과 planner만 볼 수 있습니다.',
+  'error.cutover.bad_window': '관측 창의 시작(since)은 끝(until)보다 앞이어야 합니다.',
   'error.auth.admin_only': 'admin만 할 수 있습니다.',
   'error.auth.org_admin_only':
     '조직 전체 범위는 조직 admin만 관리할 수 있습니다. 프로젝트 admin은 자기 프로젝트만 관리할 수 있습니다.',
@@ -196,6 +229,7 @@ export const ko = {
     '계정 정보는 사람만 바꿀 수 있습니다. 에이전트 토큰으로는 바꿀 수 없습니다.',
   'error.human_only.approve': '승인은 사람만 할 수 있습니다.',
   'error.human_only.baseline': '기준선 생성은 사람만 할 수 있습니다.',
+  'error.human_only.cr_reject': '변경 요청 거절은 사람만 할 수 있습니다.',
   'error.human_only.bypass': '게이트 면제는 사람만 할 수 있습니다.',
   'error.db.check_violation': '허용되지 않는 값입니다. 제약 조건 "{constraint}"을(를) 확인하세요.',
   'error.db.foreign_key_violation':
@@ -365,9 +399,26 @@ export const ko = {
   'error.review.spec_version_required':
     '스펙 정정 처분에는 고친 스펙 버전(spec_version_id)이 필요합니다.',
   'error.review.spec_version_unknown': '그 스펙 버전을 이 프로젝트에서 찾을 수 없습니다.',
+  'error.review.escalate_with_cr':
+    '처분에 변경 요청을 적어 넘기지 않습니다. 발견을 변경 요청으로 보내려면 [CR로 보내기]를 쓰세요(EP-REV-09).',
+  'error.review.not_spec_drift':
+    'spec_drift 태그가 없는 발견입니다. 스펙이 틀렸다는 지적만 변경 요청으로 보냅니다. 코드를 고치거나 다른 처분을 고르세요.',
+  'error.review.finding_in_other_cr':
+    '이 발견은 이미 다른 변경 요청({change_request_key})에 묶여 있습니다.',
+  'error.review.to_cr_role': '발견을 변경 요청으로 보내는 일은 planner · admin만 할 수 있습니다.',
+  'error.review.no_origin_spec':
+    '어느 스펙이 틀렸는지 모르는 발견입니다. 발견이 스펙 버전이나 요구사항을 가리켜야 변경 요청으로 보낼 수 있습니다.',
+  'error.review.no_approved_version':
+    '승인본이 없는 문서라 변경 요청이 아닙니다. 초안을 고친 뒤 발견을 spec_change로 처분하세요.',
+  'error.review.finding_other_spec':
+    '이 발견은 다른 문서({spec})를 가리킵니다. 그 문서의 초안에서 묶으세요.',
   'mcp.arg.resolution_spec_version': '스펙을 고쳐 해결했을 때의 근거. 고친 저장의 spec_version_id',
   'mcp.arg.escalate_reason':
     '사람에게 넘기는 이유. escalated 처분이면 필수이고, 질문의 escalate와 같은 값을 쓴다.',
+  'mcp.arg.escalation_blocking':
+    'escalated 처분에서 이 세션이 사람의 결정을 기다리는가. 기본은 기다린다(true). 기다리면 세션은 awaiting_input이 되고 결정은 하트비트 pending의 approval_decided(subject_type: escalation)로 온다',
+  'mcp.arg.draft_finding_id':
+    '이 저장이 고치는 spec_drift 발견의 UUID. 승인본이 있는 문서의 초안이면 그 변경 요청에 발견을 묶는다 — 변경 요청이 승인되면 발견이 fixed로, 거절되면 dismissed로 닫힌다',
   'mcp.arg.finding_status_filter': '쉼표 목록(open · fixed · dismissed · wont_fix). 생략하면 open',
   'mcp.arg.finding_severity_filter': '쉼표 목록(critical · warning · info)',
   'mcp.arg.finding_area_filter': '쉼표 목록(codebase · spec · task · process)',
@@ -461,6 +512,14 @@ export const ko = {
     '이 지적에 대한 코멘트입니다. 지적한 에이전트가 다음 하트비트 때 받습니다',
   'reviews.rail.comment_submit': '남기기',
   'reviews.promote': '작업으로 등록',
+  'reviews.to_cr': 'CR로 보내기',
+  'reviews.to_cr_hint':
+    '유래 스펙의 승인본에서 초안을 열고 이 발견을 변경 요청에 묶습니다. 승인되면 발견이 닫히고, 거절되면 기각과 함께 코드 되돌림 작업이 생깁니다.',
+  'reviews.to_cr_no_permission': 'planner · admin만 변경 요청으로 보낼 수 있습니다.',
+  'reviews.to_cr_done': '변경 요청 {key}로 보냈습니다.',
+  'reviews.in_cr': '변경 요청 {key}',
+  'reviews.escalated': '에스컬레이션 · {reason}',
+  'reviews.escalation_waiting': '세션이 결정을 기다립니다',
   'reviews.promoted': '{key}을(를) 만들었습니다. 위임 명세를 채우면 준비됨으로 올릴 수 있습니다.',
   'task.meta.assignee': '담당 {name}',
   'task.meta.runner': '실행 {host} ▸',
@@ -481,6 +540,9 @@ export const ko = {
   'spec.next.in_review': '검토 중입니다. 결재는 받은 요청의 카드에서 합니다.',
   'spec.next.approved': '승인된 버전입니다. 여기서 작업을 만듭니다.',
   'spec.next.rejected': '거절됐습니다. 에이전트가 고쳐서 새 초안으로 다시 올립니다.',
+  'spec.next.discarded': '버린 초안입니다. 변경 요청이 거절되거나 철회됐습니다.',
+  'spec.next.cr': '변경 요청 {key}',
+  'spec.next.open_cr': '진행 중인 변경 요청 {key}',
   'spec.next.superseded': '지난 버전입니다. 더 새로 승인된 버전이 있습니다.',
   'spec.next.no_version': '하위 문서를 묶는 노드라 아직 버전이 없습니다. 검토할 본문이 없습니다.',
   'spec.next.blocked': '사전 검토에서 막힌 항목 {count}건. 먼저 고치세요',
@@ -555,13 +617,39 @@ export const ko = {
   'reviews.filter.status': '상태',
   'reviews.filter.tag': '태그',
   'reviews.gate.branch': '브랜치',
+  'reviews.gate.bypass_count': '면제 {count}건',
+  'reviews.gate.bypass_commit': '커밋 {sha}만',
   'reviews.gate.empty': '리뷰가 들어온 브랜치가 없습니다.',
   'reviews.gate.note': '판정을 표시만 하고, 아직 병합을 막지는 않습니다.',
   'reviews.gate.resolved': '해소',
   'reviews.gate.review': '리뷰',
   'reviews.gate.shown': '브랜치 {total}개 중 최근 {shown}개',
   'reviews.gate.title': '게이트 현황',
+  // 게이트 현황에서 내는 브랜치 면제(2026-10-16 사람 결정 · REQ-WEB-332)
+  'reviews.gate.waive': '면제',
+  'reviews.gate.waive_branch': '{branch} 브랜치 면제',
   'reviews.gate.verdict': '판정',
+  // 컷오버 관측(2026-10-16 · 사람 결정 D6 · REQ-WEB-330) — admin · planner
+  'reviews.cutover.title': '컷오버 관측',
+  'reviews.cutover.stage': '{stage} · {since}부터',
+  'reviews.cutover.window': '관측 {days}일 / {total}일',
+  'reviews.cutover.mismatch': '판정 불일치 {mismatches} / {total}건',
+  'reviews.cutover.submit_failure': '리뷰 제출 실패 {failed} / {total}건',
+  'reviews.cutover.status.no_data':
+    '아직 비교가 없습니다. 로컬 훅이 게이트 판정에 자기 판정을 함께 보내면 여기에서 셉니다.',
+  'reviews.cutover.status.stable': '안정: 불일치율 {pct}% 미만',
+  'reviews.cutover.status.watch': '관찰 중: 불일치율이 아직 {pct}% 미만이 아닙니다',
+  'reviews.cutover.status.rollback': '롤백 기준 도달',
+  'reviews.cutover.reason.mismatch_rate': '불일치율 {pct}% 이상',
+  'reviews.cutover.reason.submit_failure_rate': '리뷰 제출 실패율 {pct}% 이상',
+  'reviews.cutover.recent': '최근 불일치',
+  'reviews.cutover.recent_row': '로컬 {local} · 서버 {server}',
+  'reviews.cutover.cli': '저장소에 새로 커밋된 리뷰 파일은 CLI로 셉니다: nerv cutover report',
+  'review.sot.git': '컷오버 전(git)',
+  'review.sot.dual': 'M1 이중화',
+  'review.sot.nerv': 'M2 이후(NERV)',
+  'gate.verdict.pass': '통과',
+  'gate.verdict.block': '막음',
   'reviews.no_permission': '처분에는 review:resolve 권한이 필요합니다.',
   'reviews.comment_no_permission':
     '코멘트에는 review:submit 권한이 필요합니다. viewer는 읽기만 합니다.',
@@ -949,6 +1037,77 @@ export const ko = {
   'error.spec.requirement_owned':
     '다른 문서의 요구사항 번호를 정의하고 있어 승인하지 않았습니다({refs}). 이 버전을 거절하고 번호를 바꾸게 하세요.',
   'spec.revert_summary': 'v{n} 본문으로 되돌림',
+  'agent.cr.task.derive_body': '{cr}에서 더해진 요구사항 {ref}의 파생 작업이다 — {spec} v{version}',
+  'agent.cr.task.reverify_title': '{ref} 재검증',
+  'agent.cr.task.reverify_goal': '바뀐 문장대로 다시 확인한다(완료한 작업: {tasks}) — {statement}',
+  'agent.cr.task.reverify_body': '{cr}에서 요구사항 {ref}의 문장이 바뀌었다 — {spec} v{version}',
+  'agent.cr.task.cancel_note': '{cr}에서 빠진 요구사항 — {ref}',
+  'agent.cr.task.revert_title': '되돌림: {title}',
+  'agent.cr.task.revert_body':
+    '{cr}이 거절됐다. 스펙이 진실이므로 구현을 스펙으로 되돌린다. 발견 {finding}({title}) · 위치 {location} · 커밋 {commit} · 나온 작업 {task} · 거절 사유: {reason}',
+  'agent.cr.task.revert_goal':
+    '{location}의 구현을 승인된 스펙대로 되돌린다(스펙과 어긋난 커밋 {commit})',
+  'agent.cr.finding.approved': '{cr} 승인 — 스펙 v{version}이 이 발견을 반영했다',
+  'agent.cr.finding.rejected': '{cr} 거절 — 스펙은 그대로이고 구현을 되돌린다. 사유: {reason}',
+  'agent.cr.finding.withdrawn': '{cr} 철회 — 발견은 열린 채로 남는다',
+  'agent.escalation.sent_to_cr': '변경 요청 {cr}로 보냈다 — 스펙 갱신은 그 변경 요청이 맡는다',
+  'agent.escalation.drift_rationale': '{title} — 구현이 스펙을 바꿨다. 스펙 갱신을 제안한다',
+  'agent.escalation.drift_summary': '구현에서 거슬러 온 스펙 갱신 — {title}',
+  'cr.title': '변경 요청',
+  'cr.opened_by': '연 사람 {name}',
+  'cr.origin.human': '사람이 연 제안',
+  'cr.origin.agent': '에이전트 세션이 연 제안',
+  'cr.origin.spec_drift': '구현에서 거슬러 온 제안',
+  'cr.risk.low': '위험도 낮음',
+  'cr.risk.normal': '위험도 보통',
+  'cr.risk.high': '위험도 높음',
+  'cr.gate_pending': '게이트 티어는 검토를 요청할 때 정해집니다',
+  'cr.gate_tier': '게이트 티어 {tier}',
+  'cr.section.delta': '바뀐 요구사항',
+  'cr.section.impact': '승인하면 움직이는 것',
+  'cr.section.actions': '승인하며 함께 할 일',
+  'cr.section.decision': '결정',
+  'cr.impact.summary':
+    '파생 작업 {tasks}건 · 진행 중 클레임 {claims}건(바뀌거나 빠진 요구사항 {affected}건) · 참조 문서 {referencing}건',
+  'cr.tasks.none': '이 문서에서 나온 작업이 없습니다.',
+  'cr.effect.rebrief': '재브리핑',
+  'cr.effect.reverify': '재검증 제안',
+  'cr.effect.cancel': '보관 제안',
+  'cr.effect.stop': '중단 확인',
+  'cr.effect.none': '그대로',
+  'cr.claim.affected': '바뀐 요구사항',
+  'cr.referencing.none': '이 문서를 참조하는 문서가 없습니다.',
+  'cr.outcome.none': '승인과 함께 한 일이 없습니다.',
+  'cr.outcome.created': '만든 작업',
+  'cr.outcome.archived': '보관한 작업',
+  'cr.actions.closed': '끝난 변경 요청입니다.',
+  'cr.actions.none': '고를 제안이 없습니다.',
+  'cr.actions.hint':
+    '고른 것은 이 버전이 승인되는 순간 함께 합니다. 고르지 않은 것은 하지 않습니다.',
+  'cr.actions.default_hint':
+    '아직 아무도 고르지 않았습니다. 이 화면을 거치지 않고 승인하면 파생 · 재검증 작업은 만들고 보관은 하지 않습니다.',
+  'cr.action.derive': '파생 작업 만들기 — {ref}',
+  'cr.action.reverify': '재검증 작업 만들기 — {ref}(완료 작업 {n}건)',
+  'cr.action.cancel': '미착수 작업 보관 — {task}',
+  'cr.decision.open': '초안입니다. 고친 뒤 문서 화면에서 검토를 요청합니다.',
+  'cr.decision.open_doc': '문서에서 열기',
+  'cr.decision.in_review': '검토 중입니다. 승인은 그 버전의 결재로 갑니다.',
+  'cr.decision.open_inbox': '받은 요청에서 열기',
+  'cr.decision.closed': '{status} — 초안(v{n})을 버렸습니다.',
+  'cr.decision.approved': '승인됐습니다. 새 버전이 승인본입니다.',
+  'cr.decision.reason': '사유',
+  'cr.decision.reason_required': '사유를 적어야 거절할 수 있습니다.',
+  'cr.decision.reject_review': '결재 거절',
+  'cr.decision.reject': '변경 요청 거절',
+  'cr.decision.reject_hint':
+    '이 제안을 하지 않기로 하고 초안을 버립니다. 사유는 작성자에게 갑니다.',
+  'cr.decision.withdraw': '철회',
+  'cr.decision.withdraw_hint': '초안을 버리고 이 제안을 거둡니다.',
+  'cr.toast.waiting': '승인을 남겼습니다. 다른 승인자를 기다립니다.',
+  'cr.toast.returned': '결재를 거절했습니다. 초안으로 돌아갔습니다.',
+  'cr.toast.approved': '승인했습니다.',
+  'cr.toast.rejected': '변경 요청을 거절했습니다. 초안을 버렸습니다.',
+  'cr.toast.withdrawn': '변경 요청을 철회했습니다.',
   'error.task.rebrief_baseline':
     '기준선으로 개발하는 작업은 기준 버전만 옮길 수 없습니다. 작업의 기준선을 새 기준선으로 바꾸세요.',
   'error.task.baseline_pin_mismatch':
@@ -1049,6 +1208,11 @@ export const ko = {
   'event.claim.released': '클레임 해제됨',
   'event.comment.resolved': '코멘트 해결됨',
   'event.cr.opened': '변경 요청 열림',
+  'event.cr.submitted': '변경 요청 검토 요청',
+  'event.cr.reopened': '변경 요청 다시 열림',
+  'event.cr.approved': '변경 요청 승인',
+  'event.cr.rejected': '변경 요청 거절',
+  'event.cr.withdrawn': '변경 요청 철회',
   'event.evidence.added': '증적 추가',
   'event.review.submitted': '리뷰 제출됨',
   'event.finding.opened': '리뷰 발견 열림',
@@ -1058,6 +1222,8 @@ export const ko = {
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
   'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
   'event.gate.failopen_cleared': '게이트 격상 풀림',
+  // 판정 불일치(2026-10-16 · 사람 결정 D6 · REQ-API-347) — M1 이중화 기간에 로컬 훅과 서버가 다르게 판정했다
+  'event.gate.verdict_mismatch': '게이트 판정 불일치(로컬 훅과 서버의 판정이 다름)',
   'event.mirror.diverged': '미러 push 멈춤(미러 저장소에 NERV가 만들지 않은 커밋)',
   'event.import.applied': '임포트 적재',
   'event.notification.created': '알림 생성',
@@ -1119,6 +1285,12 @@ export const ko = {
   'status.spec.draft': '초안',
   'status.spec.in_review': '검토 중',
   'status.spec.superseded': '대체됨',
+  'status.spec.discarded': '버려짐',
+  'status.cr.open': '열림',
+  'status.cr.in_review': '검토 중',
+  'status.cr.approved': '승인됨',
+  'status.cr.rejected': '거절됨',
+  'status.cr.withdrawn': '철회됨',
   'status.task.backlog': '백로그',
   'status.task.blocked': '막힘',
   'status.task.claimed': '맡음',
@@ -1536,6 +1708,75 @@ export const ko = {
   'inbox.card.body_empty': '본문이 비어 있습니다.',
   'inbox.card.quorum': '{given}/{required} 승인',
   'inbox.card.quorum_pending': '{role} {n}명의 승인이 더 필요합니다. 아직 확정되지 않았습니다.',
+  'inbox.card.cr_impact':
+    '영향: 파생 작업 {tasks} · 진행 중 클레임 {claims} · 참조 문서 {referencing}',
+  'inbox.card.cr_planned':
+    '승인하면 골라 둔 대로 작업 {create}건을 만들고 {cancel}건을 보관합니다.',
+  // 고른 적 없는 CR 의 기본값(2026-10-16 사람 결정 · REQ-WEB-321 · api.md REQ-API-351)
+  'inbox.card.cr_default':
+    '승인하면 기본값대로 파생 작업 {derive}건 · 재검증 작업 {reverify}건을 만듭니다.',
+  'inbox.card.cr_chosen_none':
+    '아무것도 하지 않기로 골라 두었습니다. 승인해도 작업을 만들지 않습니다.',
+  'inbox.card.cr_unplanned': '보관 제안 {n}건은 변경 요청 화면에서 고릅니다.',
+  'inbox.card.cr_no_suggestions': '승인과 함께 할 일은 없습니다.',
+  'inbox.card.cr_open': '델타 전체 보기',
+  'inbox.subject.escalation': '에스컬레이션',
+  'inbox.kind.heading': '유형',
+  'inbox.kind.all': '전체',
+  'inbox.kind.spec': '스펙 승인',
+  'inbox.kind.cr': '변경 요청',
+  'inbox.kind.plan': '계획 승인',
+  'inbox.kind.question': '질문',
+  'inbox.kind.escalation': '에스컬레이션',
+  'inbox.kind.finding': '발견 하향',
+  'inbox.kind.gate_bypass': '게이트 우회',
+  'inbox.kind.count': '대기 {count}건',
+  'inbox.esc.reason': '사유: {reason}',
+  'inbox.esc.rationale': '넘긴 이유',
+  'inbox.esc.commit': '커밋 {sha} · {branch}',
+  'inbox.esc.location': '위치 {location}',
+  'inbox.esc.task': '작업 {key} · 담당 {name}',
+  'inbox.esc.task_unassigned': '작업 {key} · 담당 없음',
+  'inbox.esc.detail': '발견 원문',
+  'inbox.esc.waiting': '세션이 이 결정을 기다리는 중',
+  'inbox.esc.not_waiting': '세션은 기다리지 않고 일을 잇습니다',
+  'inbox.esc.decide.fix': '고칠 것',
+  'inbox.esc.decide.wont_fix': '유예',
+  'inbox.esc.decide.dismissed': '기각',
+  'inbox.esc.decide.fix_hint':
+    '발견은 열린 채로 남습니다. 넘긴 세션이 고친 뒤 커밋과 함께 닫습니다.',
+  'inbox.esc.decide.wont_fix_hint': '발견을 유예로 닫습니다. 언제 다시 볼지 근거에 적습니다.',
+  'inbox.esc.decide.dismissed_hint':
+    '발견을 기각으로 닫습니다. 잘못된 지적인 이유를 근거에 적습니다.',
+  'inbox.esc.rationale_placeholder': '결정의 근거 (필수 — 넘긴 세션이 이 글을 그대로 받습니다)',
+  'inbox.esc.rationale_required': '근거를 적어야 결정할 수 있습니다.',
+  'inbox.esc.to_cr': 'CR로 보내기',
+  'inbox.esc.to_cr_hint':
+    '유래 스펙의 승인본에서 초안을 열고 이 발견을 변경 요청에 묶습니다. 기다리던 세션은 바로 풀립니다.',
+  'inbox.esc.to_cr_no_tag': 'spec_drift 태그가 있는 발견만 변경 요청으로 보냅니다.',
+  'inbox.esc.to_cr_done': '변경 요청 {key}로 보냈습니다.',
+  'inbox.esc.done': '{title}: 「{resolution}」 결정을 보냈습니다.',
+  'inbox.esc.resolved': '{resolution} · {when}',
+  'inbox.esc.resolution.fix': '고칠 것',
+  'inbox.esc.resolution.wont_fix': '유예',
+  'inbox.esc.resolution.dismissed': '기각',
+  'inbox.esc.resolution.fixed': '수정됨',
+  'inbox.esc.resolution.spec_change': '스펙 정정',
+  'inbox.esc.resolution.change_request': '변경 요청으로 보냄',
+  'inbox.esc.resolution.withdrawn': '변경 요청 철회',
+  'inbox.esc.cr_title': '구현이 스펙을 바꿨습니다. 스펙 갱신을 승인하시겠습니까?',
+  'inbox.esc.cr_unchanged':
+    '초안이 아직 승인본과 같아 검토를 요청할 수 없습니다. 스펙을 고친 뒤 검토를 요청하세요.',
+  'inbox.esc.cr_changed': '초안이 고쳐졌습니다. 검토를 요청하면 결재가 시작됩니다.',
+  'inbox.esc.cr_edit': '초안 고치기',
+  'inbox.esc.cr_open': '변경 요청 보기',
+  'inbox.esc.cr_reject': '변경 요청 거절',
+  'inbox.esc.cr_reject_hint':
+    '거절하면 초안을 버리고, 이 변경 요청으로 보낸 발견을 기각하며 코드 되돌림 작업을 만듭니다.',
+  'inbox.esc.cr_reason_placeholder': '거절 사유 (필수)',
+  'inbox.esc.cr_rejected': '{key}을(를) 거절했습니다. 코드 되돌림 작업을 만들었습니다.',
+  'inbox.esc.findings': '출처 발견',
+  'inbox.card.cr_drift': '구현에서 거슬러 온 변경 요청입니다 — 출처 발견',
   'inbox.card.role_queue': '{role} 역할 결재',
   'inbox.card.role_queue_any': '다른 승인자',
   'inbox.card.cannot_approve.author': '내가 쓴 초안입니다. 다른 승인자가 처리해야 합니다.',
@@ -1774,6 +2015,10 @@ export const ko = {
   'spec.impact_dialog': '검토 요청 영향',
   'spec.impact_send': '검토 요청 보내기',
   'spec.impact_tasks': '파생 작업 {count}건. 기준 버전이 바뀌면 지시 재확인이 필요합니다',
+  'spec.impact_claims':
+    '진행 중 클레임 {count}건(바뀌거나 빠진 요구사항 {affected}건). 승인되면 그 세션의 사람에게 바로 알립니다',
+  'spec.impact_cr':
+    '이 초안은 변경 요청 {key}입니다. 함께 할 일을 바꾸려면 변경 요청 화면에서 고릅니다.',
   'spec.impact_title': '이 변경의 영향',
   // 바로 승인(2026-10-11 · REQ-WEB-303)
   'spec.direct_approve': '바로 승인',
@@ -1909,6 +2154,21 @@ export const ko = {
   'task.waiver.code_evidence': '코드 증적이 붙은 작업은 코드 리뷰를 면제할 수 없습니다',
   'task.waiver.no_role':
     '면제할 수 있는 리뷰가 없습니다. 코드 리뷰는 developer · admin이, 스펙 리뷰는 planner · admin이 면제합니다',
+  // 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327)
+  'task.branch_waiver.open': '브랜치 면제',
+  'task.branch_waiver.title': '리뷰가 없는 브랜치의 면제',
+  'task.branch_waiver.hint':
+    '리뷰를 받지 않을 브랜치(문서만 바꾼 브랜치처럼)는 게이트 판정이 「리뷰 없음」으로 막습니다. 브랜치와 종류를 골라 사유와 함께 면제하면 그 종류는 면제로 통과합니다. 리뷰가 들어온 종류는 그 리뷰의 판정을 따릅니다.',
+  'task.branch_waiver.branch': '브랜치',
+  'task.branch_waiver.branch_placeholder': '브랜치 이름(예: docs/readme)',
+  'task.branch_waiver.known': '이 작업의 브랜치',
+  'task.branch_waiver.head': '커밋(선택)',
+  'task.branch_waiver.head_placeholder': '이 커밋에만 적용(40자 SHA). 비우면 이 브랜치의 모든 커밋',
+  'task.branch_waiver.head_invalid': '40자 커밋 SHA를 넣으세요(git rev-parse HEAD로 얻습니다).',
+  'task.branch_waiver.reason_placeholder': '면제 사유(필수). 예: README만 고친 브랜치',
+  'task.branch_waiver.confirm':
+    '{branch}의 {kinds} 리뷰 면제를 기록합니다. 기록은 지울 수 없습니다.',
+  'task.branch_waiver.done': '{branch}의 {kinds} 리뷰를 면제했습니다',
   'task.reviews': '리뷰',
   'task.reviews.none': '이 작업을 검토한 리뷰가 없습니다.',
   'task.reviews.open_critical': '열린 critical {n}건',
@@ -2056,6 +2316,19 @@ export const ko = {
   'settings.gates.failopen_invalid': '횟수와 시간은 1 이상의 정수로 적으세요.',
   'settings.gates.failopen_value': '{hours}시간 안에 {count}번',
   'settings.gates.change_failopen': '격상 기준 {from} → {to}',
+  // 리뷰 컷오버 단계(2026-10-16 · 사람 결정 D6 · REQ-WEB-331)
+  'settings.gates.sot': '리뷰 컷오버',
+  'settings.gates.sot_body':
+    '리뷰 산출물과 게이트 판정의 기준을 어디에 둘지 정합니다. M1 이중화에서는 로컬 훅이 보낸 판정과 서버 판정이 다르면 서버 판정을 적용하고 admin에게 알립니다.',
+  'settings.gates.sot_hint_git': '로컬 훅이 판정하고 NERV는 비교만 기록합니다.',
+  'settings.gates.sot_hint_dual':
+    '서버 판정을 적용합니다. 로컬 훅과 판정이 다르면 그 프로젝트의 admin에게 알립니다.',
+  'settings.gates.sot_hint_nerv':
+    'NERV가 판정하고 로컬 훅은 서버에 연결할 수 없을 때만 보조로 판정합니다.',
+  'settings.gates.sot_since': '{at}에 바꿨습니다. 2주 관측은 이 시각부터 셉니다.',
+  'settings.gates.sot_never': '아직 바꾼 적이 없습니다.',
+  'settings.gates.sot_reset': '단계를 바꾸면 관측 창이 저장한 시각부터 다시 시작합니다.',
+  'settings.gates.change_sot': '리뷰 컷오버 {from} → {to}',
   'settings.gates.retention': '보존 기간',
   'settings.gates.retention_activity': '활동 원문(일)',
   'settings.gates.retention_blob': '리뷰 프롬프트 원문(일)',
@@ -2148,6 +2421,27 @@ export const ko = {
   'account.digest_saved': '메일 요약을 저장했습니다. 매일 {hour}({timezone})에 보냅니다.',
   'account.digest_off_toast': '메일 요약을 껐습니다.',
   'account.notifications': '프로젝트별 알림',
+  // 워치(2026-10-16 · 사람 결정 D5 · REQ-WEB-328)
+  'watch.off': '워치',
+  'watch.on': '워치 중',
+  'watch.off_area': '영역 워치',
+  'watch.on_area': '영역 워치 중',
+  'watch.hint':
+    '승인 · 거절 · 코멘트(작업이면 준비됨)를 알림으로 받습니다. 다시 누르면 해제합니다.',
+  'watch.hint_area':
+    '이 영역과 그 아래 문서 · 작업의 승인 · 거절 · 코멘트와 준비된 작업을 알림으로 받습니다. 다시 누르면 해제합니다.',
+  'watch.added': '{target} 워치를 시작했습니다',
+  'watch.added_area': '영역 {target} 워치를 시작했습니다. 그 아래 문서와 작업의 알림도 받습니다',
+  'watch.removed': '{target} 워치를 해제했습니다',
+  'watch.list_title': '워치',
+  'watch.list_hint':
+    '워치한 문서 · 작업 · 영역의 승인 · 거절 · 코멘트와 준비된 작업을 알림으로 받습니다. 받는 양은 위의 프로젝트별 알림 수준을 따릅니다.',
+  'watch.list_empty':
+    '워치한 것이 없습니다. 스펙이나 작업 화면 위쪽의 [워치]를 누르면 여기에 나타납니다.',
+  'watch.remove': '해제',
+  'watch.type.spec': '문서',
+  'watch.type.task': '작업',
+  'watch.type.area': '영역',
   'account.notifications_hint':
     '프로젝트마다 알림을 얼마나 받을지 고릅니다. 이미 받은 알림은 그대로입니다. 받은 요청에는 영향이 없습니다.',
   'account.tabs_label': '내 계정 항목',
@@ -2504,6 +2798,37 @@ export const ko = {
   'specs.type.feature': '기능',
   'specs.type.vision': '비전',
   // ── CLI — nerv import 출력 (importer.md §3) ───────────────────────────────
+  // ── CLI — nerv cutover report 출력 (importer.md §3.7 · 2026-10-16 · 사람 결정 D6) ──────────────
+  'cli.cutover.usage':
+    '사용법: nerv cutover report --project <slug> --server <URL> --token <PAT> [--root <체크아웃>] [--path review/] [--since <ISO 시각>] [--until <ISO 시각>] [--json]',
+  'cli.cutover.err.needs_server':
+    '보고는 서버의 지표를 읽는다. --server와 --token(또는 env NERV_SERVER/NERV_TOKEN)이 필요하다.',
+  'cli.cutover.err.bad_time': '{flag}는 ISO 8601 시각이어야 한다: {value}',
+  'cli.cutover.err.server': '서버 지표를 읽지 못했다: {message}',
+  'cli.cutover.title': '# SoT 컷오버 M1 보고 ({project})',
+  'cli.cutover.stage': '- 컷오버 단계: {stage} · 전환 {since}',
+  'cli.cutover.never': '바꾼 적 없음',
+  'cli.cutover.window': '- 관측 창: {since} ~ {until} ({days}일 · 기준 {total}일)',
+  'cli.cutover.window_incomplete': '- 관측이 아직 {total}일을 채우지 않았다.',
+  'cli.cutover.mismatch':
+    '- 판정 불일치: {mismatches} / {total} ({rate}) · 안정 < {stable}% · 롤백 ≥ {rollback}%',
+  'cli.cutover.submit': '- 리뷰 제출 실패: {failed} / {total} ({rate}) · 롤백 ≥ {rollback}%',
+  'cli.cutover.commits':
+    '- `{path}` 신규 커밋: {commits}개 · 파일 {files}개 · {bytes}바이트 (목표 0)',
+  'cli.cutover.commits_unknown': '- `{path}` 신규 커밋: 세지 못했다({reason})',
+  'cli.cutover.input_ratio':
+    '- 리뷰 입력 가운데 이전 리뷰 산출물 비율(2-5): 재지 않는다. 서버는 리뷰가 본 파일 목록을 남기지 않는다(changeset 해시뿐)',
+  'cli.cutover.status': '- 서버 지표 판정: {status}',
+  'cli.cutover.status.no_data': '비교 없음',
+  'cli.cutover.status.stable': '안정',
+  'cli.cutover.status.watch': '관찰 중',
+  'cli.cutover.status.rollback': '롤백 기준 도달',
+  'cli.cutover.recent': '## 최근 불일치',
+  'cli.cutover.recent_row': '- {at} · {branch} · {sha} · 로컬 {local}{hook} · 서버 {server}',
+  'cli.cutover.overall.ok':
+    '결론: 2주 관측의 불일치율 · 제출 실패율 · 신규 커밋 조건을 채웠다. 세션 실패율과 리드타임은 따로 확인한다.',
+  'cli.cutover.overall.rollback': '결론: 롤백 기준에 이르렀다. 로드맵 §7.6 절차를 따른다.',
+  'cli.cutover.overall.check': '결론: 아직 안정 조건이 아니다. 위 줄을 확인한다.',
   'cli.done': '{mode} 완료 — 스캔 {scanned} · 변환 {converted} ({rate}%) · 리포트 {dir}',
   'cli.err.apply_needs_server':
     '--apply에는 --server와 --token(또는 env NERV_SERVER/NERV_TOKEN)이 필요하다.',

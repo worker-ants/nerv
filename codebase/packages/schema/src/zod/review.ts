@@ -4,7 +4,9 @@
 // 도메인이 본다(REQ-API-112 · `resolutionOf` · `ESCALATE_REASONS`).
 
 import { z } from 'zod';
-import { COMMIT_SHA_PATTERN } from '../evidence-locator.js';
+import { GATE_LOCAL_HOOK_MAX, GATE_LOCAL_REASON_MAX, PIN_LIMIT } from '../constants.js';
+import { GATE_VERDICTS } from '../enums.js';
+import { COMMIT_SHA_PATTERN, FULL_COMMIT_SHA_PATTERN } from '../evidence-locator.js';
 
 /** 리뷰어 한 명의 자기 보고 — 위험도는 세션 위험도의 재료다 */
 export const ReviewerReportInput = z
@@ -94,16 +96,66 @@ export const FindingResolveInput = z
     change_request_id: z.string().nullish(),
     spec_version_id: z.string().nullish(),
     escalate_reason: z.string().nullish(),
+    /**
+     * **넘긴 쪽이 결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-335). `escalated` 에만 읽는다. 주지 않으면 세션이 부른
+     * 처분은 기다리고(질문과 같다 — 사람을 부르고도 그냥 진행하는 것은 에스컬레이션이 아니다) 세션 없는 처분은 기다릴 세션이 없다
+     */
+    blocking: z.boolean().nullish(),
+  })
+  .strict();
+
+/**
+ * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-333). 근거는 선택이다 — 주지 않으면 서버가
+ * "발견 제목 — 구현이 스펙을 바꿨다" 로 적는다. 발견의 본문 · 근거 · 커밋은 서버가 발견에서 옮긴다.
+ */
+export const FindingToChangeRequestInput = z
+  .object({
+    rationale: z.string().trim().max(2000).nullish(),
   })
   .strict();
 
 /** EP-REV-05 — 발견 코멘트. 사람이 지적에 답하는 자리다 */
 export const FindingCommentInput = z.object({ body_md: z.string().min(1) }).strict();
 
+/** 브랜치 이름의 상한 — git 은 길이를 정하지 않지만 결재 기록에 남길 값이라 묶는다(리뷰 제출의 브랜치와 같은 모양) */
+export const GATE_BYPASS_BRANCH_MAX = 255;
+
+/**
+ * **EP-REV-08b — 게이트 판정에 로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · api.md REQ-API-346).
+ *
+ * 판정 인자는 EP-REV-08(GET)과 같은 이름 · 같은 모양이다 — `kind` 도 쉼표 목록 문자열이라, 훅이 GET 의 질의를 그대로 본문으로 옮기면
+ * 된다. 다른 둘: **`head_sha` 는 필수이고 40자다**(같은 커밋의 두 판정을 견주는 일이라 커밋이 하나로 정해져야 한다 — 짧은 SHA 는
+ * 같은 커밋이 두 줄로 세질 수 있다). 소문자로 남긴다. 그리고 **`local_state`** — 로컬 훅이 이미 낸 판정이다.
+ */
+export const GateCheckReportInput = z
+  .object({
+    branch: z.string().trim().min(1).max(GATE_BYPASS_BRANCH_MAX),
+    /** 쉼표 목록(`code,consistency`) — 생략하면 GET 과 같다(라운드가 있는 종류 + 정책이 요구하는 종류) */
+    kind: z.string().trim().nullish(),
+    head_sha: z
+      .string()
+      .trim()
+      .regex(new RegExp(FULL_COMMIT_SHA_PATTERN, 'i'), 'error.gate.head_not_full_sha')
+      .transform((sha) => sha.toLowerCase()),
+    local_state: z
+      .object({
+        /** 로컬 훅의 판정 — `pass`(통과) · `block`(막음) */
+        verdict: z.enum(GATE_VERDICTS),
+        /** 판정을 낸 훅의 이름(예: `pre-push`) */
+        hook: z.string().trim().min(1).max(GATE_LOCAL_HOOK_MAX).nullish(),
+        /** 막은 · 통과시킨 이유 한 줄 — 불일치의 원인을 찾을 때 사람이 읽는다 */
+        reason: z.string().trim().min(1).max(GATE_LOCAL_REASON_MAX).nullish(),
+      })
+      .strict(),
+  })
+  .strict();
+export type GateCheckReportInput = z.infer<typeof GateCheckReportInput>;
+
 /** EP-APR-04 — 게이트 면제. **면제도 결재 레코드다**(FR-10) */
 export const GateBypassInput = z
   .object({
-    subject_id: z.string().min(1),
+    /** 면제의 대상 — 작업(키 또는 UUID) 또는 리뷰 세션. `branch` 를 주면 받지 않는다(그때 대상은 브랜치다) */
+    subject_id: z.string().min(1).optional(),
     reason: z.string().min(1),
     /**
      * **면제할 리뷰 종류**(2026-10-09 · REQ-API-274). 주면 `subject_id` 는 이 프로젝트의 작업(키 또는 UUID)이고, done
@@ -111,8 +163,67 @@ export const GateBypassInput = z
      * developer는 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다(2026-10-11 · REQ-API-293)
      */
     kinds: z.array(z.string().min(1)).min(1).optional(),
+    /**
+     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 리뷰가 한 번도 없는 브랜치에도 낸다 — 게이트 판정(EP-REV-08)이
+     * 그 (브랜치 · 종류)를 `waived` 로 통과시키고 게이트 현황의 그 브랜치 줄에 보인다. 종류 · 역할 규칙은 작업 면제와 같다
+     */
+    branch: z.string().trim().min(1).max(GATE_BYPASS_BRANCH_MAX).optional(),
+    /**
+     * 브랜치 면제를 **커밋 하나로** 좁힌다 — 40자 커밋 SHA 만 받는다(`FULL_COMMIT_SHA_PATTERN`). 주지 않으면 그 브랜치의 모든
+     * 커밋에 유효하다(새 커밋이 와도 남는다)
+     */
+    head_sha: z
+      .string()
+      .trim()
+      .regex(new RegExp(FULL_COMMIT_SHA_PATTERN, 'i'), 'error.approval.bypass_head_not_full_sha')
+      .transform((sha) => sha.toLowerCase())
+      .optional(),
+  })
+  .strict()
+  .superRefine((input, ctx) => {
+    // 대상은 하나다 — 작업 · 리뷰 세션이든 브랜치든. 둘 다 주면 어느 게이트를 넘기려는지 서버가 짐작하게 된다
+    if (input.branch === undefined && input.subject_id === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subject_id'],
+        message: 'error.approval.bypass_target_required',
+      });
+    }
+    if (input.branch !== undefined && input.subject_id !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['branch'],
+        message: 'error.approval.bypass_target_required',
+      });
+    }
+    if (input.head_sha !== undefined && input.branch === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['head_sha'],
+        message: 'error.approval.bypass_head_needs_branch',
+      });
+    }
+  });
+
+/** 한 칸에 담을 수 있는 수 — 한 문서의 요구사항 · 작업이 이보다 많은 일은 없다(임포트 실측의 가장 큰 문서가 140줄) */
+export const CR_ACTION_LIMIT = 200;
+
+/**
+ * **변경 요청 승인과 함께 할 일**(2026-10-16 · spec-workflow §3.3 · REQ-API-331) — 영향 미리보기(EP-SPEC-31)의 제안 가운데
+ * 사람이 고른 것이다. 셋 다 선택이고 빈 배열은 "하지 않는다" 다.
+ *
+ * - `derive` — 더해진(ADDED) 요구사항 번호. 그 요구사항의 파생 작업을 `backlog` 로 만든다(목표 칸에 문장을 담은 위임 명세 초안)
+ * - `reverify` — 바뀐(MODIFIED) 요구사항 번호. 완료한 작업이 있으면 재검증 작업을 하나 만든다
+ * - `cancel` — 빠진(REMOVED) 요구사항의 미착수 작업 키. 그 작업을 보관한다(사유 `obsolete`)
+ */
+export const CrActionsInput = z
+  .object({
+    derive: z.array(z.string().min(1).max(200)).max(CR_ACTION_LIMIT).optional(),
+    reverify: z.array(z.string().min(1).max(200)).max(CR_ACTION_LIMIT).optional(),
+    cancel: z.array(z.string().min(1).max(200)).max(CR_ACTION_LIMIT).optional(),
   })
   .strict();
+export type CrActions = z.infer<typeof CrActionsInput>;
 
 /**
  * EP-APR-03 — 결정.
@@ -125,6 +236,33 @@ export const ApprovalDecisionInput = z
     decision: z.string().default('comment'),
     comment: z.string().nullish(),
     seen_content_hash: z.string().nullish(),
+    /**
+     * **변경 요청을 승인하며 함께 할 일**(2026-10-16 · REQ-API-331) — 영향 미리보기에서 고른 제안. 승인 결정에서만 읽고,
+     * 그 버전을 감싼 변경 요청에 남긴 뒤 버전이 승인되는 순간(정족수가 차는 순간) 서버가 한다. 변경 요청이 없는 결재면 400 이다
+     */
+    cr_actions: CrActionsInput.nullish(),
+    /**
+     * **에스컬레이션 카드의 처분**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — `fix`(고칠 것) · `wont_fix`(유예) · `dismissed`(기각).
+     * 에스컬레이션 카드에는 필수이고 다른 결재에 오면 400 이다. 어휘 판정은 도메인이 한다(`ESCALATION_RESOLUTIONS`)
+     */
+    resolution: z.string().nullish(),
+  })
+  .strict();
+
+/**
+ * EP-CR-03 — **변경 요청 거절**(2026-10-16 · 사람 결정 D1 · REQ-API-329). 결재의 거절(초안으로 돌아가 고쳐 다시 낸다)과 다르다
+ * — 이 제안을 하지 않기로 하고 초안을 버린다. 사유는 필수다(작성자에게 가는 알림과 감사가 그 문장을 남긴다).
+ */
+export const CrRejectInput = z
+  .object({
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+
+/** EP-CR-04 — **철회**(REQ-API-329). 작성자가 초안을 스스로 버린다 — 한 줄 사유는 선택이다 */
+export const CrWithdrawInput = z
+  .object({
+    reason: z.string().trim().max(2000).nullish(),
   })
   .strict();
 
@@ -205,6 +343,31 @@ export const NotificationLevelInput = z
   })
   .strict();
 export type NotificationLevelInput = z.infer<typeof NotificationLevelInput>;
+
+/**
+ * **워치 · 핀의 대상**(2026-10-16 · 사람 결정 D5 · REQ-API-342 · 344). 프로젝트는 내가 속한 것 하나로 푼다(REQ-API-213 과 같은
+ * 규칙). 대상은 키 또는 UUID 이고 종류의 어휘(`WATCH_TARGETS` · `PIN_TARGETS`)는 서버가 본다 — 모르는 값은 400 이다.
+ */
+export const WatchTargetInput = z
+  .object({
+    project: z.string().min(1),
+    org: z.string().min(1).nullish(),
+    target_type: z.string().min(1),
+    target: z.string().trim().min(1).max(200),
+  })
+  .strict();
+export type WatchTargetInput = z.infer<typeof WatchTargetInput>;
+
+/**
+ * **브라우저의 핀을 서버로 옮긴다**(2026-10-16 · REQ-API-345). 퀵 스위처가 localStorage 에 두던 핀을 처음 한 번 보낸다 — 앞의
+ * 것이 위다. 이미 고정한 것 · 찾지 못한 것 · 상한을 넘은 것은 건너뛰고 그 사실을 돌려준다
+ */
+export const PinImportInput = z
+  .object({
+    items: z.array(WatchTargetInput).max(PIN_LIMIT),
+  })
+  .strict();
+export type PinImportInput = z.infer<typeof PinImportInput>;
 
 /**
  * EP-NTF-08 — 알림 메일 요약을 켜고 끈다(2026-09-28 · 사람 결정 EM1~EM9 · REQ-API-232). 켤 때 시간대와

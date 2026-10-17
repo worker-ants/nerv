@@ -11,6 +11,20 @@ export const SPEC_VERSION_TOKEN = {
   approved: 'ok',
   superseded: 'idle',
   deprecated: 'danger',
+  // 버린 초안(2026-10-16) — 끝난 것이라 대체됨과 같은 쉰 색이다. 위험 색은 승인본을 폐기한 것에만 쓴다
+  discarded: 'idle',
+} as const satisfies Record<string, StatusToken>;
+
+/**
+ * 변경 요청(2026-10-16 · 사람 결정 D1) — 열림은 아직 아무도 기다리지 않는 초안이라 쉰 색, 검토 중은 결재 대기, 승인은 통과,
+ * 거절은 위험, 철회는 작성자가 거둔 것이라 쉰 색이다
+ */
+export const CR_TOKEN = {
+  open: 'idle',
+  in_review: 'waiting',
+  approved: 'ok',
+  rejected: 'danger',
+  withdrawn: 'idle',
 } as const satisfies Record<string, StatusToken>;
 
 export const REQUIREMENT_TOKEN = {

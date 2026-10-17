@@ -38,6 +38,7 @@ import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$toke
 import { Route as PProjIndexRouteImport } from './routes/p.$proj/index'
 import { Route as PProjCoverageRouteImport } from './routes/p.$proj/coverage'
 import { Route as PProjTasksRouteImport } from './routes/p.$proj/tasks'
+import { Route as PProjCrsCrRouteImport } from './routes/p.$proj/crs.$cr'
 import { Route as PProjReviewsIndexRouteImport } from './routes/p.$proj/reviews.index'
 import { Route as PProjSessionsIndexRouteImport } from './routes/p.$proj/sessions.index'
 import { Route as PProjSessionsSessionRouteImport } from './routes/p.$proj/sessions.$session'
@@ -191,6 +192,11 @@ const PProjTasksRoute = PProjTasksRouteImport.update({
   path: '/tasks',
   getParentRoute: () => PProjRouteRoute,
 } as any)
+const PProjCrsCrRoute = PProjCrsCrRouteImport.update({
+  id: '/crs/$cr',
+  path: '/crs/$cr',
+  getParentRoute: () => PProjRouteRoute,
+} as any)
 const PProjReviewsIndexRoute = PProjReviewsIndexRouteImport.update({
   id: '/reviews/',
   path: '/reviews/',
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/p/$proj/coverage': typeof PProjCoverageRoute
   '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
   '/p/$proj/': typeof PProjIndexRoute
+  '/p/$proj/crs/$cr': typeof PProjCrsCrRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
   '/p/$proj/specs/$spec': typeof PProjSpecsSpecRoute
   '/p/$proj/tasks/$task': typeof PProjTasksTaskRoute
@@ -291,6 +298,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/p/$proj/coverage': typeof PProjCoverageRoute
   '/p/$proj': typeof PProjIndexRoute
+  '/p/$proj/crs/$cr': typeof PProjCrsCrRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
   '/p/$proj/specs/$spec': typeof PProjSpecsSpecRoute
   '/p/$proj/tasks/$task': typeof PProjTasksTaskRoute
@@ -330,6 +338,7 @@ export interface FileRoutesById {
   '/p/$proj/coverage': typeof PProjCoverageRoute
   '/p/$proj/tasks': typeof PProjTasksRouteWithChildren
   '/p/$proj/': typeof PProjIndexRoute
+  '/p/$proj/crs/$cr': typeof PProjCrsCrRoute
   '/p/$proj/sessions/$session': typeof PProjSessionsSessionRoute
   '/p/$proj/specs/$spec': typeof PProjSpecsSpecRoute
   '/p/$proj/tasks/$task': typeof PProjTasksTaskRoute
@@ -370,6 +379,7 @@ export interface FileRouteTypes {
     | '/p/$proj/coverage'
     | '/p/$proj/tasks'
     | '/p/$proj/'
+    | '/p/$proj/crs/$cr'
     | '/p/$proj/sessions/$session'
     | '/p/$proj/specs/$spec'
     | '/p/$proj/tasks/$task'
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/p/$proj/coverage'
     | '/p/$proj'
+    | '/p/$proj/crs/$cr'
     | '/p/$proj/sessions/$session'
     | '/p/$proj/specs/$spec'
     | '/p/$proj/tasks/$task'
@@ -442,6 +453,7 @@ export interface FileRouteTypes {
     | '/p/$proj/coverage'
     | '/p/$proj/tasks'
     | '/p/$proj/'
+    | '/p/$proj/crs/$cr'
     | '/p/$proj/sessions/$session'
     | '/p/$proj/specs/$spec'
     | '/p/$proj/tasks/$task'
@@ -674,6 +686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PProjTasksRouteImport
       parentRoute: typeof PProjRouteRoute
     }
+    '/p/$proj/crs/$cr': {
+      id: '/p/$proj/crs/$cr'
+      path: '/crs/$cr'
+      fullPath: '/p/$proj/crs/$cr'
+      preLoaderRoute: typeof PProjCrsCrRouteImport
+      parentRoute: typeof PProjRouteRoute
+    }
     '/p/$proj/reviews/': {
       id: '/p/$proj/reviews/'
       path: '/reviews'
@@ -786,6 +805,7 @@ interface PProjRouteRouteChildren {
   PProjCoverageRoute: typeof PProjCoverageRoute
   PProjTasksRoute: typeof PProjTasksRouteWithChildren
   PProjIndexRoute: typeof PProjIndexRoute
+  PProjCrsCrRoute: typeof PProjCrsCrRoute
   PProjSessionsSessionRoute: typeof PProjSessionsSessionRoute
   PProjSpecsSpecRoute: typeof PProjSpecsSpecRoute
   PProjReviewsIndexRoute: typeof PProjReviewsIndexRoute
@@ -797,6 +817,7 @@ const PProjRouteRouteChildren: PProjRouteRouteChildren = {
   PProjCoverageRoute: PProjCoverageRoute,
   PProjTasksRoute: PProjTasksRouteWithChildren,
   PProjIndexRoute: PProjIndexRoute,
+  PProjCrsCrRoute: PProjCrsCrRoute,
   PProjSessionsSessionRoute: PProjSessionsSessionRoute,
   PProjSpecsSpecRoute: PProjSpecsSpecRoute,
   PProjReviewsIndexRoute: PProjReviewsIndexRoute,

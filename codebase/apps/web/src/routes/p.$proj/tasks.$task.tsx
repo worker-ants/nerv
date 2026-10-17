@@ -52,8 +52,10 @@ import { describeApiError, useApiError } from '../../lib/api-errors.js';
 import { usePressKey } from '../../lib/press-key.js';
 import {
   requiredReviewKinds,
+  BranchWaiverForm,
   ReviewWaiverForm,
   ReviewWaiverList,
+  taskBranches,
 } from '../../features/task-board/review-waiver.js';
 import {
   Button,
@@ -75,6 +77,7 @@ import { ConfirmAction } from '../../components/ui/confirm-action.js';
 import { ErrorState, NotFoundState, isNotFound } from '../../components/query-state.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
+import { WatchButton } from '../../features/inbox/watch.js';
 
 export const Route = createFileRoute('/p/$proj/tasks/$task')({ component: TaskDetail });
 
@@ -446,6 +449,8 @@ function TaskDetail(): React.JSX.Element {
                   {t('task.meta.runner', { host: String(runner['hostname'] ?? '') })}
                 </EntityLink>
               )}
+              {/* **워치**(2026-10-16 · 사람 결정 D5 · REQ-WEB-328) — 이 작업이 준비되면 알림을 받는다. 끝난 작업에도 남는다 */}
+              <WatchButton proj={proj} targetType="task" target={task} />
             </>
           }
           actions={
@@ -1169,6 +1174,9 @@ function TaskDetail(): React.JSX.Element {
             </ul>
             {/* 면제도 리뷰 기록의 일부다 — 누가 · 언제 · 왜 · 어느 종류를(REQ-WEB-299) */}
             <ReviewWaiverList waivers={rows(data['review_waivers'])} />
+            {/* 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327) — 게이트 판정(push 훅 · CI)을 넘기는 일이라
+                완료 조건이 아니라 리뷰 카드에 둔다. 작업이 끝난 뒤에도 병합 때 쓴다 */}
+            <BranchWaiverForm proj={proj} roles={roles} branches={taskBranches(data)} />
           </Card>
         </div>
       </PageBody>

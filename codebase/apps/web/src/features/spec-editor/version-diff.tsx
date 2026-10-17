@@ -35,6 +35,11 @@ export interface VersionDiffProps {
   onChange: (from: number, to: number) => void;
   full: boolean;
   onToggleFull: () => void;
+  /**
+   * **양 끝이 고정이다** — 변경 요청의 델타(2026-10-16 · REQ-WEB-320)는 승인본과 그 초안 사이만 본다. 버전 고르기를 그리지
+   * 않고 "v3 → v4" 를 글자로 보인다
+   */
+  fixed?: boolean;
 }
 
 export function VersionDiff({
@@ -47,6 +52,7 @@ export function VersionDiff({
   onChange,
   full,
   onToggleFull,
+  fixed = false,
 }: VersionDiffProps): React.JSX.Element {
   const t = useT();
   const requirements = (diff?.['requirements'] ?? []) as Row[];
@@ -59,21 +65,29 @@ export function VersionDiff({
       {/* 양 끝을 고른다 — 레일 클릭은 "이 버전과 직전"(빠른 길)이고 여기가 일반 길이다.
           주소(`?diff=v1..v3`)가 진실이라 이 화면은 공유·북마크가 된다 */}
       <header className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-2.5">
-        <VersionSelect
-          label={t('spec.diff.from')}
-          value={from}
-          versions={versions}
-          onPick={(v) => onChange(v, to ?? v)}
-        />
-        <span aria-hidden="true" className="text-text-faint">
-          →
-        </span>
-        <VersionSelect
-          label={t('spec.diff.to')}
-          value={to}
-          versions={versions}
-          onPick={(v) => onChange(from ?? v, v)}
-        />
+        {fixed ? (
+          <span data-testid="diff-fixed-range" className="font-mono text-xs text-text-mute">
+            v{String(from ?? '')} → v{String(to ?? '')}
+          </span>
+        ) : (
+          <>
+            <VersionSelect
+              label={t('spec.diff.from')}
+              value={from}
+              versions={versions}
+              onPick={(v) => onChange(v, to ?? v)}
+            />
+            <span aria-hidden="true" className="text-text-faint">
+              →
+            </span>
+            <VersionSelect
+              label={t('spec.diff.to')}
+              value={to}
+              versions={versions}
+              onPick={(v) => onChange(from ?? v, v)}
+            />
+          </>
+        )}
         <Button
           size="xs"
           variant="subtle"

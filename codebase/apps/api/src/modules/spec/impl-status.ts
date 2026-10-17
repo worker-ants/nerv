@@ -48,6 +48,9 @@ type Queryable = Pick<NervDb, 'execute'>;
  * 그대로 적용하면 임포터가 문서에서 읽어 넣은 값(clemvion 의 `implemented` 들)을 증적 등록
  * 한 번에 `unimplemented` 로 쓸어버린다. 파생은 파생할 재료가 있을 때만 한다.
  *
+ * **표의 "Task" 는 세는 작업이다**(`countedTaskSql`) — 보관한 작업(2026-10-10)과 착수하지 않은 재검증 작업(2026-10-16 ·
+ * 사람 결정)은 표의 어느 줄에도 들지 않는다.
+ *
  * **값을 쓰면 출처도 쓴다**(2026-10-15 · 사람 결정 · REQ-API-312). 남은 임포트 값은 지우지 않고 「출처: 임포트」로
  * 표시한다 — 그 표시가 참이려면 파생이 값을 쓰는 이 자리에서 `impl_status_source` 를 `derived` 로 바꿔야 한다. 출처를
  * `import` 로 두는 자리는 임포터가 새 요구사항을 만들 때 하나뿐이다. 읽는 쪽은 열을 그대로 돌려줄 뿐 다시 판정하지 않는다.
@@ -191,26 +194,47 @@ export function openCriticalSql(reqAlias = 'r'): SQL {
   )`;
 }
 
+/**
+ * **구현 상태를 계산할 때 세는 작업인가** — 술어 한 벌(파생의 모든 질의가 같은 것을 쓴다).
+ *
+ * ① **보관한 작업은 세지 않는다**(2026-10-10 · REQ-API-286). 보관은 상태를 그대로 두므로, 세면 보관한 `in_review` 작업이
+ * 요구사항을 `in_progress` 에 붙잡고 보관한 backlog 작업이 `implemented` 를 영영 막는다.
+ *
+ * ② **착수하지 않은 재검증 작업은 세지 않는다**(2026-10-16 · 사람 결정 · REQ-API-097 개정 · spec-workflow §1.3). CR 승인이
+ * 바뀐 요구사항의 완료 작업마다 재검증 작업을 `backlog` 로 만드는데(기본값 — REQ-API-351), 그 작업은 "다시 확인할지" 를
+ * 사람에게 묻는 자리다. 아무도 시작하지 않은 동안 세면 "done 이 있지만 아직 전부가 아니다" 가 되어 요구사항이
+ * `in_progress` 로 내려가고, qa 가 "영향 없음" 으로 다시 서명해도 `verified` 로 돌아오지 못했다. 착수는 클레임이다 —
+ * 클레임된 적이 있으면(지금 풀려 `ready` 로 돌아왔어도) 다른 작업과 똑같이 센다. `reverifies_task_id` 가 그 작업을
+ * 알아보는 자리다(REQ-DB-053).
+ */
+export function countedTaskSql(taskAlias = 't'): SQL {
+  const t = (column: string): SQL => sql.raw(`${taskAlias}.${column}`);
+  return sql`(${t('archived_at')} IS NULL
+              AND NOT (${t('reverifies_task_id')} IS NOT NULL
+                       AND ${t('status')} IN ('backlog', 'ready', 'blocked')
+                       AND NOT EXISTS (SELECT 1 FROM claim c WHERE c.task_id = ${t('id')})))`;
+}
+
 export async function recomputeImplStatus(db: Queryable, requirementId: string): Promise<void> {
-  // **보관한 작업은 세지 않는다**(2026-10-10 · REQ-API-286). 보관은 상태를 그대로 두므로, 세면 보관한 `in_review` 작업이
-  // 요구사항을 `in_progress` 에 붙잡고 보관한 backlog 작업이 `implemented` 를 영영 막는다. 작업이 모두 보관됐으면
-  // 작업이 하나도 없는 요구사항처럼 손대지 않는다(아래 가드) — 임포트가 정한 값을 중복 하나 보관한 일로 지우지 않는다
+  // 보관한 작업 · 착수하지 않은 재검증 작업은 세지 않는다(`countedTaskSql`). 세는 작업이 하나도 없으면 작업이 하나도 없는
+  // 요구사항처럼 손대지 않는다(아래 가드) — 임포트가 정한 값을 중복 하나 보관한 일로 지우지 않는다
+  const counted = countedTaskSql();
   const next = sql`(
          CASE
            WHEN EXISTS (
              SELECT 1 FROM task t
-              WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL
+              WHERE t.source_requirement_id = r.id AND ${counted}
                 AND t.status IN ('claimed', 'in_progress', 'in_review')
            ) THEN 'in_progress'
            WHEN NOT EXISTS (
              SELECT 1 FROM task t
-              WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND t.archived_at IS NULL
+              WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND ${counted}
            ) AND ${evidenceExistsSql()}
              AND ${verifiedEvidenceSql()}
              AND ${commitScopeClearSql()} THEN 'verified'
            WHEN NOT EXISTS (
              SELECT 1 FROM task t
-              WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND t.archived_at IS NULL
+              WHERE t.source_requirement_id = r.id AND t.status <> 'done' AND ${counted}
            ) AND ${evidenceExistsSql()} THEN 'implemented'
            WHEN EXISTS (
              SELECT 1 FROM task t WHERE t.source_requirement_id = r.id AND t.status = 'done'
@@ -230,8 +254,8 @@ export async function recomputeImplStatus(db: Queryable, requirementId: string):
        -- 파생한다(2026-09-26 사람 결정). 발견이 열린 것으로는 풀리지 않는다(REQ-API-141)
        AND (r.impl_status <> 'verified'
             OR (r.statement_changed_at IS NOT NULL AND NOT ${verifiedEvidenceSql()}))
-       -- 살아 있는 작업이 하나는 있어야 다시 파생한다 — 보관한 작업만 남았으면 작업이 없는 요구사항과 같다
+       -- 세는 작업이 하나는 있어야 다시 파생한다 — 보관한 작업 · 착수하지 않은 재검증 작업만 남았으면 작업이 없는 요구사항과 같다
        AND EXISTS (SELECT 1 FROM task t
-                    WHERE t.source_requirement_id = r.id AND t.archived_at IS NULL)
+                    WHERE t.source_requirement_id = r.id AND ${counted})
   `);
 }

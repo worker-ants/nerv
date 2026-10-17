@@ -14,7 +14,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { memberRole, repoHost, userState } from '../enums.js';
+import { memberRole, repoHost, reviewSot, userState } from '../enums.js';
 import { bytea, citext, createdAt, idPk, ts } from './_columns.js';
 
 export const organization = pgTable('organization', {
@@ -66,6 +66,14 @@ export const project = pgTable(
     gatePolicy: jsonb('gate_policy').notNull().default({}),
     /** Activity·프롬프트 보존 기간(data-model §5.4) */
     retention: jsonb('retention').notNull().default({}),
+    /**
+     * **리뷰 컷오버 단계**(2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-DB-052 · roadmap §7.4) — `git`(컷오버 전 · 기본) · `dual`(M1
+     * 이중화) · `nerv`(M2 이후). 게이트 판정 비교(EP-REV-08b)가 어느 판정을 적용하는지와 불일치를 알릴지를 이 값으로 정한다.
+     * admin 만 바꾸고(EP-PRJ-04 · 사람 전용) 바꾸면 `project.updated` 가 전후를 남긴다
+     */
+    reviewSot: reviewSot('review_sot').notNull().default('git'),
+    /** 그 단계로 바꾼 시각 — 2주 관측 창(roadmap §7.5)의 시작이다. 한 번도 바꾸지 않았으면 NULL */
+    reviewSotSince: ts('review_sot_since'),
     /** 삭제는 아카이브가 원칙이다(§1.3) */
     archivedAt: ts('archived_at'),
     createdAt: createdAt(),

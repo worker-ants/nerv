@@ -38,6 +38,7 @@ export function FindingRail({
   canResolve,
   canComment,
   canPromote,
+  canSendToCr = false,
   resolveAction = null,
   onResolve,
   onResolveDone,
@@ -54,6 +55,11 @@ export function FindingRail({
   canComment: boolean;
   /** 승격은 작업을 만드는 일이라 `task:update` 가 기준이다(처분과 다른 축) */
   canPromote: boolean;
+  /**
+   * **변경 요청으로 보내기**(2026-10-16 · 사람 결정 · REQ-WEB-324) — planner · admin(`canSendFindingToCr`). 스펙 초안을 열고 그
+   * CR 의 주인이 되는 일이라 처분 권한과 다른 축이다
+   */
+  canSendToCr?: boolean;
   /**
    * 열린 처분 폼 — **읽은 자리에서 처분한다**(2026-09-25 — UI/UX 검토 WORK-12 · REQ-WEB-222). 레일에서
    * 전문과 코멘트를 읽은 QA 가 처분하려면 가운데 큐로 눈을 옮겨 같은 카드를 다시 찾아야 했고, 폼도
@@ -115,6 +121,40 @@ export function FindingRail({
     },
     onError: onApiError,
   });
+  /**
+   * **spec_drift 발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-WEB-324 · spec-workflow §3.4). 예전에는 보낼 곳이 없어
+   * 유래 스펙 링크만 줬다(§2.6a "와이어프레임과 다른 곳" 3). 보내면 그 CR 로 가는 링크가 이 자리를 맡는다
+   */
+  const toCr = useMutation({
+    mutationFn: (): Promise<Record<string, unknown>> =>
+      apiFetch<Record<string, unknown>>(
+        `/projects/${projectSlug}/findings/${findingId}/change-request`,
+        { method: 'POST', body: {} },
+      ),
+    onSuccess: (result) => {
+      if (projectId !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.projectFindings(projectId) });
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inbox() });
+      const key = String((result['change_request'] as Record<string, unknown>)?.['key'] ?? '');
+      pushToast({
+        tone: 'ok',
+        message: t('reviews.to_cr_done', { key }),
+        href: `/p/${projectSlug}/crs/${key}`,
+        hrefLabel: t('shell.toast.open'),
+      });
+    },
+    onError: onApiError,
+  });
+  const drift =
+    Array.isArray(finding['tags']) && (finding['tags'] as unknown[]).includes('spec_drift');
+  const crKey = str(finding['change_request_key']);
+  const crOpen =
+    crKey !== null &&
+    (finding['change_request_status'] === 'open' ||
+      finding['change_request_status'] === 'in_review');
+  const escalatedReason =
+    finding['resolution_kind'] === 'escalated' ? str(finding['escalate_reason']) : null;
   const promoted = typeof finding['promoted_task_key'] === 'string';
   const severity = String(finding['severity']);
   const status = String(finding['status']);
@@ -200,6 +240,49 @@ export function FindingRail({
           value={relativeTime(t, str(finding['created_at']))}
         />
       </dl>
+
+      {/* **넘긴 처분의 자리**(2026-10-16 · REQ-WEB-325) — 사유와 기다림. 결정은 받은 요청의 카드에서 한다 */}
+      {status === 'open' && escalatedReason !== null && !crOpen && (
+        <p data-testid="rail-escalated" className="flex flex-wrap items-center gap-2 text-2xs">
+          <StatusBadge
+            token="waiting"
+            label={t('reviews.escalated', {
+              reason: t(`question.escalate.${escalatedReason}` as 'question.escalate.spec'),
+            })}
+          />
+          {finding['escalation_blocking'] === true && finding['escalation_decision'] == null && (
+            <span className="text-text-mute">{t('reviews.escalation_waiting')}</span>
+          )}
+        </p>
+      )}
+
+      {/* **spec_drift → 변경 요청**(REQ-WEB-324). 열린 CR 에 묶였으면 그 CR 로 가는 링크, 아니면 [CR로 보내기] */}
+      {status === 'open' && drift && (
+        <div data-testid="rail-to-cr" className="flex flex-wrap items-center gap-2 text-2xs">
+          {crOpen ? (
+            <Link
+              to="/p/$proj/crs/$cr"
+              params={{ proj: projectSlug, cr: String(crKey) }}
+              data-testid="rail-cr-link"
+              className="rounded-nerv-sm border border-border px-2 py-0.5 text-link hover:underline"
+            >
+              {t('reviews.in_cr', { key: String(crKey) })} ▸
+            </Link>
+          ) : (
+            <Button
+              size="xs"
+              variant="subtle"
+              data-testid="rail-send-to-cr"
+              disabled={!canSendToCr || toCr.isPending}
+              disabledReason={canSendToCr ? undefined : t('reviews.to_cr_no_permission')}
+              title={t('reviews.to_cr_hint')}
+              onClick={() => toCr.mutate()}
+            >
+              {t('reviews.to_cr')}
+            </Button>
+          )}
+        </div>
+      )}
 
       {typeof specKey === 'string' && (
         <div className="text-2xs">

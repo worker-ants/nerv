@@ -21,7 +21,17 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.23 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.28 · 2026-10-16 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.28 변경(2026-10-16 — PR #240 검토의 사람 확인, **사람 결정**): **§3.2 상수 전표 두 줄.** 묶음 3이 「이번에 정한 시작값」으로 적은 `PIN_LIMIT`(50)과 컷오버 최근 불일치 20건(`CUTOVER_RECENT_MISMATCHES`)을 사람이 2026-10-16에 확인했다 — 그 사실을 적는다. 값은 그대로다.
+>
+> v2.27 변경(2026-10-16 — SoT 컷오버 M1, Phase 2 묶음 3의 넷째 · **사람 결정**(2026-10-16 — D6) · [4.8 백로그](backlog.md) E21-S03): **§1.1 트리 두 줄과 `apps/cli` 행 · §2.2 트리 한 줄 · §2.3 `ReviewModule` 행 · §3.2 상수 전표 한 줄 · §5 명령 한 줄.** `review/cutover.service.ts`(게이트 판정에 로컬 판정을 함께 받아 견주고 지표를 낸다 — EP-REV-08b · EP-REV-10)와 `tables/review.ts` 의 `gate_verdict_comparison`, CLI 의 `nerv cutover report`(`apps/cli/src/cutover/` — 서버 지표와 체크아웃의 신규 커밋을 한 보고로). 컷오버 기준값은 로드맵의 인용이고 새로 정한 수는 최근 불일치 20건 하나다. 곁들여 고친 것: §1.1 트리의 `index.ts` 주석이 "실제로 도는 형태는 `nerv spec …`" 이라 적고 있었다 — 2026-09-06 부터 `import` 를 생략할 수 없다([4.7 스펙 임포터](importer.md) §3.1).
+>
+> v2.26 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](backlog.md) E17-S02): **§2.2 트리 두 줄 · §3.2 상수 전표 한 줄.** `event/watch.service.ts`(워치 · 핀 — EP-NTF-10 ~ 16)와 `tables/event.ts` 의 `watch` · `pin`. 상수 `PIN_LIMIT`(50 — 한 사람이 고정할 수 있는 핀의 수)([4.4 API](api.md) REQ-API-342 ~ 345).
+>
+> v2.25 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **§2.2 트리 두 줄.** `review/escalation.ts` — 발견을 변경 요청에 묶고 CR의 결말(승인 · 거절 · 철회)로 그 발견을 닫으며, 에스컬레이션 카드를 만들고 닫는 자리다. 처분 · 카드의 결정 · CR의 결말 세 경로가 같은 함수를 지난다(D-05). `approval/session-wake.ts` — 기다리던 세션을 깨우는 규칙을 결재 결정 · 만료 · 에스컬레이션 카드가 함께 쓴다(기다리지 않는 카드는 세션을 붙잡지 않는다 · [4.4 API](api.md) REQ-API-335).
+>
+> v2.24 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **§2.2 트리 한 줄과 한 줄 개정.** `spec/change-request.service.ts` — CR의 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 생성. 결재는 스펙 버전이 받고 CR은 그 버전을 감싼다([3.5 스펙 워크플로](../03-proposal/spec-workflow.md) §3.5). `spec.controller.ts` 의 REST 에 CR 목록 · 단건 · 기각 · 철회와 영향 미리보기를 더했다([4.4 API](api.md) §2.2d).
 >
 > v2.23 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **§3.2 상수 한 줄.** `PLUGIN_COVERAGE_AGENT_TYPES` = `claude-code` · `codex` — 활성화 현황(EP-SES-06)이 세는 에이전트 종류와 그 순서다([4.4 API](api.md) §2.5c · REQ-API-168).
 >
@@ -331,8 +341,8 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
         src/                    # 상세 트리는 §2.2
       cli/                      # @nerv/cli — 임포터 CLI. 원본 체크아웃이 있는 장비에서 실행 (§1.3)
         src/
-          index.ts              # 서브커맨드 엔트리 — 실제로 도는 형태는 `nerv spec …` 이다
-                                #   (4.7 §3.1 과 스킬은 `nerv import spec …` 을 적는다 — 어긋난 자리로 열려 있다)
+          index.ts              # 서브커맨드 엔트리 — `nerv import …`(4.7 §3.1 · `import` 는 생략할 수 없다)와 `nerv cutover …`
+          cutover/              # nerv cutover report — 컷오버 M1 의 2주 보고: 서버 지표 + 체크아웃의 신규 커밋 (4.7 §3.7)
           profiles/             # 내장 프로파일 — clemvion.yaml · nerv-docs.yaml (4.7 §1.4)
           parse/                # 스캔 · frontmatter · 요구사항 추출 · 링크 해소 (4.7 §2)
           report/               # report.md · report.jsonl · 매니페스트 (4.7 §3.3·§4.1)
@@ -384,7 +394,7 @@ nerv/                           # 저장소 루트 — 애플리케이션 코드
 | --- | --- | --- | --- |
 | `apps/web` | `@nerv/web` | S1~S5·S7·S8 + 로그인 화면 렌더링, TipTap 에디터, WebSocket 구독 → TanStack Query 무효화 | 비즈니스 규칙 판정(전부 API에 위임 — [3.2](../03-proposal/architecture.md) §1.3) |
 | `apps/api` | `@nerv/api` | REST + MCP + WebSocket + ingest 네 표면과 도메인 서비스, 워커 잡(같은 코드베이스, 엔트리 분리) | 스키마·타입 선언(`@nerv/schema`에서만 import) |
-| `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출([4.7 스펙 임포터](importer.md) §3) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
+| `apps/cli` | `@nerv/cli` | 임포터 — 스캔·파싱·규칙 판정·리포트·매니페스트, EP-IMP-01~06 호출([4.7 스펙 임포터](importer.md) §3) · 컷오버 보고(`nerv cutover report` — EP-REV-10 과 체크아웃의 `git log` · §3.7) | DB 접속(`DATABASE_URL` 미사용·DB 드라이버 미의존), 도메인 판정 |
 | `packages/schema` | `@nerv/schema` | drizzle 테이블 선언, zod 스키마(임포트 배치·프로파일 포함), 도메인 상수·이벤트 이름·에러 코드, **문구 카탈로그와 번역기**(§3.4), **표면이 공유하는 순수 판정**(§3.1), **AGENTS.md 템플릿과 렌더**(2026-10-16 — 서버가 렌더하는데 서버 이미지에는 플러그인 폴더가 없다 · [4.6 플러그인](plugin.md) §5.3), 마이그레이션 파일 | 런타임 로직(위 다섯 + 마이그레이터만 — §3.4가 근거). 판정은 **던지지 않고 문구를 모른다** — 에러로 옮기는 것도 화면 문구로 옮기는 것도 표면의 일이다 |
 | `plugin-test` | `@nerv/plugin-test` | `plugin/`(에이전트 호스트에 **배포되는 파일 묶음** — 스킬 7종·훅·statusline·서브에이전트 · [4.6 플러그인과 온보딩](plugin.md) §1~§3 전문의 실물)의 테스트 — 문서 대조 · 스크립트 실행. 워크스페이스인 이유는 그 테스트를 `pnpm test`에 태우기 위해서다 | `plugin/` 안에 파일 두기 — 그 폴더는 설치하면 통째로 복사된다(2026-10-16 · REQ-PLG-037). 빌드 산출물·런타임 코드(JS 번들 없음) |
 | `deploy/*`(저장소 루트) | — | compose·Dockerfile·kustomize 산출물. 이 문서가 정본 | 애플리케이션 코드 |
@@ -553,6 +563,7 @@ apps/api/src/
       approval.tools.ts       # MCP — nerv_spec_approve (A3 · 사람이 세션에서 대답한 승인)
       question.service.ts     # 질문 생성 · 폴링 · awaiting_input 전이
       question.tools.ts       # MCP — nerv_question_create
+      session-wake.ts         # 기다리던 세션을 깨운다 — 결정 · 만료 · 에스컬레이션 카드가 같은 규칙을 쓴다 (REQ-API-134 · 335)
     auth/
       auth.controller.ts        # REST — 조직 · 프로젝트 · 멤버 · 토큰(S8)
       auth.module.ts
@@ -579,6 +590,7 @@ apps/api/src/
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
       sse.controller.ts            # GET /sse/projects/{p} · /sse/me — text/event-stream 단방향 (4.4 §3.5)
       valkey.service.ts            # Valkey 클라이언트 provider — PUBLISH·SUBSCRIBE 공용 커넥션 관리
+      watch.service.ts             # 워치 · 핀 — 본인의 것만 · 내가 속한 프로젝트의 대상만 (REQ-API-342 ~ 345). 워처 산출은 notification.service.ts
       ws.gateway.ts                # @WebSocketGateway(socket.io) — project:{id} · user:{id} 룸, join 시 멤버십 검사
       ws-log.ts                    # 연결·거절·해제 한 줄 — 업그레이드는 접근 로그에 닿지 않는다 (§5.5 · REQ-CB-054)
     import/
@@ -592,6 +604,8 @@ apps/api/src/
       plugin.service.ts     # 마켓플레이스 JSON 조립
     review/
       commit-scope.ts       # 커밋 범위 — 작업의 최신 커밋과 라운드의 커밋을 맞춘다 · done 게이트와 verified 가 함께 쓴다 (REQ-API-314 · 315)
+      cutover.service.ts    # SoT 컷오버 M1 — 게이트 판정에 로컬 판정을 함께 받아 견주고(EP-REV-08b) 2주 지표를 낸다(EP-REV-10) (REQ-API-346 ~ 350)
+      escalation.ts         # 에스컬레이션 카드 · 변경 요청에 묶인 발견 — 처분 · 카드 · CR 의 결말이 같은 자리를 지난다 (REQ-API-333 ~ 338)
       review-gate.ts        # 게이트 판정 — 라운드(브랜치 · 종류 · 커밋)가 통과했는가 (REQ-API-247)
       review.controller.ts  # 리뷰 수집·발견 큐 표면 (FR-09)
       review.module.ts
@@ -612,6 +626,7 @@ apps/api/src/
     spec/
       attachment.service.ts     # 스펙 첨부 — 2단계 업로드 (api.md §1.4k)
       baseline.service.ts       # 기준선 동결·조회 · as-of/baseline manifest (spec-workflow §3.6, REQ-API-015)
+      change-request.service.ts # CR — 자동 생성 · 상태 동기화 · 기각 · 철회 · 영향 미리보기 · 승인 시 제안 작업 (REQ-API-328~332)
       embedding.client.ts       # OpenAI 호환 /v1/embeddings 단일 계약 (REQ-CB-020·033)
       embedding.service.ts      # 청크 · 재임베딩 잡
       gate-tier.ts              # 게이트 티어 판정 — 네 축 + 동적 강화 (spec-workflow §2.4)
@@ -629,7 +644,7 @@ apps/api/src/
       spec-export.service.ts    # 프로젝트 스펙 전체 zip — EP-MIR-03 (REQ-API-251)
       spec-relation.service.ts  # 관계·역참조 — 상한 없는 유한 목록 (REQ-API-155)
       spec-tree.ts              # 트리 조립 — 기준선 세트 반영
-      spec.controller.ts        # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest
+      spec.controller.ts        # REST — tree · get · 버전 · draft · check · submit · 코멘트 · baselines · manifest · CR · 영향 미리보기
       spec.module.ts
       spec.service.ts           # 초안 upsert · base_hash 비교-교환 · 편집 리스 · 전이 · 사전 검토
       spec.tools.ts             # MCP — nerv_spec_* 7종 (§2.3 표)
@@ -685,7 +700,7 @@ apps/api/src/
 | `TaskModule` | `task` `task_dependency` `claim` `evidence` | `nerv_task_next` `nerv_task_claim` `nerv_task_heartbeat` `nerv_task_release`(P0) · `nerv_task_update`(P1) | `…/projects/{p}/tasks` |
 | `SessionModule` | `agent_session` `activity` **`activity_summary`** | `nerv_bootstrap`(P0) · `nerv_session_event`(P1) | `…/projects/{p}/sessions` + `/ingest/hooks/*` |
 | `ApprovalModule` | `approval` `question` | `nerv_question_create` `nerv_spec_approve`(P1) | `…/projects/{p}/approvals` · `…/questions` |
-| `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` **`finding_comment`** | `nerv_review_submit` `nerv_finding_resolve` | `…/projects/{p}/reviews` 계열 7종 |
+| `ReviewModule` | `review_session` `reviewer_report` `finding` `finding_occurrence` `resolution` **`finding_comment`** **`gate_verdict_comparison`**(2026-10-16) | `nerv_review_submit` `nerv_finding_resolve` | `…/projects/{p}/reviews` · `…/findings` · `…/gates/reviews` 계열 11종(EP-REV-01 ~ 10 · 08b) |
 | `EventModule` | `event` `notification` | — | `…/projects/{p}/events` + WebSocket · SSE(`/sse/*`) |
 | `ImportModule` | (소유 테이블 없음 — Spec·Task 계열에 소급 적재) | — (도구 없음 — [4.7 스펙 임포터](importer.md) §3.6) | `…/projects/{p}/import/*` |
 
@@ -730,9 +745,9 @@ packages/schema/
       spec.ts                    #   spec · spec_version · requirement · requirement_version · spec_relation · spec_comment · change_request · spec_baseline · spec_baseline_item
       task.ts                    #   task · task_dependency · claim · evidence
       session.ts                 #   agent_session · activity
-      review.ts                  #   review_session · reviewer_report · finding · finding_occurrence · resolution
+      review.ts                  #   review_session · reviewer_report · finding · finding_occurrence · resolution · gate_verdict_comparison
       approval.ts                #   approval · question
-      event.ts                   #   event · notification · notification_batch_event · notification_preference
+      event.ts                   #   event · notification · notification_batch_event · notification_preference · notification_digest_setting · watch · pin
     zod/                         # 요청·응답·도구 입력 zod 스키마 — REST(4.4)와 MCP가 같은 것을 쓴다
     constants.ts                 # §3.2 상수 전표
     events.ts                    # 이벤트 이름 리터럴 유니온 — `<리소스>.<동사>` (정본: 3.5 §6)
@@ -791,6 +806,8 @@ packages/schema/
 | `MIRROR_GIT_DEFAULT_AUTHOR` | `'NERV <nerv@localhost>'` | git 미러 커밋의 작성자 — `NERV_MIRROR_GIT_AUTHOR` 를 비우면 이 값이다. 사람이 손으로 커밋하지 않는 저장소다([3.2](../03-proposal/architecture.md) §2.4 (b)) |
 | `DIGEST_MAX_LINES` | `20` | 메일 요약 한 통에 적는 알림 줄 수 — 넘치면 수로 줄인다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5 · [4.4 API 명세](api.md) REQ-API-233) |
 | `DIGEST_DEFAULT_HOUR` | `9` | 메일 요약을 받는 현지 시의 기본값 — 켤 때 시를 고르지 않으면 이 값이다([4.4 API 명세](api.md) REQ-API-232) |
+| `PIN_LIMIT` | `50` | 한 사람이 고정할 수 있는 핀의 수 — 퀵 스위처는 빈 입력에서 고정을 모두 보이므로 그보다 많으면 고정이 아니라 또 하나의 목록이다. 브라우저에서 옮겨 오는 핀도 이 수까지다(2026-10-16 · 이번에 정한 시작값 — 같은 날 사람 확인 · [4.4 API 명세](api.md) REQ-API-344) |
+| `CUTOVER_MISMATCH_STABLE_BELOW_PCT` · `CUTOVER_MISMATCH_ROLLBACK_PCT` · `CUTOVER_SUBMIT_FAILURE_ROLLBACK_PCT` · `CUTOVER_OBSERVATION_DAYS` · `CUTOVER_RECENT_MISMATCHES` | `1` · `5` · `2` · `14` · `20` | SoT 컷오버 M1 지표(2026-10-16 · 사람 결정 D6 · [4.4 API 명세](api.md) REQ-API-349). 앞의 넷은 [3.7 로드맵](../03-proposal/roadmap.md) §7.5 · §7.6 의 인용이다 — 불일치율 1% 미만이 안정, 5% 이상이거나 리뷰 제출 실패율 2% 이상이 롤백, 2주 관측. 비율은 정수 백분율로 두고 정수로 견준다. 최근 불일치 20건은 이번에 정한 시작값이다(그보다 많으면 불일치율이 이미 롤백 기준을 넘었다 · 2026-10-16 사람 확인) |
 | `PAGE_LIMIT_DEFAULT` · `PAGE_LIMIT_MAX` | `30` · `100` | 페이지 상한 전역 규칙 — [4.4 API 명세](api.md) §1.6 |
 | `FINDING_PAGE_LIMIT_DEFAULT` · `_MAX` | `50` · `200` | 발견 큐의 **예외**(실측 18,650건). 전역 규칙과 다른 값이므로 상수로 올려 화면이 서버가 자르는 수를 알 수 있게 했다(2026-09-05) |
 | `GATE_BRANCH_LIMIT_DEFAULT` · `_MAX` | `20` · `200` | 게이트 표의 브랜치 — 같은 예외(실측 441개) |
@@ -1184,6 +1201,7 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `pnpm compose:down` | 스택 정지(볼륨 유지) |
 | `pnpm --filter @nerv/cli build` | 임포터 CLI 빌드 — 산출물은 이미지가 아니라 설치형 패키지(§1.3) |
 | `nerv import …` | 임포터 실행. **`codebase/`가 아니라 원본 체크아웃에서 실행한다**([4.7 스펙 임포터](importer.md) §3.1) |
+| `nerv cutover report …` | SoT 컷오버 M1 의 2주 보고 — 서버 지표와 원본 체크아웃의 신규 커밋을 한 번에 낸다. 이것도 원본 체크아웃에서 실행한다([4.7 스펙 임포터](importer.md) §3.7) |
 
 | ID | 요구(EARS) |
 | --- | --- |

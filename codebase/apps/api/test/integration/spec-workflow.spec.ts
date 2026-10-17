@@ -66,9 +66,14 @@ afterAll(async () => {
 beforeEach(async () => {
   await pool.query('UPDATE spec SET current_version_id = NULL');
   await pool.query('DELETE FROM approval');
+  // 작업이 요구사항을 가리킨다 — 고른 적 없는 변경 요청의 승인이 기본값으로 파생 · 재검증 작업을 만든다(2026-10-16 사람
+  // 결정 · REQ-API-351). 요구사항보다 먼저 지운다
+  await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM requirement');
   await pool.query('DELETE FROM spec_relation');
-  await pool.query('DELETE FROM task');
+  // 변경 요청이 초안을 감싼다(2026-10-16) — 버전과 서로를 가리키므로 먼저 푼다
+  await pool.query('UPDATE spec_version SET change_request_id = NULL');
+  await pool.query('DELETE FROM change_request');
   await pool.query('DELETE FROM spec_version');
   await pool.query('DELETE FROM spec');
   await pool.query('TRUNCATE event');
@@ -1590,6 +1595,9 @@ describe('검증 서명은 그 문장에 대한 것이다 (REQ-API-190 · 2026-0
     });
     const versionId = String(next['spec_version_id']);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
+    // **고르지 않고 승인한다 — 기본값이 재검증 작업을 `backlog` 로 만든다**(2026-10-16 사람 결정 · REQ-API-351). 착수하지
+    // 않은 재검증 작업은 구현 상태를 계산할 때 세지 않으므로(같은 날 사람 결정 · REQ-API-097 개정) 서명의 뜻이 그대로 보인다.
+    // 13e 는 그 작업이 요구사항을 `in_progress` 로 붙잡아 이 스위트의 승인을 빈 선택으로 바꿨었다
     await decideOn(versionId, reviewer, 'approve');
     return versionId;
   }
@@ -1690,6 +1698,13 @@ describe('검증 서명은 그 문장에 대한 것이다 (REQ-API-190 · 2026-0
     const row = await listed(key);
     expect(row?.['reverify_required']).toBe(false);
     expect(row?.['verified_at']).not.toBeNull();
+    // 기본값이 만든 재검증 작업은 아무도 시작하지 않은 채 남아 있다 — 다시 확인할지는 사람이 정한다
+    const { rows: left } = await pool.query<{ status: string; reverifies: boolean }>(
+      `SELECT status::text AS status, reverifies_task_id IS NOT NULL AS reverifies
+         FROM task WHERE source_requirement_id = $1 AND status <> 'done'`,
+      [reqId],
+    );
+    expect(left).toEqual([{ status: 'backlog', reverifies: true }]);
   });
 
   it('공백·서식만 바뀐 것은 바뀐 것으로 치지 않는다 — 검증이 그대로다', async () => {

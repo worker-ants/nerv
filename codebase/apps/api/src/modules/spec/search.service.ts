@@ -71,7 +71,7 @@ export interface SearchHit extends Record<string, unknown> {
    * 화면이 어디로 보낼지를 정하는 값이다. 예전에는 키 접두(`TSK-`)로 갈랐는데 그 접두가
    * 실데이터에 없어(0/487) 모든 결과가 스펙으로 갔다.
    */
-  kind?: 'spec' | 'requirement' | 'task';
+  kind?: 'spec' | 'requirement' | 'task' | 'change_request';
   /** 이 결과가 어느 경로로 들어왔나 — 디버깅이 아니라 신뢰의 문제다 */
   matched_by: string[];
   /**
@@ -301,6 +301,13 @@ export class SearchService {
         FROM task t
        WHERE t.project_id = ${projectId}
          AND (lower(t.key) = lower(${id}) OR t.id = ${uuid}::uuid)
+       UNION ALL
+      -- **변경 요청 키도 찾는다**(2026-10-16 · 사람 결정 D2) — 작업 키와 같은 규칙이다. 넷째 칸은 그 상태다
+      SELECT cr.id, cr.key, cr.title, cr.status::text, NULL::text, NULL::int, NULL::text,
+             left(coalesce(cr.rationale_md, ''), 200), 'change_request' AS kind, NULL::timestamptz
+        FROM change_request cr
+       WHERE cr.project_id = ${projectId}
+         AND (lower(cr.key) = lower(${id}) OR cr.id = ${uuid}::uuid)
     `);
     return rows.map((r) => ({ ...r, score: 1, matched_by: ['id'] }));
   }
@@ -350,6 +357,12 @@ export class SearchService {
           FROM task t
          WHERE t.project_id = ${projectId} AND strpos(lower(t.key), lower(${q})) > 0
            ${includeArchived === true ? sql`` : sql`AND t.archived_at IS NULL`}
+         UNION ALL
+        SELECT cr.id, cr.key, cr.title, cr.status::text, NULL::text, NULL::int, NULL::text,
+               left(coalesce(cr.rationale_md, ''), 200), 'change_request', NULL::timestamptz,
+               ${place(sql`cr.key`)}, length(cr.key)
+          FROM change_request cr
+         WHERE cr.project_id = ${projectId} AND strpos(lower(cr.key), lower(${q})) > 0
       ) hits
       ORDER BY place, len, key, anchor NULLS FIRST
       LIMIT ${limit}

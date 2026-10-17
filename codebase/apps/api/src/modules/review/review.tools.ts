@@ -142,6 +142,9 @@ export class ReviewTools implements NervToolProvider {
             enum: ['spec', 'user-decision', 'infra', 'e2e-fail-3x', 'sensitive-fix'],
             description: 'mcp.arg.escalate_reason',
           },
+          // **결정을 기다리는가**(2026-10-16 · 사람 결정 D3 · REQ-API-335) — `escalated` 에만 읽는다. 기본은 기다린다(질문의
+          // `blocking` 과 같다). 기다리면 세션은 `awaiting_input` 이 되고 카드의 결정이 하트비트로 온다
+          blocking: { type: 'boolean', description: 'mcp.arg.escalation_blocking' },
           idempotency_key: { type: 'string' },
         },
         required: ['finding_id', 'resolution', 'rationale'],
@@ -165,13 +168,14 @@ export class ReviewTools implements NervToolProvider {
             typeof input['spec_version_id'] === 'string' ? input['spec_version_id'] : null,
           escalateReason:
             typeof input['escalate_reason'] === 'string' ? input['escalate_reason'] : null,
+          ...(typeof input['blocking'] === 'boolean' ? { blocking: input['blocking'] } : {}),
         });
         return {
           ...result,
           // 넘긴 발견은 **열린 채로 남는다** — 다음 행동은 그것을 다시 집는 것이
-          // 아니라 사람의 답을 기다리는 것이다(2026-09-05 · REQ-API-108)
+          // 아니라 사람의 답을 기다리는 것이다(2026-09-05 · REQ-API-108). 기다리지 않는 처분이면 남은 발견으로 간다(2026-10-16)
           next_actions:
-            asked === 'escalated'
+            asked === 'escalated' && result.escalation?.blocking !== false
               ? ['nerv_task_heartbeat']
               : result.open_remaining > 0
                 ? ['nerv_finding_resolve']

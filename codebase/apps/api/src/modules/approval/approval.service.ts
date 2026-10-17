@@ -23,6 +23,9 @@ import {
   canWaiveReviewKind,
   CODE_EVIDENCE_KINDS,
   CODE_REVIEW_KINDS,
+  ESCALATION_RESOLUTIONS,
+  FULL_COMMIT_SHA_PATTERN,
+  INBOX_KINDS,
   msg,
   NERV_ERROR,
   NERV_EVENT,
@@ -35,7 +38,14 @@ import {
   SELF_APPROVAL_ROLES,
   waivableReviewKinds,
 } from '@nerv/schema';
-import type { ApprovalInboxState, Message, NervErrorCode } from '@nerv/schema';
+import type {
+  ApprovalInboxState,
+  CrActions,
+  EscalationResolution,
+  InboxKind,
+  Message,
+  NervErrorCode,
+} from '@nerv/schema';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -71,7 +81,16 @@ import type { Actor } from '../../common/human-only.js';
 import { EventService } from '../event/event.service.js';
 import { closeRequestNotifications } from '../event/request-notifications.js';
 import { SpecService } from '../spec/spec.service.js';
+import {
+  changeRequestImpact,
+  changeRequestOutcomeOfVersion,
+  defaultActions,
+  planChangeRequestInTx,
+} from '../spec/change-request.service.js';
+import type { ChangeRequestOutcome } from '../spec/change-request.service.js';
 import { AuthService } from '../auth/auth.service.js';
+import { wakeWaitingSessionInTx } from './session-wake.js';
+import { writeResolutionInTx } from '../review/escalation.js';
 
 export type ApprovalDecision = 'approve' | 'reject' | 'comment';
 
@@ -91,6 +110,11 @@ export interface DirectApproveResult {
   self_approved?: true;
   /** 확정이면 그 문서, 기다리면 남은 자리의 카드 */
   web_url: string;
+  /**
+   * 이 승인이 변경 요청을 확정했으면 그 CR 과 함께 한 일(2026-10-16 사람 결정 · REQ-API-351) — 고른 적이 없으면 기본값
+   * (`actions_source: default` — 파생 · 재검증 작업을 만든다)이다. 에이전트는 `created_tasks` 를 사람에게 그대로 보고한다
+   */
+  change_request?: ChangeRequestOutcome;
 }
 
 /** 일괄 바로 승인의 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(REQ-API-289) */
@@ -110,10 +134,14 @@ export interface DecideResult {
   decision: ApprovalDecision;
   subject_type: string;
   subject_id: string;
+  /** 에스컬레이션 카드의 처분(2026-10-16 · REQ-API-336) — 그 카드에만 온다 */
+  resolution?: string;
   /** 정족수 — 스펙 승인에만 있다. `satisfied: false` 면 **아직 확정이 아니다** */
   quorum?: { given: number; required: number; satisfied: boolean };
   /** 자기 결재를 승인했는가(완화로 지났다 — 감사에 남는 사실을 응답에도 준다) */
   self_approved?: true;
+  /** 이 결정이 변경 요청을 확정했으면 그 CR 과 함께 한 일(2026-10-16 사람 결정 · REQ-API-351) */
+  change_request?: ChangeRequestOutcome;
 }
 
 /**
@@ -123,6 +151,9 @@ export interface DecideResult {
  * 여기도 함께 늘어야 하고, 손으로 적은 목록은 그때 조용히 옛 어휘로 남는다.
  */
 const BULK_DECISIONS = approvalDecision.enumValues.filter((d) => d !== 'comment');
+
+/** CR 카드가 그리는 델타 줄 수 — 나머지는 CR 상세에서 본다(ui-wireframes §2.7 ⑥) */
+const CR_CARD_DELTA_LINES = 5;
 
 /**
  * 대기의 첫째 키 — **누를 수 있는 것이 먼저**다(2026-09-25 · REQ-API-184 · 사람 결정 D2).
@@ -150,6 +181,22 @@ function compareByCursor(a: Record<string, unknown>, b: Record<string, unknown>)
   const bt = String(b['cursor_at'] ?? '');
   if (at !== bt) return at < bt ? -1 : 1;
   return String(a['id']) < String(b['id']) ? -1 : 1;
+}
+
+/**
+ * **카드의 유형**(2026-10-16 · 사람 결정 D3 · api.md EP-APR-01 `kind` · REQ-API-337) — `INBOX_KINDS` 의 값. 스펙 결재는 그 버전을
+ * 변경 요청이 감싸면 `cr`, 에스컬레이션 카드는 변경 요청으로 보냈으면 `cr` 이다. 받은 요청의 조건(`inboxConditions`)이 잇는
+ * `cr` · `er` 를 전제한다. 판정은 여기 한 곳이다 — 화면이 유형을 다시 짐작하면 필터의 수와 카드가 갈라진다.
+ */
+function approvalKindSql(): SQL {
+  return sql`(CASE
+    WHEN a.subject_type = 'spec_version' AND cr.id IS NOT NULL THEN 'cr'
+    WHEN a.subject_type = 'spec_version' THEN 'spec'
+    WHEN a.subject_type = 'escalation' AND er.change_request_id IS NOT NULL THEN 'cr'
+    WHEN a.subject_type = 'escalation' THEN 'escalation'
+    WHEN a.subject_type = 'change_request' THEN 'cr'
+    ELSE a.subject_type::text
+  END)`;
 }
 
 /**
@@ -243,6 +290,11 @@ export interface InboxPage {
    * 온다 — 처리됨에는 누를 것이 없다(없는 값은 없는 것으로 온다 · `can_approve` 와 같은 규율).
    */
   actionable_total?: number;
+  /**
+   * **유형마다 대기 수**(2026-10-16 · REQ-API-337) — 대기 목록에만 온다. 유형 필터를 빼고 같은 조건으로 센다(리뷰 센터의 facet 과
+   * 같은 뜻 — 그 유형을 고르면 몇 건이 보이는가)
+   */
+  kind_counts?: Record<InboxKind, number>;
 }
 
 @Injectable()
@@ -267,8 +319,18 @@ export class ApprovalService {
     userId: string,
     assigneeUserId: string | null,
     assigneeRole: string | null,
+    subjectType?: string,
   ): Promise<void> {
     const roles = await this.auth.assertMembership(userId, projectId);
+    // **에스컬레이션 카드의 담당자 칸은 기본 큐에 더하는 사람이다**(2026-10-16 · 사람 결정 D3 · `escalationQueueSql`) — 목록 ·
+    // 알림과 같은 규칙이다
+    if (
+      subjectType === 'escalation' &&
+      assigneeRole === null &&
+      scopesForRoles(roles).has('approval:decide')
+    ) {
+      return;
+    }
     if (assigneeUserId !== null) {
       if (assigneeUserId === userId || roles.includes('admin')) return;
       throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.not_assignee'), {
@@ -301,8 +363,8 @@ export class ApprovalService {
 
   /**
    * **기다리던 세션을 깨운다** — 다른 대기 사유가 없을 때만(2026-09-07 · REQ-API-134). 결정(`decideInTx`)과 만료
-   * (`expireOne` · 2026-10-15 · REQ-API-304)가 같은 규칙을 쓴다. 열린 blocking 질문이나 아직 결정되지 않은 다른 결재가
-   * 있으면 그 세션은 여전히 사람을 기다리는 중이고, 여기서 `active` 로 돌려놓으면 S5 는 일하고 있는 세션으로 그린다.
+   * (`expireOne` · 2026-10-15 · REQ-API-304)가 같은 규칙을 쓰고, 에스컬레이션 카드가 다른 길로 닫힐 때(2026-10-16 · REQ-API-335)도
+   * 같은 함수다 — 규칙은 `session-wake.ts` 한 곳이다.
    */
   private async wakeWaitingSession(
     tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
@@ -310,29 +372,7 @@ export class ApprovalService {
     /** 지금 닫히는 결재 — 남은 대기로 세지 않는다 */
     closedApprovalIds: readonly string[],
   ): Promise<void> {
-    await tx.execute(sql`
-      UPDATE agent_session SET state = 'active'
-       WHERE id = ${sessionId}
-         AND state = 'awaiting_input'
-         AND NOT EXISTS (
-           SELECT 1 FROM question q
-            WHERE q.agent_session_id = ${sessionId}
-              AND q.status = 'open' AND q.urgency = 'blocking'
-         )
-         AND NOT EXISTS (
-           SELECT 1 FROM approval a2
-            WHERE a2.requested_by_session_id = ${sessionId}
-              AND a2.id <> ALL(${sqlArray(closedApprovalIds, 'uuid')}) AND a2.decision IS NULL
-              -- **닫힌 라운드의 형제 슬롯은 기다림이 아니다**(2026-09-26). T3 의 한 슬롯이 거절되면 문서는
-              -- 초안으로 가고 다른 슬롯은 결정 없이 남는다 — 그 슬롯이 세션을 붙잡아 거절을 받고도
-              -- awaiting_input 에 머물렀다. 문서가 검토 중이 아닌 스펙 슬롯은 세지 않는다(만료도 같다)
-              AND NOT EXISTS (
-                SELECT 1 FROM spec_version sv2
-                 WHERE a2.subject_type = 'spec_version' AND sv2.id = a2.subject_id
-                   AND sv2.status <> 'in_review'
-              )
-         )
-    `);
+    await wakeWaitingSessionInTx(tx, sessionId, closedApprovalIds);
   }
 
   /**
@@ -433,6 +473,8 @@ export class ApprovalService {
     state?: string | null;
     cursor?: string | null;
     limit?: string | number | null;
+    /** 유형(2026-10-16 · REQ-API-337) — EP-APR-01 과 같다 */
+    kind?: string | null;
   }): Promise<InboxPage> {
     return this.inboxGlobal({
       actor: input.actor,
@@ -441,6 +483,7 @@ export class ApprovalService {
       projectId: input.projectId,
       cursor: input.cursor ?? null,
       limit: input.limit ?? null,
+      kind: input.kind ?? null,
     });
   }
 
@@ -517,6 +560,8 @@ export class ApprovalService {
     userId: string,
     state: ApprovalInboxState,
     projectFilter: SQL,
+    /** 유형 필터(2026-10-16 · REQ-API-337) — 비었으면 거르지 않는다 */
+    kinds: readonly InboxKind[] = [],
   ): { approvalFrom: SQL; approvalWhere: SQL; questionFrom: SQL; questionWhere: SQL } {
     // **만료는 결정이 아니다**(2026-10-15 · REQ-API-304) — 결재 행에는 결정이 없고, 그 라운드의 만료 이벤트가 사실이다
     const stateFilter =
@@ -550,7 +595,10 @@ export class ApprovalService {
          -- 여럿인 결재에서 하나가 reject 되면 문서는 draft 로 돌아가는데, 결정되지 않은
          -- 나머지 슬롯은 그대로 남아 있다 — 그것을 대기 목록에 두면 이미 끝난 라운드를
          -- 사람이 계속 결재하게 된다. 만료로 초안이 된 문서도 같다(2026-10-15).
-         AND (sv.id IS NULL OR sv.status = 'in_review')`;
+         AND (sv.id IS NULL OR sv.status = 'in_review')
+         -- **변경 요청이 검토 중이면 그 CR 의 planner 카드는 쉰다**(2026-10-16 · REQ-API-334). 그동안은 스펙 결재 카드가 같은
+         -- CR 카드로 보인다 — 같은 일을 두 장으로 보이지 않는다. 결재가 초안을 돌려보내면 다시 보인다
+         AND NOT (a.subject_type = 'escalation' AND coalesce(ecr.status::text, '') = 'in_review')`;
     /**
      * FROM 과 WHERE 를 조각으로 뽑는다 — 목록과 **총계가 같은 조건을 봐야** 하기 때문이다.
      *
@@ -561,9 +609,23 @@ export class ApprovalService {
         JOIN project p ON p.id = a.project_id
    LEFT JOIN spec_version sv ON sv.id = a.subject_id AND a.subject_type = 'spec_version'
    LEFT JOIN agent_session owner ON owner.id = sv.author_session_id
-   LEFT JOIN task plan_task ON plan_task.id = a.subject_id AND a.subject_type = 'plan'`;
+   LEFT JOIN task plan_task ON plan_task.id = a.subject_id AND a.subject_type = 'plan'
+   -- 카드의 유형을 정하는 둘(2026-10-16 · REQ-API-337) — 스펙 결재를 감싼 변경 요청 · 에스컬레이션 카드가 넘긴 처분과 그 CR
+   LEFT JOIN change_request cr ON a.subject_type = 'spec_version' AND cr.proposed_version_id = a.subject_id
+   LEFT JOIN resolution er ON er.id = a.subject_id AND a.subject_type = 'escalation'
+   LEFT JOIN change_request ecr ON ecr.id = er.change_request_id`;
     const memberOfProject = memberOfProjectSql(userId);
-    const approvalWhere = sql`WHERE ${stateFilter}${projectFilter}
+    // **유형 필터**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 목록 · 총계가 같은 식을 본다. 질문은 `question` 이면 모두,
+    // `escalation` 이면 사유가 있는 것만이다(카드 모양은 질문 그대로다)
+    const approvalKindFilter =
+      kinds.length === 0 ? sql`` : sql` AND ${approvalKindSql()} = ANY(${sqlArray(kinds, 'text')})`;
+    const questionKindFilter =
+      kinds.length === 0 || kinds.includes('question')
+        ? sql``
+        : kinds.includes('escalation')
+          ? sql` AND q.escalate IS NOT NULL AND q.escalate <> 'no'`
+          : sql` AND false`;
+    const approvalWhere = sql`WHERE ${stateFilter}${projectFilter}${approvalKindFilter}
          -- **보관한 프로젝트의 결재는 여기 오지 않는다**(2026-08-27 · 사람 보고).
          -- 목록에는 보이는데 누르면 아무 일도 일어나지 않았다 — 치운 프로젝트를
          -- 사람이 계속 결재하도록 두는 것은 받은 요청을 못 믿게 만드는 가장 빠른 길이다.
@@ -576,7 +638,7 @@ export class ApprovalService {
          AND ${memberOfProject}`;
     const questionFrom = sql`FROM question q
         JOIN project p ON p.id = q.project_id`;
-    const questionWhere = sql`WHERE q.status = 'open'${projectFilter}
+    const questionWhere = sql`WHERE q.status = 'open'${projectFilter}${questionKindFilter}
          -- 승인 카드와 **같은 조건**이다. 한쪽만 걸렀더니 보관한 프로젝트의 질문
          -- 카드가 받은 요청에 그대로 남았다(실측 2026-08-27) — 받은 요청은 한 목록이므로
          -- 두 갈래가 같은 규칙을 써야 그 목록이 한 가지 뜻을 갖는다.
@@ -661,8 +723,24 @@ export class ApprovalService {
     /** 불투명 커서(§1.6) — 해독되지 않으면 처음부터다 */
     cursor?: string | null;
     limit?: string | number | null;
+    /**
+     * **유형**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 쉼표 목록 · 어휘는 `INBOX_KINDS`, 밖의 값은 400 이다. 비었으면
+     * 거르지 않는다
+     */
+    kind?: string | null;
   }): Promise<InboxPage> {
     assertHuman(input.actor, 'inbox', '/inbox');
+    const kinds =
+      input.kind == null || input.kind.trim() === ''
+        ? []
+        : (assertVocab(
+            input.kind
+              .split(',')
+              .map((k) => k.trim())
+              .filter((k) => k !== ''),
+            INBOX_KINDS,
+            'kind',
+          ) as InboxKind[]);
     const state = assertVocab(
       [input.state ?? 'pending'],
       APPROVAL_INBOX_STATES,
@@ -768,6 +846,7 @@ export class ApprovalService {
       input.userId,
       state,
       projectFilter,
+      kinds,
     );
 
     const { rows: approvals } = await this.db.execute<Record<string, unknown>>(sql`
@@ -800,8 +879,30 @@ export class ApprovalService {
              rs.hostname AS requested_hostname, rs.agent_type::text AS requested_agent_type,
              (rs.state = 'awaiting_input') AS session_waiting,
              pt.key AS task_key, pt.title AS task_title,
-             CASE WHEN a.subject_type = 'finding' THEN a.subject_id END AS finding_id,
+             f.id AS finding_id,
              f.title AS finding_title, f.severity::text AS finding_severity,
+             -- **카드의 유형**(2026-10-16 · REQ-API-337) — 필터와 같은 식이다
+             ${approvalKindSql()} AS kind,
+             -- **에스컬레이션 카드**(2026-10-16 · 사람 결정 D3 · REQ-API-334) — 넘긴 처분의 원문(발견의 본문 · 근거 · 커밋)과 사유 ·
+             -- 기다림. 사람은 요약이 아니라 원문을 보고 결정한다(spec-workflow §6.4)
+             er.escalate_reason::text AS escalate_reason, er.blocking AS escalation_blocking,
+             er.rationale_md AS escalation_rationale,
+             CASE WHEN a.subject_type = 'escalation' THEN f.detail_md END AS finding_detail_md,
+             CASE WHEN a.subject_type = 'escalation' THEN f.suggestion_md END AS finding_suggestion_md,
+             CASE WHEN a.subject_type = 'escalation' THEN f.file_path END AS finding_file_path,
+             CASE WHEN a.subject_type = 'escalation' THEN f.line_start END AS finding_line_start,
+             CASE WHEN a.subject_type = 'escalation' THEN f.status::text END AS finding_status,
+             CASE WHEN a.subject_type = 'escalation' THEN f.tags END AS finding_tags,
+             CASE WHEN a.subject_type = 'escalation' THEN coalesce(er.commit_sha, frs.head_sha) END
+               AS escalation_commit,
+             CASE WHEN a.subject_type = 'escalation' THEN frs.branch END AS escalation_branch,
+             ft.key AS finding_task_key, ftu.display_name AS finding_task_assignee,
+             ecr.key AS escalation_cr_key, ecr.status::text AS escalation_cr_status,
+             -- 처리됨 카드의 처분 — 결정 이벤트가 든다(카드의 결정 값은 승인 · 거절뿐이라 무엇으로 정했는지가 거기 있다)
+             CASE WHEN a.subject_type = 'escalation' AND a.decision IS NOT NULL THEN
+               (SELECT de.payload->>'resolution' FROM event de
+                 WHERE de.type = ${NERV_EVENT.APPROVAL_DECIDED} AND de.subject_id = a.id
+                 ORDER BY de.occurred_at DESC LIMIT 1) END AS escalation_resolution,
              -- 게이트 티어는 요청 이벤트의 payload 에 남는다(스펙 제출이 판정한 그 값).
              -- **근거도 함께 온다**(2026-09-26 · REQ-API-188 · spec-workflow §6.4) — 4축 합계 ·
              -- 축별 점수 · 티어를 올린 신호. 이 칸이 생기기 전의 요청에는 티어만 있다(칸은 NULL)
@@ -813,13 +914,24 @@ export class ApprovalService {
              gate.payload->'gate_evidence' AS gate_evidence,
              -- 직전 버전과 견준 크기 · 제목 · 요구사항(2026-10-08 · REQ-API-271) — 이 칸이 생기기 전의 요청은 NULL
              gate.payload->'body_change' AS body_change,
+             -- **이 버전을 감싼 변경 요청**(2026-10-16 · 사람 결정 D1 · REQ-API-332) — 있으면 카드가 CR 카드가 된다. 결재는
+             -- 그대로 이 한 장이다(같은 결재를 두 카드로 보이지 않는다)
+             cr.id AS cr_id, cr.key AS cr_key, cr.status::text AS cr_status,
+             crb.version_no AS cr_base_version_no, cr.planned_actions AS cr_planned_actions,
+             cr.origin::text AS cr_origin,
              extract(epoch FROM (now() - a.requested_at))::int AS waiting_seconds
         ${approvalFrom}
         JOIN "user" u ON u.id = a.requested_by_user_id
+   LEFT JOIN spec_version crb ON crb.id = cr.base_version_id
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN agent_session rs ON rs.id = a.requested_by_session_id
    LEFT JOIN task pt ON pt.id = a.subject_id AND a.subject_type = 'plan'
-   LEFT JOIN finding f ON f.id = a.subject_id AND a.subject_type = 'finding'
+   -- 발견 — critical 하향 카드는 대상이 발견이고, 에스컬레이션 카드는 넘긴 처분의 발견이다
+   LEFT JOIN finding f ON f.id = CASE a.subject_type WHEN 'finding' THEN a.subject_id
+                                                    WHEN 'escalation' THEN er.finding_id END
+   LEFT JOIN review_session frs ON frs.id = f.last_session_id AND a.subject_type = 'escalation'
+   LEFT JOIN task ft ON ft.id = frs.task_id
+   LEFT JOIN "user" ftu ON ftu.id = ft.assignee_user_id
    LEFT JOIN LATERAL (
           SELECT e.payload FROM event e
            WHERE e.type = ${NERV_EVENT.APPROVAL_REQUESTED} AND e.subject_id = a.id
@@ -831,6 +943,12 @@ export class ApprovalService {
        LIMIT ${limit + 1}
     `);
 
+    // **CR 카드의 델타와 영향**(REQ-API-332 · spec-workflow §6.4 — 승인 카드에 반드시 보이는 것). 대기 카드만 센다 — 끝난
+    // 카드에는 키만 있으면 된다(무엇을 결정했는지는 CR 상세가 그때의 기록으로 보인다)
+    if (!decided && !expired) await this.withChangeRequestSummary(approvals);
+    // **변경 요청으로 보낸 발견**(2026-10-16 · REQ-API-334) — CR 카드와 그 CR 의 planner 카드가 출처 발견 · 커밋을 보인다
+    await this.withDriftFindings(approvals);
+
     if (decided || expired) {
       const { rows: counted } = await this.db.execute<{ total: number }>(sql`
         SELECT count(*)::int AS total ${approvalFrom} ${approvalWhere}
@@ -841,7 +959,8 @@ export class ApprovalService {
     // 질문 카드 — 승인과 같은 줄에 선다. 에이전트가 답을 기다리며 멈춰 있고(awaiting_input),
     // 세션 신원 3요소와 경과 시간이 카드의 필수 표기다(REQ-WEB-008).
     const { rows: questions } = await this.db.execute<Record<string, unknown>>(sql`
-      SELECT q.id, 'question' AS subject_type, q.id AS subject_id, NULL::text AS decision,
+      SELECT q.id, 'question' AS subject_type, 'question' AS kind, q.id AS subject_id,
+             NULL::text AS decision,
              q.asked_at AS requested_at, q.asked_at::text AS cursor_at,
              q.title, q.body_md, q.options, q.urgency::text AS urgency,
              p.slug AS project_slug, p.name AS project_name, p.id AS project_id,
@@ -895,7 +1014,96 @@ export class ApprovalService {
     return {
       ...this.page(merged, limit, counted[0]?.total ?? 0, true),
       actionable_total: counted[0]?.actionable_total ?? 0,
+      kind_counts: await this.kindCounts(input.userId, projectFilter),
     };
+  }
+
+  /**
+   * **유형마다 대기 수**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 받은 요청의 유형 칸이 쓰는 수다. 리뷰 센터의 facet 과 같은
+   * 뜻이다: "이 유형을 고르면 몇 건이 보이는가" 라 유형 필터를 빼고 같은 조건으로 센다. 사유가 있는 질문은 `question` 과
+   * `escalation` 양쪽에 든다. 0 인 유형도 준다.
+   */
+  private async kindCounts(userId: string, projectFilter: SQL): Promise<Record<InboxKind, number>> {
+    const { approvalFrom, approvalWhere, questionFrom, questionWhere } = this.inboxConditions(
+      userId,
+      'pending',
+      projectFilter,
+    );
+    const { rows } = await this.db.execute<{ kind: string; n: number }>(sql`
+      SELECT ${approvalKindSql()} AS kind, count(*)::int AS n ${approvalFrom} ${approvalWhere}
+       GROUP BY 1
+      UNION ALL
+      SELECT 'question', count(*)::int ${questionFrom} ${questionWhere}
+      UNION ALL
+      SELECT 'escalation', count(*)::int ${questionFrom} ${questionWhere}
+         AND q.escalate IS NOT NULL AND q.escalate <> 'no'
+    `);
+    const out = Object.fromEntries(INBOX_KINDS.map((k) => [k, 0])) as Record<InboxKind, number>;
+    for (const row of rows) {
+      if ((INBOX_KINDS as readonly string[]).includes(row.kind)) {
+        out[row.kind as InboxKind] += row.n;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * **변경 요청으로 보낸 발견**(2026-10-16 · 사람 결정 · REQ-API-334) — CR 카드(스펙 결재)와 그 CR 의 planner 카드(에스컬레이션)가
+   * "구현이 스펙을 바꿨다" 의 출처를 보인다: 그 CR 로 보낸 발견마다 제목 · 심각도 · 커밋. 끝난 카드에도 준다(무엇이 그 CR 을
+   * 열었는지는 결정 뒤에도 사실이다). planner 카드에는 초안이 아직 승인본과 같은지(`escalation_cr_unchanged`)도 준다 — 그동안은
+   * 검토를 요청할 수 없다(REQ-API-333).
+   */
+  private async withDriftFindings(cards: Record<string, unknown>[]): Promise<void> {
+    for (const card of cards) {
+      const crKey =
+        typeof card['cr_key'] === 'string'
+          ? card['cr_key']
+          : typeof card['escalation_cr_key'] === 'string'
+            ? card['escalation_cr_key']
+            : null;
+      if (crKey === null) continue;
+      const { rows } = await this.db.execute<{
+        id: string;
+        title: string;
+        severity: string;
+        status: string;
+        commit_sha: string | null;
+        unchanged: boolean;
+        spec_key: string;
+        version_no: number;
+        base_version_no: number;
+      }>(sql`
+        SELECT DISTINCT ON (f.id) f.id, f.title, f.severity::text AS severity, f.status::text AS status,
+               coalesce(r.commit_sha, rs.head_sha) AS commit_sha,
+               (d.content_hash = b.content_hash) AS unchanged, s.key AS spec_key,
+               d.version_no, b.version_no AS base_version_no
+          FROM change_request c
+          JOIN spec s ON s.id = c.spec_id
+          JOIN spec_version d ON d.id = c.proposed_version_id
+          JOIN spec_version b ON b.id = c.base_version_id
+          JOIN resolution r ON r.change_request_id = c.id AND r.kind = 'escalated'
+          JOIN finding f ON f.id = r.finding_id
+     LEFT JOIN review_session rs ON rs.id = f.last_session_id
+         WHERE c.project_id = ${String(card['project_id'])} AND c.key = ${crKey}
+         ORDER BY f.id, r.created_at DESC
+         LIMIT ${CR_CARD_DELTA_LINES}
+      `);
+      if (rows.length === 0) continue;
+      card['cr_findings'] = rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        severity: r.severity,
+        status: r.status,
+        commit_sha: r.commit_sha,
+      }));
+      if (card['subject_type'] === 'escalation') {
+        const first = rows[0]!;
+        card['escalation_cr_unchanged'] = first.unchanged;
+        card['escalation_cr_spec_key'] = first.spec_key;
+        card['escalation_cr_version_no'] = Number(first.version_no);
+        card['escalation_cr_base_version_no'] = Number(first.base_version_no);
+      }
+    }
   }
 
   /**
@@ -928,6 +1136,68 @@ export class ApprovalService {
         : null;
     for (const row of items) delete row['cursor_at'];
     return { items, next_cursor: next, total };
+  }
+
+  /**
+   * **CR 카드의 요약**(2026-10-16 · REQ-API-332) — 델타의 수와 앞의 몇 줄 · 영향의 수 · 고른 제안의 수. 판정은 CR 서비스의
+   * 영향 함수 한 곳이다(CR 상세 · EP-SPEC-31 과 같은 값). 한 쪽(쪽 상한)만큼만 센다.
+   */
+  private async withChangeRequestSummary(cards: Record<string, unknown>[]): Promise<void> {
+    for (const card of cards) {
+      if (typeof card['cr_id'] !== 'string') continue;
+      const { rows } = await this.db.execute<{ base_version_id: string; spec_id: string }>(sql`
+        SELECT base_version_id, spec_id FROM change_request WHERE id = ${card['cr_id']}
+      `);
+      const cr = rows[0];
+      if (cr === undefined) continue;
+      const impact = await changeRequestImpact(this.db, {
+        projectId: String(card['project_id']),
+        specId: cr.spec_id,
+        baseVersionId: cr.base_version_id,
+        proposedVersionId: String(card['subject_id']),
+      });
+      const items = [
+        ...impact.delta.added.map((d) => ({ kind: 'added', ref: d.ref, statement: d.statement })),
+        ...impact.delta.modified.map((d) => ({ kind: 'modified', ref: d.ref, statement: d.after })),
+        ...impact.delta.removed.map((d) => ({
+          kind: 'removed',
+          ref: d.ref,
+          statement: d.statement,
+        })),
+      ];
+      // **고른 적이 없으면(NULL) 기본값이 할 일이다**(2026-10-16 사람 결정 · REQ-API-351) — 카드는 "승인하면 무엇이 만들어지나" 를
+      // 그 수로 보인다. 고른 것은 빈 선택이어도 그대로다
+      const raw = card['cr_planned_actions'];
+      const chosen = raw !== null && raw !== undefined;
+      const planned = (chosen ? raw : defaultActions(impact)) as Record<string, unknown>;
+      const count = (v: unknown): number => (Array.isArray(v) ? v.length : 0);
+      card['cr_delta'] = {
+        added: impact.counts.added,
+        modified: impact.counts.modified,
+        removed: impact.counts.removed,
+        // 카드는 앞의 다섯 줄만 그린다 — 나머지는 CR 상세의 델타다
+        items: items.slice(0, CR_CARD_DELTA_LINES),
+      };
+      card['cr_impact'] = {
+        tasks: impact.counts.tasks,
+        claims: impact.counts.claims,
+        affected_claims: impact.counts.affected_claims,
+        referencing: impact.counts.referencing,
+        suggestions:
+          impact.suggestions.derive.length +
+          impact.suggestions.reverify.length +
+          impact.suggestions.cancel.length,
+        // 보관 제안은 기본값에 들지 않는다 — 카드가 "보관은 CR 화면에서 고른다" 를 그 수로 적는다
+        cancel_suggestions: impact.suggestions.cancel.length,
+      };
+      card['cr_planned'] = {
+        chosen,
+        derive: count(planned['derive']),
+        reverify: count(planned['reverify']),
+        cancel: count(planned['cancel']),
+      };
+      delete card['cr_planned_actions'];
+    }
   }
 
   /** EP-APR-02 — 카드 하나의 전량(대상 원문 포함). 결정 화면이 이걸로 렌더한다. */
@@ -1049,6 +1319,10 @@ export class ApprovalService {
      * 반사적 승인(OWASP ASI09 가 지목한 consent fatigue)은 감사에서 단건과 구별되지 않는다.
      */
     batchId?: string;
+    /** 변경 요청 승인과 함께 할 일(2026-10-16 · REQ-API-331) — 승인 결정에서만 받는다 */
+    crActions?: CrActions | null;
+    /** 에스컬레이션 카드의 처분 — `fix` · `wont_fix` · `dismissed`(2026-10-16 · 사람 결정 D3 · REQ-API-336) */
+    resolution?: string | null;
   }): Promise<DecideResult> {
     // 어휘의 정본은 `@nerv/schema` 다 — 모르는 값은 거절이지 500 이 아니다(REQ-API-112)
     const decision = assertVocab([input.decision], approvalDecision.enumValues, 'decision')[0];
@@ -1080,9 +1354,20 @@ export class ApprovalService {
       direct?: boolean;
       /** 에이전트 세션에서 사람이 대답으로 승인했으면 그 세션(REQ-API-291) */
       viaSessionId?: string | null;
+      /** 변경 요청 승인과 함께 할 일(REQ-API-331) */
+      crActions?: CrActions | null;
+      /** 에스컬레이션 카드의 처분(2026-10-16 · REQ-API-336) — 그 카드에만 받는다 */
+      resolution?: string | null;
     },
   ): Promise<DecideResult> {
-    const decision = input.decision;
+    // **고른 제안은 승인에만 붙는다** — 거절 · 코멘트에 실려 오면 조용히 버리지 않고 거절한다(§1.4e)
+    if (input.crActions != null && input.decision !== 'approve') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.cr.actions_without_cr'), {
+        kind: 'invalid_input',
+        field: 'cr_actions',
+        reason: 'not_approve',
+      });
+    }
     const { rows } = await tx.execute<{
       id: string;
       subject_type: string;
@@ -1127,12 +1412,46 @@ export class ApprovalService {
       input.userId,
       approval.assignee_user_id,
       approval.assignee_role,
+      approval.subject_type,
     );
 
     if (approval.decision !== null) {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.already_decided'), {
         kind: 'already_decided',
         decision: approval.decision,
+      });
+    }
+
+    // **에스컬레이션 카드의 결정은 그 발견의 처분이다**(2026-10-16 · 사람 결정 D3 · REQ-API-336). 승인 · 거절이 아니라 고칠 것 ·
+    // 유예 · 기각 가운데 하나이고 근거가 필수다 — 결재 행의 결정 값은 처분에서 따라온다(고칠 것은 `approve`, 유예 · 기각은 `reject`).
+    // 다른 결재에 처분이 실려 오면 조용히 버리지 않고 거절한다(§1.4e)
+    if (approval.subject_type !== 'escalation' && input.resolution != null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.mcp.invalid_input'), {
+        kind: 'invalid_input',
+        field: 'resolution',
+        reason: 'not_escalation',
+      });
+    }
+    let decision = input.decision;
+    let escalationResolution: EscalationResolution | null = null;
+    if (approval.subject_type === 'escalation') {
+      escalationResolution = assertVocab(
+        [input.resolution ?? ''],
+        ESCALATION_RESOLUTIONS,
+        'resolution',
+      )[0] as EscalationResolution;
+      if ((input.comment ?? '').trim() === '') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.rationale_required'), {
+          kind: 'missing_rationale',
+        });
+      }
+      decision = escalationResolution === 'fix' ? 'approve' : 'reject';
+      await this.decideEscalationInTx(tx, emit, {
+        projectId: input.projectId,
+        resolutionId: approval.subject_id,
+        resolution: escalationResolution,
+        comment: (input.comment ?? '').trim(),
+        userId: input.userId,
       });
     }
 
@@ -1171,16 +1490,18 @@ export class ApprovalService {
     // 것을 자기가 통과시킨 것이다(D-01 이 막으려는 바로 그것).
     //
     // approve 에만 적용한다 — 코멘트·거절은 요청자도 작성자도 할 수 있다.
-    const selfKind = selfKindOf(approval, input.userId);
-    if (input.decision === 'approve' && selfKind !== null) {
+    // 에스컬레이션은 지시자≠승인자를 보지 않는다(`canApproveExpr` 와 같은 규칙 · 2026-10-16 · 사람 결정 D3)
+    const selfKind =
+      approval.subject_type === 'escalation' ? null : selfKindOf(approval, input.userId);
+    if (decision === 'approve' && selfKind !== null) {
       await this.assertSelfApprovalAllowed(tx, input.projectId, input.userId, approval, selfKind);
     }
-    const selfApprove = selfKind !== null && input.decision === 'approve';
+    const selfApprove = selfKind !== null && decision === 'approve';
 
     // **한 사람은 한 번**(2026-09-07 · REQ-API-140). 정족수가 "서로 다른 사용자 2인" 인데
     // 같은 사람이 슬롯 둘을 채우면 그 게이트는 이름만 남는다. 라운드 경계는
     // `submitted_at` 이라, 거절 뒤 다시 제출하면 옛 승인은 세지 않는다.
-    if (input.decision === 'approve') {
+    if (decision === 'approve' && approval.subject_type !== 'escalation') {
       const { rows: mine } = await tx.execute<{ n: number }>(sql`
         SELECT count(*)::int AS n FROM approval prev
          WHERE prev.subject_type = ${approval.subject_type}
@@ -1222,7 +1543,19 @@ export class ApprovalService {
     //
     // **같은 트랜잭션이다.** 웹이 두 번 부르게 하면 그 사이의 실패가 정확히 이 상태를
     // 다시 만들고, 판정이 표면으로 새어 나간다(D-05).
-    const quorum = await this.applyToSubject(tx, emit, input, approval);
+    // **고른 제안을 CR 에 남긴다**(2026-10-16 · REQ-API-331) — 정족수가 차기 전의 승인이 고른 것도 남아 마지막 승인이 그것을
+    // 한다. 문서를 옮기기(아래) 전에 남겨야 이 승인이 정족수를 채울 때 바로 쓰인다
+    if (input.crActions != null) {
+      if (approval.subject_type !== 'spec_version') {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.cr.actions_without_cr'), {
+          kind: 'invalid_input',
+          field: 'cr_actions',
+          reason: 'no_change_request',
+        });
+      }
+      await planChangeRequestInTx(tx, approval.subject_id, input.crActions);
+    }
+    const quorum = await this.applyToSubject(tx, emit, { ...input, decision }, approval);
 
     // **결정을 요청한 세션에게 돌려준다**(2026-09-07 · REQ-API-133 · FR-11).
     //
@@ -1252,13 +1585,15 @@ export class ApprovalService {
       // 세션에서 사람이 대답한 승인이면 그 세션을 거쳤다는 사실이 남는다 — 결정한 사람은 그대로 그 사람이다
       actorSessionId: input.viaSessionId ?? null,
       isAgent: input.viaSessionId != null,
-      toState: input.decision,
+      toState: decision,
       // **자기 승인은 그 사실을 남긴다.** 규칙의 예외를 허용하는 것과 그것을 감추는 것은
       // 다른 일이다 — 감사가 나중에 "이 결재는 한 사람이 양쪽에 섰다" 를 셀 수 있어야 한다.
       payload: {
-        decision: input.decision,
+        decision,
         subject_type: approval.subject_type,
         subject_id: approval.subject_id,
+        // 에스컬레이션 카드의 처분 — 넘긴 세션이 하트비트의 `approval_decided` 로 읽는다(2026-10-16 · REQ-API-336)
+        ...(escalationResolution === null ? {} : { resolution: escalationResolution }),
         ...(selfApprove ? { self_approved: true, self_kind: selfKind } : {}),
         ...(input.batchId === undefined ? {} : { bulk: true, batch_id: input.batchId }),
         ...(input.direct === true ? { direct: true } : {}),
@@ -1266,13 +1601,83 @@ export class ApprovalService {
       },
     });
 
+    // **이 승인이 변경 요청을 확정했으면 함께 한 일을 돌려준다**(2026-10-16 사람 결정 · REQ-API-351) — 카드에서 고르지 않고 승인한
+    // 사람(과 에이전트)이 기본값으로 무엇이 만들어졌는지를 그 자리에서 안다. 정족수가 차지 않았으면 아직 없다
+    const changeRequest =
+      approval.subject_type === 'spec_version' &&
+      decision === 'approve' &&
+      (quorum === null || quorum.satisfied)
+        ? await changeRequestOutcomeOfVersion(tx, input.projectId, approval.subject_id)
+        : null;
+
     return {
-      decision: input.decision,
+      decision,
       subject_type: approval.subject_type,
       subject_id: approval.subject_id,
+      ...(escalationResolution === null ? {} : { resolution: escalationResolution }),
       ...(quorum === null ? {} : { quorum }),
       ...(selfApprove ? { self_approved: true } : {}),
+      ...(changeRequest === null ? {} : { change_request: changeRequest }),
     };
+  }
+
+  /**
+   * **에스컬레이션 카드의 처분을 그 발견에 적용한다**(2026-10-16 · 사람 결정 D3 · REQ-API-336). 유예 · 기각은 그 발견을 닫는
+   * 처분을 남기고(리뷰 센터의 처분과 같은 자리 — `writeResolutionInTx`), 고칠 것은 발견을 열린 채로 둔다 — 넘긴 세션이 고친 뒤
+   * 커밋과 함께 `fixed` 로 닫는다. 변경 요청으로 보낸 카드는 여기서 결정하지 않는다 — 그 CR 의 승인 · 거절이 결정이다.
+   */
+  private async decideEscalationInTx(
+    tx: Parameters<Parameters<NervDb['transaction']>[0]>[0],
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: {
+      projectId: string;
+      resolutionId: string;
+      resolution: EscalationResolution;
+      comment: string;
+      userId: string;
+    },
+  ): Promise<void> {
+    const { rows } = await tx.execute<{
+      finding_id: string;
+      change_request_id: string | null;
+      cr_key: string | null;
+      finding_status: string;
+    }>(sql`
+      SELECT r.finding_id, r.change_request_id, cr.key AS cr_key, f.status::text AS finding_status
+        FROM resolution r
+        JOIN finding f ON f.id = r.finding_id
+   LEFT JOIN change_request cr ON cr.id = r.change_request_id
+       WHERE r.id = ${input.resolutionId}
+    `);
+    const escalated = rows[0];
+    if (escalated === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.finding_not_found'), {
+        kind: 'not_found',
+      });
+    }
+    if (escalated.change_request_id !== null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.escalation.decided_by_cr'), {
+        kind: 'escalation_has_cr',
+        change_request_key: escalated.cr_key,
+      });
+    }
+    if (escalated.finding_status !== 'open') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.already_resolved'), {
+        kind: 'already_resolved',
+        status: escalated.finding_status,
+      });
+    }
+    if (input.resolution === 'fix') return;
+    await writeResolutionInTx(tx, emit, {
+      projectId: input.projectId,
+      findingId: escalated.finding_id,
+      userId: input.userId,
+      sessionId: null,
+      isAgent: false,
+      kind: input.resolution === 'wont_fix' ? 'deferred' : 'dismissed',
+      status: input.resolution,
+      rationale: input.comment,
+    });
   }
 
   /**
@@ -1451,6 +1856,8 @@ export class ApprovalService {
     sessionId?: string | null;
     /** 일괄의 한 건인가(EP-SPEC-28) */
     batchId?: string;
+    /** 초안이 변경 요청이면 승인과 함께 할 일(2026-10-16 · REQ-API-331) */
+    crActions?: CrActions | null;
   }): Promise<DirectApproveResult> {
     const viaSessionId = input.surface === 'mcp' ? (input.sessionId ?? null) : null;
     // 도구로 온 승인은 **세션을 거쳤다는 사실**이 남아야 한다 — 없으면 감사가 사람이 화면에서 누른 것으로 읽는다
@@ -1521,6 +1928,10 @@ export class ApprovalService {
         });
       }
 
+      // 고른 제안을 먼저 남긴다 — 자동 통과(T0 · T1)면 아래 제출이 곧 승인이라 그 자리에서 쓰인다(REQ-API-331)
+      if (input.crActions != null) {
+        await planChangeRequestInTx(tx, input.specVersionId, input.crActions);
+      }
       if (version.status === 'draft') {
         const submitted = await this.specs.submitInTx(tx, emit, {
           projectId: input.projectId,
@@ -1531,6 +1942,11 @@ export class ApprovalService {
           direct: { approverUserId: input.userId },
         });
         if (submitted.status === 'approved') {
+          const changeRequest = await changeRequestOutcomeOfVersion(
+            tx,
+            input.projectId,
+            input.specVersionId,
+          );
           return {
             status: 'approved',
             spec_key: version.spec_key,
@@ -1540,6 +1956,7 @@ export class ApprovalService {
             auto_passed: true,
             approval_id: null,
             web_url: await this.specs.versionWebUrl(tx, input.projectId, input.specVersionId),
+            ...(changeRequest === null ? {} : { change_request: changeRequest }),
           };
         }
       } else if (version.status !== 'in_review') {
@@ -1611,6 +2028,7 @@ export class ApprovalService {
         approval_id: waitingId,
         ...(decided.quorum === undefined ? {} : { quorum: decided.quorum }),
         ...(decided.self_approved === true ? { self_approved: true as const } : {}),
+        ...(decided.change_request === undefined ? {} : { change_request: decided.change_request }),
         // 확정됐으면 그 문서, 아직이면 **남은 자리의 카드**다 — 거기서 다른 사람이 결정한다
         web_url:
           waitingId === null
@@ -1776,7 +2194,18 @@ export class ApprovalService {
              a.subject_type::text AS subject_type, a.subject_id,
              a.decision::text AS decision, a.comment_md,
              a.decided_at::text AS decided_at, u.display_name AS decided_by,
-             COALESCE(s.key, t.key, f.title) AS subject_key
+             COALESCE(s.key, t.key, f.title, ef.title) AS subject_key,
+             -- **에스컬레이션 카드의 결정**(2026-10-16 · 사람 결정 D3 · REQ-API-336) — 어느 발견을 무엇으로 정했는가. 결재 행의
+             -- 결정 값(승인 · 거절)만으로는 고칠 것 · 유예 · 기각 · 변경 요청이 갈리지 않는다 — 결정 이벤트가 그것을 든다
+             er.finding_id AS finding_id,
+             (SELECT de.payload->>'resolution' FROM event de
+               WHERE a.subject_type = 'escalation' AND de.type = ${NERV_EVENT.APPROVAL_DECIDED}
+                 AND de.subject_id = a.id
+               ORDER BY de.occurred_at DESC LIMIT 1) AS resolution,
+             (SELECT de.payload->>'change_request_key' FROM event de
+               WHERE a.subject_type = 'escalation' AND de.type = ${NERV_EVENT.APPROVAL_DECIDED}
+                 AND de.subject_id = a.id
+               ORDER BY de.occurred_at DESC LIMIT 1) AS change_request_key
         FROM approval a
    -- 결정자는 **누른 사람**이다(2026-09-26) — 지정자로 읽던 동안 admin 이 대신 결정한 카드는 에이전트에게
    -- 지정자의 이름으로 갔다
@@ -1785,6 +2214,8 @@ export class ApprovalService {
    LEFT JOIN spec s ON s.id = sv.spec_id
    LEFT JOIN task t ON t.id = a.subject_id AND a.subject_type = 'plan'
    LEFT JOIN finding f ON f.id = a.subject_id AND a.subject_type = 'finding'
+   LEFT JOIN resolution er ON er.id = a.subject_id AND a.subject_type = 'escalation'
+   LEFT JOIN finding ef ON ef.id = er.finding_id
        WHERE a.requested_by_session_id = ${sessionId}
          AND a.decision IS NOT NULL
          AND a.decided_at > now() - interval '1 hour'
@@ -1836,7 +2267,21 @@ export class ApprovalService {
     kinds?: readonly string[] | undefined;
     /** 면제한 사람의 이 프로젝트 역할 — 종류마다 면제할 수 있는 역할이 다르다(spec-workflow §1.6) */
     roles?: readonly string[] | undefined;
-  }): Promise<{ approval_id: string; task_key?: string; kinds?: string[]; expanded?: true }> {
+    /**
+     * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 주면 대상은 작업이 아니라 이 브랜치다 — `subjectId` 는 보지 않고
+     * 결재 행의 `subject_id` 에 프로젝트 id 를 둔다. 리뷰가 없는 브랜치에도 낸다. 종류 · 역할 규칙(REQ-API-274 · 293)은 같다
+     */
+    branch?: string | undefined;
+    /** 브랜치 면제를 커밋 하나로 좁힌다(40자 · 소문자 — 표면이 맞춰 온다). 없으면 그 브랜치의 모든 커밋이다 */
+    headSha?: string | undefined;
+  }): Promise<{
+    approval_id: string;
+    task_key?: string;
+    kinds?: string[];
+    expanded?: true;
+    branch?: string;
+    head_sha?: string | null;
+  }> {
     assertHuman(input.actor, 'bypass');
     if (input.reason.trim() === '') {
       throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.waiver_reason_required'), {
@@ -1862,6 +2307,8 @@ export class ApprovalService {
         roles,
       });
     }
+    if (input.branch !== undefined)
+      return this.bypassBranch({ ...input, branch: input.branch }, kinds, expanded);
     return this.events.transact(async (tx, emit) => {
       let subjectId = input.subjectId;
       let taskKey: string | null = null;
@@ -1957,6 +2404,101 @@ export class ApprovalService {
             kinds,
             ...(expanded ? { expanded: true as const } : {}),
           };
+    });
+  }
+
+  /**
+   * **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-339). 작업 면제와 같은 결재 레코드이고 종류 · 역할 규칙도 같다 — 범위를
+   * 고르지 않은 admin 은 리뷰 커버리지 전부, planner · developer 는 그 역할이 면제할 수 있는 종류 전부로 풀어 읽는다(앞에서
+   * `kinds` · `expanded` 로 정해 온다). 다른 점은 둘이다.
+   *
+   * - **대상이 브랜치 문자열이다.** `subject_id` 는 uuid 라 브랜치를 가리킬 수 없어 프로젝트 id 를 두고 `branch` 열이 대상을
+   *   든다(다형 참조 규칙의 예외 — database.md §2.8). 그래서 작업 면제의 done 게이트 조회(`subject_id = 작업 id`)에 걸리지 않는다.
+   * - **코드 증적 검사가 없다.** 그 검사의 전제는 "그 작업이 코드를 내지 않았다" 인데 브랜치에는 작업이 없다. 브랜치 면제가
+   *   넘기는 것은 게이트 판정(EP-REV-08)의 `uncovered` 하나뿐이다 — 리뷰가 있는 종류의 판정은 그대로다(REQ-API-340).
+   *
+   * 리뷰가 있는지 없는지는 보지 않는다 — 면제를 낸 뒤에 리뷰가 들어오면 그 라운드의 판정이 이긴다.
+   */
+  private async bypassBranch(
+    input: {
+      projectId: string;
+      userId: string;
+      reason: string;
+      actor: Actor;
+      roles?: readonly string[] | undefined;
+      branch: string;
+      headSha?: string | undefined;
+    },
+    kinds: string[] | null,
+    expanded: boolean,
+  ): Promise<{
+    approval_id: string;
+    branch: string;
+    head_sha: string | null;
+    kinds?: string[];
+    expanded?: true;
+  }> {
+    const branch = input.branch.trim();
+    const headSha = input.headSha === undefined ? null : input.headSha.trim().toLowerCase();
+    if (branch === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.bypass_target_required'), {
+        kind: 'invalid_input',
+        field: 'branch',
+      });
+    }
+    if (headSha !== null && !new RegExp(FULL_COMMIT_SHA_PATTERN).test(headSha)) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.bypass_head_not_full_sha'), {
+        kind: 'invalid_input',
+        field: 'head_sha',
+      });
+    }
+    // 역할마다 면제할 수 있는 종류가 다르다 — 작업 면제와 같은 판정이다. 하나라도 못 하면 아무것도 기록하지 않는다
+    const roles = input.roles ?? [];
+    if (kinds !== null) {
+      const forbidden = kinds.filter((kind) => !canWaiveReviewKind(roles, kind));
+      if (forbidden.length > 0) {
+        throw new NervError(
+          NERV_ERROR.FORBIDDEN,
+          msg('error.approval.bypass_kind_forbidden', { kinds: forbidden.join(' · ') }),
+          { kind: 'bypass_kind_forbidden', kinds: forbidden, roles },
+        );
+      }
+    }
+    return this.events.transact(async (tx, emit) => {
+      const approvalId = newId();
+      await tx.execute(sql`
+        INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id,
+                              decision, decided_at, decided_by_user_id, is_bypass, bypass_reason,
+                              bypass_kinds, branch, head_sha)
+        VALUES (${approvalId}, ${input.projectId}, 'gate_bypass'::approval_subject_type,
+                -- 브랜치는 개체가 아니다 — 대상 칸에는 프로젝트를 두고 브랜치는 제 열에 둔다(REQ-DB-050)
+                ${input.projectId}, ${input.userId}, 'approve', now(), ${input.userId},
+                true, ${input.reason},
+                ${kinds === null ? null : sqlArray(kinds, 'review_kind')},
+                ${branch}, ${headSha})
+      `);
+      await emit({
+        type: NERV_EVENT.GATE_BYPASSED,
+        projectId: input.projectId,
+        subjectType: 'approval',
+        subjectId: approvalId,
+        actorUserId: input.userId,
+        isAgent: input.actor.isAgent,
+        payload: {
+          reason: input.reason,
+          branch,
+          head_sha: headSha,
+          ...(kinds === null ? {} : { kinds }),
+          ...(expanded ? { expanded: true } : {}),
+        },
+      });
+      return {
+        approval_id: approvalId,
+        branch,
+        head_sha: headSha,
+        ...(kinds === null ? {} : { kinds }),
+        ...(expanded ? { expanded: true as const } : {}),
+      };
     });
   }
 
@@ -2174,7 +2716,9 @@ export class ApprovalService {
       const { rows: counted } = await tx.execute<{ required: number; given: number }>(
         quorumSql(specVersionId, doc.submitted_at),
       );
-      if (!(await this.specs.expireInTxForApproval(tx, { projectId, specVersionId }))) return false;
+      if (!(await this.specs.expireInTxForApproval(tx, emit, { projectId, specVersionId }))) {
+        return false;
+      }
       const ids = slots.map((slot) => slot.id);
       // 끝난 요청의 그림자 알림(요청 · 리마인더 · 지연)을 함께 닫는다 — 결정과 같은 규율이다(REQ-API-176)
       for (const id of ids) await closeRequestNotifications(tx, 'approval', id);

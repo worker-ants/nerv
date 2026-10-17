@@ -1,4 +1,4 @@
-// `nerv import spec|plan|docs|rebuild-map` 엔트리 — 정본: docs/04-mvp/importer.md §3.1
+// `nerv import spec|plan|docs|rebuild-map` · `nerv cutover report` 엔트리 — 정본: docs/04-mvp/importer.md §3.1 · §3.7
 //
 // 이 워크스페이스는 컨테이너가 아니라 **설치되는 클라이언트**다(codebase.md §1.3).
 // 운영 서버는 임포트 대상 저장소의 체크아웃에 접근할 수 없으므로, 파일을 읽는 쪽이 파일이
@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { t } from './i18n.js';
 import { parseOwnerMap } from './parse/plan.js';
 import { runImport } from './run.js';
+import { runCutover } from './cutover/index.js';
 import { exitCode, renderJsonl, renderMarkdown, withHints } from './report/index.js';
 import { ImportApiError } from './client/index.js';
 import { ProfileError } from './profiles/index.js';
@@ -148,6 +149,9 @@ function failureReport(options: CliOptions, error: unknown): ImportReport {
 }
 
 export async function main(argv: string[]): Promise<number> {
+  // **컷오버 보고는 다른 명령 무리다**(2026-10-16 · 사람 결정 D6 · importer.md §3.7) — 적재하지 않고 읽기만 한다. 리포트 디렉터리도
+  // 매니페스트도 쓰지 않는다
+  if (argv[0] === 'cutover') return runCutover(argv.slice(1));
   const options = parseArgs(argv);
   const report = withHints(
     await runImport(options).catch((error) => failureReport(options, error)),

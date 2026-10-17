@@ -410,11 +410,23 @@ export const ROLE_QUEUE_REVIEW_THRESHOLD = 0.3;
  * 알파벳은 Crockford base32(`I`·`L`·`O`·`U` 제외)다 — `keys.ts` 의 BASE32 와 같은 집합이고,
  * `display-key.spec.ts` 가 둘이 어긋나지 않는지 본다.
  */
-export const DISPLAY_KEY_PATTERN = '\\b[A-Z][A-Z0-9]{1,9}-[TS]-[0-9A-HJKMNP-TV-Z]{6}\\b';
+export const DISPLAY_KEY_PATTERN = '\\b[A-Z][A-Z0-9]{1,9}-[TSC]-[0-9A-HJKMNP-TV-Z]{6}\\b';
+
+/**
+ * 표시 키의 **타입 문자 자리**(`[TSC]`) — 한 종류만 찾을 때 이 자리를 그 글자로 바꾼다. 타입 문자가 늘 때
+ * (2026-10-16 — `C` 변경 요청) 찾는 쪽이 옛 자리(`[TS]`)를 바꾸려다 아무것도 바꾸지 못하고 모든 종류를 찾는 일이 없게
+ * 자리를 한 곳에 둔다.
+ */
+const DISPLAY_KEY_TYPE_SLOT = '[TSC]';
+
+/** 한 종류의 표시 키를 찾는 정규식 원문 — `C` 면 변경 요청 키만 */
+export function displayKeyPatternOf(type: 'T' | 'S' | 'C'): string {
+  return DISPLAY_KEY_PATTERN.replace(DISPLAY_KEY_TYPE_SLOT, type);
+}
 
 /** 텍스트에서 Task 표시 키 하나를 찾는다(대문자만 — 사람이 소문자로 적으면 못 찾는다). */
 export function findTaskKey(text: string): string | null {
-  const re = new RegExp(DISPLAY_KEY_PATTERN.replace('[TS]', 'T'));
+  const re = new RegExp(displayKeyPatternOf('T'));
   return re.exec(text)?.[0] ?? null;
 }
 
@@ -730,6 +742,46 @@ export const DIGEST_DEFAULT_HOUR = 9;
  * 알림이 아니라 그 표에서 읽으므로 사라지지 않는다.
  */
 export const NOTIFICATION_RESUME_WINDOW_SECONDS = 60 * 60;
+
+/**
+ * 한 사람이 고정할 수 있는 핀의 수(2026-10-16 · 사람 결정 D5 · api.md REQ-API-344 · 수는 같은 날 사람 확인). 퀵 스위처는 빈 입력에서 고정을 모두
+ * 보인다 — 그보다 많으면 고정이 아니라 또 하나의 목록이고, 매일 여는 대여섯을 찾는 자리가 다시 길어진다. 브라우저에서 옮겨 오는
+ * 핀도 이 수까지만 받는다(넘친 것은 건너뛰었다고 알린다)
+ */
+export const PIN_LIMIT = 50;
+
+// ── SoT 컷오버 M1 (2026-10-16 · 사람 결정 D6 · E21-S03 · roadmap §7.5 · §7.6) ─────────────────────
+//
+// 세 기준은 **로드맵의 값을 인용한다** — 새로 정한 수가 아니다. 비율은 정수 백분율로 두고 비교도 정수로 한다(불일치 × 100 < 비교 수 ×
+// 1) — 0.01 같은 소수를 곱하고 나누면 경계(정확히 1% · 5% · 2%)가 부동소수 오차로 흔들린다.
+
+/** 판정 불일치율이 이 백분율 **미만**이면 안정 조건이다(roadmap §7.5 「서버 ↔ 로컬 판정 불일치율 < 1%」) */
+export const CUTOVER_MISMATCH_STABLE_BELOW_PCT = 1;
+/** 판정 불일치율이 이 백분율 **이상**이면 M1 롤백 트리거다(roadmap §7.6 「판정 불일치율 ≥ 5%」) */
+export const CUTOVER_MISMATCH_ROLLBACK_PCT = 5;
+/** 리뷰 제출 실패율이 이 백분율 **이상**이면 M1 롤백 트리거다(roadmap §7.6 「리뷰 제출 실패율 ≥ 2%」) */
+export const CUTOVER_SUBMIT_FAILURE_ROLLBACK_PCT = 2;
+/** 컷오버 뒤 관측하는 날 수(roadmap §7.5 「컷오버 후 2주 관측」) */
+export const CUTOVER_OBSERVATION_DAYS = 14;
+/**
+ * 지표 응답이 함께 주는 최근 불일치의 수 — 20건(2026-10-16 · 이번에 정한 시작값 · 같은 날 사람 확인). §7.5 는 「불일치 전건 원인 규명」을 요구한다 — 화면과
+ * 보고에서 바로 열어 볼 수 있을 만큼이고, 더 많으면 불일치율이 이미 롤백 기준을 넘은 것이다(그때는 사람이 비교 표 전체를 본다)
+ */
+export const CUTOVER_RECENT_MISMATCHES = 20;
+/** 로컬 훅 이름(`local_state.hook`)의 최대 길이 */
+export const GATE_LOCAL_HOOK_MAX = 128;
+/** 로컬 훅이 적은 이유(`local_state.reason`)의 최대 길이 */
+export const GATE_LOCAL_REASON_MAX = 500;
+/**
+ * 컷오버 지표의 상태(EP-REV-10 · roadmap §7.5 · §7.6) — 판정 순서는 롤백이 먼저다.
+ *
+ * - `rollback` — 불일치율 ≥ 5% 이거나 리뷰 제출 실패율 ≥ 2%(롤백 트리거)
+ * - `no_data` — 창 안에 비교가 하나도 없다
+ * - `stable` — 불일치율 < 1%(안정 조건 — 신규 커밋 0 · 세션 실패율 · 리드타임은 이 지표 밖이다)
+ * - `watch` — 그 사이(안정도 롤백도 아니다)
+ */
+export const CUTOVER_STATUSES = ['no_data', 'stable', 'watch', 'rollback'] as const;
+export type CutoverStatus = (typeof CUTOVER_STATUSES)[number];
 
 /**
  * 검색이 질의 하나를 임베딩할 때 기다리는 **상한(ms)**(2026-10-12 · 사람 결정 — api.md §2.2b). 색인은

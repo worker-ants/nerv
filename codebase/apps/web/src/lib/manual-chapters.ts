@@ -73,6 +73,8 @@ export const MANUAL_SECTION_IDS = {
     'archive',
     // 구현 현황 드릴다운(2026-10-15 · REQ-WEB-315) — 새 절은 끝에 둔다(REQ-WEB-268)
     'coverage',
+    // 변경 요청(2026-10-16 · 사람 결정 D1 · REQ-WEB-320) — CR 상세의 도움말이 여기로 온다
+    'change-requests',
   ],
   tasks: [
     'board',
@@ -89,7 +91,18 @@ export const MANUAL_SECTION_IDS = {
     'archive',
   ],
   sessions: ['monitor', 'plugin-machines', 'statuses', 'activity', 'steer-stop', 'questions'],
-  reviews: ['review-sessions', 'severity', 'targets', 'filters', 'gate-coverage', 'badge'],
+  reviews: [
+    'review-sessions',
+    'severity',
+    'targets',
+    'filters',
+    'gate-coverage',
+    'badge',
+    // 변경 요청으로 보내기(2026-10-16 · 사람 결정 · REQ-WEB-324) — 새 절은 끝에 둔다
+    'to-change-request',
+    // 컷오버 관측(2026-10-16 · 사람 결정 D6 · REQ-WEB-330)
+    'cutover',
+  ],
   inbox: [
     'cards',
     'card-contents',
@@ -102,8 +115,13 @@ export const MANUAL_SECTION_IDS = {
     'notifications',
     // 지연과 만료(2026-10-15 · REQ-WEB-310) — 새 절은 끝에 둔다
     'sla',
+    // 에스컬레이션 카드 · 구현이 스펙을 바꾼 변경 요청 · 유형 칸(2026-10-16 · 사람 결정 D3 · REQ-WEB-324 ~ 326)
+    'escalations',
+    'drift-change-requests',
+    'kinds',
   ],
-  agents: ['components', 'tokens', 'skills', 'tool-tiers', 'offline', 'import'],
+  // 컷오버 보고(2026-10-16 · 사람 결정 D6 · CLI `nerv cutover report`) — 새 절은 끝에 둔다
+  agents: ['components', 'tokens', 'skills', 'tool-tiers', 'offline', 'import', 'cutover-report'],
   install: [
     'before',
     'token',

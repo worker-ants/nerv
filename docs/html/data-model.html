@@ -51,9 +51,9 @@
 
   <header class="page-header">
     <h1>데이터 모델</h1>
-    <p class="lead">NERV가 Postgres에 담을 <b>테이블 37개</b>(도메인 엔티티 32 + 부속 5 — 2026-09-07 정정. 처음 29개로 적었고 그 뒤 늘었다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
+    <p class="lead">NERV가 Postgres에 담을 <b>테이블 44개</b>(도메인 엔티티 38 + 부속 6 — 2026-10-16 정정. 처음 29개로 적었고 그 뒤 늘었다 — §1.3 표가 계수의 정본이다)의 필드·상태 머신·관계. 설계의 축은 둘이다 — <b>스펙 상태의 2축 분리</b>(문서 축은 SpecVersion, 구현 축은 Requirement)와, <b>산문·경로 문자열로 유지되던 연결을 전부 외래키로 승격</b>하는 것.</p>
     <div class="meta-line">
-      <span>버전 v0.28 (2026-10-16)</span>
+      <span>버전 v0.35 (2026-10-16)</span>
       <span>원본: <code>docs/03-proposal/data-model.md</code></span>
       <span>주로 다루는 결정: D-02 · D-03 · D-04 · D-07</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="database.html">4.3</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -305,9 +305,12 @@
       <tr><td>33</td><td>알림 수준</td><td><code>notification_preference</code></td><td>사람이 프로젝트마다 고른 알림 수준 — 모두 · 중요만 · 알리지 않음(2026-09-27 · <code>0035_notification_preference</code>)</td><td>FR-12</td></tr>
       <tr><td>34</td><td>알림 묶음 항목</td><td><code>notification_batch_event</code></td><td>앱 안 묶음 줄에 든 이벤트 — 원인을 보이고 파생의 멱등 키가 된다(2026-09-27 · <code>0037_notification_batch</code>)</td><td>FR-12</td></tr>
       <tr><td>35</td><td>메일 요약 설정</td><td><code>notification_digest_setting</code></td><td>알림 메일 요약을 켠 사람의 받는 시각 · 시간대 · 언어(2026-09-28 · <code>0041_notification_digest</code>)</td><td>FR-12</td></tr>
+      <tr><td>36</td><td>워치</td><td><code>watch</code></td><td>사람이 스펙 · 작업 · 영역을 구독한 것 — 알림 카탈로그의 「워처」(2026-10-16 · <code>0056_watch_pin</code>)</td><td>FR-12</td></tr>
+      <tr><td>37</td><td>핀</td><td><code>pin</code></td><td>퀵 스위처에서 고정한 문서 · 작업 · 변경 요청 — 사람마다 프로젝트를 넘는 한 목록(2026-10-16 · <code>0056_watch_pin</code>)</td><td>FR-12</td></tr>
+      <tr><td>38</td><td>게이트 판정 비교</td><td><code>gate_verdict_comparison</code></td><td>로컬 훅이 게이트 판정에 함께 보낸 판정과 서버 판정을 견준 한 줄 — M1 이중화 기간의 불일치율(2026-10-16 · <code>0057_review_cutover</code>)</td><td>FR-17</td></tr>
     </tbody>
   </table>
-  <p>위 <b>35종이 도메인 엔티티</b>이고, 여기에 <b>부속 6종</b>이 더해져 테이블은 <b>41개</b>다 — <a href="database.html">4.3 데이터베이스 스키마</a>의 <code>CREATE TABLE</code> 개수와 같다. 부속은 better-auth 가 소유하는 셋(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>) · 재생성 가능한 검색 인덱스(<code>spec_chunk_embedding</code> — §5.3) · 요청 배관(<code>idempotency_key</code> — 주체가 프로젝트가 아니라 자격증명이라 <code>project_id</code> 조차 없다) · 발송 큐(<code>email_outbox</code> — 2026-09-22)이다.</p>
+  <p>위 <b>38종이 도메인 엔티티</b>이고 여기에 <b>부속 6종</b>이 더해져 테이블은 <b>44개</b>다 — <a href="database.html">4.3 데이터베이스 스키마</a>의 <code>CREATE TABLE</code> 개수와 같다. 부속은 better-auth 가 소유하는 셋(<code>auth_session</code>·<code>auth_account</code>·<code>auth_verification</code>) · 재생성 가능한 검색 인덱스(<code>spec_chunk_embedding</code> — §5.3) · 요청 배관(<code>idempotency_key</code> — 주체가 프로젝트가 아니라 자격증명이라 <code>project_id</code> 조차 없다) · 발송 큐(<code>email_outbox</code> — 2026-09-22)이다.</p>
 
   <blockquote><p><b>33 → 32</b>(2026-09-07 정정). 이 표는 33행이었고 그 33번째가 <code>activity_summary</code> 였는데, 그것은 <b>테이블이 아니라 <code>agent_session</code> 의 jsonb 열</b>이다(<code>0012</code> — 보존 잡이 Activity 원문을 지우기 전에 도구별 횟수를 접어 두는 자리이고, 의미는 §2.5 의 필드표에 있다). 열을 엔티티로 세면 두 가지가 함께 틀린다 — 엔티티 수와, 그 수에서 빼기로 계산하던 부속 수다. 4.3 은 반대 방향으로 틀려 있었다(<code>idempotency_key</code> 를 도메인으로 세고 <code>spec_chunk_embedding</code> 을 인프라로 셌다): <b>32 + 5 = 37</b> 로 두 문서를 맞췄다.</p>
   <p>(2026-09-06 보완: 30~33 이 표에 없어 이 문서가 요약에서는 37, 표에서는 29 를 말하고 있었다.)</p></blockquote></div>
@@ -324,7 +327,7 @@
   <h3>1.4 두 축의 상태 머신</h3>
 
   <div class="diagram">
-    <svg viewBox="0 0 740 140" role="img" aria-label="문서 축의 상태 머신">
+    <svg viewBox="0 0 740 186" role="img" aria-label="문서 축의 상태 머신">
       <defs>
         <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--border-strong)"/>
@@ -364,11 +367,15 @@
         <text x="177" y="114">거절 · 수정 요청</text>
         <text x="630" y="128">후속 버전 승인 / 폐기 결정</text>
       </g>
+      <path d="M50,82 V140" fill="none" stroke="var(--border-strong)" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+      <rect x="30" y="144" width="110" height="34" rx="10" fill="var(--bg-sunken)" stroke="var(--border-strong)"/>
+      <text x="85" y="166" fill="var(--text-mute)" font-family="var(--font)" font-size="12.5" text-anchor="middle">discarded</text>
+      <text x="152" y="165" fill="var(--text-mute)" font-family="var(--font)" font-size="10.5">CR 거절 · 철회 — 초안을 버린다(2026-10-16)</text>
     </svg>
     <div class="cap">그림 2. 문서 축. 구현 축의 상태도는 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 있다(2026-09-26).</div>
   </div>
 
-  <p><b>구현 축(<code>requirement.impl_status</code>)의 상태도와 파생 규칙은 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 둔다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 <a href="spec-workflow.html">3.5</a> §1.3 이 정한다(FR-04 의 영향 분석은 CR 과 함께 Phase 2).</p>
+  <p><b>구현 축(<code>requirement.impl_status</code>)의 상태도와 파생 규칙은 <a href="spec-workflow.html">3.5</a> §1.3 한 곳에 둔다</b>(2026-09-26 — 사람 결정 · 구현 축 상태도 검토). 이 절도 그 축을 그리고 있었는데 거꾸로 가는 간선이 달랐다 — 두 벌이면 한쪽만 자란다. 두 축은 서로를 참조하지만 결합하지 않는다: 새 SpecVersion 이 승인돼도 구현 축의 값은 작업과 증적에서 다시 파생될 뿐, 문서 축의 전이가 직접 옮기지 않는다. 요구사항 문장이 바뀌었을 때의 처리도 <a href="spec-workflow.html">3.5</a> §1.3 이 정한다(FR-04 의 영향 분석은 2026-10-16 에 CR 과 함께 들어왔다 — <a href="spec-workflow.html">3.5</a> §3.3). 파생이 세지 않는 작업(보관한 작업 · 착수하지 않은 재검증 작업 — <code>task.reverifies_task_id</code> · 2026-10-16 사람 결정)도 그 절이 정한다.</p>
 
   <h2 id="sec-2">2. 엔티티 상세</h2>
 
@@ -414,6 +421,8 @@
       <tr><td><code>repo_url</code> · <code>default_branch</code></td><td>text</td><td>git forge 연동 대상</td></tr>
       <tr><td><code>gate_policy</code></td><td>jsonb</td><td>위험도별 게이트 임계(D-06), fail-open 격상 임계(D-14)</td></tr>
       <tr><td><code>retention</code></td><td>jsonb</td><td>Activity·프롬프트 페이로드 보존 기간(§5.4)</td></tr>
+      <tr><td><code>review_sot</code></td><td>enum</td><td><b>리뷰 컷오버 단계</b>(2026-10-16 · 사람 결정 D6 · <code>0057</code>) — <code>git</code>(컷오버 전 · 기본) · <code>dual</code>(M1 이중화) · <code>nerv</code>(M2 이후). <a href="roadmap.html">3.7 로드맵</a> §7.4 병행 운영 표의 줄이다. 게이트 판정 비교가 어느 판정을 적용하는지와 불일치를 알릴지를 이 값으로 정한다</td></tr>
+      <tr><td><code>review_sot_since</code></td><td>timestamptz NULL</td><td>그 단계로 바꾼 시각 — 2주 관측 창(§7.5)의 시작</td></tr>
       <tr><td><code>archived_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
@@ -476,13 +485,13 @@
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
       <tr><td><code>spec_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>version_no</code></td><td>int</td><td>스펙 내 1부터 증가. <code>UNIQUE (spec_id, version_no)</code></td></tr>
-      <tr><td><code>status</code></td><td>enum</td><td><code>draft / in_review / approved / superseded / deprecated</code></td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>draft / in_review / approved / superseded / deprecated / discarded</code> — <code>discarded</code> 는 버린 초안이다(2026-10-16 — 변경 요청의 거절 · 철회가 만든다. 다시 열지 않고 최신 버전을 셀 때 빠진다 · <a href="spec-workflow.html">3.5</a> §1.2)</td></tr>
       <tr><td><code>body_md</code></td><td>text</td><td>본문(markdown 우선, D-09)</td></tr>
       <tr><td><code>content_hash</code></td><td>bytea</td><td><code>sha256(body_md)</code>. 무변경 저장 차단·중복 감지</td></tr>
       <tr><td><code>base_version_id</code></td><td>uuid FK NULL</td><td><b>파생 계보다 — 어느 버전에서 갈라져 나왔는가.</b> 서버가 직전 <code>version_no</code> 로 채우고 부른 쪽은 주지 않는다(2026-08-30 사람 결정). 2026-09-07 정정: 이 열을 "낙관적 동시성의 전제조건, 불일치 시 409" 라 적어 왔는데 <b>그 축은 <code>base_hash</code> 다</b> — 부른 쪽은 "무엇을 보고 썼는가" 를 <code>content_hash</code> 의 지문으로 말하고, 서버가 그것을 현재 값과 비교-교환한다. 둘을 같은 칸으로 읽으면 "계보를 보내지 않으면 동시성 검사가 안 된다" 는 반대 결론이 나온다</td></tr>
       <tr><td><code>change_summary_md</code></td><td>text</td><td>이 버전이 무엇을 바꿨는가(사람이 읽는 요약)</td></tr>
       <tr><td><code>author_user_id</code> · <code>author_session_id</code></td><td>uuid FK</td><td>사람과 에이전트를 함께 기록</td></tr>
-      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td>CR에서 파생된 버전이면 그 CR</td></tr>
+      <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td>이 버전을 감싼 CR — 승인본이 있는 문서의 초안이면 서버가 연 CR이다(2026-10-16). 첫 초안은 NULL</td></tr>
       <tr><td><code>submitted_at</code> · <code>approved_at</code></td><td>timestamptz</td><td></td></tr>
       <tr><td><code>approved_by_user_id</code></td><td>uuid FK NULL</td><td>결재자. <code>approval</code>에도 남지만 조회 편의로 비정규화</td></tr>
       <tr><td><code>superseded_by_version_id</code></td><td>uuid FK NULL</td><td>후속 버전</td></tr>
@@ -592,17 +601,28 @@
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
       <tr><td><code>project_id</code> · <code>spec_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>key</code></td><td>text</td><td>표시 키 <code>&lt;PRJ&gt;-C-XXXXXX</code>(2026-10-16 · 사람 결정 D2 · §5.1). 씨앗은 이 행의 UUID 다. <code>UNIQUE (project_id, key)</code></td></tr>
       <tr><td><code>base_version_id</code></td><td>uuid FK</td><td>어느 approved 버전에 대한 변경인가</td></tr>
       <tr><td><code>proposed_version_id</code></td><td>uuid FK</td><td>제안 내용을 담은 draft SpecVersion</td></tr>
       <tr><td><code>title</code> · <code>rationale_md</code></td><td>text</td><td>무엇을 왜 바꾸는가</td></tr>
-      <tr><td><code>status</code></td><td>enum</td><td><code>open / in_review / approved / rejected / withdrawn</code></td></tr>
-      <tr><td><code>risk</code></td><td>enum</td><td><code>low / normal / high</code> — 저위험은 자동 통과 경로(D-06)</td></tr>
-      <tr><td><code>origin</code></td><td>enum</td><td><code>human / agent / spec_drift</code> — 구현 중 발견된 스펙 개선의 역류 경로</td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>open / in_review / approved / rejected / withdrawn</code> — 수명은 아래 단락. 문서마다 <code>open</code> · <code>in_review</code> 인 행은 하나이고 초안마다 행은 하나다</td></tr>
+      <tr><td><code>risk</code></td><td>enum</td><td><code>low / normal / high</code> — 저위험은 자동 통과 경로(D-06). 따로 입력받지 않고 검토 요청 때 정해진 게이트 티어에서 채운다 — T0 · T1 <code>low</code> · T2 <code>normal</code> · T3 <code>high</code>(2026-10-16 · 같은 날 사람 확인)</td></tr>
+      <tr><td><code>origin</code></td><td>enum</td><td><code>human / agent / spec_drift</code> — 구현 중 발견된 스펙 개선의 역류 경로. 초안을 사람이 만들었으면 <code>human</code>, 에이전트 세션이면 <code>agent</code> 다</td></tr>
+      <tr><td><code>planned_actions</code></td><td>jsonb</td><td>승인하며 함께 할 일(2026-10-16) — 영향 미리보기의 제안 가운데 사람이 고른 것 <code>{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}</code>. 승인되는 순간 서버가 그때의 델타와 다시 견줘 맞는 것만 한다. <b>NULL 은 "고른 적 없음"이다</b> — 승인할 때 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다. 세 칸이 모두 빈 배열이면 "아무것도 하지 않기로" 고른 것이라 그대로 존중한다(2026-10-16 사람 결정 · 0058)</td></tr>
       <tr><td><code>created_by_user_id</code> · <code>created_by_session_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>decided_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
   <p><code>origin = 'spec_drift'</code>는 clemvion에서 5개월 검증된 경로의 이식이다. 리뷰가 <code>[SPEC-DRIFT]</code> 태그를 달면 resolution-applier가 코드를 되돌리지 않고 <code>plan/in-progress/spec-update-&lt;area&gt;.md</code> 초안을 만들어 <code>ESCALATE=spec</code>으로 넘겼다. NERV에서는 그 초안이 CR 레코드가 되고, 태그 보존 의무("절대 일반 WARNING으로 뭉개지 말 것")는 <code>finding.tags</code>와 <code>change_request.origin</code>의 FK 관계로 대체된다.</p>
+
+  <p><b>그 경로의 실물</b>(2026-10-16 · 사람 결정 · <a href="spec-workflow.html">3.5</a> §3.4). 리뷰 센터 · 에스컬레이션 카드의 [CR로 보내기]나 발견을 가리킨 초안 저장이 그 발견을 CR에 묶는다 — 처분은 <code>resolution.kind = escalated</code>(사유 <code>spec</code>)이고 <code>change_request_id</code> 가 그 CR, <code>commit_sha</code> 가 그 발견을 본 커밋이다. 그 저장이 CR을 열면 <code>origin = spec_drift</code> 다. CR이 승인되면 발견은 <code>spec_change</code>(근거 <code>spec_version_id</code> = 승인된 버전)로, 거절되면 <code>dismissed</code> 로 닫히고 코드 되돌림 작업이 생긴다. 철회되면 발견은 열린 채로 남는다.</p>
+  <p><b>수명</b>(2026-10-16 · 사람 결정 D1). 승인본이 있는 문서에 새 초안이 생기면(초안 저장 · 되돌리기) 서버가 <code>open</code> 으로 연다 — 승인본이 없는 첫 초안은 CR이 아니다. 그 뒤는 <b>버전을 따라간다</b>: 검토 요청 → <code>in_review</code>, 승인 → <code>approved</code>, 결재가 거절 · 코멘트 · 만료로 초안을 돌려보내면 → <code>open</code>. CR 자기 결재는 없다 — 결재는 그 스펙 버전이 받는다(<a href="spec-workflow.html">3.5</a> §3.5). CR만의 행위는 둘이다.</p>
+  <ul>
+    <li><b>거절</b>(<code>rejected</code>) — planner · admin이 사람으로만 하고 사유가 필수다. 이 제안을 하지 않기로 하는 것이라 초안을 버린다(<code>spec_version.status = discarded</code>). 결재의 거절과 다르다 — 결재의 거절은 고쳐서 다시 내라는 뜻이라 CR이 열린 채 남는다.</li>
+    <li><b>철회</b>(<code>withdrawn</code>) — CR을 연 사람이나 초안의 작성자가 초안을 스스로 버린다.</li>
+  </ul>
+  <p>둘 다 <code>open</code> 인 CR에만 한다(검토 중이면 결재를 먼저 끝낸다). 버린 초안은 지우지 않는다 — 이 행이 무엇을 제안했는지 남아야 한다.</p>
+  <p><b>결정 기록</b>(2026-10-16 · 사람 결정). <b>D1 — CR이 버전을 감싸고 결재는 지금처럼 스펙 버전이 받는다</b>(권장안 A). 티어 · 정족수 · 만료 · 바로 승인 · 일괄 승인을 두 벌로 만들지 않는다. 결재 대상 값 <code>change_request</code>(§2.7)는 쓰지 않는 값으로 남는다. <b>D2 — CR 표시 키는 <code>&lt;PRJ&gt;-C-XXXXXX</code></b>(권장안 A · §5.1) — 작업 키와 같은 규칙이라 검색 · ⌘K가 같은 방법으로 찾는다.</p>
 
   <h3>2.4 작업 — task · task_dependency · claim</h3>
 
@@ -619,6 +639,7 @@
       <tr><td><code>source_spec_version_id</code></td><td>uuid FK NULL</td><td>파생 출처 버전 = <b>이 Task의 기준 버전</b>(구현 컨텍스트는 이 불변 스냅샷을 읽는다 — <a href="agent-integration.html">에이전트 연동 설계</a> §2.4 기준 버전 규약). NULL은 임포트 레거시 전용 — 신규 생성 표면(REST·MCP)은 필수다</td></tr>
       <tr><td><code>source_requirement_id</code></td><td>uuid FK NULL</td><td>파생 출처 요구사항</td></tr>
       <tr><td><code>baseline_id</code></td><td>uuid FK NULL</td><td>기준 기준선(§2.2) — 이 Task가 어느 승인 세트의 맥락에서 파생됐는가. 주변 문서까지 그 세트로 읽는다</td></tr>
+      <tr><td><code>reverifies_task_id</code></td><td>uuid FK NULL</td><td><b>재검증 작업이 다시 보는 완료 작업</b>(2026-10-16 · 사람 결정) — CR 승인이 바뀐 요구사항의 완료 작업을 다시 확인하라고 만든 작업에만 있다(같은 프로젝트 · 완료 작업이 여럿이면 가장 나중에 끝난 것). 이 작업이 <code>backlog</code>·<code>ready</code>·<code>blocked</code>이고 클레임된 적이 없으면 요구사항의 구현 상태를 계산할 때 세지 않는다(<a href="spec-workflow.html">스펙 워크플로우</a> §1.3)</td></tr>
       <tr><td><code>rebrief_required_at</code></td><td>timestamptz NULL</td><td>기준 버전이 <code>superseded</code>로 전이될 때 서버가 세팅 — <b>재브리핑 필요</b> 플래그의 실물(<a href="spec-workflow.html">스펙 워크플로우</a> §3.3). 사람이 위임 명세를 재확인하고 기준 버전을 갱신하면 해제</td></tr>
       <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td><b>사람</b> 책임자</td></tr>
       <tr><td><code>delegate_session_id</code></td><td>uuid FK NULL</td><td><b>에이전트</b> 수행 세션</td></tr>
@@ -847,12 +868,32 @@
       <tr><td><code>change_request_id</code></td><td>uuid FK NULL</td><td><code>spec_change</code> 의 증거 — 둘 중 하나면 된다</td></tr>
       <tr><td><code>spec_version_id</code></td><td>uuid FK NULL</td><td><b>스펙을 고쳐 해결한 증거</b>(<code>0011</code> · 2026-08-30). 커밋이 코드 쪽 증거이듯 이것이 문서 쪽 증거다. CHECK 는 <code>spec_change</code> 에 <code>change_request_id</code> <b>또는</b> 이 열을 요구한다 — 그전에는 CR 만 인정했고 CR 을 만드는 코드가 없어 <code>spec_change</code> 자체가 <b>닿을 수 없는 값</b>이었다</td></tr>
       <tr><td><code>escalate_reason</code></td><td>enum NULL</td><td><code>no / spec / user-decision / infra / e2e-fail-3x / sensitive-fix</code></td></tr>
+      <tr><td><code>blocking</code></td><td>bool</td><td><b>넘긴 세션이 결정을 기다리는가</b>(2026-10-16 · 사람 결정 D3 · 0054). <code>escalated</code> 에만 뜻이 있다 — 참이면 그 세션은 <code>awaiting_input</code> 이 되고 에스컬레이션 카드의 결정이 바로 푼다. 세션이 부른 처분은 참이 기본이다</td></tr>
       <tr><td><code>rationale_md</code></td><td>text</td><td><b>유예 근거는 1급 데이터</b></td></tr>
       <tr><td><code>actor_user_id</code> · <code>actor_session_id</code></td><td>uuid FK</td><td></td></tr>
       <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
   <p><b>표면의 <code>resolution</code> 어휘와 저장의 두 축은 이름이 다르다</b>(2026-09-07 명시). <code>EP-REV-02</code>·<code>nerv_finding_resolve</code> 가 받는 값은 다섯(<code>fixed</code>·<code>spec_change</code>·<code>dismissed</code>·<code>wont_fix</code>·<code>escalated</code>)이고, 서버는 그것을 <b><code>resolution.kind</code>(무엇으로 해결했나)</b> 와 <b><code>finding.status</code>(그래서 발견은 어떻게 됐나)</b> 두 축으로 번역한다. 엇갈리는 자리가 둘이다 — 표면의 <b><code>wont_fix</code> 는 <code>kind='deferred'</code> + <code>status='wont_fix'</code></b> 이고(<code>resolution_kind</code> 에 <code>wont_fix</code> 라는 값은 없다), <b><code>escalated</code> 는 <code>status</code> 를 <code>open</code> 으로 남긴다</b>(넘긴 것은 해결한 것이 아니다). 번역표는 도메인 한 곳이다 — 표면마다 사본을 두면 한쪽만 낡는다.</p>
+
+  <p><b><code>gate_verdict_comparison</code></b>(2026-10-16 · 사람 결정 D6 · <code>0057</code>) — M1 이중화 기간에 로컬 훅과 NERV 가 같은 push 를 각자 판정한 결과를 견준 한 줄이다(<a href="roadmap.html">3.7 로드맵</a> §7.4 규칙 3).</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
+      <tr><td><code>branch</code> · <code>kinds</code> · <code>head_sha</code></td><td>text</td><td>판정 인자 — 종류는 정렬한 쉼표 목록(묻지 않았으면 빈 문자열), 커밋은 40자 소문자</td></tr>
+      <tr><td><code>local_pass</code> · <code>local_hook</code> · <code>local_reason</code></td><td>bool · text NULL · text NULL</td><td>로컬 훅의 판정과 그 훅의 이름 · 적은 이유</td></tr>
+      <tr><td><code>server_pass</code> · <code>server_states</code></td><td>bool · jsonb</td><td>서버 판정(물은 종류가 모두 <code>passed</code> · <code>waived</code> 면 참)과 종류마다의 상태</td></tr>
+      <tr><td><code>review_sot</code></td><td>enum</td><td>그때의 컷오버 단계</td></tr>
+      <tr><td><code>actor_user_id</code></td><td>uuid FK</td><td>훅을 부른 토큰의 사람</td></tr>
+      <tr><td><code>repeat_count</code> · <code>last_seen_at</code></td><td>int · timestamptz</td><td>같은 비교를 받은 횟수와 마지막 시각 — <code>(project_id, branch, kinds, head_sha, local_pass)</code> 유일</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td>지표의 창은 이 시각으로 센다</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>같은 비교를 한 줄로 두는 이유: 호출 수가 불일치율의 분모라 재시도가 분모를 부풀리면 안 된다. 판정은 처음 것이 남는다 — 그 커밋에서 두 판정이 처음 만난 때가 그 비교다. 이벤트 표에 두지 않은 이유: 비교는 push 마다 생겨 활동 피드와 알림 워커가 훑는 양을 늘리고 멱등 키를 걸 자리도 없다. 불일치는 따로 <code>gate.verdict_mismatch</code> 이벤트가 된다(이중화 기간만).</p>
 
   <p>ESCALATE 어휘는 clemvion에서 5개월 검증된 매트릭스를 그대로 이식한다. <code>rationale_md</code>가 중요한 이유도 실측이다 — <code>SNAPSHOT_CACHE_MAX_ENTRIES</code> 유예 건이 <code>14_01_46</code>/<code>17_15_21</code>/<code>18_19_33</code> 세 세션에서 반복 재확인되며 매번 새 표 행으로 재서술됐다. "새 근거 없이 재상정하지 않음" 규칙이 산문 인용으로만 유지되던 것을, finding 1건 + resolution 여러 건의 관계로 바꾼다.</p>
 
@@ -864,8 +905,8 @@
     <tbody>
       <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
       <tr><td><code>project_id</code></td><td>uuid FK</td><td></td></tr>
-      <tr><td><code>subject_type</code></td><td>enum</td><td><code>spec_version / change_request / plan / question / gate_bypass / <b>finding</b></code> — 여섯이다. <code>finding</code> 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정)</td></tr>
-      <tr><td><code>subject_id</code></td><td>uuid</td><td>대상 엔티티 ID(다형 참조)</td></tr>
+      <tr><td><code>subject_type</code></td><td>enum</td><td><code>spec_version / change_request / plan / question / gate_bypass / <b>finding</b> / <b>escalation</b></code> — 일곱이다. <code>finding</code> 은 critical 하향(A3)의 승인 카드가 붙는 곳이다(FR-09 · 2026-08-23 추가. 이 표만 다섯에서 멈춰 있었다 — 2026-09-05 정정). <b><code>change_request</code> 는 쓰지 않는다</b>(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안의 <code>spec_version</code> 이 받는다. <b><code>escalation</code> 이 일곱째다</b>(2026-10-16 · 사람 결정 D3) — 발견을 사람에게 넘긴 처분 한 건(<code>resolution</code>)이 받은 요청의 카드가 된다. <code>finding</code> 과 나눈 까닭은 그 값의 승인이 critical 하향을 연다는 데 있다 — 같은 대상에 뜻이 다른 결재가 붙으면 에스컬레이션의 결정이 하향 승인으로 읽힌다</td></tr>
+      <tr><td><code>subject_id</code></td><td>uuid</td><td>대상 엔티티 ID(다형 참조). 예외는 브랜치 면제 하나다 — 그 행은 프로젝트 id 이고 대상은 <code>branch</code> 가 맡는다(2026-10-16)</td></tr>
       <tr><td><code>requested_by_user_id</code> · <code>requested_by_session_id</code></td><td>uuid FK</td><td>지시자</td></tr>
       <tr><td><code>assignee_user_id</code></td><td>uuid FK NULL</td><td>지정 승인자</td></tr>
       <tr><td><code>assignee_role</code></td><td>enum NULL</td><td>역할 큐로 열어두는 경우</td></tr>
@@ -873,6 +914,7 @@
       <tr><td><code>comment_md</code></td><td>text</td><td></td></tr>
       <tr><td><code>requested_at</code> · <code>due_at</code> · <code>decided_at</code></td><td>timestamptz</td><td>SLA·리마인더</td></tr>
       <tr><td><code>is_bypass</code> · <code>bypass_reason</code></td><td>bool · text</td><td>게이트 면제도 결재 레코드로 남긴다(FR-10)</td></tr>
+      <tr><td><code>branch</code> · <code>head_sha</code></td><td>text NULL</td><td><b>브랜치 면제</b>의 대상(2026-10-16 · 사람 결정 D4). 리뷰가 한 번도 없는 브랜치도 면제할 수 있다 — 게이트 판정이 그 (브랜치 · 종류)를 면제로 통과시킨다. <code>head_sha</code> 는 그 브랜치의 커밋 하나로 좁히고(40자) 없으면 그 브랜치의 모든 커밋이다</td></tr>
     </tbody>
   </table></div>
   <p><b>규칙: 지시자 ≠ 승인자</b>(D-06). <code>assignee_user_id = requested_by_user_id</code>인 결재는 거부한다 — GitHub이 Copilot PR에 대해 "작업을 지시한 사람의 승인은 필수 승인 수에 포함되지 않는다"로 규격화한 것과 같다. clemvion에는 이 축이 없었다: merge confirm 2회·e2e 면제·BLOCK 해소·stale grooming의 종착지가 전부 한 사람이었다.</p>
@@ -984,6 +1026,35 @@
       <tr><td><code>updated_at</code></td><td>timestamptz</td><td></td></tr>
     </tbody>
   </table></div>
+
+  <p><b><code>watch</code></b>(2026-10-16 · 사람 결정 D5 = B)</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>user_id</code> · <code>project_id</code></td><td>uuid FK</td><td>누가 · 어느 프로젝트의 것을 — 사람이나 프로젝트가 지워지면 함께 지운다</td></tr>
+      <tr><td><code>target_type</code></td><td>enum</td><td><code>spec / task / area</code> — <code>area</code> 는 영역 문서(<code>spec.type = area</code>)와 <b>그 아래 문서와 작업 전부</b>다. 작업은 기준 문서(<code>source_spec_version_id</code>)의 조상으로 영역을 찾는다</td></tr>
+      <tr><td><code>target_id</code></td><td>uuid</td><td>대상(다형 참조) — <code>(user_id, target_type, target_id)</code> 유일</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b><code>pin</code></b>(2026-10-16 · 사람 결정 D5 = B)</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>uuid PK</td><td></td></tr>
+      <tr><td><code>user_id</code> · <code>project_id</code></td><td>uuid FK</td><td>누구의 핀인가 · 대상이 속한 프로젝트 — 목록은 프로젝트를 넘는다</td></tr>
+      <tr><td><code>target_type</code></td><td>enum</td><td><code>spec / task / change_request</code> — 퀵 스위처가 여는 것과 같다. 요구사항 · 헤딩으로 찾은 줄은 그 문서를 고정한다</td></tr>
+      <tr><td><code>target_id</code></td><td>uuid</td><td>대상(다형 참조) — <code>(user_id, target_type, target_id)</code> 유일</td></tr>
+      <tr><td><code>position</code></td><td>int</td><td>목록의 순서 — 오름차순이고 새 핀이 맨 위다</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>결정 기록</b>(2026-10-16 · 사람 결정 D5 = B — 표 둘). 워치와 핀을 한 표에 두지 않는다. 워치는 알림의 구독이고(라우팅이 대상과 그 조상 영역으로 찾는다) 핀은 이동 수단이다(사람마다 순서가 있는 목록이고 알림을 만들지 않는다). 한 표에 두면 종류 칸 하나가 두 뜻을 맡고, 알림 라우팅이 핀을 걸러야 한다. 워치는 사람이 누를 때만 생긴다 — 자동 등록은 하지 않는다(<a href="spec-workflow.html">3.5 스펙 워크플로우</a> §2.2 결정 기록). 핀은 예전에 브라우저(localStorage)에만 있었다 — 기기를 바꾸면 사라졌다.</p>
 
   <h2 id="sec-3">3. clemvion frontmatter → NERV 필드 매핑</h2>
 
@@ -1173,6 +1244,7 @@ WHERE a.project_id = ANY($1)
   AND a.requested_by_user_id &lt;&gt; $2          -- 지시자 ≠ 승인자
 ORDER BY (a.subject_type = 'question') DESC, a.requested_at;</code></pre>
   <p>S1 홈의 숫자 배지와 S7 받은 요청이 이 질의다. <code>question</code>을 맨 위로 올리는 이유는 그 세션이 <code>awaiting_input</code>으로 <b>멈춰 서 있기</b> 때문이다.</p>
+  <p><b>CR 카드</b>(2026-10-16). CR의 결재는 그 초안의 <code>spec_version</code> 이 받으므로 위 <code>change_request</code> 조인은 비어 있다. 받은 요청은 스펙 버전 결재마다 <code>change_request.proposed_version_id = sv.id</code> 로 그 버전을 감싼 CR을 찾아, 있으면 같은 카드를 CR 카드로 보인다 — 같은 결재를 두 카드로 보이지 않는다(<a href="screens.html">4.5 화면 명세</a> REQ-WEB-321).</p>
 
   <h3>4.8 "이 스펙에 무슨 일이 있었나" — 감사 타임라인 <span class="badge impl">P3 · FR-16</span></h3>
 <pre><code>SELECT e.occurred_at, e.type, e.from_state, e.to_state,
@@ -1200,6 +1272,7 @@ ORDER BY e.occurred_at;</code></pre>
       <tr><td>요구사항 ref</td><td><code>REQ-&lt;영역&gt;-&lt;번호&gt;</code> 또는 임포트 원본(<code>NAV-WF-01</code>)</td><td>스펙 본문·리뷰·커밋</td><td><code>UNIQUE (project_id, ref)</code>. clemvion 어휘를 그대로 계승</td></tr>
     </tbody>
   </table></div>
+  <p><b>타입 문자는 셋이다</b>(2026-10-16 · 사람 결정 D2) — <code>T</code> 작업 · <code>S</code> 스펙 · <code>C</code> 변경 요청(CR). 씨앗은 그 행의 UUID 다(임포트는 원본 경로 — 재실행이 같은 키를 내야 한다). 본문 · 커밋 메시지에서 키를 찾는 규칙 <code>DISPLAY_KEY_PATTERN</code> 이 셋을 모두 받는다. CR 키는 <code>change_request.key</code> 에 <code>UNIQUE (project_id, key)</code> 로 남는다(<a href="database.html">4.3 데이터베이스 스키마</a> REQ-DB-048).</p>
   <p><b>ID는 서버가 발급한다</b>(D-04). 파일 기반 순번은 두 세션이 동시에 같은 번호를 잡는 순간 충돌하고, 이는 파일 기반 SDD 도구들이 멀티유저 요구를 "not planned"로 닫으며 남긴 미해결 문제이기도 하다. 해시 기반 발급에는 중앙 카운터도 락도 필요 없다.</p>
 
   <h3>5.2 fingerprint 설계 — 라운드를 넘는 동일성</h3>

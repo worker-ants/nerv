@@ -421,6 +421,7 @@ export class ProjectController {
       repoHost: input.repo_host ?? null,
       gatePolicy: input.gate_policy ?? null,
       retention: input.retention ?? null,
+      reviewSot: input.review_sot ?? null,
     });
   }
 }

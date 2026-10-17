@@ -16,16 +16,23 @@
 // 새 스펙 시작 명령 복사. 사용자 메뉴를 열어 찾던 일을 여기서 끝낸다. 스펙은 웹에서 만들지 않으므로
 // (REQ-WEB-173) "새 스펙" 은 시작 카드와 같은 명령을 복사한다 — 할 수 없는 역할에게는 보이지 않는다.
 //
-// 최근 방문·핀은 localStorage 다 — 뷰 상태 등급이고 서버 동기화는 Phase 2(§1.3a).
+// 최근 방문은 localStorage 다 — 뷰 상태 등급이다(§1.3a). **핀은 서버에 있다**(2026-10-16 · 사람 결정 D5 · REQ-WEB-329) —
+// 브라우저에만 있던 동안 기기를 바꾸면 매일 여는 대여섯이 사라졌다. 예전 브라우저에 남은 핀은 처음 한 번 서버로 옮기고
+// 지운다(`usePinMigration` — 옮기지 못하면 지우지 않는다).
 
-import { LOCALES, scopesForRoles, statusLabelKey } from '@nerv/schema';
+import { LOCALES, PIN_LIMIT, scopesForRoles, statusLabelKey } from '@nerv/schema';
+import type { PinTarget } from '@nerv/schema';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LOCALE_LABEL, useLocale, useT } from '../lib/i18n.js';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { helpForRoute } from '../lib/manual.js';
 import { helpHref } from '../lib/manual-chapters.js';
-import { useMe } from '../lib/queries.js';
+import { rows, useMe, useMyPins } from '../lib/queries.js';
+import type { Row } from '../lib/queries.js';
+import { queryKeys } from '../lib/query-keys.js';
+import { useApiError } from '../lib/api-errors.js';
 import { useRealtime } from '../lib/realtime.js';
 import { inOrgHref, useScope } from '../lib/scope.js';
 import { rolesInProject } from '../lib/session.js';
@@ -43,7 +50,7 @@ export interface SwitcherHit {
   type: string;
   doc_status: string | null;
   anchor: string | null;
-  /** 무엇에 맞았나 — 서버가 준다(`spec`·`requirement`·`task`). 없으면 스펙으로 본다 */
+  /** 무엇에 맞았나 — 서버가 준다(`spec`·`requirement`·`task`·`change_request`). 없으면 스펙으로 본다 */
   kind?: string;
   /** 보관된 문서면 그 시각 — 번호로 찾으면 보관된 문서도 나온다(REQ-API-258) */
   archived_at?: string | null;
@@ -89,17 +96,77 @@ export function rememberVisit(hit: SwitcherHit): void {
   }
 }
 
-export function togglePin(hit: SwitcherHit): SwitcherHit[] {
-  const pins = readList(PIN_KEY);
-  const next = pins.some((p) => sameHit(p, hit))
-    ? pins.filter((p) => !sameHit(p, hit))
-    : [hit, ...pins];
-  try {
-    localStorage.setItem(PIN_KEY, JSON.stringify(next));
-  } catch {
-    /* 위와 같다 */
-  }
-  return next;
+/** 서버 핀의 대상 종류 — 요구사항 · 헤딩으로 찾은 줄은 그 문서를 고정한다(같은 문서를 두 번 고정하지 않는다) */
+export function pinTargetOf(hit: SwitcherHit): PinTarget {
+  if (hit.kind === 'task') return 'task';
+  if (hit.kind === 'change_request') return 'change_request';
+  return 'spec';
+}
+
+/** 서버 핀 한 줄(EP-NTF-13) → 스위처 줄. 고정은 문서 단위라 앵커가 없다 */
+export function pinToHit(row: Row): SwitcherHit & { pin_id: string } {
+  const type = String(row['target_type'] ?? 'spec');
+  return {
+    pin_id: String(row['id']),
+    key: String(row['key'] ?? ''),
+    title: String(row['title'] ?? row['key'] ?? ''),
+    type: String(row['type'] ?? ''),
+    doc_status: typeof row['doc_status'] === 'string' ? row['doc_status'] : null,
+    anchor: null,
+    kind: type,
+    archived_at: typeof row['archived_at'] === 'string' ? row['archived_at'] : null,
+    project_slug: String(row['project_slug'] ?? ''),
+    project_name: String(row['project_name'] ?? row['project_slug'] ?? ''),
+    org_slug: String(row['org_slug'] ?? ''),
+  };
+}
+
+/** 같은 화면에서 두 번 옮기지 않는다 — 셸이 다시 그려져도 한 번이다 */
+let migrating = false;
+
+/**
+ * **브라우저에 남은 옛 핀을 서버로 옮긴다**(2026-10-16 · REQ-WEB-329 · EP-NTF-16). 로그인한 셸이 뜨면 한 번 — localStorage 의
+ * 핀(앞의 것이 위)을 보내고 **응답을 받은 뒤에만** 지운다. 실패하면 남겨 두고 다음에 다시 한다(잃지 않게). 프로젝트를 모르는 옛
+ * 기록은 갈 곳을 몰라 원래도 보이지 않았다 — 옮기지 않고 함께 지운다. 서버가 건너뛴 줄(이미 고정 · 사라진 대상 · 상한)도 지운다.
+ */
+export function usePinMigration(ready: boolean): void {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!ready || migrating) return;
+    const legacy = readList(PIN_KEY);
+    if (legacy.length === 0) return;
+    migrating = true;
+    const forget = (): void => {
+      try {
+        localStorage.removeItem(PIN_KEY);
+      } catch {
+        /* 지우지 못하면 다음에 다시 옮긴다 — 서버는 이미 고정한 것을 건너뛴다 */
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.myPins() });
+    };
+    const items = legacy
+      .filter((h) => typeof h.project_slug === 'string' && h.project_slug !== '')
+      .slice(0, PIN_LIMIT)
+      .map((h) => ({
+        project: h.project_slug as string,
+        ...(typeof h.org_slug === 'string' && h.org_slug !== '' ? { org: h.org_slug } : {}),
+        target_type: pinTargetOf(h),
+        target: h.key,
+      }));
+    if (items.length === 0) {
+      forget();
+      migrating = false;
+      return;
+    }
+    void apiFetch<unknown>('/me/pins/import', { method: 'POST', body: { items } })
+      .then(forget)
+      .catch(() => {
+        /* 남겨 둔다 — 다음에 셸이 뜨면 다시 옮긴다 */
+      })
+      .finally(() => {
+        migrating = false;
+      });
+  }, [ready, queryClient]);
 }
 
 /**
@@ -129,6 +196,8 @@ function hrefOfHit(hit: SwitcherHit): string {
   const slug = encodeURIComponent(hit.project_slug ?? '');
   const key = encodeURIComponent(hit.key);
   if (hit.kind === 'task') return `/p/${slug}/tasks/${key}`;
+  // 변경 요청 키(`<PRJ>-C-…`)는 그 CR 로 간다(2026-10-16 · REQ-WEB-323)
+  if (hit.kind === 'change_request') return `/p/${slug}/crs/${key}`;
   if (hit.kind === 'requirement') return `/p/${slug}/specs/${key}?rail=requirements`;
   const anchor =
     hit.anchor === null || hit.anchor === '' ? '' : `#${encodeURIComponent(hit.anchor)}`;
@@ -190,13 +259,55 @@ export function QuickSwitcher({
   const inputRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  // **핀은 상태다.** localStorage 만 보고 그리면 눌러도 화면이 그대로라, 판정과 저장은
-  // 있는데 쓸 수 없었다 — 2026-09-05 감사까지 이 목록에 단추가 없던 자리다.
-  const [pins, setPins] = useState<SwitcherHit[]>([]);
-
-  useEffect(() => {
-    if (open) setPins(readList(PIN_KEY));
-  }, [open]);
+  // **핀은 서버에 있다**(2026-10-16 · 사람 결정 D5 · REQ-WEB-329) — 다른 기기에서도 같은 핀이다. 열릴 때 읽고, 누르면 그 자리에서
+  // 바뀌게 캐시를 먼저 고친 뒤 서버의 답으로 다시 읽는다(눌러도 화면이 그대로면 판정과 저장이 있어도 쓸 수 없다 — 2026-09-05 감사)
+  usePinMigration(me.data !== undefined);
+  const queryClient = useQueryClient();
+  const onApiError = useApiError();
+  const pinsQuery = useMyPins(open);
+  const pins = useMemo(() => rows(pinsQuery.data?.items).map(pinToHit), [pinsQuery.data]);
+  const pinToggle = useMutation({
+    mutationFn: (hit: SwitcherHit) => {
+      const pinned = pins.find((p) => sameHit(p, hit));
+      return pinned !== undefined
+        ? apiFetch<unknown>(`/me/pins/${encodeURIComponent(pinned.pin_id)}`, { method: 'DELETE' })
+        : apiFetch<unknown>('/me/pins', {
+            method: 'PUT',
+            body: {
+              project: hit.project_slug ?? '',
+              ...(hit.org_slug === undefined || hit.org_slug === '' ? {} : { org: hit.org_slug }),
+              target_type: pinTargetOf(hit),
+              target: hit.key,
+            },
+          });
+    },
+    onMutate: (hit) => {
+      queryClient.setQueryData<{ items: Row[] }>(queryKeys.myPins(), (prev) => {
+        const items = prev?.items ?? [];
+        const pinned = items.some((r) => sameHit(pinToHit(r), hit));
+        return pinned
+          ? { items: items.filter((r) => !sameHit(pinToHit(r), hit)) }
+          : {
+              items: [
+                {
+                  id: `pending-${hit.key}`,
+                  target_type: pinTargetOf(hit),
+                  key: hit.key,
+                  title: hit.title,
+                  type: hit.type,
+                  doc_status: hit.doc_status,
+                  project_slug: hit.project_slug,
+                  project_name: hit.project_name,
+                  org_slug: hit.org_slug,
+                },
+                ...items,
+              ],
+            };
+      });
+    },
+    onError: onApiError,
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.myPins() }),
+  });
 
   const isPinned = (hit: SwitcherHit): boolean => pins.some((p) => sameHit(p, hit));
   const q = query.trim().toLowerCase();
@@ -586,7 +697,8 @@ export function QuickSwitcher({
                       data-testid={`switcher-pin-${item.hit.key}`}
                       aria-pressed={isPinned(item.hit)}
                       title={t(isPinned(item.hit) ? 'switcher.unpin' : 'switcher.pin')}
-                      onClick={() => setPins(togglePin(item.hit!))}
+                      disabled={item.hit.project_slug === undefined || item.hit.project_slug === ''}
+                      onClick={() => pinToggle.mutate(item.hit!)}
                       className={cn(
                         'shrink-0 px-3 py-2 text-sm text-text-faint hover:text-text aria-pressed:text-status-action',
                       )}

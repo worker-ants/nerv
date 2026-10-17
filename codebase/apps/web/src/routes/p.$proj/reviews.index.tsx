@@ -6,16 +6,25 @@
 //
 // 이 화면이 대체하는 것은 clemvion 의 `review/**` md 13,777개(131MB)다.
 
-import { scopesForRoles } from '@nerv/schema';
+import { canReadCutoverReport, canSendFindingToCr, scopesForRoles } from '@nerv/schema';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { useEffect, useRef, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
 import { FindingRail } from '../../features/review-center/finding-rail.js';
+import { CutoverPanel } from '../../features/review-center/cutover-panel.js';
 import { GateCoverage } from '../../features/review-center/gate-coverage.js';
 import type { ResolveAction } from '../../features/review-center/resolve-dialog.js';
 import { useT } from '../../lib/i18n.js';
-import { rows, useFindings, useGateCoverage, useMe, useProject } from '../../lib/queries.js';
+import {
+  rows,
+  useCutoverReport,
+  useFindings,
+  useGateCoverage,
+  useMe,
+  useProject,
+} from '../../lib/queries.js';
 import type { Row } from '../../lib/queries.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
@@ -35,7 +44,7 @@ import {
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { FailOpenBanner } from '../../components/failopen-banner.js';
-import { asProjectId } from '../../lib/query-keys.js';
+import { asProjectId, queryKeys } from '../../lib/query-keys.js';
 import { useScrollTopOn } from '../../lib/scroll-top.js';
 
 /** 주소의 필터 — 쉼표 목록이다(서버 질의 `?severity=critical,warning` 과 같은 모양) */
@@ -96,6 +105,7 @@ function ReviewCenter(): React.JSX.Element {
   const me = useMe();
   const projectId = project.data?.['id'];
   const id = asProjectId(projectId);
+  const queryClient = useQueryClient();
 
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -158,6 +168,12 @@ function ReviewCenter(): React.JSX.Element {
   // **코멘트는 참여이고 처분은 권한이다**(2026-10-11 · REQ-WEB-307 · 서버 REQ-API-294). 처분과 같은 축으로 잠그면
   // developer · designer 가 자기 코드에 달린 발견에 답하지 못한다 — viewer 만 빼고 남긴다
   const canComment = scopesForRoles(roles).has('review:submit');
+  // **변경 요청으로 보내기**는 planner · admin 이다(2026-10-16 · REQ-WEB-324) — 서버와 같은 식을 본다
+  const canSendToCr = canSendFindingToCr(roles);
+  // **컷오버 관측**은 admin · planner 에게, 컷오버 전(`git`)이 아닌 프로젝트에서만 그린다(2026-10-16 · 사람 결정 D6 · REQ-WEB-330)
+  const sot = project.data?.['review_sot'];
+  const showCutover = canReadCutoverReport(roles) && (sot === 'dual' || sot === 'nerv');
+  const cutover = useCutoverReport(proj, id, showCutover);
   // **레일은 넓은 화면의 향상이지 유일한 경로가 아니다**(2026-09-10 — 사람 보고 · REQ-WEB-161).
   // 곁레일은 `xl`(1280px) 부터만 서는데, 그 아래에서는 발견을 눌러도 **카드 배경만** 옅게
   // 바뀌고 레일이 펴는 것(갈래·심볼·전체 경로·코멘트·Task 승격)에 닿을 길이 아예 없었다 —
@@ -467,6 +483,7 @@ function ReviewCenter(): React.JSX.Element {
                         canResolve={canResolve}
                         canComment={canComment}
                         canPromote={canPromote}
+                        canSendToCr={canSendToCr}
                         {...railResolve(finding)}
                       />
                     </div>
@@ -486,6 +503,17 @@ function ReviewCenter(): React.JSX.Element {
             />
           )}
 
+          {showCutover && (
+            <div className="mt-6">
+              <CutoverPanel
+                report={cutover.data}
+                {...(failedWithoutData(cutover)
+                  ? { failed: { error: cutover.error, retry: () => void cutover.refetch() } }
+                  : {})}
+              />
+            </div>
+          )}
+
           <div className="mt-6">
             {/* 받기 전에는 "리뷰가 들어온 브랜치가 없습니다" 가 아니다(REQ-WEB-293) */}
             <GateCoverage
@@ -495,6 +523,16 @@ function ReviewCenter(): React.JSX.Element {
               {...(failedWithoutData(gate)
                 ? { failed: { error: gate.error, retry: () => void gate.refetch() } }
                 : {})}
+              // **게이트 현황에서 브랜치를 면제한다**(2026-10-16 사람 결정 · REQ-WEB-332) — 역할 판정은 작업 상세와 같은 표다
+              waiver={{
+                roles,
+                onDone: () => {
+                  if (id !== undefined)
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.projectGateCoverage(id),
+                    });
+                },
+              }}
             />
           </div>
         </div>
@@ -518,6 +556,7 @@ function ReviewCenter(): React.JSX.Element {
                 canResolve={canResolve}
                 canComment={canComment}
                 canPromote={canPromote}
+                canSendToCr={canSendToCr}
                 {...railResolve(selected)}
               />
             </div>

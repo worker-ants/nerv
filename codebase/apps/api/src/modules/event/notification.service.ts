@@ -25,6 +25,7 @@ import type { SQL } from 'drizzle-orm';
 import { DECIDER_ROLES } from '../approval/approval-policy.js';
 import { notificationImportance } from '@nerv/schema';
 import { InjectDb } from '../../common/database.module.js';
+import { sqlArray } from '../../common/sql-array.js';
 import { cursorId, cursorTimestamp, decodeCursor, encodeCursor } from '../../common/cursor.js';
 import { assertVocab } from '../../common/query-vocab.js';
 import type { NervDb } from '../../common/database.module.js';
@@ -50,6 +51,14 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.APPROVAL_REQUESTED]: 'critical',
   [NERV_EVENT.QUESTION_CREATED]: 'critical',
   [NERV_EVENT.CLAIM_CONFLICT_BLOCKED]: 'critical',
+  // **변경 요청이 진행 중인 클레임에 닿는다**(2026-10-16 · 사람 결정 D1 · spec-workflow §3.3 · §6.3) — 열릴 때(`cr.opened`)와
+  // 승인될 때(`cr.approved`) 그 문서의 바뀌거나 빠진 요구사항의 작업을 쥔 세션의 사람에게 간다. 그 세션은 옛 문장으로 일하는
+  // 중이라 지금 알아야 한다. 받는 사람은 이벤트가 든 목록(`claim_user_ids`)이고, 없으면 아무에게도 가지 않는다.
+  // 세 등급(critical · critical · high)은 정본에 없던 칸을 채운 값이고 2026-10-16 에 사람이 확인했다
+  [NERV_EVENT_PHASE2.CR_OPENED]: 'critical',
+  [NERV_EVENT_PHASE2.CR_APPROVED]: 'critical',
+  // 변경 요청 거절 — 초안이 버려졌다. 작성자에게는 `spec.rejected` 와 같은 무게다(누군가의 세션이 멈추지는 않는다)
+  [NERV_EVENT_PHASE2.CR_REJECTED]: 'high',
   [NERV_EVENT.SPEC_REJECTED]: 'high',
   [NERV_EVENT.SPEC_APPROVED]: 'high',
   [NERV_EVENT.CLAIM_CONFLICT_WARN]: 'high',
@@ -89,6 +98,11 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.APPROVAL_EXPIRED]: 'standard',
   // 부른 사람만 받는다 — 결정을 기다리는 일은 아니라 배지를 올리지 않는다(REQ-API-178)
   [NERV_EVENT.INVITATION_DECLINED]: 'standard',
+  // **게이트 판정 불일치**(2026-10-16 · 사람 결정 D6 · REQ-API-347 · roadmap §7.4 「불일치는 알림」) — M1 이중화 기간에 로컬 훅과
+  // 서버가 다르게 판정했고 서버 판정이 적용됐다. admin 이 원인을 찾아야 하지만(§7.5 「전건 원인 규명」) 누군가의 결정을 기다리며
+  // 멈춘 세션은 없고, 불일치율이 롤백 기준(5%)에 가까우면 push 마다 하나씩 생긴다 — 보통 등급으로 두고 같은 프로젝트의 불일치는
+  // 읽을 때까지 한 줄로 묶는다(§6.6 피로 방지). 하나하나는 리뷰 센터의 컷오버 관측과 지표(EP-REV-10)가 보인다
+  [NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH]: 'standard',
   [NERV_EVENT.SESSION_STARTED]: 'low',
   [NERV_EVENT.SESSION_COMPLETE]: 'low',
   [NERV_EVENT.TASK_CLAIMED]: 'low',
@@ -111,6 +125,18 @@ const INVOLVED_EVENTS: ReadonlySet<string> = new Set([
   NERV_EVENT.TASK_REBRIEF_REQUIRED,
   NERV_EVENT_PHASE2.FINDING_OPENED,
   NERV_EVENT_PHASE2.FINDING_RESOLVED,
+]);
+
+/**
+ * **워처에게도 가는 이벤트**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-343) — 카탈로그가 수신자로 「워처」를 적은
+ * 줄 가운데 알림을 만드는 등급이다. `session.started` · `session.complete` · `task.claimed` · `task.done` 도 워처를 적지만 low 라
+ * 알림을 만들지 않는다(§6.2 — 이벤트 피드에서 본다). 다른 수신자(역할 큐 · 관여자)는 그대로 받고 워처를 더한다 — 겹치면 한 번이다.
+ */
+const WATCHER_EVENTS: ReadonlySet<string> = new Set([
+  NERV_EVENT.SPEC_APPROVED,
+  NERV_EVENT.SPEC_REJECTED,
+  NERV_EVENT.SPEC_COMMENT_ADDED,
+  NERV_EVENT.TASK_READY,
 ]);
 
 /** 관여자에게만 가는 이벤트 — 카탈로그 수신자에 역할이 없다 */
@@ -151,6 +177,8 @@ export function batchKeyOf(event: {
       return `approval:${event.subject_id}:reminder`;
     case NERV_EVENT.INVITATION_DECLINED:
       return `invitation:${event.subject_id}`;
+    case NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH:
+      return `project:${event.project_id}:verdict_mismatch`;
     default:
       return null;
   }
@@ -443,8 +471,8 @@ export class NotificationService {
    * 알림 자체를 못 믿게 만들고, 그러면 받은 요청이 파괴된다(§6.6 원칙 3).
    *
    * 나머지 이벤트는 역할 큐다. **③관여는 2026-10-15 에 들어왔다**(E17-S01 · REQ-API-316) — 카탈로그가 작성자 ·
-   * 담당자 · 스레드 참여자 · 리뷰 요청자로 적은 이벤트는 역할 큐에 그 사람들을 더한다(`involvedTargets`). ②워치는
-   * 아직이다(워치 테이블이 없다 — E17-S02 · screens.md §2.4 말미).
+   * 담당자 · 스레드 참여자 · 리뷰 요청자로 적은 이벤트는 역할 큐에 그 사람들을 더한다(`involvedTargets`). **②워치는
+   * 2026-10-16 에 들어왔다**(E17-S02 · REQ-API-343) — 카탈로그가 「워처」를 적은 이벤트는 워처를 더한다(`watcherTargets`).
    */
   private async recipientsFor(event: {
     project_id: string;
@@ -455,11 +483,26 @@ export class NotificationService {
     payload?: Record<string, unknown> | null;
   }): Promise<string[]> {
     if (event.type === NERV_EVENT.APPROVAL_OVERDUE) return this.escalationTargets(event);
+    // **변경 요청은 이벤트가 받는 사람을 든다**(2026-10-16 · REQ-API-331) — 열림 · 승인은 바뀌거나 빠진 요구사항의 작업을 쥔
+    // 세션의 사람, 거절은 CR 을 연 사람과 초안의 작성자다. 역할 큐로 흩뿌리지 않는다 — 결재는 결재 요청이 이미 알렸다
+    if (
+      event.type === NERV_EVENT_PHASE2.CR_OPENED ||
+      event.type === NERV_EVENT_PHASE2.CR_APPROVED ||
+      event.type === NERV_EVENT_PHASE2.CR_REJECTED
+    ) {
+      const listed =
+        event.payload?.[
+          event.type === NERV_EVENT_PHASE2.CR_REJECTED ? 'notify_user_ids' : 'claim_user_ids'
+        ];
+      return this.memberTargets(event, Array.isArray(listed) ? listed : []);
+    }
     // **격상은 admin 에게만**(2026-10-15 · REQ-API-319) — 정책을 고칠 수 있는 사람이다. 역할 큐(admin · planner)로 보내면
     // 고칠 수 없는 사람의 배지가 오른다
     if (event.type === NERV_EVENT_PHASE2.GATE_FAILOPEN_ESCALATED) return this.adminTargets(event);
     // 미러 원격을 고칠 사람도 admin 이다(REQ-CB-063)
     if (event.type === NERV_EVENT_PHASE2.MIRROR_DIVERGED) return this.adminTargets(event);
+    // 판정 불일치는 컷오버 단계를 바꾸고 롤백을 정하는 admin 에게 간다(REQ-API-347)
+    if (event.type === NERV_EVENT_PHASE2.GATE_VERDICT_MISMATCH) return this.adminTargets(event);
     // **오프라인 큐의 실패는 보고한 사람에게 간다**(2026-10-16 · REQ-API-322). 행위자 제외 규칙의 예외다 — 행위자는 그 사람의
     // 플러그인이고, 알릴 사람은 그 쓰기가 들어가지 않은 줄 모르는 그 사람이다. 지금 멤버가 아니면 목록이 거른다(REQ-API-211)
     if (event.type === NERV_EVENT_PHASE2.SESSION_OUTBOX_FAILED) {
@@ -503,13 +546,17 @@ export class NotificationService {
       const owners = await this.specOwnerTargets(event);
       if (owners !== null) return owners;
     }
+    // **워처**(2026-10-16 · E17-S02 · REQ-API-343) — 관여자와 같은 자리에서 더한다. 겹치면 한 번이다
+    const watchers = WATCHER_EVENTS.has(event.type) ? await this.watcherTargets(event) : [];
     if (INVOLVED_EVENTS.has(event.type)) {
       const involved = await this.involvedTargets(event);
       // 발견 이벤트는 카탈로그 수신자가 관여자뿐이다 — 역할 큐로 흩뿌리면 열린 critical 마다 admin · planner 전원이 받는다
       const queue = FINDING_EVENTS.has(event.type) ? [] : await this.roleQueue(event);
       // 겹치면 한 번이다 — 같은 이벤트 · 같은 사람은 한 줄(유일 인덱스가 겹친 파생도 막는다)
-      return [...new Set([...queue, ...involved])];
+      return [...new Set([...queue, ...involved, ...watchers])];
     }
+    // `task.ready` 는 역할 큐가 그대로 받고 워처를 더한다(관여 라우팅이 역할 큐를 남긴 것과 같은 규칙)
+    if (watchers.length > 0) return [...new Set([...(await this.roleQueue(event)), ...watchers])];
     return this.roleQueue(event);
   }
 
@@ -539,9 +586,29 @@ export class NotificationService {
   }
 
   /**
+   * 이벤트가 든 사람 목록 가운데 **행위자가 아니고 지금 그 프로젝트의 멤버인 사람** — 관여자와 같은 거름이다(REQ-API-316).
+   */
+  private async memberTargets(
+    event: { project_id: string; actor_user_id: string | null },
+    listed: readonly unknown[],
+  ): Promise<string[]> {
+    const ids = [...new Set(listed.filter((id): id is string => typeof id === 'string'))].filter(
+      (id) => id !== event.actor_user_id,
+    );
+    if (ids.length === 0) return [];
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      SELECT DISTINCT m.user_id FROM membership m
+        JOIN project p ON p.id = ${event.project_id}
+       WHERE m.org_id = p.org_id AND (m.project_id = p.id OR m.project_id IS NULL)
+         AND m.user_id = ANY(${sqlArray(ids, 'uuid')})
+    `);
+    return rows.map((r) => r.user_id).sort();
+  }
+
+  /**
    * **관여자**(§6.1 ③ — 내가 작성 · 클레임 · 코멘트한 대상의 후속 이벤트 · 2026-10-15 · E17-S01 · REQ-API-316).
    *
-   * 카탈로그(§6.3)가 수신자로 적은 사람을 표 없이 쓸 수 있는 열에서 찾는다. 워치(②)는 테이블이 없어 아직이다(E17-S02).
+   * 카탈로그(§6.3)가 수신자로 적은 사람을 표 없이 쓸 수 있는 열에서 찾는다. 워치(②)는 `watcherTargets` 가 맡는다(E17-S02).
    *
    * | 이벤트 | 관여자 |
    * | --- | --- |
@@ -572,6 +639,58 @@ export class NotificationService {
          ${event.actor_user_id === null ? sql`` : sql`AND x.user_id <> ${event.actor_user_id}`}
          AND EXISTS (SELECT 1 FROM membership m
                       WHERE m.user_id = x.user_id AND m.org_id = p.org_id
+                        AND (m.project_id = p.id OR m.project_id IS NULL))
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
+  /**
+   * **워처**(§6.1 ② · 2026-10-16 · 사람 결정 D5 · E17-S02 · REQ-API-343) — 그 대상을 워치한 사람.
+   *
+   * | 이벤트 | 워처 |
+   * | --- | --- |
+   * | `spec.approved` · `spec.rejected` · `spec.comment_added` | 그 문서를 워치한 사람 + 그 문서이거나 그 조상인 영역을 워치한 사람 |
+   * | `task.ready` | 그 작업을 워치한 사람 + 그 작업의 기준 문서(`source_spec_version_id`)이거나 그 조상인 영역을 워치한 사람 |
+   *
+   * **영역 워치는 그 아래 문서와 작업까지 포함한다** — 문서 트리(`spec.parent_id`)를 위로 올라가며 영역을 찾는다. 작업 표에는 영역
+   * 열이 없어 영역은 기준 문서에서 따라온다. 카탈로그는 `task.ready` 의 수신자를 「영역 워처」로 적는다 — 그 작업 하나를 워치한
+   * 사람도 받는다(작업을 워치하는 까닭이 그 작업이 준비되는 때를 아는 것이다). 거름은 관여자와 같다 — 행위자는 빼고 지금 그
+   * 프로젝트의 멤버만 받는다(워치 행은 남아 있어도).
+   */
+  private async watcherTargets(event: {
+    project_id: string;
+    actor_user_id: string | null;
+    type: string;
+    subject_type?: string;
+    subject_id: string;
+  }): Promise<string[]> {
+    const subject = event.subject_id;
+    const isTask = event.type === NERV_EVENT.TASK_READY;
+    // 이벤트의 문서 — 스펙 이벤트는 대상이 버전이거나(승인 · 거절 · 리뷰 결정 코멘트) 문서다(본문 코멘트)
+    const specOf: SQL = isTask
+      ? sql`(SELECT sv.spec_id FROM task t JOIN spec_version sv ON sv.id = t.source_spec_version_id
+              WHERE t.id = ${subject})`
+      : event.subject_type === 'spec'
+        ? sql`(SELECT ${subject}::uuid)`
+        : sql`(SELECT spec_id FROM spec_version WHERE id = ${subject})`;
+    const direct: SQL = isTask
+      ? sql`(w.target_type = 'task' AND w.target_id = ${subject})`
+      : sql`(w.target_type = 'spec' AND w.target_id = (SELECT spec_id FROM base))`;
+    const { rows } = await this.db.execute<{ user_id: string }>(sql`
+      WITH RECURSIVE base AS (SELECT ${specOf} AS spec_id),
+      up AS (
+        SELECT s.id, s.parent_id FROM spec s WHERE s.id = (SELECT spec_id FROM base)
+        UNION
+        SELECT p.id, p.parent_id FROM spec p JOIN up ON p.id = up.parent_id
+      )
+      SELECT DISTINCT w.user_id
+        FROM watch w
+        JOIN project p ON p.id = w.project_id
+       WHERE w.project_id = ${event.project_id}
+         AND (${direct} OR (w.target_type = 'area' AND w.target_id IN (SELECT id FROM up)))
+         ${event.actor_user_id === null ? sql`` : sql`AND w.user_id <> ${event.actor_user_id}`}
+         AND EXISTS (SELECT 1 FROM membership m
+                      WHERE m.user_id = w.user_id AND m.org_id = p.org_id
                         AND (m.project_id = p.id OR m.project_id IS NULL))
     `);
     return rows.map((r) => r.user_id);
@@ -730,13 +849,17 @@ export class NotificationService {
       assignee_user_id: string | null;
       assignee_role: string | null;
       requested_by_user_id: string;
+      subject_type: string;
     }>(sql`
-      SELECT assignee_user_id, assignee_role::text AS assignee_role, requested_by_user_id
+      SELECT assignee_user_id, assignee_role::text AS assignee_role, requested_by_user_id,
+             subject_type::text AS subject_type
         FROM approval WHERE id = ${event.subject_id} AND project_id = ${event.project_id}
     `);
     const approval = rows[0];
     if (approval === undefined) return [];
     if (approval.assignee_user_id === null && approval.assignee_role === null) return [];
+    // 역할 자리가 없는 에스컬레이션 카드는 기본 큐(admin 포함)가 이미 요청 알림을 받았다(2026-10-16 · 사람 결정 D3)
+    if (approval.subject_type === 'escalation' && approval.assignee_role === null) return [];
     // 조직 경계는 요청 알림과 같다(REQ-API-125) — 조직 단위 멤버십은 그 조직의 것만 센다
     const { rows: admins } = await this.db.execute<{ user_id: string }>(sql`
       SELECT DISTINCT m.user_id FROM membership m
@@ -774,12 +897,24 @@ export class NotificationService {
     const { rows } = await this.db.execute<{
       assignee_user_id: string | null;
       assignee_role: string | null;
+      subject_type: string;
     }>(sql`
-      SELECT assignee_user_id, assignee_role::text AS assignee_role
+      SELECT assignee_user_id, assignee_role::text AS assignee_role, subject_type::text AS subject_type
         FROM approval WHERE id = ${event.subject_id} AND project_id = ${event.project_id}
     `);
     const approval = rows[0];
     if (approval === undefined) return null;
+
+    // **에스컬레이션 카드의 담당자는 기본 큐에 더하는 사람이다**(2026-10-16 · 사람 결정 D3 · spec-workflow §4.7) — 역할 자리가 없는
+    // 사유의 카드는 그 작업의 담당자와 기본 큐가 함께 받는다(결재 판정 `escalationQueueSql` 과 같은 규칙). 겹치면 한 번이다
+    if (approval.subject_type === 'escalation' && approval.assignee_role === null) {
+      const queue = await this.roleQueue(event);
+      const assignee =
+        approval.assignee_user_id === null || approval.assignee_user_id === event.actor_user_id
+          ? []
+          : [approval.assignee_user_id];
+      return [...new Set([...queue, ...assignee])];
+    }
 
     if (approval.assignee_user_id !== null) {
       return approval.assignee_user_id === event.actor_user_id ? [] : [approval.assignee_user_id];

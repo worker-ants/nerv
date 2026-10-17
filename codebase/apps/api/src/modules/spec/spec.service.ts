@@ -99,6 +99,16 @@ import {
   versionOfSpec,
 } from './spec-basis.js';
 import { SpecRelationService, extractLinkedKeys } from './spec-relation.service.js';
+import { linkFindingToCrInTx, lockDriftFinding } from '../review/escalation.js';
+import type { DriftFinding } from '../review/escalation.js';
+import {
+  changeRequestApprovedInTx,
+  changeRequestOfVersion,
+  changeRequestReturnedInTx,
+  changeRequestSubmittedInTx,
+  openChangeRequestInTx,
+  syncChangeRequestRationale,
+} from './change-request.service.js';
 import type { RelationSyncResult } from './spec-relation.service.js';
 
 type Tx = Parameters<Parameters<NervDb['transaction']>[0]>[0];
@@ -207,6 +217,13 @@ export interface DraftUpsertInput {
    * 저장은 버전에 확인 기록을 남기고, 사전 검토는 그 초안의 축소를 block 이 아니라 warning 으로 본다.
    */
   allowShrink?: boolean | undefined;
+  /**
+   * **이 저장이 고치는 발견**(2026-10-16 · 사람 결정 · REQ-API-333 · spec-workflow §3.4). `spec_drift` 태그가 붙은 열린 발견을 주면
+   * 이 초안을 감싼 변경 요청에 그 발견을 묶는다 — 처분은 `escalated`(사유 `spec`)이고, CR 이 승인되면 발견은 `fixed`, 거절되면
+   * `dismissed` 와 코드 되돌림 작업이 된다. 이 저장이 CR 을 열면 출처는 `spec_drift` 다. 승인본이 없는 문서 · 새 문서에는 줄 수
+   * 없다(CR 이 아니다) — 판정은 저장보다 먼저라 거절되면 아무것도 남지 않는다
+   */
+  findingId?: string | null;
   userId: string;
   sessionId?: string | null;
 }
@@ -790,10 +807,27 @@ export class SpecService {
          AND e.occurred_at > ${spec['updated_at'] as string}
     `);
 
+    // **변경 요청**(2026-10-16 · REQ-API-332) — 읽은 버전을 감싼 CR 과, 이 문서에 지금 열린 CR. 승인본을 읽은 사람도 그 위에
+    // 제안이 진행 중인지 알고 그 CR 로 간다
+    const readCr =
+      typeof spec['version_id'] === 'string'
+        ? await changeRequestOfVersion(this.db, input.projectId, spec['version_id'])
+        : null;
+    const { rows: openCrs } = await this.db.execute<{ version_id: string }>(sql`
+      SELECT proposed_version_id AS version_id FROM change_request
+       WHERE spec_id = ${specId} AND status IN ('open', 'in_review')
+    `);
+    const openCr =
+      openCrs[0] === undefined
+        ? null
+        : await changeRequestOfVersion(this.db, input.projectId, openCrs[0].version_id);
+
     return {
       ...spec,
       // 본문이 없는 노드는 빈 본문이다 — null 을 그대로 흘리면 화면이 "null" 을 쓴다
       body_md: body,
+      change_request: readCr,
+      open_change_request: openCr,
       requirements,
       // **요구사항이 어디서 왔나**(M5 · REQ-API-201) — 최신 승인본을 읽었으면 지금의 행이고,
       // 옛 버전 · 기준선 · 초안을 읽었으면 그 버전 본문에서 뽑은 것이다
@@ -1186,6 +1220,12 @@ export class SpecService {
         await this.assertMetaUnchanged(tx, input.projectId, specId, input);
       }
 
+      // **고치는 발견이 있으면 저장보다 먼저 본다**(2026-10-16 · REQ-API-333) — 거절되면 본문도 남지 않는다. 묶는 것은 저장 뒤다
+      const driftFinding =
+        input.findingId == null || input.findingId === ''
+          ? null
+          : await this.driftFindingFor(tx, input.projectId, specId, created, input.findingId);
+
       const draft = await this.currentDraft(tx, specId);
 
       // 편집 리스 — 같은 **세션**이면 이어쓰기, 남의 리스는 `takeover` 없이는 하드 차단(§1.4h)
@@ -1292,7 +1332,9 @@ export class SpecService {
           ? ((
               await tx.execute<{ id: string; body_md: string }>(sql`
                 SELECT id, body_md FROM spec_version
-                 WHERE spec_id = ${specId} ORDER BY version_no DESC LIMIT 1
+                 -- 버린 초안은 계보가 아니다(2026-10-16) — 그 위에서 갈라지지 않는다
+                 WHERE spec_id = ${specId} AND status <> 'discarded'
+                 ORDER BY version_no DESC LIMIT 1
               `)
             ).rows[0] ?? null)
           : null;
@@ -1357,6 +1399,8 @@ export class SpecService {
         const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
         const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
         const delta = specDelta(previousBody, input.bodyMd);
+        // 변경 요약이 바뀌었으면 CR 의 이유도 맞춘다(REQ-API-328)
+        await syncChangeRequestRationale(tx, draft.id, input.changeSummary);
 
         // **같은 draft 를 다시 저장해도 알린다**(2026-08-29 개정 — 사람 보고).
         // 예전에는 여기서 아무 이벤트도 내지 않았다("리스 갱신만" — api.md EP-SPEC-08).
@@ -1386,6 +1430,18 @@ export class SpecService {
           toState: 'draft',
         });
 
+        const linkedFinding =
+          driftFinding === null
+            ? null
+            : await this.linkDriftFinding(tx, emit, {
+                projectId: input.projectId,
+                specId,
+                versionId: draft.id,
+                finding: driftFinding,
+                userId: input.userId,
+                sessionId: input.sessionId ?? null,
+                changeSummary: input.changeSummary ?? null,
+              });
         return {
           spec_id: specId,
           spec_version_id: draft.id,
@@ -1397,6 +1453,10 @@ export class SpecService {
           // 덮어쓴 본문과 견준 크기 · 제목 · 요구사항(REQ-API-270) — `shrunk` 가 비어 있지 않으면 확인하고 줄인 것이다
           body_change: change,
           relations: { ...relations, declared },
+          // 이 초안을 감싼 변경 요청(REQ-API-332) — 승인본이 없는 문서면 null 이다
+          change_request: await changeRequestOfVersion(tx, input.projectId, draft.id),
+          // 묶은 발견(REQ-API-333) — 준 저장에만 온다
+          ...(linkedFinding === null ? {} : { finding: linkedFinding }),
           // 방금 쓴 **그 초안**을 연다 — 승인본 위의 초안이면 기본 주소는 승인본에 선다
           web_url: await this.webUrl(tx, input.projectId, specId, Number(draft.version_no)),
         };
@@ -1451,6 +1511,31 @@ export class SpecService {
 
       const relations = await this.syncRelations(tx, input.projectId, specId, input.bodyMd);
       const declared = await this.syncDeclared(tx, input.projectId, specId, input.relations);
+      // **승인본 위의 새 초안은 변경 요청이다**(2026-10-16 · 사람 결정 D1 · REQ-API-328) — 서버가 연다. 새 문서는 승인본이 없다
+      const changeRequest = created
+        ? null
+        : await openChangeRequestInTx(tx, emit, {
+            projectId: input.projectId,
+            specId,
+            versionId,
+            userId: input.userId,
+            sessionId: input.sessionId ?? null,
+            changeSummary: input.changeSummary ?? null,
+            // 발견을 고치려고 연 CR 은 구현에서 거슬러 온 제안이다(REQ-API-333)
+            ...(driftFinding === null ? {} : { origin: 'spec_drift' as const }),
+          });
+      const linkedFinding =
+        driftFinding === null
+          ? null
+          : await this.linkDriftFinding(tx, emit, {
+              projectId: input.projectId,
+              specId,
+              versionId,
+              finding: driftFinding,
+              userId: input.userId,
+              sessionId: input.sessionId ?? null,
+              changeSummary: input.changeSummary ?? null,
+            });
       // 새 버전의 기준은 **직전 버전**이다. 첫 버전이면 기준이 없으니 전부 새로 쓴 것이다.
       return {
         spec_id: specId,
@@ -1461,9 +1546,112 @@ export class SpecService {
         delta: specDelta(priorVersion?.body_md ?? null, input.bodyMd),
         body_change: change,
         relations: { ...relations, declared },
+        change_request:
+          changeRequest === null
+            ? null
+            : await changeRequestOfVersion(tx, input.projectId, versionId),
+        ...(linkedFinding === null ? {} : { finding: linkedFinding }),
         web_url: await this.webUrl(tx, input.projectId, specId, Number(versionNo)),
       };
     });
+  }
+
+  /**
+   * **저장이 고치려는 발견을 판정한다**(2026-10-16 · REQ-API-333) — 저장보다 먼저. `spec_drift` 태그가 붙은 열린 발견이어야 하고,
+   * 발견이 유래 스펙을 알면 지금 고치는 문서여야 하며, 그 문서에 승인본이 있어야 한다(그래야 이 초안이 CR 이다).
+   */
+  private async driftFindingFor(
+    tx: Tx,
+    projectId: string,
+    specId: string,
+    created: boolean,
+    findingRef: string,
+  ): Promise<DriftFinding> {
+    const ref = entityRef(findingRef);
+    if (ref.id === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.finding_not_found'), {
+        kind: 'not_found',
+        field: 'finding_id',
+        finding_id: findingRef,
+      });
+    }
+    const finding = await lockDriftFinding(tx, projectId, ref.id);
+    if (finding.spec_id !== null && finding.spec_id !== specId) {
+      const other = (await this.keyOfSpec(tx, finding.spec_id)) ?? finding.spec_id;
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.review.finding_other_spec', { spec: other }),
+        { kind: 'finding_other_spec', finding_id: finding.id, spec: other },
+      );
+    }
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM spec_version WHERE spec_id = ${specId} AND status = 'approved' LIMIT 1
+    `);
+    if (created || rows[0] === undefined) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_approved_version'), {
+        kind: 'no_approved_version',
+        spec: await this.keyOfSpec(tx, specId),
+      });
+    }
+    return finding;
+  }
+
+  /**
+   * **저장한 초안의 CR 에 발견을 묶는다**(REQ-API-333). 초안에 CR 이 없으면(0053 전에 만든 초안) 여기서 연다 — 출처는 `spec_drift`.
+   * 처분 · 카드는 리뷰 센터의 [CR로 보내기]와 같은 자리(`linkFindingToCrInTx`)를 지난다.
+   */
+  private async linkDriftFinding(
+    tx: Tx,
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: {
+      projectId: string;
+      specId: string;
+      versionId: string;
+      finding: DriftFinding;
+      userId: string;
+      sessionId: string | null;
+      changeSummary: string | null;
+    },
+  ): Promise<Record<string, unknown>> {
+    let cr = (await changeRequestOfVersion(tx, input.projectId, input.versionId)) as {
+      id: string;
+      key: string;
+    } | null;
+    if (cr === null) {
+      cr = await openChangeRequestInTx(tx, emit, {
+        projectId: input.projectId,
+        specId: input.specId,
+        versionId: input.versionId,
+        userId: input.userId,
+        sessionId: input.sessionId,
+        changeSummary: input.changeSummary,
+        origin: 'spec_drift',
+      });
+    }
+    if (cr === null) {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.review.no_approved_version'), {
+        kind: 'no_approved_version',
+        spec: await this.keyOfSpec(tx, input.specId),
+      });
+    }
+    const link = await linkFindingToCrInTx(tx, emit, {
+      projectId: input.projectId,
+      finding: input.finding,
+      changeRequest: { id: cr.id, key: cr.key },
+      userId: input.userId,
+      sessionId: input.sessionId,
+      isAgent: input.sessionId !== null,
+      rationale:
+        (input.changeSummary ?? '').trim() === ''
+          ? text('agent.escalation.drift_rationale', { title: input.finding.title })
+          : (input.changeSummary ?? '').trim(),
+    });
+    return {
+      id: input.finding.id,
+      linked: link.linked,
+      change_request_key: cr.key,
+      approval_id: link.approval_id,
+    };
   }
 
   /**
@@ -1481,6 +1669,8 @@ export class SpecService {
     takeover?: boolean | undefined;
     /** 크게 줄이는 저장의 확인(REQ-API-270) — MCP 와 같은 이름 `allow_shrink` 로 온다 */
     allowShrink?: boolean | undefined;
+    /** 이 저장이 고치는 발견(2026-10-16 · REQ-API-333) — MCP 와 같은 이름 `finding_id` 로 온다 */
+    findingId?: string | undefined;
     /**
      * 선언 관계 — **REST 도 이것을 나른다**(2026-09-05 · REQ-API-043).
      *
@@ -1512,6 +1702,7 @@ export class SpecService {
       ...(input.takeover === true ? { takeover: true } : {}),
       ...(input.allowShrink === true ? { allowShrink: true } : {}),
       ...(input.relations === undefined ? {} : { relations: input.relations }),
+      ...(input.findingId === undefined ? {} : { findingId: input.findingId }),
       ...(input.sessionId == null ? {} : { sessionId: input.sessionId }),
     });
   }
@@ -1599,7 +1790,7 @@ export class SpecService {
         body_md: string;
       }>(sql`
         SELECT id, version_no, body_md FROM spec_version
-         WHERE spec_id = ${specId} ORDER BY version_no DESC LIMIT 1
+         WHERE spec_id = ${specId} AND status <> 'discarded' ORDER BY version_no DESC LIMIT 1
       `);
       const prior = latest[0];
       if (prior === undefined || prior.body_md === target.body_md) {
@@ -1651,7 +1842,11 @@ export class SpecService {
       const shrunk = change.shrunk.length > 0;
       const hash = createHash('sha256').update(body, 'utf8').digest('hex');
       const leaseExpires = new Date(Date.now() + this.draftLeaseTtlSeconds * 1000);
-      const versionNo = Number(prior.version_no) + 1;
+      // 번호는 버린 초안까지 센다 — 다시 쓰지 않는다
+      const { rows: top } = await tx.execute<{ max: number | null }>(
+        sql`SELECT max(version_no) AS max FROM spec_version WHERE spec_id = ${specId}`,
+      );
+      const versionNo = Number(top[0]?.max ?? prior.version_no) + 1;
       const versionId = newId();
       const summary =
         input.changeSummary !== undefined && input.changeSummary.trim() !== ''
@@ -1693,6 +1888,15 @@ export class SpecService {
 
       // 본문의 링크가 관계의 주인이다 — 옛 본문의 링크로 다시 맞춘다. 선언 관계는 건드리지 않는다
       const relations = await this.syncRelations(tx, input.projectId, specId, body);
+      // 되돌리기로 만든 초안도 승인본 위의 새 초안이다 — 변경 요청을 연다(REQ-API-328)
+      const changeRequest = await openChangeRequestInTx(tx, emit, {
+        projectId: input.projectId,
+        specId,
+        versionId,
+        userId: input.userId,
+        sessionId: input.sessionId ?? null,
+        changeSummary: summary,
+      });
       return {
         spec_id: specId,
         spec_version_id: versionId,
@@ -1703,6 +1907,10 @@ export class SpecService {
         delta: specDelta(prior.body_md, body),
         body_change: change,
         relations: { ...relations, declared: null },
+        change_request:
+          changeRequest === null
+            ? null
+            : await changeRequestOfVersion(tx, input.projectId, versionId),
         web_url: await this.webUrl(tx, input.projectId, specId, versionNo),
       };
     });
@@ -1763,6 +1971,27 @@ export class SpecService {
         {
           kind: 'not_draft',
           status: version.status,
+        },
+      );
+    }
+
+    // **바꾼 것이 없는 변경 요청은 결재를 요청하지 않는다**(2026-10-16 · 사람 결정 · REQ-API-333). 발견을 변경 요청으로 보내면 초안이
+    // 승인본의 본문으로 열린다 — 아무도 고치지 않은 채 승인되면 같은 본문의 새 승인본이 생기고, 그 CR 로 보낸 발견은 "스펙을 고쳐
+    // 해결" 로 닫힌다. 고친 것이 없는데 고쳤다고 남는다. 받은 요청의 카드도 같은 사실을 보인다
+    const { rows: unchanged } = await tx.execute<{ key: string }>(sql`
+      SELECT cr.key FROM change_request cr
+        JOIN spec_version b ON b.id = cr.base_version_id
+        JOIN spec_version d ON d.id = cr.proposed_version_id
+       WHERE cr.proposed_version_id = ${version.id} AND d.content_hash = b.content_hash
+    `);
+    if (unchanged[0] !== undefined) {
+      throw new NervError(
+        NERV_ERROR.PRECONDITION,
+        msg('error.cr.unchanged', { cr: unchanged[0].key }),
+        {
+          kind: 'cr_unchanged',
+          change_request_key: unchanged[0].key,
+          web_url: await this.versionWebUrl(tx, input.projectId, version.id),
         },
       );
     }
@@ -1837,6 +2066,13 @@ export class SpecService {
         // 되돌리기로 만든 버전이면 되살린 옛 버전(2026-10-15 · REQ-API-308) — 롤백 신호를 계산할 재료다
         ...revertedPayload(version.reverted_to_version_no),
       },
+    });
+    // 그 초안을 감싼 변경 요청도 검토 중이 된다 — 위험도는 이 판정의 티어다(2026-10-16 · 사람 결정 D1 · REQ-API-328)
+    await changeRequestSubmittedInTx(tx, emit, {
+      projectId: input.projectId,
+      versionId: input.specVersionId,
+      tier: gate.tier,
+      actor: { userId: input.userId, sessionId: input.sessionId ?? null },
     });
 
     if (gate.autoPass) {
@@ -1989,15 +2225,32 @@ export class SpecService {
    * `submitted_at` 을 비우는 것이 라운드 경계다 — 다시 제출하면 그 시각보다 앞선 승인은 정족수에 들지 않는다
    * (REQ-API-140). 옮겼으면 참이다(이미 옮겨졌으면 거짓 — 오류가 아니다).
    */
-  private async reviewToDraft(tx: Tx, projectId: string, specVersionId: string): Promise<boolean> {
+  private async reviewToDraft(
+    tx: Tx,
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
+    input: {
+      projectId: string;
+      specVersionId: string;
+      cause: 'rejected' | 'comment' | 'expired';
+      actorUserId: string | null;
+    },
+  ): Promise<boolean> {
     const { rows } = await tx.execute<{ id: string }>(sql`
       UPDATE spec_version sv SET status = 'draft', submitted_at = NULL
         FROM spec s
-       WHERE sv.spec_id = s.id AND sv.id = ${specVersionId}
-         AND s.project_id = ${projectId} AND sv.status = 'in_review'
+       WHERE sv.spec_id = s.id AND sv.id = ${input.specVersionId}
+         AND s.project_id = ${input.projectId} AND sv.status = 'in_review'
       RETURNING sv.id
     `);
-    return rows.length > 0;
+    if (rows.length === 0) return false;
+    // 변경 요청은 닫히지 않고 다시 열림이다 — 결재의 거절은 "고쳐서 다시 내라" 다(2026-10-16 · 사람 결정 D1)
+    await changeRequestReturnedInTx(tx, emit, {
+      projectId: input.projectId,
+      versionId: input.specVersionId,
+      cause: input.cause,
+      actorUserId: input.actorUserId,
+    });
+    return true;
   }
 
   /**
@@ -2007,9 +2260,10 @@ export class SpecService {
    */
   async expireInTxForApproval(
     tx: Tx,
+    emit: Parameters<Parameters<EventService['transact']>[0]>[1],
     input: { projectId: string; specVersionId: string },
   ): Promise<boolean> {
-    return this.reviewToDraft(tx, input.projectId, input.specVersionId);
+    return this.reviewToDraft(tx, emit, { ...input, cause: 'expired', actorUserId: null });
   }
 
   /** 같은 이유로 여는 거절 버전 — in_review → draft */
@@ -2025,7 +2279,16 @@ export class SpecService {
       asComment?: boolean;
     },
   ): Promise<void> {
-    if (!(await this.reviewToDraft(tx, input.projectId, input.specVersionId))) return;
+    if (
+      !(await this.reviewToDraft(tx, emit, {
+        projectId: input.projectId,
+        specVersionId: input.specVersionId,
+        cause: input.asComment === true ? 'comment' : 'rejected',
+        actorUserId: input.reviewerUserId,
+      }))
+    ) {
+      return;
+    }
     await emit({
       type: input.asComment === true ? NERV_EVENT.SPEC_COMMENT_ADDED : NERV_EVENT.SPEC_REJECTED,
       projectId: input.projectId,
@@ -2535,8 +2798,11 @@ export class SpecService {
              sv.author_user_id, sv.approved_by_user_id, sv.submitted_at, sv.approved_at,
              sv.created_at,
              -- 되돌리기로 만든 버전이면 되살린 옛 버전(2026-10-15 · REQ-API-308) — 목록이 "v3 되돌림" 을 보인다
-             sv.reverted_to_version_no
+             sv.reverted_to_version_no,
+             -- 이 버전을 감싼 변경 요청(2026-10-16 · REQ-API-332) — 버린 초안이 어느 제안이었는지 목록이 보인다
+             cr.key AS change_request_key, cr.status::text AS change_request_status
         FROM spec_version sv JOIN spec s ON s.id = sv.spec_id
+   LEFT JOIN change_request cr ON cr.proposed_version_id = sv.id
        -- 키든 UUID 든 받는다(§1.4b) — \`nerv_spec_get\` 의 \`include: ["versions"]\` 가 이것을 부른다
        WHERE s.project_id = ${input.projectId} AND ${specMatch(input.specKey)}
        ORDER BY sv.version_no DESC
@@ -2564,12 +2830,16 @@ export class SpecService {
         spec: input.specKey,
       });
     }
+    // 기본 양 끝은 버린 초안을 건너뛴다(2026-10-16) — 번호를 주면 그 버전이다
+    const live = versions.filter((v) => v['status'] !== 'discarded');
     const pick = (
       no: number | null | undefined,
       fallbackIndex: number,
     ): Record<string, unknown> => {
       const found =
-        no == null ? versions[fallbackIndex] : versions.find((v) => v['version_no'] === no);
+        no == null
+          ? (live[fallbackIndex] ?? versions[fallbackIndex])
+          : versions.find((v) => v['version_no'] === no);
       if (found === undefined) {
         throw new NervError(NERV_ERROR.PRECONDITION, msg('error.spec.version_missing'), {
           kind: 'not_found',
@@ -2579,7 +2849,7 @@ export class SpecService {
       return found;
     };
     const to = pick(input.toVersionNo, 0);
-    const from = pick(input.fromVersionNo, Math.min(1, versions.length - 1));
+    const from = pick(input.fromVersionNo, Math.min(1, Math.max(live.length, 1) - 1));
 
     const { rows: requirements } = await this.db.execute<Record<string, unknown>>(sql`
       WITH from_v AS (
@@ -3846,6 +4116,17 @@ export class SpecService {
         // 다른 문서에서 소유가 풀린 번호를 옮겨 왔으면 남긴다(REQ-API-309) — 요구사항의 주인이 바뀐 기록이다
         ...(moved.length === 0 ? {} : { requirements_moved: moved }),
       },
+    });
+
+    // **변경 요청의 세 축**(2026-10-16 · spec-workflow §3.3 · REQ-API-331) — 고른 제안(파생 · 재검증 작업을 만들고 미착수 작업을
+    // 보관한다)과 바뀌거나 빠진 요구사항의 작업을 쥔 세션의 사람에게 critical 알림. 아래 재브리핑보다 **먼저** 한다 — 보관한
+    // 작업은 재브리핑을 받지 않고, 새로 만든 작업은 이 승인본을 기준으로 삼는다
+    await changeRequestApprovedInTx(tx, emit, {
+      projectId: input.projectId,
+      specId: input.specId,
+      versionId: input.specVersionId,
+      approverUserId: input.approverUserId,
+      actor: input.actor,
     });
 
     for (const old of superseded) {

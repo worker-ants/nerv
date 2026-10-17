@@ -84,3 +84,17 @@ Running the same command again is safe. Items that were already imported are not
 **Requirement numbers that belong to another document are not overwritten.** If a file defines a requirement number that another document already owns, that file is not imported, and the report gives the number and the document that owns it as the reason. Other files in the same run are still imported. To move a requirement to another document, first remove the line in a new version of the original document, get it approved, then import again. This is the same rule as approving on the web ([Requirements](/help/specs#requirements)).
 
 **Importing alone never moves a number.** The document that owns a number changes only on approval. When you import a number that was removed from the original document's approved version, it moves to this document, and the report lists it as a **warning** (`req-moved`), one line per number, together with the original document. Nothing went wrong, so the exit code does not change.
+
+## Cutover report {#cutover-report}
+
+To report the two-week watch of review cutover M1 in one go, run the CLI in a checkout of the repository.
+
+```
+nerv cutover report --project <slug> --server <URL> --token <token> [--path review/] [--since <time>] [--until <time>] [--json]
+```
+
+It reads the verdict mismatch rate and the review submission failure rate from the server, counts the commits · files · bytes newly added under `review/` in the checkout, and prints one report. Commits are counted across all local and remote-tracking branches. The token's owner must be an admin or planner of the project. The window runs from when the cutover stage was changed until now by default; change it with `--since` · `--until`.
+
+The exit code is `0` for stable (mismatch rate under 1% · submission failure rate under 2% · no new commits · two weeks watched), `1` when something needs checking, and `2` when the server could not be read and no report was made. The share of earlier review output among review inputs is not measured, because NERV does not keep the list of files a review read.
+
+**The local hook sends its own verdict when it asks for the gate check.** It calls the same gate check with POST and puts its local verdict (pass · block · hook name · reason) in the body. The verdict in the response is the verdict for that push ([Cutover watch](/help/reviews#cutover)).

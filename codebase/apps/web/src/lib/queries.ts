@@ -10,7 +10,7 @@ import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
 import { PENDING_PROJECT, queryKeys } from './query-keys.js';
 import type { ProjectId } from './query-keys.js';
 import { REQUIREMENT_PREFIX } from '@nerv/schema';
-import type { ApprovalInboxState, PLUGIN_COVERAGE_AGENT_TYPES } from '@nerv/schema';
+import type { ApprovalInboxState, InboxKind, PLUGIN_COVERAGE_AGENT_TYPES } from '@nerv/schema';
 import { FALLBACK_POLL_MS, useRealtime } from './realtime.js';
 import { fetchMe } from './session.js';
 import type { Me } from './session.js';
@@ -85,6 +85,11 @@ export interface InboxPage {
    * 요청했거나 쓴 것처럼 **승인할 수 없는 카드**가 섞여, 할 일을 다 해도 배지가 0 이 되지 않았다.
    */
   actionable_total?: number;
+  /**
+   * **유형마다 대기 수**(2026-10-16 · 사람 결정 D3 · REQ-API-337) — 대기 탭에만 온다. 유형 필터와 무관하게 센 수라 칸의 숫자가
+   * 고른 유형에 따라 변하지 않는다(리뷰 센터의 facet 과 같은 뜻)
+   */
+  kind_counts?: Partial<Record<InboxKind, number>>;
 }
 
 /**
@@ -103,6 +108,11 @@ export function useInbox(
    * 그때의 캐시 키는 예전 그대로다(헤더 배지 · 홈이 같은 칸을 본다).
    */
   scope: NotificationScope = {},
+  /**
+   * **유형**(2026-10-16 · 사람 결정 D3 · REQ-WEB-326) — 받은 요청의 유형 칸이 고른 것. 비우면 거르지 않고, 그때의 캐시 키는 예전
+   * 그대로다(헤더 배지 · 홈이 같은 키를 본다)
+   */
+  kind?: InboxKind,
 ): UseInfiniteQueryResult<InfiniteData<InboxPage>> {
   const refetchInterval = useLivePolling();
   const scoped = scope.org !== undefined || scope.project !== undefined;
@@ -110,13 +120,15 @@ export function useInbox(
     queryKey: [
       ...queryKeys.inbox(),
       state,
-      ...(scoped ? [scope.org ?? '', scope.project ?? ''] : []),
+      ...(scoped || kind !== undefined ? [scope.org ?? '', scope.project ?? ''] : []),
+      ...(kind === undefined ? [] : [kind]),
     ],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ state });
       if (pageParam !== null) params.set('cursor', String(pageParam));
       if (scope.org !== undefined) params.set('org', scope.org);
       if (scope.project !== undefined) params.set('project', scope.project);
+      if (kind !== undefined) params.set('kind', kind);
       return apiFetch<InboxPage>(`/approvals?${params.toString()}`);
     },
     initialPageParam: null as string | null,
@@ -133,6 +145,13 @@ export function useInbox(
  */
 export function inboxCards(data: InfiniteData<InboxPage> | undefined): Row[] {
   return (data?.pages ?? []).flatMap((page) => rows(page.items));
+}
+
+/** 유형마다 대기 수 — 첫 쪽이 실어 준다(REQ-WEB-326). 아직 안 왔으면 없다 */
+export function inboxKindCounts(
+  data: InfiniteData<InboxPage> | undefined,
+): Partial<Record<InboxKind, number>> | null {
+  return data?.pages[0]?.kind_counts ?? null;
 }
 
 /** 전체 수 — 첫 쪽이 실어 준다. 아직 안 왔으면 0 이다(숫자를 지어내지 않는다) */
@@ -322,6 +341,29 @@ export interface NotificationScopeRow {
  * **범위별 안 읽은 수**(2026-09-27 · REQ-API-215 · REQ-WEB-253). 불러온 쪽만 세면 "더 보기" 뒤의
  * 알림이 빠진다 — 서버가 센다. 알림이 없는 프로젝트도 0 으로 온다.
  */
+/**
+ * **내 워치**(EP-NTF-10 · 2026-10-16 · 사람 결정 D5 · REQ-WEB-328). 프로젝트를 주면 그 프로젝트의 것만 — 워치 단추가 그 목록에서
+ * 자기 대상을 찾는다(대상마다 따로 묻지 않는다). 주지 않으면 모든 프로젝트다(내 계정의 워치 목록).
+ */
+export function useMyWatches(project?: string | null): UseQueryResult<{ items: Row[] }> {
+  return useQuery({
+    queryKey: [...queryKeys.myWatches(), project ?? '*'],
+    queryFn: () =>
+      apiFetch<{ items: Row[] }>(
+        project == null ? '/me/watches' : `/me/watches?project=${encodeURIComponent(project)}`,
+      ),
+  });
+}
+
+/** **내 핀**(EP-NTF-13 · REQ-WEB-329) — 퀵 스위처가 열릴 때만 부른다 */
+export function useMyPins(enabled: boolean): UseQueryResult<{ items: Row[] }> {
+  return useQuery({
+    queryKey: queryKeys.myPins(),
+    queryFn: () => apiFetch<{ items: Row[] }>('/me/pins'),
+    enabled,
+  });
+}
+
 export function useNotificationScopes(): UseQueryResult<{
   items: NotificationScopeRow[];
   total: { unread: number; immediate: number };
@@ -476,6 +518,33 @@ export function useSpecDiff(
     queryKey: [...queryKeys.spec(specKey), 'diff', from, to],
     queryFn: () => apiFetch<Row>(`/projects/${slug}/specs/${specKey}/diff?${query.toString()}`),
     enabled: specKey !== '' && from !== null && to !== null,
+  });
+}
+
+/**
+ * EP-CR-02 — 변경 요청 한 건과 영향 미리보기(2026-10-16 · 사람 결정 D1 · REQ-WEB-320). 키든 UUID 든 받는다 — 화면의 주소는
+ * 표시 키다.
+ */
+export function useChangeRequest(slug: string, crKey: string): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: queryKeys.changeRequest(crKey),
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/crs/${encodeURIComponent(crKey)}`),
+    enabled: slug !== '' && crKey !== '',
+  });
+}
+
+/**
+ * EP-SPEC-31 — 초안 · 검토 중인 버전의 영향 미리보기(REQ-API-330). 스펙 화면의 검토 요청 · 바로 승인 창이 연 동안만 읽는다
+ */
+export function useSpecImpact(
+  slug: string,
+  versionId: string | null,
+  enabled: boolean,
+): UseQueryResult<Row> {
+  return useQuery({
+    queryKey: ['spec-version', versionId, 'impact'],
+    queryFn: () => apiFetch<Row>(`/projects/${slug}/spec-versions/${versionId ?? ''}/impact`),
+    enabled: enabled && versionId !== null && versionId !== '',
   });
 }
 
@@ -1022,6 +1091,44 @@ export function useGateCoverage(
     refetchInterval,
     // 프로젝트 축 — id 가 오기 전에는 부르지 않는다(파일 위 "프로젝트 축" 규약)
     enabled: projectId !== undefined,
+  });
+}
+
+/**
+ * 컷오버 지표(EP-REV-10 · 2026-10-16 · 사람 결정 D6 · REQ-WEB-330) — 창은 서버의 기본(컷오버 단계를 바꾼 시각 ~ 지금)이다.
+ * admin · planner 만 읽는다 — 다른 역할에는 부르지 않는다(`enabled`)
+ */
+export interface CutoverReport {
+  review_sot: 'git' | 'dual' | 'nerv';
+  review_sot_since: string | null;
+  window: {
+    since: string;
+    until: string;
+    days: number;
+    observation_days: number;
+    complete: boolean;
+  };
+  comparisons: { total: number; mismatches: number; rate: number | null };
+  submissions: { accepted: number; failed: number; total: number; rate: number | null };
+  status: 'no_data' | 'stable' | 'watch' | 'rollback';
+  reasons: ('mismatch_rate' | 'submit_failure_rate')[];
+  thresholds: {
+    stable_below_pct: number;
+    rollback_mismatch_pct: number;
+    rollback_submit_failure_pct: number;
+  };
+  recent_mismatches: Row[];
+}
+
+export function useCutoverReport(
+  slug: string,
+  projectId: ProjectId | undefined,
+  enabled: boolean,
+): UseQueryResult<CutoverReport> {
+  return useQuery({
+    queryKey: queryKeys.projectCutover(projectId ?? PENDING_PROJECT),
+    queryFn: () => apiFetch<CutoverReport>(`/projects/${slug}/gates/reviews/cutover`),
+    enabled: enabled && projectId !== undefined,
   });
 }
 

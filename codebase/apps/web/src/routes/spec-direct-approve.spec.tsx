@@ -82,6 +82,7 @@ const DRAFT_DETAIL: Row = {
 };
 
 let roles: string[];
+let detail: Row;
 let checkVerdict: Row;
 let asked: string[];
 let posted: { url: string; body: unknown; key: string | null }[];
@@ -94,6 +95,7 @@ beforeEach(() => {
   localStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
   roles = ['planner'];
+  detail = DRAFT_DETAIL;
   checkVerdict = { verdict: 'warning', findings: [] };
   asked = [];
   posted = [];
@@ -146,7 +148,22 @@ beforeEach(() => {
       if (path.endsWith('/specs/approvable-drafts')) return ok({ items: DRAFTS });
       if (path.endsWith('/specs/pending-approvals')) return ok({ items: [] });
       if (path.endsWith('/check')) return ok(checkVerdict);
-      if (path === '/projects/demo/specs/SPC-X') return ok(DRAFT_DETAIL);
+      if (path === '/projects/demo/specs/SPC-X') return ok(detail);
+      // 초안을 감싼 변경 요청 — 아무도 고르지 않았다(`planned_actions: null`)
+      if (path === '/projects/demo/crs/DEMO-C-7QF3K2') {
+        return ok({
+          key: 'DEMO-C-7QF3K2',
+          status: 'open',
+          planned_actions: null,
+          impact: {
+            suggestions: {
+              derive: [{ ref: 'REQ-X-003' }, { ref: 'REQ-X-004' }],
+              reverify: [{ ref: 'REQ-X-001', done_tasks: ['DEMO-T-1'] }],
+              cancel: [{ task_key: 'DEMO-T-2' }],
+            },
+          },
+        });
+      }
       return ok({ items: [], next_cursor: null, total: 0, memberships: [], count: 0, summary: {} });
     }),
   );
@@ -198,6 +215,30 @@ describe('스펙 상세의 [바로 승인] (REQ-WEB-303)', () => {
       body: { seen_content_hash: 'cafe01' },
     });
     expect(posted[0]?.key).not.toBeNull();
+  });
+
+  it('초안이 변경 요청이면 승인하며 함께 할 일을 받은 요청 카드와 같은 문장으로 적는다 — 고르지 않았으면 기본값', async () => {
+    detail = {
+      ...DRAFT_DETAIL,
+      change_request: { id: 'cr-1', key: 'DEMO-C-7QF3K2', status: 'open', web_url: '/' },
+    };
+    renderAt('/p/demo/specs/SPC-X');
+    const button = await screen.findByTestId('direct-approve');
+    await waitFor(() => expect(isLocked(button)).toBe(false));
+    fireEvent.click(button);
+    const dialog = await screen.findByTestId('impact-preview');
+    const plan = await within(dialog).findByTestId('impact-cr-plan');
+    expect(plan.textContent).toContain(
+      '승인하면 기본값대로 파생 작업 2건 · 재검증 작업 1건을 만듭니다.',
+    );
+    expect(plan.textContent).toContain('보관 제안 1건은 변경 요청 화면에서 고릅니다.');
+    expect(within(dialog).getByTestId('impact-cr').textContent).toContain(
+      '함께 할 일을 바꾸려면 변경 요청 화면에서 고릅니다.',
+    );
+    // 고르지 않은 승인은 `cr_actions` 를 보내지 않는다 — 기본값은 서버가 정한다
+    fireEvent.click(within(dialog).getByTestId('impact-confirm'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]?.body).toEqual({ seen_content_hash: 'cafe01' });
   });
 
   it('[검토 요청]은 그대로 검토 요청을 보낸다 — 같은 창이 무엇을 보내는지 가른다', async () => {

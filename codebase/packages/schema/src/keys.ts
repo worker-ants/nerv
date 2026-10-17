@@ -30,8 +30,11 @@ export function displayKey(projectKey: string, type: DisplayKeyType, seed: strin
   return `${projectKey}-${type}-${displayKeySuffix(seed)}`;
 }
 
-/** 타입 문자 — 표시 키의 가운데 한 글자(§5.1 예시 `CLV-T-…`) */
-export type DisplayKeyType = 'T' | 'S';
+/**
+ * 타입 문자 — 표시 키의 가운데 한 글자(§5.1 예시 `CLV-T-…`). `T` 작업 · `S` 스펙 · `C` 변경 요청(2026-10-16 · 사람 결정 D2 —
+ * 씨앗은 변경 요청의 UUID 다).
+ */
+export type DisplayKeyType = 'T' | 'S' | 'C';
 
 /**
  * 표시 키의 변하는 부분만. **충돌은 여기서만 일어난다** — 한 프로젝트 안에서 접두는 상수다.

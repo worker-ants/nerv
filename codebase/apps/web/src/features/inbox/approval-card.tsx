@@ -25,6 +25,7 @@ import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useSpecVersion } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { crPlanOfCard, crPlanText } from '../../lib/cr-plan.js';
 import { inOrgHref, useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -63,6 +64,8 @@ const SUBJECT_FALLBACK = {
   question: 'inbox.subject.question',
   gate_bypass: 'inbox.subject.gate_bypass',
   finding: 'inbox.subject.finding',
+  // 에스컬레이션 카드(2026-10-16 · 사람 결정 D3) — 받은 요청은 이 카드를 따로 그린다(`EscalationCard`)
+  escalation: 'inbox.subject.escalation',
 } as const satisfies Record<string, MessageKey>;
 
 export function subjectFallback(t: Translator, subjectType: unknown): string {
@@ -206,7 +209,7 @@ function diffSearchOf(card: Record<string, unknown>): Record<string, string> | u
  * 받은 요청은 모든 조직을 싣는데 조직은 주소가 아니라 기억에 있다. 다른 조직 카드의 문서
  * 링크를 그대로 따라가면 서버는 지금 조직 안에서 프로젝트를 찾고 "없다" 고 답했다.
  */
-function CardLink({
+export function CardLink({
   orgSlug,
   currentOrg,
   path,
@@ -634,7 +637,15 @@ export function ApprovalCard({
         )}
         <StatusBadge
           token={isQuestion ? 'waiting' : 'action'}
-          label={isQuestion ? t('inbox.card.question') : t('inbox.key.approve')}
+          label={
+            isQuestion
+              ? t('inbox.card.question')
+              : // **CR 카드**(2026-10-16 · 사람 결정 D1 · REQ-WEB-321) — 같은 결재를 두 카드로 보이지 않는다. 버전이 변경
+                // 요청이면 그 결재 카드가 곧 CR 카드다
+                typeof card['cr_key'] === 'string'
+                ? t('inbox.subject.change_request')
+                : t('inbox.key.approve')
+          }
         />
         {/* **키는 손잡이가 아니라 문이다**(2026-08-31 — 사람 요청). 예전에는 글자였을 뿐이라
             그 문서를 보려면 스펙 목록에서 손으로 찾아야 했다 */}
@@ -768,6 +779,7 @@ export function ApprovalCard({
             )}
           </p>
           <TargetLine card={card} currentOrg={currentOrg} />
+          {typeof card['cr_key'] === 'string' && <CrSummary card={card} currentOrg={currentOrg} />}
         </div>
       )}
 
@@ -1072,7 +1084,7 @@ export function ApprovalCard({
  * 남은 초를 세지 않는다: 매초 바뀌는 글자는 보조기기가 매초 읽는다. 문장은 한 번, 시간은 막대가 말한다.
  * `label` 이 null 이면 이미 보내는 중이다 — 무를 수 없으니 [취소]도 없다.
  */
-function GraceStrip({
+export function GraceStrip({
   label,
   active,
   cancelRef,
@@ -1311,6 +1323,121 @@ function GateEvidenceLink({
 }
 
 /**
+ * **CR 카드의 요약**(2026-10-16 · 사람 결정 D1 · REQ-WEB-321 · spec-workflow §6.4 — 승인 카드에 반드시 보이는 것). 요구사항 단위
+ * 델타의 수와 앞의 몇 줄(원문) · 영향(파생 작업 · 진행 중 클레임 · 참조 문서) · 승인하면 함께 할 일을 보인다. 수는 서버가 센
+ * 값이다(`cr_delta` · `cr_impact` · `cr_planned`). 고르는 것은 CR 화면에서 한다 — 카드는 그리로 가는 길이다.
+ *
+ * **아무도 고르지 않았으면 이 카드의 [승인]은 기본값을 적용한다**(2026-10-16 사람 결정 · api.md REQ-API-351) — 파생 · 재검증 작업은
+ * 만들고 보관은 하지 않는다. 그래서 할 일 줄이 그 수를 미리 적는다(`crPlanText` — 바로 승인 창과 같은 문장이다).
+ */
+function CrSummary({
+  card,
+  currentOrg,
+}: {
+  card: Record<string, unknown>;
+  currentOrg: string | null;
+}): React.JSX.Element {
+  const t = useT();
+  const proj = String(card['project_slug'] ?? '');
+  const crKey = String(card['cr_key']);
+  const delta = (card['cr_delta'] ?? null) as Record<string, unknown> | null;
+  const impact = (card['cr_impact'] ?? null) as Record<string, number> | null;
+  const plan = crPlanOfCard(card);
+  const items = Array.isArray(delta?.['items'])
+    ? (delta['items'] as Record<string, unknown>[])
+    : [];
+  // **구현에서 거슬러 온 CR**(2026-10-16 · REQ-WEB-324) — 그 CR 로 보낸 발견의 제목 · 커밋을 함께 보인다(spec-workflow §3.4)
+  const driftFindings = Array.isArray(card['cr_findings'])
+    ? (card['cr_findings'] as Record<string, unknown>[])
+    : [];
+  return (
+    <div data-testid="cr-summary" className="flex flex-col gap-0.5">
+      <p className="flex flex-wrap items-center gap-x-2">
+        <CardLink
+          orgSlug={card['org_slug']}
+          currentOrg={currentOrg}
+          path={`/p/${proj}/crs/${crKey}`}
+          to="/p/$proj/crs/$cr"
+          params={{ proj, cr: crKey }}
+          testId="cr-link"
+        >
+          <Mono className="text-link">{crKey}</Mono>
+        </CardLink>
+        {typeof card['cr_base_version_no'] === 'number' && (
+          <span className="font-mono text-text-faint">
+            v{String(card['cr_base_version_no'])} → v{String(card['version_no'] ?? '')}
+          </span>
+        )}
+        {delta !== null && (
+          <span data-testid="cr-delta-counts">
+            {t('spec.diff.added')} {Number(delta['added'] ?? 0)} · {t('spec.diff.modified')}{' '}
+            {Number(delta['modified'] ?? 0)} · {t('spec.diff.removed')}{' '}
+            {Number(delta['removed'] ?? 0)}
+          </span>
+        )}
+      </p>
+      {items.length > 0 && (
+        <ul data-testid="cr-delta-items" className="flex flex-col gap-0.5">
+          {items.map((item) => (
+            <li key={`${String(item['kind'])}-${String(item['ref'])}`} className="flex gap-2">
+              <span
+                className={cn(
+                  'w-14 shrink-0 font-mono text-2xs',
+                  item['kind'] === 'added' && 'text-status-ok',
+                  item['kind'] === 'removed' && 'text-status-danger',
+                  item['kind'] === 'modified' && 'text-status-waiting',
+                )}
+              >
+                {t(`spec.diff.${String(item['kind'])}` as 'spec.diff.added')}
+              </span>
+              <span className="shrink-0 font-mono text-2xs text-text-faint">
+                {String(item['ref'])}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{String(item['statement'] ?? '')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {impact !== null && (
+        <p data-testid="cr-impact-line">
+          {t('inbox.card.cr_impact', {
+            tasks: Number(impact['tasks'] ?? 0),
+            claims: Number(impact['claims'] ?? 0),
+            referencing: Number(impact['referencing'] ?? 0),
+          })}
+        </p>
+      )}
+      <DriftFindings
+        card={card}
+        proj={proj}
+        currentOrg={currentOrg}
+        findings={driftFindings}
+        heading={t('inbox.card.cr_drift')}
+      />
+      {plan !== null && (
+        <p
+          data-testid="cr-planned-line"
+          data-source={plan.chosen ? 'chosen' : 'default'}
+          className="text-text-faint"
+        >
+          {crPlanText(t, plan)}{' '}
+          <CardLink
+            orgSlug={card['org_slug']}
+            currentOrg={currentOrg}
+            path={`/p/${proj}/crs/${crKey}`}
+            to="/p/$proj/crs/$cr"
+            params={{ proj, cr: crKey }}
+            testId="cr-open"
+          >
+            {t('inbox.card.cr_open')}
+          </CardLink>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * 대상 줄 — 유형마다 **무엇을** 결정하는지(REQ-WEB-204).
  *   스펙: `v{n}` · 게이트 티어 · [변경분 보기 ▸](직전 버전과의 diff) · 티어의 근거(REQ-WEB-240) · 변경 요약
  *   플랜: 그 작업의 키·제목 · 발견: 발견의 심각도·제목(머리의 링크가 리뷰 센터의 그 발견으로 간다)
@@ -1388,4 +1515,48 @@ function TargetLine({
     );
   }
   return null;
+}
+
+/** 그 CR 로 보낸 발견 — 제목 · 심각도 · 커밋(REQ-WEB-324). 스펙 결재의 CR 카드도 같은 줄을 쓴다 */
+export function DriftFindings({
+  card,
+  proj,
+  currentOrg,
+  findings,
+  heading,
+}: {
+  card: Record<string, unknown>;
+  proj: string;
+  currentOrg: string | null;
+  findings: readonly Record<string, unknown>[];
+  heading?: string;
+}): React.JSX.Element | null {
+  const t = useT();
+  if (findings.length === 0) return null;
+  return (
+    <div data-testid="drift-findings">
+      <span className="block text-2xs text-text-faint">{heading ?? t('inbox.esc.findings')}</span>
+      <ul className="mt-0.5 flex flex-col gap-0.5">
+        {findings.map((f) => (
+          <li key={String(f['id'])} className="flex flex-wrap items-center gap-x-2">
+            <CardLink
+              orgSlug={card['org_slug']}
+              currentOrg={currentOrg}
+              path={`/p/${proj}/reviews?finding=${String(f['id'])}`}
+              to="/p/$proj/reviews"
+              params={{ proj }}
+              search={{ finding: String(f['id']) }}
+            >
+              {String(f['title'] ?? '')}
+            </CardLink>
+            {typeof f['commit_sha'] === 'string' && (
+              <span className="font-mono text-text-faint">
+                {String(f['commit_sha']).slice(0, 12)}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

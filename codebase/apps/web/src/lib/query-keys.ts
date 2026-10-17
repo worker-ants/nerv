@@ -41,6 +41,10 @@ export const queryKeys = {
   mySessions: () => ['me', 'sessions'] as const,
   /** 이메일 바꾸기의 진행 상태(EP-AUTH-06 · REQ-WEB-229) */
   myEmailChange: () => ['me', 'email-change'] as const,
+  /** 내 워치(EP-NTF-10 · 2026-10-16 · REQ-WEB-328) — 프로젝트로 좁힌 목록도 이 키 아래다 */
+  myWatches: () => ['me', 'watches'] as const,
+  /** 내 핀(EP-NTF-13 · 2026-10-16 · REQ-WEB-329) — 프로젝트를 넘는 한 목록 */
+  myPins: () => ['me', 'pins'] as const,
   inbox: () => ['inbox'] as const,
 
   /**
@@ -67,7 +71,11 @@ export const queryKeys = {
   /** S6 리뷰 센터 — 큐와 게이트 현황이 같은 축(발견의 변화)으로 갱신된다 */
   projectFindings: (projId: ProjectId) => ['project', projId, 'findings'] as const,
   projectGateCoverage: (projId: ProjectId) => ['project', projId, 'gateCoverage'] as const,
+  /** 컷오버 관측(EP-REV-10 · 2026-10-16 · REQ-WEB-330) — 불일치가 생기면 다시 읽는다 */
+  projectCutover: (projId: ProjectId) => ['project', projId, 'cutover'] as const,
 
+  /** 변경 요청 한 건(EP-CR-02) — 축은 표시 키(`<PRJ>-C-…`)다. 이벤트 봉투의 `subject_key` 가 그 키다 */
+  changeRequest: (crKey: string) => ['cr', crKey] as const,
   spec: (specId: string) => ['spec', specId] as const,
   specVersions: (specId: string) => ['spec', specId, 'versions'] as const,
   specComments: (specId: string) => ['spec', specId, 'comments'] as const,

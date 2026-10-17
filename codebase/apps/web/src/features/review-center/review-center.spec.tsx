@@ -77,9 +77,34 @@ const GATE_ROWS = [
       },
     ],
   },
+  // 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327) — 커버 리뷰가 없는 줄이다
+  {
+    branch: 'docs/readme',
+    kind: null,
+    head_sha: null,
+    round_no: null,
+    resolved: 0,
+    total: 0,
+    verdict: 'uncovered',
+    bypasses: [
+      {
+        id: 'w-branch',
+        display_name: '도현',
+        decided_at: new Date(Date.now() - 7_200_000).toISOString(),
+        bypass_reason: 'README 만 고친 브랜치',
+        kinds: ['code'],
+        head_sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+      },
+    ],
+  },
 ];
 // 응답은 **잘린 사실을 함께 준다** — total 이 없으면 화면이 "이게 전부"라고 거짓말한다
 const GATE = { items: GATE_ROWS, total: 441 };
+/** 지금 서버가 줄 게이트 현황 — 면제를 내면 바뀐다(2026-10-16 사람 결정 · REQ-WEB-332) */
+let gate: { items: Record<string, unknown>[]; total: number } = GATE;
+
+const isLocked = (b: Element | null | undefined): boolean =>
+  b != null && ((b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true');
 
 /** 처분 호출을 잡아 두는 곳 — 무엇을 보냈는지가 검사 대상이다 */
 let posted: { url: string; body: unknown }[] = [];
@@ -97,6 +122,7 @@ beforeEach(() => {
   posted = [];
   roles = ['qa'];
   wide = true;
+  gate = GATE;
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: wide,
     media: query,
@@ -108,7 +134,43 @@ beforeEach(() => {
     vi.fn(async (url: unknown, init?: { method?: string; body?: string }) => {
       const path = String(url);
       if (init?.method === 'POST') {
-        posted.push({ url: path, body: JSON.parse(init.body ?? '{}') });
+        const body = JSON.parse(init.body ?? '{}') as Record<string, unknown>;
+        posted.push({ url: path, body });
+        // 브랜치 면제를 기록하면 서버의 게이트 현황에 그 브랜치 줄이 생기거나 그 줄에 면제가 붙는다
+        if (path.includes('/gates/bypass') && typeof body['branch'] === 'string') {
+          const waived = {
+            id: `w-${String(body['branch'])}`,
+            display_name: '규아',
+            decided_at: new Date().toISOString(),
+            bypass_reason: String(body['reason']),
+            kinds: body['kinds'],
+            head_sha: null,
+          };
+          const existing = gate.items.find((r) => r['branch'] === body['branch']);
+          gate = {
+            total: gate.total + (existing === undefined ? 1 : 0),
+            items:
+              existing === undefined
+                ? [
+                    {
+                      branch: body['branch'],
+                      kind: null,
+                      head_sha: null,
+                      round_no: null,
+                      resolved: 0,
+                      total: 0,
+                      verdict: 'uncovered',
+                      bypasses: [waived],
+                    },
+                    ...gate.items,
+                  ]
+                : gate.items.map((r) =>
+                    r === existing
+                      ? { ...r, bypasses: [waived, ...(r['bypasses'] as unknown[])] }
+                      : r,
+                  ),
+          };
+        }
         return { ok: true, status: 200, json: async () => ({ ok: true }) };
       }
       if (path.includes('/specs/tree')) {
@@ -151,7 +213,7 @@ beforeEach(() => {
             },
           }
         : path.includes('/gates/reviews')
-          ? GATE
+          ? gate
           : path.includes('/me')
             ? {
                 id: 'u-1',
@@ -317,10 +379,21 @@ describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (RE
 
   it('면제한 사람·시각·사유가 같은 줄에 펼쳐진다', async () => {
     await renderCenter();
-    const bypass = screen.getByTestId('gate-bypass').textContent ?? '';
+    const bypass = screen.getAllByTestId('gate-bypass')[0]!.textContent ?? '';
     expect(bypass).toContain('하나');
     expect(bypass).toContain('핫픽스 배포, 사후 리뷰 예약');
     expect(bypass).toContain('1시간 전');
+  });
+
+  it('리뷰가 없는 브랜치의 면제는 그 브랜치 줄이 되고 범위(종류 · 커밋)를 함께 적는다 (REQ-WEB-327)', async () => {
+    await renderCenter();
+    const row = within(screen.getByText('docs/readme').closest('tr') as HTMLElement);
+    // 커버 리뷰 · 해소가 없다 — "null" 을 그리지 않는다
+    expect(row.getAllByText('—')).toHaveLength(2);
+    expect(row.getByText('리뷰 없음')).toBeDefined();
+    expect(row.getByTestId('gate-bypass-count').textContent).toBe('면제 1건');
+    expect(row.getByTestId('gate-bypass-scope').textContent).toBe('코드 · 커밋 a1b2c3d만');
+    expect(row.getByTestId('gate-bypass').textContent).toContain('README 만 고친 브랜치');
   });
 
   it('막지는 않는다고 화면이 말한다 — 표시와 집행을 섞지 않는다', async () => {
@@ -332,6 +405,82 @@ describe('S6 게이트 현황 — 면제가 조용히 일어나지 않는다 (RE
     await renderCenter();
     // 20개만 그리고 아무 말도 안 하면 화면은 "브랜치가 20개뿐"이라고 거짓말한다
     expect(screen.getByTestId('gate-truncated').textContent).toContain('441');
+  });
+});
+
+describe('S6 게이트 현황에서 브랜치 면제 — 2026-10-16 사람 결정 (REQ-WEB-332)', () => {
+  const rowOf = (branch: string): ReturnType<typeof within> =>
+    within(screen.getByText(branch).closest('tr') as HTMLElement);
+
+  it('면제할 수 있는 종류가 없는 역할(qa)에게는 단추가 없다', async () => {
+    await renderCenter();
+    expect(screen.queryAllByTestId('gate-waive')).toHaveLength(0);
+    expect(screen.queryByTestId('gate-waive-new')).toBeNull();
+  });
+
+  it('줄의 [면제]는 그 브랜치를 미리 채운 폼을 열고, 기록하면 그 줄에 면제가 붙는다', async () => {
+    roles = ['developer'];
+    await renderCenter();
+    // 리뷰가 없는 줄에도 · 리뷰가 있는 줄에도 있다
+    expect(screen.getAllByTestId('gate-waive')).toHaveLength(2);
+    fireEvent.click(rowOf('docs/readme').getByTestId('gate-waive'));
+    const form = await screen.findByTestId('branch-waiver-form');
+    expect((within(form).getByTestId('branch-waiver-branch') as HTMLInputElement).value).toBe(
+      'docs/readme',
+    );
+    // 고를 수 있는 종류는 역할이 정한다 — developer 는 코드 계열만
+    expect(within(form).getByTestId('branch-waiver-kind-code')).toBeTruthy();
+    expect(within(form).queryByTestId('branch-waiver-kind-consistency')).toBeNull();
+    fireEvent.click(within(form).getByTestId('branch-waiver-kind-code'));
+    fireEvent.change(within(form).getByTestId('branch-waiver-reason'), {
+      target: { value: '문서만 고친 브랜치' },
+    });
+    fireEvent.click(within(form).getByTestId('branch-waiver-submit'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]!.url).toContain('/projects/clemvion/gates/bypass');
+    expect(posted[0]!.body).toEqual({
+      branch: 'docs/readme',
+      kinds: ['code'],
+      reason: '문서만 고친 브랜치',
+    });
+    // 게이트 현황을 다시 읽어 그 줄에 새 면제가 붙고 폼은 닫힌다
+    await waitFor(() =>
+      expect(rowOf('docs/readme').getByTestId('gate-bypass-count').textContent).toBe('면제 2건'),
+    );
+    expect(screen.queryByTestId('branch-waiver-form')).toBeNull();
+  });
+
+  it('제목 옆의 [브랜치 면제]는 줄이 없는 브랜치를 이름으로 면제한다 — 기록하면 그 브랜치의 「리뷰 없음 · 면제」 줄이 생긴다', async () => {
+    roles = ['developer'];
+    await renderCenter();
+    expect(screen.queryByText('chore/ci-only')).toBeNull();
+    fireEvent.click(screen.getByTestId('gate-waive-new'));
+    const form = await screen.findByTestId('branch-waiver-form');
+    const name = within(form).getByTestId('branch-waiver-branch') as HTMLInputElement;
+    expect(name.value).toBe('');
+    // 이름 · 종류 · 사유가 다 있어야 보낸다
+    expect(isLocked(within(form).getByTestId('branch-waiver-submit'))).toBe(true);
+    fireEvent.change(name, { target: { value: 'chore/ci-only' } });
+    fireEvent.click(within(form).getByTestId('branch-waiver-kind-code'));
+    fireEvent.change(within(form).getByTestId('branch-waiver-reason'), {
+      target: { value: 'CI 설정만 바꾼 브랜치' },
+    });
+    fireEvent.click(within(form).getByTestId('branch-waiver-submit'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]!.body).toMatchObject({ branch: 'chore/ci-only', kinds: ['code'] });
+    const row = await waitFor(() => rowOf('chore/ci-only'));
+    expect(row.getByText('리뷰 없음')).toBeDefined();
+    expect(row.getByTestId('gate-bypass-count').textContent).toBe('면제 1건');
+    expect(row.getByTestId('gate-bypass-scope').textContent).toBe('코드');
+  });
+
+  it('[취소]는 폼만 닫고 아무것도 보내지 않는다', async () => {
+    roles = ['planner'];
+    await renderCenter();
+    fireEvent.click(rowOf('hotfix/session-restore').getByTestId('gate-waive'));
+    fireEvent.click(await screen.findByTestId('branch-waiver-cancel'));
+    expect(screen.queryByTestId('branch-waiver-form')).toBeNull();
+    expect(posted).toHaveLength(0);
   });
 });
 

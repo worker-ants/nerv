@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '../lib/i18n.js';
 import { RealtimeProvider } from '../lib/realtime.js';
 import { routeTree } from '../routeTree.gen';
-import { readList, rememberVisit, togglePin } from './quick-switcher.js';
+import { readList, rememberVisit } from './quick-switcher.js';
 
 vi.mock('socket.io-client', () => ({
   io: () => ({
@@ -26,6 +26,8 @@ vi.mock('socket.io-client', () => ({
 type Row = Record<string, unknown>;
 
 let searchHits: Row[];
+/** 서버의 핀(EP-NTF-13 · 2026-10-16 · REQ-WEB-329) — 핀은 이제 브라우저가 아니라 서버에 있다 */
+let serverPins: Row[];
 
 const ok = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
 
@@ -33,6 +35,7 @@ beforeEach(() => {
   localStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
   searchHits = [];
+  serverPins = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown) => {
@@ -56,6 +59,7 @@ beforeEach(() => {
       if (path === '/projects/clemvion')
         return ok({ id: 'p-1', slug: 'clemvion', name: 'Clemvion' });
       if (path.endsWith('/specs/search')) return ok({ items: searchHits });
+      if (path === '/me/pins') return ok({ items: serverPins });
       if (path === '/projects/clemvion/specs/SPC-X') {
         return ok({
           spec_id: 's-1',
@@ -167,7 +171,19 @@ describe('최근·고정은 어느 프로젝트의 것인지 안다 (NAV-04)', (
   });
 
   it('다른 프로젝트에서 고정한 문서는 그 프로젝트로 연다', async () => {
-    togglePin(hit('SUD-A', 'sudoku'));
+    serverPins = [
+      {
+        id: 'pin-1',
+        target_type: 'spec',
+        key: 'SUD-A',
+        title: '문서 SUD-A',
+        type: 'feature',
+        doc_status: 'approved',
+        project_slug: 'sudoku',
+        project_name: 'sudoku',
+        org_slug: 'default',
+      },
+    ];
     const history = renderAt('/p/clemvion/tasks');
     await openPalette();
     fireEvent.click(await screen.findByText('문서 SUD-A'));

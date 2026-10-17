@@ -2,11 +2,13 @@ The inbox collects **only what is waiting on your decision**. If it also counted
 
 ## Kinds of card {#cards}
 
-| Card              | What you decide                                                |
-| ----------------- | -------------------------------------------------------------- |
-| **Spec approval** | Whether this version can become the reference version          |
-| **Plan approval** | Whether this large piece of work can start now                 |
-| **Question**      | Something an agent cannot decide on its own. Please answer it. |
+| Card               | What you decide                                                |
+| ------------------ | -------------------------------------------------------------- |
+| **Spec approval**  | Whether this version can become the reference version          |
+| **Change request** | Whether the approved version may change this way               |
+| **Plan approval**  | Whether this large piece of work can start now                 |
+| **Question**       | Something an agent cannot decide on its own. Please answer it. |
+| **Escalation**     | How to resolve a review finding an agent escalated to you      |
 
 **Plan approval** is required only for large work. Work counts as large when **four or more** tasks come from the same spec version, or when that version's risk tier is **T3**. Claiming such a task is blocked immediately, and this card is created. Once you approve it, the next claim goes through. The point is to review the design once before any code is written, so the gate sits right before work starts.
 
@@ -20,6 +22,15 @@ An approval card shows two more lines below its header.
 
 - **Request line** — shows who made the request. If an agent session raised it, the machine and agent kind appear too. If that session is **stopped until you decide**, the line shows **"A session is waiting on this"**.
 - **Target line** — shows what you are deciding. For a spec, it shows **which version** it is, the risk tier (T0–T3) and the author's **change summary**. Click **[View changes ▸]** to open the difference from the previous version. A first version has no earlier version to compare against, so it has no such link. Click **[Show content]** to expand that version's content inside the card, rendered as on the spec screen (headings, lists, tables and diagrams). For a plan approval, the line shows **which task** the plan is for; for a `critical` downgrade, **which finding** is being downgraded. In both cases, the key in the header links to that task or finding.
+
+**A change request card** is how a spec approval card looks when the draft is a change request. A new draft on top of an approved version becomes a change request ([Change requests in Specs](/help/specs#change-requests)), and the approval card of that draft is the change request card. The same approval never shows as two cards. Its type label is **Change request**, and below the header it shows:
+
+- the change request key (opens the change request screen), the versions such as `v3 → v4`, and the number of added, changed and removed requirements
+- the first five changed requirements (number and statement)
+- the impact: how many derived tasks, active claims and referencing documents
+- the follow-up on approval: "On approval, by default: create N derived tasks and M re-verification tasks" if nobody has chosen yet, or "On approval, as chosen: create N tasks and archive M" if someone has, with **[View the full delta]**
+
+**[Approve]** on the card does what was chosen. **If nobody has chosen, it applies the defaults**: it creates the derived and re-verification tasks and archives nothing, the same as the default checks on the change request screen. A created task can be archived later, but archiving erases someone's plan. If there are archive suggestions, the card also says "Choose the N archive suggestions on the change request page". To do something else, choose on the change request screen and approve there. If you approve there with nothing checked, that is recorded as choosing to do nothing, and a later approval from the card (such as the second approver of a T3) creates no tasks either.
 
 ### Which organization and project it belongs to {#card-scope}
 
@@ -149,6 +160,8 @@ Sessions starting or ending and tasks being claimed or completed do not create n
 
 **Notifications go by role and by involvement.** Notifications with a set recipient, such as approval requests and questions, go to that person, and the rest go to admins and planners. On top of that, **people involved in the work** receive them too. When a spec version is approved or rejected, its author does. When a task is blocked or its instructions need a re-check, its assignee does, and for a re-check so does whoever holds the task's claim. When a spec gets a comment, people with an open comment at the same place do. When a critical review finding opens or a review finding is resolved, the assignee of the reviewed task, the person who submitted that review and the author of the spec version the finding points to do. These two do not go to admins and planners. If you would receive the same notification two ways, it arrives once. You do not get notifications for what you did yourself, and people who have left the project do not get them. The notification for a finding that was already resolved arrives as read.
 
+**You also get notifications for what you watch.** Press **[Watch]** at the top of a spec page or a task page to watch that document or task. You are notified when a watched document is approved or rejected or gets a comment, and when a watched task becomes ready. On an area document the button reads **[Watch area]**, and pressing it also covers the documents and tasks under that area. While you watch, the button stays pressed (**Watching**); press it again to stop. Nobody watches on your behalf: writing a document or taking a task does not watch it automatically. If you would already get the notification through involvement or your role, it arrives once. Task claims, task completion and session start and end create no notifications even when watched. If you leave the project, a remaining watch no longer sends you anything. See and remove what you watch on the **Notifications** tab of [My account](/help/settings#account).
+
 **You are told when your own session stops responding.** When an agent session goes more than 30 minutes without responding and turns `stale`, the person who started that session gets an important **Session went stale** notification. The task it had claimed is reclaimed at that point and returns to `ready` (see [Sessions](/help/sessions#statuses)). This is an exception to the rule that you are not notified about your own actions: the record shows the stopped session as the one that acted, but the person who needs to know is the one who started it. You are not notified when someone else's session goes stale, and neither are admins and planners. Check other people's sessions on the [Sessions](/help/sessions) screen.
 
 **Admins are told when the mirror push stops.** If your deployment exports approved specs to a git repository (the mirror), and that repository gets a commit NERV did not make, NERV does not overwrite it and stops pushing. The mirror is read-only, so the content of that commit does not come into NERV. If something needed fixing, fix the spec in NERV. Reset the remote branch to the last commit NERV pushed, and the next export resumes pushing. You are told once per commit.
@@ -194,3 +207,45 @@ The list does not load all at once. Use **[Load more]** at the bottom to continu
 **Plan approvals and critical downgrades do not expire.** There is no draft for them to go back to. After 2 days they are marked Overdue and stay until someone decides.
 
 **You can also see how often approvals take longer than a day.** The **Approval flow** line on the project overview shows, of the approvals in the last 30 days, the share that waited more than a day (reached the second reminder). Approvals go to a role queue, not to a specific person. When this share goes above 30%, it is taken as a sign that people in the same role are leaving approvals to each other, and a note suggests considering assigning approvals to specific people. The threshold (30%) and the period (30 days) are starting values and may change. Approvals less than a day old are not counted.
+
+## Escalation cards {#escalations}
+
+When an agent decides it should not resolve a review finding on its own, it hands the finding to a person (an escalation). The finding stays open and becomes a **card** in the inbox. The **reason** for the escalation decides who receives the card.
+
+| Reason                                                        | Who receives the card                                                                        |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Spec gap (`spec`)                                             | Planners                                                                                     |
+| Infrastructure (`infra`) · Sensitive change (`sensitive-fix`) | Admins                                                                                       |
+| Product decision · E2E failed 3×                              | The assignee of the task the finding came from, plus the default queue (admins and planners) |
+
+Admins can decide any card. The task assignee receives cards from their own task even without an approval role.
+
+The card shows the **original finding** (severity, location, body), the **commit** the finding was seen on, the task it came from and its assignee, and the **reason the agent gave**. If the session that escalated it is waiting for the decision, the card says "The session is waiting for this decision".
+
+**The decision is the finding's resolution.** Write a rationale and press one of three buttons. The session receives your rationale as is.
+
+- **Fix it**: the finding is right and should be fixed. The finding stays open; the session that escalated it fixes it and closes it with the commit.
+- **Won't fix**: closes the finding as won't fix. Say in the rationale when to look again.
+- **Dismiss**: closes the finding as dismissed. Say in the rationale why it is wrong.
+
+As on other cards, the decision is sent 5 seconds after you press it. Press **Undo** or `z` in the meantime and nothing is sent.
+
+Deciding releases a waiting session **right away**, and the session receives the decision with its next heartbeat. If the agent chose not to wait, the session keeps working in the meantime. If someone resolves the finding in the review center before the card is decided, the card closes too. Escalation cards are decided one at a time and are not part of bulk selection.
+
+**When the reason is spec, there is Send to CR.** If the finding says the spec is wrong (it has the `spec_drift` tag), this button opens a draft from the approved version of the source spec and links the finding to that change request. If the spec already has an open change request, the finding is linked to it. A waiting session is released right away.
+
+### Change requests from the implementation {#drift-change-requests}
+
+A finding sent to a change request shows up in planners' inboxes as a **"The implementation changed the spec"** card — one card per change request. The card shows the change request key, the versions (such as `v3 → v4`), and the **source findings** with their commits.
+
+The draft starts with the same body as the approved version; a person or an agent decides how to change the spec. **While the draft is still the same as the approved version, a review cannot be requested.** The card says so first, and **Edit the draft** opens that draft. Once you request a review of the edited draft, this card leaves the waiting list and the same change request appears as the spec approval card (the change request card). That card also shows the source findings.
+
+- When the change request is **approved**, the finding closes as a spec fix (`spec_change`). The evidence is the approved version.
+- **Reject change request** (a reason is required) discards the draft and dismisses the finding. The spec was right, so a **revert task** that undoes the code change is added to the backlog. The task names the finding, the commit, and the change request key, and is assigned to the assignee of the task the finding came from.
+- If the author **withdraws** the change request, the finding stays open. You can send it again from the review center.
+
+## Filtering by type {#kinds}
+
+Use the **Type** row above the list to pick a card type: spec approval, change request, plan approval, question, escalation, finding downgrade, gate bypass. In the waiting tab each type shows how many cards are waiting. These counts use the same conditions regardless of which type you picked.
+
+**Escalation** shows escalation cards together with **questions that carry a reason**. Those questions keep the question card layout and also appear under **Question**. Escalation cards that were sent to a change request appear under **Change request**. The type you pick stays in the address (`?kind=`), and it stays when you switch tabs or the organization and project pane.

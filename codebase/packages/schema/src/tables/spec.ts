@@ -7,6 +7,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -398,33 +399,66 @@ export const specBaselineItem = pgTable(
   (t) => [primaryKey({ name: 'spec_baseline_item_pkey', columns: [t.baselineId, t.specId] })],
 );
 
-export const changeRequest = pgTable('change_request', {
-  id: idPk(),
-  projectId: uuid('project_id')
-    .notNull()
-    .references(() => project.id),
-  specId: uuid('spec_id')
-    .notNull()
-    .references(() => spec.id),
-  /** 어느 approved 에 대한 변경인가 */
-  baseVersionId: uuid('base_version_id')
-    .notNull()
-    .references(() => specVersion.id),
-  /** 제안을 담은 draft */
-  proposedVersionId: uuid('proposed_version_id')
-    .notNull()
-    .references(() => specVersion.id),
-  title: text('title').notNull(),
-  rationaleMd: text('rationale_md'),
-  status: changeRequestStatus('status').notNull().default('open'),
-  /** 저위험 자동 통과(D-06) */
-  risk: changeRisk('risk').notNull().default('normal'),
-  /** spec_drift = 역류 경로 */
-  origin: changeOrigin('origin').notNull().default('human'),
-  createdByUserId: uuid('created_by_user_id')
-    .notNull()
-    .references(() => user.id),
-  createdBySessionId: uuid('created_by_session_id').references(() => agentSession.id),
-  decidedAt: ts('decided_at'),
-  createdAt: createdAt(),
-});
+/**
+ * 변경 요청(CR) — **승인본 위의 초안을 감싼다**(2026-10-16 · 사람 결정 D1 · spec-workflow §3.5 · data-model §2.3).
+ *
+ * 결재는 지금처럼 스펙 버전이 받는다(승인 판정의 진실은 SpecVersion). CR 은 그 초안이 무엇을 바꾸려는 제안인지와 그 제안의
+ * 진행(열림 → 검토 중 → 승인 · 거절 · 철회)을 든다. 승인본이 있는 문서에 새 초안이 생기면 서버가 연다 — 사람이 따로 만들지
+ * 않는다. 문서마다 열린(열림 · 검토 중) CR 은 하나이고, 초안마다 CR 은 하나다.
+ */
+export const changeRequest = pgTable(
+  'change_request',
+  {
+    id: idPk(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    specId: uuid('spec_id')
+      .notNull()
+      .references(() => spec.id),
+    /**
+     * 표시 키 `<PRJ>-C-XXXXXX`(2026-10-16 · 사람 결정 D2 · data-model §5.1) — 씨앗은 이 행의 UUID 다. 작업 · 스펙 키와 같은
+     * 형식이라 사람이 커밋 메시지 · 대화에 옮겨 적고 검색 · ⌘K 가 찾는다
+     */
+    key: text('key').notNull(),
+    /** 어느 approved 에 대한 변경인가 */
+    baseVersionId: uuid('base_version_id')
+      .notNull()
+      .references(() => specVersion.id),
+    /** 제안을 담은 draft */
+    proposedVersionId: uuid('proposed_version_id')
+      .notNull()
+      .references(() => specVersion.id),
+    title: text('title').notNull(),
+    rationaleMd: text('rationale_md'),
+    status: changeRequestStatus('status').notNull().default('open'),
+    /** 그 버전의 게이트 티어에서 채운다 — T0 · T1 은 low, T2 는 normal, T3 은 high(검토 요청 전에는 기본값) */
+    risk: changeRisk('risk').notNull().default('normal'),
+    /** spec_drift = 역류 경로 */
+    origin: changeOrigin('origin').notNull().default('human'),
+    /**
+     * **승인하면 함께 할 일**(2026-10-16 · spec-workflow §3.3 · api.md REQ-API-331) — 영향 미리보기의 제안 가운데 사람이 고른
+     * 것. `{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}` 이고, 그 버전이 승인되는 순간 서버가
+     * 승인 때의 델타와 다시 견줘 맞는 것만 한다(파생 작업 · 재검증 작업을 만들고 미착수 작업을 보관한다).
+     *
+     * **NULL 은 "고른 적 없음"이다**(2026-10-16 사람 결정 · REQ-API-351 · 마이그레이션 0058) — 승인할 때 기본값(파생 · 재검증
+     * 작업은 만들고 보관은 하지 않는다)을 적용한다. 세 칸이 모두 빈 객체는 "아무것도 하지 않기로 골랐다"이고 그대로 존중한다
+     */
+    plannedActions: jsonb('planned_actions'),
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => user.id),
+    createdBySessionId: uuid('created_by_session_id').references(() => agentSession.id),
+    decidedAt: ts('decided_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('change_request_key_uq').on(t.projectId, t.key),
+    // 초안 하나에 CR 하나 — 같은 초안을 두 번 감싸지 않는다
+    uniqueIndex('change_request_proposed_uq').on(t.proposedVersionId),
+    // 문서마다 열린 CR 은 하나다 — 가변 구간이 문서마다 하나(spec-workflow §1.2)라는 규칙의 CR 쪽 거울이다
+    uniqueIndex('change_request_spec_open_uq')
+      .on(t.specId)
+      .where(sql`${t.status} IN ('open', 'in_review')`),
+  ],
+);

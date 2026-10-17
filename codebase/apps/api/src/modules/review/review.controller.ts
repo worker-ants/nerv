@@ -4,12 +4,25 @@
 // 이 구조의 전부다 — 웹에서 처분한 발견과 도구로 처분한 발견이 다른 규칙을 타면
 // 게이트는 어느 쪽을 믿어야 하는지 답할 수 없다.
 
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { intParam } from '../../common/query-vocab.js';
 import { parseBody } from '../../common/parse-body.js';
 import {
   FindingCommentInput,
   FindingResolveInput,
+  FindingToChangeRequestInput,
+  GateCheckReportInput,
   msg,
   NERV_ERROR,
   ReviewSubmitInput,
@@ -20,11 +33,17 @@ import { RequireScope } from '../../common/route-permission.js';
 import type { ProjectRequest } from '../../common/project-access.guard.js';
 import { principalOf } from '../../common/scope-check.js';
 import { ReviewService, resolutionOf, toSubmitFindings } from './review.service.js';
+import { ChangeRequestService } from '../spec/change-request.service.js';
+import { CutoverService } from './cutover.service.js';
 
 @Controller('api/v1/projects/:proj')
 @UseGuards(ProjectAccessGuard)
 export class ReviewController {
-  constructor(private readonly reviews: ReviewService) {}
+  constructor(
+    private readonly reviews: ReviewService,
+    private readonly changeRequests: ChangeRequestService,
+    private readonly cutover: CutoverService,
+  ) {}
 
   /** EP-REV-01 — 리뷰 제출. 도구 `nerv_review_submit` 과 같은 입구다 */
   @RequireScope('review:submit')
@@ -134,6 +153,56 @@ export class ReviewController {
   }
 
   /**
+   * EP-REV-08b — 게이트 판정에 **로컬 판정을 함께 보낸다**(2026-10-16 · 사람 결정 D6 · E21-S03 · REQ-API-346 · roadmap §7.4 규칙 3).
+   * 판정은 GET 과 같고, 서버가 두 판정을 견주어 남긴다. 비교를 남기는 쓰기라 권한은 `review:submit` 이다 — 로컬 판정을 가진 쪽은
+   * 개발자 기계의 훅이고 그 훅은 그 사람의 에이전트 토큰(권장 묶음에 `review:submit` 이 있다)을 쓴다. 읽기 권한뿐인 CI 토큰은 로컬
+   * 판정이 없으니 GET 을 그대로 쓴다. viewer 는 비교를 남길 수 없다 — 롤백 지표를 움직이는 기록이다.
+   */
+  @RequireScope('review:submit')
+  @Post('gates/reviews/check')
+  // 판정을 묻는 호출이라 GET 과 같은 200 이다 — 비교 기록은 부수 효과이고 새로 만든 자원을 돌려주지 않는다
+  @HttpCode(HttpStatus.OK)
+  gateCheckWithLocal(
+    @Req() req: ProjectRequest,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = principalOf(req);
+    const input = parseBody(GateCheckReportInput, body ?? {});
+    return this.cutover.checkWithLocal({
+      projectId: req.nervProjectId!,
+      userId: principal.userId,
+      isAgent: principal.isAgent,
+      branch: input.branch,
+      kind: input.kind ?? null,
+      headSha: input.head_sha,
+      local: {
+        verdict: input.local_state.verdict,
+        hook: input.local_state.hook ?? null,
+        reason: input.local_state.reason ?? null,
+      },
+    });
+  }
+
+  /**
+   * EP-REV-10 — 컷오버 지표(2026-10-16 · 사람 결정 D6 · REQ-API-349). 이중화 기간의 불일치율 · 리뷰 제출 실패율과 로드맵 기준(§7.5 ·
+   * §7.6)에 견준 상태다. 역할(admin · planner)은 서비스가 본다 — CLI(`nerv cutover report`)가 그 사람의 토큰으로 부른다.
+   */
+  @RequireScope('spec:read')
+  @Get('gates/reviews/cutover')
+  cutoverReport(
+    @Req() req: ProjectRequest,
+    @Query('since') since?: string,
+    @Query('until') until?: string,
+  ): Promise<unknown> {
+    return this.cutover.report({
+      projectId: req.nervProjectId!,
+      roles: req.nervRoles ?? [],
+      since: since ?? null,
+      until: until ?? null,
+    });
+  }
+
+  /**
    * EP-REV-02 — 처분. **사람도 이 문으로 들어온다.**
    *
    * 사람이 부르면 `sessionId` 가 없고, 그래서 critical 하향의 A3 게이트가 걸리지 않는다 —
@@ -166,6 +235,33 @@ export class ReviewController {
       specVersionId: typeof body['spec_version_id'] === 'string' ? body['spec_version_id'] : null,
       // `escalated` 의 필수 짝 — 왜 사람을 부르는가(2026-09-05 · REQ-API-108)
       escalateReason: typeof body['escalate_reason'] === 'string' ? body['escalate_reason'] : null,
+      // 넘긴 쪽이 기다리는가(2026-10-16 · REQ-API-335) — 이 표면에는 세션이 없어 기본은 기다리지 않는다
+      ...(resolve.blocking == null ? {} : { blocking: resolve.blocking }),
+    });
+  }
+
+  /**
+   * EP-REV-09 — **발견을 변경 요청으로 보낸다**(2026-10-16 · 사람 결정 · REQ-API-333 · spec-workflow §3.4). `spec_drift` 발견의 유래
+   * 스펙에 초안 · CR 을 열고(이미 열린 CR 이 있으면 거기에 잇는다) 발견을 그 CR 에 묶는다. 처분 권한(`review:resolve`)이 문턱이고
+   * 역할(planner · admin)은 서비스가 본다(D-05).
+   */
+  @RequireScope('review:resolve')
+  @Post('findings/:id/change-request')
+  toChangeRequest(
+    @Req() req: ProjectRequest,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<unknown> {
+    const principal = principalOf(req);
+    const input = parseBody(FindingToChangeRequestInput, body ?? {});
+    return this.changeRequests.fromFinding({
+      projectId: req.nervProjectId!,
+      findingId: id,
+      userId: principal.userId,
+      sessionId: null,
+      isAgent: principal.isAgent,
+      roles: req.nervRoles ?? [],
+      ...(input.rationale == null ? {} : { rationale: input.rationale }),
     });
   }
   /**

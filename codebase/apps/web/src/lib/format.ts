@@ -34,6 +34,16 @@ export function relativeTime(t: Translator, iso: string | null, now = Date.now()
 export const DASH = '—';
 
 /**
+ * 리뷰 컷오버 단계의 이름(2026-10-16 · 사람 결정 D6 · REQ-WEB-330 · 331) — 설정 탭의 선택지와 리뷰 센터의 컷오버 관측이 같은 말을
+ * 쓴다. 어휘의 정본은 `REVIEW_SOTS` 다
+ */
+export const SOT_LABEL = {
+  git: 'review.sot.git',
+  dual: 'review.sot.dual',
+  nerv: 'review.sot.nerv',
+} as const satisfies Record<'git' | 'dual' | 'nerv', MessageKey>;
+
+/**
  * 막힘 사유를 **사람 말로**(2026-09-07 · REQ-WEB-143).
  *
  * 두 화면이 각자 틀리고 있었다. 보드 카드는 식별자를 그대로 찍어 `awaiting_answer` 라

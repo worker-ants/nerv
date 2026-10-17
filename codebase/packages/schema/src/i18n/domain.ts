@@ -20,9 +20,9 @@ export function eventLabelKey(type: string): EventLabelKey {
 
 /**
  * 상태 라벨을 갖는 엔티티 — screens.md §4.2 매핑표의 열과 같다.
- * `finding` 은 S6 리뷰 센터와 함께 들어왔다(2026-08-23 · FR-09).
+ * `finding` 은 S6 리뷰 센터와 함께 들어왔다(2026-08-23 · FR-09). `cr` 은 변경 요청(2026-10-16 · 사람 결정 D1).
  */
-export type LabeledEntity = 'spec' | 'requirement' | 'task' | 'session' | 'finding';
+export type LabeledEntity = 'spec' | 'requirement' | 'task' | 'session' | 'finding' | 'cr';
 
 export type StatusLabelKey = MessageKey & `status.${string}`;
 

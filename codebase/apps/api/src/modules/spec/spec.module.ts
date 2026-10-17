@@ -17,6 +17,7 @@ import { SpecExportService } from './spec-export.service.js';
 import { AttachmentService } from './attachment.service.js';
 import { StorageService } from '../../common/storage.service.js';
 import { SpecTools } from './spec.tools.js';
+import { ChangeRequestService } from './change-request.service.js';
 
 @Module({
   imports: [EventModule, AuthModule],
@@ -25,6 +26,7 @@ import { SpecTools } from './spec.tools.js';
     AttachmentService,
     StorageService,
     SpecService,
+    ChangeRequestService,
     SpecExportService,
     SpecCheckService,
     SpecRelationService,
@@ -37,6 +39,7 @@ import { SpecTools } from './spec.tools.js';
   ],
   exports: [
     SpecService,
+    ChangeRequestService,
     SpecCommentService,
     SpecRelationService,
     SearchService,

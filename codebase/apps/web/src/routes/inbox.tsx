@@ -17,8 +17,11 @@ import { useT } from '../lib/i18n.js';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BULK_DECISION_LIMIT } from '@nerv/schema';
+import { BULK_DECISION_LIMIT, INBOX_KINDS } from '@nerv/schema';
+import type { InboxKind } from '@nerv/schema';
 import { ApprovalCard, inView, subjectFallback } from '../features/inbox/approval-card.js';
+import { EscalationCard } from '../features/inbox/escalation-card.js';
+import { KindFilter } from '../features/inbox/kind-filter.js';
 import type { CardFailure } from '../features/inbox/approval-card.js';
 import { BulkConfirm, bulkApprovable, useBulkDecision } from '../features/inbox/bulk-decision.js';
 import { apiFetch } from '../lib/api.js';
@@ -26,6 +29,7 @@ import { relativeTime } from '../lib/format.js';
 import {
   inboxActionable,
   inboxCards,
+  inboxKindCounts,
   inboxTotal,
   lockedCard,
   useInbox,
@@ -57,6 +61,8 @@ export interface InboxSearch {
   org?: string;
   /** 프로젝트 slug — `org` 가 그 조직을 정한다 */
   project?: string;
+  /** 카드 유형(2026-10-16 · 사람 결정 D3 · REQ-WEB-326) — 어휘는 `INBOX_KINDS` 다. 탭 · 범위와 따로 고르는 칸이다 */
+  kind?: InboxKind;
 }
 
 const text = (value: unknown): string | undefined =>
@@ -67,7 +73,12 @@ export const Route = createFileRoute('/inbox')({
     const focus = text(search['focus']);
     const org = text(search['org']);
     const project = text(search['project']);
+    const kind = text(search['kind']);
     return {
+      // 어휘 밖의 유형은 버린다 — 칸의 이름은 닫힌 집합이라 모르는 값에 화면을 맞출 자리가 없다
+      ...(kind !== undefined && (INBOX_KINDS as readonly string[]).includes(kind)
+        ? { kind: kind as InboxKind }
+        : {}),
       ...(search['state'] === 'decided' || search['state'] === 'expired'
         ? { state: search['state'] }
         : {}),
@@ -81,12 +92,17 @@ export const Route = createFileRoute('/inbox')({
   component: InboxScreen,
 });
 
-/** 범위와 탭을 주소로 — 칸의 링크와 탭이 같은 모양을 쓴다 */
-function inboxSearchOf(scope: ScopeSelection, state?: InboxSearch['state']): InboxSearch {
+/** 범위 · 탭 · 유형을 주소로 — 칸의 링크와 탭이 같은 모양을 쓴다 */
+function inboxSearchOf(
+  scope: ScopeSelection,
+  state?: InboxSearch['state'],
+  kind?: InboxKind,
+): InboxSearch {
   return {
     ...(state === 'decided' || state === 'expired' ? { state } : {}),
     ...(scope.org === undefined ? {} : { org: scope.org }),
     ...(scope.project === undefined ? {} : { project: scope.project }),
+    ...(kind === undefined ? {} : { kind }),
   };
 }
 
@@ -95,6 +111,7 @@ function inboxHref(search: InboxSearch): string {
   if (search.state !== undefined) params.set('state', search.state);
   if (search.org !== undefined) params.set('org', search.org);
   if (search.project !== undefined) params.set('project', search.project);
+  if (search.kind !== undefined) params.set('kind', search.kind);
   const query = params.toString();
   return `/inbox${query === '' ? '' : `?${query}`}`;
 }
@@ -108,12 +125,22 @@ function inboxHref(search: InboxSearch): string {
  * 승인뿐이다) 선택 가능 집합이 승인 가능 집합보다 넓다. 그 차이를 선택 바가 수로 보인다.
  */
 function selectableCard(card: Row): boolean {
-  return card['subject_type'] !== 'question' && (card['decision'] ?? null) === null;
+  // 에스컬레이션은 한 건씩이다 — 결정이 그 발견의 처분이고 근거가 필수라 일괄에 넣을 칸이 없다(REQ-WEB-325)
+  return (
+    card['subject_type'] !== 'question' &&
+    card['subject_type'] !== 'escalation' &&
+    (card['decision'] ?? null) === null
+  );
 }
 
 function InboxScreen(): React.JSX.Element {
   const t = useT();
-  const { state = 'pending', focus, org, project } = Route.useSearch();
+  const { state = 'pending', focus, org, project, kind: askedKind } = Route.useSearch();
+  /**
+   * 유형은 **한 번 더 거른다** — 위 `validateSearch` 가 버린 값도 루트의 날 쿼리로 여기까지 살아 온다(레일 탭이 겪은 그 모양 ·
+   * REQ-WEB-163). 어휘 밖의 값을 서버에 보내면 400 이 받은 요청 전체를 막는다
+   */
+  const kind = (INBOX_KINDS as readonly unknown[]).includes(askedKind) ? askedKind : undefined;
   /**
    * **범위**(2026-09-27 · 사람 결정 N1 · REQ-WEB-256). 받은 요청은 하나이고(FR-14), 칸이 그 목록을
    * 조직 · 프로젝트 하나로 좁힌다. 헤더 배지는 그대로 모든 조직을 센다(REQ-WEB-193).
@@ -122,7 +149,7 @@ function InboxScreen(): React.JSX.Element {
     ...(org === undefined ? {} : { org }),
     ...(project === undefined ? {} : { project }),
   };
-  const inbox = useInbox(state, scope);
+  const inbox = useInbox(state, scope, kind);
   const scopes = useInboxScopes();
   const railRows: ScopeRailRow[] = (scopes.data?.items ?? []).map((r) => ({
     ...r,
@@ -318,18 +345,22 @@ function InboxScreen(): React.JSX.Element {
       // 카드가 하나씩 튀어오르는 것처럼 읽힌다
       className="rounded-nerv border-l-2 border-transparent pl-1 transition-colors data-[active=true]:border-status-action data-[landed=true]:bg-status-action-soft"
     >
-      <ApprovalCard
-        card={card}
-        active={index === cursor}
-        keysOff={confirming !== null}
-        selectable={state === 'pending' && selectableCard(card)}
-        selected={selected.has(String(card['id']))}
-        onToggle={toggle}
-        {...(atLimit ? { selectLockedBy: 'bulk-limit' } : {})}
-        {...(failures.has(String(card['id']))
-          ? { failure: failures.get(String(card['id'])) as CardFailure }
-          : {})}
-      />
+      {card['subject_type'] === 'escalation' ? (
+        <EscalationCard card={card} active={index === cursor} />
+      ) : (
+        <ApprovalCard
+          card={card}
+          active={index === cursor}
+          keysOff={confirming !== null}
+          selectable={state === 'pending' && selectableCard(card)}
+          selected={selected.has(String(card['id']))}
+          onToggle={toggle}
+          {...(atLimit ? { selectLockedBy: 'bulk-limit' } : {})}
+          {...(failures.has(String(card['id']))
+            ? { failure: failures.get(String(card['id'])) as CardFailure }
+            : {})}
+        />
+      )}
     </li>
   );
 
@@ -354,7 +385,7 @@ function InboxScreen(): React.JSX.Element {
             <Link
               to="/inbox"
               // 탭을 바꿔도 범위는 그대로다 — 탭과 범위는 따로 고르는 두 칸이다
-              search={inboxSearchOf(scope)}
+              search={inboxSearchOf(scope, undefined, kind)}
               // 링크는 스스로 `aria-current` 를 단다 — 기본 비교는 쿼리를 **부분**으로 봐서, 빈 쿼리의
               // [대기 중]이 `?state=decided` 에서도 "지금 여기" 라고 말했다. 쿼리까지 같아야 여기다
               activeOptions={{ exact: true }}
@@ -369,7 +400,7 @@ function InboxScreen(): React.JSX.Element {
             </Link>
             <Link
               to="/inbox"
-              search={inboxSearchOf(scope, 'decided')}
+              search={inboxSearchOf(scope, 'decided', kind)}
               activeOptions={{ exact: true }}
               aria-current={state === 'decided' ? 'page' : undefined}
               data-testid="inbox-tab-decided"
@@ -384,7 +415,7 @@ function InboxScreen(): React.JSX.Element {
                 결정이 아니라 처리됨과 섞지 않는다(spec-workflow §6.4 의 대기 · 결정 · 만료) */}
             <Link
               to="/inbox"
-              search={inboxSearchOf(scope, 'expired')}
+              search={inboxSearchOf(scope, 'expired', kind)}
               activeOptions={{ exact: true }}
               aria-current={state === 'expired' ? 'page' : undefined}
               data-testid="inbox-tab-expired"
@@ -424,8 +455,8 @@ function InboxScreen(): React.JSX.Element {
             allLabel={t('notif.scope.all')}
             urgentTitle={() => ''}
             countTitle={(count) => t('inbox.count_pending', { count })}
-            hrefFor={(next) => inboxHref(inboxSearchOf(next, state))}
-            onSelect={(next) => void navigateTo({ search: inboxSearchOf(next, state) })}
+            hrefFor={(next) => inboxHref(inboxSearchOf(next, state, kind))}
+            onSelect={(next) => void navigateTo({ search: inboxSearchOf(next, state, kind) })}
           />
         )}
         <div className="min-w-0 flex-1">
@@ -462,6 +493,15 @@ function InboxScreen(): React.JSX.Element {
             {/* 키가 **어느 카드에** 꽂히는지 — 강조된(왼쪽 띠) 카드다. 누르거나 칸에 들어가면 그 카드가 된다 */}
             <span className="text-text-faint">{t('inbox.key.applies')}</span>
           </p>
+
+          {/* **유형 칸**(2026-10-16 · 사람 결정 D3 · REQ-WEB-326) — 스펙 승인 · 변경 요청 · 계획 · 질문 · 에스컬레이션 · 발견 하향 ·
+              게이트 우회. 수는 대기 탭에서만 보인다(서버가 같은 조건으로 센 값) */}
+          <KindFilter
+            selected={kind}
+            counts={state === 'pending' ? inboxKindCounts(inbox.data) : null}
+            hrefFor={(next) => inboxHref(inboxSearchOf(scope, state, next))}
+            onSelect={(next) => void navigateTo({ search: inboxSearchOf(scope, state, next) })}
+          />
 
           {missing !== null && <FocusMissing id={missing} />}
 

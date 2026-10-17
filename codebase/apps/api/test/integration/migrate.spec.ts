@@ -52,7 +52,7 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     expect(after).toEqual(before);
   });
 
-  it('도메인 테이블 34종 + 인프라 5종이 존재한다', async () => {
+  it('도메인 테이블 39종 + 인프라 5종이 존재한다', async () => {
     const names = await withClient(db.url, async (c) => {
       const { rows } = await c.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables
@@ -73,7 +73,12 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
     // 34번째는 `notification_preference` 다(2026-09-27 · 사람 결정 N3 — 프로젝트별 알림 수준 · 0035)
     // 35번째는 `notification_batch_event` 다(2026-09-27 · 사람 결정 G2 — 앱 안 묶음에 든 이벤트 · 0037)
     // 36번째는 `notification_digest_setting` 이다(2026-09-28 · 사람 결정 EM1~EM9 — 알림 메일 요약 · 0041)
-    expect(names).toHaveLength(41);
+    // 37 · 38번째는 `watch` · `pin` 이다(2026-10-16 · 사람 결정 D5 — 워치와 핀 · 0056)
+    // 39번째는 `gate_verdict_comparison` 이다(2026-10-16 · 사람 결정 D6 — 게이트 판정 비교 · 0057)
+    expect(names).toHaveLength(44);
+    expect(names).toContain('gate_verdict_comparison');
+    expect(names).toContain('watch');
+    expect(names).toContain('pin');
     expect(names).toContain('idempotency_key');
     expect(names).toContain('notification_preference');
     expect(names).toContain('notification_batch_event');
@@ -91,9 +96,11 @@ describe('초기 스냅샷 적용 (database.md §2)', () => {
   // 43번째는 `claim_awaiting_kind` 다(2026-10-09 · 0046 — background · user · approval)
   // 44번째는 `task_archive_reason` 이다(2026-10-10 · 0047 — duplicate · superseded · obsolete · wont_do)
   // 45번째는 `impl_status_source` 다(2026-10-15 · 0051 — derived · import)
-  it('enum 45종이 생성된다 (§2.1)', async () => {
+  // 46 · 47번째는 `watch_target` · `pin_target` 이다(2026-10-16 · 0056 — 워치와 핀의 대상)
+  // 48번째는 `review_sot` 다(2026-10-16 · 0057 — 리뷰 컷오버 단계 git · dual · nerv)
+  it('enum 48종이 생성된다 (§2.1)', async () => {
     const count = await scalar(`SELECT count(*)::int FROM pg_type WHERE typtype = 'e'`);
-    expect(count).toBe(45);
+    expect(count).toBe(48);
   });
 });
 
@@ -703,6 +710,128 @@ describe('0051 — 임포트 값의 출처를 채운다', () => {
         withTask: 'derived',
         archivedOnly: 'import',
         authored: 'derived',
+      });
+    } finally {
+      await fresh.drop();
+    }
+  });
+});
+
+describe('0059 — 이미 만든 재검증 작업이 다시 보는 완료 작업을 채운다', () => {
+  it('task.created 의 kind 가 reverify 인 작업만 — 그보다 먼저 끝난 완료 작업 가운데 가장 나중 것이고, 두 번 돌려도 같다', async () => {
+    const fresh = await createScratchDb('nerv_reverifies');
+    try {
+      await runMigrations(fresh.url);
+      const filled = await withClient(fresh.url, async (client) => {
+        const { userId, projectId } = await seedTenancy(client);
+        const specId = randomUUID();
+        const versionId = randomUUID();
+        await client.query(
+          `INSERT INTO spec (id, project_id, type, key, title) VALUES ($1,$2,'feature','SPC-R','R')`,
+          [specId, projectId],
+        );
+        await client.query(
+          `INSERT INTO spec_version (id, spec_id, version_no, status, body_md, content_hash, author_user_id)
+           VALUES ($1,$2,1,'approved','본문',decode(md5('r'),'hex'),$3)`,
+          [versionId, specId, userId],
+        );
+        const requirement = async (ref: string): Promise<string> => {
+          const id = randomUUID();
+          await client.query(
+            `INSERT INTO requirement (id, project_id, spec_id, ref, statement_md, introduced_in_version_id,
+                                      current_version_id)
+             VALUES ($1,$2,$3,$4,'문장',$5,$5)`,
+            [id, projectId, specId, ref, versionId],
+          );
+          return id;
+        };
+        /** `doneAgo` 면 그 시간 전에 끝난 완료 작업, `kind` 면 CR 승인이 만든 것처럼 `task.created` 를 남긴다 */
+        const task = async (
+          requirementId: string,
+          opts: { doneAgo?: string; createdAgo?: string; kind?: 'reverify' | 'derive' },
+        ): Promise<string> => {
+          const id = randomUUID();
+          const done = opts.doneAgo !== undefined;
+          await client.query(
+            `INSERT INTO task (id, project_id, key, title, status, source_requirement_id, goal_md, output_format_md,
+                               tools_sources_md, boundaries_md, spec_impact, done_at, created_at)
+             VALUES ($1,$2,$3,'작업',$4::task_status,$5,'g','o','t','b',
+                     CASE WHEN $6 THEN '{"none": true}'::jsonb END,
+                     CASE WHEN $6 THEN now() - $7::interval END,
+                     now() - $8::interval)`,
+            [
+              id,
+              projectId,
+              `R-T-${id.slice(0, 6)}`,
+              done ? 'done' : 'backlog',
+              requirementId,
+              done,
+              opts.doneAgo ?? '0',
+              opts.createdAgo ?? '0',
+            ],
+          );
+          if (opts.kind !== undefined) {
+            await client.query(
+              `INSERT INTO event (id, project_id, type, subject_type, subject_id, payload)
+               VALUES ($1,$2,$3,'task',$4,$5::jsonb)`,
+              [
+                randomUUID(),
+                projectId,
+                NERV_EVENT.TASK_CREATED,
+                id,
+                JSON.stringify({
+                  change_request_key: 'K-C-1',
+                  kind: opts.kind,
+                  requirement_ref: 'REQ-R-001',
+                }),
+              ],
+            );
+          }
+          return id;
+        };
+        const r1 = await requirement('REQ-R-001');
+        const r2 = await requirement('REQ-R-002');
+        await task(r1, { doneAgo: '3 hours' });
+        const latest = await task(r1, { doneAgo: '2 hours' });
+        const reverify = await task(r1, { kind: 'reverify', createdAgo: '1 hour' });
+        // 재검증 작업이 생긴 뒤에 끝난 완료 작업은 그 작업이 다시 보는 것이 아니다
+        await task(r1, { doneAgo: '30 minutes' });
+        const derive = await task(r1, { kind: 'derive' });
+        const plain = await task(r1, {});
+        // 같은 요구사항에 완료 작업이 없으면 채우지 않는다
+        const orphan = await task(r2, { kind: 'reverify' });
+
+        // 마이그레이션은 이미 적용됐다 — 채우는 문장(마지막 조각)만 손으로 다시 돌리고 멱등을 함께 본다
+        await client.query(`UPDATE task SET reverifies_task_id = NULL WHERE project_id = $1`, [
+          projectId,
+        ]);
+        const statements = readFileSync(
+          join(migrationsFolder(), '0059_task_reverifies.sql'),
+          'utf8',
+        ).split('--> statement-breakpoint');
+        const backfill = statements[statements.length - 1] ?? '';
+        await client.query(backfill);
+        await client.query(backfill);
+
+        const { rows } = await client.query<{ id: string; target: string | null }>(
+          `SELECT id, reverifies_task_id AS target FROM task WHERE project_id = $1`,
+          [projectId],
+        );
+        const of = (id: string): string | null => rows.find((r) => r.id === id)?.target ?? null;
+        return {
+          reverify: of(reverify) === latest,
+          derive: of(derive),
+          plain: of(plain),
+          orphan: of(orphan),
+          filled: rows.filter((r) => r.target !== null).length,
+        };
+      });
+      expect(filled).toEqual({
+        reverify: true,
+        derive: null,
+        plain: null,
+        orphan: null,
+        filled: 1,
       });
     } finally {
       await fresh.drop();

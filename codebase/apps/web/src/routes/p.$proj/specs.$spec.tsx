@@ -52,6 +52,8 @@ import {
   useMe,
   useSpec,
   useSpecCheck,
+  useSpecImpact,
+  useChangeRequest,
   useSpecComments,
   useSpecRelations,
   useSpecDiff,
@@ -65,6 +67,7 @@ import {
 import { ancestorsOf } from '../../components/spec-tree.js';
 import type { TreeNode } from '../../components/spec-tree.js';
 import { relativeTime } from '../../lib/format.js';
+import { crPlanOfDetail, crPlanText } from '../../lib/cr-plan.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRememberVisit } from '../../components/quick-switcher.js';
@@ -90,6 +93,7 @@ import type { StatusToken } from '../../components/status-badge.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import { useScrollTopOn } from '../../lib/scroll-top.js';
 import { BodyChangeLine, parseBodyChange } from '../../components/body-change.js';
+import { WatchButton } from '../../features/inbox/watch.js';
 
 export const Route = createFileRoute('/p/$proj/specs/$spec')({
   /**
@@ -283,8 +287,22 @@ function SpecDetail(): React.JSX.Element {
   const submitBodyChange = parseBodyChange(check.data?.['body_change']);
 
   const [showImpact, setShowImpact] = useState(false);
+  /** 보는 버전을 감싼 변경 요청(2026-10-16 · REQ-WEB-322) — 영향 창이 그 CR 로 가는 길을 보인다 */
+  const viewedCr = (viewed?.['change_request'] ?? null) as Record<string, unknown> | null;
+  /** 영향 미리보기(EP-SPEC-31) — 영향 창이 열린 동안만 읽는다 */
+  const impactPreview = useSpecImpact(proj, String(viewed?.['version_id'] ?? ''), showImpact);
   /** 영향 창이 무엇을 보내는가 — 검토 요청 또는 바로 승인(REQ-WEB-303). 무엇이 흔들리나는 같은 질문이라 한 창이다 */
   const [impactFor, setImpactFor] = useState<'submit' | 'approve'>('submit');
+  /**
+   * **바로 승인이 함께 할 일**(2026-10-16 사람 결정 · REQ-WEB-322 · api.md REQ-API-351) — 아무도 고르지 않았으면 이 창의 승인도
+   * 기본값(파생 · 재검증 작업을 만든다)을 적용한다. 받은 요청 카드와 같은 한 줄을 그 CR(EP-CR-02)에서 그린다. 창이 열린 동안만 읽는다
+   */
+  const approveCr = useChangeRequest(
+    proj,
+    showImpact && impactFor === 'approve' && typeof viewedCr?.['key'] === 'string'
+      ? viewedCr['key']
+      : '',
+  );
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다.
   //
@@ -906,6 +924,14 @@ function SpecDetail(): React.JSX.Element {
             </span>
           )}
           <span className="ml-auto flex items-center gap-1">
+            {/* **워치**(2026-10-16 · 사람 결정 D5 · REQ-WEB-328) — 영역 문서면 그 아래 문서와 작업까지 받는 영역 워치다 */}
+            {detail.data !== undefined && (
+              <WatchButton
+                proj={proj}
+                targetType={detail.data['type'] === 'area' ? 'area' : 'spec'}
+                target={spec}
+              />
+            )}
             {/* 목차 — 긴 문서의 절 사이를 오간다(SPEC-05 · REQ-WEB-215) */}
             <SpecToc headings={headings} onPick={goAnchor} />
             <Button
@@ -1001,7 +1027,44 @@ function SpecDetail(): React.JSX.Element {
                   승인하고 나서 알게 되면 되돌리는 비용이 훨씬 크다 */}
               <li>{t('spec.impact_backlinks', { count: backlinks.length })}</li>
               <li>{t('spec.impact_tasks', { count: rows(detail.data?.['tasks']).length })}</li>
+              {/* **진행 중 클레임**(2026-10-16 · EP-SPEC-31 · REQ-WEB-322) — 이 버전이 승인되면 바뀌거나 빠진 요구사항의
+                  작업을 쥔 세션이 그 사실을 바로 받는다 */}
+              {impactPreview.data !== undefined && (
+                <li data-testid="impact-claims">
+                  {t('spec.impact_claims', {
+                    count: Number(
+                      (impactPreview.data['counts'] as Record<string, number> | undefined)?.[
+                        'claims'
+                      ] ?? 0,
+                    ),
+                    affected: Number(
+                      (impactPreview.data['counts'] as Record<string, number> | undefined)?.[
+                        'affected_claims'
+                      ] ?? 0,
+                    ),
+                  })}
+                </li>
+              )}
             </ul>
+            {/* **변경 요청이면 고를 곳이 있다** — 승인하며 함께 할 일(파생 · 재검증 작업 · 미착수 작업 보관)은 CR 화면에서
+                고른다. 여기서 승인하면 골라 둔 것을, 아무도 고르지 않았으면 기본값을 한다(2026-10-16 사람 결정) */}
+            {impactFor === 'approve' && approveCr.data !== undefined && (
+              <p data-testid="impact-cr-plan" className="mt-1 text-2xs text-text-mute">
+                {crPlanText(t, crPlanOfDetail(approveCr.data))}
+              </p>
+            )}
+            {typeof viewedCr?.['key'] === 'string' && (
+              <p data-testid="impact-cr" className="mt-1 text-2xs text-text-faint">
+                {t('spec.impact_cr', { key: viewedCr['key'] })}{' '}
+                <Link
+                  to="/p/$proj/crs/$cr"
+                  params={{ proj, cr: viewedCr['key'] }}
+                  className="text-link hover:underline"
+                >
+                  {t('spec.next.cr', { key: viewedCr['key'] })} ↗
+                </Link>
+              </p>
+            )}
             {/* **직전 버전과 견준 크기**(2026-10-08 · REQ-WEB-297). 484바이트로 잘린 본문도 이 창은 역참조와 작업
                 수만 보여 줬다 — 무엇이 흔들리는지와 함께 무엇이 얼마나 바뀌는지를 본다 */}
             {submitBodyChange !== null && (
@@ -1623,6 +1686,17 @@ function SpecDetail(): React.JSX.Element {
                       <span data-testid="version-reverted" className="text-2xs text-text-faint">
                         {t('spec.version.reverted', { n: v['reverted_to_version_no'] })}
                       </span>
+                    )}
+                    {/* 이 버전을 감싼 변경 요청(2026-10-16 · REQ-WEB-322) — 버린 초안이 어느 제안이었는지 여기서 간다 */}
+                    {typeof v['change_request_key'] === 'string' && (
+                      <Link
+                        to="/p/$proj/crs/$cr"
+                        params={{ proj, cr: v['change_request_key'] }}
+                        data-testid="version-cr"
+                        className="text-2xs text-link hover:underline"
+                      >
+                        {v['change_request_key']}
+                      </Link>
                     )}
                     {/* **바뀐 시각**이지 만든 시각이 아니다 — draft 는 같은 행을
                           덮어쓰므로 created_at 을 적으면 방금 고친 문서가 "2시간 전"이 된다 */}

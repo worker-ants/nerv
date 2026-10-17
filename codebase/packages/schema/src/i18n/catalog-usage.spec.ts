@@ -40,6 +40,15 @@ const DYNAMIC: readonly { prefix: string; values?: readonly string[]; where: str
   { prefix: 'gate.axis.', where: 'inbox approval-card — GATE_AXES' },
   { prefix: 'gate.reason.', where: 'api gate-tier · inbox approval-card — GATE_SIGNALS' },
   {
+    prefix: 'inbox.kind.',
+    values: ['spec', 'cr', 'plan', 'question', 'escalation', 'finding', 'gate_bypass'],
+    where: 'web features/inbox/kind-filter — INBOX_KINDS (2026-10-16)',
+  },
+  {
+    prefix: 'inbox.esc.decide.',
+    where: 'web features/inbox/escalation-card — 처분과 그 설명(`_hint`) (2026-10-16)',
+  },
+  {
     prefix: 'invite.',
     values: ['pending', 'accepted', 'revoked', 'expired', 'declined'],
     where: 'web invite.$token · settings/members — 초대 상태',
@@ -72,6 +81,11 @@ const DYNAMIC: readonly { prefix: string; values?: readonly string[]; where: str
   { prefix: 'specs.type.', where: 'spec-graph — 문서 종류' },
   { prefix: 'status.', where: 'domain.ts statusLabelKey' },
   { prefix: 'theme.', where: 'web app-shell — 테마 메뉴' },
+  {
+    prefix: 'watch.type.',
+    values: ['spec', 'task', 'area'],
+    where: 'web features/inbox/watch — 워치 목록의 대상 종류 WATCH_TARGETS (2026-10-16)',
+  },
 ];
 
 /**

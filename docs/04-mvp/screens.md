@@ -4,6 +4,7 @@ status: approved
 updated: 2026-09-26
 referenced_by:
   - 03-proposal/vision.md
+  - 03-proposal/data-model.md
   - 03-proposal/spec-workflow.md
   - 03-proposal/ui-wireframes.md
   - 03-proposal/roadmap.md
@@ -22,7 +23,21 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.44 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.51 · 2026-10-16 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.51 변경(2026-10-16 — 게이트 현황 줄의 판정, PR #240 검토 · **사람 확인**): **§2.6a 와이어프레임과 다른 둘째 곳 한 구절.** 면제만 있는 줄의 판정을 「리뷰 없음」 그대로 두고 면제 수와 범위를 함께 보이는 것을 사람이 확인했다 — 통과 여부는 게이트 판정(EP-REV-08 — 종류마다 `waived`)이 답한다. 화면과 서버는 바뀌지 않는다.
+>
+> v2.50 변경(2026-10-16 — 카드에서 승인해도 CR 제안의 기본값을 적용하고 리뷰 센터에서 브랜치 면제를 낸다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A 둘)): **REQ-WEB-332 신설 · REQ-WEB-320 · 321 · 322 · 327 개정 · §2.4 영향 미리보기 항목 · §2.4f 함께 할 일 행 · §2.6a 게이트 현황 행과 와이어프레임과 다른 둘째 곳 · §2.7 CR 카드 항목.** ① 아무도 고르지 않은 CR은 받은 요청 카드 · [바로 승인] 창에서 승인해도 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다 — 카드와 창은 승인하면 무엇이 만들어지는지 같은 한 줄로 보이고, CR 화면은 아무도 고르지 않았으면 그 사실을, 빈 선택을 골라 두었으면 모두 끈 채로 보인다([4.4 API](api.md) REQ-API-351). ② S6 게이트 현황의 브랜치 줄마다 [면제]가 그 브랜치를 미리 채운 브랜치 면제 폼을 열고, 제목 옆의 [브랜치 면제]는 줄이 없는 브랜치의 이름을 직접 넣게 한다 — 작업과 무관한 브랜치를 화면에서 면제할 길이 없었다.
+>
+> v2.49 변경(2026-10-16 — SoT 컷오버 M1, Phase 2 묶음 3의 넷째 · **사람 결정**(2026-10-16 — D6) · [4.8 백로그](backlog.md) E21-S03): **REQ-WEB-330 · 331 신설 · §1.4 표 한 줄과 `project.updated` 줄 · §2.6a 표 한 줄 · §2.8 게이트 정책 행.** S6 리뷰 센터의 게이트 현황 위에 「컷오버 관측」을 둔다 — admin · planner 에게, 컷오버 전(`git`)이 아닌 프로젝트에서만. 판정 불일치율 · 리뷰 제출 실패율과 서버가 로드맵 기준에 견준 상태(안정 · 관찰 중 · 롤백 기준 도달 · 비교 없음) · 최근 불일치를 보이고, 저장소의 신규 커밋은 CLI 가 센다고 알린다. 컷오버 단계는 S8 게이트 정책 탭에서 admin 이 고른다([4.4 API](api.md) REQ-API-348 · 349).
+>
+> v2.48 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B) · [4.8 백로그](backlog.md) E17-S02): **REQ-WEB-328 · 329 신설 · §1.3a 「최근·핀」 항목 · §2.9 한 단락.** 스펙 상세 · 작업 상세에 [워치]를 둔다 — 지금 상태를 눌린 단추로 보이고 영역 문서면 [영역 워치]다(그 아래 문서와 작업까지). 내 계정의 알림 탭에 모든 프로젝트의 워치 목록과 [해제]를 둔다. 퀵 스위처의 핀은 서버에 남고(다른 기기에서도 같다) 브라우저에 있던 핀은 처음 한 번 옮긴 뒤 지운다. 최근 방문은 그대로 브라우저에 있다([4.4 API](api.md) REQ-API-342 ~ 345).
+>
+> v2.47 변경(2026-10-16 — 리뷰가 없는 브랜치의 면제, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D4) · [4.8 백로그](backlog.md) E16-S04): **REQ-WEB-327 신설 · §2.6a 와이어프레임과 다른 둘째 곳 · 게이트 현황 행 · §2.5 done 전이 항목 한 문장 · §1.4 `gate.bypassed` 행.** 작업 상세의 리뷰 카드에 [브랜치 면제]를 둔다 — 그 작업의 리뷰 · 클레임 세션의 브랜치를 눌러 고르거나 이름을 넣은 뒤 선택 커밋(40자)과 역할이 면제할 수 있는 종류 · 사유로 기록한다. 게이트 현황은 면제만 있는 브랜치를 「리뷰 없음」 줄로 보이고 면제의 범위(종류 · 커밋)와 수를 함께 적는다([4.4 API](api.md) REQ-API-339 ~ 341).
+>
+> v2.46 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **REQ-WEB-324 ~ 326 신설 · §2.6a "와이어프레임과 다른 세 곳" 셋째 항목 · §2.7 첫 단락 · 데이터 소스 표 다섯 줄(§2.6a 하나 · §2.7 넷) · 컴포넌트 한 항목.** 리뷰 센터의 `spec_drift` 발견 레일에 [CR로 보내기]가 생겼다(planner · admin) — 그전에는 보낼 곳이 없어 버튼을 두지 않았다. 받은 요청의 카드는 일곱 유형이고 목록 위의 유형 칸으로 거른다(수는 서버가 센다). 에스컬레이션 카드는 넘긴 발견의 원문 · 사유 · 기다리는 세션을 보이고, 고칠 것 · 유예 · 기각 가운데 하나를 근거와 함께 고른다 — 사유가 `spec` 이면 [CR로 보내기]도 있다. 변경 요청으로 보낸 발견은 그 CR의 planner 카드 하나로 모인다("구현이 스펙을 바꿨습니다. 스펙 갱신을 승인하시겠습니까?").
+>
+> v2.45 변경(2026-10-16 — CR과 델타 뷰, Phase 2 묶음 3의 첫째 · **사람 결정**(2026-10-16 — D1 · D2) · [4.8 백로그](backlog.md) E19-S01): **REQ-WEB-320 ~ 323 신설 · §2.4f 신설 · §1.2 라우트 · §1.3a 한 구절 · §1.4 이벤트 줄 · §1.6 커버리지 줄 · §2.4 두 항목 · §2.7 첫 단락과 한 항목 · §4.2 토큰.** `/p/:proj/crs/:cr` 가 CR 상세다 — 양 끝이 고정된 델타 · 승인하면 움직이는 것 · 승인하며 함께 할 일(체크 목록) · 결정. 받은 요청의 스펙 결재 카드는 그 버전을 CR이 감싸면 CR 카드가 된다 — 같은 결재를 두 카드로 보이지 않는다. 스펙 상세의 다음 할 일 줄과 버전 레일이 그 버전의 CR로 가고 버린 초안(`discarded`)은 다시 열지 않는다. ⌘K와 스펙 목록 검색이 CR 키를 찾는다.
 >
 > v2.44 변경(2026-10-16 — 플러그인 활성화 현황이 Codex 세션도 센다, **사람 결정**(2026-10-16 — B)): **REQ-WEB-189 개정 · §2.6 데이터 소스 한 줄.** 현황이 Claude Code와 Codex를 함께 센다([4.4 API](api.md) REQ-API-168). 요약 한 줄은 그대로이고, 펼치면 에이전트 종류마다 수 · 기계 · 그 종류의 꺼짐 까닭을 묶어 보인다 — Codex는 플러그인을 설치하고도 `/hooks`에서 훅을 신뢰 처리하지 않으면 꺼짐이다. 줄이 없는 종류는 그리지 않는다.
 >
@@ -528,7 +543,7 @@ referenced_by:
 | `/p/:proj/sessions/:session` | 세션 상세(Activity 타임라인) | 멤버십 | |
 | `/p/:proj/coverage` | 커버리지 드릴다운(구현 현황) | 멤버십(viewer 포함) | **Phase 2** — 2026-10-15 구현(§2.3a · [4.8 백로그](backlog.md) E15-S01). 쿼리: `?area=`(영역 문서 키 · 영역 밖 무리는 `-`) `?spec=` `?filter=evidence_missing\|empty_promises\|reverify\|import` `?req=<고정 ID>`(펼친 요구사항 · REQ-WEB-315) |
 | `/p/:proj/reviews` | S6 리뷰 센터 | 멤버십 | **Phase 2** — 2026-08-23 구현(§2.6a). 처분은 `review:resolve` 보유 역할, 발견 코멘트는 `review:submit` 보유 역할(viewer 제외 · 2026-10-11 · REQ-WEB-307). 쿼리: `?severity=` `?status=`(없으면 `open` · `all` 은 거르지 않음) `?area=` `?tag=`(쉼표 목록) `?branch=` `?finding=`(REQ-WEB-209·212) |
-| `/p/:proj/crs/:cr` | CR 델타 | — | **Phase 2** — 라우트만 예약(FR-04) |
+| `/p/:proj/crs/:cr` | CR 상세(델타 · 영향 · 결정) | 멤버십(viewer 포함 — 결정 단추는 역할을 본다) | **Phase 2** — 2026-10-16 구현(§2.4f · [4.8 백로그](backlog.md) E19-S01). `:cr` 은 CR 키 또는 UUID |
 
 ```text
 apps/web/src/routes/
@@ -643,9 +658,9 @@ apps/web/src/routes/
 전역 헤더의 "🔍 전역 검색"의 실체이자 대규모 프로젝트의 기본 이동 수단이다. 트리 스크롤 대신 **타이핑 → Enter**로 어디서든 어디로든 간다.
 
 - **호출**: `⌘K`(mac) / `Ctrl+K` — 전 라우트 공통. 모달, `Esc` 닫기, `↑↓` 이동, `Enter` 이동, 전부 키보드 완결(받은 요청 `j/k/a/r/c`와 같은 규약).
-- **동작**: 입력 디바운스 후 EP-SPEC-02(하이브리드 — [4.4](api.md) §2.2b). 번호(문서 · 요구사항 · 작업 — 대소문자 무시, 세 글자 이상이면 일부도)는 서버가 맨 위에 두므로 첫 줄이 곧 그 번호다(2026-10-04 정정 — 옛 접두 `SPC-`·`REQ-`·`TSK-` 를 적고 있었다 · REQ-API-258 · 259). **결과는 그 검색어의 것만 보인다** — 디바운스 동안 앞 글자의 결과를 남겨 두면 Enter 가 그것을 연다(REQ-WEB-288). 빈 입력 상태에서는 **최근 방문**(localStorage, 최대 20)과 핀 목록을 보여준다.
+- **동작**: 입력 디바운스 후 EP-SPEC-02(하이브리드 — [4.4](api.md) §2.2b). 번호(문서 · 요구사항 · 작업 · 변경 요청 — 대소문자 무시, 세 글자 이상이면 일부도. 변경 요청 키는 CR 상세로 간다 · 2026-10-16 · REQ-WEB-323)는 서버가 맨 위에 두므로 첫 줄이 곧 그 번호다(2026-10-04 정정 — 옛 접두 `SPC-`·`REQ-`·`TSK-` 를 적고 있었다 · REQ-API-258 · 259). **결과는 그 검색어의 것만 보인다** — 디바운스 동안 앞 글자의 결과를 남겨 두면 Enter 가 그것을 연다(REQ-WEB-288). 빈 입력 상태에서는 **최근 방문**(localStorage, 최대 20)과 핀 목록을 보여준다.
 - **결과 행**: 타입 아이콘 · 제목 · 번호 · 문서 상태 배지 · 보관된 문서면 `보관됨` · 매칭 앵커(선택 시 해당 헤딩으로 스크롤). Task·Requirement 결과는 각각 S4 패널·S3 요구사항 앵커로 딥링크.
-- **최근·핀**: 클라이언트 로컬(localStorage — 뷰 상태 규약(ui-wireframes §1.4)과 같은 등급, 서버 동기화·watch 테이블은 Phase 2). 핀은 스펙 목록·트리에도 ★로 표기.
+- **최근·핀**: 최근 방문은 클라이언트 로컬(localStorage — 뷰 상태 규약(ui-wireframes §1.4)과 같은 등급)이다. **핀은 서버에 있다**(2026-10-16 · 사람 결정 D5 · REQ-WEB-329 · [4.4](api.md) EP-NTF-13 ~ 16) — 사람마다 프로젝트를 넘는 한 목록이라 다른 기기에서도 같은 핀이다. 요구사항 · 헤딩으로 찾은 줄을 고정하면 그 문서가 고정된다. 브라우저에만 있던 옛 핀은 로그인한 셸이 뜰 때 처음 한 번 서버로 옮기고, 응답을 받은 뒤에만 지운다(실패하면 남겨 두고 다음에 다시). 핀은 스펙 목록·트리에도 ★로 표기한다 — **아직 없다**(2026-10-16 확인 — 핀을 그리는 곳은 퀵 스위처뿐이다).
 - **무리**(2026-09-25 · REQ-WEB-223): 빈 입력이면 **고정 · 최근**(지금 조직의 것만) 아래에 **이 프로젝트**(개요·스펙·작업·세션·리뷰 · 그 프로젝트로 좁힌 받은 요청 · 알림 — 프로젝트 안일 때 · 2026-09-27 · REQ-WEB-258) · **이동**(홈 · 받은 요청 · 알림 · 설정 네 탭 · 도움말 · 이 화면 도움말) · **프로젝트**(지금 조직). 입력이 있으면 정적 무리는 이름·경로 낱말로 화면에서 거르고(요청을 늘리지 않는다), 프로젝트 안이면 EP-SPEC-02 결과를 **문서** 무리로 맨 위에 둔다. 프로젝트 밖에서도 화면·프로젝트로는 간다 — 자리표시자는 문서 검색이 프로젝트 안의 일이라고 말한다(REQ-WEB-193). **명령**(2026-09-28 · REQ-WEB-266) — 언어·테마 전환(지금 것은 빼고)과 새 스펙 시작 명령 복사(초안을 쓸 수 있는 역할 · 프로젝트 안에서). 가는 곳이 아니라 하는 일이라 고르면 창이 닫히고 바로 적용된다.
 - **기록은 프로젝트를 안다**(2026-09-25 · REQ-WEB-223): 최근·핀 줄은 `project_slug`·`project_name`·`org_slug` 를 싣고, 누르면 **그 프로젝트의** 문서로 간다(다른 조직이면 조직을 바꾸고 — REQ-WEB-199). 프로젝트를 모르는 옛 기록은 읽지 않는다. "최근 방문" 은 **실제 방문**이다 — 스펙·작업 상세가 데이터를 받으면 남긴다(⌘K 에서 고른 것만 쌓이던 자리다). 요구사항 결과는 `?rail=requirements`, 헤딩 앵커는 해시로 그 절에 착지한다.
 - **보조기기와 포커스**(2026-09-25 · REQ-WEB-223): 입력은 `role=combobox`(`aria-controls` · `aria-activedescendant`), 목록은 `listbox` 안의 무리(`group`)와 `option`. `Tab` 은 대화상자 안을 돌고, `Esc` 는 어디서든 닫으며, 닫으면 연 자리로 포커스가 돌아간다.
@@ -678,20 +693,21 @@ WebSocket은 NestJS `@WebSocketGateway`(socket.io 어댑터, websocket 전송만
 | ★`approval.expired` | 스펙 축(키 · 트리 · 초안 승인 목록) + `['inbox']` + 알림 + 스펙 목록의 결재 대기 + 세션 — 문서가 초안으로 돌아가고 카드는 만료 탭으로 가며 그림자 알림이 닫히고 기다리던 세션이 깨어난다(2026-10-15 · [4.4 API 명세](api.md) REQ-API-304) | `project:{id}` |
 | ★`question.answered` | `['inbox']` · `['project', projId, 'sessions']`(세션 재개 반영) | `user:{id}` + `project:{id}` |
 | ★`notification.created` | `['me', 'notifications']` + 헤더 알림 배지 | `user:{id}` |
-| `gate.bypassed` · `gate.failopen` · ★`gate.failopen_escalated` · ★`gate.failopen_cleared` | `['project', projId, 'events']` + 프로젝트 조회(머리 — S5 · S6 의 격상 배너 · 2026-10-15 · REQ-WEB-319). `gate.bypassed` 는 머리를 다시 읽지 않는다 | `project:{id}`(bypassed는 admin `user:{id}`에도 · 격상은 admin 에게 `notification.created`) |
+| `gate.bypassed` · `gate.failopen` · ★`gate.failopen_escalated` · ★`gate.failopen_cleared` | `['project', projId, 'events']` + 프로젝트 조회(머리 — S5 · S6 의 격상 배너 · 2026-10-15 · REQ-WEB-319). `gate.bypassed` 는 머리를 다시 읽지 않고 게이트 현황(`['project', projId, 'gateCoverage']`)을 다시 읽는다 — 리뷰가 없는 브랜치의 면제면 줄이 새로 생긴다(2026-10-16 · REQ-WEB-327) | `project:{id}`(bypassed는 admin `user:{id}`에도 · 격상은 admin 에게 `notification.created`) |
 | ★`session.outbox_failed` | `['project', projId, 'events']` — 화면은 활동 피드뿐이다. 보고한 사람의 종은 개인 룸의 `notification.created` 가 되읽는다(2026-10-16 · [4.4 API](api.md) REQ-API-322) | `project:{id}` + 보고한 사람 `user:{id}` |
 | ★`mirror.diverged` | `['project', projId, 'events']` — 화면은 활동 피드뿐이다. 받는 admin 의 종은 개인 룸의 `notification.created` 가 되읽는다(2026-10-16 · [4.2 코드베이스](codebase.md) REQ-CB-063) | `project:{id}` + admin `user:{id}` |
+| ★`gate.verdict_mismatch` | `['project', projId, 'events']` · `['project', projId, 'cutover']`(S6 의 컷오버 관측 — 2026-10-16 · REQ-WEB-330). 받는 admin 의 종은 개인 룸의 `notification.created` 가 되읽는다 | `project:{id}` + admin `user:{id}` |
 | ★`spec.meta_updated` ★`spec.archived` ★`spec.restored` | 스펙 축과 같다 — `['spec', specKey]` · `['spec', specKey, 'versions']` · `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']` | `project:{id}` |
 | ★`spec.attachment_added` ★`spec.attachment_removed` | `['project', projId, 'spec-tree']` · `['project', projId, 'spec-graph']`(트리와 표 둘 다 첨부 수를 보인다 — 2026-10-04 · REQ-WEB-289) | `project:{id}` |
 | ★`evidence.added` | `['task', taskKey]` · `['project', projId, 'tasks']` · `['project', projId, 'coverage']` | `project:{id}` |
 | ★`approval.decided` | `['inbox']` + 헤더 배지 | `user:{id}` + `project:{id}` |
 | ★`question.cancelled` | `['inbox']` · `['project', projId, 'sessions']` | `user:{id}` + `project:{id}` |
 | ★`import.applied` | `['project', projId, 'spec-tree']` · `['project', projId, 'tasks']` | `project:{id}` |
-| ★`project.created` ★`project.updated` ★`project.archived` ★`project.restored` | `['project', projId]`(설정 변경·보관·복원) · `['project', projId, 'events']` | `project:{id}` |
+| ★`project.created` ★`project.updated` ★`project.archived` ★`project.restored` | `['project', projId]`(설정 변경·보관·복원) · `['project', projId, 'events']` · `updated` 는 `['project', projId, 'cutover']` 도(컷오버 단계를 바꾸면 관측 창이 다시 시작한다 — 2026-10-16 · REQ-WEB-330) | `project:{id}` |
 | ★`member.added` ★`member.updated` ★`member.removed` ★`invitation.declined` | `['project', projId, 'events']` — 감사 피드가 곧 그 사실이 보이는 자리다 | `project:{id}` |
 | ★`token.created` ★`token.revoked` ★`token.updated` | `['me', 'tokens']` · `['project', projId, 'events']` | `project:{id}` |
 | `review.submitted` `finding.opened` `finding.resolved` `finding.commented` | `['project', projId, 'findings']` · `['project', projId, 'gate-coverage']` · `['finding', findingId, 'comments']` — **Phase 2 인데 배선은 들어와 있다**(2026-08-23~24 · §2.6a · REQ-WEB-066) | `project:{id}` |
-| `cr.opened` | — 화면 없음(CR 은 Phase 2 이고 아직 소비자가 없다) | — |
+| `cr.opened` · ★`cr.submitted` · ★`cr.reopened` · `cr.approved` · `cr.rejected` · ★`cr.withdrawn` | `['cr', crKey]`(CR 상세) · 스펙 축(접두 `['spec']` — 봉투에 스펙 키가 없어 넓게 낡힌다) · 트리 · 그래프 · 바로 승인할 초안 목록 · `['inbox']`(CR 카드) — 승인이 만든 작업과 보관한 작업은 그 작업의 이벤트가 따로 무효화한다(2026-10-16 · REQ-WEB-320) | `project:{id}` + 알림 받는 사람 `user:{id}` |
 
 **공통 규칙 둘**(2026-09-25 — UI/UX 검토 · REQ-WEB-219). 표를 줄마다 고치지 않고 규칙으로 둔다. ① **피드** — 위 표에 줄이 있는 프로젝트 이벤트는 모두 `['project', projId, 'events']` 도 되읽는다(§2.3 의 "모든 수신 이벤트를 prepend 후 재조회"). `spec.approved`·`task.done` 은 `['project', projId, 'coverage']` 도 되읽는다 — 증적에만 걸려 있었다. ② **머리** — 사이드바 배지는 slug 축 프로젝트 조회(`projectBySlug`)를, 홈과 헤더 선택기는 조직의 프로젝트 목록(`['org', org, 'projects', …]`)을 읽어 위 표의 키(id 축)가 닿지 않는다. 그 수를 바꾸는 이벤트 — `session.started`·`session.stale`·`session.complete` · `approval.requested`·`approval.decided` · `project.updated`·`project.archived`·`project.restored` · `notification.created` · `review.submitted`·`finding.opened`·`finding.resolved` — 는 키 대신 **술어**로 그 머리를 고른다(slug 축은 받아 둔 `id` 가 봉투의 `project_id` 와 같을 때만).
 
@@ -861,7 +877,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | `/p/:proj/sessions/:session` | 세션 상세(Activity 타임라인) | ui-wireframes §2.5 둘째 그림(`S-8f31` 상세 — 탭·타임라인·산출물 역링크) |
 | `/p/:proj/reviews` | **§2.6a**(2026-08-23 신설) | 그림의 정본은 ui-wireframes §2.6이고, 라우트·데이터 소스·수용 기준은 §2.6a가 소유한다 |
 | `/p/:proj/coverage` | 구현 현황 드릴다운 | ui-wireframes §4.4 (드릴다운 그림) · **이 문서 §2.3a** (2026-10-15 — 라우트 · 데이터 소스 · 수용 기준) |
-| `/p/:proj/crs/:cr` | Phase 2(**미착수** — 라우트 파일도 아직 없다, 2026-09-05 확인) | CR 델타는 Phase 2 착수 시 작성 |
+| `/p/:proj/crs/:cr` | **§2.4f**(2026-10-16 신설) | 그림의 정본은 ui-wireframes §4.3(CR 델타)이고 라우트 · 데이터 소스 · 수용 기준은 §2.4f가 소유한다 |
 
 ### 1.7 언어 전환 (2026-08-23 신설)
 
@@ -1272,6 +1288,8 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
   전체 탭은 **역참조 무리 → 구분선 → 레퍼런스 무리** 순으로 놓는다. 화살표 표식만으로는 무리가 바뀐 자리를 눈이 알아채지 못한다(한쪽이 비면 나눌 것이 없으므로 선도 없다). 역참조 설명("고치면 흔들리는 문서")은 그 무리의 **머리**에 단다 — 꼬리에 달면 스무 줄을 다 내려간 뒤에야 무엇을 읽은 것인지 알게 된다. 그 설명은 역참조가 **보이는 목록에 있을 때만** 성립하므로 레퍼런스 탭에서는 달지 않는다.
 - **영향 미리보기**: [검토 요청] 확인 다이얼로그에 "이 문서를 참조하는 문서 N건 · 파생 Task M건에 영향" 1줄 + 목록 펼침(EP-SPEC-18 역참조 + 파생 Task 카운트). 승인 후 `spec.recheck_requested` 전파의 사전 뷰다. **그 아래에 직전 버전과 견준 크기 한 줄**(2026-10-08 · REQ-WEB-297) — `직전 버전 v3 대비 · 크기 34.8KB → 0.5KB · 제목 27 → 1개`(요구사항이 있던 문서면 `요구사항 59개 중 16개 남음`도). 값은 사전 검토 응답의 `body_change`다. 크게 줄었으면 그 아래 한 줄을 더한다 — 저장할 때 의도한 삭제로 확인했으면 주의(호박색), 아니면 위험(빨강). 확인 없이 크게 준 초안은 사전 검토가 block으로 잡으므로 [검토 요청]이 이미 잠겨 있다.
+- **영향 미리보기의 클레임과 CR**(2026-10-16 · REQ-WEB-322). [검토 요청] · [바로 승인] 창이 영향 미리보기(EP-SPEC-31)에서 "진행 중 클레임 N건(바뀌거나 빠진 요구사항 M건) — 승인되면 그 세션의 사람에게 바로 알립니다" 한 줄을 더한다. 초안이 변경 요청이면 "이 초안은 변경 요청 …입니다. 함께 할 일을 바꾸려면 변경 요청 화면에서 고릅니다." 와 그 링크를 보인다. [바로 승인] 창은 그 위에 승인하면 무엇을 하는지를 받은 요청 CR 카드와 같은 한 줄로 적는다 — 골라 둔 것이 있으면 그것, 아무도 고르지 않았으면 기본값(파생 · 재검증 작업 수 · 보관 제안은 CR 화면에서 고른다는 말)이다(2026-10-16 개정 — 사람 결정 · [4.4 API](api.md) REQ-API-351). 이 창의 바로 승인은 `cr_actions` 를 보내지 않는다 — 기본값은 서버가 정한다.
+- **변경 요청으로 가는 길**(2026-10-16 · 사람 결정 D1 · REQ-WEB-322). 다음 할 일 줄에 그 버전을 감싼 변경 요청의 칩(`변경 요청 CLV-C-…`)이 붙고 승인본을 보는 중에 그 위에 열린 변경 요청이 있으면 `진행 중인 변경 요청 …` 이 붙는다 — 누르면 CR 상세(§2.4f)다. 버전 레일의 줄마다 그 버전의 CR 키가 보인다. 버린 초안(`discarded` · `버려짐`)을 열면 다음 할 일 줄이 "버린 초안입니다. 변경 요청이 거절되거나 철회됐습니다." 를 보이고 기본으로 돌아가는 길만 둔다. 스펙 목록의 상태 고르기에는 `버려짐` 이 없다.
 - **메타 편집·아카이브**(planner·admin — `spec:meta`): 상단 [문서 정보] → 메타 다이얼로그(`SpecMetaDialog`: 제목·부모(트리 피커)·정렬 키·owner_role) — EP-SPEC-15. 칸 넷에 **지금 값**을 보이고(상세 응답의 `parent_key`·`sort_key`·`owner_role`), 부모는 트리에서 고르며 자기와 하위 문서는 잠그고, **바뀐 칸만** 보낸다(2026-09-28 · REQ-WEB-267 — 그 전에는 제목과 "상위 문서 키" 입력 둘뿐이었다). 본문 버전과 무관한 축이라 에디터 상태를 건드리지 않는다. 아카이브는 같은 메뉴의 [아카이브…] 확인 다이얼로그 — EP-SPEC-16, 차단 사유(`archive_blocked`) 수신 시 하위 노드·활성 클레임 목록을 그대로 표시한다(2026-09-24 — 확인은 공용 두 단계이고 되살리는 길을 함께 말하며, 차단 목록의 키는 그 문서·작업으로 가는 링크다 · 메타 다이얼로그는 Esc 로 닫힌다 · REQ-WEB-200). 아카이브된 스펙은 트리·목록에서 빠지고(스펙 목록의 [아카이브 포함] 토글 = `?include_archived=true`), 단건 진입 시 상단 배너 + [복원] 단추(EP-SPEC-17)를 표시한다. 임포터 수동 확인 큐의 "트리 위치 변경"([4.7 스펙 임포터](importer.md) §3.4)을 사람이 처리하는 화면이 바로 이 다이얼로그다.
 - **폼·검증**: `SpecDraftUpsertInput`(zod — `packages/schema`, MCP 도구 인자와 공유): `body_markdown`·`base_hash`·`change_summary`(min 1), 새 스펙 생성은 `SpecCreateInput`(`parent_id`·`type` 6종 enum·`title` min 1·`body_markdown`). 코멘트 `CommentCreateInput`: `anchor`(min 1)·`body_md`(min 1).
 - **요구사항 한 줄은 복사해서 넘긴다**(2026-10-15 — 사람 결정 · REQ-WEB-313). 등록 폼을 두지 않는다 — 웹은 본문을 쓰지 않는다(REQ-WEB-173). 요구사항 탭 끝의 **새 요구사항 한 줄** 칸이 서버가 제안한 다음 번호(EP-REQ-04)로 `- REQ-CWC-034 WHEN <조건>이면 THE SYSTEM SHALL <동작>한다` 를 보이고 복사 단추를 단다. 사람은 그것을 에이전트에게 넘기고, 에이전트가 요구사항 줄 묶음의 끝에 넣는다. 접두는 이 문서가 쓰는 것이 먼저고 없으면 스펙 키의 가운데 토막이며, 칸에서 고칠 수 있다. 번호는 제안이고 승인이 확정한다 — 서버가 열린 초안의 줄도 세고(REQ-API-145), 다른 문서가 가진 번호면 승인이 거절한다(REQ-API-309). 초안을 쓸 수 없는 역할에게는 보이지 않는다.
@@ -1311,6 +1329,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | REQ-WEB-039 | WHEN 아카이브 요청이 409 `archive_blocked`로 실패하면 THE SYSTEM SHALL 차단 사유(미아카이브 하위 노드·활성 클레임 Task) 목록을 다이얼로그에 표시하고 재시도 경로를 안내한다 |
 | REQ-WEB-040 | WHEN 어느 라우트에서든 `⌘K`/`Ctrl+K`를 누르면 THE SYSTEM SHALL 퀵 스위처를 열고, 고정 ID 입력은 최상위 1건 직행·빈 입력은 최근 방문·핀 목록을 표시하며, 마우스 없이 이동을 완결시킨다(§1.3a) |
 | REQ-WEB-223 | WHEN 퀵 스위처를 열면 THE SYSTEM SHALL 라우트와 무관하게 화면(홈·받은 요청·알림·설정·도움말)과 지금 조직의 프로젝트로 가는 무리를 보이고, 프로젝트 안이면 그 프로젝트의 화면 무리와 문서 검색 결과를 더하며, 입력이 있으면 정적 무리를 화면에서 거른다. WHEN 최근·고정 기록을 보이거나 따르면 THE SYSTEM SHALL 그 기록이 속한 프로젝트로 가고(프로젝트를 모르는 기록은 보이지 않는다), 지금 조직의 기록만 보이며, 스펙·작업 상세를 연 것을 최근에 남긴다. WHEN 요구사항이나 헤딩에 맞은 결과를 고르면 THE SYSTEM SHALL 요구사항 탭이나 그 절로 착지한다. WHILE 퀵 스위처가 열려 있는 동안 THE SYSTEM SHALL 입력을 combobox·목록을 listbox 로 알리고 Tab 을 안에 가두며, WHEN 닫히면 THE SYSTEM SHALL 연 자리로 포커스를 돌려준다 |
+| REQ-WEB-329 | WHEN 퀵 스위처가 열리면 THE SYSTEM SHALL 고정 무리를 서버의 핀(EP-NTF-13)으로 그리고, WHEN 줄의 ☆ · ★ 를 누르면 THE SYSTEM SHALL EP-NTF-14 · 15 로 고정하거나 풀고 그 자리에서 눌린 상태를 바꾼다 — 요구사항 · 헤딩으로 찾은 줄은 그 문서를 고정한다. WHEN 로그인한 셸이 뜨고 브라우저(localStorage)에 옛 핀이 있으면 THE SYSTEM SHALL 프로젝트를 아는 것을 앞의 것부터 50개까지 EP-NTF-16 으로 한 번 보내고, 응답을 받은 뒤에만 브라우저의 핀을 지운다 — 실패하면 남겨 두고 다음에 다시 보낸다. 최근 방문은 그대로 브라우저에 남긴다(2026-10-16 · 사람 결정 D5 · [4.4 API](api.md) REQ-API-344 · 345) |
 | REQ-WEB-041 | WHEN 검색 결과를 표시하면 THE SYSTEM SHALL 관련도 순 본 결과와 `related[]`(관계 확장)를 시각적으로 구분된 섹션으로 렌더하고, `degraded` 수신 시 의미 검색 중단 배너를 1줄 표시한다 |
 | REQ-WEB-042 | WHEN S3 상태 패널을 렌더하면 THE SYSTEM SHALL 관계 섹션에 참조함/참조됨(backlink)을 kind와 함께 표시하고, 항목 클릭으로 해당 스펙에 이동시킨다(EP-SPEC-18) |
 | REQ-WEB-043 | (2026-09-22 개정 — [새 스펙]은 걷었다. 영향 미리보기는 [검토 요청]에 그대로 있다) WHEN [검토 요청]을 누르면 THE SYSTEM SHALL 제출 전에 역참조 문서 수·파생 Task 수의 영향 미리보기를 표시한다 |
@@ -1338,6 +1357,8 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | REQ-WEB-250 | WHEN 스펙 목록에서 검색하면 THE SYSTEM SHALL 고른 버전 기준을 검색에 넘기고([4.4](api.md) REQ-API-195) 결과 위에 어느 버전의 본문에서 찾았는지 적는다 |
 | REQ-WEB-251 | WHILE 최신으로 읽으면서 최신 승인본보다 새 버전을 보는 동안 THE SYSTEM SHALL 본문 위에 승인본 번호와 [vN 보기] · [vN→vM 차이]를 보인다. WHILE 기준선으로 읽는데 그 세트가 묶은 버전 뒤에 승인된 버전이 있는 동안 THE SYSTEM SHALL 상세 본문 위에 그 번호와 같은 두 단추를 보인다. 목록에는 표시하지 않는다(사람 결정 V4 — 목록은 세트를 그대로 보여 준다) |
 | REQ-WEB-252 | WHEN 기준선이 있는 작업의 상세를 그리면 THE SYSTEM SHALL 근거 카드에 기준선 이름을 보이고, 위임 명세를 고칠 수 있는 역할에게 기준선 선택기(프로젝트의 기준선들 · [기준선 풀기])를 준다. WHEN 다른 기준선을 고르면 THE SYSTEM SHALL EP-TASK-05 에 `baseline` 을 보내 기준선과 기준 버전을 함께 옮기고, [기준선 풀기]는 `baseline: null` 을 보낸다. WHILE 그 작업에 재브리핑 표시가 남아 있는 동안 THE SYSTEM SHALL [기준 갱신] 대신 기준선을 바꾸라는 안내를 보인다 — 서버가 기준선 작업의 재브리핑을 거절한다([4.4](api.md) REQ-API-210 · 2026-09-27 사람 결정). 기준선이 없는 작업은 "없음" 이고 선택기가 없다 |
+| REQ-WEB-322 | WHEN 스펙 상세가 변경 요청이 감싼 버전(초안 · 검토 중 · 버린 초안)을 보이면 THE SYSTEM SHALL 다음 할 일 줄에 그 CR로 가는 칩을, 승인본을 보는 중에 그 문서에 열린 CR이 있으면 그 CR로 가는 칩을 보이며 버전 레일의 줄마다 그 버전의 CR 키를 링크로 보인다. WHEN 버린 초안(`discarded`)을 보이면 THE SYSTEM SHALL 검토 요청 · 바로 승인을 보이지 않고 "버린 초안" 안내와 기본으로 돌아가는 길만 둔다. WHEN [검토 요청] · [바로 승인] 창을 열면 THE SYSTEM SHALL 영향 미리보기(EP-SPEC-31)의 진행 중 클레임 수와 그중 바뀌거나 빠진 요구사항의 수를 보이며 초안이 변경 요청이면 그 CR로 가는 링크를 보인다(2026-10-16). WHERE [바로 승인] 창이고 초안이 변경 요청이면 THE SYSTEM SHALL 승인하면 함께 할 일을 받은 요청 CR 카드와 같은 문장으로 보인다(2026-10-16 개정 — 사람 결정 · 고른 적이 없으면 기본값 · REQ-API-351) |
+| REQ-WEB-323 | WHEN ⌘K 나 스펙 목록 검색의 결과가 변경 요청(`kind = change_request`)이면 THE SYSTEM SHALL 그 줄을 CR 키와 함께 보이고 누르면 그 CR 상세(`/p/:proj/crs/:cr`)로 간다 — 작업 키 · 문서 키와 같은 규칙이다(2026-10-16 · 사람 결정 D2) |
 
 ### 2.4b 트리 조작 (2026-08-23 정정)
 
@@ -1741,6 +1762,26 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 | REQ-WEB-057 | WHILE 좁은 사이드바에 트리를 그리는 동안 THE SYSTEM SHALL 기본 상태(`approved`)에는 표식을 달지 않고 그 밖의 상태만 표식과 접근성 라벨로 구분한다 |
 | REQ-WEB-096 | WHEN 화면 머리를 렌더하면 THE SYSTEM SHALL 화면이 이미 보여주는 것을 설명 줄로 반복하지 않는다. WHERE 그 문장이 조작의 전제이면(1회 노출 경고·비활성 사유·화면 경계) THE SYSTEM SHALL 해당 조작 옆에 둔다 |
 
+### 2.4f CR 상세 (`/p/:proj/crs/:cr`) — [ui-wireframes §4.3](../03-proposal/ui-wireframes.md) (2026-10-16 신설 — 사람 결정 D1 · D2)
+
+변경 요청(CR)은 승인본이 있는 문서의 초안을 감싼 제안이다([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §3.5). 이 화면은 제안 하나를 위에서 아래로 보여 준다 — 무엇이 바뀌었나 → 승인하면 무엇이 움직이나 → 승인하며 함께 할 일 → 결정. 결재는 그 초안 버전의 결재 하나다. 이 화면의 [승인]과 받은 요청의 CR 카드(§2.7)는 같은 결재를 누른다.
+
+| 화면 요소 | 데이터 소스 | 비고 |
+| --- | --- | --- |
+| 머리 | EP-CR-02 `GET /api/v1/projects/{proj}/crs/{cr}` | CR 키 · 상태(`CR_TOKEN` — §4.2) · 문서 키와 제목(그 문서로 가는 링크) · `v기준 → v초안` · 연 사람(에이전트 세션이면 호스트 · 종류) · 출처 · 위험도 · 게이트 티어(검토 요청 전이면 "게이트 티어는 검토를 요청할 때 정해집니다") · 이유(변경 요약) |
+| 바뀐 요구사항 | EP-SPEC-06(`VersionDiff` 를 양 끝 고정으로) | 승인본과 그 초안 사이만 보인다. 버전 고르기를 그리지 않는다 — 고정된 양 끝이 CR의 정의다 |
+| 승인하면 움직이는 것 | EP-CR-02 의 `impact`(EP-SPEC-31 과 같은 값) | 요약 한 줄(파생 작업 · 진행 중 클레임 · 그중 바뀌거나 빠진 요구사항 · 참조 문서) · 작업마다 할 일(재브리핑 · 재검증 제안 · 보관 제안 · 중단 확인 · 그대로) · 클레임(사람 · 호스트 · 바뀐 요구사항 표시) · 이 문서를 참조하는 문서 |
+| 승인하며 함께 할 일 | `impact.suggestions` · CR의 `planned_actions` | 체크 목록 — 파생 작업 만들기(ADDED) · 재검증 작업 만들기(MODIFIED · 완료 작업 수) · 미착수 작업 보관(REMOVED). **파생과 재검증은 미리 체크하고 보관은 사람이 고른다**(골라 둔 것이 있으면 그것 — 빈 선택을 골라 두었으면 모두 끈 채로). 아무도 고르지 않았으면 "이 화면을 거치지 않고 승인하면 파생 · 재검증 작업은 만들고 보관은 하지 않습니다"를 적는다 — 그 기본 체크가 서버의 기본값이다(2026-10-16 사람 결정 · [4.4 API](api.md) REQ-API-351). 끝난 CR이면 그때 한 일(만든 작업 · 보관한 작업)을 보인다 |
+| 결정 | 열림: EP-SPEC-27(바로 승인) · EP-CR-03(거절) · EP-CR-04(철회) / 검토 중: EP-APR-03(그 결재) — 승인은 고른 것을 `cr_actions` 로 함께 보낸다 | 열림이면 [바로 승인] (admin · planner) · [변경 요청 거절] (planner · admin — 사유 필수) · [철회] (CR을 연 사람 · 초안 작성자에게만)와 [문서에서 열기]. 검토 중이면 [승인] · [결재 거절] (사유 필수 — 초안으로 돌아가고 CR은 다시 열린다)과 [받은 요청에서 열기]. 거절 · 철회됐으면 "초안(vN)을 버렸습니다"와 사유 |
+
+- **두 거절을 나눠 부른다.** 결재 거절은 고쳐서 다시 내라는 뜻이고 변경 요청 거절은 이 제안을 하지 않는다는 뜻이다(초안을 버린다). 검토 중인 CR에는 변경 요청 거절 단추가 없다 — 결재를 먼저 끝낸다.
+- **실시간**: `project:{id}` 룸의 `cr.*` → `['cr', crKey]` 와 스펙 축 · 받은 요청(§1.4).
+- **들어오는 길**: 받은 요청의 CR 카드 · 스펙 상세의 다음 할 일 줄과 버전 레일(§2.4) · 검색과 ⌘K(CR 키 — §1.3a) · 알림.
+
+| ID | 수용 기준(EARS) |
+| --- | --- |
+| REQ-WEB-320 | WHEN 사람이 `/p/:proj/crs/:cr` 를 열면 THE SYSTEM SHALL 머리(CR 키 · 상태 · 문서 · 기준 → 초안 버전 · 연 사람 · 위험도 · 게이트 티어 · 이유) · 바뀐 요구사항(양 끝이 고정된 델타) · 승인하면 움직이는 것(작업마다 할 일 · 클레임 · 참조 문서) · 승인하며 함께 할 일(파생 · 재검증은 미리 체크하고 보관은 사람이 고른다 — 골라 둔 것은 빈 선택이어도 그대로, 아무도 고르지 않았으면 다른 곳에서 승인해도 그 기본값이 적용된다는 안내 · 2026-10-16 개정 — 사람 결정 · REQ-API-351) · 결정을 한 화면에 보이며 승인은 그 버전의 결재(검토 중 — EP-APR-03)나 바로 승인(열림 — EP-SPEC-27)으로 고른 것을 `cr_actions` 로 함께 보낸다. WHERE 열린 CR이면 THE SYSTEM SHALL 변경 요청 거절(planner · admin · 사유 필수)과 철회(CR을 연 사람 · 초안 작성자에게만)를, 검토 중이면 결재 승인과 결재 거절(사유 필수)을 보이며 끝난 CR이면 결정 단추 없이 그때 한 일이나 버린 초안과 사유를 보인다(2026-10-16 · 사람 결정 D1) |
+
 ### 2.5 S4 작업 보드 — [ui-wireframes §2.4](../03-proposal/ui-wireframes.md)
 
 칸반 레인: **`blocked` / `ready` / `claimed` / `in_progress` / `in_review` / `done(7d)`** — 전부 가로줄이다. `backlog`는 필터로 노출하되 **기본이 켜짐**이다(2026-09-08 · REQ-WEB-155).
@@ -1851,7 +1892,7 @@ export const TaskCreateInput = z
   .strict();   // 모르는 키는 400 — 조용히 버리지 않는다
 ```
 
-- **done 전이**: MVP의 서버 게이트는 `spec_impact` 선언 + Evidence 연결이다. 스펙 영향은 **고르지 않음에서 시작한다**(2026-09-24 · REQ-WEB-202) — "없음"을 미리 체크해 두던 동안 건드리지 않고 완료를 눌러도 선언한 것이 됐다. "있음"이면 메모가 있어야 하고, 붙은 증적이 없으면 누르기 전에 그렇다고 적는다. 증적 종류는 라벨로 고른다. 리뷰 커버리지는 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 done 게이트가 본다(2026-09-28 · [4.4 API](api.md) REQ-API-250) — 보드 카드의 "리뷰 n/n" 표시는 아직 없다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다. **리뷰 면제**(2026-10-09 · REQ-WEB-299): 완료 조건이 리뷰 종류 목록이면 완료 조건 카드에 [리뷰 면제]를 접어 둔다. 펼치면 내 역할로 면제할 수 있는 종류(코드 계열은 developer · admin, 스펙 계열은 planner · admin)만 고를 수 있고, 사유가 있어야 기록한다. 코드 증적이 붙은 작업은 코드 계열을 고르지 못하고 그 까닭을 적는다. 면제 기록(누가 · 언제 · 왜 · 어느 종류)은 리뷰 목록 카드 아래에 늘 보인다.
+- **done 전이**: MVP의 서버 게이트는 `spec_impact` 선언 + Evidence 연결이다. 스펙 영향은 **고르지 않음에서 시작한다**(2026-09-24 · REQ-WEB-202) — "없음"을 미리 체크해 두던 동안 건드리지 않고 완료를 눌러도 선언한 것이 됐다. "있음"이면 메모가 있어야 하고, 붙은 증적이 없으면 누르기 전에 그렇다고 적는다. 증적 종류는 라벨로 고른다. 리뷰 커버리지는 프로젝트 정책(`done_gate.review_coverage`)으로 켜면 done 게이트가 본다(2026-09-28 · [4.4 API](api.md) REQ-API-250) — 보드 카드의 "리뷰 n/n" 표시는 아직 없다. 전이 거부 시 카드는 제자리로 돌아가고 사유 툴팁이 뜬다. **리뷰 면제**(2026-10-09 · REQ-WEB-299): 완료 조건이 리뷰 종류 목록이면 완료 조건 카드에 [리뷰 면제]를 접어 둔다. 펼치면 내 역할로 면제할 수 있는 종류(코드 계열은 developer · admin, 스펙 계열은 planner · admin)만 고를 수 있고, 사유가 있어야 기록한다. 코드 증적이 붙은 작업은 코드 계열을 고르지 못하고 그 까닭을 적는다. 면제 기록(누가 · 언제 · 왜 · 어느 종류)은 리뷰 목록 카드 아래에 늘 보인다. **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-WEB-327)는 완료 조건 카드 대신 리뷰 카드에 있다 — 게이트 판정(push 훅 · CI)을 넘기는 일이라 작업이 끝난 뒤에도 쓴다.
 - **빈 상태**: ready 0건 — "ready인 Task가 없습니다 — blocked N건의 의존성 보기 ▸"(ui-wireframes §3.4). 구현(2026-09-25 · REQ-WEB-221): "준비된 작업이 없습니다" 아래 **막힘 N건 보기**(막힘 레인으로) · **백로그 N건 채우기**(백로그 레인으로 — 꺼져 있으면 켠다), 수가 0 인 것은 세우지 않는다.
 
 | ID | 수용 기준(EARS) |
@@ -1947,7 +1988,9 @@ export const TaskCreateInput = z
 | finding 큐 | EP-REV-03 `GET /api/v1/projects/{proj}/findings` (`severity[]`·`status[]`·`tag[]`·`cursor`) | 응답에 **facet 건수**가 함께 온다 — 필터 칸의 숫자가 별도 요청이 아니다 |
 | provenance 3종 | 같은 응답 — 코드 위치(`file_path:line_start`) · 검토 커밋(`head_sha`·`branch`·`round_no`) · 유래 스펙/Requirement | 셋이 다 있어야 P5(리뷰 출처 추적 곤란)가 닫힌다 |
 | 해소 액션 | EP-REV-02 `POST …/findings/{id}/resolve` | `fixed`는 커밋 SHA 필수. **에이전트가 아니라 사람이 부르는 경로**라 critical 하향에 A3 게이트가 걸리지 않는다([4.4](api.md) §2.6a) |
-| 게이트 현황 | EP-REV-04 `GET /api/v1/projects/{proj}/gates/reviews` | 브랜치별 커버 리뷰·해소 비율·판정·면제. **이 표는 판정을 표시한다.** Task `done` 은 정책으로 켜면 done 게이트가 막고(2026-09-28 · REQ-API-250), 병합은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다 |
+| CR로 보내기 | EP-REV-09 `POST …/findings/{id}/change-request` | `spec_drift` 발견만 · planner · admin — 유래 스펙의 열린 CR에 잇거나 승인본에서 초안과 CR을 연다. 발견은 열린 채로 그 CR의 결말을 기다린다(2026-10-16 · REQ-WEB-324 · [4.4](api.md) REQ-API-333 · 338) |
+| 컷오버 관측 | EP-REV-10 `GET /api/v1/projects/{proj}/gates/reviews/cutover` · EP-PRJ-03 `review_sot` | admin · planner 에게, 컷오버 단계가 `dual` · `nerv` 일 때만 게이트 현황 위에 그린다(다른 역할 · `git` 이면 부르지도 않는다). 서버의 상태를 그대로 보이고 화면이 다시 계산하지 않는다 — 기준값도 응답의 `thresholds` 다(2026-10-16 · 사람 결정 D6 · REQ-WEB-330) |
+| 게이트 현황 | EP-REV-04 `GET /api/v1/projects/{proj}/gates/reviews` | 브랜치별 커버 리뷰·해소 비율·판정·면제. 리뷰가 없어도 면제가 있는 브랜치는 줄이 된다(판정 「리뷰 없음」 · 2026-10-16 · REQ-WEB-327). 줄마다 [면제]와 제목 옆의 [브랜치 면제]가 브랜치 면제 폼을 연다(EP-APR-04 `branch` · 2026-10-16 사람 결정 · REQ-WEB-332). **이 표는 판정을 표시한다.** Task `done` 은 정책으로 켜면 done 게이트가 막고(2026-09-28 · REQ-API-250), 병합은 저장소의 훅 · CI 가 EP-REV-08 로 판정을 받아 막는다 |
 
 - **실시간**: `project:{id}` 룸 — `finding.opened` · `finding.resolved` → 큐와 facet 재조회. 두 이름은 MVP 무효화 표(§1.4)에 없던 것이라 구현의 `NO_SCREEN_YET` 예외 목록에서 빠지고 매핑을 갖는다 — 화면이 생겼으니 더는 "의도한 공백"이 아니다.
 - **컴포넌트**: `FindingQueue` · `FindingCard`(severity 룰 + provenance 3줄 + 액션 · 제목이 고르는 단추) · `FindingFilters`(facet 건수) · `ResolveDialog`(사유 필수 · `fixed`는 커밋 SHA · **레일 안에 열린다** — 2026-09-25 · REQ-WEB-222) · `GateCoverageTable` · `FailOpenBanner`(S5 와 같은 격상 배너 — 머리 아래 · 2026-10-15 · REQ-WEB-319).
@@ -1969,11 +2012,11 @@ export const TaskCreateInput = z
 - **게이트 현황은 컨텐츠 칸으로 들어온다**(같은 지시 · REQ-WEB-158). 예전에는 세 칸을 다 지난 **페이지 바닥**에 따로 누워 있었는데, 그러면 그 표에 닿는 유일한 길이 페이지 스크롤이라 칸을 각자 가두는 순간 아무도 닿지 못한다. 큐와 같은 물음의 다른 축이므로(무엇이 위험한가 ↔ 어디까지 덮였나) 같은 칸에서 이어 읽는다. 폭이 화면 전체에서 한 칸으로 줄었으니 **표도 다시 잰다**: 고정 폭 셋이 400px 를 먼저 가져가면 브랜치 이름이 읽을 수 없는 폭으로 찌그러진다(§2.5 가 세션 줄에서 겪은 그 모양 — REQ-WEB-058). 실제로 드는 값으로 줄이고(288px) 브랜치가 남는 폭을 다 가져간다.
 - **규모**(2026-08-24 — clemvion 소급 적재 실측): 발견 **18,650건** · 브랜치 **441개**. 전량을 한 응답에 담아 그리면 화면이 **30,396px**가 된다(실측). 큐는 50건(최대 200)·게이트 표는 최근 20개 브랜치까지만 그리고, **잘린 사실을 숫자로 말한다**(REQ-WEB-067). 답은 무한 스크롤이 아니라 필터다 — "무엇이 위험한지 고른다"가 이 화면의 전제이기 때문이다.
 
-**와이어프레임과 다른 두 곳**, 그리고 그 이유.
+**와이어프레임과 다른 세 곳**, 그리고 그 이유.
 
 1. **finding·리뷰 세션에 표시 키를 만들지 않는다.** 와이어프레임의 `FND-4a19`·`RVS-5e72`는 예시 표기이고, 표시 키 정본([data-model](../03-proposal/data-model.md) §5.1)의 타입 문자는 `T`(Task)·`S`(Spec) 둘뿐이며 `finding`·`review_session` 테이블에는 `key` 열 자체가 없다([4.3](database.md) §2.7). 타입 문자를 늘리는 것은 새 결정이라 사람 확인 없이 하지 않는다 — 화면은 **UUID 뒤 8자를 "짧은 id"로 명시해** 보여주고, 사람이 옮겨 적는 식별자는 `file:line`과 severity다. **뒤쪽인 이유**: UUIDv7 의 앞 48비트는 생성 시각이라 같은 리뷰에서 나온 발견들이 앞자리를 통째로 공유한다(실측 2026-08-23 — 시드 화면에서 세 발견이 전부 `01990a66`이었다). 구별되는 것은 난수 쪽뿐이다.
-2. **리뷰가 없는 브랜치의 면제는 이 표에 뜨지 않는다.** 면제(`approval.is_bypass`)는 리뷰 세션을 주체로 붙는데 `approval.subject_id`는 uuid 이고 브랜치는 문자열이라([4.3](database.md) §2.8), 세션이 없으면 면제를 그 줄에 실을 길이 없다 — 와이어프레임 §2.6 ⑧의 `미커버 + BYPASS 1` 줄이 여기 해당한다. 담으려면 **결재에 브랜치를 적을 자리**가 필요한데 그것은 스키마 결정이라 사람 확인 전까지 하지 않는다. 지금은 리뷰가 있는 브랜치의 면제만 정확히 보인다.
-3. **spec_drift의 CR 라우팅 버튼이 없다.** CR 생성(FR-04)이 Phase 2의 다른 조각이라 보낼 곳이 아직 없다. 대신 `spec_drift` 태그와 **유래 스펙 링크**를 준다 — 눌러서 아무 일도 안 일어나는 버튼보다 낫다.
+2. **리뷰가 없는 브랜치의 면제도 이 표에 보이고 이 표에서 낸다 — 다른 것은 줄이 없는 브랜치의 [브랜치 면제]와 작업 상세의 길이다**(2026-10-16 · 사람 결정 D4 · REQ-WEB-327 · 같은 날 개정 — REQ-WEB-332). 와이어프레임 §2.6 ⑧의 `미커버 + BYPASS 1` 줄이 이것이다. 면제(`approval.is_bypass`)는 리뷰 세션이나 작업을 주체로 붙었고 `approval.subject_id` 는 uuid 라 브랜치를 가리킬 수 없었다 — 그래서 리뷰가 있는 브랜치의 면제만 그 줄에 보였다. 결재에 브랜치를 적는 자리(`approval.branch` — [4.3](database.md) REQ-DB-050)가 생겨 면제만 있는 브랜치도 줄이 된다. 커버 리뷰 · 해소는 `—`, 판정은 「리뷰 없음」이고 그 아래 면제가 범위(종류 · 커밋)와 함께 펼쳐진다. 판정 칸에는 면제 수(「면제 1건」)를 함께 적는다. **면제는 이 표에서도 낸다**(2026-10-16 개정 — 사람 결정 · 권장안 A · REQ-WEB-332) — 와이어프레임 ⑧이 그 줄에 면제를 그렸다. 줄마다 [면제]가 그 브랜치를 미리 채운 폼을 그 줄 아래에 열고, 리뷰도 면제도 없는 브랜치는 이 표에 줄이 없으므로 제목 옆의 [브랜치 면제]가 이름을 직접 넣게 한다. 작업 상세의 리뷰 카드에서 내는 길(그 작업이 아는 브랜치를 후보로 보인다)은 그대로다. 면제한 줄의 판정은 「리뷰 없음」 그대로다(2026-10-16 사람 확인 — 지금대로 둔다) — 이 표의 판정은 브랜치마다 리뷰를 보고, 면제는 종류마다 넘기므로 일부 종류만 넘긴 면제를 「면제됨」으로 적으면 브랜치 전체를 넘긴 것처럼 읽힌다. 통과 여부는 게이트 판정(EP-REV-08 — `waived`)이 답한다.
+3. **spec_drift의 CR 라우팅은 [CR로 보내기]다.**(2026-10-16 · 사람 결정 · REQ-WEB-324) 와이어프레임 ⑤의 [CR 제안으로 라우팅 ▸]이 이것이고 두 가지가 다르다 — 이름에 하는 일을 그대로 적었고(제안이 아니라 변경 요청이 바로 열린다 · 초안은 승인본의 본문으로 시작한다), 큐의 카드가 아니라 발견 레일에 둔다(처분과 같은 자리). planner · admin에게만 켜지고, 이미 CR로 보낸 발견에는 그 CR로 가는 링크를 둔다. 그전에는 CR 생성(FR-04)이 없어 보낼 곳이 없었고, 그래서 버튼 없이 `spec_drift` 태그와 **유래 스펙 링크**만 줬다 — 눌러서 아무 일도 안 일어나는 버튼보다 나았다.
 
 | ID | 수용 기준(EARS) |
 | --- | --- |
@@ -1982,6 +2025,9 @@ export const TaskCreateInput = z
 | REQ-WEB-063 | WHEN 같은 지적이 여러 라운드에서 관측되면 THE SYSTEM SHALL 카드 하나로 합치고 관측 횟수와 최신 라운드를 표기한다(fingerprint dedup — FR-09) |
 | REQ-WEB-064 | WHEN 사용자가 발견을 처분하면 THE SYSTEM SHALL 근거를 필수로 받고, `fixed` 처분에는 커밋 SHA 를 함께 요구한다 |
 | REQ-WEB-065 | WHEN 게이트 현황을 표시하면 THE SYSTEM SHALL 브랜치마다 커버 리뷰·해소 비율·판정을 적고, 면제가 있으면 **면제한 사람·시각·사유**를 같은 줄에 펼친다(FR-10 · FR-16 — 면제가 조용히 일어나지 않는 것 자체가 기능이다) |
+| REQ-WEB-327 | WHEN 작업 상세의 리뷰 카드를 그리고 내 역할로 면제할 수 있는 리뷰 종류가 하나라도 있으면(`REVIEW_WAIVER_ROLES`) THE SYSTEM SHALL [브랜치 면제]를 접어 둔다. WHEN 그것을 펼치면 THE SYSTEM SHALL 브랜치 이름 칸 · 그 작업에서 아는 브랜치(리뷰 · 클레임 세션의 브랜치 — 누르면 칸을 채운다) · 선택 커밋 칸 · 내 역할의 종류 · 사유를 보이며 브랜치 · 종류 · 사유가 있어야 EP-APR-04(`branch` · `head_sha` · `kinds`)로 기록한다. WHEN 커밋 칸이 40자 커밋 SHA 가 아니면 THE SYSTEM SHALL 그 까닭을 적고 보내지 않는다. WHEN 게이트 현황을 그리면 THE SYSTEM SHALL 면제만 있는 브랜치를 줄로 그리고(커버 리뷰 · 해소 `—` · 판정 「리뷰 없음」), 면제마다 범위(종류 · 「커밋 abc1234만」)를 함께 적고 판정 아래에 면제 수를 적는다. WHEN `gate.bypassed` 가 오면 THE SYSTEM SHALL 게이트 현황을 다시 읽는다(2026-10-16 · 사람 결정 D4 · [4.4 API](api.md) REQ-API-339 ~ 341). 같은 폼을 S6 게이트 현황에서도 연다(2026-10-16 개정 — 사람 결정 · REQ-WEB-332) |
+| REQ-WEB-330 | WHERE 보는 사람이 admin · planner 이고 프로젝트의 컷오버 단계가 `dual` · `nerv` 이면 THE SYSTEM SHALL S6 리뷰 센터의 게이트 현황 위에 「컷오버 관측」을 그린다 — 서버 상태(안정: 불일치율 N% 미만 · 관찰 중 · 롤백 기준 도달과 그 까닭 · 비교 없음) · 단계와 바꾼 때 · 관측한 날 수 / 14일 · 판정 불일치 수 / 비교 수와 백분율 · 리뷰 제출 실패 수 / 제출 수와 백분율 · 최근 불일치(브랜치 · 커밋 7자 · 로컬과 서버의 판정 · 훅 이름 · 훅이 적은 이유) · 저장소의 신규 커밋은 CLI(`nerv cutover report`)가 센다는 한 줄. WHERE 그렇지 않으면 THE SYSTEM SHALL 그리지도 지표를 부르지도 않는다. WHEN `gate.verdict_mismatch` · `project.updated` 가 오면 THE SYSTEM SHALL 지표를 다시 읽고, WHEN 불일치 알림을 누르면 THE SYSTEM SHALL 리뷰 센터를 연다(2026-10-16 · 사람 결정 D6 · [4.4 API](api.md) EP-REV-10 · REQ-API-349) |
+| REQ-WEB-332 | WHERE 보는 사람의 역할로 면제할 수 있는 리뷰 종류가 하나라도 있으면(`REVIEW_WAIVER_ROLES`) THE SYSTEM SHALL S6 게이트 현황의 브랜치 줄마다 [면제]를, 구역 제목 옆에 [브랜치 면제]를 둔다. WHEN 줄의 [면제]를 누르면 THE SYSTEM SHALL 그 줄 바로 아래에 그 브랜치를 미리 채운 브랜치 면제 폼(REQ-WEB-327과 같은 칸 · 같은 검사)을 펼치고, WHEN 제목 옆의 [브랜치 면제]를 누르면 THE SYSTEM SHALL 이름 칸이 빈 같은 폼을 펼친다 — 리뷰도 면제도 없는 브랜치는 이 표에 줄이 없다. WHEN 기록이 끝나면 THE SYSTEM SHALL 폼을 닫고 게이트 현황을 다시 읽어 그 브랜치 줄에 새 면제를 보인다(면제만 있는 브랜치는 판정 「리뷰 없음」과 면제 수 · 범위). WHERE 그런 종류가 없는 역할(qa · designer · viewer)이면 THE SYSTEM SHALL 두 단추를 그리지 않는다. 역할 · 종류 규칙은 서버의 것 그대로다(2026-10-16 · 사람 결정 · 권장안 A · [4.4 API](api.md) REQ-API-274 · 293 · 339) |
 | REQ-WEB-066 | WHILE 리뷰 센터가 열려 있으면 THE SYSTEM SHALL `finding.opened`·`finding.resolved` 를 받아 큐와 facet 을 다시 읽는다 |
 | REQ-WEB-161 | WHERE 곁레일이 서지 않는 폭이면 THE SYSTEM SHALL 고른 발견의 상세를 **그 카드 아래에서** 같은 컴포넌트로 펴고, 레일과 **동시에 그리지 않는다**(두 벌이면 내부 상태가 갈린다). WHEN `user_guide` 증적을 그리면 THE SYSTEM SHALL 그 값이 실재하는 매뉴얼 장일 때만 `/help/<장>` 으로 잇고, 아니면 글자로 둔다. WHEN 그 값이 절까지 적혀 있고(`tasks#evidence`) 그 장에 그 절이 있으면 THE SYSTEM SHALL `/help/<장>#<절>` 로 잇고 없는 절이면 장으로 잇는다(2026-09-28 개정 · REQ-WEB-268) |
 | REQ-WEB-222 | WHEN 고른 발견을 레일(또는 좁은 폭의 펼친 자리)에 그리면 THE SYSTEM SHALL 열린 발견에 처분 넷을 두고 누르면 처분 폼을 그 레일 안에 열어 근거 칸으로 커서를 옮기며, WHEN 큐 카드의 처분 단추를 누르면 THE SYSTEM SHALL 그 발견을 고르고 같은 폼을 레일에 연다. WHEN 처분 단추를 그리면 THE SYSTEM SHALL 권한과 무관하게 그 처분이 무엇을 요구하는지(커밋 SHA · 고친 스펙 · 근거 · 유예와 Task 승격의 차이) 말한다. WHEN 발견 카드나 세션 줄을 고를 수 있으면 THE SYSTEM SHALL 제목(세션은 이름)을 키보드로 닿는 단추로 두고, WHILE 리뷰 센터에서 입력 칸 밖에 있는 동안 THE SYSTEM SHALL `j`·`k` 로 고른 발견을 옮긴다 |
@@ -2021,12 +2067,13 @@ export const TaskCreateInput = z
 | REQ-WEB-083 | WHEN 조직·프로젝트 탭에서 **보관 보기**를 켜면 THE SYSTEM SHALL 보관한 프로젝트까지 목록에 담고 각 줄에 복구 경로를 준다 — 복구는 볼 수 있어야 할 수 있다 |
 | REQ-WEB-069 | WHILE 로그인 상태이면 THE SYSTEM SHALL 사이드바에 조직 선택과 그 조직의 프로젝트 목록을 **두 축 순서대로**(조직이 위) 표시하고, 라우트에 프로젝트가 없는 화면에서는 어느 프로젝트도 펼치지 않고 기억된 프로젝트를 "최근" 으로 보인다(2026-09-24 개정 · REQ-WEB-193) — 프로젝트가 하나뿐이어도 목록 형태를 유지한다(2026-09-25 개정 — 사람 결정 D1 · REQ-WEB-225: 자리가 전역 헤더에서 사이드바로 옮겼고 select 가 늘 서는 목록이 됐다) |
 | REQ-WEB-068 | WHEN 본문이 빈 스펙을 열면 THE SYSTEM SHALL 빈 화면 대신 **왜 비었는지**를 적는다 — `area` 는 디렉터리를 묶는 노드이고 원본에 개요 문서가 없으면 본문이 없는 것이 정상이다([4.7](importer.md) §2.2). 그 밖의 타입은 "본문 없음"으로 구분해 적는다 |
+| REQ-WEB-324 | WHEN 리뷰 센터 레일이 `spec_drift` 태그가 붙은 열린 발견을 펴면 THE SYSTEM SHALL [CR로 보내기]를 보이고(planner · admin이 아니면 까닭과 함께 잠근다), 누르면 그 발견을 유래 스펙의 변경 요청에 묶고(EP-REV-09) 그 CR로 가는 토스트를 보인다. WHEN 그 발견이 이미 열린 변경 요청에 묶였으면 THE SYSTEM SHALL 버튼 대신 그 CR 키 링크를 보이고, WHEN 발견이 `escalated` 면 THE SYSTEM SHALL 레일에 사유와 기다리는 세션이 있는지를 보인다 — 결정은 받은 요청의 카드에서 한다(2026-10-16 · 사람 결정 · [4.4 API](api.md) REQ-API-333) |
 
 > **이 표는 S6 것만이 아니다 — 화면별 색인**(2026-09-06 신설). 2026-09-01~09-05 에 더한 수용 기준이 신설 순서대로 이 표에 쌓여, **다른 화면의 약속 23개가 여기 들어와 있다.** 화면별 문서인데 자기 화면 절에 자기 약속이 없으면 그 화면을 고치는 사람이 찾지 못한다. 번호는 재배치하지 않고(규약 5) 여기서 소재를 밝힌다 — 각 화면 절에도 같은 줄을 두었다.
 >
 > | 화면 | 이 표에 있는 그 화면의 수용 기준 |
 > | --- | --- |
-> | **S6 리뷰 센터**(이 절) | REQ-WEB-061~067 · 111 · 112 · 114 · 115 · 117 · 120 · 128 · 158 · 161 |
+> | **S6 리뷰 센터**(이 절) | REQ-WEB-061~067 · 111 · 112 · 114 · 115 · 117 · 120 · 128 · 158 · 161 · 324 |
 > | S3 스펙 상세(§2.4) | REQ-WEB-068 · 121 · 122 · 125 · 126 · 130 |
 > | S5 세션 모니터(§2.6) | REQ-WEB-123 · 124 · 132 |
 > | S7 받은 요청(§2.7) | REQ-WEB-118 · 119 · 133 |
@@ -2039,20 +2086,25 @@ export const TaskCreateInput = z
 
 > **이 화면의 수용 기준 일부가 §2.6a 표에 있다**(2026-09-06 색인): REQ-WEB-118 · 119 · 133.
 
-MVP 카드 유형은 **5종**이다(2026-09-06 현황) — **스펙 승인 · 플랜 승인 · 질문 · 발견(`finding`) · 게이트 면제(`gate_bypass`)**. 어휘 정본은 `approval_subject_type` 6종이고 CR 유형만 Phase 2 로 남았다. 필터 사이드바의 CR·에스컬레이션 항목은 비활성 + "Phase 2" 표기.
+카드 유형은 **7종**이다(2026-10-16 · 사람 결정 D3) — **스펙 승인 · 변경 요청 · 계획 승인 · 질문 · 에스컬레이션 · 발견 하향(`finding`) · 게이트 우회(`gate_bypass`)**. 결재 대상의 어휘 정본은 `approval_subject_type` 7종이다(`escalation` 은 [4.3](database.md) 마이그레이션 0054). **CR 카드는 스펙 승인 카드가 바뀌어 보이는 것이다**(2026-10-16 · 사람 결정 D1) — CR의 결재는 그 초안 버전이 받으므로 결재 대상 `change_request` 는 쓰지 않는다. 대상 버전을 CR이 감싸면 그 카드 한 장이 CR 카드가 된다. **유형 칸이 동작한다**(REQ-WEB-326) — 오래 "에스컬레이션 — Phase 2" 로 잠겨 있던 와이어프레임의 유형 필터(①)다. 와이어프레임의 다섯 유형에 발견 하향 · 게이트 우회를 더했다: 둘 다 받은 요청에 오는 카드이고, 칸이 없으면 "전체" 에서만 찾을 수 있다. 판정은 서버가 한다 — 카드마다 `kind` 가 오고 칸의 수도 서버가 센 값이다. 에스컬레이션 칸은 에스컬레이션 카드와 사유가 있는 질문을 함께 보이고, 질문은 질문 카드 모양 그대로다(질문에 답하는 것이 그 결정이다).
 
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
-| 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 프로젝트 필터 — 유형 필터는 서버가 읽지 않는다) | `approval.subject_type`: `spec_version / plan / question / finding / gate_bypass`(MVP · 2026-09-06 현황) — data-model §2.7 |
+| 대기 목록 | EP-APR-01 `GET /api/v1/approvals` (state=pending · 조직 · 프로젝트 · 유형 `kind` — 2026-10-16 · REQ-WEB-326) | `approval.subject_type`: `spec_version / plan / question / finding / gate_bypass / escalation`(2026-10-16 현황) — data-model §2.7 · 카드의 유형은 `kind`(`spec` · `cr` · `plan` · `question` · `escalation` · `finding` · `gate_bypass`) |
 | 처리됨 목록 | EP-APR-01 `GET /api/v1/approvals` (state=decided) | **내가 결정한 것**이다(`decided_by_user_id` — [4.3](database.md) §2.8 · 마이그레이션 0029). 대기 탭의 조건을 함께 쓰면 결정이 문서를 움직인 순간 기록째 사라진다(REQ-API-165) |
 | 만료 목록 | EP-APR-01 `GET /api/v1/approvals` (state=expired) | **내 큐였는데 결정 없이 만료된 결재**다(2026-10-15 · REQ-API-304) — 7일 동안 결정되지 않아 문서가 초안으로 돌아갔다. 결정이 아니라 처리됨과 섞지 않는다. 카드마다 만료 시각(`expired_at`)과 다시 오는 길을 보이고 단추는 두지 않는다(REQ-WEB-310) |
-| 결정 | EP-APR-03 `POST /api/v1/approvals/{id}/decision` | `decision`: `approve / reject / comment`(spec-workflow §2.5) |
+| 결정 | EP-APR-03 `POST /api/v1/approvals/{id}/decision` | `decision`: `approve / reject / comment`(spec-workflow §2.5) · 에스컬레이션 카드는 `resolution`(`fix` · `wont_fix` · `dismissed`)과 근거 필수(2026-10-16 · REQ-WEB-325) |
+| 유형 칸 | EP-APR-01 `kind_counts`(대기 탭 · 유형 필터를 빼고 센 수) | 0 인 유형도 칸은 보인다 — 처리됨 · 만료 탭에는 수가 없다(REQ-WEB-326) |
+| CR로 보내기 | EP-REV-09 `POST /api/v1/projects/{proj}/findings/{id}/change-request` | 사유가 `spec` 인 에스컬레이션 카드와 리뷰 센터 레일(REQ-WEB-324 · 325) |
+| 변경 요청 거절 | EP-CR-03 `POST /api/v1/projects/{proj}/crs/{cr}/reject` | CR로 보낸 카드의 [변경 요청 거절] — 사유 필수 · 그 CR로 보낸 발견은 기각되고 코드 되돌림 작업이 생긴다(REQ-WEB-325) |
 | 조직 · 프로젝트 칸 | EP-APR-07 `GET /api/v1/approvals/scopes` | 줄마다 내가 결정할 수(`actionable`) — 합계는 헤더 배지와 같은 조건이다. 고르면 EP-APR-01 이 `org` · `project` 로 좁힌다(REQ-WEB-256) |
 | 질문 답변 | EP-QST-02 `POST /api/v1/projects/{proj}/questions/{id}/answer` | `answer_key`(선택지) 또는 `answer_md` — 내부적으로 승인 결정과 한 경로([api.md](api.md) §2.6) |
 | 카드 본문 | EP-APR-01 응답 `ApprovalCard`에 대상 리소스 원문 포함(스펙 델타·질문 원문·선택지) · 스펙 카드는 직전 버전과 견준 크기(`body_change` — 제출 때 잰 값 · 2026-10-08 · REQ-WEB-298) | 요약문이 아니라 **원문 우선**(spec-workflow §6.4 — OWASP ASI09 방어) |
 
 - **실시간**: `user:{id}` 룸 — `approval.requested` `question.created` → `['inbox']` + 배지, `question.answered` → 카드의 "요청 세션에 전달됨" 반영.
 - **컴포넌트**: `InboxFilterRail` · `ApprovalCard`(S1과 공유) · `SpecApprovalCard`(변경분 미리보기 + 자동 사전 검토 결과 인라인) · `PlanApprovalCard`(승인/수정 요청/거절 3분기) · `QuestionCard`(라디오 선택지 + 코멘트 필드 + "처리 시 요청 세션에 즉시 전달" 고지) · `ProcessedTrail` · `SlaBadge`(지연 — 요청 뒤 2일 · 서버의 `overdue` 를 읽는다 · 2026-10-15 · REQ-WEB-310. 처음 이름표는 24h 초과 경고였다 — spec-workflow §2.6) · **`BulkBar`**(대기 탭에 고를 카드가 있으면 늘 보인다 · 고르기 전에는 고를 수 있는 수와 일괄 승인 가능 수, 고른 뒤에는 고른 수 + **승인 가능 수** · 맨 앞의 3상태 칸 · 승인 가능한 것만 고르기 · 일괄 승인·거절·해제) · **`BulkConfirm`**(대상 나열 + 빠지는 건수 + 거절 사유 — 본문을 열지 않고 결정하는 조작이라 이 목록이 곧 동의의 범위다).
+- **CR 카드**(2026-10-16 · REQ-WEB-321): 유형 표지가 「변경 요청」이고 제목 줄 아래에 CR 키(CR 상세로 가는 링크) · `v기준 → v초안` · 델타의 수 · 앞의 다섯 줄(ADDED · MODIFIED · REMOVED와 요구사항 번호 · 문장) · 영향 한 줄(파생 작업 · 진행 중 클레임 · 참조 문서)을 보인다. 그 아래 한 줄이 승인하며 함께 할 일이다 — 골라 둔 것이 있으면 "승인하면 골라 둔 대로 작업 N건을 만들고 M건을 보관합니다"(빈 선택이면 "아무것도 하지 않기로 골라 두었습니다. 승인해도 작업을 만들지 않습니다."), **아무도 고르지 않았으면 기본값** "승인하면 기본값대로 파생 작업 N건 · 재검증 작업 M건을 만듭니다"와 보관 제안이 있으면 "보관 제안 K건은 변경 요청 화면에서 고릅니다", 할 일이 없으면 "승인과 함께 할 일은 없습니다" 와 [델타 전체 보기]. 카드의 [승인]은 골라 둔 것을, 아무도 고르지 않았으면 그 기본값을 한다(2026-10-16 개정 — 사람 결정 · [4.4 API](api.md) REQ-API-351) — 고르는 것은 CR 상세에서 한다.
+- **에스컬레이션 카드 · 유형 칸**(2026-10-16 · 사람 결정 D3 · REQ-WEB-325 · 326): `EscalationCard` 는 유형 표지 「에스컬레이션」과 사유, 넘긴 발견의 원문(제목 · 심각도 · 위치 · 커밋 · 나온 작업과 담당 · 본문 · 넘긴 근거), 요청 줄(요청한 세션 · 기다림)을 보이고 [고칠 것] · [유예] · [기각](근거 필수 — 넘긴 세션이 그 근거를 그대로 받는다 · 누르면 5초 들고 있다가 보낸다)과, 사유가 `spec` 이면 [CR로 보내기]를 둔다. CR로 보낸 카드는 제목이 "구현이 스펙을 바꿨습니다. 스펙 갱신을 승인하시겠습니까?" 이고 CR 키 · 기준 → 초안 · 출처 발견과 커밋 · 초안이 아직 승인본과 같은지 · [초안 고치기] · [변경 요청 보기] · [변경 요청 거절]을 보인다. 그 CR이 검토 중이면 이 카드는 목록에서 빠지고 CR 카드(위 항목)가 같은 출처 발견을 보인다. 에스컬레이션 카드는 일괄 선택에서 빠진다. `KindFilter` 는 목록 위의 유형 칸이다 — 주소 `?kind=` 에 남고 탭 · 범위를 바꿔도 유지된다.
 - **결정 규칙의 UI 반영**: 지시자≠승인자 — 요청자와 승인자가 같으면 승인 버튼 비활성 + 툴팁, 에이전트 작성 초안은 세션 소유자 단독 승인 불가 배너(spec-workflow §2.3). 소규모 완화 시 차단 대신 배너 + 감사 이벤트.
 - **키보드**: `j/k` 이동 · `a` 승인 · `r` 거절 · `c` 코멘트(ui-wireframes §4.6) · **`z` 들고 있는 결정 무르기**(2026-09-25 · REQ-WEB-237) · **`x` 선택 · `⇧X` 보이는 것에서 50건까지 · `⇧A` 일괄 승인 · `⇧R` 일괄 거절 · `Esc` 해제**(2026-09-22). 대문자를 쓰는 것은 **소문자 단건 키와 겹치지 않게** 하기 위해서다 — 같은 손가락이 한 건과 스무 건을 가른다면 그 차이는 Shift 만큼은 되어야 한다.
 **조직 · 프로젝트 칸**(2026-09-27 · 사람 결정 N1 · REQ-WEB-256). 받은 요청은 하나이고(FR-14), 알림 센터와 같은 칸(§2.9 ⑤)이 그 목록을 조직 · 프로젝트 하나로 좁힌다 — 수는 내가 결정할 수다. 주소 `?org=` · `?project=` 는 탭을 바꿔도 남고, `⇧X` 는 좁힌 목록의 카드만 고른다. 헤더 배지는 모든 조직의 수 그대로다(REQ-WEB-193). 와이어프레임의 `InboxFilterRail` 가운데 프로젝트 거름이 이것이다.
@@ -2109,6 +2161,9 @@ export const ApprovalDecisionInput = z
 | REQ-WEB-269 | WHEN 사람이 내 계정을 열면 THE SYSTEM SHALL 프로젝트별 알림 위에 메일 요약 칸을 두고, 켤 때 이 브라우저의 시간대(IANA 이름)와 지금 화면 언어를 보낸다. WHILE 켜져 있으면 THE SYSTEM SHALL 받는 시각과 메일 언어를 고르게 하고, 브라우저의 시간대가 저장된 것과 다르면 한 번에 맞추는 링크를 보인다. WHILE 서버가 메일을 보내지 않으면(`mail_enabled: false`) THE SYSTEM SHALL 켜는 단추 대신 그 까닭을 보인다(2026-09-28 사람 결정 EM3 · EM5 · [4.4](api.md) REQ-API-232) |
 | REQ-WEB-270 | WHEN 사람이 메일 요약의 끄는 링크(`/unsubscribe/:token`)를 열면 THE SYSTEM SHALL 로그인을 요구하지 않고 셸 밖 틀에 무엇을 끄는지(메일 요약만 — 다른 메일과 앱 안 알림은 그대로)와 [메일 요약 끄기]를 보이며, 여는 것만으로는 끄지 않는다. WHEN 누르면 THE SYSTEM SHALL EP-NTF-09 를 부르고, 끄면 내 계정으로 가는 길을 보인다. WHEN 서버가 `not_found` 로 답하면 THE SYSTEM SHALL 링크의 수명(보낸 뒤 7일)과 내 계정으로 가는 길을 보인다(2026-09-28 사람 결정 EM8 · [4.4 API 명세](api.md) REQ-API-234) |
 | REQ-WEB-310 | WHEN 받은 요청의 대기 카드를 그리고 서버가 `overdue` 를 참으로 주면 THE SYSTEM SHALL 카드 제목 줄에 "지연" 배지(요청 뒤 2일이 지났다는 풀이와 함께)를 보인다 — 화면은 시간을 다시 재지 않는다. THE SYSTEM SHALL 대기 · 처리됨 옆에 셋째 탭 [만료]를 두고(주소 `?state=expired` · 범위를 유지한다), 만료 카드에는 결정 단추 · 코멘트 칸 · 결정 키 대신 만료 시각과 "문서가 초안으로 돌아갔고 작성자가 다시 검토를 요청하면 새 카드가 생긴다"는 한 줄과 그 문서로 가는 링크를 보인다. WHEN 만료된 것이 없으면 THE SYSTEM SHALL 그렇다고 말한다(2026-10-15 사람 결정 · [4.4 API](api.md) REQ-API-304 · 305) |
+| REQ-WEB-321 | WHEN 받은 요청이 스펙 결재 카드를 그리고 서버가 `cr_key` 를 주면 THE SYSTEM SHALL 그 카드를 CR 카드로 그린다 — 유형 표지 「변경 요청」 · CR 키 링크 · 기준 → 초안 버전 · 델타의 수와 앞의 다섯 줄 · 영향 한 줄 · 승인하며 함께 할 일 한 줄(골라 둔 수 · 빈 선택 · 고른 적이 없으면 기본값의 수와 보관 제안 수 · 없음 — 2026-10-16 개정 · 사람 결정 · REQ-API-351)과 [델타 전체 보기]. 같은 결재를 두 카드로 그리지 않으며 카드의 결정은 그 결재 하나로 간다(2026-10-16 · 사람 결정 D1) |
+| REQ-WEB-325 | WHEN 받은 요청이 에스컬레이션 카드를 그리면 THE SYSTEM SHALL 유형 표지 「에스컬레이션」 · 사유 · 넘긴 발견의 원문(제목 · 심각도 · 위치 · 커밋 · 나온 작업과 담당 · 본문 · 넘긴 근거) · 요청 줄(요청한 세션과 그 세션이 기다리는지)을 보이고, 결정은 [고칠 것] · [유예] · [기각] 가운데 하나를 근거와 함께 보낸다(EP-APR-03 `resolution` — 근거가 비면 보내지 않고 칸 아래에 까닭을 적는다 · 다른 카드처럼 5초 들고 있다가 보낸다 · REQ-WEB-237). WHEN 사유가 `spec` 이면 THE SYSTEM SHALL [CR로 보내기]도 두고, 발견에 `spec_drift` 태그가 없으면 까닭과 함께 잠근다. WHEN 카드가 변경 요청으로 보낸 것(`kind = cr`)이면 THE SYSTEM SHALL 제목을 "구현이 스펙을 바꿨습니다. 스펙 갱신을 승인하시겠습니까?" 로 하고 CR 키 · 기준 → 초안 버전 · 출처 발견과 커밋 · 초안이 아직 승인본과 같으면 검토를 요청할 수 없다는 문장 · [초안 고치기] · [변경 요청 보기] · [변경 요청 거절](사유 필수)을 보인다. CR 카드(REQ-WEB-321)도 그 CR로 보낸 발견을 보인다. 에스컬레이션 카드는 일괄 선택에서 빠지고, 처리됨 카드는 정한 처분을 보인다(2026-10-16 · 사람 결정 D3 · [4.4 API](api.md) REQ-API-334 ~ 336) |
+| REQ-WEB-326 | WHILE 받은 요청을 보는 동안 THE SYSTEM SHALL 목록 위에 유형 칸(전체 · 스펙 승인 · 변경 요청 · 계획 승인 · 질문 · 에스컬레이션 · 발견 하향 · 게이트 우회)을 보이고, 대기 탭에서는 칸마다 서버가 센 대기 수(`kind_counts`)를 적는다. WHEN 칸을 고르면 THE SYSTEM SHALL 같은 목록을 그 유형으로 좁혀(EP-APR-01 `kind`) 주소(`?kind=`)에 남기고 탭 · 범위를 바꿔도 유지한다. 에스컬레이션 칸은 에스컬레이션 카드와 사유가 있는 질문을 함께 보이고 질문은 질문 카드 모양 그대로다. 주소의 모르는 값은 무시한다(2026-10-16 · 사람 결정 D3 · [4.4 API](api.md) REQ-API-337) |
 
 **받은 요청을 믿고 누를 수 있게**(2026-09-24 — UI/UX 검토 · REQ-WEB-204). 이 화면의 약속은 "키보드로 완결한다" 인데, 키가 **무엇에** 꽂히는지를 사람이 볼 수 없었다 — 커서는 `j`·`k` 로만 움직였고, 트랙패드로 내려가 다섯째 카드의 [본문 보기]를 누른 뒤 `a` 를 치면 화면 위로 밀려난 첫째 카드가 확인 없이 승인됐다. 눈앞에 없는 스펙이 게이트를 지나는 결함이다. 이제 누르거나 들어간 카드가 커서이고, 보이지 않는 카드에는 결정 키가 꽂히지 않는다(첫 키는 데려와 보여 줄 뿐이다). 카드는 **무엇을 · 누가 · 왜** 를 싣는다 — 플랜·발견 카드는 대상조차 가리키지 않았고(critical 하향 승인이 무엇을 내리는지 모른 채 켜져 있었다), 스펙 카드는 몇 번째 버전인지·무엇이 바뀌었는지·어느 세션이 멈춰 있는지를 말하지 않았다. 들어오는 링크(홈의 오늘 할 일 · 요청 알림 · 에이전트가 건네는 `web_url`)는 `?focus=` 로 **그 카드**에 착지한다. 코멘트 칸은 ⌘↵ 로 보내고 Esc 로 나온다. [본문 보기]는 여전히 md 원문이다 — 스펙 상세의 렌더러를 여기로 옮기는 것은 이 묶음 밖이다.
 
@@ -2155,7 +2210,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | --- | --- | --- |
 | 멤버 매트릭스 | EP-MBR-01 `GET /api/v1/orgs/{org}/members` · EP-MBR-02 `POST`(기존 사용자 배정 — 아직 가입하지 않은 사람은 초대로, 초대 메일은 2026-09-22 부터 자동 발송 · [api.md](api.md) EP-INV-01) · EP-MBR-03 `PATCH /api/v1/memberships/{id}`(역할) · EP-MBR-04 `DELETE /api/v1/memberships/{id}`(역할 끄기 — 2026-09-24) · EP-MBR-05 `GET …/members/{user}/removal`(빼기의 미리보기) · EP-MBR-06 `DELETE …/members/{user}/projects/{proj}`(한 프로젝트에서 빼기) · EP-MBR-07 `DELETE …/members/{user}`(조직에서 내보내기 — 2026-09-27) | `membership.role` 6종: `admin / planner / designer / developer / qa / viewer`. 사람 × 프로젝트 n:n(FR-14) |
 | 토큰 목록·발급·고치기·폐기 | EP-TOK-01 `GET /api/v1/me/tokens` · EP-TOK-02 `POST /api/v1/me/tokens` · EP-TOK-05 `PATCH /api/v1/me/tokens/{id}`(이름 · 권한 — 주인만 · 2026-10-11) · EP-TOK-03 `DELETE /api/v1/me/tokens/{id}` · EP-TOK-04 `GET /api/v1/orgs/{org}/tokens`(admin 조직 전체) | `api_token`: 라벨·소유자·프로젝트 소속·`prefix`·`last_used_at`(hostname 포함 표기). 조직 admin 은 조직 전체 목록을 열람하고 남의 살아 있는 토큰을 폐기한다(EP-TOK-03 · 2026-09-24) |
-| 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | 편집 항목 = `spec_gate.*` 2키: 티어 경계(`tier_boundaries`)·동적 강화(`dynamic_escalation`) + `done_gate.*` 2키: 구현 증적(`evidence_source`)·리뷰(`review_coverage` — 보지 않음 · 종류 무관 · 고른 종류마다, 2026-09-28 · REQ-WEB-285) + 종류마다 필수 리뷰어 역할(`review_roles` — REQ-WEB-286). 둘 다 2026-09-02 부터 **판정이 실제로 읽는다** — 그 전까지 판정은 상수를 썼다. 동적 강화의 신호는 둘이다 — **첫 승인 버전** · **같은 실패 3회 신고**, 여럿이어도 한 단계(2026-09-26 사람 결정 · 롤백 이력은 뺐다 · [3.5](../03-proposal/spec-workflow.md) §2.4) — 안내 문구도 그 둘을 말한다. `t1_objection_hours` 는 같은 날 뺐다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). `failopen` 2키(격상 기준 — 횟수 `escalate_count` · 시간 창 `window_hours`)와 `retention` 2키(보존 기간 — 활동 원문 `activity_days` · 리뷰 프롬프트 원문 `prompt_blob_ttl_days`)도 같은 폼에서 고친다(2026-10-15 · REQ-WEB-318 — 그 전에는 `failopen` 문장 하나를 읽기 전용으로 보였고 `retention` 은 없었다). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. fail-open 임계는 2026-10-15 에 격상과 함께 쓰이기 시작했다([4.4 API 명세](api.md) REQ-API-319) |
+| 게이트 정책 | EP-PRJ-03 `GET /api/v1/projects/{proj}` · EP-PRJ-04 `PATCH /api/v1/projects/{proj}` (`gate_policy` — 키 스키마 정본: [4.4 API 명세](api.md) §2.1a) | 편집 항목 = `spec_gate.*` 2키: 티어 경계(`tier_boundaries`)·동적 강화(`dynamic_escalation`) + `done_gate.*` 2키: 구현 증적(`evidence_source`)·리뷰(`review_coverage` — 보지 않음 · 종류 무관 · 고른 종류마다, 2026-09-28 · REQ-WEB-285) + 종류마다 필수 리뷰어 역할(`review_roles` — REQ-WEB-286). 둘 다 2026-09-02 부터 **판정이 실제로 읽는다** — 그 전까지 판정은 상수를 썼다. 동적 강화의 신호는 둘이다 — **첫 승인 버전** · **같은 실패 3회 신고**, 여럿이어도 한 단계(2026-09-26 사람 결정 · 롤백 이력은 뺐다 · [3.5](../03-proposal/spec-workflow.md) §2.4) — 안내 문구도 그 둘을 말한다. `t1_objection_hours` 는 같은 날 뺐다(이의제기 창 미구현 · [3.5](../03-proposal/spec-workflow.md) §2.4). `failopen` 2키(격상 기준 — 횟수 `escalate_count` · 시간 창 `window_hours`)와 `retention` 2키(보존 기간 — 활동 원문 `activity_days` · 리뷰 프롬프트 원문 `prompt_blob_ttl_days`)도 같은 폼에서 고친다(2026-10-15 · REQ-WEB-318 — 그 전에는 `failopen` 문장 하나를 읽기 전용으로 보였고 `retention` 은 없었다). ※ stale 임계는 공통 상수([4.2](codebase.md) §3.2 `SESSION_STALE_SECONDS`), 지시자≠승인자는 토글이 아니라 시스템 불변식(D-06)이라 이 폼의 대상이 아니다. fail-open 임계는 2026-10-15 에 격상과 함께 쓰이기 시작했다([4.4 API 명세](api.md) REQ-API-319). **리뷰 컷오버 단계**(`review_sot` — 게이트 정책 밖의 프로젝트 칸 · 2026-10-16 · REQ-WEB-331)도 같은 폼의 마지막 칸이다 |
 
 - **토큰 발급 흐름**: 발급 다이얼로그(`TokenCreateInput`: `project`·`name`·`scopes[]`·`expires`) → 성공 시 **원문 1회 표시**(복사 버튼, 닫으면 다시 볼 수 없음 — 해시 저장) → 목록에는 `prefix`만. 권한 체크박스는 `@nerv/schema` 의 `AGENT_SCOPES`(11종)를 그대로 쓰고, `approval:decide`는 **체크박스 비활성**(사람 전용 — 시스템 불변식). `spec:approve`는 2026-10-11 부터 고를 수 있는 옵트인 권한이다 — 권장 묶음에 없고, admin · planner가 아니면 아래 규칙대로 잠긴다([4.4 API 명세](api.md) REQ-API-291). **내 역할에 없는 권한도 보이되 잠긴다**(§1.8) — 그리고 **잠긴 것은 발급 본문에도 실리지 않는다**(REQ-WEB-134 · 2026-09-04): 초기 선택값이 상수라, `task:claim` 이 없는 역할에게 그 칸이 꺼져 보이면서 본문에는 실려 갔다. 화면이 자기가 한 일을 잘못 말하면 토큰 목록의 권한 표를 믿을 수 없게 된다.
 - **토큰이 어느 프로젝트의 것인지를 세 자리에서 말한다**(2026-09-21 — 사람 보고 · REQ-WEB-167). 토큰은 프로젝트 하나에 묶이는데 화면이 그 말을 한 번도 하지 않아, 발급할 때도 발급한 뒤에도 대상을 알 수 없었다. **고를 때** — 발급 대상을 폼이 고른다(헤더가 아니다: 설정 라우트에는 프로젝트 축이 없어 그 값은 "마지막으로 본 프로젝트" 였다). 목록은 헤더의 select 가 그리는 것과 같은 값이고(`scope.ts` — 두 벌을 두면 하나는 언젠가 낡는다), 기본값은 지금 보고 있는 프로젝트다. 고른 프로젝트가 **권한 칸의 잠금도 정한다**: 역할은 프로젝트마다 다를 수 있다. **받을 때** — 원문 카드가 프로젝트·권한·만료를 함께 적고 **연결 3단계**를 준다(2026-09-24 개정 · REQ-WEB-207): ① 토큰(복사) ② 플러그인 설치 두 줄 ③ **설치 캐시 경로로 부르는** `nerv-init --server … --project … --token …` 한 줄. 예전의 한 줄은 맨 이름 `nerv-init` 이라 셸 PATH 에 없었고, 그 시점에는 그것을 배달하는 플러그인도 아직 없었다([4.6](plugin.md) §3.7 · §4). `--token` 은 한 줄에 둔다(2026-09-24 **사람 결정** — 붙여넣기 한 번이 낫다) — 셸 기록에 남는다는 사실과, 빼고 실행하면 가려서 묻는다는 길을 곁에 적는다. 서버 주소는 화면이 이미 안다(§2.10 이 매뉴얼에서 쓰는 그 값 · REQ-WEB-165). **나중에** — 목록의 **첫 열**이 프로젝트다(이름으로 읽고 slug 로 대조한다 — 설정 파일에 적는 것은 slug 다). 기본 이름에도 프로젝트가 든다: 상수 하나였을 때는 프로젝트를 옮겨 가며 발급한 토큰이 목록에서 전부 같은 이름이었다. 사람이 적은 이름은 건드리지 않는다. **프로젝트가 없으면 [발급]은 비활성이고 그 이유를 같은 자리에서 말한다**(§1.5 · REQ-WEB-003 — 예전에는 아무 말 없이 잠겨 있었다).
@@ -2204,6 +2259,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | REQ-WEB-284 | WHEN 사람이 로그인된 기기 탭을 열면 THE SYSTEM SHALL 로그인마다 한 줄로 브라우저 · 운영체제(user agent 에서 — 모르면 "알 수 없는 기기") · 접속 주소 · 로그인 시각 · 마지막 사용을 보이고, 지금 쓰는 기기를 표시하고 그 줄에는 끊는 단추를 두지 않는다. THE SYSTEM SHALL 다른 줄마다 [끊기]를, 맨 위에 [다른 기기 로그인 모두 끊기]를 두고 둘 다 한 번 묻는다 — 모두 끊기는 몇 개를 끊는지 적는다([4.4 API 명세](api.md) EP-AUTH-03~05 · 2026-09-28 · 사람 요청) |
 | REQ-WEB-242 | WHEN 설정을 보이면 THE SYSTEM SHALL 조직 정보(`/settings/org` — 조직 이름 · 조직 삭제 · 새 조직)와 프로젝트 목록(`/settings/projects` — 만들기 · 이름과 저장소 고치기 · 보관과 복구 · `?new=1` 이면 만들기 폼을 연 채)을 서로 다른 항목으로 두어 조직 정보는 조직 무리에, 프로젝트 목록은 프로젝트 무리의 첫 항목에 둔다. WHEN 옛 주소 `/settings/workspace` 로 들어오면 THE SYSTEM SHALL `?new=1` 이면 프로젝트 목록의 만들기 폼으로, 아니면 조직 정보로 보낸다. WHEN 멤버·역할(`/settings/members`)을 열면 THE SYSTEM SHALL 멤버와 초대를 두 탭으로 나누어 멤버 탭을 첫 탭이자 기본으로 열고, 초대 탭은 주소(`?tab=invites`)로 열리게 하며, 탭 옆에 멤버 수(사람 수)와 대기 중인 초대 수를 보인다. WHEN 초대 거절 알림이나 시작하기 체크리스트의 초대 걸음을 누르면 THE SYSTEM SHALL 초대 탭을 연다 |
 | REQ-WEB-318 | WHEN 게이트 정책 탭을 그리면 THE SYSTEM SHALL 판정할 수 없을 때의 격상 기준(횟수 · 시간 창)과 보존 기간(활동 원문 · 리뷰 프롬프트 원문 — 일)을 지금 값으로 시작하는 칸으로 보이고, 칸 아래에 그 값으로 무엇이 일어나는지(몇 시간 안에 몇 번이면 격상 — admin 중요 알림과 S5 · S6 배너, 그 시간 동안 새로 쌓이지 않으면 풀림)를 입력하는 대로 다시 그린다. WHEN admin 이 값을 고치면 THE SYSTEM SHALL 서버와 같은 zod 스키마(`GatePolicySchema` · `RetentionSchema`)로 검사해 범위 밖이면 그 자리에 이유를 보이고 [저장]을 잠그며, 저장하면 바뀐 것만 보낸다 — 격상 기준은 `gate_policy` 에, 보존 기간은 `retention` 에 담고 보존 기간만 고쳤으면 정책은 보내지 않는다. 보존 기간을 줄이는 저장은 원문이 지워진다는 것을 한 번 더 묻는다. WHEN admin 이 아닌 역할이 열면 THE SYSTEM SHALL 같은 값을 읽기 전용으로 보인다(REQ-WEB-003 · 2026-10-15 · [4.8 백로그](backlog.md) E18-S01) |
+| REQ-WEB-331 | WHEN 게이트 정책 탭을 그리면 THE SYSTEM SHALL 「리뷰 컷오버」 칸에 지금 단계(컷오버 전(git) · M1 이중화 · M2 이후(NERV))를 고르게 하고 그 단계에서 무엇이 적용되는지 한 줄과 바꾼 때(바꾼 적이 없으면 그 사실)를 보인다. WHEN 다른 단계를 고르면 THE SYSTEM SHALL 관측 창이 저장한 시각부터 다시 시작한다고 알리고 바뀌는 값 목록에 전 → 후를 더하며 [저장]이 `review_sot` 만 보낸다 — 같은 단계로 되돌리면 보낼 것이 없다. WHERE admin 이 아니면 THE SYSTEM SHALL 지금 단계를 보이되 고를 수 없게 한다(2026-10-16 · 사람 결정 D6 · [4.4 API](api.md) REQ-API-348) |
 
 ### 2.9 알림 센터 (`/notifications`)
 
@@ -2253,6 +2309,8 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 
 **이 프로젝트의 알림을 얼마나 받을지**(2026-09-27 · 사람 결정 N3 · REQ-WEB-259). 한 프로젝트로 좁혀 보는 동안 목록 위에 [모두 · 중요만 · 알리지 않음]이 있고, 지금 수준이 눌려 있다. 고르면 그 프로젝트의 앞으로 올 알림에 적용된다 — 고른 수준 밖의 알림은 읽음으로 들어와 배지에 잡히지 않는다([4.4](api.md) REQ-API-219). 조직 · 프로젝트 칸의 줄은 기본(모두)이 아닌 수준을 이름 옆에 작게 적는다 — 수가 적은 까닭이 수준 때문일 수 있다.
 
+**워치**(2026-10-16 · 사람 결정 D5 · REQ-WEB-328). 카탈로그([3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.3)는 승인 · 거절 · 코멘트와 준비된 작업을 「워처」에게도 보낸다. 거는 자리는 스펙 상세와 작업 상세의 [워치]이고 지금 상태를 눌린 단추(「워치 중」)로 보인다. 영역 문서에서는 [영역 워치]다 — 그 아래 문서와 작업의 알림까지 받는다. 내 계정의 알림 탭에 모든 프로젝트의 워치를 한 목록으로 보이고 줄마다 [해제]를 둔다. 워치는 사람이 누를 때만 생긴다 — 문서를 쓰거나 작업을 맡아도 자동으로 걸리지 않는다.
+
 | 화면 요소 | 데이터 소스 | 비고 |
 | --- | --- | --- |
 | 알림 피드 | EP-NTF-01 `GET /api/v1/me/notifications` (state: unread/read, 커서) | `notification` 파생 규칙·읽음 상태는 [data-model](../03-proposal/data-model.md) §2.9 |
@@ -2275,6 +2333,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | REQ-WEB-255 | WHILE 조직이나 프로젝트 하나로 좁혀 보는 동안 다른 범위에 안 읽은 중요 알림이 있으면 THE SYSTEM SHALL 목록 위에 "다른 프로젝트에 중요 알림 N건"을 한 줄로 보이고, 누르면 모든 조직의 중요 알림으로 돌아간다 — 좁혀 보는 동안 다른 프로젝트의 급한 일을 놓치지 않게 한다 |
 | REQ-WEB-259 | WHILE 알림 센터를 프로젝트 하나로 좁혀 보는 동안 THE SYSTEM SHALL 그 프로젝트의 알림 수준([모두 · 중요만 · 알리지 않음] — 지금 값이 눌린 채)을 목록 위에 보이고, WHEN 다른 값을 고르면 THE SYSTEM SHALL EP-NTF-06 으로 보내 칸 · 설정의 수를 새로 받고 "sudoku 알림: 중요만" 처럼 알린다. THE SYSTEM SHALL 조직 · 프로젝트 칸의 줄에 기본이 아닌 수준을 이름 옆에 적는다(2026-09-27 사람 결정 N3) |
 | REQ-WEB-260 | WHEN 내 계정을 열면 THE SYSTEM SHALL 내가 속한 프로젝트마다 알림 수준을 고르는 줄을 보이고(속한 프로젝트가 없으면 그리지 않는다), 이미 받은 알림은 그대로이며 받은 요청에는 영향이 없다는 사실을 목록 위에 적는다(2026-09-27 사람 결정 N3) |
+| REQ-WEB-328 | WHEN 스펙 상세나 작업 상세를 그리면 THE SYSTEM SHALL [워치]를 두고 지금 워치하는지를 눌린 상태(`aria-pressed` · 「워치 중」)로 보이며, 영역 문서(`type = area`)에서는 [영역 워치]로 이름과 설명이 그 아래 문서와 작업까지임을 적는다. WHEN 누르면 THE SYSTEM SHALL 워치하지 않았으면 EP-NTF-11 로 걸고 워치 중이면 EP-NTF-12 로 푼다. 상태를 받기 전에는 누를 수 없다. WHEN 내 계정의 알림 탭을 열면 THE SYSTEM SHALL 모든 프로젝트의 워치를 새로 건 순서로 한 목록에 보이고(종류 · 번호 링크 · 제목 · 프로젝트) 줄마다 [해제]를 두며, 없으면 거는 자리를 한 줄로 적는다. THE SYSTEM SHALL 워치를 사람이 누를 때만 건다(2026-10-16 · 사람 결정 D5 · [4.4 API](api.md) REQ-API-342 · 343) |
 
 ### 2.10 도움말 · 제품 매뉴얼 (`/help`) — 2026-08-24 신설 (사람 지시)
 
@@ -2473,7 +2532,7 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 
 | 토큰 | SpecVersion | Requirement | Task | AgentSession | severity |
 | --- | --- | --- | --- | --- | --- |
-| `status.idle` | `draft` `superseded` | `unimplemented` | `backlog` | `pending` | — |
+| `status.idle` | `draft` `superseded` `discarded` | `unimplemented` | `backlog` | `pending` | — |
 | `status.action` | — | — | `ready` | — | `spec_drift` 태그 |
 | `status.waiting` | `in_review` | — | `in_review` | `awaiting_input` | `warning` |
 | `status.agent` | — | — | `claimed` | — | — |
@@ -2481,6 +2540,8 @@ MVP 탭 **4종**: **워크스페이스 / 멤버·역할 / 에이전트 토큰 / 
 | `status.ok` | `approved` | `verified` | — | `active` | — |
 | `status.done` | — | `implemented` | `done` | `complete` | — |
 | `status.danger` | `deprecated` | — | `blocked` | `error` `stale` | `critical` |
+
+**변경 요청**(`CR_TOKEN` · 2026-10-16) — 열림 `status.idle` · 검토 중 `status.waiting` · 승인됨 `status.ok` · 거절됨 `status.danger` · 철회됨 `status.idle`. 버린 초안(`discarded`)은 더 쓰지 않는 버전이라 대체됨과 같은 `status.idle` 이다.
 
 ### 4.3 배지·표기 규약
 

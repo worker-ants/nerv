@@ -102,6 +102,19 @@ export const en = {
   'error.approval.already_decided': 'This item has already been decided.',
   'error.approval.expired':
     'This approval expired after 7 days without a decision. The document went back to draft; it can be decided again once review is requested again.',
+  'error.cr.actions_without_cr':
+    'Follow-up actions (cr_actions) are accepted only when approving a version wrapped by a change request.',
+  'error.cr.in_review':
+    'This change request is in review. Reject it in the approval to send it back to draft, then reject or withdraw it.',
+  'error.cr.not_found': 'Change request not found.',
+  'error.cr.not_open': 'This change request is already closed ({status}).',
+  'error.cr.reject_role': 'Only a planner or admin can reject a change request.',
+  'error.cr.withdraw_not_author':
+    'Only the person who opened the change request or the draft author can withdraw it.',
+  'error.cr.unchanged':
+    'The draft of {cr} is still the same as the approved version. Edit the spec, then request a review. If there is nothing to change, reject or withdraw the change request.',
+  'error.escalation.decided_by_cr':
+    'This escalation was sent to a change request. It closes when that change request is approved or rejected.',
   'error.approval.content_changed':
     'The content changed after you loaded it. Check the new version and decide again.',
   'error.approval.not_assignee': 'You are not the designated approver.',
@@ -112,12 +125,29 @@ export const en = {
   // Direct approval (2026-10-11 · REQ-API-287)
   'error.approval.direct_role': 'Only admins and planners can approve a draft directly.',
   'error.approval.waiver_reason_required': 'A waiver requires a reason.',
+  'error.watch.target_not_found': 'Could not find {target} in this project to watch.',
+  'error.watch.not_area':
+    'An area watch works only on an area document, and {target} is not an area. To watch a single document, send the type spec.',
+  'error.watch.not_found': 'No such watch. It was already removed or belongs to someone else.',
+  'error.pin.target_not_found': 'Could not find {target} in this project to pin.',
+  'error.pin.not_found': 'No such pin. It was already removed or belongs to someone else.',
+  'error.pin.limit': 'You can pin up to {max} items. Unpin ones you no longer use first.',
   'error.approval.bypass_kind_forbidden':
     'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
   'error.approval.bypass_unscoped_forbidden':
     'Only admins can record a waiver without choosing review kinds. Choose the review kinds to waive.',
   'error.approval.bypass_has_code':
     'A task with code evidence (commit · PR · code path) cannot have its {kinds} review waived. A task that produced code gets a code review.',
+  'error.approval.bypass_target_required':
+    'Give exactly one target to waive: subject_id for a task or review session, or branch for a branch.',
+  'error.approval.bypass_head_needs_branch':
+    'head_sha is only for a branch waiver. Use it to narrow the waiver to one commit of that branch.',
+  'error.approval.bypass_head_not_full_sha':
+    'head_sha must be a full 40-character commit SHA. A short SHA could later match another commit (get it with git rev-parse).',
+  'error.gate.head_not_full_sha':
+    'head_sha must be a full 40-character commit SHA. The two verdicts are compared for one commit, so the commit must be exact (get it with git rev-parse).',
+  'error.cutover.role_required': 'Only admins and planners can read the cutover report.',
+  'error.cutover.bad_window': 'The window start (since) must be before its end (until).',
   'error.auth.admin_only': 'Only admins can do this.',
   'error.auth.org_admin_only':
     'Only organization admins can manage organization-wide access. Project admins can manage only their own project.',
@@ -190,6 +220,7 @@ export const en = {
   'error.human_only.account': 'Only a person can change account details. Agent tokens cannot.',
   'error.human_only.approve': 'Only humans can approve.',
   'error.human_only.baseline': 'Only a person can create a baseline.',
+  'error.human_only.cr_reject': 'Only a person can reject a change request.',
   'error.human_only.bypass': 'Only a person can bypass a gate.',
   'error.db.check_violation': 'That value is not allowed. Check the constraint "{constraint}".',
   'error.db.foreign_key_violation':
@@ -361,10 +392,27 @@ export const en = {
   'error.review.spec_version_required':
     'A spec_change resolution needs the spec_version_id of what you changed.',
   'error.review.spec_version_unknown': 'That spec version does not belong to this project.',
+  'error.review.escalate_with_cr':
+    'A resolution does not carry a change request. To send the finding to a change request, use Send to CR (EP-REV-09).',
+  'error.review.not_spec_drift':
+    'This finding has no spec_drift tag. Only findings that say the spec is wrong go to a change request. Fix the code or choose another resolution.',
+  'error.review.finding_in_other_cr':
+    'This finding is already linked to another change request ({change_request_key}).',
+  'error.review.to_cr_role': 'Only planners and admins can send a finding to a change request.',
+  'error.review.no_origin_spec':
+    'The finding does not say which spec is wrong. It must point to a spec version or a requirement before it can go to a change request.',
+  'error.review.no_approved_version':
+    'This spec has no approved version, so a draft of it is not a change request. Edit the draft, then resolve the finding as spec_change.',
+  'error.review.finding_other_spec':
+    'This finding points to another spec ({spec}). Link it from a draft of that spec.',
   'mcp.arg.resolution_spec_version':
     'evidence when the fix was a spec correction: the spec_version_id saved by that fix',
   'mcp.arg.escalate_reason':
     "Why this goes to a human. Required for an escalated resolution; uses the same values as a question's escalate.",
+  'mcp.arg.escalation_blocking':
+    'For an escalated resolution, whether this session waits for the human decision. Defaults to true. While waiting the session is awaiting_input, and the decision arrives in the heartbeat pending as approval_decided (subject_type: escalation)',
+  'mcp.arg.draft_finding_id':
+    'UUID of the spec_drift finding this save fixes. When the spec has an approved version, the finding is linked to that change request — it closes as fixed when the change request is approved and as dismissed when it is rejected',
   'mcp.arg.finding_status_filter':
     'Comma list (open, fixed, dismissed, wont_fix). Defaults to open',
   'mcp.arg.finding_severity_filter': 'Comma list (critical, warning, info)',
@@ -454,6 +502,14 @@ export const en = {
     'Comment on this finding. The agent that raised it receives it on its next heartbeat',
   'reviews.rail.comment_submit': 'Post',
   'reviews.promote': 'Add as task',
+  'reviews.to_cr': 'Send to CR',
+  'reviews.to_cr_hint':
+    'Opens a draft from the approved version of the source spec and links this finding to the change request. If it is approved the finding closes; if it is rejected the finding is dismissed and tasks to revert the code are created.',
+  'reviews.to_cr_no_permission': 'Only planners and admins can send a finding to a change request.',
+  'reviews.to_cr_done': 'Sent to change request {key}.',
+  'reviews.in_cr': 'Change request {key}',
+  'reviews.escalated': 'Escalated · {reason}',
+  'reviews.escalation_waiting': 'The session is waiting for a decision',
   'reviews.promoted': 'Created {key}. Fill in the delegation brief to move it to Ready.',
   'task.meta.assignee': 'Assignee {name}',
   'task.meta.runner': 'Running on {host} ▸',
@@ -475,6 +531,9 @@ export const en = {
   'spec.next.in_review': 'In review. Decide on its card in the Inbox.',
   'spec.next.approved': 'This is the approved version. Create tasks from it.',
   'spec.next.rejected': 'Rejected. An agent will fix it and submit a new draft.',
+  'spec.next.discarded': 'A discarded draft. Its change request was rejected or withdrawn.',
+  'spec.next.cr': 'Change request {key}',
+  'spec.next.open_cr': 'Open change request {key}',
   'spec.next.superseded': 'This is an older version. A newer approved version exists.',
   'spec.next.no_version':
     'This node groups child documents and has no version yet. There is no body to review.',
@@ -550,13 +609,38 @@ export const en = {
   'reviews.filter.status': 'Status',
   'reviews.filter.tag': 'Tags',
   'reviews.gate.branch': 'Branch',
+  'reviews.gate.bypass_count': '{count} waived',
+  'reviews.gate.bypass_commit': 'commit {sha} only',
   'reviews.gate.empty': 'No branch has a review yet.',
   'reviews.gate.note': 'Shows the verdict only. It does not block merges yet.',
   'reviews.gate.resolved': 'Resolved',
   'reviews.gate.review': 'Review',
   'reviews.gate.shown': 'Latest {shown} of {total} branches',
   'reviews.gate.title': 'Gate status',
+  'reviews.gate.waive': 'Waive',
+  'reviews.gate.waive_branch': 'Waive branch {branch}',
   'reviews.gate.verdict': 'Verdict',
+  'reviews.cutover.title': 'Cutover watch',
+  'reviews.cutover.stage': '{stage} · since {since}',
+  'reviews.cutover.window': 'Watched {days} of {total} days',
+  'reviews.cutover.mismatch': 'Verdict mismatches {mismatches} / {total}',
+  'reviews.cutover.submit_failure': 'Failed review submissions {failed} / {total}',
+  'reviews.cutover.status.no_data':
+    'No comparisons yet. They are counted here once a local hook sends its own verdict with the gate check.',
+  'reviews.cutover.status.stable': 'Stable: mismatch rate under {pct}%',
+  'reviews.cutover.status.watch': 'Watching: the mismatch rate is not under {pct}% yet',
+  'reviews.cutover.status.rollback': 'Rollback trigger reached',
+  'reviews.cutover.reason.mismatch_rate': 'mismatch rate {pct}% or more',
+  'reviews.cutover.reason.submit_failure_rate': 'review submission failure rate {pct}% or more',
+  'reviews.cutover.recent': 'Recent mismatches',
+  'reviews.cutover.recent_row': 'local {local} · server {server}',
+  'reviews.cutover.cli':
+    'Count review files newly committed to the repository with the CLI: nerv cutover report',
+  'review.sot.git': 'Before cutover (git)',
+  'review.sot.dual': 'M1 dual run',
+  'review.sot.nerv': 'After M2 (NERV)',
+  'gate.verdict.pass': 'pass',
+  'gate.verdict.block': 'block',
   'reviews.no_permission': 'Resolving requires the review:resolve scope.',
   'reviews.comment_no_permission':
     'Commenting requires the review:submit scope. Viewers can only read.',
@@ -962,6 +1046,82 @@ export const en = {
   'error.spec.requirement_owned':
     'Not approved: this version defines requirement numbers that belong to another document ({refs}). Reject this version and have the numbers changed.',
   'spec.revert_summary': 'Reverted to the body of v{n}',
+  'agent.cr.task.derive_body': 'Derived from requirement {ref} added in {cr} — {spec} v{version}',
+  'agent.cr.task.reverify_title': 'Re-verify {ref}',
+  'agent.cr.task.reverify_goal':
+    'Check again against the changed statement (completed tasks: {tasks}) — {statement}',
+  'agent.cr.task.reverify_body':
+    'The statement of requirement {ref} changed in {cr} — {spec} v{version}',
+  'agent.cr.task.cancel_note': 'Requirement removed in {cr} — {ref}',
+  'agent.cr.task.revert_title': 'Revert: {title}',
+  'agent.cr.task.revert_body':
+    '{cr} was rejected — the spec is the source of truth, so revert the implementation to the spec. Finding {finding} ({title}) · location {location} · commit {commit} · from task {task} · reason: {reason}',
+  'agent.cr.task.revert_goal':
+    'Revert the implementation at {location} to the approved spec (commit {commit} drifted from it)',
+  'agent.cr.finding.approved': '{cr} approved — spec v{version} now reflects this finding',
+  'agent.cr.finding.rejected':
+    '{cr} rejected — the spec stays and the implementation is reverted. Reason: {reason}',
+  'agent.cr.finding.withdrawn': '{cr} withdrawn — the finding stays open',
+  'agent.escalation.sent_to_cr':
+    'Sent to change request {cr} — that change request updates the spec',
+  'agent.escalation.drift_rationale':
+    '{title} — the implementation changed the spec. Proposes a spec update',
+  'agent.escalation.drift_summary': 'Spec update from the implementation — {title}',
+  'cr.title': 'Change request',
+  'cr.opened_by': 'Opened by {name}',
+  'cr.origin.human': 'Proposed by a person',
+  'cr.origin.agent': 'Proposed by an agent session',
+  'cr.origin.spec_drift': 'Proposed from implementation drift',
+  'cr.risk.low': 'Low risk',
+  'cr.risk.normal': 'Normal risk',
+  'cr.risk.high': 'High risk',
+  'cr.gate_pending': 'The gate tier is set when review is requested',
+  'cr.gate_tier': 'Gate tier {tier}',
+  'cr.section.delta': 'Changed requirements',
+  'cr.section.impact': 'What moves on approval',
+  'cr.section.actions': 'Follow-up on approval',
+  'cr.section.decision': 'Decision',
+  'cr.impact.summary':
+    '{tasks} derived tasks · {claims} active claims ({affected} on changed or removed requirements) · {referencing} referencing specs',
+  'cr.tasks.none': 'No tasks come from this spec.',
+  'cr.effect.rebrief': 'Rebrief',
+  'cr.effect.reverify': 'Re-verify suggested',
+  'cr.effect.cancel': 'Archive suggested',
+  'cr.effect.stop': 'Stop check',
+  'cr.effect.none': 'Unchanged',
+  'cr.claim.affected': 'Changed requirement',
+  'cr.referencing.none': 'No spec references this one.',
+  'cr.outcome.none': 'Nothing was done with the approval.',
+  'cr.outcome.created': 'Created task',
+  'cr.outcome.archived': 'Archived task',
+  'cr.actions.closed': 'This change request is closed.',
+  'cr.actions.none': 'No suggestions to choose.',
+  'cr.actions.hint':
+    'What you check is done the moment this version is approved. Unchecked items are not done.',
+  'cr.actions.default_hint':
+    'Nobody has chosen yet. Approving without this page creates the derived and re-verification tasks and archives nothing.',
+  'cr.action.derive': 'Create a derived task — {ref}',
+  'cr.action.reverify': 'Create a re-verification task — {ref} ({n} done tasks)',
+  'cr.action.cancel': 'Archive the unstarted task — {task}',
+  'cr.decision.open': 'This is a draft. After editing, request review from the spec page.',
+  'cr.decision.open_doc': 'Open in spec',
+  'cr.decision.in_review': "In review. Approval goes through that version's approval.",
+  'cr.decision.open_inbox': 'Open in inbox',
+  'cr.decision.closed': '{status} — the draft (v{n}) was discarded.',
+  'cr.decision.approved': 'Approved. The new version is the approved version.',
+  'cr.decision.reason': 'Reason',
+  'cr.decision.reason_required': 'Enter a reason to reject.',
+  'cr.decision.reject_review': 'Reject approval',
+  'cr.decision.reject': 'Reject change request',
+  'cr.decision.reject_hint':
+    'Decide not to make this change and discard the draft. The reason goes to the author.',
+  'cr.decision.withdraw': 'Withdraw',
+  'cr.decision.withdraw_hint': 'Discard the draft and withdraw this proposal.',
+  'cr.toast.waiting': 'Approval recorded. Waiting for another approver.',
+  'cr.toast.returned': 'Approval rejected. Back to draft.',
+  'cr.toast.approved': 'Approved.',
+  'cr.toast.rejected': 'Change request rejected. The draft was discarded.',
+  'cr.toast.withdrawn': 'Change request withdrawn.',
   'error.task.rebrief_baseline':
     "A task developed against a baseline can't move only its basis version. Move the task to a new baseline instead.",
   'error.task.baseline_pin_mismatch':
@@ -1065,6 +1225,11 @@ export const en = {
   'event.claim.released': 'Claim released',
   'event.comment.resolved': 'Comment resolved',
   'event.cr.opened': 'Change request opened',
+  'event.cr.submitted': 'Change request submitted for review',
+  'event.cr.reopened': 'Change request reopened',
+  'event.cr.approved': 'Change request approved',
+  'event.cr.rejected': 'Change request rejected',
+  'event.cr.withdrawn': 'Change request withdrawn',
   'event.evidence.added': 'Evidence added',
   'event.review.submitted': 'Review submitted',
   'event.finding.opened': 'Review finding opened',
@@ -1074,6 +1239,7 @@ export const en = {
   'event.gate.failopen': 'Gate check failed (recorded and proceeded)',
   'event.gate.failopen_escalated': 'Gate escalated (undecided passes over the limit)',
   'event.gate.failopen_cleared': 'Gate escalation cleared',
+  'event.gate.verdict_mismatch': 'Gate verdict mismatch (the local hook and the server disagreed)',
   'event.mirror.diverged':
     'Mirror push stopped (the mirror repository has commits NERV did not make)',
   'event.import.applied': 'Import applied',
@@ -1136,6 +1302,12 @@ export const en = {
   'status.spec.draft': 'Draft',
   'status.spec.in_review': 'In review',
   'status.spec.superseded': 'Superseded',
+  'status.spec.discarded': 'Discarded',
+  'status.cr.open': 'Open',
+  'status.cr.in_review': 'In review',
+  'status.cr.approved': 'Approved',
+  'status.cr.rejected': 'Rejected',
+  'status.cr.withdrawn': 'Withdrawn',
   'status.task.backlog': 'Backlog',
   'status.task.blocked': 'Blocked',
   'status.task.claimed': 'Claimed',
@@ -1558,6 +1730,74 @@ export const en = {
   'inbox.card.body_empty': 'The document is empty.',
   'inbox.card.quorum': '{given}/{required} approved',
   'inbox.card.quorum_pending': 'Approvals still needed from {role}: {n}. Not final yet.',
+  'inbox.card.cr_impact':
+    'Impact: {tasks} derived tasks · {claims} active claims · {referencing} referencing specs',
+  'inbox.card.cr_planned': 'On approval, as chosen: create {create} tasks and archive {cancel}.',
+  'inbox.card.cr_default':
+    'On approval, by default: create {derive} derived tasks and {reverify} re-verification tasks.',
+  'inbox.card.cr_chosen_none': 'Nothing was chosen to do. Approving creates no tasks.',
+  'inbox.card.cr_unplanned': 'Choose the {n} archive suggestions on the change request page.',
+  'inbox.card.cr_no_suggestions': 'No follow-up on approval.',
+  'inbox.card.cr_open': 'View the full delta',
+  'inbox.subject.escalation': 'Escalation',
+  'inbox.kind.heading': 'Type',
+  'inbox.kind.all': 'All',
+  'inbox.kind.spec': 'Spec approval',
+  'inbox.kind.cr': 'Change request',
+  'inbox.kind.plan': 'Plan approval',
+  'inbox.kind.question': 'Question',
+  'inbox.kind.escalation': 'Escalation',
+  'inbox.kind.finding': 'Finding downgrade',
+  'inbox.kind.gate_bypass': 'Gate bypass',
+  'inbox.kind.count': '{count} waiting',
+  'inbox.esc.reason': 'Reason: {reason}',
+  'inbox.esc.rationale': 'Why it was escalated',
+  'inbox.esc.commit': 'Commit {sha} · {branch}',
+  'inbox.esc.location': 'Location {location}',
+  'inbox.esc.task': 'Task {key} · assignee {name}',
+  'inbox.esc.task_unassigned': 'Task {key} · no assignee',
+  'inbox.esc.detail': 'Finding',
+  'inbox.esc.waiting': 'The session is waiting for this decision',
+  'inbox.esc.not_waiting': 'The session keeps working without waiting',
+  'inbox.esc.decide.fix': 'Fix it',
+  'inbox.esc.decide.wont_fix': "Won't fix",
+  'inbox.esc.decide.dismissed': 'Dismiss',
+  'inbox.esc.decide.fix_hint':
+    'The finding stays open. The session that escalated it fixes it and closes it with the commit.',
+  'inbox.esc.decide.wont_fix_hint':
+    "Closes the finding as won't fix. Say in the rationale when to look again.",
+  'inbox.esc.decide.dismissed_hint':
+    'Closes the finding as dismissed. Say in the rationale why it is wrong.',
+  'inbox.esc.rationale_placeholder': 'Rationale (required — the session receives this text as is)',
+  'inbox.esc.rationale_required': 'Write a rationale before you decide.',
+  'inbox.esc.to_cr': 'Send to CR',
+  'inbox.esc.to_cr_hint':
+    'Opens a draft from the approved version of the source spec and links this finding to the change request. A waiting session is released right away.',
+  'inbox.esc.to_cr_no_tag': 'Only findings tagged spec_drift go to a change request.',
+  'inbox.esc.to_cr_done': 'Sent to change request {key}.',
+  'inbox.esc.done': '{title}: decided — {resolution}.',
+  'inbox.esc.resolved': '{resolution} · {when}',
+  'inbox.esc.resolution.fix': 'Fix it',
+  'inbox.esc.resolution.wont_fix': "Won't fix",
+  'inbox.esc.resolution.dismissed': 'Dismissed',
+  'inbox.esc.resolution.fixed': 'Fixed',
+  'inbox.esc.resolution.spec_change': 'Spec fix',
+  'inbox.esc.resolution.change_request': 'Sent to a change request',
+  'inbox.esc.resolution.withdrawn': 'Change request withdrawn',
+  'inbox.esc.cr_title': 'The implementation changed the spec — approve the spec update?',
+  'inbox.esc.cr_unchanged':
+    'The draft is still the same as the approved version, so a review cannot be requested yet. Edit the spec, then request a review.',
+  'inbox.esc.cr_changed': 'The draft has been edited. Request a review to start the approval.',
+  'inbox.esc.cr_edit': 'Edit the draft',
+  'inbox.esc.cr_open': 'Open the change request',
+  'inbox.esc.cr_reject': 'Reject change request',
+  'inbox.esc.cr_reject_hint':
+    'Rejecting discards the draft, dismisses the findings sent to this change request, and creates tasks to revert the code.',
+  'inbox.esc.cr_reason_placeholder': 'Reason for rejecting (required)',
+  'inbox.esc.cr_rejected': 'Rejected {key}. Created tasks to revert the code.',
+  'inbox.esc.findings': 'Source findings',
+  'inbox.card.cr_drift':
+    'A change request that came back from the implementation — source findings',
   'inbox.card.role_queue': '{role} approval',
   'inbox.card.role_queue_any': 'another approver',
   'inbox.card.cannot_approve.author': 'You wrote this draft, so someone else must approve it.',
@@ -1800,6 +2040,10 @@ export const en = {
   'spec.impact_send': 'Send the review request',
   'spec.impact_tasks':
     '{count} derived tasks. If the basis version changes, instructions need re-checking',
+  'spec.impact_claims':
+    '{count} active claims ({affected} on changed or removed requirements). On approval those session owners are told right away',
+  'spec.impact_cr':
+    'This draft is change request {key}. To change the follow-up, choose it on the change request page.',
   'spec.body_change.line': 'Against the previous version v{n} · {detail}',
   'spec.body_change.shrunk_badge': 'body shrank sharply',
   'spec.body_change.shrunk':
@@ -1936,6 +2180,23 @@ export const en = {
   'task.waiver.code_evidence': 'A task with code evidence cannot have its code review waived',
   'task.waiver.no_role':
     'You cannot waive any of these reviews. Code reviews are waived by a developer or an admin, spec reviews by a planner or an admin',
+  'task.branch_waiver.open': 'Waive a branch',
+  'task.branch_waiver.title': 'Waiver for a branch without reviews',
+  'task.branch_waiver.hint':
+    'The gate verdict blocks a branch that will not be reviewed (such as a docs-only branch) as "No review". Pick the branch and kinds and waive them with a reason, and those kinds pass as waived. Kinds that have a review follow that review\'s verdict.',
+  'task.branch_waiver.branch': 'Branch',
+  'task.branch_waiver.branch_placeholder': 'Branch name, for example docs/readme',
+  'task.branch_waiver.known': 'Branches of this task',
+  'task.branch_waiver.head': 'Commit (optional)',
+  'task.branch_waiver.head_placeholder':
+    'Only this commit: a 40-character SHA. Leave empty for every commit of the branch',
+  'task.branch_waiver.head_invalid':
+    'Enter a 40-character commit SHA (get it with git rev-parse HEAD).',
+  'task.branch_waiver.reason_placeholder':
+    'Reason (required), for example: a branch that only edits the README',
+  'task.branch_waiver.confirm':
+    'This records a waiver of {kinds} reviews for {branch}. The record cannot be deleted.',
+  'task.branch_waiver.done': 'Waived {kinds} reviews for {branch}',
   'task.reviews': 'Reviews',
   'task.reviews.none': 'No reviews have checked this task.',
   'task.reviews.open_critical': '{n} open critical',
@@ -2084,6 +2345,19 @@ export const en = {
   'settings.gates.failopen_invalid': 'Times and hours must be whole numbers of 1 or more.',
   'settings.gates.failopen_value': '{count} times in {hours} hours',
   'settings.gates.change_failopen': 'Escalation {from} → {to}',
+  'settings.gates.sot': 'Review cutover',
+  'settings.gates.sot_body':
+    'Choose where review output and gate verdicts live. During the M1 dual run, when the verdict a local hook sends differs from the server verdict, the server verdict applies and admins are notified.',
+  'settings.gates.sot_hint_git': 'The local hook decides. NERV only records comparisons.',
+  'settings.gates.sot_hint_dual':
+    'The server verdict applies. When it differs from the local hook, the project admins are notified.',
+  'settings.gates.sot_hint_nerv':
+    'NERV decides. The local hook only decides as a fallback when the server cannot be reached.',
+  'settings.gates.sot_since': 'Changed at {at}. The two-week watch counts from then.',
+  'settings.gates.sot_never': 'Never changed yet.',
+  'settings.gates.sot_reset':
+    'Changing the stage restarts the watch window from the moment you save.',
+  'settings.gates.change_sot': 'Review cutover {from} → {to}',
   'settings.gates.retention': 'Retention',
   'settings.gates.retention_activity': 'Raw activity (days)',
   'settings.gates.retention_blob': 'Review prompt text (days)',
@@ -2179,6 +2453,26 @@ export const en = {
   'account.digest_saved': 'Email digest saved. It is sent daily at {hour} ({timezone}).',
   'account.digest_off_toast': 'Email digest turned off.',
   'account.notifications': 'Notifications by project',
+  'watch.off': 'Watch',
+  'watch.on': 'Watching',
+  'watch.off_area': 'Watch area',
+  'watch.on_area': 'Watching area',
+  'watch.hint':
+    'Get notified of approvals, rejections and comments (for a task, when it becomes ready). Press again to stop watching.',
+  'watch.hint_area':
+    'Get notified of approvals, rejections and comments in this area and the documents and tasks under it, and of tasks becoming ready. Press again to stop watching.',
+  'watch.added': 'Now watching {target}',
+  'watch.added_area': 'Now watching area {target}, including the documents and tasks under it',
+  'watch.removed': 'Stopped watching {target}',
+  'watch.list_title': 'Watching',
+  'watch.list_hint':
+    'You are notified of approvals, rejections and comments on the documents, tasks and areas you watch, and of tasks becoming ready. How much you get follows the per-project notification level above.',
+  'watch.list_empty':
+    'You are not watching anything. Press [Watch] at the top of a spec or task page and it appears here.',
+  'watch.remove': 'Stop',
+  'watch.type.spec': 'Doc',
+  'watch.type.task': 'Task',
+  'watch.type.area': 'Area',
   'account.notifications_hint':
     'Choose how many notifications to get from each project. Notifications you already have stay as they are. The inbox is not affected.',
   'account.tabs_label': 'Account sections',
@@ -2533,6 +2827,38 @@ export const en = {
   'specs.type.feature': 'Feature',
   'specs.type.vision': 'Vision',
   // ── CLI — nerv import 출력 (importer.md §3) ───────────────────────────────
+  'cli.cutover.usage':
+    'Usage: nerv cutover report --project <slug> --server <URL> --token <PAT> [--root <checkout>] [--path review/] [--since <ISO time>] [--until <ISO time>] [--json]',
+  'cli.cutover.err.needs_server':
+    'The report reads the server metrics. It needs --server and --token (or env NERV_SERVER/NERV_TOKEN).',
+  'cli.cutover.err.bad_time': '{flag} must be an ISO 8601 time: {value}',
+  'cli.cutover.err.server': 'Could not read the server metrics: {message}',
+  'cli.cutover.title': '# SoT cutover M1 report ({project})',
+  'cli.cutover.stage': '- Cutover stage: {stage} · switched {since}',
+  'cli.cutover.never': 'never',
+  'cli.cutover.window': '- Window: {since} to {until} ({days} days · target {total} days)',
+  'cli.cutover.window_incomplete': '- The watch has not covered {total} days yet.',
+  'cli.cutover.mismatch':
+    '- Verdict mismatches: {mismatches} / {total} ({rate}) · stable < {stable}% · rollback ≥ {rollback}%',
+  'cli.cutover.submit':
+    '- Failed review submissions: {failed} / {total} ({rate}) · rollback ≥ {rollback}%',
+  'cli.cutover.commits':
+    '- New commits under `{path}`: {commits} · {files} files · {bytes} bytes (target 0)',
+  'cli.cutover.commits_unknown': '- New commits under `{path}`: could not count ({reason})',
+  'cli.cutover.input_ratio':
+    '- Share of earlier review output among review inputs (2-5): not measured. The server does not keep the files a review read (only the changeset hash)',
+  'cli.cutover.status': '- Server metric verdict: {status}',
+  'cli.cutover.status.no_data': 'no comparisons',
+  'cli.cutover.status.stable': 'stable',
+  'cli.cutover.status.watch': 'watching',
+  'cli.cutover.status.rollback': 'rollback trigger reached',
+  'cli.cutover.recent': '## Recent mismatches',
+  'cli.cutover.recent_row': '- {at} · {branch} · {sha} · local {local}{hook} · server {server}',
+  'cli.cutover.overall.ok':
+    'Result: the two-week mismatch, submission failure and new-commit conditions are met. Check the session failure rate and lead times separately.',
+  'cli.cutover.overall.rollback':
+    'Result: a rollback trigger was reached. Follow the roadmap §7.6 procedure.',
+  'cli.cutover.overall.check': 'Result: not stable yet. Check the lines above.',
   'cli.done': '{mode} done: scanned {scanned}, converted {converted} ({rate}%) · report: {dir}',
   'cli.err.apply_needs_server':
     '--apply requires --server and --token (or NERV_SERVER/NERV_TOKEN).',

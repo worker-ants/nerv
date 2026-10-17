@@ -71,8 +71,35 @@ Gate coverage shows, for each branch, whether it has been reviewed and whether i
 
 **The table shows the verdict, but it doesn't block merges yet.** A **Pending** verdict doesn't stop anything today. This is also noted above the table.
 
-For a waived branch (a gate bypass), **who waived it, when and why** appears under its row. Making sure a bypass never goes unnoticed is part of this table's job too.
+For a waived branch (a gate bypass), **who waived it, when and why** appears under its row, with the scope (the review kinds waived and, if it was narrowed to one commit, that commit), and the number of waivers appears under the verdict. Making sure a bypass never goes unnoticed is part of this table's job too.
+
+**A branch without reviews gets a row when it has a waiver.** Normally the table lists only branches that have received a review. When a branch is waived, it gets a row even without any review: the review and resolved cells show `—` and the verdict is **No review**.
+
+**You can waive a branch from this table.** Roles that can waive (admin, planner, developer) see **[Waive]** on every row and **[Waive a branch]** next to the table title. Click **[Waive]** on a row to open the waiver form under that row with its branch filled in. A branch with no review and no waiver has no row, so click **[Waive a branch]** next to the title and type its name. Choose the kinds, the commit and the reason, then click **[Record waiver]**: the table is read again and the waiver appears on that branch's row. The form and its rules are the same as on a task's review card ([Branch waivers](/help/tasks#next-step)). Your role decides which kinds you can waive: developers code and merge, planners consistency and spec coverage, admins all of them.
+
+A waived row keeps the **No review** verdict. This table judges each branch by its reviews, while a waiver applies per review kind. In the gate verdict that a push hook or CI asks for, the waived kinds pass as `waived`.
 
 ## The sidebar badge {#badge}
 
 In the left sidebar, the number next to **Review** under the expanded project is the count of **open `critical`** findings. If you could see this number only by opening the review center, nobody would know it until they opened it. That's why it's shown in the sidebar.
+
+## Sending to a change request {#to-change-request}
+
+**A finding that says the spec is wrong goes to a change request.** Findings where the implementation is right and the approved spec is wrong carry the `spec_drift` tag. The rail of an open `spec_drift` finding has **Send to CR** (planners and admins). It opens a draft from the approved version of the source spec and links the finding to that change request. If the spec already has an open change request, the finding is linked to it. The finding does not close; it stays escalated (reason: spec), and the rail shows a link to that change request. From there it continues on a card in the inbox ([Change requests from the implementation](/help/inbox#drift-change-requests)). If the change request is approved, the finding closes as a spec fix; if it is rejected, the finding is dismissed and a revert task is created.
+
+Agents use the same path: when an agent saves a draft and points to the finding, it is linked to the same change request.
+
+**Findings an agent escalated** show "Escalated · reason" in the rail, along with whether the session is waiting. The decision is made on the escalation card in the inbox ([Escalation cards](/help/inbox#escalations)).
+
+## Cutover watch {#cutover}
+
+**Two rates for the M1 dual run.** When the project's review cutover stage is M1 dual run or After M2, admins and planners see **Cutover watch** above the gate coverage table ([Gate policy](/help/settings#gates)). During the dual run, the repository's local hook and NERV each judge the same push. The local hook sends its own verdict when it asks for the gate check, and NERV applies its own verdict and records how the two compare. When the same local verdict comes again for the same branch · commit · kinds, it counts once.
+
+- **Verdict mismatches**: how many comparisons had different verdicts from the local hook and NERV, and the rate. Admins are notified for each mismatch. Mismatch notifications for one project are grouped into one line until read.
+- **Failed review submissions**: how many review submissions were queued offline and rejected by the server when resent, and the rate. A submission rejected right away is not counted, because the agent gets that answer directly.
+
+The status at the top follows the roadmap thresholds. A mismatch rate under 1% is **Stable**. A mismatch rate of 5% or more, or a submission failure rate of 2% or more, is **Rollback trigger reached**, shown with the reason. In between is **Watching**. With no comparisons yet, it says what it is waiting for. The watch counts from when the cutover stage was changed, and shows how many days have passed (the target is 14).
+
+**Recent mismatches** show the branch · commit · both verdicts · the local hook's name and the reason it gave. Every mismatch needs its cause found before the cutover can be declared stable.
+
+**Review files newly committed to the repository do not appear here.** NERV does not access the repository, so count them with the CLI in a checkout ([Cutover report](/help/agents#cutover-report)).
