@@ -52,6 +52,8 @@ let reviewer: string;
 let developer: string;
 let viewer: string;
 let devSession: string;
+/** planner 의 에이전트 세션 — `nerv_spec_approve`(세션에서 사람이 대답한 승인)를 부르는 자리 */
+let plannerSession: string;
 
 const person = (userId: string) => ({ userId, isAgent: false });
 
@@ -449,6 +451,13 @@ describe('상태 동기화 — 결재는 버전이 받고 CR 은 그 거울이�
       roles: ['developer'],
     });
     expect(await crRow(v2)).toMatchObject({ status: 'approved', risk: 'low' });
+    // 자동 통과도 승인이다 — 아무도 고르지 않았으니 기본값으로 파생 작업을 만든다(2026-10-16 사람 결정 · REQ-API-351)
+    expect((await eventsOf(NERV_EVENT_PHASE2.CR_APPROVED))[0]).toMatchObject({
+      payload: {
+        actions_source: 'default',
+        created_tasks: [expect.objectContaining({ kind: 'derive', ref: 'REQ-CRX-003' })],
+      },
+    });
   });
 
   it('T3 이면 위험도 high 다', async () => {
@@ -848,6 +857,7 @@ describe('승인 때 세 축 — 고른 제안과 중단 확인 (REQ-API-331 · 
     expect((approved['payload'] as Record<string, unknown>)['created_tasks']).toEqual([
       expect.objectContaining({ kind: 'derive', ref: 'REQ-CRX-003' }),
     ]);
+    expect((approved['payload'] as Record<string, unknown>)['actions_source']).toBe('chosen');
   });
 
   it('고른 제안은 승인에만 붙고, 변경 요청이 없는 결재에는 붙지 않는다(400)', async () => {
@@ -886,6 +896,167 @@ describe('승인 때 세 축 — 고른 제안과 중단 확인 (REQ-API-331 · 
   });
 });
 
+describe('고른 적이 없으면 기본값 — 2026-10-16 사람 결정 (REQ-API-351)', () => {
+  /**
+   * 완료 작업이 있는 001(재검증 제안) · 미착수 작업이 있는 002(보관 제안) · 더해지는 003(파생 제안). 한 테스트에서 문서를 둘
+   * 만들면 요구사항 번호가 겹쳐 사전 검토가 막는다(`requirement_owned`) — 둘째 문서는 다른 접두를 쓴다
+   */
+  async function proposal(key: string, area = 'CRX'): Promise<{ v2: string; backlog2: string }> {
+    const body = (text: string): string => text.replaceAll('REQ-CRX-', `REQ-${area}-`);
+    const { specId, v1 } = await approvedSpec(key, body(BODY_V1));
+    await task(v1, `REQ-${area}-001`, 'done', '재개 복원 구현');
+    const backlog2 = await task(v1, `REQ-${area}-002`, 'backlog', '레거시 임베드 문서');
+    const v2 = (await draftOver(specId, body(BODY_V2)))['spec_version_id'] as string;
+    return { v2, backlog2: backlog2.key };
+  }
+
+  async function submitted(key: string, area = 'CRX'): Promise<{ v2: string; backlog2: string }> {
+    const made = await proposal(key, area);
+    await specs.submitReview({
+      projectId,
+      specVersionId: made.v2,
+      userId: developer,
+      roles: ['developer'],
+    });
+    return made;
+  }
+
+  async function archivedOf(taskKey: string): Promise<boolean> {
+    const { rows } = await pool.query<{ archived: boolean }>(
+      `SELECT archived_at IS NOT NULL AS archived FROM task WHERE key = $1`,
+      [taskKey],
+    );
+    return rows[0]!.archived;
+  }
+
+  it('카드에서 고르지 않고 승인하면 파생 · 재검증 작업은 만들고 보관은 하지 않는다 — 카드가 미리 그 수를 보인다', async () => {
+    const { v2, backlog2 } = await submitted('SPC-CR-DEFAULT-CARD');
+    // 고른 적 없음은 NULL 이다 — 빈 선택(세 칸이 빈 배열)과 다르다
+    expect((await crRow(v2))['planned_actions']).toBeNull();
+    const page = await approvals.inboxGlobal({ actor: person(reviewer), userId: reviewer });
+    const card = page.items.find((c) => c['subject_id'] === v2)!;
+    expect(card).toMatchObject({
+      cr_planned: { chosen: false, derive: 1, reverify: 1, cancel: 0 },
+      cr_impact: { suggestions: 3, cancel_suggestions: 1 },
+    });
+
+    const decided = await decideAs(v2, 'approve');
+    expect(decided.change_request).toMatchObject({
+      key: (await crRow(v2))['key'],
+      actions_source: 'default',
+      created_tasks: [
+        expect.objectContaining({ kind: 'derive', ref: 'REQ-CRX-003' }),
+        expect.objectContaining({ kind: 'reverify', ref: 'REQ-CRX-001' }),
+      ],
+      archived_tasks: [],
+    });
+    expect(decided.change_request?.web_url).toContain('/crs/');
+    const payload = (await eventsOf(NERV_EVENT_PHASE2.CR_APPROVED))[0]!['payload'] as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({ actions_source: 'default', archived_tasks: [] });
+    expect(payload['skipped']).toBeUndefined();
+    // 보관은 누군가의 계획을 지운다 — 기본값에 들지 않는다
+    expect(await archivedOf(backlog2)).toBe(false);
+  });
+
+  it('바로 승인(REST)과 `nerv_spec_approve` 도 같은 기본값이고 응답이 만든 작업을 알린다', async () => {
+    const rest = await proposal('SPC-CR-DEFAULT-DIRECT');
+    const direct = await approvals.approveDirect({
+      actor: person(planner),
+      surface: 'rest',
+      projectId,
+      specVersionId: rest.v2,
+      userId: planner,
+      seenContentHash: await hashOf(rest.v2),
+    });
+    expect(direct).toMatchObject({
+      status: 'approved',
+      change_request: {
+        actions_source: 'default',
+        created_tasks: [
+          expect.objectContaining({ kind: 'derive' }),
+          expect.objectContaining({ kind: 'reverify' }),
+        ],
+      },
+    });
+
+    const mcp = await proposal('SPC-CR-DEFAULT-MCP', 'CRY');
+    const viaSession = await approvals.approveDirect({
+      actor: { userId: planner, isAgent: true },
+      surface: 'mcp',
+      projectId,
+      specVersionId: mcp.v2,
+      userId: planner,
+      seenContentHash: await hashOf(mcp.v2),
+      sessionId: plannerSession,
+    });
+    expect(viaSession.status).toBe('approved');
+    expect(viaSession.change_request?.actions_source).toBe('default');
+    expect(viaSession.change_request?.created_tasks.map((c) => c.kind)).toEqual([
+      'derive',
+      'reverify',
+    ]);
+    expect(await archivedOf(mcp.backlog2)).toBe(false);
+  });
+
+  it('고른 것은 그대로 존중한다 — 빈 선택("아무것도 만들지 않음")도 고른 것이다', async () => {
+    const { v2, backlog2 } = await submitted('SPC-CR-CHOSEN-EMPTY');
+    const decided = await decideAs(v2, 'approve', { crActions: {} });
+    expect((await crRow(v2))['planned_actions']).toEqual({ derive: [], reverify: [], cancel: [] });
+    expect(decided.change_request).toMatchObject({
+      actions_source: 'chosen',
+      created_tasks: [],
+      archived_tasks: [],
+    });
+    expect(await archivedOf(backlog2)).toBe(false);
+
+    // 보관만 고른 것도 그것만 한다 — 기본값을 더하지 않는다
+    const other = await submitted('SPC-CR-CHOSEN-CANCEL', 'CRY');
+    const only = await decideAs(other.v2, 'approve', { crActions: { cancel: [other.backlog2] } });
+    expect(only.change_request).toMatchObject({
+      actions_source: 'chosen',
+      created_tasks: [],
+      archived_tasks: [other.backlog2],
+    });
+  });
+
+  it('T3 — 첫 승인이 고르지 않았으면 둘째 승인도 기본값이고, 빈 선택을 남겼으면 둘째는 그것을 따른다', async () => {
+    await tiers('T3');
+    const second = async (versionId: string): ReturnType<ApprovalService['decide']> => {
+      const { rows } = await pool.query<{ id: string }>(
+        `SELECT id FROM approval WHERE subject_id = $1 AND decision IS NULL`,
+        [versionId],
+      );
+      return approvals.decide({
+        actor: person(planner),
+        projectId,
+        approvalId: rows[0]!.id,
+        userId: planner,
+        decision: 'approve',
+        seenContentHash: await hashOf(versionId),
+      });
+    };
+
+    const unpicked = await submitted('SPC-CR-T3-DEFAULT');
+    const first = await decideAs(unpicked.v2, 'approve');
+    expect(first.quorum).toMatchObject({ satisfied: false });
+    // 아직 확정이 아니다 — 한 일도 없다
+    expect(first.change_request).toBeUndefined();
+    expect((await crRow(unpicked.v2))['planned_actions']).toBeNull();
+    const done = await second(unpicked.v2);
+    expect(done.quorum).toMatchObject({ satisfied: true });
+    expect(done.change_request).toMatchObject({ actions_source: 'default' });
+    expect(done.change_request?.created_tasks).toHaveLength(2);
+
+    const empty = await submitted('SPC-CR-T3-EMPTY', 'CRY');
+    await decideAs(empty.v2, 'approve', { crActions: {} });
+    const kept = await second(empty.v2);
+    expect(kept.change_request).toMatchObject({ actions_source: 'chosen', created_tasks: [] });
+  });
+});
+
 describe('표면 — 받은 요청의 CR 카드 · 검색 · REST (REQ-API-332)', () => {
   it('결재 카드가 CR 카드가 된다 — 같은 결재를 두 카드로 보이지 않는다', async () => {
     const { specId } = await approvedSpec('SPC-CR-CARD');
@@ -904,8 +1075,9 @@ describe('표면 — 받은 요청의 CR 카드 · 검색 · REST (REQ-API-332)'
       cr_status: 'in_review',
       cr_base_version_no: 1,
       cr_delta: { added: 1, modified: 1, removed: 1 },
-      cr_impact: { referencing: 0 },
-      cr_planned: { derive: 0, reverify: 0, cancel: 0 },
+      cr_impact: { referencing: 0, cancel_suggestions: 0 },
+      // 아무도 고르지 않았다 — 승인하면 기본값(더해진 REQ-CRX-003 의 파생 작업)을 만든다(REQ-API-351)
+      cr_planned: { chosen: false, derive: 1, reverify: 0, cancel: 0 },
     });
     expect((cards[0]!['cr_delta'] as { items: unknown[] }).items).toHaveLength(3);
   });
@@ -1041,6 +1213,7 @@ async function seed(): Promise<void> {
   developer = newId();
   viewer = newId();
   devSession = newId();
+  plannerSession = newId();
   await pool.query(`INSERT INTO organization (id, slug, name) VALUES ($1,'nerv','NERV')`, [orgId]);
   await pool.query(
     `INSERT INTO project (id, org_id, slug, key, name) VALUES ($1,$2,'clemvion','CLV','clemvion')`,
@@ -1066,5 +1239,10 @@ async function seed(): Promise<void> {
     `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
      VALUES ($1,$2,$3,'codex','linux-ci-01','active')`,
     [devSession, projectId, developer],
+  );
+  await pool.query(
+    `INSERT INTO agent_session (id, project_id, user_id, agent_type, hostname, state)
+     VALUES ($1,$2,$3,'claude-code','mac-planner','active')`,
+    [plannerSession, projectId, planner],
   );
 }

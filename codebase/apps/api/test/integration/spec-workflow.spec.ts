@@ -66,9 +66,11 @@ afterAll(async () => {
 beforeEach(async () => {
   await pool.query('UPDATE spec SET current_version_id = NULL');
   await pool.query('DELETE FROM approval');
+  // 작업이 요구사항을 가리킨다 — 고른 적 없는 변경 요청의 승인이 기본값으로 파생 · 재검증 작업을 만든다(2026-10-16 사람
+  // 결정 · REQ-API-351). 요구사항보다 먼저 지운다
+  await pool.query('DELETE FROM task');
   await pool.query('DELETE FROM requirement');
   await pool.query('DELETE FROM spec_relation');
-  await pool.query('DELETE FROM task');
   // 변경 요청이 초안을 감싼다(2026-10-16) — 버전과 서로를 가리키므로 먼저 푼다
   await pool.query('UPDATE spec_version SET change_request_id = NULL');
   await pool.query('DELETE FROM change_request');
@@ -1593,7 +1595,17 @@ describe('검증 서명은 그 문장에 대한 것이다 (REQ-API-190 · 2026-0
     });
     const versionId = String(next['spec_version_id']);
     await specs.submitReview({ projectId, specVersionId: versionId, userId: planner });
-    await decideOn(versionId, reviewer, 'approve');
+    // **재검증 작업은 만들지 않기로 고른다(빈 선택).** 이 스위트는 서명의 뜻을 본다 — 고르지 않으면 승인이 기본값으로 재검증
+    // 작업을 만들고(2026-10-16 사람 결정 · REQ-API-351), 끝나지 않은 그 작업이 요구사항을 `in_progress` 로 둔다(§1.3 파생)
+    const [card] = await pendingSlots(versionId);
+    await approvals.decide({
+      actor: person(reviewer),
+      projectId,
+      approvalId: card!.id,
+      userId: reviewer,
+      decision: 'approve',
+      crActions: {},
+    });
     return versionId;
   }
 

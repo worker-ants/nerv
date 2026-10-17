@@ -28,9 +28,9 @@ An approval card shows two more lines below its header.
 - the change request key (opens the change request screen), the versions such as `v3 → v4`, and the number of added, changed and removed requirements
 - the first five changed requirements (number and statement)
 - the impact: how many derived tasks, active claims and referencing documents
-- the follow-up on approval: "On approval: create N tasks and archive M" if something is checked, otherwise "Choose N suggestions on the change request page", with **[View the full delta]**
+- the follow-up on approval: "On approval, by default: create N derived tasks and M re-verification tasks" if nobody has chosen yet, or "On approval, as chosen: create N tasks and archive M" if someone has, with **[View the full delta]**
 
-**[Approve]** on the card does only what was already checked. To create derived or re-verification tasks, check them on the change request screen and approve there.
+**[Approve]** on the card does what was chosen. **If nobody has chosen, it applies the defaults**: it creates the derived and re-verification tasks and archives nothing, the same as the default checks on the change request screen. A created task can be archived later, but archiving erases someone's plan. If there are archive suggestions, the card also says "Choose the N archive suggestions on the change request page". To do something else, choose on the change request screen and approve there. If you approve there with nothing checked, that is recorded as choosing to do nothing, and a later approval from the card (such as the second approver of a T3) creates no tasks either.
 
 ### Which organization and project it belongs to {#card-scope}
 

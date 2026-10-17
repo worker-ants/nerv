@@ -55,6 +55,7 @@ import {
   BranchWaiverForm,
   ReviewWaiverForm,
   ReviewWaiverList,
+  taskBranches,
 } from '../../features/task-board/review-waiver.js';
 import {
   Button,
@@ -1175,7 +1176,7 @@ function TaskDetail(): React.JSX.Element {
             <ReviewWaiverList waivers={rows(data['review_waivers'])} />
             {/* 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327) — 게이트 판정(push 훅 · CI)을 넘기는 일이라
                 완료 조건이 아니라 리뷰 카드에 둔다. 작업이 끝난 뒤에도 병합 때 쓴다 */}
-            <BranchWaiverForm proj={proj} task={data} roles={roles} />
+            <BranchWaiverForm proj={proj} roles={roles} branches={taskBranches(data)} />
           </Card>
         </div>
       </PageBody>

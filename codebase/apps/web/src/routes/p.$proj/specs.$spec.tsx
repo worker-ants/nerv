@@ -53,6 +53,7 @@ import {
   useSpec,
   useSpecCheck,
   useSpecImpact,
+  useChangeRequest,
   useSpecComments,
   useSpecRelations,
   useSpecDiff,
@@ -66,6 +67,7 @@ import {
 import { ancestorsOf } from '../../components/spec-tree.js';
 import type { TreeNode } from '../../components/spec-tree.js';
 import { relativeTime } from '../../lib/format.js';
+import { crPlanOfDetail, crPlanText } from '../../lib/cr-plan.js';
 import { rolesInProject } from '../../lib/session.js';
 import { useScope } from '../../lib/scope.js';
 import { useRememberVisit } from '../../components/quick-switcher.js';
@@ -291,6 +293,16 @@ function SpecDetail(): React.JSX.Element {
   const impactPreview = useSpecImpact(proj, String(viewed?.['version_id'] ?? ''), showImpact);
   /** 영향 창이 무엇을 보내는가 — 검토 요청 또는 바로 승인(REQ-WEB-303). 무엇이 흔들리나는 같은 질문이라 한 창이다 */
   const [impactFor, setImpactFor] = useState<'submit' | 'approve'>('submit');
+  /**
+   * **바로 승인이 함께 할 일**(2026-10-16 사람 결정 · REQ-WEB-322 · api.md REQ-API-351) — 아무도 고르지 않았으면 이 창의 승인도
+   * 기본값(파생 · 재검증 작업을 만든다)을 적용한다. 받은 요청 카드와 같은 한 줄을 그 CR(EP-CR-02)에서 그린다. 창이 열린 동안만 읽는다
+   */
+  const approveCr = useChangeRequest(
+    proj,
+    showImpact && impactFor === 'approve' && typeof viewedCr?.['key'] === 'string'
+      ? viewedCr['key']
+      : '',
+  );
   const [metaOpen, setMetaOpen] = useState(false);
   // 레일 탭 — 관계가 기본이다: "이 문서를 고치면 무엇이 흔들리나"가 이 레일의 첫 질문이다.
   //
@@ -1035,7 +1047,12 @@ function SpecDetail(): React.JSX.Element {
               )}
             </ul>
             {/* **변경 요청이면 고를 곳이 있다** — 승인하며 함께 할 일(파생 · 재검증 작업 · 미착수 작업 보관)은 CR 화면에서
-                고른다. 여기서 승인하면 이미 골라 둔 것만 한다 */}
+                고른다. 여기서 승인하면 골라 둔 것을, 아무도 고르지 않았으면 기본값을 한다(2026-10-16 사람 결정) */}
+            {impactFor === 'approve' && approveCr.data !== undefined && (
+              <p data-testid="impact-cr-plan" className="mt-1 text-2xs text-text-mute">
+                {crPlanText(t, crPlanOfDetail(approveCr.data))}
+              </p>
+            )}
             {typeof viewedCr?.['key'] === 'string' && (
               <p data-testid="impact-cr" className="mt-1 text-2xs text-text-faint">
                 {t('spec.impact_cr', { key: viewedCr['key'] })}{' '}

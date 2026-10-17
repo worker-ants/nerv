@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.20 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.21 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.21 변경(2026-10-16 — 카드에서 승인해도 CR 제안의 기본값을 적용한다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A)): **`spec` 스킬 한 항목 · `approve` 스킬 3단계 한 항목과 6단계 한 문장.** 아무도 고르지 않은 변경 요청은 승인할 때 서버가 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다 — 두 스킬이 그 사실을 사람에게 말하고, `approve` 는 승인 응답의 `change_request`(`created_tasks` · `archived_tasks` · `skipped` · `actions_source`)를 그대로 보고한다([4.4 API](api.md) REQ-API-351). 새 인자 · 새 도구는 없고 `allowed-tools` 도 그대로다. 플러그인은 0.3.34 그대로다 — 이 묶음의 다른 변경과 함께 아직 배달 전이다.
 >
 > v1.20 변경(2026-10-16 — SPEC-DRIFT를 변경 요청으로 · 에스컬레이션 카드, Phase 2 묶음 3의 둘째 · **사람 결정**(2026-10-16 — D3) · [4.8 백로그](backlog.md) E19-S02 · S03): **`spec` 스킬 한 항목 · `review` 스킬 두 항목 · `impl` 스킬 한 항목 · 패키지 0.3.34 그대로.** `spec` 스킬은 `spec_drift` 발견을 고치는 저장에 `finding_id` 를 넣으라고 말한다 — 서버가 그 발견을 초안의 변경 요청에 묶고, CR의 결말이 발견을 닫는다. `review` 스킬은 승인본이 있는 문서의 `spec_drift` 를 `spec_change` 로 직접 닫지 않고 그 경로로 보내며, `escalated` 처분이 받은 요청에 카드를 만들고 기본으로 세션이 결정을 기다린다(`blocking`)고 말한다. `impl` 스킬은 하트비트의 `approval_decided` 가 `escalation` 이면 처분(`resolution`)대로 움직인다([4.4 API](api.md) REQ-API-333 ~ 336). 패키지 버전은 묶음 3의 첫째가 올린 0.3.34 그대로다 — 둘 다 아직 배달 전이라 같은 배달에 든다.
 >
@@ -516,7 +518,8 @@ allowed-tools:
   에이전트가 무엇을 고쳤다고 말하는 것과 서버가 실제로 받은 것이 다르면 그 자리에서 드러난다.
 - **승인본이 있는 문서의 초안은 변경 요청(CR)이다.** 서버가 저장할 때 연다 — 응답의 `change_request`
   (`key`·`status`·`web_url`)를 사람에게 함께 보고한다. 승인하며 무엇을 함께 할지(파생 · 재검증 작업 ·
-  미착수 작업 보관)는 사람이 그 `web_url` 에서 고른다. 거절되거나 철회된 초안은 버려지고(`discarded`)
+  미착수 작업 보관)는 사람이 그 `web_url` 에서 고른다. 아무도 고르지 않으면 승인할 때 서버가 기본값을
+  적용한다 — 파생 · 재검증 작업은 만들고 보관은 하지 않는다. 이 사실도 함께 말한다. 거절되거나 철회된 초안은 버려지고(`discarded`)
   다음 저장이 새 초안 · 새 CR 이 된다 — 버린 초안을 다시 살리려 하지 않는다.
 - **스펙이 틀렸다는 리뷰 발견(`spec_drift`)을 고치는 저장이면 `finding_id` 에 그 발견을 넣는다.** 서버가 이 초안의 CR 에
   그 발견을 묶는다(이 저장이 CR 을 열면 출처가 `spec_drift` 다). CR 이 승인되면 발견이 `fixed`, 거절되면 `dismissed` 와
@@ -1324,6 +1327,9 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
    - 사전 검토의 warning 과 `body_change`. 크게 줄었으면(`shrunk` 가 비어 있지 않다) 그 사실을 먼저 보고한다
    - 바로 승인이 하는 일 — 검토 요청과 승인을 한 번에 한다. 등급이 T3 이면 다른 승인자 한 명이 더
      승인해야 확정된다
+   - 변경 요청이면(1단계 응답의 `change_request` — `key` · `web_url`) 승인하며 함께 할 일 — 사람이 그
+     `web_url` 에서 골라 둔 것을 한다. 아무도 고르지 않았으면 서버가 기본값을 적용한다: 파생 작업 · 재검증
+     작업은 만들고 미착수 작업은 보관하지 않는다. 바꾸려면 승인하기 전에 그 `web_url` 에서 고른다
 
    그리고 "이 버전(v<번호>)을 승인할까요?"라고 묻는다.
 4. **대답을 받는다.** 사람이 **이 질문 뒤에** 승인한다고 분명히 답했을 때만 다음 단계로 간다("승인" ·
@@ -1338,7 +1344,9 @@ Claude Code 에서만 쓴다. Codex 에서는 도구를 부를 때마다 사람�
    부르지 않은 것이다. 다시 시도하지 않고 그 사실을 보고한다.
 6. **결과를 보고한다.**
    - `status: "approved"` — 승인됐다. `gate_tier` 와 `web_url`(문서)을 전한다. `self_approved` 가 참이면
-     자기 초안을 승인했다는 사실이 기록됐다고 알린다.
+     자기 초안을 승인했다는 사실이 기록됐다고 알린다. 응답에 `change_request` 가 있으면 변경 요청을 확정한
+     것이다 — `created_tasks`(작업 키 · 종류 · 요구사항) · `archived_tasks` · `skipped` 를 그대로 보고하고,
+     `actions_source` 가 `default` 면 아무도 고르지 않아 기본값으로 만들었다고 말한다.
    - `status: "in_review"` — T3 이다. 내 승인이 한 자리를 채웠고 다른 승인자 한 명을 기다린다. `quorum` 과
      `web_url`(받은 요청의 그 카드)을 전한다. 기다리는 동안 이 세션은 `awaiting_input` 이다 — 다른 작업을
      시작하지 않는다. 결정은 /nerv:impl 루프 중이면 하트비트 `pending` 의 `approval_decided` 로, 아니면

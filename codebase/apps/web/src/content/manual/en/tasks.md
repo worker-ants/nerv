@@ -108,7 +108,7 @@ The buttons to the right of the task title **move the task from its current stat
 - The kinds and roles that can waive are the same as for a task waiver. A branch has no task, so code evidence is not checked.
 - Kinds that have a review on that branch follow that review's verdict regardless of the waiver. A waiver only passes kinds without a review.
 - A branch waiver does not apply to the task's done criteria. Waive reviews for the done criteria with [Waive a review] above.
-- A recorded waiver shows on that branch's row in the review center's gate coverage ([Gate coverage](/help/reviews#gate-coverage)).
+- A recorded waiver shows on that branch's row in the review center's gate coverage ([Gate coverage](/help/reviews#gate-coverage)). A branch unrelated to any task can be waived right there.
 
 **A new commit after a review needs a new review.** When the done criteria require review, only reviews of the task's latest commit count. If you commit after a review, the done form shows the commit the review saw and the new commit, and asks you to have the new commit reviewed. This is not something to waive; once the new commit is reviewed, the task can be finished. A commit attached as evidence when you finish becomes the latest commit.
 

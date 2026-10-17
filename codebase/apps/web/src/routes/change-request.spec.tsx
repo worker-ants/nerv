@@ -106,7 +106,8 @@ function crRow(over: Row = {}): Row {
     origin: 'agent',
     title: '웹챗 위젯 임베드',
     rationale_md: '재개 30건 · 레거시 임베드 제거',
-    planned_actions: { derive: [], reverify: [], cancel: [] },
+    // 아무도 고르지 않았다(2026-10-16 사람 결정 · REQ-API-351) — 빈 선택(세 칸이 빈 배열)과 다르다
+    planned_actions: null,
     spec_key: 'SPC-CWC-007',
     spec_title: '웹챗 위젯 임베드',
     base_version_no: 4,
@@ -260,6 +261,23 @@ describe('CR 상세 — 델타 · 영향 · 함께 할 일 · 결정 (REQ-WEB-32
     });
   });
 
+  it('아무도 고르지 않았으면 기본 체크와 함께 "이 화면을 거치지 않고 승인해도 기본값" 을 적는다', async () => {
+    renderAt('/p/clemvion/crs/CLV-C-7QF3K2');
+    await screen.findByTestId('cr-pick-derive');
+    expect(screen.getByTestId('cr-actions-default').textContent).toContain(
+      '이 화면을 거치지 않고 승인하면 파생 · 재검증 작업은 만들고 보관은 하지 않습니다.',
+    );
+  });
+
+  it('빈 선택을 골라 두었으면 그대로 보인다 — 기본 체크로 되돌리지 않는다', async () => {
+    cr = crRow({ planned_actions: { derive: [], reverify: [], cancel: [] } });
+    renderAt('/p/clemvion/crs/CLV-C-7QF3K2');
+    const derive = await screen.findByTestId('cr-pick-derive');
+    expect((derive as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByTestId('cr-pick-reverify') as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByTestId('cr-actions-default')).toBeNull();
+  });
+
   it('열린 CR 의 거절은 사유가 있어야 보낸다 · 작성자에게만 철회가 있다', async () => {
     cr = crRow({ status: 'open', proposed_status: 'draft', approval_id: null, gate_tier: null });
     renderAt('/p/clemvion/crs/CLV-C-7QF3K2');
@@ -381,8 +399,16 @@ describe('받은 요청의 CR 카드 — 같은 결재는 한 카드다 (REQ-WEB
         { kind: 'removed', ref: 'REQ-CWC-002', statement: '레거시 모드로 그린다' },
       ],
     },
-    cr_impact: { tasks: 3, claims: 1, affected_claims: 1, referencing: 1, suggestions: 3 },
-    cr_planned: { derive: 0, reverify: 0, cancel: 0 },
+    cr_impact: {
+      tasks: 3,
+      claims: 1,
+      affected_claims: 1,
+      referencing: 1,
+      suggestions: 3,
+      cancel_suggestions: 1,
+    },
+    // 아무도 고르지 않았다 — 수는 서버가 센 기본값이다(2026-10-16 사람 결정 · REQ-API-351)
+    cr_planned: { chosen: false, derive: 1, reverify: 1, cancel: 0 },
   };
 
   it('변경 요청 배지 · CR 키 · 델타의 수와 원문 · 영향 · 고를 곳을 보인다', async () => {
@@ -402,17 +428,41 @@ describe('받은 요청의 CR 카드 — 같은 결재는 한 카드다 (REQ-WEB
     expect(within(card).getByTestId('cr-impact-line').textContent).toContain(
       '영향: 파생 작업 3 · 진행 중 클레임 1 · 참조 문서 1',
     );
-    expect(within(card).getByTestId('cr-planned-line').textContent).toContain(
-      '제안 3건은 변경 요청 화면에서 고릅니다.',
+    // 아무도 고르지 않았으면 이 카드의 [승인]이 기본값을 적용한다 — 무엇이 만들어지는지 미리 적는다
+    const line = within(card).getByTestId('cr-planned-line');
+    expect(line.getAttribute('data-source')).toBe('default');
+    expect(line.textContent).toContain(
+      '승인하면 기본값대로 파생 작업 1건 · 재검증 작업 1건을 만듭니다.',
     );
+    // 보관은 기본값에 들지 않는다 — 고르려면 변경 요청 화면으로 간다
+    expect(line.textContent).toContain('보관 제안 1건은 변경 요청 화면에서 고릅니다.');
     // 결재 단추는 그대로 한 벌이다 — 같은 결재를 두 카드로 만들지 않는다
     expect(screen.getAllByTestId('approval-card')).toHaveLength(1);
   });
 
-  it('고른 것이 있으면 승인하면 무엇을 하는지 말한다', async () => {
-    await renderCard({ ...CARD, cr_planned: { derive: 1, reverify: 1, cancel: 1 } });
+  it('고른 것이 있으면 승인하면 골라 둔 대로 무엇을 하는지 말한다', async () => {
+    await renderCard({ ...CARD, cr_planned: { chosen: true, derive: 1, reverify: 1, cancel: 1 } });
+    const line = screen.getByTestId('cr-planned-line');
+    expect(line.getAttribute('data-source')).toBe('chosen');
+    expect(line.textContent).toContain('승인하면 골라 둔 대로 작업 2건을 만들고 1건을 보관합니다.');
+    expect(line.textContent).not.toContain('보관 제안');
+  });
+
+  it('빈 선택을 골라 두었으면 승인해도 만들지 않는다고 말한다 — 기본값을 말하지 않는다', async () => {
+    await renderCard({ ...CARD, cr_planned: { chosen: true, derive: 0, reverify: 0, cancel: 0 } });
     expect(screen.getByTestId('cr-planned-line').textContent).toContain(
-      '승인하면 작업 2건을 만들고 1건을 보관합니다.',
+      '아무것도 하지 않기로 골라 두었습니다. 승인해도 작업을 만들지 않습니다.',
+    );
+  });
+
+  it('고르지 않았고 기본값으로 만들 것도 보관 제안도 없으면 할 일이 없다고 말한다', async () => {
+    await renderCard({
+      ...CARD,
+      cr_impact: { ...(CARD['cr_impact'] as Row), suggestions: 0, cancel_suggestions: 0 },
+      cr_planned: { chosen: false, derive: 0, reverify: 0, cancel: 0 },
+    });
+    expect(screen.getByTestId('cr-planned-line').textContent).toContain(
+      '승인과 함께 할 일은 없습니다.',
     );
   });
 

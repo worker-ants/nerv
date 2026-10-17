@@ -439,11 +439,12 @@ export const changeRequest = pgTable(
     /**
      * **승인하면 함께 할 일**(2026-10-16 · spec-workflow §3.3 · api.md REQ-API-331) — 영향 미리보기의 제안 가운데 사람이 고른
      * 것. `{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}` 이고, 그 버전이 승인되는 순간 서버가
-     * 승인 때의 델타와 다시 견줘 맞는 것만 한다(파생 작업 · 재검증 작업을 만들고 미착수 작업을 보관한다). 고르지 않으면 빈다
+     * 승인 때의 델타와 다시 견줘 맞는 것만 한다(파생 작업 · 재검증 작업을 만들고 미착수 작업을 보관한다).
+     *
+     * **NULL 은 "고른 적 없음"이다**(2026-10-16 사람 결정 · REQ-API-351 · 마이그레이션 0058) — 승인할 때 기본값(파생 · 재검증
+     * 작업은 만들고 보관은 하지 않는다)을 적용한다. 세 칸이 모두 빈 객체는 "아무것도 하지 않기로 골랐다"이고 그대로 존중한다
      */
-    plannedActions: jsonb('planned_actions')
-      .notNull()
-      .default(sql`'{}'::jsonb`),
+    plannedActions: jsonb('planned_actions'),
     createdByUserId: uuid('created_by_user_id')
       .notNull()
       .references(() => user.id),

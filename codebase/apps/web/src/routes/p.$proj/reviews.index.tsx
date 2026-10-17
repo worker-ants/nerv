@@ -8,6 +8,7 @@
 
 import { canReadCutoverReport, canSendFindingToCr, scopesForRoles } from '@nerv/schema';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { ErrorState, failedWithoutData } from '../../components/query-state.js';
 import { useEffect, useRef, useState } from 'react';
 import { FindingCard } from '../../features/review-center/finding-card.js';
@@ -43,7 +44,7 @@ import {
 } from '../../components/ui/primitives.js';
 import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { FailOpenBanner } from '../../components/failopen-banner.js';
-import { asProjectId } from '../../lib/query-keys.js';
+import { asProjectId, queryKeys } from '../../lib/query-keys.js';
 import { useScrollTopOn } from '../../lib/scroll-top.js';
 
 /** 주소의 필터 — 쉼표 목록이다(서버 질의 `?severity=critical,warning` 과 같은 모양) */
@@ -104,6 +105,7 @@ function ReviewCenter(): React.JSX.Element {
   const me = useMe();
   const projectId = project.data?.['id'];
   const id = asProjectId(projectId);
+  const queryClient = useQueryClient();
 
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -521,6 +523,16 @@ function ReviewCenter(): React.JSX.Element {
               {...(failedWithoutData(gate)
                 ? { failed: { error: gate.error, retry: () => void gate.refetch() } }
                 : {})}
+              // **게이트 현황에서 브랜치를 면제한다**(2026-10-16 사람 결정 · REQ-WEB-332) — 역할 판정은 작업 상세와 같은 표다
+              waiver={{
+                roles,
+                onDone: () => {
+                  if (id !== undefined)
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.projectGateCoverage(id),
+                    });
+                },
+              }}
             />
           </div>
         </div>

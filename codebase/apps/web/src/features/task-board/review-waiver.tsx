@@ -247,37 +247,55 @@ export function taskBranches(task: Row): string[] {
   return [...new Set([...from(task['reviews']), ...from(task['claims'])])];
 }
 
+/** 이 역할로 브랜치 면제를 낼 수 있는가 — 면제할 수 있는 리뷰 종류가 하나라도 있으면(`REVIEW_WAIVER_ROLES` · 서버와 같은 표) */
+export function canWaiveBranch(roles: readonly string[]): boolean {
+  return reviewKind.enumValues.some((kind) => canWaiveReviewKind(roles, kind));
+}
+
 /**
  * **리뷰가 없는 브랜치의 면제**(2026-10-16 · 사람 결정 D4 · REQ-WEB-327 · api.md REQ-API-339). 문서만 바꾼 브랜치처럼 리뷰를 받지
  * 않을 브랜치는 게이트 판정(EP-REV-08 — push 훅 · CI)이 「리뷰 없음」으로 막는다. 사람이 그 브랜치와 종류를 골라 사유와 함께
  * 면제하면 그 (브랜치 · 종류)가 `waived` 로 통과하고 게이트 현황의 그 브랜치 줄에 보인다.
  *
- * 작업 면제(위 `ReviewWaiverForm` — 완료 조건)와 다른 일이라 따로 둔다. 리뷰 카드 안에 두는 까닭은 둘이다 — 그 작업의 리뷰
- * 브랜치가 거기 보이고, 작업이 끝난 뒤에도(병합 때 CI 가 묻는다) 그 카드는 남는다. 브랜치는 이 작업의 리뷰 · 클레임 세션에서
- * 아는 것을 후보로 보이고 이름을 직접 넣을 수도 있다. 면제할 종류는 역할이 정한다(`REVIEW_WAIVER_ROLES`) — 코드 증적 검사는
- * 없다(브랜치에는 작업이 없다).
+ * 작업 면제(위 `ReviewWaiverForm` — 완료 조건)와 다른 일이라 따로 둔다. 자리는 둘이다 — 작업 상세의 리뷰 카드(그 작업의 리뷰 ·
+ * 클레임 세션의 브랜치를 후보로 보인다 · 작업이 끝난 뒤에도 그 카드는 남는다)와 **리뷰 센터의 게이트 현황**(2026-10-16 사람 결정
+ * · REQ-WEB-332 — 그 줄의 브랜치를 미리 채우고, 작업과 무관한 브랜치는 이름을 직접 넣는다). 면제할 종류는 역할이 정한다
+ * (`REVIEW_WAIVER_ROLES`) — 코드 증적 검사는 없다(브랜치에는 작업이 없다).
  */
 export function BranchWaiverForm({
   proj,
-  task,
   roles,
+  branches = [],
+  initialBranch = '',
+  startOpen = false,
+  onDone,
+  onCancel,
 }: {
   proj: string;
-  task: Row;
   roles: readonly string[];
+  /** 눌러서 고르는 후보 — 작업 상세는 그 작업의 브랜치(`taskBranches`)를 준다 */
+  branches?: readonly string[];
+  /** 미리 채울 브랜치 — 게이트 현황의 줄에서 열면 그 줄의 브랜치 */
+  initialBranch?: string;
+  /** 펼친 채로 시작한다 — 게이트 현황처럼 단추를 누른 자리에서 열 때 */
+  startOpen?: boolean;
+  /** 기록한 뒤 — 부른 쪽이 목록을 다시 읽고 폼을 닫는다 */
+  onDone?: () => void;
+  /** [취소] — 부른 쪽이 폼을 닫는다(없으면 접기만 한다) */
+  onCancel?: () => void;
 }): React.JSX.Element | null {
   const t = useT();
   const onError = useApiError();
   const { pushToast } = useRealtime();
   const press = usePressKey('branch-waiver');
-  const [open, setOpen] = useState(false);
-  const [branch, setBranch] = useState('');
+  const [open, setOpen] = useState(startOpen);
+  const [branch, setBranch] = useState(initialBranch);
   const [headSha, setHeadSha] = useState('');
   const [chosen, setChosen] = useState<string[]>([]);
   const [reason, setReason] = useState('');
 
   const waivable = reviewKind.enumValues.filter((kind) => canWaiveReviewKind(roles, kind));
-  const known = taskBranches(task);
+  const known = [...branches];
   const head = headSha.trim();
   const headInvalid = head !== '' && !FULL_SHA.test(head);
   const kindsText = chosen.map((k) => reviewKindText(t, k)).join(' · ');
@@ -301,10 +319,11 @@ export function BranchWaiverForm({
         message: t('task.branch_waiver.done', { branch: branch.trim(), kinds: kindsText }),
       });
       setOpen(false);
-      setBranch('');
+      setBranch(initialBranch);
       setHeadSha('');
       setChosen([]);
       setReason('');
+      onDone?.();
     },
     onError,
   });
@@ -413,7 +432,14 @@ export function BranchWaiverForm({
             >
               {t('task.waiver.submit')}
             </Button>
-            <Button size="sm" onClick={() => setOpen(false)}>
+            <Button
+              size="sm"
+              data-testid="branch-waiver-cancel"
+              onClick={() => {
+                setOpen(false);
+                onCancel?.();
+              }}
+            >
               {t('common.cancel')}
             </Button>
           </div>

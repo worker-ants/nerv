@@ -347,18 +347,16 @@ function ActionsAndDecision({
   const derive = rows(suggestions['derive']);
   const reverify = rows(suggestions['reverify']);
   const cancel = rows(suggestions['cancel']);
-  const planned = (data['planned_actions'] ?? {}) as Row;
-  const plannedEmpty =
-    strings(planned['derive']).length +
-      strings(planned['reverify']).length +
-      strings(planned['cancel']).length ===
-    0;
+  // **null 은 "고른 적 없음"이다**(2026-10-16 사람 결정 · api.md REQ-API-351) — 빈 선택(세 칸이 빈 배열)은 "아무것도 하지
+  // 않기로" 고른 것이라 그대로 보인다
+  const planned = (data['planned_actions'] ?? null) as Row | null;
   /**
-   * **처음 고른 것** — 누가 이미 골라 두었으면(T3 의 첫 승인 등) 그것, 아니면 만들기 둘(파생 · 재검증)을 켜 두고 보관은
-   * 꺼 둔다. 보관은 작업을 목록에서 빼는 일이라 사람이 직접 켠다
+   * **처음 고른 것** — 누가 이미 골라 두었으면(T3 의 첫 승인 등 — 빈 선택 포함) 그것, 아니면 만들기 둘(파생 · 재검증)을 켜 두고
+   * 보관은 꺼 둔다. 보관은 작업을 목록에서 빼는 일이라 사람이 직접 켠다. 이 기본 체크는 서버가 고른 적 없는 CR 을 승인할 때
+   * 적용하는 기본값과 같다
    */
   const initial = (): Picked =>
-    plannedEmpty
+    planned === null
       ? {
           derive: derive.map((d) => String(d['ref'])),
           reverify: reverify.map((r) => String(r['ref'])),
@@ -510,6 +508,11 @@ function ActionsAndDecision({
         ) : (
           <>
             <p className="mb-2 text-2xs text-text-faint">{t('cr.actions.hint')}</p>
+            {planned === null && (
+              <p data-testid="cr-actions-default" className="mb-2 text-2xs text-text-faint">
+                {t('cr.actions.default_hint')}
+              </p>
+            )}
             <ul className="flex flex-col gap-1 text-sm">
               {derive.map((d) => (
                 <Pick

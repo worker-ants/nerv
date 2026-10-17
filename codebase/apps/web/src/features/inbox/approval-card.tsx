@@ -25,6 +25,7 @@ import { usePressKey } from '../../lib/press-key.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import { useSpecVersion } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { crPlanOfCard, crPlanText } from '../../lib/cr-plan.js';
 import { inOrgHref, useScope } from '../../lib/scope.js';
 import { cn } from '../../lib/utils.js';
 import { StatusBadge } from '../../components/status-badge.js';
@@ -1325,6 +1326,9 @@ function GateEvidenceLink({
  * **CR 카드의 요약**(2026-10-16 · 사람 결정 D1 · REQ-WEB-321 · spec-workflow §6.4 — 승인 카드에 반드시 보이는 것). 요구사항 단위
  * 델타의 수와 앞의 몇 줄(원문) · 영향(파생 작업 · 진행 중 클레임 · 참조 문서) · 승인하면 함께 할 일을 보인다. 수는 서버가 센
  * 값이다(`cr_delta` · `cr_impact` · `cr_planned`). 고르는 것은 CR 화면에서 한다 — 카드는 그리로 가는 길이다.
+ *
+ * **아무도 고르지 않았으면 이 카드의 [승인]은 기본값을 적용한다**(2026-10-16 사람 결정 · api.md REQ-API-351) — 파생 · 재검증 작업은
+ * 만들고 보관은 하지 않는다. 그래서 할 일 줄이 그 수를 미리 적는다(`crPlanText` — 바로 승인 창과 같은 문장이다).
  */
 function CrSummary({
   card,
@@ -1338,13 +1342,10 @@ function CrSummary({
   const crKey = String(card['cr_key']);
   const delta = (card['cr_delta'] ?? null) as Record<string, unknown> | null;
   const impact = (card['cr_impact'] ?? null) as Record<string, number> | null;
-  const planned = (card['cr_planned'] ?? null) as Record<string, number> | null;
+  const plan = crPlanOfCard(card);
   const items = Array.isArray(delta?.['items'])
     ? (delta['items'] as Record<string, unknown>[])
     : [];
-  const create = Number(planned?.['derive'] ?? 0) + Number(planned?.['reverify'] ?? 0);
-  const cancel = Number(planned?.['cancel'] ?? 0);
-  const suggestions = Number(impact?.['suggestions'] ?? 0);
   // **구현에서 거슬러 온 CR**(2026-10-16 · REQ-WEB-324) — 그 CR 로 보낸 발견의 제목 · 커밋을 함께 보인다(spec-workflow §3.4)
   const driftFindings = Array.isArray(card['cr_findings'])
     ? (card['cr_findings'] as Record<string, unknown>[])
@@ -1413,13 +1414,13 @@ function CrSummary({
         findings={driftFindings}
         heading={t('inbox.card.cr_drift')}
       />
-      {planned !== null && (
-        <p data-testid="cr-planned-line" className="text-text-faint">
-          {create + cancel > 0
-            ? t('inbox.card.cr_planned', { create, cancel })
-            : suggestions > 0
-              ? t('inbox.card.cr_unplanned', { n: suggestions })
-              : t('inbox.card.cr_no_suggestions')}{' '}
+      {plan !== null && (
+        <p
+          data-testid="cr-planned-line"
+          data-source={plan.chosen ? 'chosen' : 'default'}
+          className="text-text-faint"
+        >
+          {crPlanText(t, plan)}{' '}
           <CardLink
             orgSlug={card['org_slug']}
             currentOrg={currentOrg}

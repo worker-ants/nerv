@@ -81,7 +81,13 @@ import type { Actor } from '../../common/human-only.js';
 import { EventService } from '../event/event.service.js';
 import { closeRequestNotifications } from '../event/request-notifications.js';
 import { SpecService } from '../spec/spec.service.js';
-import { changeRequestImpact, planChangeRequestInTx } from '../spec/change-request.service.js';
+import {
+  changeRequestImpact,
+  changeRequestOutcomeOfVersion,
+  defaultActions,
+  planChangeRequestInTx,
+} from '../spec/change-request.service.js';
+import type { ChangeRequestOutcome } from '../spec/change-request.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { wakeWaitingSessionInTx } from './session-wake.js';
 import { writeResolutionInTx } from '../review/escalation.js';
@@ -104,6 +110,11 @@ export interface DirectApproveResult {
   self_approved?: true;
   /** 확정이면 그 문서, 기다리면 남은 자리의 카드 */
   web_url: string;
+  /**
+   * 이 승인이 변경 요청을 확정했으면 그 CR 과 함께 한 일(2026-10-16 사람 결정 · REQ-API-351) — 고른 적이 없으면 기본값
+   * (`actions_source: default` — 파생 · 재검증 작업을 만든다)이다. 에이전트는 `created_tasks` 를 사람에게 그대로 보고한다
+   */
+  change_request?: ChangeRequestOutcome;
 }
 
 /** 일괄 바로 승인의 항목별 결과 — **200 이 전부 성공을 뜻하지 않는다**(REQ-API-289) */
@@ -129,6 +140,8 @@ export interface DecideResult {
   quorum?: { given: number; required: number; satisfied: boolean };
   /** 자기 결재를 승인했는가(완화로 지났다 — 감사에 남는 사실을 응답에도 준다) */
   self_approved?: true;
+  /** 이 결정이 변경 요청을 확정했으면 그 CR 과 함께 한 일(2026-10-16 사람 결정 · REQ-API-351) */
+  change_request?: ChangeRequestOutcome;
 }
 
 /**
@@ -1152,7 +1165,11 @@ export class ApprovalService {
           statement: d.statement,
         })),
       ];
-      const planned = (card['cr_planned_actions'] ?? {}) as Record<string, unknown>;
+      // **고른 적이 없으면(NULL) 기본값이 할 일이다**(2026-10-16 사람 결정 · REQ-API-351) — 카드는 "승인하면 무엇이 만들어지나" 를
+      // 그 수로 보인다. 고른 것은 빈 선택이어도 그대로다
+      const raw = card['cr_planned_actions'];
+      const chosen = raw !== null && raw !== undefined;
+      const planned = (chosen ? raw : defaultActions(impact)) as Record<string, unknown>;
       const count = (v: unknown): number => (Array.isArray(v) ? v.length : 0);
       card['cr_delta'] = {
         added: impact.counts.added,
@@ -1170,8 +1187,11 @@ export class ApprovalService {
           impact.suggestions.derive.length +
           impact.suggestions.reverify.length +
           impact.suggestions.cancel.length,
+        // 보관 제안은 기본값에 들지 않는다 — 카드가 "보관은 CR 화면에서 고른다" 를 그 수로 적는다
+        cancel_suggestions: impact.suggestions.cancel.length,
       };
       card['cr_planned'] = {
+        chosen,
         derive: count(planned['derive']),
         reverify: count(planned['reverify']),
         cancel: count(planned['cancel']),
@@ -1581,6 +1601,15 @@ export class ApprovalService {
       },
     });
 
+    // **이 승인이 변경 요청을 확정했으면 함께 한 일을 돌려준다**(2026-10-16 사람 결정 · REQ-API-351) — 카드에서 고르지 않고 승인한
+    // 사람(과 에이전트)이 기본값으로 무엇이 만들어졌는지를 그 자리에서 안다. 정족수가 차지 않았으면 아직 없다
+    const changeRequest =
+      approval.subject_type === 'spec_version' &&
+      decision === 'approve' &&
+      (quorum === null || quorum.satisfied)
+        ? await changeRequestOutcomeOfVersion(tx, input.projectId, approval.subject_id)
+        : null;
+
     return {
       decision,
       subject_type: approval.subject_type,
@@ -1588,6 +1617,7 @@ export class ApprovalService {
       ...(escalationResolution === null ? {} : { resolution: escalationResolution }),
       ...(quorum === null ? {} : { quorum }),
       ...(selfApprove ? { self_approved: true } : {}),
+      ...(changeRequest === null ? {} : { change_request: changeRequest }),
     };
   }
 
@@ -1912,6 +1942,11 @@ export class ApprovalService {
           direct: { approverUserId: input.userId },
         });
         if (submitted.status === 'approved') {
+          const changeRequest = await changeRequestOutcomeOfVersion(
+            tx,
+            input.projectId,
+            input.specVersionId,
+          );
           return {
             status: 'approved',
             spec_key: version.spec_key,
@@ -1921,6 +1956,7 @@ export class ApprovalService {
             auto_passed: true,
             approval_id: null,
             web_url: await this.specs.versionWebUrl(tx, input.projectId, input.specVersionId),
+            ...(changeRequest === null ? {} : { change_request: changeRequest }),
           };
         }
       } else if (version.status !== 'in_review') {
@@ -1992,6 +2028,7 @@ export class ApprovalService {
         approval_id: waitingId,
         ...(decided.quorum === undefined ? {} : { quorum: decided.quorum }),
         ...(decided.self_approved === true ? { self_approved: true as const } : {}),
+        ...(decided.change_request === undefined ? {} : { change_request: decided.change_request }),
         // 확정됐으면 그 문서, 아직이면 **남은 자리의 카드**다 — 거기서 다른 사람이 결정한다
         web_url:
           waitingId === null

@@ -53,7 +53,8 @@ export const NOTIFICATION_CATALOG: Partial<Record<NervEventName, ImportanceTier>
   [NERV_EVENT.CLAIM_CONFLICT_BLOCKED]: 'critical',
   // **변경 요청이 진행 중인 클레임에 닿는다**(2026-10-16 · 사람 결정 D1 · spec-workflow §3.3 · §6.3) — 열릴 때(`cr.opened`)와
   // 승인될 때(`cr.approved`) 그 문서의 바뀌거나 빠진 요구사항의 작업을 쥔 세션의 사람에게 간다. 그 세션은 옛 문장으로 일하는
-  // 중이라 지금 알아야 한다. 받는 사람은 이벤트가 든 목록(`claim_user_ids`)이고, 없으면 아무에게도 가지 않는다
+  // 중이라 지금 알아야 한다. 받는 사람은 이벤트가 든 목록(`claim_user_ids`)이고, 없으면 아무에게도 가지 않는다.
+  // 세 등급(critical · critical · high)은 정본에 없던 칸을 채운 값이고 2026-10-16 에 사람이 확인했다
   [NERV_EVENT_PHASE2.CR_OPENED]: 'critical',
   [NERV_EVENT_PHASE2.CR_APPROVED]: 'critical',
   // 변경 요청 거절 — 초안이 버려졌다. 작성자에게는 `spec.rejected` 와 같은 무게다(누군가의 세션이 멈추지는 않는다)

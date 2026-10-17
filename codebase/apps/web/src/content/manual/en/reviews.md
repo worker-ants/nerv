@@ -73,7 +73,11 @@ Gate coverage shows, for each branch, whether it has been reviewed and whether i
 
 For a waived branch (a gate bypass), **who waived it, when and why** appears under its row, with the scope (the review kinds waived and, if it was narrowed to one commit, that commit), and the number of waivers appears under the verdict. Making sure a bypass never goes unnoticed is part of this table's job too.
 
-**A branch without reviews gets a row when it has a waiver.** Normally the table lists only branches that have received a review. When a branch is waived, it gets a row even without any review: the review and resolved cells show `—` and the verdict is **No review**. Branch waivers are recorded from the review card of a task's detail ([Branch waivers](/help/tasks#next-step)).
+**A branch without reviews gets a row when it has a waiver.** Normally the table lists only branches that have received a review. When a branch is waived, it gets a row even without any review: the review and resolved cells show `—` and the verdict is **No review**.
+
+**You can waive a branch from this table.** Roles that can waive (admin, planner, developer) see **[Waive]** on every row and **[Waive a branch]** next to the table title. Click **[Waive]** on a row to open the waiver form under that row with its branch filled in. A branch with no review and no waiver has no row, so click **[Waive a branch]** next to the title and type its name. Choose the kinds, the commit and the reason, then click **[Record waiver]**: the table is read again and the waiver appears on that branch's row. The form and its rules are the same as on a task's review card ([Branch waivers](/help/tasks#next-step)). Your role decides which kinds you can waive: developers code and merge, planners consistency and spec coverage, admins all of them.
+
+A waived row keeps the **No review** verdict. This table judges each branch by its reviews, while a waiver applies per review kind. In the gate verdict that a push hook or CI asks for, the waived kinds pass as `waived`.
 
 ## The sidebar badge {#badge}
 

@@ -710,6 +710,7 @@ async function createRevertTaskInTx(
     commit: (f.head_sha ?? '—').slice(0, 12),
   });
   await tx.execute(sql`
+    -- 우선순위는 발견의 심각도에서 — critical P0 · warning P1 · info P2(2026-10-16 사람 확인 · api.md REQ-API-338)
     INSERT INTO task (id, project_id, key, title, body_md, status, priority, assignee_user_id,
                       source_spec_version_id, source_requirement_id, goal_md)
     VALUES (${id}, ${input.projectId}, ${key}, ${title}, ${body}, 'backlog',

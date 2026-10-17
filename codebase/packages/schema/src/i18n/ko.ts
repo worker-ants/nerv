@@ -625,6 +625,9 @@ export const ko = {
   'reviews.gate.review': '리뷰',
   'reviews.gate.shown': '브랜치 {total}개 중 최근 {shown}개',
   'reviews.gate.title': '게이트 현황',
+  // 게이트 현황에서 내는 브랜치 면제(2026-10-16 사람 결정 · REQ-WEB-332)
+  'reviews.gate.waive': '면제',
+  'reviews.gate.waive_branch': '{branch} 브랜치 면제',
   'reviews.gate.verdict': '판정',
   // 컷오버 관측(2026-10-16 · 사람 결정 D6 · REQ-WEB-330) — admin · planner
   'reviews.cutover.title': '컷오버 관측',
@@ -1081,6 +1084,8 @@ export const ko = {
   'cr.actions.none': '고를 제안이 없습니다.',
   'cr.actions.hint':
     '고른 것은 이 버전이 승인되는 순간 함께 합니다. 고르지 않은 것은 하지 않습니다.',
+  'cr.actions.default_hint':
+    '아직 아무도 고르지 않았습니다. 이 화면을 거치지 않고 승인하면 파생 · 재검증 작업은 만들고 보관은 하지 않습니다.',
   'cr.action.derive': '파생 작업 만들기 — {ref}',
   'cr.action.reverify': '재검증 작업 만들기 — {ref}(완료 작업 {n}건)',
   'cr.action.cancel': '미착수 작업 보관 — {task}',
@@ -1705,8 +1710,14 @@ export const ko = {
   'inbox.card.quorum_pending': '{role} {n}명의 승인이 더 필요합니다. 아직 확정되지 않았습니다.',
   'inbox.card.cr_impact':
     '영향: 파생 작업 {tasks} · 진행 중 클레임 {claims} · 참조 문서 {referencing}',
-  'inbox.card.cr_planned': '승인하면 작업 {create}건을 만들고 {cancel}건을 보관합니다.',
-  'inbox.card.cr_unplanned': '제안 {n}건은 변경 요청 화면에서 고릅니다.',
+  'inbox.card.cr_planned':
+    '승인하면 골라 둔 대로 작업 {create}건을 만들고 {cancel}건을 보관합니다.',
+  // 고른 적 없는 CR 의 기본값(2026-10-16 사람 결정 · REQ-WEB-321 · api.md REQ-API-351)
+  'inbox.card.cr_default':
+    '승인하면 기본값대로 파생 작업 {derive}건 · 재검증 작업 {reverify}건을 만듭니다.',
+  'inbox.card.cr_chosen_none':
+    '아무것도 하지 않기로 골라 두었습니다. 승인해도 작업을 만들지 않습니다.',
+  'inbox.card.cr_unplanned': '보관 제안 {n}건은 변경 요청 화면에서 고릅니다.',
   'inbox.card.cr_no_suggestions': '승인과 함께 할 일은 없습니다.',
   'inbox.card.cr_open': '델타 전체 보기',
   'inbox.subject.escalation': '에스컬레이션',
@@ -2007,7 +2018,7 @@ export const ko = {
   'spec.impact_claims':
     '진행 중 클레임 {count}건(바뀌거나 빠진 요구사항 {affected}건). 승인되면 그 세션의 사람에게 바로 알립니다',
   'spec.impact_cr':
-    '이 초안은 변경 요청 {key}입니다. 승인하며 함께 할 일은 변경 요청 화면에서 고릅니다.',
+    '이 초안은 변경 요청 {key}입니다. 함께 할 일을 바꾸려면 변경 요청 화면에서 고릅니다.',
   'spec.impact_title': '이 변경의 영향',
   // 바로 승인(2026-10-11 · REQ-WEB-303)
   'spec.direct_approve': '바로 승인',

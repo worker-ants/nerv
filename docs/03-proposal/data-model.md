@@ -28,7 +28,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV(가칭)가 Postgres에 담을 **테이블 44개**(도메인 엔티티 38 + 부속 6 — 2026-10-16 정정. 처음 29개로 적었고 그 뒤 늘었다 — §1.3 표가 계수의 정본이다)의 필드·상태 머신·관계를 구현 착수가 가능한 수준으로 정의한다. 설계의 축은 두 가지다. 첫째, **스펙 상태를 2축으로 분리**해(D-02) 문서 리뷰 축은 `SpecVersion.status`가, 구현 축은 `Requirement.impl_status`가 갖는다 — clemvion은 1,750줄 문서에 상태 값이 하나뿐이라 요구사항 단위 누락(CCH-SE-02)을 놓쳤다. 둘째, **산문과 경로 문자열로 유지되던 연결을 전부 외래키로 승격**한다 — 리뷰 `meta.json`에 커밋 SHA 필드가 아예 없어서(표본 SUMMARY 200개 중 47개만 산문에 해시 언급) 무너졌던 출처 추적이 조인 한 번이 된다. 본문은 전체 ERD와 엔티티별 필드 표, clemvion frontmatter 매핑, 대표 질의 8개(SQL)로 모델을 검증하고 마지막에 ID·인덱스·보존 정책을 정리한다.
 >
-> 문서 버전 v0.33 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+> 문서 버전 v0.34 · 2026-10-16 · HTML 파생본: [data-model.html](../html/data-model.html)
+>
+> v0.34 변경(2026-10-16 — 카드에서 승인해도 CR 제안의 기본값을 적용한다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A)): **§2.3 `change_request` 두 행.** `planned_actions` 가 비어 있으면(NULL) "고른 적 없음"이고 승인할 때 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다. 빈 선택은 세 칸이 모두 빈 배열인 객체로 남아 그대로 존중된다(마이그레이션 0058 · [4.3 데이터베이스 스키마](../04-mvp/database.md) REQ-DB-048). `risk` 의 티어 매핑은 사람이 같은 날 확인했다.
 >
 > v0.33 변경(2026-10-16 — SoT 컷오버 M1, Phase 2 묶음 3의 넷째 · **사람 결정**(2026-10-16 — D6) · [4.8 백로그](../04-mvp/backlog.md) E21-S03): **§1.3 엔티티 하나 · §2.1 `project` 두 필드 · §2.6 표 하나 · 요약과 §1.3 의 계수(43 → 44).** 프로젝트가 리뷰 컷오버 단계(`review_sot` — `git` · `dual` · `nerv`)와 바꾼 시각을 갖는다. `gate_verdict_comparison` 은 로컬 훅이 게이트 판정에 함께 보낸 판정과 서버 판정을 견준 한 줄이다 — M1 이중화 기간의 불일치율이 여기서 나온다([3.7 로드맵](roadmap.md) §7.4 · §7.5 · [4.4 API](../04-mvp/api.md) REQ-API-346).
 >
@@ -432,9 +434,9 @@ stateDiagram-v2
 | `proposed_version_id` | uuid FK | 제안 내용을 담은 draft SpecVersion |
 | `title` · `rationale_md` | text | 무엇을 왜 바꾸는가 |
 | `status` | enum | `open / in_review / approved / rejected / withdrawn` — 수명은 아래 단락. 문서마다 `open` · `in_review` 인 행은 하나이고 초안마다 행은 하나다 |
-| `risk` | enum | `low / normal / high` — 저위험은 자동 통과 경로(D-06). 따로 입력받지 않고 검토 요청 때 정해진 게이트 티어에서 채운다 — T0 · T1 `low` · T2 `normal` · T3 `high`(2026-10-16) |
+| `risk` | enum | `low / normal / high` — 저위험은 자동 통과 경로(D-06). 따로 입력받지 않고 검토 요청 때 정해진 게이트 티어에서 채운다 — T0 · T1 `low` · T2 `normal` · T3 `high`(2026-10-16 · 같은 날 사람 확인) |
 | `origin` | enum | `human / agent / spec_drift` — 구현 중 발견된 스펙 개선의 역류 경로. 초안을 사람이 만들었으면 `human`, 에이전트 세션이면 `agent` 다 |
-| `planned_actions` | jsonb | 승인하며 함께 할 일(2026-10-16) — 영향 미리보기의 제안 가운데 사람이 고른 것 `{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}`. 승인되는 순간 서버가 그때의 델타와 다시 견줘 맞는 것만 한다. 빈 객체가 "고른 것 없음"이다 |
+| `planned_actions` | jsonb | 승인하며 함께 할 일(2026-10-16) — 영향 미리보기의 제안 가운데 사람이 고른 것 `{derive: [요구사항 번호], reverify: [요구사항 번호], cancel: [작업 키]}`. 승인되는 순간 서버가 그때의 델타와 다시 견줘 맞는 것만 한다. **NULL 은 "고른 적 없음"이다** — 승인할 때 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다. 세 칸이 모두 빈 배열이면 "아무것도 하지 않기로" 고른 것이라 그대로 존중한다(2026-10-16 사람 결정 · 0058) |
 | `created_by_user_id` · `created_by_session_id` | uuid FK | |
 | `decided_at` | timestamptz | |
 

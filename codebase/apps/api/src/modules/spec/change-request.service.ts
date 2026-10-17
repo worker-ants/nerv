@@ -53,6 +53,22 @@ type EmitFn = (input: EventInput) => Promise<unknown>;
 /** 고른 제안의 한 모양 — 빠진 칸이 없다 */
 type PlannedActions = { derive: string[]; reverify: string[]; cancel: string[] };
 
+/**
+ * 승인 때 한 일의 출처(2026-10-16 사람 결정 · REQ-API-351) — `chosen` 은 사람이 고른 것(`planned_actions`), `default` 는 고른 적이
+ * 없어 기본값을 적용한 것이다. `cr.approved` payload 의 `actions_source` 와 승인 응답의 `change_request.actions_source` 가 든다
+ */
+export type CrActionsSource = 'chosen' | 'default';
+
+/** 승인 응답(EP-APR-03 · EP-SPEC-27 · `nerv_spec_approve`)의 `change_request` — 이 승인이 확정한 CR 과 그때 한 일 */
+export interface ChangeRequestOutcome {
+  key: string;
+  web_url: string;
+  actions_source: CrActionsSource;
+  created_tasks: { key: string; kind: 'derive' | 'reverify'; ref: string }[];
+  archived_tasks: string[];
+  skipped?: { kind: 'derive' | 'reverify' | 'cancel'; value: string }[];
+}
+
 /** CR 상태 — 어휘의 정본은 enum `change_request_status` 다 */
 const CR_STATUSES = ['open', 'in_review', 'approved', 'rejected', 'withdrawn'] as const;
 
@@ -139,7 +155,7 @@ interface AppliedActions {
   skipped: { kind: 'derive' | 'reverify' | 'cancel'; value: string }[];
 }
 
-/** 게이트 티어 → CR 의 위험도(2026-10-16 · 사람 결정 D1) — 자동 통과(T0 · T1)가 저위험이다(D-06) */
+/** 게이트 티어 → CR 의 위험도(2026-10-16 · 사람 결정 D1 · 매핑은 같은 날 사람 확인) — 자동 통과(T0 · T1)가 저위험이다(D-06) */
 export function riskOfTier(tier: string): 'low' | 'normal' | 'high' {
   if (tier === 'T3') return 'high';
   if (tier === 'T2') return 'normal';
@@ -734,7 +750,12 @@ export class ChangeRequestService {
     const key = String(row['key'] ?? '');
     return {
       ...row,
-      planned_actions: normalizeActions((row['planned_actions'] ?? {}) as CrActions),
+      // **NULL 은 "고른 적 없음"이다**(2026-10-16 사람 결정 · REQ-API-351) — 화면은 기본 체크로 시작하고 승인은 기본값을 적용한다.
+      // 고른 것은 빈 선택이어도 세 칸으로 준다
+      planned_actions:
+        row['planned_actions'] == null
+          ? null
+          : normalizeActions(row['planned_actions'] as CrActions),
       web_url: webPath(`/p/${slug}/crs/${key}`),
     };
   }
@@ -929,7 +950,8 @@ export async function changeRequestReturnedInTx(
 /**
  * **승인 결정이 고른 제안을 CR 에 남긴다**(REQ-API-331). 정족수가 차기 전의 승인(T3 의 첫 자리)이 고른 것도 남아, 둘째
  * 승인자가 카드에서 그냥 승인하면 그것을 한다. 변경 요청이 없는 결재에 오면 400 이다 — 조용히 버리면 부른 쪽은 작업이
- * 만들어질 줄 안다.
+ * 만들어질 줄 안다. 빈 선택(`{}` · 빈 배열)도 세 칸으로 남긴다 — "아무것도 하지 않는다" 를 고른 것이고, 고른 적 없음(NULL —
+ * 승인할 때 기본값)과 섞이면 안 된다(2026-10-16 사람 결정 · REQ-API-351).
  */
 export async function planChangeRequestInTx(
   tx: Tx,
@@ -960,6 +982,10 @@ export async function planChangeRequestInTx(
  * 더하는 것은 넷이다: 고른 파생 작업(ADDED) · 고른 재검증 작업(MODIFIED 의 완료 작업) · 고른 미착수 작업 보관(REMOVED) ·
  * 바뀌거나 빠진 요구사항의 작업을 쥔 세션의 사람에게 critical 알림. 진행 중 작업의 중단 확인은 하트비트가 그 요구사항이
  * 빠졌다는 사실(`requirement_removed`)을 그 세션에 전한다(REQ-API-331).
+ *
+ * **아무도 고르지 않았으면 기본값을 적용한다**(2026-10-16 사람 결정 · REQ-API-351) — 파생 · 재검증 작업은 만들고 보관은 하지
+ * 않는다. 승인하는 사람은 대부분 받은 요청 카드에서 승인하고, 고르는 곳은 CR 화면 하나라 그대로 두면 새 요구사항의 작업이
+ * 조용히 빠진다. 자동 통과(T0 · T1)도 같은 규칙이다 — 판정은 이 한 곳이다.
  */
 export async function changeRequestApprovedInTx(
   tx: Tx,
@@ -1012,6 +1038,11 @@ export async function changeRequestApprovedInTx(
     sessionId: input.actor.sessionId,
     isAgent: input.actor.isAgent,
   });
+  // **고른 적이 없으면 기본값이다**(2026-10-16 사람 결정 · REQ-API-351) — 받은 요청 카드 · 바로 승인 · `nerv_spec_approve` 처럼 CR
+  // 화면을 거치지 않은 승인에서 새 요구사항의 작업이 조용히 빠지지 않게 한다. 고른 것(빈 선택 포함)은 그대로 존중한다
+  const source: CrActionsSource = cr.planned_actions === null ? 'default' : 'chosen';
+  const planned =
+    cr.planned_actions === null ? defaultActions(impact) : normalizeActions(cr.planned_actions);
   const applied =
     owner === null
       ? { created: [], archived: [], skipped: [] }
@@ -1021,7 +1052,7 @@ export async function changeRequestApprovedInTx(
           crKey: cr.key,
           specKey: cr.spec_key,
           versionNo: Number(cr.version_no),
-          planned: normalizeActions(cr.planned_actions ?? {}),
+          planned,
           impact,
           userId: owner,
           actor: input.actor,
@@ -1051,6 +1082,7 @@ export async function changeRequestApprovedInTx(
         modified: impact.counts.modified,
         removed: impact.counts.removed,
       },
+      actions_source: source,
       created_tasks: applied.created,
       archived_tasks: applied.archived,
       ...(applied.skipped.length === 0 ? {} : { skipped: applied.skipped }),
@@ -1072,6 +1104,45 @@ export async function changeRequestOfVersion(
   const cr = rows[0];
   if (cr === undefined) return null;
   return { ...cr, web_url: await crWebUrl(db, projectId, cr.key) };
+}
+
+/**
+ * **이 버전을 확정한 CR 과 그때 한 일**(2026-10-16 사람 결정 · REQ-API-351) — 승인 결정 · 바로 승인의 응답이 `change_request` 로
+ * 준다. 다시 세지 않고 `cr.approved` 가 남긴 사실을 읽는다(같은 트랜잭션이면 방금 남긴 것이다). CR 이 없거나 아직 승인되지
+ * 않았으면 null 이다(T3 의 첫 승인 등)
+ */
+export async function changeRequestOutcomeOfVersion(
+  db: Db,
+  projectId: string,
+  versionId: string,
+): Promise<ChangeRequestOutcome | null> {
+  const { rows } = await db.execute<{ key: string; payload: Record<string, unknown> | null }>(sql`
+    SELECT cr.key, e.payload
+      FROM change_request cr
+      JOIN event e ON e.subject_type = 'change_request' AND e.subject_id = cr.id
+                  AND e.type = ${NERV_EVENT_PHASE2.CR_APPROVED}
+     WHERE cr.project_id = ${projectId} AND cr.proposed_version_id = ${versionId}
+       AND cr.status = 'approved'
+     ORDER BY e.occurred_at DESC LIMIT 1
+  `);
+  const row = rows[0];
+  if (row === undefined) return null;
+  const payload = row.payload ?? {};
+  const skipped = Array.isArray(payload['skipped'])
+    ? (payload['skipped'] as NonNullable<ChangeRequestOutcome['skipped']>)
+    : [];
+  return {
+    key: row.key,
+    web_url: await crWebUrl(db, projectId, row.key),
+    actions_source: payload['actions_source'] === 'default' ? 'default' : 'chosen',
+    created_tasks: Array.isArray(payload['created_tasks'])
+      ? (payload['created_tasks'] as ChangeRequestOutcome['created_tasks'])
+      : [],
+    archived_tasks: Array.isArray(payload['archived_tasks'])
+      ? (payload['archived_tasks'] as string[])
+      : [],
+    ...(skipped.length === 0 ? {} : { skipped }),
+  };
 }
 
 /**
@@ -1413,6 +1484,18 @@ async function crWebUrl(db: Db, projectId: string, refValue: string): Promise<st
   `);
   const row = rows[0];
   return webPath(row === undefined ? '/inbox' : `/p/${row.slug}/crs/${row.key}`);
+}
+
+/**
+ * **고른 적 없는 CR 의 기본값**(2026-10-16 사람 결정 · REQ-API-351) — CR 화면의 기본 체크와 같다: 파생 작업 · 재검증 작업은
+ * 제안된 것을 모두 만들고 미착수 작업 보관은 하지 않는다. 만든 작업은 나중에 보관하면 되지만 보관은 누군가의 계획을 지운다
+ */
+export function defaultActions(impact: Pick<SpecImpact, 'suggestions'>): PlannedActions {
+  return {
+    derive: impact.suggestions.derive.map((d) => d.ref),
+    reverify: impact.suggestions.reverify.map((r) => r.ref),
+    cancel: [],
+  };
 }
 
 /** 고른 제안을 한 모양으로 — 빠진 칸은 빈 배열, 같은 값은 한 번 */

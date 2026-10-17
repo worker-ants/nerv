@@ -617,6 +617,8 @@ export const en = {
   'reviews.gate.review': 'Review',
   'reviews.gate.shown': 'Latest {shown} of {total} branches',
   'reviews.gate.title': 'Gate status',
+  'reviews.gate.waive': 'Waive',
+  'reviews.gate.waive_branch': 'Waive branch {branch}',
   'reviews.gate.verdict': 'Verdict',
   'reviews.cutover.title': 'Cutover watch',
   'reviews.cutover.stage': '{stage} · since {since}',
@@ -1096,6 +1098,8 @@ export const en = {
   'cr.actions.none': 'No suggestions to choose.',
   'cr.actions.hint':
     'What you check is done the moment this version is approved. Unchecked items are not done.',
+  'cr.actions.default_hint':
+    'Nobody has chosen yet. Approving without this page creates the derived and re-verification tasks and archives nothing.',
   'cr.action.derive': 'Create a derived task — {ref}',
   'cr.action.reverify': 'Create a re-verification task — {ref} ({n} done tasks)',
   'cr.action.cancel': 'Archive the unstarted task — {task}',
@@ -1728,8 +1732,11 @@ export const en = {
   'inbox.card.quorum_pending': 'Approvals still needed from {role}: {n}. Not final yet.',
   'inbox.card.cr_impact':
     'Impact: {tasks} derived tasks · {claims} active claims · {referencing} referencing specs',
-  'inbox.card.cr_planned': 'On approval: create {create} tasks and archive {cancel}.',
-  'inbox.card.cr_unplanned': 'Choose {n} suggestions on the change request page.',
+  'inbox.card.cr_planned': 'On approval, as chosen: create {create} tasks and archive {cancel}.',
+  'inbox.card.cr_default':
+    'On approval, by default: create {derive} derived tasks and {reverify} re-verification tasks.',
+  'inbox.card.cr_chosen_none': 'Nothing was chosen to do. Approving creates no tasks.',
+  'inbox.card.cr_unplanned': 'Choose the {n} archive suggestions on the change request page.',
   'inbox.card.cr_no_suggestions': 'No follow-up on approval.',
   'inbox.card.cr_open': 'View the full delta',
   'inbox.subject.escalation': 'Escalation',
@@ -2036,7 +2043,7 @@ export const en = {
   'spec.impact_claims':
     '{count} active claims ({affected} on changed or removed requirements). On approval those session owners are told right away',
   'spec.impact_cr':
-    'This draft is change request {key}. Choose the follow-up on approval on the change request page.',
+    'This draft is change request {key}. To change the follow-up, choose it on the change request page.',
   'spec.body_change.line': 'Against the previous version v{n} · {detail}',
   'spec.body_change.shrunk_badge': 'body shrank sharply',
   'spec.body_change.shrunk':
