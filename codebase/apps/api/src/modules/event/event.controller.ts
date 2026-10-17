@@ -147,7 +147,7 @@ export class EventController {
   }
 
   /**
-   * EP-NTF-10 — 내 워치(2026-10-16 · 사람 결정 D5 · REQ-API-342). 본인의 것만이다 — 범위를 주면 그 프로젝트의 것만
+   * EP-NTF-11 — 내 워치(2026-10-16 · 사람 결정 D5 · REQ-API-342). 본인의 것만이다 — 범위를 주면 그 프로젝트의 것만
    */
   @Get('me/watches')
   myWatches(
@@ -162,7 +162,7 @@ export class EventController {
     });
   }
 
-  /** EP-NTF-11 — 워치를 건다(멱등). 대상은 내가 속한 프로젝트의 스펙 · 작업 · 영역이다 */
+  /** EP-NTF-12 — 워치를 건다(멱등). 대상은 내가 속한 프로젝트의 스펙 · 작업 · 영역이다 */
   @Put('me/watches')
   watch(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
     const input = parseBody(WatchTargetInput, body);
@@ -175,19 +175,19 @@ export class EventController {
     });
   }
 
-  /** EP-NTF-12 — 워치를 푼다. 본인의 것만이다 */
+  /** EP-NTF-13 — 워치를 푼다. 본인의 것만이다 */
   @Delete('me/watches/:id')
   unwatch(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
     return this.watches.unwatch({ userId: userOf(req), watchId: id });
   }
 
-  /** EP-NTF-13 — 내 핀(REQ-API-344). 프로젝트를 넘는 한 목록이다 */
+  /** EP-NTF-14 — 내 핀(REQ-API-344). 프로젝트를 넘는 한 목록이다 */
   @Get('me/pins')
   myPins(@Req() req: ProjectRequest): Promise<unknown> {
     return this.watches.listPins({ userId: userOf(req) });
   }
 
-  /** EP-NTF-14 — 핀을 고정한다(멱등 · 새 핀이 맨 위) */
+  /** EP-NTF-15 — 핀을 고정한다(멱등 · 새 핀이 맨 위) */
   @Put('me/pins')
   pin(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
     const input = parseBody(WatchTargetInput, body);
@@ -200,13 +200,13 @@ export class EventController {
     });
   }
 
-  /** EP-NTF-15 — 핀을 푼다. 본인의 것만이다 */
+  /** EP-NTF-16 — 핀을 푼다. 본인의 것만이다 */
   @Delete('me/pins/:id')
   unpin(@Req() req: ProjectRequest, @Param('id') id: string): Promise<unknown> {
     return this.watches.unpin({ userId: userOf(req), pinId: id });
   }
 
-  /** EP-NTF-16 — 브라우저(localStorage)의 핀을 처음 한 번 옮긴다(REQ-API-345) */
+  /** EP-NTF-17 — 브라우저(localStorage)의 핀을 처음 한 번 옮긴다(REQ-API-345) */
   @Post('me/pins/import')
   importPins(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
     const input = parseBody(PinImportInput, body);

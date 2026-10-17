@@ -26,7 +26,7 @@ vi.mock('socket.io-client', () => ({
 type Row = Record<string, unknown>;
 
 let searchHits: Row[];
-/** 서버의 핀(EP-NTF-13 · 2026-10-16 · REQ-WEB-329) — 핀은 이제 브라우저가 아니라 서버에 있다 */
+/** 서버의 핀(EP-NTF-14 · 2026-10-16 · REQ-WEB-329) — 핀은 이제 브라우저가 아니라 서버에 있다 */
 let serverPins: Row[];
 
 const ok = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
