@@ -5,6 +5,7 @@ updated: 2026-09-24
 referenced_by:
   - 03-proposal/architecture.md
   - 03-proposal/spec-workflow.md
+  - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/database.md
   - 04-mvp/api.md
@@ -21,7 +22,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.31 · 2026-10-17 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.32 · 2026-10-17 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.32 변경(2026-10-17 — 부하 시험, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D6)): **§4.3a 신설.** 부하 시험 — 무엇을 재나(보드 반영 · 게이트 판정 · 커버리지 질의) · 모양(D6 수치와 바꾸는 변수) · 부르는 법(`pnpm load` · 로컬은 e2e 스택, 대표 수치는 스테이징) · 준비도 표면으로만 · PR 레인 밖 · 로컬 기준선. 처음 돌릴 때 찾은 WS 결함 둘을 함께 적었다([4.4 API](api.md) REQ-API-353).
 >
 > v2.31 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§2.4 표면별 규약 표의 MCP 행.** OAuth 2.1 을 Phase 3+ 후보로 고쳤다([3.7 로드맵](../03-proposal/roadmap.md) §5.1).
 >
@@ -1002,6 +1005,37 @@ L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시
 
 **소스 옆에 둔다는 규칙에는 웹의 라우트 폴더도 포함된다** — 화면 테스트는 그 화면 파일 옆(`src/routes/**/*.spec.tsx`)에 산다. 대신 라우트 생성기가 그것을 **라우트로 오해한다**: TanStack Router 플러그인은 `src/routes/` 안의 모든 파일에서 `Route` export 를 찾고, 없으면 파일마다 12줄짜리 경고를 찍는다(2026-08-29 실측 — 7개 파일 84줄이 기동 로그의 대부분이었다). 경고가 소음이 되면 **진짜 경고가 그 속에 묻힌다.** `vite.config.ts` 의 `routeFileIgnorePattern: '\\.spec\\.tsx?$'` 로 테스트를 생성 대상에서 뺀다 — 생성된 `routeTree.gen.ts` 는 바이트 단위로 동일하다(빠지는 라우트가 없다는 뜻이다).
 
+### 4.3a 부하 시험 — 레인 밖에서 대상을 정해 부른다 (2026-10-17 · 사람 결정 D6)
+
+**무엇을 재나.** 프로젝트 수십 · 동시 세션 수십(NFR-04)을 걸고 세 가지를 판정한다 — 보드 반영 p95 5초(NFR-02) · 게이트 판정 p95 300ms(성공 기준 2-7) · 커버리지 질의 p95 1초. 앞의 둘은 정본의 인용이고 셋째는 "커버리지 대시보드 질의가 페이지 로드를 막지 않는다"([4.8 백로그](backlog.md) E21-S04)를 잴 수 있게 옮긴 새 수치다(사람 결정 D6). 보드 반영은 세션이 상태 전이(클레임 · 놓기)를 요청한 때부터 그 프로젝트 룸의 **모든** 소켓이 이벤트를 받을 때까지이고, 가장 늦은 소켓의 값을 쓴다. 받지 못한 탐침은 기준을 넘긴 것으로 센다. 이 수치가 [3.7 로드맵](../03-proposal/roadmap.md) 사후 측정의 0-5(보드 반영 지연)를 잰다.
+
+| 항목 | 기본값 | 바꾸는 변수 |
+| --- | --- | --- |
+| 프로젝트 · 동시 세션 · WS 소켓 | 30 · 50 · 200 | `NERV_LOAD_PROJECTS` · `NERV_LOAD_SESSIONS` · `NERV_LOAD_SOCKETS` |
+| 세션당 훅(PostToolUse) | 분당 30건 — 수집 한도(`RATE_LIMIT_INGEST_PER_MIN` 120)보다 작아야 한다 | `NERV_LOAD_HOOKS_PER_MIN` |
+| 길이 · 클레임 한 바퀴 | 30분 · 60초(잡기 → 하트비트 → 리뷰 제출 → 판정 → 놓기) | `NERV_LOAD_MINUTES` · `NERV_LOAD_CYCLE_SEC` |
+| 대시보드를 여는 사람 · CI | 10명이 15초마다 커버리지 화면(넷을 함께 부른다) · 프로젝트마다 10초마다 판정 | `NERV_LOAD_VIEWERS` · `NERV_LOAD_VIEW_EVERY_SEC` · `NERV_LOAD_CI_EVERY_SEC` |
+| 데이터 | 프로젝트마다 승인 스펙 12편 × 요구사항 8 · 세션마다 `ready` 작업 3 | `NERV_LOAD_SPECS` · `NERV_LOAD_REQUIREMENTS` · `NERV_LOAD_TASKS_PER_SESSION` |
+
+**근거가 있는 수는 동시 세션 50 하나다** — [3.2 시스템 아키텍처](../03-proposal/architecture.md) §5.4 의 하트비트 계산이 그 수로 부하를 셌다. 나머지는 "수십" 을 숫자로 옮긴 추정이고 사람이 그대로 정했다. 도구는 Node 스크립트와 `socket.io-client` 다 — k6 는 확정 스택 밖이다.
+
+**부르는 법.** `NERV_LOAD_URL` · `NERV_LOAD_EMAIL` · `NERV_LOAD_PASSWORD` 를 주고 `codebase/` 에서 `pnpm load` 를 돌린다. 로컬은 `pnpm e2e:up` 의 스택(주소는 `pnpm e2e:env` 의 `NERV_E2E_BASE_URL`, 계정은 시드 계정과 §5.1 의 개발 비밀번호)이고 대표 수치는 스테이징에서 잰다 — 스테이징에는 부하 시험 전용 계정을 둔다. **개발 스택에는 돌리지 않는다** — 조직 · 프로젝트 · 토큰을 만들고 사람이 쓰는 데이터 옆에 남는다.
+
+**준비도 표면으로만 한다.** 스테이징의 DB 에는 시험 도구가 접속하지 않으므로 같은 코드가 두 곳에서 돌려면 그래야 한다 — 로그인 → 조직(`load-<실행 id>`) → 프로젝트 · 토큰(EP-TOK-02) → 승인 스펙과 요구사항(EP-IMP-02) → 작업과 `ready` 전이 → 세션 시작 훅. 끝나면 세션을 닫고 토큰을 폐기하고 프로젝트를 보관한다(지우지 않는다 · `NERV_LOAD_KEEP=1` 이면 남긴다).
+
+**레인 밖이다**(사람 결정 D6). 30분이 걸리고 대상 서버가 따로 있어야 해서 PR 레인 · `preflight` 어디에도 넣지 않는다. 집계(`test/load/stats.ts` — 최근접 순위 백분위 · 받지 못한 탐침의 처리)는 순수 함수라 L1 이 본다. 결과는 `load-report/<시각>.json`(git 무시)이고 수치는 백로그와 로드맵으로 옮긴다. 부하를 거는 쪽도 한 프로세스라 그 이벤트 루프가 밀리면 지연이 부풀려진다 — 결과에 시험 도구의 루프 지연 p99 를 함께 남기고, 판정이 실패했는데 그 값도 크면 서버가 아니라 도구를 먼저 의심한다.
+
+**로컬 기준선**(2026-10-17 · 이 기계의 e2e 스택 · 기본값 그대로 30분). 시험 도구의 루프 지연 p99 는 23ms 였다. 대표 수치는 스테이징에서 다시 잰다 — 같은 기계에 서버와 도구가 함께 있어 운영과 같지 않다.
+
+| 판정 | 기준 | 표본 | p50 | p95 | p99 | 결과 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 보드 반영(NFR-02) | p95 5초 | 탐침 3000(받지 못함 0) | 7ms | 15ms | 20ms | 통과 |
+| 게이트 판정(2-7) | p95 300ms | 6735 | 8ms | 17ms | 24ms | 통과 |
+| 커버리지 질의(D6) | p95 1초 | 1196 | 13ms | 27ms | 35ms | 통과 |
+| 커버리지 화면 넷(참고) | — | 1196 | 14ms | 30ms | 38ms | — |
+| 훅 수집(참고) | — | 44626 | 14ms | 29ms | 36ms | — |
+
+**처음 돌렸을 때 보드 반영은 잴 수조차 없었다.** 소켓의 프로젝트 룸 참가가 모두 `exception` 으로 끝났다 — 전역 AuthGuard 가 게이트웨이 메시지에도 걸렸고, 그것을 고치자 연결 직후의 참가가 인증보다 먼저 도착했다. 둘 다 고쳤다([4.4 API](api.md) REQ-API-353). 화면도 같은 소켓을 쓰므로 그동안 프로젝트 화면은 실시간 갱신을 받지 못하고 있었다.
 ### 4.4 커밋·브랜치
 
 - 커밋: Conventional Commits — `feat|fix|docs|refactor|test|chore(scope)` , scope는 워크스페이스 이름(`api`·`web`·`schema`·`deploy`). 현행 저장소 관례(`docs: …`)와 연속.

@@ -28,6 +28,9 @@ apps/web/.spike/
 # 임포트 리포트 — 실행마다 새로 쓰이는 산출물이다(importer.md §4)
 nerv-import-report/
 
+# 부하 시험 결과 — 실행마다 새로 쓰인다(수치는 백로그 E21-S04 · 로드맵 사후 측정에 옮긴다)
+load-report/
+
 # 플러그인 아카이브는 빌드 산출물이다(scripts/pack-plugin.mjs)
 plugin-dist/
 # 문체 플러그인 eval 결과 — 돌릴 때마다 생긴다(claude plugin eval)
