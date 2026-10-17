@@ -188,6 +188,9 @@ services:
       # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
       NERV_S3_PUBLIC_ENDPOINT: ${NERV_S3_PUBLIC_ENDPOINT:-http://localhost:${MINIO_PORT:-9000}}
       NERV_GITHUB_WEBHOOK_SECRET: ${NERV_GITHUB_WEBHOOK_SECRET:-}
+      # 저장하는 비밀의 암호화 키 — 비면 Slack 연결이 꺼진다(2026-10-17 · codebase.md §5.2)
+      NERV_ENCRYPTION_KEY: ${NERV_ENCRYPTION_KEY:-}
+      NERV_SLACK_WEBHOOK_PREFIX: ${NERV_SLACK_WEBHOOK_PREFIX:-}
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}
@@ -270,6 +273,9 @@ services:
       # 밖에서 쓰려면 **별도 호스트**로 바꾼다(경로 접두는 서명이 깨진다 — REQ-CB-033).
       NERV_S3_PUBLIC_ENDPOINT: ${NERV_S3_PUBLIC_ENDPOINT:-http://localhost:${MINIO_PORT:-9000}}
       NERV_GITHUB_WEBHOOK_SECRET: ${NERV_GITHUB_WEBHOOK_SECRET:-}
+      # 저장하는 비밀의 암호화 키 — 비면 Slack 연결이 꺼진다(2026-10-17 · codebase.md §5.2)
+      NERV_ENCRYPTION_KEY: ${NERV_ENCRYPTION_KEY:-}
+      NERV_SLACK_WEBHOOK_PREFIX: ${NERV_SLACK_WEBHOOK_PREFIX:-}
       NERV_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-nerv}
       NERV_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       NERV_S3_BUCKET: ${NERV_S3_BUCKET:-nerv-blobs}

@@ -22,7 +22,11 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.21 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.23 · 2026-10-17 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.23 변경(2026-10-17 — CI 레시피, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D3 · D4)): **§8 신설 · REQ-PLG-042 ~ 045 신설.** 저장소의 필수 상태 체크가 게이트 판정(EP-REV-08)을 부르는 CI 레시피다. 워크플로 YAML 하나와 그 안의 curl · jq 스크립트이고(D3 = A) 정본은 `@nerv/schema` 의 `ci-recipe.ts` 다. PR head 커밋으로 판정하고, 머지 큐는 그 PR 의 head 로 판정하며, 고친 커밋이 PR 의 조상인지 git 으로 보고, 판정 불가는 D-14 fail-open 이다(끄는 손잡이 `NERV_GATE_FAIL_CLOSED`). 실제로 막아 보는 곳은 일회용 GitHub 저장소와 스테이징 NERV 다(D4) — 그 기록은 남았다. 플러그인이 배달하는 파일은 바뀌지 않아 플러그인 버전은 그대로다.
+>
+> v1.22 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§3.3 인증 문단 한 구절.** OAuth 2.1 리소스 서버를 Phase 3+ 후보로 고쳤다([3.7 로드맵](../03-proposal/roadmap.md) §5.1). 배달되는 파일은 바뀌지 않아 플러그인 버전은 그대로다.
 >
 > v1.21 변경(2026-10-16 — 카드에서 승인해도 CR 제안의 기본값을 적용한다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A)): **`spec` 스킬 한 항목 · `approve` 스킬 3단계 한 항목과 6단계 한 문장.** 아무도 고르지 않은 변경 요청은 승인할 때 서버가 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다 — 두 스킬이 그 사실을 사람에게 말하고, `approve` 는 승인 응답의 `change_request`(`created_tasks` · `archived_tasks` · `skipped` · `actions_source`)를 그대로 보고한다([4.4 API](api.md) REQ-API-351). 새 인자 · 새 도구는 없고 `allowed-tools` 도 그대로다. 플러그인은 0.3.34 그대로다 — 이 묶음의 다른 변경과 함께 아직 배달 전이다.
 >
@@ -1721,7 +1725,7 @@ printf '  %s · ctx %s%%%s\n' \
 }
 ```
 
-MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위와 스택 확정](scope.md)). PAT는 위 `headers`의 **정적 Bearer**(`${NERV_TOKEN}` 환경변수 확장)로 전달한다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5 — `headers` 정적 Bearer 또는 `headersHelper`). 저장소에 커밋되는 `.mcp.json`에는 토큰 원문을 절대 넣지 않는다 — 토큰은 환경변수로만 산다.
+MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 3+ 후보 — [4.1 MVP 범위와 스택 확정](scope.md)). PAT는 위 `headers`의 **정적 Bearer**(`${NERV_TOKEN}` 환경변수 확장)로 전달한다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5 — `headers` 정적 Bearer 또는 `headersHelper`). 저장소에 커밋되는 `.mcp.json`에는 토큰 원문을 절대 넣지 않는다 — 토큰은 환경변수로만 산다.
 
 | 환경변수 | 값 | 쓰는 곳 |
 | --- | --- | --- |
@@ -2369,6 +2373,10 @@ CLAUDE.md에는 한 줄만 둔다(Claude Code는 AGENTS.md를 아직 자동 인�
 | REQ-PLG-039 | WHEN 사람이 `bin/nerv-init` 을 실행하면 THE SYSTEM SHALL 토큰으로 서버의 EP-PRJ-06 에서 그 프로젝트의 AGENTS.md 본문을 받아, 저장소에 AGENTS.md 가 없으면 그 본문으로 만들고 구역 표시(`<!-- nerv:begin -->` · `<!-- nerv:end -->`)가 한 쌍 있으면 그 구역만 바꾸며 구역 밖은 파일 끝의 줄바꿈까지 그대로 둔다 — 규약 버전이 같으면 쓰지 않는다. IF AGENTS.md 에 구역이 없거나 표시의 짝이 맞지 않으면 THEN THE SYSTEM SHALL 덮지 않고 그 사실과 표시를 넣는 방법을 보고한다. IF 토큰이 없거나 서버가 본문을 주지 않으면 THEN THE SYSTEM SHALL AGENTS.md 를 만들지도 바꾸지도 않고 그 사실을 보고한다. WHILE 세션 시작 훅의 `--check` 인 동안 THE SYSTEM SHALL 구역의 규약 버전을 서버의 것과 2초 안에 견주어 다르면 다시 돌릴 명령을 알리고 아무것도 쓰지 않는다 — 서버에 이어지지 않으면 말하지 않는다. WHILE 템플릿을 배포하는 동안 THE SYSTEM SHALL `@nerv/schema` 의 정본 · `plugin/codex/AGENTS.md` · §5.3 전문을 바이트로 같게 둔다(2026-10-16 · 사람 결정 ① · E20-S03) | L1(`plugin-package.spec.ts`) — `curl` 을 가로채 서버를 흉내 내고 실제로 실행한다: 없으면 만든다(경로 · 토큰) · 구역만 바꾸고 구역 밖과 파일 끝 보존 · 같은 버전이면 쓰지 않는다 · 구역 없는 파일은 덮지 않고 서버도 부르지 않는다 · 짝이 맞지 않는 표시 · 토큰 없음 · 서버의 거절 · `--check` 의 낡음 안내와 쓰지 않음 · 같은 버전 · 서버 오류 · 구역 없는 파일의 침묵. L1(`packages/schema` `agents-md.spec.ts`) — 정본과 초안의 바이트 · 구역 표시 · 렌더(자리표시자 · 목록 · 잘림 · 구역을 깨는 값). 서버 쪽은 [4.4 API](api.md) REQ-API-326 의 L2 |
 | REQ-PLG-040 | WHEN 사람이 작업 저장소에서 `bin/nerv-init --codex` 를 실행하면 THE SYSTEM SHALL `.codex/config.toml`(§5.2 전문에 서버 주소 · 프로젝트를 채운다) · `.nerv/env` 의 `NERV_SERVER` · `NERV_PROJECT` · `.gitignore` 의 `.nerv/` · AGENTS.md(REQ-PLG-039) 가운데 없는 것만 만들고 이미 있는 값은 인자로 다른 값이 주어져도 덮지 않고 그 사실을 보고한다 — `.codex/config.toml` 이 있는데 `[mcp_servers.nerv]` 가 없으면 고치지 않고 더할 표를 보고하고, `.mcp.json` · `.claude/settings.local.json` 은 만들지 않는다. THE SYSTEM SHALL 토큰을 파일에 쓰지 않고 셸 환경에 없으면 둘 자리를 안내한다 — Codex 의 MCP 인증은 프로세스 환경만 읽는다. THE SYSTEM SHALL 사용자 설정(`$CODEX_HOME/config.toml`)에 쓰지 않고 notify 줄이 없으면 넣을 줄을 보고한다. WHEN `--codex --check` 로 실행하거나 Codex 의 세션 시작 훅이 `--check` 를 부르면 THE SYSTEM SHALL 아무것도 쓰지 않고 덜 된 설정(nerv 서버 표 · 프로세스 환경의 토큰 · 프로젝트 · 훅이 읽는 서버 주소 · AGENTS.md)을 보고한다(2026-10-16 · E20-S04 — 별도 명령 대신 `nerv-init` 의 모드) | L1(`plugin-package.spec.ts`) — 임시 저장소에서 실제 실행: 빈 저장소(§5.2 전문과 바이트로 같은 `config.toml` · `.nerv/env` 에 토큰 없음 · Claude Code 의 자리 없음 · 토큰과 notify 안내) · 남의 `config.toml` 과 `.nerv/env`(바이트 보존 · 더할 표 · 빈 칸만) · 다시 실행(쓰는 것 없음) · 사용자 설정의 notify 줄(다시 권하지 않고 쓰지 않음) · `--codex --check`(쓰지 않음 · 덜 된 넷 · 온보딩 명령) · 온보딩을 마친 저장소의 침묵 |
 | REQ-PLG-041 | WHEN 훅 포워더가 훅(Claude Code · Codex)을 보내려 하면 THE SYSTEM SHALL 훅 입력의 `cwd`(없으면 프로세스의 디렉터리)나 그 git 저장소의 맨 위가 NERV 를 설정한 저장소이거나(`.nerv/env` · 저장소 `.codex/config.toml` 의 `[mcp_servers.nerv]` · `.mcp.json` 의 `nerv` · `.claude/settings.local.json` 의 `NERV_*` — notify 와 같은 판정 `nerv_config_root` · Claude Code 의 훅은 세션의 저장소 `CLAUDE_PROJECT_DIR` 도 본다) 관리형 설치이고(관리형 settings 의 `env` 에 `NERV_MANAGED=1` — 환경에서만 읽고 값은 `1` 만 켠다) 토큰이 있을 때만 보내며, 아니면 아무것도 보내지 않고 출력 없이 성공으로 끝낸다(2026-10-16 · 사람 결정). WHILE 오프라인 큐가 그 판정을 통과하지 못한 저장소에서 불리는 동안 THE SYSTEM SHALL `enqueue` 는 큐를 만들지 않고 실패하고(종료 코드 78) `flush` 는 보내지도 지우지도 않고 남은 건수를 한 줄로 보고하며 `kick` 은 아무것도 띄우지 않는다. WHERE http 변형(`hooks/hooks.http.json`)을 쓰면 THE SYSTEM SHALL 포워더를 거치는 SessionStart 에만 이 판정을 적용한다 — http 훅은 서버로 바로 가므로 그 변형은 관리형 settings 로 내리는 기계에만 쓴다(§3.1) | L1(`plugin-package.spec.ts`) — 포워더를 실제 실행: 설정이 없는 디렉터리(두 에이전트 · 다섯 훅 — 요청 없음 · 빈 출력 · `.nerv/` 없음) · 설정 넷 각각(보냄) · 하위 폴더(git 저장소의 맨 위 설정과 그 `.nerv/env`) · 훅 입력의 `cwd` 로 판정 · `CLAUDE_PROJECT_DIR`(Claude Code 만) · 관리형 표시(`1` 만 · 파일의 표시 무시) · 토큰 없음 · http 변형에서 포워더를 거치는 훅은 SessionStart 뿐 · `nerv-init --check` 의 훅 줄. L1(`outbox.spec.ts`) — 설정이 없는 저장소의 `enqueue`(종료 78 · `.nerv/` 없음) · 남은 큐(보내지 않음 · 건수 · 그대로) · 관리형 표시로 큐에 넣고 보냄. L2(`outbox-sync.spec.ts`)의 작업 저장소는 `.mcp.json` 으로 설정한다 |
+| REQ-PLG-042 | WHEN 저장소가 CI 레시피(§8)대로 필수 체크 `nerv-gate` 를 켜고 PR head 커밋의 게이트 판정(EP-REV-08 — `head_sha` 는 PR head)이 묻는 종류 모두에서 `passed` · `waived` 가 아니면, THE SYSTEM SHALL 체크를 실패로 끝내 머지를 막고 종류마다 상태와 이유(`reasons[]`)를 체크의 오류 줄과 요약에 적는다. 판정할 리뷰가 하나도 없어도 막는다(2026-10-17 · 사람 결정 D3 · [4.8 백로그](backlog.md) E16-S02) | L2 `ci-recipe.spec.ts`(리뷰 없음 · 열린 critical · 깨끗한 라운드 · 브랜치 면제 · 다른 커밋의 라운드) |
+| REQ-PLG-043 | WHEN 판정에 든 발견의 `fixed` 처분이 적은 커밋이 PR head 의 조상이 아니면, THE SYSTEM SHALL 체크를 실패로 끝낸다 — 서버는 git 을 모르므로 레시피가 체크아웃(`fetch-depth: 0`)에서 `git merge-base --is-ancestor` 로 본다 | L2(조상이 아닌 커밋 → 실패 · 조상 → 통과) |
+| REQ-PLG-044 | WHEN 체크가 머지 큐(`merge_group`)에서 돌면, THE SYSTEM SHALL 큐 커밋이 아니라 ref 의 PR 번호로 찾은 그 PR 의 브랜치와 head 로 판정한다 — 큐 커밋에는 리뷰 라운드가 없다 | L2(가짜 GitHub API 가 PR 을 돌려준다) |
+| REQ-PLG-045 | WHEN NERV 에서 판정을 받지 못하면(네트워크 · 5xx · 429 — 세 번 재시도), THE SYSTEM SHALL 경고를 남기고 체크를 통과시킨다(D-14 fail-open) — `NERV_GATE_FAIL_CLOSED=1` 이면 막는다. WHEN NERV 가 4xx 로 거절하면 THE SYSTEM SHALL 늘 막는다 — 설정 오류는 판정 불가가 아니다. 레시피는 `spec:read` 만 가진 전용 계정의 토큰을 쓰라고 안내한다 | L2(닫힌 포트 → 통과와 경고 · 닫힌 포트와 `NERV_GATE_FAIL_CLOSED=1` → 실패 · 틀린 토큰 → 실패) |
 
 ## 7. 문체 플러그인 `ko-style` (2026-09-27 신설 — 사람 결정)
 
@@ -2503,6 +2511,26 @@ codebase/ko-style/                    # 워크스페이스 @nerv/ko-style · 버
 | SessionStart 로 넣은 요약이 서브에이전트에도 적용되는가 | SubagentStart 훅이 따로 넣는다 |
 | 훅의 `if: "Edit(**/*.md)"` 가 Write 에도 적용되는가 | `if` 를 쓰지 않고 경로 판단을 검사기 안에서 한다 |
 | 긴 세션에서 말투가 흐트러지는 정도와 그때의 효과 | 사례 하나짜리 eval 로는 재현하지 못했다. 대화 기록을 이어 쓰는 사례(`context.history_file`)로 잴 수 있다 |
+
+## 8. CI 레시피 — 저장소의 머지 게이트 (2026-10-17 · 사람 결정 D3)
+
+리뷰를 받지 않은 커밋이 머지되지 않게 하는 마지막 자리는 저장소의 필수 상태 체크다. 로컬 훅은 훅을 설치하지 않은 클론이나 다른 호스트의 push 를 막지 못한다([3.7 로드맵](../03-proposal/roadmap.md) §4.3 산출물 2). NERV 서버는 forge 에 상태를 게시하지 않는다 — CI 가 게이트 판정(EP-REV-08)을 묻고 그 답으로 체크를 끝낸다([4.1 범위](scope.md) §5).
+
+**결정**(2026-10-17 · 사람 결정 D3 = A): 레시피는 GitHub Actions 워크플로 YAML 하나이고 판정은 그 안의 bash 스크립트(curl · jq · git)가 한다. `nerv` CLI 를 CI 에 설치하지 않는다 — CI 마다 사내 레지스트리 설치가 필요해진다. **정본은 `@nerv/schema` 의 `ci-recipe.ts`** 이고 S8 「연동」 탭이 프로젝트 값으로 채워 보여 준다([4.5 화면 명세](screens.md) §2.8). 같은 글이 두 군데 있으면 한쪽이 낡으므로 이 절은 동작만 적고 YAML 을 옮겨 적지 않는다. L2(`ci-recipe.spec.ts`)가 같은 글을 렌더해 스크립트를 실제 서버와 git 저장소에 돌린다.
+
+| 무엇 | 어떻게 |
+| --- | --- |
+| 판정 대상 | PR head 커밋 — `head_sha` 에 PR head 를 넘긴다. 신선도는 커밋 동일성이다: 리뷰 뒤 새 커밋이 오면 그 커밋에는 라운드가 없어 `uncovered` 다 |
+| 통과 | 묻는 종류(기본 `code` — `NERV_GATE_KINDS`)가 모두 `passed` · `waived` 일 때 |
+| 실패 | 그 밖의 상태 · 판정할 리뷰가 없음 · 고친 커밋이 PR 에 없음. 종류마다 상태와 이유(`reasons[]`)를 체크의 오류 줄과 요약에 적는다 |
+| 머지 큐 | `merge_group` 커밋에는 리뷰 라운드가 없다. ref(`gh-readonly-queue/<base>/pr-<n>-…`)의 PR 번호로 GitHub API 에서 그 PR 의 브랜치와 head 를 찾아 판정한다 |
+| 고친 커밋 | `fixed` 처분이 적은 `commit_sha` 가 PR head 의 조상인지 `git merge-base --is-ancestor` 로 본다 — 서버는 git 을 모른다. 그래서 체크아웃은 `fetch-depth: 0` 이다 |
+| 판정 불가 | 네트워크 · 5xx · 429 는 세 번 재시도한 뒤 경고를 남기고 통과시킨다(D-14 fail-open). `NERV_GATE_FAIL_CLOSED=1` 이면 막는다. 4xx(토큰 · 주소 · 프로젝트 설정 오류)는 늘 막는다 |
+| 토큰 | `spec:read` 만 가진 전용 계정의 에이전트 토큰을 저장소 비밀 `NERV_TOKEN` 에 둔다 — 사람의 토큰은 그 사람을 내보내면 폐기되어 체크가 함께 멈춘다 |
+
+**설정은 셋이다** — 파일을 `.github/workflows/nerv-gate.yml` 로 두고, 비밀 `NERV_TOKEN` 을 넣고, 기본 브랜치의 보호 규칙(또는 ruleset)에서 `nerv-gate` 를 필수로 켠다. 머지 큐를 쓰면 큐에도 필수로 둔다. 화면과 YAML 머리의 주석이 같은 순서로 안내한다.
+
+**남은 것 — 실제로 막아 본 기록**([4.8 백로그](backlog.md) E16-S02). 일회용 GitHub 저장소와 스테이징 NERV 에서 한다(2026-10-17 사람 결정 D4). 사람이 시험용 저장소의 admin 권한 · CI 러너가 접속할 수 있는 NERV 주소 · 전용 계정의 토큰을 준비하면 막힌 PR 과 통과한 PR 의 기록을 이 절에 남긴다. GitLab 등 다른 forge 의 레시피는 아직 없다.
 
 ---
 

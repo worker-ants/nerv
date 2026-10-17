@@ -18,7 +18,8 @@ export default defineConfig({
   ],
   test: {
     environment: 'node',
-    include: ['src/**/*.spec.ts'],
+    // 부하 시험의 집계(test/load/stats.ts)는 순수 함수라 L1 이 본다 — 부하 자체는 vitest.load.config.ts
+    include: ['src/**/*.spec.ts', 'test/load/**/*.spec.ts'],
     exclude: ['test/integration/**', 'test/e2e/**'],
   },
 });

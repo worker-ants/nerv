@@ -421,6 +421,13 @@
       "when": 1792197143197,
       "tag": "0059_task_reverifies",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792212198737,
+      "tag": "0060_slack_channel",
+      "breakpoints": true
     }
   ]
 }

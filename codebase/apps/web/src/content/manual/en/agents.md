@@ -98,3 +98,18 @@ It reads the verdict mismatch rate and the review submission failure rate from t
 The exit code is `0` for stable (mismatch rate under 1% · submission failure rate under 2% · no new commits · two weeks watched), `1` when something needs checking, and `2` when the server could not be read and no report was made. The share of earlier review output among review inputs is not measured, because NERV does not keep the list of files a review read.
 
 **The local hook sends its own verdict when it asks for the gate check.** It calls the same gate check with POST and puts its local verdict (pass · block · hook name · reason) in the body. The verdict in the response is the verdict for that push ([Cutover watch](/help/reviews#cutover)).
+
+## Review replay {#replay}
+
+To run past review sessions through NERV's gate verdict again and compare them with known labels, use the CLI. This is for teams that committed review output under `review/` in their repository: it checks that the server's verdict catches what the old hooks missed.
+
+```
+nerv replay --labels <labels.json> --project <slug> --server <URL> --token <token> [--root <checkout>] [--expect-sha <commit>] [--json]
+```
+
+- **Run it against a throwaway project.** Each session's per-role reports are submitted as reviews, so rounds and findings pile up in that project. Archive or delete the project afterwards. The token needs `review:submit`.
+- For each role md directly under a session directory (`review/<kind>/year/month/day/hh_mm_ss/`), the role's risk and its `[CRITICAL]` lines are sent. `SUMMARY.md` and `_prompts/` are not.
+- The required roles are that session's `agents_forced` in `meta.json`. If a role is missing from the reported roles the verdict returns, the session counts as forced roles unmet. If a critical finding is still open but `SUMMARY.md` did not block with `BLOCK: YES`, it counts as a verdict downgrade.
+- The labels file is JSON listing session paths under `forced_unmet` and `verdict_downgrade`. Without a population (`forced_population` · `downgrade_population`), every session found is the population.
+
+Exit code `0` means no misses and no false positives on either criterion, `1` means at least one, and `2` means it stopped because it could not read the input or the server failed. The report lists the paths of missed and falsely flagged sessions.

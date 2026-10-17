@@ -53,7 +53,7 @@
     <h1>로드맵</h1>
     <p class="lead">NERV(가칭)를 한 번에 만들지 않는다. 가치 검증 순서를 <b>조정 → 가시성 → 거버넌스 → 고도화</b>로 고정하고, 각 Phase에 기간·범위(FR 번호)·산출물과 함께 <b>수치로 된 종료 조건</b>을 붙인다. 수치를 채우지 못하면 다음 Phase로 넘어가지 않는다.</p>
     <div class="meta-line">
-      <span>버전 v0.15 (2026-10-16)</span>
+      <span>버전 v0.17 (2026-10-17)</span>
       <span>원본: <code>docs/03-proposal/roadmap.md</code></span>
       <span>주로 다루는 결정: D-12 · D-06 · D-14</span>
       <span class="refs">참조하는 문서: <a href="clemvion-analysis.html">1.1</a> · <a href="pain-points.html">1.2</a> · <a href="spec-driven-development.html">2.1</a> · <a href="agent-orchestration.html">2.2</a> · <a href="collab-platforms.html">2.3</a> · <a href="integration-tech.html">2.4</a> · <a href="vision.html">3.1</a> · <a href="architecture.html">3.2</a> · <a href="data-model.html">3.3</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="ui-wireframes.html">3.6</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="plugin.html">4.6</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a></span>
@@ -236,7 +236,7 @@
       <tr><td>FR-12 알림</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1 인앱(앱 안 묶음 2026-09-27 · 메일 요약 2026-09-28 에 앞당김), P2 Slack</td></tr>
       <tr><td>FR-13 증적·커버리지</td><td>○</td><td>◐</td><td>●</td><td>●</td><td>P1은 PR 링크 수집과 구현 현황 수치(EP-COV-01 · 영역별 분해 2026-10-11), P2에 커버리지 대시보드(드릴다운 · 검증 작업 만들기)</td></tr>
       <tr><td>FR-14 멀티테넌시</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 단일 조직·단일 프로젝트 고정</td></tr>
-      <tr><td>FR-15 에이전트 연동</td><td>◐</td><td>◐</td><td>●</td><td>●</td><td>P0 MCP tools 8종+PAT, P1 Claude 플러그인·OAuth, P2 Codex·<code>AGENTS.md</code> 배포</td></tr>
+      <tr><td>FR-15 에이전트 연동</td><td>◐</td><td>◐</td><td>●</td><td>●</td><td>P0 MCP tools 8종+PAT, P1 Claude 플러그인, P2 Codex·<code>AGENTS.md</code> 배포. OAuth 2.1 은 Phase 3+ 후보다(2026-10-17 사람 결정 D7 · §5.1)</td></tr>
       <tr><td>FR-16 감사 로그</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P0는 이벤트 테이블만(뷰 없음)</td></tr>
       <tr><td>FR-17 clemvion 임포트</td><td>◐</td><td>◐</td><td>●</td><td>●</td><td>spec P0 → plan P1 → review P2</td></tr>
       <tr><td>NFR-01 자가호스팅</td><td>◐</td><td>●</td><td>●</td><td>●</td><td>P1에서 백업·복구 왕복 검증</td></tr>
@@ -275,7 +275,7 @@
       <tr><td>0-2 클레임 원자성</td><td>3세션 × 100회 요청묶음마다 성공 정확히 1</td><td>L3 시나리오 A 3단계</td><td>2026-10-11</td></tr>
       <tr><td>0-3 scope 겹침 검출</td><td>겹치는 10회 중 10회 경고 · 겹치지 않는 20회 중 오탐 0</td><td>L3 시나리오 B</td><td>2026-10-11</td></tr>
       <tr><td>0-4 리스 만료 자동 회수</td><td>리스를 만료시킨 클레임 1건이 사람 개입 없이 <code>stale</code> 로 회수되고 다시 클레임된다. TTL 을 기다리지 않고 만료 시각을 당겨 잰다</td><td>L3 시나리오 C</td><td>2026-10-11</td></tr>
-      <tr><td>0-5 세션 보드 반영 지연</td><td>측정 불가 — 상태 전이 시각과 보드 반영 시각을 함께 남기는 계측이 없다</td><td>—</td><td>2026-10-11</td></tr>
+      <tr><td>0-5 세션 보드 반영 지연</td><td>p95 15ms · 최대 41ms · 탐침 3000(받지 못함 0) — 프로젝트 30 · 세션 50 · 소켓 200 부하에서 상태 전이(클레임 · 놓기)를 요청한 때부터 그 프로젝트를 보는 모든 소켓이 받을 때까지. 이 기계의 e2e 스택이라 대표 수치가 아니다 — 스테이징에서 다시 잰다</td><td>부하 시험 <code>pnpm load</code>(<a href="codebase.html">4.2 코드베이스</a> §4.3a)</td><td>2026-10-17</td></tr>
       <tr><td>0-6 임포트 성공률</td><td>측정 불가 — <code>clemvion:spec/</code> 135 md 체크아웃이 CI 에 없다. 같은 규칙은 픽스처 3편으로 본다(L3 시나리오 E)</td><td>—</td><td>2026-10-11</td></tr>
       <tr><td>0-7 임포트 멱등성</td><td>픽스처 3편을 2회 연속 실행했을 때 두 번째 실행의 신규 레코드 0. 135 md 로 잰 값은 아니다</td><td>L3 시나리오 E 4단계</td><td>2026-10-11</td></tr>
       <tr><td>0-8 tools-only 완주</td><td><code>claude-code</code> · <code>codex</code> 두 세션이 각각 <code>bootstrap → next → claim → heartbeat → 질문 · 답 → 리뷰 → done → session-end</code> 를 도구로만 걷는다. 걷는 쪽은 두 CLI 와 같은 MCP 호출을 내는 테스트 클라이언트다</td><td>L3 시나리오 F</td><td>2026-10-11</td></tr>
@@ -388,7 +388,7 @@
       <tr><td>받은 요청 + 인앱 알림</td><td>FR-11 ◐ / FR-12 ◐</td><td>스펙 승인·플랜 승인·질문 3유형(CR·에스컬레이션은 Phase 2), 원클릭 승인/거절/코멘트</td></tr>
       <tr><td>GitHub 연동</td><td>FR-13 ◐ / FR-10 ◐</td><td>PR·커밋 웹훅 수신, Task↔PR 링크, Task <code>done</code> 전이 조건(리뷰 커버리지 조건은 제외)</td></tr>
       <tr><td>Claude Code 플러그인 v1</td><td>FR-15 ◐</td><td>스킬 <code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code> <b>5종</b>(2026-09-06 현황 — <code>/nerv:review</code> 는 2026-08-23 에 앞당겨 배포됐고, <code>/nerv:import</code> 는 2026-09-06 에 걷었다) + <code>hooks.json</code>(SessionStart/PostToolUse/SubagentStart·Stop/Stop/SessionEnd — <b>기본 변형은 <code>type:"command"</code> 다</b>, 2026-09-03 결정) + statusline. <b><code>.mcp.json</code> 은 번들하지 않는다</b>(2026-09-04 REQ-PLG-001 개정 — 쓰는 쪽 저장소가 갖는 템플릿이다), 사내 마켓플레이스 배포</td></tr>
-      <tr><td>인증</td><td>NFR-03 ●</td><td><b>better-auth 세션 + PAT 2경로</b>(2026-08-20 확정 — <a href="scope.html">4.1 범위</a> §2.1). OAuth 2.1(RFC 9728 PRM + PKCE + RFC 8707)은 <b>Phase 2 로 옮겼다</b>(2026-09-06 현황 정정 — 그 결정이 이 표에 오지 않아 여기만 "승격" 이라 적고 있었다). 토큰 발급·폐기 UI는 S8 에이전트 토큰 탭</td></tr>
+      <tr><td>인증</td><td>NFR-03 ●</td><td><b>better-auth 세션 + PAT 2경로</b>(2026-08-20 확정 — <a href="scope.html">4.1 범위</a> §2.1). OAuth 2.1(RFC 9728 PRM + PKCE + RFC 8707)은 <b>Phase 2 로 옮겼다</b>(2026-09-06 현황 정정 — 그 결정이 이 표에 오지 않아 여기만 "승격" 이라 적고 있었다). 2026-10-17 에 다시 <b>Phase 3+ 후보로 넘겼다</b>(사람 결정 D7 · §5.1). 토큰 발급·폐기 UI는 S8 에이전트 토큰 탭</td></tr>
       <tr><td>멀티테넌시</td><td><b>FR-14 ●</b></td><td>Organization/Project/User n:n, 역할 6종 권한이 API·UI 양쪽에서 강제. 관리 UI는 S8 멤버·역할 탭</td></tr>
       <tr><td>감사 로그</td><td><b>FR-16 ●</b></td><td>전 상태 전이 + <code>is_agent</code> 액터 구분 + 엔티티별 이력 재구성 뷰</td></tr>
       <tr><td>plan 임포터</td><td>FR-17 ◐</td><td><code>plan/</code> 450 md → Task(<a href="#sec-7">§7.3</a>)</td></tr>
@@ -439,7 +439,7 @@
 
   <h2 id="sec-4">4. Phase 2 — 거버넌스: 리뷰와 게이트 (4~6주)</h2>
 
-  <div class="callout decision"><span class="ico">✅</span><div class="body"><b class="title">착수 기록 — Phase 2(2026-10-15, 사람 결정)</b><p>Phase 2 를 2026-10-15 에 착수한다. 기간은 4~6주이고 G2 판정은 6주 뒤(2026-11-26 전후)다. G1 은 「기록 없음」 그대로 둔다 — 소급 판정을 하지 않고(2026-10-11 사람 결정 · §1.4), 사후 측정값은 G2 를 판정할 때 비교할 기준선으로 쓴다. 범위의 정본은 여전히 이 절(§4.2)이고 착수한 뒤의 스토리 분해와 현황은 <a href="backlog.html">4.8 백로그</a> §6(E15~E22)이 맡는다. 남은 항목은 네 묶음으로 나눠 이 순서로 한다 — <b>묶음 1</b>(이 환경에서 바로: 커버리지 대시보드 · 구현 축 정리 · 게이트 판정 커밋 범위 · 알림 관여 라우팅 · fail-open 편집과 격상) → <b>묶음 2</b>(M2 사전 조건 · 결정된 것: 복구 뒤 자동 동기화 · git 미러 export · Codex 완전 지원) → <b>묶음 3</b>(사람 결정 먼저: CR · 델타 리뷰와 CR 카드 · 에스컬레이션 카드 · SoT 컷오버 M1) → <b>묶음 4</b>(바깥 환경: Slack 과 S8 연동 탭 · 부하 시험 · OAuth 2.1 리소스 서버). 이미 앞당겨 들어온 것(리뷰 수집 · S6 · review 임포터 · 메일 요약 · done 게이트의 리뷰 커버리지)은 <a href="scope.html">4.1 범위</a> §5 의 착수 기록에 있다.</p></div></div>
+  <div class="callout decision"><span class="ico">✅</span><div class="body"><b class="title">착수 기록 — Phase 2(2026-10-15, 사람 결정)</b><p>Phase 2 를 2026-10-15 에 착수한다. 기간은 4~6주이고 G2 판정은 6주 뒤(2026-11-26 전후)다. G1 은 「기록 없음」 그대로 둔다 — 소급 판정을 하지 않고(2026-10-11 사람 결정 · §1.4), 사후 측정값은 G2 를 판정할 때 비교할 기준선으로 쓴다. 범위의 정본은 여전히 이 절(§4.2)이고 착수한 뒤의 스토리 분해와 현황은 <a href="backlog.html">4.8 백로그</a> §6(E15~E22)이 맡는다. 남은 항목은 네 묶음으로 나눠 이 순서로 한다 — <b>묶음 1</b>(이 환경에서 바로: 커버리지 대시보드 · 구현 축 정리 · 게이트 판정 커밋 범위 · 알림 관여 라우팅 · fail-open 편집과 격상) → <b>묶음 2</b>(M2 사전 조건 · 결정된 것: 복구 뒤 자동 동기화 · git 미러 export · Codex 완전 지원) → <b>묶음 3</b>(사람 결정 먼저: CR · 델타 리뷰와 CR 카드 · 에스컬레이션 카드 · SoT 컷오버 M1) → <b>묶음 4</b>(바깥 환경: Slack 과 S8 연동 탭 · 부하 시험 · OAuth 2.1 리소스 서버 — OAuth 는 2026-10-17 Phase 3+ 후보로 넘겼다 · §5.1). 이미 앞당겨 들어온 것(리뷰 수집 · S6 · review 임포터 · 메일 요약 · done 게이트의 리뷰 커버리지)은 <a href="scope.html">4.1 범위</a> §5 의 착수 기록에 있다.</p></div></div>
 
   <h3>4.1 목표</h3>
   <p>리뷰를 git 파일에서 플랫폼 엔티티로 옮기고(D-07), 게이트 판정을 정규식 훅이 아니라 서버 질의로 만든다(FR-10). 동시에 Codex를 1급 시민으로 받아들여 에이전트 이종성을 확인한다.</p>
@@ -519,6 +519,7 @@
       <tr><td><b>임베딩 기반 중복·충돌 감지</b></td><td>scope 겹침을 넘어 의미 수준 중복 제안 검출</td><td>scope 겹침 경고를 통과했는데 머지 시점에 발견된 논리 충돌 <b>분기 3건 이상</b></td><td>규칙 기반 겹침 감지(FR-06)로 잡히지 않는 잔여분에만 적용</td></tr>
       <tr><td><b>분석·리포팅</b></td><td>리드타임·재작업률·커버리지 추세, 팀 단위 리포트</td><td>파일럿 확대(프로젝트 5개 이상)</td><td>지표는 §1.4 원칙대로 계측치만</td></tr>
       <tr><td><b>SSO·감사 고도화</b></td><td>OIDC 조직 IdP 연동, 감사 내보내기, MCP allowlist</td><td>조직 도입(조직 2개 이상) 또는 보안 검토 요구</td><td>자가호스팅 초기 규모에서 조직 MCP allowlist는 과설계</td></tr>
+      <tr><td><b>OAuth 2.1 리소스 서버</b></td><td><code>/mcp</code> 가 PAT 와 함께 OAuth 토큰을 받는다 — RFC 9728 PRM · PKCE · RFC 8707 <code>resource</code> 바인딩, 대화형 로그인과 자동 발견(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.5)</td><td>PAT 헤더를 설정할 수 없는 MCP 클라이언트를 쓰는 팀이 도입을 요청하거나, 위 SSO 와 함께 조직 IdP 로 에이전트를 인증해야 할 때</td><td><b>2026-10-17 Phase 2 에서 넘겼다</b>(사람 결정 D7 · §1.4 규칙 2). Phase 2 범위표(§4.2)와 성공 기준 2-1~2-10 어디에도 없고, NFR-03 은 PAT 로 충족된다(<a href="scope.html">4.1 범위</a> §2.1). 하려면 better-auth 의 역할(웹 세션만)을 바꾸거나 인가 서버를 따로 들여야 해서 확정 스택 재검토가 먼저다. 스토리는 <a href="backlog.html">4.8 백로그</a> E22-S01</td></tr>
       <tr><td><b>SaaS화</b></td><td>멀티테넌트 호스팅·과금</td><td>외부 조직의 도입 요청 발생</td><td>첫 사용자는 우리 팀. 자가호스팅 우선(NFR-01)</td></tr>
       <tr><td><b>MCP Tasks 확장</b></td><td>장기 대기 승인을 <code>input_required</code>로 모델링</td><td>클라이언트 지원 확인</td><td>MVP는 "웹 승인 + 폴링 도구"로 충분</td></tr>
       <tr><td><b>best-of-N · Confidence 선별</b></td><td>착수 전 확신도 산출로 중복 착수 차단</td><td>리뷰 처리량이 동시 세션 수를 앞선 이후</td><td>리뷰가 병목인 상태에서 시도 수를 늘리는 것은 계측 근거에 역행한다</td></tr>

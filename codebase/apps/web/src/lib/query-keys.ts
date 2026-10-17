@@ -57,6 +57,8 @@ export const queryKeys = {
    * 와 같은 모양(`['project', X]`)을 내면서 **뜻이 다르기** 때문이다.
    */
   projectBySlug: (slug: string) => ['project', slug] as const,
+  /** EP-PRJ-07 — 프로젝트의 연동 현황(2026-10-17) */
+  integrations: (slug: string) => ['project', slug, 'integrations'] as const,
   projectSpecTree: (projId: ProjectId) => ['project', projId, 'specTree'] as const,
   /** 스펙 표·관계 그래프가 함께 쓰는 한 응답(EP-SPEC-19) */
   projectSpecGraph: (projId: ProjectId) => ['project', projId, 'specGraph'] as const,

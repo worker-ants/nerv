@@ -5,6 +5,7 @@ updated: 2026-09-24
 referenced_by:
   - 03-proposal/architecture.md
   - 03-proposal/spec-workflow.md
+  - 03-proposal/roadmap.md
   - 04-mvp/scope.md
   - 04-mvp/database.md
   - 04-mvp/api.md
@@ -21,7 +22,13 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.30 · 2026-10-17 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.33 · 2026-10-17 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.33 변경(2026-10-17 — Slack 채널과 S8 연동 탭, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D1 · D2)): **§2.2 트리 여덟 줄 · §5.2 전표 두 줄.** `modules/slack/`(연결 · 줄 넣기 · 보내기) · `worker/jobs/slack.job.ts` · `common/secret-box.ts`(AES-256-GCM) · `modules/event/handled.ts`(알림 파생과 Slack 이 같은 「이미 처리됐는가」 판정을 쓴다). 전표에 `NERV_ENCRYPTION_KEY`(비면 Slack 이 꺼진다 · 모양이 틀리면 기동 거부)와 `NERV_SLACK_WEBHOOK_PREFIX`(웹훅 접두 — 서버가 아무 주소로나 보내지 않게)를 더했다. compose · k8s(ConfigMap · Secret 예시)도 같은 커밋에서 맞췄다.
+>
+> v2.32 변경(2026-10-17 — 부하 시험, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D6)): **§4.3a 신설.** 부하 시험 — 무엇을 재나(보드 반영 · 게이트 판정 · 커버리지 질의) · 모양(D6 수치와 바꾸는 변수) · 부르는 법(`pnpm load` · 로컬은 e2e 스택, 대표 수치는 스테이징) · 준비도 표면으로만 · PR 레인 밖 · 로컬 기준선. 처음 돌릴 때 찾은 WS 결함 둘을 함께 적었다([4.4 API](api.md) REQ-API-353).
+>
+> v2.31 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§2.4 표면별 규약 표의 MCP 행.** OAuth 2.1 을 Phase 3+ 후보로 고쳤다([3.7 로드맵](../03-proposal/roadmap.md) §5.1).
 >
 > v2.30 변경(2026-10-17 — EP-NTF 번호 겹침): **v2.26 변경 기록의 EP 인용.** 워치 · 핀 EP가 EP-NTF-11 ~ 17로 옮겨 그 번호로 고쳤다([4.4 API 명세](api.md) v2.66).
 >
@@ -536,6 +543,7 @@ apps/api/src/
     session-origin.guard.ts       # 세션 쿠키 쓰기 요청의 Origin 대조 (REQ-CB-043)
     nerv-exception.filter.ts      # NERV_* 에러 코드 ↔ HTTP 상태 매핑 (코드 정본: @nerv/schema, §3.2)
     origins.ts                    # 우리 주소 둘 — 화면(NERV_WEB_URL)·API(NERV_API_URL) 와 걷힌 이름의 기동 거부 (§5.2 · REQ-CB-036·037)
+    secret-box.ts                 # 저장하는 비밀의 암호화 — AES-256-GCM, 키는 NERV_ENCRYPTION_KEY (§5.2 · 2026-10-17)
     parse-body.ts                 # zod 검증 한 곳 — .strict() 위반은 400 이다
     project-access.guard.ts       # 프로젝트 경로 접근 판정 — slug 해소 + 권한 + 멤버십 (REQ-API-152)
     project-scope.interceptor.ts  # 요청 컨텍스트의 project_id 자동 주입 — 권한 없는 질의 컴파일 불가 원칙
@@ -590,6 +598,7 @@ apps/api/src/
       event.service.ts             # event 행 삽입(도메인 트랜잭션 안) + 커밋 후 Valkey PUBLISH (REQ-CB-004)
       fanout.service.ts            # 룸 계산 + 구독자 팬아웃 (WS·SSE 공용)
       notification.service.ts
+      handled.ts                   # 그 일이 이미 처리됐는가 — 알림 파생과 Slack 발신이 같은 판정을 쓴다 (2026-10-17 · REQ-API-354)
       request-notifications.ts     # 요청(결재·질문)이 닫히면 그 알림도 닫는다 — 결정·답변·취소와 파생이 함께 쓴다 (REQ-API-176)
       session-notifications.ts     # 세션이 되살아나면 그 무응답 알림도 닫는다 — 되살림과 파생이 함께 쓴다 (REQ-API-352)
       sse-access.guard.ts          # SSE 접근 판정 — 스트림을 열기 전에 거절한다 (api.md §3.5)
@@ -669,6 +678,12 @@ apps/api/src/
       mail.module.ts         # 넣는 쪽과 내보내는 쪽을 함께 판다
       mail.outbox.ts         # email_outbox 에 넣고·집고·표시한다 (4.3 §2.17)
       mail.sender.ts         # nodemailer — SMTP 로 나가는 자리는 여기 하나다
+    slack/
+      slack.controller.ts    # EP-PRJ-07 ~ 10 — 연동 현황 · 연결 · 끊기 · 시험 게시 (4.4 · 2026-10-17)
+      slack.message.ts       # 게시할 글 — 딥링크와 받는 사람 이름뿐이다 · 웹훅 접두 (NERV_SLACK_WEBHOOK_PREFIX)
+      slack.module.ts
+      slack.sender.ts        # Incoming Webhook 으로 보낸다 — SDK 없이 fetch 하나
+      slack.service.ts       # 연결(admin · 사람) · 줄 넣기 · 집기 · 표시 (4.3 §2.18)
       unsubscribe-link.ts    # 메일 요약을 끄는 링크 — 토큰 · 해시 · API 주소 · 화면 주소 (4.4 REQ-API-234, 2026-09-28)
       verify-link.ts         # 확인·재설정 메일의 링크 — 돌아갈 화면은 화면 오리진 안에서만 (4.5 §2.1)
   worker/
@@ -685,7 +700,8 @@ apps/api/src/
       failopen.job.ts       # fail-open 격상 상태 맞추기 — 창이 지나면 풀고 기준을 넘으면 올린다 (4.4 REQ-API-319, 2026-10-15)
       lease-reaper.job.ts   # 만료 리스 회수 — claimed → ready
       mail.job.ts           # 아웃박스 → SMTP — 초대·가입 확인·비밀번호 재설정·메일 요약 (4.3 §2.17, 2026-09-22)
-      notification.job.ts   # event → notification 라우팅 (인앱 — 메일은 digest.job 이 모아 보낸다, Slack 은 P2)
+      slack.job.ts          # 아웃박스 → Slack 채널 — 보내기 직전에 처리됐는지 다시 본다 (4.3 §2.18, 2026-10-17)
+      notification.job.ts   # event → notification 라우팅 (인앱 — 메일은 digest.job 이 모아 보낸다, critical 은 Slack 줄도 넣는다)
       partition.job.ts      # event·activity 월 파티션 선생성 — 하루 1회 (4.3 §2.14, REQ-DB-021)
       requirement-backfill.job.ts  # 승인본에서 빠진 요구사항 행 채우기 — 기동 때 한 번 · 하루 한 번 (4.4 REQ-API-241, 2026-09-28)
       retention.job.ts      # 보존 정책 집행 — Activity · blob · 알림 180일 · 빈 activity 월 파티션 드랍 (4.3 REQ-DB-046 · 047, 2026-10-16)
@@ -720,7 +736,7 @@ apps/api/src/
 | 표면 | 진입점 | 인증 | 비고 |
 | --- | --- | --- | --- |
 | REST | `/api/v1/*` | better-auth 세션 쿠키(웹) 또는 PAT Bearer | 계약 전표는 [4.4 API 명세](api.md) |
-| MCP | `POST /mcp` | PAT Bearer(MVP) — OAuth 2.1은 Phase 2 | Streamable HTTP, 2026-07-28 리비전 + 구 리비전 병행([3.2](../03-proposal/architecture.md) §4.3). Origin 검증은 `mcp-origin.guard.ts`가 최종 강제(REQ-CB-013) — 전단 nginx는 1차 차단일 뿐이다 |
+| MCP | `POST /mcp` | PAT Bearer — OAuth 2.1은 Phase 3+ 후보 | Streamable HTTP, 2026-07-28 리비전 + 구 리비전 병행([3.2](../03-proposal/architecture.md) §4.3). Origin 검증은 `mcp-origin.guard.ts`가 최종 강제(REQ-CB-013) — 전단 nginx는 1차 차단일 뿐이다 |
 | WebSocket | `/ws` | 핸드셰이크에서 세션 쿠키 검증 | socket.io 어댑터를 `path: "/ws"`로 설정한다(계약 정본 [4.4 API 명세](api.md) §3.1 — 어댑터 기본 경로 `/socket.io`를 쓰지 않는다). websocket 전송만. 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. 웹 SPA 전용 |
 | SSE | `GET /sse/projects/{p}` · `GET /sse/me` | 세션 쿠키 또는 PAT Bearer | 단방향 `text/event-stream` — 브라우저 밖 소비자(CLI·외부 도구)용 구독 채널. replay 없음(D-14), 계약 정본은 [4.4 API 명세](api.md) §3.5 |
 | ingest | `POST /ingest/hooks/*` | PAT Bearer(`Authorization` 헤더) — 토큰 없는 이벤트는 버린다 | 202 즉시 응답 후 적재. `Stop` 훅만 동기 판정 경로([3.2](../03-proposal/architecture.md) §1.3) |
@@ -1000,6 +1016,37 @@ L2가 이 코드베이스의 무게중심이다. NERV의 핵심 리스크(동시
 
 **소스 옆에 둔다는 규칙에는 웹의 라우트 폴더도 포함된다** — 화면 테스트는 그 화면 파일 옆(`src/routes/**/*.spec.tsx`)에 산다. 대신 라우트 생성기가 그것을 **라우트로 오해한다**: TanStack Router 플러그인은 `src/routes/` 안의 모든 파일에서 `Route` export 를 찾고, 없으면 파일마다 12줄짜리 경고를 찍는다(2026-08-29 실측 — 7개 파일 84줄이 기동 로그의 대부분이었다). 경고가 소음이 되면 **진짜 경고가 그 속에 묻힌다.** `vite.config.ts` 의 `routeFileIgnorePattern: '\\.spec\\.tsx?$'` 로 테스트를 생성 대상에서 뺀다 — 생성된 `routeTree.gen.ts` 는 바이트 단위로 동일하다(빠지는 라우트가 없다는 뜻이다).
 
+### 4.3a 부하 시험 — 레인 밖에서 대상을 정해 부른다 (2026-10-17 · 사람 결정 D6)
+
+**무엇을 재나.** 프로젝트 수십 · 동시 세션 수십(NFR-04)을 걸고 세 가지를 판정한다 — 보드 반영 p95 5초(NFR-02) · 게이트 판정 p95 300ms(성공 기준 2-7) · 커버리지 질의 p95 1초. 앞의 둘은 정본의 인용이고 셋째는 "커버리지 대시보드 질의가 페이지 로드를 막지 않는다"([4.8 백로그](backlog.md) E21-S04)를 잴 수 있게 옮긴 새 수치다(사람 결정 D6). 보드 반영은 세션이 상태 전이(클레임 · 놓기)를 요청한 때부터 그 프로젝트 룸의 **모든** 소켓이 이벤트를 받을 때까지이고, 가장 늦은 소켓의 값을 쓴다. 받지 못한 탐침은 기준을 넘긴 것으로 센다. 이 수치가 [3.7 로드맵](../03-proposal/roadmap.md) 사후 측정의 0-5(보드 반영 지연)를 잰다.
+
+| 항목 | 기본값 | 바꾸는 변수 |
+| --- | --- | --- |
+| 프로젝트 · 동시 세션 · WS 소켓 | 30 · 50 · 200 | `NERV_LOAD_PROJECTS` · `NERV_LOAD_SESSIONS` · `NERV_LOAD_SOCKETS` |
+| 세션당 훅(PostToolUse) | 분당 30건 — 수집 한도(`RATE_LIMIT_INGEST_PER_MIN` 120)보다 작아야 한다 | `NERV_LOAD_HOOKS_PER_MIN` |
+| 길이 · 클레임 한 바퀴 | 30분 · 60초(잡기 → 하트비트 → 리뷰 제출 → 판정 → 놓기) | `NERV_LOAD_MINUTES` · `NERV_LOAD_CYCLE_SEC` |
+| 대시보드를 여는 사람 · CI | 10명이 15초마다 커버리지 화면(넷을 함께 부른다) · 프로젝트마다 10초마다 판정 | `NERV_LOAD_VIEWERS` · `NERV_LOAD_VIEW_EVERY_SEC` · `NERV_LOAD_CI_EVERY_SEC` |
+| 데이터 | 프로젝트마다 승인 스펙 12편 × 요구사항 8 · 세션마다 `ready` 작업 3 | `NERV_LOAD_SPECS` · `NERV_LOAD_REQUIREMENTS` · `NERV_LOAD_TASKS_PER_SESSION` |
+
+**근거가 있는 수는 동시 세션 50 하나다** — [3.2 시스템 아키텍처](../03-proposal/architecture.md) §5.4 의 하트비트 계산이 그 수로 부하를 셌다. 나머지는 "수십" 을 숫자로 옮긴 추정이고 사람이 그대로 정했다. 도구는 Node 스크립트와 `socket.io-client` 다 — k6 는 확정 스택 밖이다.
+
+**부르는 법.** `NERV_LOAD_URL` · `NERV_LOAD_EMAIL` · `NERV_LOAD_PASSWORD` 를 주고 `codebase/` 에서 `pnpm load` 를 돌린다. 로컬은 `pnpm e2e:up` 의 스택(주소는 `pnpm e2e:env` 의 `NERV_E2E_BASE_URL`, 계정은 시드 계정과 §5.1 의 개발 비밀번호)이고 대표 수치는 스테이징에서 잰다 — 스테이징에는 부하 시험 전용 계정을 둔다. **개발 스택에는 돌리지 않는다** — 조직 · 프로젝트 · 토큰을 만들고 사람이 쓰는 데이터 옆에 남는다.
+
+**준비도 표면으로만 한다.** 스테이징의 DB 에는 시험 도구가 접속하지 않으므로 같은 코드가 두 곳에서 돌려면 그래야 한다 — 로그인 → 조직(`load-<실행 id>`) → 프로젝트 · 토큰(EP-TOK-02) → 승인 스펙과 요구사항(EP-IMP-02) → 작업과 `ready` 전이 → 세션 시작 훅. 끝나면 세션을 닫고 토큰을 폐기하고 프로젝트를 보관한다(지우지 않는다 · `NERV_LOAD_KEEP=1` 이면 남긴다).
+
+**레인 밖이다**(사람 결정 D6). 30분이 걸리고 대상 서버가 따로 있어야 해서 PR 레인 · `preflight` 어디에도 넣지 않는다. 집계(`test/load/stats.ts` — 최근접 순위 백분위 · 받지 못한 탐침의 처리)는 순수 함수라 L1 이 본다. 결과는 `load-report/<시각>.json`(git 무시)이고 수치는 백로그와 로드맵으로 옮긴다. 부하를 거는 쪽도 한 프로세스라 그 이벤트 루프가 밀리면 지연이 부풀려진다 — 결과에 시험 도구의 루프 지연 p99 를 함께 남기고, 판정이 실패했는데 그 값도 크면 서버가 아니라 도구를 먼저 의심한다.
+
+**로컬 기준선**(2026-10-17 · 이 기계의 e2e 스택 · 기본값 그대로 30분). 시험 도구의 루프 지연 p99 는 23ms 였다. 대표 수치는 스테이징에서 다시 잰다 — 같은 기계에 서버와 도구가 함께 있어 운영과 같지 않다.
+
+| 판정 | 기준 | 표본 | p50 | p95 | p99 | 결과 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 보드 반영(NFR-02) | p95 5초 | 탐침 3000(받지 못함 0) | 7ms | 15ms | 20ms | 통과 |
+| 게이트 판정(2-7) | p95 300ms | 6735 | 8ms | 17ms | 24ms | 통과 |
+| 커버리지 질의(D6) | p95 1초 | 1196 | 13ms | 27ms | 35ms | 통과 |
+| 커버리지 화면 넷(참고) | — | 1196 | 14ms | 30ms | 38ms | — |
+| 훅 수집(참고) | — | 44626 | 14ms | 29ms | 36ms | — |
+
+**처음 돌렸을 때 보드 반영은 잴 수조차 없었다.** 소켓의 프로젝트 룸 참가가 모두 `exception` 으로 끝났다 — 전역 AuthGuard 가 게이트웨이 메시지에도 걸렸고, 그것을 고치자 연결 직후의 참가가 인증보다 먼저 도착했다. 둘 다 고쳤다([4.4 API](api.md) REQ-API-353). 화면도 같은 소켓을 쓰므로 그동안 프로젝트 화면은 실시간 갱신을 받지 못하고 있었다.
 ### 4.4 커밋·브랜치
 
 - 커밋: Conventional Commits — `feat|fix|docs|refactor|test|chore(scope)` , scope는 워크스페이스 이름(`api`·`web`·`schema`·`deploy`). 현행 저장소 관례(`docs: …`)와 연속.
@@ -1270,6 +1317,8 @@ pnpm dev                        # 빌드 감시 + @nerv/api(:8080) + @nerv/web(v
 | `NERV_S3_PUBLIC_ENDPOINT` | | (없으면 `NERV_S3_ENDPOINT`) | api | 에이전트가 받는 presigned PUT 주소의 호스트. 내부 주소로 서명하면 개발자 장비에서 해소되지 않아 **에이전트 업로드가 모든 배치에서 불통**이었다. **경로 접두는 안 된다**(REQ-CB-034) — presigned 서명이 경로를 포함하므로 `https://…/s3` 는 앞문이 접두를 벗기면 `SignatureDoesNotMatch` 이고 벗기지 않으면 MinIO 가 그 아래에서 S3 API 를 서빙하지 않는다. **별도 호스트**(`https://s3.<도메인>`)를 적는다. 경로가 있으면 기동 로그가 그 사실을 말한다 |
 | `NERV_S3_REGION` | | `us-east-1` | api · worker | S3 호환 서명용. MinIO 는 아무 값이나 받지만 **실제 S3·R2·GCS 호환은 이 값으로 서명을 검증**하므로 틀리면 `SignatureDoesNotMatch` 다. 소비자를 `api` 만 적고 있었는데 `StorageService` 는 워커의 모듈 그래프(`WorkerModule` → `SpecModule`)에도 올라 **생성자에서 이 값을 읽는다**(2026-09-14 정정 — 게이트 ④ 는 `api` 만 적혀 있어도 통과하므로 이 종류의 어긋남은 아무도 세지 않는다) |
 | `NERV_GITHUB_WEBHOOK_SECRET` | 웹훅 쓸 때 | — | api | 비면 EP-WHK-01 이 모든 배송을 401 로 거절한다 |
+| `NERV_ENCRYPTION_KEY` | Slack 을 쓸 때 | — | api · worker | 저장하는 비밀(Slack 웹훅 주소)의 암호화 키 — 32바이트(`openssl rand -base64 32` 의 base64 44자 또는 hex 64자 · 2026-10-17 · 사람 결정 D2). **비면 Slack 연결을 받지 않는다.** 모양이 틀리면 두 진입점이 기동을 거부한다. 바꾸면 저장된 웹훅을 풀 수 없어 프로젝트마다 다시 연결해야 한다(키 교체는 아직 없다) |
+| `NERV_SLACK_WEBHOOK_PREFIX` | | `https://hooks.slack.com/services/` | api · worker | Slack 웹훅 주소가 시작해야 하는 곳 — 서버가 사람이 넣은 아무 주소로나 요청을 보내지 않게 한다. 사내 중계를 쓸 때만 바꾼다(L2 는 가짜 서버로 돌린다) |
 | `NERV_EXPORT_DIR` | | — | worker | md 미러 산출 위치. 없으면 미러를 만들지 않는다. **이 폴더가 git 저장소다** — 바뀌면 커밋한다(2026-10-16 · §6.2a · REQ-CB-062). k8s 는 `nerv-mirror` PVC 를 `/mirror` 에 붙이고 ConfigMap 이 그 경로를 준다(§6.2) — 2026-09-14 까지 이 값이 **어느 배치에도 없어** 미러는 명세에 있으면서 어떤 배포에서도 산출되지 않았다 |
 | `NERV_MIRROR_GIT_REMOTE` | 미러를 push 할 때 | — | worker | git 미러를 push 할 원격(2026-10-16 · §6.2a). 비면 로컬 커밋까지만 한다. 자격증명을 URL 에 넣을 수 있어 k8s 는 `nerv-secrets` 에 둔다. fast-forward 로만 push 하고 원격에 NERV 가 만들지 않은 커밋이 있으면 멈추고 admin 에게 알린다(REQ-CB-063). `-` 로 시작하거나 빈칸이 든 값이면 export 잡이 아무것도 쓰지 않고 실패한다 |
 | `NERV_MIRROR_GIT_BRANCH` | | `main` | worker | 그 원격의 브랜치. 브랜치 이름이 아니면 export 잡이 실패한다 |

@@ -43,6 +43,8 @@ export class SessionOriginGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    // HTTP 요청만 본다 — 게이트웨이 메시지에는 요청이 없다(auth.guard.ts 와 같은 까닭)
+    if (context.getType() !== 'http') return true;
     const req = context.switchToHttp().getRequest<{
       headers: Record<string, string | undefined>;
       method?: string;

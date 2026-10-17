@@ -28,6 +28,7 @@ type SettingsPath =
   | '/settings/org-tokens'
   | '/settings/projects'
   | '/settings/gates'
+  | '/settings/integrations'
   | '/settings/account'
   | '/settings/tokens';
 
@@ -73,7 +74,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       { to: '/settings/gates', label: 'settings.tab.gates' },
       // 명세의 연동 탭은 Phase 2다. **항목만 비활성으로 두고 "준비 중"을 붙인다**(§2.8). 아예 빼면 찾는 사람이 헤맨다.
       // 화면에는 "Phase 2" 대신 "준비 중"으로 쓴다. 설계 문서의 말은 화면에 두지 않는다(용어 사전 §3.1)
-      { to: null, label: 'settings.tab.integrations' },
+      { to: '/settings/integrations', label: 'settings.tab.integrations' },
     ],
   },
   {

@@ -29,3 +29,5 @@ export * from './idempotency.js'; // idempotency_key (표면 공용 멱등 저�
 export * from './search.js'; // spec_chunk_embedding
 // 마찬가지로 엔티티가 아니다 — 보내고 나면 치우는 발송 큐다(database.md §2.17).
 export * from './mail.js'; // email_outbox
+// 프로젝트의 Slack 웹훅(설정)과 그 발송 큐 — 큐는 메일과 같은 모양이다(database.md §2.18 · 2026-10-17).
+export * from './slack.js'; // project_slack · slack_outbox

@@ -10,6 +10,7 @@ export * from './body-shrink.js';
 export * from './evidence-locator.js';
 export * from './plugin-install.js';
 export * from './agents-md.js';
+export * from './ci-recipe.js';
 export * from './redact.js';
 export * from './ids.js';
 export * from './scopes.js';

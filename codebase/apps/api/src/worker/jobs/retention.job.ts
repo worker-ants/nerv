@@ -12,6 +12,7 @@ import {
   IDEMPOTENCY_TTL_HOURS,
   NOTIFICATION_RETENTION_DAYS,
   SENT_MAIL_RETENTION_DAYS,
+  SLACK_OUTBOX_RETENTION_DAYS,
 } from '@nerv/schema';
 import { sql } from 'drizzle-orm';
 import { InjectDb } from '../../common/database.module.js';
@@ -25,6 +26,8 @@ export interface RetentionReport {
   idempotency_keys_deleted: number;
   /** 치운 보낸 메일 행 수(database.md §2.17 — `SENT_MAIL_RETENTION_DAYS`) */
   sent_mail_deleted: number;
+  /** 치운 Slack 발송 줄 수 — 보냈거나 건너뛴 것(database.md §2.18 — `SLACK_OUTBOX_RETENTION_DAYS`) */
+  slack_deleted: number;
   /** 지운 알림 줄 수(database.md REQ-DB-046 — `NOTIFICATION_RETENTION_DAYS`) */
   notifications_deleted: number;
   /** 드랍한 빈 `activity` 월 파티션 수(database.md REQ-DB-047) */
@@ -48,6 +51,7 @@ export class RetentionJob {
       projects_scanned: 0,
       idempotency_keys_deleted: 0,
       sent_mail_deleted: 0,
+      slack_deleted: 0,
       notifications_deleted: 0,
       activity_partitions_dropped: 0,
     };
@@ -76,6 +80,15 @@ export class RetentionJob {
       RETURNING id
     `);
     report.sent_mail_deleted = sentMail.length;
+
+    // Slack 도 메일과 같다(2026-10-17 · REQ-DB-054) — 보냈거나 보내지 않기로 한 줄은 30일 뒤에 치우고, 포기한 줄은 원인을
+    // 보려고 남긴다. 글에는 프로젝트 이름과 사람 이름이 있다
+    const { rows: slackRows } = await this.db.execute<{ id: string }>(sql`
+      DELETE FROM slack_outbox
+       WHERE coalesce(sent_at, skipped_at) < now() - make_interval(days => ${SLACK_OUTBOX_RETENTION_DAYS})
+      RETURNING id
+    `);
+    report.slack_deleted = slackRows.length;
 
     // **알림은 180일이다**(2026-10-16 · 사람 결정 ② · REQ-DB-046). 데이터 모델의 보존 표가 처음부터 정한 값인데 집행이 없어
     // 영구히 쌓였다. 알림은 이벤트에서 다시 만들 수 있는 파생 데이터라 지워도 잃는 것이 없다 — 원천(`event`)은 영구다.
@@ -197,6 +210,7 @@ export class RetentionJob {
       report.blobs_expired > 0 ||
       report.idempotency_keys_deleted > 0 ||
       report.sent_mail_deleted > 0 ||
+      report.slack_deleted > 0 ||
       report.notifications_deleted > 0 ||
       report.activity_partitions_dropped > 0
     ) {
@@ -204,6 +218,7 @@ export class RetentionJob {
         `보존 정책 집행 — Activity ${report.activities_deleted}건 삭제 · blob ${report.blobs_expired}건 만료` +
           ` · 멱등 키 ${report.idempotency_keys_deleted}건 만료` +
           ` · 보낸 메일 ${report.sent_mail_deleted}건 정리` +
+          ` · Slack 줄 ${report.slack_deleted}건 정리` +
           ` · 알림 ${report.notifications_deleted}건 삭제` +
           ` · 빈 activity 파티션 ${report.activity_partitions_dropped}개 드랍`,
       );

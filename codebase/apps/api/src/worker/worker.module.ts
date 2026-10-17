@@ -6,6 +6,7 @@ import { Module } from '@nestjs/common';
 import { DigestModule } from '../modules/digest/digest.module.js';
 import { EventModule } from '../modules/event/event.module.js';
 import { MailModule } from '../modules/mail/mail.module.js';
+import { SlackModule } from '../modules/slack/slack.module.js';
 import { SpecModule } from '../modules/spec/spec.module.js';
 import { SessionModule } from '../modules/session/session.module.js';
 import { TaskModule } from '../modules/task/task.module.js';
@@ -19,6 +20,7 @@ import { ExportJob } from './jobs/export.job.js';
 import { FailopenJob } from './jobs/failopen.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
 import { MailJob } from './jobs/mail.job.js';
+import { SlackJob } from './jobs/slack.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
 import { PartitionJob } from './jobs/partition.job.js';
 import { RequirementBackfillJob } from './jobs/requirement-backfill.job.js';
@@ -32,6 +34,7 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
     EventModule,
     SpecModule,
     MailModule,
+    SlackModule,
     DigestModule,
     ApprovalModule,
   ],
@@ -46,6 +49,7 @@ import { SessionStaleJob } from './jobs/session-stale.job.js';
     RetentionJob,
     EmbeddingJob,
     MailJob,
+    SlackJob,
     DigestJob,
     RequirementBackfillJob,
     ApprovalReminderJob,

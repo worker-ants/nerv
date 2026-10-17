@@ -20,6 +20,7 @@ import { ExportJob } from './jobs/export.job.js';
 import { FailopenJob } from './jobs/failopen.job.js';
 import { LeaseReaperJob } from './jobs/lease-reaper.job.js';
 import { MailJob } from './jobs/mail.job.js';
+import { SlackJob } from './jobs/slack.job.js';
 import { RetentionJob } from './jobs/retention.job.js';
 import { NotificationJob } from './jobs/notification.job.js';
 import { PartitionJob } from './jobs/partition.job.js';
@@ -53,6 +54,7 @@ export class JobRunner {
     exporter: ExportJob,
     partition: PartitionJob,
     mail: MailJob,
+    slack: SlackJob,
     digest: DigestJob,
     requirementBackfill: RequirementBackfillJob,
     approvalReminder: ApprovalReminderJob,
@@ -64,6 +66,8 @@ export class JobRunner {
       // 메일도 하트비트 간격이다 — 새 주기를 만들지 않는다(§2.2). 그러면 "보내기까지의
       // 상한" 이 1분이고, 사람이 초대를 만들고 상대가 메일함을 여는 시간보다 짧다.
       { name: mail.name, everyMs: heartbeat, run: () => mail.run(), lastRunAt: null },
+      // Slack 도 메일과 같은 주기다 — critical 이 채널에 닿기까지의 상한이 1분이다(2026-10-17 · REQ-API-354)
+      { name: slack.name, everyMs: heartbeat, run: () => slack.run(), lastRunAt: null },
       // 메일 요약도 하트비트 간격이다(2026-09-28 · 사람 결정 EM2). 하루 한 번인데 촘촘히 도는 이유는 **사람마다
       // 시각이 다르기** 때문이다 — 판마다 "현지 시각이 정한 시를 지났고 오늘 아직 안 본 사람" 만 고른다. 그러면
       // 정한 시각에서 늦어도 1분이다. "오늘 보냈는가" 는 행이 든다(재기동하면 이 잡도 곧바로 한 번 돈다).

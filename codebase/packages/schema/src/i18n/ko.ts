@@ -165,6 +165,13 @@ export const ko = {
     '조직 전체 범위는 조직 admin만 관리할 수 있습니다. 프로젝트 admin은 자기 프로젝트만 관리할 수 있습니다.',
   'error.auth.admin_only_import': '임포트는 admin만 가능합니다.',
   'error.auth.admin_only_policy': '게이트 정책·보존 설정은 admin만 바꿀 수 있습니다.',
+  // Slack 채널 연결(2026-10-17 · 사람 결정 D1 · D2 · api.md EP-PRJ-07 ~ 10)
+  'error.slack.disabled':
+    'Slack을 연결하려면 운영자가 서버에 NERV_ENCRYPTION_KEY를 설정해야 합니다.',
+  'error.slack.webhook_prefix': 'Slack 웹훅 주소는 {prefix}로 시작해야 합니다.',
+  'error.slack.not_connected': '이 프로젝트에는 Slack이 연결돼 있지 않습니다.',
+  'error.slack.rejected': 'Slack이 메시지를 받지 않았습니다 — {reason}',
+  'error.slack.admin_only': 'Slack 연결은 admin만 바꿀 수 있습니다.',
   'error.auth.author_only': '작성자만 수정할 수 있습니다.',
   'error.auth.bad_origin':
     '허용되지 않은 주소에서 온 요청입니다. 로그인 세션을 쓰는 요청은 NERV 화면에서만 보낼 수 있습니다.',
@@ -2541,6 +2548,47 @@ export const ko = {
   'settings.group.me': '나 · 모든 조직',
   'settings.tab.org_tokens': '조직 전체 토큰',
   'settings.tab.integrations': '연동',
+  // S8 「연동」 탭(2026-10-17 · 사람 결정 D1 · D2 · D3 · screens.md §2.8)
+  'settings.integrations.title_project': '연동 — {project}',
+  'settings.integrations.project_hint': '연동은 프로젝트마다 따로 둡니다.',
+  'settings.integrations.admin_only_pre': '연동은',
+  'settings.integrations.admin_only_post': '역할만 바꿀 수 있습니다. 아래는 현재 상태입니다.',
+  'settings.integrations.slack_title': 'Slack 채널',
+  'settings.integrations.slack_lead':
+    '중요 알림(결재 요청 · 질문 · 겹쳐서 막힌 클레임 · 변경 요청 · critical 발견)을 이 프로젝트의 Slack 채널에 한 번씩 올립니다. 글에는 무슨 일인지와 받는 사람 이름, NERV 링크만 들어갑니다. 받은 요청에서 이미 처리한 일은 올리지 않습니다.',
+  'settings.integrations.slack_disabled':
+    '이 서버는 Slack 연결을 받지 않습니다. 운영자가 서버에 NERV_ENCRYPTION_KEY를 설정해야 합니다.',
+  'settings.integrations.slack_not_connected': '연결되지 않았습니다.',
+  'settings.integrations.slack_connected': '연결됨 — 웹훅 …{hint} · {who} · {when}',
+  'settings.integrations.slack_last_sent': '마지막 게시 {when}',
+  'settings.integrations.slack_last_skipped':
+    '마지막 글은 올리지 않았습니다({when}) — 이미 처리됐거나 연결이 끊겼습니다',
+  'settings.integrations.slack_last_failed': '마지막 게시 실패({when}) — {error}',
+  'settings.integrations.slack_pending': '보낼 글 {count}건',
+  'settings.integrations.webhook_label': 'Incoming Webhook 주소',
+  'settings.integrations.webhook_hint':
+    '{prefix}로 시작합니다. Slack 앱의 Incoming Webhooks에서 채널을 골라 만듭니다. 저장하면 끝 네 글자만 보입니다.',
+  'settings.integrations.webhook_empty': '웹훅 주소를 넣으면 누를 수 있습니다',
+  'settings.integrations.connect': '연결',
+  'settings.integrations.replace': '바꾸기',
+  'settings.integrations.test': '시험 게시',
+  'settings.integrations.test_ok': '시험 글을 올렸습니다.',
+  'settings.integrations.disconnect': '끊기',
+  'settings.integrations.disconnect_confirm': '끊으면 아직 올리지 않은 글도 올리지 않습니다.',
+  'settings.integrations.connected_toast': 'Slack을 연결했습니다.',
+  'settings.integrations.disconnected_toast': 'Slack 연결을 끊었습니다.',
+  'settings.integrations.ci_title': 'CI 게이트',
+  'settings.integrations.ci_lead':
+    '저장소의 필수 상태 체크가 NERV의 리뷰 판정을 묻게 합니다. PR head 커밋의 판정이 통과(passed · waived)가 아니면 머지를 막고 이유를 적습니다.',
+  'settings.integrations.ci_step_file': '아래 내용을 저장소의 {path}로 둡니다.',
+  'settings.integrations.ci_step_secret':
+    '저장소 비밀 NERV_TOKEN에 spec:read 권한만 가진 전용 계정의 에이전트 토큰을 넣습니다. 사람의 토큰은 그 사람을 내보내면 폐기되어 체크가 함께 멈춥니다.',
+  'settings.integrations.ci_step_required':
+    '기본 브랜치의 보호 규칙에서 상태 체크 {check}를 필수로 켭니다. 머지 큐를 쓰면 큐에도 켭니다.',
+  'settings.integrations.ci_failopen':
+    'NERV가 답하지 않으면 경고를 남기고 통과시킵니다(fail-open). 그때도 막으려면 파일의 NERV_GATE_FAIL_CLOSED를 1로 바꿉니다.',
+  'settings.integrations.copy': '복사',
+  'settings.integrations.copied': '복사했습니다',
   'settings.org_tokens.title': '{org} 조직 전체 토큰',
   'settings.org_tokens.admin_only':
     '조직 전체 토큰은 조직 admin만 봅니다. 내 토큰은 [에이전트 토큰]에 있습니다.',
@@ -2726,6 +2774,10 @@ export const ko = {
   'mail.digest.intro':
     '{name} 님, 지난 요약 뒤에 온 NERV 알림입니다. 문서 본문은 NERV에서 확인하세요.',
   'mail.digest.pending': '결정을 기다리는 받은 요청이 {count}건 있습니다.',
+  // Slack 채널에 게시하는 글 — 딥링크와 받는 사람뿐이다(본문을 넣지 않는다 · spec-workflow §6.4)
+  'slack.message': '*{project}* · {event}\n받는 사람: {names}\n<{link}|NERV에서 열기>',
+  'slack.test_message':
+    'NERV 프로젝트 *{project}*의 중요 알림이 이 채널로 옵니다. <{link}|연동 설정 보기>',
   'mail.digest.open': '이 프로젝트의 알림 보기: {url}',
   'mail.digest.more': '그 밖에 {count}건이 더 있습니다: {url}',
   'mail.digest.important': '[중요]',
@@ -2824,6 +2876,24 @@ export const ko = {
   'cli.cutover.status.watch': '관찰 중',
   'cli.cutover.status.rollback': '롤백 기준 도달',
   'cli.cutover.recent': '## 최근 불일치',
+  // `nerv replay` — 리뷰 회귀 코퍼스 리플레이(2026-10-17 · 사람 결정 D5 · importer.md §3.8)
+  'cli.replay.usage':
+    '사용법: nerv replay --labels <라벨.json> --project <slug> [--root <clemvion 체크아웃>] [--org <조직>] [--expect-sha <커밋>] [--server <URL>] [--token <PAT>] [--json]',
+  'cli.replay.err.needs_server':
+    '서버 주소와 토큰이 필요하다 — --server · --token이나 NERV_SERVER · NERV_TOKEN',
+  'cli.replay.err.wrong_sha':
+    '체크아웃이 {expected}가 아니다(지금 {actual}) — 전수 조사 시점의 커밋으로 바꾼 뒤 다시 돌린다',
+  'cli.replay.err.aborted': '리플레이를 중단했다: {message}',
+  'cli.replay.title': '# 리뷰 리플레이 — 세션 {sessions}개',
+  'cli.replay.criterion':
+    '- {name}: 모집단 {population} · 라벨 {labeled} · 검출 {detected} · 놓침 {missed} · 오탐 {false_positives} — {verdict}',
+  'cli.replay.pass': '통과',
+  'cli.replay.fail': '실패',
+  'cli.replay.missed': '  - {name} 놓침: {path}',
+  'cli.replay.false_positive': '  - {name} 오탐: {path}',
+  'cli.replay.server_disagrees':
+    '- 서버 판정 불일치(정책이 그 세션의 forced와 같은데 missing_roles가 다르다): {path}',
+  'cli.replay.progress': '… {done}/{total}',
   'cli.cutover.recent_row': '- {at} · {branch} · {sha} · 로컬 {local}{hook} · 서버 {server}',
   'cli.cutover.overall.ok':
     '결론: 2주 관측의 불일치율 · 제출 실패율 · 신규 커밋 조건을 채웠다. 세션 실패율과 리드타임은 따로 확인한다.',

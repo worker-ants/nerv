@@ -92,6 +92,9 @@ data:
   # 미러 커밋의 작성자 — `이름 <메일>`. 비우면 `NERV <nerv@localhost>` 다. 모양이 틀리면
   # export 잡이 아무것도 쓰지 않고 실패한다(조용히 기본값으로 가지 않는다).
   NERV_MIRROR_GIT_AUTHOR: ''
+  # Slack 웹훅 주소가 시작해야 하는 곳(2026-10-17). 비우면 https://hooks.slack.com/services/ 다 — 서버가 사람이 넣은
+  # 아무 주소로나 요청을 보내지 않게 하는 문이다. 사내 중계를 쓸 때만 바꾼다. 암호화 키는 Secret 의 NERV_ENCRYPTION_KEY
+  NERV_SLACK_WEBHOOK_PREFIX: ''
   # ── 메일(2026-09-22 · 접속 정보는 2026-09-24 부터 여섯 키다) ───────────
   # **스위치는 `NERV_MAIL_HOST` 다** — 비면 메일이 꺼지고 아래는 전부 아무 일도 하지 않으며,
   # 가입 이메일 인증 강제도 함께 꺼진다. 비밀인 것은 `NERV_MAIL_PASS` 하나라 그것만

@@ -21,6 +21,7 @@
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
     "test:e2e": "node scripts/e2e-stack.mjs run pnpm -r test:e2e",
+    "load": "pnpm --filter @nerv/api test:load",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

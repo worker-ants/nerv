@@ -19,6 +19,7 @@ function ctx(req: {
 }): Parameters<SessionOriginGuard['canActivate']>[0] {
   const request = { method: 'POST', url: '/api/v1/specs', headers: {}, ...req };
   return {
+    getType: () => 'http',
     switchToHttp: () => ({ getRequest: () => request }),
   } as unknown as Parameters<SessionOriginGuard['canActivate']>[0];
 }
@@ -27,6 +28,13 @@ const SESSION = { cookie: 'better-auth.session_token=abc' };
 const PAT = { authorization: 'Bearer nerv_token' };
 
 describe('SessionOriginGuard', () => {
+  it('게이트웨이 메시지는 보지 않는다 — 요청 자리에 소켓이 온다(REQ-API-353)', () => {
+    const socket = { getType: () => 'ws', switchToHttp: () => ({ getRequest: () => ({}) }) };
+    expect(
+      guard.canActivate(socket as unknown as Parameters<SessionOriginGuard['canActivate']>[0]),
+    ).toBe(true);
+  });
+
   it('쿠키 쓰기 요청은 허용 오리진이어야 통과한다', () => {
     expect(guard.canActivate(ctx({ headers: { ...SESSION, origin: WEB } }))).toBe(true);
   });

@@ -18,6 +18,7 @@ const allTables = Object.values(tables).filter((t) => is(t, PgTable)) as PgTable
  *   · spec_chunk_embedding : 원문에서 재생성 가능한 검색 인덱스(database.md §2.15)
  *   · email_outbox         : 보내고 나면 치우는 발송 큐(§2.17 · 2026-09-22). 사람도 화면도
  *                            이 표를 읽지 않는다 — 워커가 집어 가는 줄이다.
+ *   · slack_outbox         : Slack 발송 큐(§2.18 · 2026-10-17) — 메일 아웃박스와 같은 성질이다.
  *   · auth_*               : 확정 스택(better-auth)이 요구하는 인증 인프라(§2.16).
  *                            전부 지워도 사람은 다시 로그인하면 되고 도메인 데이터는 그대로다.
  * 마이그레이션에는 포함되므로 배럴에는 있지만 이 카운트에서는 뺀다.
@@ -25,6 +26,7 @@ const allTables = Object.values(tables).filter((t) => is(t, PgTable)) as PgTable
 const NON_ENTITY_TABLES = new Set([
   'spec_chunk_embedding',
   'email_outbox',
+  'slack_outbox',
   'auth_session',
   'auth_account',
   'auth_verification',
@@ -42,8 +44,9 @@ describe('테이블 선언 (database.md §2)', () => {
   // 2026-09-28 · 35 → 36: `notification_digest_setting` 신설(마이그레이션 0041 · 사람 결정 EM1~EM9 · REQ-DB-034)
   // 2026-10-16 · 36 → 38: `watch` · `pin` 신설(마이그레이션 0056 · 사람 결정 D5 · REQ-DB-051)
   // 2026-10-16 · 38 → 39: `gate_verdict_comparison` 신설(마이그레이션 0057 · 사람 결정 D6 · REQ-DB-052)
-  it('39종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 6(리뷰) + 7(이벤트) + 1(멱등)', () => {
-    expect(declaredTables).toHaveLength(39);
+  // 2026-10-17 · 39 → 40: `project_slack` 신설(마이그레이션 0060 · 사람 결정 D1 · D2 · REQ-DB-054)
+  it('40종이다 — 6(테넌시) + 1(초대) + 9(스펙) + 1(첨부) + 4(작업) + 2(세션) + 2(승인) + 6(리뷰) + 7(이벤트) + 1(멱등) + 1(Slack)', () => {
+    expect(declaredTables).toHaveLength(40);
   });
 
   it('이름이 data-model 의 테이블 표와 1:1 이다', () => {
@@ -71,6 +74,7 @@ describe('테이블 선언 (database.md §2)', () => {
       'organization',
       'pin',
       'project',
+      'project_slack',
       'question',
       'requirement',
       'requirement_version',
@@ -96,10 +100,10 @@ describe('테이블 선언 (database.md §2)', () => {
     }
   });
 
-  it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16 · §2.17)', () => {
+  it('인프라 테이블은 배럴에 있지만 엔티티로 세지 않는다 (§2.15 · §2.16 · §2.17 · §2.18)', () => {
     const all = allTables.map((t) => getTableName(t));
-    // 39 엔티티 + 인프라 5종(검색 인덱스 1 + 인증 3 + 발송 큐 1 — 2026-09-22)
-    expect(all).toHaveLength(44);
+    // 40 엔티티 + 인프라 6종(검색 인덱스 1 + 인증 3 + 발송 큐 2 — 메일 2026-09-22 · Slack 2026-10-17)
+    expect(all).toHaveLength(46);
     for (const infra of NON_ENTITY_TABLES) {
       expect(all).toContain(infra);
       expect(tableNames).not.toContain(infra);

@@ -55,6 +55,8 @@ export class McpOriginGuard implements CanActivate {
    * 전역 AuthGuard 뒤에 실행되어 그 순서를 만들 수 없다. 다른 경로에는 관여하지 않는다.
    */
   canActivate(context: ExecutionContext): boolean {
+    // HTTP 요청만 본다 — 게이트웨이 메시지에는 요청이 없다(auth.guard.ts 와 같은 까닭)
+    if (context.getType() !== 'http') return true;
     const req = context.switchToHttp().getRequest<{
       headers: Record<string, string | undefined>;
       url?: string;

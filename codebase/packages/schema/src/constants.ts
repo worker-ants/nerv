@@ -560,6 +560,23 @@ export const MAIL_MAX_ATTEMPTS = 5;
  * 그때 실패한 줄이 전부 백오프로 물러나 **오히려 더 늦게** 나간다.
  */
 export const MAIL_BATCH_SIZE = 20;
+
+// ── Slack 채널 발신 (2026-10-17 · 사람 결정 D1 · D2 · database.md §2.18) ──────────
+/** 한 줄을 몇 번까지 시도하는가 — 메일과 같은 백오프(1 · 2 · 4 · 8분)라 상한까지 15분이다 */
+export const SLACK_MAX_ATTEMPTS = 5;
+/** 한 틱에 집는 줄 수 — Slack 의 웹훅 한도(채널마다 초당 1건 안팎)에 걸리지 않게 작게 잡는다 */
+export const SLACK_BATCH_SIZE = 20;
+/** 웹훅 요청 하나의 시한(ms) — 넘으면 실패로 보고 다음 틱에 다시 보낸다 */
+export const SLACK_SEND_TIMEOUT_MS = 10_000;
+/**
+ * 웹훅 주소가 시작해야 하는 곳 — 서버가 사람이 넣은 아무 주소로나 요청을 보내지 않게 한다(SSRF). 사내 중계나
+ * 시험용 가짜 서버는 `NERV_SLACK_WEBHOOK_PREFIX` 로 바꾼다(codebase.md §5.2).
+ */
+export const SLACK_WEBHOOK_PREFIX = 'https://hooks.slack.com/services/';
+/** 화면에 보이는 웹훅 주소의 끝 글자 수 — 어느 웹훅인지 알아볼 만큼만 */
+export const SLACK_WEBHOOK_HINT_LENGTH = 4;
+/** 보냈거나 건너뛴 줄을 지우기까지(일) — 포기한 줄(`failed_at`)은 원인을 보려고 남긴다(메일과 같다) */
+export const SLACK_OUTBOX_RETENTION_DAYS = 30;
 /**
  * SMTP submission 포트 — `NERV_MAIL_PORT` 를 비우면 이 값이다(2026-09-24 · §5.2).
  *

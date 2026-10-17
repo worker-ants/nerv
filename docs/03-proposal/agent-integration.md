@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — NERV(가칭)와 Claude Code·Codex를 잇는 표면은 세 층이다(D-05): 데이터 평면인 **원격 MCP 서버**(Streamable HTTP + OAuth 2.1/PAT), 관측·제어 평면인 **훅 텔레메트리**(Claude `type:"http"` 훅 31종 · Codex 훅 11종+notify · OTel 병행), 그리고 **배포 평면**(Claude용 플러그인 + 사내 마켓플레이스, Codex용 AGENTS.md·`.codex/config.toml` 온보딩). Codex가 MCP의 resources·prompts·elicitation을 소비하지 못하므로 핵심 기능은 예외 없이 tools로 정의하고, Claude 전용 프리미티브는 폴백이 있는 향상으로만 얹는다. 이 문서는 `nerv_*` 도구 **27종**(2026-10-11)의 입력·출력·권한·호출 시점·멱등성을 한 행씩 확정하고, 위험도 4티어 게이트(A1 자동 → A4 도구 미제공)를 도구 권한 설계에 직접 반영하며, 플러그인 구성과 `hooks.json`·`config.toml`·`AGENTS.md` 실물, 세션 수명주기 시퀀스, 토큰 권한과 프롬프트 인젝션 완화까지를 구현 착수 가능한 수준으로 기술한다. 이 도구들은 개발자 구현만이 아니라 기획자의 스펙 작성 왕복도 지원한다 — 웹 에디터와 터미널(Claude Code/Codex)이 같은 초안을 편집 리스 인계로 주고받는다. 관통하는 원칙은 하나다 — **클라이언트 연동은 편의이고, 진실은 서버에 업로드된 산출물이다**(D-14).
 >
-> 문서 버전 v0.61 · 2026-10-16 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+> 문서 버전 v0.62 · 2026-10-17 · HTML 파생본: [agent-integration.html](../html/agent-integration.html)
+>
+> v0.62 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§2.5 인증 표 한 칸.** OAuth 2.1 리소스 서버의 「언제」를 Phase 3+ 후보로 고쳤다([3.7 로드맵](roadmap.md) §5.1 · [4.8 백로그](../04-mvp/backlog.md) E22).
 >
 > v0.61 변경(2026-10-16 — Codex 온보딩, Phase 2 묶음 2의 넷째 · [4.8 백로그](../04-mvp/backlog.md) E20-S04): **§4.4 표 한 칸.** 저장소 온보딩 스크립트는 `nerv-init --codex`다 — `.codex/config.toml` · `.nerv/env` · AGENTS.md를 없을 때만 만들고 `--check`가 검증한다([4.6 플러그인](../04-mvp/plugin.md) §3.7). Codex 0.162.1은 플러그인 마켓플레이스로 NERV 플러그인을 설치한다는 실측도 같은 칸에 적었다.
 >
@@ -297,7 +299,7 @@ Codex는 MCP의 tools와 server instructions만 소비하며 **resources·prompt
 
 | 경로 | 구성 | Claude Code | Codex | 언제 |
 | --- | --- | --- | --- | --- |
-| **정식 — OAuth 2.1** | NERV가 리소스 서버로 RFC 9728 PRM 필수 구현 + AS는 RFC 8414/OIDC Discovery, CIMD 권장(DCR은 deprecated), PKCE, RFC 8707 resource 바인딩 | `/mcp` 또는 `claude mcp login nerv`로 브라우저 로그인, 자동 발견 | `codex mcp login`, 콜백 포트는 `mcp_oauth_callback_port` | Phase 2 — 리소스 서버(2026-08-20 인증 확정으로 옮겼다 · [4.1 범위](../04-mvp/scope.md) §2.1 · [4.8 백로그](../04-mvp/backlog.md) E22). MVP 의 기본은 PAT 다 |
+| **정식 — OAuth 2.1** | NERV가 리소스 서버로 RFC 9728 PRM 필수 구현 + AS는 RFC 8414/OIDC Discovery, CIMD 권장(DCR은 deprecated), PKCE, RFC 8707 resource 바인딩 | `/mcp` 또는 `claude mcp login nerv`로 브라우저 로그인, 자동 발견 | `codex mcp login`, 콜백 포트는 `mcp_oauth_callback_port` | Phase 3+ 후보 — 리소스 서버(2026-08-20 인증 확정으로 Phase 2 에 옮겼다가 2026-10-17 사람 결정 D7 로 다시 넘겼다 · [3.7 로드맵](roadmap.md) §5.1 · [4.1 범위](../04-mvp/scope.md) §2.1 · [4.8 백로그](../04-mvp/backlog.md) E22). 기본은 PAT 다 |
 | **대안 — PAT** | 사용자별 발급, (사용자·프로젝트·역할·권한) 튜플에 바인딩 | `headers` 정적 Bearer 또는 `headersHelper`(연결마다 셸로 동적 헤더, 401/403 시 자동 재실행) | `bearer_token_env_var` / `http_headers` | MVP 기본(Phase 0~1) · 비대화형 실행 |
 
 비대화형(`claude -p`, `codex exec`) 모드에서는 OAuth 플로우를 띄울 수 없어 사전 로그인 또는 PAT가 필요하다. CI 러너는 PAT를 단일 호출 권한으로 주입한다.

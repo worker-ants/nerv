@@ -115,6 +115,7 @@ const ROUTE_HELP: readonly (readonly [RegExp, HelpTarget])[] = [
   [/^\/settings\/tokens(\/|$)/, help('install')],
   [/^\/settings\/org-tokens(\/|$)/, help('settings', 'tokens')],
   [/^\/settings\/gates(\/|$)/, help('settings', 'gates')],
+  [/^\/settings\/integrations(\/|$)/, help('settings', 'integrations')],
   [/^\/settings\/members(\/|$)/, help('settings', 'members')],
   [/^\/settings\/account(\/|$)/, help('settings', 'account')],
   [/^\/settings\/projects(\/|$)/, help('settings', 'projects')],

@@ -5,6 +5,7 @@
 // 반대 방향 의존을 만들지 않는다(순환 금지).
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
+import { SlackModule } from '../slack/slack.module.js';
 import { EventCoreModule } from './event-core.module.js';
 import { EventController } from './event.controller.js';
 import { ProjectAccessGuard } from '../../common/project-access.guard.js';
@@ -19,7 +20,8 @@ import { WsGateway } from './ws.gateway.js';
 @Module({
   // 핵(EventService·ValkeyService)은 EventCoreModule 이 소유한다 — AuthService 도 그것을
   // 쓰므로, 여기서 다시 provide 하면 인스턴스가 둘이 된다(같은 이벤트를 두 번 방송한다).
-  imports: [AuthModule, EventCoreModule],
+  // Slack 은 알림 파생이 critical 줄을 넣는 자리다(2026-10-17 · REQ-API-354) — SlackModule 은 EventCoreModule 만 쓴다(순환 없음)
+  imports: [AuthModule, EventCoreModule, SlackModule],
   controllers: [EventController, SseController],
   providers: [
     ProjectAccessGuard,

@@ -17,6 +17,9 @@ import { JobRunner } from '../../src/worker/job-runner.js';
 import { LeaseReaperJob } from '../../src/worker/jobs/lease-reaper.job.js';
 import { NotificationJob } from '../../src/worker/jobs/notification.job.js';
 import { MailJob } from '../../src/worker/jobs/mail.job.js';
+import { SlackJob } from '../../src/worker/jobs/slack.job.js';
+import { SlackSender } from '../../src/modules/slack/slack.sender.js';
+import { SlackService } from '../../src/modules/slack/slack.service.js';
 import { MailOutbox } from '../../src/modules/mail/mail.outbox.js';
 import { MailSender } from '../../src/modules/mail/mail.sender.js';
 import { PartitionJob } from '../../src/worker/jobs/partition.job.js';
@@ -98,6 +101,12 @@ function runnerFor(pool: pg.Pool): { runner: JobRunner; lock: AdvisoryLock } {
     // 메일 잡은 SMTP 가 꺼진 배치에서 아무것도 하지 않는다(2026-09-22) — 이 스위트가
     // 보는 것은 잡 루프의 단일 실행이지 발송이 아니므로 실물 그대로 넣는다.
     new MailJob(new MailOutbox(drizzleDb), new MailSender()),
+    // Slack 잡도 키(NERV_ENCRYPTION_KEY)가 없는 배치에서 아무것도 하지 않는다(2026-10-17) — 메일과 같은 까닭이다
+    new SlackJob(
+      drizzleDb as never,
+      new SlackService(drizzleDb as never, new EventService(drizzleDb, silent), new SlackSender()),
+      new SlackSender(),
+    ),
     // 메일 요약도 같다 — 발송이 꺼진 배치에서는 판정조차 하지 않는다(받은 요청 판정을 부르기 전에 끝난다)
     new DigestJob(new DigestService(drizzleDb, new MailOutbox(drizzleDb), null as never)),
     new RequirementBackfillJob(drizzleDb),

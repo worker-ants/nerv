@@ -70,6 +70,11 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // **HTTP 요청만 본다**(2026-10-17 · REQ-API-353). 전역 가드는 게이트웨이 메시지(`join` · `leave`)에도 걸린다 —
+    // 그때 요청 자리에는 소켓이 오고 헤더가 없어 TypeError 로 모든 프로젝트 룸 참가가 `exception` 이 됐다. 소켓은
+    // 붙어 있어 화면의 폴링 폴백도 돌지 않았다. 소켓은 핸드셰이크에서 세션 쿠키로 이미 검증됐고 룸 참가는
+    // 게이트웨이가 멤버십으로 판정한다(api.md §3.1 · §3.2).
+    if (context.getType() !== 'http') return true;
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
