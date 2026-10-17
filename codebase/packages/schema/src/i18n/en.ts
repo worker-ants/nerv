@@ -2903,6 +2903,23 @@ export const en = {
   'cli.cutover.status.watch': 'watching',
   'cli.cutover.status.rollback': 'rollback trigger reached',
   'cli.cutover.recent': '## Recent mismatches',
+  'cli.replay.usage':
+    'Usage: nerv replay --labels <labels.json> --project <slug> [--root <clemvion checkout>] [--org <org>] [--expect-sha <commit>] [--server <URL>] [--token <PAT>] [--json]',
+  'cli.replay.err.needs_server':
+    'A server URL and token are required — --server and --token, or NERV_SERVER and NERV_TOKEN',
+  'cli.replay.err.wrong_sha':
+    'The checkout is not {expected} (it is {actual}) — check out the commit from the audit and run again',
+  'cli.replay.err.aborted': 'Replay stopped: {message}',
+  'cli.replay.title': '# Review replay — {sessions} sessions',
+  'cli.replay.criterion':
+    '- {name}: population {population} · labeled {labeled} · detected {detected} · missed {missed} · false positives {false_positives} — {verdict}',
+  'cli.replay.pass': 'pass',
+  'cli.replay.fail': 'fail',
+  'cli.replay.missed': '  - {name} missed: {path}',
+  'cli.replay.false_positive': '  - {name} false positive: {path}',
+  'cli.replay.server_disagrees':
+    '- Server verdict disagrees (policy matches the session’s forced roles but missing_roles differs): {path}',
+  'cli.replay.progress': '… {done}/{total}',
   'cli.cutover.recent_row': '- {at} · {branch} · {sha} · local {local}{hook} · server {server}',
   'cli.cutover.overall.ok':
     'Result: the two-week mismatch, submission failure and new-commit conditions are met. Check the session failure rate and lead times separately.',

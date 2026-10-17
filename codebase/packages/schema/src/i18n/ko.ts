@@ -2876,6 +2876,24 @@ export const ko = {
   'cli.cutover.status.watch': '관찰 중',
   'cli.cutover.status.rollback': '롤백 기준 도달',
   'cli.cutover.recent': '## 최근 불일치',
+  // `nerv replay` — 리뷰 회귀 코퍼스 리플레이(2026-10-17 · 사람 결정 D5 · importer.md §3.8)
+  'cli.replay.usage':
+    '사용법: nerv replay --labels <라벨.json> --project <slug> [--root <clemvion 체크아웃>] [--org <조직>] [--expect-sha <커밋>] [--server <URL>] [--token <PAT>] [--json]',
+  'cli.replay.err.needs_server':
+    '서버 주소와 토큰이 필요하다 — --server · --token이나 NERV_SERVER · NERV_TOKEN',
+  'cli.replay.err.wrong_sha':
+    '체크아웃이 {expected}가 아니다(지금 {actual}) — 전수 조사 시점의 커밋으로 바꾼 뒤 다시 돌린다',
+  'cli.replay.err.aborted': '리플레이를 중단했다: {message}',
+  'cli.replay.title': '# 리뷰 리플레이 — 세션 {sessions}개',
+  'cli.replay.criterion':
+    '- {name}: 모집단 {population} · 라벨 {labeled} · 검출 {detected} · 놓침 {missed} · 오탐 {false_positives} — {verdict}',
+  'cli.replay.pass': '통과',
+  'cli.replay.fail': '실패',
+  'cli.replay.missed': '  - {name} 놓침: {path}',
+  'cli.replay.false_positive': '  - {name} 오탐: {path}',
+  'cli.replay.server_disagrees':
+    '- 서버 판정 불일치(정책이 그 세션의 forced와 같은데 missing_roles가 다르다): {path}',
+  'cli.replay.progress': '… {done}/{total}',
   'cli.cutover.recent_row': '- {at} · {branch} · {sha} · 로컬 {local}{hook} · 서버 {server}',
   'cli.cutover.overall.ok':
     '결론: 2주 관측의 불일치율 · 제출 실패율 · 신규 커밋 조건을 채웠다. 세션 실패율과 리드타임은 따로 확인한다.',

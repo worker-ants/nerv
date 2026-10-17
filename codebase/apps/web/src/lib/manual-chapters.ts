@@ -121,7 +121,16 @@ export const MANUAL_SECTION_IDS = {
     'kinds',
   ],
   // 컷오버 보고(2026-10-16 · 사람 결정 D6 · CLI `nerv cutover report`) — 새 절은 끝에 둔다
-  agents: ['components', 'tokens', 'skills', 'tool-tiers', 'offline', 'import', 'cutover-report'],
+  agents: [
+    'components',
+    'tokens',
+    'skills',
+    'tool-tiers',
+    'offline',
+    'import',
+    'cutover-report',
+    'replay',
+  ],
   install: [
     'before',
     'token',
