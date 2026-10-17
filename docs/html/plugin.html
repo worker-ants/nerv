@@ -53,7 +53,7 @@
     <h1>플러그인과 온보딩</h1>
     <p class="lead">MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물 — 스킬 <b>6종</b>(<code>/nerv:next</code> <code>/nerv:spec</code> <code>/nerv:impl</code> <code>/nerv:question</code> <code>/nerv:review</code> <code>/nerv:mirror</code>)의 SKILL.md 전문, <code>hooks/hooks.json</code>·<code>.mcp.json</code>·statusline 전문, 사람 온보딩 5단계, 그리고 Codex의 MVP 경계. 도구 이름·인자·상수(리스 30분·하트비트 60초·<code>NERV_*</code> 에러 코드)는 전부 <a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2 정본의 인용이다.</p>
     <div class="meta-line">
-      <span>버전 v1.21 (2026-10-16)</span>
+      <span>버전 v1.22 (2026-10-17)</span>
       <span>원본: <code>docs/04-mvp/plugin.md</code> · <code>SPC-MVP-PLUGIN</code></span>
       <span>수용 기준: REQ-PLG-001~010</span>
       <span class="refs">참조하는 문서: <a href="integration-tech.html">2.4</a> · <a href="agent-integration.html">3.4</a> · <a href="spec-workflow.html">3.5</a> · <a href="roadmap.html">3.7</a> · <a href="scope.html">4.1</a> · <a href="codebase.html">4.2</a> · <a href="api.html">4.4</a> · <a href="screens.html">4.5</a> · <a href="importer.html">4.7</a> · <a href="backlog.html">4.8</a> · <a href="glossary.html">용어 사전</a> · <a href="index.html">개요</a> · <a href="../../README.md">README</a> · <a href="../../AGENTS.md">AGENTS.md</a></span>
@@ -1545,7 +1545,7 @@ printf '  %s · ctx %s%%%s\n' \
   }
 }</code></pre>
 
-  <p>MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — <a href="scope.html">4.1 MVP 범위와 스택 확정</a>). PAT는 위 <code>headers</code>의 <b>정적 Bearer</b>(<code>${NERV_TOKEN}</code> 환경변수 확장)로 전달한다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.5 — <code>headers</code> 정적 Bearer 또는 <code>headersHelper</code>). 저장소에 커밋되는 <code>.mcp.json</code>에는 토큰 원문을 절대 넣지 않는다 — 토큰은 환경변수로만 산다.</p>
+  <p>MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 3+ 후보 — <a href="scope.html">4.1 MVP 범위와 스택 확정</a>). PAT는 위 <code>headers</code>의 <b>정적 Bearer</b>(<code>${NERV_TOKEN}</code> 환경변수 확장)로 전달한다(<a href="agent-integration.html">3.4 에이전트 연동 설계</a> §2.5 — <code>headers</code> 정적 Bearer 또는 <code>headersHelper</code>). 저장소에 커밋되는 <code>.mcp.json</code>에는 토큰 원문을 절대 넣지 않는다 — 토큰은 환경변수로만 산다.</p>
 
   <div class="table-wrap"><table>
     <thead><tr><th>환경변수</th><th>값</th><th>쓰는 곳</th></tr></thead>

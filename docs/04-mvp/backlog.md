@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v3.16 · 2026-10-16 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v3.17 · 2026-10-17 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v3.17 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§6.1 묶음 4 행 · §6.9 문단 하나 · E22-S01 칸 · §1.4 E22 행과 합계 행.** Phase 2 묶음 4의 결정 일곱(D1 ~ D7)을 사람이 모두 권장안으로 정했다. 이 판에서는 D7 만 적는다 — OAuth 2.1 리소스 서버(E22-S01)를 Phase 3+ 후보로 넘겼다([3.7 로드맵](../03-proposal/roadmap.md) §5.1). 나머지 여섯은 그 스토리를 구현하는 판에서 각 스토리 칸에 적는다. 스토리 수와 상태 수는 그대로다 — E22-S01 은 `backlog` 로 남는다.
 >
 > v3.16 변경(2026-10-16 — 되살아난 세션의 무응답 알림을 닫는다, **사람 결정**): §1.4 셋째 표에 한 줄. 스토리 없는 구현이다 — 세션이 되살아나면 그 세션의 무응답 알림을 읽음으로 바꾸고, 파생할 때 이미 되살아났으면 읽은 채로 만든다([4.4 API](api.md) REQ-API-352). 스토리 수 · `done` 수는 그대로다.
 >
@@ -699,8 +701,8 @@ referenced_by:
 | E19 CR · 델타 리뷰 | 3 | — | — | `spec/change-request.service.ts`(E19-S01 — 자동 생성 · 버전을 따라가는 상태 · 거절 · 철회가 초안을 버린다 · 영향 미리보기 · 승인 때 고른 제안과 클레임 세션 알림) · `drizzle/0053`(키 `C` · `planned_actions` · `discarded`) · `routes/p.$proj/crs.$cr.tsx`(CR 상세) · `features/inbox/approval-card.tsx`(CR 카드) · `test/integration/change-request.spec.ts` · `review/escalation.ts`(E19-S02 · S03 — 발견을 변경 요청에 묶는다 · CR의 결말이 발견을 닫는다(승인 → `fixed` · 거절 → `dismissed` + 코드 되돌림 작업) · 에스컬레이션 카드와 사유별 받는 사람) · `change-request.service.ts` 의 `fromFinding`(EP-REV-09) · `spec.service.ts`(초안 저장의 `finding_id` · 바뀐 것 없는 CR의 검토 요청을 막는다) · `approval/session-wake.ts`(기다리지 않는 카드는 세션을 붙잡지 않는다) · `approval.service.ts`(에스컬레이션 카드의 결정 · 받은 요청의 유형 필터와 유형별 수) · `drizzle/0054`(`escalation` · `resolution.blocking`) · `features/inbox/escalation-card.tsx` · `kind-filter.tsx` · `review-center/finding-rail.tsx`([CR로 보내기]) · `test/integration/escalation.spec.ts` · `routes/escalation-card.spec.tsx` |
 | E20 Codex 완전 지원 | 4 | — | — | `plugin/hooks/hooks.json` · `plugin/bin/nerv-hook-forward`(E20-S01 — Codex 를 `PLUGIN_ROOT` 로 알아본다 · 모든 훅에 `X-NERV-Agent` · 세션 종료 2초) · `session/ingest.controller.ts`(Codex 에는 판정 필드만) · `mcp/harness-session.ts`(Codex 가 넣어 준 세션 id 로 세션 잇기) · `plugin/bin/nerv-init`(Codex 의 `config.toml` 점검) · `plugin-test/`(플러그인 폴더에는 배달되는 파일만) · [4.6 플러그인](plugin.md) §5.4 다시 잰 열 · `session/ingest.controller.ts` 의 `notify`(E20-S02 — 턴 완료 알림을 답변 활동으로) · `plugin/codex/config.toml`(사용자 설정의 `notify` 줄) · `plugin/bin/nerv-env.sh` 의 `nerv_repo_configured`(notify 는 NERV 를 설정한 저장소의 턴만 — REQ-PLG-038 개정) · `session/agents-md.service.ts` · `session/conventions.ts`(E20-S03 — EP-PRJ-06 · bootstrap 과 같은 규약 질의 · 규약 버전 지문) · `@nerv/schema` `agents-md.ts`(템플릿 정본) · `plugin/bin/nerv-init`(AGENTS.md 의 구역만 바꾼다 · `--check` 가 낡은 구역을 알린다) · `test/integration/agents-md.spec.ts` · `plugin/bin/nerv-init --codex`(E20-S04 — Codex 온보딩: `.codex/config.toml` · `.nerv/env` · AGENTS.md 를 없을 때만 만들고 `--check` 가 검증한다) |
 | E21 이관 · 운영 | 1 | 2 | 1 | `plugin/bin/nerv-outbox` · `plugin/bin/nerv-hook-forward`(E21-S01 — 포워더가 서버에서 2xx 를 받으면 큐를 백그라운드 flush 로 비운다 · 잠금 · 거절된 쓰기를 `outbox-failed` 로 알린다) · `session/outbox-report.service.ts`(`session.outbox_failed` · 그 사람에게 중요 알림) · `plugin-test/outbox.spec.ts` · `test/integration/outbox-sync.spec.ts` · `worker/jobs/export.job.ts` · `worker/mirror-git.ts`(E21-S02 부분 — 미러 폴더를 git 저장소로 두고 커밋 · fast-forward push · 미러 쪽 편집 경고 `mirror.diverged` · 프로젝트 폴더 `<조직>/<프로젝트>`) · `test/integration/mirror-git.spec.ts` · `review/cutover.service.ts`(E21-S03 부분 — 게이트 판정에 로컬 판정을 함께 받아 견주고 이중화 기간의 불일치를 남긴다 · 지표) · `apps/cli/src/cutover/`(`nerv cutover report`) · `features/review-center/cutover-panel.tsx` · `test/integration/cutover.spec.ts` — S02 · S03 의 남은 것은 아래 부분 구현 표, S04 는 착수 전 |
-| E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 |
-| **합계** | **92** | **4** | **5** | `backlog` 5는 모두 Phase 2 스토리다(§6) |
+| E22 OAuth 2.1 리소스 서버 | — | — | 1 | 착수 전 — Phase 3+ 후보로 넘겼다(2026-10-17 사람 결정 D7 · [3.7 로드맵](../03-proposal/roadmap.md) §5.1) |
+| **합계** | **92** | **4** | **5** | `backlog` 5는 모두 Phase 2 스토리다(§6) — 그중 E22-S01 은 Phase 3+ 후보로 넘겼다 |
 
 **`backlog` 열은 착수 전 스토리다**(2026-10-15 — Phase 2 스토리를 이 문서에 두기로 한 사람 결정). 착수하면 부분이나 `done`으로 옮기고, 부분이면 *남은 것*을 둘째 표에 적는다.
 
@@ -1349,7 +1351,7 @@ Phase 2의 목표는 [3.7 로드맵](../03-proposal/roadmap.md) §4.1 그대로�
 | **묶음 1** — 이 환경에서 바로 | 커버리지 대시보드(FR-13) · 구현 축 정리(FR-03) · 게이트 판정 커밋 범위(FR-10) · 알림 관여 라우팅(FR-12) · fail-open 편집과 격상(D-14) | E15-S01 · E15-S02 · E15-S03 · E16-S01 · E17-S01 · E18-S01 · E18-S02 | 명세가 이미 정했고 바깥 계정이나 데이터 없이 L2로 검증된다 |
 | **묶음 2** — M2 사전 조건 · 결정된 것 | 복구 뒤 자동 동기화(NFR-05) · git 미러 export · Codex 완전 지원(FR-15 — [4.6 플러그인](plugin.md) §5.4 훅 묶음) | E21-S01 · E21-S02 · E20-S01~S04 · E18-S03 | M2 컷오버는 NFR-05 실사용 검증과 늘 도는 미러를 사전 조건으로 둔다([3.7 로드맵](../03-proposal/roadmap.md) §7.5 · §7.6) |
 | **묶음 3** — 사람 결정 먼저 | CR · 델타 리뷰와 CR 카드(FR-04 · FR-11) · 에스컬레이션 카드(FR-11) · SoT 컷오버 M1(FR-17) | E19-S01~S03 · E21-S03 · E16-S04 · E17-S02 | 수용 기준에 **결정 대기**가 남아 있다. 정해진 뒤에 착수한다 — E19-S01은 2026-10-16 사람 결정(D1 · D2)으로, E19-S02 · S03은 같은 날 사람 결정(D3)으로, E16-S04 · E17-S02는 같은 날 사람 결정(D4 · D5)으로, E21-S03은 같은 날 사람 결정(D6)으로 들어왔다 — E21-S03의 실행은 clemvion 팀과 정한다 |
-| **묶음 4** — 바깥 환경 | Slack(FR-12)과 S8 연동 탭 · 부하 시험(NFR-04) · OAuth 2.1 리소스 서버 | E17-S03 · E21-S04 · E22-S01 · E16-S02 · E16-S03 | 이 작업 환경 밖의 계정 · 장비 · 데이터가 있어야 검증된다 |
+| **묶음 4** — 바깥 환경 | Slack(FR-12)과 S8 연동 탭 · 부하 시험(NFR-04) · CI 레시피와 리플레이 코퍼스(FR-10) | E17-S03 · E21-S04 · E16-S02 · E16-S03 | 이 작업 환경 밖의 계정 · 장비 · 데이터가 있어야 검증된다. 결정 일곱은 2026-10-17 사람이 모두 권장안으로 정했다(D1 ~ D7 — 각 스토리 칸). OAuth 2.1 리소스 서버(E22-S01)는 그때 Phase 3+ 후보로 넘겼다(D7 · §6.9) |
 
 결정 목록에 이름이 없던 다섯은 성격을 보고 넣었다. CI 레시피(E16-S02)와 리플레이 코퍼스(E16-S03)는 실제 git forge와 clemvion 과거 세션이 있어야 검증되므로 묶음 4다. 결재의 브랜치 자리(E16-S04)와 워치(E17-S02)는 스키마 결정이 먼저라 묶음 3이다. 보존 워커(E18-S03)는 이미 정한 표([3.3 데이터 모델](../03-proposal/data-model.md) §5.4)를 집행하는 일이라 묶음 2다. 묶음을 바꾸면 이 표만 고친다.
 
@@ -1430,9 +1432,11 @@ clemvion 컷오버([3.7 로드맵](../03-proposal/roadmap.md) §7)와 규모 · 
 
 2026-08-20 인증 확정(better-auth)으로 Phase 2에 옮겼다. MVP의 에이전트 인증은 PAT이고 OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다([4.1 범위](scope.md) §2.1).
 
+**2026-10-17 사람 결정(D7)으로 Phase 3+ 후보로 넘겼다.** Phase 2 범위표([3.7 로드맵](../03-proposal/roadmap.md) §4.2)와 성공 기준 2-1~2-10 어디에도 없고, 하려면 better-auth 의 역할(웹 세션만)을 바꾸거나 인가 서버를 따로 들여야 한다. 덜어 낸 항목은 다음 Phase 의 범위 표에 이월한다는 규칙대로([3.7 로드맵](../03-proposal/roadmap.md) §1.4 규칙 2) 로드맵 §5.1 후보 표에 착수 조건과 함께 적었다. 스토리는 착수 조건이 차면 그대로 꺼내 쓰도록 남긴다.
+
 | ID | 스토리 | 근거 | EARS 수용 기준 | 의존 |
 | --- | --- | --- | --- | --- |
-| E22-S01 | **묶음 4** · OAuth 2.1 리소스 서버 — `/mcp`가 PAT와 함께 OAuth 토큰을 받는다(대화형 로그인 · 자동 발견) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5 · [4.1 범위](scope.md) §2.1 · §5 · NFR-03 | **결정 대기** — 인가 서버(AS)를 무엇으로 둘지와 권한(`resource:action`)을 토큰에 어떻게 옮길지. 정해지면: WHEN 클라이언트가 `/mcp`의 보호 자원 메타데이터를 찾으면, THE SYSTEM SHALL RFC 9728 PRM을 제공하고 다른 자원(RFC 8707 `resource`)으로 발급된 토큰을 거부한다<br>WHILE OAuth 토큰으로 접속한 동안 THE SYSTEM SHALL PAT와 같이 위임한 사용자의 권한을 넘는 요청을 거부한다(NFR-03) | — |
+| E22-S01 | **Phase 3+ 후보**(2026-10-17 사람 결정 D7) · OAuth 2.1 리소스 서버 — `/mcp`가 PAT와 함께 OAuth 토큰을 받는다(대화형 로그인 · 자동 발견) | [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5 · [4.1 범위](scope.md) §2.1 · §5 · NFR-03 | **결정 대기** — 인가 서버(AS)를 무엇으로 둘지와 권한(`resource:action`)을 토큰에 어떻게 옮길지. 정해지면: WHEN 클라이언트가 `/mcp`의 보호 자원 메타데이터를 찾으면, THE SYSTEM SHALL RFC 9728 PRM을 제공하고 다른 자원(RFC 8707 `resource`)으로 발급된 토큰을 거부한다<br>WHILE OAuth 토큰으로 접속한 동안 THE SYSTEM SHALL PAT와 같이 위임한 사용자의 권한을 넘는 요청을 거부한다(NFR-03) | — |
 
 ---
 

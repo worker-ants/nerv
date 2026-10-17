@@ -25,7 +25,9 @@ referenced_by:
 
 > **요약** — 이 문서는 NERV MVP를 **Phase 0(PoC) + Phase 1(MVP)의 합**으로 확정하고, 그 경계를 표로 못 박는다. 기능 범위는 FR-01~17 × 포함(●)/부분(◐)/제외(○)로, 화면은 S1~S5·S7·S8(+로그인/온보딩)로, MCP 도구는 **24종**(P0 8 + P1 16 · 카탈로그 27종 — 리뷰 3종이 Phase 2 에서 얹혔다)으로, 플러그인 스킬은 5종으로 고정하며, 각 판정은 [로드맵](../03-proposal/roadmap.md) §1.3의 Phase 배분표와 문자 그대로 정합한다. 기술 스택은 전 계층 확정이고(웹·API 2026-08-14, 나머지 2026-08-20, 실시간 채널을 WebSocket + SSE 다중 채널·방송 MQ Valkey로 확장 확정 2026-08-21) 재검토 트리거는 결정을 뒤집는 조건이 아니라 감수한 트레이드오프의 기록이다. 이 문서 자체는 결정 문서라 REQ ID를 발급하지 않는다 — 행동 요구는 4.2~4.8 각 문서가 REQ-*로 갖는다.
 >
-> 문서 버전 v0.48 · 2026-10-16 · HTML 파생본: [scope.html](../html/scope.html)
+> 문서 버전 v0.49 · 2026-10-17 · HTML 파생본: [scope.html](../html/scope.html)
+>
+> v0.49 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§2.1 인증 행 · 콜아웃 한 문장 · §3 FR-15 · NFR-03 행 · §5 표 한 행.** OAuth 2.1 리소스 서버를 Phase 2 에서 빼 Phase 3+ 후보로 넘긴다. OAuth 2.1 은 충족 수단의 고도화이지 수용 기준이 아니라는 §2.1 콜아웃의 판단을 그대로 따랐다([3.7 로드맵](../03-proposal/roadmap.md) §5.1).
 >
 > v0.48 변경(2026-10-16 — 워치와 핀, Phase 2 묶음 3의 셋째 · **사람 결정**(2026-10-16 — D5 = B)): **§5 「서버 watch 테이블」 행.** 워치와 핀이 서버 표 둘(`watch` · `pin`)로 들어왔다 — 알림 카탈로그의 「워처」 수신자와 기기를 바꿔도 남는 핀이다([4.8 백로그](backlog.md) E17-S02).
 >
@@ -181,7 +183,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | API | **NestJS(Fastify 어댑터)** | 2026-08-14 | REST·MCP·WebSocket이 **같은 도메인 서비스를 DI로 공유**(D-05). 게이트 판정이 표면마다 갈라지는 것이 최악의 실패 |
 | DB | **Postgres** + **Drizzle** | Postgres 2026-08-13 · Drizzle 2026-08-20 | 스키마는 `packages/schema`에 TS로 선언, drizzle-kit 마이그레이션. 복잡 질의는 raw `sql` 1급 |
 | 검색 | **하이브리드** — Postgres FTS(`simple`) + **pg_trgm**(한국어·부분 일치) + **pgvector**(HNSW·cosine) + 임베딩(**OpenAI 호환 `/v1/embeddings` 단일 계약**, 1024차원 고정) + **관계 확장(graph RAG)** | 2026-08-22 (제공자 추상화 같은 날 개정) | 파이프라인(ID 직행 → 렉시컬+벡터 RRF 병합 → 1-hop 관계 확장)은 [4.4 API 명세](api.md) §2.2b 정본. **임베딩 제공자는 env 프로필** — 로컬 ollama(`bge-m3` · CPU · compose `embed` — 2026-08-23 TEI 에서 교체, [4.2](codebase.md) §5.2a) / 스테이징 LM Studio / 운영 OpenAI(`text-embedding-3-small`, `dimensions=1024`). 프로필 정본 [4.2](codebase.md) §5.2a. 기본값은 자가호스팅이고 외부 전송은 운영 주체의 env 명시 선택(REQ-CB-020). 제공자 무응답 시 렉시컬 degrade(REQ-API-026) |
-| 인증 | **better-auth** | 2026-08-20 (구성 정정 2026-09-24) | **웹 세션만 맡긴다**(이메일+비밀번호·세션 쿠키). 조직·멤버십은 도메인 테이블이 소유하고 **organization 플러그인은 켜지 않는다**(2026-08-22 구현 확정 — 켜면 역할의 정본이 둘이 된다 · [4.3](database.md) §2.16). PAT 는 api-key 플러그인이 아니라 **자체 `api_token` 테이블**이다(해시 저장·프로젝트 소속 · [4.3](database.md) §2.2 — 2026-09-24 사람 결정으로 문서를 실물에 맞춤: apiKey 테이블을 함께 쓰면 토큰이 두 곳에 살게 된다). OAuth 2.1 리소스 서버는 Phase 2 |
+| 인증 | **better-auth** | 2026-08-20 (구성 정정 2026-09-24) | **웹 세션만 맡긴다**(이메일+비밀번호·세션 쿠키). 조직·멤버십은 도메인 테이블이 소유하고 **organization 플러그인은 켜지 않는다**(2026-08-22 구현 확정 — 켜면 역할의 정본이 둘이 된다 · [4.3](database.md) §2.16). PAT 는 api-key 플러그인이 아니라 **자체 `api_token` 테이블**이다(해시 저장·프로젝트 소속 · [4.3](database.md) §2.2 — 2026-09-24 사람 결정으로 문서를 실물에 맞춤: apiKey 테이블을 함께 쓰면 토큰이 두 곳에 살게 된다). OAuth 2.1 리소스 서버는 Phase 3+ 후보(2026-10-17 사람 결정 D7 · §5) |
 | 발신(메일) | **nodemailer(SMTP)** — 가입 이메일 인증 · 초대 메일 | 2026-09-22 | 제공자 SDK 를 들이지 않는다: SMTP 하나면 사내 메일 서버·SES·Resend·Postmark 가 같은 계약이고, 갈아도 코드가 그대로다. **표면은 `email_outbox` 에 행을 넣고 워커가 보낸다**([4.3](database.md) §2.17) — 인라인 발송은 응답 시간으로 이메일의 존재를 흘리고, 실패를 기록할 곳도 없다. 비어 있으면 꺼진다(`NERV_MAIL_HOST` — 접속 정보는 여섯 키다. 2026-09-24 부터, [4.2](codebase.md) §5.2) |
 | 실시간 | **WebSocket + SSE 다중 채널**, 방송 MQ **Valkey pub/sub** (NestJS `@WebSocketGateway` socket.io + `@Sse()` 스트림) | WebSocket 2026-08-20 · SSE 병행·Valkey MQ 2026-08-21 | WS(`/ws`)는 웹 SPA 전용 — **websocket 전송만 활성**(폴링 폴백 off → k8s 스티키 불필요), 룸 `project:{id}`·`user:{id}`, join 시 멤버십 검사. SSE(`/sse/*`)는 브라우저 밖 소비자(CLI·외부 도구)용 단방향 구독 — 쿠키 또는 PAT 인증([4.4 API 명세](api.md) §3.5). 팬아웃: EventService가 커밋 후 Valkey `nerv_events`에 PUBLISH → 파드마다 SUBSCRIBE 후 자기 소켓·스트림에 emit(크로스파드 어댑터 불필요 — 모든 emit의 원천이 Valkey 방송). 재연결 시 클라이언트가 화면 데이터 재조회(이벤트 유실 허용, 진실은 DB — D-14) |
 | 에디터 | **TipTap + markdown 직렬화** | 2026-08-20 | 지원 노드를 md 표현 가능 집합으로 제한(heading·paragraph·list·table·code·blockquote·link·hr). 소스 보기는 read-only 토글 |
@@ -191,7 +193,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | 테스트 | **Vitest**(L1 단위·L2 통합·L3 API E2E) + **Playwright**(L3 웹 E2E) | 2026-08-22 | 3계층 배치·명령·무게중심(L2)은 [4.2 코드베이스와 배포](codebase.md) §4.3 정본. L2는 mock 없이 실제 Postgres 상대(동시성 검증은 mock 금지 — AGENTS.md 규약과 동일). Playwright는 웹 E2E에만 — API 시나리오는 Vitest가 compose 스택 상대로 돈다 |
 | 배포 | **로컬 docker-compose / 운영 k8s(kustomize base+overlays)** | 2026-08-20 | 같은 이미지 3종: `nerv-api`(REST+MCP+WS+SSE), `nerv-worker`(같은 코드베이스, 엔트리 분리), `nerv-web`(Vite 산출물+nginx). 인프라 서비스는 Postgres(+pgvector·pg_trgm)·MinIO·Valkey + **`embed`(로컬 프로필 전용 — TEI. 외부 제공자 프로필에서는 띄우지 않는다)**. 마이그레이션: compose는 기동 시, k8s는 Job. 워커 replica 1 + advisory lock(HPA 제외). Ingress: WebSocket 업그레이드·SSE 버퍼링 해제·타임아웃 상향, `/mcp` Origin 검증 |
 
-> **인증 확정이 로드맵 표기 하나를 대체한다.** [로드맵](../03-proposal/roadmap.md) §3.2(v0.1 · 2026-08-13)는 Phase 1 인증을 "OAuth 2.1로 승격"으로 적었다. 2026-08-20 인증 스택 확정(better-auth)에서 **OAuth 2.1 리소스 서버는 Phase 2로 이동**했고, MVP의 에이전트 인증은 PAT(해시 저장 · 사용자·프로젝트·역할·권한 튜플 바인딩)로 확정한다. NFR-03의 수용 기준(토큰 프로젝트 소속·권한 비확대·본문 비신뢰 — [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4.3)은 PAT로 충족되므로 Phase 배분표의 NFR-03 ● 판정은 유지된다. OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다.
+> **인증 확정이 로드맵 표기 하나를 대체한다.** [로드맵](../03-proposal/roadmap.md) §3.2(v0.1 · 2026-08-13)는 Phase 1 인증을 "OAuth 2.1로 승격"으로 적었다. 2026-08-20 인증 스택 확정(better-auth)에서 **OAuth 2.1 리소스 서버는 Phase 2로 이동**했고, MVP의 에이전트 인증은 PAT(해시 저장 · 사용자·프로젝트·역할·권한 튜플 바인딩)로 확정한다. NFR-03의 수용 기준(토큰 프로젝트 소속·권한 비확대·본문 비신뢰 — [1.2 문제 정의와 요구사항](../01-problem/pain-points.md) §4.3)은 PAT로 충족되므로 Phase 배분표의 NFR-03 ● 판정은 유지된다. OAuth 2.1은 충족 수단의 고도화이지 수용 기준이 아니다. 그래서 2026-10-17 에는 Phase 2 에서도 빼 Phase 3+ 후보로 넘겼다(사람 결정 D7 — Phase 2 성공 기준과 상관이 없고, 하려면 better-auth 의 역할을 바꾸거나 인가 서버를 따로 들여야 한다 · [3.7 로드맵](../03-proposal/roadmap.md) §5.1).
 
 ### 2.2 재검토 트리거 — 결정을 뒤집는 조건이 아니라 트레이드오프의 기록
 
@@ -280,7 +282,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | FR-12 | 알림 | ◐ | ○ | ◐ | 인앱 알림 | Slack · 메일 다이제스트는 Phase 2. **앱 안 묶음은 MVP 다**(2026-09-27 사람 결정 G1 — 보통 알림을 같은 대상마다 읽을 때까지 한 줄로 · [3.5 스펙 워크플로우](../03-proposal/spec-workflow.md) §6.5). **알림 메일 요약은 Phase 2 를 앞당겨 착수했다**(2026-09-28 사람 결정 EM1 — 켠 사람에게 하루 한 번 · §5 착수 기록). 수신 설정(켜기 · 시각 · 시간대 · 언어)이 함께 들어왔다. Slack 은 Phase 2 그대로다 |
 | FR-13 | 증적·커버리지 | ◐ | ○ | ◐ | PR·커밋 웹훅 수신, Task↔PR 링크, 구현 현황 수치(EP-COV-01 — 관계에서 계산 · 영역별 분해 2026-10-11) | 커버리지 대시보드(드릴다운 · 검증 작업 만들기)는 Phase 2 — [4.8 백로그](backlog.md) E15 |
 | FR-14 | 멀티테넌시 | ● | ◐ | ● | Organization/Project/User n:n, 역할 6종(admin·planner·designer·developer·qa·viewer) 권한 API·UI 양쪽 강제(P0는 단일 조직·단일 프로젝트 고정) | — |
-| FR-15 | 에이전트 연동 | ◐ | ◐ | ◐ | MCP tools P0 8종 + P1 16종 = **24종**(§4.2) + PAT, Claude Code 플러그인 v1(스킬 7종 + hooks + statusline — `.mcp.json` 은 담지 않는다, 2026-09-04 REQ-PLG-001 개정), 훅 수집기 | Codex 완전 지원·`AGENTS.md` 배포·OAuth 2.1은 Phase 2(§5) |
+| FR-15 | 에이전트 연동 | ◐ | ◐ | ◐ | MCP tools P0 8종 + P1 16종 = **24종**(§4.2) + PAT, Claude Code 플러그인 v1(스킬 7종 + hooks + statusline — `.mcp.json` 은 담지 않는다, 2026-09-04 REQ-PLG-001 개정), 훅 수집기 | Codex 완전 지원·`AGENTS.md` 배포는 Phase 2, OAuth 2.1은 Phase 3+ 후보(§5) |
 | FR-16 | 감사 로그 | ● | ◐ | ● | append-only Event 전 상태 전이 + `is_agent` 액터 구분(P0), 엔티티별 이력 재구성 뷰(P1) | — |
 | FR-17 | clemvion 임포트 | ◐ | ◐ | ◐ | spec 임포터(P0: `spec/` 384 md 중 순수 135 md) → plan 임포터(P1: `plan/` 450 md). 멱등 재실행. 도구는 **프로파일 기반 범용 임포터**이고 clemvion은 그 내장 프로파일이다 — 실행은 원본 체크아웃 장비의 CLI(`@nerv/cli`)가 임포트 API(EP-IMP-01~06)를 호출하는 형태([4.7 스펙 임포터](importer.md) §1.4·§3.2) — **래퍼 스킬은 2026-09-06 에 걷었다**(§4.3) | review 소급 임포트는 Phase 2. SoT는 MVP 기간 내내 git(컷오버는 Phase 2 M1부터 — 로드맵 §7.2). 양방향 동기화·서버 주도 원격 저장소 clone은 하지 않는다(§5) |
 
@@ -298,7 +300,7 @@ MVP가 검증하려는 가설은 하나의 문장이다.
 | --- | --- | :-: | :-: | :-: | --- | --- |
 | NFR-01 | 자가호스팅 | ● | ◐ | ● | compose 단일 파일 기동(P0), 백업·복구 왕복 검증(P1) | — |
 | NFR-02 | 실시간성(≤5s) | ● | ◐ | ● | WebSocket·SSE 푸시, 보드 반영 p95 ≤ 5초 | — |
-| NFR-03 | 보안 | ● | ◐ | ● | PAT 프로젝트 소속(P0), 권한 비확대·스펙 본문 비신뢰(P1). 인증 수단은 better-auth 세션(웹)+PAT(에이전트) — §2.1 인용 | OAuth 2.1 리소스 서버는 Phase 2, SSO는 Phase 3+ |
+| NFR-03 | 보안 | ● | ◐ | ● | PAT 프로젝트 소속(P0), 권한 비확대·스펙 본문 비신뢰(P1). 인증 수단은 better-auth 세션(웹)+PAT(에이전트) — §2.1 인용 | OAuth 2.1 리소스 서버 · SSO는 Phase 3+ |
 | NFR-04 | 규모 | ◐ | ○ | ◐ | 목표 규모 설계(프로젝트 수십·동시 세션 수십) | 부하 시험은 Phase 2 |
 | NFR-05 | 로컬 폴백 | ◐ | ○ | ◐ | 에이전트 오프라인 읽기 캐시 | 복구 후 자동 동기화는 Phase 2 |
 
@@ -411,7 +413,7 @@ SKILL.md **7종**의 파일 전문·hooks.json·온보딩 절차는 [4.6 플러�
 | Codex 완전 지원 | Phase 2 | P0에서 tools-only 완주(로드맵 성공 기준 0-8)는 검증하되, 질문 폴링 폴백·notify 매핑·`AGENTS.md` 배포는 Phase 2. MVP는 `config.toml`·`AGENTS.md` **초안 제공**까지 — 경계는 [4.6 플러그인과 온보딩](plugin.md) §5 |
 | CR 델타 UI 고도화 | **Phase 2 · 2026-10-16 구현 완료**(사람 결정 D1 · D2) | FR-04(ADDED/MODIFIED/REMOVED 뷰·영향 분석)가 Phase 2. MVP의 스펙 diff는 버전 diff(FR-02)까지였다. CR 상세와 영향 미리보기 · 받은 요청의 CR 카드는 [4.8 백로그](backlog.md) E19-S01 |
 | 실시간 공동 편집(CRDT) | Phase 3+ (착수 조건: 409 재시도 주 20건 이상) | 서버 권위 + `base_hash` 409 + 편집 리스로 충분하다는 실증(아키텍처 §4.2) |
-| OAuth 2.1 리소스 서버 | Phase 2 | 2026-08-20 인증 확정(better-auth)으로 이동 — §2.1 콜아웃 참조. MVP 에이전트 인증은 PAT |
+| OAuth 2.1 리소스 서버 | Phase 3+ (착수 조건: [3.7 로드맵](../03-proposal/roadmap.md) §5.1) | 2026-08-20 인증 확정(better-auth)으로 Phase 2 에 옮겼고 2026-10-17 사람 결정 D7 로 다시 넘겼다 — §2.1 콜아웃 참조. 에이전트 인증은 PAT |
 | 임포트 양방향 동기화 · 서버 주도 저장소 clone | Phase 3+ (착수 조건부) | 임포트는 복제이고 SoT는 git이다(§6.1-5). 서버는 대상 저장소에 접근하지 않는다 — 파일을 읽는 쪽이 파일 있는 장비라는 것이 임포터 구조의 전제다([4.7 스펙 임포터](importer.md) §3.2) |
 | 임포트 MCP 도구 | — (계획 없음) | 결정적 ETL을 LLM 매개 도구 호출로 쪼개면 전수 계정·멱등 검증이 재현되지 않는다. **에이전트 경로는 없다**(2026-09-06 — 래퍼 스킬을 걷었다 · [4.6](plugin.md) §2.5). 임포트는 원본 체크아웃이 있는 장비에서 **사람이 도는 운영 작업**이다([4.7](importer.md) §3.6) |
 | 외부 검색엔진(Elasticsearch 등) | — (계획 없음, §2.2 트리거로만) | Postgres 하이브리드(FTS+trgm+pgvector)로 목표 규모(NFR-04) 충분. 운영 컴포넌트 +1의 비용이 이득을 넘는다 |

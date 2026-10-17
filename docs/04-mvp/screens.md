@@ -23,7 +23,9 @@ referenced_by:
 
 > **요약** — MVP 웹앱(Vite + React SPA)의 화면을 구현 착수 가능한 수준으로 확정한다. 대상은 로그인/온보딩 + S1 홈 · S2 프로젝트 개요 · S3 스펙 상세 · S4 작업 보드 · S5 세션 모니터 · S7 받은 요청 · S8 설정이며, S6 리뷰 센터는 Phase 2다([로드맵](../03-proposal/roadmap.md) §4). 각 화면에 대해 라우트·데이터 소스([API 명세](api.md) 리소스+동사 인용)·WebSocket 구독과 쿼리 무효화 매핑·컴포넌트 목록·폼 검증(zod)·EARS 수용 기준(REQ-WEB-*)을 명세한다. **MVP 라우트는 전부 와이어프레임을 갖는다** — S1~S8 그림의 정본은 [화면 설계 (와이어프레임)](../03-proposal/ui-wireframes.md)이고, 그 문서에 없는 MVP 신설 화면(앱 셸·로그인·온보딩·알림 센터)과 하위 뷰(스펙 목록·작업 상세 패널·세션 상세·설정 탭 3종)의 그림은 이 문서가 소유한다(§1.6 커버리지 표가 전 라우트의 소재를 밝힌다). 그 밖에 TipTap 에디터의 노드 화이트리스트와 md 왕복 규칙, 초안 편집 리스 UX, 기존 제안서 팔레트의 Tailwind 토큰 이식 표를 담는다.
 >
-> 문서 버전 v2.53 · 2026-10-17 · HTML 파생본: [screens.html](../html/screens.html)
+> 문서 버전 v2.54 · 2026-10-17 · HTML 파생본: [screens.html](../html/screens.html)
+>
+> v2.54 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§2.1 인증 문장 하나.** OAuth 2.1 리소스 서버를 Phase 3+ 후보로 고쳤다([3.7 로드맵](../03-proposal/roadmap.md) §5.1).
 >
 > v2.53 변경(2026-10-17 — EP-NTF 번호 겹침): **REQ-WEB-328 · 329 · §1.3a의 EP 인용.** 워치 · 핀 EP가 EP-NTF-11 ~ 17로 옮겨 그 번호로 고쳤다([4.4 API 명세](api.md) v2.66). 동작은 그대로다.
 >
@@ -994,7 +996,7 @@ projectBySlug:   (slug: string)      => ['project', slug] as const;   // 해소�
 
 ### 2.1 로그인 · 온보딩
 
-인증은 better-auth 세션 쿠키다(웹 경로 — [api.md](api.md) §1 인증 2경로). OAuth 2.1 리소스 서버는 Phase 2([scope.md](scope.md) §2 확정 스택).
+인증은 better-auth 세션 쿠키다(웹 경로 — [api.md](api.md) §1 인증 2경로). OAuth 2.1 리소스 서버는 Phase 3+ 후보다([scope.md](scope.md) §2 확정 스택).
 
 | 화면 요소 | 데이터 소스 |
 | --- | --- |

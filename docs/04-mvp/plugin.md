@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — MVP에서 배포하는 NERV Claude Code 플러그인 v0.2의 실물을 확정한다: 스킬 **7종**(`/nerv:next` `/nerv:spec` `/nerv:impl` `/nerv:question` `/nerv:review` `/nerv:mirror` `/nerv:approve`)의 SKILL.md 전문, `hooks/hooks.json`·statusline 스크립트 전문(`.mcp.json`은 쓰는 쪽 저장소가 갖는 템플릿이다 — §3.3), 그리고 사람 온보딩 절차(PAT 발급 → 플러그인 설치 → `nerv_bootstrap` 확인)다. 모든 도구 이름·인자·상수(리스 TTL 30분·하트비트 60초·에러 코드 `NERV_*`)는 [3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2를 정본으로 인용하며 재정의하지 않는다. `/nerv:review`와 Codex 완전 지원은 Phase 2다 — Codex에는 `.codex/config.toml`·AGENTS.md 초안만 제공하고 tools-only 완주를 보장한다. 수용 기준은 하나로 요약된다: **신규 세션이 별도 문서 없이 스킬 안내만으로 첫 클레임까지 도달한다.** 같은 마켓플레이스의 두 번째 플러그인인 **한국어 문체 플러그인 `ko-style`**(2026-09-27)은 §7이 정본이다.
 >
-> 문서 버전 v1.21 · 2026-10-16 · HTML 파생본: [plugin.html](../html/plugin.html)
+> 문서 버전 v1.22 · 2026-10-17 · HTML 파생본: [plugin.html](../html/plugin.html)
+>
+> v1.22 변경(2026-10-17 — Phase 2 묶음 4 결정, **사람 결정**(2026-10-17 — D7)): **§3.3 인증 문단 한 구절.** OAuth 2.1 리소스 서버를 Phase 3+ 후보로 고쳤다([3.7 로드맵](../03-proposal/roadmap.md) §5.1). 배달되는 파일은 바뀌지 않아 플러그인 버전은 그대로다.
 >
 > v1.21 변경(2026-10-16 — 카드에서 승인해도 CR 제안의 기본값을 적용한다, PR #240 검토 · **사람 결정**(2026-10-16 — 권장안 A)): **`spec` 스킬 한 항목 · `approve` 스킬 3단계 한 항목과 6단계 한 문장.** 아무도 고르지 않은 변경 요청은 승인할 때 서버가 기본값(파생 · 재검증 작업은 만들고 보관은 하지 않는다)을 적용한다 — 두 스킬이 그 사실을 사람에게 말하고, `approve` 는 승인 응답의 `change_request`(`created_tasks` · `archived_tasks` · `skipped` · `actions_source`)를 그대로 보고한다([4.4 API](api.md) REQ-API-351). 새 인자 · 새 도구는 없고 `allowed-tools` 도 그대로다. 플러그인은 0.3.34 그대로다 — 이 묶음의 다른 변경과 함께 아직 배달 전이다.
 >
@@ -1721,7 +1723,7 @@ printf '  %s · ctx %s%%%s\n' \
 }
 ```
 
-MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 2 — [4.1 MVP 범위와 스택 확정](scope.md)). PAT는 위 `headers`의 **정적 Bearer**(`${NERV_TOKEN}` 환경변수 확장)로 전달한다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5 — `headers` 정적 Bearer 또는 `headersHelper`). 저장소에 커밋되는 `.mcp.json`에는 토큰 원문을 절대 넣지 않는다 — 토큰은 환경변수로만 산다.
+MVP 인증은 PAT다(OAuth 2.1 리소스 서버는 Phase 3+ 후보 — [4.1 MVP 범위와 스택 확정](scope.md)). PAT는 위 `headers`의 **정적 Bearer**(`${NERV_TOKEN}` 환경변수 확장)로 전달한다([3.4 에이전트 연동 설계](../03-proposal/agent-integration.md) §2.5 — `headers` 정적 Bearer 또는 `headersHelper`). 저장소에 커밋되는 `.mcp.json`에는 토큰 원문을 절대 넣지 않는다 — 토큰은 환경변수로만 산다.
 
 | 환경변수 | 값 | 쓰는 곳 |
 | --- | --- | --- |
