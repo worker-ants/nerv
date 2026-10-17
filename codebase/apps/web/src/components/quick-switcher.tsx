@@ -103,7 +103,7 @@ export function pinTargetOf(hit: SwitcherHit): PinTarget {
   return 'spec';
 }
 
-/** 서버 핀 한 줄(EP-NTF-13) → 스위처 줄. 고정은 문서 단위라 앵커가 없다 */
+/** 서버 핀 한 줄(EP-NTF-14) → 스위처 줄. 고정은 문서 단위라 앵커가 없다 */
 export function pinToHit(row: Row): SwitcherHit & { pin_id: string } {
   const type = String(row['target_type'] ?? 'spec');
   return {
@@ -125,7 +125,7 @@ export function pinToHit(row: Row): SwitcherHit & { pin_id: string } {
 let migrating = false;
 
 /**
- * **브라우저에 남은 옛 핀을 서버로 옮긴다**(2026-10-16 · REQ-WEB-329 · EP-NTF-16). 로그인한 셸이 뜨면 한 번 — localStorage 의
+ * **브라우저에 남은 옛 핀을 서버로 옮긴다**(2026-10-16 · REQ-WEB-329 · EP-NTF-17). 로그인한 셸이 뜨면 한 번 — localStorage 의
  * 핀(앞의 것이 위)을 보내고 **응답을 받은 뒤에만** 지운다. 실패하면 남겨 두고 다음에 다시 한다(잃지 않게). 프로젝트를 모르는 옛
  * 기록은 갈 곳을 몰라 원래도 보이지 않았다 — 옮기지 않고 함께 지운다. 서버가 건너뛴 줄(이미 고정 · 사라진 대상 · 상한)도 지운다.
  */

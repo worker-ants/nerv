@@ -36,7 +36,7 @@ let emailChange: {
   pending: { new_email: string; stage: string; expires_at: string } | null;
 };
 let emailReply: { status: number; json: unknown };
-/** 내 워치 — 서버가 돌려줄 목록(EP-NTF-10 · 2026-10-16 · REQ-WEB-328) */
+/** 내 워치 — 서버가 돌려줄 목록(EP-NTF-11 · 2026-10-16 · REQ-WEB-328) */
 let watchRows: Record<string, unknown>[] = [];
 /** 로그인된 기기 — 서버가 돌려줄 세션 목록 */
 let sessions: {
