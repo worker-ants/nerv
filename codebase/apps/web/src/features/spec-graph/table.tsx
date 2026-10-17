@@ -16,6 +16,8 @@ import { Mono, Table, Td, Th, Tr } from '../../components/ui/primitives.js';
 import type { StatusToken } from '../../components/status-badge.js';
 import type { GraphEdge, GraphNode } from './graph.js';
 import { hasNewerVersion, viewBasisSearch, type ViewBasis } from '../../lib/view-basis.js';
+import { usePinnedSpecKeys } from '../../lib/queries.js';
+import { PinMark } from '../../components/pin-mark.js';
 
 type SortKey = 'title' | 'type' | 'status' | 'backlinks' | 'attachments';
 
@@ -47,6 +49,7 @@ export function SpecTable({
   view = {},
 }: SpecTableProps): React.JSX.Element {
   const t = useT();
+  const pinned = usePinnedSpecKeys(projectSlug);
   const [sort, setSort] = useState<SortKey>('title');
   const [descending, setDescending] = useState(false);
 
@@ -137,7 +140,8 @@ export function SpecTable({
               >
                 {node.title}
               </Link>{' '}
-              <Mono>{node.key}</Mono>{' '}
+              {/* 고정한 문서(2026-10-17 사람 결정 · REQ-WEB-337) — 트리와 같은 표시다 */}
+              {pinned.has(node.key) && <PinMark />} <Mono>{node.key}</Mono>{' '}
               {/* **승인본 위에 새 버전이 있다**(2026-10-04 · REQ-WEB-292) — 트리에만 있던 표시다. 표는 상태 열이
                   승인본의 상태라, 그 위의 검토 중 개정판이 표에서는 보이지 않았다 */}
               {hasNewerVersion(node) && (

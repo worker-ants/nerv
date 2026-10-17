@@ -476,3 +476,87 @@ describe('핀 — 서버에 남고 프로젝트를 넘는다 (REQ-API-344 · 345
     });
   });
 });
+
+describe('핀 순서 바꾸기 — 보낸 핀들의 자리만 서로 바꾼다 (2026-10-17 · REQ-API-358)', () => {
+  const pinOf = (who: keyof typeof U, project: string, targetType: string, target: string) =>
+    call(who, 'PUT', '/me/pins', { project, target_type: targetType, target });
+  const listOf = async (who: keyof typeof U): Promise<Record<string, unknown>[]> =>
+    (await call(who, 'GET', '/me/pins')).json<{ items: Record<string, unknown>[] }>().items;
+  const keysOf = async (who: keyof typeof U): Promise<unknown[]> =>
+    (await listOf(who)).map((i) => i['key']);
+
+  it('바라는 순서로 다시 놓고 바뀐 목록을 준다 — 다음 읽기도 그 순서다', async () => {
+    await pinOf('writer', 'clemvion', 'spec', 'SPC-FEAT');
+    await pinOf('writer', 'clemvion', 'task', 'CLV-T-WATCH1');
+    await pinOf('writer', 'clemvion', 'spec', 'SPC-AREA-A');
+    const before = await listOf('writer');
+    expect(before.map((i) => i['key'])).toEqual(['SPC-AREA-A', 'CLV-T-WATCH1', 'SPC-FEAT']);
+    const ids = before.map((i) => String(i['id']));
+    const res = await call('writer', 'PUT', '/me/pins/order', {
+      ids: [ids[2], ids[0], ids[1]],
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ items: Record<string, unknown>[] }>().items.map((i) => i['key'])).toEqual([
+      'SPC-FEAT',
+      'SPC-AREA-A',
+      'CLV-T-WATCH1',
+    ]);
+    expect(await keysOf('writer')).toEqual(['SPC-FEAT', 'SPC-AREA-A', 'CLV-T-WATCH1']);
+    // 그다음 새로 고정한 것도 맨 위다 — 자리를 다시 나눠도 「새 핀이 위」는 그대로다
+    await pinOf('writer', 'clemvion', 'spec', 'SPC-DSGN');
+    expect((await keysOf('writer'))[0]).toBe('SPC-DSGN');
+  });
+
+  it('보내지 않은 핀은 자리를 지킨다 — 보이지 않는 프로젝트의 핀이 끝으로 밀리지 않는다', async () => {
+    await pinOf('writer', 'clemvion', 'spec', 'SPC-FEAT');
+    await pinOf('writer', 'sudoku', 'spec', 'SUD-S-PIN');
+    await pinOf('writer', 'clemvion', 'task', 'CLV-T-WATCH1');
+    // 위에서부터 CLV-T-WATCH1 · SUD-S-PIN · SPC-FEAT — 화면이 sudoku 를 보지 못한 채 clemvion 둘만 바꾼다
+    const all = await listOf('writer');
+    const id = (key: string): string => String(all.find((i) => i['key'] === key)!['id']);
+    await call('writer', 'PUT', '/me/pins/order', { ids: [id('SPC-FEAT'), id('CLV-T-WATCH1')] });
+    expect(await keysOf('writer')).toEqual(['SPC-FEAT', 'SUD-S-PIN', 'CLV-T-WATCH1']);
+  });
+
+  it('남의 핀 · 없는 핀이 섞이면 아무것도 바꾸지 않고 409 · 같은 핀을 두 번 주면 400', async () => {
+    await pinOf('writer', 'clemvion', 'spec', 'SPC-FEAT');
+    await pinOf('writer', 'clemvion', 'task', 'CLV-T-WATCH1');
+    const mine = (await listOf('writer')).map((i) => String(i['id']));
+    const theirs = (await pinOf('actor', 'clemvion', 'spec', 'SPC-FEAT')).json<{
+      pin: { id: string };
+    }>().pin.id;
+    const ghost = newId();
+    const mixed = await call('writer', 'PUT', '/me/pins/order', {
+      ids: [mine[1], theirs, ghost, mine[0]],
+    });
+    expect(mixed.statusCode).toBe(409);
+    expect(mixed.json()).toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'not_found', pins: [theirs, ghost] },
+    });
+    expect(await keysOf('writer')).toEqual(['CLV-T-WATCH1', 'SPC-FEAT']);
+    const twice = await call('writer', 'PUT', '/me/pins/order', { ids: [mine[0], mine[0]] });
+    expect(twice.statusCode).toBe(400);
+    const empty = await call('writer', 'PUT', '/me/pins/order', { ids: [] });
+    expect(empty.statusCode).toBe(400);
+  });
+
+  it('동시에 옮기고 고정해도 자리가 섞이지 않는다 — 사람별 잠금 하나', async () => {
+    for (const key of ['SPC-FEAT', 'SPC-AREA-A', 'SPC-DSGN']) {
+      await pinOf('writer', 'clemvion', 'spec', key);
+    }
+    const ids = (await listOf('writer')).map((i) => String(i['id']));
+    const [a, b] = await Promise.all([
+      call('writer', 'PUT', '/me/pins/order', { ids: [...ids].reverse() }),
+      pinOf('writer', 'clemvion', 'task', 'CLV-T-WATCH1'),
+    ]);
+    expect(a.statusCode).toBe(200);
+    expect([200, 201]).toContain(b.statusCode);
+    const { rows } = await pool.query<{ n: number; d: number }>(
+      `SELECT count(*)::int AS n, count(DISTINCT position)::int AS d FROM pin WHERE user_id = $1`,
+      [U.writer],
+    );
+    // 넷 다 남고 자리가 겹치지 않는다
+    expect(rows[0]).toEqual({ n: 4, d: 4 });
+  });
+});

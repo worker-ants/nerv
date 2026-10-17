@@ -18,6 +18,7 @@ import {
   NotificationLevelInput,
   NotificationReadAllInput,
   PinImportInput,
+  PinOrderInput,
   WatchTargetInput,
 } from '@nerv/schema';
 import { parseBody } from '../../common/parse-body.js';
@@ -198,6 +199,16 @@ export class EventController {
       targetType: input.target_type,
       target: input.target,
     });
+  }
+
+  /**
+   * EP-NTF-18 — 핀 순서를 바꾼다(2026-10-17 · 사람 결정 · REQ-API-358). 보낸 핀들이 지금 차지한 자리만 서로 바꾸고, 바뀐 목록
+   * (EP-NTF-14 와 같은 모양)을 준다
+   */
+  @Put('me/pins/order')
+  reorderPins(@Req() req: ProjectRequest, @Body() body: unknown): Promise<unknown> {
+    const input = parseBody(PinOrderInput, body);
+    return this.watches.reorderPins({ userId: userOf(req), ids: input.ids });
   }
 
   /** EP-NTF-16 — 핀을 푼다. 본인의 것만이다 */

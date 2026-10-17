@@ -205,6 +205,17 @@ export const GateBypassInput = z
     }
   });
 
+/**
+ * **면제 끝내기**(2026-10-17 · 사람 결정 · REQ-API-357) — 사유는 필수다. 면제를 낸 사유처럼 「왜 다시 막혔나」에 답하는 기록이다.
+ * 길이 상한은 CR 거절 사유와 같다
+ */
+export const GateBypassRevokeInput = z
+  .object({
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+export type GateBypassRevokeInput = z.infer<typeof GateBypassRevokeInput>;
+
 /** 한 칸에 담을 수 있는 수 — 한 문서의 요구사항 · 작업이 이보다 많은 일은 없다(임포트 실측의 가장 큰 문서가 140줄) */
 export const CR_ACTION_LIMIT = 200;
 
@@ -368,6 +379,22 @@ export const PinImportInput = z
   })
   .strict();
 export type PinImportInput = z.infer<typeof PinImportInput>;
+
+/**
+ * EP-NTF-18 — **핀 순서를 바꾼다**(2026-10-17 · 사람 결정 · REQ-API-358). `ids` 는 내 핀 id 를 바라는 순서로 적은 것이다(위가
+ * 먼저). 서버는 그 핀들이 지금 차지한 자리만 서로 바꾼다 — 보내지 않은 핀(다른 조직 · 지금 보이지 않는 프로젝트의 핀)은 자리를
+ * 지킨다. 같은 id 를 두 번 주면 400 이다
+ */
+export const PinOrderInput = z
+  .object({
+    ids: z
+      .array(z.string().min(1))
+      .min(1)
+      .max(PIN_LIMIT)
+      .refine((ids) => new Set(ids).size === ids.length, 'error.pin.order_duplicate'),
+  })
+  .strict();
+export type PinOrderInput = z.infer<typeof PinOrderInput>;
 
 /**
  * EP-NTF-08 — 알림 메일 요약을 켜고 끈다(2026-09-28 · 사람 결정 EM1~EM9 · REQ-API-232). 켤 때 시간대와

@@ -585,17 +585,25 @@ export class TaskService {
     `);
 
     // **리뷰 면제의 기록**(2026-10-09 · REQ-API-274 · REQ-WEB-299) — 누가 · 언제 · 왜 · 어느 종류를. 면제는 결재 레코드라
-    // 지워지지 않는다. 코드 계열 면제는 코드 증적이 붙은 작업에서 done 게이트가 세지 않으므로 그 사실도 함께 준다
+    // 지워지지 않는다. 코드 계열 면제는 코드 증적이 붙은 작업에서 done 게이트가 세지 않으므로 그 사실도 함께 준다.
+    // 끝낸 면제(2026-10-17 · REQ-API-357)도 그대로 보이고 끝낸 사람 · 시각 · 사유를 함께 준다 — done 게이트는 세지 않는다.
+    // 낸 사람(`by_user_id`)은 화면이 [면제 끝내기]를 그릴지 정하는 재료다(`canRevokeWaiver`)
     const { rows: waiverRows } = await this.db.execute<{
       id: string;
       kinds: string[] | null;
       reason: string;
       at: unknown;
       by_name: string | null;
+      by_user_id: string | null;
+      revoked_at: unknown;
+      revoked_by_name: string | null;
+      revoke_reason: string | null;
     }>(sql`
       SELECT a.id, a.bypass_kinds::text[] AS kinds, a.bypass_reason AS reason, a.decided_at AS at,
-             u.display_name AS by_name
+             u.display_name AS by_name, a.decided_by_user_id AS by_user_id,
+             a.revoked_at, ru.display_name AS revoked_by_name, a.revoke_reason
         FROM approval a LEFT JOIN "user" u ON u.id = a.decided_by_user_id
+   LEFT JOIN "user" ru ON ru.id = a.revoked_by_user_id
        WHERE a.is_bypass AND a.subject_type = 'gate_bypass' AND a.subject_id = ${taskId}
        ORDER BY a.decided_at
     `);
@@ -2825,6 +2833,8 @@ export class TaskService {
       const { rows: waivers } = await tx.execute<{ kinds: string[] | null }>(sql`
         SELECT bypass_kinds::text[] AS kinds FROM approval
          WHERE is_bypass AND subject_type = 'gate_bypass' AND subject_id = ${taskId}
+           -- 끝낸 면제는 세지 않는다(2026-10-17 · REQ-API-357). 이미 done 이 된 작업은 그대로다 — 이 판정은 전이 때만 돈다
+           AND revoked_at IS NULL
       `);
       const waivedAll = waivers.some((w) => w.kinds === null);
       const waivedKinds = new Set(waivers.flatMap((w) => w.kinds ?? []));

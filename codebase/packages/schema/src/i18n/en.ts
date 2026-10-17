@@ -132,6 +132,9 @@ export const en = {
   'error.pin.target_not_found': 'Could not find {target} in this project to pin.',
   'error.pin.not_found': 'No such pin. It was already removed or belongs to someone else.',
   'error.pin.limit': 'You can pin up to {max} items. Unpin ones you no longer use first.',
+  'error.pin.order_duplicate': 'The same pin appears twice in the order. List each pin once.',
+  'error.pin.order_unknown':
+    'The order includes something that is not your pin. Reload the list and move it again.',
   'error.approval.bypass_kind_forbidden':
     'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
   'error.approval.bypass_unscoped_forbidden':
@@ -144,6 +147,11 @@ export const en = {
     'head_sha is only for a branch waiver. Use it to narrow the waiver to one commit of that branch.',
   'error.approval.bypass_head_not_full_sha':
     'head_sha must be a full 40-character commit SHA. A short SHA could later match another commit (get it with git rev-parse).',
+  'error.approval.revoke_reason_required': 'Ending a waiver requires a reason.',
+  'error.approval.revoke_forbidden':
+    'Only the person who recorded this waiver or an admin can end it.',
+  'error.approval.bypass_not_found':
+    'No such waiver. Check that it is a gate waiver in this project.',
   'error.gate.head_not_full_sha':
     'head_sha must be a full 40-character commit SHA. The two verdicts are compared for one commit, so the commit must be exact (get it with git rev-parse).',
   'error.cutover.role_required': 'Only admins and planners can read the cutover report.',
@@ -310,7 +318,8 @@ export const en = {
   'inbox.card.correct.finding_approved':
     'A resolution can’t be changed. If it needs another look, file a new finding.',
   'inbox.card.correct.finding_returned': 'If the agent asks again, a new card appears.',
-  'inbox.card.correct.bypass': 'A bypass stays on record. To withdraw it, make a new decision.',
+  'inbox.card.correct.bypass':
+    "A waiver stays on record. To end it, use [End waiver] in the review center's gate status or on the task page.",
   'inbox.card.correct.spec_expired':
     'No one decided within 7 days, so the document went back to draft. A new card appears when the author requests review again.',
   'inbox.card.expired_at': 'Expired · {when}',
@@ -1127,6 +1136,12 @@ export const en = {
   'cr.toast.returned': 'Approval rejected. Back to draft.',
   'cr.toast.approved': 'Approved.',
   'cr.toast.rejected': 'Change request rejected. The draft was discarded.',
+  'cr.result.created': 'The change request created {n} tasks.',
+  'cr.result.archived': 'Archived {n} tasks that had not started.',
+  'cr.result.default': 'Nothing was chosen, so the defaults were applied.',
+  'cr.result.source_default':
+    'Nothing was chosen, so the defaults were applied: the derived and re-verification tasks are created and nothing is archived.',
+  'cr.result.source_chosen': 'Only what was chosen at approval was done.',
   'cr.toast.withdrawn': 'Change request withdrawn.',
   'error.task.rebrief_baseline':
     "A task developed against a baseline can't move only its basis version. Move the task to a new baseline instead.",
@@ -1241,7 +1256,8 @@ export const en = {
   'event.finding.opened': 'Review finding opened',
   'event.finding.commented': 'Comment added to finding',
   'event.finding.resolved': 'Review finding resolved',
-  'event.gate.bypassed': 'Gate passed automatically',
+  'event.gate.bypassed': 'Gate waived',
+  'event.gate.bypass_revoked': 'Gate waiver ended',
   'event.gate.failopen': 'Gate check failed (recorded and proceeded)',
   'event.gate.failopen_escalated': 'Gate escalated (undecided passes over the limit)',
   'event.gate.failopen_cleared': 'Gate escalation cleared',
@@ -1967,6 +1983,8 @@ export const en = {
   'project.recent_events': 'Recent activity',
   // ── 스펙 목록·검색 (screens.md §2.4) ──────────────────────────────────────────
   'specs.archived_badge': 'Archived',
+  'specs.pinned': 'Pinned',
+  'specs.pinned_hint': 'Pinned in the quick switcher (⌘K). Pin and unpin there.',
   'specs.back_to_tree': 'Back to the tree',
   'specs.collapse': 'Collapse',
   'specs.degraded': 'Semantic search is temporarily off. Showing keyword results only.',
@@ -2183,6 +2201,13 @@ export const en = {
   'task.waiver.line': '{kinds} review waived · {by} · {at}',
   'task.waiver.all': 'all reviews',
   'task.waiver.void': 'not applied because the task has code evidence',
+  'task.waiver.revoke': 'End waiver',
+  'task.waiver.revoke_confirm': 'End this waiver. Checks from now on will not count it.',
+  'task.waiver.revoke_detail':
+    'Passes that already happened (tasks already done · PRs already merged) stay as they are. The waiver record is kept, along with who ended it and why.',
+  'task.waiver.revoke_reason': 'Reason for ending it',
+  'task.waiver.revoked': 'Ended the waiver',
+  'task.waiver.revoked_line': 'ended · {by} · {at}',
   'task.waiver.code_evidence': 'A task with code evidence cannot have its code review waived',
   'task.waiver.no_role':
     'You cannot waive any of these reviews. Code reviews are waived by a developer or an admin, spec reviews by a planner or an admin',
@@ -2749,6 +2774,7 @@ export const en = {
   'switcher.key_close': 'Esc close',
   'switcher.key_move': '↑↓ move',
   'switcher.key_open': '↵ open',
+  'switcher.key_reorder': '⌥↑↓ reorder pins',
   'switcher.label': 'Quick switcher',
   'switcher.no_results': 'No results. Try different keywords.',
   'switcher.pin': 'Pin to the top',

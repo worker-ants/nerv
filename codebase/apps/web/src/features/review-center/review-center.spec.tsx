@@ -137,6 +137,27 @@ beforeEach(() => {
         const body = JSON.parse(init.body ?? '{}') as Record<string, unknown>;
         posted.push({ url: path, body });
         // 브랜치 면제를 기록하면 서버의 게이트 현황에 그 브랜치 줄이 생기거나 그 줄에 면제가 붙는다
+        // 면제 끝내기(2026-10-17 · REQ-WEB-336) — 그 면제에 끝낸 기록을 붙인다(서버는 줄을 지우지 않는다)
+        const revoked = /\/gates\/bypass\/([^/]+)\/revoke$/.exec(path);
+        if (revoked !== null) {
+          gate = {
+            ...gate,
+            items: gate.items.map((r) => ({
+              ...r,
+              bypasses: (r['bypasses'] as Record<string, unknown>[]).map((w) =>
+                w['id'] === revoked[1]
+                  ? {
+                      ...w,
+                      revoked_at: new Date().toISOString(),
+                      revoked_by_name: '규아',
+                      revoke_reason: String(body['reason']),
+                    }
+                  : w,
+              ),
+            })),
+          };
+          return { ok: true, status: 200, json: async () => ({ approval_id: revoked[1] }) };
+        }
         if (path.includes('/gates/bypass') && typeof body['branch'] === 'string') {
           const waived = {
             id: `w-${String(body['branch'])}`,
@@ -480,6 +501,73 @@ describe('S6 게이트 현황에서 브랜치 면제 — 2026-10-16 사람 결�
     fireEvent.click(rowOf('hotfix/session-restore').getByTestId('gate-waive'));
     fireEvent.click(await screen.findByTestId('branch-waiver-cancel'));
     expect(screen.queryByTestId('branch-waiver-form')).toBeNull();
+    expect(posted).toHaveLength(0);
+  });
+});
+
+describe('S6 게이트 현황에서 면제 끝내기 — 2026-10-17 사람 결정 (REQ-WEB-336)', () => {
+  const rowOf = (branch: string): ReturnType<typeof within> =>
+    within(screen.getByText(branch).closest('tr') as HTMLElement);
+  /** docs/readme 의 면제를 낸 사람을 바꾼다 — 지금 보는 사람은 u-1(규아)이다 */
+  const issuedBy = (byUserId: string): void => {
+    gate = {
+      ...GATE,
+      items: GATE_ROWS.map((r) =>
+        r.branch === 'docs/readme'
+          ? { ...r, bypasses: r.bypasses.map((w) => ({ ...w, by_user_id: byUserId })) }
+          : r,
+      ),
+    };
+  };
+
+  it('낸 사람은 사유를 넣어야 끝낸다 — 끝내면 그 줄에 끝낸 기록이 남고 면제 수에서 빠진다', async () => {
+    roles = ['developer'];
+    issuedBy('u-1');
+    await renderCenter();
+    const row = rowOf('docs/readme');
+    fireEvent.click(row.getByTestId('waiver-revoke'));
+    // 같은 자리에서 묻는다 — 이미 지나간 통과는 그대로라는 것을 적는다
+    const bar = await screen.findByTestId('waiver-revoke-confirming');
+    expect(bar.textContent).toContain('이미 지나간 통과');
+    expect(isLocked(within(bar).getByTestId('waiver-revoke-confirm'))).toBe(true);
+    fireEvent.change(within(bar).getByTestId('waiver-revoke-reason'), {
+      target: { value: 'code 리뷰를 받기로 했다' },
+    });
+    fireEvent.click(within(bar).getByTestId('waiver-revoke-confirm'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]!.url).toContain('/projects/clemvion/gates/bypass/w-branch/revoke');
+    expect(posted[0]!.body).toEqual({ reason: 'code 리뷰를 받기로 했다' });
+    // 게이트 현황을 다시 읽어 끝낸 기록을 그 줄에 남기고 면제 수에서는 뺀다
+    await waitFor(() =>
+      expect(rowOf('docs/readme').getByTestId('waiver-revoked').textContent).toContain(
+        'code 리뷰를 받기로 했다',
+      ),
+    );
+    expect(rowOf('docs/readme').getByTestId('gate-bypass').getAttribute('data-revoked')).toBe(
+      'true',
+    );
+    expect(rowOf('docs/readme').queryByTestId('gate-bypass-count')).toBeNull();
+    expect(rowOf('docs/readme').queryByTestId('waiver-revoke')).toBeNull();
+  });
+
+  it('남의 면제는 admin 에게만 단추가 있다 — 낸 사람을 모르는 면제도 admin 만', async () => {
+    roles = ['developer'];
+    issuedBy('u-2');
+    await renderCenter();
+    expect(screen.queryAllByTestId('waiver-revoke')).toHaveLength(0);
+    cleanup();
+    roles = ['admin'];
+    await renderCenter();
+    expect(rowOf('docs/readme').getByTestId('waiver-revoke')).toBeTruthy();
+  });
+
+  it('[취소]는 아무것도 보내지 않는다', async () => {
+    roles = ['developer'];
+    issuedBy('u-1');
+    await renderCenter();
+    fireEvent.click(rowOf('docs/readme').getByTestId('waiver-revoke'));
+    fireEvent.click(await screen.findByTestId('waiver-revoke-cancel'));
+    expect(screen.queryByTestId('waiver-revoke-confirming')).toBeNull();
     expect(posted).toHaveLength(0);
   });
 });

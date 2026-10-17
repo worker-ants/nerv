@@ -682,6 +682,46 @@ describe('범위를 고른 리뷰 면제 — 코드 없는 작업을 정직하�
     expect(rows[0]).toMatchObject({ bypass_kinds: null });
     expect(await close(taskId)).toMatchObject({ status: 'done' });
   });
+
+  it('끝낸 면제는 done 게이트가 세지 않는다 — 다시 막고, 새로 면제하면 닫힌다 (2026-10-17 · REQ-API-357)', async () => {
+    await policy();
+    const taskId = await task('CLV-T-RVK001', [['review', 'round-1']]);
+    await submit({
+      taskId,
+      kind: 'consistency',
+      branch: 'review/consistency-rvk',
+      changeset: ['spec/CLE-1.md'],
+    });
+    const first = (await waive('CLV-T-RVK001', ['code'], ['developer'])) as Record<string, unknown>;
+    await app.get(ApprovalService).revokeBypass({
+      projectId,
+      approvalId: String(first['approval_id']),
+      userId,
+      reason: 'code 리뷰를 받기로 했다',
+      actor: { userId, isAgent: false },
+      roles: ['developer'],
+    });
+    expect(detailsOf(await close(taskId))['uncovered_kinds']).toEqual(['code']);
+    // 작업 상세는 끝낸 면제도 끝낸 기록과 함께 보인다
+    const detail = await app.get(TaskService).get({ projectId, taskKey: 'CLV-T-RVK001' });
+    expect(detail['review_waivers']).toEqual([
+      expect.objectContaining({
+        kinds: ['code'],
+        by_user_id: userId,
+        revoked_by_name: '규아',
+        revoke_reason: 'code 리뷰를 받기로 했다',
+        revoked_at: expect.any(String),
+      }),
+    ]);
+    // 이벤트의 대상 칸은 그 작업이다 — 알림 · 피드가 그 작업으로 데려간다
+    const { rows: ev } = await pool.query(
+      `SELECT payload FROM event WHERE type = 'gate.bypass_revoked' ORDER BY occurred_at DESC LIMIT 1`,
+    );
+    expect(ev[0].payload).toMatchObject({ task_key: 'CLV-T-RVK001', task_id: taskId });
+
+    await waive('CLV-T-RVK001', ['code'], ['developer'], { reason: '다시 보니 코드가 없다' });
+    expect(await close(taskId)).toMatchObject({ status: 'done' });
+  });
 });
 
 /**

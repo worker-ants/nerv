@@ -17,7 +17,8 @@ import { statusLabelKey } from '@nerv/schema';
 import { useT } from '../lib/i18n.js';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { rows, useSpecTree } from '../lib/queries.js';
+import { rows, usePinnedSpecKeys, useSpecTree } from '../lib/queries.js';
+import { PinMark } from './pin-mark.js';
 import { StatusBadge } from './status-badge.js';
 import { cn } from '../lib/utils.js';
 import { relativeTime } from '../lib/format.js';
@@ -393,6 +394,8 @@ export function SpecTree({
 }: SpecTreeProps): React.JSX.Element {
   const t = useT();
   const tree = useSpecTree(projectSlug, projectId, includeArchived, view);
+  // 내가 고정한 문서 — 제목 옆 ★(2026-10-17 사람 결정 · REQ-WEB-337). 고정 · 해제는 퀵 스위처에서 한다
+  const pinned = usePinnedSpecKeys(projectSlug);
   const [filter, setFilter] = useState('');
   const filtering = filter.trim() !== '';
   useEffect(() => {
@@ -796,6 +799,7 @@ export function SpecTree({
             />
           )}
           <span className="truncate">{node.title}</span>
+          {pinned.has(node.key) && <PinMark />}
           {/* **번호로 걸렀으면 번호를 보인다**(2026-10-04 · REQ-WEB-288). 행은 제목만 그려서, 번호로 맞아
               남은 행은 왜 남았는지 알 수 없었다. 제목으로도 맞으면 그것으로 충분하다 */}
           {keyHit(node) && (

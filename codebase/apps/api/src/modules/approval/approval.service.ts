@@ -20,6 +20,7 @@ import {
   bodyChange,
   canBypassUnscoped,
   canDirectApprove,
+  canRevokeWaiver,
   canWaiveReviewKind,
   CODE_EVIDENCE_KINDS,
   CODE_REVIEW_KINDS,
@@ -29,6 +30,7 @@ import {
   msg,
   NERV_ERROR,
   NERV_EVENT,
+  NERV_EVENT_PHASE2,
   newId,
   questionStatus,
   reviewKind,
@@ -62,7 +64,7 @@ import {
   quorumColumnsSql,
   selfKindOf,
 } from './approval-policy.js';
-import { InjectDb } from '../../common/database.module.js';
+import { InjectDb, toDate } from '../../common/database.module.js';
 import {
   cursorId,
   cursorTimestamp,
@@ -127,6 +129,8 @@ export interface DirectBulkResult {
   code?: NervErrorCode;
   kind?: string | null;
   descriptor?: Message;
+  /** 이 승인이 변경 요청을 확정했으면 그 CR 과 함께 한 일 — 한 건 바로 승인과 같은 모양(2026-10-17 · REQ-API-359) */
+  change_request?: ChangeRequestOutcome;
 }
 
 /** 결정 한 건의 결과(EP-APR-03) */
@@ -251,6 +255,11 @@ export interface BulkDecisionResult {
    */
   descriptor?: Message;
   quorum?: { given: number; required: number; satisfied: boolean };
+  /**
+   * 이 결정이 변경 요청을 확정했으면 그 CR 과 함께 한 일 — 한 건 결정(EP-APR-03)과 같은 모양이다(2026-10-17 사람 결정 · REQ-API-359).
+   * 화면은 이것으로 일괄 토스트에 만든 작업 수를 적는다
+   */
+  change_request?: ChangeRequestOutcome;
 }
 
 export interface InboxCard extends Record<string, unknown> {
@@ -1798,6 +1807,9 @@ export class ApprovalService {
           id: item.id,
           ok: true,
           ...(decided.quorum === undefined ? {} : { quorum: decided.quorum }),
+          ...(decided.change_request === undefined
+            ? {}
+            : { change_request: decided.change_request }),
         });
       } catch (error) {
         if (!(error instanceof NervError)) throw error;
@@ -2076,6 +2088,7 @@ export class ApprovalService {
           status: done.status,
           spec_key: done.spec_key,
           ...(done.quorum === undefined ? {} : { quorum: done.quorum }),
+          ...(done.change_request === undefined ? {} : { change_request: done.change_request }),
         });
       } catch (error) {
         if (!(error instanceof NervError)) throw error;
@@ -2498,6 +2511,136 @@ export class ApprovalService {
         head_sha: headSha,
         ...(kinds === null ? {} : { kinds }),
         ...(expanded ? { expanded: true as const } : {}),
+      };
+    });
+  }
+
+  /**
+   * EP-APR-09 — **면제 끝내기**(2026-10-17 · 사람 결정 · 권장안 A · REQ-API-357).
+   *
+   * 결정은 거두지 않는다(2026-09-26 사람 결정) — 면제를 바로잡는 것은 새 결정이다. 그런데 그 새 결정이 없어서, 커밋을 적지 않은
+   * 브랜치 면제는 그 브랜치의 모든 커밋에 계속 유효했다. 토큰 폐기와 같은 모양으로 둔다: 결재 행을 지우거나 되감지 않고 끝낸
+   * 사람 · 시각 · 사유를 남기며, **그 뒤의 판정**(게이트 판정 · done 게이트)이 이 면제를 세지 않는다. 이미 지나간 통과(이미 done 이 된
+   * 작업 · 이미 머지된 PR)는 그대로다 — 되감는 것이 아니라 앞으로의 효력을 끝내는 것이다.
+   *
+   * 끝낼 수 있는 사람은 **그 면제를 낸 사람 또는 admin** 이다. 면제를 낼 수 있는 역할(`@RequireRole`)은 컨트롤러가 본다. 이미 끝낸
+   * 면제면 처음 끝낸 기록을 덮지 않고 `unchanged: true` 로 답한다(이벤트도 내지 않는다).
+   */
+  async revokeBypass(input: {
+    projectId: string;
+    approvalId: string;
+    userId: string;
+    reason: string;
+    actor: Actor;
+    roles?: readonly string[] | undefined;
+  }): Promise<{
+    approval_id: string;
+    revoked_at: string;
+    revoked_by_user_id: string;
+    revoke_reason: string;
+    task_key: string | null;
+    branch: string | null;
+    head_sha: string | null;
+    kinds: string[] | null;
+    unchanged?: true;
+  }> {
+    assertHuman(input.actor, 'bypass');
+    const reason = input.reason.trim();
+    if (reason === '') {
+      throw new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.revoke_reason_required'), {
+        kind: 'revoke_reason_required',
+      });
+    }
+    const id = entityRef(input.approvalId).id;
+    const notFound = (): NervError =>
+      new NervError(NERV_ERROR.PRECONDITION, msg('error.approval.bypass_not_found'), {
+        kind: 'not_found',
+        approval_id: input.approvalId,
+      });
+    if (id === null) throw notFound();
+    return this.events.transact(async (tx, emit) => {
+      const { rows } = await tx.execute<{
+        id: string;
+        by_user_id: string;
+        subject_id: string;
+        branch: string | null;
+        head_sha: string | null;
+        kinds: string[] | null;
+        revoked_at: unknown;
+        revoked_by_user_id: string | null;
+        revoke_reason: string | null;
+        task_key: string | null;
+      }>(sql`
+        SELECT a.id, a.decided_by_user_id AS by_user_id, a.subject_id, a.branch, a.head_sha,
+               a.bypass_kinds::text[] AS kinds, a.revoked_at, a.revoked_by_user_id, a.revoke_reason,
+               t.key AS task_key
+          FROM approval a
+     LEFT JOIN task t ON t.id = a.subject_id AND a.branch IS NULL
+         WHERE a.project_id = ${input.projectId} AND a.id = ${id} AND a.is_bypass
+           FOR UPDATE OF a
+      `);
+      const row = rows[0];
+      if (row === undefined) throw notFound();
+      // **낸 사람 또는 admin** — 남의 면제를 끝내는 것은 그 사람의 판단을 뒤집는 일이라 admin 의 몫이다
+      if (
+        !canRevokeWaiver({
+          roles: input.roles ?? [],
+          userId: input.userId,
+          byUserId: row.by_user_id,
+        })
+      ) {
+        throw new NervError(NERV_ERROR.FORBIDDEN, msg('error.approval.revoke_forbidden'), {
+          kind: 'revoke_forbidden',
+          approval_id: row.id,
+        });
+      }
+      const scope = {
+        task_key: row.task_key,
+        branch: row.branch,
+        head_sha: row.head_sha,
+        kinds: row.kinds,
+      };
+      // 이미 끝낸 면제 — 처음 끝낸 사람 · 시각 · 사유를 덮지 않는다(보관 · 복구의 멱등과 같다 · REQ-API-256)
+      if (row.revoked_at !== null) {
+        return {
+          approval_id: row.id,
+          revoked_at: toDate(row.revoked_at).toISOString(),
+          revoked_by_user_id: row.revoked_by_user_id ?? '',
+          revoke_reason: row.revoke_reason ?? '',
+          ...scope,
+          unchanged: true as const,
+        };
+      }
+      const { rows: done } = await tx.execute<{ revoked_at: unknown }>(sql`
+        UPDATE approval
+           SET revoked_at = now(), revoked_by_user_id = ${input.userId}, revoke_reason = ${reason}
+         WHERE id = ${row.id}
+     RETURNING revoked_at
+      `);
+      await emit({
+        type: NERV_EVENT_PHASE2.GATE_BYPASS_REVOKED,
+        projectId: input.projectId,
+        subjectType: 'approval',
+        subjectId: row.id,
+        ...(row.task_key === null ? {} : { subjectKey: row.task_key }),
+        actorUserId: input.userId,
+        isAgent: input.actor.isAgent,
+        payload: {
+          reason,
+          ...(row.task_key === null ? {} : { task_id: row.subject_id, task_key: row.task_key }),
+          ...(row.branch === null ? {} : { branch: row.branch, head_sha: row.head_sha }),
+          kinds: row.kinds,
+          waiver_by_user_id: row.by_user_id,
+          // 낸 사람이 아닌 사람이 끝냈으면 낸 사람에게 알린다 — 그 사람의 브랜치 · 작업이 다시 막힐 수 있다
+          notify_user_ids: row.by_user_id === input.userId ? [] : [row.by_user_id],
+        },
+      });
+      return {
+        approval_id: row.id,
+        revoked_at: toDate(done[0]?.revoked_at).toISOString(),
+        revoked_by_user_id: input.userId,
+        revoke_reason: reason,
+        ...scope,
       };
     });
   }

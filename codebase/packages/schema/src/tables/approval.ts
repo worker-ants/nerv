@@ -81,6 +81,14 @@ export const approval = pgTable(
      * 면제는 만료가 아니라 새 결정으로 되돌린다(유효 시간을 받지 않는 까닭과 같다)
      */
     headSha: text('head_sha'),
+    /**
+     * **면제를 끝낸 새 결정**(2026-10-17 · 사람 결정 · REQ-DB-055 · api.md REQ-API-357). 면제는 결재 레코드라 지우거나 되감지
+     * 않는다 — 끝낸 사람 · 시각 · 사유를 이 세 칸에 남기고, 그 뒤의 판정(게이트 판정 · done 게이트 · 게이트 현황)이 이 면제를
+     * 세지 않는다. 이미 지나간 통과(이미 done 이 된 작업)는 그대로다. 셋은 함께 채워지고 면제에만 있다
+     */
+    revokedAt: ts('revoked_at'),
+    revokedByUserId: uuid('revoked_by_user_id').references(() => user.id),
+    revokeReason: text('revoke_reason'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -99,6 +107,11 @@ export const approval = pgTable(
     check(
       'approval_head_sha_ck',
       sql`${t.headSha} IS NULL OR (${t.branch} IS NOT NULL AND ${t.headSha} ~ '^[0-9a-f]{40}$')`,
+    ),
+    // 끝낸 기록은 면제에만 있고 세 칸이 함께다 — 사유 없이 끝낸 면제는 「왜 다시 막혔나」에 답하지 못한다(REQ-DB-055)
+    check(
+      'approval_revoke_ck',
+      sql`(${t.revokedAt} IS NULL AND ${t.revokedByUserId} IS NULL AND ${t.revokeReason} IS NULL) OR (${t.isBypass} AND ${t.revokedAt} IS NOT NULL AND ${t.revokedByUserId} IS NOT NULL AND ${t.revokeReason} IS NOT NULL AND ${t.revokeReason} <> '')`,
     ),
     // 게이트 판정 · 게이트 현황이 (프로젝트 · 브랜치)로 면제를 찾는다
     index('approval_bypass_branch')

@@ -526,6 +526,7 @@ function ReviewCenter(): React.JSX.Element {
               // **게이트 현황에서 브랜치를 면제한다**(2026-10-16 사람 결정 · REQ-WEB-332) — 역할 판정은 작업 상세와 같은 표다
               waiver={{
                 roles,
+                userId: me.data?.id ?? null,
                 onDone: () => {
                   if (id !== undefined)
                     void queryClient.invalidateQueries({

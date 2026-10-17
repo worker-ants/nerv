@@ -129,8 +129,12 @@ function crRow(over: Row = {}): Row {
   };
 }
 
+/** POST 응답에 더할 것 — 승인이 확정한 변경 요청(`change_request`) 같은 것(2026-10-17 · REQ-WEB-339) */
+let postExtra: Row = {};
+
 beforeEach(() => {
   localStorage.clear();
+  postExtra = {};
   setDecisionGraceForTesting(0);
   roles = ['planner'];
   posts = [];
@@ -146,6 +150,7 @@ beforeEach(() => {
           ...cr,
           status: 'rejected',
           quorum: { given: 1, required: 1, satisfied: true },
+          ...postExtra,
         });
       }
       if (path === '/me') {
@@ -311,12 +316,34 @@ describe('CR 상세 — 델타 · 영향 · 함께 할 일 · 결정 (REQ-WEB-32
     expect(screen.queryByTestId('cr-withdraw')).toBeNull();
   });
 
+  it('승인하면 토스트가 그때 만든 작업 수와 기본값이었는지를 적는다 (2026-10-17 · REQ-WEB-339)', async () => {
+    postExtra = {
+      change_request: {
+        key: 'CLV-C-7QF3K2',
+        actions_source: 'default',
+        created_tasks: [
+          { key: 'CLV-T-NEW001', kind: 'derive', ref: 'REQ-CWC-003' },
+          { key: 'CLV-T-NEW002', kind: 'reverify', ref: 'REQ-CWC-001' },
+        ],
+        archived_tasks: [],
+      },
+    };
+    renderAt('/p/clemvion/crs/CLV-C-7QF3K2');
+    fireEvent.click(await screen.findByTestId('cr-approve'));
+    expect(
+      await screen.findByText(
+        '승인했습니다. 변경 요청으로 작업 2건을 만들었습니다. 고른 것이 없어 기본값을 적용했습니다.',
+      ),
+    ).toBeTruthy();
+  });
+
   it('승인된 CR 은 그때 만든 작업과 보관한 작업을 보인다', async () => {
     cr = crRow({
       status: 'approved',
       proposed_status: 'approved',
       approval_id: null,
       outcome: {
+        actions_source: 'default',
         created_tasks: [{ key: 'CLV-T-NEW001', kind: 'derive', ref: 'REQ-CWC-003' }],
         archived_tasks: ['CLV-T-BKLG01'],
         skipped: [],
@@ -327,6 +354,8 @@ describe('CR 상세 — 델타 · 영향 · 함께 할 일 · 결정 (REQ-WEB-32
     const outcome = await screen.findByTestId('cr-outcome');
     expect(outcome.textContent).toContain('CLV-T-NEW001');
     expect(outcome.textContent).toContain('CLV-T-BKLG01');
+    // 고른 것이 없어 기본값이 한 일이다 — 「왜 이 작업이 생겼나」에 답한다(2026-10-17 · REQ-WEB-339)
+    expect(screen.getByTestId('cr-outcome-source').textContent).toContain('기본값');
     expect(screen.queryByTestId('cr-approve')).toBeNull();
   });
 

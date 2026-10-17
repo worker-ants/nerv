@@ -1172,8 +1172,18 @@ function TaskDetail(): React.JSX.Element {
                 <li className="text-sm text-text-faint">{t('task.reviews.none')}</li>
               )}
             </ul>
-            {/* 면제도 리뷰 기록의 일부다 — 누가 · 언제 · 왜 · 어느 종류를(REQ-WEB-299) */}
-            <ReviewWaiverList waivers={rows(data['review_waivers'])} />
+            {/* 면제도 리뷰 기록의 일부다 — 누가 · 언제 · 왜 · 어느 종류를(REQ-WEB-299). 낸 사람이나 admin 은 그 줄에서
+                면제를 끝낸다(2026-10-17 · 사람 결정 · REQ-WEB-336) — 끝낸 면제도 기록으로 남는다 */}
+            <ReviewWaiverList
+              waivers={rows(data['review_waivers'])}
+              revoke={{
+                proj,
+                roles,
+                userId: me.data?.id ?? null,
+                onDone: () =>
+                  void queryClient.invalidateQueries({ queryKey: queryKeys.task(task) }),
+              }}
+            />
             {/* 리뷰가 없는 브랜치의 면제(2026-10-16 · 사람 결정 D4 · REQ-WEB-327) — 게이트 판정(push 훅 · CI)을 넘기는 일이라
                 완료 조건이 아니라 리뷰 카드에 둔다. 작업이 끝난 뒤에도 병합 때 쓴다 */}
             <BranchWaiverForm proj={proj} roles={roles} branches={taskBranches(data)} />

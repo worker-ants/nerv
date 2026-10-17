@@ -18,6 +18,7 @@ import { useRealtime } from '../../lib/realtime.js';
 import { Button } from '../../components/ui/primitives.js';
 import type { CardFailure } from '../inbox/approval-card.js';
 import { BulkConfirm } from '../inbox/bulk-decision.js';
+import { withCrOutcome } from '../../lib/cr-plan.js';
 
 interface DraftResult {
   version_id: string;
@@ -25,6 +26,8 @@ interface DraftResult {
   status?: 'approved' | 'in_review';
   kind?: string | null;
   message?: string;
+  /** 이 승인이 확정한 변경 요청과 그때 한 일 — 한 건 바로 승인과 같은 모양(2026-10-17 · REQ-API-359) */
+  change_request?: Record<string, unknown>;
 }
 
 export function DraftApproveBar({
@@ -97,15 +100,28 @@ export function DraftApproveBar({
       }
       pushToast(
         result.failed === 0 && result.waiting === 0
-          ? { tone: 'ok', kind: 'trail', message: t('specs.drafts.done', { n: result.approved }) }
+          ? // 변경 요청을 확정한 승인이 있으면 만든 작업 수를 합쳐 적는다(2026-10-17 · REQ-WEB-339)
+            {
+              tone: 'ok',
+              kind: 'trail',
+              message: withCrOutcome(
+                t,
+                t('specs.drafts.done', { n: result.approved }),
+                result.results,
+              ),
+            }
           : {
               tone: 'warn',
               kind: 'trail',
-              message: t('specs.drafts.partial', {
-                n: result.approved,
-                waiting: result.waiting,
-                failed: result.failed,
-              }),
+              message: withCrOutcome(
+                t,
+                t('specs.drafts.partial', {
+                  n: result.approved,
+                  waiting: result.waiting,
+                  failed: result.failed,
+                }),
+                result.results,
+              ),
             },
       );
     },

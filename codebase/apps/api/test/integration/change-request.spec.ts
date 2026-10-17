@@ -1056,6 +1056,54 @@ describe('고른 적이 없으면 기본값 — 2026-10-16 사람 결정 (REQ-AP
     const kept = await second(empty.v2);
     expect(kept.change_request).toMatchObject({ actions_source: 'chosen', created_tasks: [] });
   });
+
+  it('일괄 결정 · 일괄 바로 승인의 항목도 한 건과 같은 `change_request` 를 준다 — CR 상세의 `outcome` 이 고른 것인지 기본값인지 준다 (2026-10-17 · REQ-API-359)', async () => {
+    const inbox = await submitted('SPC-CR-BULK-INBOX');
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM approval WHERE subject_id = $1 AND decision IS NULL`,
+      [inbox.v2],
+    );
+    const bulk = await approvals.decideBulk({
+      actor: person(reviewer),
+      userId: reviewer,
+      decision: 'approve',
+      items: [{ id: rows[0]!.id, seenContentHash: await hashOf(inbox.v2) }],
+    });
+    expect(bulk.results[0]).toMatchObject({
+      ok: true,
+      change_request: {
+        key: (await crRow(inbox.v2))['key'],
+        actions_source: 'default',
+        created_tasks: [
+          expect.objectContaining({ kind: 'derive' }),
+          expect.objectContaining({ kind: 'reverify' }),
+        ],
+        archived_tasks: [],
+      },
+    });
+
+    const drafts = await proposal('SPC-CR-BULK-DIRECT', 'CRY');
+    const direct = await approvals.approveDirectBulk({
+      actor: person(planner),
+      projectId,
+      userId: planner,
+      items: [{ versionId: drafts.v2, seenContentHash: await hashOf(drafts.v2) }],
+    });
+    expect(direct.results[0]).toMatchObject({
+      ok: true,
+      status: 'approved',
+      change_request: { actions_source: 'default' },
+    });
+    expect(direct.results[0]!.change_request?.created_tasks).toHaveLength(2);
+
+    // CR 상세는 그때 한 일과 함께 그 출처를 준다 — 고른 것이 없어 기본값을 적용했다
+    const detail = await crs.get({ projectId, ref: String((await crRow(inbox.v2))['key']) });
+    expect(detail['outcome']).toMatchObject({ actions_source: 'default' });
+    const chosen = await submitted('SPC-CR-BULK-CHOSEN', 'CRZ');
+    await decideAs(chosen.v2, 'approve', { crActions: {} });
+    const chosenDetail = await crs.get({ projectId, ref: String((await crRow(chosen.v2))['key']) });
+    expect(chosenDetail['outcome']).toMatchObject({ actions_source: 'chosen', created_tasks: [] });
+  });
 });
 
 describe('착수하지 않은 재검증 작업은 구현 상태를 바꾸지 않는다 — 2026-10-16 사람 결정 (REQ-API-097 개정 · REQ-DB-053)', () => {

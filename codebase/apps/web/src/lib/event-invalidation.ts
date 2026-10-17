@@ -213,6 +213,12 @@ const MAP: Partial<Record<NervEventName, KeyBuilder>> = {
     queryKeys.projectEvents(e.project_id),
     queryKeys.projectGateCoverage(e.project_id),
   ],
+  // 면제를 끝냈다(2026-10-17 · REQ-WEB-336) — 게이트 현황의 그 줄과, 작업 면제면 그 작업 상세(봉투의 `subject_key` 는 작업 키)
+  [P2.GATE_BYPASS_REVOKED]: (e) => [
+    queryKeys.projectEvents(e.project_id),
+    queryKeys.projectGateCoverage(e.project_id),
+    ...(e.subject_key == null ? [] : [queryKeys.task(e.subject_key)]),
+  ],
   [E.GATE_FAILOPEN]: (e) => [queryKeys.projectEvents(e.project_id)],
   // fail-open 격상 · 풀림(2026-10-15 · REQ-WEB-319) — 배너는 프로젝트 조회(머리)가 다시 읽는다(아래 `HEAD_EVENTS`)
   [P2.GATE_FAILOPEN_ESCALATED]: (e) => [queryKeys.projectEvents(e.project_id)],

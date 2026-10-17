@@ -24,6 +24,7 @@ import { useRealtime } from '../../lib/realtime.js';
 import { useRolesOnly, useScope } from '../../lib/scope.js';
 import { rolesInProject } from '../../lib/session.js';
 import { cn } from '../../lib/utils.js';
+import { withCrOutcome } from '../../lib/cr-plan.js';
 import {
   Button,
   Card,
@@ -434,7 +435,10 @@ function ActionsAndDecision({
       }
       pushToast({
         tone: 'ok',
-        message: kind === 'reject_review' ? t('cr.toast.returned') : t('cr.toast.approved'),
+        message:
+          kind === 'reject_review'
+            ? t('cr.toast.returned')
+            : withCrOutcome(t, t('cr.toast.approved'), [result]),
       });
     },
     onError: onApiError,
@@ -478,6 +482,16 @@ function ActionsAndDecision({
         <SectionTitle>{t('cr.section.actions')}</SectionTitle>
         {status === 'approved' ? (
           <div data-testid="cr-outcome" className="text-sm">
+            {/* **고른 것인가, 기본값인가**(2026-10-17 · REQ-WEB-339 · api.md REQ-API-359) — 아무도 고르지 않은 채 받은 요청
+                카드에서 승인했으면 기본값이 한 일이다. 그것을 모르면 「왜 이 작업이 생겼나」에 답하지 못한다 */}
+            {(outcome?.['actions_source'] === 'default' ||
+              outcome?.['actions_source'] === 'chosen') && (
+              <p data-testid="cr-outcome-source" className="mb-2 text-xs text-text-mute">
+                {outcome['actions_source'] === 'default'
+                  ? t('cr.result.source_default')
+                  : t('cr.result.source_chosen')}
+              </p>
+            )}
             {created.length + archived.length === 0 ? (
               <p className="text-text-faint">{t('cr.outcome.none')}</p>
             ) : (

@@ -1688,18 +1688,28 @@ export class ReviewService {
     // - **리뷰 세션을 면제한 결재**는 그 세션의 브랜치 줄에 붙는다(예전부터의 길).
     // - **브랜치 면제**(2026-10-16 · 사람 결정 D4 · REQ-API-341)는 `approval.branch` 로 그 줄에 붙는다 — 리뷰가 없는 브랜치에도
     //   낼 수 있고, 그때는 위에서 그 브랜치의 줄을 만들었다. 범위(종류 · 커밋)를 함께 준다.
+    //
+    // **끝낸 면제도 그 줄에 남는다**(2026-10-17 · 사람 결정 · REQ-API-357). 면제는 지우지 않는 결재 레코드라 끝낸 사람 · 시각 ·
+    // 사유(`revoked_at` · `revoked_by_name` · `revoke_reason`)와 함께 준다 — 게이트 판정(EP-REV-08)이 세지 않을 뿐이다. 낸 사람
+    // (`by_user_id`)은 화면이 [면제 끝내기]를 그릴지 정하는 재료다(`canRevokeWaiver`)
     const { rows: bypasses } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT rs.branch, a.id, a.bypass_reason, a.decided_at, u.display_name,
-             a.bypass_kinds::text[] AS kinds, NULL::text AS head_sha
+             a.bypass_kinds::text[] AS kinds, NULL::text AS head_sha,
+             a.decided_by_user_id AS by_user_id, a.revoked_at, ru.display_name AS revoked_by_name,
+             a.revoke_reason
         FROM approval a
         JOIN review_session rs ON rs.id = a.subject_id
         JOIN "user" u ON u.id = a.requested_by_user_id
+   LEFT JOIN "user" ru ON ru.id = a.revoked_by_user_id
        WHERE a.project_id = ${projectId} AND a.is_bypass AND a.branch IS NULL
       UNION ALL
       SELECT a.branch, a.id, a.bypass_reason, a.decided_at, u.display_name,
-             a.bypass_kinds::text[] AS kinds, a.head_sha
+             a.bypass_kinds::text[] AS kinds, a.head_sha,
+             a.decided_by_user_id AS by_user_id, a.revoked_at, ru.display_name AS revoked_by_name,
+             a.revoke_reason
         FROM approval a
         JOIN "user" u ON u.id = a.requested_by_user_id
+   LEFT JOIN "user" ru ON ru.id = a.revoked_by_user_id
        WHERE a.project_id = ${projectId} AND a.is_bypass AND a.branch IS NOT NULL
        ORDER BY decided_at DESC
     `);

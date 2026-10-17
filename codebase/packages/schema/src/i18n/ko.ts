@@ -140,6 +140,11 @@ export const ko = {
   'error.pin.target_not_found': '고정할 대상({target})을 이 프로젝트에서 찾지 못했습니다.',
   'error.pin.not_found': '찾을 수 없는 핀입니다. 이미 풀었거나 다른 사람의 핀입니다.',
   'error.pin.limit': '핀은 {max}개까지 고정할 수 있습니다. 쓰지 않는 핀을 먼저 푸세요.',
+  // 핀 순서 바꾸기(2026-10-17 · 사람 결정 · REQ-API-358)
+  'error.pin.order_duplicate':
+    '같은 핀이 순서에 두 번 들어 있습니다. 핀마다 한 번씩만 적어 주세요.',
+  'error.pin.order_unknown':
+    '순서에 내 핀이 아닌 것이 들어 있습니다. 목록을 다시 읽은 뒤 옮기세요.',
   // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
   'error.approval.bypass_kind_forbidden':
     '이 역할로는 {kinds} 리뷰를 면제할 수 없습니다. 코드 계열(code · merge)은 developer · admin이, 스펙 계열(consistency · spec_coverage)은 planner · admin이 면제합니다.',
@@ -155,6 +160,11 @@ export const ko = {
     'head_sha는 브랜치 면제에만 줍니다. 그 브랜치의 커밋 하나로 면제를 좁힐 때 씁니다.',
   'error.approval.bypass_head_not_full_sha':
     'head_sha는 40자 커밋 SHA여야 합니다. 짧은 SHA는 나중에 다른 커밋과 겹칠 수 있습니다(git rev-parse로 얻습니다).',
+  // 면제 끝내기(2026-10-17 · 사람 결정 · REQ-API-357)
+  'error.approval.revoke_reason_required': '면제를 끝내려면 사유가 필요합니다.',
+  'error.approval.revoke_forbidden': '이 면제는 낸 사람이나 admin만 끝낼 수 있습니다.',
+  'error.approval.bypass_not_found':
+    '찾을 수 없는 면제입니다. 이 프로젝트의 게이트 면제인지 확인하세요.',
   // SoT 컷오버 M1(2026-10-16 · 사람 결정 D6 · REQ-API-346 · 349)
   'error.gate.head_not_full_sha':
     'head_sha는 40자 커밋 SHA여야 합니다. 한 커밋의 두 판정을 견주므로 커밋이 하나로 정해져야 합니다(git rev-parse로 얻습니다).',
@@ -319,7 +329,9 @@ export const ko = {
   'inbox.card.correct.finding_approved':
     '처분은 바꿀 수 없습니다. 다시 다뤄야 한다면 새 발견으로 등록하세요.',
   'inbox.card.correct.finding_returned': '에이전트가 다시 요청하면 새 카드가 생깁니다.',
-  'inbox.card.correct.bypass': '면제는 기록으로 남습니다. 취소하려면 새로 결정해야 합니다.',
+  // 면제를 끝내는 새 결정이 생겼다(2026-10-17 · REQ-WEB-336) — 그 자리를 알려 준다
+  'inbox.card.correct.bypass':
+    '면제는 기록으로 남습니다. 끝내려면 리뷰 센터의 게이트 현황이나 작업 화면에서 [면제 끝내기]를 누르세요.',
   // 만료 탭의 카드(2026-10-15 · REQ-WEB-310) — 결정 없이 끝났다. 다시 오는 길을 적는다
   'inbox.card.correct.spec_expired':
     '7일 동안 결정되지 않아 문서가 초안으로 돌아갔습니다. 작성자가 다시 검토를 요청하면 새 카드가 생깁니다.',
@@ -1115,6 +1127,13 @@ export const ko = {
   'cr.toast.approved': '승인했습니다.',
   'cr.toast.rejected': '변경 요청을 거절했습니다. 초안을 버렸습니다.',
   'cr.toast.withdrawn': '변경 요청을 철회했습니다.',
+  // 승인이 한 일(2026-10-17 · 사람 결정 · REQ-WEB-339) — 토스트 끝에 붙는다
+  'cr.result.created': '변경 요청으로 작업 {n}건을 만들었습니다.',
+  'cr.result.archived': '미착수 작업 {n}건을 보관했습니다.',
+  'cr.result.default': '고른 것이 없어 기본값을 적용했습니다.',
+  'cr.result.source_default':
+    '고른 것이 없어 기본값을 적용했습니다. 파생 · 재검증 작업은 만들고 보관은 하지 않습니다.',
+  'cr.result.source_chosen': '승인하며 고른 것만 했습니다.',
   'error.task.rebrief_baseline':
     '기준선으로 개발하는 작업은 기준 버전만 옮길 수 없습니다. 작업의 기준선을 새 기준선으로 바꾸세요.',
   'error.task.baseline_pin_mismatch':
@@ -1225,7 +1244,10 @@ export const ko = {
   'event.finding.opened': '리뷰 발견 열림',
   'event.finding.commented': '리뷰 발견에 코멘트',
   'event.finding.resolved': '리뷰 발견 처분됨',
-  'event.gate.bypassed': '게이트 자동 통과',
+  // 사람이 사유와 함께 낸 면제다 — 「자동 통과」는 T0 · T1 등급의 통과와 섞였다(2026-10-17 정정)
+  'event.gate.bypassed': '게이트 면제',
+  // 면제 끝내기(2026-10-17 · 사람 결정 · REQ-API-357)
+  'event.gate.bypass_revoked': '게이트 면제 끝남',
   'event.gate.failopen': '게이트 판정 실패(기록 후 진행)',
   'event.gate.failopen_escalated': '게이트 격상(판정하지 못한 통과가 기준을 넘음)',
   'event.gate.failopen_cleared': '게이트 격상 풀림',
@@ -1945,6 +1967,9 @@ export const ko = {
   'project.recent_events': '최근 활동',
   // ── 스펙 목록·검색 (screens.md §2.4) ──────────────────────────────────────────
   'specs.archived_badge': '보관됨',
+  // 고정한 문서의 ★(2026-10-17 · 사람 결정 · REQ-WEB-337) — 읽기 전용 표시다
+  'specs.pinned': '고정한 문서',
+  'specs.pinned_hint': '퀵 스위처(⌘K)에 고정한 문서입니다. 고정과 해제는 퀵 스위처에서 합니다.',
   'specs.back_to_tree': '전체 트리로',
   'specs.collapse': '접기',
   'specs.degraded': '의미 검색이 잠시 꺼져 있어 키워드 검색 결과만 보여 줍니다.',
@@ -2158,6 +2183,14 @@ export const ko = {
   'task.waiver.line': '{kinds} 리뷰 면제 · {by} · {at}',
   'task.waiver.all': '리뷰 전부',
   'task.waiver.void': '코드 증적이 있어 적용되지 않습니다',
+  // 면제 끝내기(2026-10-17 · 사람 결정 · REQ-WEB-336)
+  'task.waiver.revoke': '면제 끝내기',
+  'task.waiver.revoke_confirm': '이 면제를 끝냅니다. 다음 판정부터 이 면제를 세지 않습니다.',
+  'task.waiver.revoke_detail':
+    '이미 지나간 통과(이미 완료된 작업 · 이미 머지된 PR)는 그대로입니다. 면제 기록은 지우지 않고 끝낸 사람과 사유를 함께 남깁니다.',
+  'task.waiver.revoke_reason': '끝내는 사유',
+  'task.waiver.revoked': '면제를 끝냈습니다',
+  'task.waiver.revoked_line': '끝남 · {by} · {at}',
   'task.waiver.code_evidence': '코드 증적이 붙은 작업은 코드 리뷰를 면제할 수 없습니다',
   'task.waiver.no_role':
     '면제할 수 있는 리뷰가 없습니다. 코드 리뷰는 developer · admin이, 스펙 리뷰는 planner · admin이 면제합니다',
@@ -2716,6 +2749,8 @@ export const ko = {
   'switcher.key_close': 'Esc 닫기',
   'switcher.key_move': '↑↓ 이동',
   'switcher.key_open': '↵ 열기',
+  // 핀 순서 바꾸기(2026-10-17 · 사람 결정 · REQ-WEB-338)
+  'switcher.key_reorder': '⌥↑↓ 고정 순서',
   'switcher.label': '빠른 이동',
   'switcher.no_results': '결과가 없습니다. 다른 검색어로 찾아보세요.',
   'switcher.pin': '목록 위에 고정',

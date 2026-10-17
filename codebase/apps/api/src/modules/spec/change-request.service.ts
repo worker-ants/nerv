@@ -579,15 +579,17 @@ export class ChangeRequestService {
     });
     // 승인된 CR 이면 그때 한 일 — 지금 다시 세면 그 뒤에 생긴 작업이 섞인다. 기록은 `cr.approved` 가 든다
     const { rows: outcome } = await this.db.execute<{
+      type: string;
       payload: Record<string, unknown> | null;
     }>(sql`
-      SELECT payload FROM event
+      SELECT type, payload FROM event
        WHERE project_id = ${input.projectId} AND subject_type = 'change_request'
          AND subject_id = ${String(row['id'])}
          AND type IN (${NERV_EVENT_PHASE2.CR_APPROVED}, ${NERV_EVENT_PHASE2.CR_REJECTED}, ${NERV_EVENT_PHASE2.CR_WITHDRAWN})
        ORDER BY occurred_at DESC LIMIT 1
     `);
     const done = outcome[0]?.payload ?? null;
+    const approved = outcome[0]?.type === NERV_EVENT_PHASE2.CR_APPROVED;
     return {
       ...this.withUrl(row),
       impact,
@@ -595,6 +597,13 @@ export class ChangeRequestService {
         ? {}
         : {
             outcome: {
+              // **고른 것인가, 기본값인가**(2026-10-17 · REQ-API-359) — 승인 응답의 `change_request.actions_source` 와 같은 값이다.
+              // 이 칸이 생기기 전의 승인(0058 전)은 고른 것만 했으므로 `chosen` 이다. 거절 · 철회에는 없다(null)
+              actions_source: approved
+                ? done['actions_source'] === 'default'
+                  ? 'default'
+                  : 'chosen'
+                : null,
               created_tasks: done['created_tasks'] ?? [],
               archived_tasks: done['archived_tasks'] ?? [],
               skipped: done['skipped'] ?? [],

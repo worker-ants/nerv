@@ -1,6 +1,7 @@
 // 변경 요청을 승인하면 함께 할 일 — 한 줄 문구 (2026-10-16 사람 결정 · screens.md REQ-WEB-321 · api.md REQ-API-351)
 //
-// 받은 요청의 CR 카드와 스펙 화면의 [바로 승인] 창이 같은 문장을 쓴다. 두 곳이 따로 쓰면 "카드는 기본값을 말하는데 창은
+// 받은 요청의 CR 카드와 스펙 화면의 [바로 승인] 창이 같은 문장을 쓴다. 승인한 **뒤**의 토스트도 여기서 한 문장을 만든다
+// (2026-10-17 사람 결정 · REQ-WEB-339) — 무엇을 할지 보인 자리와 무엇을 했는지 알리는 자리가 같은 말을 쓴다. 두 곳이 따로 쓰면 "카드는 기본값을 말하는데 창은
 // 골라 둔 것만 한다고 말한다" 같은 어긋남이 생긴다. 수는 서버가 센 값이다 — 기본값이 무엇인지(파생 · 재검증은 만들고 보관은
 // 하지 않는다)도 서버가 정하고 화면은 그 수를 옮긴다.
 
@@ -77,4 +78,47 @@ export function crPlanText(t: Translator, plan: CrPlan): string {
     parts.push(t('inbox.card.cr_unplanned', { n: plan.cancelSuggestions }));
   }
   return parts.length === 0 ? t('inbox.card.cr_no_suggestions') : parts.join(' ');
+}
+
+/**
+ * **승인이 한 일**(2026-10-17 사람 결정 · REQ-WEB-339 · api.md REQ-API-359). 승인 응답의 `change_request`(한 건 결정 · 바로 승인)나
+ * 일괄 응답의 항목마다의 `change_request` 를 모은 것이다. 변경 요청을 확정한 승인이 하나도 없으면 null 이다 — 그때 토스트는
+ * 예전 문장 그대로다.
+ */
+export interface CrOutcomeSum {
+  /** 확정한 변경 요청의 수 */
+  crs: number;
+  created: number;
+  archived: number;
+  /** 그 가운데 고른 것이 없어 기본값을 적용한 것이 있는가 */
+  defaulted: boolean;
+}
+
+/** 응답 하나 · 여럿의 `change_request` 를 모은다 — 칸이 없는 것(변경 요청이 아닌 승인 · 실패한 항목)은 건너뛴다 */
+export function crOutcomeSum(results: readonly unknown[]): CrOutcomeSum | null {
+  const outcomes = results.flatMap((result) => {
+    const cr = (result as Row | null)?.['change_request'];
+    return cr !== null && typeof cr === 'object' ? [cr as Row] : [];
+  });
+  if (outcomes.length === 0) return null;
+  return {
+    crs: outcomes.length,
+    created: outcomes.reduce((n, cr) => n + count(cr['created_tasks']), 0),
+    archived: outcomes.reduce((n, cr) => n + count(cr['archived_tasks']), 0),
+    defaulted: outcomes.some((cr) => cr['actions_source'] === 'default'),
+  };
+}
+
+/** 토스트에 붙이는 한 문장 — 만든 작업 수(0 이어도 적는다), 보관했으면 그 수, 기본값이었으면 그 사실 */
+export function crOutcomeText(t: Translator, sum: CrOutcomeSum): string {
+  const parts = [t('cr.result.created', { n: sum.created })];
+  if (sum.archived > 0) parts.push(t('cr.result.archived', { n: sum.archived }));
+  if (sum.defaulted) parts.push(t('cr.result.default'));
+  return parts.join(' ');
+}
+
+/** 토스트 문장 끝에 붙인다 — 변경 요청이 아니면 그대로다 */
+export function withCrOutcome(t: Translator, message: string, results: readonly unknown[]): string {
+  const sum = crOutcomeSum(results);
+  return sum === null ? message : `${message} ${crOutcomeText(t, sum)}`;
 }

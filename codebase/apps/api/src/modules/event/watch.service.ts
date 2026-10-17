@@ -231,6 +231,55 @@ export class WatchService {
   }
 
   /**
+   * EP-NTF-18 — **핀 순서를 바꾼다**(2026-10-17 · 사람 결정 · 권장안 A · REQ-API-358). `ids` 는 바라는 순서다(위가 먼저).
+   *
+   * **보낸 핀들이 지금 차지한 자리만 서로 바꾼다.** 화면(퀵 스위처)은 지금 조직 · 지금 멤버인 프로젝트의 핀만 보이므로, 보내지 않은
+   * 핀을 뒤로 밀면 다른 조직의 핀이 보이지 않는 사이 끝으로 내려간다. 그 자리들을 오름차순으로 모아 보낸 순서대로 다시 나눠 준다 —
+   * 보내지 않은 핀은 자리 그대로다. 핀을 더하는 쪽(`addPin`)과 같은 사람별 잠금을 잡아 동시에 옮기고 더해도 자리가 섞이지 않는다.
+   * 남의 핀 · 없는 핀이 하나라도 있으면 아무것도 바꾸지 않고 409 `not_found` 다(`pins` 에 그 id).
+   */
+  async reorderPins(input: {
+    userId: string;
+    ids: readonly string[];
+  }): Promise<{ items: Record<string, unknown>[] }> {
+    const ids = input.ids.map((raw) => ({ raw, id: entityRef(raw).id }));
+    const unknownOf = (found: ReadonlySet<string>): string[] =>
+      ids.filter((x) => x.id === null || !found.has(x.id)).map((x) => x.raw);
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`pin:${input.userId}`}))`);
+      const known = ids.flatMap((x) => (x.id === null ? [] : [x.id]));
+      const { rows } =
+        known.length === 0
+          ? { rows: [] as { id: string; position: number }[] }
+          : await tx.execute<{ id: string; position: number }>(sql`
+              SELECT id, position FROM pin
+               WHERE user_id = ${input.userId}
+                 AND id IN (${sql.join(
+                   known.map((id) => sql`${id}::uuid`),
+                   sql`, `,
+                 )})
+            `);
+      const missing = unknownOf(new Set(rows.map((r) => r.id)));
+      if (missing.length > 0) {
+        throw new NervError(NERV_ERROR.PRECONDITION, msg('error.pin.order_unknown'), {
+          kind: 'not_found',
+          pins: missing,
+        });
+      }
+      const slots = rows.map((r) => r.position).sort((a, b) => a - b);
+      await tx.execute(sql`
+        UPDATE pin AS x SET position = v.position
+          FROM (VALUES ${sql.join(
+            known.map((id, i) => sql`(${id}::uuid, ${slots[i]}::int)`),
+            sql`, `,
+          )}) AS v(id, position)
+         WHERE x.id = v.id AND x.user_id = ${input.userId} AND x.position <> v.position
+      `);
+    });
+    return this.listPins({ userId: input.userId });
+  }
+
+  /**
    * EP-NTF-17 — **브라우저의 핀을 옮긴다**(REQ-API-345). 웹이 처음 한 번 localStorage 의 핀을 보낸다. 받은 순서대로 **지금 서버의
    * 핀 아래에** 둔다 — 서버에 이미 있는 핀은 다른 기기에서 더 나중에 고른 것이다. 이미 고정한 것 · 찾지 못한 것 · 내가 속하지 않은
    * 프로젝트의 것 · 상한을 넘은 것은 건너뛰고 까닭과 함께 돌려준다 — 한 줄이 틀려도 나머지는 옮긴다(옮긴 뒤 브라우저는 지운다).

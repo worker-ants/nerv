@@ -262,6 +262,8 @@ export async function branchWaivers(
       FROM approval a
  LEFT JOIN "user" u ON u.id = a.decided_by_user_id
      WHERE a.project_id = ${input.projectId} AND a.is_bypass AND a.branch = ${input.branch}
+       -- 끝낸 면제는 세지 않는다(2026-10-17 · REQ-API-357) — 끝낸 뒤의 판정부터다
+       AND a.revoked_at IS NULL
        AND ${commitFilter}
      ORDER BY a.decided_at DESC, a.id DESC
   `);

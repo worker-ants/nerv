@@ -12,6 +12,7 @@ import { useApiError } from '../../lib/api-errors.js';
 import { queryKeys } from '../../lib/query-keys.js';
 import type { Row } from '../../lib/queries.js';
 import { useRealtime } from '../../lib/realtime.js';
+import { withCrOutcome } from '../../lib/cr-plan.js';
 import { Button, Textarea } from '../../components/ui/primitives.js';
 import { ScopeBadge } from '../../components/scope-badge.js';
 import { bulkBlockText } from './approval-card.js';
@@ -23,6 +24,8 @@ export interface BulkResult {
   ok: boolean;
   kind?: string | null;
   message?: string;
+  /** 이 결정이 확정한 변경 요청과 그때 한 일 — 한 건 결정과 같은 모양(2026-10-17 · REQ-API-359) */
+  change_request?: Record<string, unknown>;
 }
 
 export type BulkDecision = 'approve' | 'reject';
@@ -80,11 +83,24 @@ export function useBulkDecision(onDone: (failures: Map<string, CardFailure>) => 
       pushToast(
         result.failed === 0
           ? // 결재 처리 트레일 — 한 건씩 결정할 때와 같은 3분이다(REQ-WEB-197)
-            { tone: 'ok', kind: 'trail', message: t('inbox.bulk.done', { n: result.decided }) }
+            // 변경 요청을 확정한 승인이 있으면 만든 작업 수를 합쳐 적는다(2026-10-17 · REQ-WEB-339)
+            {
+              tone: 'ok',
+              kind: 'trail',
+              message: withCrOutcome(
+                t,
+                t('inbox.bulk.done', { n: result.decided }),
+                result.results,
+              ),
+            }
           : {
               tone: 'warn',
               kind: 'trail',
-              message: t('inbox.bulk.partial', { n: result.decided, failed: result.failed }),
+              message: withCrOutcome(
+                t,
+                t('inbox.bulk.partial', { n: result.decided, failed: result.failed }),
+                result.results,
+              ),
             },
       );
     },

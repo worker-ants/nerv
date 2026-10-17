@@ -575,6 +575,76 @@ describe('리뷰 면제 (REQ-WEB-299)', () => {
     expect(screen.queryByTestId('review-waiver-no-role')).toBeNull();
   });
 
+  it('끝낸 면제는 끝낸 기록과 함께 남고 그 종류를 다시 고를 수 있다 (2026-10-17 · REQ-WEB-336)', async () => {
+    requireKinds();
+    detail = task({
+      status: 'in_progress',
+      review_waivers: [
+        {
+          id: 'w1',
+          kinds: ['code'],
+          reason: '코드 산출물 없음',
+          at: '2026-10-09T01:00:00Z',
+          by_name: '나',
+          by_user_id: ME,
+          void_kinds: [],
+          revoked_at: '2026-10-17T01:00:00Z',
+          revoked_by_name: '지민',
+          revoke_reason: 'code 리뷰를 받기로 했다',
+        },
+      ],
+    });
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    const line = await screen.findByTestId('review-waiver');
+    expect(line.getAttribute('data-revoked')).toBe('true');
+    expect(within(line).getByTestId('waiver-revoked').textContent).toContain(
+      'code 리뷰를 받기로 했다',
+    );
+    // 이미 끝낸 면제에는 단추가 없고, 그 종류는 다시 면제할 수 있다
+    expect(within(line).queryByTestId('waiver-revoke')).toBeNull();
+    fireEvent.click(await screen.findByTestId('review-waiver-open'));
+    expect(screen.getByTestId('review-waiver-kind-code')).toBeTruthy();
+  });
+
+  it('낸 사람은 그 줄에서 사유와 함께 면제를 끝낸다 — 남의 면제에는 단추가 없다', async () => {
+    requireKinds();
+    detail = task({
+      status: 'in_progress',
+      review_waivers: [
+        {
+          id: 'w-mine',
+          kinds: ['code'],
+          reason: '코드 산출물 없음',
+          at: '2026-10-09T01:00:00Z',
+          by_name: '나',
+          by_user_id: ME,
+          void_kinds: [],
+        },
+        {
+          id: 'w-theirs',
+          kinds: ['consistency'],
+          reason: '스펙 변경 없음',
+          at: '2026-10-09T02:00:00Z',
+          by_name: '지민',
+          by_user_id: 'someone-else',
+          void_kinds: [],
+        },
+      ],
+    });
+    reply = { approval_id: 'w-mine' };
+    renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');
+    await screen.findAllByTestId('review-waiver');
+    expect(screen.getAllByTestId('waiver-revoke')).toHaveLength(1);
+    fireEvent.click(screen.getByTestId('waiver-revoke'));
+    fireEvent.change(await screen.findByTestId('waiver-revoke-reason'), {
+      target: { value: 'code 리뷰를 받는다' },
+    });
+    fireEvent.click(screen.getByTestId('waiver-revoke-confirm'));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({ method: 'POST', body: { reason: 'code 리뷰를 받는다' } });
+    expect(posted[0]?.url).toContain('/projects/clemvion/gates/bypass/w-mine/revoke');
+  });
+
   it('완료 조건이 종류 목록이 아니면 면제 입력을 그리지 않는다', async () => {
     detail = task({ status: 'in_progress' });
     renderAt('/p/clemvion/tasks/CLV-T-AAAAAA');

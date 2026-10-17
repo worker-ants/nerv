@@ -428,6 +428,13 @@
       "when": 1792212198737,
       "tag": "0060_slack_channel",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1792224784808,
+      "tag": "0061_bypass_revoke",
+      "breakpoints": true
     }
   ]
 }

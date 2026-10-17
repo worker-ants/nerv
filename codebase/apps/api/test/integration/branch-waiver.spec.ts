@@ -5,9 +5,13 @@
 // 붙어 그 브랜치를 넘길 길이 없었다. 면제가 브랜치를 받고, 게이트 판정이 리뷰가 없는 (브랜치 · 종류)를 `waived` 로 통과시키며,
 // 게이트 현황(EP-REV-04)이 그 브랜치 줄을 만든다. 경계를 실제 Postgres 로 본다 — 커밋 한정 · 다른 커밋 · 리뷰가 있는 종류 ·
 // 역할 · 입력 검증 · 게이트 현황 줄.
+//
+// 면제 끝내기(2026-10-17 · 사람 결정 · api.md REQ-API-357 · database.md REQ-DB-055)도 여기서 본다 — 끝낸 면제는 그 뒤의 판정이
+// 세지 않고, 결재 행은 끝낸 기록과 함께 남으며, 낸 사람이나 admin 만 끝낸다.
 
 import { NERV_ERROR, newId } from '@nerv/schema';
 import { runMigrations } from '@nerv/schema/migrate';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -15,6 +19,7 @@ import { createApp } from '../../src/main.js';
 import { DEFAULT_ORIGIN } from '../../src/common/origins.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { ApprovalService } from '../../src/modules/approval/approval.service.js';
+import { NotificationService } from '../../src/modules/event/notification.service.js';
 import { ReviewService } from '../../src/modules/review/review.service.js';
 import { TaskService } from '../../src/modules/task/task.service.js';
 import { createScratchDb } from './helpers.js';
@@ -509,5 +514,240 @@ describe('EP-REV-04 게이트 현황 — 면제한 브랜치의 줄 (REQ-API-341
     expect(board.items.find((r) => r['branch'] === 'feat/legacy')!['bypasses']).toEqual([
       expect.objectContaining({ bypass_reason: '핫픽스 배포 — 사후 리뷰 예약', kinds: null }),
     ]);
+  });
+});
+
+describe('EP-APR-09 — 면제 끝내기 (REQ-API-357 · REQ-DB-055)', () => {
+  /** 서비스로 면제를 끝낸다 — 기본은 그 면제를 낸 사람(규아 · developer)이다 */
+  const revoke = (
+    approvalId: string,
+    over: { by?: string; roles?: string[]; isAgent?: boolean; reason?: string } = {},
+  ): Promise<unknown> =>
+    app
+      .get(ApprovalService)
+      .revokeBypass({
+        projectId,
+        approvalId,
+        userId: over.by ?? userId,
+        reason: over.reason ?? '리뷰를 받기로 했다',
+        actor: { userId: over.by ?? userId, isAgent: over.isAgent === true },
+        roles: over.roles ?? ['developer'],
+      })
+      .catch((e: unknown) => e);
+  const idOf = (res: unknown): string => String((res as Record<string, unknown>)['approval_id']);
+
+  beforeEach(async () => {
+    await pool.query('DELETE FROM notification_batch_event');
+    await pool.query('DELETE FROM notification');
+  });
+
+  it('끝낸 면제는 그 뒤의 게이트 판정이 세지 않는다 — 결재 행은 남고 끝낸 사람 · 시각 · 사유가 붙는다', async () => {
+    const id = idOf(await waive({ kinds: ['code'], roles: ['developer'] }));
+    expect(stateOf(await check('&kind=code'), 'code')).toBe('waived');
+
+    const res = (await revoke(id)) as Record<string, unknown>;
+    expect(res).toMatchObject({
+      approval_id: id,
+      revoked_by_user_id: userId,
+      revoke_reason: '리뷰를 받기로 했다',
+      branch: BRANCH,
+      head_sha: null,
+      kinds: ['code'],
+      task_key: null,
+    });
+    expect(res['unchanged']).toBeUndefined();
+    expect(Number.isNaN(Date.parse(String(res['revoked_at'])))).toBe(false);
+    expect(stateOf(await check('&kind=code'), 'code')).toBe('uncovered');
+
+    // 지우지 않는다 — 면제의 기록은 그대로이고 끝낸 기록이 더해진다
+    const { rows } = await pool.query(
+      `SELECT is_bypass, decision::text AS decision, bypass_reason, revoked_by_user_id, revoke_reason,
+              revoked_at IS NOT NULL AS revoked
+         FROM approval WHERE id = $1`,
+      [id],
+    );
+    expect(rows[0]).toEqual({
+      is_bypass: true,
+      decision: 'approve',
+      bypass_reason: 'README 만 고친 브랜치다',
+      revoked_by_user_id: userId,
+      revoke_reason: '리뷰를 받기로 했다',
+      revoked: true,
+    });
+    const { rows: ev } = await pool.query(
+      `SELECT subject_type, subject_id, payload FROM event
+        WHERE type = 'gate.bypass_revoked' AND subject_id = $1`,
+      [id],
+    );
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ subject_type: 'approval', subject_id: id });
+    expect(ev[0].payload).toMatchObject({
+      reason: '리뷰를 받기로 했다',
+      branch: BRANCH,
+      head_sha: null,
+      kinds: ['code'],
+      waiver_by_user_id: userId,
+      // 스스로 끝냈다 — 알릴 사람이 없다
+      notify_user_ids: [],
+    });
+  });
+
+  it('다른 면제가 남아 있으면 그것이 판정을 넘긴다 — 끝낸 것만 빠진다', async () => {
+    await waive({ kinds: ['code'], roles: ['developer'], reason: '첫 사유' });
+    const later = idOf(await waive({ kinds: ['code'], roles: ['developer'], reason: '나중 사유' }));
+    await revoke(later);
+    const code = (await check('&kind=code')).find((i) => i.kind === 'code')!;
+    expect(code.state).toBe('waived');
+    expect(code.waiver?.reason).toBe('첫 사유');
+  });
+
+  it('낸 사람이나 admin 만 끝낸다 — admin 이 끝내면 낸 사람에게 high 알림이 간다', async () => {
+    const id = idOf(await waive({ kinds: ['code'], roles: ['developer'] }));
+    for (const roles of [['developer'], ['planner']]) {
+      expect(await revoke(id, { by: humanId, roles })).toMatchObject({
+        code: NERV_ERROR.FORBIDDEN,
+        details: { kind: 'revoke_forbidden', approval_id: id },
+      });
+    }
+    // 낸 사람도 면제를 낼 수 있는 역할을 잃었으면 끝내지 못한다
+    expect(await revoke(id, { roles: ['qa'] })).toMatchObject({
+      details: { kind: 'revoke_forbidden' },
+    });
+    expect(
+      (await pool.query(`SELECT revoked_at FROM approval WHERE id = $1`, [id])).rows[0].revoked_at,
+    ).toBeNull();
+
+    expect(await revoke(id, { by: humanId, roles: ['admin'] })).toMatchObject({
+      revoked_by_user_id: humanId,
+    });
+    const { rows: ev } = await pool.query(
+      `SELECT payload FROM event WHERE type = 'gate.bypass_revoked' AND subject_id = $1`,
+      [id],
+    );
+    expect(ev[0].payload).toMatchObject({ waiver_by_user_id: userId, notify_user_ids: [userId] });
+    await new NotificationService(drizzle(pool)).route();
+    const { rows: got } = await pool.query(
+      `SELECT n.user_id, n.importance::text AS importance FROM notification n
+         JOIN event e ON e.id = n.event_id
+        WHERE e.type = 'gate.bypass_revoked' AND e.subject_id = $1`,
+      [id],
+    );
+    // high 등급은 바로 오는 알림(`immediate`)이다 — 요약에 묶이지 않는다
+    expect(got).toEqual([{ user_id: userId, importance: 'immediate' }]);
+  });
+
+  it('스스로 끝내면 아무에게도 알리지 않는다', async () => {
+    const id = idOf(await waive({ kinds: ['code'], roles: ['developer'] }));
+    await revoke(id);
+    await new NotificationService(drizzle(pool)).route();
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM notification n
+         JOIN event e ON e.id = n.event_id
+        WHERE e.type = 'gate.bypass_revoked' AND e.subject_id = $1`,
+      [id],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  it('사유가 필요하고 에이전트는 끝내지 못한다 — 없는 면제 · 면제가 아닌 결재는 not_found 다', async () => {
+    const id = idOf(await waive({ kinds: ['code'], roles: ['developer'] }));
+    expect(await revoke(id, { reason: '   ' })).toMatchObject({
+      code: NERV_ERROR.PRECONDITION,
+      details: { kind: 'revoke_reason_required' },
+    });
+    expect(await revoke(id, { isAgent: true })).toMatchObject({ code: NERV_ERROR.HUMAN_ONLY });
+    expect(await revoke('not-a-uuid')).toMatchObject({ details: { kind: 'not_found' } });
+    expect(await revoke(newId())).toMatchObject({ details: { kind: 'not_found' } });
+    const plan = newId();
+    await pool.query(
+      `INSERT INTO approval (id, project_id, subject_type, subject_id, requested_by_user_id)
+       VALUES ($1,$2,'plan',$3,$4)`,
+      [plan, projectId, newId(), userId],
+    );
+    expect(await revoke(plan, { roles: ['admin'] })).toMatchObject({
+      details: { kind: 'not_found' },
+    });
+    expect(
+      (await pool.query(`SELECT count(*)::int AS n FROM approval WHERE revoked_at IS NOT NULL`))
+        .rows[0].n,
+    ).toBe(0);
+  });
+
+  it('이미 끝낸 면제는 처음 기록을 덮지 않는다 — `unchanged` 이고 이벤트를 다시 내지 않는다', async () => {
+    const id = idOf(await waive({ kinds: ['code'], roles: ['developer'] }));
+    const first = (await revoke(id, { reason: '처음 사유' })) as Record<string, unknown>;
+    const again = (await revoke(id, {
+      by: humanId,
+      roles: ['admin'],
+      reason: '다른 사유',
+    })) as Record<string, unknown>;
+    expect(again).toMatchObject({
+      unchanged: true,
+      revoked_by_user_id: userId,
+      revoke_reason: '처음 사유',
+      revoked_at: first['revoked_at'],
+    });
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM event WHERE type = 'gate.bypass_revoked' AND subject_id = $1`,
+      [id],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  it('게이트 현황은 끝낸 면제를 끝낸 기록과 함께 그 줄에 남긴다 — 낸 사람 id 도 준다', async () => {
+    const id = idOf(await waive({ kinds: ['code'], roles: ['developer'] }));
+    await revoke(id);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/projects/clemvion/gates/reviews',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const row = (JSON.parse(res.body) as { items: Record<string, unknown>[] }).items.find(
+      (r) => r['branch'] === BRANCH,
+    )!;
+    expect(row['bypasses']).toEqual([
+      expect.objectContaining({
+        id,
+        by_user_id: userId,
+        revoked_by_name: '규아',
+        revoke_reason: '리뷰를 받기로 했다',
+        revoked_at: expect.any(String),
+      }),
+    ]);
+  });
+
+  it('REST — 사람의 세션으로 끝내고 200 을 준다 · 사유가 없으면 400 · 토큰은 막는다', async () => {
+    const made = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects/clemvion/gates/bypass',
+      headers: { cookie, origin: DEFAULT_ORIGIN, 'content-type': 'application/json' },
+      payload: { branch: BRANCH, kinds: ['code'], reason: 'README 만' },
+    });
+    expect(made.statusCode).toBe(201);
+    const id = String(made.json()['approval_id']);
+    const url = `/api/v1/projects/clemvion/gates/bypass/${id}/revoke`;
+    const blank = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie, origin: DEFAULT_ORIGIN, 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(blank.statusCode).toBe(400);
+    const byToken = await app.inject({
+      method: 'POST',
+      url,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { reason: '토큰으로' },
+    });
+    expect(byToken.statusCode).toBe(403);
+    const ok = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie, origin: DEFAULT_ORIGIN, 'content-type': 'application/json' },
+      payload: { reason: '리뷰를 받는다' },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ approval_id: id, revoked_by_user_id: humanId });
+    expect(stateOf(await check('&kind=code'), 'code')).toBe('uncovered');
   });
 });
