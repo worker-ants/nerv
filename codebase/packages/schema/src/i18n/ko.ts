@@ -1955,6 +1955,9 @@ export const ko = {
   'project.recent_events': '최근 활동',
   // ── 스펙 목록·검색 (screens.md §2.4) ──────────────────────────────────────────
   'specs.archived_badge': '보관됨',
+  // 고정한 문서의 ★(2026-10-17 · 사람 결정 · REQ-WEB-337) — 읽기 전용 표시다
+  'specs.pinned': '고정한 문서',
+  'specs.pinned_hint': '퀵 스위처(⌘K)에 고정한 문서입니다. 고정과 해제는 퀵 스위처에서 합니다.',
   'specs.back_to_tree': '전체 트리로',
   'specs.collapse': '접기',
   'specs.degraded': '의미 검색이 잠시 꺼져 있어 키워드 검색 결과만 보여 줍니다.',

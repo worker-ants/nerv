@@ -4,6 +4,7 @@
 // 스스로 갱신해야 하는데, 그 판단이 화면마다 흩어지면 어떤 화면은 조용히 멈춘 채로 남는다.
 
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import type { UseQueryResult, UseInfiniteQueryResult, InfiniteData } from '@tanstack/react-query';
 import { apiFetch } from './api.js';
 import type { GraphEdge, GraphNode } from '../features/spec-graph/graph.js';
@@ -355,13 +356,31 @@ export function useMyWatches(project?: string | null): UseQueryResult<{ items: R
   });
 }
 
-/** **내 핀**(EP-NTF-14 · REQ-WEB-329) — 퀵 스위처가 열릴 때만 부른다 */
+/** **내 핀**(EP-NTF-14 · REQ-WEB-329) — 퀵 스위처가 열릴 때와 스펙 트리 · 표가 ★를 그릴 때 부른다(같은 쿼리 키 하나) */
 export function useMyPins(enabled: boolean): UseQueryResult<{ items: Row[] }> {
   return useQuery({
     queryKey: queryKeys.myPins(),
     queryFn: () => apiFetch<{ items: Row[] }>('/me/pins'),
     enabled,
   });
+}
+
+/**
+ * **이 프로젝트에서 내가 고정한 문서의 키**(2026-10-17 사람 결정 · REQ-WEB-337) — 스펙 트리 · 표가 제목 옆에 ★를 그린다.
+ * 핀은 사람마다 프로젝트를 넘는 한 목록이라(EP-NTF-14) 이 프로젝트의 스펙 핀만 고른다. 받기 전 · 실패하면 빈 집합이다 —
+ * ★는 표시일 뿐이라 없다고 그려도 아무것도 막지 않는다
+ */
+export function usePinnedSpecKeys(projectSlug: string): ReadonlySet<string> {
+  const pins = useMyPins(true);
+  return useMemo(
+    () =>
+      new Set(
+        rows(pins.data?.items)
+          .filter((p) => p['target_type'] === 'spec' && p['project_slug'] === projectSlug)
+          .map((p) => String(p['key'] ?? '')),
+      ),
+    [pins.data, projectSlug],
+  );
 }
 
 export function useNotificationScopes(): UseQueryResult<{

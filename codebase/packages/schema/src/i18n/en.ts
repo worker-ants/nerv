@@ -1974,6 +1974,8 @@ export const en = {
   'project.recent_events': 'Recent activity',
   // ── 스펙 목록·검색 (screens.md §2.4) ──────────────────────────────────────────
   'specs.archived_badge': 'Archived',
+  'specs.pinned': 'Pinned',
+  'specs.pinned_hint': 'Pinned in the quick switcher (⌘K). Pin and unpin there.',
   'specs.back_to_tree': 'Back to the tree',
   'specs.collapse': 'Collapse',
   'specs.degraded': 'Semantic search is temporarily off. Showing keyword results only.',
