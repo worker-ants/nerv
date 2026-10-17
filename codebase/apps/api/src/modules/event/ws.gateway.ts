@@ -37,6 +37,11 @@ interface NervSocket {
     /** 연결의 ID — 앞문이 업그레이드 요청에 실은 `X-Request-Id`(ws-log.ts) */
     requestId?: string;
     connectedAt?: number;
+    /**
+     * 핸드셰이크 인증이 끝나면 풀린다. 연결 직후 보낸 `join` 은 인증보다 먼저 도착할 수 있어서 판정 전에 이것을
+     * 기다린다 — 기다리지 않던 동안 그 `join` 은 `principal` 이 아직 없어 UNAUTHENTICATED 로 거절됐다(2026-10-17).
+     */
+    ready?: Promise<void>;
   };
 }
 
@@ -68,6 +73,13 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 미인증 브라우저 탭 하나가 API 를 크래시 루프에 빠뜨렸다(실측).
    */
   async handleConnection(socket: NervSocket): Promise<void> {
+    // 첫 await 전에 건다 — 메시지 처리는 다음 틱부터라 그 전에 `join` 이 이 약속을 볼 수 있다
+    socket.data.ready = this.authenticate(socket);
+    await socket.data.ready;
+  }
+
+  /** 핸드셰이크 인증 본체 — 던지지 않는다(실패는 거절 이벤트와 끊기로 끝난다) */
+  private async authenticate(socket: NervSocket): Promise<void> {
     socket.data.requestId = requestIdFrom(
       socket.handshake.headers['x-request-id'],
       socket.handshake.headers['cf-ray'],
@@ -135,6 +147,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() body: { room?: string },
     @ConnectedSocket() socket: NervSocket,
   ): Promise<JoinAck> {
+    await socket.data.ready;
     const principal = socket.data.principal;
     const rooms = socket.data.rooms;
     if (principal === undefined || rooms === undefined) {
