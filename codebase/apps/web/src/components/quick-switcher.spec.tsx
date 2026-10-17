@@ -179,6 +179,18 @@ describe('핀 — 자주 가는 곳은 밀려나지 않는다 (05 · REQ-WEB-329
           ];
           return { ok: true, status: 200, json: async () => ({ created: true }) };
         }
+        if (path === '/me/pins/order' && method === 'PUT') {
+          // 보낸 핀들이 차지한 자리만 서로 바꾼다 — 서버(EP-NTF-18)와 같은 규칙
+          const ids = (body as { ids: string[] }).ids;
+          const slots = serverPins.flatMap((p, i) => (ids.includes(String(p['id'])) ? [i] : []));
+          const byId = new Map(serverPins.map((p) => [String(p['id']), p]));
+          const next = [...serverPins];
+          slots.forEach((slot, k) => {
+            next[slot] = byId.get(ids[k]!)!;
+          });
+          serverPins = next;
+          return { ok: true, status: 200, json: async () => ({ items: serverPins }) };
+        }
         if (path.startsWith('/me/pins/') && method === 'DELETE') {
           const id = decodeURIComponent(path.slice('/me/pins/'.length));
           serverPins = serverPins.filter((p) => p['id'] !== id);
@@ -284,6 +296,59 @@ describe('핀 — 자주 가는 곳은 밀려나지 않는다 (05 · REQ-WEB-329
       expect(titles[0]).toContain('매일 여는 것');
       expect(titles[1]).toContain('오래된 것');
     });
+  });
+
+  // 핀 순서 바꾸기(2026-10-17 · 사람 결정 · REQ-WEB-338) — 키보드로 끝난다
+  async function openWithPins(): Promise<HTMLElement> {
+    serverPins = [
+      serverPin('SPC-A', '첫째'),
+      serverPin('SPC-B', '둘째'),
+      serverPin('SPC-C', '셋째'),
+    ];
+    renderApp();
+    await screen.findByText('NERV');
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const dialog = await screen.findByTestId('quick-switcher');
+    await waitFor(() =>
+      expect(within(dialog).getByTestId('switcher-group-pinned').textContent).toContain('셋째'),
+    );
+    return dialog;
+  }
+  const pinnedTitles = (dialog: HTMLElement): string[] =>
+    [
+      ...within(dialog).getByTestId('switcher-group-pinned').querySelectorAll('[role="option"]'),
+    ].map((o) => o.textContent ?? '');
+
+  it('⌥↓ 는 고른 핀을 한 칸 내리고 그 순서를 서버에 보낸다 — 커서가 그 핀을 따라간다', async () => {
+    const dialog = await openWithPins();
+    const input = within(dialog).getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true });
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'PUT',
+        path: '/me/pins/order',
+        body: { ids: ['pin-SPC-B', 'pin-SPC-A', 'pin-SPC-C'] },
+      }),
+    );
+    await waitFor(() => expect(pinnedTitles(dialog)[0]).toContain('둘째'));
+    expect(pinnedTitles(dialog)[1]).toContain('첫째');
+    const selected = dialog.querySelector('[role="option"][aria-selected="true"]');
+    expect(selected?.textContent).toContain('첫째');
+    // ⌥↑ 로 되돌린다
+    fireEvent.keyDown(input, { key: 'ArrowUp', altKey: true });
+    await waitFor(() => expect(pinnedTitles(dialog)[0]).toContain('첫째'));
+  });
+
+  it('끝에서는 더 가지 않는다 — 맨 위의 ⌥↑ 는 아무것도 보내지 않는다', async () => {
+    const dialog = await openWithPins();
+    fireEvent.keyDown(within(dialog).getByRole('combobox'), { key: 'ArrowUp', altKey: true });
+    expect(calls.some((c) => c.path === '/me/pins/order')).toBe(false);
+    expect(pinnedTitles(dialog)[0]).toContain('첫째');
+  });
+
+  it('고정 무리가 있으면 바닥에 순서 바꾸는 키를 적는다', async () => {
+    const dialog = await openWithPins();
+    expect(within(dialog).getByTestId('switcher-key-reorder').textContent).toBe('⌥↑↓ 고정 순서');
   });
 
   it('한 번 더 누르면 풀린다 — 켜는 길과 끄는 길이 같은 자리다', async () => {

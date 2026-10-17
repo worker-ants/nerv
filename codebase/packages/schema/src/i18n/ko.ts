@@ -140,6 +140,11 @@ export const ko = {
   'error.pin.target_not_found': '고정할 대상({target})을 이 프로젝트에서 찾지 못했습니다.',
   'error.pin.not_found': '찾을 수 없는 핀입니다. 이미 풀었거나 다른 사람의 핀입니다.',
   'error.pin.limit': '핀은 {max}개까지 고정할 수 있습니다. 쓰지 않는 핀을 먼저 푸세요.',
+  // 핀 순서 바꾸기(2026-10-17 · 사람 결정 · REQ-API-358)
+  'error.pin.order_duplicate':
+    '같은 핀이 순서에 두 번 들어 있습니다. 핀마다 한 번씩만 적어 주세요.',
+  'error.pin.order_unknown':
+    '순서에 내 핀이 아닌 것이 들어 있습니다. 목록을 다시 읽은 뒤 옮기세요.',
   // 범위를 고른 리뷰 면제(2026-10-09 · REQ-API-274)
   'error.approval.bypass_kind_forbidden':
     '이 역할로는 {kinds} 리뷰를 면제할 수 없습니다. 코드 계열(code · merge)은 developer · admin이, 스펙 계열(consistency · spec_coverage)은 planner · admin이 면제합니다.',
@@ -2737,6 +2742,8 @@ export const ko = {
   'switcher.key_close': 'Esc 닫기',
   'switcher.key_move': '↑↓ 이동',
   'switcher.key_open': '↵ 열기',
+  // 핀 순서 바꾸기(2026-10-17 · 사람 결정 · REQ-WEB-338)
+  'switcher.key_reorder': '⌥↑↓ 고정 순서',
   'switcher.label': '빠른 이동',
   'switcher.no_results': '결과가 없습니다. 다른 검색어로 찾아보세요.',
   'switcher.pin': '목록 위에 고정',

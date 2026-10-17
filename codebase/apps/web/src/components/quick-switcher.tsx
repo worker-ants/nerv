@@ -309,6 +309,30 @@ export function QuickSwitcher({
     onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.myPins() }),
   });
 
+  /**
+   * **핀 순서를 바꾼다**(2026-10-17 · 사람 결정 · REQ-WEB-338 · EP-NTF-18). 보낸 핀들이 지금 차지한 자리만 서로 바꾸는 것이
+   * 서버의 규칙이고, 캐시도 같은 규칙으로 먼저 고친다 — 이 창에 보이지 않는 핀(다른 조직)의 자리는 그대로다
+   */
+  const pinOrder = useMutation({
+    mutationFn: (ids: string[]) =>
+      apiFetch<{ items: Row[] }>('/me/pins/order', { method: 'PUT', body: { ids } }),
+    onMutate: (ids) => {
+      queryClient.setQueryData<{ items: Row[] }>(queryKeys.myPins(), (prev) => {
+        const list = prev?.items ?? [];
+        const byId = new Map(list.map((r) => [String(r['id']), r]));
+        const slots = list.flatMap((r, i) => (ids.includes(String(r['id'])) ? [i] : []));
+        const next = [...list];
+        slots.forEach((slot, k) => {
+          const moved = byId.get(ids[k] ?? '');
+          if (moved !== undefined) next[slot] = moved;
+        });
+        return { items: next };
+      });
+    },
+    onError: onApiError,
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.myPins() }),
+  });
+
   const isPinned = (hit: SwitcherHit): boolean => pins.some((p) => sameHit(p, hit));
   const q = query.trim().toLowerCase();
 
@@ -566,6 +590,24 @@ export function QuickSwitcher({
     projects: t('switcher.group.projects'),
   };
   const optionId = (index: number): string => `${listId}-opt-${index}`;
+  /**
+   * 고른 핀을 고정 무리 안에서 한 칸 옮긴다(⌥↑ · ⌥↓ — REQ-WEB-338). 고정 무리는 입력이 비었을 때 맨 앞이다. 끝에서는 더 가지 않고,
+   * 아직 서버에 없는 핀(방금 고정해 답을 기다리는 줄)이 섞여 있으면 옮기지 않는다 — 보낼 id 가 없다
+   */
+  const movePin = (delta: -1 | 1): void => {
+    const item = items[cursor];
+    if (item?.group !== 'pinned') return;
+    const pinned = items.filter((i) => i.group === 'pinned');
+    const from = pinned.indexOf(item);
+    const to = from + delta;
+    if (to < 0 || to >= pinned.length) return;
+    const ids = pinned.map((i) => String((i.hit as { pin_id?: string } | undefined)?.pin_id ?? ''));
+    if (ids.some((id) => id === '' || id.startsWith('pending-'))) return;
+    [ids[from], ids[to]] = [ids[to]!, ids[from]!];
+    pinOrder.mutate(ids);
+    setCursor(cursor + delta);
+  };
+  const showsPins = items.some((i) => i.group === 'pinned');
   const groups: { group: Group; entries: { item: PaletteItem; index: number }[] }[] = [];
   items.forEach((item, index) => {
     const last = groups[groups.length - 1];
@@ -604,6 +646,12 @@ export function QuickSwitcher({
           }}
           onKeyDown={(e) => {
             // 키보드로 완결한다 — 마우스 없이 검색·이동이 끝나야 한다(§1.3a)
+            // ⌥↑ · ⌥↓ 는 고른 핀의 순서를 바꾼다(2026-10-17 · REQ-WEB-338) — 커서도 그 핀을 따라간다
+            if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+              e.preventDefault();
+              movePin(e.key === 'ArrowUp' ? -1 : 1);
+              return;
+            }
             if (e.key === 'ArrowDown') {
               e.preventDefault();
               setCursor((c) => Math.min(c + 1, items.length - 1));
@@ -719,6 +767,7 @@ export function QuickSwitcher({
           <span>{t('switcher.key_move')}</span>
           <span>{t('switcher.key_open')}</span>
           <span>{t('switcher.key_close')}</span>
+          {showsPins && <span data-testid="switcher-key-reorder">{t('switcher.key_reorder')}</span>}
         </p>
       </div>
     </div>

@@ -132,6 +132,9 @@ export const en = {
   'error.pin.target_not_found': 'Could not find {target} in this project to pin.',
   'error.pin.not_found': 'No such pin. It was already removed or belongs to someone else.',
   'error.pin.limit': 'You can pin up to {max} items. Unpin ones you no longer use first.',
+  'error.pin.order_duplicate': 'The same pin appears twice in the order. List each pin once.',
+  'error.pin.order_unknown':
+    'The order includes something that is not your pin. Reload the list and move it again.',
   'error.approval.bypass_kind_forbidden':
     'Your role cannot waive {kinds} reviews. Code reviews (code · merge) are waived by a developer or an admin, spec reviews (consistency · spec_coverage) by a planner or an admin.',
   'error.approval.bypass_unscoped_forbidden':
@@ -2765,6 +2768,7 @@ export const en = {
   'switcher.key_close': 'Esc close',
   'switcher.key_move': '↑↓ move',
   'switcher.key_open': '↵ open',
+  'switcher.key_reorder': '⌥↑↓ reorder pins',
   'switcher.label': 'Quick switcher',
   'switcher.no_results': 'No results. Try different keywords.',
   'switcher.pin': 'Pin to the top',
