@@ -66,6 +66,7 @@ import type { SummaryMetric } from '../../components/ui/primitives.js';
 import { asProjectId } from '../../lib/query-keys.js';
 import type { ProjectId } from '../../lib/query-keys.js';
 import { ArchivedLane } from './archived-lane.js';
+import { LaneNavGutter, laneFadeMask, useLaneOverflow } from './lane-nav.js';
 import { boardFilters } from './board-search.js';
 import type { TaskBoardSearch } from './board-search.js';
 
@@ -238,6 +239,13 @@ export function TaskBoard(): React.JSX.Element {
   ];
   /** 빈 ready 레인의 다음 걸음 — 막힌 것을 풀거나 백로그를 채운다(screens.md §2.5 빈 상태) */
   const lanesRef = useRef<HTMLDivElement>(null);
+  // 화면 밖 레인을 알린다(REQ-WEB-340) — 레인 구성이 바뀌면 다시 센다
+  const laneNav = useLaneOverflow(
+    lanesRef,
+    `${lanes.join(',')}|${showArchivedTasks ? 'archived' : ''}`,
+  );
+  const laneLabel = (lane: string): string =>
+    lane === 'archived' ? t('tasks.lane.archived') : t(statusLabelKey('task', lane));
   const scrollToLane = (lane: string): void => {
     const el = lanesRef.current?.querySelector(`[data-testid="column-${lane}"]`);
     if (el instanceof HTMLElement) el.scrollIntoView?.({ block: 'nearest', inline: 'start' });
@@ -384,20 +392,43 @@ export function TaskBoard(): React.JSX.Element {
           (`sr-only` — `position: absolute`)는 가장 가까운 위치 잡힌 조상을 기준으로 서는데, 이 상자가 그것이
           아니면 기준은 `body` 가 되고 `overflow-x-auto` 가 그 글자를 자르지 못한다 — 폰 폭에서 화면 밖 레인의
           글자가 문서를 가로로 806px 밀었다 */}
-      <div ref={lanesRef} className="relative -mx-6 flex gap-5 overflow-x-auto px-6 pb-2">
-        {lanes.map((lane) => (
-          <Lane
-            key={lane}
-            proj={proj}
-            projectId={id}
-            lane={lane}
-            includeArchived={showArchived}
-            filters={filters}
-            controls={controls}
-            {...(lane === 'ready' ? { readyEmpty } : {})}
-          />
-        ))}
-        {showArchivedTasks && <ArchivedLane proj={proj} projectId={id} filters={filters} />}
+      {/* **넘친 레인은 양 끝에서 알린다**(2026-10-23 사람 결정 · REQ-WEB-340). 레인 묶음은 원래 페이지 여백까지
+          넓혀(`-mx-6 px-6`) 화면 끝까지 밀렸다. 이제 그 여백이 이동 단추 자리이고 레인은 본문 폭 안에서만
+          스크롤한다. `scroll-px-10` 은 흐림 폭(`LANE_FADE_PX` 40px)과 같다 — [막힘 N건 보기]로 옮긴 레인이 흐림
+          밑에 놓이지 않게 한다 */}
+      <div className="-mx-6 flex">
+        <LaneNavGutter
+          side="before"
+          hidden={laneNav.hidden.before}
+          labelOf={laneLabel}
+          onMove={() => laneNav.scrollTo('before')}
+        />
+        <div
+          ref={lanesRef}
+          data-testid="board-lanes"
+          className="relative flex min-w-0 flex-1 scroll-px-10 gap-5 overflow-x-auto pb-2"
+          style={{ maskImage: laneFadeMask(laneNav.hidden) }}
+        >
+          {lanes.map((lane) => (
+            <Lane
+              key={lane}
+              proj={proj}
+              projectId={id}
+              lane={lane}
+              includeArchived={showArchived}
+              filters={filters}
+              controls={controls}
+              {...(lane === 'ready' ? { readyEmpty } : {})}
+            />
+          ))}
+          {showArchivedTasks && <ArchivedLane proj={proj} projectId={id} filters={filters} />}
+        </div>
+        <LaneNavGutter
+          side="after"
+          hidden={laneNav.hidden.after}
+          labelOf={laneLabel}
+          onMove={() => laneNav.scrollTo('after')}
+        />
       </div>
     </PageBody>
   );
@@ -606,6 +637,7 @@ function Lane({
   return (
     <section
       data-testid={`column-${lane}`}
+      data-lane={lane}
       className={cn(
         'flex w-67 shrink-0 flex-col',
         halted && 'rounded-nerv bg-status-danger-soft/30 p-2',

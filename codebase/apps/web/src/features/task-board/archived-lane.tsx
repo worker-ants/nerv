@@ -48,7 +48,11 @@ export function ArchivedLane({
   const items = query.data?.items ?? [];
   const more = query.data?.next_cursor != null;
   return (
-    <section data-testid="column-archived" className="flex w-67 shrink-0 flex-col">
+    <section
+      data-testid="column-archived"
+      data-lane="archived"
+      className="flex w-67 shrink-0 flex-col"
+    >
       <h3 className="mb-2 flex items-center gap-2 text-sm font-medium text-text-mute">
         {t('tasks.lane.archived')}
         <span className="tabular-nums text-text-faint">

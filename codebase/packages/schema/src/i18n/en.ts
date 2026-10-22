@@ -2291,6 +2291,8 @@ export const en = {
   'tasks.filter.archived_tasks_title': 'Show tasks archived as not to be done, in their own lane',
   'tasks.lane.archived': 'Archived',
   'tasks.archived.empty': 'No archived tasks',
+  'tasks.lane_nav.before': 'Scroll left. Hidden lanes: {lanes}',
+  'tasks.lane_nav.after': 'Scroll right. Hidden lanes: {lanes}',
   'tasks.filter.archived_title': 'Also show tasks completed more than {days} days ago',
   'tasks.more': 'Load more',
   'tasks.lease': 'lease {remaining}',
