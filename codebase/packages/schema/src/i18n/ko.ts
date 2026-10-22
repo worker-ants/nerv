@@ -2273,6 +2273,9 @@ export const ko = {
   'tasks.filter.archived_tasks_title': '진행하지 않기로 보관한 작업을 따로 보여 줍니다',
   'tasks.lane.archived': '보관함',
   'tasks.archived.empty': '보관한 작업이 없습니다',
+  // 가로로 넘친 레인의 이동 단추(REQ-WEB-340) — 보조기기가 읽는 이름이다. 화면에는 화살표와 레인 이름만 보인다
+  'tasks.lane_nav.before': '왼쪽 레인으로 이동. 가려진 레인: {lanes}',
+  'tasks.lane_nav.after': '오른쪽 레인으로 이동. 가려진 레인: {lanes}',
   'tasks.filter.archived_title': '완료된 지 {days}일이 지난 작업도 보여 줍니다',
   'tasks.more': '더 보기',
   'tasks.lease': '남은 시간 {remaining}',

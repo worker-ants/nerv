@@ -186,3 +186,61 @@ describe('막힘 사유는 사람 말이다 (REQ-WEB-143)', () => {
     expect(document.body.textContent).not.toContain('blocked.');
   });
 });
+
+// 2026-10-23 — 레인 일곱 칸이 화면 폭을 넘어도 그 사실을 알 단서가 없었다(사람 보고). jsdom 은 배치를 계산하지
+// 않으므로 레인 치수를 268px · 간격 20px · 보이는 폭 1000px 로 정해 두고, 보드가 레인을 세고 단추를 연결했는지만
+// 본다. 어느 레인이 가려졌는지의 계산은 `features/task-board/lane-nav.spec.ts` 가 본다.
+describe('넘친 레인 알리기 (REQ-WEB-340)', () => {
+  const stubs: [object, string][] = [];
+  const stub = (proto: object, name: string, get: (el: HTMLElement) => number): void => {
+    Object.defineProperty(proto, name, {
+      configurable: true,
+      get(this: HTMLElement) {
+        return get(this);
+      },
+    });
+    stubs.push([proto, name]);
+  };
+  const laneIndex = (el: HTMLElement): number =>
+    Array.from(el.parentElement?.children ?? [])
+      .filter((c) => c instanceof HTMLElement && c.dataset['lane'] !== undefined)
+      .indexOf(el);
+  const isScroller = (el: HTMLElement): boolean => el.dataset['testid'] === 'board-lanes';
+  let scrolled: ScrollToOptions[] = [];
+
+  beforeEach(() => {
+    scrolled = [];
+    stub(HTMLElement.prototype, 'offsetLeft', (el) =>
+      el.dataset['lane'] === undefined ? 0 : laneIndex(el) * 288,
+    );
+    stub(HTMLElement.prototype, 'offsetWidth', (el) =>
+      el.dataset['lane'] === undefined ? 0 : 268,
+    );
+    stub(HTMLElement.prototype, 'clientWidth', (el) => (isScroller(el) ? 1000 : 0));
+    stub(HTMLElement.prototype, 'scrollWidth', (el) =>
+      isScroller(el) ? el.querySelectorAll(':scope > [data-lane]').length * 288 - 20 : 0,
+    );
+    (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo = function (o: ScrollToOptions) {
+      scrolled.push(o);
+    };
+  });
+  afterEach(() => {
+    for (const [proto, name] of stubs.splice(0)) delete (proto as Record<string, unknown>)[name];
+    delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
+  });
+
+  it('오른쪽에 가려진 레인이 있으면 단추가 그 이름을 읽고, 왼쪽 단추는 없다', async () => {
+    await renderBoard();
+    const after = await screen.findByTestId('lane-nav-after');
+    expect(after.getAttribute('aria-label')).toBe(
+      '오른쪽 레인으로 이동. 가려진 레인: 맡음, 진행 중, 검토 중, 완료',
+    );
+    expect(screen.queryByTestId('lane-nav-before')).toBeNull();
+  });
+
+  it('단추를 누르면 레인 하나만큼 민다 — 맡음이 흐림 밖으로 온전히 들어온다', async () => {
+    await renderBoard();
+    fireEvent.click(await screen.findByTestId('lane-nav-after'));
+    expect(scrolled.map((o) => o.left)).toEqual([864 + 268 - 1000 + 40]);
+  });
+});

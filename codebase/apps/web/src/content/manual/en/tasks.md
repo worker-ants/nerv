@@ -66,6 +66,8 @@ Board cards and the task screen show the reason **using those four names**. A re
 
 **Lanes do not load all their cards at once.** A `+` after a lane's count means the lane has more cards. At the bottom of the lane, **+N more** expands the cards that are already loaded, and **Load more** fetches the next batch. This way you can read even a long lane to the end, such as Done with Show archived turned on. **When the Ready lane is empty**, it shows what to do next: **See N blocked** (goes to the Blocked lane) and **Fill in N backlog tasks** (goes to the Backlog lane, and turns on Show backlog if it is off).
 
+**When the lanes don't fit on the screen, the edges show it.** The side with hidden lanes fades out, and a **‹** or **›** button appears in the page margin on that side. Each click moves the board by one lane. Hover over a button to see the names of the lanes hidden on that side. You can also swipe on a trackpad, or hold `Shift` and turn the mouse wheel. The buttons stay at the top of the lane area as you scroll down the page. On a narrow screen such as a phone, there are no buttons, so swipe to move between lanes.
+
 ## The task screen opens over the board {#task-sheet}
 
 Clicking a card opens the task **in a sheet on the right side of the board**. The board stays open behind it. Your filters, collapsed lanes, and expanded "+N more" lists stay as they were, and clicking another card behind the sheet switches the sheet to that task. On a narrow screen, the sheet covers the whole screen.

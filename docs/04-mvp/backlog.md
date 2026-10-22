@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v3.27 · 2026-10-17 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v3.28 · 2026-10-23 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v3.28 변경(2026-10-23 — 넘친 레인 알리기, **사람 결정**(2026-10-23)): §1.4 셋째 표에 한 줄. 스토리 없는 구현이다. 스토리 수 · `done` 수는 그대로다([4.5 화면 명세](screens.md) REQ-WEB-340).
 >
 > v3.27 변경(2026-10-17 — 승인 토스트의 만든 작업 수, **사람 결정**(2026-10-17 — 권장안 A)): §1.4 셋째 표에 한 줄. 스토리 없는 구현이다 — E19-S01(CR 제안)은 `done` 그대로이고 합계도 그대로다([4.4 API](api.md) REQ-API-359 · [4.5 화면 명세](screens.md) REQ-WEB-339).
 
@@ -1033,6 +1035,7 @@ referenced_by:
 | 스펙 목록 · 트리의 ★ | 웹 `lib/queries.ts`(`usePinnedSpecKeys` — 내 핀 가운데 이 프로젝트의 문서 핀) · `components/pin-mark.tsx`(신설 — 읽기 전용 ★ · 「고정한 문서」) · `components/spec-tree.tsx`(트리 줄 — 목록 · 사이드바) · `features/spec-graph/table.tsx`(표의 제목 칸) · 문구 `specs.pinned` · `specs.pinned_hint` · L1 `specs-pin-mark.spec.tsx` · 매뉴얼 ko · en(단축키) | E17-S02 가 핀을 서버로 옮길 때 「핀은 스펙 목록 · 트리에도 ★로 표기한다」는 명세의 문장이 구현 없이 남았다(screens §1.3a 「아직 없다」). 표기만 하고 고정 · 해제는 퀵 스위처에 둔다 — 줄마다 단추를 두면 트리의 링크와 겹친다(2026-10-17 · 사람 결정 · 권장안 A · [4.5 화면 명세](screens.md) REQ-WEB-337) |
 | 핀 순서 바꾸기 | `@nerv/schema` `zod/review.ts`(`PinOrderInput` — 같은 id 두 번은 400) · `apps/api/src/modules/event/watch.service.ts`(`reorderPins` — 보낸 핀들이 차지한 자리만 서로 바꾼다 · `addPin` 과 같은 사람별 잠금) · `event.controller.ts`(EP-NTF-18) · 웹 `components/quick-switcher.tsx`(`movePin` · ⌥↑ · ⌥↓ · 캐시를 같은 규칙으로 먼저 고친다 · 바닥 안내 `switcher.key_reorder`) · L2 `watch-pin.spec.ts` 4건 · L1 `quick-switcher.spec.tsx` 3건 · 매뉴얼 ko · en(단축키) | 핀은 「새 핀이 맨 위」 하나뿐이라 순서를 바꾸려면 풀었다가 다시 고정해야 했다(E17-S02). 화면은 지금 조직의 핀만 보이므로 보내지 않은 핀을 뒤로 밀지 않고 보낸 핀들의 자리만 서로 바꾼다(2026-10-17 · 사람 결정 · 권장안 A · [4.4 API](api.md) REQ-API-358 · [4.5 화면 명세](screens.md) REQ-WEB-338) |
 | 승인 토스트의 만든 작업 수 · CR 상세의 출처 | `apps/api/src/modules/approval/approval.service.ts`(일괄 결정 · 일괄 바로 승인의 항목에 `change_request`) · `spec/change-request.service.ts`(CR 상세 `outcome.actions_source`) · 웹 `lib/cr-plan.ts`(`crOutcomeSum` · `crOutcomeText` · `withCrOutcome` — 다섯 자리가 같은 문장) · `features/inbox/approval-card.tsx` · `bulk-decision.tsx` · `features/spec-editor/draft-approve-bar.tsx` · `routes/p.$proj/specs.$spec.tsx` · `routes/p.$proj/crs.$cr.tsx`(토스트 · 출처 줄) · 문구 `cr.result.*` · L2 `change-request.spec.ts` · L1 `cr-plan.spec.ts` · `change-request.spec.tsx` · `inbox-bulk.spec.tsx` · 매뉴얼 ko · en(받은 요청 · 스펙) | 승인이 CR 제안의 기본값을 적용한 뒤에도(REQ-API-351) 화면은 그때 만든 작업을 알리지 않았고, 일괄 두 응답에는 그 칸이 없었으며 CR 상세는 고른 것인지 기본값인지를 주지 않았다(2026-10-17 · 사람 결정 · 권장안 A · [4.4 API](api.md) REQ-API-359 · [4.5 화면 명세](screens.md) REQ-WEB-339) |
+| 넘친 레인 알리기 | 웹 `features/task-board/lane-nav.tsx`(신설 — 가려진 레인 세기 · 한 번에 레인 하나 · 흐림 `mask-image` · 페이지 여백의 이동 단추와 상단 고정) · `board.tsx`(레인 묶음을 본문 폭 안으로 · `scroll-px-10`) · `archived-lane.tsx`(`data-lane`) · 문구 `tasks.lane_nav.*` · L1 `lane-nav.spec.ts` · `task-board-lanes.spec.tsx` 둘 · 매뉴얼 ko · en(작업) | 레인이 화면 폭을 넘어도 그 사실을 알 단서가 없어 오른쪽에 레인이 더 있는 줄 모르는 사람이 있었다(2026-10-23 · 사람 결정 · [4.5 화면 명세](screens.md) REQ-WEB-340) |
 
 #### 이 절은 언제 갱신되는가
 
