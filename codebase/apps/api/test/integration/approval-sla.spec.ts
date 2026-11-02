@@ -318,6 +318,8 @@ describe('결재 만료 — 7일 (REQ-API-304)', () => {
     await ageRound(versionId, 8);
     // 지난 라운드의 리마인더(qa 자리의 2회째 · 사흘 전) — 다시 낸 라운드에서 세지 않아야 한다
     const qaSlot = (await slots(versionId)).find((slot) => slot.role === 'qa')!;
+    // `event` 는 월 파티션이고 0000 은 이번 달 · 다음 달만 만든다. 달 초(2026-11-02 CI)에는 사흘 전이 지난달이다
+    await pool.query(`SELECT nerv_ensure_month_partitions((now() - interval '3 days')::date)`);
     await pool.query(
       `INSERT INTO event (id, project_id, type, subject_type, subject_id, payload, occurred_at)
        VALUES ($1,$2,$3,'approval',$4,'{"level":2}'::jsonb, now() - interval '3 days')`,

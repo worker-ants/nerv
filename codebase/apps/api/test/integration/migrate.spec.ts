@@ -523,6 +523,8 @@ describe('0038 — 쌓여 있는 안 읽은 보통 알림을 묶음으로 접는
       const result = await withClient(fresh.url, async (client) => {
         const { userId, projectId } = await seedTenancy(client);
         const [specA, specB, specC] = [randomUUID(), randomUUID(), randomUUID()];
+        // `event` 는 월 파티션이고 0000 은 이번 달 · 다음 달만 만든다. 매달 1일에는 하루 전이 지난달이다
+        await client.query(`SELECT nerv_ensure_month_partitions((now() - interval '1 day')::date)`);
         let minute = 0;
         const notify = async (
           type: string,

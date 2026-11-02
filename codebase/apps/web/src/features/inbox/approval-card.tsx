@@ -892,7 +892,11 @@ export function ApprovalCard({
           {/* **선택지는 누를 수 있어야 한다.** 에이전트가 그대로 실행 가능한 답 2~4개를
               만들어 보내는데(skills/question §절차 1) 화면이 자유 서술 상자 하나로만
               받으면, 구조화한 쪽의 노력이 사라지고 재해석 드리프트가 되돌아온다.
-              아래 답변 칸은 남긴다 — 고르는 것과 함께 덧붙일 말이 있을 수 있다 */}
+              아래 답변 칸은 남긴다. 고르면서 덧붙일 말이 있을 수 있다.
+              **선택지는 문장일 때가 많다**(2026-11-02 · REQ-WEB-341). 단추 높이가 한 줄 높이로 고정돼 있어
+              둘째 줄부터 단추 밖으로 넘쳤고, 위의 출처 링크와 아래 선택지를 덮었다. 높이는 글 길이에 맞추고
+              (한 줄이면 전과 같은 27px) 여러 줄은 왼쪽으로 정렬한다. `min-w-0` 은 긴 식별자가 카드 폭을
+              넘지 않게 한다 */}
           {isQuestion && options.length > 0 && (
             <div data-testid="question-options" className="mt-2 flex flex-wrap gap-2">
               {options.map((option) => (
@@ -900,6 +904,7 @@ export function ApprovalCard({
                   key={option}
                   size="sm"
                   variant="subtle"
+                  className="h-auto min-h-control-sm min-w-0 py-0.5 text-left"
                   disabled={busy}
                   onClick={() => hold({ kind: 'answer', choice: option, comment })}
                 >

@@ -935,6 +935,11 @@ describe('보존 — 지우기 전에 접는다 (REQ-API-067)', () => {
     }
     await new RetentionJob(drizzle(pool)).run();
 
+    // 첫 판이 빈 달 파티션을 드랍했을 수 있다(REQ-DB-047). 달 초(2026-11-02 CI)에는 95일 전이 든 달도
+    // 끝이 보존 기간 밖이라 지워져 둘째 판을 넣을 곳이 없었다. 운영에서는 그 행이 들어올 때 그 달이 현재였다
+    await pool.query(
+      `SELECT nerv_ensure_month_partitions(date_trunc('month', now() - make_interval(days => 95))::date)`,
+    );
     // 둘째 판 — 그 사이 또 다른 활동이 컷오프를 넘었다(같은 도구 이름)
     for (const i of [3, 4, 5]) {
       await pool.query(
