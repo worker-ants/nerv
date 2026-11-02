@@ -205,6 +205,23 @@ describe('질문의 선택지는 누를 수 있어야 한다', () => {
     expect(answer?.body).toMatchObject({ answer_key: 'B — 감점 가중' });
   });
 
+  // 2026-11-02 · REQ-WEB-341 — 높이를 한 줄로 고정한 단추에 문장 선택지가 들어가 둘째 줄부터 단추 밖으로 넘쳤고,
+  // 위의 출처 링크와 아래 선택지를 덮었다. jsdom 은 배치를 계산하지 않으므로 높이 · 정렬을 정하는 클래스를 본다
+  it('긴 선택지는 단추가 글 높이만큼 늘어나고 왼쪽으로 정렬된다', () => {
+    const long =
+      '(추천) 엔진 위상 정렬 순서를 그대로 쓴다. 끝나는 노드가 둘 이상이면 노드 ID 순서로 정해지고 그래프를 고치면 바뀔 수 있다고 스펙 · 가이드에 적는다';
+    renderCard({ ...card, options: [long, '끝나는 노드들의 출력을 배열로 담는다'] });
+    for (const name of [long, '끝나는 노드들의 출력을 배열로 담는다']) {
+      const classes = screen.getByRole('button', { name }).className.split(/\s+/);
+      expect(classes).toContain('h-auto');
+      expect(classes).not.toContain('h-control-sm');
+      // 한 줄 선택지의 높이는 전과 같다 — 짧은 선택지만 있는 카드의 모양은 바뀌지 않는다
+      expect(classes).toContain('min-h-control-sm');
+      expect(classes).toContain('text-left');
+      expect(classes).toContain('min-w-0');
+    }
+  });
+
   it('선택지가 없으면 버튼 줄도 없다 — 빈 줄은 고를 것이 있다는 거짓말이다', () => {
     renderCard({ ...card, options: [] });
     expect(screen.queryByTestId('question-options')).toBeNull();
