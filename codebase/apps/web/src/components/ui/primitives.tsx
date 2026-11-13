@@ -154,7 +154,9 @@ export function EmptyState({
       </span>
       <p className="text-sm text-text-mute">{title}</p>
       {hint !== undefined && <p className="text-xs text-text-faint">{hint}</p>}
-      {action !== null && <div className="mt-2">{action}</div>}
+      {/* 상자 폭을 넘지 않는다(2026-11-13 · REQ-WEB-342) — `items-center` 의 자식은 내용 폭을 따라 넓어지므로
+          줄바꿈하지 않는 긴 글(말줄임 줄)이 들면 상자 밖으로 나갔다 */}
+      {action !== null && <div className="mt-2 max-w-full">{action}</div>}
     </div>
   );
 }

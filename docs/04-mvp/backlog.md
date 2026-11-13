@@ -26,7 +26,9 @@ referenced_by:
 
 > **요약** — MVP(Phase 0 PoC + Phase 1)의 구현 백로그를 에픽 14개·스토리 76개로 확정하고 2026-10-15 착수한 Phase 2를 에픽 8개(E15~E22)·스토리 25개로 더한다. [3.7 로드맵](../03-proposal/roadmap.md)의 Phase 배분과 성공 기준(0-1~0-8 · 1-1~1-11)을 그대로 상위 근거로 삼고, 모든 스토리는 근거 문서 링크와 EARS 수용 기준·의존 스토리를 갖는다. Phase 0는 저장소 부트스트랩(E01)부터 spec 임포터 v0(E07 — 프로파일 엔진 · 임포트 API 표면 · CLI)까지, Phase 1은 웹 화면(E08)부터 운영·연동(E14)까지다. 스파이크 5종(실시간 게이트웨이 PoC(WS + SSE · Valkey) · TipTap md 왕복 · drizzle 마이그레이션 파이프라인 · MCP 리비전 병행 서빙 · 임베딩 서빙·하이브리드 검색)과 확인·실측 태스크 2종(운영 Postgres 위치 · 훅 헤더 `${NERV_TOKEN}` 확장)은 E06에 두어 아키텍처 리스크를 첫 2주 안에 태운다. §5는 로드맵 성공 기준을 재현 절차로 바꾼 E2E 수용 시나리오 6종이고 §6은 Phase 2 에픽과 착수 순서(네 묶음)다.
 >
-> 문서 버전 v3.30 · 2026-11-13 · HTML 파생본: [backlog.html](../html/backlog.html)
+> 문서 버전 v3.31 · 2026-11-13 · HTML 파생본: [backlog.html](../html/backlog.html)
+>
+> v3.31 변경(2026-11-13 — 최근 처리 셋의 폭, 사람 보고): §1.4 셋째 표에 한 줄. 스토리 없는 구현이다. 스토리 수 · `done` 수는 그대로다([4.5 화면 명세](screens.md) REQ-WEB-342).
 >
 > v3.30 변경(2026-11-13 — 응답이 방송을 기다리지 않음, 사람 보고): §1.4 셋째 표에 한 줄. 스토리 없는 구현이다. 스토리 수 · `done` 수는 그대로다([4.2 코드베이스](codebase.md) REQ-CB-064).
 >
@@ -1042,6 +1044,7 @@ referenced_by:
 | 넘친 레인 알리기 | 웹 `features/task-board/lane-nav.tsx`(신설 — 가려진 레인 세기 · 한 번에 레인 하나 · 흐림 `mask-image` · 페이지 여백의 이동 단추와 상단 고정) · `board.tsx`(레인 묶음을 본문 폭 안으로 · `scroll-px-10`) · `archived-lane.tsx`(`data-lane`) · 문구 `tasks.lane_nav.*` · L1 `lane-nav.spec.ts` · `task-board-lanes.spec.tsx` 둘 · 매뉴얼 ko · en(작업) | 레인이 화면 폭을 넘어도 그 사실을 알 단서가 없어 오른쪽에 레인이 더 있는 줄 모르는 사람이 있었다(2026-10-23 · 사람 결정 · [4.5 화면 명세](screens.md) REQ-WEB-340) |
 | 긴 질문 선택지의 줄바꿈 | 웹 `features/inbox/approval-card.tsx`(선택지 단추 — `h-auto` · `min-h-control-sm` · `text-left` · `min-w-0`) · L1 `decision-rules.spec.tsx` 하나 | 두 줄이 넘는 선택지의 글이 단추 밖으로 넘쳐 출처 링크와 다음 선택지를 덮었다(2026-11-02 · 사람 보고 · [4.5 화면 명세](screens.md) REQ-WEB-341) |
 | 응답이 방송을 기다리지 않음 | `apps/api/src/modules/event/event.service.ts`(`transact()` — 커밋 뒤 발행을 `void` 로 낸다) · `notification.service.ts`(`announce` 도 같다) · L2 `event-broadcast.spec.ts`(접속 거부 Valkey 에서 이벤트 열 건의 트랜잭션이 기다리지 않고 돌아온다 · 실패 수는 뒤에 센다) | 커밋 뒤 방송이 봉투마다 발행을 await 해서(시한 1초) Valkey 가 끊기면 응답이 이벤트 수 × 1초만큼 늦었다. 이벤트 10건인 변경 요청 승인이 9.3초였다(2026-11-13 · 사람 보고 · [4.2 코드베이스](codebase.md) REQ-CB-064) |
+| 최근 처리 셋의 폭 | 웹 `components/ui/primitives.tsx`(`EmptyState` 다음 행동 칸 `max-w-full`) · `routes/inbox.tsx`(`RecentDecided` 와 그 목록 `max-w-full`) · L1 `dead-ends.spec.tsx` 하나 | 대기가 비었을 때 보이는 최근 처리 셋이 가장 긴 제목만큼 넓어져 빈 상자 양옆으로 넘쳤다(2026-11-13 · 사람 보고 · [4.5 화면 명세](screens.md) REQ-WEB-342) |
 
 #### 이 절은 언제 갱신되는가
 
