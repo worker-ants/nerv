@@ -451,6 +451,9 @@ export class NotificationService {
    * 알림인가" 를 알아야 어느 화면을 다시 읽을지 정할 수 있다.
    *
    * 실패는 삼킨다. 알림 행은 이미 DB 에 있고 화면은 재조회로 그것을 본다(D-14).
+   *
+   * **기다리지 않는다**(2026-11-13 · REQ-CB-064) — 알림 파생은 이벤트마다 이것을 부르므로, 기다리면
+   * Valkey 가 끊긴 동안 이벤트 수 × 1초만큼 다음 알림이 늦게 만들어진다.
    */
   private async announce(
     event: { id: string; project_id: string; type: string; occurred_at: string },
@@ -472,7 +475,7 @@ export class NotificationService {
       occurred_at: new Date(event.occurred_at).toISOString(),
       recipient_user_ids: recipients,
     };
-    await this.valkey.publish(EVENTS_CHANNEL, JSON.stringify(envelope));
+    void this.valkey.publish(EVENTS_CHANNEL, JSON.stringify(envelope));
   }
 
   /**

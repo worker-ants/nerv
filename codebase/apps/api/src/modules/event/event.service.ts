@@ -68,9 +68,17 @@ export class EventService {
       return fn(tx, emit);
     });
 
-    // 커밋 후 — 여기서 실패해도 요청은 성공이다(유실 허용, D-14)
+    // 커밋 후 — 여기서 실패해도 요청은 성공이다(유실 허용, D-14).
+    //
+    // **방송을 기다리지 않는다**(2026-11-13 · REQ-CB-064). 예전에는 봉투마다 발행을 await 했고 발행 시한이
+    // 1초라, Valkey 가 끊기거나 재연결 중이면 응답이 이벤트 수 × 1초만큼 늦었다. 일회용 Postgres 실측에서
+    // 변경 요청 승인(이벤트 10건)이 정상 38ms → 접속 거부 9.3초 · 닿지 않는 주소 10.1초였다. 결정은 이미
+    // 커밋됐고 방송은 유실을 허용하므로 응답이 방송을 기다릴 까닭이 없다.
+    //
+    // 순서는 지킨다: 발행 명령은 `publish()` 가 처음 await 하기 전에 같은 커넥션에 차례로 들어간다.
+    // `publish()` 는 실패를 삼키므로 이 프로미스는 거부되지 않는다.
     for (const envelope of pending) {
-      await this.broadcast(envelope);
+      void this.broadcast(envelope);
     }
 
     return result;

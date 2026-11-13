@@ -203,10 +203,40 @@ describe('방송 실패는 요청을 깨뜨리지 않는다 (D-14)', () => {
       envelope.id,
     ]);
     expect(rows.rows[0].n).toBe(1);
+    // 방송은 응답 뒤에 실패한다(REQ-CB-064) — 실패가 세어지기를 기다린다
+    await waitFor(() => deadValkey.failureCount > 0, 5000);
     expect(deadValkey.failureCount).toBeGreaterThan(0);
 
     await deadValkey.onApplicationShutdown();
   });
+
+  // **응답은 방송을 기다리지 않는다**(2026-11-13 · REQ-CB-064). 봉투마다 발행을 await 하던 동안 Valkey 가
+  // 접속을 거부하면 이벤트 하나에 1초 가까이 걸렸다 — 변경 요청 승인(이벤트 10건)이 9.3초였다.
+  // 상한은 고치기 전의 한 건(약 0.9초)보다 넉넉히 길고 열 건(약 9초)보다 훨씬 짧다
+  it('Valkey 가 접속을 거부해도 이벤트 열 건의 트랜잭션이 방송을 기다리지 않고 돌아온다', async () => {
+    const deadValkey = new ValkeyService();
+    Object.defineProperty(deadValkey, 'url', { value: 'redis://127.0.0.1:6399' });
+    const isolated = new EventService(drizzle(pool), deadValkey);
+
+    const started = Date.now();
+    await isolated.transact(async (_tx, emit) => {
+      for (let i = 0; i < 10; i += 1) {
+        await emit({
+          type: NERV_EVENT.TASK_UPDATED,
+          projectId,
+          subjectType: 'task',
+          subjectId: newId(),
+        });
+      }
+    });
+    const elapsed = Date.now() - started;
+
+    expect(elapsed).toBeLessThan(3000);
+    await waitFor(() => deadValkey.failureCount >= 10, 15_000);
+    expect(deadValkey.failureCount).toBeGreaterThanOrEqual(10);
+
+    await deadValkey.onApplicationShutdown();
+  }, 30_000);
 });
 
 describe('EventSubscriberService — 파드별 팬아웃', () => {
