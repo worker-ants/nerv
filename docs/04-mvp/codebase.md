@@ -22,7 +22,9 @@ referenced_by:
 
 > **요약** — NERV MVP의 저장소 구조와 배포 산출물의 정본이다. **애플리케이션·패키지 코드 전체를 저장소 `codebase/` 하위에 두는** pnpm 모노레포(`apps/web` · `apps/api` · `apps/cli` · `packages/schema`)와 **저장소 루트의 배포 트리**(`deploy/compose` · `deploy/docker` · `deploy/k8s`)를 확정하고, REST·MCP·WebSocket·SSE·ingest 다섯 표면이 **같은 도메인 서비스를 DI로 주입받는** NestJS 모듈 맵(D-05의 실물)을 그린다. 실시간 팬아웃의 방송 버스는 **Valkey pub/sub**(`nerv_events`)다. 개발 환경은 docker-compose.yml 전문과 `.env` 변수 전표, 명령 순서로 "신규 장비에서 명령 몇 개로 로그인 화면까지" 도달하게 하고, 운영 배포는 Dockerfile 2종·kustomize base/overlays 트리·Deployment/Job/Ingress 스켈레톤(WebSocket 업그레이드·타임아웃, SSE 버퍼링 해제, 워커 replica 1, 마이그레이션 Job)으로 확정한다. 임포터 CLI(`apps/cli`)는 **컨테이너가 아니라 배포되는 클라이언트**다 — 원본 체크아웃이 있는 장비에서 돌며 서버에는 API로만 붙는다(§1.3). 행동 요구는 REQ-CB-001~021로 번호를 부여했다.
 >
-> 문서 버전 v2.33 · 2026-10-17 · HTML 파생본: [codebase.html](../html/codebase.html)
+> 문서 버전 v2.34 · 2026-11-13 · HTML 파생본: [codebase.html](../html/codebase.html)
+>
+> v2.34 변경(2026-11-13 — 응답이 방송을 기다리지 않는다, 사람 보고): **REQ-CB-064 신설.** 승인이 자주 느리다는 보고를 일회용 Postgres 에서 쟀다. DB 처리는 받은 요청 한 쪽 60~125ms · 결정 17~56ms였고, 커밋 뒤 방송이 봉투마다 발행을 await 하는 것(시한 1초)이 원인이었다. Valkey 가 접속을 거부하면 이벤트 10건인 변경 요청 승인이 9.3초, 응답하지 않는 주소면 10.1초 걸렸다. `EventService.transact()` 와 알림 파생의 `notification.created` 방송이 발행을 기다리지 않게 바꿨다. 방송은 원래 유실을 허용하므로(D-14) 계약은 그대로다.
 >
 > v2.33 변경(2026-10-17 — Slack 채널과 S8 연동 탭, Phase 2 묶음 4 · **사람 결정**(2026-10-17 — D1 · D2)): **§2.2 트리 여덟 줄 · §5.2 전표 두 줄.** `modules/slack/`(연결 · 줄 넣기 · 보내기) · `worker/jobs/slack.job.ts` · `common/secret-box.ts`(AES-256-GCM) · `modules/event/handled.ts`(알림 파생과 Slack 이 같은 「이미 처리됐는가」 판정을 쓴다). 전표에 `NERV_ENCRYPTION_KEY`(비면 Slack 이 꺼진다 · 모양이 틀리면 기동 거부)와 `NERV_SLACK_WEBHOOK_PREFIX`(웹훅 접두 — 서버가 아무 주소로나 보내지 않게)를 더했다. compose · k8s(ConfigMap · Secret 예시)도 같은 커밋에서 맞췄다.
 >
@@ -2381,6 +2383,7 @@ spec:
 | --- | --- |
 | **REQ-CB-062** | WHEN `export` 잡이 미러 폴더(`NERV_EXPORT_DIR`)에 승인본 md · `llms.txt` · `manifest.json`(EP-SPEC-14 와 같은 함수) · `requirements.tsv`(EP-REQ-01 과 같은 목록)를 쓰면, THE SYSTEM SHALL 프로젝트마다 `<조직 slug>/<프로젝트 slug>/` 폴더에 쓰고(조직이 다른 같은 slug 의 프로젝트가 한 폴더를 함께 쓰지 않는다) 미러 폴더를 git 저장소로 두며(없으면 만든다) 바뀐 파일과 git 이 추적하던 것 가운데 이번 판이 만들지 않은 파일을 커밋한다 — 바뀐 것이 없으면 커밋하지 않고 추적하지 않는 파일은 건드리지 않는다. 커밋 메시지는 `export(spec): <키>@v<n> approved by <이름>`(새 승인이 없으면 `export(spec): refresh`)이고 작성자는 `NERV_MIRROR_GIT_AUTHOR`(기본 `NERV <nerv@localhost>`)이다. WHILE `NERV_MIRROR_GIT_REMOTE` 가 비어 있는 동안 THE SYSTEM SHALL 로컬 커밋까지만 한다. THE SYSTEM SHALL git 을 인자 배열로만 부르고 사람이 쓴 값을 인자에 넣지 않으며 그 폴더 밖의 저장소에 커밋하지 않는다. WHEN 원격 · 브랜치 · 작성자가 옵션으로 읽히거나 모양이 틀리면 THE SYSTEM SHALL 아무것도 쓰지 않고 잡을 실패시킨다(2026-10-16 · [4.8 백로그](backlog.md) E21-S02) |
 | **REQ-CB-063** | WHEN 원격(`NERV_MIRROR_GIT_REMOTE`)이 설정돼 있으면, THE SYSTEM SHALL push 전에 그 브랜치(`NERV_MIRROR_GIT_BRANCH` · 기본 `main`)를 받아 fast-forward 일 때만 push 하고 강제로 덮어쓰지 않는다. WHEN 원격에 이 저장소에 없는 커밋이 있으면(미러 쪽 편집), THE SYSTEM SHALL push 를 멈추고 그 커밋을 합치지 않으며 그 커밋이 바꾼 프로젝트 폴더(`<조직>/<프로젝트>`)의 프로젝트마다(어느 프로젝트의 폴더도 아니면 내보낸 프로젝트 전부) `mirror.diverged`(원격 · 로컬 · 마지막으로 push 한 커밋 · 남의 커밋 수 — 원격 주소는 넣지 않는다)를 남기고 그 프로젝트의 admin 에게 중요 알림을 보낸다. 같은 원격 커밋에는 다시 남기지 않는다. WHEN 미러 폴더에 아직 커밋이 없으면, THE SYSTEM SHALL 원격의 이력을 이어받아 그 위에 커밋한다([3.7 로드맵](../03-proposal/roadmap.md) §7.4 규칙 1 · §7.6 — 2026-10-16) |
+| **REQ-CB-064** | WHEN 도메인 트랜잭션이 커밋된 뒤 이벤트를 방송할 때, THE SYSTEM SHALL 발행을 기다리지 않고 요청에 응답하며 발행 명령은 커밋된 이벤트 순서대로 낸다. WHILE Valkey 가 접속을 거부하거나 응답하지 않을 때, THE SYSTEM SHALL 요청의 응답 시간이 이벤트 수에 비례해 늘지 않게 하고 실패는 세기만 한다(D-14). 알림 파생이 개인 룸으로 보내는 `notification.created` 도 같다(2026-11-13 사람 보고 · 실측: 이벤트 10건인 변경 요청 승인이 Valkey 정상일 때 38ms, 접속 거부일 때 9.3초였다) |
 
 ### 6.3 Deployment · Job · Ingress 스켈레톤
 
