@@ -273,4 +273,27 @@ describe('빈 상태는 다음 걸음을 싣는다', () => {
     await waitFor(() => expect(within(recent).getAllByRole('listitem')).toHaveLength(3));
     expect(recent.textContent).toContain('문서 1');
   });
+
+  // **긴 제목이 빈 상자 밖으로 나가지 않는다**(2026-11-13 · REQ-WEB-342). 요구사항 문장을 제목으로 쓰는 스펙은
+  // 한 줄이 상자보다 길다. `items-center` 의 자식은 내용 폭을 따라 넓어져 말줄임이 동작하지 않았다 — 목록부터
+  // 빈 상자의 행동 칸까지 폭을 상자 안으로 묶어야 한다. jsdom 은 배치를 계산하지 않으므로 묶는 클래스를 본다
+  // (빌드한 CSS 로 420 · 900 · 1440px 에서 실제 브라우저로 쟀다)
+  it('최근 처리 셋은 빈 상자의 폭 안에 묶인다 — 긴 제목은 말줄임이 된다', async () => {
+    decided = [
+      {
+        id: 'd-long',
+        subject_type: 'spec_version',
+        spec_title: `REQ-TGRAM-033 IF 비활성 트리거로 callback_query 가 오면 ${'아주 긴 문장 '.repeat(20)}`,
+        decision: 'approve',
+      },
+    ];
+    renderAt('/inbox');
+    const recent = await screen.findByTestId('inbox-recent-decided');
+    const item = await within(recent).findByRole('listitem');
+    const chain: HTMLElement[] = [recent.parentElement!, recent, recent.querySelector('ul')!];
+    for (const el of chain) expect(el.className.split(/\s+/)).toContain('max-w-full');
+    expect(item.lastElementChild!.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['min-w-0', 'truncate']),
+    );
+  });
 });

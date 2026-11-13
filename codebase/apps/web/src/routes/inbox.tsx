@@ -754,9 +754,14 @@ function RecentDecided(): React.JSX.Element {
   const decided = useInbox('decided');
   const recent = inboxCards(decided.data).slice(0, 3);
   return (
-    <div data-testid="inbox-recent-decided" className="flex flex-col items-center gap-1.5">
+    // 폭을 상자 안으로 묶어야 제목의 말줄임이 동작한다(2026-11-13 · REQ-WEB-342). 묶지 않으면 목록이 가장
+    // 긴 제목만큼 넓어져 빈 상자 밖으로 나갔다 — 요구사항 문장을 제목으로 쓰는 스펙에서 흔하다
+    <div
+      data-testid="inbox-recent-decided"
+      className="flex max-w-full flex-col items-center gap-1.5"
+    >
       {recent.length > 0 && (
-        <ul className="flex flex-col gap-0.5 text-left text-xs text-text-mute">
+        <ul className="flex max-w-full flex-col gap-0.5 text-left text-xs text-text-mute">
           {recent.map((card) => (
             <li key={String(card['id'])} className="flex items-center gap-2">
               <span className="shrink-0 text-2xs text-text-faint">
